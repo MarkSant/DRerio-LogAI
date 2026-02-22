@@ -318,17 +318,17 @@ class ProjectInitializer:
             return
 
         # Pass wizard data directly to controller (via ProjectWorkflowService)
-        from zebtrack.ui.events import Events
+        from zebtrack.ui.event_bus_v2 import UIEvents
 
-        gui.event_dispatcher.publish_event(Events.PROJECT_CREATE, wizard.result)
+        gui.event_dispatcher.publish_event(UIEvents.PROJECT_CREATE, wizard.result)
 
     def open_project_workflow(self) -> None:
         """Handle the UI part of opening a project, then call the controller."""
-        from zebtrack.ui.events import Events
+        from zebtrack.ui.event_bus_v2 import UIEvents
 
         gui = self.gui
         project_path = gui.ask_directory(title="Selecione uma Pasta de Projeto Existente")
         if not project_path:
             return
 
-        gui.event_dispatcher.publish_event(Events.PROJECT_OPEN, {"project_path": project_path})
+        gui.event_dispatcher.publish_event(UIEvents.PROJECT_OPEN, {"project_path": project_path})

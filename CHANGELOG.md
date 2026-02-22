@@ -11,6 +11,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### 🏗️ Refactoring
 
+#### Phase 4 — EventBus v1 → v2 Complete Migration (February 2026)
+
+- **4.1 Source migration**: Migrated ~50 source files from EventBus v1
+  (queue-based, string-keyed, polled) to EventBusV2 (synchronous dispatch,
+  `UIEvents` enum-keyed, `threading.RLock`-protected). Includes all 19
+  coordinator files, EventDispatcher, MainViewModel, UIScheduler, GUI,
+  UICoordinator, all UI component files, wizard/dialog/service files.
+- **4.2 v1 deletion**: Deleted `src/zebtrack/ui/event_bus.py` (316 lines)
+  and `src/zebtrack/ui/events.py` (315 lines) entirely — no facades,
+  adapters, or bridges. EventBusV2 is the sole event system.
+- **4.3 API unification**: All event publishing uses
+  `bus.publish(Event(type=UIEvents.XXX, data={...}))`. All subscriptions use
+  `bus.subscribe(UIEvents.XXX, handler)`. Removed poll loop from
+  EventDispatcher. BaseCoordinator `_publish_event` wraps v2 API directly.
+- **4.4 UIEvents expansion**: Expanded `UIEvents` enum to ~200+ members
+  organized by domain. Added `EVENT_NAME_TO_UIEVENT` mapping (~160 entries)
+  for migration compatibility.
+- **4.5 Test migration**: Migrated 23 test files; fully rewrote
+  `test_event_bus_phase1.py` and `test_event_bus_migration.py` for v2 API.
+  Fixed publish assertion patterns across coordinator and integration tests.
+- **4.6 Lint cleanup**: Fixed 58 ruff errors (57 E501 + 1 F821) introduced
+  by longer v2 API call signatures.
+- **Validation**: 2679 passed, 12 skipped (baseline: 2678 passed).
+  Ruff: 0 errors.
+
 #### Phase 10 — GUI Shim Layer Removal (February 2026)
 
 - **10.1 Mass shim removal**: Removed ~108 pure delegation shim methods from

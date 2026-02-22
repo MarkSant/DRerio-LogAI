@@ -226,9 +226,9 @@ def main():  # noqa: C901
         # Core infrastructure
         from zebtrack.core.state_manager import StateManager
         from zebtrack.core.ui_scheduler import UIScheduler
-        from zebtrack.ui.event_bus import EventBus
+        from zebtrack.ui.event_bus_v2 import EventBusV2
 
-        event_bus = EventBus()
+        event_bus = EventBusV2()
         state_manager = StateManager(enable_history=True, max_history_size=100)
         ui_coordinator = UIScheduler(root=root, event_bus=event_bus)
 

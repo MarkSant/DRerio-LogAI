@@ -50,7 +50,7 @@ if TYPE_CHECKING:
     from zebtrack.core.ui_scheduler import UIScheduler
     from zebtrack.io.recorder import Recorder
     from zebtrack.settings import Settings
-    from zebtrack.ui.event_bus import EventBus
+    from zebtrack.ui.event_bus_v2 import EventBusV2
 
 from zebtrack.analysis.reporters import (
     ExcelReporter,
@@ -61,7 +61,7 @@ from zebtrack.analysis.reporters import (
 from zebtrack.analysis.roi import ROI, ROIAnalyzer
 from zebtrack.core.detection import ZoneData
 from zebtrack.core.detection.calibration import Calibration
-from zebtrack.ui.events import Events
+from zebtrack.ui.event_bus_v2 import Event, UIEvents
 
 log = structlog.get_logger()
 
@@ -106,7 +106,7 @@ class VideoProcessingService:
         project_manager: ProjectManager,
         state_manager: StateManager,
         ui_coordinator: UIScheduler,
-        ui_event_bus: EventBus,
+        ui_event_bus: EventBusV2,
         cancel_event: threading.Event,
         settings_obj: Settings,
         detector: Detector | None = None,
@@ -247,7 +247,7 @@ class VideoProcessingService:
             video_path: Path to video file
         """
         if frame is not None:
-            self.ui_event_bus.publish_event(Events.UI_DISPLAY_FRAME, {"frame": frame})
+            self.ui_event_bus.publish(Event(type=UIEvents.UI_DISPLAY_FRAME, data={"frame": frame}))
             return
 
         video_path = str(Path(video_path) if isinstance(video_path, str) else video_path)
@@ -256,7 +256,12 @@ class VideoProcessingService:
             cap = cv2.VideoCapture(video_path)
             ret, frame = cap.read()
             if ret:
-                self.ui_event_bus.publish_event(Events.UI_DISPLAY_FRAME, {"frame": frame})
+                self.ui_event_bus.publish(
+                    Event(
+                        type=UIEvents.UI_DISPLAY_FRAME,
+                        data={"frame": frame},
+                    )
+                )
         # except Exception justified: cv2 VideoCapture frame display — poorly-typed errors
         except Exception as exc:
             log.warning("video_processing.frame_display_error", error=str(exc))
@@ -361,27 +366,13 @@ class VideoProcessingService:
         def _publish_error(payload: dict[str, str]) -> None:
             if self.ui_event_bus is None:
                 return
-            publish = getattr(self.ui_event_bus, "publish", None)
-            if callable(publish) and hasattr(publish, "assert_called_once"):
-                publish(payload)
-                return
-            publish_event = getattr(self.ui_event_bus, "publish_event", None)
-            if callable(publish_event):
-                publish_event(Events.UI_SHOW_ERROR, payload)
-                return
-            if callable(publish):
-                try:
-                    from zebtrack.ui.event_bus_v2 import Event, UIEvents
-
-                    publish(
-                        Event(
-                            type=UIEvents.SHOW_ERROR,
-                            data=payload,
-                            source="VideoProcessingService.load_trajectory_dataframe",
-                        )
-                    )
-                except (TypeError, AttributeError):
-                    publish(payload)
+            self.ui_event_bus.publish(
+                Event(
+                    type=UIEvents.SHOW_ERROR,
+                    data=payload,
+                    source="VideoProcessingService.load_trajectory_dataframe",
+                )
+            )
 
         if not trajectory_path.exists():
             _publish_error(
@@ -611,16 +602,20 @@ class VideoProcessingService:
 
         if cancel_requested:
             log.info("controller.tracking.cancelled", video=experiment_id)
-            self.ui_event_bus.publish_event(
-                Events.UI_SET_STATUS,
-                {"message": f"Cancelamento solicitado para {experiment_id}."},
+            self.ui_event_bus.publish(
+                Event(
+                    type=UIEvents.SET_STATUS,
+                    data={"message": f"Cancelamento solicitado para {experiment_id}."},
+                )
             )
             return False, arena_polygon
 
         log.info("controller.tracking.success", path=trajectory_path)
-        self.ui_event_bus.publish_event(
-            Events.UI_SET_STATUS,
-            {"message": f"Trajetória para {experiment_id} gerada."},
+        self.ui_event_bus.publish(
+            Event(
+                type=UIEvents.SET_STATUS,
+                data={"message": f"Trajetória para {experiment_id} gerada."},
+            )
         )
         return True, arena_polygon
 
@@ -660,42 +655,49 @@ class VideoProcessingService:
             step_status = f"Etapa: {status_message}"
 
             # Publish events instead of direct UI calls
-            self.ui_event_bus.publish_event(
-                Events.UI_SET_STATUS, {"message": f"{overall_progress} - {step_status}"}
+            self.ui_event_bus.publish(
+                Event(
+                    type=UIEvents.SET_STATUS,
+                    data={"message": f"{overall_progress} - {step_status}"},
+                )
             )
             # v4.0: Progress is handled by task status or dedicated progress event
-            self.ui_event_bus.publish_event(
-                Events.UI_UPDATE_ANALYSIS_TASK_STATUS,
-                {
-                    "payload": {
-                        "index": index,
-                        "total": total_videos,
-                        "experiment_id": experiment_id,
-                        "step": status_message,
-                        "progress": progress_fraction,
-                    }
-                },
+            self.ui_event_bus.publish(
+                Event(
+                    type=UIEvents.UI_UPDATE_ANALYSIS_TASK_STATUS,
+                    data={
+                        "payload": {
+                            "index": index,
+                            "total": total_videos,
+                            "experiment_id": experiment_id,
+                            "step": status_message,
+                            "progress": progress_fraction,
+                        }
+                    },
+                )
             )
 
             # Publish task status event
-            self.ui_event_bus.publish_event(
-                Events.UI_UPDATE_ANALYSIS_TASK_STATUS,
-                {
-                    "payload": {
-                        "index": index,
-                        "total": total_videos,
-                        "experiment_id": experiment_id,
-                        "step": status_message,
-                        "progress_fraction": float(progress_fraction),
-                    }
-                },
+            self.ui_event_bus.publish(
+                Event(
+                    type=UIEvents.UI_UPDATE_ANALYSIS_TASK_STATUS,
+                    data={
+                        "payload": {
+                            "index": index,
+                            "total": total_videos,
+                            "experiment_id": experiment_id,
+                            "step": status_message,
+                            "progress_fraction": float(progress_fraction),
+                        }
+                    },
+                )
             )
 
             # Publish stats if available
             if stats:
                 if self.ui_event_bus:
-                    self.ui_event_bus.publish_event(
-                        Events.UI_UPDATE_PROCESSING_STATS, {"stats": stats}
+                    self.ui_event_bus.publish(
+                        Event(type=UIEvents.UI_UPDATE_PROCESSING_STATS, data={"stats": stats})
                     )
 
             # Note: processing_report requires access to processing_mode which is in MainViewModel
@@ -711,17 +713,27 @@ class VideoProcessingService:
             # Publish detections if available
             if detections is not None:
                 if self.ui_event_bus:
-                    self.ui_event_bus.publish_event(
-                        Events.UI_UPDATE_DETECTION_OVERLAY,
-                        {"detections": detections, "report": processing_report},
+                    self.ui_event_bus.publish(
+                        Event(
+                            type=UIEvents.UI_UPDATE_DETECTION_OVERLAY,
+                            data={
+                                "detections": detections,
+                                "report": processing_report,
+                            },
+                        )
                     )
 
             # Publish frame for display
             if frame is not None:
                 if self.ui_event_bus:
-                    self.ui_event_bus.publish_event(
-                        Events.UI_DISPLAY_FRAME,
-                        {"frame": frame, "detections": detections or []},
+                    self.ui_event_bus.publish(
+                        Event(
+                            type=UIEvents.UI_DISPLAY_FRAME,
+                            data={
+                                "frame": frame,
+                                "detections": detections or [],
+                            },
+                        )
                     )
 
         return progress_callback
@@ -771,9 +783,11 @@ class VideoProcessingService:
             return True, arena_polygon
 
         log.info("controller.tracking.starting_process", video=experiment_id)
-        self.ui_event_bus.publish_event(
-            Events.UI_SET_STATUS,
-            {"message": f"Iniciando processo para {experiment_id}..."},
+        self.ui_event_bus.publish(
+            Event(
+                type=UIEvents.SET_STATUS,
+                data={"message": f"Iniciando processo para {experiment_id}..."},
+            )
         )
 
         # Prepare Worker Config
@@ -838,9 +852,14 @@ class VideoProcessingService:
             if frame is not None:
                 # Use event bus for frame display to avoid direct view access
                 if self.ui_event_bus:
-                    self.ui_event_bus.publish_event(
-                        Events.UI_DISPLAY_FRAME,
-                        {"frame": frame, "detections": detections or []},
+                    self.ui_event_bus.publish(
+                        Event(
+                            type=UIEvents.UI_DISPLAY_FRAME,
+                            data={
+                                "frame": frame,
+                                "detections": detections or [],
+                            },
+                        )
                     )
 
         def on_video_completed(idx, total, exp_id, success):
@@ -979,8 +998,8 @@ class VideoProcessingService:
         Phase 3: Moved from MainViewModel._schedule_analysis_metadata_update
         """
         if self.ui_event_bus:
-            self.ui_event_bus.publish_event(
-                Events.UI_UPDATE_ANALYSIS_METADATA, {"metadata": metadata}
+            self.ui_event_bus.publish(
+                Event(type=UIEvents.UI_UPDATE_ANALYSIS_METADATA, data={"metadata": metadata})
             )
 
     def _notify_task_status_start(self, *, index: int, total: int, experiment_id: str) -> None:
@@ -989,9 +1008,17 @@ class VideoProcessingService:
         Phase 3: Moved from MainViewModel._notify_task_status_start
         """
         if self.ui_event_bus:
-            self.ui_event_bus.publish_event(
-                Events.UI_UPDATE_ANALYSIS_TASK_STATUS,
-                {"payload": {"index": index, "total": total, "experiment_id": experiment_id}},
+            self.ui_event_bus.publish(
+                Event(
+                    type=UIEvents.UI_UPDATE_ANALYSIS_TASK_STATUS,
+                    data={
+                        "payload": {
+                            "index": index,
+                            "total": total,
+                            "experiment_id": experiment_id,
+                        }
+                    },
+                )
             )
 
     def _snapshot_results_dir(self, results_path: Path) -> set[str]:
@@ -1175,22 +1202,24 @@ class VideoProcessingService:
             # self.ui_coordinator.update_view(
             #     self.view, "update_analysis_progress", progress_fraction, step_status
             # )
-            self.ui_event_bus.publish_event(
-                Events.UI_UPDATE_ANALYSIS_TASK_STATUS,
-                {
-                    "payload": {
-                        "index": index,
-                        "total": total_videos,
-                        "experiment_id": experiment_id,
-                        "step": status_message,
-                    }
-                },
+            self.ui_event_bus.publish(
+                Event(
+                    type=UIEvents.UI_UPDATE_ANALYSIS_TASK_STATUS,
+                    data={
+                        "payload": {
+                            "index": index,
+                            "total": total_videos,
+                            "experiment_id": experiment_id,
+                            "step": status_message,
+                        }
+                    },
+                )
             )
 
             if stats:
                 if self.ui_event_bus:
-                    self.ui_event_bus.publish_event(
-                        Events.UI_UPDATE_PROCESSING_STATS, {"stats": stats}
+                    self.ui_event_bus.publish(
+                        Event(type=UIEvents.UI_UPDATE_PROCESSING_STATS, data={"stats": stats})
                     )
 
             # Note: processing_report requires detector_service which we don't have here
@@ -1205,16 +1234,26 @@ class VideoProcessingService:
 
             if detections is not None:
                 if self.ui_event_bus:
-                    self.ui_event_bus.publish_event(
-                        Events.UI_UPDATE_DETECTION_OVERLAY,
-                        {"detections": detections, "report": processing_report},
+                    self.ui_event_bus.publish(
+                        Event(
+                            type=UIEvents.UI_UPDATE_DETECTION_OVERLAY,
+                            data={
+                                "detections": detections,
+                                "report": processing_report,
+                            },
+                        )
                     )
 
             if frame is not None:
                 if self.ui_event_bus:
-                    self.ui_event_bus.publish_event(
-                        Events.UI_DISPLAY_FRAME,
-                        {"frame": frame, "detections": detections or []},
+                    self.ui_event_bus.publish(
+                        Event(
+                            type=UIEvents.UI_DISPLAY_FRAME,
+                            data={
+                                "frame": frame,
+                                "detections": detections or [],
+                            },
+                        )
                     )
 
         return progress_callback
@@ -1637,8 +1676,11 @@ class VideoProcessingService:
         )
         # Publish event to refresh project views
         if self.ui_event_bus:
-            self.ui_event_bus.publish_event(
-                Events.UI_REFRESH_PROJECT_VIEWS, {"reason": "processing_complete"}
+            self.ui_event_bus.publish(
+                Event(
+                    type=UIEvents.UI_REFRESH_PROJECT_VIEWS,
+                    data={"reason": "processing_complete"},
+                )
             )
 
     def _run_analysis_pipeline(
@@ -1718,12 +1760,14 @@ class VideoProcessingService:
             video_context=video_context,
         )
         if not all([width_cm, height_cm, arena_polygon_px]):
-            self.ui_event_bus.publish_event(
-                Events.UI_SHOW_ERROR,
-                {
-                    "title": "Erro de Processamento",
-                    "message": "Dados de calibração incompletos.",
-                },
+            self.ui_event_bus.publish(
+                Event(
+                    type=UIEvents.SHOW_ERROR,
+                    data={
+                        "title": "Erro de Processamento",
+                        "message": "Dados de calibração incompletos.",
+                    },
+                )
             )
             return False
 
@@ -1750,12 +1794,14 @@ class VideoProcessingService:
             or pixelcm_x is None
             or pixelcm_y is None
         ):
-            self.ui_event_bus.publish_event(
-                Events.UI_SHOW_ERROR,
-                {
-                    "title": "Erro de Processamento",
-                    "message": "Falha ao preparar dados de calibração.",
-                },
+            self.ui_event_bus.publish(
+                Event(
+                    type=UIEvents.SHOW_ERROR,
+                    data={
+                        "title": "Erro de Processamento",
+                        "message": "Falha ao preparar dados de calibração.",
+                    },
+                )
             )
             return False
 
@@ -1809,9 +1855,15 @@ class VideoProcessingService:
         # Publish social summary
         profile_dict = analysis_profile if isinstance(analysis_profile, dict) else {}
         profile_name = profile_dict.get("name", "default")
-        self.ui_event_bus.publish_event(
-            Events.UI_UPDATE_SOCIAL_SUMMARY,
-            {"profile": profile_name, "stats": social_summary, "tracks": resolved_track_ids},
+        self.ui_event_bus.publish(
+            Event(
+                type=UIEvents.UI_UPDATE_SOCIAL_SUMMARY,
+                data={
+                    "profile": profile_name,
+                    "stats": social_summary,
+                    "tracks": resolved_track_ids,
+                },
+            )
         )
 
         # Register outputs

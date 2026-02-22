@@ -29,7 +29,7 @@ if TYPE_CHECKING:
     from zebtrack.core.project.project_manager import ProjectManager
     from zebtrack.core.state_manager import StateManager
     from zebtrack.settings import Settings
-    from zebtrack.ui.event_bus import EventBus
+    from zebtrack.ui.event_bus_v2 import EventBusV2
 
 logger = structlog.get_logger(__name__)
 
@@ -84,7 +84,7 @@ class LiveBatchCoordinator:
         analysis_service: AnalysisService,
         state_manager: StateManager,
         settings_obj: Settings,
-        event_bus: EventBus | None = None,
+        event_bus: EventBusV2 | None = None,
     ):
         """Initialize coordinator.
 
@@ -197,15 +197,19 @@ class LiveBatchCoordinator:
 
             # Publish event
             if self.event_bus:
-                self.event_bus.publish_event(
-                    "BATCH_ANALYSIS_COMPLETED",
-                    {
-                        "batch_id": batch_id,
-                        "session_count": batch.session_count,
-                        "group": batch.group,
-                        "day": batch.day,
-                        "subject_id": batch.subject_id,
-                    },
+                from zebtrack.ui.event_bus_v2 import Event, UIEvents
+
+                self.event_bus.publish(
+                    Event(
+                        type=UIEvents.BATCH_ANALYSIS_COMPLETED,
+                        data={
+                            "batch_id": batch_id,
+                            "session_count": batch.session_count,
+                            "group": batch.group,
+                            "day": batch.day,
+                            "subject_id": batch.subject_id,
+                        },
+                    )
                 )
         else:
             self.logger.error("live_batch.complete.failed", batch_id=batch_id)

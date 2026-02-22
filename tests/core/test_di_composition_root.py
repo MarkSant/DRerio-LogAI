@@ -33,10 +33,10 @@ def test_composition_root_instantiates_state_manager():
 
 
 def test_composition_root_instantiates_event_bus():
-    """Validate EventBus instantiation."""
-    from zebtrack.ui.event_bus import EventBus
+    """Validate EventBusV2 instantiation."""
+    from zebtrack.ui.event_bus_v2 import EventBusV2
 
-    event_bus = EventBus(maxsize=0)
+    event_bus = EventBusV2()
 
     assert event_bus is not None
     assert hasattr(event_bus, "publish")
@@ -108,14 +108,14 @@ def test_full_composition_root_assembly(tmp_path):
     from zebtrack.core.services.weight_manager import WeightManager
     from zebtrack.core.state_manager import StateManager
     from zebtrack.settings import load_settings
-    from zebtrack.ui.event_bus import EventBus
+    from zebtrack.ui.event_bus_v2 import EventBusV2
 
     # 1. Load settings
     settings_obj = load_settings()
 
     # 2. Instantiate core services (no dependencies)
     state_manager = StateManager()
-    event_bus = EventBus(maxsize=0)
+    event_bus = EventBusV2()
 
     # 3. Instantiate domain services (with settings_obj)
     project_manager = ProjectManager(settings_obj=settings_obj)

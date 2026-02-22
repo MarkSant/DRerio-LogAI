@@ -36,7 +36,7 @@ if TYPE_CHECKING:
     from zebtrack.core.project.project_manager import ProjectManager
     from zebtrack.core.project.project_service import ProjectService
     from zebtrack.core.state_manager import StateManager
-    from zebtrack.ui.event_bus import EventBus
+    from zebtrack.ui.event_bus_v2 import EventBusV2
 
 log = structlog.get_logger()
 
@@ -61,7 +61,7 @@ class ProjectCoordinator(BaseCoordinator):
     Design Principles:
     - Delegates all business logic to services
     - Updates state via StateManager
-    - Publishes events via EventBus
+    - Publishes events via EventBusV2
     - Validation before operations
     - Clear error handling
 
@@ -69,7 +69,7 @@ class ProjectCoordinator(BaseCoordinator):
         state_manager: StateManager for state tracking
         project_manager: ProjectManager for project data
         project_service: ProjectService for persistence
-        event_bus: Optional EventBus for notifications
+        event_bus: Optional EventBusV2 for notifications
 
     Example:
         ```python
@@ -100,7 +100,7 @@ class ProjectCoordinator(BaseCoordinator):
         state_manager: StateManager,
         project_manager: ProjectManager,
         project_service: ProjectService,
-        event_bus: EventBus | None = None,
+        event_bus: EventBusV2 | None = None,
     ):
         """Initialize ProjectCoordinator.
 
@@ -108,7 +108,7 @@ class ProjectCoordinator(BaseCoordinator):
             state_manager: StateManager for state tracking
             project_manager: ProjectManager for project data management
             project_service: ProjectService for file I/O operations
-            event_bus: Optional EventBus for event publishing
+            event_bus: Optional EventBusV2 for event publishing
         """
         super().__init__(state_manager=state_manager, event_bus=event_bus)
 

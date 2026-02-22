@@ -30,7 +30,7 @@ from zebtrack.coordinators.base_coordinator import (
     CoordinatorValidationError,
 )
 from zebtrack.core.state_manager import StateCategory
-from zebtrack.ui.events import Events
+from zebtrack.ui.event_bus_v2 import Event, UIEvents
 
 if TYPE_CHECKING:
     from zebtrack.coordinators.live_batch_coordinator import LiveBatchCoordinator
@@ -40,7 +40,7 @@ if TYPE_CHECKING:
     from zebtrack.core.services.detector_service import DetectorService
     from zebtrack.core.state_manager import StateManager
     from zebtrack.settings import Settings
-    from zebtrack.ui.event_bus import EventBus
+    from zebtrack.ui.event_bus_v2 import EventBusV2
 
 log = structlog.get_logger()
 
@@ -82,7 +82,7 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
         detector_service: DetectorService,
         settings_obj: Settings,
         live_calibration_coordinator: LiveCalibrationCoordinator,
-        event_bus: EventBus | None = None,
+        event_bus: EventBusV2 | None = None,
         live_batch_coordinator: LiveBatchCoordinator | None = None,
         # UI components (temporary - being phased out)
         root: Any = None,
@@ -284,7 +284,7 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
 
             # Publish success event
             self._publish_event(
-                "LIVE_SESSION_STARTED",
+                UIEvents.LIVE_SESSION_STARTED,
                 {
                     "experiment_id": experiment_id,
                     "camera_index": camera_index,
@@ -369,15 +369,21 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
             )
 
             # Publish event
-            self._publish_event("LIVE_SESSION_STOPPED", {})
+            self._publish_event(UIEvents.LIVE_SESSION_STOPPED, {})
 
             # v2.3.1: Re-enable start recording button after session ends
             if self.event_bus:
-                self.event_bus.publish_event(
-                    Events.UI_UPDATE_BUTTON_STATE, {"button_name": "start_rec", "state": "normal"}
+                self.event_bus.publish(
+                    Event(
+                        type=UIEvents.UI_UPDATE_BUTTON_STATE,
+                        data={"button_name": "start_rec", "state": "normal"},
+                    )
                 )
-                self.event_bus.publish_event(
-                    Events.UI_UPDATE_BUTTON_STATE, {"button_name": "stop_rec", "state": "disabled"}
+                self.event_bus.publish(
+                    Event(
+                        type=UIEvents.UI_UPDATE_BUTTON_STATE,
+                        data={"button_name": "stop_rec", "state": "disabled"},
+                    )
                 )
                 log.info("live_camera_session_coordinator.stop_live_session.buttons_restored")
 
@@ -735,23 +741,27 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
 
         # UI feedback
         if success and self.event_bus:
-            self.event_bus.publish_event(
-                Events.UI_SET_STATUS,
-                {
-                    "message": (
-                        f"Analisando câmera {camera_index} "
-                        f"(análise: {analysis_interval_frames}f, "
-                        f"exibição: {display_interval_frames}f)"
-                    )
-                },
+            self.event_bus.publish(
+                Event(
+                    type=UIEvents.UI_SET_STATUS,
+                    data={
+                        "message": (
+                            f"Analisando câmera {camera_index} "
+                            f"(análise: {analysis_interval_frames}f, "
+                            f"exibição: {display_interval_frames}f)"
+                        )
+                    },
+                )
             )
         elif not success and self.event_bus:
-            self.event_bus.publish_event(
-                Events.UI_SHOW_ERROR,
-                {
-                    "title": "Erro na Análise",
-                    "message": f"Falha ao iniciar análise de câmera {camera_index}.",
-                },
+            self.event_bus.publish(
+                Event(
+                    type=UIEvents.UI_SHOW_ERROR,
+                    data={
+                        "title": "Erro na Análise",
+                        "message": f"Falha ao iniciar análise de câmera {camera_index}.",
+                    },
+                )
             )
 
         return success

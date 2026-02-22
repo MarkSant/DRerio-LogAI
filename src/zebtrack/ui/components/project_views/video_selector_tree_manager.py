@@ -97,7 +97,7 @@ class VideoSelectorTreeManager:
         )
 
         self.event_bus_v2.subscribe(
-            UIEvents.VIDEO_HIERARCHY_SNAPSHOT_UPDATED,
+            UIEvents.UI_VIDEO_HIERARCHY_SNAPSHOT_UPDATED,
             lambda d: self.on_video_hierarchy_snapshot_updated(d.get("snapshot", [])),
         )
 
@@ -555,7 +555,7 @@ class VideoSelectorTreeManager:
         self, selection: Any | None = None, fallback_to_pending: bool = False
     ) -> None:
         """Trigger batch trajectory processing for selected or all videos."""
-        from zebtrack.ui.events import Events
+        from zebtrack.ui.event_bus_v2 import UIEvents
 
         selections: list[str] = []
         if selection is not None:
@@ -566,7 +566,7 @@ class VideoSelectorTreeManager:
         if not selections:
             if fallback_to_pending:
                 self.gui.event_dispatcher.publish_event(
-                    Events.PROJECT_PROCESS_VIDEOS, {"video_paths": None}
+                    UIEvents.PROJECT_PROCESS_VIDEOS, {"video_paths": None}
                 )
                 self.request_overview_refresh()
                 self.gui.analysis_view_controller.switch_to_analysis_view()
@@ -587,14 +587,14 @@ class VideoSelectorTreeManager:
         )
 
         self.gui.event_dispatcher.publish_event(
-            Events.PROJECT_PROCESS_VIDEOS, {"video_paths": unique_paths}
+            UIEvents.PROJECT_PROCESS_VIDEOS, {"video_paths": unique_paths}
         )
         self.request_overview_refresh()
         self.gui.analysis_view_controller.switch_to_analysis_view()
 
     def trigger_parquet_summaries(self) -> None:
         """Trigger export of parquet summaries for selected videos."""
-        from zebtrack.ui.events import Events
+        from zebtrack.ui.event_bus_v2 import UIEvents
 
         selections = self.resolve_processing_reports_video_paths()
 
@@ -608,7 +608,7 @@ class VideoSelectorTreeManager:
         unique_paths = list(dict.fromkeys(selections))
 
         self.gui.event_dispatcher.publish_event(
-            Events.PROJECT_GENERATE_SUMMARIES, {"video_paths": unique_paths}
+            UIEvents.PROJECT_GENERATE_SUMMARIES, {"video_paths": unique_paths}
         )
         self.refresh_project_views()
 

@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING
 import structlog
 
 from zebtrack.ui.decorators import public_api
-from zebtrack.ui.events import Events
+from zebtrack.ui.event_bus_v2 import UIEvents
 
 if TYPE_CHECKING:
     from zebtrack.ui.components.dialog_manager import DialogManager
@@ -180,7 +180,7 @@ class SingleVideoWorkflow:
         )
 
         gui.event_dispatcher.publish_event(
-            Events.ZONE_AUTO_DETECT,
+            UIEvents.ZONE_AUTO_DETECT,
             {
                 "video_path": video_path,
                 "stabilization_frames": stabilization_frames_int,
@@ -235,7 +235,7 @@ class SingleVideoWorkflow:
         if gui.start_single_analysis_btn:
             gui.start_single_analysis_btn.config(state="disabled")
         gui.event_dispatcher.publish_event(
-            Events.VIDEO_START_SINGLE_PROCESSING,
+            UIEvents.VIDEO_START_SINGLE_PROCESSING,
             {
                 "video_path": gui.pending_single_video_path,
                 "config": gui.pending_single_video_config,

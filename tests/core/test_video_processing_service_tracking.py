@@ -17,6 +17,7 @@ import pytest
 
 from zebtrack.core.detection import ZoneData
 from zebtrack.core.video.video_processing_service import VideoProcessingService
+from zebtrack.ui.event_bus_v2 import UIEvents
 
 # Global mock recorder instance that will be returned by MockRecorderClass
 _mock_recorder_instance: Any | None = None
@@ -519,7 +520,6 @@ class TestVideoContextHelpers:
 
     def test_finalize_tracking_session_handles_cancel(self, video_processing_service):
         recorder = Mock()
-        video_processing_service.ui_event_bus.publish_event = Mock()
 
         success, arena = video_processing_service._finalize_tracking_session(
             recorder=recorder,
@@ -532,7 +532,10 @@ class TestVideoContextHelpers:
         assert success is False
         assert arena == [[0, 0], [1, 1], [1, 0]]
         recorder.stop_recording.assert_called_once_with(force_stop=True, reason="Cancelled by user")
-        video_processing_service.ui_event_bus.publish_event.assert_called_once()
+        video_processing_service.ui_event_bus.publish.assert_called_once()
+        call_ev = video_processing_service.ui_event_bus.publish.call_args[0][0]
+        assert call_ev.type == UIEvents.SET_STATUS
+        assert "Cancelamento" in call_ev.data["message"]
 
     @patch("zebtrack.core.video.video_processing_service.time.time", return_value=15.0)
     def test_calculate_tracking_progress_stats(self, mock_time, video_processing_service):

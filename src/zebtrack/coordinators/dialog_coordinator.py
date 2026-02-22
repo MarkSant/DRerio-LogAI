@@ -15,7 +15,7 @@ if TYPE_CHECKING:
     from zebtrack.core.project.project_manager import ProjectManager
     from zebtrack.core.state_manager import StateManager
     from zebtrack.core.ui_scheduler import UIScheduler
-    from zebtrack.ui.event_bus import EventBus
+    from zebtrack.ui.event_bus_v2 import EventBusV2
 
 log = structlog.get_logger()
 
@@ -36,7 +36,7 @@ class DialogCoordinator:
     def __init__(
         self,
         ui_coordinator: "UIScheduler",
-        event_bus: "EventBus | None",
+        event_bus: "EventBusV2 | None",
         state_manager: "StateManager",
         project_manager: "ProjectManager | None" = None,
         video_metadata_service: VideoMetadataService | None = None,
@@ -195,26 +195,36 @@ class DialogCoordinator:
             if response:
                 # Switch to zone tab and guide user
                 if self.event_bus:
-                    from zebtrack.ui.events import Events
+                    from zebtrack.ui.event_bus_v2 import Event, UIEvents
 
-                    self.event_bus.publish_event(Events.UI_SELECT_TAB, {"tab_name": "zone_tab"})
+                    self.event_bus.publish(
+                        Event(
+                            type=UIEvents.UI_SELECT_TAB,
+                            data={"tab_name": "zone_tab"},
+                        )
+                    )
 
                     # Load frame from first video if available
                     first_video = self.project_manager.get_next_video()
                     if first_video:
-                        self.event_bus.publish_event(
-                            Events.UI_DISPLAY_VIDEO_FRAME, {"video_path": first_video}
+                        self.event_bus.publish(
+                            Event(
+                                type=UIEvents.UI_DISPLAY_VIDEO_FRAME,
+                                data={"video_path": first_video},
+                            )
                         )
 
-                        self.event_bus.publish_event(
-                            Events.UI_SHOW_INFO,
-                            {
-                                "title": "Defina a Arena Principal",
-                                "message": "Por favor:\n"
-                                "1. Use 'Detectar Aquário (Auto)' ou\n"
-                                "2. Desenhe manualmente o polígono principal\n"
-                                "3. Depois volte para adicionar vídeos",
-                            },
+                        self.event_bus.publish(
+                            Event(
+                                type=UIEvents.UI_SHOW_INFO,
+                                data={
+                                    "title": "Defina a Arena Principal",
+                                    "message": "Por favor:\n"
+                                    "1. Use 'Detectar Aquário (Auto)' ou\n"
+                                    "2. Desenhe manualmente o polígono principal\n"
+                                    "3. Depois volte para adicionar vídeos",
+                                },
+                            )
                         )
                 return False
             else:
@@ -250,18 +260,20 @@ class DialogCoordinator:
                         )
 
                         if self.event_bus:
-                            from zebtrack.ui.events import Events
+                            from zebtrack.ui.event_bus_v2 import Event, UIEvents
 
-                            self.event_bus.publish_event(
-                                Events.UI_SHOW_INFO,
-                                {
-                                    "title": "Arena Padrão Criada",
-                                    "message": f"Arena padrão criada ({width}x{height})\n"
-                                    "Recomenda-se ajustar manualmente depois.",
-                                },
+                            self.event_bus.publish(
+                                Event(
+                                    type=UIEvents.UI_SHOW_INFO,
+                                    data={
+                                        "title": "Arena Padrão Criada",
+                                        "message": f"Arena padrão criada ({width}x{height})\n"
+                                        "Recomenda-se ajustar manualmente depois.",
+                                    },
+                                )
                             )
                             # Trigger redraw
-                            self.event_bus.publish_event(Events.UI_REDRAW_ZONES)
+                            self.event_bus.publish(Event(type=UIEvents.UI_REDRAW_ZONES))
                     except Exception as e:  # except Exception justified: non-critical fallback
                         self.show_error("Erro", f"Não foi possível criar arena padrão: {e}")
                         return False
@@ -292,14 +304,16 @@ class DialogCoordinator:
     def _show_processing_skipped_info(self) -> None:
         """Show informational dialog about skipped processing."""
         if self.event_bus:
-            from zebtrack.ui.events import Events
+            from zebtrack.ui.event_bus_v2 import Event, UIEvents
 
-            self.event_bus.publish_event(
-                Events.UI_SHOW_INFO,
-                {
-                    "title": "Processamento Ignorado",
-                    "message": "Nenhum novo vídeo foi processado.",
-                },
+            self.event_bus.publish(
+                Event(
+                    type=UIEvents.UI_SHOW_INFO,
+                    data={
+                        "title": "Processamento Ignorado",
+                        "message": "Nenhum novo vídeo foi processado.",
+                    },
+                )
             )
         else:
             self.ui_coordinator.show_info(
@@ -341,48 +355,58 @@ class DialogCoordinator:
         error_message = validation_result.error_message
 
         if self.event_bus:
-            from zebtrack.ui.events import Events
+            from zebtrack.ui.event_bus_v2 import Event, UIEvents
 
             if error_code == "processing_already_active":
-                self.event_bus.publish_event(
-                    Events.UI_SHOW_WARNING,
-                    {
-                        "title": "Análise em Andamento",
-                        "message": error_message,
-                    },
+                self.event_bus.publish(
+                    Event(
+                        type=UIEvents.UI_SHOW_WARNING,
+                        data={
+                            "title": "Análise em Andamento",
+                            "message": error_message,
+                        },
+                    )
                 )
             elif error_code == "no_project_loaded":
-                self.event_bus.publish_event(
-                    Events.UI_SHOW_ERROR,
-                    {
-                        "title": "Nenhum Projeto Carregado",
-                        "message": error_message,
-                    },
+                self.event_bus.publish(
+                    Event(
+                        type=UIEvents.UI_SHOW_ERROR,
+                        data={
+                            "title": "Nenhum Projeto Carregado",
+                            "message": error_message,
+                        },
+                    )
                 )
             elif error_code == "no_videos":
-                self.event_bus.publish_event(
-                    Events.UI_SHOW_ERROR,
-                    {
-                        "title": "Nenhum Vídeo Encontrado",
-                        "message": error_message,
-                    },
+                self.event_bus.publish(
+                    Event(
+                        type=UIEvents.UI_SHOW_ERROR,
+                        data={
+                            "title": "Nenhum Vídeo Encontrado",
+                            "message": error_message,
+                        },
+                    )
                 )
             elif error_code == "no_weight_selected":
-                self.event_bus.publish_event(
-                    Events.UI_SHOW_ERROR,
-                    {
-                        "title": "Peso Não Selecionado",
-                        "message": error_message,
-                    },
+                self.event_bus.publish(
+                    Event(
+                        type=UIEvents.UI_SHOW_ERROR,
+                        data={
+                            "title": "Peso Não Selecionado",
+                            "message": error_message,
+                        },
+                    )
                 )
             else:
                 # Generic error fallback
-                self.event_bus.publish_event(
-                    Events.UI_SHOW_ERROR,
-                    {
-                        "title": "Erro de Validação",
-                        "message": error_message,
-                    },
+                self.event_bus.publish(
+                    Event(
+                        type=UIEvents.UI_SHOW_ERROR,
+                        data={
+                            "title": "Erro de Validação",
+                            "message": error_message,
+                        },
+                    )
                 )
         else:
             # Fallback to UI Coordinator direct calls if no event bus

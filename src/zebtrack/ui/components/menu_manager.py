@@ -17,7 +17,6 @@ import structlog
 from PIL import Image, ImageTk
 
 from zebtrack.ui.event_bus_v2 import Event, UIEvents
-from zebtrack.ui.events import Events
 
 if TYPE_CHECKING:
     from zebtrack.ui.components.dialog_manager import DialogManager
@@ -399,7 +398,7 @@ class MenuManager:
 
         if asset == "video":
             self.gui.event_dispatcher.publish_event(
-                Events.PROJECT_DELETE_ASSET,
+                UIEvents.PROJECT_DELETE_ASSET,
                 {
                     "video_path": video_path,
                     "asset": asset,
@@ -409,7 +408,7 @@ class MenuManager:
             success = True  # Assume success
         else:
             self.gui.event_dispatcher.publish_event(
-                Events.PROJECT_DELETE_ASSET, {"video_path": video_path, "asset": asset}
+                UIEvents.PROJECT_DELETE_ASSET, {"video_path": video_path, "asset": asset}
             )
             success = True  # Assume success
 

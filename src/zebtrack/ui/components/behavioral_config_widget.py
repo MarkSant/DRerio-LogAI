@@ -10,7 +10,7 @@ from typing import Any
 import structlog
 
 from zebtrack.ui.components.base import BaseWidget
-from zebtrack.ui.event_bus import EventBus
+from zebtrack.ui.event_bus_v2 import EventBusV2, UIEvents
 from zebtrack.ui.wizard.models import AquariumPerspective, GeotaxisMode
 
 log = structlog.get_logger()
@@ -53,7 +53,7 @@ class BehavioralConfigWidget(BaseWidget):
     def __init__(
         self,
         parent,
-        event_bus: EventBus | None = None,
+        event_bus: EventBusV2 | None = None,
         default_thigmotaxis_cm: float = 1.5,
         default_geotaxis_cm: float = 1.5,
         default_num_zones: int = 3,
@@ -351,14 +351,17 @@ class BehavioralConfigWidget(BaseWidget):
                 self.geotaxis_check.configure(state="disabled")
 
         self._update_geotaxis_visibility()
-        self.emit_event("behavioral_config.perspective_changed", {"perspective": perspective})
+        self.emit_event(
+            UIEvents.BEHAVIORAL_CONFIG_PERSPECTIVE_CHANGED,
+            {"perspective": perspective},
+        )
         self._emit_values_changed()
 
     def _on_geotaxis_toggled(self, event=None) -> None:
         """Handle geotaxis enable/disable toggle."""
         self._update_geotaxis_visibility()
         enabled = self.geotaxis_enabled_var.get()
-        self.emit_event("behavioral_config.geotaxis_toggled", {"enabled": enabled})
+        self.emit_event(UIEvents.BEHAVIORAL_CONFIG_GEOTAXIS_TOGGLED, {"enabled": enabled})
         self._emit_values_changed()
 
     def _on_mode_changed(self, event=None) -> None:
@@ -372,7 +375,7 @@ class BehavioralConfigWidget(BaseWidget):
 
     def _emit_values_changed(self) -> None:
         """Emit event with current configuration values."""
-        self.emit_event("behavioral_config.values_changed", {"config": self.get_values()})
+        self.emit_event(UIEvents.BEHAVIORAL_CONFIG_VALUES_CHANGED, {"config": self.get_values()})
 
     def _update_geotaxis_visibility(self) -> None:
         """Update visibility of geotaxis sub-options based on current state."""
@@ -460,15 +463,6 @@ class BehavioralConfigWidget(BaseWidget):
 
         # Update UI state
         self._on_perspective_changed()
-
-    def emit_event(self, event_name: str, data: dict | None = None) -> None:
-        """Emit an event through the event bus.
-
-        Safely handles cases where event_bus is not configured (e.g. in standalone dialogs).
-        """
-        if self.event_bus:
-            self.event_bus.publish_event(event_name, data)
-        # No else/logging needed - bus is optional for this widget
 
     def reset_to_defaults(self) -> None:
         """Reset all values to defaults."""

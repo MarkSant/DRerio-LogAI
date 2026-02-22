@@ -30,6 +30,7 @@ from zebtrack.settings import Settings
 from zebtrack.ui.builders.button_factory import ButtonFactory
 from zebtrack.ui.builders.panel_builder import PanelBuilder
 from zebtrack.ui.builders.zone_control_builder import ZoneControlBuilder
+from zebtrack.ui.event_bus_v2 import UIEvents
 from zebtrack.ui.window_utils import reset_geometry_if_not_maximized
 
 if TYPE_CHECKING:
@@ -424,10 +425,10 @@ class WidgetFactory:
             def roi_rule_handler(data):
                 return self.update_roi_rule_ui(data["rule"])
 
-            # Subscribe to event_bus
-            self.gui.event_bus.subscribe("config.save_requested", save_handler)
-            self.gui.event_bus.subscribe("config.reset_requested", reset_handler)
-            self.gui.event_bus.subscribe("config.roi_rule_changed", roi_rule_handler)
+            # Subscribe to event_bus (v2)
+            self.gui.event_bus.subscribe(UIEvents.CONFIG_SAVE_REQUESTED, save_handler)
+            self.gui.event_bus.subscribe(UIEvents.CONFIG_RESET_REQUESTED, reset_handler)
+            self.gui.event_bus.subscribe(UIEvents.CONFIG_ROI_RULE_CHANGED, roi_rule_handler)
 
             # Also store in dictionary for reference (backward compatibility)
             self.gui._event_bus_handlers["config.save_requested"] = save_handler
@@ -448,7 +449,6 @@ class WidgetFactory:
 
         # Import here to avoid circular dependency
         from zebtrack.ui.components import AnalysisDisplayWidget
-        from zebtrack.ui.events import Events
 
         # Create the widget
         self.gui.analysis_display_widget = AnalysisDisplayWidget(
@@ -464,17 +464,17 @@ class WidgetFactory:
         self.gui.notebook.add(self.gui.analysis_display_widget, text="Análise de Vídeo")
 
         # Connect widget events to GUI handlers
-        if self.gui.event_bus:
-            # Register handlers directly in event_bus (not just in dictionary)
+        if self.gui.event_bus_v2:
+            # Register handlers directly in event_bus_v2
             def track_handler(data):
                 return self.gui.canvas_manager._render_last_analysis_frame()
 
             def cancel_handler(data):
-                return self.gui.event_dispatcher.publish_event(Events.VIDEO_CANCEL_ANALYSIS, {})
+                return self.gui.event_dispatcher.publish_event(UIEvents.VIDEO_CANCEL_ANALYSIS, {})
 
-            # Subscribe to event_bus
-            self.gui.event_bus.subscribe("analysis.track_selected", track_handler)
-            self.gui.event_bus.subscribe("analysis.cancel_requested", cancel_handler)
+            # Subscribe to event_bus_v2
+            self.gui.event_bus_v2.subscribe(UIEvents.ANALYSIS_TRACK_SELECTED, track_handler)
+            self.gui.event_bus_v2.subscribe(UIEvents.ANALYSIS_CANCEL_REQUESTED, cancel_handler)
 
             # Also store in dictionary for reference (backward compatibility)
             self.gui._event_bus_handlers["analysis.track_selected"] = track_handler
@@ -563,15 +563,15 @@ class WidgetFactory:
         # Subscribe to widget events
         if self.gui.event_bus:
             self.gui.event_bus.subscribe(
-                "project.refresh_requested",
+                UIEvents.PROJECT_REFRESH_REQUESTED,
                 self.gui._handle_project_refresh_requested,
             )
             self.gui.event_bus.subscribe(
-                "project.video_double_click",
+                UIEvents.PROJECT_VIDEO_DOUBLE_CLICK_WIDGET,
                 self.gui._handle_project_video_double_click,
             )
             self.gui.event_bus.subscribe(
-                "project.video_right_click",
+                UIEvents.PROJECT_VIDEO_RIGHT_CLICK_WIDGET,
                 self.gui._handle_project_video_right_click,
             )
 

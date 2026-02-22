@@ -5,8 +5,7 @@ from tkinter import BooleanVar, Button, StringVar, ttk
 import structlog
 
 from zebtrack.ui.components.base import BaseWidget
-from zebtrack.ui.event_bus import EventBus
-from zebtrack.ui.events import Events
+from zebtrack.ui.event_bus_v2 import Event, EventBusV2, UIEvents
 
 log = structlog.get_logger()
 
@@ -29,7 +28,7 @@ class ControlPanelWidget(BaseWidget):
     - control.interval_changed: User changed processing interval
     """
 
-    def __init__(self, parent, event_bus: EventBus | None = None, **kwargs):
+    def __init__(self, parent, event_bus: EventBusV2 | None = None, **kwargs):
         """
         Initialize the control panel widget.
 
@@ -134,17 +133,17 @@ class ControlPanelWidget(BaseWidget):
     def _on_start_recording_clicked(self) -> None:
         """Handle start recording button click."""
         if self.event_bus:
-            self.event_bus.publish_event(Events.RECORDING_START, {})
+            self.event_bus.publish(Event(type=UIEvents.RECORDING_START, data={}))
 
     def _on_stop_recording_clicked(self) -> None:
         """Handle stop recording button click."""
         if self.event_bus:
-            self.event_bus.publish_event(Events.RECORDING_STOP, {})
+            self.event_bus.publish(Event(type=UIEvents.RECORDING_STOP, data={}))
 
     def _on_process_video_clicked(self) -> None:
         """Handle process video button click."""
         if self.event_bus:
-            self.event_bus.publish_event(Events.UI_REQUEST_PROCESS_VIDEOS, {})
+            self.event_bus.publish(Event(type=UIEvents.UI_REQUEST_PROCESS_VIDEOS, data={}))
 
     def _on_preview_toggled(self) -> None:
         """Handle preview checkbox toggle."""

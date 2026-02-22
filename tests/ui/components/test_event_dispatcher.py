@@ -11,7 +11,7 @@ from unittest.mock import ANY, MagicMock
 import pytest
 
 from zebtrack.ui.components.event_dispatcher import EventDispatcher
-from zebtrack.ui.events import Events
+from zebtrack.ui.event_bus_v2 import UIEvents
 
 pytestmark = pytest.mark.gui
 
@@ -242,7 +242,7 @@ class TestGuiSubscriptions:
 
         event_bus.subscribe.assert_called_once()
         args, _kwargs = event_bus.subscribe.call_args
-        assert args[0] == Events.UI_SETUP_INTERACTIVE_POLYGON
+        assert args[0] == UIEvents.UI_SETUP_INTERACTIVE_POLYGON
 
     def test_subscribe_zone_component_events(self):
         event_bus = MagicMock()
@@ -263,7 +263,7 @@ class TestGuiSubscriptions:
 
         dispatcher.subscribe_zone_component_events()
 
-        event_bus.subscribe.assert_any_call(Events.ZONE_AUTO_DETECT_CLICKED, ANY)
+        event_bus.subscribe.assert_any_call(UIEvents.ZONE_AUTO_DETECT_CLICKED, ANY)
 
     def test_subscribe_to_ui_events(self):
         event_bus = MagicMock()
@@ -286,9 +286,9 @@ class TestGuiSubscriptions:
 
         dispatcher.subscribe_to_ui_events()
 
-        event_bus.subscribe.assert_any_call(Events.UI_SHOW_INFO, ANY)
-        event_bus.subscribe.assert_any_call(Events.UI_SHOW_WARNING, ANY)
-        event_bus.subscribe.assert_any_call(Events.UI_SHOW_ERROR, ANY)
+        event_bus.subscribe.assert_any_call(UIEvents.SHOW_INFO, ANY)
+        event_bus.subscribe.assert_any_call(UIEvents.SHOW_WARNING, ANY)
+        event_bus.subscribe.assert_any_call(UIEvents.SHOW_ERROR, ANY)
 
 
 class TestUnregisterHandler:

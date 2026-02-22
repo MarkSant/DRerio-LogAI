@@ -22,12 +22,12 @@ from typing import TYPE_CHECKING, Any
 import pandas as pd
 import structlog
 
-from zebtrack.ui.events import Events
+from zebtrack.ui.event_bus_v2 import UIEvents
 
 if TYPE_CHECKING:
     from zebtrack.core.project.project_manager import ProjectManager
     from zebtrack.settings import Settings
-    from zebtrack.ui.event_bus import EventBus
+    from zebtrack.ui.event_bus_v2 import EventBusV2
 
 log = structlog.get_logger()
 
@@ -44,7 +44,7 @@ class UnifiedReportMixin:
     # Declare host-provided attributes for mypy (set by coordinator __init__)
     project_manager: ProjectManager
     settings: Settings
-    event_bus: EventBus | None
+    event_bus: EventBusV2 | None
 
     # Host-provided methods (declared for mypy, implemented by coordinator)
     _publish_event: Any  # (event: Any, data: Any) -> None
@@ -69,7 +69,7 @@ class UnifiedReportMixin:
             scope=scope,
             replace_existing=replace_existing,
         )
-        self._publish_event(Events.UI_SET_STATUS, {"message": "Gerando relatório unificado..."})
+        self._publish_event(UIEvents.UI_SET_STATUS, {"message": "Gerando relatório unificado..."})
 
         project_path = self.project_manager.project_path
         if not project_path:
@@ -165,7 +165,7 @@ class UnifiedReportMixin:
 
         if not dfs:
             self._publish_event(
-                Events.UI_SHOW_WARNING,
+                UIEvents.UI_SHOW_WARNING,
                 {
                     "title": "Dados insuficientes",
                     "message": ("Não foi possível encontrar sumários para os vídeos selecionados."),
@@ -187,12 +187,12 @@ class UnifiedReportMixin:
         except Exception as e:
             log.error("workflow.unified_report.failed", error=str(e), exc_info=True)
             self._publish_event(
-                Events.UI_SHOW_ERROR,
+                UIEvents.UI_SHOW_ERROR,
                 {"title": "Erro no Relatório", "message": f"{e}"},
             )
         finally:
-            self._publish_event(Events.UI_SET_STATUS, {"message": "Pronto."})
-            self._publish_event(Events.UI_REFRESH_PROJECT_VIEWS, {})
+            self._publish_event(UIEvents.UI_SET_STATUS, {"message": "Pronto."})
+            self._publish_event(UIEvents.UI_REFRESH_PROJECT_VIEWS, {})
 
     # ------------------------------------------------------------------
     # DataFrame alignment
@@ -388,7 +388,7 @@ class UnifiedReportMixin:
 
         if export_failures:
             self._publish_event(
-                Events.UI_SHOW_WARNING,
+                UIEvents.UI_SHOW_WARNING,
                 {
                     "title": "Relatório Unificado Parcial",
                     "message": (
@@ -418,7 +418,7 @@ class UnifiedReportMixin:
             )
             if not self.settings.ui_features.suppress_roi_mismatch_warning:
                 self._publish_event(
-                    Events.UI_SHOW_WARNING,
+                    UIEvents.UI_SHOW_WARNING,
                     {
                         "title": "ROIs Diferentes",
                         "message": (
@@ -431,7 +431,7 @@ class UnifiedReportMixin:
 
         if not self._is_batch_processing():
             self._publish_event(
-                Events.UI_SHOW_INFO,
+                UIEvents.UI_SHOW_INFO,
                 {
                     "title": (
                         "Relatório Unificado Parcial"

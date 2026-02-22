@@ -27,7 +27,7 @@ import structlog
 
 if TYPE_CHECKING:
     from zebtrack.settings import Settings
-    from zebtrack.ui.event_bus import EventBus
+    from zebtrack.ui.event_bus_v2 import EventBusV2
 
 from zebtrack.core.services.wizard_service import WizardService
 from zebtrack.ui.components.behavioral_config_widget import BehavioralConfigWidget
@@ -79,7 +79,7 @@ class LiveAnalysisDialog(Dialog):
         self,
         parent: Any,
         settings_obj: "Settings | None" = None,
-        event_bus: "EventBus | None" = None,
+        event_bus: "EventBusV2 | None" = None,
     ) -> None:
         """
         Initialize live analysis dialog.

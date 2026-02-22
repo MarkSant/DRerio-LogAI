@@ -135,7 +135,6 @@ def test_check_camera_disconnect_publishes_and_pauses(live_camera_service, monke
     live_camera_service._analysis_params = {"experiment_id": "exp-1"}
 
     live_camera_service.recorder.pause_recording = Mock()
-    live_camera_service.event_bus.publish_event = Mock()
 
     monkeypatch.setattr(live_camera_module.time, "time", lambda: 13.0)
 
@@ -145,16 +144,15 @@ def test_check_camera_disconnect_publishes_and_pauses(live_camera_service, monke
     assert live_camera_service._recording_paused is True
     assert live_camera_service._disconnect_gaps[-1] == (10.0, None)
     live_camera_service.recorder.pause_recording.assert_called_once()
-    live_camera_service.event_bus.publish_event.assert_called_once()
+    live_camera_service.event_bus.publish.assert_called_once()
 
 
 def test_check_camera_disconnect_no_last_frame_noop(live_camera_service):
     live_camera_service._last_valid_frame_time = None
-    live_camera_service.event_bus.publish_event = Mock()
 
     live_camera_service._check_camera_disconnect()
 
-    live_camera_service.event_bus.publish_event.assert_not_called()
+    live_camera_service.event_bus.publish.assert_not_called()
 
 
 def test_on_camera_reconnected_resumes_and_publishes(live_camera_service, monkeypatch):
@@ -162,7 +160,6 @@ def test_on_camera_reconnected_resumes_and_publishes(live_camera_service, monkey
     live_camera_service._recording_paused = True
     live_camera_service._disconnect_gaps = [(10.0, None)]
     live_camera_service.recorder.resume_recording = Mock()
-    live_camera_service.event_bus.publish_event = Mock()
 
     monkeypatch.setattr(live_camera_module.time, "time", lambda: 15.0)
 
@@ -172,4 +169,4 @@ def test_on_camera_reconnected_resumes_and_publishes(live_camera_service, monkey
     assert live_camera_service._recording_paused is False
     assert live_camera_service._disconnect_gaps[-1] == (10.0, 15.0)
     live_camera_service.recorder.resume_recording.assert_called_once()
-    live_camera_service.event_bus.publish_event.assert_called_once()
+    live_camera_service.event_bus.publish.assert_called_once()

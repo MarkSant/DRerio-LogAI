@@ -22,7 +22,7 @@ from zebtrack.coordinators._unified_report_mixin import UnifiedReportMixin
 from zebtrack.coordinators.base_coordinator import BaseCoordinator
 from zebtrack.core.detection import MultiAquariumZoneData, ZoneData
 from zebtrack.core.detection.calibration import Calibration
-from zebtrack.ui.events import Events
+from zebtrack.ui.event_bus_v2 import UIEvents
 
 if TYPE_CHECKING:
     import pandas as pd
@@ -33,7 +33,7 @@ if TYPE_CHECKING:
     from zebtrack.core.state_manager import StateManager
     from zebtrack.core.video.video_metadata_service import VideoMetadataService
     from zebtrack.settings import Settings
-    from zebtrack.ui.event_bus import EventBus
+    from zebtrack.ui.event_bus_v2 import EventBusV2
     from zebtrack.utils.video_frame_extractor import VideoFrameExtractor
 
 log = structlog.get_logger()
@@ -59,7 +59,7 @@ class ReportGenerationCoordinator(BaseCoordinator, UnifiedReportMixin):
         project_manager: ProjectManager,
         settings_obj: Settings,
         analysis_service: AnalysisService | None = None,
-        event_bus: EventBus | None = None,
+        event_bus: EventBusV2 | None = None,
         video_metadata_service: VideoMetadataService | None = None,
         trajectory_data_service: TrajectoryDataService | None = None,
         video_frame_extractor: VideoFrameExtractor | None = None,
@@ -110,7 +110,7 @@ class ReportGenerationCoordinator(BaseCoordinator, UnifiedReportMixin):
             return
 
         log.info("workflow.reports.start", count=len(video_paths))
-        self._publish_event(Events.UI_SET_STATUS, {"message": "Gerando relatórios detalhados..."})
+        self._publish_event(UIEvents.UI_SET_STATUS, {"message": "Gerando relatórios detalhados..."})
 
         entries = [self.project_manager.find_video_entry(path=p) for p in video_paths]
         self.generate_parquet_summaries([e for e in entries if e], self.settings)
@@ -348,14 +348,14 @@ class ReportGenerationCoordinator(BaseCoordinator, UnifiedReportMixin):
 
     def _finalize_report_generation(self, count: int, errors: list[str]) -> None:
         """Finalize report generation UI feedback."""
-        self._publish_event(Events.UI_SET_STATUS, {"message": "Relatórios gerados."})
+        self._publish_event(UIEvents.UI_SET_STATUS, {"message": "Relatórios gerados."})
 
         if self._is_batch_processing():
             return
 
         if errors:
             self._publish_event(
-                Events.UI_SHOW_WARNING,
+                UIEvents.UI_SHOW_WARNING,
                 {
                     "title": "Erros na Geração",
                     "message": "Falhas em:\n" + "\n".join(errors[:5]),
@@ -363,7 +363,7 @@ class ReportGenerationCoordinator(BaseCoordinator, UnifiedReportMixin):
             )
         elif count > 0:
             self._publish_event(
-                Events.UI_SHOW_INFO,
+                UIEvents.UI_SHOW_INFO,
                 {
                     "title": "Relatórios Gerados",
                     "message": f"Gerados relatórios para {count} vídeos.",

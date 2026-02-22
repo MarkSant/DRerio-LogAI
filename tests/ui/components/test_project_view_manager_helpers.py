@@ -17,7 +17,7 @@ from zebtrack.ui.components.project_views import (
     summarize_batch_data,
     video_sort_key,
 )
-from zebtrack.ui.events import Events
+from zebtrack.ui.event_bus_v2 import Event, UIEvents
 
 pytestmark = pytest.mark.gui
 
@@ -195,12 +195,14 @@ def test_processing_reports_generate_partial_dispatches_unified_selected_payload
 
     rtm.on_processing_reports_generate_partial()
 
-    gui.event_dispatcher.publish_event.assert_called_once_with(
-        Events.REPORT_GENERATE,
-        {
-            "videos": [{"path": "/videos/v1.mp4", "status": "complete"}],
-            "report_type": "unified",
-            "report_scope": "selected",
-            "replace_existing": True,
-        },
+    gui.event_dispatcher.publish.assert_called_once_with(
+        Event(
+            type=UIEvents.REPORT_GENERATE,
+            data={
+                "videos": [{"path": "/videos/v1.mp4", "status": "complete"}],
+                "report_type": "unified",
+                "report_scope": "selected",
+                "replace_existing": True,
+            },
+        )
     )

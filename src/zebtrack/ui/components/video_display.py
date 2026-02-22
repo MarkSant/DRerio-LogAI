@@ -10,7 +10,7 @@ import structlog
 from PIL import Image, ImageTk
 
 from zebtrack.ui.components.base import BaseWidget
-from zebtrack.ui.event_bus import EventBus
+from zebtrack.ui.event_bus_v2 import EventBusV2
 
 log = structlog.get_logger()
 
@@ -36,7 +36,7 @@ class VideoDisplayWidget(BaseWidget):
     def __init__(
         self,
         parent: tk.Widget,
-        event_bus: EventBus | None = None,
+        event_bus: EventBusV2 | None = None,
         width: int = DEFAULT_WIDTH,
         height: int = DEFAULT_HEIGHT,
         bg: str = "gray",

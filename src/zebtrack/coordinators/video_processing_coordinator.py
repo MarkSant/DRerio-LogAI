@@ -33,7 +33,7 @@ from zebtrack.core.video.processing_worker import (
     ProcessingContext,
     ProcessingWorker,
 )
-from zebtrack.ui.events import Events
+from zebtrack.ui.event_bus_v2 import UIEvents
 
 if TYPE_CHECKING:
     from threading import Event
@@ -56,7 +56,7 @@ if TYPE_CHECKING:
     from zebtrack.core.video.video_validation_service import VideoValidationService
     from zebtrack.io.recorder_factory import RecorderFactory
     from zebtrack.settings import Settings
-    from zebtrack.ui.event_bus import EventBus
+    from zebtrack.ui.event_bus_v2 import EventBusV2
 
 log = structlog.get_logger()
 
@@ -88,7 +88,7 @@ class VideoProcessingCoordinator(
         video_validation_service: VideoValidationService,
         video_classification_service: VideoClassificationService,
         recorder_factory: RecorderFactory | None = None,
-        event_bus: EventBus | None = None,
+        event_bus: EventBusV2 | None = None,
         dialog_coordinator: DialogCoordinator | None = None,
         video_metadata_service: VideoMetadataService | None = None,
         # UI components
@@ -178,7 +178,7 @@ class VideoProcessingCoordinator(
 
         # Video processing events → self
         bus.subscribe(
-            Events.VIDEO_START_SINGLE_PROCESSING,
+            UIEvents.VIDEO_START_SINGLE_PROCESSING,
             lambda data: self.start_single_video_processing(
                 video_path=str(data.get("video_path", "")) if isinstance(data, dict) else "",
                 config=data.get("config", {}) if isinstance(data, dict) else {},
@@ -189,7 +189,7 @@ class VideoProcessingCoordinator(
             ),
         )
         bus.subscribe(
-            Events.PROJECT_PROCESS_VIDEOS,
+            UIEvents.PROJECT_PROCESS_VIDEOS,
             lambda data: self.process_pending_project_videos(
                 data.get("video_paths") if isinstance(data, dict) else None
             ),
@@ -198,7 +198,7 @@ class VideoProcessingCoordinator(
         # Aquarium detection → multi-aquarium coordinator
         mac = self._multi_aquarium_coordinator
         bus.subscribe(
-            Events.ZONE_AUTO_DETECT,
+            UIEvents.ZONE_AUTO_DETECT,
             lambda data: (
                 mac.run_aquarium_detection(
                     video_path=str(data.get("video_path", "")) if isinstance(data, dict) else "",
@@ -214,7 +214,7 @@ class VideoProcessingCoordinator(
         # Report generation → report coordinator
         rc = self._report_coordinator
         bus.subscribe(
-            Events.PROJECT_GENERATE_SUMMARIES,
+            UIEvents.PROJECT_GENERATE_SUMMARIES,
             lambda data: (
                 rc.generate_project_reports(
                     data.get("video_paths") if isinstance(data, dict) else None
@@ -246,19 +246,19 @@ class VideoProcessingCoordinator(
             if paths:
                 self.process_pending_project_videos(paths)
 
-        bus.subscribe(Events.PROCESSING_GENERATE_TRAJECTORIES, _handle_generate_trajectories)
+        bus.subscribe(UIEvents.PROCESSING_GENERATE_TRAJECTORIES, _handle_generate_trajectories)
 
         # Multi-aquarium events → multi-aquarium coordinator
         bus.subscribe(
-            Events.ZONE_MULTI_AUTO_DETECT,
+            UIEvents.ZONE_MULTI_AUTO_DETECT,
             lambda data: mac._handle_multi_auto_detect(data) if mac else None,
         )
         bus.subscribe(
-            Events.ZONE_AQUARIUM_ASSIGNMENT_COMPLETED,
+            UIEvents.ZONE_AQUARIUM_ASSIGNMENT_COMPLETED,
             lambda data: mac._on_aquarium_assignment_completed(data) if mac else None,
         )
         bus.subscribe(
-            Events.ZONE_PROCESSING_MODE_CHANGED,
+            UIEvents.ZONE_PROCESSING_MODE_CHANGED,
             lambda data: mac._on_processing_mode_changed(data) if mac else None,
         )
 
@@ -278,11 +278,11 @@ class VideoProcessingCoordinator(
             else:
                 rc.generate_project_reports(paths)
 
-        bus.subscribe(Events.REPORT_GENERATE, _handle_report_generate)
+        bus.subscribe(UIEvents.REPORT_GENERATE, _handle_report_generate)
 
         # Reset multi-aquarium state on project load
         bus.subscribe(
-            "PROJECT_LOADED",
+            UIEvents.PROJECT_OPENED,
             lambda data: mac.reset_multi_aquarium_state() if mac else None,
         )
 
@@ -327,7 +327,7 @@ class VideoProcessingCoordinator(
         scanned_videos = self.project_manager.scan_input_paths(paths)
         if not scanned_videos:
             self._publish_event(
-                Events.UI_SHOW_WARNING,
+                UIEvents.UI_SHOW_WARNING,
                 {
                     "title": "Nenhum Vídeo Encontrado",
                     "message": (
@@ -342,7 +342,7 @@ class VideoProcessingCoordinator(
             return
         if not videos_to_process:
             self._publish_event(
-                Events.UI_SHOW_INFO,
+                UIEvents.UI_SHOW_INFO,
                 {
                     "title": "Processamento Concluído",
                     "message": "Nenhum novo vídeo para processar.",
@@ -367,7 +367,7 @@ class VideoProcessingCoordinator(
             self.project_manager.update_video_status(video["path"], "complete")
 
         self._publish_event(
-            Events.UI_SHOW_INFO,
+            UIEvents.UI_SHOW_INFO,
             {
                 "title": "Sucesso",
                 "message": f"{len(videos_to_process)} vídeo(s) adicionado(s) para processamento.",
@@ -561,7 +561,7 @@ class VideoProcessingCoordinator(
         )
         if not validation_result.is_valid:
             self._publish_event(
-                Events.UI_SHOW_WARNING,
+                UIEvents.UI_SHOW_WARNING,
                 {"title": "Validação Falhou", "message": validation_result.error_message},
             )
             return
@@ -626,7 +626,7 @@ class VideoProcessingCoordinator(
 
         if not (ready_with_trajectory or ready_with_zones or arena_only):
             self._publish_event(
-                Events.UI_SHOW_INFO,
+                UIEvents.UI_SHOW_INFO,
                 {
                     "title": "Processamento",
                     "message": "Nenhum vídeo elegível foi encontrado com dados para análise.",
@@ -651,7 +651,7 @@ class VideoProcessingCoordinator(
             ]
             if missing_subjects:
                 self._publish_event(
-                    Events.UI_SHOW_ERROR,
+                    UIEvents.UI_SHOW_ERROR,
                     {
                         "title": "Configuração Incompleta",
                         "message": (
@@ -686,7 +686,7 @@ class VideoProcessingCoordinator(
         except Exception as exc:  # except Exception justified: worker + multiprocessing + I/O
             log.exception("workflow.project_processing.worker_creation_failed", error=str(exc))
             self._publish_event(
-                Events.UI_SHOW_ERROR,
+                UIEvents.UI_SHOW_ERROR,
                 {
                     "title": "Erro ao Iniciar Processamento",
                     "message": f"Falha ao criar worker de processamento: {exc}",
@@ -716,12 +716,12 @@ class VideoProcessingCoordinator(
 
             if len(final_tasks) > 1:
                 self._publish_event(
-                    Events.UI_SET_STATUS,
+                    UIEvents.UI_SET_STATUS,
                     {"message": f"Processamento em lote iniciado: {len(final_tasks)} vídeo(s)."},
                 )
             else:
                 self._publish_event(
-                    Events.UI_SHOW_INFO,
+                    UIEvents.UI_SHOW_INFO,
                     {
                         "title": "Processamento Iniciado",
                         "message": f"O processamento de {len(final_tasks)} vídeo(s) foi iniciado.",

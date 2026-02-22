@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING, Any
 
 import structlog
 
-from zebtrack.ui.event_bus_v2 import EventBusV2, UIEvents
+from zebtrack.ui.event_bus_v2 import Event, EventBusV2, UIEvents
 
 if TYPE_CHECKING:
     from zebtrack.ui.components.canvas_manager import CanvasManager
@@ -30,7 +30,6 @@ if TYPE_CHECKING:
     from zebtrack.ui.dialogs.aquarium_detection_progress_dialog import (
         AquariumDetectionProgressDialog,
     )
-    from zebtrack.ui.event_bus import EventBus
 
 log = structlog.get_logger().bind(component="ui.ui_coordinator")
 
@@ -82,7 +81,6 @@ class UICoordinator:
         self,
         event_bus: EventBusV2,
         *,
-        legacy_event_bus: EventBus | None = None,
         canvas_manager: CanvasManager | None = None,
         validation_manager: ValidationManager | None = None,
         video_selector_manager: VideoSelectorTreeManager | None = None,
@@ -105,7 +103,6 @@ class UICoordinator:
             root: Optional Tkinter root for thread-safe UI updates.
         """
         self.event_bus = event_bus
-        self.legacy_event_bus = legacy_event_bus
         self.canvas_manager = canvas_manager
         self.validation_manager = validation_manager
         self.video_selector_manager = video_selector_manager or project_view_manager
@@ -656,17 +653,14 @@ class UICoordinator:
                         action=action,
                         experiment_id=experiment_id,
                     )
-                    # Publish action event on legacy EventBus (core listener)
-                    if self.legacy_event_bus:
-                        self.legacy_event_bus.publish_event(
-                            "CAMERA_DISCONNECT_USER_ACTION",
-                            {"action": action, "experiment_id": experiment_id},
+                    # Publish action event via EventBusV2
+                    self.event_bus.publish(
+                        Event(
+                            type=UIEvents.CAMERA_DISCONNECT_USER_ACTION,
+                            data={"action": action, "experiment_id": experiment_id},
+                            source="ui_coordinator.camera_disconnect",
                         )
-                    else:
-                        log.warning(
-                            "ui_coordinator.camera_disconnect.no_legacy_event_bus",
-                            experiment_id=experiment_id,
-                        )
+                    )
 
                 CameraDisconnectRecoveryDialog(
                     parent=self.root,

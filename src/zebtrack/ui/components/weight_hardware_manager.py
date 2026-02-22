@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING
 
 import structlog
 
-from zebtrack.ui.events import Events
+from zebtrack.ui.event_bus_v2 import UIEvents
 
 if TYPE_CHECKING:
     from tkinter import StringVar
@@ -196,4 +196,4 @@ class WeightHardwareManager:
 
     def manage_weights_clicked(self) -> None:
         """Open the weight management dialog."""
-        self.gui.event_dispatcher.publish_event(Events.MODEL_MANAGE_WEIGHTS)
+        self.gui.event_dispatcher.publish_event(UIEvents.MODEL_MANAGE_WEIGHTS)

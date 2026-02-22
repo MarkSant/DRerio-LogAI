@@ -1,6 +1,5 @@
 """Main graphical user interface (GUI) module for the Zebtrack application."""
 
-from collections.abc import Callable
 from tkinter import (
     BooleanVar,
     Button,
@@ -55,7 +54,6 @@ from zebtrack.ui.dialogs import (
     MissingMetadataDialog,
     StartRecordingDialog,
 )
-from zebtrack.ui.event_bus import EventBus
 from zebtrack.ui.event_bus_v2 import Event, EventBusV2, UIEvents
 from zebtrack.ui.ui_coordinator import UICoordinator
 
@@ -100,7 +98,7 @@ class ApplicationGUI:
         self,
         root,
         controller,
-        event_bus: EventBus | None = None,
+        event_bus: EventBusV2 | None = None,
         settings_obj=None,
         project_manager: Any | None = None,
     ):
@@ -111,24 +109,18 @@ class ApplicationGUI:
         self.settings = settings_obj
         # Use injected project_manager or fallback to controller (legacy)
         self.project_manager = project_manager or getattr(controller, "project_manager", None)
-        self._event_bus_after_id: int | None = None
-        self._event_bus_poll_interval_ms = 50
-        self._event_bus_handlers: dict[str, Callable[[Any], None]] = {}
-
-        # Initialize Event Bus V2 for Event-Driven Architecture (v4.0)
-        self.event_bus_v2 = EventBusV2()
-
         # Subscribe to VideoProcessingService events (v2.2 UI decoupling)
-        self.event_bus_v2.subscribe(
-            UIEvents.ERROR_OCCURRED,
-            lambda data: self.root.after(
-                0,
-                lambda: self.dialog_manager.show_error(
-                    data.get("title", "Erro"),
-                    data.get("message", "Ocorreu um erro desconhecido."),
+        if self.event_bus:
+            self.event_bus.subscribe(
+                UIEvents.ERROR_OCCURRED,
+                lambda data: self.root.after(
+                    0,
+                    lambda: self.dialog_manager.show_error(
+                        data.get("title", "Erro"),
+                        data.get("message", "Ocorreu um erro desconhecido."),
+                    ),
                 ),
-            ),
-        )
+            )
 
         self.root.title("DRerio LogAI")
         self.root.protocol("WM_DELETE_WINDOW", self.controller.on_close)
@@ -148,7 +140,7 @@ class ApplicationGUI:
         # Initialize component managers (extracted from God Object)
         # Phase 1 components
         self.menu_manager = MenuManager(self)
-        self.canvas_manager = CanvasManager(self, event_bus_v2=self.event_bus_v2)
+        self.canvas_manager = CanvasManager(self, event_bus_v2=self.event_bus)
         self.state_synchronizer = StateSynchronizer(self)
         self.event_dispatcher = EventDispatcher(self)
 
@@ -164,17 +156,19 @@ class ApplicationGUI:
 
         # Phase 2 components (with dependency injection)
         self.validation_manager = ValidationManager(self, settings_obj=self.settings)
-        self.dialog_manager = DialogManager(self, event_bus_v2=self.event_bus_v2)
+        self.dialog_manager = DialogManager(self, event_bus_v2=self.event_bus)
         self.widget_factory = WidgetFactory(self, settings_obj=self.settings)
-        self.reports_tree_manager = ReportsTreeManager(self, event_bus_v2=self.event_bus_v2)
-        self.video_selector_manager = VideoSelectorTreeManager(self, event_bus_v2=self.event_bus_v2)
+        self.reports_tree_manager = ReportsTreeManager(self, event_bus_v2=self.event_bus)
+        self.video_selector_manager = VideoSelectorTreeManager(self, event_bus_v2=self.event_bus)
         # Backward-compat alias used by shims and tests
         self.project_view_manager = self.video_selector_manager
 
         # Phase 2.5: Initialize UI Coordinator (Mediator)
+        # event_bus is required for UICoordinator — narrowing for type checker
+        _eb = self.event_bus
+        assert _eb is not None, "UICoordinator requires an EventBusV2 instance"
         self.ui_coordinator = UICoordinator(
-            event_bus=self.event_bus_v2,
-            legacy_event_bus=self.event_bus,
+            event_bus=_eb,
             canvas_manager=self.canvas_manager,
             validation_manager=self.validation_manager,
             video_selector_manager=self.video_selector_manager,
@@ -186,18 +180,18 @@ class ApplicationGUI:
 
         # Phase 3 components
         self.drawing_state_manager = DrawingStateManager()
-        self.polygon_drawing_service = PolygonDrawingService(event_bus_v2=self.event_bus_v2)
+        self.polygon_drawing_service = PolygonDrawingService(event_bus_v2=self.event_bus)
 
         # Phase 4 components
         self.roi_template_manager = ROITemplateManager(
-            self.project_manager, self, event_bus_v2=self.event_bus_v2
+            self.project_manager, self, event_bus_v2=self.event_bus
         )
 
         # Phase 5 components
         self.tab_builder = TabBuilder(self)
 
         # Phase 5 builders (zone control widgets, buttons, panels)
-        self.zone_control_builder = ZoneControlBuilder(self, event_bus_v2=self.event_bus_v2)
+        self.zone_control_builder = ZoneControlBuilder(self, event_bus_v2=self.event_bus)
         self.button_factory = ButtonFactory()
         self.panel_builder = PanelBuilder()
 
@@ -368,8 +362,6 @@ class ApplicationGUI:
             log.info("gui.init.subscribing_to_ui_events")
             # New: Subscribe to Controller->UI events
             self.event_dispatcher.subscribe_to_ui_events()
-            log.info("gui.init.scheduling_first_poll")
-            self.event_dispatcher.schedule_event_bus_poll()
             log.info("gui.init.event_bus_setup_complete")
         else:
             log.warning("gui.init.no_event_bus")
@@ -635,7 +627,7 @@ class ApplicationGUI:
     def _on_apply_roi_settings(self, params: dict | None = None) -> None:
         """Apply ROI settings.
 
-        If params are provided (via EventBus), applies them directly.
+        If params are provided (via EventBusV2), applies them directly.
         If params are None (via legacy UI button), reads from UI variables.
         """
         try:
@@ -719,8 +711,8 @@ class ApplicationGUI:
         self.video_selector_manager.request_overview_refresh(reason=status_message)
 
         # Publish dual-path event for observers still listening to Event Bus v2
-        if self.event_bus_v2:
-            self.event_bus_v2.publish(
+        if self.event_bus:
+            self.event_bus.publish(
                 Event(
                     type=UIEvents.ZONES_UPDATED,
                     data={"zone_data": zone_data},

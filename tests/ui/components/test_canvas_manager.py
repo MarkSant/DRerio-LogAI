@@ -9,7 +9,7 @@ import pytest
 from PIL import Image
 
 from zebtrack.ui.components.canvas_manager import CanvasManager
-from zebtrack.ui.events import Events
+from zebtrack.ui.event_bus_v2 import UIEvents
 
 
 @pytest.fixture
@@ -320,7 +320,7 @@ class TestCanvasAccessAndEvents:
         canvas_manager.unsubscribe_from_live_frames()
 
         mock_gui.event_bus.unsubscribe.assert_called_once_with(
-            Events.UI_UPDATE_LIVE_FRAME, canvas_manager._on_live_frame_update
+            UIEvents.UI_UPDATE_LIVE_FRAME, canvas_manager._on_live_frame_update
         )
         assert canvas_manager._live_frame_subscription is None
 

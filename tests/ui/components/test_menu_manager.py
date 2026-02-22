@@ -443,12 +443,12 @@ class TestHandleOverviewAssetRemoval:
         assert call_args[0] == "Remover arena"
 
         # Verify event published
-        from zebtrack.ui.events import Events
+        from zebtrack.ui.event_bus_v2 import UIEvents
 
-        menu_manager.gui.event_dispatcher.publish_event.assert_called_once()
-        event_call = menu_manager.gui.event_dispatcher.publish_event.call_args[0]
-        assert event_call[0] == Events.PROJECT_DELETE_ASSET
-        assert event_call[1]["asset"] == "arena"
+        menu_manager.gui.event_dispatcher.publish.assert_called_once()
+        event = menu_manager.gui.event_dispatcher.publish.call_args[0][0]
+        assert event.type == UIEvents.PROJECT_DELETE_ASSET
+        assert event.data["asset"] == "arena"
 
         # Verify UI updates
         menu_manager.gui.set_status.assert_called_once()
@@ -460,8 +460,6 @@ class TestHandleOverviewAssetRemoval:
             event_calls = [
                 call[0][0] for call in menu_manager.gui.event_bus_v2.publish.call_args_list
             ]
-            from zebtrack.ui.event_bus_v2 import UIEvents
-
             assert any(e.type == UIEvents.PROJECT_VIEWS_REFRESH_REQUESTED for e in event_calls)
 
     @patch("zebtrack.ui.components.menu_manager.messagebox")

@@ -13,7 +13,7 @@ from zebtrack.core.services.detector_service import DetectorService
 from zebtrack.core.services.model_service import ModelService
 from zebtrack.core.services.weight_manager import WeightManager
 from zebtrack.core.state_manager import StateManager
-from zebtrack.ui.event_bus import EventBus
+from zebtrack.ui.event_bus_v2 import EventBusV2
 
 
 class TestDetectorSetupCoordinatorInitialization(unittest.TestCase):
@@ -26,7 +26,7 @@ class TestDetectorSetupCoordinatorInitialization(unittest.TestCase):
         self.mock_detector_service.settings = Mock()
         self.mock_weight_manager = Mock(spec=WeightManager)
         self.mock_model_service = Mock(spec=ModelService)
-        self.mock_event_bus = Mock(spec=EventBus)
+        self.mock_event_bus = Mock(spec=EventBusV2)
 
     def test_init_stores_all_dependencies(self):
         """Test that all dependencies are stored during initialization."""

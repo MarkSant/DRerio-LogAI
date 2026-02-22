@@ -41,7 +41,7 @@ if TYPE_CHECKING:
     from zebtrack.core.state_manager import StateManager
     from zebtrack.io.camera import Camera
     from zebtrack.ui.dialogs import LivePreviewWindow
-    from zebtrack.ui.event_bus import EventBus
+    from zebtrack.ui.event_bus_v2 import EventBusV2
 
 log = structlog.get_logger()
 
@@ -114,7 +114,7 @@ class LiveCameraService:
         This service intentionally uses a different display mechanism than
         recorded video analysis:
 
-        - Recorded Video: Uses `CanvasManager` via `Events.UI_DISPLAY_FRAME`
+        - Recorded Video: Uses `CanvasManager` via `UIEvents.UI_DISPLAY_FRAME`
         - Live Camera: Uses `LivePreviewWindow` via direct `root.after()` calls
 
         This divergence exists because:
@@ -139,7 +139,7 @@ class LiveCameraService:
         detector_service: DetectorService,
         settings_obj: Any,  # Settings
         recorder: Any,  # Recorder
-        event_bus: EventBus,  # Injected EventBus
+        event_bus: EventBusV2,  # Injected EventBusV2
         root: Misc | None = None,
     ):
         """
@@ -153,7 +153,7 @@ class LiveCameraService:
             detector_service: DetectorService for detection operations
             settings_obj: Settings object
             recorder: Recorder instance
-            event_bus: EventBus for UI notifications
+            event_bus: EventBusV2 for UI notifications
             root: Tkinter root for UI updates
         """
         self.controller = controller
@@ -219,8 +219,10 @@ class LiveCameraService:
 
         # Subscribe to user action events
         if self.event_bus:
+            from zebtrack.ui.event_bus_v2 import UIEvents
+
             self.event_bus.subscribe(
-                "CAMERA_DISCONNECT_USER_ACTION", self._on_disconnect_user_action
+                UIEvents.CAMERA_DISCONNECT_USER_ACTION, self._on_disconnect_user_action
             )
 
         # Camera disconnect detection (v2.2.0)
@@ -838,13 +840,25 @@ class LiveCameraService:
 
         # ✅ FIX: Restore button state after session ends
         if self.event_bus:
-            from zebtrack.ui.events import Events
+            from zebtrack.ui.event_bus_v2 import Event, UIEvents
 
-            self.event_bus.publish_event(
-                Events.UI_UPDATE_BUTTON_STATE, {"button_name": "start_rec", "state": "normal"}
+            self.event_bus.publish(
+                Event(
+                    type=UIEvents.UI_UPDATE_BUTTON_STATE,
+                    data={
+                        "button_name": "start_rec",
+                        "state": "normal",
+                    },
+                )
             )
-            self.event_bus.publish_event(
-                Events.UI_UPDATE_BUTTON_STATE, {"button_name": "stop_rec", "state": "disabled"}
+            self.event_bus.publish(
+                Event(
+                    type=UIEvents.UI_UPDATE_BUTTON_STATE,
+                    data={
+                        "button_name": "stop_rec",
+                        "state": "disabled",
+                    },
+                )
             )
             log.info("live_camera_service.buttons_restored_after_session_end")
 
@@ -1345,24 +1359,30 @@ class LiveCameraService:
 
                                     # Publish progress event
                                     if self.event_bus:
-                                        self.event_bus.publish_event(
-                                            "AQUARIUM_DETECTION_PROGRESS",
-                                            {
-                                                "frame_number": self._aquarium_detection_frames,
-                                                "max_frames": self._aquarium_detection_max_frames,
-                                                "frame_image": frame.copy(),
-                                                "detected_bbox": (
-                                                    int(x1),
-                                                    int(y1),
-                                                    int(x2),
-                                                    int(y2),
-                                                ),
-                                                "is_valid": True,
-                                                "experiment_id": self._analysis_params.get(
-                                                    "experiment_id", "unknown"
-                                                ),
-                                                "valid_count": len(self._detected_aquarium_bboxes),
-                                            },
+                                        from zebtrack.ui.event_bus_v2 import Event, UIEvents
+
+                                        self.event_bus.publish(
+                                            Event(
+                                                type=UIEvents.AQUARIUM_DETECTION_PROGRESS,
+                                                data={
+                                                    "frame_number": self._aquarium_detection_frames,
+                                                    "max_frames": self._aquarium_detection_max_frames,  # noqa: E501
+                                                    "frame_image": frame.copy(),
+                                                    "detected_bbox": (
+                                                        int(x1),
+                                                        int(y1),
+                                                        int(x2),
+                                                        int(y2),
+                                                    ),
+                                                    "is_valid": True,
+                                                    "experiment_id": self._analysis_params.get(
+                                                        "experiment_id", "unknown"
+                                                    ),
+                                                    "valid_count": len(
+                                                        self._detected_aquarium_bboxes
+                                                    ),
+                                                },
+                                            ),
                                         )
                                 else:
                                     log.info(
@@ -1375,24 +1395,30 @@ class LiveCameraService:
 
                                     # Publish progress event for invalid detection
                                     if self.event_bus and frame_number % 5 == 0:
-                                        self.event_bus.publish_event(
-                                            "AQUARIUM_DETECTION_PROGRESS",
-                                            {
-                                                "frame_number": self._aquarium_detection_frames,
-                                                "max_frames": self._aquarium_detection_max_frames,
-                                                "frame_image": frame.copy(),
-                                                "detected_bbox": (
-                                                    int(x1),
-                                                    int(y1),
-                                                    int(x2),
-                                                    int(y2),
-                                                ),
-                                                "is_valid": False,
-                                                "experiment_id": self._analysis_params.get(
-                                                    "experiment_id", "unknown"
-                                                ),
-                                                "valid_count": len(self._detected_aquarium_bboxes),
-                                            },
+                                        from zebtrack.ui.event_bus_v2 import Event, UIEvents
+
+                                        self.event_bus.publish(
+                                            Event(
+                                                type=UIEvents.AQUARIUM_DETECTION_PROGRESS,
+                                                data={
+                                                    "frame_number": self._aquarium_detection_frames,
+                                                    "max_frames": self._aquarium_detection_max_frames,  # noqa: E501
+                                                    "frame_image": frame.copy(),
+                                                    "detected_bbox": (
+                                                        int(x1),
+                                                        int(y1),
+                                                        int(x2),
+                                                        int(y2),
+                                                    ),
+                                                    "is_valid": False,
+                                                    "experiment_id": self._analysis_params.get(
+                                                        "experiment_id", "unknown"
+                                                    ),
+                                                    "valid_count": len(
+                                                        self._detected_aquarium_bboxes
+                                                    ),
+                                                },
+                                            ),
                                         )
 
                     if not detection_found_in_frame:
@@ -1595,7 +1621,7 @@ class LiveCameraService:
                 ):
                     # Emit event to update main UI canvas
                     # We pass a copy of the frame to avoid thread safety issues
-                    from zebtrack.ui.events import Events
+                    from zebtrack.ui.event_bus_v2 import Event, UIEvents
 
                     log.debug(
                         "live_camera_service.emitting_ui_update_frame",
@@ -1603,13 +1629,15 @@ class LiveCameraService:
                         has_detections=len(detections) if detections else 0,
                     )
 
-                    self.event_bus.publish_event(
-                        Events.UI_UPDATE_LIVE_FRAME,
-                        {
-                            "frame": frame,  # Numpy array
-                            "detections": detections,
-                            "fps": self._actual_fps,
-                        },
+                    self.event_bus.publish(
+                        Event(
+                            type=UIEvents.UI_UPDATE_LIVE_FRAME,
+                            data={
+                                "frame": frame,  # Numpy array
+                                "detections": detections,
+                                "fps": self._actual_fps,
+                            },
+                        ),
                     )
                 elif (
                     should_display
@@ -1707,15 +1735,14 @@ class LiveCameraService:
 
         # Update status via event bus
         if self.event_bus and remaining > 0:
-            from zebtrack.ui.events import Events
+            from zebtrack.ui.event_bus_v2 import Event, UIEvents
 
             status_msg = (
                 f"● Gravando: {elapsed:.1f}s / {duration_s:.1f}s (Restante: {remaining:.1f}s)"
             )
 
-            self.event_bus.publish_event(
-                Events.UI_SET_STATUS,
-                {"message": status_msg},
+            self.event_bus.publish(
+                Event(type=UIEvents.UI_SET_STATUS, data={"message": status_msg}),
             )
 
             # Schedule next update (every 1 second)
@@ -1733,7 +1760,7 @@ class LiveCameraService:
         if not self.event_bus:
             return
 
-        from zebtrack.ui.events import Events
+        from zebtrack.ui.event_bus_v2 import Event, UIEvents
 
         # Format message based on lag severity
         if lag_seconds < 2.0:
@@ -1752,9 +1779,8 @@ class LiveCameraService:
             queue_size=self.frame_queue.qsize(),
         )
 
-        self.event_bus.publish_event(
-            Events.UI_SET_STATUS,
-            {"message": status_msg},
+        self.event_bus.publish(
+            Event(type=UIEvents.UI_SET_STATUS, data={"message": status_msg}),
         )
 
     def _on_session_complete(self, output_dir: Path) -> None:  # noqa: C901
@@ -1956,10 +1982,13 @@ class LiveCameraService:
 
                     # Refresh project views to show the new results
                     if self.event_bus:
-                        from zebtrack.ui.events import Events
+                        from zebtrack.ui.event_bus_v2 import Event, UIEvents
 
-                        self.event_bus.publish_event(
-                            Events.UI_REFRESH_PROJECT_VIEWS, {"reason": "Live analysis complete"}
+                        self.event_bus.publish(
+                            Event(
+                                type=UIEvents.UI_REFRESH_PROJECT_VIEWS,
+                                data={"reason": "Live analysis complete"},
+                            )
                         )
 
                 # --- FINALIZE ---
@@ -2003,7 +2032,7 @@ class LiveCameraService:
         if not self.event_bus:
             return
 
-        from zebtrack.ui.events import Events
+        from zebtrack.ui.event_bus_v2 import Event, UIEvents
 
         if analysis_success and stats:
             message = (
@@ -2037,9 +2066,8 @@ class LiveCameraService:
             )
             title = "Gravação Concluída"
 
-        self.event_bus.publish_event(
-            Events.UI_SHOW_INFO,
-            {"title": title, "message": message},
+        self.event_bus.publish(
+            Event(type=UIEvents.UI_SHOW_INFO, data={"title": title, "message": message}),
         )
 
     def _start_recording_after_arena(self) -> None:
@@ -2396,13 +2424,17 @@ class LiveCameraService:
 
             # Publish disconnect event
             if self.event_bus:
-                self.event_bus.publish_event(
-                    "CAMERA_DISCONNECT_DETECTED",
-                    {
-                        "gap_duration_s": gap_duration,
-                        "gap_start_time": gap_start_time,
-                        "experiment_id": self._analysis_params.get("experiment_id", "unknown"),
-                    },
+                from zebtrack.ui.event_bus_v2 import Event, UIEvents
+
+                self.event_bus.publish(
+                    Event(
+                        type=UIEvents.CAMERA_DISCONNECT_DETECTED,
+                        data={
+                            "gap_duration_s": gap_duration,
+                            "gap_start_time": gap_start_time,
+                            "experiment_id": self._analysis_params.get("experiment_id", "unknown"),
+                        },
+                    ),
                 )
 
             # Record gap start
@@ -2443,12 +2475,16 @@ class LiveCameraService:
 
         # Publish reconnect event
         if self.event_bus:
-            self.event_bus.publish_event(
-                "CAMERA_RECONNECTED",
-                {
-                    "gap_duration_s": gap_duration if self._disconnect_gaps else 0.0,
-                    "total_gaps": len(self._disconnect_gaps),
-                },
+            from zebtrack.ui.event_bus_v2 import Event, UIEvents
+
+            self.event_bus.publish(
+                Event(
+                    type=UIEvents.CAMERA_RECONNECTED,
+                    data={
+                        "gap_duration_s": gap_duration if self._disconnect_gaps else 0.0,
+                        "total_gaps": len(self._disconnect_gaps),
+                    },
+                ),
             )
 
         self._camera_disconnected = False

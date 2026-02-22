@@ -9,6 +9,7 @@ import tempfile
 from unittest.mock import MagicMock
 
 from zebtrack.core.project.project_workflow_service import ProjectWorkflowService
+from zebtrack.ui.event_bus_v2 import UIEvents
 
 
 def test_detection_mode_with_multiple_animals_blocked():
@@ -127,9 +128,9 @@ def test_single_video_detection_mode_enforcement():
         # This should show an error and return early
         controller.start_single_video_workflow("/tmp/test.mp4", config)
 
-        # Verify error was shown
-        mock_event_bus.publish_event.assert_called_once()
-        event_name, payload = mock_event_bus.publish_event.call_args[0]
-        assert event_name == "ui:show_error"
-        assert "Configuração Inválida" in payload["title"]
-        assert "modo de detecção (det)" in payload["message"]
+        # Verify error was shown via v2 publish(Event(...))
+        mock_event_bus.publish.assert_called_once()
+        call_ev = mock_event_bus.publish.call_args[0][0]
+        assert call_ev.type == UIEvents.SHOW_ERROR
+        assert "Configuração Inválida" in call_ev.data["title"]
+        assert "modo de detecção (det)" in call_ev.data["message"]

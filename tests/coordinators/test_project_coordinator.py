@@ -223,10 +223,10 @@ class TestProjectCreationFromWizard:
 
         project_coordinator.create_project_from_wizard(wizard_data)
 
-        mock_event_bus.publish_event.assert_called_once()
-        event_name, event_data = mock_event_bus.publish_event.call_args[0]
-        assert event_name == "PROJECT_CREATED"
-        assert event_data["project_name"] == "test_project"
+        mock_event_bus.publish.assert_called_once()
+        event_obj = mock_event_bus.publish.call_args[0][0]
+        assert event_obj.type == "PROJECT_CREATED"
+        assert event_obj.data["project_name"] == "test_project"
 
     def test_create_from_wizard_missing_required_field(self, project_coordinator):
         """Should raise error if required field missing."""
@@ -423,9 +423,9 @@ class TestProjectLoading:
 
         project_coordinator.load_project("/path/to/project")
 
-        mock_event_bus.publish_event.assert_called()
-        event_name = mock_event_bus.publish_event.call_args[0][0]
-        assert event_name == "PROJECT_LOADED"
+        mock_event_bus.publish.assert_called()
+        event_obj = mock_event_bus.publish.call_args[0][0]
+        assert event_obj.type == "PROJECT_LOADED"
 
     def test_load_project_with_callbacks(self, project_coordinator, mock_project_manager):
         """Should call setup callbacks when provided."""
@@ -505,9 +505,9 @@ class TestProjectClosing:
         """Should publish PROJECT_CLOSED event."""
         project_coordinator.close_project()
 
-        mock_event_bus.publish_event.assert_called()
-        event_name = mock_event_bus.publish_event.call_args[0][0]
-        assert event_name == "PROJECT_CLOSED"
+        mock_event_bus.publish.assert_called()
+        event_obj = mock_event_bus.publish.call_args[0][0]
+        assert event_obj.type == "PROJECT_CLOSED"
 
     def test_close_project_with_restore_callback(self, project_coordinator):
         """Should call restore defaults callback if provided."""

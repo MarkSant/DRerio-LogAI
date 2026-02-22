@@ -19,7 +19,7 @@ import structlog
 
 from zebtrack.coordinators.base_coordinator import BaseCoordinator
 from zebtrack.core.video.processing_mode import ProcessingMode
-from zebtrack.ui.events import Events
+from zebtrack.ui.event_bus_v2 import UIEvents
 
 if TYPE_CHECKING:
     from threading import Event
@@ -32,7 +32,7 @@ if TYPE_CHECKING:
     from zebtrack.core.ui_scheduler import UIScheduler
     from zebtrack.core.video.video_classification_service import VideoClassificationService
     from zebtrack.settings import Settings
-    from zebtrack.ui.event_bus import EventBus
+    from zebtrack.ui.event_bus_v2 import EventBusV2
 
 log = structlog.get_logger()
 
@@ -63,7 +63,7 @@ class MultiAquariumCoordinator(BaseCoordinator):
         cancel_event: Event,
         video_classification_service: VideoClassificationService,
         weight_manager: WeightManager | None = None,
-        event_bus: EventBus | None = None,
+        event_bus: EventBusV2 | None = None,
         view: Any = None,
         root: Any = None,
         detector: Any = None,
@@ -213,7 +213,7 @@ class MultiAquariumCoordinator(BaseCoordinator):
                     polygon_lists = [p.tolist() if hasattr(p, "tolist") else p for p in polygons]
 
                     self._publish_event(
-                        Events.ZONE_MULTI_AUTO_DETECT_SUCCESS,
+                        UIEvents.ZONE_MULTI_AUTO_DETECT_SUCCESS,
                         {
                             "video_path": video_path,
                             "polygons": polygon_lists,
@@ -224,7 +224,7 @@ class MultiAquariumCoordinator(BaseCoordinator):
 
                     # Trigger assignment dialog
                     self._publish_event(
-                        Events.ZONE_SHOW_AQUARIUM_ASSIGNMENT_DIALOG,
+                        UIEvents.ZONE_SHOW_AQUARIUM_ASSIGNMENT_DIALOG,
                         {
                             "video_path": video_path,
                             "polygons": polygon_lists,
@@ -235,7 +235,7 @@ class MultiAquariumCoordinator(BaseCoordinator):
                 else:
                     log.warning("processing_coordinator.aquarium_detection.multi_failed")
                     self._publish_event(
-                        Events.ZONE_MULTI_AUTO_DETECT_FAILED,
+                        UIEvents.ZONE_MULTI_AUTO_DETECT_FAILED,
                         {"video_path": video_path, "reason": "Detecção falhou"},
                     )
                 return None
@@ -269,7 +269,7 @@ class MultiAquariumCoordinator(BaseCoordinator):
             )
             if multi_aquarium:
                 self._publish_event(
-                    Events.ZONE_MULTI_AUTO_DETECT_FAILED,
+                    UIEvents.ZONE_MULTI_AUTO_DETECT_FAILED,
                     {"video_path": video_path, "reason": str(exc)},
                 )
             return None
@@ -384,7 +384,7 @@ class MultiAquariumCoordinator(BaseCoordinator):
 
         self.project_manager.save_project()
 
-        self._publish_event(Events.UI_REFRESH_PROJECT_VIEWS, {})
+        self._publish_event(UIEvents.UI_REFRESH_PROJECT_VIEWS, {})
         log.info("processing_coordinator.assignment.completed", videos=len(target_videos))
 
     def _relocate_multi_aquarium_folders(
@@ -644,7 +644,7 @@ class MultiAquariumCoordinator(BaseCoordinator):
         )
 
         self._publish_event(
-            Events.ZONE_PROCESSING_MODE_CHANGED,
+            UIEvents.ZONE_PROCESSING_MODE_CHANGED,
             {"mode": mode.name, "source": source},
         )
 

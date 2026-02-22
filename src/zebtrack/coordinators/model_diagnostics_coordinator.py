@@ -19,7 +19,7 @@ import structlog
 
 from zebtrack.coordinators.base_coordinator import BaseCoordinator, CoordinatorValidationError
 from zebtrack.plugins import DETECTOR_PLUGINS
-from zebtrack.ui.events import Events
+from zebtrack.ui.event_bus_v2 import Event, EventBusV2, UIEvents
 
 try:
     from ultralytics import YOLO
@@ -34,7 +34,6 @@ if TYPE_CHECKING:
 
     from zebtrack.core.services.weight_manager import WeightManager
     from zebtrack.core.state_manager import StateManager
-    from zebtrack.ui.event_bus import EventBus
 
 log = structlog.get_logger()
 
@@ -109,7 +108,7 @@ class ModelDiagnosticsCoordinator(BaseCoordinator):
         self,
         state_manager: StateManager,
         weight_manager: WeightManager,
-        event_bus: EventBus | None = None,
+        event_bus: EventBusV2 | None = None,
         cancel_event: Event | None = None,
         root: Any | None = None,
         view: Any | None = None,
@@ -227,9 +226,11 @@ class ModelDiagnosticsCoordinator(BaseCoordinator):
 
         if not active_weight_details:
             if self.event_bus:
-                self.event_bus.publish_event(
-                    Events.UI_SHOW_ERROR,
-                    {"title": "Erro", "message": "Nenhum peso ativo selecionado."},
+                self.event_bus.publish(
+                    Event(
+                        type=UIEvents.UI_SHOW_ERROR,
+                        data={"title": "Erro", "message": "Nenhum peso ativo selecionado."},
+                    )
                 )
             return
 
@@ -281,9 +282,14 @@ class ModelDiagnosticsCoordinator(BaseCoordinator):
                         active_weight_details.get("openvino_path")
                     ):
                         if self.event_bus:
-                            self.event_bus.publish_event(
-                                Events.UI_SHOW_ERROR,
-                                {"title": "Erro", "message": "A conversão para OpenVINO falhou."},
+                            self.event_bus.publish(
+                                Event(
+                                    type=UIEvents.UI_SHOW_ERROR,
+                                    data={
+                                        "title": "Erro",
+                                        "message": "A conversão para OpenVINO falhou.",
+                                    },
+                                )
                             )
                         return
                 else:
@@ -293,8 +299,11 @@ class ModelDiagnosticsCoordinator(BaseCoordinator):
                         config["model_to_test"] = "YOLO (PyTorch)"
                     else:  # model_to_test was 'OpenVINO'
                         if self.event_bus:
-                            self.event_bus.publish_event(
-                                Events.UI_SET_STATUS, {"message": "Diagnóstico cancelado."}
+                            self.event_bus.publish(
+                                Event(
+                                    type=UIEvents.UI_SET_STATUS,
+                                    data={"message": "Diagnóstico cancelado."},
+                                )
                             )
                         return
 
@@ -368,9 +377,11 @@ class ModelDiagnosticsCoordinator(BaseCoordinator):
             log.error("diagnostic.thread.load_error", exc_info=True)
             self._finish_progress_dialog(progress_dialog)
             if self.event_bus:
-                self.event_bus.publish_event(
-                    Events.UI_SHOW_ERROR,
-                    {"title": "Erro ao Carregar Modelo", "message": f"Falha: {e}"},
+                self.event_bus.publish(
+                    Event(
+                        type=UIEvents.UI_SHOW_ERROR,
+                        data={"title": "Erro ao Carregar Modelo", "message": f"Falha: {e}"},
+                    )
                 )
 
     def _update_diagnostic_progress(
@@ -443,12 +454,14 @@ class ModelDiagnosticsCoordinator(BaseCoordinator):
             log.error("diagnostic.yolo.unavailable")
             self._finish_progress_dialog(progress_dialog)
             if self.event_bus:
-                self.event_bus.publish_event(
-                    Events.UI_SHOW_ERROR,
-                    {
-                        "title": "Erro",
-                        "message": "YOLO não está disponível (ultralytics não instalado)",
-                    },
+                self.event_bus.publish(
+                    Event(
+                        type=UIEvents.UI_SHOW_ERROR,
+                        data={
+                            "title": "Erro",
+                            "message": "YOLO não está disponível (ultralytics não instalado)",
+                        },
+                    )
                 )
             raise DiagnosticAbortError from None
 
@@ -497,15 +510,17 @@ class ModelDiagnosticsCoordinator(BaseCoordinator):
             )
             self._finish_progress_dialog(progress_dialog)
             if self.event_bus:
-                self.event_bus.publish_event(
-                    Events.UI_SHOW_ERROR,
-                    {
-                        "title": "Erro de Modelo",
-                        "message": (
-                            "O diretório do modelo OpenVINO não contém arquivos "
-                            ".xml necessários. Por favor, reconverta o modelo."
-                        ),
-                    },
+                self.event_bus.publish(
+                    Event(
+                        type=UIEvents.UI_SHOW_ERROR,
+                        data={
+                            "title": "Erro de Modelo",
+                            "message": (
+                                "O diretório do modelo OpenVINO não contém arquivos "
+                                ".xml necessários. Por favor, reconverta o modelo."
+                            ),
+                        },
+                    )
                 )
             raise DiagnosticAbortError from None
 
@@ -514,12 +529,14 @@ class ModelDiagnosticsCoordinator(BaseCoordinator):
             log.error("diagnostic.thread.openvino_plugin_missing")
             self._finish_progress_dialog(progress_dialog)
             if self.event_bus:
-                self.event_bus.publish_event(
-                    Events.UI_SHOW_ERROR,
-                    {
-                        "title": "Erro de Plugin",
-                        "message": "Plugin OpenVINO não encontrado para diagnóstico.",
-                    },
+                self.event_bus.publish(
+                    Event(
+                        type=UIEvents.UI_SHOW_ERROR,
+                        data={
+                            "title": "Erro de Plugin",
+                            "message": "Plugin OpenVINO não encontrado para diagnóstico.",
+                        },
+                    )
                 )
             raise DiagnosticAbortError from None
 
@@ -531,12 +548,14 @@ class ModelDiagnosticsCoordinator(BaseCoordinator):
             )
             self._finish_progress_dialog(progress_dialog)
             if self.event_bus:
-                self.event_bus.publish_event(
-                    Events.UI_SHOW_ERROR,
-                    {
-                        "title": "Erro de Plugin",
-                        "message": "O plugin OpenVINO não possui o método predict necessário.",
-                    },
+                self.event_bus.publish(
+                    Event(
+                        type=UIEvents.UI_SHOW_ERROR,
+                        data={
+                            "title": "Erro de Plugin",
+                            "message": "O plugin OpenVINO não possui o método predict necessário.",
+                        },
+                    )
                 )
             raise DiagnosticAbortError from None
 
@@ -577,12 +596,14 @@ class ModelDiagnosticsCoordinator(BaseCoordinator):
         if not cap.isOpened():
             self._finish_progress_dialog(progress_dialog)
             if self.event_bus:
-                self.event_bus.publish_event(
-                    Events.UI_SHOW_ERROR,
-                    {
-                        "title": "Erro",
-                        "message": f"Não foi possível abrir o vídeo: {video_path}",
-                    },
+                self.event_bus.publish(
+                    Event(
+                        type=UIEvents.UI_SHOW_ERROR,
+                        data={
+                            "title": "Erro",
+                            "message": f"Não foi possível abrir o vídeo: {video_path}",
+                        },
+                    )
                 )
             raise DiagnosticAbortError from None
 
@@ -611,7 +632,12 @@ class ModelDiagnosticsCoordinator(BaseCoordinator):
                 )
 
                 if self.event_bus:
-                    self.event_bus.publish_event(Events.UI_SET_STATUS, {"message": status_msg})
+                    self.event_bus.publish(
+                        Event(
+                            type=UIEvents.UI_SET_STATUS,
+                            data={"message": status_msg},
+                        )
+                    )
 
                 if yolo_model is not None:
                     preds = yolo_model.predict(frame, conf=conf_threshold, verbose=False)
@@ -638,14 +664,16 @@ class ModelDiagnosticsCoordinator(BaseCoordinator):
                         )
                         self._finish_progress_dialog(progress_dialog)
                         if self.event_bus:
-                            self.event_bus.publish_event(
-                                Events.UI_SHOW_ERROR,
-                                {
-                                    "title": "Erro de Inferência OpenVINO",
-                                    "message": (
-                                        f"Falha na inferência do frame {frame_count + 1}: {exc}"
-                                    ),
-                                },
+                            self.event_bus.publish(
+                                Event(
+                                    type=UIEvents.UI_SHOW_ERROR,
+                                    data={
+                                        "title": "Erro de Inferência OpenVINO",
+                                        "message": (
+                                            f"Falha na inferência do frame {frame_count + 1}: {exc}"
+                                        ),
+                                    },
+                                )
                             )
                         raise DiagnosticAbortError from None
         finally:
@@ -676,26 +704,32 @@ class ModelDiagnosticsCoordinator(BaseCoordinator):
                 with open(save_path, "w", encoding="utf-8") as f:
                     f.write(report_str)
                 if self.event_bus:
-                    self.event_bus.publish_event(
-                        Events.UI_SHOW_INFO,
-                        {
-                            "title": "Sucesso",
-                            "message": f"Relatório de diagnóstico salvo em:\n{save_path}",
-                        },
+                    self.event_bus.publish(
+                        Event(
+                            type=UIEvents.UI_SHOW_INFO,
+                            data={
+                                "title": "Sucesso",
+                                "message": f"Relatório de diagnóstico salvo em:\n{save_path}",
+                            },
+                        )
                     )
             except OSError as e:
                 if self.event_bus:
-                    self.event_bus.publish_event(
-                        Events.UI_SHOW_ERROR,
-                        {
-                            "title": "Erro ao Salvar",
-                            "message": f"Não foi possível salvar o arquivo: {e}",
-                        },
+                    self.event_bus.publish(
+                        Event(
+                            type=UIEvents.UI_SHOW_ERROR,
+                            data={
+                                "title": "Erro ao Salvar",
+                                "message": f"Não foi possível salvar o arquivo: {e}",
+                            },
+                        )
                     )
 
         if self.event_bus:
-            self.event_bus.publish_event(
-                Events.UI_SET_STATUS, {"message": "Diagnóstico concluído. Pronto."}
+            self.event_bus.publish(
+                Event(
+                    type=UIEvents.UI_SET_STATUS, data={"message": "Diagnóstico concluído. Pronto."}
+                )
             )
 
     def _format_diagnostic_report(self, config: dict, results: dict) -> str:

@@ -2,7 +2,7 @@
 Integration tests for DetectorSetupCoordinator with other components (Phase 4.9).
 
 Verifies that DetectorSetupCoordinator integrates properly with StateManager,
-EventBus, DetectorService, and other components.
+EventBusV2, DetectorService, and other components.
 
 Migrated from DetectorSetupCoordinator to DetectorSetupCoordinator in Phase 4.9.
 """
@@ -15,7 +15,7 @@ from zebtrack.core.services.detector_service import DetectorService
 from zebtrack.core.services.model_service import ModelService
 from zebtrack.core.services.weight_manager import WeightManager
 from zebtrack.core.state_manager import StateManager
-from zebtrack.ui.event_bus import EventBus
+from zebtrack.ui.event_bus_v2 import EventBusV2
 
 
 class TestDetectorSetupCoordinatorIntegration(unittest.TestCase):
@@ -24,7 +24,7 @@ class TestDetectorSetupCoordinatorIntegration(unittest.TestCase):
     def setUp(self):
         """Set up test fixtures."""
         self.state_manager = Mock(spec=StateManager)
-        self.event_bus = Mock(spec=EventBus)
+        self.event_bus = Mock(spec=EventBusV2)
         self.detector_service = Mock(spec=DetectorService)
         self.detector_service.settings = Mock()
         self.weight_manager = Mock(spec=WeightManager)
@@ -180,12 +180,12 @@ class TestStateManagerIntegration(unittest.TestCase):
 
 
 class TestEventBusIntegration(unittest.TestCase):
-    """Test integration between DetectorSetupCoordinator and EventBus."""
+    """Test integration between DetectorSetupCoordinator and EventBusV2."""
 
     def setUp(self):
         """Set up test fixtures."""
         self.state_manager = Mock(spec=StateManager)
-        self.event_bus = Mock(spec=EventBus)
+        self.event_bus = Mock(spec=EventBusV2)
         self.detector_service = Mock(spec=DetectorService)
         self.detector_service.settings = Mock()
         self.weight_manager = Mock(spec=WeightManager)
@@ -198,11 +198,11 @@ class TestEventBusIntegration(unittest.TestCase):
         )
 
     def test_coordinator_has_access_to_event_bus(self):
-        """Test that coordinator can access EventBus."""
+        """Test that coordinator can access EventBusV2."""
         assert self.coordinator.event_bus is self.event_bus
 
     def test_coordinator_can_publish_events(self):
-        """Test that coordinator can publish events via EventBus."""
+        """Test that coordinator can publish events via EventBusV2."""
         # BaseCoordinator provides _publish_event method
         assert hasattr(self.coordinator, "_publish_event")
 

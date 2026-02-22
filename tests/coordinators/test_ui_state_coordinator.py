@@ -9,7 +9,7 @@ from unittest.mock import Mock
 import pytest
 
 from zebtrack.coordinators.ui_state_coordinator import UIStateController
-from zebtrack.ui.events import Events
+from zebtrack.ui.event_bus_v2 import Event, UIEvents
 
 
 @pytest.fixture
@@ -51,8 +51,8 @@ def controller():
 def test_manage_weights_publishes_event(controller):
     controller.manage_weights()
 
-    controller.ui_event_bus.publish_event.assert_called_once_with(
-        Events.UI_OPEN_MANAGE_WEIGHTS_DIALOG
+    controller.ui_event_bus.publish.assert_called_once_with(
+        Event(type=UIEvents.UI_OPEN_MANAGE_WEIGHTS_DIALOG)
     )
 
 
@@ -62,9 +62,14 @@ def test_add_new_weight_success_updates_ui(controller):
     controller.add_new_weight("/tmp/w3.pt", set_as_default=True, weight_type="seg")
 
     controller.weight_manager.add_weight.assert_called_once()
-    calls = controller.ui_event_bus.publish_event.call_args_list
-    assert calls[0].args[0] == Events.UI_UPDATE_WEIGHTS_LIST
-    assert calls[1].args[0] == Events.UI_SET_ACTIVE_WEIGHT
+    calls = controller.ui_event_bus.publish.call_args_list
+    assert calls[0].args[0] == Event(
+        type=UIEvents.UI_UPDATE_WEIGHTS_LIST,
+        data={"weights": ["w1", "w2"]},
+    )
+    assert calls[1].args[0] == Event(
+        type=UIEvents.UI_SET_ACTIVE_WEIGHT, data={"weight_name": "w3.pt"}
+    )
     controller.set_active_weight.assert_called_once_with("w3.pt")
 
 
@@ -73,8 +78,8 @@ def test_add_new_weight_error_publishes_error(controller):
 
     controller.add_new_weight("/tmp/w3.pt", set_as_default=True, weight_type="seg")
 
-    event_name = controller.ui_event_bus.publish_event.call_args[0][0]
-    assert event_name == Events.UI_SHOW_ERROR
+    event_obj = controller.ui_event_bus.publish.call_args[0][0]
+    assert event_obj.type == UIEvents.UI_SHOW_ERROR
 
 
 def test_delete_weight_success_publishes_updates(controller):
@@ -84,16 +89,23 @@ def test_delete_weight_success_publishes_updates(controller):
     controller.delete_weight("w1")
 
     controller.weight_manager.delete_weight.assert_called_once_with("w1")
-    calls = controller.ui_event_bus.publish_event.call_args_list
-    assert calls[0].args[0] == Events.UI_UPDATE_WEIGHTS_LIST
-    assert calls[1].args[0] == Events.UI_SET_ACTIVE_WEIGHT
+    calls = controller.ui_event_bus.publish.call_args_list
+    assert calls[0].args[0] == Event(
+        type=UIEvents.UI_UPDATE_WEIGHTS_LIST,
+        data={"weights": ["w1", "w2"]},
+    )
+    assert calls[1].args[0] == Event(
+        type=UIEvents.UI_SET_ACTIVE_WEIGHT, data={"weight_name": "default.pt"}
+    )
     controller.set_active_weight.assert_called_once_with("default.pt", None)
 
 
 def test_load_new_weight_requests_file(controller):
     controller.load_new_weight(filepath=None)
 
-    controller.ui_event_bus.publish_event.assert_called_once_with(Events.UI_REQUEST_WEIGHT_FILE)
+    controller.ui_event_bus.publish.assert_called_once_with(
+        Event(type=UIEvents.UI_REQUEST_WEIGHT_FILE)
+    )
 
 
 def test_load_new_weight_requests_type(controller):
@@ -101,8 +113,8 @@ def test_load_new_weight_requests_type(controller):
 
     controller.load_new_weight(filepath="/tmp/w.pt", weight_type=None)
 
-    controller.ui_event_bus.publish_event.assert_called_once_with(
-        Events.UI_REQUEST_WEIGHT_TYPE, {"filepath": str(Path("/tmp/w.pt"))}
+    controller.ui_event_bus.publish.assert_called_once_with(
+        Event(type=UIEvents.UI_REQUEST_WEIGHT_TYPE, data={"filepath": str(Path("/tmp/w.pt"))})
     )
 
 
@@ -111,9 +123,11 @@ def test_load_new_weight_requests_action(controller):
 
     controller.load_new_weight(filepath="/tmp/w.pt", weight_type=None, choice=None)
 
-    controller.ui_event_bus.publish_event.assert_called_once_with(
-        Events.UI_REQUEST_WEIGHT_ACTION,
-        {"weight_type": "seg", "filepath": str(Path("/tmp/w.pt"))},
+    controller.ui_event_bus.publish.assert_called_once_with(
+        Event(
+            type=UIEvents.UI_REQUEST_WEIGHT_ACTION,
+            data={"weight_type": "seg", "filepath": str(Path("/tmp/w.pt"))},
+        )
     )
 
 
@@ -144,8 +158,8 @@ def test_set_openvino_usage_publishes_and_updates(controller):
 
     controller.set_openvino_usage(True, dialog="dlg")
 
-    controller.ui_event_bus.publish_event.assert_called_once_with(
-        Events.UI_UPDATE_OPENVINO_CHECKBOX, {"is_checked": True}
+    controller.ui_event_bus.publish.assert_called_once_with(
+        Event(type=UIEvents.UI_UPDATE_OPENVINO_CHECKBOX, data={"is_checked": True})
     )
     controller.convert_active_weight_to_openvino.assert_called_once_with("dlg")
     controller.update_openvino_status.assert_called_once_with("dlg")

@@ -130,10 +130,10 @@ class ZoneControlBuilder:
         self._refresh_video_tree_dual_mode()
 
         # 2. Emit zone saved event to resume pending recording (if any)
-        from zebtrack.ui.events import Events
+        from zebtrack.ui.event_bus_v2 import Event, UIEvents
 
         if hasattr(self.gui, "event_bus") and self.gui.event_bus:
-            self.gui.event_bus.publish_event(Events.ZONE_SAVE_ARENA, {})
+            self.gui.event_bus.publish(Event(type=UIEvents.ZONE_SAVE_ARENA, data={}))
             log.info("zone_control_builder.conclude_video.zone_saved_event_emitted")
 
         # 3. Optional: Feedback

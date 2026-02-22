@@ -679,9 +679,12 @@ class DialogManager:
         if not project_path:
             return
 
-        from zebtrack.ui.events import Events
+        from zebtrack.ui.event_bus_v2 import UIEvents
 
-        self.gui.event_dispatcher.publish_event(Events.PROJECT_OPEN, {"project_path": project_path})
+        self.gui.event_dispatcher.publish_event(
+            UIEvents.PROJECT_OPEN,
+            {"project_path": project_path},
+        )
 
     def handle_grid_cell_click(self, day: int, group_name: str) -> None:
         """Handle click on a cell in the experimental progress grid.

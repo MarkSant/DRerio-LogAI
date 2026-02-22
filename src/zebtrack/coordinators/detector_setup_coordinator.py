@@ -27,7 +27,7 @@ if TYPE_CHECKING:
     from zebtrack.core.services.model_service import ModelService
     from zebtrack.core.services.weight_manager import WeightManager
     from zebtrack.core.state_manager import StateManager
-    from zebtrack.ui.event_bus import EventBus
+    from zebtrack.ui.event_bus_v2 import EventBusV2
 
 log = structlog.get_logger()
 
@@ -61,7 +61,7 @@ class DetectorSetupCoordinator(BaseCoordinator):
     - ModelService: Model and weight management
     - WeightManager: Active weight resolution
     - StateManager: Detector state persistence
-    - EventBus: UI notifications
+    - EventBusV2: UI notifications
 
     Phase 4.9: Replaces both HardwareCoordinator (Group A) and
     DetectorCoordinator (Sprint 5 duplicate).
@@ -73,7 +73,7 @@ class DetectorSetupCoordinator(BaseCoordinator):
         detector_service: DetectorService,
         model_service: ModelService | None = None,
         weight_manager: WeightManager | None = None,
-        event_bus: EventBus | None = None,
+        event_bus: EventBusV2 | None = None,
     ):
         """Initialize DetectorSetupCoordinator with dependency injection.
 
@@ -82,7 +82,7 @@ class DetectorSetupCoordinator(BaseCoordinator):
             detector_service: DetectorService for detector operations
             model_service: ModelService for model/weight management (optional)
             weight_manager: WeightManager for active weight resolution (optional)
-            event_bus: EventBus for UI notifications (optional)
+            event_bus: EventBusV2 for UI notifications (optional)
         """
         super().__init__(state_manager=state_manager, event_bus=event_bus)
         self.detector_service = detector_service

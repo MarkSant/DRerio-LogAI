@@ -11,7 +11,7 @@ import pytest
 from PIL import Image, ImageTk
 
 from zebtrack.ui.components.analysis_display import AnalysisDisplayWidget
-from zebtrack.ui.event_bus import EventBus
+from zebtrack.ui.event_bus_v2 import EventBusV2
 
 
 @pytest.mark.gui
@@ -21,7 +21,7 @@ class TestAnalysisDisplayWidget:
     @pytest.fixture
     def event_bus(self):
         """Create a mock event bus for testing."""
-        bus = MagicMock(spec=EventBus)
+        bus = MagicMock(spec=EventBusV2)
         bus.publish_event = MagicMock()
         bus.subscribe = MagicMock()
         return bus

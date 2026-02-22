@@ -24,7 +24,7 @@ import structlog
 from zebtrack.coordinators.base_coordinator import BaseCoordinator
 from zebtrack.core.detection.calibration import Calibration
 from zebtrack.core.project.project_manager import AssetType
-from zebtrack.ui.events import Events
+from zebtrack.ui.event_bus_v2 import UIEvents
 
 if TYPE_CHECKING:
     from zebtrack.core.project.project_manager import ProjectManager
@@ -32,7 +32,7 @@ if TYPE_CHECKING:
     from zebtrack.core.services.detector_service import DetectorService
     from zebtrack.core.state_manager import StateManager
     from zebtrack.settings import Settings
-    from zebtrack.ui.event_bus import EventBus
+    from zebtrack.ui.event_bus_v2 import EventBusV2
     from zebtrack.ui.project_workflow_adapter import ProjectWorkflowAdapter
 
 log = structlog.get_logger()
@@ -81,7 +81,7 @@ class ProjectLifecycleCoordinator(BaseCoordinator):
         project_workflow_service: ProjectWorkflowService,
         project_workflow_adapter: ProjectWorkflowAdapter,
         settings_obj: Settings,
-        event_bus: EventBus | None = None,
+        event_bus: EventBusV2 | None = None,
         detector_service: DetectorService | None = None,
     ):
         """Initialize ProjectLifecycleCoordinator with dependency injection.
@@ -130,7 +130,7 @@ class ProjectLifecycleCoordinator(BaseCoordinator):
 
         # Subscribe to aquarium config update events
         self.event_bus.subscribe(
-            Events.ZONE_AQUARIUM_CONFIG_UPDATED,
+            UIEvents.ZONE_AQUARIUM_CONFIG_UPDATED,
             self._handle_aquarium_config_updated,
         )
 
@@ -247,8 +247,8 @@ class ProjectLifecycleCoordinator(BaseCoordinator):
         self.project_manager = new_project_manager
 
         # Notify all services about the new project manager
-        self._publish_event(Events.PROJECT_MANAGER_REPLACED, {"new_manager": new_project_manager})
-        self._publish_event(Events.PROJECT_CLOSED, {})
+        self._publish_event(UIEvents.PROJECT_MANAGER_REPLACED, {"new_manager": new_project_manager})
+        self._publish_event(UIEvents.PROJECT_CLOSED, {})
         self.logger.info("project.close.complete")
 
         return new_project_manager
@@ -689,7 +689,7 @@ class ProjectLifecycleCoordinator(BaseCoordinator):
         """
         if not getattr(self.project_manager, "project_path", None):
             self._publish_event(
-                Events.UI_SHOW_WARNING,
+                UIEvents.UI_SHOW_WARNING,
                 {
                     "title": "Nenhum Projeto",
                     "message": "Abra um projeto antes de copiar configurações globais.",
@@ -704,7 +704,7 @@ class ProjectLifecycleCoordinator(BaseCoordinator):
         overrides = self._persist_project_model_settings(weight, use_openvino)
 
         message = "Configurações globais aplicadas ao projeto."
-        self._publish_event(Events.UI_SET_STATUS, {"message": message})
+        self._publish_event(UIEvents.UI_SET_STATUS, {"message": message})
 
         if refresh_callback:
             refresh_callback(message, True)
@@ -746,7 +746,7 @@ class ProjectLifecycleCoordinator(BaseCoordinator):
         """
         if not getattr(self.project_manager, "project_path", None):
             self._publish_event(
-                Events.UI_SHOW_WARNING,
+                UIEvents.UI_SHOW_WARNING,
                 {
                     "title": "Nenhum Projeto",
                     "message": "Abra um projeto antes de salvar overrides de calibração.",
@@ -767,7 +767,7 @@ class ProjectLifecycleCoordinator(BaseCoordinator):
         )
 
         message = "Overrides do projeto atualizados a partir desta calibração."
-        self._publish_event(Events.UI_SET_STATUS, {"message": message})
+        self._publish_event(UIEvents.UI_SET_STATUS, {"message": message})
 
         if refresh_callback:
             refresh_callback(message, True)

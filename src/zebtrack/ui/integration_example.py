@@ -13,7 +13,7 @@ from zebtrack.ui.components import (
     VideoDisplayWidget,
     ZoneControlsWidget,
 )
-from zebtrack.ui.event_bus import EventBus
+from zebtrack.ui.event_bus_v2 import EventBusV2
 
 
 class IntegrationExample:
@@ -24,7 +24,7 @@ class IntegrationExample:
     ao substituir código inline por componentes modulares.
     """
 
-    def __init__(self, root, controller, event_bus: EventBus):
+    def __init__(self, root, controller, event_bus: EventBusV2):
         """Initialize the integration example window.
 
         Args:
@@ -257,7 +257,7 @@ def main():
     root.geometry("1200x800")
 
     # Criar event bus mock
-    event_bus = EventBus()
+    event_bus = EventBusV2()
 
     # Criar controller mock (ou usar o real)
     controller = None  # Mock

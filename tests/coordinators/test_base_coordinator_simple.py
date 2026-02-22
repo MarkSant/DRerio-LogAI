@@ -115,10 +115,10 @@ def test_publish_event_with_event_bus():
 
     coordinator._publish_event("TEST_EVENT", {"key": "value"})
 
-    event_bus.publish_event.assert_called_once_with(
-        "TEST_EVENT",
-        {"key": "value"},
-    )
+    event_bus.publish.assert_called_once()
+    event_obj = event_bus.publish.call_args[0][0]
+    assert event_obj.type == "TEST_EVENT"
+    assert event_obj.data == {"key": "value"}
     print("✓ test_publish_event_with_event_bus passed")
 
 

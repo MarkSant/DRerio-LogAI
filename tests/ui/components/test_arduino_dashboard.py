@@ -12,7 +12,7 @@ import pytest
 from tests.utils.wait_helpers import wait_for_condition, wait_for_thread_exit
 
 from zebtrack.ui.components.arduino_dashboard import ArduinoDashboardWidget
-from zebtrack.ui.event_bus import EventBus
+from zebtrack.ui.event_bus_v2 import EventBusV2
 
 
 @pytest.mark.gui
@@ -22,7 +22,7 @@ class TestArduinoDashboardWidget:
     @pytest.fixture
     def event_bus(self):
         """Create a mock event bus for testing."""
-        bus = MagicMock(spec=EventBus)
+        bus = MagicMock(spec=EventBusV2)
         bus.publish_event = MagicMock()
         bus.subscribe = MagicMock()
         return bus

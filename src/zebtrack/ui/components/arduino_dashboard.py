@@ -15,7 +15,7 @@ import structlog
 
 # Local imports
 from zebtrack.ui.components.base import BaseWidget
-from zebtrack.ui.event_bus import EventBus
+from zebtrack.ui.event_bus_v2 import EventBusV2, UIEvents
 
 log = structlog.get_logger()
 
@@ -40,7 +40,7 @@ class ArduinoDashboardWidget(BaseWidget):
     def __init__(
         self,
         parent,
-        event_bus: EventBus | None = None,
+        event_bus: EventBusV2 | None = None,
         project_manager=None,
         **kwargs,
     ):
@@ -68,10 +68,8 @@ class ArduinoDashboardWidget(BaseWidget):
 
         # Subscribe to Arduino status updates
         if self.event_bus:
-            from zebtrack.ui.events import Events
-
             self.event_bus.subscribe(
-                Events.UI_UPDATE_ARDUINO_STATUS,
+                UIEvents.UI_UPDATE_ARDUINO_STATUS,
                 lambda data: self.update_status(data.get("connected"), data.get("port")),
             )
 

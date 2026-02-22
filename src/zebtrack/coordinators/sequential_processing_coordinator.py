@@ -15,7 +15,7 @@ from typing import TYPE_CHECKING, Any
 import structlog
 
 from zebtrack.coordinators.base_coordinator import BaseCoordinator
-from zebtrack.ui.events import Events
+from zebtrack.ui.event_bus_v2 import UIEvents
 
 if TYPE_CHECKING:
     from threading import Event
@@ -26,7 +26,7 @@ if TYPE_CHECKING:
     from zebtrack.core.ui_scheduler import UIScheduler
     from zebtrack.io.recorder_factory import RecorderFactory
     from zebtrack.settings import Settings
-    from zebtrack.ui.event_bus import EventBus
+    from zebtrack.ui.event_bus_v2 import EventBusV2
 
 log = structlog.get_logger()
 
@@ -52,7 +52,7 @@ class SequentialProcessingCoordinator(BaseCoordinator):
         ui_coordinator: UIScheduler,
         cancel_event: Event,
         recorder_factory: RecorderFactory | None = None,
-        event_bus: EventBus | None = None,
+        event_bus: EventBusV2 | None = None,
         view: Any = None,
         root: Any = None,
     ) -> None:
@@ -157,7 +157,7 @@ class SequentialProcessingCoordinator(BaseCoordinator):
         )
 
         self._publish_event(
-            Events.UI_SET_STATUS,
+            UIEvents.UI_SET_STATUS,
             {"message": f"Processando aquário {aq_id + 1}/{total}..."},
         )
 
@@ -441,10 +441,10 @@ class SequentialProcessingCoordinator(BaseCoordinator):
             msg += f"\n\n❌ Falhas: {', '.join(str(f) for f in failed)}"
 
         self._publish_event(
-            Events.UI_SHOW_INFO if not failed else Events.UI_SHOW_WARNING,
+            UIEvents.UI_SHOW_INFO if not failed else UIEvents.UI_SHOW_WARNING,
             {"title": "Processamento Sequencial", "message": msg},
         )
-        self._publish_event(Events.UI_REFRESH_PROJECT_VIEWS, {})
+        self._publish_event(UIEvents.UI_REFRESH_PROJECT_VIEWS, {})
 
         # Clear context
         self._sequential_context = None

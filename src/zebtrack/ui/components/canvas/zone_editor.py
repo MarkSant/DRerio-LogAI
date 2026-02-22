@@ -18,7 +18,6 @@ import structlog
 import ttkbootstrap as ttk
 
 from zebtrack.ui.event_bus_v2 import Event, UIEvents
-from zebtrack.ui.events import Events
 
 if TYPE_CHECKING:
     from zebtrack.core.services.zone_context_service import ZoneContextService
@@ -574,7 +573,7 @@ class ZoneEditor:
         if self.canvas_manager.current_editing_zone == "arena":
             # Save main arena (Single Aquarium)
             self.gui.event_dispatcher.publish_event(
-                Events.ZONE_SAVE_MANUAL_ARENA,
+                UIEvents.ZONE_SAVE_MANUAL_ARENA,
                 {"polygon_points": self.gui.edited_polygon_points},
             )
             status_message = "Arena principal salva com sucesso."

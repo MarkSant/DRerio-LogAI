@@ -23,8 +23,6 @@ import structlog
 if TYPE_CHECKING:
     from tkinter import Tk
 
-    from zebtrack.ui.event_bus import EventBus
-
 log = structlog.get_logger()
 
 
@@ -48,17 +46,18 @@ class UIScheduler:
     def __init__(
         self,
         root: Tk | None = None,
-        event_bus: EventBus | None = None,
+        event_bus: Any = None,  # Kept for backward-compat signature; ignored in v2
     ):
         """
         Initialize UIScheduler.
 
         Args:
             root: Tkinter root window for scheduling
-            event_bus: Optional event bus for UI scheduling
+            event_bus: DEPRECATED — ignored. Retained in signature for
+                backward compatibility during the v1→v2 migration.
         """
         self.root = root
-        self.event_bus = event_bus
+        self.event_bus = None  # v2: no event_bus usage
         log.info("ui_scheduler.initialized", has_root=root is not None)
 
     def schedule(self, func: Callable, *args: Any, **kwargs: Any) -> None:
@@ -77,16 +76,7 @@ class UIScheduler:
             *args: Positional arguments for func
             **kwargs: Keyword arguments for func
         """
-        # Try event bus first
-        if self.event_bus is not None:
-            published = self.event_bus.publish_callable(func, *args, **kwargs)
-            if published:
-                return
-            log.warning(
-                "ui_scheduler.event_bus_failed",
-                callback=getattr(func, "__name__", repr(func)),
-            )
-
+        # v2: Always prefer root.after (no event_bus.publish_callable)
         # Try root.after
         if self.root is not None:
             try:

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from threading import Event
+from threading import Event as ThreadingEvent
 from types import SimpleNamespace
 from typing import Any, cast
 from unittest.mock import Mock, patch
@@ -11,7 +11,7 @@ from unittest.mock import Mock, patch
 import pytest
 
 from zebtrack.core.viewmodels.analysis_control_view_model import AnalysisControlViewModel
-from zebtrack.ui.events import Events
+from zebtrack.ui.event_bus_v2 import Event, UIEvents
 
 
 @pytest.fixture
@@ -45,7 +45,7 @@ def view_model():
         analysis_service=Mock(),
         ui_state_controller=Mock(),
         recorder=Mock(),
-        cancel_event=Event(),
+        cancel_event=ThreadingEvent(),
     )
     event_bus = Mock()
     return AnalysisControlViewModel(
@@ -68,10 +68,10 @@ def test_start_single_video_workflow_invalid_det_config(view_model):
 
     view_model.start_single_video_workflow("/video.mp4", config)
 
-    view_model.ui_event_bus.publish_event.assert_called_once()
-    event_name, payload = view_model.ui_event_bus.publish_event.call_args[0]
-    assert event_name == Events.UI_SHOW_ERROR
-    assert payload["title"] == "Configuração Inválida"
+    view_model.ui_event_bus.publish.assert_called_once()
+    event = view_model.ui_event_bus.publish.call_args[0][0]
+    assert event.type == UIEvents.SHOW_ERROR
+    assert event.data["title"] == "Configuração Inválida"
 
 
 def test_start_single_video_workflow_detector_setup_failure(view_model):
@@ -82,7 +82,7 @@ def test_start_single_video_workflow_detector_setup_failure(view_model):
 
     view_model.start_single_video_workflow("/video.mp4", {"animal_method": "seg"}, detector_vm)
 
-    view_model.ui_event_bus.publish_event.assert_not_called()
+    view_model.ui_event_bus.publish.assert_not_called()
     view_model.project_manager.set_active_zone_video.assert_called_once_with(
         str(Path("/video.mp4"))
     )
@@ -101,9 +101,11 @@ def test_start_single_video_workflow_detector_setup_success(view_model):
     view_model.project_manager.set_active_zone_video.assert_called_once_with(
         str(Path("/video.mp4"))
     )
-    view_model.ui_event_bus.publish_event.assert_called_once_with(
-        "ui:setup_zone_definition_for_single_video",
-        {"video_path": Path("/video.mp4"), "config": config},
+    view_model.ui_event_bus.publish.assert_called_once_with(
+        Event(
+            type=UIEvents.SETUP_ZONE_DEFINITION_FOR_SINGLE_VIDEO,
+            data={"video_path": Path("/video.mp4"), "config": config},
+        )
     )
 
 
@@ -113,10 +115,10 @@ def test_start_single_video_workflow_without_detector_vm(view_model):
 
     view_model.start_single_video_workflow("/video.mp4", config)
 
-    view_model.ui_event_bus.publish_event.assert_called_once()
-    event_name, payload = view_model.ui_event_bus.publish_event.call_args[0]
-    assert event_name == "ui:setup_zone_definition_for_single_video"
-    assert payload["config"] == config
+    view_model.ui_event_bus.publish.assert_called_once()
+    event = view_model.ui_event_bus.publish.call_args[0][0]
+    assert event.type == UIEvents.SETUP_ZONE_DEFINITION_FOR_SINGLE_VIDEO
+    assert event.data["config"] == config
 
 
 def test_start_single_video_processing_delegates(view_model):
@@ -134,9 +136,11 @@ def test_auto_detect_zones_publishes_event(view_model):
     """Publish auto detect event payload."""
     view_model.auto_detect_zones(video_path="/video.mp4", stabilization_frames=15)
 
-    view_model.ui_event_bus.publish_event.assert_called_once_with(
-        Events.ZONE_AUTO_DETECT,
-        {"video_path": "/video.mp4", "stabilization_frames": 15},
+    view_model.ui_event_bus.publish.assert_called_once_with(
+        Event(
+            type=UIEvents.ZONE_AUTO_DETECT,
+            data={"video_path": "/video.mp4", "stabilization_frames": 15},
+        )
     )
 
 
@@ -146,7 +150,7 @@ def test_cancel_current_analysis_no_active_processing(view_model):
 
     assert view_model.cancel_event.is_set() is False
     view_model.state_manager.update_processing_state.assert_not_called()
-    view_model.ui_event_bus.publish_event.assert_not_called()
+    view_model.ui_event_bus.publish.assert_not_called()
     view_model.ui_state_controller._show_cancel_feedback.assert_not_called()
 
 
@@ -161,8 +165,8 @@ def test_cancel_current_analysis_stops_live_session(view_model):
     view_model.live_camera_session_coordinator.live_camera_service.stop_session.assert_called_once()
     view_model.processing_coordinator.cancel_processing.assert_called_once()
     view_model.state_manager.update_processing_state.assert_called_once()
-    view_model.ui_event_bus.publish_event.assert_called_once_with(
-        Events.UI_SET_STATUS, {"message": "Cancelando análise em andamento..."}
+    view_model.ui_event_bus.publish.assert_called_once_with(
+        Event(type=UIEvents.SET_STATUS, data={"message": "Cancelando análise em andamento..."})
     )
     view_model.ui_state_controller._show_cancel_feedback.assert_called_once()
     tmock.assert_called_once()

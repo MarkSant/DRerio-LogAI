@@ -30,7 +30,7 @@ from zebtrack.coordinators.base_coordinator import (
     CoordinatorValidationError,
 )
 from zebtrack.core.state_manager import StateCategory
-from zebtrack.ui.events import Events
+from zebtrack.ui.event_bus_v2 import Event, UIEvents
 
 if TYPE_CHECKING:
     from zebtrack.coordinators.live_calibration_coordinator import LiveCalibrationCoordinator
@@ -40,7 +40,7 @@ if TYPE_CHECKING:
     from zebtrack.core.state_manager import StateManager
     from zebtrack.io.arduino_manager import ArduinoManager
     from zebtrack.settings import Settings
-    from zebtrack.ui.event_bus import EventBus
+    from zebtrack.ui.event_bus_v2 import EventBusV2
 
 log = structlog.get_logger()
 
@@ -81,7 +81,7 @@ class RecordingSessionCoordinator(BaseCoordinator):
         project_manager: ProjectManager,
         settings_obj: Settings,
         live_calibration_coordinator: LiveCalibrationCoordinator,
-        event_bus: EventBus | None = None,
+        event_bus: EventBusV2 | None = None,
         arduino_manager: ArduinoManager | None = None,
         # UI components (temporary - being phased out)
         root: Any = None,
@@ -337,10 +337,12 @@ class RecordingSessionCoordinator(BaseCoordinator):
 
         # FIX: Navigate to Analysis View to show recording progress
         if self.event_bus:
-            self.event_bus.publish_event(Events.UI_NAVIGATE_TO_ANALYSIS_VIEW, {})
-            self.event_bus.publish_event(
-                Events.UI_UPDATE_ANALYSIS_TASK_STATUS,
-                {"status": "recording", "message": "Iniciando gravação..."},
+            self.event_bus.publish(Event(type=UIEvents.UI_NAVIGATE_TO_ANALYSIS_VIEW, data={}))
+            self.event_bus.publish(
+                Event(
+                    type=UIEvents.UI_UPDATE_ANALYSIS_TASK_STATUS,
+                    data={"status": "recording", "message": "Iniciando gravação..."},
+                )
             )
 
         return True
@@ -386,13 +388,19 @@ class RecordingSessionCoordinator(BaseCoordinator):
             )
 
             # Publish events
-            self._publish_event("RECORDING_STOPPED", {})
+            self._publish_event(UIEvents.RECORDING_STOPPED, {})
             if self.event_bus:
-                self.event_bus.publish_event(
-                    Events.UI_UPDATE_BUTTON_STATE, {"button_name": "start_rec", "state": "normal"}
+                self.event_bus.publish(
+                    Event(
+                        type=UIEvents.UI_UPDATE_BUTTON_STATE,
+                        data={"button_name": "start_rec", "state": "normal"},
+                    )
                 )
-                self.event_bus.publish_event(
-                    Events.UI_UPDATE_BUTTON_STATE, {"button_name": "stop_rec", "state": "disabled"}
+                self.event_bus.publish(
+                    Event(
+                        type=UIEvents.UI_UPDATE_BUTTON_STATE,
+                        data={"button_name": "stop_rec", "state": "disabled"},
+                    )
                 )
 
             log.info("recording_session_coordinator.stop_recording.success")
@@ -452,12 +460,14 @@ class RecordingSessionCoordinator(BaseCoordinator):
 
         if external_trigger_requested and not arduino_enabled:
             if self.event_bus:
-                self.event_bus.publish_event(
-                    Events.UI_SHOW_ERROR,
-                    {
-                        "title": "Trigger Externo Indisponível",
-                        "message": "O modo de trigger externo exige um Arduino configurado.",
-                    },
+                self.event_bus.publish(
+                    Event(
+                        type=UIEvents.UI_SHOW_ERROR,
+                        data={
+                            "title": "Trigger Externo Indisponível",
+                            "message": "O modo de trigger externo exige um Arduino configurado.",
+                        },
+                    )
                 )
             return True
 
@@ -465,19 +475,23 @@ class RecordingSessionCoordinator(BaseCoordinator):
             self._pending_external_trigger = context
             port = context.get("arduino_port", "")
             if self.event_bus:
-                self.event_bus.publish_event(
-                    Events.UI_SHOW_EXTERNAL_TRIGGER_NOTICE,
-                    {
-                        "folder_name": context["folder_name"],
-                        "day": context.get("day"),
-                        "group": context.get("group"),
-                        "cobaia": context.get("cobaia"),
-                        "port": port,
-                    },
+                self.event_bus.publish(
+                    Event(
+                        type=UIEvents.UI_SHOW_EXTERNAL_TRIGGER_NOTICE,
+                        data={
+                            "folder_name": context["folder_name"],
+                            "day": context.get("day"),
+                            "group": context.get("group"),
+                            "cobaia": context.get("cobaia"),
+                            "port": port,
+                        },
+                    )
                 )
-                self.event_bus.publish_event(
-                    Events.UI_SET_STATUS,
-                    {"message": f"Aguardando sinal externo... (porta {port})"},
+                self.event_bus.publish(
+                    Event(
+                        type=UIEvents.UI_SET_STATUS,
+                        data={"message": f"Aguardando sinal externo... (porta {port})"},
+                    )
                 )
             return True
 
@@ -499,7 +513,7 @@ class RecordingSessionCoordinator(BaseCoordinator):
         self._pending_external_trigger = None
 
         if self.event_bus:
-            self.event_bus.publish_event(Events.UI_CLEAR_EXTERNAL_TRIGGER_NOTICE)
+            self.event_bus.publish(Event(type=UIEvents.UI_CLEAR_EXTERNAL_TRIGGER_NOTICE))
         project_data = self.project_manager.project_data or {}
         self._schedule_recording(context, project_data, trigger_source="external")
 
@@ -531,14 +545,25 @@ class RecordingSessionCoordinator(BaseCoordinator):
 
         self._pending_external_trigger = None
         if self.event_bus:
-            self.event_bus.publish_event(Events.UI_CLEAR_EXTERNAL_TRIGGER_NOTICE)
-            self.event_bus.publish_event(
-                Events.UI_UPDATE_BUTTON_STATE, {"button_name": "start_rec", "state": "normal"}
+            self.event_bus.publish(Event(type=UIEvents.UI_CLEAR_EXTERNAL_TRIGGER_NOTICE))
+            self.event_bus.publish(
+                Event(
+                    type=UIEvents.UI_UPDATE_BUTTON_STATE,
+                    data={"button_name": "start_rec", "state": "normal"},
+                )
             )
-            self.event_bus.publish_event(
-                Events.UI_UPDATE_BUTTON_STATE, {"button_name": "stop_rec", "state": "disabled"}
+            self.event_bus.publish(
+                Event(
+                    type=UIEvents.UI_UPDATE_BUTTON_STATE,
+                    data={"button_name": "stop_rec", "state": "disabled"},
+                )
             )
-            self.event_bus.publish_event(Events.UI_SET_STATUS, {"message": "Pronto."})
+            self.event_bus.publish(
+                Event(
+                    type=UIEvents.UI_SET_STATUS,
+                    data={"message": "Pronto."},
+                )
+            )
 
     # =============================================================================
     # RECORDING SCHEDULING
@@ -617,7 +642,7 @@ class RecordingSessionCoordinator(BaseCoordinator):
                 )
                 # Publish event
                 self._publish_event(
-                    Events.RECORDING_STARTED,
+                    UIEvents.RECORDING_STARTED,
                     {
                         "folder_name": context.get("folder_name"),
                         "output_folder": output_folder,
@@ -665,7 +690,7 @@ class RecordingSessionCoordinator(BaseCoordinator):
 
         # Publish event
         self._publish_event(
-            Events.RECORDING_STARTED,
+            UIEvents.RECORDING_STARTED,
             {
                 "folder_name": context.get("folder_name"),
                 "output_folder": context.get("output_folder"),
@@ -684,9 +709,9 @@ class RecordingSessionCoordinator(BaseCoordinator):
             return
 
         # Listen for zone saving events to resume pending recording
-        self.event_bus.subscribe(Events.ZONE_SAVE_MANUAL_ARENA, self._on_zone_saved)
-        self.event_bus.subscribe(Events.ZONE_SET_ARENA_POLYGON, self._on_zone_saved)
-        self.event_bus.subscribe(Events.ZONE_SAVE_ARENA, self._on_zone_saved)
+        self.event_bus.subscribe(UIEvents.ZONE_SAVE_MANUAL_ARENA, self._on_zone_saved)
+        self.event_bus.subscribe(UIEvents.ZONE_SET_ARENA_POLYGON, self._on_zone_saved)
+        self.event_bus.subscribe(UIEvents.ZONE_SAVE_ARENA, self._on_zone_saved)
 
     def _on_zone_saved(self, data: dict | None = None):
         """Handle zone saved event to resume pending recording."""

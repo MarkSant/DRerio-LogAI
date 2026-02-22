@@ -7,15 +7,15 @@ from unittest.mock import Mock
 import pytest
 
 from zebtrack.ui.components.config_editor import ConfigEditorWidget
-from zebtrack.ui.event_bus import EventBus
+from zebtrack.ui.event_bus_v2 import EventBusV2, UIEvents
 
 pytestmark = pytest.mark.gui
 
 
 @pytest.fixture
 def event_bus():
-    """Create an event bus instance."""
-    return EventBus()
+    """Create an EventBusV2 instance."""
+    return EventBusV2()
 
 
 @pytest.fixture
@@ -100,51 +100,54 @@ def test_set_values_populates_form_correctly(config_widget):
 
 
 def test_event_emission_on_save(config_widget, event_bus):
-    """Test that save button emits config.save_requested event to queue."""
-    # Clear any events from widget initialization
-    while not event_bus._queue.empty():
-        event_bus._queue.get_nowait()
+    """Test that save button emits CONFIG_SAVE_REQUESTED event."""
+    events_received = []
+
+    def handler(data):
+        events_received.append(data)
+
+    event_bus.subscribe(UIEvents.CONFIG_SAVE_REQUESTED, handler)
 
     # Trigger save
     config_widget._on_save_clicked()
 
-    # Check event was added to queue
-    assert not event_bus._queue.empty()
-    event = event_bus._queue.get_nowait()
-    assert event.payload.event_name == "config.save_requested"
-    assert "values" in event.payload.data
+    # Handler should have been called synchronously
+    assert len(events_received) == 1
+    assert "values" in events_received[0]
 
 
 def test_event_emission_on_reset(config_widget, event_bus):
-    """Test that reset button emits config.reset_requested event to queue."""
-    # Clear any events from widget initialization (BehavioralConfigWidget emits events)
-    while not event_bus._queue.empty():
-        event_bus._queue.get_nowait()
+    """Test that reset button emits CONFIG_RESET_REQUESTED event."""
+    events_received = []
+
+    def handler(data):
+        events_received.append(data)
+
+    event_bus.subscribe(UIEvents.CONFIG_RESET_REQUESTED, handler)
 
     # Trigger reset
     config_widget._on_reset_clicked()
 
-    # Check event was added to queue
-    assert not event_bus._queue.empty()
-    event = event_bus._queue.get_nowait()
-    assert event.payload.event_name == "config.reset_requested"
+    # Handler should have been called synchronously
+    assert len(events_received) == 1
 
 
 def test_event_emission_on_roi_rule_change(config_widget, event_bus):
-    """Test that ROI rule change emits event to queue."""
-    # Clear any events from widget initialization (BehavioralConfigWidget emits events)
-    while not event_bus._queue.empty():
-        event_bus._queue.get_nowait()
+    """Test that ROI rule change emits CONFIG_ROI_RULE_CHANGED event."""
+    events_received = []
+
+    def handler(data):
+        events_received.append(data)
+
+    event_bus.subscribe(UIEvents.CONFIG_ROI_RULE_CHANGED, handler)
 
     # Change rule
     config_widget.roi_inclusion_rule_var.set("seg_overlap")
     config_widget._on_roi_rule_changed()
 
-    # Check event was added to queue
-    assert not event_bus._queue.empty()
-    event = event_bus._queue.get_nowait()
-    assert event.payload.event_name == "config.roi_rule_changed"
-    assert event.payload.data["rule"] == "seg_overlap"
+    # Handler should have been called synchronously
+    assert len(events_received) == 1
+    assert events_received[0]["rule"] == "seg_overlap"
 
 
 def test_invalid_input_handling(config_widget):

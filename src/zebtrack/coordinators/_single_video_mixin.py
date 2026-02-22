@@ -22,7 +22,7 @@ from zebtrack.core.video.processing_mode import ProcessingMode
 from zebtrack.core.video.processing_worker import (
     ProcessingWorker,
 )
-from zebtrack.ui.events import Events
+from zebtrack.ui.event_bus_v2 import UIEvents
 
 if TYPE_CHECKING:
     pass
@@ -75,7 +75,7 @@ class SingleVideoMixin:
                             video=str(video_path),
                         )
                         self._publish_event(
-                            Events.UI_SHOW_ERROR,
+                            UIEvents.UI_SHOW_ERROR,
                             {
                                 "title": "Configuração Incompleta",
                                 "message": (
@@ -303,7 +303,7 @@ class SingleVideoMixin:
         if meta:
             v_dict["metadata"] = meta
         self.project_manager.add_video_batch([v_dict], save_project=False)
-        self._publish_event(Events.UI_REFRESH_PROJECT_VIEWS, {"reason": "reg", "imm": True})
+        self._publish_event(UIEvents.UI_REFRESH_PROJECT_VIEWS, {"reason": "reg", "imm": True})
 
     def _ensure_single_video_zones_saved(self, video_path, zone_data) -> None:
         """Ensure zones are saved for single video."""
@@ -325,7 +325,7 @@ class SingleVideoMixin:
         dims = self._get_video_dimensions(str(video_path))
         if dims is None:
             self._publish_event(
-                Events.UI_SHOW_ERROR,
+                UIEvents.UI_SHOW_ERROR,
                 {"title": "Erro", "message": f"Não foi possível abrir: {video_path}"},
             )
             return False

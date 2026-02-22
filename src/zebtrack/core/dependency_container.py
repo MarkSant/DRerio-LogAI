@@ -31,7 +31,7 @@ from zebtrack.core.state_manager import StateManager
 from zebtrack.core.ui_scheduler import UIScheduler
 from zebtrack.core.video.video_processing_service import VideoProcessingService
 from zebtrack.settings import Settings
-from zebtrack.ui.event_bus import EventBus
+from zebtrack.ui.event_bus_v2 import EventBusV2
 from zebtrack.ui.project_workflow_adapter import ProjectWorkflowAdapter
 
 
@@ -54,7 +54,7 @@ class MainViewModelDependencies:
     # Core infrastructure
     root: Any  # tk.Tk
     settings_obj: Settings
-    event_bus: EventBus | None
+    event_bus: EventBusV2 | None
     state_manager: StateManager
     ui_coordinator: UIScheduler  # Renamed from UICoordinator to avoid collision
 

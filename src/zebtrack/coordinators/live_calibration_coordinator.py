@@ -30,7 +30,7 @@ from zebtrack.coordinators.base_coordinator import (
 )
 from zebtrack.core.detection.aquarium_detector import AquariumDetector
 from zebtrack.io.camera import Camera
-from zebtrack.ui.events import Events
+from zebtrack.ui.event_bus_v2 import Event, UIEvents
 
 if TYPE_CHECKING:
     from zebtrack.core.project.project_manager import ProjectManager
@@ -38,7 +38,7 @@ if TYPE_CHECKING:
     from zebtrack.core.services.weight_manager import WeightManager
     from zebtrack.core.state_manager import StateManager
     from zebtrack.settings import Settings
-    from zebtrack.ui.event_bus import EventBus
+    from zebtrack.ui.event_bus_v2 import EventBusV2
 
 log = structlog.get_logger()
 
@@ -77,7 +77,7 @@ class LiveCalibrationCoordinator(BaseCoordinator):
         detector_service: DetectorService,
         weight_manager: WeightManager,
         settings_obj: Settings,
-        event_bus: EventBus | None = None,
+        event_bus: EventBusV2 | None = None,
         # UI components (temporary - being phased out)
         root: Any = None,
         view: Any = None,
@@ -90,7 +90,7 @@ class LiveCalibrationCoordinator(BaseCoordinator):
             detector_service: DetectorService for detection configuration
             weight_manager: WeightManager for model weights
             settings_obj: Settings configuration object
-            event_bus: EventBus for UI notifications (optional)
+            event_bus: EventBusV2 for UI notifications (optional)
             root: Tkinter root window (legacy, being phased out)
             view: GUI view instance (legacy, being phased out)
 
@@ -196,17 +196,24 @@ class LiveCalibrationCoordinator(BaseCoordinator):
                     # Detection successful and approved
                     # Navigate to zone tab to allow adjustments/ROIs
                     if self.event_bus:
-                        self.event_bus.publish_event(Events.UI_SELECT_TAB, {"tab_name": "zone_tab"})
-                        self.event_bus.publish_event(
-                            Events.UI_SHOW_INFO,
-                            {
-                                "title": "Aquário Detectado",
-                                "message": (
-                                    "Aquário detectado com sucesso!\n\n"
-                                    "Você pode ajustar os vértices ou adicionar ROIs.\n"
-                                    "Clique em 'Concluir' quando estiver pronto."
-                                ),
-                            },
+                        self.event_bus.publish(
+                            Event(
+                                type=UIEvents.UI_SELECT_TAB,
+                                data={"tab_name": "zone_tab"},
+                            )
+                        )
+                        self.event_bus.publish(
+                            Event(
+                                type=UIEvents.UI_SHOW_INFO,
+                                data={
+                                    "title": "Aquário Detectado",
+                                    "message": (
+                                        "Aquário detectado com sucesso!\n\n"
+                                        "Você pode ajustar os vértices ou adicionar ROIs.\n"
+                                        "Clique em 'Concluir' quando estiver pronto."
+                                    ),
+                                },
+                            )
                         )
 
                     # Wait for user confirmation
@@ -214,16 +221,18 @@ class LiveCalibrationCoordinator(BaseCoordinator):
                 else:
                     # Detection failed
                     if self.event_bus:
-                        self.event_bus.publish_event(
-                            Events.UI_SHOW_ERROR,
-                            {
-                                "title": "Detecção Falhou",
-                                "message": (
-                                    "Não foi possível detectar o aquário automaticamente.\n\n"
-                                    "Você será levado para a aba de zonas para desenhar "
-                                    "manualmente."
-                                ),
-                            },
+                        self.event_bus.publish(
+                            Event(
+                                type=UIEvents.UI_SHOW_ERROR,
+                                data={
+                                    "title": "Detecção Falhou",
+                                    "message": (
+                                        "Não foi possível detectar o aquário automaticamente.\n\n"
+                                        "Você será levado para a aba de zonas para desenhar "
+                                        "manualmente."
+                                    ),
+                                },
+                            )
                         )
 
                     # Fallback to manual
@@ -240,7 +249,12 @@ class LiveCalibrationCoordinator(BaseCoordinator):
 
                 # Navigate to zone tab
                 if self.event_bus:
-                    self.event_bus.publish_event(Events.UI_SELECT_TAB, {"tab_name": "zone_tab"})
+                    self.event_bus.publish(
+                        Event(
+                            type=UIEvents.UI_SELECT_TAB,
+                            data={"tab_name": "zone_tab"},
+                        )
+                    )
 
                     # ⚠️ FIX BUG #7: Don't publish UI_REDRAW_ZONES immediately after
                     # UI_DISPLAY_VIDEO_FRAME because redraw_zones() might be called
@@ -248,17 +262,19 @@ class LiveCalibrationCoordinator(BaseCoordinator):
                     # The image display event handler will redraw zones after loading.
 
                     # Only update zone list (not redraw - that happens after image loads)
-                    self.event_bus.publish_event(Events.UI_UPDATE_ZONE_LIST, {})
+                    self.event_bus.publish(Event(type=UIEvents.UI_UPDATE_ZONE_LIST, data={}))
 
-                    self.event_bus.publish_event(
-                        Events.UI_SHOW_INFO,
-                        {
-                            "title": "Desenhe o Aquário",
-                            "message": (
-                                "Desenhe o polígono do aquário e ROIs (se necessário).\n\n"
-                                "Clique em 'Concluir' quando estiver pronto."
-                            ),
-                        },
+                    self.event_bus.publish(
+                        Event(
+                            type=UIEvents.UI_SHOW_INFO,
+                            data={
+                                "title": "Desenhe o Aquário",
+                                "message": (
+                                    "Desenhe o polígono do aquário e ROIs (se necessário).\n\n"
+                                    "Clique em 'Concluir' quando estiver pronto."
+                                ),
+                            },
+                        )
                     )
 
                 # Wait for confirmation
@@ -288,19 +304,26 @@ class LiveCalibrationCoordinator(BaseCoordinator):
 
             if response:
                 if self.event_bus:
-                    self.event_bus.publish_event(Events.UI_SELECT_TAB, {"tab_name": "zone_tab"})
-                    self.event_bus.publish_event(
-                        Events.UI_SHOW_INFO,
-                        {
-                            "title": "Defina a Arena Principal",
-                            "message": (
-                                "Por favor:\n"
-                                "1. Use a câmera ao vivo para calibrar\n"
-                                "2. Use 'Detectar Aquário (Auto)' ou\n"
-                                "3. Desenhe manualmente o polígono principal\n"
-                                "4. Depois volte para iniciar a gravação"
-                            ),
-                        },
+                    self.event_bus.publish(
+                        Event(
+                            type=UIEvents.UI_SELECT_TAB,
+                            data={"tab_name": "zone_tab"},
+                        )
+                    )
+                    self.event_bus.publish(
+                        Event(
+                            type=UIEvents.UI_SHOW_INFO,
+                            data={
+                                "title": "Defina a Arena Principal",
+                                "message": (
+                                    "Por favor:\n"
+                                    "1. Use a câmera ao vivo para calibrar\n"
+                                    "2. Use 'Detectar Aquário (Auto)' ou\n"
+                                    "3. Desenhe manualmente o polígono principal\n"
+                                    "4. Depois volte para iniciar a gravação"
+                                ),
+                            },
+                        )
                     )
                 return False
             else:
@@ -482,18 +505,23 @@ class LiveCalibrationCoordinator(BaseCoordinator):
                     cv2.imwrite(reference_path, frames[-1])
 
                     if self.event_bus:
-                        self.event_bus.publish_event(
-                            Events.UI_DISPLAY_VIDEO_FRAME, {"video_path": reference_path}
+                        self.event_bus.publish(
+                            Event(
+                                type=UIEvents.UI_DISPLAY_VIDEO_FRAME,
+                                data={"video_path": reference_path},
+                            )
                         )
-                        self.event_bus.publish_event(
-                            Events.UI_SHOW_WARNING,
-                            {
-                                "title": "Erro na Detecção",
-                                "message": (
-                                    f"Erro durante a detecção automática: {e!s}\n\n"
-                                    "A imagem capturada foi carregada para desenho manual."
-                                ),
-                            },
+                        self.event_bus.publish(
+                            Event(
+                                type=UIEvents.UI_SHOW_WARNING,
+                                data={
+                                    "title": "Erro na Detecção",
+                                    "message": (
+                                        f"Erro durante a detecção automática: {e!s}\n\n"
+                                        "A imagem capturada foi carregada para desenho manual."
+                                    ),
+                                },
+                            )
                         )
                 except OSError as fallback_err:
                     log.error(
@@ -525,20 +553,25 @@ class LiveCalibrationCoordinator(BaseCoordinator):
                     cv2.imwrite(reference_path, frames[-1])
 
                     if self.event_bus:
-                        self.event_bus.publish_event(
-                            Events.UI_DISPLAY_VIDEO_FRAME, {"video_path": reference_path}
+                        self.event_bus.publish(
+                            Event(
+                                type=UIEvents.UI_DISPLAY_VIDEO_FRAME,
+                                data={"video_path": reference_path},
+                            )
                         )
-                        self.event_bus.publish_event(
-                            Events.UI_SHOW_WARNING,
-                            {
-                                "title": "Detecção Automática Falhou",
-                                "message": (
-                                    "Não foi possível detectar o aquário automaticamente.\n\n"
-                                    "A imagem capturada foi carregada para desenho manual.\n"
-                                    "Por favor, use a ferramenta 'Polígono Principal' "
-                                    "para definir a arena."
-                                ),
-                            },
+                        self.event_bus.publish(
+                            Event(
+                                type=UIEvents.UI_SHOW_WARNING,
+                                data={
+                                    "title": "Detecção Automática Falhou",
+                                    "message": (
+                                        "Não foi possível detectar o aquário automaticamente.\n\n"
+                                        "A imagem capturada foi carregada para desenho manual.\n"
+                                        "Por favor, use a ferramenta 'Polígono Principal' "
+                                        "para definir a arena."
+                                    ),
+                                },
+                            )
                         )
                 except OSError as e:
                     log.error(
@@ -748,8 +781,8 @@ class LiveCalibrationCoordinator(BaseCoordinator):
         cv2.imwrite(reference_path, frame)
 
         if self.event_bus:
-            self.event_bus.publish_event(
-                Events.UI_DISPLAY_VIDEO_FRAME, {"video_path": reference_path}
+            self.event_bus.publish(
+                Event(type=UIEvents.UI_DISPLAY_VIDEO_FRAME, data={"video_path": reference_path})
             )
 
         log.info(

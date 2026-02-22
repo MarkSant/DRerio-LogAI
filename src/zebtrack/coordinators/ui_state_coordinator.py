@@ -14,7 +14,7 @@ import structlog
 
 from zebtrack.core.services.weight_manager import OpenVINOExportError
 from zebtrack.core.video.processing_mode import ProcessingMode, ProcessingReport
-from zebtrack.ui.events import Events
+from zebtrack.ui.event_bus_v2 import Event, UIEvents
 
 if TYPE_CHECKING:
     from zebtrack.core.project.project_manager import ProjectManager
@@ -25,7 +25,7 @@ if TYPE_CHECKING:
     from zebtrack.core.state_manager import StateManager
     from zebtrack.core.ui_scheduler import UIScheduler
     from zebtrack.settings import Settings
-    from zebtrack.ui.event_bus import EventBus
+    from zebtrack.ui.event_bus_v2 import EventBusV2
 
 logger = structlog.get_logger()
 
@@ -49,7 +49,7 @@ class UIStateController:
     def __init__(
         self,
         root: Any,
-        ui_event_bus: EventBus,
+        ui_event_bus: EventBusV2,
         state_manager: StateManager,
         ui_coordinator: UIScheduler,
         project_manager: ProjectManager,
@@ -136,7 +136,7 @@ class UIStateController:
 
     def manage_weights(self):
         """Open the weight management dialog."""
-        self.ui_event_bus.publish_event(Events.UI_OPEN_MANAGE_WEIGHTS_DIALOG)
+        self.ui_event_bus.publish(Event(type=UIEvents.UI_OPEN_MANAGE_WEIGHTS_DIALOG))
 
     def add_new_weight(
         self, path: Path | str, set_as_default: bool, weight_type: str | None = None
@@ -148,17 +148,26 @@ class UIStateController:
             new_name = path.name
             # Refresh UI on success
             if self.main_view_model:
-                self.ui_event_bus.publish_event(
-                    Events.UI_UPDATE_WEIGHTS_LIST,
-                    {"weights": self.main_view_model.get_all_weight_names()},
+                self.ui_event_bus.publish(
+                    Event(
+                        type=UIEvents.UI_UPDATE_WEIGHTS_LIST,
+                        data={"weights": self.main_view_model.get_all_weight_names()},
+                    )
                 )
-            self.ui_event_bus.publish_event(Events.UI_SET_ACTIVE_WEIGHT, {"weight_name": new_name})
+            self.ui_event_bus.publish(
+                Event(
+                    type=UIEvents.UI_SET_ACTIVE_WEIGHT,
+                    data={"weight_name": new_name},
+                )
+            )
             self.set_active_weight(new_name)  # This will also trigger conversion check
         except (ValueError, FileNotFoundError, OSError) as e:
             logger.error("controller.add_weight.failed", error=str(e), path=str(path))
-            self.ui_event_bus.publish_event(
-                Events.UI_SHOW_ERROR,
-                {"title": "Erro ao Adicionar Peso", "message": str(e)},
+            self.ui_event_bus.publish(
+                Event(
+                    type=UIEvents.UI_SHOW_ERROR,
+                    data={"title": "Erro ao Adicionar Peso", "message": str(e)},
+                )
             )
 
     def delete_weight(self, name: str):
@@ -171,20 +180,24 @@ class UIStateController:
             self.weight_manager.delete_weight(name)
             # Refresh UI on success
             if self.main_view_model:
-                self.ui_event_bus.publish_event(
-                    Events.UI_UPDATE_WEIGHTS_LIST,
-                    {"weights": self.main_view_model.get_all_weight_names()},
+                self.ui_event_bus.publish(
+                    Event(
+                        type=UIEvents.UI_UPDATE_WEIGHTS_LIST,
+                        data={"weights": self.main_view_model.get_all_weight_names()},
+                    )
                 )
             default_name, _ = self.weight_manager.get_default_weight()
-            self.ui_event_bus.publish_event(
-                Events.UI_SET_ACTIVE_WEIGHT, {"weight_name": default_name}
+            self.ui_event_bus.publish(
+                Event(type=UIEvents.UI_SET_ACTIVE_WEIGHT, data={"weight_name": default_name})
             )
             self.set_active_weight(default_name, None)
         except (ValueError, OSError) as e:
             logger.error("controller.delete_weight.failed", error=str(e), name=name)
-            self.ui_event_bus.publish_event(
-                Events.UI_SHOW_ERROR,
-                {"title": "Erro ao Excluir Peso", "message": str(e)},
+            self.ui_event_bus.publish(
+                Event(
+                    type=UIEvents.UI_SHOW_ERROR,
+                    data={"title": "Erro ao Excluir Peso", "message": str(e)},
+                )
             )
 
     def set_active_weight(self, name: str | None, dialog=None):
@@ -203,8 +216,8 @@ class UIStateController:
                 self.main_view_model.active_weight_name = candidate
 
                 logger.info("controller.active_weight.set", name=candidate)
-                self.ui_event_bus.publish_event(
-                    Events.UI_SET_ACTIVE_WEIGHT, {"weight_name": candidate}
+                self.ui_event_bus.publish(
+                    Event(type=UIEvents.UI_SET_ACTIVE_WEIGHT, data={"weight_name": candidate})
                 )
                 self.update_openvino_status(dialog)
                 if self.main_view_model.use_openvino:
@@ -215,7 +228,12 @@ class UIStateController:
                 # Property delegates to hardware_vm automatically
                 self.main_view_model.active_weight_name = ""
 
-                self.ui_event_bus.publish_event(Events.UI_SET_ACTIVE_WEIGHT, {"weight_name": ""})
+                self.ui_event_bus.publish(
+                    Event(
+                        type=UIEvents.UI_SET_ACTIVE_WEIGHT,
+                        data={"weight_name": ""},
+                    )
+                )
                 self.update_openvino_status(dialog)
 
             if not self.main_view_model._using_project_overrides:
@@ -234,7 +252,7 @@ class UIStateController:
         if filepath is not None:
             filepath = Path(filepath) if isinstance(filepath, str) else filepath
         if filepath is None:
-            self.ui_event_bus.publish_event(Events.UI_REQUEST_WEIGHT_FILE)
+            self.ui_event_bus.publish(Event(type=UIEvents.UI_REQUEST_WEIGHT_FILE))
             return
 
         # Classify weight type by filename
@@ -245,16 +263,18 @@ class UIStateController:
 
         # If type cannot be determined, ask user
         if weight_type is None:
-            self.ui_event_bus.publish_event(
-                Events.UI_REQUEST_WEIGHT_TYPE, {"filepath": str(filepath)}
+            self.ui_event_bus.publish(
+                Event(type=UIEvents.UI_REQUEST_WEIGHT_TYPE, data={"filepath": str(filepath)})
             )
             return
 
         # Ask user what to do with the new weight
         if choice is None:
-            self.ui_event_bus.publish_event(
-                Events.UI_REQUEST_WEIGHT_ACTION,
-                {"weight_type": weight_type, "filepath": str(filepath)},
+            self.ui_event_bus.publish(
+                Event(
+                    type=UIEvents.UI_REQUEST_WEIGHT_ACTION,
+                    data={"weight_type": weight_type, "filepath": str(filepath)},
+                )
             )
             return
 
@@ -277,9 +297,11 @@ class UIStateController:
         if self.main_view_model:
             self.main_view_model.use_openvino = bool(use_openvino)
             logger.info("controller.openvino_usage.set", enabled=self.main_view_model.use_openvino)
-            self.ui_event_bus.publish_event(
-                Events.UI_UPDATE_OPENVINO_CHECKBOX,
-                {"is_checked": self.main_view_model.use_openvino},
+            self.ui_event_bus.publish(
+                Event(
+                    type=UIEvents.UI_UPDATE_OPENVINO_CHECKBOX,
+                    data={"is_checked": self.main_view_model.use_openvino},
+                )
             )
             if self.main_view_model.use_openvino and self.main_view_model.active_weight_name:
                 # Trigger conversion if switching to OpenVINO and model isn't converted
@@ -304,9 +326,11 @@ class UIStateController:
 
         if self.ui_event_bus:
             active_weight = self.main_view_model.active_weight_name
-            self.ui_event_bus.publish_event(
-                Events.UI_SET_STATUS,
-                {"message": f"Convertendo {active_weight} para OpenVINO..."},
+            self.ui_event_bus.publish(
+                Event(
+                    type=UIEvents.UI_SET_STATUS,
+                    data={"message": f"Convertendo {active_weight} para OpenVINO..."},
+                )
             )
 
         try:
@@ -314,9 +338,11 @@ class UIStateController:
             self.model_service.convert_to_openvino(self.main_view_model.active_weight_name)
             self.update_openvino_status(dialog)
             if self.ui_event_bus:
-                self.ui_event_bus.publish_event(
-                    Events.UI_SET_STATUS,
-                    {"message": "Verificação de conversão concluída. Pronto."},
+                self.ui_event_bus.publish(
+                    Event(
+                        type=UIEvents.UI_SET_STATUS,
+                        data={"message": "Verificação de conversão concluída. Pronto."},
+                    )
                 )
         except OpenVINOExportError as e:
             logger.error(
@@ -326,13 +352,17 @@ class UIStateController:
             )
             self.update_openvino_status(dialog)
             if self.ui_event_bus:
-                self.ui_event_bus.publish_event(
-                    Events.UI_SHOW_ERROR,
-                    {"title": "Erro na Conversão OpenVINO", "message": str(e)},
+                self.ui_event_bus.publish(
+                    Event(
+                        type=UIEvents.UI_SHOW_ERROR,
+                        data={"title": "Erro na Conversão OpenVINO", "message": str(e)},
+                    )
                 )
-                self.ui_event_bus.publish_event(
-                    Events.UI_SET_STATUS,
-                    {"message": "Erro na conversão OpenVINO."},
+                self.ui_event_bus.publish(
+                    Event(
+                        type=UIEvents.UI_SET_STATUS,
+                        data={"message": "Erro na conversão OpenVINO."},
+                    )
                 )
 
     # ========================================================================
@@ -368,7 +398,12 @@ class UIStateController:
             mode = ProcessingMode.MULTI_TRACK
 
         report = ProcessingReport(mode=mode, source=source)
-        self.ui_event_bus.publish_event(Events.UI_UPDATE_PROCESSING_MODE, {"report": report})
+        self.ui_event_bus.publish(
+            Event(
+                type=UIEvents.UI_UPDATE_PROCESSING_MODE,
+                data={"report": report},
+            )
+        )
 
     def update_openvino_status(self, dialog=None):
         """Update the status label in the GUI based on the current state."""
@@ -378,7 +413,12 @@ class UIStateController:
         status = main_view_model.get_openvino_status()
         if dialog:
             dialog.update_openvino_status_label(status)
-        self.ui_event_bus.publish_event(Events.UI_UPDATE_OPENVINO_STATUS, {"status": status})
+        self.ui_event_bus.publish(
+            Event(
+                type=UIEvents.UI_UPDATE_OPENVINO_STATUS,
+                data={"status": status},
+            )
+        )
 
     def update_detector_parameters(
         self,
@@ -400,17 +440,21 @@ class UIStateController:
             )
 
             if success:
-                self.ui_event_bus.publish_event(
-                    Events.UI_SET_STATUS,
-                    {"message": "Parâmetros do detector atualizados."},
+                self.ui_event_bus.publish(
+                    Event(
+                        type=UIEvents.UI_SET_STATUS,
+                        data={"message": "Parâmetros do detector atualizados."},
+                    )
                 )
 
             return success
         except ValueError as e:
             logger.error("controller.detector.update.validation_failed", error=str(e))
-            self.ui_event_bus.publish_event(
-                Events.UI_SHOW_ERROR,
-                {"title": "Erro de Validação", "message": str(e)},
+            self.ui_event_bus.publish(
+                Event(
+                    type=UIEvents.UI_SHOW_ERROR,
+                    data={"title": "Erro de Validação", "message": str(e)},
+                )
             )
             return False
 
@@ -439,20 +483,29 @@ class UIStateController:
         zone_data = self.project_manager.get_zone_data()
         if not zone_data.polygon:
             if self.project_manager.get_project_type() == "pre-recorded":
-                self.ui_event_bus.publish_event(Events.UI_SELECT_TAB, {"tab_name": "zone_tab"})
+                self.ui_event_bus.publish(
+                    Event(
+                        type=UIEvents.UI_SELECT_TAB,
+                        data={"tab_name": "zone_tab"},
+                    )
+                )
                 first_video = self.project_manager.get_next_video()
                 if first_video:
-                    self.ui_event_bus.publish_event(
-                        Events.UI_DISPLAY_VIDEO_FRAME, {"video_path": first_video}
+                    self.ui_event_bus.publish(
+                        Event(
+                            type=UIEvents.UI_DISPLAY_VIDEO_FRAME, data={"video_path": first_video}
+                        )
                     )
-                self.ui_event_bus.publish_event(
-                    Events.UI_SHOW_ERROR,
-                    {
-                        "title": "Configuração Necessária",
-                        "message": "Erro: A área de processamento principal (aquário) não foi "
-                        "definida. Por favor, defina-a na aba 'Configuração de Zonas' "
-                        "antes de continuar.",
-                    },
+                self.ui_event_bus.publish(
+                    Event(
+                        type=UIEvents.UI_SHOW_ERROR,
+                        data={
+                            "title": "Configuração Necessária",
+                            "message": "Erro: A área de processamento principal (aquário) não foi "
+                            "definida. Por favor, defina-a na aba 'Configuração de Zonas' "
+                            "antes de continuar.",
+                        },
+                    )
                 )
 
     def apply_roi_template(self, template: dict[str, Any]) -> None:
@@ -460,12 +513,14 @@ class UIStateController:
         pm = self.project_manager
         active_video = pm.get_active_zone_video()
         if not active_video:
-            self.ui_event_bus.publish_event(
-                Events.UI_SHOW_WARNING,
-                {
-                    "title": "Vídeo não selecionado",
-                    "message": "Selecione um vídeo na lista antes de aplicar o template.",
-                },
+            self.ui_event_bus.publish(
+                Event(
+                    type=UIEvents.UI_SHOW_WARNING,
+                    data={
+                        "title": "Vídeo não selecionado",
+                        "message": "Selecione um vídeo na lista antes de aplicar o template.",
+                    },
+                )
             )
             return
 
@@ -479,32 +534,39 @@ class UIStateController:
             pm.save_zone_data(template_zone, video_path=active_video, persist=bool(pm.project_path))
             pm.set_active_zone_video(active_video)
             self.setup_detector_zones()
-            self.ui_event_bus.publish_event(Events.UI_REDRAW_ZONES)
-            self.ui_event_bus.publish_event(Events.UI_UPDATE_ZONE_LIST)
-            self.ui_event_bus.publish_event(
-                Events.UI_SHOW_INFO,
-                {
-                    "title": "Template Aplicado",
-                    "message": f"As zonas foram atualizadas com o template '{template_name}'.",
-                },
+            self.ui_event_bus.publish(Event(type=UIEvents.UI_REDRAW_ZONES))
+            self.ui_event_bus.publish(Event(type=UIEvents.UI_UPDATE_ZONE_LIST))
+            self.ui_event_bus.publish(
+                Event(
+                    type=UIEvents.UI_SHOW_INFO,
+                    data={
+                        "title": "Template Aplicado",
+                        "message": f"As zonas foram atualizadas com o template '{template_name}'.",
+                    },
+                )
             )
         except FileNotFoundError as exc:
             logger.error(
                 "controller.roi_templates.file_missing", template=template_name, error=str(exc)
             )
-            self.ui_event_bus.publish_event(
-                Events.UI_SHOW_ERROR,
-                {
-                    "title": "Arquivo não encontrado",
-                    "message": "O arquivo associado ao template não foi encontrado.",
-                },
+            self.ui_event_bus.publish(
+                Event(
+                    type=UIEvents.UI_SHOW_ERROR,
+                    data={
+                        "title": "Arquivo não encontrado",
+                        "message": "O arquivo associado ao template não foi encontrado.",
+                    },
+                )
             )
         except Exception as exc:
             logger.error(
                 "controller.roi_templates.apply_failed", error=str(exc), template=template_name
             )
-            self.ui_event_bus.publish_event(
-                Events.UI_SHOW_ERROR, {"title": "Erro ao aplicar template", "message": str(exc)}
+            self.ui_event_bus.publish(
+                Event(
+                    type=UIEvents.UI_SHOW_ERROR,
+                    data={"title": "Erro ao aplicar template", "message": str(exc)},
+                )
             )
 
     def update_main_arena(self, polygon_points: list[list[int]]):
@@ -548,8 +610,11 @@ class UIStateController:
 
         # Display guide if generated
         if guide:
-            self.ui_event_bus.publish_event(
-                Events.UI_SHOW_INFO, {"title": guide["title"], "message": guide["message"]}
+            self.ui_event_bus.publish(
+                Event(
+                    type=UIEvents.UI_SHOW_INFO,
+                    data={"title": guide["title"], "message": guide["message"]},
+                )
             )
 
     def _show_cancel_feedback(self) -> None:
@@ -584,7 +649,7 @@ class UIStateController:
     def activate_analysis_view_mode(self) -> None:
         """Ensure the analysis tab is active so frames scale correctly."""
         if self.ui_event_bus:
-            self.ui_event_bus.publish_event(Events.UI_NAVIGATE_TO_ANALYSIS_VIEW)
+            self.ui_event_bus.publish(Event(type=UIEvents.UI_NAVIGATE_TO_ANALYSIS_VIEW))
         else:
             self.ui_coordinator.update_view(self.view, "start_analysis_view_mode")
 

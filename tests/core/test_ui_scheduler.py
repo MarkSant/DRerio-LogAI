@@ -24,21 +24,21 @@ class TestUISchedulerInitialization(unittest.TestCase):
         assert coordinator.event_bus is None
 
     def test_init_with_event_bus_only(self):
-        """Test initialization with only event bus provided."""
+        """Test initialization with only event bus provided (ignored in v2)."""
         mock_event_bus = Mock()
         coordinator = UIScheduler(event_bus=mock_event_bus)
 
         assert coordinator.root is None
-        assert coordinator.event_bus == mock_event_bus
+        assert coordinator.event_bus is None  # v2: event_bus is ignored
 
     def test_init_with_both(self):
-        """Test initialization with both root and event bus."""
+        """Test initialization with both root and event bus (event_bus ignored in v2)."""
         mock_root = Mock()
         mock_event_bus = Mock()
         coordinator = UIScheduler(root=mock_root, event_bus=mock_event_bus)
 
         assert coordinator.root == mock_root
-        assert coordinator.event_bus == mock_event_bus
+        assert coordinator.event_bus is None  # v2: event_bus is ignored
 
     def test_init_with_neither(self):
         """Test initialization with neither root nor event bus."""
@@ -52,30 +52,26 @@ class TestUISchedulerScheduling(unittest.TestCase):
     """Test suite for UIScheduler scheduling methods."""
 
     def test_schedule_with_event_bus_success(self):
-        """Test scheduling via event bus when successful."""
+        """Test scheduling: event_bus is ignored in v2, falls back to direct execution."""
         mock_event_bus = Mock()
-        mock_event_bus.publish_callable.return_value = True
         coordinator = UIScheduler(event_bus=mock_event_bus)
 
         mock_func = Mock()
         coordinator.schedule(mock_func, "arg1", kwarg1="value1")
 
-        mock_event_bus.publish_callable.assert_called_once_with(mock_func, "arg1", kwarg1="value1")
-        mock_func.assert_not_called()  # Should not be called directly
+        # v2: event_bus is ignored, no root → direct execution fallback
+        mock_func.assert_called_once_with("arg1", kwarg1="value1")
 
     def test_schedule_with_event_bus_failure_fallback_to_root(self):
-        """Test fallback to root.after when event bus fails."""
+        """Test that event_bus is ignored in v2; root.after is used directly."""
         mock_event_bus = Mock()
-        mock_event_bus.publish_callable.return_value = False
         mock_root = Mock()
         coordinator = UIScheduler(root=mock_root, event_bus=mock_event_bus)
 
         mock_func = Mock()
         coordinator.schedule(mock_func, "arg1")
 
-        # Event bus should be tried first
-        mock_event_bus.publish_callable.assert_called_once()
-        # Should fall back to root.after
+        # v2: event_bus is ignored, goes straight to root.after
         mock_root.after.assert_called_once()
 
     def test_schedule_with_root_only(self):

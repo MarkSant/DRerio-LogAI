@@ -20,14 +20,14 @@ import structlog
 
 from zebtrack.coordinators.processing_types import ValidationResult
 from zebtrack.core.project.project_manager import ProjectManager
-from zebtrack.ui.events import Events
+from zebtrack.ui.event_bus_v2 import UIEvents
 
 if TYPE_CHECKING:
     from zebtrack.core.detection import ZoneData
     from zebtrack.core.state_manager import StateManager
     from zebtrack.core.video.processing_worker import ProcessingWorker
     from zebtrack.settings import Settings
-    from zebtrack.ui.event_bus import EventBus
+    from zebtrack.ui.event_bus_v2 import EventBusV2
 
 log = structlog.get_logger()
 
@@ -45,7 +45,7 @@ class VideoSelectionMixin:
     project_manager: ProjectManager
     state_manager: StateManager
     settings: Settings
-    event_bus: EventBus | None
+    event_bus: EventBusV2 | None
     view: Any
     processing_worker: ProcessingWorker | None
     processing_thread: Any
@@ -78,7 +78,7 @@ class VideoSelectionMixin:
             eligible_videos.extend(arena_only)
             if not eligible_videos:
                 self._publish_event(
-                    Events.UI_SHOW_INFO,
+                    UIEvents.UI_SHOW_INFO,
                     {
                         "title": "Processamento",
                         "message": "Nenhum dos vídeos selecionados contém arena definida.",
@@ -102,7 +102,7 @@ class VideoSelectionMixin:
                 eligible_videos.extend(arena_only)
             if not eligible_videos:
                 self._publish_event(
-                    Events.UI_SHOW_INFO,
+                    UIEvents.UI_SHOW_INFO,
                     {
                         "title": "Processamento",
                         "message": "Nenhum vídeo foi selecionado para processamento.",
@@ -204,7 +204,7 @@ class VideoSelectionMixin:
     def _show_validation_error(self, val) -> None:
         """Show validation error to UI."""
         self._publish_event(
-            Events.UI_SHOW_WARNING,
+            UIEvents.UI_SHOW_WARNING,
             {"title": "Validação Falhou", "message": val.error_message},
         )
 
@@ -212,7 +212,7 @@ class VideoSelectionMixin:
         """Handle UI feedback for targeted selection mode errors."""
         if not video_paths:
             self._publish_event(
-                Events.UI_SHOW_INFO,
+                UIEvents.UI_SHOW_INFO,
                 {"title": "Processamento", "message": "Nenhum vídeo selecionado."},
             )
             return False
@@ -221,7 +221,7 @@ class VideoSelectionMixin:
             if len(selection_result.missing_targets) > 5:
                 sample.append(f"... (+{len(selection_result.missing_targets) - 5})")
             self._publish_event(
-                Events.UI_SHOW_WARNING,
+                UIEvents.UI_SHOW_WARNING,
                 {
                     "title": "Vídeos fora do projeto",
                     "message": "Itens selecionados não pertencem ao projeto:\n" + "\n".join(sample),
@@ -229,7 +229,7 @@ class VideoSelectionMixin:
             )
         if selection_result.candidate_count == 0:
             self._publish_event(
-                Events.UI_SHOW_INFO,
+                UIEvents.UI_SHOW_INFO,
                 {
                     "title": "Processamento",
                     "message": "Nenhum dos vídeos selecionados pertence ao projeto ativo.",
@@ -242,7 +242,7 @@ class VideoSelectionMixin:
         """Handle UI feedback for pending selection mode errors."""
         if selection_result.candidate_count == 0:
             self._publish_event(
-                Events.UI_SHOW_INFO,
+                UIEvents.UI_SHOW_INFO,
                 {"title": "Processamento", "message": "Nenhum vídeo pendente para processar."},
             )
             return False
@@ -257,7 +257,7 @@ class VideoSelectionMixin:
         ]
         if not candidate_paths:
             self._publish_event(
-                Events.UI_SHOW_ERROR,
+                UIEvents.UI_SHOW_ERROR,
                 {
                     "title": "Erro",
                     "message": "Não foi possível localizar caminhos válidos para os vídeos.",
@@ -273,7 +273,7 @@ class VideoSelectionMixin:
             if len(scan_result.missing_files) > 5:
                 sample.append(f"... (+{len(scan_result.missing_files) - 5})")
             self._publish_event(
-                Events.UI_SHOW_WARNING,
+                UIEvents.UI_SHOW_WARNING,
                 {
                     "title": "Vídeos Não Encontrados",
                     "message": "Vídeos ignorados:\n" + "\n".join(sample),

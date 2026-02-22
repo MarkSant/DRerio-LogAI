@@ -20,7 +20,7 @@ from zebtrack.ui.components.behavioral_config_widget import BehavioralConfigWidg
 from zebtrack.ui.wizard.tooltip import create_help_label
 
 if TYPE_CHECKING:
-    from zebtrack.ui.event_bus import EventBus
+    from zebtrack.ui.event_bus_v2 import EventBusV2
 
 if TYPE_CHECKING:
     from zebtrack.settings import Settings
@@ -35,7 +35,7 @@ class SingleVideoConfigDialog(simpledialog.Dialog):
         self,
         parent,
         settings_obj: "Settings | None" = None,
-        event_bus: "EventBus | None" = None,
+        event_bus: "EventBusV2 | None" = None,
     ):
         """Initialize the single video configuration dialog.
 

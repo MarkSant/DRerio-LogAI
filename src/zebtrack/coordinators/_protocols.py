@@ -18,7 +18,7 @@ if TYPE_CHECKING:
     from zebtrack.core.state_manager import StateManager
     from zebtrack.core.video.processing_worker import ProcessingWorker
     from zebtrack.settings import Settings
-    from zebtrack.ui.event_bus import EventBus
+    from zebtrack.ui.event_bus_v2 import EventBusV2
 
 
 @runtime_checkable
@@ -32,7 +32,7 @@ class UnifiedReportHost(Protocol):
 
     project_manager: ProjectManager
     settings: Settings
-    event_bus: EventBus | None
+    event_bus: EventBusV2 | None
 
     def _publish_event(self, event: Any, data: Any) -> None: ...
     def _is_batch_processing(self) -> bool: ...
@@ -68,7 +68,7 @@ class VideoSelectionHost(Protocol):
     project_manager: ProjectManager
     state_manager: StateManager
     settings: Settings
-    event_bus: EventBus | None
+    event_bus: EventBusV2 | None
     view: Any
     processing_worker: ProcessingWorker | None
     processing_thread: Any

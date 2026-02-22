@@ -30,7 +30,7 @@ import structlog
 
 if TYPE_CHECKING:
     from zebtrack.core.state_manager import StateCategory, StateManager
-    from zebtrack.ui.event_bus import EventBus
+    from zebtrack.ui.event_bus_v2 import EventBusV2
 
 log = structlog.get_logger()
 
@@ -61,7 +61,7 @@ class BaseCoordinator:
                     self,
                     state_manager: StateManager,
                     project_manager: ProjectManager,
-                    event_bus: EventBus | None = None,
+                    event_bus: EventBusV2 | None = None,
                 ):
                     super().__init__(state_manager, event_bus)
                     self.project_manager = project_manager
@@ -71,20 +71,20 @@ class BaseCoordinator:
 
                 def create_project(self, name: str) -> Path:
                     self.logger.info("project.create.start", name=name)
-                    self._publish_event("PROJECT_CREATED", {"name": name})
+                    self._publish_event(UIEvents.PROJECT_CREATED, {"name": name})
                     return project_path
     """
 
     def __init__(
         self,
         state_manager: StateManager,
-        event_bus: EventBus | None = None,
+        event_bus: EventBusV2 | None = None,
     ):
         """Initialize base coordinator.
 
         Args:
             state_manager: StateManager instance for state updates.
-            event_bus: Optional EventBus for publishing events.
+            event_bus: Optional EventBusV2 for publishing events.
 
         Note:
             NEVER pass MainViewModel here.  All dependencies must be
@@ -211,23 +211,28 @@ class BaseCoordinator:
     # Event helpers
     # ------------------------------------------------------------------
 
-    def _publish_event(self, event_name: str, data: dict[str, Any] | None = None) -> None:
-        """Publish an event via EventBus.
+    def _publish_event(self, event_type: Any, data: dict[str, Any] | None = None) -> None:
+        """Publish an event via EventBusV2.
 
         Args:
-            event_name: Event name constant (from ``Events``).
+            event_type: UIEvents enum member.
             data: Optional event payload.
 
         Note:
             Silently ignores if *event_bus* is not configured.
         """
         if self.event_bus is not None:
-            self.event_bus.publish_event(event_name, data or {})
-            self.logger.debug("event.published", event_name=event_name)
+            from zebtrack.ui.event_bus_v2 import Event
+
+            self.event_bus.publish(Event(type=event_type, data=data or {}))
+            self.logger.debug(
+                "event.published",
+                event_type=getattr(event_type, "name", str(event_type)),
+            )
         else:
             self.logger.debug(
                 "event.no_bus",
-                event_name=event_name,
+                event_type=getattr(event_type, "name", str(event_type)),
                 coordinator=self.__class__.__name__,
             )
 

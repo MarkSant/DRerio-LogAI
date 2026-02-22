@@ -28,7 +28,7 @@ from zebtrack.ui.wizard.live_config_step import LiveConfigStep
 from zebtrack.ui.wizard.model_selection_step import ModelSelectionStep
 
 if TYPE_CHECKING:
-    from zebtrack.ui.event_bus import EventBus
+    from zebtrack.ui.event_bus_v2 import EventBusV2
 
 log = structlog.get_logger()
 
@@ -76,7 +76,7 @@ class WizardDialog(Dialog):
         self,
         parent,
         settings_obj: "Settings | None" = None,
-        event_bus: "EventBus | None" = None,
+        event_bus: "EventBusV2 | None" = None,
     ):
         """
         Initialize wizard dialog.
@@ -84,7 +84,7 @@ class WizardDialog(Dialog):
         Args:
             parent: Parent Tkinter widget (usually root window)
             settings_obj: Settings instance (optional)
-            event_bus: EventBus instance (optional)
+            event_bus: EventBusV2 instance (optional)
         """
         self.all_steps: dict[
             WizardStepID, WizardStep

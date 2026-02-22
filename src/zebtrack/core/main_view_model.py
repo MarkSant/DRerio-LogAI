@@ -24,7 +24,7 @@ from zebtrack.core.viewmodels.hardware_status_view_model import HardwareStatusVi
 
 # New ViewModels
 from zebtrack.core.viewmodels.project_view_model import ProjectViewModel
-from zebtrack.ui.events import Events
+from zebtrack.ui.event_bus_v2 import Event, UIEvents
 
 if TYPE_CHECKING:
     pass
@@ -90,86 +90,86 @@ class MainViewModel:
 
         # 5. Setup event handlers mapping (Delegating to Sub-VMs)
         self._EVENT_METHOD_MAPPING = {
-            Events.RECORDING_START: (self.hardware_vm.start_recording, [], "no_params"),
-            Events.RECORDING_STOP: (self.hardware_vm.stop_recording, [], "no_params"),
-            Events.RECORDING_TOGGLE: (self.hardware_vm.toggle_recording, [], "no_params"),
-            Events.PROJECT_CREATE: (
+            UIEvents.RECORDING_START: (self.hardware_vm.start_recording, [], "no_params"),
+            UIEvents.RECORDING_STOP: (self.hardware_vm.stop_recording, [], "no_params"),
+            UIEvents.RECORDING_TOGGLE: (self.hardware_vm.toggle_recording, [], "no_params"),
+            UIEvents.PROJECT_CREATE: (
                 self.project_vm.create_project_workflow,
                 ["wizard_data"],
                 "kwargs_all",
             ),
-            Events.PROJECT_OPEN: (
+            UIEvents.PROJECT_OPEN: (
                 self.project_vm.open_project_workflow,
                 ["project_path"],
                 "positional",
             ),
-            Events.PROJECT_CLOSE: (self.project_vm.close_project, [], "no_params"),
+            UIEvents.PROJECT_CLOSE: (self.project_vm.close_project, [], "no_params"),
             # NOTE: PROJECT_PROCESS_VIDEOS is handled by ProcessingCoordinator
             # which properly accepts video_paths parameter
-            Events.MODEL_SET_OPENVINO: (self.hardware_vm.set_openvino_usage, [], "kwargs_all"),
-            Events.MODEL_SET_WEIGHT: (self.hardware_vm.set_active_weight, [], "kwargs_all"),
-            Events.MODEL_RUN_DIAGNOSTIC: (
+            UIEvents.MODEL_SET_OPENVINO: (self.hardware_vm.set_openvino_usage, [], "kwargs_all"),
+            UIEvents.MODEL_SET_WEIGHT: (self.hardware_vm.set_active_weight, [], "kwargs_all"),
+            UIEvents.MODEL_RUN_DIAGNOSTIC: (
                 self.hardware_vm.run_model_diagnostic,
                 ["config"],
                 "kwargs_all",
             ),
-            Events.UI_REQUEST_WEIGHT_FILE: (
+            UIEvents.UI_REQUEST_WEIGHT_FILE: (
                 self.hardware_vm.handle_request_weight_file,
                 [],
                 "no_params",
             ),
-            Events.UI_OPEN_MANAGE_WEIGHTS_DIALOG: (
+            UIEvents.UI_OPEN_MANAGE_WEIGHTS_DIALOG: (
                 self.handle_open_manage_weights,
                 [],
                 "no_params",
             ),  # Kept here or moved? Moved to HW VM but needs root.
-            Events.VIDEO_ANALYZE_SINGLE: (
+            UIEvents.VIDEO_ANALYZE_SINGLE: (
                 self.start_single_video_workflow,
                 [],
                 "kwargs_all",
             ),  # Facade wrapper due to complexity
             # NOTE: VIDEO_START_SINGLE_PROCESSING is handled by ProcessingCoordinator
             # to avoid duplicate execution (removed from here)
-            Events.VIDEO_CANCEL_ANALYSIS: (
+            UIEvents.VIDEO_CANCEL_ANALYSIS: (
                 self.analysis_vm.cancel_current_analysis,
                 [],
                 "no_params",
             ),
-            Events.MODEL_ADD_WEIGHT: (self.hardware_vm.add_new_weight, [], "kwargs_all"),
-            Events.MODEL_DELETE_WEIGHT: (self.hardware_vm.delete_weight, [], "kwargs_all"),
-            Events.MODEL_LOAD_NEW_WEIGHT: (self.hardware_vm.load_new_weight, [], "kwargs_all"),
-            Events.MODEL_MANAGE_WEIGHTS: (self.hardware_vm.manage_weights, [], "no_params"),
-            Events.ZONE_SAVE_MANUAL_ARENA: (
+            UIEvents.MODEL_ADD_WEIGHT: (self.hardware_vm.add_new_weight, [], "kwargs_all"),
+            UIEvents.MODEL_DELETE_WEIGHT: (self.hardware_vm.delete_weight, [], "kwargs_all"),
+            UIEvents.MODEL_LOAD_NEW_WEIGHT: (self.hardware_vm.load_new_weight, [], "kwargs_all"),
+            UIEvents.MODEL_MANAGE_WEIGHTS: (self.hardware_vm.manage_weights, [], "no_params"),
+            UIEvents.ZONE_SAVE_MANUAL_ARENA: (
                 self.analysis_vm.save_manual_arena,
                 ["polygon_points"],
                 "kwargs_get",
             ),
-            Events.PROJECT_DELETE_ASSET: (
+            UIEvents.PROJECT_DELETE_ASSET: (
                 self.project_vm.handle_delete_project_asset,
                 [],
                 "kwargs_all",
             ),
-            Events.CALIBRATION_COPY_TO_PROJECT: (
+            UIEvents.CALIBRATION_COPY_TO_PROJECT: (
                 self.project_vm.handle_calibration_copy_to_project,
                 [],
                 "no_params",
             ),
-            Events.CALIBRATION_SAVE_TO_PROJECT: (
+            UIEvents.CALIBRATION_SAVE_TO_PROJECT: (
                 self.project_vm.handle_calibration_save_to_project,
                 [],
                 "no_params",
             ),
-            Events.PROJECT_GENERATE_SUMMARIES: (
+            UIEvents.PROJECT_GENERATE_SUMMARIES: (
                 self.analysis_vm.generate_parquet_summaries,
                 ["video_paths"],
                 "kwargs_all",
             ),
-            Events.PROJECT_VIDEO_SELECTED: (
+            UIEvents.PROJECT_VIDEO_SELECTED: (
                 self.project_vm.on_video_selected,
                 ["video_path"],
                 "kwargs_get",
             ),
-            Events.PROJECT_SELECTION_CHANGED: (
+            UIEvents.PROJECT_SELECTION_CHANGED: (
                 self.project_vm.on_video_selected,
                 [
                     "video_path"
@@ -537,8 +537,8 @@ class MainViewModel:
             return
         if key == "active_zone_video" or key == "project_data":
             zone_data = self.project_manager.get_zone_data()
-            self.ui_event_bus.publish_event(Events.UI_REDRAW_ZONES, {"zone_data": zone_data})
-            self.ui_event_bus.publish_event(Events.UI_UPDATE_ZONE_LIST, {"zone_data": zone_data})
+            self.ui_event_bus.publish(Event(UIEvents.UI_REDRAW_ZONES, {"zone_data": zone_data}))
+            self.ui_event_bus.publish(Event(UIEvents.UI_UPDATE_ZONE_LIST, {"zone_data": zone_data}))
 
     def _on_detector_state_changed(
         self, category: StateCategory, key: str, old: Any, new: Any
@@ -546,9 +546,14 @@ class MainViewModel:
         if not self.ui_event_bus:
             return
         if key == "active_weight_name":
-            self.ui_event_bus.publish_event(Events.UI_SET_ACTIVE_WEIGHT, {"weight_name": new})
+            self.ui_event_bus.publish(Event(UIEvents.UI_SET_ACTIVE_WEIGHT, {"weight_name": new}))
         elif key == "use_openvino":
-            self.ui_event_bus.publish_event(Events.UI_UPDATE_OPENVINO_CHECKBOX, {"is_checked": new})
+            self.ui_event_bus.publish(
+                Event(
+                    UIEvents.UI_UPDATE_OPENVINO_CHECKBOX,
+                    {"is_checked": new},
+                )
+            )
             self.ui_state_controller.update_openvino_status()
 
     def _on_processing_state_changed(
@@ -565,14 +570,14 @@ class MainViewModel:
             if new:
                 # Navigate to analysis tab when processing starts
                 if self.ui_event_bus:
-                    event_name = Events.UI_NAVIGATE_TO_ANALYSIS_VIEW
+                    event_type = UIEvents.UI_NAVIGATE_TO_ANALYSIS_VIEW
                     log.info(
                         "controller.navigating_to_analysis_view",
-                        event_name=event_name,
+                        event_name=event_type.name,
                         event_bus_id=id(self.ui_event_bus),
                     )
-                    result = self.ui_event_bus.publish_event(event_name)
-                    log.info("controller.event_published", result=result)
+                    self.ui_event_bus.publish(Event(event_type))
+                    log.info("controller.event_published")
                 else:
                     log.warning("controller.ui_event_bus_not_available")
             else:
@@ -664,21 +669,23 @@ class MainViewModel:
                 message="Camera thread did not shut down cleanly",
             )
             if self.ui_event_bus:
-                self.ui_event_bus.publish_event(
-                    "error.occurred",
-                    {
-                        "title": "Erro Crítico",
-                        "message": (
-                            "A thread da câmera não foi finalizada corretamente. "
-                            "O aplicativo será encerrado."
-                        ),
-                    },
+                self.ui_event_bus.publish(
+                    Event(
+                        UIEvents.ERROR_OCCURRED,
+                        {
+                            "title": "Erro Crítico",
+                            "message": (
+                                "A thread da câmera não foi finalizada corretamente. "
+                                "O aplicativo será encerrado."
+                            ),
+                        },
+                    )
                 )
 
         self.hardware_vm._shutdown_arduino_manager()
         log.info("controller.shutdown.complete")
 
-    def _create_event_dispatcher(self, event_name: str) -> Callable[[dict], None]:
+    def _create_event_dispatcher(self, event_name: UIEvents) -> Callable[[dict], None]:
         if event_name not in self._EVENT_METHOD_MAPPING:
             # Type-safe empty dispatcher
             def empty_dispatcher(data: dict) -> None:
@@ -739,7 +746,7 @@ class MainViewModel:
 
         # Subscribe to internal event for project manager replacement
         self.ui_event_bus.subscribe(
-            Events.PROJECT_MANAGER_REPLACED,
+            UIEvents.PROJECT_MANAGER_REPLACED,
             self._handle_project_manager_replaced,
         )
 

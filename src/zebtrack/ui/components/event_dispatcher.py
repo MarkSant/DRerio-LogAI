@@ -1,4 +1,4 @@
-"""Dispatcher de eventos para roteamento de eventos do EventBus.
+"""Dispatcher de eventos para roteamento de eventos do EventBusV2.
 
 Handles both Core-side dispatching (routing commands to orchestrators)
 and UI-side dispatching (routing UI updates to widgets).
@@ -9,21 +9,18 @@ from typing import TYPE_CHECKING, Any, cast
 
 import structlog
 
-from zebtrack.ui.event_bus import EventType
-from zebtrack.ui.events import Events
+from zebtrack.ui.event_bus_v2 import Event, EventBusV2, UIEvents
 
 if TYPE_CHECKING:
-    from zebtrack.ui.event_bus import EventBus
     from zebtrack.ui.gui import ApplicationGUI
 else:
-    EventBus = Any
     ApplicationGUI = Any
 
 log = structlog.get_logger()
 
 
 class EventDispatcher:
-    """Dispatcher for routing EventBus events to appropriate handlers.
+    """Dispatcher for routing EventBusV2 events to appropriate handlers.
 
     Adapts to both MainViewModel (Core) and ApplicationGUI (UI) usage.
     """
@@ -35,32 +32,32 @@ class EventDispatcher:
     MODE_POSITIONAL = "positional"
     MODE_POSITIONAL_OPTIONAL = "positional_optional"
 
-    def __init__(self, context: "EventBus | ApplicationGUI | None"):
+    def __init__(self, context: "EventBusV2 | ApplicationGUI | None"):
         """Initialize the event dispatcher.
 
         Args:
-            context: Can be an EventBus instance (Core usage)
+            context: Can be an EventBusV2 instance (Core usage)
                      or ApplicationGUI (UI usage).
         """
         self.log = structlog.get_logger()
-        self.handlers: dict[str, Callable] = {}
+        self.handlers: dict[UIEvents | str, Callable] = {}
 
         # Detect context type
         self.gui: ApplicationGUI | None = None
-        self.event_bus: EventBus | None = None
+        self.event_bus: EventBusV2 | None = None
 
         if context is None:
             self.event_bus = None
         elif hasattr(context, "subscribe") and callable(getattr(context, "subscribe", None)):
-            # Context behaves like EventBus (preferred branch to keep mocks working)
-            self.event_bus = cast(EventBus, context)
+            # Context behaves like EventBusV2 (preferred branch to keep mocks working)
+            self.event_bus = cast(EventBusV2, context)
         elif hasattr(context, "event_bus"):
             # Context is likely ApplicationGUI
             self.gui = cast(ApplicationGUI, context)
-            self.event_bus = cast(EventBus | None, getattr(context, "event_bus", None))
+            self.event_bus = cast(EventBusV2 | None, getattr(context, "event_bus", None))
         else:
             # Fallback/Unknown - treat as raw event bus reference
-            self.event_bus = cast(EventBus, context)
+            self.event_bus = cast(EventBusV2, context)
 
     def _require_gui(self) -> "ApplicationGUI":
         if self.gui is None:
@@ -71,7 +68,7 @@ class EventDispatcher:
 
     def register_handler(
         self,
-        event_name: str,
+        event_name: UIEvents,
         handler: Callable,
         param_names: list[str] | None = None,
         mode: str = MODE_NO_PARAMS,
@@ -113,14 +110,14 @@ class EventDispatcher:
 
         return dispatcher
 
-    def register_direct_handler(self, event_name: str, handler: Callable) -> None:
+    def register_direct_handler(self, event_name: UIEvents, handler: Callable) -> None:
         """Register a direct handler (no parameter adaptation)."""
         if not self.event_bus:
             return
         self.event_bus.subscribe(event_name, handler)
         self.handlers[event_name] = handler
 
-    def unregister_handler(self, event_name: str) -> None:
+    def unregister_handler(self, event_name: UIEvents) -> None:
         """Remove a previously registered handler, if it exists."""
         dispatcher = self.handlers.pop(event_name, None)
         if not dispatcher or not self.event_bus:
@@ -153,7 +150,7 @@ class EventDispatcher:
         # Handlers that need access to GUI instance
         # Example: self.gui.update_status(...)
         event_bus.subscribe(
-            Events.UI_SETUP_INTERACTIVE_POLYGON,
+            UIEvents.UI_SETUP_INTERACTIVE_POLYGON,
             lambda data: self._handle_setup_interactive_polygon(
                 data.get("polygon") if isinstance(data, dict) else None
             ),
@@ -171,36 +168,36 @@ class EventDispatcher:
 
         # Navigation & Lifecycle
         event_bus.subscribe(
-            Events.UI_NAVIGATE_TO_WELCOME, lambda d: gui.widget_factory.create_welcome_frame()
+            UIEvents.UI_NAVIGATE_TO_WELCOME, lambda d: gui.widget_factory.create_welcome_frame()
         )
 
         event_bus.subscribe(
-            Events.UI_NAVIGATE_TO_PROJECT_VIEW,
+            UIEvents.UI_NAVIGATE_TO_PROJECT_VIEW,
             lambda d: gui.project_initializer.create_main_control_frame(),
         )
 
         event_bus.subscribe(
-            "project:closed",
+            UIEvents.PROJECT_CLOSED,
             lambda d: gui.state_synchronizer._destroy_notebook_and_main_controls(),
         )
 
         # Generic UI updates
         event_bus.subscribe(
-            Events.UI_SHOW_INFO,
+            UIEvents.UI_SHOW_INFO,
             lambda d: gui.dialog_manager.show_info(
                 d.get("title", "Info") if isinstance(d, dict) else "Info",
                 d.get("message", "") if isinstance(d, dict) else "",
             ),
         )
         event_bus.subscribe(
-            Events.UI_SHOW_WARNING,
+            UIEvents.UI_SHOW_WARNING,
             lambda d: gui.dialog_manager.show_warning(
                 d.get("title", "Aviso") if isinstance(d, dict) else "Aviso",
                 d.get("message", "") if isinstance(d, dict) else "",
             ),
         )
         event_bus.subscribe(
-            Events.UI_SHOW_ERROR,
+            UIEvents.UI_SHOW_ERROR,
             lambda d: gui.dialog_manager.show_error(
                 d.get("title", "Erro") if isinstance(d, dict) else "Erro",
                 d.get("message", "") if isinstance(d, dict) else "",
@@ -209,7 +206,7 @@ class EventDispatcher:
 
         # External Triggers
         event_bus.subscribe(
-            Events.UI_SHOW_EXTERNAL_TRIGGER_NOTICE,
+            UIEvents.UI_SHOW_EXTERNAL_TRIGGER_NOTICE,
             lambda d: gui.dialog_manager.show_external_trigger_notice(
                 d.get("session_label", "") if isinstance(d, dict) else "",
                 **(
@@ -220,19 +217,19 @@ class EventDispatcher:
             ),
         )
         event_bus.subscribe(
-            Events.UI_CLEAR_EXTERNAL_TRIGGER_NOTICE,
+            UIEvents.UI_CLEAR_EXTERNAL_TRIGGER_NOTICE,
             lambda d: gui.dialog_manager.clear_external_trigger_notice(),
         )
 
         # Status updates
         event_bus.subscribe(
-            Events.UI_SET_STATUS,
+            UIEvents.UI_SET_STATUS,
             lambda d: gui.status_var.set(d.get("message", "") if isinstance(d, dict) else ""),
         )
 
         # View navigation
         event_bus.subscribe(
-            Events.UI_SELECT_TAB,
+            UIEvents.UI_SELECT_TAB,
             lambda d: gui.notebook.select(
                 getattr(gui, f"{d.get('tab_name') if isinstance(d, dict) else ''}_frame", 0)
             )
@@ -242,37 +239,37 @@ class EventDispatcher:
 
         # Single video zone setup (Decoupling from MainViewModel)
         event_bus.subscribe(
-            "ui:setup_zone_definition_for_single_video",
+            UIEvents.SETUP_ZONE_DEFINITION_FOR_SINGLE_VIDEO,
             self._handle_setup_zone_definition_for_single_video,
         )
 
         # Analysis Updates
         event_bus.subscribe(
-            Events.UI_UPDATE_PROCESSING_STATS,
+            UIEvents.UI_UPDATE_PROCESSING_STATS,
             lambda d: gui.state_synchronizer.update_processing_stats(
                 **d.get("stats", {}) if isinstance(d, dict) else {}
             ),
         )
         event_bus.subscribe(
-            Events.UI_UPDATE_ANALYSIS_METADATA,
+            UIEvents.UI_UPDATE_ANALYSIS_METADATA,
             lambda d: gui.analysis_view_controller.update_analysis_metadata(
                 metadata=d.get("metadata") if isinstance(d, dict) else None
             ),
         )
         event_bus.subscribe(
-            Events.UI_UPDATE_SOCIAL_SUMMARY,
+            UIEvents.UI_UPDATE_SOCIAL_SUMMARY,
             lambda d: gui.state_synchronizer.update_social_summary(
                 **d if isinstance(d, dict) else {}
             ),
         )
         event_bus.subscribe(
-            Events.UI_UPDATE_ANALYSIS_TASK_STATUS,
+            UIEvents.UI_UPDATE_ANALYSIS_TASK_STATUS,
             lambda d: gui.state_synchronizer.update_analysis_task_status(
                 **d.get("payload", {}) if isinstance(d, dict) else {}
             ),
         )
         event_bus.subscribe(
-            Events.UI_UPDATE_DETECTION_OVERLAY,
+            UIEvents.UI_UPDATE_DETECTION_OVERLAY,
             lambda d: gui.analysis_view_controller.update_detection_overlay(
                 detections=d.get("detections") if isinstance(d, dict) else None,
                 report=d.get("report") if isinstance(d, dict) else None,
@@ -281,13 +278,13 @@ class EventDispatcher:
 
         # Project View Updates
         event_bus.subscribe(
-            Events.UI_VIDEO_HIERARCHY_SNAPSHOT_UPDATED,
+            UIEvents.UI_VIDEO_HIERARCHY_SNAPSHOT_UPDATED,
             lambda d: gui.video_selector_manager.on_video_hierarchy_snapshot_updated(
                 d.get("snapshot", []) if isinstance(d, dict) else []
             ),
         )
         event_bus.subscribe(
-            Events.UI_REFRESH_PROJECT_VIEWS,
+            UIEvents.UI_REFRESH_PROJECT_VIEWS,
             lambda d: gui.video_selector_manager.refresh_project_views(
                 reason=d.get("reason") if isinstance(d, dict) else None,
                 append_summary=d.get("append_summary", False) if isinstance(d, dict) else False,
@@ -297,25 +294,25 @@ class EventDispatcher:
 
         # Weight Management
         event_bus.subscribe(
-            Events.UI_SET_ACTIVE_WEIGHT,
+            UIEvents.UI_SET_ACTIVE_WEIGHT,
             lambda d: gui.weight_hardware_manager.set_active_weight_in_dropdown(
                 d.get("weight_name") if isinstance(d, dict) else None
             ),
         )
         event_bus.subscribe(
-            Events.UI_UPDATE_OPENVINO_STATUS,
+            UIEvents.UI_UPDATE_OPENVINO_STATUS,
             lambda d: gui.weight_hardware_manager.update_openvino_status_display(
                 str(d.get("status")) if isinstance(d, dict) and d.get("status") else "Unknown"
             ),
         )
         event_bus.subscribe(
-            Events.UI_UPDATE_OPENVINO_CHECKBOX,
+            UIEvents.UI_UPDATE_OPENVINO_CHECKBOX,
             lambda d: gui.weight_hardware_manager.update_openvino_checkbox(
                 bool(d.get("is_checked")) if isinstance(d, dict) else False
             ),
         )
         event_bus.subscribe(
-            Events.UI_UPDATE_WEIGHTS_LIST,
+            UIEvents.UI_UPDATE_WEIGHTS_LIST,
             lambda d: gui.weight_hardware_manager.update_weights_dropdown(
                 list(d.get("weights", [])) if isinstance(d, dict) else []
             ),
@@ -323,7 +320,7 @@ class EventDispatcher:
 
         # Arduino / Hardware
         event_bus.subscribe(
-            Events.UI_UPDATE_ARDUINO_STATUS,
+            UIEvents.UI_UPDATE_ARDUINO_STATUS,
             lambda d: gui.arduino_dashboard_widget.update_status(
                 bool(d.get("connected")) if isinstance(d, dict) else False,
                 str(d.get("port")) if isinstance(d, dict) and d.get("port") else None,
@@ -332,7 +329,7 @@ class EventDispatcher:
             else None,
         )
         event_bus.subscribe(
-            Events.UI_APPEND_ARDUINO_LOG,
+            UIEvents.UI_APPEND_ARDUINO_LOG,
             lambda d: gui.arduino_dashboard_widget.append_log(
                 str(d.get("message") or "") if isinstance(d, dict) else ""
             )
@@ -347,36 +344,36 @@ class EventDispatcher:
 
         log.info(
             "event_dispatcher.subscribing_navigation",
-            event_name=Events.UI_NAVIGATE_TO_ANALYSIS_VIEW,
+            event_name=UIEvents.UI_NAVIGATE_TO_ANALYSIS_VIEW,
             event_bus_id=id(event_bus),
         )
-        event_bus.subscribe(Events.UI_NAVIGATE_TO_ANALYSIS_VIEW, _handle_navigate_to_analysis)
+        event_bus.subscribe(UIEvents.UI_NAVIGATE_TO_ANALYSIS_VIEW, _handle_navigate_to_analysis)
         event_bus.subscribe(
-            Events.UI_NAVIGATE_FROM_ANALYSIS_VIEW,
+            UIEvents.UI_NAVIGATE_FROM_ANALYSIS_VIEW,
             lambda d: gui.analysis_view_controller.stop_analysis_view_mode(),
         )
         event_bus.subscribe(
-            Events.UI_UPDATE_PROCESSING_MODE,
+            UIEvents.UI_UPDATE_PROCESSING_MODE,
             self._handle_update_processing_mode,
         )
 
         # General UI
         event_bus.subscribe(
-            Events.UI_UPDATE_BUTTON_STATE,
+            UIEvents.UI_UPDATE_BUTTON_STATE,
             lambda d: gui.update_button_state(
                 d.get("button_name") if isinstance(d, dict) else None,
                 d.get("state") if isinstance(d, dict) else None,
             ),
         )
         event_bus.subscribe(
-            Events.UI_DISPLAY_FRAME,
+            UIEvents.UI_DISPLAY_FRAME,
             lambda d: gui.canvas_manager.update_video_frame(
                 d.get("frame") if isinstance(d, dict) else None,  # type: ignore[arg-type]  # frame is Any from dict
                 d.get("detections") if isinstance(d, dict) else None,
             ),
         )
         event_bus.subscribe(
-            Events.UI_DISPLAY_VIDEO_FRAME,
+            UIEvents.UI_DISPLAY_VIDEO_FRAME,
             lambda d: gui.canvas_manager.display_roi_video_frame(
                 d.get("video_path") if isinstance(d, dict) else None
             ),
@@ -384,24 +381,24 @@ class EventDispatcher:
 
         # Zone Updates
         event_bus.subscribe(
-            Events.UI_REDRAW_ZONES,
+            UIEvents.UI_REDRAW_ZONES,
             lambda d: gui.canvas_manager.redraw_zones_from_project_data(
                 d.get("zone_data") if isinstance(d, dict) else None
             ),
         )
         event_bus.subscribe(
-            Events.UI_UPDATE_ZONE_LIST, lambda d: gui.canvas_manager.update_zone_listbox()
+            UIEvents.UI_UPDATE_ZONE_LIST, lambda d: gui.canvas_manager.update_zone_listbox()
         )
 
         # Weight Management Interactive Requests
         event_bus.subscribe(
-            Events.UI_REQUEST_WEIGHT_TYPE,
+            UIEvents.UI_REQUEST_WEIGHT_TYPE,
             lambda d: gui.weight_hardware_manager.handle_request_weight_type(
                 str(d.get("filepath")) if isinstance(d, dict) and d.get("filepath") else ""
             ),
         )
         event_bus.subscribe(
-            Events.UI_REQUEST_WEIGHT_ACTION,
+            UIEvents.UI_REQUEST_WEIGHT_ACTION,
             lambda d: gui.weight_hardware_manager.handle_request_weight_action(
                 str(d.get("filepath")) if isinstance(d, dict) and d.get("filepath") else "",
                 str(d.get("weight_type")) if isinstance(d, dict) and d.get("weight_type") else "",
@@ -479,74 +476,80 @@ class EventDispatcher:
 
         # Drawing Actions
         event_bus.subscribe(
-            Events.ZONE_AUTO_DETECT_CLICKED,
+            UIEvents.ZONE_AUTO_DETECT_CLICKED,
             lambda d: gui.single_video_workflow.on_auto_detect_clicked(
                 stabilization_frames=d.get("stabilization_frames") if isinstance(d, dict) else None
             ),
         )
         event_bus.subscribe(
-            Events.ZONE_DRAW_ARENA, lambda d: gui.canvas_manager.start_main_arena_drawing()
+            UIEvents.ZONE_DRAW_ARENA, lambda d: gui.canvas_manager.start_main_arena_drawing()
         )
-        event_bus.subscribe(Events.ZONE_DRAW_ROI, lambda d: gui.canvas_manager.start_roi_drawing())
         event_bus.subscribe(
-            Events.ZONE_TOGGLE_VIEW,
+            UIEvents.ZONE_DRAW_ROI, lambda d: gui.canvas_manager.start_roi_drawing()
+        )
+        event_bus.subscribe(
+            UIEvents.ZONE_TOGGLE_VIEW,
             lambda d: gui.analysis_view_controller.toggle_canvas_view(),
         )
 
         # ROI Templates
         event_bus.subscribe(
-            Events.ZONE_TEMPLATE_APPLY,
+            UIEvents.ZONE_TEMPLATE_APPLY,
             lambda d: gui._on_apply_roi_template(),
         )
         event_bus.subscribe(
-            Events.ZONE_TEMPLATE_SAVE,
+            UIEvents.ZONE_TEMPLATE_SAVE,
             lambda d: gui.roi_template_manager.save_template(),
         )
         event_bus.subscribe(
-            Events.ZONE_TEMPLATE_IMPORT,
+            UIEvents.ZONE_TEMPLATE_IMPORT,
             lambda d: gui.dialog_manager.import_and_apply_roi_template(),
         )
+
+        def _clear_applied_templates(d: dict) -> None:
+            gui.roi_template_manager.clear_applied_template_drawings()
+
         event_bus.subscribe(
-            Events.ZONE_TEMPLATE_CLEAR_APPLIED,
-            lambda d: gui.roi_template_manager.clear_applied_template_drawings(),
+            UIEvents.ZONE_TEMPLATE_CLEAR_APPLIED,
+            _clear_applied_templates,
         )
 
         # Video Selector
         event_bus.subscribe(
-            Events.ZONE_VIDEO_SEARCH_CHANGED,
+            UIEvents.ZONE_VIDEO_SEARCH_CHANGED,
             lambda d: gui._filter_video_tree(),
         )
         event_bus.subscribe(
-            Events.ZONE_VIDEO_REFRESH,
+            UIEvents.ZONE_VIDEO_REFRESH,
             lambda d: gui.video_selector_manager._populate_video_selector_tree(filter_text=None),
         )
         event_bus.subscribe(
-            Events.ZONE_VIDEO_DOUBLE_CLICK,
+            UIEvents.ZONE_VIDEO_DOUBLE_CLICK,
             lambda d: gui.canvas_manager.load_selected_video_frame(),
         )
         event_bus.subscribe(
-            Events.ZONE_VIDEO_FRAME_LOAD,
+            UIEvents.ZONE_VIDEO_FRAME_LOAD,
             lambda d: gui.canvas_manager.load_selected_video_frame(),
         )
 
         # Zone List
         event_bus.subscribe(
-            Events.ZONE_AQUARIUM_SELECTED,
+            UIEvents.ZONE_AQUARIUM_SELECTED,
             lambda d: gui.canvas_manager.update_zone_listbox(),
         )
         # Processing mode change (parallel vs sequential for multi-aquarium)
         event_bus.subscribe(
-            Events.ZONE_PROCESSING_MODE_CHANGED,
+            UIEvents.ZONE_PROCESSING_MODE_CHANGED,
             lambda d: gui.canvas_manager.update_processing_mode(
                 d.get("sequential", False) if isinstance(d, dict) else False
             ),
         )
         event_bus.subscribe(
-            Events.ZONE_LIST_ITEM_DOUBLE_CLICK,
+            UIEvents.ZONE_LIST_ITEM_DOUBLE_CLICK,
             lambda d: gui.canvas_manager.edit_selected_zone_vertices(),
         )
         event_bus.subscribe(
-            Events.ZONE_LIST_ITEM_RIGHT_CLICK,
+            UIEvents.ZONE_LIST_ITEM_RIGHT_CLICK,
             lambda d: gui.menu_manager.show_roi_context_menu(
                 x=d.get("x") if isinstance(d, dict) else 0,
                 y=d.get("y") if isinstance(d, dict) else 0,
@@ -555,32 +558,34 @@ class EventDispatcher:
         )
 
         # Interactive Editing
-        event_bus.subscribe(Events.ZONE_SAVE_ARENA, lambda d: gui.canvas_manager.save_arena())
-        event_bus.subscribe(Events.ZONE_DISCARD_ARENA, lambda d: gui.canvas_manager.discard_arena())
+        event_bus.subscribe(UIEvents.ZONE_SAVE_ARENA, lambda d: gui.canvas_manager.save_arena())
         event_bus.subscribe(
-            Events.ZONE_FINISH_DRAWING,
+            UIEvents.ZONE_DISCARD_ARENA, lambda d: gui.canvas_manager.discard_arena()
+        )
+        event_bus.subscribe(
+            UIEvents.ZONE_FINISH_DRAWING,
             lambda d: gui.canvas_manager.event_handler.on_canvas_double_click(None),
         )
         event_bus.subscribe(
-            "zone.conclude_video",
+            UIEvents.ZONE_CONCLUDE_VIDEO,
             lambda d: gui.zone_control_builder._on_conclude_video(),
         )
 
         # Zone Context Menu Actions (Copy/Paste/Delete)
         event_bus.subscribe(
-            Events.ZONE_COPY_ZONES,
+            UIEvents.ZONE_COPY_ZONES,
             lambda d: gui.canvas_manager.copy_zones_from_video(
                 d.get("video_path") if isinstance(d, dict) else None
             ),
         )
         event_bus.subscribe(
-            Events.ZONE_PASTE_ZONES,
+            UIEvents.ZONE_PASTE_ZONES,
             lambda d: gui.canvas_manager.paste_zones_to_video(
                 d.get("video_path") if isinstance(d, dict) else None
             ),
         )
         event_bus.subscribe(
-            Events.ZONE_DELETE_ZONES,
+            UIEvents.ZONE_DELETE_ZONES,
             lambda d: gui.canvas_manager.delete_zones_from_video(
                 d.get("video_path") if isinstance(d, dict) else None
             ),
@@ -588,7 +593,7 @@ class EventDispatcher:
 
         # Multi-Aquarium Success
         event_bus.subscribe(
-            Events.ZONE_MULTI_AUTO_DETECT_SUCCESS,
+            UIEvents.ZONE_MULTI_AUTO_DETECT_SUCCESS,
             lambda d: gui.canvas_manager.on_multi_auto_detect_success(
                 d if isinstance(d, dict) else {}
             ),
@@ -596,13 +601,13 @@ class EventDispatcher:
 
         # Multi-Aquarium Assignment Dialog (Triggered by CanvasManager)
         event_bus.subscribe(
-            Events.ZONE_SHOW_AQUARIUM_ASSIGNMENT_DIALOG,
+            UIEvents.ZONE_SHOW_AQUARIUM_ASSIGNMENT_DIALOG,
             self._on_show_aquarium_assignment_dialog,
         )
 
         # ROI Settings
         event_bus.subscribe(
-            Events.DETECTOR_UPDATE_PARAMETERS,
+            UIEvents.DETECTOR_UPDATE_PARAMETERS,
             lambda d: gui._on_apply_roi_settings(d if isinstance(d, dict) else {}),
         )
 
@@ -674,7 +679,7 @@ class EventDispatcher:
             )
 
             self.publish_event(
-                Events.ZONE_AQUARIUM_ASSIGNMENT_COMPLETED,
+                UIEvents.ZONE_AQUARIUM_ASSIGNMENT_COMPLETED,
                 {
                     "video_path": video_path,
                     "configs": configs_as_dicts,
@@ -682,88 +687,51 @@ class EventDispatcher:
                 },
             )
 
-    def schedule_event_bus_poll(self) -> None:
-        """Schedule the event bus polling loop."""
-        if not self.gui:
-            return
-        gui = self._require_gui()
-        gui.root.after(gui._event_bus_poll_interval_ms, self.poll_event_bus)
-
-    def poll_event_bus(self) -> None:
-        """Poll the event bus for pending events."""
-        if not self.gui:
-            return
-
-        if self.event_bus:
-            # Check if it has a drain method (standard queue-based bus)
-            if hasattr(self.event_bus, "drain"):
-                # Process up to e.g. 20 events per tick to avoid freezing UI
-                events = self.event_bus.drain(max_items=20)
-                for event in events:
-                    try:
-                        if event.type == EventType.NAMED:
-                            # Dispatch named event
-                            if hasattr(self.event_bus, "dispatch_named_event"):
-                                self.event_bus.dispatch_named_event(event.payload)
-                        elif event.type == EventType.CALLABLE:
-                            # Execute callable event
-                            event.payload.execute()
-                    except Exception as e:
-                        self.log.error("event_dispatcher.poll_error", error=str(e))
-
-            # Fallback for other implementations (process_events/process_queue)
-            elif hasattr(self.event_bus, "process_events"):
-                self.event_bus.process_events()
-            elif hasattr(self.event_bus, "process_queue"):
-                self.event_bus.process_queue()
-
-        # Reschedule
-        self.schedule_event_bus_poll()
-
     # --- High-Level UI Action Handlers ---
 
-    def publish_event(self, event_name: str, data: dict | None = None) -> bool:
-        """Publish a named event through the event bus.
+    def publish_event(self, event_type: UIEvents, data: dict | None = None) -> bool:
+        """Publish an event through the event bus.
 
         Args:
-            event_name: Name of the event to publish
-            data: Optional dictionary with event data
+            event_type: UIEvents enum member identifying the event.
+            data: Optional dictionary with event data.
 
         Returns:
-            True if event was successfully published, False otherwise
+            True if event was successfully published, False otherwise.
         """
-        if not self.validate_event_payload(event_name, data or {}):
+        if not self.validate_event_payload(event_type, data or {}):
             return False
 
         if not self.event_bus:
             return False
 
-        return self.event_bus.publish_event(event_name, data or {})
+        self.event_bus.publish(Event(type=event_type, data=data or {}))
+        return True
 
-    def validate_event_payload(self, event_name: str, data: dict) -> bool:
+    def validate_event_payload(self, event_type: UIEvents, data: dict) -> bool:
         """Validate the payload for specific events to ensure contract integrity.
 
         Args:
-            event_name: Name of the event.
+            event_type: UIEvents enum member identifying the event.
             data: Payload data.
 
         Returns:
             True if valid, False otherwise.
         """
-        if event_name == Events.ZONE_AQUARIUM_ASSIGNMENT_COMPLETED:
+        if event_type == UIEvents.ZONE_AQUARIUM_ASSIGNMENT_COMPLETED:
             if not isinstance(data.get("configs"), list):
-                self.log.error("event_validation.configs_not_list", event=event_name)
+                self.log.error("event_validation.configs_not_list", event=event_type)
                 return False
             if "video_path" not in data:
-                self.log.error("event_validation.missing_video_path", event=event_name)
+                self.log.error("event_validation.missing_video_path", event=event_type)
                 return False
-        elif event_name == Events.ZONE_AQUARIUM_SELECTED:
+        elif event_type == UIEvents.ZONE_AQUARIUM_SELECTED:
             if not isinstance(data.get("aquarium_id"), int):
-                self.log.error("event_validation.aquarium_id_not_int", event=event_name)
+                self.log.error("event_validation.aquarium_id_not_int", event=event_type)
                 return False
-        elif event_name == Events.ZONE_MULTI_AUTO_DETECT_SUCCESS:
+        elif event_type == UIEvents.ZONE_MULTI_AUTO_DETECT_SUCCESS:
             if not isinstance(data.get("polygons"), list):
-                self.log.error("event_validation.polygons_not_list", event=event_name)
+                self.log.error("event_validation.polygons_not_list", event=event_type)
                 return False
         return True
 
@@ -823,10 +791,10 @@ class EventDispatcher:
         # Publish the event for single video analysis with full configuration
         self.log.info(
             "event_dispatcher.handle_analyze_single_video_clicked.publishing_event",
-            event_name=Events.VIDEO_ANALYZE_SINGLE,
+            event_name=UIEvents.VIDEO_ANALYZE_SINGLE,
             video_path=video_path,
         )
         self.publish_event(
-            Events.VIDEO_ANALYZE_SINGLE, {"video_path": video_path, "config": config}
+            UIEvents.VIDEO_ANALYZE_SINGLE, {"video_path": video_path, "config": config}
         )
         self.log.info("event_dispatcher.handle_analyze_single_video_clicked.event_published")

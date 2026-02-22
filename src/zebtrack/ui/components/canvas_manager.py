@@ -34,7 +34,6 @@ from zebtrack.ui.components.canvas.renderer import CanvasRenderer
 from zebtrack.ui.components.canvas.video_frame_manager import VideoFrameManager
 from zebtrack.ui.components.canvas.zone_editor import ZoneEditor
 from zebtrack.ui.event_bus_v2 import UIEvents
-from zebtrack.ui.events import Events
 from zebtrack.utils.geometry_service import GeometryService
 
 log = structlog.get_logger()
@@ -142,11 +141,9 @@ class CanvasManager:
             events=["ZONES_UPDATED", "POLYGON_EDIT_REQUESTED"],
         )
 
-        # Subscribe to legacy UI events (Live Camera Stream)
-        if hasattr(self.gui, "event_bus") and self.gui.event_bus:
-            self._live_frame_subscription = self.gui.event_bus.subscribe(
-                Events.UI_UPDATE_LIVE_FRAME, self._on_live_frame_update
-            )
+        # Subscribe to live frame updates via EventBusV2
+        if self.event_bus_v2:
+            self.event_bus_v2.subscribe(UIEvents.UI_UPDATE_LIVE_FRAME, self._on_live_frame_update)
             # Note: _live_session_active remains False until a live session actually starts
             log.debug("canvas_manager.subscribed_to_live_frame_updates")
 
@@ -212,13 +209,13 @@ class CanvasManager:
         log.info(
             "canvas_manager.unsubscribe_from_live_frames.called",
             has_subscription=hasattr(self, "_live_frame_subscription"),
-            has_event_bus=hasattr(self.gui, "event_bus") and self.gui.event_bus is not None,
+            has_event_bus_v2=self.event_bus_v2 is not None,
         )
 
-        if hasattr(self.gui, "event_bus") and self.gui.event_bus:
+        if self.event_bus_v2:
             try:
-                self.gui.event_bus.unsubscribe(
-                    Events.UI_UPDATE_LIVE_FRAME, self._on_live_frame_update
+                self.event_bus_v2.unsubscribe(
+                    UIEvents.UI_UPDATE_LIVE_FRAME, self._on_live_frame_update
                 )
                 if hasattr(self, "_live_frame_subscription"):
                     self._live_frame_subscription = None

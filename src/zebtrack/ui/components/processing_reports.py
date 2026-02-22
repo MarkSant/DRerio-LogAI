@@ -11,7 +11,7 @@ from tkinter import StringVar, ttk
 import structlog
 
 from zebtrack.ui.components.base import BaseWidget
-from zebtrack.ui.event_bus import EventBus
+from zebtrack.ui.event_bus_v2 import EventBusV2
 
 log = structlog.get_logger()
 
@@ -39,7 +39,7 @@ class ProcessingReportsWidget(BaseWidget):
     def __init__(
         self,
         parent,
-        event_bus: EventBus | None = None,
+        event_bus: EventBusV2 | None = None,
         on_generate_trajectories: Callable | None = None,
         on_export_summaries: Callable | None = None,
         on_generate_partial_report: Callable | None = None,

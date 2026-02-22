@@ -7,7 +7,6 @@ from zebtrack.ui.components.arduino_dashboard import ArduinoDashboardWidget
 from zebtrack.ui.components.video_display import VideoDisplayWidget
 from zebtrack.ui.components.zone_controls import ZoneControlsWidget
 from zebtrack.ui.event_bus_v2 import Event, UIEvents
-from zebtrack.ui.events import Events
 
 if TYPE_CHECKING:
     from zebtrack.ui.gui import ApplicationGUI
@@ -49,7 +48,7 @@ class TabBuilder:
         Button(
             controls_container,
             text="Fechar Projeto",
-            command=lambda: self.gui.event_dispatcher.publish_event(Events.PROJECT_CLOSE, {}),
+            command=lambda: self.gui.event_dispatcher.publish_event(UIEvents.PROJECT_CLOSE, {}),
         ).pack(side="right", padx=5)
 
         # Build overview panel (Delegates to GUI/WidgetFactory)
@@ -193,14 +192,14 @@ class TabBuilder:
         self.gui.start_rec_btn = Button(
             parent,
             text="Iniciar Gravação",
-            command=lambda: self.gui.event_dispatcher.publish_event(Events.RECORDING_START, {}),
+            command=lambda: self.gui.event_dispatcher.publish_event(UIEvents.RECORDING_START, {}),
         )
         self.gui.start_rec_btn.pack(side="left", padx=5)
 
         self.gui.stop_rec_btn = Button(
             parent,
             text="Parar Gravação",
-            command=lambda: self.gui.event_dispatcher.publish_event(Events.RECORDING_STOP, {}),
+            command=lambda: self.gui.event_dispatcher.publish_event(UIEvents.RECORDING_STOP, {}),
             state="disabled",
         )
         self.gui.stop_rec_btn.pack(side="left", padx=5)
@@ -211,7 +210,7 @@ class TabBuilder:
             parent,
             text="Adicionar e Processar Novos Vídeos/Pastas...",
             command=lambda: self.gui.event_dispatcher.publish_event(
-                Events.PROJECT_PROCESS_VIDEOS, {}
+                UIEvents.PROJECT_PROCESS_VIDEOS, {}
             ),
         ).pack(side="left", padx=5)
 

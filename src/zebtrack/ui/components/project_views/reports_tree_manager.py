@@ -71,16 +71,11 @@ class ReportsTreeManager:
             self._on_processing_reports_right_click,
         )
 
-        # Legacy V1 bridge
-        if self.gui.event_bus:
-            self.gui.event_bus.subscribe(
-                "processing_reports.item_right_click",
-                self._on_processing_reports_right_click,
-            )
-            self.gui.event_bus.subscribe(
-                "reports.delete_unified",
-                self._delete_all_unified_reports,
-            )
+        # V2 unified report deletion
+        self.event_bus_v2.subscribe(
+            UIEvents.REPORTS_DELETE_UNIFIED,
+            self._delete_all_unified_reports,
+        )
 
         log.debug(
             "reports_tree_manager.event_subscriptions_setup",
@@ -766,7 +761,7 @@ class ReportsTreeManager:
 
     def generate_unified_report(self) -> None:
         """Generate a unified report for all project videos."""
-        from zebtrack.ui.events import Events
+        from zebtrack.ui.event_bus_v2 import UIEvents
 
         all_videos = self.gui.controller.project_manager.get_all_videos()
         if not all_videos:
@@ -781,7 +776,7 @@ class ReportsTreeManager:
             return
 
         self.gui.event_dispatcher.publish_event(
-            Events.REPORT_GENERATE,
+            UIEvents.REPORT_GENERATE,
             {
                 "videos": all_videos,
                 "report_type": "unified",
@@ -792,7 +787,7 @@ class ReportsTreeManager:
 
     def on_processing_reports_generate_partial(self) -> None:
         """Handle partial report generation from the unified tab."""
-        from zebtrack.ui.events import Events
+        from zebtrack.ui.event_bus_v2 import UIEvents
 
         if not self.gui.processing_reports_widget:
             return
@@ -823,7 +818,7 @@ class ReportsTreeManager:
                 return
 
             self.gui.event_dispatcher.publish_event(
-                Events.REPORT_GENERATE,
+                UIEvents.REPORT_GENERATE,
                 {
                     "videos": selected_videos,
                     "report_type": "unified",
@@ -834,7 +829,7 @@ class ReportsTreeManager:
 
     def generate_partial_report(self) -> None:
         """Gather selected videos and generate a unified partial report from reports tree."""
-        from zebtrack.ui.events import Events
+        from zebtrack.ui.event_bus_v2 import UIEvents
 
         if not hasattr(self.gui, "reports_tree") or not self.gui.reports_tree:
             return
@@ -867,7 +862,7 @@ class ReportsTreeManager:
                 return
 
             self.gui.event_dispatcher.publish_event(
-                Events.REPORT_GENERATE,
+                UIEvents.REPORT_GENERATE,
                 {
                     "videos": selected_videos,
                     "report_type": "unified",

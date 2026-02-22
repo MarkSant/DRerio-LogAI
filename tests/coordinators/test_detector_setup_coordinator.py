@@ -351,9 +351,9 @@ class TestZoneConfiguration:
         zones = [{"name": "Zone1"}]
         detector_setup_coordinator.configure_zones(zones_data=zones)
 
-        mock_event_bus.publish_event.assert_called()
-        call_args = mock_event_bus.publish_event.call_args[0]
-        assert call_args[0] == "ZONES_CONFIGURED"
+        mock_event_bus.publish.assert_called()
+        event_obj = mock_event_bus.publish.call_args[0][0]
+        assert event_obj.type == "ZONES_CONFIGURED"
 
     def test_configure_zones_invalid_width(self, detector_setup_coordinator):
         """Test configure_zones with invalid video_width."""
@@ -470,9 +470,9 @@ class TestTrackingParameters:
         """Test that update_tracking_parameters publishes event."""
         detector_setup_coordinator.update_tracking_parameters(track_threshold=0.3)
 
-        mock_event_bus.publish_event.assert_called()
-        call_args = mock_event_bus.publish_event.call_args[0]
-        assert call_args[0] == "TRACKING_PARAMETERS_UPDATED"
+        mock_event_bus.publish.assert_called()
+        event_obj = mock_event_bus.publish.call_args[0][0]
+        assert event_obj.type == "TRACKING_PARAMETERS_UPDATED"
 
     def test_update_tracking_parameters_invalid_track_threshold_range(
         self,
@@ -650,9 +650,9 @@ class TestSingleSubjectMode:
         """Test that set_single_subject_mode publishes event."""
         detector_setup_coordinator.set_single_subject_mode(enabled=True)
 
-        mock_event_bus.publish_event.assert_called()
-        call_args = mock_event_bus.publish_event.call_args[0]
-        assert call_args[0] == "SINGLE_SUBJECT_MODE_CHANGED"
+        mock_event_bus.publish.assert_called()
+        event_obj = mock_event_bus.publish.call_args[0][0]
+        assert event_obj.type == "SINGLE_SUBJECT_MODE_CHANGED"
 
     def test_set_single_subject_mode_invalid_type(self, detector_setup_coordinator):
         """Test set_single_subject_mode with invalid type."""
@@ -715,9 +715,9 @@ class TestSettingsRestoration:
         config = {"track_threshold": 0.3}
         detector_setup_coordinator.restore_detector_settings(config)
 
-        mock_event_bus.publish_event.assert_called()
-        call_args = mock_event_bus.publish_event.call_args[0]
-        assert call_args[0] == "DETECTOR_SETTINGS_RESTORED"
+        mock_event_bus.publish.assert_called()
+        event_obj = mock_event_bus.publish.call_args[0][0]
+        assert event_obj.type == "DETECTOR_SETTINGS_RESTORED"
 
     def test_restore_detector_settings_invalid_type(self, detector_setup_coordinator):
         """Test restore with invalid config type."""

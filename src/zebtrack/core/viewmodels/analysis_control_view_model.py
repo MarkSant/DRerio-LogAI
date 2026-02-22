@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, Any
 
 import structlog
 
-from zebtrack.ui.events import Events
+from zebtrack.ui.event_bus_v2 import Event, UIEvents
 
 if TYPE_CHECKING:
     from zebtrack.core.application_bootstrapper import BootstrapResult
@@ -75,16 +75,18 @@ class AnalysisControlViewModel:
 
         if animal_method == "det" and animals_per_aquarium > 1:
             if self.ui_event_bus:
-                self.ui_event_bus.publish_event(
-                    Events.UI_SHOW_ERROR,
-                    {
-                        "title": "Configuração Inválida",
-                        "message": (
-                            f"O modo de detecção (det) suporta apenas 1 animal por aquário.\n"
-                            f"Você configurou {animals_per_aquarium} animais por aquário.\n"
-                            "Para múltiplos animais, use o modo de segmentação (seg)."
-                        ),
-                    },
+                self.ui_event_bus.publish(
+                    Event(
+                        type=UIEvents.SHOW_ERROR,
+                        data={
+                            "title": "Configuração Inválida",
+                            "message": (
+                                f"O modo de detecção (det) suporta apenas 1 animal por aquário.\n"
+                                f"Você configurou {animals_per_aquarium} animais por aquário.\n"
+                                "Para múltiplos animais, use o modo de segmentação (seg)."
+                            ),
+                        },
+                    )
                 )
             return
 
@@ -99,9 +101,11 @@ class AnalysisControlViewModel:
                 if not detector_vm.setup_detector(temp_animal_method):
                     return
 
-        self.ui_event_bus.publish_event(
-            "ui:setup_zone_definition_for_single_video",
-            {"video_path": video_path, "config": config},
+        self.ui_event_bus.publish(
+            Event(
+                type=UIEvents.SETUP_ZONE_DEFINITION_FOR_SINGLE_VIDEO,
+                data={"video_path": video_path, "config": config},
+            )
         )
 
     def start_single_video_processing(self, **kwargs: Any) -> None:
@@ -191,8 +195,11 @@ class AnalysisControlViewModel:
         )
 
         if self.ui_event_bus:
-            self.ui_event_bus.publish_event(
-                Events.UI_SET_STATUS, {"message": "Cancelando análise em andamento..."}
+            self.ui_event_bus.publish(
+                Event(
+                    type=UIEvents.SET_STATUS,
+                    data={"message": "Cancelando análise em andamento..."},
+                )
             )
 
         if self.ui_state_controller:
@@ -244,7 +251,7 @@ class AnalysisControlViewModel:
                 "video_path": kwargs.get("video_path"),
                 "stabilization_frames": kwargs.get("stabilization_frames", 10),
             }
-            self.ui_event_bus.publish_event(Events.ZONE_AUTO_DETECT, payload)
+            self.ui_event_bus.publish(Event(type=UIEvents.ZONE_AUTO_DETECT, data=payload))
 
     def generate_parquet_summaries(self, video_paths: list[str]) -> None:
         """Generate summaries (Word/Excel) for the given video paths."""
@@ -270,8 +277,11 @@ class AnalysisControlViewModel:
         total = len(video_paths)
         for i, video_path in enumerate(video_paths):
             try:
-                self.ui_event_bus.publish_event(
-                    Events.UI_SET_STATUS, {"message": f"Gerando relatório {i + 1}/{total}..."}
+                self.ui_event_bus.publish(
+                    Event(
+                        type=UIEvents.SET_STATUS,
+                        data={"message": f"Gerando relatório {i + 1}/{total}..."},
+                    )
                 )
 
                 # Check directly in PM to ensure we have valid entry
@@ -481,14 +491,16 @@ class AnalysisControlViewModel:
                     "generate_summaries.failed", video=video_path, error=str(e), exc_info=True
                 )
 
-        self.ui_event_bus.publish_event(
-            Events.UI_SET_STATUS, {"message": "Geração de relatórios concluída."}
+        self.ui_event_bus.publish(
+            Event(type=UIEvents.SET_STATUS, data={"message": "Geração de relatórios concluída."})
         )
 
         # Refresh tree to show new artifacts
-        self.ui_event_bus.publish_event(
-            Events.UI_REFRESH_PROJECT_VIEWS,
-            {"reason": "reports_generated", "append_summary": True, "immediate": False},
+        self.ui_event_bus.publish(
+            Event(
+                type=UIEvents.UI_REFRESH_PROJECT_VIEWS,
+                data={"reason": "reports_generated", "append_summary": True, "immediate": False},
+            )
         )
 
     def _process_single_video(self, detector: Any, **kwargs: Any) -> Any:

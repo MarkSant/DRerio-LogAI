@@ -6,27 +6,28 @@ The workflow logic now lives directly in ProcessingCoordinator.
 
 from __future__ import annotations
 
-from threading import Event
+from threading import Event as ThreadingEvent
 from unittest.mock import MagicMock, patch
 
 import pytest
 
 from zebtrack.coordinators.video_processing_coordinator import VideoProcessingCoordinator
-from zebtrack.ui.events import Events
+from zebtrack.ui.event_bus_v2 import Event as BusEvent
+from zebtrack.ui.event_bus_v2 import UIEvents
 
 
 class DummyEventBus:
     """Lightweight event bus that records published events."""
 
     def __init__(self):
-        self.events: list[tuple[str, dict]] = []
-        self.handlers: dict[str, list] = {}
+        self.events: list[tuple[UIEvents, dict]] = []
+        self.handlers: dict[UIEvents, list] = {}
 
-    def publish_event(self, event: str, payload: dict | None = None):
-        self.events.append((event, payload or {}))
+    def publish(self, event: BusEvent):
+        self.events.append((event.type, event.data))
 
-    def subscribe(self, event: str, handler):
-        self.handlers.setdefault(event, []).append(handler)
+    def subscribe(self, event_type: UIEvents, handler):
+        self.handlers.setdefault(event_type, []).append(handler)
 
 
 class DummyView:
@@ -47,7 +48,7 @@ def coordinator_setup():
     dialog_coordinator = MagicMock()
     project_manager = MagicMock()
     ui_state_controller = MagicMock()
-    cancel_event = Event()
+    cancel_event = ThreadingEvent()
 
     coordinator = VideoProcessingCoordinator(
         state_manager=MagicMock(),
@@ -79,7 +80,7 @@ def test_workflow_returns_early_without_view():
         settings_obj=MagicMock(),
         ui_coordinator=MagicMock(),
         ui_state_controller=MagicMock(),
-        cancel_event=Event(),
+        cancel_event=ThreadingEvent(),
         video_selection_service=MagicMock(),
         video_validation_service=MagicMock(),
         video_classification_service=MagicMock(),
@@ -154,7 +155,7 @@ def test_workflow_no_videos_found(coordinator_setup):
 
     coordinator.start_project_processing_workflow()
 
-    warning_events = [evt for evt in event_bus.events if evt[0] == Events.UI_SHOW_WARNING]
+    warning_events = [evt for evt in event_bus.events if evt[0] == UIEvents.UI_SHOW_WARNING]
     assert len(warning_events) == 1
     assert "Nenhum Vídeo Encontrado" in warning_events[0][1]["title"]
 
@@ -186,6 +187,6 @@ def test_workflow_processes_videos(coordinator_setup):
         coordinator.start_project_processing_workflow()
 
     # Should show success message
-    info_events = [evt for evt in event_bus.events if evt[0] == Events.UI_SHOW_INFO]
+    info_events = [evt for evt in event_bus.events if evt[0] == UIEvents.UI_SHOW_INFO]
     assert len(info_events) == 1
     assert "Sucesso" in info_events[0][1]["title"]

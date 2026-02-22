@@ -15,7 +15,7 @@ from typing import TYPE_CHECKING, cast
 
 import structlog
 
-from zebtrack.ui.events import Events
+from zebtrack.ui.event_bus_v2 import UIEvents
 
 if TYPE_CHECKING:
     pass
@@ -185,7 +185,7 @@ class VideoCompletionMixin:
             seq = self._sequential_coordinator
             if seq:
                 seq._handle_sequential_multi_aquarium(video_path)
-            self._publish_event(Events.UI_REFRESH_PROJECT_VIEWS, {})
+            self._publish_event(UIEvents.UI_REFRESH_PROJECT_VIEWS, {})
             self._generate_completion_reports(video_path, experiment_id, True)
         elif trajectory_exists:
             self._generate_completion_reports(video_path, experiment_id, False)
