@@ -8,6 +8,7 @@ Phase 4.10 — Sub-packetize core/ into domain-specific sub-packages.
 """
 
 from zebtrack.core.services.detector_service import DetectorService
+from zebtrack.core.services.model_override_service import ModelOverrideService
 from zebtrack.core.services.model_service import ModelService
 from zebtrack.core.services.weight_manager import WeightManager
 from zebtrack.core.services.wizard_service import WizardService
@@ -15,6 +16,7 @@ from zebtrack.core.services.zone_context_service import ZoneContextService
 
 __all__ = [
     "DetectorService",
+    "ModelOverrideService",
     "ModelService",
     "WeightManager",
     "WizardService",

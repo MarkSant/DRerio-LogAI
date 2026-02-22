@@ -335,6 +335,8 @@ def main():  # noqa: C901
         _t0 = time.perf_counter()
 
         # Phase 4.7: SessionCoordinator decomposed into 3 sub-coordinators
+        # Phase 5B: Delegates extracted from ProjectLifecycleCoordinator
+        from zebtrack.coordinators.calibration_coordinator import CalibrationCoordinator
         from zebtrack.coordinators.live_calibration_coordinator import LiveCalibrationCoordinator
         from zebtrack.coordinators.live_camera_session_coordinator import (
             LiveCameraSessionCoordinator,
@@ -346,6 +348,7 @@ def main():  # noqa: C901
 
         # Additional services needed by coordinators
         from zebtrack.core.project.project_service import ProjectService
+        from zebtrack.core.services.model_override_service import ModelOverrideService
         from zebtrack.ui.project_workflow_adapter import ProjectWorkflowAdapter
 
         project_service = ProjectService()
@@ -357,7 +360,24 @@ def main():  # noqa: C901
             ui_event_bus=event_bus,
         )
 
-        # 1. ProjectLifecycleCoordinator - Project & calibration workflows
+        # 1a. ModelOverrideService - Model override state & persistence (Phase 5B)
+        model_override_service = ModelOverrideService(
+            state_manager=state_manager,
+            project_manager=project_manager,
+            project_workflow_service=project_workflow_service,
+            settings_obj=settings_obj,
+            event_bus=event_bus,
+        )
+
+        # 1b. CalibrationCoordinator - Calibration scope & context (Phase 5B)
+        calibration_coordinator = CalibrationCoordinator(
+            state_manager=state_manager,
+            project_manager=project_manager,
+            model_override_service=model_override_service,
+            event_bus=event_bus,
+        )
+
+        # 1c. ProjectLifecycleCoordinator - Project & asset lifecycle
         _t0_proj = time.perf_counter()
         project_lifecycle_coordinator = ProjectLifecycleCoordinator(
             state_manager=state_manager,
@@ -367,6 +387,8 @@ def main():  # noqa: C901
             settings_obj=settings_obj,
             event_bus=event_bus,
             detector_service=detector_service,  # Phase 3E: For default callbacks
+            model_override_service=model_override_service,  # Phase 5B
+            calibration_coordinator=calibration_coordinator,  # Phase 5B
         )
         log.info(
             "timing.project_lifecycle_coordinator",

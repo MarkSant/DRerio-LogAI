@@ -5,6 +5,7 @@ by delegating to services.
 
 Available Coordinators:
     BaseCoordinator - Unified base class for all coordinators
+    CalibrationCoordinator - Calibration scope and context management (Phase 5B)
     ProjectCoordinator - Project lifecycle management (Sprint 3)
     DetectorSetupCoordinator - Detector setup and configuration (Phase 4.9)
     ModelDiagnosticsCoordinator - Model diagnostic tests (Phase 4.9)
@@ -26,6 +27,7 @@ from zebtrack.coordinators.base_coordinator import (
     CoordinatorError,
     CoordinatorValidationError,
 )
+from zebtrack.coordinators.calibration_coordinator import CalibrationCoordinator
 from zebtrack.coordinators.detector_setup_coordinator import (
     DetectorSetupCoordinator,
     DetectorSetupCoordinatorError,
@@ -66,6 +68,7 @@ from zebtrack.coordinators.video_processing_coordinator import VideoProcessingCo
 
 __all__ = [
     "BaseCoordinator",
+    "CalibrationCoordinator",
     "CoordinatorDependencyError",
     "CoordinatorError",
     "CoordinatorValidationError",
