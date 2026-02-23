@@ -18,8 +18,8 @@ files:
   main_entry: "src/zebtrack/__main__.py"
   main_viewmodel: "src/zebtrack/ui/gui.py"
   settings: "src/zebtrack/settings.py"
-  detector_service: "N/A"
-  project_manager: "N/A"
+  detector_service: "src/zebtrack/core/detector_service.py"
+  project_manager: "src/zebtrack/core/project_manager.py"
   state_manager: "src/zebtrack/core/state_manager.py"
   recorder: "src/zebtrack/io/recorder.py"
 
@@ -130,6 +130,34 @@ discovered_classes:
         "ArduinoSettings"
       ],
       "key_methods": []
+    },
+    "detector_service": {
+      "path": "src/zebtrack/core/detector_service.py",
+      "classes": [
+        "DetectorService"
+      ],
+      "key_methods": [
+        "__init__",
+        "initialize_detector",
+        "get_params",
+        "get_parameter_definitions",
+        "get_available_configs"
+      ]
+    },
+    "project_manager": {
+      "path": "src/zebtrack/core/project_manager.py",
+      "classes": [
+        "ProjectInvalidError",
+        "ProjectManager"
+      ],
+      "key_methods": [
+        "__init__",
+        "__init__",
+        "_ensure_zone_structures",
+        "_normalize_video_path",
+        "_resolve_zone_entry",
+        "_deduplicate_zone_keys"
+      ]
     },
     "state_manager": {
       "path": "src/zebtrack/core/state_manager.py",
