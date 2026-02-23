@@ -101,12 +101,14 @@ class ApplicationGUI:
         event_bus: EventBusV2 | None = None,
         settings_obj=None,
         project_manager: Any | None = None,
+        state_manager: Any | None = None,
     ):
         """Initialize the ApplicationGUI."""
         self.root = root
         self.controller = controller
         self.event_bus = event_bus
         self.settings = settings_obj
+        self._state_manager = state_manager
         # Use injected project_manager or fallback to controller (legacy)
         self.project_manager = project_manager or getattr(controller, "project_manager", None)
         # Subscribe to VideoProcessingService events (v2.2 UI decoupling)
@@ -123,7 +125,7 @@ class ApplicationGUI:
             )
 
         self.root.title("DRerio LogAI")
-        self.root.protocol("WM_DELETE_WINDOW", self.controller.on_close)
+        self.root.protocol("WM_DELETE_WINDOW", lambda: self.controller.on_close())
 
         self._ttkbootstrap_style: Any | None = None
         self._ttkbootstrap_theme: Any | None = None
@@ -141,7 +143,7 @@ class ApplicationGUI:
         # Phase 1 components
         self.menu_manager = MenuManager(self)
         self.canvas_manager = CanvasManager(self, event_bus_v2=self.event_bus)
-        self.state_synchronizer = StateSynchronizer(self)
+        self.state_synchronizer = StateSynchronizer(self, state_manager=self._state_manager)
         self.event_dispatcher = EventDispatcher(self)
 
         # Debug: Verify event_bus propagation to EventDispatcher
@@ -369,12 +371,20 @@ class ApplicationGUI:
         # Subscribe to StateManager state changes for reactive UI updates
         self.state_synchronizer.subscribe_to_state_changes()
 
-    def _post_init(self) -> None:
+    def _post_init(self, _retries: int = 0) -> None:
         """
         Perform initialization tasks that require the controller or other dependencies
         to be fully ready. This helps decouple the GUI construction from the
         controller's state availability.
         """
+        # If the controller is a LazyRef and not yet resolved, retry later
+        if hasattr(self.controller, "is_resolved") and not self.controller.is_resolved:
+            if _retries < 20:  # Retry up to 20 times (2 seconds total)
+                self.root.after(100, lambda: self._post_init(_retries + 1))
+                return
+            log.warning("gui.post_init.timeout", retries=_retries)
+            return
+
         try:
             # Prefer hardware_vm if available (post-init),
             # else fallback to controller attrs (bootstrap)

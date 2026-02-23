@@ -7,7 +7,7 @@ Handles state observation, UI updates based on state changes, and reset operatio
 from __future__ import annotations
 
 import tkinter as tk
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import structlog
 
@@ -22,15 +22,23 @@ log = structlog.get_logger()
 class StateSynchronizer:
     """Manages state synchronization between StateManager and UI components."""
 
-    def __init__(self, gui, *, dialog_manager: DialogManager | None = None):
+    def __init__(
+        self,
+        gui,
+        *,
+        dialog_manager: DialogManager | None = None,
+        state_manager: Any | None = None,
+    ):
         """Initialize StateSynchronizer.
 
         Args:
             gui: Reference to ApplicationGUI instance
             dialog_manager: Optional DialogManager for dependency injection.
+            state_manager: Direct StateManager reference (avoids LazyRef access).
         """
         self.gui = gui
         self._dialog_manager = dialog_manager
+        self._state_manager = state_manager
 
     @property
     def dialog_manager(self) -> DialogManager:
@@ -45,25 +53,29 @@ class StateSynchronizer:
         """Subscribe to StateManager events for reactive UI updates."""
         from zebtrack.core.state_manager import StateCategory
 
+        # Use directly injected state_manager to avoid LazyRef access during init
+        sm = self._state_manager
+        if sm is None:
+            # Fallback: try via controller (only safe after LazyRef is resolved)
+            try:
+                sm = self.gui.controller.state_manager
+            except RuntimeError:
+                log.warning(
+                    "state_synchronizer.subscribe.skipped", reason="state_manager unavailable"
+                )
+                return
+
         # Subscribe to recording state changes
-        self.gui.controller.state_manager.subscribe(
-            StateCategory.RECORDING, self._on_recording_state_changed
-        )
+        sm.subscribe(StateCategory.RECORDING, self._on_recording_state_changed)
 
         # Subscribe to processing state changes
-        self.gui.controller.state_manager.subscribe(
-            StateCategory.PROCESSING, self._on_processing_state_changed
-        )
+        sm.subscribe(StateCategory.PROCESSING, self._on_processing_state_changed)
 
         # Subscribe to detector state changes
-        self.gui.controller.state_manager.subscribe(
-            StateCategory.DETECTOR, self._on_detector_state_changed
-        )
+        sm.subscribe(StateCategory.DETECTOR, self._on_detector_state_changed)
 
         # Subscribe to project state changes
-        self.gui.controller.state_manager.subscribe(
-            StateCategory.PROJECT, self._on_project_state_changed
-        )
+        sm.subscribe(StateCategory.PROJECT, self._on_project_state_changed)
 
         log.info(
             "gui.state_observers.subscribed",

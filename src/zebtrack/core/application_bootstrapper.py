@@ -363,6 +363,7 @@ class ApplicationBootstrapper:
                 event_bus=self.deps.event_bus if use_event_bus else None,
                 settings_obj=self.settings,
                 project_manager=self.deps.project_manager,
+                state_manager=self.deps.state_manager,
             )
 
         # Update GPU hardware display in UI

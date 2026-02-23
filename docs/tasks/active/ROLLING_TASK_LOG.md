@@ -6,6 +6,22 @@ This document tracks all major agent interventions, technical debt resolutions, 
 
 ## Active Tasks
 
+### [2026-02-23] UI Event Bus wiring fix for BehavioralConfig warnings
+
+**ID:** TASK-034
+**Agent:** GitHub Copilot (GPT-5.3-Codex)
+**Status:** Completed ✅
+**Description:**
+Resolved warning spam from `BehavioralConfigWidget` by fixing a UI path that opened
+`SingleVideoConfigDialog` without injecting `event_bus`, causing
+`widget.event.no_bus` on behavioral config change events.
+
+### Subtasks (TASK-034)
+
+- [x] Run mandatory impact analysis for `event_dispatcher.py`.
+- [x] Fix `SingleVideoConfigDialog` creation path to pass `event_bus`.
+- [x] Validate changed file diagnostics.
+
 ### [2026-02-19] Phase 8 — Documentation & Standardization
 
 **ID:** TASK-033

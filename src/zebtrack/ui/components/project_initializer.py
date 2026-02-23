@@ -79,10 +79,10 @@ class ProjectInitializer:
         gui.hide_progress_bar()
 
         # Populate video selector tree after tabs are built
-        if gui.event_bus_v2:
+        if gui.event_bus:
             from zebtrack.ui.event_bus_v2 import Event, UIEvents
 
-            gui.event_bus_v2.publish(
+            gui.event_bus.publish(
                 Event(
                     type=UIEvents.VIDEO_TREE_REFRESH_REQUESTED,
                     data={"filter_text": None},
@@ -241,10 +241,10 @@ class ProjectInitializer:
 
         gui.reports_tree_manager.update_reports_tree()
 
-        if gui.event_bus_v2:
+        if gui.event_bus:
             from zebtrack.ui.event_bus_v2 import Event, UIEvents
 
-            gui.event_bus_v2.publish(
+            gui.event_bus.publish(
                 Event(
                     type=UIEvents.VIDEO_TREE_REFRESH_REQUESTED,
                     data={"filter_text": None},
@@ -327,7 +327,9 @@ class ProjectInitializer:
         from zebtrack.ui.event_bus_v2 import UIEvents
 
         gui = self.gui
-        project_path = gui.ask_directory(title="Selecione uma Pasta de Projeto Existente")
+        project_path = gui.dialog_manager.ask_directory(
+            title="Selecione uma Pasta de Projeto Existente"
+        )
         if not project_path:
             return
 

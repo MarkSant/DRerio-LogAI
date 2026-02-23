@@ -765,7 +765,11 @@ class EventDispatcher:
 
         # Open configuration dialog
         self.log.info("event_dispatcher.handle_analyze_single_video_clicked.opening_dialog")
-        dialog = SingleVideoConfigDialog(gui.root, settings_obj=settings)
+        dialog = SingleVideoConfigDialog(
+            gui.root,
+            settings_obj=settings,
+            event_bus=gui.event_bus,
+        )
         self.log.info(
             "event_dispatcher.handle_analyze_single_video_clicked.dialog_closed",
             has_result=bool(dialog.result),
