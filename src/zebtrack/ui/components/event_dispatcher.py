@@ -64,6 +64,21 @@ class EventDispatcher:
             raise RuntimeError("EventDispatcher requires ApplicationGUI context for UI events.")
         return self.gui
 
+    def _run_on_ui_thread(self, callback: Callable[[], None]) -> None:
+        """Schedule callback on Tk main thread when possible.
+
+        Falls back to direct execution when root/after is unavailable.
+        """
+        gui = self._require_gui()
+        root = getattr(gui, "root", None)
+        if root is not None and hasattr(root, "after"):
+            try:
+                root.after(0, callback)
+                return
+            except Exception:
+                self.log.debug("event_dispatcher.ui_after_fallback", exc_info=True)
+        callback()
+
     # --- Core Dispatching Methods (Used by MainViewModel) ---
 
     def register_handler(
@@ -295,8 +310,10 @@ class EventDispatcher:
         # Weight Management
         event_bus.subscribe(
             UIEvents.UI_SET_ACTIVE_WEIGHT,
-            lambda d: gui.weight_hardware_manager.set_active_weight_in_dropdown(
-                d.get("weight_name") if isinstance(d, dict) else None
+            lambda d: self._run_on_ui_thread(
+                lambda: gui.weight_hardware_manager.set_active_weight_in_dropdown(
+                    d.get("weight_name") if isinstance(d, dict) else None
+                )
             ),
         )
         event_bus.subscribe(
@@ -307,8 +324,10 @@ class EventDispatcher:
         )
         event_bus.subscribe(
             UIEvents.UI_UPDATE_OPENVINO_CHECKBOX,
-            lambda d: gui.weight_hardware_manager.update_openvino_checkbox(
-                bool(d.get("is_checked")) if isinstance(d, dict) else False
+            lambda d: self._run_on_ui_thread(
+                lambda: gui.weight_hardware_manager.update_openvino_checkbox(
+                    bool(d.get("is_checked")) if isinstance(d, dict) else False
+                )
             ),
         )
         event_bus.subscribe(

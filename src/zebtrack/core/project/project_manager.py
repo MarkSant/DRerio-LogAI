@@ -431,6 +431,7 @@ class ProjectManager:
     def add_video_batch(self, video_files: list[dict], save_project: bool = True):
         """Add a new batch of videos to the project (delegate)."""
         ProjectLifecycleManager.add_video_batch(self.project_data, video_files)
+        self.invalidate_groups_cache()
         if save_project:
             self.save_project()
 
@@ -567,6 +568,8 @@ class ProjectManager:
             raise ValueError(f"Asset type '{asset}' desconhecido.")
 
         if changed:
+            if asset == "video":
+                self.invalidate_groups_cache()
             self.save_project()
 
         return changed

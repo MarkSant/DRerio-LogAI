@@ -147,6 +147,7 @@ class SequentialProcessingCoordinator(BaseCoordinator):
         aquarium = ctx["aquariums"][idx]
         video_path = ctx["video_path"]
         aq_id = getattr(aquarium, "id", idx)
+        aq_index_display = (aq_id + 1) if isinstance(aq_id, int) else (idx + 1)
 
         log.info(
             "processing_coordinator.sequential.next_aquarium",
@@ -158,7 +159,7 @@ class SequentialProcessingCoordinator(BaseCoordinator):
 
         self._publish_event(
             UIEvents.UI_SET_STATUS,
-            {"message": f"Processando aquário {aq_id + 1}/{total}..."},
+            {"message": f"Processando aquário {aq_index_display}/{total}..."},
         )
 
         self._start_single_aquarium_for_sequential(aquarium, ctx)
@@ -243,8 +244,18 @@ class SequentialProcessingCoordinator(BaseCoordinator):
         )
 
         # Build callbacks
+        completion_guard = {"done": False}
+
         def on_sequential_complete(result: dict) -> None:
             """Handle completion of a single aquarium in sequential mode."""
+            if completion_guard["done"]:
+                log.debug(
+                    "processing_coordinator.sequential.duplicate_completion_ignored",
+                    aquarium_id=aq_id,
+                )
+                return
+
+            completion_guard["done"] = True
             success = result.get("success", True)
 
             if success:

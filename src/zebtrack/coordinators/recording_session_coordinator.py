@@ -349,12 +349,9 @@ class RecordingSessionCoordinator(BaseCoordinator):
 
     def _clear_pending_recording_context(self):
         """Clear pending recording context."""
-        if hasattr(self, "_pending_recording_context"):
-            del self._pending_recording_context
-        if hasattr(self, "_pending_recording_project_data"):
-            del self._pending_recording_project_data
-        if hasattr(self, "_pending_recording_trigger_source"):
-            del self._pending_recording_trigger_source
+        self._pending_recording_context = None
+        self._pending_recording_project_data = None
+        self._pending_recording_trigger_source = None
 
     def stop_recording(self) -> bool:
         """Stop the current recording session.

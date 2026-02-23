@@ -342,7 +342,7 @@ class VideoSelectorTreeManager:
 
                 self.event_bus_v2.publish(
                     Event(
-                        type=UIEvents.VIDEO_HIERARCHY_SNAPSHOT_UPDATED,
+                        type=UIEvents.UI_VIDEO_HIERARCHY_SNAPSHOT_UPDATED,
                         data={"snapshot": snapshot},
                         source="VideoSelectorTreeManager._build_video_hierarchy_snapshot",
                     )

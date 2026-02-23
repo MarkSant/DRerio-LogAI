@@ -509,7 +509,8 @@ class ProjectLifecycleManager:
             filtered_metadata: dict[str, Any] = {
                 key: value
                 for key, value in metadata.items()
-                if value is not None and (value != "" or isinstance(value, int | float))
+                if value is not None
+                and (value != "" or isinstance(value, int | float | bool | list | dict))
             }
 
             video_entry: dict[str, Any] = {

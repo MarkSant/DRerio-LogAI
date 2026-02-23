@@ -84,7 +84,7 @@ class WeightHardwareManager:
         response = messagebox.askyesnocancel(
             "Novo Peso Encontrado",
             f"O arquivo '{Path(filepath).name}' foi identificado como modelo de {type_label}.\n\n"
-            "Deseja defini-lo como o novo padrão para {type_label}?\n"
+            f"Deseja defini-lo como o novo padrão para {type_label}?\n"
             "Sim: Define como padrão\n"
             "Não: Apenas adiciona à lista\n"
             "Cancelar: Aborta a operação",

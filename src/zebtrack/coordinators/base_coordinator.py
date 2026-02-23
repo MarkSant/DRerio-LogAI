@@ -168,7 +168,7 @@ class BaseCoordinator:
         if prefer_unified:
             unified_updater = getattr(self.state_manager, "update_state", None)
             if callable(unified_updater):
-                unified_updater(category, source=source, **kwargs)
+                unified_updater(cat_enum, source=source, **kwargs)
                 return
 
         # Fallback: dispatch to category-specific updater

@@ -6,6 +6,116 @@ This document tracks all major agent interventions, technical debt resolutions, 
 
 ## Active Tasks
 
+### [2026-02-23] Mitigate EventBus slow-handler warnings for weight/OpenVINO UI events
+
+**ID:** TASK-037
+**Agent:** GitHub Copilot (GPT-5.3-Codex)
+**Status:** In Progress 🔄
+**Description:**
+Investigate `event_bus.slow_handler` warnings for `UI_SET_ACTIVE_WEIGHT` and
+`UI_UPDATE_OPENVINO_CHECKBOX`, then reduce synchronous handler latency by
+ensuring these UI updates are dispatched safely on Tk main thread.
+
+### Subtasks (TASK-037)
+
+- [x] Trace publishers/subscribers and timing source for the warnings.
+- [x] Run mandatory impact analysis for dispatcher/events.
+- [ ] Implement safe UI-thread dispatch for affected handlers.
+- [ ] Validate with focused tests and lint.
+- [ ] Mark task as completed with evidence.
+
+### [2026-02-23] Fix project-load UI tab regression from runtime errors
+
+**ID:** TASK-036
+**Agent:** GitHub Copilot (GPT-5.3-Codex)
+**Status:** Completed ✅
+**Description:**
+Investigate and fix two runtime errors seen during local tests that break
+project-view initialization when loading existing projects (only main tab shown),
+then validate with focused UI/event tests.
+
+### Subtasks (TASK-036)
+
+- [x] Capture runtime errors from logs and map failing handlers.
+- [x] Run mandatory impact analysis for implicated UI files.
+- [x] Apply focused wiring fixes for EventBus aliasing and zone context resolution.
+- [x] Run focused regression tests for project-load/event UI paths.
+- [x] Mark task as completed with test evidence.
+
+**Results:**
+
+- Fixed runtime error #1: `'ApplicationGUI' object has no attribute 'event_bus_v2'`
+  by restoring backward-compat alias `event_bus_v2` in `ApplicationGUI`.
+- Fixed runtime error #2: `'NoneType' object has no attribute 'get_zone_data_for_active_context'`
+  by injecting `ZoneContextService` into `CanvasManager` and `DialogManager` from `ApplicationGUI`.
+- Validation passed:
+  - `tests/ui/components/test_event_dispatcher.py`
+  - `tests/ui/test_gui_wiring_smoke.py`
+  - `tests/ui/test_project_workflow_adapter.py`
+  - `tests/ui/test_gui_zone_tab_navigation_guard.py`
+  - `tests/integration/test_video_tree_refresh_event.py`
+  - `tests/integration/test_zones_updated_event.py`
+  - `poetry run ruff check src/zebtrack/ui/gui.py`
+
+**2026-02-23 Follow-up (debug retest):**
+
+- Fixed additional runtime regression on project load:
+  `'ApplicationGUI' object has no attribute '_event_bus_handlers'`.
+- Root cause: backward-compat dictionary expected by `WidgetFactory` was not initialized
+  in `ApplicationGUI` before tab/event wiring.
+- Fix: initialized `self._event_bus_handlers = {}` in `ApplicationGUI.__init__`.
+- Re-validated with focused tests:
+  - `tests/ui/test_gui_wiring_smoke.py`
+  - `tests/ui/components/test_event_dispatcher.py`
+  - `tests/ui/test_project_workflow_adapter.py`
+
+**2026-02-23 Follow-up 2 (debug traceback):**
+
+- Fixed traceback in delayed snapshot builder callback:
+  `UIEvents.VIDEO_HIERARCHY_SNAPSHOT_UPDATED` →
+  `UIEvents.UI_VIDEO_HIERARCHY_SNAPSHOT_UPDATED` in
+  `video_selector_tree_manager._build_video_hierarchy_snapshot()`.
+- Root cause: wrong enum member name (without `UI_` prefix), causing AttributeError
+  in Tk `after()` callback path while project tabs were being built.
+- Validation passed:
+  - `tests/integration/test_video_tree_refresh_event.py`
+  - `tests/integration/test_readiness_snapshot_event.py`
+  - `poetry run ruff check src/zebtrack/ui/components/project_views/video_selector_tree_manager.py`
+
+### [2026-02-23] PR audit remediation bundle (critical + important + low)
+
+**ID:** TASK-035
+**Agent:** GitHub Copilot (GPT-5.3-Codex)
+**Status:** Completed ✅
+**Description:**
+Create a final branch from the current open branch and implement the review-audit
+remediation package derived from PRs #343-#365: critical, important, and low-priority
+items, with mandatory impact analysis and focused regression validation.
+
+### Subtasks (TASK-035)
+
+- [x] Create final branch from current branch tip.
+- [x] Run mandatory impact analysis for targeted remediation scope.
+- [x] Implement critical fixes (runtime correctness / safety / threading / contracts).
+- [x] Implement important fixes (robustness, typing/runtime guards, state consistency).
+- [x] Implement low-priority fixes (tooling/config consistency, minor UX correctness).
+- [x] Run focused tests plus fast suite validation.
+- [x] Update task status to completed with results summary.
+
+**Results:**
+
+- Created branch `final/pr-audit-remediation-20260223` from current branch tip.
+- Ran mandatory impact analysis for `BaseCoordinator`, `VideoProcessingCoordinator`,
+  `ReportGenerationCoordinator`, `SessionCoordinator`, `SingleDetector`, and key UI files.
+- Applied critical fixes: state category normalization, multi-aquarium overlay call contract,
+  live stop-session success propagation, safe cleanup of pending recording context,
+  sequential callback de-duplication, and Tk-safe deferred post-init.
+- Applied important fixes: metadata filtering preserving bool/list/dict,
+  group cache invalidation on video add/remove, robust `results_dir` type handling,
+  `type_label` UI string interpolation, and deadlock-safe `TTLCache.__repr__`.
+- Applied low-priority doc cleanup in MCP guide (placeholder removal and date correction).
+- Validation: targeted tests passed (`85` + `41`), and Ruff check passed on all changed Python files.
+
 ### [2026-02-23] UI Event Bus wiring fix for BehavioralConfig warnings
 
 **ID:** TASK-034

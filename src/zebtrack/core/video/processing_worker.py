@@ -23,7 +23,7 @@ import traceback
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any
 
 import cv2
 import numpy as np
@@ -793,7 +793,16 @@ class _WorkerProcess(multiprocessing.Process):
             results_dir = self.config.output_base_dir
         else:
             # Use pre-calculated results_dir if provided (batch processing with project metadata)
-            results_dir = cast(str, video_metadata.get("results_dir", ""))
+            raw_results_dir = video_metadata.get("results_dir", "")
+            if isinstance(raw_results_dir, str):
+                results_dir = raw_results_dir
+            else:
+                log.warning(
+                    "worker.results_dir.invalid_type",
+                    video=experiment_id,
+                    value_type=type(raw_results_dir).__name__,
+                )
+                results_dir = ""
             if not results_dir:
                 # Fallback: Create results directory next to the video file
                 video_dir = os.path.dirname(video_path)
@@ -947,6 +956,7 @@ class _WorkerProcess(multiprocessing.Process):
 
                 should_process = frame_num % self.config.analysis_interval_frames == 0
                 detections: list[tuple[Any, ...]] = []
+                partitioned_detections: dict[int, list[tuple[Any, ...]]] = {}
 
                 if should_process:
                     # OPTIMIZATION: Only decode frames that will be processed
@@ -962,8 +972,8 @@ class _WorkerProcess(multiprocessing.Process):
                     # Detect
                     if is_multi_aquarium and multi_aq_detector is not None:
                         log.debug("worker.detect_multi.start", frame=frame_num)
-                        partitioned_detections: dict[int, list[tuple[Any, ...]]] = (
-                            multi_aq_detector.detect_partitioned_optimized(frame)
+                        partitioned_detections = multi_aq_detector.detect_partitioned_optimized(
+                            frame
                         )
                         log.debug("worker.detect_multi.end", frame=frame_num)
                         for aq_dets in partitioned_detections.values():
@@ -995,7 +1005,10 @@ class _WorkerProcess(multiprocessing.Process):
                         # Draw static arena/ROI overlays in worker.
                         # Bounding boxes stay UI-side to support Track ID filtering.
                         if is_multi_aquarium and multi_aq_detector is not None:
-                            multi_aq_detector.draw_multi_aquarium_overlay(frame)
+                            multi_aq_detector.draw_multi_aquarium_overlay(
+                                frame,
+                                partitioned_detections,
+                            )
                         else:
                             detector.draw_overlay(frame, [])
 

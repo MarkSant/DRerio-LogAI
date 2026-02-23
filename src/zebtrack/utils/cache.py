@@ -134,7 +134,11 @@ class TTLCache:
             return len(self._store)
 
     def __repr__(self) -> str:
-        return f"TTLCache(ttl_seconds={self._ttl}, maxsize={self._maxsize}, currsize={len(self)})"
+        with self._lock:
+            currsize = len(self._store)
+            ttl_seconds = self._ttl
+            maxsize = self._maxsize
+        return f"TTLCache(ttl_seconds={ttl_seconds}, maxsize={maxsize}, currsize={currsize})"
 
     # -- internal -----------------------------------------------------------
 

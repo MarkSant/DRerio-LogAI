@@ -20,6 +20,7 @@ except ImportError:  # pragma: no cover - optional dependency fallback
     ttkb = cast(Any, None)
 
 # Import custom modules
+from zebtrack.core.services.zone_context_service import ZoneContextService
 from zebtrack.core.video.processing_mode import ProcessingMode
 from zebtrack.ui.builders import ButtonFactory, PanelBuilder, ZoneControlBuilder
 from zebtrack.ui.components import (
@@ -107,10 +108,13 @@ class ApplicationGUI:
         self.root = root
         self.controller = controller
         self.event_bus = event_bus
+        # Backward-compat alias expected by multiple UI components
+        self.event_bus_v2 = event_bus
         self.settings = settings_obj
         self._state_manager = state_manager
         # Use injected project_manager or fallback to controller (legacy)
         self.project_manager = project_manager or getattr(controller, "project_manager", None)
+        self._zone_context_service = ZoneContextService(project_manager=self.project_manager)
         # Subscribe to VideoProcessingService events (v2.2 UI decoupling)
         if self.event_bus:
             self.event_bus.subscribe(
@@ -142,7 +146,11 @@ class ApplicationGUI:
         # Initialize component managers (extracted from God Object)
         # Phase 1 components
         self.menu_manager = MenuManager(self)
-        self.canvas_manager = CanvasManager(self, event_bus_v2=self.event_bus)
+        self.canvas_manager = CanvasManager(
+            self,
+            event_bus_v2=self.event_bus,
+            zone_context_service=self._zone_context_service,
+        )
         self.state_synchronizer = StateSynchronizer(self, state_manager=self._state_manager)
         self.event_dispatcher = EventDispatcher(self)
 
@@ -158,7 +166,11 @@ class ApplicationGUI:
 
         # Phase 2 components (with dependency injection)
         self.validation_manager = ValidationManager(self, settings_obj=self.settings)
-        self.dialog_manager = DialogManager(self, event_bus_v2=self.event_bus)
+        self.dialog_manager = DialogManager(
+            self,
+            event_bus_v2=self.event_bus,
+            zone_context_service=self._zone_context_service,
+        )
         self.widget_factory = WidgetFactory(self, settings_obj=self.settings)
         self.reports_tree_manager = ReportsTreeManager(self, event_bus_v2=self.event_bus)
         self.video_selector_manager = VideoSelectorTreeManager(self, event_bus_v2=self.event_bus)
@@ -237,6 +249,7 @@ class ApplicationGUI:
         self._project_status_containers: dict[str, Any] = {}
         self._last_overview_counts: dict[str, int] = {}
         self._last_selected_tab_id: str | None = None
+        self._event_bus_handlers: dict[str, Any] = {}
         # -----------------------------------------------------
 
         # Dynamic widgets / state variables
@@ -377,10 +390,21 @@ class ApplicationGUI:
         to be fully ready. This helps decouple the GUI construction from the
         controller's state availability.
         """
+        try:
+            if not self.root.winfo_exists():
+                log.debug("gui.post_init.root_unavailable")
+                return
+        except TclError:
+            log.debug("gui.post_init.root_destroyed")
+            return
+
         # If the controller is a LazyRef and not yet resolved, retry later
         if hasattr(self.controller, "is_resolved") and not self.controller.is_resolved:
             if _retries < 20:  # Retry up to 20 times (2 seconds total)
-                self.root.after(100, lambda: self._post_init(_retries + 1))
+                try:
+                    self.root.after(100, lambda: self._post_init(_retries + 1))
+                except TclError:
+                    log.debug("gui.post_init.retry_skipped_root_destroyed")
                 return
             log.warning("gui.post_init.timeout", retries=_retries)
             return
