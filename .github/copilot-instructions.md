@@ -127,14 +127,14 @@ Keep editor diagnostics consistent and avoid formatter conflicts.
 - **Entry Point**: `src/zebtrack/__main__.py` (lines 140-280: Composition Root)
 - **Main UI**: `src/zebtrack/ui/gui.py` (MainWindow + MainViewModel)
 - **Settings**: `src/zebtrack/settings.py` (Pydantic v2 models)
-- **Core Services**: `src/zebtrack/core/{detector_service,project_manager,state_manager,processing_worker}.py`
+- **Core Services**: `src/zebtrack/core/services/detector_service.py`, `core/project/project_manager.py`, `core/state_manager.py`, `core/video/processing_worker.py`
 - **Data I/O**: `src/zebtrack/io/{video_source,recorder}.py`
 - **Wizard**: `src/zebtrack/ui/wizard/wizard_dialog.py` (5 steps)
 
 ## ⚡ Fast Decision Trees (Avoid Unnecessary Reads)
 
 **UI Change?** → Check `ui/widgets/` → Update `MainViewModel` → Use `root.after()` → Test `tests/test_*_integration.py`
-**Processing Change?** → Check `core/detector_service.py` or `plugins/` → Inject `settings_obj` → Update schema if needed
+**Processing Change?** → Check `core/services/detector_service.py` or `plugins/` → Inject `settings_obj` → Update schema if needed
 **Config Change?** → Edit `settings.py` → Update `config.yaml` → Pass from `__main__.py` constructor → NEVER singleton import
 **Debug UI?** → Check logs (structlog) → Verify `StateManager` → Check `root.after()` → Run `pytest -m gui -n0`
 **Debug Processing?** → Check zone scaling → Verify `ProcessingWorker` → Validate `Recorder` schema → Run `pytest -q`
@@ -146,11 +146,11 @@ Keep editor diagnostics consistent and avoid formatter conflicts.
 - **Docs first**: Validate changes against `docs/explanation/architecture.md`, `docs/reference/operational_reference.md`, `docs/explanation/dependency_injection.md` before rerouting flows.
 - **Config**: Settings loaded via `load_settings()` in `__main__.py` (Composition Root) and injected as `settings_obj` parameter; precedence `config.yaml` < `config.local.yaml`; Pydantic v2 models enforce `extra="forbid"`. **Never import singleton** `from zebtrack import settings`—use constructor injection instead.
 - **Architecture**: MVVM with DI—`MainViewModel` receives all dependencies via constructor (11 parameters including `settings_obj`); `StateManager` tracks observable state; `EventBus` only enabled when `settings_obj.ui_features.enable_event_queue` is true. Composition Root in `__main__.py` wires all services.
-- **Lifecycle**: `io/video_source.py` feeds frames → `core/detector_service.DetectorService` wraps plugin detectors (`plugins/`) and zone scaling → `core/processing_worker.ProcessingWorker` handles background analysis → `io/recorder.Recorder` persists Parquet/MP4. All services receive `settings_obj` via constructor. **Threading** (v2.1): All worker threads (LiveCameraService, GUI live analysis) are daemon=True to allow Python shutdown.
+- **Lifecycle**: `io/video_source.py` feeds frames → `core/services/detector_service.DetectorService` wraps plugin detectors (`plugins/`) and zone scaling → `core/video/processing_worker.ProcessingWorker` handles background analysis → `io/recorder.Recorder` persists Parquet/MP4. All services receive `settings_obj` via constructor. **Threading** (v2.1): All worker threads (LiveCameraService, GUI live analysis) are daemon=True to allow Python shutdown.
 - **UI**: Tk widgets under `zebtrack.ui` never block main thread; schedule updates with `root.after(0, ...)` or via `core/ui_scheduler.UIScheduler`.
 - **Wizard**: `ui/wizard/` drives the 5-step project setup through `core/project_workflow_service.ProjectWorkflowService`; respect 1150×550 layout and keep SKIP/IMPORT/PARTIAL/FULL semantics.
-- **Project data**: `core/project_manager.ProjectManager` stores ROI templates, arenas, intervals; call `Detector.set_zones()` after getting actual video dimensions to rescale coordinates.
-- **Processing modes**: `core/processing_mode.ProcessingMode` toggles multi vs single subject; overlay locks UI when single subject forced—check tests in `tests/test_overlay_integration.py`.
+- **Project data**: `core/project/project_manager.ProjectManager` stores ROI templates, arenas, intervals; call `Detector.set_zones()` after getting actual video dimensions to rescale coordinates.
+- **Processing modes**: `core/video/processing_mode.ProcessingMode` toggles multi vs single subject; overlay locks UI when single subject forced—check tests in `tests/test_overlay_integration.py`.
 - **Hardware**: Startup runs `utils/hardware_detection.get_hardware_summary()` and `recommend_backend()`; OpenVINO auto-enabled only if `WeightManager` reports converted XML under `openvino_model_cache/`.
 - **Logging**: Use `structlog` with `domain.action.result` keys, e.g. `logger.info("controller.load_project.success", project=...)`.
 - **Data schema**: Recorder outputs `timestamp, frame, track_id, x1, y1, x2, y2, confidence, uncertainty, bbox_iou` with derived centers/cm appended; confirm schema in `tests/test_recorder.py`. Multi-aquarium adds per-aquarium directories `<video>_aquarium_N/`.
@@ -158,7 +158,7 @@ Keep editor diagnostics consistent and avoid formatter conflicts.
 - **Multi-Aquarium v2**: Parallel detection via `detect_partitioned_parallel()` with ThreadPoolExecutor (~30-40% speedup); batch inference `detect_batch()` for offline; ROI cropping `_crop_aquarium_region()`; uncertainty/IoU tracking; thigmotaxis metrics; validation with warnings; trajectory gap detection per aquarium; error recovery with fallback. Events: `ZONE_MULTI_AUTO_DETECT_SUCCESS`, `ZONE_MULTI_AUTO_DETECT_FAILED`, `ZONE_AQUARIUM_CONFIG_UPDATED`. Track ID: `aquarium_id * 1000 + local_track_id` (Aquarium 0: 0-999, Aquarium 1: 1000-1999). Export R/Python scripts via `reporter.export_r_script()`, `export_python_script()`. Handlers: `ProcessingCoordinator._handle_multi_auto_detect()`, `ProjectLifecycleCoordinator._handle_aquarium_config_updated()`.
 - **Diagnostics**: `MainViewModel.run_model_diagnostic` drives `ui/gui.py`’s `DiagnosticProgressDialog`; keep cancel callbacks responsive via `root.after`.
 - **Plugins**: Implement detectors via `plugins/base.py` and register in `plugins/__init__.py`; handle missing `track_id` gracefully for integrations.
-- **Testing** (v2.1 fixes applied): Total 2568 tests (1586 fast, 949 GUI, 35 slow). `poetry run pytest -q` for fast suite (~1586 tests), `poetry run pytest -m gui -n0` for Tk tests (~949 tests, sequential), `poetry run pytest -m slow` for slow tests (~35 tests), `poetry run pytest -m "" -n0` for all tests (~6-7 min). **CRITICAL**: All worker threads are daemon=True (prevents pytest hangs); pytest-timeout plugin configured (300s per test); pytest_sessionfinish hook forces cleanup. CI core coverage gates: 55% on Linux, 25% on Windows; GUI coverage tracked separately (informational 40%).
+- **Testing** (v2.1 fixes applied): Total ~2678 fast tests (+ ~949 GUI, ~35 slow). `poetry run pytest -q` for fast suite (~2678 tests), `poetry run pytest -m gui -n0` for Tk tests (~949 tests, sequential), `poetry run pytest -m slow` for slow tests (~35 tests), `poetry run pytest -m "" -n0` for all tests (~6-7 min). **CRITICAL**: All worker threads are daemon=True (prevents pytest hangs); pytest-timeout plugin configured (300s per test); pytest_sessionfinish hook forces cleanup. CI coverage gates: 50% Linux core, 32% Linux GUI, 28% Windows core.
 - **Scenario coverage**: Consult fixtures in `tests/fixtures/` and flows in `tests/test_wizard_*.py`, `tests/test_interval_frames_config.py`, `test_scenarios/` for realistic data.
 - **Lint & Format**: `poetry run ruff check .` (line length 100); use `--fix` carefully.
 - **Pre-commit**: `poetry run pre-commit install` then `poetry run pre-commit run --all-files` mirrors CI checks.

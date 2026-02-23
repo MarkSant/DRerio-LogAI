@@ -15,12 +15,16 @@ Or with pytest-benchmark:
 """
 
 import time
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import numpy as np
 import pytest
 
-from zebtrack.core.detector import AquariumData, Detector, MultiAquariumZoneData
+from zebtrack.core.detection.detection_post_processor import DetectionPostProcessor
+from zebtrack.core.detection.detection_types import AquariumData, MultiAquariumZoneData
+from zebtrack.core.detection.multi_aquarium_detector import MultiAquariumDetector
+from zebtrack.core.detection.single_detector import SingleDetector
+from zebtrack.core.detection.zone_scaler import ZoneScaler
 
 
 @pytest.fixture
@@ -95,8 +99,10 @@ class TestParallelDetectionSpeedup:
         that parallel detection is at least 15% faster to account for
         threading overhead and test environment variability.
         """
-        detector = Detector(
+        detector = MultiAquariumDetector(
             plugin=mock_plugin,
+            zone_scaler=ZoneScaler(1280, 720),
+            post_processor=DetectionPostProcessor(),
             base_width=1280,
             base_height=720,
         )
@@ -167,14 +173,16 @@ class TestParallelDetectionSpeedup:
     @pytest.mark.benchmark
     def test_batch_inference_throughput(self, mock_plugin, sample_frame):
         """Test batch inference throughput for offline processing."""
-        detector = Detector(
+        detector = SingleDetector(
             plugin=mock_plugin,
+            zone_scaler=ZoneScaler(1280, 720),
+            post_processor=DetectionPostProcessor(),
             base_width=1280,
             base_height=720,
         )
 
         # Set single aquarium mode (batch is for single-aquarium)
-        from zebtrack.core.detector import ZoneData
+        from zebtrack.core.detection.detection_types import ZoneData
 
         zones = ZoneData(
             polygon=[[0, 0], [1280, 0], [1280, 720], [0, 720]],
@@ -244,8 +252,10 @@ class TestParallelDetectionErrorRecovery:
 
         plugin.detect = flaky_detect
 
-        detector = Detector(
+        detector = MultiAquariumDetector(
             plugin=plugin,
+            zone_scaler=ZoneScaler(1280, 720),
+            post_processor=DetectionPostProcessor(),
             base_width=1280,
             base_height=720,
         )
@@ -275,65 +285,63 @@ class TestBenchmarkAliases:
 
     def test_export_feather_creates_file(self, tmp_path):
         """Test export_feather alias creates a valid Feather file."""
-        # Create minimal reporter mock with tidy_data
         from unittest.mock import MagicMock
 
         import pandas as pd
 
-        reporter = MagicMock()
-        reporter.tidy_data = pd.DataFrame({"col1": [1, 2, 3], "col2": ["a", "b", "c"]})
+        from zebtrack.analysis.reporters import ScriptExporter
 
-        # Import and call the method directly on the class
-        from zebtrack.analysis.reporter import Reporter
+        mock_ctx = MagicMock()
+        mock_ctx.tidy_data = pd.DataFrame({"x": [1, 2], "y": [3, 4]})
 
-        # Create a patched instance
-        with patch.object(Reporter, "__init__", lambda self: None):
-            instance = Reporter()
-            instance.tidy_data = pd.DataFrame({"x": [1, 2], "y": [3, 4]})
+        exporter = ScriptExporter(mock_ctx)
+        output_path = tmp_path / "test_data.feather"
+        result = exporter.export_feather(output_path)
 
-            output_path = tmp_path / "test_data.feather"
-            result = Reporter.export_feather(instance, output_path)
+        assert result.exists()
+        assert result.suffix == ".feather"
 
-            assert result.exists()
-            assert result.suffix == ".feather"
+        # Verify it's readable
+        import pyarrow.feather as feather
 
-            # Verify it's readable
-            import pyarrow.feather as feather
-
-            df = feather.read_feather(result)
-            assert len(df) == 2
-            assert "x" in df.columns
+        df = feather.read_feather(result)
+        assert len(df) == 2
+        assert "x" in df.columns
 
     def test_export_r_script_creates_file(self, tmp_path):
         """Test export_r_script alias creates a valid R script."""
-        from zebtrack.analysis.reporter import Reporter
+        from unittest.mock import MagicMock
 
-        with patch.object(Reporter, "__init__", lambda self: None):
-            instance = Reporter()
+        from zebtrack.analysis.reporters import ScriptExporter
 
-            output_path = tmp_path / "analysis.R"
-            result = Reporter.export_r_script(instance, output_path)
+        mock_ctx = MagicMock()
+        exporter = ScriptExporter(mock_ctx)
 
-            assert result.exists()
-            assert result.suffix == ".R"
+        output_path = tmp_path / "analysis.R"
+        result = exporter.export_r_script(output_path)
 
-            content = result.read_text()
-            assert "library(arrow)" in content
-            assert "read_feather" in content
+        assert result.exists()
+        assert result.suffix == ".R"
+
+        content = result.read_text()
+        assert "library(arrow)" in content
+        assert "read_feather" in content
 
     def test_export_python_script_creates_file(self, tmp_path):
         """Test export_python_script alias creates a valid Python script."""
-        from zebtrack.analysis.reporter import Reporter
+        from unittest.mock import MagicMock
 
-        with patch.object(Reporter, "__init__", lambda self: None):
-            instance = Reporter()
+        from zebtrack.analysis.reporters import ScriptExporter
 
-            output_path = tmp_path / "analysis_notebook.py"
-            result = Reporter.export_python_script(instance, output_path)
+        mock_ctx = MagicMock()
+        exporter = ScriptExporter(mock_ctx)
 
-            assert result.exists()
-            assert result.suffix == ".py"
+        output_path = tmp_path / "analysis_notebook.py"
+        result = exporter.export_python_script(output_path)
 
-            content = result.read_text()
-            assert "import pandas" in content
-            assert "read_parquet" in content
+        assert result.exists()
+        assert result.suffix == ".py"
+
+        content = result.read_text()
+        assert "import pandas" in content
+        assert "read_parquet" in content

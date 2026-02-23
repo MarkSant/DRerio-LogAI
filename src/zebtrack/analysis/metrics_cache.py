@@ -4,16 +4,92 @@ Metrics Caching Module.
 IMPROVEMENT #2: Caches base metrics that don't depend on behavior thresholds,
 allowing users to experiment with different thresholds without recalculating
 everything (50-70% faster).
+
+Phase 5: Replaced pickle serialization with JSON for security.
+Pickle allows arbitrary code execution on deserialization (CWE-502).
+JSON is safe, human-readable, and sufficient for numeric metric dicts.
 """
 
 import hashlib
-import pickle
+import json
+import math
 from pathlib import Path
 from typing import Any
 
 import structlog
 
 log = structlog.get_logger()
+
+
+class _NumpyJSONEncoder(json.JSONEncoder):
+    """JSON encoder that handles numpy scalar types and arrays.
+
+    Converts numpy types to native Python equivalents:
+    - np.integer → int
+    - np.floating → float
+    - np.bool_ → bool
+    - np.ndarray → list (recursive)
+    - np.nan / inf → None (JSON-safe)
+    """
+
+    def default(self, obj: Any) -> Any:
+        """Encode numpy types to JSON-serializable Python types."""
+        # Lazy import: numpy may not be loaded yet
+        try:
+            import numpy as np
+        except ImportError:
+            return super().default(obj)
+
+        if isinstance(obj, np.integer):
+            return int(obj)
+        if isinstance(obj, np.floating):
+            val = float(obj)
+            if math.isnan(val) or math.isinf(val):
+                return None
+            return val
+        if isinstance(obj, np.bool_):
+            return bool(obj)
+        if isinstance(obj, np.ndarray):
+            return obj.tolist()
+        return super().default(obj)
+
+
+def _sanitize_for_json(obj: Any) -> Any:
+    """Recursively convert numpy types to native Python for JSON safety.
+
+    Handles the case where np.float64 inherits from float and bypasses
+    json.JSONEncoder.default() — standard json outputs non-standard NaN/Infinity.
+
+    Args:
+        obj: Value to sanitize (scalar, dict, list, or nested structure).
+
+    Returns:
+        JSON-safe equivalent using only native Python types.
+    """
+    try:
+        import numpy as np
+    except ImportError:
+        return obj
+
+    if isinstance(obj, dict):
+        return {k: _sanitize_for_json(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [_sanitize_for_json(v) for v in obj]
+    if isinstance(obj, np.ndarray):
+        return obj.tolist()
+    if isinstance(obj, np.integer):
+        return int(obj)
+    if isinstance(obj, np.bool_):
+        return bool(obj)
+    if isinstance(obj, np.floating):
+        val = float(obj)
+        if math.isnan(val) or math.isinf(val):
+            return None
+        return val
+    if isinstance(obj, float):
+        if math.isnan(obj) or math.isinf(obj):
+            return None
+    return obj
 
 
 class MetricsCache:
@@ -85,7 +161,7 @@ class MetricsCache:
         smoothing_str = f"{smoothing_window}_{smoothing_polyorder}"
         smoothing_hash = hashlib.sha256(smoothing_str.encode()).hexdigest()[:4]
 
-        return f"{parquet_path.stem}_{parquet_hash}_{calib_hash}_{smoothing_hash}.pkl"
+        return f"{parquet_path.stem}_{parquet_hash}_{calib_hash}_{smoothing_hash}.json"
 
     def get_base_metrics(
         self,
@@ -115,8 +191,8 @@ class MetricsCache:
             return None
 
         try:
-            with cache_file.open("rb") as f:
-                cached = pickle.load(f)  # nosec B301 - local cache only
+            with cache_file.open("r", encoding="utf-8") as f:
+                cached = json.load(f)
             log.info(
                 "metrics_cache.hit",
                 parquet_path=str(parquet_path),
@@ -157,8 +233,9 @@ class MetricsCache:
         )
 
         try:
-            with cache_file.open("wb") as f:
-                pickle.dump(metrics, f, protocol=pickle.HIGHEST_PROTOCOL)  # nosec B301 - local cache only
+            sanitized = _sanitize_for_json(metrics)
+            with cache_file.open("w", encoding="utf-8") as f:
+                json.dump(sanitized, f, cls=_NumpyJSONEncoder, indent=2)
             log.info(
                 "metrics_cache.saved",
                 parquet_path=str(parquet_path),
@@ -187,15 +264,19 @@ class MetricsCache:
         count = 0
 
         if parquet_path is None:
-            # Clear all cache
-            for cache_file in self.cache_dir.glob("*.pkl"):
+            # Clear all cache (support both new .json and legacy .pkl files)
+            for cache_file in list(self.cache_dir.glob("*.json")) + list(
+                self.cache_dir.glob("*.pkl")
+            ):
                 cache_file.unlink()
                 count += 1
             log.info("metrics_cache.cleared_all", count=count)
         else:
             # Clear only entries for specific parquet file
             prefix = parquet_path.stem
-            for cache_file in self.cache_dir.glob(f"{prefix}_*.pkl"):
+            for cache_file in list(self.cache_dir.glob(f"{prefix}_*.json")) + list(
+                self.cache_dir.glob(f"{prefix}_*.pkl")
+            ):
                 cache_file.unlink()
                 count += 1
             log.info(

@@ -615,7 +615,7 @@ class CustomRegexDialog(Dialog):
             try:
                 self.after_cancel(self._live_update_job)
             except Exception:
-                pass
+                log.debug("custom_regex.cancel_live_update.error", exc_info=True)
             self._live_update_job = None
 
         delay = 0 if immediate else 150

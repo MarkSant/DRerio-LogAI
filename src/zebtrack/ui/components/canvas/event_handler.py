@@ -5,9 +5,17 @@ Handles mouse and keyboard events on the canvas, including drawing interactions,
 polygon editing, and navigation.
 """
 
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
 import structlog
 
 from zebtrack.utils.geometry_service import GeometryService
+
+if TYPE_CHECKING:
+    from zebtrack.core.services.zone_context_service import ZoneContextService
+    from zebtrack.ui.components.dialog_manager import DialogManager
 
 log = structlog.get_logger()
 
@@ -18,15 +26,37 @@ class CanvasEventHandler:
     # Debounce interval in milliseconds for motion events to reduce flickering
     MOTION_DEBOUNCE_MS = 16  # ~60fps
 
-    def __init__(self, canvas_manager):
+    def __init__(
+        self,
+        canvas_manager,
+        *,
+        dialog_manager: DialogManager | None = None,
+        zone_context_service: ZoneContextService | None = None,
+    ):
         """Initialize CanvasEventHandler.
 
         Args:
             canvas_manager: Reference to parent CanvasManager
+            dialog_manager: Optional DialogManager for dependency injection.
+            zone_context_service: Optional ZoneContextService for dependency injection.
         """
         self.manager = canvas_manager
         self.gui = canvas_manager.gui
+        self._dialog_manager = dialog_manager
+        self._zone_context_service = zone_context_service
         self._motion_debounce_id = None
+
+    @property
+    def dialog_manager(self) -> DialogManager:
+        """Return injected DialogManager or fall back to gui.dialog_manager."""
+        return self._dialog_manager or self.gui.dialog_manager
+
+    @property
+    def zone_context_service(self):
+        """ZoneContextService instance (injected or resolved from gui)."""
+        if self._zone_context_service is not None:
+            return self._zone_context_service
+        return getattr(self.gui, "_zone_context_service", None)
 
     def bind_drawing_events(self):
         """Bind events for polygon drawing."""
@@ -90,7 +120,7 @@ class CanvasEventHandler:
             isinstance(self.gui.current_editing_zone, tuple)
             and self.gui.current_editing_zone[0] == "roi"
         ):
-            main_arena_poly = self.gui._get_zone_data_for_active_context().polygon
+            main_arena_poly = self.zone_context_service.get_zone_data_for_active_context().polygon
             if main_arena_poly:
                 canvas_arena_poly = []
                 for point in main_arena_poly:
@@ -154,7 +184,7 @@ class CanvasEventHandler:
             canvas_x, canvas_y = snapped_point
 
         if self.gui.drawing_state_manager.drawing_type == "roi":
-            main_arena_poly = self.gui._get_zone_data_for_active_context().polygon
+            main_arena_poly = self.zone_context_service.get_zone_data_for_active_context().polygon
             if main_arena_poly:
                 canvas_arena_poly = []
                 for point in main_arena_poly:
@@ -197,7 +227,7 @@ class CanvasEventHandler:
         canvas_y = float(event.y)
 
         if self.gui.drawing_state_manager.drawing_type == "roi":
-            main_arena_poly = self.gui._get_zone_data_for_active_context().polygon
+            main_arena_poly = self.zone_context_service.get_zone_data_for_active_context().polygon
             if main_arena_poly:
                 canvas_arena_poly = []
                 for point in main_arena_poly:
@@ -233,7 +263,7 @@ class CanvasEventHandler:
             try:
                 self.gui.video_display.canvas.after_cancel(self._motion_debounce_id)
             except Exception:
-                pass
+                log.debug("event_handler.motion_debounce_cancel.suppressed", exc_info=True)
             self._motion_debounce_id = None
 
         # Schedule the actual motion handling with debounce
@@ -282,7 +312,7 @@ class CanvasEventHandler:
 
         # When drawing ROI, clamp the display indicator within the arena
         if self.gui.drawing_state_manager.drawing_type == "roi":
-            main_arena_poly = self.gui._get_zone_data_for_active_context().polygon
+            main_arena_poly = self.zone_context_service.get_zone_data_for_active_context().polygon
             if main_arena_poly:
                 canvas_arena_poly = []
                 for point in main_arena_poly:
@@ -299,7 +329,7 @@ class CanvasEventHandler:
             or vertex_hover_index is not None
             or (
                 self.gui.drawing_state_manager.drawing_type == "roi"
-                and self.gui._get_zone_data_for_active_context().polygon
+                and self.zone_context_service.get_zone_data_for_active_context().polygon
             )
         )
 
@@ -346,7 +376,7 @@ class CanvasEventHandler:
             self.gui.drawing_state_manager.drawing_type is None
             and self.gui.drawing_state_manager.mode == "polygon"
         ):
-            zone_data = self.gui._get_zone_data_for_active_context()
+            zone_data = self.zone_context_service.get_zone_data_for_active_context()
             if not zone_data.polygon:
                 self.gui.drawing_state_manager.drawing_type = "arena"
             else:
@@ -371,7 +401,7 @@ class CanvasEventHandler:
                 drawing_type = self.gui.drawing_state_manager.drawing_type
                 status_message = f"✓ {drawing_type.title()} definida com sucesso!"
                 self.gui.set_status(status_message)
-                self.gui.show_info(
+                self.dialog_manager.show_info(
                     "Sucesso",
                     f"Zona criada com {len(video_points)} pontos.",
                 )
@@ -392,12 +422,12 @@ class CanvasEventHandler:
                     self.gui.root.after(100, self.manager._check_prompt_second_aquarium)
             else:
                 self.gui.set_status("❌ Erro ao salvar zona.")
-                self.gui.show_error("Erro", "Não foi possível salvar a zona.")
+                self.dialog_manager.show_error("Erro", "Não foi possível salvar a zona.")
                 self.manager.stop_drawing()
 
         except Exception as e:
             self.gui.set_status("❌ Erro durante salvamento.")
-            self.gui.show_error("Erro", str(e))
+            self.dialog_manager.show_error("Erro", str(e))
             self.manager.stop_drawing()
 
     def on_drawing_undo(self, event):

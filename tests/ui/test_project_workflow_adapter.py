@@ -43,6 +43,8 @@ class TestProjectWorkflowAdapter:
 
     def test_close_project_success(self, adapter, mock_dependencies):
         """Test successful project close workflow."""
+        from zebtrack.ui.event_bus_v2 import UIEvents
+
         # Setup
         restore_callback = Mock()
         settings_obj = Mock()
@@ -56,7 +58,9 @@ class TestProjectWorkflowAdapter:
         # Verify
         restore_callback.assert_called_once()
         mock_dependencies["state_manager"].update_project_state.assert_called_once()
-        mock_dependencies["ui_event_bus"].publish_event.assert_called_once()
+        mock_dependencies["ui_event_bus"].publish.assert_called_once()
+        event = mock_dependencies["ui_event_bus"].publish.call_args[0][0]
+        assert event.type == UIEvents.NAVIGATE_TO_WELCOME
         assert result is not None  # Returns new ProjectManager instance
 
     def test_create_project_workflow_success(self, adapter, mock_dependencies):
@@ -92,7 +96,7 @@ class TestProjectWorkflowAdapter:
         assert result is True
         setup_detector_mock.assert_called_once_with("det")
         apply_overrides_mock.assert_called_once()
-        assert mock_dependencies["ui_event_bus"].publish_event.call_count >= 3
+        assert mock_dependencies["ui_event_bus"].publish.call_count >= 3
 
     def test_create_project_workflow_service_failure(self, adapter, mock_dependencies):
         """Test project creation workflow when service fails."""
@@ -117,11 +121,13 @@ class TestProjectWorkflowAdapter:
 
         # Verify
         assert result is False
-        # Should publish error event (ui:show_error is the actual event value)
+        # Should publish error event via v2 API
+        from zebtrack.ui.event_bus_v2 import UIEvents
+
         error_calls = [
             call_
-            for call_ in mock_dependencies["ui_event_bus"].publish_event.call_args_list
-            if "ui:show_error" in str(call_)
+            for call_ in mock_dependencies["ui_event_bus"].publish.call_args_list
+            if call_[0][0].type == UIEvents.SHOW_ERROR
         ]
         assert len(error_calls) >= 1
 
@@ -188,11 +194,13 @@ class TestProjectWorkflowAdapter:
         # Verify
         assert result is True
         setup_detector_mock.assert_called_once()
-        # Should publish success info event (ui:show_info is the actual event value)
+        # Should publish success info event via v2 API
+        from zebtrack.ui.event_bus_v2 import UIEvents
+
         info_calls = [
             call_
-            for call_ in mock_dependencies["ui_event_bus"].publish_event.call_args_list
-            if "ui:show_info" in str(call_)
+            for call_ in mock_dependencies["ui_event_bus"].publish.call_args_list
+            if call_[0][0].type == UIEvents.SHOW_INFO
         ]
         assert len(info_calls) >= 1
 
@@ -274,7 +282,7 @@ class TestProjectWorkflowAdapter:
         # Verify
         setup_zones_callback.assert_called_once()
         # Should publish zone update events
-        assert mock_dependencies["ui_event_bus"].publish_event.call_count == 2
+        assert mock_dependencies["ui_event_bus"].publish.call_count == 2
 
     def test_show_post_creation_guide(self, adapter, mock_dependencies):
         """Test showing post-creation guide."""
@@ -293,7 +301,7 @@ class TestProjectWorkflowAdapter:
         mock_dependencies[
             "project_workflow_service"
         ].generate_post_creation_guide.assert_called_once()
-        mock_dependencies["ui_event_bus"].publish_event.assert_called_once()
+        mock_dependencies["ui_event_bus"].publish.assert_called_once()
 
     def test_show_post_creation_guide_suppressed(self, adapter, mock_dependencies):
         """Test showing post-creation guide when suppressed."""
@@ -308,7 +316,7 @@ class TestProjectWorkflowAdapter:
         mock_dependencies[
             "project_workflow_service"
         ].generate_post_creation_guide.assert_not_called()
-        mock_dependencies["ui_event_bus"].publish_event.assert_not_called()
+        mock_dependencies["ui_event_bus"].publish.assert_not_called()
 
     def test_show_post_creation_guide_no_guide_generated(self, adapter, mock_dependencies):
         """Test showing post-creation guide when no guide is generated."""
@@ -323,4 +331,4 @@ class TestProjectWorkflowAdapter:
         adapter._show_post_creation_guide(wizard_metadata)
 
         # Verify - should not publish event if no guide generated
-        mock_dependencies["ui_event_bus"].publish_event.assert_not_called()
+        mock_dependencies["ui_event_bus"].publish.assert_not_called()

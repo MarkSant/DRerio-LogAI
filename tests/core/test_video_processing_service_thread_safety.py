@@ -88,7 +88,7 @@ def video_processing_service(
     mock_settings, mock_detector, mock_recorder_class, mock_project_manager
 ):
     """Create VideoProcessingService with mocked dependencies."""
-    from zebtrack.core.video_processing_service import VideoProcessingService
+    from zebtrack.core.video.video_processing_service import VideoProcessingService
 
     # Create a mock recorder instance
     mock_recorder = mock_recorder_class(mock_settings)

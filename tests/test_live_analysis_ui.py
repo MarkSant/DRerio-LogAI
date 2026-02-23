@@ -54,7 +54,7 @@ class TestLiveAnalysisDialog:
         """Test initialization with default values from settings."""
         with patch.object(LiveAnalysisDialog, "wait_window"):
             with patch(
-                "zebtrack.core.wizard_service.WizardService.detect_available_cameras"
+                "zebtrack.core.services.wizard_service.WizardService.detect_available_cameras"
             ) as mock_detect:
                 mock_detect.return_value = []
 
@@ -73,7 +73,7 @@ class TestLiveAnalysisDialog:
         """Test initialization without settings object (fallback defaults)."""
         with patch.object(LiveAnalysisDialog, "wait_window"):
             with patch(
-                "zebtrack.core.wizard_service.WizardService.detect_available_cameras"
+                "zebtrack.core.services.wizard_service.WizardService.detect_available_cameras"
             ) as mock_detect:
                 mock_detect.return_value = []
 
@@ -100,7 +100,7 @@ class TestLiveAnalysisDialog:
         ]
 
         with patch(
-            "zebtrack.core.wizard_service.WizardService.detect_available_cameras"
+            "zebtrack.core.services.wizard_service.WizardService.detect_available_cameras"
         ) as mock_detect:
             mock_detect.return_value = mock_cameras
 
@@ -129,7 +129,7 @@ class TestLiveAnalysisDialog:
     def test_camera_detection_no_cameras(self, tkinter_root, test_settings):
         """Test camera detection when no cameras found."""
         with patch(
-            "zebtrack.core.wizard_service.WizardService.detect_available_cameras"
+            "zebtrack.core.services.wizard_service.WizardService.detect_available_cameras"
         ) as mock_detect:
             mock_detect.return_value = []
 
@@ -146,7 +146,7 @@ class TestLiveAnalysisDialog:
         """Test camera detection error handling."""
         with patch.object(LiveAnalysisDialog, "wait_window"):
             with patch(
-                "zebtrack.core.wizard_service.WizardService.detect_available_cameras"
+                "zebtrack.core.services.wizard_service.WizardService.detect_available_cameras"
             ) as mock_detect:
                 mock_detect.side_effect = RuntimeError("Camera access failed")
 
@@ -169,7 +169,7 @@ class TestLiveAnalysisDialog:
 
         with patch.object(LiveAnalysisDialog, "wait_window"):
             with patch(
-                "zebtrack.core.wizard_service.WizardService.detect_available_cameras"
+                "zebtrack.core.services.wizard_service.WizardService.detect_available_cameras"
             ) as mock_detect:
                 mock_detect.return_value = initial_cameras
 
@@ -191,7 +191,7 @@ class TestLiveAnalysisDialog:
         """Test validation fails when no camera selected."""
         with patch.object(LiveAnalysisDialog, "wait_window"):
             with patch(
-                "zebtrack.core.wizard_service.WizardService.detect_available_cameras"
+                "zebtrack.core.services.wizard_service.WizardService.detect_available_cameras"
             ) as mock_detect:
                 mock_detect.return_value = []
 
@@ -214,7 +214,7 @@ class TestLiveAnalysisDialog:
         """Test validation fails for invalid camera index."""
         with patch.object(LiveAnalysisDialog, "wait_window"):
             with patch(
-                "zebtrack.core.wizard_service.WizardService.detect_available_cameras"
+                "zebtrack.core.services.wizard_service.WizardService.detect_available_cameras"
             ) as mock_detect:
                 mock_detect.return_value = []
 
@@ -238,7 +238,7 @@ class TestLiveAnalysisDialog:
 
         with patch.object(LiveAnalysisDialog, "wait_window"):
             with patch(
-                "zebtrack.core.wizard_service.WizardService.detect_available_cameras"
+                "zebtrack.core.services.wizard_service.WizardService.detect_available_cameras"
             ) as mock_detect:
                 mock_detect.return_value = mock_cameras
 
@@ -261,7 +261,7 @@ class TestLiveAnalysisDialog:
 
         with patch.object(LiveAnalysisDialog, "wait_window"):
             with patch(
-                "zebtrack.core.wizard_service.WizardService.detect_available_cameras"
+                "zebtrack.core.services.wizard_service.WizardService.detect_available_cameras"
             ) as mock_detect:
                 mock_detect.return_value = mock_cameras
 
@@ -284,7 +284,7 @@ class TestLiveAnalysisDialog:
 
         with patch.object(LiveAnalysisDialog, "wait_window"):
             with patch(
-                "zebtrack.core.wizard_service.WizardService.detect_available_cameras"
+                "zebtrack.core.services.wizard_service.WizardService.detect_available_cameras"
             ) as mock_detect:
                 mock_detect.return_value = mock_cameras
 
@@ -309,7 +309,7 @@ class TestLiveAnalysisDialog:
 
         with patch.object(LiveAnalysisDialog, "wait_window"):
             with patch(
-                "zebtrack.core.wizard_service.WizardService.detect_available_cameras"
+                "zebtrack.core.services.wizard_service.WizardService.detect_available_cameras"
             ) as mock_detect:
                 mock_detect.return_value = mock_cameras
 
@@ -332,7 +332,7 @@ class TestLiveAnalysisDialog:
 
         with patch.object(LiveAnalysisDialog, "wait_window"):
             with patch(
-                "zebtrack.core.wizard_service.WizardService.detect_available_cameras"
+                "zebtrack.core.services.wizard_service.WizardService.detect_available_cameras"
             ) as mock_detect:
                 mock_detect.return_value = mock_cameras
 
@@ -353,7 +353,7 @@ class TestLiveAnalysisDialog:
         """Test record video checkbox state changes."""
         with patch.object(LiveAnalysisDialog, "wait_window"):
             with patch(
-                "zebtrack.core.wizard_service.WizardService.detect_available_cameras"
+                "zebtrack.core.services.wizard_service.WizardService.detect_available_cameras"
             ) as mock_detect:
                 mock_detect.return_value = []
 
@@ -373,7 +373,7 @@ class TestLiveAnalysisDialog:
 
         with patch.object(LiveAnalysisDialog, "wait_window"):
             with patch(
-                "zebtrack.core.wizard_service.WizardService.detect_available_cameras"
+                "zebtrack.core.services.wizard_service.WizardService.detect_available_cameras"
             ) as mock_detect:
                 mock_detect.return_value = mock_cameras
 
@@ -400,7 +400,7 @@ class TestLiveAnalysisDialog:
 
         with patch.object(LiveAnalysisDialog, "wait_window"):
             with patch(
-                "zebtrack.core.wizard_service.WizardService.detect_available_cameras"
+                "zebtrack.core.services.wizard_service.WizardService.detect_available_cameras"
             ) as mock_detect:
                 mock_detect.return_value = mock_cameras
 
@@ -427,7 +427,7 @@ class TestLiveAnalysisDialog:
 
         with patch.object(LiveAnalysisDialog, "wait_window"):
             with patch(
-                "zebtrack.core.wizard_service.WizardService.detect_available_cameras"
+                "zebtrack.core.services.wizard_service.WizardService.detect_available_cameras"
             ) as mock_detect:
                 mock_detect.return_value = mock_cameras
 
@@ -464,7 +464,7 @@ class TestLiveAnalysisDialog:
         """Test quick duration preset buttons."""
         with patch.object(LiveAnalysisDialog, "wait_window"):
             with patch(
-                "zebtrack.core.wizard_service.WizardService.detect_available_cameras"
+                "zebtrack.core.services.wizard_service.WizardService.detect_available_cameras"
             ) as mock_detect:
                 mock_detect.return_value = []
 

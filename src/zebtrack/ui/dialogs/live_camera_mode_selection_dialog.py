@@ -22,7 +22,7 @@ from tkinter import (
 
 import structlog
 
-from zebtrack.core.live_camera_mode import LiveCameraMode, LiveCameraModeRecommendation
+from zebtrack.core.recording.live_camera_mode import LiveCameraMode, LiveCameraModeRecommendation
 from zebtrack.utils.hardware_capability import (
     HardwareCapabilityReport,
     MultiAquariumCapability,

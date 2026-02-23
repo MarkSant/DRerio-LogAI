@@ -1,3 +1,6 @@
+from __future__ import annotations
+
+import json
 from pathlib import Path
 from tkinter import Misc, StringVar, Tcl, TclError, filedialog, ttk
 from typing import TYPE_CHECKING, Any
@@ -5,6 +8,7 @@ from typing import TYPE_CHECKING, Any
 import structlog
 
 if TYPE_CHECKING:
+    from zebtrack.ui.components.dialog_manager import DialogManager
     from zebtrack.ui.gui import ApplicationGUI
 
 log = structlog.get_logger()
@@ -22,12 +26,20 @@ class _FallbackStringVar:
 
 
 class ROITemplateManager:
-    """Gerencia operações de templates de ROI."""
+    """Manages ROI template operations (load, apply, delete, import, save)."""
 
-    def __init__(self, project_manager, gui_parent: "ApplicationGUI", event_bus_v2=None):
+    def __init__(
+        self,
+        project_manager,
+        gui_parent: ApplicationGUI,
+        event_bus_v2=None,
+        *,
+        dialog_manager: DialogManager | None = None,
+    ):
         self.project_manager = project_manager
         self.gui = gui_parent
         self.event_bus_v2 = event_bus_v2
+        self._dialog_manager = dialog_manager
         self._cache: list[dict[str, Any]] = []
         self.template_var: StringVar | _FallbackStringVar
         master = getattr(gui_parent, "root", None) or getattr(gui_parent, "tk", None)
@@ -42,31 +54,36 @@ class ROITemplateManager:
         # The plan says self.delete_button = None initially.
         self.delete_button: ttk.Button | None = None
 
+    @property
+    def dialog_manager(self) -> DialogManager:
+        """Return injected DialogManager or fall back to gui.dialog_manager."""
+        return self._dialog_manager or self.gui.dialog_manager
+
     def refresh_templates(self, clear_selection: bool = False) -> None:
         """
-        Carrega templates do project manager e atualiza cache.
+        Load templates from the project manager and refresh the cache.
 
-        Lida com:
-        - Carregamento de templates
-        - Validação de arquivo
-        - Enriquecimento de nome de exibição
-        - Lógica de auto-seleção
+        Handles:
+        - Template loading
+        - File validation
+        - Display name enrichment
+        - Auto-selection logic
         """
         try:
             templates = self.project_manager.list_roi_templates()
-        except Exception as exc:
+        except (OSError, ValueError, KeyError) as exc:
             log.warning("roi_templates.refresh_failed", error=str(exc))
             templates = []
 
-        # Valida e enriquece
+        # Validate and enrich
         enriched = self._validate_and_enrich_templates(templates)
         self._cache = enriched
 
-        # Atualiza UI
+        # Update UI
         display_names = [t["display_name"] for t in enriched]
         self._update_combobox_values(display_names)
 
-        # Lida com lógica de seleção
+        # Handle selection logic
         if clear_selection:
             self._handle_clear_selection(display_names)
         else:
@@ -75,24 +92,24 @@ class ROITemplateManager:
         self._update_delete_button_state()
 
     def _validate_and_enrich_templates(self, templates: list[dict]) -> list[dict]:
-        """Valida templates e adiciona metadados de exibição."""
+        """Validate templates and add display metadata."""
         enriched = []
 
         for template in templates:
             if not isinstance(template, dict):
                 continue
 
-            # Valida nome
+            # Validate name
             name = template.get("name", "").strip()
             if not name:
                 log.warning("roi_templates.skipping_empty_name", template=template)
                 continue
 
-            # Valida arquivo se baseado em arquivo
+            # Validate file if file-based
             if not self._validate_template_file(template):
                 continue
 
-            # Enriquece com dados de exibição
+            # Enrich with display data
             entry = dict(template)
             entry["display_name"] = self._format_display_name(entry)
             entry["identifier"] = self._build_identifier(entry)
@@ -103,12 +120,12 @@ class ROITemplateManager:
         return enriched
 
     def _validate_template_file(self, template: dict) -> bool:
-        """Valida que arquivo de template existe e é legível."""
+        """Validate that the template file exists and is readable."""
         file_path = template.get("file")
         if not file_path:
-            return True  # Templates não baseados em arquivo são válidos
+            return True  # Non-file-based templates are valid
 
-        # Corrige problemas comuns de caminho
+        # Fix common path issues
         path_str = str(file_path)
         if "\\,zebtrack\\" in path_str or "/,zebtrack/" in path_str:
             path_str = path_str.replace("\\,zebtrack\\", "\\.zebtrack\\")
@@ -134,7 +151,7 @@ class ROITemplateManager:
         return True
 
     def _format_display_name(self, template: dict) -> str:
-        """Formata nome de exibição para template."""
+        """Format template display name with location indicator."""
         name = template.get("name", "")
         location = template.get("location", "")
 
@@ -146,7 +163,7 @@ class ROITemplateManager:
             return name
 
     def _build_identifier(self, template: dict) -> str:
-        """Constrói identificador único para template."""
+        """Build a unique identifier for the template."""
         name = template.get("name", "")
         location = template.get("location", "")
         file_path = template.get("file", "")
@@ -157,7 +174,7 @@ class ROITemplateManager:
             return f"{location}:{name}"
 
     def apply_template(self) -> bool:
-        """Aplica template selecionado ao vídeo ativo."""
+        """Apply the selected template to the active video."""
         selected = self.get_selected_template()
         if not selected:
             self._show_template_selection_error()
@@ -165,7 +182,7 @@ class ROITemplateManager:
 
         active_video = self._get_active_video()
         if not active_video:
-            self.gui.show_warning(
+            self.dialog_manager.show_warning(
                 "Vídeo não selecionado", "Selecione um vídeo na lista antes de aplicar o template."
             )
             return False
@@ -202,7 +219,7 @@ class ROITemplateManager:
                     )
                 )
 
-            self.gui._refresh_zone_indicators()
+            self.gui.canvas_manager.redraw_zones_from_project_data()
 
             # Force refresh of video list indicators
             if self.event_bus_v2:
@@ -217,10 +234,10 @@ class ROITemplateManager:
                 )
 
             template_name = selected.get("name")
-            self.gui.show_info(
+            self.dialog_manager.show_info(
                 "Template aplicado", f"As zonas foram atualizadas com o template '{template_name}'."
             )
-            self.gui.show_warning(
+            self.dialog_manager.show_warning(
                 "Revise as zonas aplicadas",
                 (
                     "Confira arena/ROIs no vídeo atual antes de iniciar a análise. "
@@ -230,19 +247,19 @@ class ROITemplateManager:
             self.gui.set_status(f"Template '{template_name}' aplicado ao vídeo em edição.")
 
             return True
-        except Exception as exc:
+        except Exception as exc:  # except Exception justified: template apply multi-step pipeline
             log.error("roi_templates.apply_failed", error=str(exc))
-            self.gui.show_error("Erro ao aplicar template", str(exc))
+            self.dialog_manager.show_error("Erro ao aplicar template", str(exc))
             return False
 
     def delete_template(self) -> bool:
-        """Deleta template selecionado."""
+        """Delete the selected template."""
         selected = self.get_selected_template()
         if not selected:
             return False
 
-        # Confirma com usuário
-        confirm = self.gui.ask_ok_cancel(
+        # Confirm with user
+        confirm = self.dialog_manager.ask_ok_cancel(
             "Confirmar Exclusão", f"Deseja realmente excluir o template '{selected['name']}'?"
         )
         if not confirm:
@@ -257,9 +274,9 @@ class ROITemplateManager:
 
             self.refresh_templates(clear_selection=True)
             return True
-        except Exception as exc:
+        except (OSError, PermissionError, KeyError) as exc:
             log.error("roi_templates.delete_failed", error=str(exc))
-            self.gui.show_error("Erro ao excluir template", str(exc))
+            self.dialog_manager.show_error("Erro ao excluir template", str(exc))
             return False
 
     def clear_applied_template_drawings(self) -> bool:
@@ -269,13 +286,13 @@ class ROITemplateManager:
         """
         active_video = self._get_active_video()
         if not active_video:
-            self.gui.show_warning(
+            self.dialog_manager.show_warning(
                 "Vídeo não selecionado",
                 "Selecione um vídeo para limpar os desenhos aplicados.",
             )
             return False
 
-        confirm = self.gui.ask_ok_cancel(
+        confirm = self.dialog_manager.ask_ok_cancel(
             "Limpar desenho aplicado",
             (
                 "Deseja limpar a arena e as ROIs do vídeo atual?\n\n"
@@ -289,13 +306,13 @@ class ROITemplateManager:
             self.gui.canvas_manager.delete_zones_from_video(active_video)
             self.gui.set_status("Desenhos do vídeo atual foram limpos.")
             return True
-        except Exception as exc:
+        except Exception as exc:  # except Exception justified: canvas + zone multi-step cleanup
             log.error("roi_templates.clear_applied_failed", error=str(exc), video=active_video)
-            self.gui.show_error("Erro ao limpar desenho", str(exc))
+            self.dialog_manager.show_error("Erro ao limpar desenho", str(exc))
             return False
 
     def get_selected_template(self) -> dict | None:
-        """Retorna template atualmente selecionado."""
+        """Return the currently selected template, or None."""
         selected_name = self.template_var.get()
         if not selected_name:
             return None
@@ -307,7 +324,7 @@ class ROITemplateManager:
         return None
 
     def _get_active_video(self) -> str | None:
-        """Retorna caminho do vídeo ativo."""
+        """Return the active video path."""
         # Try PM active video
         active = self.project_manager.get_active_zone_video()
         if active:
@@ -320,13 +337,13 @@ class ROITemplateManager:
         return None
 
     def _show_template_selection_error(self):
-        """Mostra erro quando nenhum template está selecionado."""
-        self.gui.show_warning(
+        """Show error when no template is selected."""
+        self.dialog_manager.show_warning(
             "Nenhum Template Selecionado", "Por favor, selecione um template primeiro."
         )
 
     def _update_combobox_values(self, display_names: list[str]):
-        """Atualiza valores do combobox."""
+        """Update combobox values."""
         # Update path to access widget via zone_controls (Phase 6 fix)
         combobox = None
         if getattr(self.gui, "zone_controls", None):
@@ -343,7 +360,7 @@ class ROITemplateManager:
                 combobox.configure(state="readonly")
 
     def _handle_clear_selection(self, display_names: list[str]):
-        """Lida com limpeza de seleção."""
+        """Handle clearing the selection."""
         # Logic from gui.py
         if not display_names:
             self.template_var.set("")
@@ -354,7 +371,7 @@ class ROITemplateManager:
             self.template_var.set("")
 
     def _handle_refresh_selection(self, display_names: list[str]):
-        """Lida com lógica de seleção de atualização."""
+        """Handle refresh selection logic."""
         current = self.template_var.get()
 
         if not display_names:
@@ -362,17 +379,17 @@ class ROITemplateManager:
             return
 
         if current and current in display_names:
-            # Mantém seleção atual
+            # Keep current selection
             pass
         elif len(display_names) == 1:
-            # Auto-seleciona primeiro se único
+            # Auto-select first if only one
             self.template_var.set(display_names[0])
         else:
             # Clear if invalid
             self.template_var.set("")
 
     def _update_delete_button_state(self):
-        """Atualiza estado do botão de deletar."""
+        """Update delete button enabled/disabled state."""
         # Need to find the button. gui.py creates it dynamically sometimes.
         # Or check gui.delete_template_btn
 
@@ -397,9 +414,9 @@ class ROITemplateManager:
 
         try:
             metadata = self.project_manager.import_roi_template(file_path)
-        except Exception as exc:
+        except (OSError, json.JSONDecodeError, ValueError, RuntimeError) as exc:
             log.error("roi_templates.import_failed", error=str(exc), file=file_path)
-            self.gui.show_error("Erro ao importar", str(exc))
+            self.dialog_manager.show_error("Erro ao importar", str(exc))
             return
 
         self.refresh_templates()
@@ -410,7 +427,7 @@ class ROITemplateManager:
             f"Template '{template_name}' adicionado à biblioteca.\n\n"
             "Use o botão 'Aplicar' para usar este template."
         )
-        self.gui.show_info("Template importado", message)
+        self.dialog_manager.show_info("Template importado", message)
 
     def select_template_by_metadata(self, metadata: dict[str, Any]) -> None:
         """Select a template in the dropdown by matching metadata."""
@@ -456,7 +473,7 @@ class ROITemplateManager:
 
         zone_data = pm.get_zone_data()
         if not zone_data or (not zone_data.polygon and not (zone_data.roi_polygons or [])):
-            self.gui.show_warning(
+            self.dialog_manager.show_warning(
                 "Template incompleto",
                 "Desenhe a arena ou pelo menos uma ROI antes de salvar um template.",
             )
@@ -469,12 +486,16 @@ class ROITemplateManager:
         else:
             initial_name = self.template_var.get() or ""
 
-        dialog_result = self.gui._show_template_save_dialog(
+        from zebtrack.ui.dialogs import SaveROITemplateDialog
+
+        dialog = SaveROITemplateDialog(
+            self.gui.root,
+            default_name=initial_name,
             has_arena=bool(zone_data.polygon),
             has_rois=bool(zone_data.roi_polygons),
             allow_project=allow_project,
-            initial_name=initial_name,
         )
+        dialog_result = dialog.result if dialog.result else None
 
         if not dialog_result:
             return
@@ -490,16 +511,16 @@ class ROITemplateManager:
                 persist=dialog_result["save_location"] == "project",
             )
         except ValueError as exc:
-            self.gui.show_warning("Template inválido", str(exc))
+            self.dialog_manager.show_warning("Template inválido", str(exc))
             return
-        except Exception as exc:
+        except (OSError, PermissionError) as exc:
             log.error("roi_templates.save_failed", error=str(exc))
-            self.gui.show_error("Erro ao salvar", str(exc))
+            self.dialog_manager.show_error("Erro ao salvar", str(exc))
             return
 
         self.refresh_templates()
         self.select_template_by_metadata(metadata)
-        self.gui.show_info(
+        self.dialog_manager.show_info(
             "Template salvo",
             (f"Template '{metadata.get('name', dialog_result['name'])}' disponível para uso."),
         )

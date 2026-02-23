@@ -4,18 +4,23 @@ Extracted from gui.py to reduce God Object complexity.
 Handles messagebox wrappers, file dialogs, custom dialogs, and user confirmations.
 """
 
+from __future__ import annotations
+
 import os
 import subprocess
 import sys
 from pathlib import Path
 from tkinter import filedialog, messagebox, simpledialog
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 import structlog
 
 # Dialogs are imported locally within methods to avoid circular dependencies
 
 log = structlog.get_logger()
+
+if TYPE_CHECKING:
+    from zebtrack.core.services.zone_context_service import ZoneContextService
 
 if not hasattr(os, "startfile"):
     os.startfile = None  # type: ignore[attr-defined,assignment]
@@ -24,16 +29,27 @@ if not hasattr(os, "startfile"):
 class DialogManager:
     """Manages dialogs and user interactions for ApplicationGUI."""
 
-    def __init__(self, gui, event_bus_v2=None):
+    def __init__(
+        self, gui, event_bus_v2=None, *, zone_context_service: ZoneContextService | None = None
+    ):
         """Initialize DialogManager.
 
         Args:
             gui: Reference to ApplicationGUI instance
             event_bus_v2: EventBusV2 instance for v4.0 Event-Driven Architecture (optional)
+            zone_context_service: Optional ZoneContextService for dependency injection.
         """
         self.gui = gui
         self.event_bus_v2 = event_bus_v2
+        self._zone_context_service = zone_context_service
         self._suppress_batch_dialogs: bool = False
+
+    @property
+    def zone_context_service(self):
+        """ZoneContextService instance (injected or resolved from gui)."""
+        if self._zone_context_service is not None:
+            return self._zone_context_service
+        return getattr(self.gui, "_zone_context_service", None)
 
     # =========================================================================
     # Batch Dialog Suppression
@@ -299,9 +315,13 @@ class DialogManager:
 
         with self.gui.controller.project_calibration_session():
             CalibrationDialog(self.gui.root, self.gui.controller)
-        self.gui.update_openvino_checkbox(self.gui.controller.use_openvino)
-        self.gui.set_active_weight_in_dropdown(self.gui.controller.active_weight_name)
-        self.gui.update_openvino_status_display(self.gui.controller.get_openvino_status())
+        self.gui.weight_hardware_manager.update_openvino_checkbox(self.gui.controller.use_openvino)
+        self.gui.weight_hardware_manager.set_active_weight_in_dropdown(
+            self.gui.controller.active_weight_name
+        )
+        self.gui.weight_hardware_manager.update_openvino_status_display(
+            self.gui.controller.get_openvino_status()
+        )
 
     # =========================================================================
     # Custom Dialogs - ROI Templates
@@ -361,8 +381,8 @@ class DialogManager:
             self.show_error("Erro ao importar", str(exc))
             return
 
-        self.gui._refresh_roi_templates()
-        self.gui._select_roi_template(metadata)
+        self.gui.roi_template_manager.refresh_templates()
+        self.gui.roi_template_manager.select_template_by_metadata(metadata)
         template_name = metadata.get("name", Path(file_path).stem)
         message = (
             f"Template '{template_name}' adicionado à biblioteca.\n\n"
@@ -413,7 +433,7 @@ class DialogManager:
                 template_data = json.load(f)
 
             # Convert to ZoneData
-            from zebtrack.core.detector import ZoneData
+            from zebtrack.core.detection import ZoneData
 
             template_zone = ZoneData(
                 polygon=template_data.get("polygon"),
@@ -467,17 +487,17 @@ class DialogManager:
             # Fallback for legacy mode if event bus is missing
             if hasattr(self.gui, "canvas_manager"):
                 self.gui.canvas_manager.redraw_zones_from_project_data()
-            if hasattr(self.gui, "_refresh_zone_indicators"):
-                self.gui._refresh_zone_indicators()
-            if hasattr(self.gui, "_enable_roi_button_if_arena_exists"):
-                self.gui._enable_roi_button_if_arena_exists()
+            if hasattr(self.gui, "canvas_manager"):
+                self.gui.canvas_manager.redraw_zones_from_project_data()
+            if hasattr(self.gui, "canvas_manager"):
+                self.gui.canvas_manager.update_roi_button_state()
 
         # Import to library and update dropdown
         template_name = Path(file_path).stem
         try:
             metadata = pm.import_roi_template(file_path)
-            self.gui._refresh_roi_templates()
-            self.gui._select_roi_template(metadata)
+            self.gui.roi_template_manager.refresh_templates()
+            self.gui.roi_template_manager.select_template_by_metadata(metadata)
             template_name = metadata.get("name", template_name)
             log.info(
                 "gui.roi_templates.import_and_apply.library_updated",
@@ -490,7 +510,7 @@ class DialogManager:
                 template_name=template_name,
             )
             # Still refresh templates to update display
-            self.gui._refresh_roi_templates()
+            self.gui.roi_template_manager.refresh_templates()
 
         self.show_info(
             "Template aplicado",
@@ -659,9 +679,12 @@ class DialogManager:
         if not project_path:
             return
 
-        from zebtrack.ui.events import Events
+        from zebtrack.ui.event_bus_v2 import UIEvents
 
-        self.gui.event_dispatcher.publish_event(Events.PROJECT_OPEN, {"project_path": project_path})
+        self.gui.event_dispatcher.publish_event(
+            UIEvents.PROJECT_OPEN,
+            {"project_path": project_path},
+        )
 
     def handle_grid_cell_click(self, day: int, group_name: str) -> None:
         """Handle click on a cell in the experimental progress grid.
@@ -674,7 +697,8 @@ class DialogManager:
         from zebtrack.ui.dialogs.block_detail_dialog import BlockDetailDialog
 
         live_batch_coordinator = getattr(self.gui.controller, "live_batch_coordinator", None)
-        session_coordinator = getattr(self.gui.controller, "session_coordinator", None)
+        # Phase 4.7: Use live_camera_session_coordinator instead of session_coordinator
+        session_coordinator = getattr(self.gui.controller, "live_camera_session_coordinator", None)
 
         if not live_batch_coordinator or not session_coordinator:
             # Fallback to legacy SubjectSelectionDialog if coordinators not available
@@ -859,7 +883,7 @@ class DialogManager:
                 foreground=highlight_fg,
             )
         except Exception:
-            pass
+            log.debug("dialog_manager.trigger_notice_highlight.suppressed", exc_info=True)
 
     def clear_external_trigger_notice(self) -> None:
         """Clear the external trigger notice."""
@@ -881,7 +905,7 @@ class DialogManager:
             )
             self.gui.external_trigger_notice_label.config(background=bg, foreground=fg)
         except Exception:
-            pass
+            log.debug("dialog_manager.trigger_notice_clear.suppressed", exc_info=True)
 
     # =========================================================================
     # Utility Dialogs & Helpers
@@ -1070,7 +1094,7 @@ class DialogManager:
         color_name = selected_color["name"]
 
         # Update in project
-        zone_data = self.gui._get_zone_data_for_active_context()
+        zone_data = self.zone_context_service.get_zone_data_for_active_context()
         try:
             idx = zone_data.roi_names.index(old_name)
             zone_data.roi_colors[idx] = new_color
@@ -1121,7 +1145,7 @@ class DialogManager:
 
         if new_name and new_name != old_name:
             # Update in project
-            zone_data = self.gui._get_zone_data_for_active_context()
+            zone_data = self.zone_context_service.get_zone_data_for_active_context()
             try:
                 idx = zone_data.roi_names.index(old_name)
                 zone_data.roi_names[idx] = new_name

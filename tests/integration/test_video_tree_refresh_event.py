@@ -47,9 +47,9 @@ class TestVideoTreeRefreshEvent:
         gui_mock = MagicMock()
         gui_mock.event_bus_v2 = event_bus
 
-        from zebtrack.ui.components.project_view_manager import ProjectViewManager
+        from zebtrack.ui.components.project_views import VideoSelectorTreeManager
 
-        view_manager = ProjectViewManager(gui_mock, event_bus_v2=event_bus)
+        view_manager = VideoSelectorTreeManager(gui_mock, event_bus_v2=event_bus)
 
         # Mock the _populate_video_selector_tree method
         with patch.object(view_manager, "_populate_video_selector_tree") as mock_populate:
@@ -100,9 +100,9 @@ class TestVideoTreeRefreshEvent:
         gui_mock._video_selector_filter = "test_filter"
         gui_mock.video_selector_tree = MagicMock()  # Simulate tree exists
 
-        from zebtrack.ui.components.project_view_manager import ProjectViewManager
+        from zebtrack.ui.components.project_views import VideoSelectorTreeManager
 
-        view_manager = ProjectViewManager(gui_mock, event_bus_v2=event_bus)
+        view_manager = VideoSelectorTreeManager(gui_mock, event_bus_v2=event_bus)
 
         events_received = []
 

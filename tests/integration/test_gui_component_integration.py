@@ -8,7 +8,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from zebtrack.core.detector import ZoneData
+from zebtrack.core.detection import ZoneData
 
 
 @pytest.mark.integration

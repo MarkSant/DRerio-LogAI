@@ -15,7 +15,7 @@ if TYPE_CHECKING:
 SerialExceptionType: type[BaseException]
 
 try:  # pragma: no cover - serial may not be available during unit tests
-    from serial import SerialException as SerialExceptionType  # type: ignore
+    from serial import SerialException as SerialExceptionType
 except Exception:  # pragma: no cover - fallback when pyserial is missing
 
     class _SerialExceptionError(Exception):
@@ -83,6 +83,7 @@ class ArduinoManager:
                     self._notify_status(False, port)
                     self._notify_log(f"Não foi possível conectar ao Arduino na porta {port}.")
                     return False
+            # except Exception justified: Arduino handshake - serial I/O
             except Exception:
                 log.error(
                     "arduino_manager.connect.failed",
@@ -142,7 +143,7 @@ class ArduinoManager:
         Returns:
             List of serial port names
         """
-        from zebtrack.core.wizard_service import WizardService
+        from zebtrack.core.services.wizard_service import WizardService
 
         ports = WizardService.detect_arduino_ports(use_cache=True)
         return [port.get("device", "") for port in ports if port.get("device")]
@@ -167,7 +168,7 @@ class ArduinoManager:
         try:
             assert self.arduino is not None
             success = bool(self.arduino.send_command(command_value))
-        except Exception:
+        except Exception:  # except Exception justified: serial command send — hardware I/O boundary
             log.error(
                 "arduino_manager.command.error",
                 command=command,
@@ -230,6 +231,7 @@ class ArduinoManager:
                 self._notify_log("Conexão serial com Arduino perdida.")
                 self.disconnect()
                 break
+            # except Exception justified: serial reader fallback
             except Exception:
                 log.warning("arduino_manager.reader.generic_error", exc_info=True)
                 time.sleep(0.5)
@@ -240,7 +242,8 @@ class ArduinoManager:
 
             try:
                 decoded = raw_line.decode("utf-8", errors="ignore").strip()
-            except Exception:
+            except (UnicodeDecodeError, AttributeError):
+                log.debug("arduino.serial_decode.corrupted_data")
                 continue
 
             if not decoded:

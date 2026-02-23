@@ -1,4 +1,4 @@
-"""Utilitários para carregar ícones da aplicação DRerio LogAI."""
+"""Utilities for loading DRerio LogAI application icons."""
 
 import tkinter as tk
 from pathlib import Path
@@ -15,16 +15,16 @@ def get_icon_path() -> Path | None:
     Returns:
         Path para o ícone ou None se não encontrado.
     """
-    # Tenta localizar o asset relativo ao pacote
+    # Try to locate the asset relative to the package
     try:
-        # Caminho relativo a este módulo (zebtrack/ui/icon_utils.py)
+        # Path relative to this module (zebtrack/ui/icon_utils.py)
         icon_path = Path(__file__).parent / "assets" / "drerio_logai.ico"
 
         if icon_path.exists():
             log.debug("icon.path.found", path=str(icon_path))
             return icon_path
 
-        # Fallback: caminho relativo ao diretório de trabalho (desenvolvimento)
+        # Fallback: path relative to the working directory (development)
         icon_path_dev = Path("src/zebtrack/ui/assets/drerio_logai.ico")
         if icon_path_dev.exists():
             log.debug("icon.path.found_dev", path=str(icon_path_dev))
@@ -33,7 +33,7 @@ def get_icon_path() -> Path | None:
         log.warning("icon.path.not_found", attempted_paths=[str(icon_path), str(icon_path_dev)])
         return None
 
-    except Exception as e:
+    except (OSError, ValueError) as e:
         log.warning("icon.path.error", error=str(e))
         return None
 
@@ -56,7 +56,7 @@ def set_window_icon(window) -> None:
         if not window.winfo_exists():
             log.debug("icon.set.skipped", reason="Window no longer exists")
             return
-    except Exception:
+    except (tk.TclError, RuntimeError):
         # Window might be in invalid state, skip silently
         log.debug("icon.set.skipped", reason="Window in invalid state")
         return
@@ -70,6 +70,6 @@ def set_window_icon(window) -> None:
     except tk.TclError as e:
         # Tkinter-specific errors (e.g., bad window path) - downgrade to debug
         log.debug("icon.set.tk_error", error=str(e))
-    except Exception as e:
+    except Exception as e:  # except Exception justified: platform-specific icon failures
         # Unexpected errors - keep as warning
         log.warning("icon.set.failed", error=str(e), path=str(icon_path))

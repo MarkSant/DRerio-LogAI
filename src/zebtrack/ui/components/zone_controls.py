@@ -7,8 +7,7 @@ from typing import Any
 import structlog
 
 from zebtrack.ui.components.base import BaseWidget
-from zebtrack.ui.event_bus import EventBus
-from zebtrack.ui.events import Events
+from zebtrack.ui.event_bus_v2 import EventBusV2, UIEvents
 
 log = structlog.get_logger()
 
@@ -43,7 +42,7 @@ class ZoneControlsWidget(BaseWidget):
     def __init__(
         self,
         parent: tk.Widget,
-        event_bus: EventBus | None = None,
+        event_bus: EventBusV2 | None = None,
         drawing_actions_parent: ttk.Frame | None = None,
         template_actions_parent: ttk.Frame | None = None,
         **kwargs: Any,
@@ -592,7 +591,7 @@ class ZoneControlsWidget(BaseWidget):
         self._update_video_tree_toggle_label()
 
     def _toggle_video_tree_nodes(self) -> None:
-        """Alterna entre expandir ou recolher todos os grupos do seletor de vídeos."""
+        """Toggle expand/collapse all groups in the video selector."""
         if not self.video_selector_tree:
             return
 
@@ -606,7 +605,7 @@ class ZoneControlsWidget(BaseWidget):
         self._update_video_tree_toggle_label()
 
     def _set_video_tree_open_state(self, expanded: bool) -> None:
-        """Define a abertura dos nós de nível superior."""
+        """Set the open state of top-level nodes."""
         if not self.video_selector_tree:
             return
 
@@ -738,12 +737,12 @@ class ZoneControlsWidget(BaseWidget):
 
     def _on_conclude_video_clicked(self) -> None:
         """Handle conclude video button click."""
-        self.emit_event("zone.conclude_video", {})
+        self.emit_event(UIEvents.ZONE_CONCLUDE_VIDEO, {})
 
     def _on_auto_detect_clicked(self) -> None:
         """Handle auto-detect button click."""
         self.emit_event(
-            "zone.auto_detect_clicked",
+            UIEvents.ZONE_AUTO_DETECT_CLICKED,
             {"stabilization_frames": self.stabilization_frames_var.get()},
         )
 
@@ -752,7 +751,7 @@ class ZoneControlsWidget(BaseWidget):
         aquarium_id = self.active_aquarium_var.get()
         log.debug("zone_controls.aquarium_selected", aquarium_id=aquarium_id)
         self.emit_event(
-            Events.ZONE_AQUARIUM_SELECTED,
+            UIEvents.ZONE_AQUARIUM_SELECTED,
             {"aquarium_id": aquarium_id},
         )
 
@@ -774,45 +773,51 @@ class ZoneControlsWidget(BaseWidget):
             mode="sequential" if sequential else "parallel",
         )
         self.emit_event(
-            Events.ZONE_PROCESSING_MODE_CHANGED,
+            UIEvents.ZONE_PROCESSING_MODE_CHANGED,
             {"sequential": sequential, "apply_to_all": apply_to_all},
         )
 
     def _on_draw_main_polygon_clicked(self) -> None:
         """Handle draw main polygon button click."""
-        self.emit_event("zone.draw_arena", {})
+        self.emit_event(UIEvents.ZONE_DRAW_ARENA, {})
 
     def _on_draw_roi_clicked(self) -> None:
         """Handle draw ROI button click."""
-        self.emit_event("zone.draw_roi", {})
+        self.emit_event(UIEvents.ZONE_DRAW_ROI, {})
 
     def _on_toggle_view_clicked(self) -> None:
         """Handle toggle view button click."""
-        self.emit_event("zone.toggle_view", {})
+        self.emit_event(UIEvents.ZONE_TOGGLE_VIEW, {})
 
     def _on_apply_template_clicked(self) -> None:
         """Handle apply template button click."""
-        self.emit_event("zone.template_apply", {"template_name": self.roi_template_var.get()})
+        self.emit_event(
+            UIEvents.ZONE_TEMPLATE_APPLY,
+            {"template_name": self.roi_template_var.get()},
+        )
 
     def _on_save_template_clicked(self) -> None:
         """Handle save template button click."""
-        self.emit_event("zone.template_save", {})
+        self.emit_event(UIEvents.ZONE_TEMPLATE_SAVE, {})
 
     def _on_import_template_clicked(self) -> None:
         """Handle import template button click."""
-        self.emit_event("zone.template_import", {})
+        self.emit_event(UIEvents.ZONE_TEMPLATE_IMPORT, {})
 
     def _on_clear_applied_template_clicked(self) -> None:
         """Handle clear applied template drawings from active video."""
-        self.emit_event("zone.template_clear_applied", {})
+        self.emit_event(UIEvents.ZONE_TEMPLATE_CLEAR_APPLIED, {})
 
     def _on_video_search_changed(self) -> None:
         """Handle video search text change."""
-        self.emit_event("zone.video_search_changed", {"search_text": self.video_search_var.get()})
+        self.emit_event(
+            UIEvents.ZONE_VIDEO_SEARCH_CHANGED,
+            {"search_text": self.video_search_var.get()},
+        )
 
     def _on_video_refresh_clicked(self) -> None:
         """Handle video refresh button click."""
-        self.emit_event("zone.video_refresh", {})
+        self.emit_event(UIEvents.ZONE_VIDEO_REFRESH, {})
 
     def _on_video_tree_double_click(self, event: tk.Event) -> None:
         """Handle video tree double-click."""
@@ -822,7 +827,7 @@ class ZoneControlsWidget(BaseWidget):
         selection = self.video_selector_tree.selection()
         if selection:
             item_id = selection[0]
-            self.emit_event("zone.video_double_click", {"item_id": item_id})
+            self.emit_event(UIEvents.ZONE_VIDEO_DOUBLE_CLICK, {"item_id": item_id})
 
     def _on_video_tree_right_click(self, event) -> None:
         """Handle video tree right-click to show context menu."""
@@ -909,17 +914,23 @@ class ZoneControlsWidget(BaseWidget):
     def _on_copy_zones_clicked(self) -> None:
         """Handle copy zones from context menu."""
         if hasattr(self, "_context_menu_video_path") and self._context_menu_video_path:
-            self.emit_event("zone.copy_zones", {"video_path": self._context_menu_video_path})
+            self.emit_event(UIEvents.ZONE_COPY_ZONES, {"video_path": self._context_menu_video_path})
 
     def _on_paste_zones_clicked(self) -> None:
         """Handle paste zones from context menu."""
         if hasattr(self, "_context_menu_video_path") and self._context_menu_video_path:
-            self.emit_event("zone.paste_zones", {"video_path": self._context_menu_video_path})
+            self.emit_event(
+                UIEvents.ZONE_PASTE_ZONES,
+                {"video_path": self._context_menu_video_path},
+            )
 
     def _on_delete_zones_clicked(self) -> None:
         """Handle delete zones from context menu."""
         if hasattr(self, "_context_menu_video_path") and self._context_menu_video_path:
-            self.emit_event("zone.delete_zones", {"video_path": self._context_menu_video_path})
+            self.emit_event(
+                UIEvents.ZONE_DELETE_ZONES,
+                {"video_path": self._context_menu_video_path},
+            )
 
     def _on_reconfigure_subjects_clicked(self) -> None:
         """Handle reconfigure subjects from context menu.
@@ -968,11 +979,11 @@ class ZoneControlsWidget(BaseWidget):
                 video_entry["subject"] = new_subject
                 pm.save_project()
                 log.info("zone_controls.reconfigure.success", subject=new_subject)
-                self.emit_event("video.metadata_updated", {"video_path": video_path})
+                self.emit_event(UIEvents.VIDEO_METADATA_UPDATED, {"video_path": video_path})
         else:
             # Multi-subject - emit event for external dialog
             self.emit_event(
-                "video.reconfigure_subjects",
+                UIEvents.VIDEO_RECONFIGURE_SUBJECTS,
                 {
                     "video_path": video_path,
                     "current_entries": subject_entries,
@@ -987,7 +998,7 @@ class ZoneControlsWidget(BaseWidget):
         selection = self.video_selector_tree.selection()
         if selection:
             item_id = selection[0]
-            self.emit_event("zone.video_frame_load", {"item_id": item_id})
+            self.emit_event(UIEvents.ZONE_VIDEO_FRAME_LOAD, {"item_id": item_id})
 
     def _on_zone_right_click(self, event) -> None:
         """Handle zone list right-click."""
@@ -998,7 +1009,7 @@ class ZoneControlsWidget(BaseWidget):
         if selection:
             item_id = selection[0]
             self.emit_event(
-                "zone.list_item_right_click",
+                UIEvents.ZONE_LIST_ITEM_RIGHT_CLICK,
                 {"item_id": item_id, "x": event.x_root, "y": event.y_root},
             )
 
@@ -1010,19 +1021,19 @@ class ZoneControlsWidget(BaseWidget):
         selection = self.zone_listbox.selection()
         if selection:
             item_id = selection[0]
-            self.emit_event("zone.list_item_double_click", {"item_id": item_id})
+            self.emit_event(UIEvents.ZONE_LIST_ITEM_DOUBLE_CLICK, {"item_id": item_id})
 
     def _on_save_arena_clicked(self) -> None:
         """Handle save arena button click."""
-        self.emit_event("zone.save_arena", {})
+        self.emit_event(UIEvents.ZONE_SAVE_ARENA, {})
 
     def _on_discard_arena_clicked(self) -> None:
         """Handle discard arena button click."""
-        self.emit_event("zone.discard_arena", {})
+        self.emit_event(UIEvents.ZONE_DISCARD_ARENA, {})
 
     def _on_finish_drawing_clicked(self) -> None:
         """Handle finish drawing button click - completes polygon without double-click."""
-        self.emit_event("zone.finish_drawing", {})
+        self.emit_event(UIEvents.ZONE_FINISH_DRAWING, {})
 
     def _on_roi_rule_changed(self, event) -> None:
         """Handle ROI rule change."""
@@ -1058,18 +1069,12 @@ class ZoneControlsWidget(BaseWidget):
         if self.rule_help_label:
             self.rule_help_label.config(text=help_text)
 
-        if not self.event_bus:
-            return
-
-        self.event_bus.publish_event(Events.DETECTOR_UPDATE_PARAMETERS, {"rule": rule})
+        self.emit_event(UIEvents.DETECTOR_UPDATE_PARAMETERS, {"rule": rule})
 
     def _on_apply_roi_settings_clicked(self) -> None:
         """Handle apply ROI settings button click."""
-        if not self.event_bus:
-            return
-
-        self.event_bus.publish_event(
-            Events.DETECTOR_UPDATE_PARAMETERS,
+        self.emit_event(
+            UIEvents.DETECTOR_UPDATE_PARAMETERS,
             {
                 "rule": self.roi_inclusion_rule_var.get(),
                 "buffer_radius": float(self.roi_buffer_radius_var.get() or 0.5),
@@ -1101,7 +1106,7 @@ class ZoneControlsWidget(BaseWidget):
                         self.single_analysis_options_frame.pack(fill="x", pady=5)
             except (tk.TclError, IndexError):
                 # Frame destroyed or invalid state
-                pass
+                log.debug("zone_controls.show_single_analysis_options.suppressed", exc_info=True)
 
     def hide_single_analysis_options(self) -> None:
         """Hide the single analysis options frame."""
@@ -1145,7 +1150,7 @@ class ZoneControlsWidget(BaseWidget):
                     self.zone_listbox.delete(item)
         except Exception:
             # Widget might have been destroyed during teardown
-            pass
+            log.debug("zone_controls.clear_zone_listbox.suppressed", exc_info=True)
 
     def add_zone_to_list(
         self, zone_id: str, name: str, zone_type: str, color: str, color_hex: str | None = None

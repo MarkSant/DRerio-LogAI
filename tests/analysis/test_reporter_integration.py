@@ -13,7 +13,7 @@ import pytest
 from shapely.geometry import Polygon
 
 from zebtrack.analysis.analysis_service import AnalysisService
-from zebtrack.analysis.reporter import Reporter
+from zebtrack.analysis.reporters import ExcelReporter, ParquetSummaryReporter, ReporterContext
 from zebtrack.analysis.roi import ROI
 
 
@@ -120,7 +120,7 @@ def reporter(mock_settings, sample_trajectory_df, sample_rois):
     # OLD:         smoothing_polyorder=2,
     # OLD:         settings_obj=mock_settings,
     # OLD:     )
-    # MIGRADO PARA v3.0: Usar AnalysisService + Reporter.from_analysis()
+    # MIGRADO PARA v3.0: Usar AnalysisService + ReporterContext.from_analysis()
     service = AnalysisService(settings_obj=mock_settings)
     analysis = service.run_full_analysis_as_dto(
         arena_polygon_px=[(0, 0), (640, 0), (640, 480), (0, 480)],
@@ -145,7 +145,7 @@ def reporter(mock_settings, sample_trajectory_df, sample_rois):
         video_height_px=480,
         video_path=None,
     )
-    reporter = Reporter.from_analysis(analysis)
+    reporter = ReporterContext.from_analysis(analysis)
     return reporter
 
 
@@ -165,7 +165,7 @@ class TestReporterParquetIntegration:
         output_path = tmp_path / "summary_real.parquet"
 
         # Act
-        reporter.export_summary_data(output_path, format="parquet")
+        ParquetSummaryReporter(reporter).export_summary(output_path)
 
         # Assert: File exists
         assert output_path.exists(), "Parquet file should be created"
@@ -208,7 +208,7 @@ class TestReporterParquetIntegration:
         output_path = tmp_path / "summary_compressed.parquet"
 
         # Act
-        reporter.export_summary_data(output_path, format="parquet")
+        ParquetSummaryReporter(reporter).export_summary(output_path)
 
         # Assert: Check file size is reasonable (compressed)
         file_size = output_path.stat().st_size
@@ -221,7 +221,7 @@ class TestReporterParquetIntegration:
         output_path = tmp_path / "nested" / "deep" / "path" / "summary.parquet"
 
         # Act
-        reporter.export_summary_data(output_path, format="parquet")
+        ParquetSummaryReporter(reporter).export_summary(output_path)
 
         # Assert
         assert output_path.exists(), "File should be created in nested directory"
@@ -242,7 +242,7 @@ class TestReporterExcelIntegration:
         output_path = tmp_path / "summary_real.xlsx"
 
         # Act
-        reporter.export_summary_data(output_path, format="excel")
+        ExcelReporter(reporter).export_summary(output_path)
 
         # Assert: File exists
         assert output_path.exists(), "Excel file should be created"
@@ -265,7 +265,7 @@ class TestReporterExcelIntegration:
         output_path = tmp_path / "summary_multi.xlsx"
 
         # Act
-        reporter.export_summary_data(output_path, format="excel")
+        ExcelReporter(reporter).export_summary(output_path)
 
         # Assert: Validate file can be opened with Excel reader
         try:
@@ -289,7 +289,7 @@ class TestReporterDataIntegrity:
         # If not, we'll export and reimport to verify consistency
 
         # Act
-        reporter.export_summary_data(output_path, format="parquet")
+        ParquetSummaryReporter(reporter).export_summary(output_path)
         df_reloaded = pd.read_parquet(output_path)
 
         # Assert: Data types are preserved
@@ -310,7 +310,7 @@ class TestReporterDataIntegrity:
 
         # Act: Export to multiple files
         for path in output_paths:
-            reporter.export_summary_data(path, format="parquet")
+            ParquetSummaryReporter(reporter).export_summary(path)
 
         # Assert: All files are valid and identical
         dataframes = [pd.read_parquet(path) for path in output_paths]
@@ -358,7 +358,7 @@ class TestReporterLargeDatasetIntegration:
         # OLD:             fps=30.0,
         # OLD:             settings_obj=mock_settings,
         # OLD:         )
-        # MIGRADO PARA v3.0: Usar AnalysisService + Reporter.from_analysis()
+        # MIGRADO PARA v3.0: Usar AnalysisService + ReporterContext.from_analysis()
         service = AnalysisService(settings_obj=mock_settings)
         analysis = service.run_full_analysis_as_dto(
             arena_polygon_px=[(0, 0), (640, 0), (640, 480), (0, 480)],
@@ -373,12 +373,12 @@ class TestReporterLargeDatasetIntegration:
             freezing_vel_threshold=1.0,
             freezing_min_duration=2.0,
         )
-        reporter = Reporter.from_analysis(analysis)
+        reporter = ReporterContext.from_analysis(analysis)
 
         output_path = tmp_path / "large_summary.parquet"
 
         # Act
-        reporter.export_summary_data(output_path, format="parquet")
+        ParquetSummaryReporter(reporter).export_summary(output_path)
 
         # Assert: File created successfully
         assert output_path.exists()
@@ -416,7 +416,7 @@ class TestReporterEdgeCasesIntegration:
         # OLD:             fps=30.0,
         # OLD:             settings_obj=mock_settings,
         # OLD:         )
-        # MIGRADO PARA v3.0: Usar AnalysisService + Reporter.from_analysis()
+        # MIGRADO PARA v3.0: Usar AnalysisService + ReporterContext.from_analysis()
         service = AnalysisService(settings_obj=mock_settings)
         analysis = service.run_full_analysis_as_dto(
             arena_polygon_px=[(0, 0), (640, 0), (640, 480), (0, 480)],
@@ -435,12 +435,12 @@ class TestReporterEdgeCasesIntegration:
             freezing_vel_threshold=1.0,
             freezing_min_duration=2.0,
         )
-        reporter = Reporter.from_analysis(analysis)
+        reporter = ReporterContext.from_analysis(analysis)
 
         output_path = tmp_path / "unicode_test.parquet"
 
         # Act
-        reporter.export_summary_data(output_path, format="parquet")
+        ParquetSummaryReporter(reporter).export_summary(output_path)
 
         # Assert: Read back and verify Unicode is preserved
         df_reloaded = pd.read_parquet(output_path)
@@ -484,7 +484,7 @@ class TestReporterEdgeCasesIntegration:
             # OLD:                 fps=30.0,
             # OLD:                 settings_obj=mock_settings,
             # OLD:             )
-            # MIGRADO PARA v3.0: Usar AnalysisService + Reporter.from_analysis()
+            # MIGRADO PARA v3.0: Usar AnalysisService + ReporterContext.from_analysis()
             service = AnalysisService(settings_obj=mock_settings)
             analysis = service.run_full_analysis_as_dto(
                 arena_polygon_px=[(0, 0), (640, 0), (640, 480), (0, 480)],
@@ -499,7 +499,7 @@ class TestReporterEdgeCasesIntegration:
                 freezing_vel_threshold=1.0,
                 freezing_min_duration=2.0,
             )
-            Reporter.from_analysis(analysis)
+            ReporterContext.from_analysis(analysis)
 
 
 if __name__ == "__main__":

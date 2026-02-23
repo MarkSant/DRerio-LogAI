@@ -622,6 +622,17 @@ class OpenVINOSettings(BaseModel):
             "optimal settings. Results are cached and reused."
         ),
     )
+    batch_nireq: int = Field(
+        4,
+        ge=1,
+        le=16,
+        description=(
+            "Number of parallel inference requests for batch mode "
+            "(AsyncInferQueue pool size). Higher values overlap more "
+            "preprocessing with inference but consume more memory. "
+            "Typical range: 2-8. Default 4 balances throughput vs memory."
+        ),
+    )
 
 
 class ModelSelectionSettings(BaseModel):
@@ -744,7 +755,7 @@ class LoggingSettings(BaseModel):
     levels: dict[str, str] = Field(
         default_factory=lambda: {
             "zebtrack": "INFO",
-            "zebtrack.core.detector": "INFO",
+            "zebtrack.core.detection": "INFO",
             "zebtrack.ui": "WARNING",
             "zebtrack.io": "WARNING",
             "zebtrack.analysis": "INFO",
@@ -840,39 +851,39 @@ class Settings(BaseModel):
     video_processing: VideoProcessingSettings
     reproducibility: ReproducibilitySettings
 
-    # Optional settings with defaults (using lambdas for proper factory pattern)
+    # Optional settings with defaults
     recorder: RecorderSettings = Field(
-        default_factory=lambda: RecorderSettings(),  # type: ignore[call-arg]
+        default_factory=RecorderSettings,
         description="Settings for Parquet/video recorder behavior",
     )
     live_analysis: LiveAnalysisSettings = Field(
-        default_factory=lambda: LiveAnalysisSettings(),  # type: ignore[call-arg]
+        default_factory=LiveAnalysisSettings,
         description="Settings for live camera analysis sessions",
     )
     bytetrack: ByteTrackSettings = Field(
-        default_factory=lambda: ByteTrackSettings(),  # type: ignore[call-arg]
+        default_factory=ByteTrackSettings,
         description="Default thresholds used by the ByteTrack tracker.",
     )
     tracking: TrackingSettings = Field(
-        default_factory=lambda: TrackingSettings(),  # type: ignore[call-arg]
+        default_factory=TrackingSettings,
         description="Tracker selection toggles and preferences.",
     )
     detection_zones: DetectionZonesSettings = Field(
-        default_factory=lambda: DetectionZonesSettings(),  # type: ignore[call-arg]
+        default_factory=DetectionZonesSettings,
         description="Coordinates for areas of interest in the camera frame.",
     )
 
     # Model selection and weights
     model_selection: ModelSelectionSettings = Field(
-        default_factory=lambda: ModelSelectionSettings(),  # type: ignore[call-arg]
+        default_factory=ModelSelectionSettings,
         description="Settings for selecting model types (seg/det) for different tasks",
     )
     weights: WeightsSelectionSettings = Field(
-        default_factory=lambda: WeightsSelectionSettings(),  # type: ignore[call-arg]
+        default_factory=WeightsSelectionSettings,
         description="Settings for weight file selection by type",
     )
     openvino: OpenVINOSettings = Field(
-        default_factory=lambda: OpenVINOSettings(),  # type: ignore[call-arg]
+        default_factory=OpenVINOSettings,
         description="OpenVINO-specific settings for GPU inference optimization",
     )
 
@@ -899,37 +910,37 @@ class Settings(BaseModel):
     )
 
     analysis_config: "AnalysisConfigSettings" = Field(
-        default_factory=lambda: AnalysisConfigSettings(),  # type: ignore[call-arg]
+        default_factory=AnalysisConfigSettings,
         description="Configuration for analysis parameters like number of aquariums.",
     )
     behavioral_analysis: BehavioralAnalysisSettings = Field(
-        default_factory=lambda: BehavioralAnalysisSettings(),  # type: ignore[call-arg]
+        default_factory=BehavioralAnalysisSettings,
         description="Default settings for thigmotaxis and geotaxis behavioral metrics.",
     )
 
     # Analysis settings
     ui_features: UIFeatureFlags = Field(
-        default_factory=lambda: UIFeatureFlags(),  # type: ignore[call-arg]
+        default_factory=UIFeatureFlags,
         description="Feature flags for UI experiments and gradual rollouts",
     )
     trajectory_smoothing: TrajectorySmoothingSettings = Field(
-        default_factory=lambda: TrajectorySmoothingSettings(),  # type: ignore[call-arg]
+        default_factory=TrajectorySmoothingSettings,
         description="Smoothing parameters applied to trajectory preprocessing.",
     )
     angular_velocity: AngularVelocitySettings = Field(
-        default_factory=lambda: AngularVelocitySettings(),  # type: ignore[call-arg]
+        default_factory=AngularVelocitySettings,
         description=(
             "Parameters for robust angular velocity calculation to handle detection jitter."
         ),
     )
     performance: PerformanceSettings = Field(
-        default_factory=lambda: PerformanceSettings(),  # type: ignore[call-arg]
+        default_factory=PerformanceSettings,
         description=(
             "Performance and parallelization settings for optimizing throughput (Phase 8)."
         ),
     )
     logging: LoggingSettings = Field(
-        default_factory=lambda: LoggingSettings(),  # type: ignore[call-arg]
+        default_factory=LoggingSettings,
         description="Per-module logging level configuration.",
     )
 

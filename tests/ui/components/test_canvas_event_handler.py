@@ -28,6 +28,11 @@ def _make_handler():
         point_count=Mock(return_value=2),
     )
 
+    zone_ctx = Mock()
+    zone_ctx.get_zone_data_for_active_context.return_value = SimpleNamespace(polygon=[])
+
+    dialog_mgr = Mock()
+
     gui = SimpleNamespace(
         video_display=SimpleNamespace(canvas=canvas),
         drawing_state_manager=drawing_state_manager,
@@ -36,7 +41,8 @@ def _make_handler():
         show_info=Mock(),
         show_error=Mock(),
         root=Mock(),
-        _get_zone_data_for_active_context=Mock(return_value=SimpleNamespace(polygon=[])),
+        _zone_context_service=zone_ctx,
+        dialog_manager=dialog_mgr,
     )
 
     manager = SimpleNamespace(
@@ -98,7 +104,7 @@ def test_on_canvas_double_click_success_publishes_and_stops():
     handler.on_canvas_double_click(SimpleNamespace(x=0, y=0))
 
     handler.gui.set_status.assert_called_once()
-    handler.gui.show_info.assert_called_once()
+    handler.gui.dialog_manager.show_info.assert_called_once()
     handler.manager.event_bus_v2.publish.assert_called_once()
     published_event = handler.manager.event_bus_v2.publish.call_args.args[0]
     assert isinstance(published_event, Event)
@@ -118,7 +124,7 @@ def test_on_canvas_double_click_failure_reports_error():
 
     handler.on_canvas_double_click(SimpleNamespace(x=0, y=0))
 
-    handler.gui.show_error.assert_called_once()
+    handler.gui.dialog_manager.show_error.assert_called_once()
     handler.manager.stop_drawing.assert_called_once()
 
 

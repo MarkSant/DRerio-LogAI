@@ -12,7 +12,7 @@ import numpy as np
 import pytest
 
 from tests.utils.wait_helpers import wait_for_condition, wait_for_thread_exit
-from zebtrack.core.detector import ZoneData
+from zebtrack.core.detection import ZoneData
 from zebtrack.core.state_manager import StateCategory, StateManager
 from zebtrack.io.camera import Camera
 from zebtrack.io.recorder import Recorder

@@ -5,7 +5,7 @@ from shapely.geometry import box
 
 from zebtrack.analysis.behavior import ConcreteBehavioralAnalyzer
 from zebtrack.analysis.roi import ROI, ROIAnalyzer
-from zebtrack.core.project_manager import ProjectManager
+from zebtrack.core.project.project_manager import ProjectManager
 
 
 @pytest.fixture

@@ -196,10 +196,10 @@ class ExperimentalDesignData(BaseModel):
 
 
 class AquariumConfig(BaseModel):
-    """Configuração para um aquário em modo multi-aquário.
+    """Configuration for an aquarium in multi-aquarium mode.
 
-    Armazena metadados experimentais associados a cada aquário individual
-    dentro de um vídeo com múltiplos aquários.
+    Stores experimental metadata associated with each individual aquarium
+    within a video containing multiple aquariums.
     """
 
     aquarium_id: int = Field(ge=0, le=1, description="ID do aquário (0 ou 1)")
@@ -210,17 +210,17 @@ class AquariumConfig(BaseModel):
     @field_validator("group")
     @classmethod
     def validate_group_not_empty(cls, v: str) -> str:
-        """Grupo não pode estar vazio ou conter apenas espaços."""
+        """Group must not be empty or contain only spaces."""
         if not v.strip():
             raise ValueError("Nome do grupo não pode estar vazio")
         return v.strip()
 
 
 class MultiAquariumData(BaseModel):
-    """Dados de configuração para vídeos com 2 aquários.
+    """Configuration data for videos with 2 aquariums.
 
-    Controla se o modo multi-aquário está habilitado e armazena
-    configurações de extração de metadados via regex.
+    Controls whether multi-aquarium mode is enabled and stores
+    metadata extraction configurations via regex.
     """
 
     enabled: bool = Field(default=False, description="Se modo multi-aquário está habilitado")
@@ -344,7 +344,7 @@ class MultiAquariumData(BaseModel):
     @field_validator("aquarium_configs")
     @classmethod
     def validate_configs_count(cls, v: list[AquariumConfig]) -> list[AquariumConfig]:
-        """Valida que há no máximo 2 configurações."""
+        """Validate that there are at most 2 configurations."""
         if len(v) > 2:
             raise ValueError("Máximo de 2 aquários suportados")
         return v
@@ -352,7 +352,7 @@ class MultiAquariumData(BaseModel):
     @field_validator("regex_pattern")
     @classmethod
     def validate_regex_pattern(cls, v: str) -> str:
-        """Valida que o padrão regex é válido."""
+        """Validate that the regex pattern is valid."""
         if v:
             try:
                 re.compile(v)
@@ -362,7 +362,7 @@ class MultiAquariumData(BaseModel):
 
     @model_validator(mode="after")
     def validate_configs_when_enabled(self) -> "MultiAquariumData":
-        """Quando habilitado, deve ter exatamente 2 configurações."""
+        """When enabled, must have exactly 2 configurations."""
         if self.enabled and len(self.aquarium_configs) != 2:
             raise ValueError(
                 "Modo multi-aquário habilitado requer exatamente 2 configurações de aquário"
@@ -370,16 +370,16 @@ class MultiAquariumData(BaseModel):
         return self
 
     def extract_metadata(self, filename: str) -> list[dict[str, str]]:
-        """Extrai metadados do nome do arquivo usando o padrão regex.
+        """Extract metadata from filename using the regex pattern.
 
-        Suporta múltiplos matches (ex: "G1_S1--G2_S2.mp4").
+        Supports multiple matches (e.g., "G1_S1--G2_S2.mp4").
 
         Args:
-            filename: Nome do arquivo de vídeo.
+            filename: Video filename.
 
         Returns:
-            Lista de dicionários com os campos extraídos (group, subject, day).
-            Um dicionário por match encontrado.
+            List of dictionaries with extracted fields (group, subject, day).
+            One dictionary per match found.
         """
         results: list[dict[str, str]] = []
 

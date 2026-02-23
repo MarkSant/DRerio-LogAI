@@ -7,7 +7,7 @@ from unittest.mock import MagicMock, patch
 
 import numpy as np
 
-from zebtrack.core.detector import Detector, ZoneData
+from zebtrack.core.detection import Detector, ZoneData
 from zebtrack.plugins.base import DetectorPlugin
 from zebtrack.tracker.basetrack import BaseTrack
 
@@ -131,15 +131,15 @@ class TestDetector(unittest.TestCase):
         mock_zones = ZoneData(polygon=[[10, 20], [100, 200]])
         self.detector.set_zones(zones=mock_zones, actual_width=640, actual_height=360)
 
-        # Ensure the cache is populated
-        self.assertIn((640, 360), self.detector._scaling_cache)
-        self.assertGreater(len(self.detector._scaling_cache), 0)
+        # Ensure the cache is populated (lives on zone_scaler after decomposition)
+        self.assertIn((640, 360), self.detector.zone_scaler._scaling_cache)
+        self.assertGreater(len(self.detector.zone_scaler._scaling_cache), 0)
 
         # Call the method to be tested
         self.detector.clear_cache()
 
         # Assert that the cache is now empty
-        self.assertEqual(len(self.detector._scaling_cache), 0)
+        self.assertEqual(len(self.detector.zone_scaler._scaling_cache), 0)
 
     def test_detect_delegates_to_plugin(self):
         """Test that detect calls the plugin's detect method."""
@@ -212,7 +212,7 @@ class TestDetector(unittest.TestCase):
         self.mock_plugin.set_detect_return_value(fake_detection)
 
         # Mock the polygon check to always be true for this test
-        with patch.object(self.detector, "_is_inside_polygon", return_value=True):
+        with patch.object(self.detector.zone_scaler, "is_inside_polygon", return_value=True):
             detections, _ = self.detector.detect(dummy_frame, "pre-recorded")
 
         self.assertEqual(len(detections), 1)
@@ -249,7 +249,7 @@ class TestDetector(unittest.TestCase):
             (100, 100, 120, 120, 0.9, None, 1),
         ]
 
-        with patch.object(self.detector, "_is_inside_polygon", return_value=True):
+        with patch.object(self.detector.zone_scaler, "is_inside_polygon", return_value=True):
             self.mock_plugin.set_detect_return_value(detections_frame1)
             results1, _ = self.detector.detect(dummy_frame, "pre-recorded")
 
@@ -268,7 +268,7 @@ class TestDetector(unittest.TestCase):
             (300, 300, 330, 330, 0.99, None, 1),  # Far away
         ]
 
-        with patch.object(self.detector, "_is_inside_polygon", return_value=True):
+        with patch.object(self.detector.zone_scaler, "is_inside_polygon", return_value=True):
             self.mock_plugin.set_detect_return_value(detections_frame2)
             results2, _ = self.detector.detect(dummy_frame, "pre-recorded")
 
@@ -292,13 +292,13 @@ class TestDetector(unittest.TestCase):
         )
         self.detector.set_single_subject_mode(True)
 
-        with patch.object(self.detector, "_is_inside_polygon", return_value=True):
+        with patch.object(self.detector.zone_scaler, "is_inside_polygon", return_value=True):
             self.mock_plugin.set_detect_return_value([(50, 50, 80, 80, 0.8, None, 1)])
             self.detector.detect(dummy_frame, "pre-recorded")
 
         self.detector.reset_tracking_state()
 
-        with patch.object(self.detector, "_is_inside_polygon", return_value=True):
+        with patch.object(self.detector.zone_scaler, "is_inside_polygon", return_value=True):
             self.mock_plugin.set_detect_return_value([(300, 300, 320, 320, 0.7, None, 1)])
             results, _ = self.detector.detect(dummy_frame, "pre-recorded")
 
@@ -409,10 +409,10 @@ class TestDetector(unittest.TestCase):
         zones = ZoneData(polygon=[[0, 0], [1, 1]])
         self.detector.set_zones(zones, 640, 480)
 
-        with patch("zebtrack.core.detector.log.warning") as mock_log:
+        with patch("zebtrack.core.detection.single_detector.log.warning") as mock_log:
             self.detector.detect(dummy_frame, "live")
             mock_log.assert_called_once_with(
-                "detector.dimension_mismatch",
+                "single_detector.dimension_mismatch",
                 expected=(640, 480),
                 actual=(1920, 1080),
                 message=(
@@ -442,7 +442,7 @@ class TestDetectorZoneLogic(unittest.TestCase):
         # The actual crop happens in detect(), but we test it delegates to plugin
         self.mock_plugin.set_detect_return_value([(150, 150, 160, 160, 0.8, None, 1)])
 
-        with patch.object(self.detector, "_is_inside_polygon", return_value=True):
+        with patch.object(self.detector.zone_scaler, "is_inside_polygon", return_value=True):
             detections, _ = self.detector.detect(dummy_frame, "pre-recorded")
 
         # Verify plugin.detect was called
@@ -508,13 +508,13 @@ class TestDetectorZoneLogic(unittest.TestCase):
 
         # First call should populate cache
         self.detector.set_zones(zones, 640, 360)
-        self.assertIn((640, 360), self.detector._scaling_cache)
+        self.assertIn((640, 360), self.detector.zone_scaler._scaling_cache)
 
         # Clear scaled_polygon to check if it's restored from cache
         old_polygon = self.detector.scaled_polygon.copy()
 
-        # Manually trigger _update_scaling with same dimensions
-        self.detector._update_scaling(640, 360)
+        # Manually trigger update_scaling with same dimensions
+        self.detector.zone_scaler.update_scaling(zones, 640, 360)
 
         # Should retrieve from cache
         np.testing.assert_array_equal(self.detector.scaled_polygon, old_polygon)
@@ -524,12 +524,12 @@ class TestDetectorZoneLogic(unittest.TestCase):
         zones = ZoneData(polygon=[[0, 0], [1280, 0], [1280, 720], [0, 720]])
 
         self.detector.set_zones(zones, 640, 360)
-        self.assertEqual(len(self.detector._scaling_cache), 1)
+        self.assertEqual(len(self.detector.zone_scaler._scaling_cache), 1)
 
         # Different dimensions should create new cache entry
-        self.detector._update_scaling(320, 180)
-        self.assertEqual(len(self.detector._scaling_cache), 2)
-        self.assertIn((320, 180), self.detector._scaling_cache)
+        self.detector.zone_scaler.update_scaling(zones, 320, 180)
+        self.assertEqual(len(self.detector.zone_scaler._scaling_cache), 2)
+        self.assertIn((320, 180), self.detector.zone_scaler._scaling_cache)
 
     def test_bytetrack_integration_with_detections(self):
         """Test that BYTETracker assigns track IDs and preserves detections."""
@@ -540,7 +540,7 @@ class TestDetectorZoneLogic(unittest.TestCase):
 
         # Frame 1: One detection (use higher confidence for BYTETracker)
         self.mock_plugin.set_detect_return_value([(100, 100, 120, 120, 0.95, None, 1)])
-        with patch.object(self.detector, "_is_inside_polygon", return_value=True):
+        with patch.object(self.detector.zone_scaler, "is_inside_polygon", return_value=True):
             detections1, _ = self.detector.detect(dummy_frame, "pre-recorded")
 
         # Should assign a track ID
@@ -551,7 +551,7 @@ class TestDetectorZoneLogic(unittest.TestCase):
 
             # Frame 2: Same detection slightly moved (use higher confidence)
             self.mock_plugin.set_detect_return_value([(105, 105, 125, 125, 0.93, None, 1)])
-            with patch.object(self.detector, "_is_inside_polygon", return_value=True):
+            with patch.object(self.detector.zone_scaler, "is_inside_polygon", return_value=True):
                 detections2, _ = self.detector.detect(dummy_frame, "pre-recorded")
 
             # Detection should be preserved even if ByteTracker can't confirm track yet
@@ -573,7 +573,7 @@ class TestDetectorZoneLogic(unittest.TestCase):
 
         # First frame with detection to initialize tracker
         self.mock_plugin.set_detect_return_value([(100, 100, 120, 120, 0.9, None, 1)])
-        with patch.object(self.detector, "_is_inside_polygon", return_value=True):
+        with patch.object(self.detector.zone_scaler, "is_inside_polygon", return_value=True):
             detections1, _ = self.detector.detect(dummy_frame, "pre-recorded")
         self.assertEqual(len(detections1), 1)
 
@@ -599,7 +599,7 @@ class TestDetectorZoneLogic(unittest.TestCase):
             ]
         )
 
-        with patch.object(self.detector, "_is_inside_polygon", return_value=True):
+        with patch.object(self.detector.zone_scaler, "is_inside_polygon", return_value=True):
             detections1, _ = self.detector.detect(dummy_frame, "pre-recorded")
 
         # Should have two different track IDs
@@ -616,7 +616,7 @@ class TestDetectorZoneLogic(unittest.TestCase):
 
         # Frame 1: Create a track
         self.mock_plugin.set_detect_return_value([(100, 100, 120, 120, 0.9, None, 1)])
-        with patch.object(self.detector, "_is_inside_polygon", return_value=True):
+        with patch.object(self.detector.zone_scaler, "is_inside_polygon", return_value=True):
             _detections1, _ = self.detector.detect(dummy_frame, "pre-recorded")
         # Track ID is assigned but we'll verify the reset behavior below
 
@@ -625,7 +625,7 @@ class TestDetectorZoneLogic(unittest.TestCase):
 
         # Frame 2: Same detection should get a new track ID after reset
         self.mock_plugin.set_detect_return_value([(100, 100, 120, 120, 0.9, None, 1)])
-        with patch.object(self.detector, "_is_inside_polygon", return_value=True):
+        with patch.object(self.detector.zone_scaler, "is_inside_polygon", return_value=True):
             detections2, _ = self.detector.detect(dummy_frame, "pre-recorded")
 
         # New track ID should be assigned (BYTETracker was reset)
@@ -661,16 +661,18 @@ class TestDetectorZoneLogic(unittest.TestCase):
         dummy_frame = np.zeros((480, 640, 3), dtype=np.uint8)
         self.mock_plugin.set_detect_return_value([(300, 250, 310, 260, 0.8, None, 1)])
 
-        with patch.object(self.detector, "_is_inside_polygon", return_value=True):
+        with patch.object(self.detector.zone_scaler, "is_inside_polygon", return_value=True):
             detections, _ = self.detector.detect(dummy_frame, "pre-recorded")
 
         # Should handle complex polygon without issues
         self.assertEqual(len(detections), 1)
 
     def test_ensure_track_tuple_with_5_elements(self):
-        """Test _ensure_track_tuple handles 5-element tuples (no track_id, no class_id)."""
+        """Test ensure_track_tuple handles 5-element tuples (no track_id, no class_id)."""
+        from zebtrack.core.detection.detection_post_processor import DetectionPostProcessor
+
         detection_5 = (100, 150, 200, 250, 0.95)
-        result = self.detector._ensure_track_tuple(detection_5)
+        result = DetectionPostProcessor.ensure_track_tuple(detection_5)
 
         self.assertEqual(len(result), 7)
         self.assertEqual(result[:5], (100, 150, 200, 250, 0.95))
@@ -678,30 +680,38 @@ class TestDetectorZoneLogic(unittest.TestCase):
         self.assertEqual(result[6], 0)  # class_id default
 
     def test_ensure_track_tuple_with_6_elements(self):
-        """Test _ensure_track_tuple handles 6-element tuples (with track_id, no class_id)."""
+        """Test ensure_track_tuple handles 6-element tuples (with track_id, no class_id)."""
+        from zebtrack.core.detection.detection_post_processor import DetectionPostProcessor
+
         detection_6 = (100, 150, 200, 250, 0.92, 42)
-        result = self.detector._ensure_track_tuple(detection_6)
+        result = DetectionPostProcessor.ensure_track_tuple(detection_6)
 
         self.assertEqual(len(result), 7)
         self.assertEqual(result[:6], (100, 150, 200, 250, 0.92, 42))
         self.assertEqual(result[6], 0)  # class_id default
 
     def test_get_track_threshold_from_plugin(self):
-        """Test _get_track_threshold retrieves from plugin if available."""
+        """Test get_track_threshold retrieves from plugin if available."""
+        from zebtrack.core.detection.detection_post_processor import DetectionPostProcessor
+
         self.mock_plugin.track_threshold = 0.35
-        threshold = self.detector._get_track_threshold()
+        threshold = DetectionPostProcessor.get_track_threshold(None, self.mock_plugin)
         self.assertEqual(threshold, 0.35)
 
     def test_get_match_threshold_from_plugin(self):
-        """Test _get_match_threshold retrieves from plugin if available."""
+        """Test get_match_threshold retrieves from plugin if available."""
+        from zebtrack.core.detection.detection_post_processor import DetectionPostProcessor
+
         self.mock_plugin.match_threshold = 0.20
-        threshold = self.detector._get_match_threshold()
+        threshold = DetectionPostProcessor.get_match_threshold(None, self.mock_plugin)
         self.assertEqual(threshold, 0.20)
 
     def test_get_track_buffer_from_plugin(self):
-        """Test _get_track_buffer retrieves from plugin if available."""
+        """Test get_track_buffer retrieves from plugin if available."""
+        from zebtrack.core.detection.detection_post_processor import DetectionPostProcessor
+
         self.mock_plugin.track_buffer = 45
-        buffer = self.detector._get_track_buffer()
+        buffer = DetectionPostProcessor.get_track_buffer(None, self.mock_plugin)
         self.assertEqual(buffer, 45)
 
     def test_detect_class_mismatch_fallback(self):
@@ -729,7 +739,7 @@ class TestDetectorZoneLogic(unittest.TestCase):
 
         # Mock ByteTracker to return detections as-is (bypass tracking logic)
         with (
-            patch.object(self.detector, "_is_inside_polygon", return_value=True),
+            patch.object(self.detector.zone_scaler, "is_inside_polygon", return_value=True),
             patch.object(
                 self.detector, "_apply_byte_tracking", side_effect=lambda dets, shape: dets
             ),

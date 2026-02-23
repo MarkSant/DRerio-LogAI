@@ -9,7 +9,7 @@ These tests cover:
 
 import pytest
 
-from zebtrack.core.project_manager import ProjectManager
+from zebtrack.core.project.project_manager import ProjectManager
 from zebtrack.core.state_manager import StateManager
 
 

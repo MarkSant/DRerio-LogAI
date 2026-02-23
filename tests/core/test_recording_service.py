@@ -11,7 +11,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from zebtrack.core.recording_service import RecordingService
+from zebtrack.core.recording.recording_service import RecordingService
 
 type ProjectData = dict[str, Any]
 
@@ -481,8 +481,8 @@ class TestUICallbacks:
 class TestCountdown:
     """Test suite for countdown functionality."""
 
-    @patch("zebtrack.core.recording_service.Toplevel")
-    @patch("zebtrack.core.recording_service.Label")
+    @patch("zebtrack.core.recording.recording_service.Toplevel")
+    @patch("zebtrack.core.recording.recording_service.Label")
     def test_run_countdown_creates_window(
         self, mock_label, mock_toplevel, recording_service, mock_root
     ):
@@ -907,8 +907,8 @@ class TestRecordingServiceTimedRecordingEdgeCases:
 class TestRecordingServiceCountdownFailures:
     """Test suite for countdown failure scenarios."""
 
-    @patch("zebtrack.core.recording_service.Toplevel")
-    @patch("zebtrack.core.recording_service.Label")
+    @patch("zebtrack.core.recording.recording_service.Toplevel")
+    @patch("zebtrack.core.recording.recording_service.Label")
     def test_run_countdown_window_creation_fails(
         self, mock_label, mock_toplevel, recording_service, mock_root
     ):
@@ -929,8 +929,8 @@ class TestRecordingServiceCountdownFailures:
 
         callback = Mock()
 
-        with patch("zebtrack.core.recording_service.Toplevel"):
-            with patch("zebtrack.core.recording_service.Label"):
+        with patch("zebtrack.core.recording.recording_service.Toplevel"):
+            with patch("zebtrack.core.recording.recording_service.Label"):
                 recording_service._run_countdown(-5, callback)
 
                 # Callback should be called immediately (or after zero updates)

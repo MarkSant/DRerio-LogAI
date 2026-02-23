@@ -3,17 +3,15 @@ from unittest.mock import Mock, patch
 import pytest
 
 from zebtrack.analysis.analysis_service import AnalysisService
-from zebtrack.ui.events import Events
+from zebtrack.ui.event_bus_v2 import UIEvents
 
 
 @pytest.fixture
 def mock_controller():
     controller = Mock()
     controller.ui_event_bus = Mock()
-    controller.ui_event_bus.publish_event = Mock(
-        side_effect=lambda *args, **kwargs: print(
-            f"DEBUG: publish_event called with {args} {kwargs}"
-        )
+    controller.ui_event_bus.publish = Mock(
+        side_effect=lambda *args, **kwargs: print(f"DEBUG: publish called with {args} {kwargs}")
     )
     return controller
 
@@ -40,9 +38,6 @@ def test_process_videos_batch_publishes_social_summary_event(analysis_service, m
     mock_controller.batch_configuration_service = Mock()
     mock_controller.batch_configuration_service.apply_settings = Mock()
 
-    mock_controller.analysis_coordinator = Mock()
-    mock_controller.analysis_coordinator.generate_parquet_summaries = Mock()
-
     mock_controller._process_single_video = Mock(return_value=(True, "/tmp"))
 
     # Mock ROIAnalyzer and BehavioralAnalyzer
@@ -66,15 +61,16 @@ def test_process_videos_batch_publishes_social_summary_event(analysis_service, m
                     )
 
     # Check calls
-    calls = mock_controller.ui_event_bus.publish_event.call_args_list
-    social_summary_calls = [call for call in calls if call[0][0] == Events.UI_UPDATE_SOCIAL_SUMMARY]
+    calls = mock_controller.ui_event_bus.publish.call_args_list
+    social_summary_calls = [
+        call for call in calls if call[0][0].type == UIEvents.UI_UPDATE_SOCIAL_SUMMARY
+    ]
 
     assert len(social_summary_calls) > 0, "UI_UPDATE_SOCIAL_SUMMARY event was not published"
 
     # Verify payload
-    args, _ = social_summary_calls[0]
-    event_name, payload = args
-    assert event_name == Events.UI_UPDATE_SOCIAL_SUMMARY
-    assert "profile" in payload
-    assert "stats" in payload
-    assert "tracks" in payload
+    event = social_summary_calls[0][0][0]
+    assert event.type == UIEvents.UI_UPDATE_SOCIAL_SUMMARY
+    assert "profile" in event.data
+    assert "stats" in event.data
+    assert "tracks" in event.data

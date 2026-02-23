@@ -4,7 +4,7 @@ import sys
 
 import pytest
 
-from zebtrack.core.detector import ZoneData
+from zebtrack.core.detection import ZoneData
 from zebtrack.io.recorder_factory import RecorderFactory
 from zebtrack.settings import load_settings
 

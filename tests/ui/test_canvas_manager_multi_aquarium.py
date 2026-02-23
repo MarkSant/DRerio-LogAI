@@ -12,7 +12,8 @@ from unittest.mock import MagicMock, patch
 import numpy as np
 import pytest
 
-from zebtrack.core.detector import AquariumData, MultiAquariumZoneData
+from zebtrack.core.detection import AquariumData, MultiAquariumZoneData
+from zebtrack.ui.components.canvas.multi_aquarium_overlay import MultiAquariumOverlayManager
 from zebtrack.ui.components.canvas_manager import CanvasManager
 
 
@@ -26,6 +27,8 @@ class TestDrawMultiAquariumOverlay:
             cm = CanvasManager(MagicMock())
             cm.gui = MagicMock()
             cm.event_bus_v2 = MagicMock()
+            # Phase 4.5: Initialize sub-component used by delegation shims
+            cm.multi_aquarium = MultiAquariumOverlayManager(cm)
             return cm
 
     @pytest.fixture
@@ -279,6 +282,7 @@ class TestMultiAquariumOverlayIntegration:
             cm = CanvasManager(MagicMock())
             cm.gui = MagicMock()
             cm.event_bus_v2 = MagicMock()
+            cm.multi_aquarium = MultiAquariumOverlayManager(cm)
             return cm
 
     def test_overlay_different_aquarium_colors(

@@ -10,7 +10,7 @@ Coverage target: 80%+
 import pytest
 from pydantic import ValidationError
 
-from zebtrack.core.detector import AquariumData, MultiAquariumZoneData, ZoneData
+from zebtrack.core.detection import AquariumData, MultiAquariumZoneData, ZoneData
 from zebtrack.ui.wizard.models import AquariumConfig, CalibrationData, MultiAquariumData
 
 

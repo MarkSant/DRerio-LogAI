@@ -33,7 +33,7 @@ domains:
           subscribers: ["core/main_view_model.py -> ProcessingCoordinator.cancel_processing()"]
 
         UI_DISPLAY_FRAME:
-          publishers: ["core/processing_worker.py"]
+          publishers: ["core/video/processing_worker.py"]
           subscribers: ["ui/event_dispatcher.py -> CanvasManager"]
           payload: ["frame: np.ndarray", "detections: list (opt)", "info: dict (opt)"]
           note: "Only for ProcessingWorker. Live Camera uses LivePreviewWindow directly."
@@ -97,8 +97,8 @@ domains:
     output_structure: "<video>_aquarium_N/ directories"
 
     key_files:
-      - "src/zebtrack/core/zone_manager.py"
-      - "src/zebtrack/core/project_manager.py"
+      - "src/zebtrack/core/project/zone_manager.py"
+      - "src/zebtrack/core/project/project_manager.py"
       - "src/zebtrack/plugins/detector.py"
       - "src/zebtrack/io/recorder.py"
       - "src/zebtrack/analysis/analysis_service.py"
@@ -179,8 +179,8 @@ domains:
       rule: "IMMUTABLE - column order is fixed"
 
     key_files:
-      - "src/zebtrack/core/processing_worker.py"
-      - "src/zebtrack/core/detector_service.py"
+      - "src/zebtrack/core/video/processing_worker.py"
+      - "src/zebtrack/core/services/detector_service.py"
       - "src/zebtrack/io/recorder.py"
       - "src/zebtrack/io/video_source.py"
 
@@ -252,7 +252,7 @@ tests:
 
   processing:
     command: "pytest tests/test_processing*.py tests/test_recorder.py"
-    covers: ["core/processing_worker.py", "io/recorder.py"]
+    covers: ["core/video/processing_worker.py", "io/recorder.py"]
 
   multi_aquarium:
     command: 'pytest -k "multi_aquarium or partitioned"'

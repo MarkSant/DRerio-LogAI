@@ -13,8 +13,8 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from tkinter import Misc
 
-    from zebtrack.core.project_manager import ProjectManager
-    from zebtrack.core.zone_manager import ZoneData
+    from zebtrack.core.project.project_manager import ProjectManager
+    from zebtrack.core.project.zone_manager import ZoneData
 
 
 class ZoneReuseDialog:

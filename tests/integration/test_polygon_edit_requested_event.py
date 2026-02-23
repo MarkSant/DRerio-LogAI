@@ -95,14 +95,19 @@ class TestPolygonEditRequestedEvent:
         gui_mock.zone_controls = MagicMock()
         gui_mock.drawing_state_manager.mode = None  # Not in drawing mode
 
-        # Mock zone data
+        # Mock zone data via zone_context_service (DI path)
         zone_data_mock = MagicMock()
         zone_data_mock.polygon = [[0, 0], [100, 0], [100, 100], [0, 100]]
-        gui_mock._get_zone_data_for_active_context = MagicMock(return_value=zone_data_mock)
+        zone_ctx = MagicMock()
+        zone_ctx.get_zone_data_for_active_context.return_value = zone_data_mock
 
         from zebtrack.ui.components.canvas_manager import CanvasManager
 
-        canvas_manager = CanvasManager(gui_mock, event_bus_v2=event_bus)
+        canvas_manager = CanvasManager(
+            gui_mock,
+            event_bus_v2=event_bus,
+            zone_context_service=zone_ctx,
+        )
 
         events_received = []
 
@@ -136,7 +141,7 @@ class TestPolygonEditRequestedEvent:
         gui_mock.zone_controls = MagicMock()
         gui_mock.drawing_state_manager.mode = None
 
-        # Mock zone data with ROI
+        # Mock zone data with ROI via zone_context_service (DI path)
         zone_data_mock = MagicMock()
         zone_data_mock.polygon = [[0, 0], [100, 0], [100, 100], [0, 100]]
         zone_data_mock.roi_names = ["ROI 1", "ROI 2"]
@@ -144,11 +149,16 @@ class TestPolygonEditRequestedEvent:
             [[10, 10], [20, 10], [20, 20], [10, 20]],
             [[30, 30], [40, 30], [40, 40], [30, 40]],
         ]
-        gui_mock._get_zone_data_for_active_context = MagicMock(return_value=zone_data_mock)
+        zone_ctx = MagicMock()
+        zone_ctx.get_zone_data_for_active_context.return_value = zone_data_mock
 
         from zebtrack.ui.components.canvas_manager import CanvasManager
 
-        canvas_manager = CanvasManager(gui_mock, event_bus_v2=event_bus)
+        canvas_manager = CanvasManager(
+            gui_mock,
+            event_bus_v2=event_bus,
+            zone_context_service=zone_ctx,
+        )
 
         events_received = []
 
@@ -184,7 +194,8 @@ class TestPolygonEditRequestedEvent:
 
         zone_data_mock = MagicMock()
         zone_data_mock.polygon = [[0, 0], [100, 0], [100, 100], [0, 100]]
-        gui_mock._get_zone_data_for_active_context = MagicMock(return_value=zone_data_mock)
+        zone_ctx = MagicMock()
+        zone_ctx.get_zone_data_for_active_context.return_value = zone_data_mock
 
         events_received = []
 
@@ -195,7 +206,11 @@ class TestPolygonEditRequestedEvent:
 
         from zebtrack.ui.components.canvas_manager import CanvasManager
 
-        canvas_manager = CanvasManager(gui_mock, event_bus_v2=event_bus)
+        canvas_manager = CanvasManager(
+            gui_mock,
+            event_bus_v2=event_bus,
+            zone_context_service=zone_ctx,
+        )
 
         listbox_mock = MagicMock()
         item_mock = {"values": ["Arena Principal"]}

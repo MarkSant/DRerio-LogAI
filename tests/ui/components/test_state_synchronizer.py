@@ -3,7 +3,7 @@
 from types import SimpleNamespace
 from unittest.mock import Mock
 
-from zebtrack.core.processing_mode import ProcessingMode
+from zebtrack.core.video.processing_mode import ProcessingMode
 from zebtrack.ui.components.state_synchronizer import StateSynchronizer
 
 
@@ -187,25 +187,25 @@ def test_update_recording_ui_updates_buttons():
 
 
 def test_update_processing_ui_toggles_buttons_and_view_mode():
+    analysis_view_controller = Mock()
     gui = SimpleNamespace(
         process_video_btn=Mock(),
-        start_analysis_view_mode=Mock(),
-        stop_analysis_view_mode=Mock(),
+        analysis_view_controller=analysis_view_controller,
     )
     synchronizer = StateSynchronizer(gui)
 
     synchronizer._update_processing_ui(True)
 
     gui.process_video_btn.config.assert_called_with(state="disabled")
-    gui.start_analysis_view_mode.assert_called_once()
+    analysis_view_controller.start_analysis_view_mode.assert_called_once()
 
     gui.process_video_btn.config.reset_mock()
-    gui.start_analysis_view_mode.reset_mock()
+    analysis_view_controller.start_analysis_view_mode.reset_mock()
 
     synchronizer._update_processing_ui(False)
 
     gui.process_video_btn.config.assert_called_with(state="normal")
-    gui.stop_analysis_view_mode.assert_called_once()
+    analysis_view_controller.stop_analysis_view_mode.assert_called_once()
 
 
 def test_update_arduino_ui_delegates_to_dashboard():

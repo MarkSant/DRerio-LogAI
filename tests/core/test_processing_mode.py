@@ -1,6 +1,6 @@
 """Tests for processing mode utilities."""
 
-from zebtrack.core.processing_mode import ProcessingMode, ProcessingReport
+from zebtrack.core.video.processing_mode import ProcessingMode, ProcessingReport
 
 
 def test_processing_mode_display_names():

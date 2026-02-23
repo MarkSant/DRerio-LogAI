@@ -1,6 +1,5 @@
 import sys
 import types
-from typing import Any, cast
 
 
 class FakeTree:
@@ -43,15 +42,19 @@ class _GUIStub:
 
 def _make_pvm_stub(gui):
     # Import lazily so tests can stub zebtrack.ui.gui before the method runs.
-    from zebtrack.ui.components.project_view_manager import ProjectViewManager
+    from zebtrack.ui.components.project_views.report_tree_builder import ReportTreeBuilder
 
-    pvm = ProjectViewManager.__new__(ProjectViewManager)
-    pvm.gui = gui
+    builder = ReportTreeBuilder(
+        project_manager_getter=lambda: gui.controller.project_manager,
+        validation_manager=None,
+        widget_factory=None,
+        processing_reports_widget=None,
+        tree_metadata={},
+    )
 
     # Avoid touching filesystem from this unit test.
-    pvm_any = cast(Any, pvm)
-    pvm_any.append_processing_reports_artifacts = lambda *args, **kwargs: None
-    return pvm
+    builder.append_artifacts = lambda *args, **kwargs: None  # type: ignore[assignment]
+    return builder
 
 
 def test_reports_tree_includes_both_aquariums_via_canonical_fallback(monkeypatch):
@@ -97,12 +100,12 @@ def test_reports_tree_includes_both_aquariums_via_canonical_fallback(monkeypatch
 
     pm = _PMStub(canonical_entry=canonical_entry)
     gui = _GUIStub(controller=_ControllerStub(project_manager=pm))
-    pvm = _make_pvm_stub(gui)
+    builder = _make_pvm_stub(gui)
 
     tree = FakeTree()
     metadata_store: dict[str, object] = {}
 
-    pvm._populate_reports_tree_from_hierarchy(tree, hierarchy, "", metadata_store)
+    builder.populate_from_hierarchy(tree, hierarchy, "", metadata_store)
 
     aquarium_nodes = [iid for iid in tree.inserted.keys() if "_aquarium_" in iid]
     assert any(iid.endswith("_aquarium_0") for iid in aquarium_nodes)
@@ -152,12 +155,12 @@ def test_reports_tree_normalizes_mixed_aquarium_keys(monkeypatch):
 
     pm = _PMStub(canonical_entry=None)
     gui = _GUIStub(controller=_ControllerStub(project_manager=pm))
-    pvm = _make_pvm_stub(gui)
+    builder = _make_pvm_stub(gui)
 
     tree = FakeTree()
     metadata_store: dict[str, object] = {}
 
-    pvm._populate_reports_tree_from_hierarchy(tree, hierarchy, "", metadata_store)
+    builder.populate_from_hierarchy(tree, hierarchy, "", metadata_store)
 
     aquarium_nodes = [iid for iid in tree.inserted.keys() if "_aquarium_" in iid]
     # Should be exactly two aquariums (0 and 1) after normalization.

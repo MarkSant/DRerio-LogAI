@@ -65,7 +65,7 @@ def patch_detection_step():
 
 def patch_project_workflow_service():
     """Patch project_workflow_service to add enhanced logging."""
-    from zebtrack.core import project_workflow_service
+    from zebtrack.core.project import project_workflow_service
 
     original_enrich = (
         project_workflow_service.ProjectWorkflowService._enrich_videos_with_design_metadata

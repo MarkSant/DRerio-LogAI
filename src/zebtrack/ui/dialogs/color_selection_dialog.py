@@ -42,11 +42,11 @@ class ColorSelectionDialog(simpledialog.Dialog):
 
         ttk.Label(master, text="Escolha a cor para esta área de interesse:").pack(pady=5)
 
-        # Frame para os botões de cor
+        # Frame for color buttons
         colors_frame = ttk.Frame(master)
         colors_frame.pack(pady=10)
 
-        # Criar botões de cor em duas fileiras
+        # Create color buttons in two rows
         for i, (name, _rgb, hex_color) in enumerate(self.colors):
             row = i // 3
             col = i % 3
@@ -70,7 +70,7 @@ class ColorSelectionDialog(simpledialog.Dialog):
         return master
 
     def apply(self):
-        """Aplica a seleção de cor."""
+        """Apply the color selection."""
         selected_name = self.selected_color.get()
         for name, rgb, hex_color in self.colors:
             if name.lower() == selected_name:

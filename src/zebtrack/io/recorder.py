@@ -1,4 +1,5 @@
 import os
+import threading
 import time
 from pathlib import Path
 from types import TracebackType
@@ -11,7 +12,7 @@ import pyarrow as pa
 import structlog
 from pyarrow import parquet as pq
 
-from zebtrack.core.detector import ZoneData
+from zebtrack.core.detection import ZoneData
 from zebtrack.utils.validation import validate_calibration
 
 if TYPE_CHECKING:
@@ -64,6 +65,12 @@ class Recorder:
         self.frame_count = 0
         self.recording_start_frame = 0
         self.detection_data: list[dict[str, Any]] = []
+
+        # Phase 5: Thread-safety lock for detection_data buffer operations.
+        # Protects append/flush/clear sequences from concurrent access
+        # (e.g., LiveCameraService capture vs processing threads).
+        self._data_lock = threading.Lock()
+
         # BUG FIX #3: Use private attributes for protected properties
         self._pixel_per_cm_ratio = None
         self._calibration = None
@@ -248,7 +255,8 @@ class Recorder:
         os.makedirs(output_folder, exist_ok=True)
         self.output_folder = output_folder
         self.base_name = base_name or os.path.basename(output_folder)
-        self.detection_data = []
+        with self._data_lock:
+            self.detection_data = []
         log_context = log.bind(output_folder=output_folder, base_name=self.base_name)
         self._parquet_writer = None
         self._parquet_schema = None
@@ -377,7 +385,8 @@ class Recorder:
         else:
             # If forcing stop due to an error, just close writers and clear buffers.
             self._close_parquet_writer()
-            self.detection_data.clear()
+            with self._data_lock:
+                self.detection_data.clear()
             message = reason or "Error during recording."
             if reason and reason.lower().startswith("cancel"):
                 log.info("recorder.stop.forced", reason=message)
@@ -514,6 +523,7 @@ class Recorder:
                     self._cleanup_aquarium_recorders()
                     return False
 
+            # except Exception justified: multi-aquarium recorder init
             except Exception as e:
                 log.error(
                     "recorder.multi_aquarium.recorder_error",
@@ -600,6 +610,7 @@ class Recorder:
                     "recorder.multi_aquarium.recorder_stopped",
                     aquarium_id=aq_id,
                 )
+            # except Exception justified: stop_recording per aquarium
             except Exception as e:
                 log.error(
                     "recorder.multi_aquarium.stop_failed",
@@ -625,8 +636,9 @@ class Recorder:
         for _aq_id, recorder in list(self._aquarium_recorders.items()):
             try:
                 recorder.stop_recording(force_stop=True, reason="Cleanup on error")
+            # except Exception justified: emergency cleanup — must not raise during error handling
             except Exception:
-                pass  # Best effort cleanup
+                log.debug("recorder.aquarium_cleanup.error", aq_id=_aq_id, exc_info=True)
         self._aquarium_recorders.clear()
         self._multi_aquarium_mode = False
 
@@ -663,11 +675,13 @@ class Recorder:
             return
 
         # 🔍 INFO: Log incoming detection data
+        with self._data_lock:
+            buf_before = len(self.detection_data)
         log.debug(
             "recorder.write_detection_data.start",
             frame=frame_number,
             num_detections=len(detections),
-            buffer_size_before=len(self.detection_data),
+            buffer_size_before=buf_before,
         )
 
         for detection in detections:
@@ -725,14 +739,17 @@ class Recorder:
                 data_point["x_cm"] = x_center / self.pixel_per_cm_ratio[0]
                 data_point["y_cm"] = y_center / self.pixel_per_cm_ratio[1]
 
-            self.detection_data.append(data_point)
+            with self._data_lock:
+                self.detection_data.append(data_point)
 
         # 🔍 INFO: Log buffer state after append (changed from DEBUG to INFO)
+        with self._data_lock:
+            buf_size = len(self.detection_data)
         log.debug(
             "recorder.detections.appended",
             count=len(detections),
             frame=frame_number,
-            buffer_size_after=len(self.detection_data),
+            buffer_size_after=buf_size,
         )
 
         self._flush_detection_data()
@@ -863,24 +880,33 @@ class Recorder:
         return (time.time() - self._last_flush_time) >= self._flush_interval_seconds
 
     def _flush_detection_data(self, force: bool = False) -> None:
+        # Thread-safe snapshot: take buffer under lock, do I/O outside lock
+        with self._data_lock:
+            buf_len = len(self.detection_data)
+            should_flush = self._should_flush()
+
         # 🔍 INFO: Log flush attempt
         log.debug(
             "recorder.flush.attempt",
-            buffer_size=len(self.detection_data),
+            buffer_size=buf_len,
             force=force,
-            should_flush=self._should_flush() if not force else True,
+            should_flush=should_flush if not force else True,
         )
 
-        if not self.detection_data:
-            log.debug("recorder.flush.skipped_empty_buffer")
-            return
-        if not force and not self._should_flush():
-            log.debug(
-                "recorder.flush.skipped_threshold",
-                buffer_size=len(self.detection_data),
-                threshold=self._flush_row_threshold,
-            )
-            return
+        with self._data_lock:
+            if not self.detection_data:
+                log.debug("recorder.flush.skipped_empty_buffer")
+                return
+            if not force and not self._should_flush():
+                log.debug(
+                    "recorder.flush.skipped_threshold",
+                    buffer_size=len(self.detection_data),
+                    threshold=self._flush_row_threshold,
+                )
+                return
+            # Snapshot buffer and clear under lock — I/O done outside lock
+            snapshot = list(self.detection_data)
+            self.detection_data.clear()
 
         try:
             current_cols = set(self._determine_parquet_columns())
@@ -895,23 +921,25 @@ class Recorder:
                 )
                 raise ValueError("Parquet schema cannot change during recording")
 
-            df = pd.DataFrame(self.detection_data)
-            if df.empty:
-                self.detection_data.clear()
+            if not snapshot:
                 self._last_flush_time = time.time()
                 log.info("recorder.flush.skipped_empty_dataframe")
                 return
 
-            # BUG FIX #2: Remove duplicate detections (same frame + track_id)
-            df = self._validate_unique_detections(df)
+            # Phase 7: Dedup at snapshot level (avoids DataFrame construction)
+            snapshot = self._dedup_snapshot(snapshot)
+            if not snapshot:
+                self._last_flush_time = time.time()
+                return
 
             if not self._parquet_columns:
                 self._parquet_columns = self._determine_parquet_columns()
 
-            df = df.reindex(columns=self._parquet_columns)
+            # Phase 7: Build pa.Table directly from columnar arrays — bypasses
+            # the expensive pd.DataFrame(list-of-dicts) → pa.Table.from_pandas path.
+            table = self._snapshot_to_pa_table(snapshot, self._parquet_columns)
 
             if self._parquet_schema is None:
-                table = pa.Table.from_pandas(df, preserve_index=False)
                 self._parquet_schema = table.schema
                 self._parquet_writer = pq.ParquetWriter(
                     self._parquet_filename,
@@ -924,7 +952,8 @@ class Recorder:
                     schema=str(self._parquet_schema),
                 )
             else:
-                table = pa.Table.from_pandas(df, schema=self._parquet_schema, preserve_index=False)
+                # Re-cast columns to match the established schema (handles None → null)
+                table = table.cast(self._parquet_schema)
                 if self._parquet_writer is None:
                     self._parquet_writer = pq.ParquetWriter(
                         self._parquet_filename,
@@ -934,7 +963,6 @@ class Recorder:
 
             assert self._parquet_writer is not None
             self._parquet_writer.write_table(table)
-            self.detection_data.clear()
             self._last_flush_time = time.time()
             # Log flush success (debug level - only goes to file, not terminal)
             log.debug(
@@ -949,23 +977,151 @@ class Recorder:
             self.stop_recording(force_stop=True)
             raise  # Re-raise the exception to notify the caller
         except Exception as e:  # pragma: no cover - unexpected failures logged
+            # Best-effort recovery: re-inject snapshot for retry on next flush
+            with self._data_lock:
+                self.detection_data = snapshot + self.detection_data
             log.error(
                 "recorder.flush.error",
                 path=self._parquet_filename,
                 exc_info=e,
             )
 
+    @staticmethod
+    def _dedup_snapshot(
+        snapshot: list[dict[str, Any]],
+    ) -> list[dict[str, Any]]:
+        """Remove duplicate detections (same frame + track_id) from snapshot.
+
+        BUG FIX #2: Prevents inflated metrics caused by duplicate detections
+        of the same object in the same frame.  Uses a Python set for O(n)
+        dedup instead of building a full DataFrame.
+
+        Args:
+            snapshot: List of detection dicts.
+
+        Returns:
+            Deduplicated snapshot (keeps first occurrence).
+        """
+        seen: set[tuple[Any, Any]] = set()
+        deduped: list[dict[str, Any]] = []
+        dup_count = 0
+        for row in snapshot:
+            key = (row.get("frame"), row.get("track_id"))
+            if key in seen:
+                dup_count += 1
+                continue
+            seen.add(key)
+            deduped.append(row)
+
+        if dup_count > 0:
+            log.warning(
+                "recorder.duplicate_detections_removed",
+                count=dup_count,
+                total_rows=len(snapshot),
+                percentage=f"{(dup_count / len(snapshot)) * 100:.2f}%",
+            )
+        return deduped
+
+    @staticmethod
+    def _snapshot_to_pa_table(
+        snapshot: list[dict[str, Any]],
+        columns: list[str],
+    ) -> pa.Table:
+        """Build a PyArrow Table directly from a list-of-dicts snapshot.
+
+        Phase 7 optimisation: Extracts each column as a Python list and
+        constructs the table via ``pa.table()``, completely bypassing the
+        ``pd.DataFrame`` intermediate.  For a 500-row flush this avoids:
+        - dict→DataFrame allocation (pandas type inference, index creation)
+        - DataFrame→ArrowTable conversion (pandas metadata, index handling)
+
+        Args:
+            snapshot: List of detection dicts (each dict has column keys).
+            columns: Ordered list of column names for the table.
+
+        Returns:
+            A ``pa.Table`` with the specified column ordering.
+        """
+        col_arrays: dict[str, list[Any]] = {col: [] for col in columns}
+        for row in snapshot:
+            for col in columns:
+                col_arrays[col].append(row.get(col))
+        return pa.table(col_arrays)
+
+    def _atomic_write_table(
+        self,
+        table: pa.Table,
+        target_path: str,
+        compression: str | None = None,
+    ) -> None:
+        """Write a PyArrow table atomically using temp-file + rename.
+
+        Writes to a temporary ``.tmp.parquet`` file, then atomically replaces
+        the target path via ``os.replace``.  This avoids leaving a half-written
+        Parquet file if the process crashes mid-write.
+
+        Args:
+            table: The PyArrow table to write.
+            target_path: Final destination path for the Parquet file.
+            compression: Compression codec (default: instance setting).
+        """
+        comp = compression or self._parquet_compression
+        tmp_path = target_path + ".tmp"
+        try:
+            pq.write_table(table, tmp_path, compression=comp)
+            os.replace(tmp_path, target_path)
+        except BaseException:
+            # Clean up temp file on any failure
+            try:
+                os.unlink(tmp_path)
+            except OSError:
+                pass
+            raise
+
+    @staticmethod
+    def _verify_parquet_integrity(path: str) -> bool:
+        """Verify that a Parquet file is readable by checking its metadata.
+
+        Args:
+            path: Path to the Parquet file.
+
+        Returns:
+            True if the file is a valid Parquet with readable metadata.
+        """
+        try:
+            meta = pq.read_metadata(path)
+            if meta.num_row_groups < 0:  # pragma: no cover - defensive
+                return False
+            log.debug(
+                "recorder.parquet_verify.ok",
+                path=path,
+                row_groups=meta.num_row_groups,
+                rows=meta.num_rows,
+            )
+            return True
+        except (OSError, ValueError) as exc:
+            log.warning(
+                "recorder.parquet_verify.failed",
+                path=path,
+                error=str(exc),
+            )
+            return False
+
     def _close_parquet_writer(self) -> None:
         if self._parquet_writer is None:
             return
+        parquet_path = self._parquet_filename
         try:
             # Close the writer (this handles file closure internally)
             self._parquet_writer.close()
-            log.info("recorder.parquet_writer.closed", path=self._parquet_filename)
+            log.info("recorder.parquet_writer.closed", path=parquet_path)
+            # Phase 5.3: Verify integrity after closing streaming writer
+            if parquet_path:
+                self._verify_parquet_integrity(parquet_path)
         except Exception as e:  # pragma: no cover - best effort close
             log.error(
                 "recorder.parquet_writer.close_error",
-                path=self._parquet_filename,
+                path=parquet_path,
                 exc_info=e,
             )
         finally:
@@ -975,7 +1131,9 @@ class Recorder:
 
     def _save_detection_data(self):
         """Saves the collected detection data to a Parquet file."""
-        if not self.detection_data and self._parquet_writer is None:
+        with self._data_lock:
+            has_data = bool(self.detection_data)
+        if not has_data and self._parquet_writer is None:
             if not self._parquet_filename:
                 log.info("recorder.save_parquet.no_data")
                 return
@@ -985,12 +1143,12 @@ class Recorder:
             empty_df = pd.DataFrame(columns=empty_columns)
             try:
                 table = pa.Table.from_pandas(empty_df, preserve_index=False)
-                pq.write_table(table, self._parquet_filename, compression=self._parquet_compression)
+                self._atomic_write_table(table, self._parquet_filename)
                 log.info(
                     "recorder.save_parquet.empty",
                     path=self._parquet_filename,
                 )
-            except Exception as e:
+            except (OSError, pa.ArrowInvalid, pa.ArrowIOError) as e:
                 log.error(
                     "recorder.save_parquet.error",
                     path=self._parquet_filename,
@@ -1003,7 +1161,8 @@ class Recorder:
                     message="Could not create empty Parquet file, but no data was lost",
                 )
             finally:
-                self.detection_data.clear()
+                with self._data_lock:
+                    self.detection_data.clear()
                 self._parquet_columns = []
                 self._parquet_schema = None
                 self._parquet_filename = ""
@@ -1018,20 +1177,25 @@ class Recorder:
             self._parquet_filename = ""
             return
 
-        if self.detection_data:
+        with self._data_lock:
+            remaining_data = bool(self.detection_data)
+        if remaining_data:
+            with self._data_lock:
+                snapshot = list(self.detection_data)
+                self.detection_data.clear()
             parquet_path = self._parquet_filename
             try:
-                df = pd.DataFrame(self.detection_data)
-                if df.empty:
+                if not snapshot:
                     log.info("recorder.save_parquet.no_data")
                 else:
-                    df = df.reindex(
-                        columns=self._parquet_columns or self._determine_parquet_columns()
-                    )
-                    table = pa.Table.from_pandas(df, preserve_index=False)
-                    # Phase 8: Use configured compression
-                    pq.write_table(table, parquet_path, compression=self._parquet_compression)
+                    # Phase 7: Dedup + columnar build — same as _flush path
+                    snapshot = self._dedup_snapshot(snapshot)
+                    cols = self._parquet_columns or self._determine_parquet_columns()
+                    table = self._snapshot_to_pa_table(snapshot, cols)
+                    # Phase 5.3: Atomic write — temp file + rename
+                    self._atomic_write_table(table, parquet_path)
                     log.info("recorder.save_parquet.success", path=parquet_path)
+            # except Exception justified: DataFrame/Arrow/Parquet pipeline
             except Exception as e:
                 log.error(
                     "recorder.save_parquet.error",
@@ -1041,21 +1205,23 @@ class Recorder:
                 # Task 2.1: Backup data to JSON when Parquet save fails
                 # This prevents data loss and allows recovery
                 backup_path = parquet_path.replace(".parquet", "_BACKUP.json")
+                tmp_backup = backup_path + ".tmp"
                 try:
                     import json
 
-                    with open(backup_path, "w", encoding="utf-8") as f:
-                        json.dump(self.detection_data, f, indent=2, default=str)
+                    with open(tmp_backup, "w", encoding="utf-8") as f:
+                        json.dump(snapshot, f, indent=2, default=str)
+                    os.replace(tmp_backup, backup_path)
                     log.warning(
                         "recorder.backup.saved",
                         path=backup_path,
-                        rows=len(self.detection_data),
+                        rows=len(snapshot),
                         message=(
                             "Detection data backed up to JSON. "
                             "You can manually convert this to Parquet if needed."
                         ),
                     )
-                except Exception as backup_error:
+                except OSError as backup_error:
                     log.critical(
                         "recorder.backup.failed",
                         backup_path=backup_path,
@@ -1066,7 +1232,7 @@ class Recorder:
                 # Re-raise original error after backup attempt
                 raise
             finally:
-                self.detection_data.clear()
+                # detection_data already cleared via snapshot pattern above
                 self._parquet_columns = []
                 self._parquet_schema = None
                 self._parquet_filename = ""
@@ -1085,7 +1251,7 @@ class Recorder:
             # Phase 8: Use configured compression
             pq.write_table(table, processing_area_filename, compression=self._parquet_compression)
             log.info("recorder.save_processing_area.success", path=processing_area_filename)
-        except Exception as e:
+        except (OSError, pa.ArrowInvalid, pa.ArrowIOError) as e:
             log.error(
                 "recorder.save_processing_area.error",
                 path=processing_area_filename,
@@ -1112,7 +1278,7 @@ class Recorder:
                     "recorder.save_areas_of_interest.success",
                     path=areas_of_interest_filename,
                 )
-        except Exception as e:
+        except (OSError, pa.ArrowInvalid, pa.ArrowIOError) as e:
             log.error(
                 "recorder.save_areas_of_interest.error",
                 path=areas_of_interest_filename,
@@ -1148,6 +1314,7 @@ class Recorder:
                 else:
                     # Normal cleanup
                     self.stop_recording()
+        # except Exception justified: context manager exit — wraps stop_recording facade boundary
         except Exception as e:
             log.error("recorder.cleanup.failed", error=str(e))
 

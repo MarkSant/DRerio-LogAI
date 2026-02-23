@@ -14,7 +14,13 @@ import pytest
 from shapely.geometry import Polygon
 
 from zebtrack.analysis.analysis_service import AnalysisService
-from zebtrack.analysis.reporter import Reporter
+from zebtrack.analysis.reporters import (
+    ExcelReporter,
+    ParquetSummaryReporter,
+    ReporterContext,
+    ScriptExporter,
+    WordReporter,
+)
 from zebtrack.analysis.roi import ROI
 
 
@@ -75,7 +81,7 @@ def reporter(sample_trajectory_df, sample_rois, mock_settings):
     import warnings
 
     warnings.filterwarnings(
-        "ignore", category=DeprecationWarning, module="zebtrack.analysis.reporter"
+        "ignore", category=DeprecationWarning, module="zebtrack.analysis.reporters"
     )
 
     # OLD:     return Reporter(
@@ -97,7 +103,7 @@ def reporter(sample_trajectory_df, sample_rois, mock_settings):
     # OLD:         smoothing_polyorder=2,
     # OLD:         settings_obj=mock_settings,
     # OLD:     )
-    # MIGRADO PARA v3.0: Usar AnalysisService + Reporter.from_analysis()
+    # MIGRADO PARA v3.0: Usar AnalysisService + ReporterContext.from_analysis()
     service = AnalysisService(settings_obj=mock_settings)
     analysis = service.run_full_analysis_as_dto(
         arena_polygon_px=[(0, 0), (100, 0), (100, 100), (0, 100)],
@@ -117,7 +123,7 @@ def reporter(sample_trajectory_df, sample_rois, mock_settings):
         video_height_px=480,
         video_path="/fake/video.mp4",
     )
-    reporter = Reporter.from_analysis(analysis)
+    reporter = ReporterContext.from_analysis(analysis)
     return reporter
 
 
@@ -163,7 +169,7 @@ class TestReporterInitialization:
         # OLD:             fps=30.0,
         # OLD:             settings_obj=mock_settings,
         # OLD:         )
-        # MIGRADO PARA v3.0: Usar AnalysisService + Reporter.from_analysis()
+        # MIGRADO PARA v3.0: Usar AnalysisService + ReporterContext.from_analysis()
         service = AnalysisService(settings_obj=mock_settings)
         analysis = service.run_full_analysis_as_dto(
             arena_polygon_px=[(0, 0), (100, 0), (100, 100), (0, 100)],
@@ -178,7 +184,7 @@ class TestReporterInitialization:
             freezing_vel_threshold=1.0,
             freezing_min_duration=2.0,
         )
-        reporter = Reporter.from_analysis(analysis)
+        reporter = ReporterContext.from_analysis(analysis)
 
         assert reporter is not None
 
@@ -199,7 +205,7 @@ class TestReporterInitialization:
         # OLD:             fps=30.0,
         # OLD:             settings_obj=mock_settings,
         # OLD:         )
-        # MIGRADO PARA v3.0: Usar AnalysisService + Reporter.from_analysis()
+        # MIGRADO PARA v3.0: Usar AnalysisService + ReporterContext.from_analysis()
         service = AnalysisService(settings_obj=mock_settings)
         analysis = service.run_full_analysis_as_dto(
             arena_polygon_px=[(0, 0), (100, 0), (100, 100), (0, 100)],
@@ -214,7 +220,7 @@ class TestReporterInitialization:
             freezing_vel_threshold=1.0,
             freezing_min_duration=2.0,
         )
-        reporter = Reporter.from_analysis(analysis)
+        reporter = ReporterContext.from_analysis(analysis)
 
         assert reporter.r_analyzer is None  # No ROIs, so no ROI analyzer
 
@@ -223,22 +229,22 @@ class TestReporterInitialization:
 class TestExportSummaryData:
     """Test suite for export_summary_data method."""
 
-    @patch("zebtrack.analysis.reporter.pd.DataFrame.to_parquet")
+    @patch.object(pd.DataFrame, "to_parquet")
     def test_export_summary_parquet(self, mock_to_parquet, reporter, tmp_path):
         """Test export summary data to Parquet format."""
         output_path = tmp_path / "summary.parquet"
 
-        reporter.export_summary_data(output_path, format="parquet")
+        ParquetSummaryReporter(reporter).export_summary(output_path)
 
         # Should call to_parquet
         mock_to_parquet.assert_called_once()
 
-    @patch("zebtrack.analysis.reporter.pd.DataFrame.to_excel")
+    @patch.object(pd.DataFrame, "to_excel")
     def test_export_summary_excel(self, mock_to_excel, reporter, tmp_path):
         """Test export summary data to Excel format."""
         output_path = tmp_path / "summary.xlsx"
 
-        reporter.export_summary_data(output_path, format="excel")
+        ExcelReporter(reporter).export_summary(output_path)
 
         # Should call to_excel
         mock_to_excel.assert_called_once()
@@ -247,8 +253,8 @@ class TestExportSummaryData:
         """Test that parent directory is created if missing."""
         output_path = tmp_path / "nested" / "dir" / "summary.parquet"
 
-        with patch("zebtrack.analysis.reporter.pd.DataFrame.to_parquet"):
-            reporter.export_summary_data(output_path, format="parquet")
+        with patch.object(pd.DataFrame, "to_parquet"):
+            ParquetSummaryReporter(reporter).export_summary(output_path)
 
         # Parent directory should be created
         assert output_path.parent.exists()
@@ -257,8 +263,8 @@ class TestExportSummaryData:
         """Test that string paths are converted to Path objects."""
         output_path = str(tmp_path / "summary.parquet")
 
-        with patch("zebtrack.analysis.reporter.pd.DataFrame.to_parquet"):
-            reporter.export_summary_data(output_path, format="parquet")
+        with patch.object(pd.DataFrame, "to_parquet"):
+            ParquetSummaryReporter(reporter).export_summary(output_path)
 
         # Should not raise error
 
@@ -287,7 +293,7 @@ class TestGeotaxisVisualizationGate:
     def test_geotaxis_hidden_for_top_down(self, reporter):
         reporter.behavioral_config = {"aquarium_perspective": "top_down"}
 
-        assert reporter._should_include_geotaxis_visualization() is False
+        assert WordReporter(reporter)._should_include_geotaxis_visualization() is False
 
     def test_geotaxis_hidden_when_explicitly_disabled(self, reporter):
         reporter.behavioral_config = {
@@ -295,12 +301,12 @@ class TestGeotaxisVisualizationGate:
             "geotaxis_enabled": False,
         }
 
-        assert reporter._should_include_geotaxis_visualization() is False
+        assert WordReporter(reporter)._should_include_geotaxis_visualization() is False
 
     def test_geotaxis_visible_for_lateral_default(self, reporter):
         reporter.behavioral_config = {"aquarium_perspective": "lateral"}
 
-        assert reporter._should_include_geotaxis_visualization() is True
+        assert WordReporter(reporter)._should_include_geotaxis_visualization() is True
         # Test based on actual implementation
 
     def test_handles_missing_columns_gracefully(self, sample_trajectory_df, mock_settings):
@@ -323,7 +329,7 @@ class TestGeotaxisVisualizationGate:
         # OLD:             fps=30.0,
         # OLD:             settings_obj=mock_settings,
         # OLD:         )
-        # MIGRADO PARA v3.0: Usar AnalysisService + Reporter.from_analysis()
+        # MIGRADO PARA v3.0: Usar AnalysisService + ReporterContext.from_analysis()
         service = AnalysisService(settings_obj=mock_settings)
         analysis = service.run_full_analysis_as_dto(
             arena_polygon_px=[(0, 0), (100, 0), (100, 100), (0, 100)],
@@ -338,7 +344,7 @@ class TestGeotaxisVisualizationGate:
             freezing_vel_threshold=1.0,
             freezing_min_duration=2.0,
         )
-        reporter = Reporter.from_analysis(analysis)
+        reporter = ReporterContext.from_analysis(analysis)
 
         # Should initialize without error
         assert reporter is not None
@@ -371,7 +377,7 @@ class TestEdgeCases:
             # OLD:                 fps=30.0,
             # OLD:                 settings_obj=mock_settings,
             # OLD:             )
-            # MIGRADO PARA v3.0: Usar AnalysisService + Reporter.from_analysis()
+            # MIGRADO PARA v3.0: Usar AnalysisService + ReporterContext.from_analysis()
             service = AnalysisService(settings_obj=mock_settings)
             analysis = service.run_full_analysis_as_dto(
                 arena_polygon_px=[(0, 0), (100, 0), (100, 100), (0, 100)],
@@ -386,7 +392,7 @@ class TestEdgeCases:
                 freezing_vel_threshold=1.0,
                 freezing_min_duration=2.0,
             )
-            Reporter.from_analysis(analysis)
+            ReporterContext.from_analysis(analysis)
 
     def test_unicode_metadata(self, sample_trajectory_df, mock_settings):
         """Test Reporter with Unicode characters in metadata."""
@@ -408,7 +414,7 @@ class TestEdgeCases:
         # OLD:             fps=30.0,
         # OLD:             settings_obj=mock_settings,
         # OLD:         )
-        # MIGRADO PARA v3.0: Usar AnalysisService + Reporter.from_analysis()
+        # MIGRADO PARA v3.0: Usar AnalysisService + ReporterContext.from_analysis()
         service = AnalysisService(settings_obj=mock_settings)
         analysis = service.run_full_analysis_as_dto(
             arena_polygon_px=[(0, 0), (100, 0), (100, 100), (0, 100)],
@@ -426,7 +432,7 @@ class TestEdgeCases:
             freezing_vel_threshold=1.0,
             freezing_min_duration=2.0,
         )
-        reporter = Reporter.from_analysis(analysis)
+        reporter = ReporterContext.from_analysis(analysis)
 
         # Should handle Unicode gracefully
         assert reporter.metadata is not None
@@ -462,7 +468,7 @@ class TestEdgeCases:
         # OLD:             fps=30.0,
         # OLD:             settings_obj=mock_settings,
         # OLD:         )
-        # MIGRADO PARA v3.0: Usar AnalysisService + Reporter.from_analysis()
+        # MIGRADO PARA v3.0: Usar AnalysisService + ReporterContext.from_analysis()
         service = AnalysisService(settings_obj=mock_settings)
         analysis = service.run_full_analysis_as_dto(
             arena_polygon_px=[(0, 0), (100, 0), (100, 100), (0, 100)],
@@ -477,7 +483,7 @@ class TestEdgeCases:
             freezing_vel_threshold=1.0,
             freezing_min_duration=2.0,
         )
-        reporter = Reporter.from_analysis(analysis)
+        reporter = ReporterContext.from_analysis(analysis)
 
         # Should initialize without memory issues
         assert reporter.b_analyzer is not None
@@ -503,13 +509,14 @@ class TestExportRPython:
             freezing_vel_threshold=1.0,
             freezing_min_duration=2.0,
         )
-        return Reporter.from_analysis(analysis)
+        return ReporterContext.from_analysis(analysis)
 
     def test_export_for_r_creates_feather_file(self, sample_reporter, tmp_path):
         """Test that export_for_r creates a Feather file."""
         output_dir = tmp_path / "r_export"
+        exporter = ScriptExporter(sample_reporter)
 
-        result = sample_reporter.export_for_r(output_dir)
+        result = exporter.export_for_r(output_dir)
 
         assert "feather" in result
         assert result["feather"].exists()
@@ -518,8 +525,9 @@ class TestExportRPython:
     def test_export_for_r_creates_csv_file(self, sample_reporter, tmp_path):
         """Test that export_for_r creates a CSV fallback."""
         output_dir = tmp_path / "r_export"
+        exporter = ScriptExporter(sample_reporter)
 
-        result = sample_reporter.export_for_r(output_dir)
+        result = exporter.export_for_r(output_dir)
 
         assert "csv" in result
         assert result["csv"].exists()
@@ -528,8 +536,9 @@ class TestExportRPython:
     def test_export_for_r_creates_script(self, sample_reporter, tmp_path):
         """Test that export_for_r creates an R script template."""
         output_dir = tmp_path / "r_export"
+        exporter = ScriptExporter(sample_reporter)
 
-        result = sample_reporter.export_for_r(output_dir, include_script=True)
+        result = exporter.export_for_r(output_dir, include_script=True)
 
         assert "script" in result
         assert result["script"].exists()
@@ -543,8 +552,9 @@ class TestExportRPython:
     def test_export_for_r_without_script(self, sample_reporter, tmp_path):
         """Test that export_for_r respects include_script=False."""
         output_dir = tmp_path / "r_export"
+        exporter = ScriptExporter(sample_reporter)
 
-        result = sample_reporter.export_for_r(output_dir, include_script=False)
+        result = exporter.export_for_r(output_dir, include_script=False)
 
         assert "script" not in result
         assert "feather" in result
@@ -553,8 +563,9 @@ class TestExportRPython:
     def test_export_for_python_creates_parquet_file(self, sample_reporter, tmp_path):
         """Test that export_for_python creates a Parquet file."""
         output_dir = tmp_path / "python_export"
+        exporter = ScriptExporter(sample_reporter)
 
-        result = sample_reporter.export_for_python(output_dir)
+        result = exporter.export_for_python(output_dir)
 
         assert "parquet" in result
         assert result["parquet"].exists()
@@ -563,8 +574,9 @@ class TestExportRPython:
     def test_export_for_python_creates_feather_file(self, sample_reporter, tmp_path):
         """Test that export_for_python creates a Feather file."""
         output_dir = tmp_path / "python_export"
+        exporter = ScriptExporter(sample_reporter)
 
-        result = sample_reporter.export_for_python(output_dir)
+        result = exporter.export_for_python(output_dir)
 
         assert "feather" in result
         assert result["feather"].exists()
@@ -572,8 +584,9 @@ class TestExportRPython:
     def test_export_for_python_creates_script(self, sample_reporter, tmp_path):
         """Test that export_for_python creates a Python script template."""
         output_dir = tmp_path / "python_export"
+        exporter = ScriptExporter(sample_reporter)
 
-        result = sample_reporter.export_for_python(output_dir, include_script=True)
+        result = exporter.export_for_python(output_dir, include_script=True)
 
         assert "script" in result
         assert result["script"].exists()
@@ -589,7 +602,8 @@ class TestExportRPython:
         import pyarrow.parquet as pq
 
         output_dir = tmp_path / "python_export"
-        result = sample_reporter.export_for_python(output_dir)
+        exporter = ScriptExporter(sample_reporter)
+        result = exporter.export_for_python(output_dir)
 
         # Read back and verify
         df = pq.read_table(result["parquet"]).to_pandas()
@@ -602,7 +616,8 @@ class TestExportRPython:
         import pyarrow.feather as feather
 
         output_dir = tmp_path / "r_export"
-        result = sample_reporter.export_for_r(output_dir)
+        exporter = ScriptExporter(sample_reporter)
+        result = exporter.export_for_r(output_dir)
 
         # Read back and verify
         df = feather.read_feather(result["feather"])

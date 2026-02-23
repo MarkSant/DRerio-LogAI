@@ -1,5 +1,5 @@
 {
-  "setup_zone_definition_for_single_video": [
+  "ask_missing_metadata": [
     {
       "name": "self",
       "kind": "POSITIONAL_OR_KEYWORD",
@@ -7,19 +7,29 @@
       "annotation": null
     },
     {
-      "name": "video_path",
+      "name": "experiment_id",
       "kind": "POSITIONAL_OR_KEYWORD",
       "default": null,
-      "annotation": "<class 'str'>"
-    },
-    {
-      "name": "config",
-      "kind": "POSITIONAL_OR_KEYWORD",
-      "default": null,
-      "annotation": "<class 'dict'>"
+      "annotation": null
     }
   ],
-  "update_weights_dropdown": [
+  "ask_recording_details_unified": [
+    {
+      "name": "self",
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "default": null,
+      "annotation": null
+    }
+  ],
+  "hide_progress_bar": [
+    {
+      "name": "self",
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "default": null,
+      "annotation": null
+    }
+  ],
+  "set_status": [
     {
       "name": "self",
       "kind": "POSITIONAL_OR_KEYWORD",
@@ -27,10 +37,60 @@
       "annotation": null
     },
     {
-      "name": "weights",
+      "name": "text",
       "kind": "POSITIONAL_OR_KEYWORD",
       "default": null,
-      "annotation": "list[str]"
+      "annotation": null
+    }
+  ],
+  "show_progress_bar": [
+    {
+      "name": "self",
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "default": null,
+      "annotation": null
+    }
+  ],
+  "update_button_state": [
+    {
+      "name": "self",
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "default": null,
+      "annotation": null
+    },
+    {
+      "name": "button_name",
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "default": null,
+      "annotation": null
+    },
+    {
+      "name": "state",
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "default": null,
+      "annotation": null
+    }
+  ],
+  "update_idletasks": [
+    {
+      "name": "self",
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "default": null,
+      "annotation": null
+    }
+  ],
+  "update_progress": [
+    {
+      "name": "self",
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "default": null,
+      "annotation": null
+    },
+    {
+      "name": "value",
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "default": null,
+      "annotation": null
     }
   ]
 }

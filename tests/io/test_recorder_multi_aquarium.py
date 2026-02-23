@@ -13,7 +13,7 @@ import pandas as pd
 import pyarrow.parquet as pq
 import pytest
 
-from zebtrack.core.detector import ZoneData
+from zebtrack.core.detection import ZoneData
 from zebtrack.io.recorder import Recorder
 
 

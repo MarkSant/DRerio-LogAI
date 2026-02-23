@@ -8,23 +8,28 @@ This is part of the v4.0 Event-Driven Architecture refactoring (PLANO_ACAO_V4.md
 
 from __future__ import annotations
 
+import tkinter as tk
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
 import structlog
 
-from zebtrack.ui.event_bus_v2 import EventBusV2, UIEvents
+from zebtrack.ui.event_bus_v2 import Event, EventBusV2, UIEvents
 
 if TYPE_CHECKING:
     from zebtrack.ui.components.canvas_manager import CanvasManager
     from zebtrack.ui.components.dialog_manager import DialogManager
-    from zebtrack.ui.components.project_view_manager import ProjectViewManager
+    from zebtrack.ui.components.project_views.reports_tree_manager import (
+        ReportsTreeManager,
+    )
+    from zebtrack.ui.components.project_views.video_selector_tree_manager import (
+        VideoSelectorTreeManager,
+    )
     from zebtrack.ui.components.state_synchronizer import StateSynchronizer
     from zebtrack.ui.components.validation_manager import ValidationManager
     from zebtrack.ui.dialogs.aquarium_detection_progress_dialog import (
         AquariumDetectionProgressDialog,
     )
-    from zebtrack.ui.event_bus import EventBus
 
 log = structlog.get_logger().bind(component="ui.ui_coordinator")
 
@@ -76,10 +81,12 @@ class UICoordinator:
         self,
         event_bus: EventBusV2,
         *,
-        legacy_event_bus: EventBus | None = None,
         canvas_manager: CanvasManager | None = None,
         validation_manager: ValidationManager | None = None,
-        project_view_manager: ProjectViewManager | None = None,
+        video_selector_manager: VideoSelectorTreeManager | None = None,
+        reports_tree_manager: ReportsTreeManager | None = None,
+        # Backward-compat alias kept for tests that still pass project_view_manager=
+        project_view_manager: VideoSelectorTreeManager | None = None,
         dialog_manager: DialogManager | None = None,
         state_synchronizer: StateSynchronizer | None = None,
         root=None,
@@ -96,10 +103,12 @@ class UICoordinator:
             root: Optional Tkinter root for thread-safe UI updates.
         """
         self.event_bus = event_bus
-        self.legacy_event_bus = legacy_event_bus
         self.canvas_manager = canvas_manager
         self.validation_manager = validation_manager
-        self.project_view_manager = project_view_manager
+        self.video_selector_manager = video_selector_manager or project_view_manager
+        self.reports_tree_manager = reports_tree_manager
+        # Backward-compat alias
+        self.project_view_manager = self.video_selector_manager
         self.dialog_manager = dialog_manager
         self.state_synchronizer = state_synchronizer
         self.root = root
@@ -220,10 +229,10 @@ class UICoordinator:
             #     log.debug("ui_coordinator.zones_updated.zones_validated")
 
             # 3. Refresh project views if needed
-            project_view_manager = self.project_view_manager
-            if project_view_manager is not None:
+            video_selector_manager = self.video_selector_manager
+            if video_selector_manager is not None:
                 self._safe_ui_call(
-                    lambda: project_view_manager.request_overview_refresh(reason="zones_updated")
+                    lambda: video_selector_manager.request_overview_refresh(reason="zones_updated")
                 )
                 log.debug("ui_coordinator.zones_updated.views_refreshed")
 
@@ -233,7 +242,7 @@ class UICoordinator:
                 total_handled=self._events_handled,
             )
 
-        except Exception as e:
+        except Exception as e:  # except Exception justified: event-bus fault-isolation boundary
             self._errors_count += 1
             log.exception(
                 "ui_coordinator.zones_updated.error",
@@ -260,17 +269,17 @@ class UICoordinator:
         filter_text = data.get("filter_text")
 
         try:
-            project_view_manager = self.project_view_manager
-            if project_view_manager is not None:
+            video_selector_manager = self.video_selector_manager
+            if video_selector_manager is not None:
                 self._safe_ui_call(
-                    lambda: project_view_manager._populate_video_selector_tree(filter_text)
+                    lambda: video_selector_manager._populate_video_selector_tree(filter_text)
                 )
                 log.debug(
                     "ui_coordinator.video_tree_refresh.completed",
                     has_filter=filter_text is not None,
                 )
 
-        except Exception as e:
+        except Exception as e:  # except Exception justified: event-bus fault-isolation boundary
             self._errors_count += 1
             log.exception("ui_coordinator.video_tree_refresh.error", error=str(e))
 
@@ -295,10 +304,10 @@ class UICoordinator:
         self._events_handled += 1
 
         try:
-            project_view_manager = self.project_view_manager
-            if project_view_manager is not None:
+            video_selector_manager = self.video_selector_manager
+            if video_selector_manager is not None:
                 self._safe_ui_call(
-                    lambda: project_view_manager.apply_pending_readiness_snapshot(
+                    lambda: video_selector_manager.apply_pending_readiness_snapshot(
                         ready_with_trajectory=data.get("ready_with_trajectory", []),
                         ready_with_zones=data.get("ready_with_zones", []),
                         arena_only=data.get("arena_only", []),
@@ -307,7 +316,7 @@ class UICoordinator:
                 )
                 log.debug("ui_coordinator.readiness_snapshot.updated")
 
-        except Exception as e:
+        except Exception as e:  # except Exception justified: event-bus fault-isolation boundary
             self._errors_count += 1
             log.exception("ui_coordinator.readiness_snapshot.error", error=str(e))
 
@@ -335,7 +344,7 @@ class UICoordinator:
                 self._safe_ui_call(lambda: canvas_manager.setup_interactive_polygon(polygon))
                 log.debug("ui_coordinator.polygon_edit.setup_completed")
 
-        except Exception as e:
+        except Exception as e:  # except Exception justified: event-bus fault-isolation boundary
             self._errors_count += 1
             log.exception("ui_coordinator.polygon_edit.error", error=str(e))
 
@@ -356,16 +365,16 @@ class UICoordinator:
         self._events_handled += 1
 
         try:
-            project_view_manager = self.project_view_manager
-            if project_view_manager is not None:
+            video_selector_manager = self.video_selector_manager
+            if video_selector_manager is not None:
 
                 def _build_snapshot() -> None:
-                    project_view_manager._build_video_hierarchy_snapshot()
+                    video_selector_manager._build_video_hierarchy_snapshot()
 
                 self._safe_ui_call(_build_snapshot)
                 log.debug("ui_coordinator.video_hierarchy_snapshot.built")
 
-        except Exception as e:
+        except Exception as e:  # except Exception justified: event-bus fault-isolation boundary
             self._errors_count += 1
             log.exception("ui_coordinator.video_hierarchy_snapshot.error", error=str(e))
 
@@ -406,7 +415,7 @@ class UICoordinator:
                 self._safe_ui_call(lambda: dialog_manager.offer_zone_reuse(video_path))
                 log.debug("ui_coordinator.video_loaded.zone_reuse_offered")
 
-        except Exception as e:
+        except Exception as e:  # except Exception justified: event-bus fault-isolation boundary
             self._errors_count += 1
             log.exception("ui_coordinator.video_loaded.error", error=str(e))
 
@@ -431,20 +440,20 @@ class UICoordinator:
         self._events_handled += 1
 
         try:
-            project_view_manager = self.project_view_manager
-            if project_view_manager is not None:
+            video_selector_manager = self.video_selector_manager
+            if video_selector_manager is not None:
                 reason = data.get("reason")
                 append_summary = data.get("append_summary", False)
                 immediate = data.get("immediate", False)
 
                 self._safe_ui_call(
-                    lambda: project_view_manager.refresh_project_views(
+                    lambda: video_selector_manager.refresh_project_views(
                         reason=reason, append_summary=append_summary, immediate=immediate
                     )
                 )
                 log.debug("ui_coordinator.project_views_refresh.completed", reason=reason)
 
-        except Exception as e:
+        except Exception as e:  # except Exception justified: event-bus fault-isolation boundary
             self._errors_count += 1
             log.exception("ui_coordinator.project_views_refresh.error", error=str(e))
 
@@ -455,7 +464,7 @@ class UICoordinator:
             if self.state_synchronizer:
                 state_synchronizer = self.state_synchronizer
                 self._safe_ui_call(lambda: state_synchronizer.update_processing_stats(**data))
-        except Exception as e:
+        except Exception as e:  # except Exception justified: event-bus fault-isolation boundary
             self._errors_count += 1
             log.exception("ui_coordinator.processing_stats_updated.error", error=str(e))
 
@@ -466,7 +475,7 @@ class UICoordinator:
             if self.state_synchronizer:
                 state_synchronizer = self.state_synchronizer
                 self._safe_ui_call(lambda: state_synchronizer.update_social_summary(**data))
-        except Exception as e:
+        except Exception as e:  # except Exception justified: event-bus fault-isolation boundary
             self._errors_count += 1
             log.exception("ui_coordinator.social_summary_updated.error", error=str(e))
 
@@ -477,7 +486,7 @@ class UICoordinator:
             if self.state_synchronizer:
                 state_synchronizer = self.state_synchronizer
                 self._safe_ui_call(lambda: state_synchronizer.update_analysis_task_status(**data))
-        except Exception as e:
+        except Exception as e:  # except Exception justified: event-bus fault-isolation boundary
             self._errors_count += 1
             log.exception("ui_coordinator.analysis_task_status_updated.error", error=str(e))
 
@@ -492,7 +501,7 @@ class UICoordinator:
                         data.get("session_label", ""), **data
                     )
                 )
-        except Exception as e:
+        except Exception as e:  # except Exception justified: event-bus fault-isolation boundary
             self._errors_count += 1
             log.exception("ui_coordinator.external_trigger_notice.error", error=str(e))
 
@@ -503,7 +512,7 @@ class UICoordinator:
             if self.dialog_manager:
                 dialog_manager = self.dialog_manager
                 self._safe_ui_call(lambda: dialog_manager.clear_external_trigger_notice())
-        except Exception as e:
+        except Exception as e:  # except Exception justified: event-bus fault-isolation boundary
             self._errors_count += 1
             log.exception("ui_coordinator.external_trigger_notice_cleared.error", error=str(e))
 
@@ -547,7 +556,7 @@ class UICoordinator:
 
             log.debug("ui_coordinator.zone_display_cleared.completed")
 
-        except Exception as e:
+        except Exception as e:  # except Exception justified: event-bus fault-isolation boundary
             self._errors_count += 1
             log.exception("ui_coordinator.zone_display_cleared.error", error=str(e))
 
@@ -644,17 +653,14 @@ class UICoordinator:
                         action=action,
                         experiment_id=experiment_id,
                     )
-                    # Publish action event on legacy EventBus (core listener)
-                    if self.legacy_event_bus:
-                        self.legacy_event_bus.publish_event(
-                            "CAMERA_DISCONNECT_USER_ACTION",
-                            {"action": action, "experiment_id": experiment_id},
+                    # Publish action event via EventBusV2
+                    self.event_bus.publish(
+                        Event(
+                            type=UIEvents.CAMERA_DISCONNECT_USER_ACTION,
+                            data={"action": action, "experiment_id": experiment_id},
+                            source="ui_coordinator.camera_disconnect",
                         )
-                    else:
-                        log.warning(
-                            "ui_coordinator.camera_disconnect.no_legacy_event_bus",
-                            experiment_id=experiment_id,
-                        )
+                    )
 
                 CameraDisconnectRecoveryDialog(
                     parent=self.root,
@@ -666,7 +672,7 @@ class UICoordinator:
             self._safe_ui_call(show_dialog)
             self._events_handled += 1
 
-        except Exception as e:
+        except Exception as e:  # except Exception justified: event-bus fault-isolation boundary
             log.error(
                 "ui_coordinator.camera_disconnect.error",
                 error=str(e),
@@ -705,7 +711,7 @@ class UICoordinator:
 
             self._events_handled += 1
 
-        except Exception as e:
+        except Exception as e:  # except Exception justified: event-bus fault-isolation boundary
             log.error(
                 "ui_coordinator.camera_reconnected.error",
                 error=str(e),
@@ -768,8 +774,11 @@ class UICoordinator:
                         if frame_number >= 100:
                             try:
                                 self._aquarium_detection_dialog.destroy()
-                            except Exception:
-                                pass
+                            except tk.TclError:
+                                log.debug(
+                                    "ui_coordinator.detection_dialog_destroy.suppressed",
+                                    exc_info=True,
+                                )
                             finally:
                                 self._aquarium_detection_dialog = None
 
@@ -788,7 +797,7 @@ class UICoordinator:
 
             self._events_handled += 1
 
-        except Exception as e:
+        except Exception as e:  # except Exception justified: event-bus fault-isolation boundary
             log.error(
                 "ui_coordinator.aquarium_detection_progress.error",
                 error=str(e),
@@ -818,10 +827,10 @@ class UICoordinator:
 
             # Refresh project views to show new unified report
             if self.project_view_manager:
-                project_view_manager = self.project_view_manager
+                reports_tree_manager = self.reports_tree_manager
 
                 def refresh_views():
-                    project_view_manager.update_reports_tree()
+                    reports_tree_manager.update_reports_tree()
 
                 self._safe_ui_call(refresh_views)
 
@@ -838,7 +847,7 @@ class UICoordinator:
 
             self._events_handled += 1
 
-        except Exception as e:
+        except Exception as e:  # except Exception justified: event-bus fault-isolation boundary
             log.error(
                 "ui_coordinator.batch_analysis_completed.error",
                 error=str(e),

@@ -19,40 +19,32 @@ import os
 import queue
 import threading
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 import structlog
 
 from zebtrack.analysis.analysis_service import AnalysisService
 
-# Legacy Coordinators for backward compatibility
-from zebtrack.coordinators.detector_coordinator import DetectorCoordinator
+# Phase 4.9: DetectorCoordinator removed (replaced by DetectorSetupCoordinator)
 from zebtrack.coordinators.dialog_coordinator import DialogCoordinator
-from zebtrack.coordinators.live_camera_coordinator import LiveCameraCoordinator
-from zebtrack.coordinators.recording_coordinator import RecordingCoordinator
-from zebtrack.core.analysis_coordinator import AnalysisCoordinator
-from zebtrack.core.batch_configuration_service import BatchConfigurationService
+
+# Phase 4.7: Removed LiveCameraCoordinator and RecordingCoordinator (dead legacy code)
+# Phase 3A/3B/3C/3D: Removed imports for superseded orchestrators
+from zebtrack.coordinators.ui_state_coordinator import UIStateController
 from zebtrack.core.dependency_container import MainViewModelDependencies
 from zebtrack.core.orchestrator_registry import OrchestratorRegistry
-from zebtrack.core.project_service import ProjectService
+from zebtrack.core.project.project_service import ProjectService
 from zebtrack.core.thread_coordinator import ThreadCoordinator
-from zebtrack.core.video_classification_service import VideoClassificationService
-from zebtrack.core.video_orchestrator import VideoOrchestrator
-from zebtrack.core.video_selection_service import VideoSelectionService
-from zebtrack.core.video_validation_service import VideoValidationService
+from zebtrack.core.video.batch_configuration_service import BatchConfigurationService
+from zebtrack.core.video.video_classification_service import VideoClassificationService
+from zebtrack.core.video.video_selection_service import VideoSelectionService
+from zebtrack.core.video.video_validation_service import VideoValidationService
 from zebtrack.io.arduino_manager import ArduinoManager
 from zebtrack.io.recorder import Recorder
-
-# Phase 3A/3B/3C/3D: Removed imports for superseded orchestrators
-from zebtrack.orchestrators.ui_state_controller import UIStateController
-from zebtrack.orchestrators.video_processing_orchestrator import VideoProcessingOrchestrator
 from zebtrack.ui.components.event_dispatcher import EventDispatcher
 from zebtrack.ui.gui import ApplicationGUI
 from zebtrack.ui.project_workflow_adapter import ProjectWorkflowAdapter
 from zebtrack.utils.hardware_detection import get_hardware_summary, recommend_backend
-
-if TYPE_CHECKING:
-    pass
 
 log = structlog.get_logger()
 
@@ -90,10 +82,7 @@ class BootstrapResult:
     view: ApplicationGUI
 
     # Legacy Orchestrators (required)
-    video_processing_orchestrator: VideoProcessingOrchestrator
     ui_state_controller: UIStateController
-
-    # Phase 3D: Removed recording_session_orchestrator (superseded by SessionCoordinator)
 
     # Registry & Adapter
     orchestrators: OrchestratorRegistry
@@ -130,13 +119,17 @@ class ApplicationBootstrapper:
         self._orchestrators: dict = {}
         self._legacy_coordinators: dict = {}
 
-    def initialize(self, controller_proxy: Any) -> BootstrapResult:
+    def initialize(self, controller_ref: Any) -> BootstrapResult:
         """
         Execute the bootstrap process.
 
         Args:
-            controller_proxy: A proxy or "self" reference from MainViewModel to pass
-                            to legacy orchestrators that demand it in __init__.
+            controller_ref: A ``LazyRef[MainViewModel]`` transparent proxy.
+                Components that need a controller reference during __init__
+                (e.g. ApplicationGUI for WM_DELETE_WINDOW) receive this proxy.
+                Attribute accesses are deferred until ``controller_ref.set()``
+                is called from ``__main__.py`` after ``MainViewModel.__init__``
+                completes.
 
         Returns:
             BootstrapResult containing all initialized components.
@@ -152,69 +145,19 @@ class ApplicationBootstrapper:
         # 3. Initialize runtime state
         self._init_runtime_state()
 
-        # -----------------------------------------------------------------------
-        # CRITICAL: Populate controller proxy with dependencies required by
-        # legacy orchestrators' __init__ methods AND View's __init__.
-        # This allows us to break the circular dependency without rewriting
-        # all legacy code immediately.
-        # -----------------------------------------------------------------------
+        # Phase 6: The ~30-line attribute patching block that populated a bare
+        # controller_proxy (created via __new__) has been REMOVED.
+        # MainViewModel.__init__() now handles all attribute assignment via
+        # _extract_dependencies() and _assign_bootstrap_result().
+        # The LazyRef proxy transparently defers attribute access, so
+        # ApplicationGUI and UIStateController can store a reference to
+        # controller_ref during their __init__ without needing a populated object.
 
-        # Core dependencies
-        controller_proxy.state_manager = self.state_manager
-        controller_proxy.project_manager = self.deps.project_manager
-        controller_proxy.ui_coordinator = self.deps.ui_coordinator
-        controller_proxy.root = self.deps.root
-        controller_proxy.settings = self.settings
-        controller_proxy.ui_event_bus = self.deps.event_bus
+        # 4. Initialize view (passes controller_ref as the controller reference)
+        self._init_view(controller_ref)
 
-        # Services created in step 1
-        controller_proxy.video_selection_service = self._services["video_selection_service"]
-        controller_proxy.video_validation_service = self._services["video_validation_service"]
-        controller_proxy.video_classification_service = self._services[
-            "video_classification_service"
-        ]
-        controller_proxy.model_service = self.deps.model_service
-        controller_proxy.detector_service = self.deps.detector_service
-        controller_proxy.weight_manager = self.deps.weight_manager
-        controller_proxy.project_workflow_service = self.deps.project_workflow_service
-        controller_proxy.project_workflow_adapter = self.deps.project_workflow_adapter
-        controller_proxy.video_processing_service = self.deps.video_processing_service
-        controller_proxy.analysis_service = self._services["analysis_service"]
-        controller_proxy.live_camera_service = self.deps.live_camera_service
-        controller_proxy._recording_service = self.deps.recording_service
-        controller_proxy.recording_coordinator = self.deps.recording_coordinator
-        controller_proxy.live_camera_coordinator = self.deps.live_camera_coordinator
-        controller_proxy.detector_coordinator = self.deps.detector_coordinator
-        controller_proxy.project_coordinator = self.deps.project_coordinator
-        controller_proxy.video_orchestrator = self.deps.video_orchestrator
-        controller_proxy.analysis_coordinator = self.deps.analysis_coordinator
-        controller_proxy.ui_state_controller = self.deps.ui_state_controller
-        controller_proxy._pending_external_trigger = None
-
-        # Hardware from step 2/deps
-        controller_proxy.detector = self.deps.detector_service.detector
-        # Note: active_weight_name and use_openvino are passed via BootstrapResult
-        # and assigned in MainViewModel.__init__() to avoid premature assignment
-
-        # Runtime state from step 3
-        controller_proxy.cancel_event = self._runtime_state["cancel_event"]
-
-        # Coordinators from deps
-        controller_proxy.processing_coordinator = self.deps.processing_coordinator
-        controller_proxy.hardware_coordinator = self.deps.hardware_coordinator
-        controller_proxy.session_coordinator = self.deps.session_coordinator
-        controller_proxy.project_lifecycle_coordinator = self.deps.project_lifecycle_coordinator
-
-        # 4. Initialize view
-        self._init_view(controller_proxy)
-
-        # View from step 4
-        controller_proxy.view = self.view
-
-        # -----------------------------------------------------------------------
-
-        # 5. Initialize orchestrators (requires controller_proxy)
-        self._init_orchestrators(controller_proxy)
+        # 5. Initialize orchestrators (requires controller_ref)
+        self._init_orchestrators(controller_ref)
 
         log.info("bootstrapper.initialize.complete")
 
@@ -239,7 +182,6 @@ class ApplicationBootstrapper:
             program_exit_event=self._runtime_state["program_exit_event"],
             cancel_event=self._runtime_state["cancel_event"],
             view=self.view,
-            video_processing_orchestrator=self._orchestrators["video_processing_orchestrator"],
             ui_state_controller=self._orchestrators["ui_state_controller"],
             orchestrators=self._orchestrators["registry"],
             project_workflow_adapter=self._orchestrators["project_workflow_adapter"],
@@ -421,24 +363,33 @@ class ApplicationBootstrapper:
                 event_bus=self.deps.event_bus if use_event_bus else None,
                 settings_obj=self.settings,
                 project_manager=self.deps.project_manager,
+                state_manager=self.deps.state_manager,
             )
 
         # Update GPU hardware display in UI
-        if hasattr(self.view, "update_gpu_hardware_display"):
-            self.view.update_gpu_hardware_display(self._hardware_state["hardware_summary"])
+        if hasattr(self.view, "weight_hardware_manager"):
+            self.view.weight_hardware_manager.update_gpu_hardware_display(
+                self._hardware_state["hardware_summary"]
+            )
 
         # Update OpenVINO status
         if (
             self._hardware_state["recommended_backend"] == "openvino"
             and not self._hardware_state["use_openvino"]
         ):
-            if hasattr(self.view, "update_openvino_status_display"):
-                self.view.update_openvino_status_display(
+            if hasattr(self.view, "weight_hardware_manager"):
+                self.view.weight_hardware_manager.update_openvino_status_display(
                     "Recomendado mas modelo não convertido. Use 'Diagnóstico' para converter."
                 )
 
-    def _init_orchestrators(self, controller_proxy):
-        """Initialize all orchestrators and coordinators."""
+    def _init_orchestrators(self, controller_ref):
+        """Initialize all orchestrators and coordinators.
+
+        Args:
+            controller_ref: LazyRef[MainViewModel] proxy — passed to components
+                that need a controller reference. Attribute accesses are deferred
+                until the real MainViewModel is set.
+        """
 
         # Legacy Coordinators (DEPRECATED - created only if not injected)
         legacy_coords = {}
@@ -453,123 +404,33 @@ class ApplicationBootstrapper:
                 state_manager=self.state_manager,
                 ui_event_bus=self.deps.event_bus,
             )
-        controller_proxy.project_workflow_adapter = project_workflow_adapter
+        # Phase 6: Removed controller_proxy.project_workflow_adapter assignment
+        # (MainViewModel._assign_bootstrap_result handles this via BootstrapResult)
 
-        # Detector Coordinator
-        if self.deps.detector_coordinator:
-            legacy_coords["detector_coordinator"] = self.deps.detector_coordinator
-        else:
-            legacy_coords["detector_coordinator"] = DetectorCoordinator(
-                state_manager=self.state_manager,
-                detector_service=self.deps.detector_service,
-                model_service=self.deps.model_service,
-                weight_manager=self.deps.weight_manager,
-                event_bus=self.deps.event_bus,
-            )
-        controller_proxy.detector_coordinator = legacy_coords["detector_coordinator"]
+        # Phase 4.9: DetectorCoordinator removed — DetectorSetupCoordinator is injected
+        # from __main__.py via deps.detector_setup_coordinator
+        legacy_coords["detector_coordinator"] = self.deps.detector_setup_coordinator
+        # Phase 6: Removed controller_proxy.detector_setup_coordinator assignment
+        # (MainViewModel._extract_dependencies handles this via dependencies)
 
-        # Video Orchestrator
-        if self.deps.video_orchestrator:
-            legacy_coords["video_orchestrator"] = self.deps.video_orchestrator
-        else:
-            video_orc = VideoOrchestrator(
-                root=self.deps.root,
-                state_manager=self.state_manager,
-                ui_event_bus=self.deps.event_bus
-                if self.deps.event_bus is not None
-                else self.deps.ui_coordinator._create_fallback_event_bus()
-                if hasattr(self.deps.ui_coordinator, "_create_fallback_event_bus")
-                else self.deps.event_bus,  # type: ignore[arg-type]
-                ui_coordinator=self.deps.ui_coordinator,
-                settings_obj=self.settings,
-                project_manager=self.deps.project_manager,
-                video_processing_service=self.deps.video_processing_service,
-                analysis_service=self._services["analysis_service"],
-                recorder=self._runtime_state["recorder"],
-            )
-            video_orc.set_view(self.view)
-            legacy_coords["video_orchestrator"] = video_orc
-        controller_proxy.video_orchestrator = legacy_coords["video_orchestrator"]
+        # Phase 3.5/3.6: Removed VideoOrchestrator and AnalysisCoordinator
+        # (dead code — superseded by ProcessingCoordinator)
 
-        # Analysis Coordinator
-        if self.deps.analysis_coordinator:
-            legacy_coords["analysis_coordinator"] = self.deps.analysis_coordinator
-        else:
-            analysis_coord = AnalysisCoordinator(
-                root=self.deps.root,
-                ui_event_bus=self.deps.event_bus
-                if self.deps.event_bus
-                else self.deps.ui_coordinator._create_fallback_event_bus()
-                if hasattr(self.deps.ui_coordinator, "_create_fallback_event_bus")
-                else None,  # type: ignore[arg-type]
-                ui_coordinator=self.deps.ui_coordinator,
-                settings_obj=self.settings,
-                project_manager=self.deps.project_manager,
-                analysis_service=self._services["analysis_service"],
-                video_processing_service=self.deps.video_processing_service,
-            )
-            analysis_coord.set_view(self.view)
-            legacy_coords["analysis_coordinator"] = analysis_coord
-        controller_proxy.analysis_coordinator = legacy_coords["analysis_coordinator"]
-
-        # Project Coordinator
-        if self.deps.project_coordinator:
-            legacy_coords["project_coordinator"] = self.deps.project_coordinator
-        else:
-            legacy_coords["project_coordinator"] = None
-        controller_proxy.project_coordinator = legacy_coords["project_coordinator"]
-
-        # Recording Coordinator
-        if self.deps.recording_coordinator:
-            legacy_coords["recording_coordinator"] = self.deps.recording_coordinator
-        else:
-            if self.deps.recording_service is not None:
-                legacy_coords["recording_coordinator"] = RecordingCoordinator(
-                    state_manager=self.state_manager,
-                    recording_service=self.deps.recording_service,
-                    arduino_manager=None,  # Initialized lazily
-                    event_bus=self.deps.event_bus,
-                )
-            else:
-                log.warning(
-                    "bootstrapper.recording_coordinator.skipping_init",
-                    reason="No recording_service",
-                )
-                legacy_coords["recording_coordinator"] = None
-        controller_proxy.recording_coordinator = legacy_coords["recording_coordinator"]
-
-        # Live Camera Coordinator
-        if self.deps.live_camera_coordinator:
-            legacy_coords["live_camera_coordinator"] = self.deps.live_camera_coordinator
-        else:
-            if self.deps.live_camera_service is not None:
-                legacy_coords["live_camera_coordinator"] = LiveCameraCoordinator(
-                    state_manager=self.state_manager,
-                    live_camera_service=self.deps.live_camera_service,
-                    project_manager=self.deps.project_manager,
-                    settings=self.settings,
-                    camera=None,
-                    event_bus=self.deps.event_bus,
-                )
-            else:
-                log.warning(
-                    "bootstrapper.live_camera_coordinator.skipping_init",
-                    reason="No live_camera_service",
-                )
-                legacy_coords["live_camera_coordinator"] = None
-        controller_proxy.live_camera_coordinator = legacy_coords["live_camera_coordinator"]
+        # Phase 4.7: Removed RecordingCoordinator and LiveCameraCoordinator
+        # (dead legacy code — superseded by RecordingSessionCoordinator,
+        #  LiveCameraSessionCoordinator, and LiveCalibrationCoordinator)
 
         self._legacy_coordinators = legacy_coords
 
         # Initialize Orchestrators
-        # NOTE: These legacy orchestrators require the controller (MainViewModel)
-        # We pass the controller_proxy which should be the 'self' from MainViewModel.__init__
+        # Phase 6: controller_ref is a LazyRef proxy — UIStateController stores
+        # it as main_view_model and accesses it at runtime (post-resolution).
 
         # Phase 3D: Removed RecordingSessionOrchestrator (superseded by SessionCoordinator)
         # Recording service callbacks are now handled by SessionCoordinator
 
-        video_processing_orchestrator = VideoProcessingOrchestrator(controller_proxy)
-        controller_proxy.video_processing_orchestrator = video_processing_orchestrator
+        # Phase 0.3: VideoProcessingOrchestrator removed
+        # (migrated to ProcessingCoordinator.start_project_processing_workflow)
 
         # Phase 3A/B/C/D: Removed superseded orchestrators (see BootstrapResult)
 
@@ -591,46 +452,34 @@ class ApplicationBootstrapper:
                 settings=self.settings,
                 detector_coordinator=legacy_coords["detector_coordinator"],
                 project_workflow_service=self.deps.project_workflow_service,
-                main_view_model=controller_proxy,
+                main_view_model=controller_ref,
             )
         else:
-            ui_state_controller.main_view_model = controller_proxy
-        controller_proxy.ui_state_controller = ui_state_controller
+            # Phase 6: Store LazyRef so UIStateController resolves at access time
+            ui_state_controller.main_view_model = controller_ref
+        # Phase 6: Removed controller_proxy.ui_state_controller assignment
+        # (MainViewModel._assign_bootstrap_result handles this via BootstrapResult)
 
         # Phase 3A: Removed ZoneArenaOrchestrator (superseded by ProcessingCoordinator)
         # Phase 3A: Removed ProcessingConfigOrchestrator (superseded by ProcessingCoordinator)
         # Phase 3B: Removed CalibrationOrchestrator (superseded by ProjectLifecycleCoordinator)
-        # Phase 3C: Removed ModelDiagnosticsOrchestrator (superseded by HardwareCoordinator)
+        # Phase 3C: Removed ModelDiagnosticsOrchestrator (Phase 4.9: ModelDiagnosticsCoordinator)
         # Phase 3D: Removed RecordingSessionOrchestrator (superseded by SessionCoordinator)
 
         self._orchestrators = {
-            "video_processing_orchestrator": video_processing_orchestrator,
             "ui_state_controller": ui_state_controller,
         }
 
         # Registry
         registry = OrchestratorRegistry(
             ui_state_controller=ui_state_controller,
-            video_processing_orchestrator=video_processing_orchestrator,
-            live_camera_coordinator=legacy_coords["live_camera_coordinator"],
         )
         self._orchestrators["registry"] = registry
 
         # Project Workflow Adapter (already ensured earlier in this method)
         self._orchestrators["project_workflow_adapter"] = project_workflow_adapter
 
-        # Setup coordinator callbacks
-        # This replicates _setup_coordinator_callbacks from MainViewModel
-        if self.deps.hardware_coordinator and self.deps.session_coordinator:
-            self.deps.hardware_coordinator.set_recording_callbacks(
-                self.deps.session_coordinator.trigger_recording,
-                lambda: (
-                    self.deps.session_coordinator.stop_recording()
-                    if self.deps.session_coordinator
-                    else None,
-                    None,
-                )[1],
-            )
+        # Phase 4.9: Removed set_recording_callbacks (dead code from HardwareCoordinator)
 
     def _safe_get_default_weight(self) -> tuple[str | None, dict | None]:
         manager = self.deps.weight_manager

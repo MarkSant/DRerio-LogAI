@@ -43,16 +43,13 @@ def mock_gui(tkinter_root, mock_controller):
     gui.controller = mock_controller
     gui.project_overview_tree = None
     gui.roi_context_menu = None
-    gui.show_warning = Mock()
-    gui.show_error = Mock()
+    gui.dialog_manager = Mock()
+    gui.canvas_manager = Mock()
+    gui.project_view_manager = Mock()
+    gui.event_dispatcher = Mock()
     gui.set_status = Mock()
     gui.refresh_project_views = Mock()
     gui.publish_event = Mock()
-    gui._on_project_overview_tree_double_click_impl = Mock()
-    gui._edit_selected_zone_vertices = Mock()
-    gui._rename_selected_roi = Mock()
-    gui._change_roi_color = Mock()
-    gui._remove_selected_roi_confirm = Mock()
     return gui
 
 
@@ -412,7 +409,7 @@ class TestHandleOverviewAssetRemoval:
 
         menu_manager.handle_overview_asset_removal("/path/to/video.mp4", "arena")
 
-        menu_manager.gui.show_warning.assert_called_once_with(
+        menu_manager.gui.dialog_manager.show_warning.assert_called_once_with(
             "Ação indisponível", "Video is being processed"
         )
         mock_messagebox.askyesno.assert_not_called()
@@ -428,7 +425,7 @@ class TestHandleOverviewAssetRemoval:
         menu_manager.handle_overview_asset_removal("/path/to/video.mp4", "arena")
 
         mock_messagebox.askyesno.assert_called_once()
-        menu_manager.gui.publish_event.assert_not_called()
+        menu_manager.gui.event_dispatcher.publish_event.assert_not_called()
 
     @patch("zebtrack.ui.components.menu_manager.messagebox")
     def test_handle_overview_asset_removal_arena(
@@ -446,12 +443,12 @@ class TestHandleOverviewAssetRemoval:
         assert call_args[0] == "Remover arena"
 
         # Verify event published
-        from zebtrack.ui.events import Events
+        from zebtrack.ui.event_bus_v2 import UIEvents
 
-        menu_manager.gui.publish_event.assert_called_once()
-        event_call = menu_manager.gui.publish_event.call_args[0]
-        assert event_call[0] == Events.PROJECT_DELETE_ASSET
-        assert event_call[1]["asset"] == "arena"
+        menu_manager.gui.event_dispatcher.publish.assert_called_once()
+        event = menu_manager.gui.event_dispatcher.publish.call_args[0][0]
+        assert event.type == UIEvents.PROJECT_DELETE_ASSET
+        assert event.data["asset"] == "arena"
 
         # Verify UI updates
         menu_manager.gui.set_status.assert_called_once()
@@ -463,8 +460,6 @@ class TestHandleOverviewAssetRemoval:
             event_calls = [
                 call[0][0] for call in menu_manager.gui.event_bus_v2.publish.call_args_list
             ]
-            from zebtrack.ui.event_bus_v2 import UIEvents
-
             assert any(e.type == UIEvents.PROJECT_VIEWS_REFRESH_REQUESTED for e in event_calls)
 
     @patch("zebtrack.ui.components.menu_manager.messagebox")
@@ -481,7 +476,7 @@ class TestHandleOverviewAssetRemoval:
         assert mock_messagebox.askyesno.call_count == 2
 
         # Verify event has delete_source flag
-        event_call = menu_manager.gui.publish_event.call_args[0]
+        event_call = menu_manager.gui.event_dispatcher.publish_event.call_args[0]
         assert event_call[1]["delete_source"] is True
 
     @patch("zebtrack.ui.components.menu_manager.messagebox")
@@ -495,7 +490,7 @@ class TestHandleOverviewAssetRemoval:
         menu_manager.handle_overview_asset_removal("/path/to/video.mp4", "video")
 
         # Verify event has delete_source = False
-        event_call = menu_manager.gui.publish_event.call_args[0]
+        event_call = menu_manager.gui.event_dispatcher.publish_event.call_args[0]
         assert event_call[1]["delete_source"] is False
 
     @pytest.mark.parametrize(
@@ -552,11 +547,11 @@ class TestCreateRoiContextMenu:
 
         menu_manager.create_roi_context_menu()
 
-        # Verify that gui has the expected methods (they're mocked)
-        assert hasattr(menu_manager.gui, "_edit_selected_zone_vertices")
-        assert hasattr(menu_manager.gui, "_rename_selected_roi")
-        assert hasattr(menu_manager.gui, "_change_roi_color")
-        assert hasattr(menu_manager.gui, "_remove_selected_roi_confirm")
+        # Verify that commands are wired to the correct component managers
+        assert hasattr(menu_manager.gui.canvas_manager, "edit_selected_zone_vertices")
+        assert hasattr(menu_manager.gui.dialog_manager, "rename_selected_roi")
+        assert hasattr(menu_manager.gui.dialog_manager, "change_roi_color")
+        assert hasattr(menu_manager.gui.canvas_manager, "remove_selected_roi")
 
 
 @pytest.mark.gui

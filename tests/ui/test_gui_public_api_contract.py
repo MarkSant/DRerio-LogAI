@@ -2,39 +2,19 @@ import inspect
 
 from zebtrack.ui.gui import ApplicationGUI
 
-# List of expected public API methods (Total: 23 after Phase 3 refactoring)
-# Many methods moved to component managers (CanvasManager, DialogManager, etc.)
+# List of expected public API methods (Total: 8 after Phase 3 shim removal)
+# Most methods moved to component managers (CanvasManager, DialogManager, etc.)
 EXPECTED_PUBLIC_API = [
-    # 1. Zone & ROI Management
-    "setup_interactive_polygon",
-    "setup_zone_definition_for_single_video",
-    # 2. Single Video Analysis
-    "_on_analyze_single_video_clicked",
-    # 3. Core UI API (Wrappers & Status)
-    "show_info",
-    "show_warning",
-    "show_error",
+    # 1. Core UI API (Status & Progress)
     "set_status",
-    # 4. Project Views (Public entry preserved for orchestrators)
-    "refresh_project_views",
-    # 5. Other Public Methods
-    "update_weights_dropdown",
-    # 6. Event Bus Integration
-    "publish_event",
-    # 7. Wrappers & Utilities
-    "ask_directory",
-    "ask_missing_metadata",
-    "ask_ok_cancel",
-    "ask_open_filenames",
-    "ask_recording_details_unified",
-    "ask_save_filename",
-    "ask_string",
-    "hide_progress_bar",
-    "show_pending_videos_dialog",
     "show_progress_bar",
-    "update_button_state",
-    "update_idletasks",
     "update_progress",
+    "update_idletasks",
+    "hide_progress_bar",
+    "update_button_state",
+    # 2. Dialog entry points (still on ApplicationGUI)
+    "ask_recording_details_unified",
+    "ask_missing_metadata",
 ]
 
 

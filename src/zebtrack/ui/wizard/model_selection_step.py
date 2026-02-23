@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-from tkinter import BooleanVar, Label, LabelFrame, StringVar, ttk
+from tkinter import BooleanVar, Label, LabelFrame, StringVar, TclError, ttk
 from tkinter import font as tkfont
 from typing import TYPE_CHECKING
 
 import structlog
 
-from zebtrack.core.weight_manager import WeightManager
+from zebtrack.core.services.weight_manager import WeightManager
 from zebtrack.ui.wizard.base import WizardStep
 from zebtrack.ui.wizard.enums import WizardStepID
 from zebtrack.ui.wizard.templates import format_template_banner
@@ -770,8 +770,8 @@ class ModelSelectionStep(WizardStep):
             # Invalid number format - highlight with light red background
             try:
                 entry.configure(background="#FFE0E0")  # Light red
-            except Exception:
-                pass  # Some themes may not allow background config
+            except TclError:
+                log.debug("model_selection.entry_highlight.error", exc_info=True)
             error_label.configure(text="❌ Valor deve ser decimal (ex: 0.25)")
             return False
 
@@ -779,8 +779,8 @@ class ModelSelectionStep(WizardStep):
         if not 0.0 < value < 1.0:
             try:
                 entry.configure(background="#FFE0E0")  # Light red
-            except Exception:
-                pass
+            except TclError:
+                log.debug("model_selection.entry_highlight_range.error", exc_info=True)
             error_label.configure(text=f"❌ {label.capitalize()} deve estar entre 0 e 1")
             return False
 
@@ -796,8 +796,8 @@ class ModelSelectionStep(WizardStep):
         if entry:
             try:
                 entry.configure(background="white")  # Reset to default
-            except Exception:
-                pass  # Some themes may not allow background config
+            except TclError:
+                log.debug("model_selection.entry_reset.error", exc_info=True)
         if error_label:
             error_label.configure(text="")
 
@@ -878,8 +878,8 @@ class ModelSelectionStep(WizardStep):
         if self._resize_after_id is not None:
             try:
                 self.after_cancel(self._resize_after_id)
-            except Exception:
-                pass
+            except TclError:
+                log.debug("model_selection.cancel_resize.error", exc_info=True)
             self._resize_after_id = None
 
         # Schedule actual resize update after a short delay (debouncing)
@@ -910,7 +910,7 @@ class ModelSelectionStep(WizardStep):
             width = self.winfo_width()
             if width > 1:  # Valid width
                 self._apply_resize(width)
-        except Exception:
+        except TclError:
             return
 
     # ------------------------------------------------------------------

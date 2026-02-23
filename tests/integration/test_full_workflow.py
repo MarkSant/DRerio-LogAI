@@ -9,7 +9,7 @@ import time
 import pytest
 
 from tests.utils.wait_helpers import wait_for_condition
-from zebtrack.core.detector import ZoneData
+from zebtrack.core.detection import ZoneData
 from zebtrack.core.state_manager import StateCategory, StateManager
 from zebtrack.io.recorder import Recorder
 

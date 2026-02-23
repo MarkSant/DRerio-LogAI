@@ -79,9 +79,11 @@ def test_build_track_options(factory):
 def test_build_project_actions_calls_button_factory(monkeypatch):
     gui = SimpleNamespace(
         _open_global_calibration_window=Mock(),
-        _on_analyze_single_video_clicked=Mock(),
-        _create_project_workflow=Mock(),
-        _open_project_workflow=Mock(),
+        single_video_workflow=SimpleNamespace(on_analyze_single_video_clicked=Mock()),
+        project_initializer=SimpleNamespace(
+            create_project_workflow=Mock(),
+            open_project_workflow=Mock(),
+        ),
         controller=SimpleNamespace(start_live_camera_analysis=Mock()),
         validation_manager=_ValidationManagerStub(),
     )
@@ -127,11 +129,13 @@ def test_build_model_status_calls_panel_builder(monkeypatch):
 def test_create_zone_summary_cards_section_updates_project_view_manager(monkeypatch):
     zone_summary_frame = Mock()
     zone_summary_frame.winfo_exists.return_value = True
+    _vsm = Mock()
     gui = SimpleNamespace(
         zone_controls_frame=Mock(),
         zone_summary_frame=zone_summary_frame,
         zone_summary_cards=None,
-        project_view_manager=Mock(),
+        video_selector_manager=_vsm,
+        project_view_manager=_vsm,
         validation_manager=_ValidationManagerStub(),
     )
     factory = WidgetFactory(gui)
@@ -145,7 +149,7 @@ def test_create_zone_summary_cards_section_updates_project_view_manager(monkeypa
 
     zone_summary_frame.destroy.assert_called_once()
     create_cards.assert_called_once()
-    gui.project_view_manager.update_zone_summary_cards.assert_called_once()
+    gui.video_selector_manager.update_zone_summary_cards.assert_called_once()
 
 
 def test_create_drawing_buttons_builds_and_positions(monkeypatch):

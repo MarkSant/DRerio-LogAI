@@ -109,8 +109,9 @@ def mock_gui(tkinter_root, mock_validation_manager, mock_controller):
     gui.update_openvino_checkbox = Mock()
     gui.set_active_weight_in_dropdown = Mock()
     gui.update_openvino_status_display = Mock()
-    gui._refresh_roi_templates = Mock()
-    gui._select_roi_template = Mock()
+    gui.roi_template_manager = Mock()
+    gui.roi_template_manager.refresh_templates = Mock()
+    gui.roi_template_manager.select_template_by_metadata = Mock()
     gui.update_zone_listbox = Mock()
     gui._refresh_zone_indicators = Mock()
     gui._enable_roi_button_if_arena_exists = Mock()
@@ -545,8 +546,8 @@ class TestROITemplateDialogs:
         mock_gui.controller.project_manager.import_roi_template.assert_called_once_with(
             "/path/to/template.json"
         )
-        mock_gui._refresh_roi_templates.assert_called_once()
-        mock_gui._select_roi_template.assert_called_once_with(metadata)
+        mock_gui.roi_template_manager.refresh_templates.assert_called_once()
+        mock_gui.roi_template_manager.select_template_by_metadata.assert_called_once_with(metadata)
         mock_info.assert_called_once()
         assert "Imported Template" in mock_info.call_args[0][1]
 
@@ -1104,7 +1105,7 @@ class TestGridCellClick:
         mock_dialog.return_value = dialog_instance
 
         mock_gui.controller.live_batch_coordinator = None
-        mock_gui.controller.session_coordinator = None
+        mock_gui.controller.live_camera_session_coordinator = None
         mock_gui.controller.project_manager.get_completed_sessions.return_value = []
         mock_gui.controller.project_manager.project_data["subjects_per_group"] = 3
         mock_gui.controller.project_manager.get_project_type.return_value = "live"
@@ -1122,7 +1123,7 @@ class TestGridCellClick:
     def test_handle_grid_cell_click_batch_dialog(self, mock_dialog, dialog_manager, mock_gui):
         """Batch-aware path should open BlockDetailDialog and refresh grid."""
         mock_gui.controller.live_batch_coordinator = Mock()
-        mock_gui.controller.session_coordinator = Mock()
+        mock_gui.controller.live_camera_session_coordinator = Mock()
         mock_gui.widget_factory = Mock()
 
         dialog_manager.handle_grid_cell_click(2, "GroupA")
@@ -1175,7 +1176,10 @@ class TestChangeRoiColor:
         mock_dialog.return_value = dialog_instance
 
         zone_data = SimpleNamespace(roi_names=["ROI 1"], roi_colors=["#000000"])
-        mock_gui._get_zone_data_for_active_context = Mock(return_value=zone_data)
+        mock_gui._zone_context_service = Mock()
+        mock_gui._zone_context_service.get_zone_data_for_active_context = Mock(
+            return_value=zone_data
+        )
 
         dialog_manager.change_roi_color()
 

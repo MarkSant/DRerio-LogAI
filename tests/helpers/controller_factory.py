@@ -72,7 +72,7 @@ def create_test_controller(root, **overrides):
     from zebtrack.core.application_bootstrapper import BootstrapResult
     from zebtrack.core.dependency_container import MainViewModelDependencies
     from zebtrack.core.main_view_model import MainViewModel
-    from zebtrack.core.project_workflow_service import ProjectWorkflowService
+    from zebtrack.core.project.project_workflow_service import ProjectWorkflowService
 
     # Check for overrides first
     settings_obj = overrides.get("settings_obj", create_mock_settings())
@@ -109,10 +109,20 @@ def create_test_controller(root, **overrides):
         "project_lifecycle_coordinator": overrides.get(
             "project_lifecycle_coordinator", MagicMock()
         ),
-        "hardware_coordinator": overrides.get("hardware_coordinator", MagicMock()),
+        "detector_setup_coordinator": overrides.get("detector_setup_coordinator", MagicMock()),
+        "model_diagnostics_coordinator": overrides.get(
+            "model_diagnostics_coordinator", MagicMock()
+        ),
         "processing_coordinator": overrides.get("processing_coordinator", MagicMock()),
-        "session_coordinator": overrides.get("session_coordinator", MagicMock()),
-        "recording_coordinator": overrides.get("recording_coordinator", MagicMock()),
+        # Phase 4.7: Replaced session_coordinator with 3 focused coordinators
+        "recording_session_coordinator": overrides.get(
+            "recording_session_coordinator", MagicMock()
+        ),
+        "live_camera_session_coordinator": overrides.get(
+            "live_camera_session_coordinator", MagicMock()
+        ),
+        "live_calibration_coordinator": overrides.get("live_calibration_coordinator", MagicMock()),
+        # Phase 4.7: Removed recording_coordinator (dead legacy code)
         "live_camera_service": overrides.get("live_camera_service", MagicMock()),
     }
 
@@ -179,8 +189,6 @@ def create_test_controller(root, **overrides):
     else:
         project_workflow_adapter = overrides.get("project_workflow_adapter", MagicMock())
 
-    video_processing_orchestrator = overrides.get("video_processing_orchestrator", MagicMock())
-
     # Configure event dispatcher with event bus
     event_bus = overrides.get("event_bus", MagicMock())
     event_dispatcher = overrides.get("event_dispatcher", MagicMock())
@@ -212,16 +220,14 @@ def create_test_controller(root, **overrides):
         # Use a real threading.Event so thread lifecycle tests behave correctly
         cancel_event=cancel_event,
         view=MagicMock(),  # Added missing view argument
-        video_processing_orchestrator=video_processing_orchestrator,
         ui_state_controller=overrides.get("ui_state_controller", MagicMock()),
         # Phase 3A/3B/3C/3D/3E: Removed unused orchestrators (superseded by Super Coordinators)
         legacy_coordinators={
-            "detector_coordinator": overrides.get("detector_coordinator", MagicMock()),
-            "video_orchestrator": overrides.get("video_orchestrator", MagicMock()),
-            "analysis_coordinator": overrides.get("analysis_coordinator", MagicMock()),
-            "project_coordinator": overrides.get("project_coordinator", MagicMock()),
-            "recording_coordinator": overrides.get("recording_coordinator", MagicMock()),
-            "live_camera_coordinator": overrides.get("live_camera_coordinator", MagicMock()),
+            "detector_coordinator": overrides.get(
+                "detector_setup_coordinator",
+                overrides.get("detector_coordinator", MagicMock()),
+            ),
+            # Phase 4.7: Removed recording_coordinator and live_camera_coordinator (dead code)
         },
         orchestrators=overrides.get("orchestrators", MagicMock()),
         project_workflow_adapter=project_workflow_adapter,

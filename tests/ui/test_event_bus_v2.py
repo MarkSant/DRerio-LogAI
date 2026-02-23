@@ -126,6 +126,6 @@ def test_publish_no_subscribers(event_bus):
 
 def test_event_dataclass_defaults():
     """Test Event dataclass defaults."""
-    event = Event(type=UIEvents.ZONE_SELECTED)
+    event = Event(type=UIEvents.ZONES_UPDATED)
     assert event.data == {}
     assert event.source is None

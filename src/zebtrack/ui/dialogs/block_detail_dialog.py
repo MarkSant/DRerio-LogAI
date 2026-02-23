@@ -20,7 +20,7 @@ import structlog
 
 if TYPE_CHECKING:
     from zebtrack.coordinators.live_batch_coordinator import LiveBatchCoordinator
-    from zebtrack.coordinators.session_coordinator import SessionCoordinator
+    from zebtrack.coordinators.live_camera_session_coordinator import LiveCameraSessionCoordinator
 
 log = structlog.get_logger(__name__)
 
@@ -34,7 +34,7 @@ class BlockDetailDialog(Toplevel):
         day: int | str,
         group: str,
         project_manager,
-        session_coordinator: SessionCoordinator,
+        session_coordinator: LiveCameraSessionCoordinator,
         live_batch_coordinator: LiveBatchCoordinator,
     ):
         """Initialize block detail dialog.
@@ -44,7 +44,7 @@ class BlockDetailDialog(Toplevel):
             day: Day number (int) or label (str, e.g., "Dia_1")
             group: Group name (e.g., "Controle")
             project_manager: ProjectManager instance for project data access
-            session_coordinator: SessionCoordinator for session management
+            session_coordinator: LiveCameraSessionCoordinator for session management
             live_batch_coordinator: LiveBatchCoordinator for batch tracking
         """
         super().__init__(parent)

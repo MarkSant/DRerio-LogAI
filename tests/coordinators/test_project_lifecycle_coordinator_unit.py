@@ -6,7 +6,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from zebtrack.coordinators.project_lifecycle_coordinator import ProjectLifecycleCoordinator
-from zebtrack.ui.events import Events
+from zebtrack.ui.event_bus_v2 import UIEvents
 
 
 @dataclass
@@ -19,7 +19,7 @@ class DummyAquarium:
 @pytest.fixture
 def event_bus():
     bus = MagicMock()
-    bus.publish_event = MagicMock()
+    bus.publish = MagicMock()
     bus.subscribe = MagicMock()
     return bus
 
@@ -44,7 +44,7 @@ def test_register_event_handlers_sets_zone_manager_and_subscribes(coordinator, e
 
     assert coordinator._zone_manager is zone_manager
     event_bus.subscribe.assert_called_with(
-        Events.ZONE_AQUARIUM_CONFIG_UPDATED, coordinator._handle_aquarium_config_updated
+        UIEvents.ZONE_AQUARIUM_CONFIG_UPDATED, coordinator._handle_aquarium_config_updated
     )
 
 
@@ -133,6 +133,6 @@ def test_close_project_publishes_events_and_updates_manager(coordinator, event_b
 
     assert result is new_manager
     assert coordinator.project_manager is new_manager
-    calls = [call.args[0] for call in event_bus.publish_event.call_args_list]
-    assert Events.PROJECT_MANAGER_REPLACED in calls
-    assert Events.PROJECT_CLOSED in calls
+    event_types = [call.args[0].type for call in event_bus.publish.call_args_list]
+    assert UIEvents.PROJECT_MANAGER_REPLACED in event_types
+    assert UIEvents.PROJECT_CLOSED in event_types

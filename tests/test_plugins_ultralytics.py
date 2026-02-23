@@ -342,6 +342,7 @@ def test_ultralytics_detector_predict_custom_confidence(mock_ultralytics_import)
     mock_model_instance.predict.return_value = [mock_result]
 
     detector = UltralyticsDetectorPlugin(model_path="model.pt")
+    mock_model_instance.predict.reset_mock()  # Reset warm-up call
     frame = np.zeros((480, 640, 3), dtype=np.uint8)
 
     # Test with custom confidence
@@ -365,6 +366,7 @@ def test_ultralytics_detector_detect_calls_predict_with_correct_params(
     mock_model_instance.predict.return_value = [mock_result]
 
     detector = UltralyticsDetectorPlugin(model_path="model.pt", settings_obj=settings_obj)
+    mock_model_instance.predict.reset_mock()  # Reset warm-up call
     frame = np.zeros((480, 640, 3), dtype=np.uint8)
     detector.detect(frame)
 

@@ -2,7 +2,7 @@
 
 import pytest
 
-from zebtrack.core.schemas import ProjectConfigSchema, ROITemplateSchema
+from zebtrack.core.project.schemas import ProjectConfigSchema, ROITemplateSchema
 
 
 def test_roi_template_schema_accepts_polygon():

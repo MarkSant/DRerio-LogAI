@@ -367,7 +367,7 @@ class DesignEditorDialog(Dialog):
             try:
                 self.groups_canvas.yview_moveto(0)
             except Exception:  # pragma: no cover - depends on widget state
-                pass
+                log.debug("design_editor.scroll_reset.error", exc_info=True)
 
     def _open_custom_regex_dialog(self) -> None:
         dialog = CustomRegexDialog(

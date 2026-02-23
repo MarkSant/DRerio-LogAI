@@ -9,7 +9,821 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### 🟢 New Features
+### ⚡ Performance
+
+#### Phase 7 — OpenVINO AsyncInferQueue Batch Inference (February 2026)
+
+- **7.1 `detect_batch()` override**: Implemented `OpenVINOPlugin.detect_batch()`
+  using `ov.AsyncInferQueue` to pipeline N inference requests through a batch=1
+  compiled model — avoids `model.reshape()` recompilation penalty while
+  overlapping host preprocessing with device inference
+- **7.2 `_run_async_batch()` inner method**: Creates `AsyncInferQueue(model, nireq)`,
+  attaches a completion callback that copies output tensors via `np.copy()` indexed
+  by `userdata` (frame index), submits frames with `start_async()`, calls
+  `wait_all()`, then post-processes all results through existing `_postprocess()`
+- **7.3 `_OutputProxy` helper**: Lightweight `__slots__`-based proxy that maps
+  `ov.Output` keys to copied numpy arrays, allowing `_postprocess()` to index
+  async-collected tensors identically to live `infer_request.results`
+- **7.4 `batch_nireq` setting**: Added `OpenVINOSettings.batch_nireq` (int,
+  default 4, range 1–16) to control the AsyncInferQueue pool size; clamped at
+  runtime to `min(nireq, len(frames))`
+- **7.5 Graceful fallback**: On any `AsyncInferQueue` failure, automatically
+  falls back to sequential `detect()` loop with structured warning log
+- **7.6 Benchmark script**: Added `debug/benchmark_openvino_batch.py` — standalone
+  CLI tool that loads a real OpenVINO model, generates synthetic frames, and
+  compares sequential vs batch with nireq sweep table
+- **7.7 Tests**: 24 new unit tests across 4 test classes
+  (`TestDetectBatchEntryPoint`, `TestRunAsyncBatch`, `TestOutputProxy`,
+  `TestBatchNireqSettings`) using mocked OpenVINO with `FakeAsyncQueue` simulation;
+  2 benchmark tests added to `test_phase7_benchmarks.py`
+- **Validation**: 2723 passed + 24 new = 2747 total, 12 skipped. Ruff: 0 errors.
+
+### 🏗️ Refactoring
+
+#### Phase 4 — EventBus v1 → v2 Complete Migration (February 2026)
+
+- **4.1 Source migration**: Migrated ~50 source files from EventBus v1
+  (queue-based, string-keyed, polled) to EventBusV2 (synchronous dispatch,
+  `UIEvents` enum-keyed, `threading.RLock`-protected). Includes all 19
+  coordinator files, EventDispatcher, MainViewModel, UIScheduler, GUI,
+  UICoordinator, all UI component files, wizard/dialog/service files.
+- **4.2 v1 deletion**: Deleted `src/zebtrack/ui/event_bus.py` (316 lines)
+  and `src/zebtrack/ui/events.py` (315 lines) entirely — no facades,
+  adapters, or bridges. EventBusV2 is the sole event system.
+- **4.3 API unification**: All event publishing uses
+  `bus.publish(Event(type=UIEvents.XXX, data={...}))`. All subscriptions use
+  `bus.subscribe(UIEvents.XXX, handler)`. Removed poll loop from
+  EventDispatcher. BaseCoordinator `_publish_event` wraps v2 API directly.
+- **4.4 UIEvents expansion**: Expanded `UIEvents` enum to ~200+ members
+  organized by domain. Added `EVENT_NAME_TO_UIEVENT` mapping (~160 entries)
+  for migration compatibility.
+- **4.5 Test migration**: Migrated 23 test files; fully rewrote
+  `test_event_bus_phase1.py` and `test_event_bus_migration.py` for v2 API.
+  Fixed publish assertion patterns across coordinator and integration tests.
+- **4.6 Lint cleanup**: Fixed 58 ruff errors (57 E501 + 1 F821) introduced
+  by longer v2 API call signatures.
+- **Validation**: 2679 passed, 12 skipped (baseline: 2678 passed).
+  Ruff: 0 errors.
+
+#### Phase 10 — GUI Shim Layer Removal (February 2026)
+
+- **10.1 Mass shim removal**: Removed ~108 pure delegation shim methods from
+  `ApplicationGUI` in gui.py, reducing 658 lines (1378 → 720, ~48% reduction).
+  All removed methods were one-liner delegations to component managers
+  (DialogManager, CanvasManager, MenuManager, etc.)
+- **10.2 DI call-site redirection**: Redirected 67+ call sites across 20+ source
+  files to use DI-injected component managers directly instead of routing through
+  gui.py shims (e.g., `gui.show_error()` → `gui.dialog_manager.show_error()`)
+- **10.3 ZoneContextService**: Created new `core/services/zone_context_service.py`
+  to replace `gui._get_zone_data_for_active_context()` shim with a proper
+  injectable service, propagated through CanvasManager → ZoneEditor chain
+- **10.4 Logic restoration**: Moved `_on_roi_rule_change` real UI logic into
+  `ZoneControlBuilder`; moved `_on_tab_changed` into `ZoneEditGuard.on_tab_changed`
+- **10.5 Test updates**: Updated 15 test files with new mock patterns reflecting
+  the DI component paths; updated public API contract (23 → 8 methods) and
+  API baseline fixture
+- **10.6 TYPE_CHECKING fixes**: Added `from __future__ import annotations` to
+  9 files to resolve circular import issues from TYPE_CHECKING-only imports
+
+#### Phase 6 — Replace `__new__` Two-Phase Init with LazyRef DI (February 2026)
+
+- **6.1 LazyRef[T] proxy**: Created thread-safe `LazyRef[T]` class in
+  `core/dependency_container.py` — transparent proxy with `set()` once
+  semantics, `__getattr__`/`__setattr__` delegation, `threading.Lock`,
+  Python 3.12 type-parameter syntax
+- **6.2 Composition root**: Replaced unsafe `MainViewModel.__new__()` +
+  manual `__init__()` call in `__main__.py` with `LazyRef("MainViewModel")`
+  flow — `controller_ref` created pre-GUI, resolved post-`__init__`
+- **6.3 Bootstrapper cleanup**: Removed ~30-line attribute patching block
+  from `ApplicationBootstrapper.initialize()` that manually copied attrs
+  onto the `__new__`-allocated proxy; removed 3 redundant
+  `controller_proxy.xxx` assignments from `_init_orchestrators()`
+- **6.4 MainViewModel view assignment**: `_assign_bootstrap_result()` now
+  sets `self.view = result.view` internally instead of external patching;
+  removed stale `self.view: Any | None = None` override
+- **6.5 Test coverage**: 19 new tests in `test_lazy_ref.py` (lifecycle,
+  transparent proxy, Tkinter callback pattern, thread safety); updated
+  `test_bootstrapper.py` to use LazyRef; fixed `test_main_view_model_commands.py`
+  mock fixture for new `result.view` attribute
+- **Validation**: 2697 passed, 12 skipped. Ruff: 0 errors.
+
+#### Phase 5 — Decomposition of Files > 1,000 Lines (February 2026)
+
+- **5A ReportsTreeManager** (1053 → ~280 lines, -73%): Extracted into 3 focused
+  modules—`ReportTreeBuilder` (tree population/status counts),
+  `ReportGeneratorActions` (unified report generation/deletion),
+  `ReportAssetActions` (asset deletion, file opening, artifact helpers).
+  Original kept as thin coordinator with delegation shims.
+- **5B ProjectLifecycleCoordinator** (1085 → 704 lines, -35%): Extracted
+  `ModelOverrideService` (model override state, persistence, resolve) into
+  `core/services/` and `CalibrationCoordinator` (calibration scope, context,
+  sessions) into `coordinators/`. Original retains lifecycle (create/open/close)
+  and asset management; Groups C/D/E become thin delegation shims.
+  Composition root updated to wire new delegates. All callers unchanged.
+
+### 📚 Documentation & Standardization
+
+#### Phase 9 — Audit Debt Remediation (February 2026)
+
+- **9.1 Documentation sync**: Aligned coverage gates and test counts across
+  all 3 agent instruction files (AGENTS.md, copilot-instructions.md,
+  CLAUDE.md) to match CI actuals — Linux core 50%, Linux GUI 32%, Windows
+  core 28%; corrected stale test counts from 2568/712 to ~2678
+- **9.2 Exception narrowing**: Narrowed or justified 45 bare
+  `except Exception` blocks across 16 source files; 26 blocks narrowed to
+  specific types (OSError, ValueError, json.JSONDecodeError, TclError, etc.)
+  and 19 blocks annotated with justification comments explaining why broad
+  catching is necessary (multi-library pipelines, batch error isolation,
+  platform-specific failures)
+
+### 📚 Documentation & Standardization
+
+#### Phase 8 — Documentation & Standardization (February 2026)
+
+- **8.1 English translation**: Translated Portuguese docstrings and inline
+  comments to English across 12 source files (gui.py, drawing_state_manager,
+  roi_template_manager, polygon_drawing_service, event_dispatcher,
+  batch_configuration_service, video_metadata_service, thread_coordinator,
+  orchestrator_registry, detection_types, dialog_coordinator,
+  visualization_generator); kept PT-BR user-facing strings intentionally
+- **8.2 Coverage gates**: Researched JOSS, pyOpenSci, OpenSSF standards;
+  measured baseline at 46.1%; raised CI gates (Linux core 45→50%, GUI
+  30→32%, Windows 25→28%, local 40→45%); fixed 5 test regressions from
+  Phase 7 API changes; created `docs/testing/COVERAGE_STANDARDS_ANALYSIS.md`
+  with evidence-based roadmap to OpenSSF Silver (80%)
+- **8.3 Property-based testing**: Added Hypothesis ^6.100.0 dependency; 83
+  property tests across 6 files covering settings round-trips, detection
+  type conversions, recorder IOU/dedup/normalize, zone scaler identity and
+  proportional scaling, behavioral analysis invariants, and calibration
+  point ordering
+- **8.4 ADR documentation**: Created ADR-001 (Multi-Aquarium Support) and
+  ADR-004 (Live Camera Architecture Divergence); updated ADR-009 with Phase
+  4 coordinator decomposition status
+- **8.5 System integration map**: Updated from v3.2 to v4.0 — documented
+  Phase 4 coordinator decomposition (4 super → 16 specialized), added
+  ADR-009 deprecation notice, performance architecture (Phase 7),
+  documentation standards section, document changelog
+
+### ⚡ Performance
+
+#### Phase 7 — Performance Optimizations (February 2026)
+
+**Measured speedups** (pytest-benchmark, -n0):
+
+| Optimization | Before | After | Speedup |
+|---|---|---|---|
+| Angular velocity (5 000 pts) | 13.5 ms (loop) | 1.4 ms (NumPy) | ~9× |
+| Recorder flush (500 rows) | 3.6 ms (pd.DataFrame) | 0.4 ms (pa.table) | ~8× |
+| Polygon containment (1 000 pts) | 3.2 ms (pointPolygonTest) | 1.9 ms (mask) | ~1.7× |
+| Preview IPC write (720p) | 2.8 ms (pickle) | 0.9 ms (SharedMemory) | ~3× |
+
+- **7.2 Batch inference**: Added `detect_batch()` default to
+  `DetectorPlugin` ABC (sequential fallback); `UltralyticsPlugin` overrides
+  with native `model.predict(frames)` for GPU-efficient stacked inference;
+  OpenVINO uses base fallback (model compiled for batch=1);
+  `SingleDetector.detect_batch()` delegates directly
+- **7.3 SharedMemory preview frames**: Created `SharedFrameBuffer` utility
+  (`core/video/shared_frame_buffer.py`) — single-slot shared memory block
+  with sequence-numbered header for zero-copy IPC; `ProcessingWorker`
+  creates the buffer, `_WorkerProcess` attaches and writes preview frames,
+  `_monitor_loop` reads via sequence metadata; graceful pickle fallback on
+  failure; eliminated ~2–6 MB per-frame serialisation overhead
+- **7.4 Vectorized angular velocity**: Replaced Python `for`-loop in
+  `behavior.py:get_angular_velocity()` with NumPy vectorised operations
+  (`np.diff`, `np.hypot`, `np.arctan2`, boolean masking) — ~9× faster for
+  typical 5 000-point trajectories
+- **7.5 Columnar buffers recorder**: Replaced `pd.DataFrame(snapshot)` →
+  `pa.Table.from_pandas(df)` path in `recorder.py` with direct `pa.table()`
+  construction from column arrays — bypasses pandas allocation entirely;
+  added `_snapshot_to_pa_table()` and `_dedup_snapshot()` methods
+- **7.6 ROI polygon mask cache**: Pre-computes binary polygon masks via
+  `cv2.fillPoly()` at zone-scaling time in `zone_scaler.py`; both
+  `is_inside_polygon()` and `bbox_hits_roi_polygon()` use O(1) pixel
+  lookups with automatic fallback to `cv2.pointPolygonTest`
+- **7.7 TTL cache utility**: Created reusable `TTLCache` and `ttl_cache`
+  decorator in `utils/cache.py` (thread-safe, per-entry expiry, maxsize
+  eviction, hit/miss counters); refactored `WizardService` (replaced 6
+  class-level cache attrs) and `VideoManager` (replaced `_scan_cache` dict)
+- **7.8 Model warm-up**: Added `_warm_up()` to `UltralyticsPlugin` and
+  `OpenVINODetectorPlugin` — runs a single dummy inference at load time to
+  pre-allocate device memory and JIT-compile CUDA/OpenVINO kernels
+- **Benchmarks**: 11 pytest-benchmark tests in
+  `tests/benchmarks/test_phase7_benchmarks.py` covering all optimisations
+  with before/after baselines
+
+### 🏷️ Type System & Static Quality
+
+#### Phase 6 — Type System & Static Quality (February 2026)
+
+**Metrics**: `# type: ignore` 166 → 40 (−76%); mypy errors 24 (all pre-existing)
+
+- **Enabled** `pydantic.mypy` plugin (`init_forbid_extra`, `init_typed`,
+  `warn_required_dynamic_aliases`) — removed 15 unnecessary `# type:
+  ignore[call-arg]` from `settings.py` Pydantic model instantiations
+- **Created** `coordinators/_protocols.py` with `@runtime_checkable`
+  Protocol classes (`UnifiedReportHost`, `VideoSelectionHost`) documenting
+  host contracts for coordinator mixins — then replaced `self: Protocol`
+  annotation pattern with class-level attribute declarations on mixin
+  classes to avoid mypy "Invalid self argument" errors (net −46 ignores)
+- **Fixed** `UICoordinator` → `UIScheduler` type mismatch in `__main__.py`
+  Composition Root — removed 7 `# type: ignore[arg-type]` from coordinator
+  constructor calls
+- **Added** convenience methods `has_main_arena()`, `has_roi_polygons()`,
+  `get_arena_polygon()` to `ProjectManager` — replaced unsafe
+  `zone_data.polygon` access patterns, removed 9 ignores from
+  `zone_management_facade.py`
+- **Retyped** `decorators.py` with `ParamSpec`/`TypeVar` for
+  `@public_api` and `@deprecated` — removed 8 `# type: ignore`
+- **Added** mypy `ignore_missing_imports` overrides for `serial.*` and
+  `torch.*` third-party modules — removed 15 conditional-import ignores
+  from `plugins/`, `arduino_manager.py`, `arduino.py`
+- **Narrowed** `view` and OpenVINO types in `__main__.py` with `isinstance`
+  checks and `cast()` — removed 14 ignores (`attr-defined`, `arg-type`)
+- **Made** `RecordingService.controller` properly `Optional` — removed 1
+  ignore from `controller.state_manager` access
+- **Swept** remaining fixable ignores: widened `base_coordinator.py` param
+  types, added `isinstance` guards in `single_detector.py` and
+  `zone_scaler.py`, added `assert` narrows in `processing_reports.py`,
+  narrowed 3 bare `# type: ignore` to specific error codes — total −11
+  ignores in sweep batch
+- **Added** `UP047` to ruff ignore list — defers PEP 695 type-param syntax
+  migration until ecosystem support matures
+
+**Remaining 40 ignores** (unfixable without upstream changes): Pillow
+`LANCZOS`/`BICUBIC` compat (5), Tkinter `label.image` trick (5), Tkinter
+overloads/arg-type (7), `cv2.VideoWriter_fourcc` (2), conditional imports
+(4), `ttkbootstrap` (1), `os.startfile` Windows-only (1), structlog
+`list-item` (1), ByteTracker private attr (1), and miscellaneous
+narrowing/assignment (13).
+
+### 🛡️ Security & Thread Safety
+
+#### Phase 5 — Security and Thread Safety Hardening (February 2026)
+
+- **Replaced** `pickle` with JSON serialization in `analysis/metrics_cache.py`
+  — eliminates arbitrary code execution risk from cache deserialization; added
+  `_NumpyJSONEncoder` and `_sanitize_for_json()` for NumPy type handling
+- **Added** `threading.Lock` to `io/recorder.py` — protects
+  `detection_data` list from concurrent access in multi-threaded processing;
+  uses snapshot-buffer pattern in `_flush_detection_data()` so I/O happens
+  outside the lock; best-effort recovery re-injects data on flush failure
+- **Implemented** atomic Parquet writes via temp-file + `os.replace()` in
+  `io/recorder.py` — prevents partial/corrupt files on crash; added
+  `_verify_parquet_integrity()` validation after close; JSON backup writes
+  are also atomic
+- **Created** `utils/video_frame_extractor.py` — encapsulates `cv2`
+  frame-reading and image-saving so coordinators no longer import `cv2`
+- **Created** `core/services/trajectory_data_service.py` — encapsulates
+  `pd.read_parquet` so coordinators no longer import `pandas` directly
+- **Created** `analysis/roi_builder.py` — encapsulates
+  `shapely.geometry.Polygon` import for ROI construction
+- **Refactored** `coordinators/report_generation_coordinator.py` — removed
+  top-level `cv2`, `numpy`, `pandas`, and `shapely` imports; all 4
+  `pd.read_parquet` calls replaced with `TrajectoryDataService`; frame
+  operations delegated to `VideoFrameExtractor`; ROI construction via
+  `roi_builder`; math.floor/ceil replaces np.floor/ceil; lazy numpy
+  import only where `Calibration` constructor requires `ndarray`
+- **Refactored** `coordinators/video_processing_coordinator.py` — removed
+  top-level `cv2` import; video dimensions obtained via
+  `VideoMetadataService` with lazy `cv2` fallback
+- **Refactored** `coordinators/_unified_report_mixin.py` — replaced
+  `np.nan` with `float('nan')`; removed `numpy` import
+- **Wired** all new services (`VideoMetadataService`,
+  `TrajectoryDataService`, `VideoFrameExtractor`) into the Composition Root
+  (`__main__.py`)
+- **Added** 23 new tests: 3 recorder (concurrent writes, atomic write,
+  integrity verification), 11 video frame extractor, 6 trajectory data
+  service, 9 ROI builder — total 2,642 fast tests passing
+
+### �🔄 Refactored
+
+#### Phase 4.10 — Sub-packetize `core/` into domain sub-packages (February 2026)
+
+- **Reorganized** 40+ flat modules in `src/zebtrack/core/` into 6 domain
+  sub-packages, improving discoverability and enforcing bounded contexts:
+  - `core/detection/` (8 modules) — Detector implementations, zone scaling,
+    detection types, calibration, single-subject tracker, post-processing
+  - `core/project/` (14 modules) — Project manager, zone manager, video
+    manager, asset/metadata/parquet I/O, schemas, ROI templates
+  - `core/video/` (8 modules) — Video processing service, processing worker,
+    processing mode, classification/selection/validation/metadata services,
+    batch configuration
+  - `core/recording/` (5 modules) — Recording service/facade, live camera
+    service/mode, Arduino facade
+  - `core/services/` (5 modules) — Detector service, model service, weight
+    manager, wizard service, zone management facade
+  - `core/events/` (4 modules) — Event payload dataclasses (pre-existing
+    directory, added `__init__.py`)
+- **Created** 6 `__init__.py` files with curated public API re-exports for
+  each sub-package
+- **Updated** 527 import statements across 167 source and test files — zero
+  backward-compatibility shims; all consumers use canonical new paths
+- **Deleted** `core/detector.py` facade (47-line re-export shim from
+  Phase 4.3) — its exports absorbed into `core/detection/__init__.py`
+- **Updated** `core/__init__.py` docstring documenting new sub-package
+  structure
+- Root-level infrastructure modules remain at `core/`: `state_manager`,
+  `main_view_model`, `dependency_container`, `application_bootstrapper`,
+  `ui_scheduler`, `orchestrator_registry`, `thread_coordinator`, `exceptions`
+- All 2,610 fast tests passing, 0 regressions; `ruff check .` clean
+
+#### Phase 4.9 — Decompose HardwareCoordinator + DetectorCoordinator (February 2026)
+
+- **Decomposed** `HardwareCoordinator` (`coordinators/hardware_coordinator.py`,
+  1,692 lines) and `DetectorCoordinator` (`coordinators/detector_coordinator.py`,
+  916 lines) — total 2,608 lines — into 2 focused coordinators:
+  - `DetectorSetupCoordinator` (~885 lines) — Detector setup, zone
+    configuration, tracking parameter updates, single-subject mode,
+    factory parameter retrieval, detector restore/reset workflows.
+    Consolidates all detector-lifecycle methods from both original files.
+  - `ModelDiagnosticsCoordinator` (~580 lines) — Model diagnostic test
+    workflows, diagnostic processing thread, progress callbacks,
+    cancel/abort handling, UI-safe scheduling via `root.after()`
+- **Both original files deleted** — No facades; each consumer imports the
+  specific coordinator it needs
+- **Dead code removed** — `set_recording_callbacks()`,
+  `set_convert_weight_callback()`, legacy `DetectorCoordinator` fallback
+  block in `application_bootstrapper.py`, `TestRecordingCallbacks` test
+  class, `test_recording_callbacks_integration` test
+- Updated 8 consumer source files: `coordinators/__init__.py`,
+  `dependency_container.py`, `__main__.py`, `main_view_model.py`,
+  `application_bootstrapper.py`, `hardware_status_view_model.py`,
+  `ui_state_coordinator.py`, `orchestrator_registry.py`
+- Migrated 11 test files (~199 references): renamed
+  `test_detector_coordinator.py` → `test_detector_setup_coordinator.py`,
+  `test_hardware_coordinator.py` → `test_detector_setup_coordinator_legacy.py`,
+  updated `test_coordinator_integration.py`,
+  `test_hardware_status_view_model.py`,
+  `test_detector_service_integration.py`, `controller_factory.py`,
+  `test_main_view_model_commands.py`,
+  `test_project_manager_replaced_event.py`, `test_bootstrapper.py`,
+  `test_main_view_model_threading.py`, `test_ui_state_coordinator.py`
+- All 2,607 fast tests passing, 0 regressions
+
+#### Phase 4.8 — Decompose Reporter (February 2026)
+
+- **Decomposed** `reporter.py` (`analysis/reporter.py`, 1,749 lines) into
+  8 focused modules under `analysis/reporters/` sub-package:
+  - `reporter_context.py` (~280 lines) — Shared context with two construction
+    paths (legacy `__init__` + modern `from_analysis()`), i18n helpers,
+    template constants
+  - `word_reporter.py` (~420 lines) — Word document export with step-by-step
+    progress callback, metadata sections, visualisation attachments
+  - `excel_reporter.py` (~80 lines) — Excel summary export with display
+    column renaming
+  - `parquet_reporter.py` (~65 lines) — Parquet summary export preserving
+    internal column names
+  - `html_reporter.py` (~230 lines) — Interactive HTML report generation
+  - `script_exporter.py` (~350 lines) — R/Python script and Feather export
+  - `project_reporter.py` (~260 lines) — Standalone `export_project_report()`
+    and `export_multi_aquarium_reports()` functions
+  - `__init__.py` — Re-exports all public symbols
+- **Original file deleted** — No facade; each consumer imports the specific
+  reporter class it needs
+- Updated 4 source consumer files: `report_generation_coordinator.py`,
+  `video_processing_service.py`, `analysis_control_view_model.py`,
+  `live_camera_service.py`
+- Updated 6 test files: `test_reporter.py`, `test_reporter_integration.py`,
+  `test_reporter_refactoring_compatibility.py`,
+  `test_analysis_multi_aquarium.py`, `test_unified_report.py`,
+  `test_parallel_detection_benchmark.py`
+- All 2,614 fast tests passing, 0 regressions
+
+#### Phase 4.7 — Decompose SessionCoordinator (February 2026)
+
+- **Decomposed** `SessionCoordinator` (`coordinators/session_coordinator.py`,
+  2,111 lines) into 3 focused coordinators under `coordinators/`:
+  - `LiveCalibrationCoordinator` (~500 lines) — Camera calibration with
+    auto-detection, reference frame capture, zone validation,
+    `ensure_zones_before_recording()` shared by recording and live sessions
+  - `RecordingSessionCoordinator` (~530 lines) — Recording session lifecycle,
+    Arduino triggers, session scheduling, start/stop recording
+  - `LiveCameraSessionCoordinator` (~680 lines) — Live camera session
+    lifecycle, config-based starts, batch registration,
+    `start_live_camera_analysis()`, `start_session_from_config()`
+- **Original file deleted** — No facade; each consumer imports the specific
+  coordinator it needs
+- **Deleted 2 dead legacy files** — `recording_coordinator.py` (320 lines)
+  and `live_camera_coordinator.py` (686 lines) were unused Phase 3 stubs
+- Updated 11 consumer source files: `__init__.py`, `dependency_container.py`,
+  `__main__.py`, `main_view_model.py`, `application_bootstrapper.py`,
+  `hardware_status_view_model.py`, `analysis_control_view_model.py`,
+  `block_detail_dialog.py`, `dialog_manager.py`, `orchestrator_registry.py`,
+  `video_processing_coordinator.py`
+- Deleted 3 dead test files, updated 10 test files
+- All 2,614 fast tests passing, 0 regressions
+
+#### Phase 4.6 — Decompose ProjectViewManager (February 2026)
+
+- **Decomposed** `ProjectViewManager` (`ui/components/project_view_manager.py`,
+  2,136 lines) into 3 focused modules under `ui/components/project_views/`:
+  - `VideoSelectorTreeManager` (~850 lines) — Video selector tree, project
+    overview panel, batch processing triggers, navigation helpers, zone
+    summary cards, readiness snapshot application
+  - `ReportsTreeManager` (~1,045 lines) — Processing reports tree population,
+    report file opening, unified-report generation, right-click context
+    menu, delete operations, partial report dispatch
+  - `project_view_helpers` (~170 lines) — Pure formatting functions:
+    `format_status_label`, `format_status_summary`, `format_status_ratio`,
+    `format_status_token`, `format_video_metadata`, `video_sort_key`,
+    `summarize_batch_data`, `format_data_badges`
+- **Original file deleted** — No facade; `gui.py` instantiates both managers
+  directly via composition
+- Backward-compat alias `self.project_view_manager = self.video_selector_manager`
+  preserved in `gui.py` and `UICoordinator` to minimize test churn
+- Updated 5 consumer files: `gui.py`, `ui_coordinator.py`, `event_dispatcher.py`,
+  `widget_factory.py`, `components/__init__.py`
+- Updated 9 test files: import paths, mock targets, SimpleNamespace attributes
+- All 2,720 fast tests passing, 0 regressions
+
+#### Phase 4.5 — Decompose CanvasManager (February 2026)
+
+- **Decomposed** `CanvasManager` (`ui/components/canvas_manager.py`) from
+  2,152 → 599 lines (-72%, 1,553 lines removed) by extracting methods
+  into 3 focused modules under `ui/components/canvas/`:
+  - `MultiAquariumOverlayManager` (~562 lines, 11 methods) — Multi-aquarium
+    auto-detection result handling, format conversion, overlay drawing,
+    side-by-side preview generation, aquarium indicator display
+  - `VideoFrameManager` (~513 lines, 11 methods) — Video frame loading,
+    canvas display, analysis track selection/filtering, detection overlay
+    rendering, analysis frame caching
+  - `ZoneEditor` (~650 lines, 24 methods) — Zone CRUD operations, polygon
+    drawing lifecycle, circle drawing, zone clipboard (copy/paste/delete),
+    ROI button state, processing mode toggle, geotaxis visualization,
+    BGR color name mapping
+- **Backward-compatible** via ~30 thin delegation shims on `CanvasManager`
+  facade: all public and internal methods remain callable as
+  `self.<method>()` and delegate to the appropriate sub-component
+- Class-level aliases preserved: `AQUARIUM_COLORS`, `_BGR_COLOR_MAP`
+- Shared state (`_bg_scale`, `_bg_offset`, `_raw_bg_image`,
+  `_canvas_bg_image`, `dragged_handle_index`, `current_editing_zone`, etc.)
+  stays on the facade, accessed by sub-components via `self.canvas_manager`
+  back-reference
+- Updated `ui/components/__init__.py` with 3 new exports
+- Fixed test `@patch` targets in `test_canvas_manager.py` (cv2/Image
+  patches now target `canvas.video_frame_manager` module)
+- Fixed test fixtures in `test_canvas_manager_multi_aquarium.py` (added
+  `MultiAquariumOverlayManager` instantiation after patched `__init__`)
+- Fixed mock targets in `test_single_video_workflow_prompt.py` (prompt
+  mock now targets `multi_aquarium` sub-component)
+- Fixed log patch in `test_live_analysis_integration.py` (log now in
+  `video_frame_manager` module)
+- Updated source-scanning tests in `test_roi_snap_indicator_arena_clamp.py`
+  to also scan `canvas/` sub-directory
+- All 2,720 fast tests passing, 0 regressions
+
+#### Phase 4.4 — Decompose ApplicationGUI (February 2026)
+
+- **Decomposed** `ApplicationGUI` (`ui/gui.py`) from 2,261 → 1,217 lines
+  (-46%, 1,044 lines removed) by extracting 43 methods into 5 focused
+  component classes under `ui/components/`:
+  - `AnalysisViewController` (~310 lines, 16 methods) — Analysis tab
+    lifecycle, overlays, mode sync, progress tracking, track selector
+  - `ProjectInitializer` (~280 lines, 9 methods) — Project loading,
+    welcome→project transition, tab building, workflow dialogs
+  - `SingleVideoWorkflow` (~210 lines, 4 methods) — Single-video analysis
+    flow: file selection, zone setup, processing start
+  - `WeightHardwareManager` (~210 lines, 10 methods) — Model weight state,
+    OpenVINO toggle, GPU hardware display
+  - `ZoneEditGuard` (~180 lines, 4 methods) — Tab navigation guard that
+    protects unsaved zone editing sessions
+- **Backward-compatible** via thin delegation shims on `ApplicationGUI`:
+  all 43 methods remain callable as `self.<method>()` and delegate to
+  `self.<component>.<method>()`; `@public_api` contracts preserved
+- Components use `gui` back-reference pattern (`self.gui = gui`) to
+  access parent state without circular imports
+- Component instantiation added in `__init__` after Phase 5 builders
+- Updated `ui/components/__init__.py` with all 5 new exports
+- Fixed 2 test files using `__new__` to bypass `__init__`:
+  - `test_analysis_metadata_display.py` — added `AnalysisViewController`
+    mock to `_make_gui_instance()` fixture
+  - `test_gui_zone_tab_navigation_guard.py` — replaced direct method mock
+    with `ZoneEditGuard` stub using `_make_guard()` helper
+- All 2,720 fast tests passing, 0 regressions
+
+#### Phase 4.3 — Decompose Detector God Class (February 2026)
+
+- **Decomposed** Detector (2,607 lines, ~55 methods) into 5 focused modules:
+  - `detection_types.py` (~120 lines) — `ZoneData`, `AquariumData`,
+    `MultiAquariumZoneData` data classes
+  - `zone_scaler.py` (~360 lines) — Polygon scaling, point-in-polygon,
+    crop helpers, scaling cache
+  - `detection_post_processor.py` (~480 lines) — Stateless detection
+    validation, tracking config, ByteTrack helpers
+  - `single_detector.py` (~1,035 lines) — Single-aquarium detection,
+    tracking (ByteTrack + SingleSubjectTracker), overlay drawing
+  - `multi_aquarium_detector.py` (~1,070 lines) — Multi-aquarium
+    partitioned/parallel detection with independent per-aquarium trackers
+- **Backward-compatible** via gutted `detector.py` re-export shim:
+  `Detector = SingleDetector` alias; all existing imports unaffected
+- Shared `ZoneScaler` and `DetectionPostProcessor` injected via
+  composition into both `SingleDetector` and `MultiAquariumDetector`
+- Updated `processing_worker.py` to create `MultiAquariumDetector`
+  alongside `SingleDetector` when multi-aquarium zones detected
+- Updated `live_camera_service.py` to lazily create
+  `MultiAquariumDetector` in `_run_multi_aquarium_detection`
+- Updated `detector_service.py` to wire `ZoneScaler` and
+  `DetectionPostProcessor` into constructor
+- Updated test suites: `test_detector.py`, `test_detector_partitioned.py`,
+  `test_processing_worker_unit.py`, `test_parallel_detection_benchmark.py`
+- All 2,400 fast tests passing, 0 regressions
+
+#### Phase 4.2 — Decompose ProjectManager God Class (February 2026)
+
+- **Decomposed** ProjectManager (2,737 → 906 lines, -67%) into 5
+  domain-specific sub-managers using the callback pattern (static methods
+  with explicit params to avoid circular dependencies):
+  - ParquetIOManager (~521 lines) — Zone parquet I/O, copy, import
+  - OutputRegistrationManager (~745 lines) — Processing output registration
+  - MetadataManager (~435 lines) — Experiment metadata, detector state
+  - ProjectLifecycleManager (~748 lines) — Project create/load/save/migrate
+  - ZoneOrchestrationManager (~365 lines) — Zone persistence orchestration
+- Extended AssetManager (~960 lines) with asset removal logic
+- Moved ProjectInvalidError to xceptions.py (backward-compat re-export)
+- Fixed VideoManager.update_video_status POSIX path comparison
+- Simplified create_new_project to use **kwargs forwarding
+- Removed 10+ unused private delegates and 10 unused imports from PM
+- Consolidated has_*_data methods via shared _has_asset() helper
+- All 2,720 fast tests passing, 0 regressions
+
+#### Phase 4 — Decompose ProcessingCoordinator God Class (February 2026)
+
+- **Decomposed** `ProcessingCoordinator` (5,563 lines, 114 methods) into 5
+  domain-specific coordinators each under 1,700 lines:
+  - `VideoProcessingCoordinator` — Facade owning ProcessingWorker lifecycle
+    and proxy methods for backward compatibility (~1,700 lines)
+  - `ProgressTrackingCoordinator` — Processing lifecycle, progress UI, batch
+    context management (~440 lines)
+  - `MultiAquariumCoordinator` — Aquarium detection, zone/arena management,
+    processing modes (~800 lines)
+  - `SequentialProcessingCoordinator` — Sequential multi-aquarium processing
+    with per-aquarium video passes (~460 lines)
+  - `ReportGenerationCoordinator` — All report generation workflows (unified,
+    individual, parquet summaries) (~1,380 lines)
+- Added `processing_types.py` with shared `ValidationResult` dataclass and
+  `ProcessingCoordinatorError` exception
+- Updated `coordinators/__init__.py`, `dependency_container.py`, and
+  `__main__.py` (Composition Root) with 5-coordinator DI wiring
+- Deleted monolithic `processing_coordinator.py`
+- Fixed production bug: `Events.PROCESSING_MODE_CHANGED` renamed to
+  `Events.ZONE_PROCESSING_MODE_CHANGED` in `MultiAquariumCoordinator`
+- Fixed production bug: `_on_progress_wrapper` signature mismatch — now
+  correctly constructs dict for `ProgressTrackingCoordinator`
+- Fixed import error: `Calibration` import path in
+  `ReportGenerationCoordinator`
+- Added `state_manager.update_processing_state()` call to
+  `_on_processing_progress()` for observable state consistency
+- Updated 7 test files for new coordinator structure (97 tests passing)
+- All 2,720 fast tests passing, 0 regressions
+- Ruff lint clean on all coordinator files
+
+#### Phase 0 — Placeholder & Dead Code Cleanup (February 2026)
+
+##### Phase 0.1: Fix placeholder URL in About dialog
+
+- Replaced `YOUR_USERNAME` with `MarkSant` in GitHub/PyPI URLs
+  in `ui/components/menu_manager.py`
+
+##### Phase 0.2: Fix placeholder author metadata
+
+- Updated `pyproject.toml` author from
+  `"The Project Developers <placeholder@example.com>"` to
+  `"Marco A. S. Camargos <marco.sant@unesp.br>"`
+- Updated `CITATION.cff`: author name, ORCID (`0009-0000-0014-1485`),
+  and `repository-code` URL
+
+##### Phase 0.3 TODO 1: Remove dead `add_videos_to_project` code path
+
+- Removed `ProjectViewModel.add_videos_to_project()` (no UI emits event)
+- Removed `PROJECT_ADD_VIDEOS` event constant from `ui/events.py`
+- Removed proxy method and handler registration in `MainViewModel`
+- Removed 2 associated tests in `test_project_view_model.py`
+
+##### Phase 0.3 TODO 2: Migrate VideoProcessingOrchestrator → ProcessingCoordinator
+
+- Ported `start_project_processing_workflow()` (~120 lines) from
+  `VideoProcessingOrchestrator` into `ProcessingCoordinator`
+- Added `dialog_coordinator` param to `ProcessingCoordinator` constructor
+  (post-construction injection in `__main__.py`)
+- `AnalysisControlViewModel` now delegates to
+  `processing_coordinator.start_project_processing_workflow()`
+- Stubbed `VideoProcessingOrchestrator` with `DeprecationWarning`
+- Made `BootstrapResult.video_processing_orchestrator` optional (`None`)
+- Updated `OrchestratorRegistry` to accept optional `video_processing`
+- Migrated 6 tests to exercise `ProcessingCoordinator` directly
+- Updated 5 test/helper files to remove orchestrator mocks
+
+##### Phase 0.3 TODO 3: Remove stale comment in detector.py
+
+- Removed 2-line TODO comment about multi-aquarium tracking dispatch
+  (already handled by `detect_partitioned*` methods)
+
+#### Phase 1 — Eliminate Silent Exceptions (February 2026)
+
+Replaced **all ~94 `except...pass`** blocks across the codebase with
+structured `log.debug()`/`log.warning()` calls using structlog, enabling
+full debugging visibility without changing control flow.
+
+##### Scope
+
+- **31 source files** modified across `src/zebtrack/`
+- **0 `except...pass` remaining** in production code (verified via Ruff S110)
+- **2778 tests passing**, 12 skipped, 0 failures
+
+##### Key changes
+
+- **DANGEROUS patterns** (8): Changed to `log.warning()` — silent mode
+  fallbacks in `processing_coordinator.py`, data loss in
+  `video_validation_service.py`, hidden failures in `gui.py`
+- **Moderate UI/Tkinter** (29): Widget teardown, config guards, dialog
+  destroy — changed to `log.debug()` with `exc_info=True`
+- **I/O & hardware** (9): Camera shutdown, recorder cleanup, Arduino
+  probing, OpenVINO metadata parsing — changed to `log.debug()`
+- **Config/input parsing** (11): Day/group parsing, geotaxis column
+  renaming, validation fallbacks — changed to `log.debug()`
+- **TclError dialog guards** (2): Destroy-already-destroyed dialogs —
+  changed to `log.debug()`
+- **Logging bootstrap** (3): `logging_config.py` uses stdlib
+  `logging.debug()` since structlog isn't configured yet
+
+##### Ruff S110 guard rail
+
+- Added `"S110"` (flake8-bandit try-except-pass) to Ruff `select` in
+  `pyproject.toml` — prevents future regressions
+- Tests and scripts exempted via `per-file-ignores`
+
+##### Pre-commit hook
+
+- Added `astral-sh/ruff-pre-commit` (v0.9.7) to `.pre-commit-config.yaml`
+  with `ruff` (lint + auto-fix) and `ruff-format` hooks
+
+#### Phase 3 — Structural Unification (February 2026)
+
+Eliminated duplicate base classes, removed the legacy `orchestrators/`
+package, and cleaned dead deprecated fields.
+
+##### 3.1 Unified BaseCoordinator
+
+- Merged ABC-based `coordinators/base.py` (305 lines) features into
+  concrete `coordinators/base_coordinator.py` — single base class for
+  all 10 coordinators
+- `validate_dependencies()` changed from `@abstractmethod` to concrete
+  default (`return True`)
+- `_update_state(category, **kwargs)` signature preserved (31 call sites)
+- Exception hierarchy (`CoordinatorError`, `CoordinatorValidationError`,
+  `CoordinatorDependencyError`) consolidated in one module
+- Deleted `coordinators/base.py`; updated 6 coordinator imports + 7 test
+  files
+
+##### 3.2 Removed `orchestrators/` package
+
+- Moved `UIStateController` (653 lines) to
+  `coordinators/ui_state_coordinator.py`
+- Deleted `VideoProcessingOrchestrator` stub (62 lines, dead code)
+- Deleted `orchestrators/__init__.py`
+- Updated 7 production imports + 1 test import
+- Moved 2 test files to `tests/coordinators/`
+- Removed `video_processing` field from `OrchestratorRegistry`
+
+##### 3.3 Removed dead `project_coordinator` field
+
+- Removed dead `project_coordinator` field from
+  `MainViewModelDependencies`, `ApplicationBootstrapper` (proxy +
+  legacy dict), `MainViewModel`, and 2 test helpers
+- Relabelled remaining 5 deprecated fields as `# LEGACY: Migrate to X
+  (Phase 4)` to clarify they are still in active use
+
+##### 3.4 Cleaned `ApplicationBootstrapper`
+
+- Removed `VideoProcessingOrchestrator` TYPE_CHECKING import
+- Removed `video_processing_orchestrator` from `BootstrapResult`
+  dataclass and its construction sites
+- Removed empty `TYPE_CHECKING` block and unused `TYPE_CHECKING` import
+- Updated `OrchestratorRegistry` instantiation (removed
+  `video_processing_orchestrator=None`)
+- **2778 tests passing**, 12 skipped, 0 failures, lint clean
+
+##### 3.5 Eliminated dead `AnalysisCoordinator`
+
+- **Deleted** `core/analysis_coordinator.py` (744 lines) — dead code
+  fully superseded by `ProcessingCoordinator`
+- Removed import and construction block from
+  `ApplicationBootstrapper._init_orchestrators()`
+- Removed proxy assignment (`controller_proxy.analysis_coordinator`)
+- Removed `analysis_coordinator` field from
+  `MainViewModelDependencies`
+- Removed attribute assignment and `services_to_update` entry from
+  `MainViewModel`
+- **Deleted** `tests/core/test_analysis_coordinator.py` (599 lines)
+- Cleaned 4 test helpers that referenced the dead coordinator
+
+##### 3.6 Eliminated dead `VideoOrchestrator`
+
+- **Deleted** `core/video_orchestrator.py` (911 lines) — dead code
+  fully superseded by `ProcessingCoordinator`
+- Removed import and construction block from
+  `ApplicationBootstrapper._init_orchestrators()`
+- Removed proxy assignment (`controller_proxy.video_orchestrator`)
+- Removed `video_orchestrator` field from
+  `MainViewModelDependencies`
+- Removed attribute assignment and `services_to_update` entry from
+  `MainViewModel`
+- **Deleted** `tests/core/test_video_orchestrator.py` (665 lines)
+- Cleaned 4 test helpers that referenced the dead coordinator
+- **Net removal**: ~2,919 lines of dead production + test code
+- **2718 tests passing**, 12 skipped, lint clean
+
+#### Phase 2 — Narrow Generic Exception Catches (February 2026)
+
+Narrowed **~130 `except Exception`** blocks to specific exception types
+and justified **~155** remaining ones with greppable inline comments
+across the priority scope (6 UI files + coordinators + core + I/O).
+
+##### Scope
+
+- **~60 source files** modified across `src/zebtrack/`
+- **~130 catches narrowed** to specific types (`OSError`, `tk.TclError`,
+  `ValueError`, `KeyError`, `AttributeError`, `TypeError`,
+  `json.JSONDecodeError`, `pa.ArrowInvalid`, `re.error`, etc.)
+- **~155 catches justified** with `# except Exception justified: <reason>`
+  inline comments (greppable)
+- **~45 catches already justified** via `# pragma: no cover` comments
+- **2778 tests passing**, 12 skipped, 0 failures
+- **10 test files updated** to raise specific exception types matching
+  narrowed production catches
+
+##### By directory
+
+- **6 priority UI files** (80 instances): `window_utils.py`,
+  `state_synchronizer.py`, `widget_factory.py`,
+  `project_view_manager.py`, `gui.py`, `ui_coordinator.py`
+- **coordinators/** (87 instances across 10 files): 15 narrowed,
+  68 justified, 4 already justified
+- **core/** (136 instances across 30 files): 50 narrowed,
+  70 justified, 16 already justified
+- **io/** (40 instances across 6 files): 8 narrowed,
+  17 justified, 15 already justified
+
+##### Common narrowing patterns
+
+- Tkinter widget operations: `except tk.TclError`
+- File/network I/O: `except OSError`
+- Data parsing: `except (ValueError, TypeError, KeyError)`
+- JSON I/O: `except (OSError, json.JSONDecodeError, KeyError)`
+- Parquet I/O: `except (OSError, pa.ArrowInvalid, pa.ArrowIOError)`
+- Attribute probing: `except (AttributeError, TypeError)`
+
+##### Justification categories
+
+- Service/facade boundaries wrapping heterogeneous subsystems
+- Daemon/worker thread fault-isolation loops
+- Hardware I/O (camera, serial, OpenVINO)
+- YOLO/cv2 operations (poorly-typed errors)
+- Pandas/parquet pipelines (heterogeneous data errors)
+- Event-bus handler fault-isolation boundaries
+
+##### Bug fixes during Phase 2
+
+- Fixed `detector_service.py` persist catch: widened `OSError` to
+  `(OSError, ValueError)` to handle YAML serialization errors
+- Removed duplicate `raise e` dead code at `gui.py` line 535
+
+#### Phase 3.7 — EventBus Unification Decision (February 2026)
+
+Documented the decision to unify on `EventBusV2` as the canonical event
+bus and deprecated `EventBus` v1 with `DeprecationWarning`. No consumer
+migration in this phase — deferred to Phase 4+ alongside coordinator
+decomposition.
+
+##### ADR-009: EventBus Unification
+
+- Created `docs/decisions/ADR-009-event-bus-unification.md` establishing
+  `EventBusV2` as the canonical bus (type-safe enums, `RLock` thread
+  safety, 100ms slow-handler monitoring)
+- Decision: deprecate v1 starting v4.1 (Feb 2026), removal target v5.0
+- Migration plan: ~97 `Events` string constants will be progressively
+  absorbed into `UIEvents` enum during Phase 4+ coordinator refactoring
+
+##### DeprecationWarning on EventBus v1
+
+- Added `warnings.warn(..., DeprecationWarning, stacklevel=2)` to
+  `EventBus.publish_event()`, `EventBus.subscribe()`, and
+  `EventBus.publish_callable()` in `ui/event_bus.py`
+- Warning message includes migration path (`EventBusV2`), ADR reference,
+  and removal timeline (`v5.0`)
+- Follows existing deprecation pattern from `analysis/reporter.py`
+- Python's default filter shows each unique call site once per process
+  (no log flooding)
+
+##### Test noise suppression
+
+- Added `pytest.ini` `filterwarnings` entry to suppress expected v1
+  deprecation warnings during test runs
+- Narrow filter: matches only `EventBus v1 .*DEPRECATED.*` from
+  `zebtrack.ui.event_bus` module
+- Will be removed when Phase 4+ migration completes
+
+### �🟢 New Features
 
 #### LiveBatchCoordinator v2.3.0 Integration (January 2026)
 

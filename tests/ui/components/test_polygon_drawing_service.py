@@ -143,4 +143,4 @@ def test_polygon_service_validation_fail():
     )
 
     assert result is False
-    mock_gui.show_warning.assert_called_once()
+    mock_gui.dialog_manager.show_warning.assert_called_once()

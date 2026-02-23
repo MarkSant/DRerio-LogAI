@@ -155,12 +155,12 @@ class TestLogLevelConfiguration:
         mock_structlog_get_logger.return_value = mock_structlog_logger
 
         mock_settings = Mock()
-        mock_settings.logging.levels = {"zebtrack.core.detector": "DEBUG"}
+        mock_settings.logging.levels = {"zebtrack.core.detection": "DEBUG"}
 
         configure_logging_levels(mock_settings)
 
         # Should set DEBUG for specific module
-        mock_get_logger.assert_called_with("zebtrack.core.detector")
+        mock_get_logger.assert_called_with("zebtrack.core.detection")
         mock_module_logger.setLevel.assert_called_with(logging.DEBUG)
 
     @patch("logging.getLogger")
@@ -185,7 +185,7 @@ class TestLogLevelConfiguration:
 
         mock_settings = Mock()
         mock_settings.logging.levels = {
-            "zebtrack.core.detector": "DEBUG",
+            "zebtrack.core.detection": "DEBUG",
             "zebtrack.analysis": "WARNING",
         }
 

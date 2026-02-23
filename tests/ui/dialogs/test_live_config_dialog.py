@@ -43,7 +43,7 @@ class TestLiveConfigDialog:
 
     # --- Initialization Tests ---
 
-    @patch("zebtrack.core.wizard_service.WizardService.detect_available_cameras")
+    @patch("zebtrack.core.services.wizard_service.WizardService.detect_available_cameras")
     @patch("zebtrack.ui.dialogs.live_config_dialog.Arduino.scan_available_ports")
     @patch("zebtrack.ui.dialogs.live_config_dialog.serial.tools.list_ports.comports")
     def test_dialog_initialization(
@@ -70,7 +70,7 @@ class TestLiveConfigDialog:
         assert hasattr(dialog, "available_cameras")
         assert hasattr(dialog, "available_ports")
 
-    @patch("zebtrack.core.wizard_service.WizardService.detect_available_cameras")
+    @patch("zebtrack.core.services.wizard_service.WizardService.detect_available_cameras")
     @patch("zebtrack.ui.dialogs.live_config_dialog.Arduino.scan_available_ports")
     def test_camera_detection(self, mock_scan_ports, mock_detect_cameras, tkinter_root):
         """Test camera detection finds available cameras."""
@@ -89,7 +89,7 @@ class TestLiveConfigDialog:
         assert "Câmera 1" in dialog.available_cameras
         assert len(dialog.available_cameras) == 2
 
-    @patch("zebtrack.core.wizard_service.WizardService.detect_available_cameras")
+    @patch("zebtrack.core.services.wizard_service.WizardService.detect_available_cameras")
     @patch("zebtrack.ui.dialogs.live_config_dialog.Arduino.scan_available_ports")
     def test_no_cameras_detected(self, mock_scan_ports, mock_videocapture, tkinter_root):
         """Test dialog handles no cameras detected."""
@@ -107,7 +107,7 @@ class TestLiveConfigDialog:
         # Should have empty cameras dict
         assert len(dialog.available_cameras) == 0
 
-    @patch("zebtrack.core.wizard_service.WizardService.detect_available_cameras")
+    @patch("zebtrack.core.services.wizard_service.WizardService.detect_available_cameras")
     @patch("zebtrack.ui.dialogs.live_config_dialog.Arduino.scan_available_ports")
     def test_port_detection_with_handshake(self, mock_scan_ports, mock_videocapture, tkinter_root):
         """Test port detection finds Arduino ports with handshake."""
@@ -136,7 +136,7 @@ class TestLiveConfigDialog:
         assert "COM3" in port_values
         assert "COM5" in port_values
 
-    @patch("zebtrack.core.wizard_service.WizardService.detect_available_cameras")
+    @patch("zebtrack.core.services.wizard_service.WizardService.detect_available_cameras")
     @patch("zebtrack.ui.dialogs.live_config_dialog.Arduino.scan_available_ports")
     @patch("zebtrack.ui.dialogs.live_config_dialog.serial.tools.list_ports.comports")
     def test_port_detection_fallback(
@@ -162,7 +162,7 @@ class TestLiveConfigDialog:
         port_values = list(dialog.available_ports.values())
         assert "COM7" in port_values
 
-    @patch("zebtrack.core.wizard_service.WizardService.detect_available_cameras")
+    @patch("zebtrack.core.services.wizard_service.WizardService.detect_available_cameras")
     @patch("zebtrack.ui.dialogs.live_config_dialog.Arduino.scan_available_ports")
     @patch("zebtrack.ui.dialogs.live_config_dialog.serial.tools.list_ports.comports")
     def test_no_ports_detected(
@@ -184,7 +184,7 @@ class TestLiveConfigDialog:
 
     # --- Validation Tests ---
 
-    @patch("zebtrack.core.wizard_service.WizardService.detect_available_cameras")
+    @patch("zebtrack.core.services.wizard_service.WizardService.detect_available_cameras")
     @patch("zebtrack.ui.dialogs.live_config_dialog.Arduino.scan_available_ports")
     @patch("zebtrack.ui.dialogs.live_config_dialog.messagebox.showerror")
     def test_validate_no_cameras(
@@ -208,7 +208,7 @@ class TestLiveConfigDialog:
         mock_showerror.assert_called_once()
         assert "Nenhuma câmera" in mock_showerror.call_args[0][1]
 
-    @patch("zebtrack.core.wizard_service.WizardService.detect_available_cameras")
+    @patch("zebtrack.core.services.wizard_service.WizardService.detect_available_cameras")
     @patch("zebtrack.ui.dialogs.live_config_dialog.Arduino.scan_available_ports")
     @patch("zebtrack.ui.dialogs.live_config_dialog.serial.tools.list_ports.comports")
     @patch("zebtrack.ui.dialogs.live_config_dialog.messagebox.showerror")
@@ -232,7 +232,7 @@ class TestLiveConfigDialog:
         mock_showerror.assert_called_once()
         assert "nenhuma porta serial" in mock_showerror.call_args[0][1].lower()
 
-    @patch("zebtrack.core.wizard_service.WizardService.detect_available_cameras")
+    @patch("zebtrack.core.services.wizard_service.WizardService.detect_available_cameras")
     @patch("zebtrack.ui.dialogs.live_config_dialog.Arduino.scan_available_ports")
     def test_validate_success(self, mock_scan_ports, mock_detect_cameras, tkinter_root):
         """Test validation succeeds with valid configuration."""
@@ -252,7 +252,7 @@ class TestLiveConfigDialog:
 
     # --- Apply Tests ---
 
-    @patch("zebtrack.core.wizard_service.WizardService.detect_available_cameras")
+    @patch("zebtrack.core.services.wizard_service.WizardService.detect_available_cameras")
     @patch("zebtrack.ui.dialogs.live_config_dialog.Arduino.scan_available_ports")
     def test_apply_with_arduino(self, mock_scan_ports, mock_detect_cameras, tkinter_root):
         """Test apply() creates correct result with Arduino enabled."""
@@ -280,7 +280,7 @@ class TestLiveConfigDialog:
         assert dialog.result["use_arduino"] is True
         assert dialog.result["arduino_port"] == "COM5"
 
-    @patch("zebtrack.core.wizard_service.WizardService.detect_available_cameras")
+    @patch("zebtrack.core.services.wizard_service.WizardService.detect_available_cameras")
     @patch("zebtrack.ui.dialogs.live_config_dialog.Arduino.scan_available_ports")
     def test_apply_without_arduino(self, mock_scan_ports, mock_detect_cameras, tkinter_root):
         """Test apply() creates correct result with Arduino disabled."""
@@ -307,7 +307,7 @@ class TestLiveConfigDialog:
 
     # --- UI Interaction Tests ---
 
-    @patch("zebtrack.core.wizard_service.WizardService.detect_available_cameras")
+    @patch("zebtrack.core.services.wizard_service.WizardService.detect_available_cameras")
     @patch("zebtrack.ui.dialogs.live_config_dialog.Arduino.scan_available_ports")
     def test_toggle_arduino_menu(self, mock_scan_ports, mock_videocapture, tkinter_root):
         """Test Arduino menu is enabled/disabled based on checkbox."""
@@ -341,7 +341,7 @@ class TestLiveConfigDialog:
 
         assert str(dialog.arduino_combo.cget("state")) == "readonly"
 
-    @patch("zebtrack.core.wizard_service.WizardService.detect_available_cameras")
+    @patch("zebtrack.core.services.wizard_service.WizardService.detect_available_cameras")
     @patch("zebtrack.ui.dialogs.live_config_dialog.Arduino.scan_available_ports")
     @patch("zebtrack.ui.dialogs.live_config_dialog.serial.tools.list_ports.comports")
     def test_toggle_arduino_menu_no_ports(
@@ -373,7 +373,7 @@ class TestLiveConfigDialog:
 
     # --- Error Handling Tests ---
 
-    @patch("zebtrack.core.wizard_service.WizardService.detect_available_cameras")
+    @patch("zebtrack.core.services.wizard_service.WizardService.detect_available_cameras")
     @patch("zebtrack.ui.dialogs.live_config_dialog.Arduino.scan_available_ports")
     def test_port_detection_with_exception(self, mock_scan_ports, mock_videocapture, tkinter_root):
         """Test port detection handles exceptions gracefully."""
@@ -391,7 +391,7 @@ class TestLiveConfigDialog:
         # Should have no ports
         assert len(dialog.available_ports) == 0
 
-    @patch("zebtrack.core.wizard_service.WizardService.detect_available_cameras")
+    @patch("zebtrack.core.services.wizard_service.WizardService.detect_available_cameras")
     @patch("zebtrack.ui.dialogs.live_config_dialog.Arduino.scan_available_ports")
     def test_port_without_device_attribute(self, mock_scan_ports, mock_videocapture, tkinter_root):
         """Test port detection handles ports without device attribute."""

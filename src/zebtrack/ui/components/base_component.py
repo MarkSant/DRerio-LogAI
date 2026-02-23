@@ -38,9 +38,10 @@ from typing import TYPE_CHECKING, Any
 
 import structlog
 
+from zebtrack.ui.event_bus_v2 import EVENT_NAME_TO_UIEVENT, Event, EventBusV2, UIEvents
+
 if TYPE_CHECKING:
     from zebtrack.settings import Settings
-    from zebtrack.ui.event_bus import EventBus
 
 log = structlog.get_logger()
 
@@ -61,7 +62,7 @@ class BaseUIComponent(ABC):
     - Dependency Injection: All deps via __init__
     - Separation of Concerns: Widget creation separate from event binding
     - Lifecycle Management: Clear setup and cleanup phases
-    - Event-Driven: Use EventBus for loose coupling
+    - Event-Driven: Use EventBusV2 for loose coupling
     - Testable: Easy to mock dependencies
 
     Attributes:
@@ -93,7 +94,7 @@ class BaseUIComponent(ABC):
         self,
         parent: Misc,
         controller: Any,
-        event_bus: EventBus | None,
+        event_bus: EventBusV2 | None,
         settings_obj: Settings,
     ):
         """Initialize base UI component.
@@ -101,7 +102,7 @@ class BaseUIComponent(ABC):
         Args:
             parent: Tkinter parent widget
             controller: Controller (MainViewModel or coordinator)
-            event_bus: Optional event bus for notifications
+            event_bus: Optional EventBusV2 for notifications
             settings_obj: Application settings
         """
         self.parent = parent
@@ -175,7 +176,7 @@ class BaseUIComponent(ABC):
                 # Event bus subscriptions
                 if self.event_bus:
                     self.event_bus.subscribe(
-                        Events.PROJECT_LOADED,
+                        UIEvents.PROJECT_LOADED,
                         self._on_project_loaded,
                     )
 
@@ -235,19 +236,25 @@ class BaseUIComponent(ABC):
         """
         self._log.info("component.cleanup")
 
-    def _emit_event(self, event_name: str, data: dict[str, Any] | None = None):
+    def _emit_event(self, event_type: UIEvents | str, data: dict[str, Any] | None = None):
         """
-        Helper to emit events via EventBus.
+        Helper to emit events via EventBusV2.
 
         Args:
-            event_name: Event name (from Events enum)
-            data: Optional event data
+            event_type: UIEvents enum member or legacy string name.
+            data: Optional event data.
         """
         if self.event_bus:
-            self.event_bus.publish_event(event_name, data or {})
-            self._log.debug("component.event.emitted", event_name=event_name)
+            if isinstance(event_type, str):
+                resolved = EVENT_NAME_TO_UIEVENT.get(event_type)
+                if resolved is None:
+                    self._log.warning("component.event.unknown_string", event_name=event_type)
+                    return
+                event_type = resolved
+            self.event_bus.publish(Event(type=event_type, data=data or {}))
+            self._log.debug("component.event.emitted", event_type=event_type.name)
         else:
-            self._log.debug("component.event.no_bus", event_name=event_name)
+            self._log.debug("component.event.no_bus", event_type=str(event_type))
 
     def _schedule_on_ui(self, func, *args, **kwargs):
         """

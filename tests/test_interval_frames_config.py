@@ -8,7 +8,7 @@ import cv2
 import numpy as np
 import pytest
 
-from zebtrack.core.project_manager import ProjectManager
+from zebtrack.core.project.project_manager import ProjectManager
 
 CONFIG_FILENAME = "project_config.json"
 SINGLE_VIDEO_DIALOG_PATH = (
@@ -122,7 +122,7 @@ def test_controller_workflow_roundtrip_persists_intervals(
     The ProjectManager persistence is already tested in
     test_project_manager_persists_interval_settings.
     """
-    from zebtrack.core.project_workflow_service import ProjectWorkflowService
+    from zebtrack.core.project.project_workflow_service import ProjectWorkflowService
     from zebtrack.core.state_manager import StateManager
 
     # Create REAL ProjectManager for this test

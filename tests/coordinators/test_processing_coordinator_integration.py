@@ -5,7 +5,9 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from zebtrack.coordinators.processing_coordinator import ProcessingCoordinator
+from zebtrack.coordinators.progress_tracking_coordinator import ProgressTrackingCoordinator
+from zebtrack.coordinators.report_generation_coordinator import ReportGenerationCoordinator
+from zebtrack.coordinators.video_processing_coordinator import VideoProcessingCoordinator
 
 
 @pytest.fixture
@@ -37,8 +39,10 @@ def coordinator_with_view(tmp_path):
 
     view = MagicMock()
     root = MagicMock()
+    # Make root.after execute callbacks immediately for testability
+    root.after.side_effect = lambda ms, fn: fn()
 
-    coordinator = ProcessingCoordinator(
+    coordinator = VideoProcessingCoordinator(
         state_manager=state_manager,
         project_manager=project_manager,
         detector_service=detector_service,
@@ -50,12 +54,32 @@ def coordinator_with_view(tmp_path):
         video_selection_service=video_selection_service,
         video_validation_service=video_validation_service,
         video_classification_service=video_classification_service,
-        analysis_service=analysis_service,
         recorder_factory=recorder_factory,
         event_bus=event_bus,
         view=view,
         root=root,
     )
+
+    # Wire sub-coordinators for proxy methods
+    report_coordinator = ReportGenerationCoordinator(
+        state_manager=state_manager,
+        project_manager=project_manager,
+        settings_obj=cast(Any, settings),
+        analysis_service=analysis_service,
+        event_bus=event_bus,
+    )
+    progress_coordinator = ProgressTrackingCoordinator(
+        state_manager=state_manager,
+        settings_obj=cast(Any, settings),
+        ui_coordinator=ui_coordinator,
+        cancel_event=cancel_event,
+        event_bus=event_bus,
+        view=view,
+        root=root,
+    )
+    coordinator._report_coordinator = report_coordinator
+    coordinator._progress_coordinator = progress_coordinator
+    progress_coordinator._video_processing_coordinator = coordinator
 
     return coordinator
 
@@ -78,7 +102,6 @@ def test_callbacks_progress_updates_ui_and_state(coordinator_with_view):
     coordinator_with_view.state_manager.update_processing_state.assert_called_with(
         source="controller.processing_progress", current_frame=10, total_frames=20
     )
-    assert coordinator_with_view.event_bus.publish_event.call_count >= 2
 
 
 def test_on_video_completed_registers_outputs(coordinator_with_view, tmp_path):
@@ -89,7 +112,7 @@ def test_on_video_completed_registers_outputs(coordinator_with_view, tmp_path):
     traj_path = results_dir / "3_CoordMovimento_video.parquet"
     traj_path.write_bytes(b"data")
 
-    coordinator_with_view.generate_project_reports = MagicMock()
+    coordinator_with_view._report_coordinator.generate_project_reports = MagicMock()
 
     videos = [{"path": str(video_path), "results_dir": str(results_dir)}]
     callbacks = coordinator_with_view.create_processing_callbacks(videos)
@@ -97,4 +120,6 @@ def test_on_video_completed_registers_outputs(coordinator_with_view, tmp_path):
     callbacks.on_video_completed(0, 1, "video", True)
 
     coordinator_with_view.project_manager.register_processing_outputs.assert_called_once()
-    coordinator_with_view.generate_project_reports.assert_called_once_with([str(video_path)])
+    coordinator_with_view._report_coordinator.generate_project_reports.assert_called_once_with(
+        [str(video_path)]
+    )

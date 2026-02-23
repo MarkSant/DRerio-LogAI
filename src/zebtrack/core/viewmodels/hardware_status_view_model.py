@@ -7,7 +7,7 @@ import structlog
 if TYPE_CHECKING:
     from zebtrack.core.application_bootstrapper import BootstrapResult
     from zebtrack.core.dependency_container import MainViewModelDependencies
-    from zebtrack.core.detector import Detector
+    from zebtrack.core.detection import Detector
 
 log = structlog.get_logger()
 
@@ -25,14 +25,18 @@ class HardwareStatusViewModel:
     ) -> None:
         self.detector_service = dependencies.detector_service
         self.model_service = dependencies.model_service
-        self.hardware_coordinator = dependencies.hardware_coordinator
-        self.detector_coordinator = bootstrap_result.legacy_coordinators.get("detector_coordinator")
+        # Phase 4.9: HardwareCoordinator decomposed
+        self.detector_setup_coordinator = dependencies.detector_setup_coordinator
+        self.model_diagnostics_coordinator = dependencies.model_diagnostics_coordinator
         self.arduino_manager = bootstrap_result.arduino_manager
         self.weight_manager = dependencies.weight_manager
-        self.session_coordinator = dependencies.session_coordinator
+        # Phase 4.7: Replaced single session_coordinator with 3 focused coordinators
+        self.recording_session_coordinator = dependencies.recording_session_coordinator
+        self.live_camera_session_coordinator = dependencies.live_camera_session_coordinator
+        self.live_calibration_coordinator = dependencies.live_calibration_coordinator
         self.ui_state_controller = bootstrap_result.ui_state_controller
         # Phase 3C/D: model_diagnostics_orchestrator and recording_session_orchestrator removed
-        self.recording_coordinator = dependencies.recording_coordinator
+        # Phase 4.7: Removed recording_coordinator (dead legacy code)
         self.state_manager = dependencies.state_manager
         self.settings = dependencies.settings_obj
 
@@ -61,10 +65,10 @@ class HardwareStatusViewModel:
         return self.state_manager.get_detector_state().detector_initialized
 
     def setup_detector(self, temp_animal_method: str | None = None) -> bool:
-        if not self.detector_coordinator:
+        if not self.detector_setup_coordinator:
             return False
 
-        success, _ = self.detector_coordinator.setup_detector(
+        success, _ = self.detector_setup_coordinator.setup_detector(
             animal_method=temp_animal_method,
             use_openvino=self.use_openvino,
             active_weight_name=self.active_weight_name,
@@ -72,26 +76,26 @@ class HardwareStatusViewModel:
         return success
 
     def update_detector_parameters(self, params: dict, **kwargs) -> bool:
-        if self.detector_coordinator:
-            return self.detector_coordinator.update_detector_parameters(params, **kwargs)
+        if self.detector_setup_coordinator:
+            return self.detector_setup_coordinator.update_detector_parameters(params, **kwargs)
         return False
 
     def get_current_detector_parameters(self) -> dict:
-        if self.detector_coordinator:
-            return self.detector_coordinator.get_detector_parameters()
+        if self.detector_setup_coordinator:
+            return self.detector_setup_coordinator.get_detector_parameters()
         return {}
 
     def restore_detector_defaults(self, scope: str = "global") -> bool:
-        if not self.detector_coordinator:
+        if not self.detector_setup_coordinator:
             return False
 
         if scope == "global":
-            factory_defaults = self.detector_coordinator.get_factory_detector_parameters()
-            return self.detector_coordinator.update_detector_parameters(
+            factory_defaults = self.detector_setup_coordinator.get_factory_detector_parameters()
+            return self.detector_setup_coordinator.update_detector_parameters(
                 params=factory_defaults, scope="global", reset_overrides=True
             )
         elif scope == "project":
-            return self.detector_coordinator.update_detector_parameters(
+            return self.detector_setup_coordinator.update_detector_parameters(
                 params={}, scope="project", reset_overrides=True
             )
         return False
@@ -127,6 +131,7 @@ class HardwareStatusViewModel:
         try:
             if self.arduino_manager:
                 self.arduino_manager.shutdown()
+        # except Exception justified: serial hardware shutdown — cleanup must not propagate
         except Exception as e:
             log.warning("controller.arduino.shutdown_failed", error=str(e))
         self.arduino_manager = None
@@ -173,12 +178,12 @@ class HardwareStatusViewModel:
         self.ui_state_controller.manage_weights()
 
     def run_model_diagnostic(self, config: dict):
-        # Phase 3C: Redirect to HardwareCoordinator (supersedes ModelDiagnosticsOrchestrator)
-        if self.hardware_coordinator:
+        # Phase 4.9: Redirect to ModelDiagnosticsCoordinator
+        if self.model_diagnostics_coordinator:
             # Inject active weight name into config so coordinator doesn't depend on
             # WeightManager state
             config["active_weight_name"] = self.active_weight_name
-            self.hardware_coordinator.run_model_diagnostic(config)
+            self.model_diagnostics_coordinator.run_model_diagnostic(config)
 
     def handle_request_weight_file(self):
         from tkinter import filedialog
@@ -197,8 +202,8 @@ class HardwareStatusViewModel:
     # --- Recording / Live Session ---
 
     def start_live_camera_analysis(self, camera_index: int | None = None) -> Any:
-        if self.session_coordinator:
-            return self.session_coordinator.start_live_camera_analysis(camera_index)
+        if self.live_camera_session_coordinator:
+            return self.live_camera_session_coordinator.start_live_camera_analysis(camera_index)
         return None
 
     def start_live_project_session(
@@ -208,26 +213,26 @@ class HardwareStatusViewModel:
         subject: str,
         duration_s: float | None = None,
     ) -> Any:
-        if self.session_coordinator:
-            return self.session_coordinator.start_live_project_session(
+        if self.live_camera_session_coordinator:
+            return self.live_camera_session_coordinator.start_live_project_session(
                 day=day, group=group, subject=subject, duration_s=duration_s
             )
         return None
 
     def start_live_session(self, **kwargs: Any) -> None:
-        """Start a live session (delegates to SessionCoordinator)."""
-        if self.session_coordinator:
-            self.session_coordinator.start_live_session(**kwargs)
+        """Start a live session (delegates to LiveCameraSessionCoordinator)."""
+        if self.live_camera_session_coordinator:
+            self.live_camera_session_coordinator.start_live_session(**kwargs)
 
     def start_recording(self, **kwargs: Any) -> None:
-        # Use SessionCoordinator for recording (consolidated from RecordingSessionOrchestrator)
-        if self.session_coordinator:
-            self.session_coordinator.start_recording(**kwargs)
+        # Phase 4.7: Delegates to RecordingSessionCoordinator
+        if self.recording_session_coordinator:
+            self.recording_session_coordinator.start_recording(**kwargs)
 
     def stop_recording(self) -> None:
-        # Use SessionCoordinator for recording (consolidated from RecordingSessionOrchestrator)
-        if self.session_coordinator:
-            self.session_coordinator.stop_recording()
+        # Phase 4.7: Delegates to RecordingSessionCoordinator
+        if self.recording_session_coordinator:
+            self.recording_session_coordinator.stop_recording()
 
     def toggle_recording(self) -> None:
         if self.recording_service and self.recording_service.is_recording:
@@ -240,10 +245,10 @@ class HardwareStatusViewModel:
         # Return Any | None because types might be circular or loaded dynamically
         if self._recording_service:
             return self._recording_service
-        return getattr(self.session_coordinator, "recording_service", None)
+        # Phase 4.7: Get from recording_session_coordinator
+        return getattr(self.recording_session_coordinator, "recording_service", None)
 
     @recording_service.setter
     def recording_service(self, value: Any | None) -> None:
         self._recording_service = value
-        if self.recording_coordinator:
-            self.recording_coordinator.recording_service = value
+        # Phase 4.7: Removed forwarding to dead recording_coordinator

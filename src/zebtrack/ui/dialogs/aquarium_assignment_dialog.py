@@ -227,7 +227,12 @@ class AquariumAssignmentDialog(simpledialog.Dialog):
                     try:
                         self._day_vars[i].set(int(match["day"]))
                     except ValueError:
-                        pass
+                        log.debug(
+                            "aquarium_dialog.day_parse_error",
+                            day=match["day"],
+                            aquarium=i,
+                            exc_info=True,
+                        )
             elif count == 1 and i == 1:
                 # Fallback for 2nd aquarium if only 1 match found
                 # Copy Group and Day from first match, keep Subject different or empty?
@@ -241,7 +246,12 @@ class AquariumAssignmentDialog(simpledialog.Dialog):
                     try:
                         self._day_vars[i].set(int(match["day"]))
                     except ValueError:
-                        pass
+                        log.debug(
+                            "aquarium_dialog.day_fallback_error",
+                            day=match["day"],
+                            aquarium=i,
+                            exc_info=True,
+                        )
                 # Don't overwrite subject of 2nd aquarium with 1st subject ID if it's specific
 
         messagebox.showinfo(
@@ -321,7 +331,12 @@ class AquariumAssignmentDialog(simpledialog.Dialog):
                     try:
                         self._day_vars[i].set(int(match["day"]))
                     except ValueError:
-                        pass
+                        log.debug(
+                            "aquarium_dialog.regex_day_error",
+                            day=match["day"],
+                            aquarium=i,
+                            exc_info=True,
+                        )
             elif count == 1 and i == 1:
                 # Fallback for 2nd aquarium if only 1 match found
                 match = matches[0]
@@ -334,11 +349,16 @@ class AquariumAssignmentDialog(simpledialog.Dialog):
                     try:
                         self._day_vars[i].set(int(match["day"]))
                     except ValueError:
-                        pass
+                        log.debug(
+                            "aquarium_dialog.regex_fallback_error",
+                            day=match["day"],
+                            aquarium=i,
+                            exc_info=True,
+                        )
 
     def _resolve_group_name(self, regex_value: str) -> str:
         """Resolve regex group name using ProjectManager helper."""
-        from zebtrack.core.project_manager import ProjectManager
+        from zebtrack.core.project.project_manager import ProjectManager
 
         return ProjectManager.resolve_group_name(regex_value, self.available_groups)
 

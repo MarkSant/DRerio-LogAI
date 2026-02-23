@@ -3,7 +3,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from zebtrack.core.application_bootstrapper import ApplicationBootstrapper
-from zebtrack.core.dependency_container import MainViewModelDependencies
+from zebtrack.core.dependency_container import LazyRef, MainViewModelDependencies
 
 
 class TestApplicationBootstrapper:
@@ -25,8 +25,12 @@ class TestApplicationBootstrapper:
 
         # Coordinators
         deps.processing_coordinator = MagicMock()
-        deps.hardware_coordinator = MagicMock()
-        deps.session_coordinator = MagicMock()
+        deps.detector_setup_coordinator = MagicMock()
+        deps.model_diagnostics_coordinator = MagicMock()
+        # Phase 4.7: Replaced session_coordinator with 3 focused coordinators
+        deps.recording_session_coordinator = MagicMock()
+        deps.live_camera_session_coordinator = MagicMock()
+        deps.live_calibration_coordinator = MagicMock()
         deps.project_lifecycle_coordinator = MagicMock()
 
         return deps
@@ -55,11 +59,11 @@ class TestApplicationBootstrapper:
 
         bootstrapper = ApplicationBootstrapper(dependencies)
 
-        # Mock controller proxy
-        controller_proxy = MagicMock()
+        # Phase 6: Use LazyRef instead of bare MagicMock for controller
+        controller_ref = LazyRef("MainViewModel")
 
         # Run initialize
-        result = bootstrapper.initialize(controller_proxy)
+        result = bootstrapper.initialize(controller_ref)
 
         # Verify result
         assert result is not None
@@ -67,7 +71,7 @@ class TestApplicationBootstrapper:
         assert result.recorder is not None
         assert result.event_dispatcher is not None
 
-        # Verify proxy was populated
-        assert controller_proxy.state_manager == dependencies.state_manager
-        assert controller_proxy.ui_coordinator == dependencies.ui_coordinator
-        assert controller_proxy.root == dependencies.root
+        # Phase 6: Proxy is NOT populated with attributes anymore — MainViewModel.__init__
+        # handles all attribute assignment via _extract_dependencies + _assign_bootstrap_result.
+        # Verify LazyRef is still unresolved (set() called only from __main__.py after init)
+        assert controller_ref.is_resolved is False

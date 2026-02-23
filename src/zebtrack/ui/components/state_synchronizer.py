@@ -4,9 +4,17 @@ Extracted from gui.py to reduce God Object complexity.
 Handles state observation, UI updates based on state changes, and reset operations.
 """
 
+from __future__ import annotations
+
+import tkinter as tk
+from typing import TYPE_CHECKING, Any
+
 import structlog
 
-from zebtrack.core.processing_mode import ProcessingMode
+from zebtrack.core.video.processing_mode import ProcessingMode
+
+if TYPE_CHECKING:
+    from zebtrack.ui.components.dialog_manager import DialogManager
 
 log = structlog.get_logger()
 
@@ -14,13 +22,28 @@ log = structlog.get_logger()
 class StateSynchronizer:
     """Manages state synchronization between StateManager and UI components."""
 
-    def __init__(self, gui):
+    def __init__(
+        self,
+        gui,
+        *,
+        dialog_manager: DialogManager | None = None,
+        state_manager: Any | None = None,
+    ):
         """Initialize StateSynchronizer.
 
         Args:
             gui: Reference to ApplicationGUI instance
+            dialog_manager: Optional DialogManager for dependency injection.
+            state_manager: Direct StateManager reference (avoids LazyRef access).
         """
         self.gui = gui
+        self._dialog_manager = dialog_manager
+        self._state_manager = state_manager
+
+    @property
+    def dialog_manager(self) -> DialogManager:
+        """Return injected DialogManager or fall back to gui.dialog_manager."""
+        return self._dialog_manager or self.gui.dialog_manager
 
     # ========================================================================
     # State Change Subscription
@@ -30,25 +53,29 @@ class StateSynchronizer:
         """Subscribe to StateManager events for reactive UI updates."""
         from zebtrack.core.state_manager import StateCategory
 
+        # Use directly injected state_manager to avoid LazyRef access during init
+        sm = self._state_manager
+        if sm is None:
+            # Fallback: try via controller (only safe after LazyRef is resolved)
+            try:
+                sm = self.gui.controller.state_manager
+            except RuntimeError:
+                log.warning(
+                    "state_synchronizer.subscribe.skipped", reason="state_manager unavailable"
+                )
+                return
+
         # Subscribe to recording state changes
-        self.gui.controller.state_manager.subscribe(
-            StateCategory.RECORDING, self._on_recording_state_changed
-        )
+        sm.subscribe(StateCategory.RECORDING, self._on_recording_state_changed)
 
         # Subscribe to processing state changes
-        self.gui.controller.state_manager.subscribe(
-            StateCategory.PROCESSING, self._on_processing_state_changed
-        )
+        sm.subscribe(StateCategory.PROCESSING, self._on_processing_state_changed)
 
         # Subscribe to detector state changes
-        self.gui.controller.state_manager.subscribe(
-            StateCategory.DETECTOR, self._on_detector_state_changed
-        )
+        sm.subscribe(StateCategory.DETECTOR, self._on_detector_state_changed)
 
         # Subscribe to project state changes
-        self.gui.controller.state_manager.subscribe(
-            StateCategory.PROJECT, self._on_project_state_changed
-        )
+        sm.subscribe(StateCategory.PROJECT, self._on_project_state_changed)
 
         log.info(
             "gui.state_observers.subscribed",
@@ -115,16 +142,16 @@ class StateSynchronizer:
             if self.gui.process_video_btn:
                 self.gui.process_video_btn.config(state="disabled")
             # Switch to analysis view mode
-            if hasattr(self.gui, "start_analysis_view_mode"):
-                self.gui.start_analysis_view_mode()
+            if hasattr(self.gui, "analysis_view_controller"):
+                self.gui.analysis_view_controller.start_analysis_view_mode()
         else:
             log.debug("gui.processing_state.stopped")
             # Re-enable process button after processing
             if self.gui.process_video_btn:
                 self.gui.process_video_btn.config(state="normal")
             # Switch back from analysis view mode
-            if hasattr(self.gui, "stop_analysis_view_mode"):
-                self.gui.stop_analysis_view_mode()
+            if hasattr(self.gui, "analysis_view_controller"):
+                self.gui.analysis_view_controller.stop_analysis_view_mode()
 
     def _update_detector_ui(self, detector_initialized: bool) -> None:
         """Update UI elements based on detector state."""
@@ -182,23 +209,23 @@ class StateSynchronizer:
         # Also reset internal state vars that might be used elsewhere
         try:
             self.gui.hide_progress_bar()
-        except Exception:
-            pass
+        except (tk.TclError, AttributeError):
+            log.debug("state_sync.hide_progress_bar.suppressed", exc_info=True)
 
         try:
             self.gui.analysis_status_var.set("Nenhuma análise em andamento.")
-        except Exception:
-            pass
+        except (tk.TclError, AttributeError):
+            log.debug("state_sync.analysis_status_reset.suppressed", exc_info=True)
 
         try:
             self.gui.analysis_task_var.set(self._default_analysis_task_text())
-        except Exception:
-            pass
+        except (tk.TclError, AttributeError):
+            log.debug("state_sync.analysis_task_reset.suppressed", exc_info=True)
 
         try:
             self._set_analysis_metadata_defaults()
-        except Exception:
-            pass
+        except (tk.TclError, AttributeError):
+            log.debug("state_sync.metadata_defaults.suppressed", exc_info=True)
 
     def _reset_roi_and_visual_frames(self) -> None:
         """Handle ROI canvas and visualization frame teardown."""
@@ -206,16 +233,16 @@ class StateSynchronizer:
             try:
                 if self.gui.video_display.canvas.winfo_exists():
                     self.gui.video_display.canvas.pack_forget()
-            except Exception:
-                pass
+            except tk.TclError:
+                log.debug("state_sync.canvas_pack_forget.suppressed", exc_info=True)
 
         # Destroy viz_frame (parent frame)
         if hasattr(self.gui, "viz_frame") and self.gui.viz_frame:
             try:
                 if self.gui.viz_frame.winfo_exists():
                     self.gui.viz_frame.destroy()
-            except Exception:
-                pass
+            except tk.TclError:
+                log.debug("state_sync.viz_frame_destroy.suppressed", exc_info=True)
             self.gui.viz_frame = None
 
         # Clean up zone tab frame components
@@ -223,8 +250,8 @@ class StateSynchronizer:
             try:
                 if self.gui.zone_tab_frame.winfo_exists():
                     self.gui.zone_tab_frame.destroy()
-            except Exception:
-                pass
+            except tk.TclError:
+                log.debug("state_sync.zone_tab_frame_destroy.suppressed", exc_info=True)
 
     def _destroy_notebook_and_main_controls(self) -> None:
         """Destroy the main notebook and controls, clear project overview state."""
@@ -238,13 +265,13 @@ class StateSynchronizer:
             self.gui.external_trigger_notice_label = None
             try:
                 self.gui.external_trigger_notice_var.set("")
-            except Exception:
-                pass
+            except tk.TclError:
+                log.debug("state_sync.trigger_notice_reset.suppressed", exc_info=True)
             if self.gui._overview_refresh_job is not None:
                 try:
                     self.gui.root.after_cancel(self.gui._overview_refresh_job)
-                except Exception:
-                    pass
+                except tk.TclError:
+                    log.debug("state_sync.overview_refresh_cancel.suppressed", exc_info=True)
                 self.gui._overview_refresh_job = None
             self.gui.project_overview_frame = None
 
@@ -259,8 +286,8 @@ class StateSynchronizer:
         elif hasattr(self.gui, "analysis_status_var"):
             try:
                 self.gui.analysis_status_var.set(message)
-            except Exception:
-                pass
+            except (tk.TclError, AttributeError):
+                log.debug("state_sync.analysis_status_set.suppressed", exc_info=True)
             # Note: project_overview_tree is a read-only property derived from
             # project_overview_widget. Clear the widget reference instead.
             if hasattr(self.gui, "project_overview_widget"):
@@ -272,8 +299,8 @@ class StateSynchronizer:
                     and self.gui.project_status_vars is not None
                 ):
                     self.gui.project_status_vars.clear()
-            except Exception:
-                pass
+            except (AttributeError, TypeError):
+                log.debug("state_sync.project_status_vars_clear.suppressed", exc_info=True)
 
             try:
                 if (
@@ -281,14 +308,14 @@ class StateSynchronizer:
                     and self.gui._project_status_containers is not None
                 ):
                     self.gui._project_status_containers.clear()
-            except Exception:
-                pass
+            except (AttributeError, TypeError):
+                log.debug("state_sync.status_containers_clear.suppressed", exc_info=True)
 
             try:
                 if hasattr(self.gui, "_last_overview_counts"):
                     self.gui._last_overview_counts = {}
-            except Exception:
-                pass
+            except AttributeError:
+                log.debug("state_sync.overview_counts_reset.suppressed", exc_info=True)
 
     # ========================================================================
     # Reset Methods - Analysis Controls
@@ -339,7 +366,7 @@ class StateSynchronizer:
     def reset_global_config_form_widget(self) -> None:
         """Reset ConfigEditorWidget form fields to reflect current settings object."""
         self.gui._reload_config_editor_values_widget()
-        self.gui.show_info(
+        self.dialog_manager.show_info(
             "Formulário recarregado",
             "Valores restaurados para refletir as configurações atuais.",
         )
@@ -407,8 +434,8 @@ class StateSynchronizer:
 
         try:
             zone_controls.show_single_analysis_options()
-        except Exception:
-            pass
+        except (tk.TclError, AttributeError):
+            log.warning("state_sync.show_single_analysis_options.suppressed", exc_info=True)
 
         analysis_interval = None
         display_interval = None
@@ -447,7 +474,7 @@ class StateSynchronizer:
         tracks: list[str] | None,
     ) -> None:
         """Display aggregated social proximity statistics for the active video."""
-        from zebtrack.core.processing_mode import ProcessingMode
+        from zebtrack.core.video.processing_mode import ProcessingMode
 
         if stats and isinstance(stats, dict):
             percentages = stats.get("social_time_percentage") or {}
@@ -729,7 +756,7 @@ class StateSynchronizer:
                 clamped_progress = max(0.0, min(1.0, float(progress_fraction)))
                 analysis_widget.update_progress(clamped_progress)
             except (TypeError, ValueError):
-                pass
+                log.debug("state_sync.progress_fraction_clamp.suppressed", exc_info=True)
 
         # Update metadata display (group, day, subject)
         group_str = str(group) if group else "Sem Grupo"

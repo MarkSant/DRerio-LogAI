@@ -10,8 +10,8 @@ from unittest.mock import MagicMock, mock_open, patch
 
 import pytest
 
-from zebtrack.core.batch_configuration_service import BatchConfigurationService
-from zebtrack.core.detector import ZoneData
+from zebtrack.core.detection import ZoneData
+from zebtrack.core.video.batch_configuration_service import BatchConfigurationService
 
 
 @pytest.fixture

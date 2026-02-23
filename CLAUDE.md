@@ -62,11 +62,11 @@ Constraint: If a file is modified, output the ENTIRE changed section with suffic
 poetry install                    # First time
 poetry run zebtrack               # Run app
 
-# Testing (fast by default, 2568 tests total)
-poetry run pytest                 # Fast tests only (excludes GUI/slow) - ~1586 tests
+# Testing (fast by default, ~2678 tests total)
+poetry run pytest                 # Fast tests only (excludes GUI/slow) - ~2678 tests
 poetry run pytest -m gui -n0      # GUI tests (sequential) - ~949 tests
 poetry run pytest -m slow         # Slow tests only - ~35 tests
-poetry run pytest -m "" -n0       # All tests - ~2568 tests (6-7 min)
+poetry run pytest -m "" -n0       # All tests - ~3660+ tests (6-7 min)
 
 # Code Quality
 poetry run ruff check .           # Lint
@@ -160,11 +160,11 @@ Agent requirements:
 
 | Layer            | Key Files                                                                                 | Purpose                          |
 | ---------------- | ----------------------------------------------------------------------------------------- | -------------------------------- |
-| **Model**        | `core/{state_manager,project_manager,detector_service}.py`                                | State, project data, detection   |
+| **Model**        | `core/state_manager.py`, `core/project/project_manager.py`, `core/services/detector_service.py` | State, project data, detection   |
 | **View**         | `ui/gui.py`, `ui/wizard/*.py`, `ui/dialogs/*.py`                                          | Tkinter UI (10759 lines gui.py)  |
 | **ViewModel**    | `core/main_view_model.py`                                                                 | Orchestrator (11+ injected deps) |
 | **Coordinators** | `coordinators/{processing,hardware,session,project_lifecycle}_coordinator.py`             | Super coordinators (Phase 3)     |
-| **Services**     | `core/{wizard_service,video_processing_service,live_camera_service,recording_service}.py` | Business logic                   |
+| **Services**     | `core/services/wizard_service.py`, `core/video/video_processing_service.py`, `core/recording/{live_camera,recording}_service.py` | Business logic                   |
 | **I/O**          | `io/{recorder,video_source,camera,live_stream_source,recorder_factory}.py`                | Persistence, frame sources       |
 | **Analysis**     | `analysis/{analysis_service,behavior,roi,reporter}.py`                                    | Behavioral metrics, reports      |
 
@@ -242,7 +242,7 @@ timestamp, frame, track_id, x1, y1, x2, y2, confidence, [x_center_px, y_center_p
 
 ### Phase 4: Wizard Service Layer
 
-- **WizardService** (`core/wizard_service.py`): Business logic separate from UI
+- **WizardService** (`core/services/wizard_service.py`): Business logic separate from UI
   - Hardware detection (cameras, Arduino) with **30s TTL caching** (5x faster)
   - Validation methods for all wizard steps
 - **Pydantic Models** (`ui/wizard/models.py`): Type-safe validation
@@ -252,11 +252,11 @@ timestamp, frame, track_id, x1, y1, x2, y2, confidence, [x_center_px, y_center_p
 
 - **E2E Tests**: 16 integration tests (`test_wizard_live_e2e.py`)
 - **Cache Tests**: 8 tests (`test_wizard_service_caching.py`)
-- **Total**: 712 tests passing, 1 skipped
+- **Total**: 2678+ tests passing (as of Feb 2026)
 
 ### Phase 6: Live Camera Analysis (Nov 2025)
 
-- **LiveCameraService** (`core/live_camera_service.py`): Dedicated service for live camera sessions
+- **LiveCameraService** (`core/recording/live_camera_service.py`): Dedicated service for live camera sessions
   - Parallel threads: `_capture_loop()` + `_processing_loop()` for frame acquisition & detection
   - Integrated with `RecordingService` for timed sessions & coordination
   - Real-time preview via `LivePreviewWindow`
@@ -284,12 +284,12 @@ timestamp, frame, track_id, x1, y1, x2, y2, confidence, [x_center_px, y_center_p
 
 **VALIDATION**:
 
-- ✅ 2568 tests pass (8 skip, 1 xfail) in 6min40s - **no hang**
+- ✅ 2678+ tests pass (12 skip) — no hang (as of Feb 2026)
 - ✅ Coverage: 61% measured successfully
 - ✅ Works in terminal and VSCode Test Explorer
 - ✅ System remains responsive
 
-**FILES MODIFIED**: `tests/conftest.py`, `src/zebtrack/core/live_camera_service.py`, `src/zebtrack/ui/gui.py`, `pyproject.toml`
+**FILES MODIFIED**: `tests/conftest.py`, `src/zebtrack/core/recording/live_camera_service.py`, `src/zebtrack/ui/gui.py`, `pyproject.toml`
 
 **Full Details**: `docs/WIZARD_LIVE_IMPROVEMENTS.md`, `docs/archive/LIVE_*.md` (historical context)
 
@@ -327,7 +327,7 @@ timestamp, frame, track_id, x1, y1, x2, y2, confidence, [x_center_px, y_center_p
 - `src/zebtrack/ui/components/event_dispatcher.py`
 - `src/zebtrack/core/main_view_model.py` (2 new methods)
 - `src/zebtrack/ui/gui.py`
-- `src/zebtrack/core/live_camera_service.py` (major refactor)
+- `src/zebtrack/core/recording/live_camera_service.py` (major refactor)
 - `src/zebtrack/io/live_stream_source.py`
 - `src/zebtrack/io/frame_source_factory.py`
 
@@ -386,7 +386,7 @@ timestamp, frame, track_id, x1, y1, x2, y2, confidence, [x_center_px, y_center_p
 - `tests/ui/components/test_project_view_manager_reports_tree_multi_aquarium.py`
 - `tests/analysis/test_visualization_generator_background_image.py`
 
-**Core Data Structures** (in `core/detector.py`):
+**Core Data Structures** (in `core/detection/`):
 
 - `AquariumData`: Holds `id`, `polygon`, `roi_mode`, `roi_data` for each aquarium
 - `MultiAquariumZoneData`: Container with `aquariums: list[AquariumData]`, `calibration`, `active_aquarium_id`, `sequential_processing`
@@ -557,8 +557,9 @@ logger.error("recorder.save_parquet.error", error=str(e))
 - `src/zebtrack/__main__.py` - CLI/GUI entry, DI wiring (lines 140-280)
 - `core/main_view_model.py` - Application orchestrator (`start_live_camera_analysis()` at line 2588)
 - `core/state_manager.py` - Centralized state (v1.8+)
-- `core/{project_service,wizard_service,live_camera_service,recording_service}.py` - Service layer
-- `core/detector.py` - AI model + zone logic
+- `core/project/project_service.py`, `core/services/wizard_service.py` - Service layer
+- `core/recording/{live_camera_service,recording_service}.py` - Recording/Live
+- `core/detection/` - AI model + zone logic (sub-package)
 
 ### I/O & Processing
 
@@ -592,10 +593,10 @@ logger.error("recorder.save_parquet.error", error=str(e))
 
 ## Testing Requirements
 
-- **Coverage**: CI gate 40% (Linux), 0% (Windows)
+- **Coverage gates**: 50% Linux core, 32% Linux GUI, 28% Windows core
 - **Markers**: `@pytest.mark.{gui,slow,integration,unit}`
 - **Fixtures**: `tests/conftest.py`
-- **Current Status**: 712 passing, 1 skipped
+- **Current Status**: 2678+ fast tests passing, 12 skipped (as of Feb 2026)
 
 ### Pre-Merge Checklist
 

@@ -34,17 +34,14 @@ class TestProjectManagerReplacedEvent(unittest.TestCase):
             controller.project_workflow_service = mock_service1  # type: ignore
             controller.detector_service = mock_service2  # type: ignore
             controller.video_processing_service = None  # type: ignore
-            controller.video_orchestrator = None  # type: ignore
-            controller.analysis_coordinator = None  # type: ignore
-            controller.hardware_coordinator = None  # type: ignore
+            controller.detector_setup_coordinator = None  # type: ignore
             controller.processing_coordinator = None  # type: ignore
-            controller.video_processing_orchestrator = None  # type: ignore
             controller.analysis_orchestrator = None  # type: ignore
             controller.calibration_orchestrator = None  # type: ignore
             controller.processing_config_orchestrator = None  # type: ignore
             # Create mock coordinators to avoid property setter issues
-            controller.recording_coordinator = Mock()  # type: ignore
-            controller.session_coordinator = Mock()  # type: ignore
+            controller.recording_session_coordinator = Mock()  # type: ignore
+            controller.live_camera_session_coordinator = Mock()  # type: ignore
             controller.recording_service = None  # type: ignore
 
             # Call handler
@@ -66,16 +63,13 @@ class TestProjectManagerReplacedEvent(unittest.TestCase):
             controller.project_workflow_service = mock_service  # type: ignore
             controller.detector_service = None  # type: ignore
             controller.video_processing_service = None  # type: ignore
-            controller.video_orchestrator = None  # type: ignore
-            controller.analysis_coordinator = None  # type: ignore
-            controller.hardware_coordinator = None  # type: ignore
+            controller.detector_setup_coordinator = None  # type: ignore
             controller.processing_coordinator = None  # type: ignore
-            controller.video_processing_orchestrator = None  # type: ignore
             controller.analysis_orchestrator = None  # type: ignore
             controller.calibration_orchestrator = None  # type: ignore
             controller.processing_config_orchestrator = None  # type: ignore
-            controller.recording_coordinator = Mock()  # type: ignore
-            controller.session_coordinator = Mock()  # type: ignore
+            controller.recording_session_coordinator = Mock()  # type: ignore
+            controller.live_camera_session_coordinator = Mock()  # type: ignore
             controller.recording_service = None  # type: ignore
 
             # Should not raise exception
@@ -91,16 +85,13 @@ class TestProjectManagerReplacedEvent(unittest.TestCase):
             controller.project_workflow_service = mock_service  # type: ignore
             controller.detector_service = None  # type: ignore
             controller.video_processing_service = None  # type: ignore
-            controller.video_orchestrator = None  # type: ignore
-            controller.analysis_coordinator = None  # type: ignore
-            controller.hardware_coordinator = None  # type: ignore
+            controller.detector_setup_coordinator = None  # type: ignore
             controller.processing_coordinator = None  # type: ignore
-            controller.video_processing_orchestrator = None  # type: ignore
             controller.analysis_orchestrator = None  # type: ignore
             controller.calibration_orchestrator = None  # type: ignore
             controller.processing_config_orchestrator = None  # type: ignore
-            controller.recording_coordinator = Mock()  # type: ignore
-            controller.session_coordinator = Mock()  # type: ignore
+            controller.recording_session_coordinator = Mock()  # type: ignore
+            controller.live_camera_session_coordinator = Mock()  # type: ignore
             controller.recording_service = None  # type: ignore
 
             old_manager = mock_service.project_manager
@@ -121,16 +112,13 @@ class TestProjectManagerReplacedEvent(unittest.TestCase):
             controller.project_workflow_service = mock_service  # type: ignore
             controller.detector_service = None  # type: ignore
             controller.video_processing_service = None  # type: ignore
-            controller.video_orchestrator = None  # type: ignore
-            controller.analysis_coordinator = None  # type: ignore
-            controller.hardware_coordinator = None  # type: ignore
+            controller.detector_setup_coordinator = None  # type: ignore
             controller.processing_coordinator = None  # type: ignore
-            controller.video_processing_orchestrator = None  # type: ignore
             controller.analysis_orchestrator = None  # type: ignore
             controller.calibration_orchestrator = None  # type: ignore
             controller.processing_config_orchestrator = None  # type: ignore
-            controller.recording_coordinator = Mock()  # type: ignore
-            controller.session_coordinator = Mock()  # type: ignore
+            controller.recording_session_coordinator = Mock()  # type: ignore
+            controller.live_camera_session_coordinator = Mock()  # type: ignore
             controller.recording_service = None  # type: ignore
 
             old_manager = mock_service.project_manager

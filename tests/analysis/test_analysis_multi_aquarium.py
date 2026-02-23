@@ -13,8 +13,8 @@ import pytest
 
 from zebtrack.analysis.analysis_service import AnalysisService
 from zebtrack.analysis.models import AnalysisResult
-from zebtrack.analysis.reporter import Reporter
-from zebtrack.core.detector import AquariumData
+from zebtrack.analysis.reporters import export_multi_aquarium_reports
+from zebtrack.core.detection import AquariumData
 
 
 @pytest.fixture
@@ -214,7 +214,7 @@ class TestAnalysisServiceMultiAquarium:
 
 
 class TestReporterMultiAquarium:
-    """Tests for Reporter.export_multi_aquarium_reports()."""
+    """Tests for export_multi_aquarium_reports() standalone function."""
 
     @pytest.fixture
     def mock_analysis_results(self):
@@ -227,6 +227,24 @@ class TestReporterMultiAquarium:
 
         return {0: result0, 1: result1}
 
+    def _patch_reporters(self):
+        """Return a combined context-manager that patches all reporter classes
+        lazily imported inside ``export_multi_aquarium_reports``."""
+        from contextlib import ExitStack
+
+        stack = ExitStack()
+        ctx_cls = stack.enter_context(
+            patch("zebtrack.analysis.reporters.reporter_context.ReporterContext")
+        )
+        excel_cls = stack.enter_context(
+            patch("zebtrack.analysis.reporters.excel_reporter.ExcelReporter")
+        )
+        word_cls = stack.enter_context(
+            patch("zebtrack.analysis.reporters.word_reporter.WordReporter")
+        )
+        ctx_cls.from_analysis.return_value = MagicMock()
+        return stack, ctx_cls, excel_cls, word_cls
+
     def test_creates_output_directories(self, tmp_path, mock_analysis_results):
         """Test that output directories are created."""
         output_dirs = {
@@ -234,11 +252,9 @@ class TestReporterMultiAquarium:
             1: tmp_path / "aq1",
         }
 
-        with patch.object(Reporter, "from_analysis") as mock_from:
-            mock_reporter = MagicMock()
-            mock_from.return_value = mock_reporter
-
-            Reporter.export_multi_aquarium_reports(
+        stack, *_ = self._patch_reporters()
+        with stack:
+            export_multi_aquarium_reports(
                 results_by_aquarium=mock_analysis_results,
                 output_dirs_by_aquarium=output_dirs,
                 base_name="test_video",
@@ -255,11 +271,9 @@ class TestReporterMultiAquarium:
             1: tmp_path / "aq1",
         }
 
-        with patch.object(Reporter, "from_analysis") as mock_from:
-            mock_reporter = MagicMock()
-            mock_from.return_value = mock_reporter
-
-            paths = Reporter.export_multi_aquarium_reports(
+        stack, *_ = self._patch_reporters()
+        with stack:
+            paths = export_multi_aquarium_reports(
                 results_by_aquarium=mock_analysis_results,
                 output_dirs_by_aquarium=output_dirs,
                 base_name="test_video",
@@ -286,11 +300,9 @@ class TestReporterMultiAquarium:
             1: tmp_path / "aq1",
         }
 
-        with patch.object(Reporter, "from_analysis") as mock_from:
-            mock_reporter = MagicMock()
-            mock_from.return_value = mock_reporter
-
-            paths = Reporter.export_multi_aquarium_reports(
+        stack, *_ = self._patch_reporters()
+        with stack:
+            paths = export_multi_aquarium_reports(
                 results_by_aquarium=results,
                 output_dirs_by_aquarium=output_dirs,
                 base_name="test_video",
@@ -304,11 +316,9 @@ class TestReporterMultiAquarium:
         # Only provide directory for aquarium 1
         output_dirs = {1: tmp_path / "aq1"}
 
-        with patch.object(Reporter, "from_analysis") as mock_from:
-            mock_reporter = MagicMock()
-            mock_from.return_value = mock_reporter
-
-            paths = Reporter.export_multi_aquarium_reports(
+        stack, *_ = self._patch_reporters()
+        with stack:
+            paths = export_multi_aquarium_reports(
                 results_by_aquarium=mock_analysis_results,
                 output_dirs_by_aquarium=output_dirs,
                 base_name="test_video",
@@ -327,11 +337,9 @@ class TestReporterMultiAquarium:
         mock_config.group = "CBD"
         mock_config.subject_id = "Subject_01"
 
-        with patch.object(Reporter, "from_analysis") as mock_from:
-            mock_reporter = MagicMock()
-            mock_from.return_value = mock_reporter
-
-            paths = Reporter.export_multi_aquarium_reports(
+        stack, *_ = self._patch_reporters()
+        with stack:
+            paths = export_multi_aquarium_reports(
                 results_by_aquarium={0: mock_analysis_results[0]},
                 output_dirs_by_aquarium=output_dirs,
                 base_name="video",
@@ -347,14 +355,15 @@ class TestReporterMultiAquarium:
         """Test that export errors are handled gracefully."""
         output_dirs = {0: tmp_path / "aq0", 1: tmp_path / "aq1"}
 
-        with patch.object(Reporter, "from_analysis") as mock_from:
-            # Make first export fail
-            mock_reporter = MagicMock()
-            mock_reporter.export_summary_data.side_effect = [Exception("Test error"), None]
-            mock_from.return_value = mock_reporter
+        stack, ctx_cls, excel_cls, _word_cls = self._patch_reporters()
+        with stack:
+            # Make first export fail via ExcelReporter.export_summary
+            excel_instance = MagicMock()
+            excel_instance.export_summary.side_effect = [Exception("Test error"), None]
+            excel_cls.return_value = excel_instance
 
             # Should not raise, just log error
-            Reporter.export_multi_aquarium_reports(
+            export_multi_aquarium_reports(
                 results_by_aquarium=mock_analysis_results,
                 output_dirs_by_aquarium=output_dirs,
                 base_name="test_video",
@@ -383,11 +392,14 @@ class TestMultiAquariumIntegration:
             output_dirs[aq_id] = tmp_path / f"aquarium_{aq_id}"
 
         # Step 3: Export reports (with mock to avoid actual file generation)
-        with patch.object(Reporter, "from_analysis") as mock_from:
-            mock_reporter = MagicMock()
-            mock_from.return_value = mock_reporter
+        with (
+            patch("zebtrack.analysis.reporters.reporter_context.ReporterContext") as mock_ctx_cls,
+            patch("zebtrack.analysis.reporters.excel_reporter.ExcelReporter"),
+            patch("zebtrack.analysis.reporters.word_reporter.WordReporter"),
+        ):
+            mock_ctx_cls.from_analysis.return_value = MagicMock()
 
-            paths = Reporter.export_multi_aquarium_reports(
+            paths = export_multi_aquarium_reports(
                 results_by_aquarium=results,
                 output_dirs_by_aquarium=output_dirs,
                 base_name="test_video",

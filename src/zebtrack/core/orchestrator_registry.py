@@ -1,76 +1,72 @@
-"""Registry centralizado para acesso direto aos orchestrators.
+"""Centralized registry for direct access to orchestrators.
 
-Este registry foi criado na Fase 2 da refatoração do MainViewModel
-(PLANO_REFATORACAO_MAINVIEWMODEL.md) para eliminar métodos facade.
+Created in Phase 2 of the MainViewModel refactoring
+(PLANO_REFATORACAO_MAINVIEWMODEL.md) to eliminate facade methods.
 
 Phase 3A/3B/3C/3D: Removed unused orchestrators:
 - AnalysisOrchestrator → ProcessingCoordinator
 - ProcessingConfigOrchestrator → ProcessingCoordinator
 - ZoneArenaOrchestrator → ProcessingCoordinator
 - CalibrationOrchestrator → ProjectLifecycleCoordinator
-- ModelDiagnosticsOrchestrator → HardwareCoordinator
+- ModelDiagnosticsOrchestrator → ModelDiagnosticsCoordinator (Phase 4.9)
 - ProjectOrchestrator → ProjectLifecycleCoordinator
 - RecordingSessionOrchestrator → SessionCoordinator
+
+Phase 3 Structural Unification:
+- VideoProcessingOrchestrator removed (dead stub)
+- UIStateController moved to coordinators.ui_state_coordinator
 """
 
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from zebtrack.coordinators.live_camera_coordinator import LiveCameraCoordinator
-    from zebtrack.orchestrators.ui_state_controller import UIStateController
-    from zebtrack.orchestrators.video_processing_orchestrator import (
-        VideoProcessingOrchestrator,
-    )
+    from zebtrack.coordinators.ui_state_coordinator import UIStateController
 
 
 class OrchestratorRegistry:
-    """Registry centralizado para todos os orchestrators do MainViewModel.
+    """Centralized registry for all MainViewModel orchestrators.
 
-    Fornece acesso direto aos orchestrators sem passar por facades
-    no MainViewModel. Isso permite que callers (GUI, event handlers)
-    interajam diretamente com orchestrators.
+    Provides direct access to orchestrators without going through facades
+    in MainViewModel. This allows callers (GUI, event handlers)
+    to interact directly with orchestrators.
 
     Attributes:
         ui_state: UIStateController (23 facades removidos)
-        video_processing: VideoProcessingOrchestrator (7 facades removidos)
-        live_camera: LiveCameraCoordinator (1 facade removido)
 
     Removed in Phase 3A/3B/3C/3D (superseded by Super Coordinators):
         - analysis: Superseded by ProcessingCoordinator
         - processing_config: Superseded by ProcessingCoordinator
         - zone_arena: Superseded by ProcessingCoordinator
         - calibration: Superseded by ProjectLifecycleCoordinator
-        - model_diagnostics: Superseded by HardwareCoordinator
+        - model_diagnostics: Superseded by ModelDiagnosticsCoordinator (Phase 4.9)
         - project: Superseded by ProjectLifecycleCoordinator
         - recording: Superseded by SessionCoordinator
+
+    Removed in Phase 3 Structural Unification:
+        - video_processing: Dead stub, logic in ProcessingCoordinator
+
+    Removed in Phase 4.7:
+        - live_camera: Superseded by LiveCameraSessionCoordinator
     """
 
     def __init__(
         self,
         ui_state_controller: "UIStateController",
-        video_processing_orchestrator: "VideoProcessingOrchestrator",
-        live_camera_coordinator: "LiveCameraCoordinator",
     ):
         """Initialize registry with all orchestrators.
 
         Args:
-            ui_state_controller: Controller para estado da UI
-            video_processing_orchestrator: Orchestrator para processamento de vídeo
-            live_camera_coordinator: Coordinator para câmera ao vivo
+            ui_state_controller: Controller for UI state.
         """
-        # Atribuir com nomes curtos e descritivos
+        # Assign with short, descriptive names
         self.ui_state = ui_state_controller
-        self.video_processing = video_processing_orchestrator
-        self.live_camera = live_camera_coordinator
 
     def get_all_orchestrators(self) -> dict[str, object]:
-        """Retorna dict com todos os orchestrators registrados.
+        """Return dict with all registered orchestrators.
 
         Returns:
-            Dict mapeando nome curto para instância do orchestrator
+            Dict mapping short name to orchestrator instance.
         """
         return {
             "ui_state": self.ui_state,
-            "video_processing": self.video_processing,
-            "live_camera": self.live_camera,
         }

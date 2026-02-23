@@ -11,8 +11,13 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from zebtrack.core.detector import ZoneData
-from zebtrack.core.project_manager import CONFIG_FILE_NAME, ProjectInvalidError, ProjectManager
+from zebtrack.core.detection import ZoneData
+from zebtrack.core.project.project_manager import (
+    CONFIG_FILE_NAME,
+    ProjectInvalidError,
+    ProjectManager,
+)
+from zebtrack.core.project.zone_manager import ZoneManager
 from zebtrack.settings import load_settings
 
 
@@ -252,7 +257,7 @@ class TestProjectManager(unittest.TestCase):
         self.assertEqual(retrieved.polygon, zone.polygon)
         self.assertEqual(retrieved.roi_polygons, zone.roi_polygons)
 
-        normalized_key = pm._normalize_video_path(canonical_path)
+        normalized_key = ZoneManager.normalize_video_path(canonical_path)
         self.assertIn(normalized_key, pm.project_data["zones_by_video"])
 
     def test_save_roi_template_persists_file_and_metadata(self):

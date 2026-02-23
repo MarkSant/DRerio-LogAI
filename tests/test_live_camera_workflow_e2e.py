@@ -17,7 +17,7 @@ from unittest.mock import Mock, patch
 import pytest
 
 from zebtrack.coordinators.live_batch_coordinator import LiveBatchCoordinator
-from zebtrack.core.live_camera_mode import LiveCameraMode, LiveCameraModeSelector
+from zebtrack.core.recording.live_camera_mode import LiveCameraMode, LiveCameraModeSelector
 from zebtrack.io.recorder import Recorder
 from zebtrack.utils.hardware_capability import (
     HardwareCapabilityDetector,

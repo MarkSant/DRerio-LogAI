@@ -6,7 +6,7 @@ from unittest.mock import Mock, mock_open, patch
 
 import pytest
 
-from zebtrack.core.detector import ZoneData
+from zebtrack.core.detection import ZoneData
 from zebtrack.ui.components.validation_manager import (
     PROJECT_STATUS_META,
     STATUS_SYMBOLS,
@@ -367,7 +367,7 @@ class TestCheckLiveProjectCalibration:
         # Should switch to zone tab
         mock_gui.notebook.select.assert_called_once_with(mock_gui.zone_tab_frame)
         # Should show info message
-        mock_gui.show_info.assert_called_once()
+        mock_gui.dialog_manager.show_info.assert_called_once()
 
 
 @pytest.mark.gui
@@ -430,7 +430,7 @@ class TestComposeSingleVideoRuntimeConfig:
         result = validation_manager.compose_single_video_runtime_config()
 
         assert result is None
-        mock_gui.show_error.assert_called_once()
+        mock_gui.dialog_manager.show_error.assert_called_once()
 
     def test_compose_single_video_runtime_config_negative_interval(
         self, validation_manager, mock_gui
@@ -443,7 +443,7 @@ class TestComposeSingleVideoRuntimeConfig:
         result = validation_manager.compose_single_video_runtime_config()
 
         assert result is None
-        mock_gui.show_error.assert_called_once()
+        mock_gui.dialog_manager.show_error.assert_called_once()
 
     def test_compose_single_video_runtime_config_zero_interval(self, validation_manager, mock_gui):
         """Test with zero interval values."""
@@ -454,7 +454,7 @@ class TestComposeSingleVideoRuntimeConfig:
         result = validation_manager.compose_single_video_runtime_config()
 
         assert result is None
-        mock_gui.show_error.assert_called_once()
+        mock_gui.dialog_manager.show_error.assert_called_once()
 
 
 @pytest.mark.gui
@@ -1461,8 +1461,8 @@ class TestSaveGlobalConfigFromWidget:
             }
         )
 
-        mock_gui.show_error.assert_called_once()
-        assert "Erro de Validação" in mock_gui.show_error.call_args[0][0]
+        mock_gui.dialog_manager.show_error.assert_called_once()
+        assert "Erro de Validação" in mock_gui.dialog_manager.show_error.call_args[0][0]
 
     def test_save_global_config_without_settings(self, mock_gui):
         """Show error when settings object is missing."""
@@ -1484,8 +1484,8 @@ class TestSaveGlobalConfigFromWidget:
             }
         )
 
-        mock_gui.show_error.assert_called_once()
-        assert "Settings não disponível" in mock_gui.show_error.call_args[0][1]
+        mock_gui.dialog_manager.show_error.assert_called_once()
+        assert "Settings não disponível" in mock_gui.dialog_manager.show_error.call_args[0][1]
 
     @patch("zebtrack.ui.components.validation_manager.Path.exists", return_value=False)
     @patch("zebtrack.ui.components.validation_manager.yaml.safe_dump")
@@ -1550,5 +1550,5 @@ class TestSaveGlobalConfigFromWidget:
         mock_model_validate.assert_called_once()
         mock_safe_dump.assert_called_once()
         mock_gui._reload_config_editor_values_widget.assert_called_once()
-        mock_gui.show_info.assert_called_once()
+        mock_gui.dialog_manager.show_info.assert_called_once()
         assert settings_obj.video_processing == {"fps": 30}

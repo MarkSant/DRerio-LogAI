@@ -7,6 +7,7 @@ import time
 import tkinter as tk
 import warnings
 from tkinter import messagebox
+from typing import Literal, cast
 
 import structlog
 
@@ -117,7 +118,7 @@ def main():  # noqa: C901
     # Ensure Windows taskbar icon is displayed correctly (not generic Python icon)
     import ctypes
     import os
-    from typing import Any, cast
+    from typing import Any
 
     if os.name == "nt":
         try:
@@ -127,7 +128,7 @@ def main():  # noqa: C901
             if windll is not None:
                 cast(Any, windll).shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
         except Exception:
-            pass  # Fail silently if not on Windows or other issue
+            log.debug("main.app_user_model_id.suppressed", exc_info=True)
 
     try:
         # Create Tkinter root FIRST (required for Toplevel widgets)
@@ -175,12 +176,22 @@ def main():  # noqa: C901
                         if rec.backend == "openvino":
                             settings_obj.model_selection.use_openvino = True
 
-                            # Apply specific OpenVINO optimizations
-                            settings_obj.openvino.device = rec.device_live  # type: ignore[assignment]
-                            settings_obj.openvino.device_batch = rec.device_batch  # type: ignore[assignment]
-                            settings_obj.openvino.performance_hint_live = rec.openvino_hint_live  # type: ignore[assignment]
-                            settings_obj.openvino.performance_hint_batch = rec.openvino_hint_batch  # type: ignore[assignment]
-                            settings_obj.openvino.precision = rec.openvino_precision  # type: ignore[assignment]
+                            # Apply specific OpenVINO optimizations (cast: validated str→Literal)
+                            settings_obj.openvino.device = cast(
+                                Literal["AUTO", "CPU", "GPU"], rec.device_live
+                            )
+                            settings_obj.openvino.device_batch = cast(
+                                Literal["AUTO", "CPU", "GPU"], rec.device_batch
+                            )
+                            settings_obj.openvino.performance_hint_live = cast(
+                                Literal["LATENCY", "THROUGHPUT"], rec.openvino_hint_live
+                            )
+                            settings_obj.openvino.performance_hint_batch = cast(
+                                Literal["LATENCY", "THROUGHPUT"], rec.openvino_hint_batch
+                            )
+                            settings_obj.openvino.precision = cast(
+                                Literal["FP32", "FP16", "INT8"], rec.openvino_precision
+                            )
                             settings_obj.openvino.enable_model_cache = rec.enable_model_cache
 
                         # Persist these settings to config.local.yaml so they are used in future
@@ -215,9 +226,9 @@ def main():  # noqa: C901
         # Core infrastructure
         from zebtrack.core.state_manager import StateManager
         from zebtrack.core.ui_scheduler import UIScheduler
-        from zebtrack.ui.event_bus import EventBus
+        from zebtrack.ui.event_bus_v2 import EventBusV2
 
-        event_bus = EventBus()
+        event_bus = EventBusV2()
         state_manager = StateManager(enable_history=True, max_history_size=100)
         ui_coordinator = UIScheduler(root=root, event_bus=event_bus)
 
@@ -225,8 +236,8 @@ def main():  # noqa: C901
 
         # Model and weight management
         _t0 = time.perf_counter()
-        from zebtrack.core.model_service import ModelService
-        from zebtrack.core.weight_manager import WeightManager
+        from zebtrack.core.services.model_service import ModelService
+        from zebtrack.core.services.weight_manager import WeightManager
 
         weight_manager = WeightManager(settings_obj=settings_obj)
         model_service = ModelService(weight_manager)
@@ -236,8 +247,8 @@ def main():  # noqa: C901
 
         # Project management
         _t0 = time.perf_counter()
-        from zebtrack.core.project_manager import ProjectManager
-        from zebtrack.core.project_workflow_service import ProjectWorkflowService
+        from zebtrack.core.project.project_manager import ProjectManager
+        from zebtrack.core.project.project_workflow_service import ProjectWorkflowService
 
         log.info(
             "timing.import_project_manager", elapsed_ms=int((time.perf_counter() - _t0) * 1000)
@@ -252,7 +263,7 @@ def main():  # noqa: C901
             project_manager=project_manager,
             model_service=model_service,
             state_manager=state_manager,
-            ui_coordinator=ui_coordinator,  # type: ignore[arg-type]
+            ui_coordinator=ui_coordinator,
             settings_obj=settings_obj,
         )
         log.info(
@@ -263,7 +274,7 @@ def main():  # noqa: C901
 
         # Detector service
         _t0 = time.perf_counter()
-        from zebtrack.core.detector_service import DetectorService
+        from zebtrack.core.services.detector_service import DetectorService
 
         detector_service = DetectorService(
             state_manager=state_manager,
@@ -278,7 +289,7 @@ def main():  # noqa: C901
 
         # Video processing service
         _t0 = time.perf_counter()
-        from zebtrack.core.video_processing_service import VideoProcessingService
+        from zebtrack.core.video.video_processing_service import VideoProcessingService
         from zebtrack.io.recorder_factory import RecorderFactory
 
         # Create recorder factory (lazy-loads on first use)
@@ -290,7 +301,7 @@ def main():  # noqa: C901
         _t0 = time.perf_counter()
 
         # Create cancel_event ONCE and share with ApplicationBootstrapper
-        # This ensures AnalysisControlViewModel and ProcessingCoordinator use the SAME Event object
+        # This ensures AnalysisControlViewModel and processing sub-coordinators use the SAME Event
         cancel_event = threading.Event()
 
         # VideoProcessingService is created before detector exists
@@ -300,7 +311,7 @@ def main():  # noqa: C901
         video_processing_service = VideoProcessingService(
             project_manager=project_manager,
             state_manager=state_manager,
-            ui_coordinator=ui_coordinator,  # type: ignore[arg-type]
+            ui_coordinator=ui_coordinator,
             ui_event_bus=event_bus,
             cancel_event=cancel_event,
             settings_obj=settings_obj,
@@ -317,17 +328,27 @@ def main():  # noqa: C901
         log.info("timing.analysis_service", elapsed_ms=int((time.perf_counter() - _t0) * 1000))
 
         # ===== SUPER COORDINATORS (Phase 3 Consolidation) =====
-        # Four super coordinators replace 20 legacy coordinators/orchestrators
+        # Phase 4.9: HardwareCoordinator decomposed into
+        #   DetectorSetupCoordinator + ModelDiagnosticsCoordinator
         # Architecture: Zero MainViewModel dependency, pure dependency injection
 
         _t0 = time.perf_counter()
-        from zebtrack.coordinators.hardware_coordinator import HardwareCoordinator
-        from zebtrack.coordinators.processing_coordinator import ProcessingCoordinator
+
+        # Phase 4.7: SessionCoordinator decomposed into 3 sub-coordinators
+        # Phase 5B: Delegates extracted from ProjectLifecycleCoordinator
+        from zebtrack.coordinators.calibration_coordinator import CalibrationCoordinator
+        from zebtrack.coordinators.live_calibration_coordinator import LiveCalibrationCoordinator
+        from zebtrack.coordinators.live_camera_session_coordinator import (
+            LiveCameraSessionCoordinator,
+        )
         from zebtrack.coordinators.project_lifecycle_coordinator import ProjectLifecycleCoordinator
-        from zebtrack.coordinators.session_coordinator import SessionCoordinator
+        from zebtrack.coordinators.recording_session_coordinator import (
+            RecordingSessionCoordinator,
+        )
 
         # Additional services needed by coordinators
-        from zebtrack.core.project_service import ProjectService
+        from zebtrack.core.project.project_service import ProjectService
+        from zebtrack.core.services.model_override_service import ModelOverrideService
         from zebtrack.ui.project_workflow_adapter import ProjectWorkflowAdapter
 
         project_service = ProjectService()
@@ -339,7 +360,24 @@ def main():  # noqa: C901
             ui_event_bus=event_bus,
         )
 
-        # 1. ProjectLifecycleCoordinator - Project & calibration workflows
+        # 1a. ModelOverrideService - Model override state & persistence (Phase 5B)
+        model_override_service = ModelOverrideService(
+            state_manager=state_manager,
+            project_manager=project_manager,
+            project_workflow_service=project_workflow_service,
+            settings_obj=settings_obj,
+            event_bus=event_bus,
+        )
+
+        # 1b. CalibrationCoordinator - Calibration scope & context (Phase 5B)
+        calibration_coordinator = CalibrationCoordinator(
+            state_manager=state_manager,
+            project_manager=project_manager,
+            model_override_service=model_override_service,
+            event_bus=event_bus,
+        )
+
+        # 1c. ProjectLifecycleCoordinator - Project & asset lifecycle
         _t0_proj = time.perf_counter()
         project_lifecycle_coordinator = ProjectLifecycleCoordinator(
             state_manager=state_manager,
@@ -349,19 +387,34 @@ def main():  # noqa: C901
             settings_obj=settings_obj,
             event_bus=event_bus,
             detector_service=detector_service,  # Phase 3E: For default callbacks
+            model_override_service=model_override_service,  # Phase 5B
+            calibration_coordinator=calibration_coordinator,  # Phase 5B
         )
         log.info(
             "timing.project_lifecycle_coordinator",
             elapsed_ms=int((time.perf_counter() - _t0_proj) * 1000),
         )
 
-        # 2. HardwareCoordinator - Detector setup, zones, model diagnostics
+        # 2. Phase 4.9: HardwareCoordinator decomposed into 2 sub-coordinators
+        # 2a. DetectorSetupCoordinator - Detector setup, zones, tracking params
         _t0_hw = time.perf_counter()
-        hardware_coordinator = HardwareCoordinator(
+        from zebtrack.coordinators.detector_setup_coordinator import DetectorSetupCoordinator
+        from zebtrack.coordinators.model_diagnostics_coordinator import (
+            ModelDiagnosticsCoordinator,
+        )
+
+        detector_setup_coordinator = DetectorSetupCoordinator(
             state_manager=state_manager,
             detector_service=detector_service,
-            weight_manager=weight_manager,
             model_service=model_service,
+            weight_manager=weight_manager,
+            event_bus=event_bus,
+        )
+
+        # 2b. ModelDiagnosticsCoordinator - Model diagnostic tests
+        model_diagnostics_coordinator = ModelDiagnosticsCoordinator(
+            state_manager=state_manager,
+            weight_manager=weight_manager,
             event_bus=event_bus,
             cancel_event=cancel_event,
             root=root,
@@ -372,69 +425,150 @@ def main():  # noqa: C901
             elapsed_ms=int((time.perf_counter() - _t0_hw) * 1000),
         )
 
-        # 3. ProcessingCoordinator - Video processing, analysis, zones/arena management
+        # 3. ProcessingCoordinator → Phase 4 decomposition into 5 sub-coordinators
         _t0_proc = time.perf_counter()
 
-        # Import additional services for ProcessingCoordinator
-        from zebtrack.core.video_classification_service import VideoClassificationService
-        from zebtrack.core.video_selection_service import VideoSelectionService
-        from zebtrack.core.video_validation_service import VideoValidationService
-        from zebtrack.orchestrators.ui_state_controller import UIStateController
+        # Import additional services for processing sub-coordinators
+        from zebtrack.coordinators.multi_aquarium_coordinator import MultiAquariumCoordinator
+        from zebtrack.coordinators.progress_tracking_coordinator import ProgressTrackingCoordinator
+        from zebtrack.coordinators.report_generation_coordinator import ReportGenerationCoordinator
+        from zebtrack.coordinators.sequential_processing_coordinator import (
+            SequentialProcessingCoordinator,
+        )
+        from zebtrack.coordinators.ui_state_coordinator import UIStateController
+        from zebtrack.coordinators.video_processing_coordinator import VideoProcessingCoordinator
+        from zebtrack.core.services.trajectory_data_service import TrajectoryDataService
+        from zebtrack.core.video.video_classification_service import VideoClassificationService
+        from zebtrack.core.video.video_metadata_service import VideoMetadataService
+        from zebtrack.core.video.video_selection_service import VideoSelectionService
+        from zebtrack.core.video.video_validation_service import VideoValidationService
+        from zebtrack.utils.video_frame_extractor import VideoFrameExtractor
 
         video_selection_service = VideoSelectionService()
         video_validation_service = VideoValidationService()
         video_classification_service = VideoClassificationService()
+        video_metadata_service = VideoMetadataService()
+        trajectory_data_service = TrajectoryDataService()
+        video_frame_extractor = VideoFrameExtractor()
         ui_state_controller = UIStateController(
             root=root,
             ui_event_bus=event_bus,
             state_manager=state_manager,
-            ui_coordinator=ui_coordinator,  # type: ignore[arg-type]
+            ui_coordinator=ui_coordinator,
             project_manager=project_manager,
             weight_manager=weight_manager,
             detector_service=detector_service,
             model_service=model_service,
             settings=settings_obj,
-            detector_coordinator=hardware_coordinator,
+            detector_coordinator=detector_setup_coordinator,
             project_workflow_service=project_workflow_service,
         )
 
-        processing_coordinator = ProcessingCoordinator(
+        # 3a. ProgressTrackingCoordinator
+        progress_tracking_coordinator = ProgressTrackingCoordinator(
+            state_manager=state_manager,
+            settings_obj=settings_obj,
+            ui_coordinator=ui_coordinator,
+            cancel_event=cancel_event,
+            event_bus=event_bus,
+            view=None,
+            root=root,
+        )
+
+        # 3b. MultiAquariumCoordinator
+        multi_aquarium_coordinator = MultiAquariumCoordinator(
+            state_manager=state_manager,
+            project_manager=project_manager,
+            detector_service=detector_service,
+            settings_obj=settings_obj,
+            ui_coordinator=ui_coordinator,
+            ui_state_controller=ui_state_controller,
+            cancel_event=cancel_event,
+            video_classification_service=video_classification_service,
+            weight_manager=weight_manager,
+            event_bus=event_bus,
+            view=None,
+            root=root,
+            detector=None,
+        )
+
+        # 3c. ReportGenerationCoordinator
+        report_generation_coordinator = ReportGenerationCoordinator(
+            state_manager=state_manager,
+            project_manager=project_manager,
+            settings_obj=settings_obj,
+            analysis_service=analysis_service,
+            event_bus=event_bus,
+            video_metadata_service=video_metadata_service,
+            trajectory_data_service=trajectory_data_service,
+            video_frame_extractor=video_frame_extractor,
+        )
+
+        # 3d. SequentialProcessingCoordinator
+        sequential_processing_coordinator = SequentialProcessingCoordinator(
+            state_manager=state_manager,
+            project_manager=project_manager,
+            detector_service=detector_service,
+            settings_obj=settings_obj,
+            ui_coordinator=ui_coordinator,
+            cancel_event=cancel_event,
+            recorder_factory=recorder_factory,
+            event_bus=event_bus,
+            view=None,
+            root=root,
+        )
+
+        # 3e. VideoProcessingCoordinator (central — acts as facade)
+        processing_coordinator = VideoProcessingCoordinator(
             state_manager=state_manager,
             project_manager=project_manager,
             detector_service=detector_service,
             weight_manager=weight_manager,
             settings_obj=settings_obj,
-            ui_coordinator=ui_coordinator,  # type: ignore[arg-type]
+            ui_coordinator=ui_coordinator,
             ui_state_controller=ui_state_controller,
             cancel_event=cancel_event,
             video_selection_service=video_selection_service,
             video_validation_service=video_validation_service,
             video_classification_service=video_classification_service,
-            analysis_service=analysis_service,
             recorder_factory=recorder_factory,
             event_bus=event_bus,
+            dialog_coordinator=None,  # Set after ApplicationGUI is created
+            video_metadata_service=video_metadata_service,
             view=None,  # Set after ApplicationGUI is created
             root=root,
             detector=None,  # Set after detector is initialized
         )
+
+        # Wire cross-coordinator references (post-construction injection)
+        processing_coordinator._progress_coordinator = progress_tracking_coordinator
+        processing_coordinator._multi_aquarium_coordinator = multi_aquarium_coordinator
+        processing_coordinator._sequential_coordinator = sequential_processing_coordinator
+        processing_coordinator._report_coordinator = report_generation_coordinator
+
+        progress_tracking_coordinator._video_processing_coordinator = processing_coordinator
+        sequential_processing_coordinator._video_processing_coordinator = processing_coordinator
+        sequential_processing_coordinator._report_coordinator = report_generation_coordinator
+        sequential_processing_coordinator._progress_coordinator = progress_tracking_coordinator
+        report_generation_coordinator._progress_coordinator = progress_tracking_coordinator
+
         log.info(
             "timing.processing_coordinator",
             elapsed_ms=int((time.perf_counter() - _t0_proc) * 1000),
         )
 
-        # 4. SessionCoordinator - Recording sessions, live camera, Arduino triggers
+        # 4. Phase 4.7: SessionCoordinator decomposed into 3 sub-coordinators
+        # 4a. LiveCalibrationCoordinator - Camera calibration and zone validation
+        # 4b. RecordingSessionCoordinator - Recording lifecycle and Arduino triggers
+        # 4c. LiveCameraSessionCoordinator - Live camera analysis sessions
         _t0_sess = time.perf_counter()
 
-        # RecordingService and LiveCameraService will be created by SessionCoordinator
-        # Note: These are temporarily created here for backward compatibility
-        # In future sprints, they should be created directly by SessionCoordinator
-        from zebtrack.core.live_camera_service import LiveCameraService
-        from zebtrack.core.recording_service import RecordingService
+        # RecordingService and LiveCameraService
+        from zebtrack.core.recording.live_camera_service import LiveCameraService
+        from zebtrack.core.recording.recording_service import RecordingService
 
-        # Create services (will be passed to SessionCoordinator)
-        # Note: controller parameter is temporary - will be removed in future refactoring
         recording_service = RecordingService(
-            controller=None,  # type: ignore[arg-type]
+            controller=None,  # Set by MainViewModel post-construction
             state_manager=state_manager,
             project_manager=project_manager,
             root=root,
@@ -469,22 +603,48 @@ def main():  # noqa: C901
             elapsed_ms=int((time.perf_counter() - _t0_batch) * 1000),
         )
 
-        session_coordinator = SessionCoordinator(
+        # 4a. LiveCalibrationCoordinator (no coordinator deps — created first)
+        live_calibration_coordinator = LiveCalibrationCoordinator(
             state_manager=state_manager,
-            recording_service=recording_service,
-            live_camera_service=live_camera_service,
             project_manager=project_manager,
             detector_service=detector_service,
             weight_manager=weight_manager,
             settings_obj=settings_obj,
             event_bus=event_bus,
-            arduino_manager=None,  # Will be set when Arduino is initialized
-            live_batch_coordinator=live_batch_coordinator,  # v2.3.0: Batch tracking
             root=root,
             view=None,  # Set after ApplicationGUI is created
         )
+
+        # 4b. RecordingSessionCoordinator (depends on live_calibration_coordinator)
+        recording_session_coordinator = RecordingSessionCoordinator(
+            state_manager=state_manager,
+            recording_service=recording_service,
+            live_camera_service=live_camera_service,
+            project_manager=project_manager,
+            settings_obj=settings_obj,
+            live_calibration_coordinator=live_calibration_coordinator,
+            event_bus=event_bus,
+            arduino_manager=None,  # Will be set when Arduino is initialized
+            root=root,
+            view=None,  # Set after ApplicationGUI is created
+        )
+
+        # 4c. LiveCameraSessionCoordinator (depends on live_calibration_coordinator)
+        live_camera_session_coordinator = LiveCameraSessionCoordinator(
+            state_manager=state_manager,
+            live_camera_service=live_camera_service,
+            project_manager=project_manager,
+            detector_service=detector_service,
+            settings_obj=settings_obj,
+            live_calibration_coordinator=live_calibration_coordinator,
+            event_bus=event_bus,
+            live_batch_coordinator=live_batch_coordinator,
+            root=root,
+            view=None,  # Set after ApplicationGUI is created
+        )
+
         log.info(
-            "timing.session_coordinator",
+            "timing.session_coordinators",
             elapsed_ms=int((time.perf_counter() - _t0_sess) * 1000),
         )
 
@@ -495,12 +655,15 @@ def main():  # noqa: C901
         # Create MainViewModel with all injected dependencies
         _t0 = time.perf_counter()
         from zebtrack.core.application_bootstrapper import ApplicationBootstrapper
-        from zebtrack.core.dependency_container import MainViewModelDependencies
+        from zebtrack.core.dependency_container import LazyRef, MainViewModelDependencies
         from zebtrack.core.main_view_model import MainViewModel
 
         log.info("timing.import_mainviewmodel", elapsed_ms=int((time.perf_counter() - _t0) * 1000))
 
         _t0 = time.perf_counter()
+
+        # Phase 6: LazyRef replaces __new__ two-phase init for circular dependency resolution
+        controller_ref: LazyRef = LazyRef("MainViewModel")
 
         dependencies = MainViewModelDependencies(
             root=root,
@@ -519,12 +682,17 @@ def main():  # noqa: C901
             recording_service=recording_service,
             live_camera_service=live_camera_service,
             ui_state_controller=ui_state_controller,
-            # Phase 3: Four super coordinators replace legacy coordinators
+            # Phase 3 → Phase 4.9: Super coordinators
             project_lifecycle_coordinator=project_lifecycle_coordinator,
-            hardware_coordinator=hardware_coordinator,
+            detector_setup_coordinator=detector_setup_coordinator,
+            model_diagnostics_coordinator=model_diagnostics_coordinator,
             processing_coordinator=processing_coordinator,
-            session_coordinator=session_coordinator,
+            recording_session_coordinator=recording_session_coordinator,
+            live_camera_session_coordinator=live_camera_session_coordinator,
+            live_calibration_coordinator=live_calibration_coordinator,
             live_batch_coordinator=live_batch_coordinator,  # v2.3.0
+            # Phase 6: LazyRef proxy for circular dependency resolution
+            controller_ref=controller_ref,
             # Threading events - shared across components
             cancel_event=cancel_event,
         )
@@ -532,28 +700,38 @@ def main():  # noqa: C901
         # Use Bootstrapper to complete initialization
         bootstrapper = ApplicationBootstrapper(dependencies)
 
-        # Create controller proxy to handle circular dependencies in legacy code
-        controller_proxy = MainViewModel.__new__(MainViewModel)
+        # Phase 6: Bootstrap with LazyRef (replaces __new__ two-phase init)
+        bootstrap_result = bootstrapper.initialize(controller_ref)
 
-        # Initialize using bootstrapper
-        bootstrap_result = bootstrapper.initialize(controller_proxy)
+        # Standard __init__ — no more __new__ / manual attribute patching
+        controller = MainViewModel(dependencies, bootstrap_result)
 
-        # Complete MainViewModel initialization
-        controller_proxy.__init__(dependencies, bootstrap_result)  # type: ignore[misc]
-
-        # Use the fully initialized controller
-        controller = controller_proxy
+        # Resolve the LazyRef — all deferred attribute accesses now go to the real controller
+        controller_ref.set(controller)
 
         log.info("timing.mainviewmodel_init", elapsed_ms=int((time.perf_counter() - _t0) * 1000))
 
         # Set view reference for legacy components
-        ui_state_controller.view = controller.view  # type: ignore[attr-defined]
+        ui_state_controller.view = controller.view
         ui_state_controller.main_view_model = controller
 
-        # Set view reference for Phase 3 coordinators
-        hardware_coordinator.view = controller.view  # type: ignore[attr-defined]
-        processing_coordinator.view = controller.view  # type: ignore[attr-defined]
-        session_coordinator.view = controller.view  # type: ignore[attr-defined]
+        # Set view reference for Phase 4.9 coordinators (model diagnostics needs view)
+        model_diagnostics_coordinator.view = controller.view
+        processing_coordinator.view = controller.view
+
+        # Phase 4.7: Set view on session sub-coordinators
+        recording_session_coordinator.view = controller.view
+        live_camera_session_coordinator.view = controller.view
+        live_calibration_coordinator.view = controller.view
+
+        # Phase 4: Set view on sub-coordinators
+        progress_tracking_coordinator.view = controller.view
+        multi_aquarium_coordinator.view = controller.view
+        sequential_processing_coordinator.view = controller.view
+
+        # Phase 0.3: Inject dialog_coordinator into ProcessingCoordinator
+        # (created by ApplicationBootstrapper, injected post-construction like view)
+        processing_coordinator.dialog_coordinator = bootstrap_result.dialog_coordinator
 
         # Bind events
         controller.bind_events()
@@ -581,20 +759,21 @@ def main():  # noqa: C901
             if "splash" in locals():
                 splash.destroy()
         except Exception:
-            pass  # Ignore errors; app is already in fatal error state
+            log.debug("main.splash_destroy.suppressed", exc_info=True)
 
         # Show main window if hidden
         try:
             if "root" in locals():
                 root.deiconify()
         except Exception:
-            pass  # Ignore errors; avoid cascading failures
+            log.debug("main.root_deiconify.suppressed", exc_info=True)
 
         try:
             from zebtrack.logging_config import resolve_log_path
 
             log_path = resolve_log_path("analysis.log")
         except Exception:
+            log.debug("main.resolve_log_path.fallback", exc_info=True)
             log_path = "analysis.log"
 
         messagebox.showerror(

@@ -6,7 +6,7 @@ import pandas as pd
 import pytest
 import structlog
 
-from zebtrack.core.project_manager import ProjectManager
+from zebtrack.core.project.project_manager import ProjectManager
 
 
 @pytest.fixture

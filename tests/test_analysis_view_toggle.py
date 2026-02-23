@@ -5,7 +5,7 @@ import unittest
 from collections.abc import Callable
 from unittest.mock import Mock
 
-from zebtrack.core.processing_mode import ProcessingMode, ProcessingReport
+from zebtrack.core.video.processing_mode import ProcessingMode, ProcessingReport
 
 
 class MockVar:

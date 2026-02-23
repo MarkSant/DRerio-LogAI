@@ -108,11 +108,8 @@ def main_view_model(
         def update_openvino_status_display(self, *_args, **_kwargs):
             pass
 
-    class DummyHardwareCoordinator:
+    class DummyDetectorSetupCoordinator:
         def __init__(self, *args, **kwargs):
-            pass
-
-        def set_recording_callbacks(self, *_args, **_kwargs):
             pass
 
         def setup_detector_zones(self, *_args, **_kwargs):

@@ -178,7 +178,7 @@ timestamp, frame, track_id, x1, y1, x2, y2, confidence
 ### Data Structures
 
 ```python
-from zebtrack.core.detector import AquariumData, MultiAquariumZoneData
+from zebtrack.core.detection import AquariumData, MultiAquariumZoneData
 
 # Per-aquarium config
 aq = AquariumData(id=0, polygon=[[0,0],[100,0],[100,100],[0,100]])

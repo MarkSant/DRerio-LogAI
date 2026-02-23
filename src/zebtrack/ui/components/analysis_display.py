@@ -13,7 +13,7 @@ import structlog
 
 # Local imports
 from zebtrack.ui.components.base import BaseWidget
-from zebtrack.ui.event_bus import EventBus
+from zebtrack.ui.event_bus_v2 import EventBusV2
 
 log = structlog.get_logger()
 
@@ -39,7 +39,7 @@ class AnalysisDisplayWidget(BaseWidget):
     def __init__(
         self,
         parent,
-        event_bus: EventBus | None = None,
+        event_bus: EventBusV2 | None = None,
         available_track_options: list[str] | None = None,
         **kwargs,
     ):

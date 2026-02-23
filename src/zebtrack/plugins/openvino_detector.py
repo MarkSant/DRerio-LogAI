@@ -1,6 +1,7 @@
 import glob
 import json
 import os
+import time
 from pathlib import Path
 from typing import Any, Literal
 
@@ -26,12 +27,12 @@ try:
 
     TORCH_AVAILABLE = True
 except ImportError:
-    torch = None  # type: ignore
+    torch = None  # type: ignore[assignment]  # conditional import fallback
     TORCH_AVAILABLE = False
 
-# Substitui imports diretos por bloco compatível com múltiplas versões do ultralytics
+# Replace direct imports with block compatible with multiple ultralytics versions
 try:
-    # Versões onde non_max_suppression está em ops
+    # Versions where non_max_suppression is in ops
     from ultralytics.utils.ops import (
         non_max_suppression,
         process_mask,
@@ -40,8 +41,8 @@ try:
     )
 except ImportError:
     try:
-        # Fallback para versões que expõem non_max_suppression em utils.nms
-        from ultralytics.utils.nms import non_max_suppression  # type: ignore
+        # Fallback for versions that expose non_max_suppression in utils.nms
+        from ultralytics.utils.nms import non_max_suppression
         from ultralytics.utils.ops import (
             process_mask,
             scale_boxes,
@@ -288,7 +289,7 @@ class OpenVINOPlugin(DetectorPlugin):
                             num_classes = int(output_channels) - 4
                         num_classes = max(1, num_classes)  # At least 1 class
                 except Exception:
-                    pass  # Keep default
+                    log.debug("openvino.output_channels.parse_error", exc_info=True)
 
             self.class_names = {i: f"class_{i}" for i in range(num_classes)}
             log.warning(
@@ -300,6 +301,28 @@ class OpenVINOPlugin(DetectorPlugin):
                     "with proper class names"
                 ),
             )
+
+        # Phase 7: Model warm-up — eliminates first-inference latency
+        self._warm_up()
+
+    def _warm_up(self) -> None:
+        """Run a single dummy inference to prime the OpenVINO infer request.
+
+        The first inference through a compiled OpenVINO model is significantly
+        slower because the runtime still needs to allocate internal buffers and
+        optimise the execution graph for the target device.  Running a dummy
+        frame during ``__init__`` moves that cost out of the real-time loop.
+        """
+        try:
+            h, w = self._target_h, self._target_w
+            dummy_frame = np.zeros((h, w, 3), dtype=np.uint8)
+            input_tensor = self._preprocess(dummy_frame)
+            t0 = time.perf_counter()
+            self.infer_request.infer({self.input_layer.any_name: input_tensor})
+            elapsed_ms = (time.perf_counter() - t0) * 1000
+            log.info("openvino.warmup.complete", elapsed_ms=round(elapsed_ms, 1))
+        except Exception as e:  # except Exception justified: warm-up is best-effort
+            log.warning("openvino.warmup.failed", error=str(e))
 
     def get_context_info(self) -> dict:
         """Get current context and aquarium region status for debugging."""
@@ -375,6 +398,164 @@ class OpenVINOPlugin(DetectorPlugin):
         finally:
             if old_conf is not None:
                 self.conf_threshold = old_conf
+
+    # Phase 7 — AsyncInferQueue batch inference
+    # =========================================================================
+
+    def detect_batch(
+        self,
+        frames: list[np.ndarray],
+        conf_threshold: float | None = None,
+    ) -> list[list[tuple[int, int, int, int, float, int | None, int]]]:
+        """Process multiple frames via OpenVINO AsyncInferQueue.
+
+        Uses an ``AsyncInferQueue`` to pipeline N inference requests so that
+        host-side preprocessing overlaps with device-side inference.  The
+        compiled model keeps its original ``batch=1`` shape — no reshape or
+        recompilation is needed.
+
+        When the queue is unavailable or an error occurs the method falls
+        back transparently to the sequential base-class implementation.
+
+        Args:
+            frames: List of BGR frames.
+            conf_threshold: Optional confidence threshold override.
+
+        Returns:
+            List of detection lists, one per input frame.
+        """
+        if not frames:
+            return []
+
+        # Trivial case — avoid async overhead for a single frame
+        if len(frames) == 1:
+            return [self.detect(frames[0], conf_threshold=conf_threshold)]
+
+        # Determine pool size from settings (capped at frame count)
+        nireq = 4  # sensible default
+        if (
+            self._settings is not None
+            and hasattr(self._settings, "openvino")
+            and hasattr(self._settings.openvino, "batch_nireq")
+        ):
+            nireq = self._settings.openvino.batch_nireq
+        nireq = max(1, min(nireq, len(frames)))
+
+        # Temporarily override confidence threshold if provided
+        old_conf = None
+        if conf_threshold is not None:
+            old_conf = self.conf_threshold
+            self.conf_threshold = conf_threshold
+
+        try:
+            return self._run_async_batch(frames, nireq)
+        except Exception as e:  # graceful fallback
+            log.warning(
+                "openvino.batch.async_failed_fallback_sequential",
+                error=str(e),
+                nireq=nireq,
+                num_frames=len(frames),
+            )
+            return [self.detect(f, conf_threshold=conf_threshold) for f in frames]
+        finally:
+            if old_conf is not None:
+                self.conf_threshold = old_conf
+
+    def _run_async_batch(
+        self,
+        frames: list[np.ndarray],
+        nireq: int,
+    ) -> list[list[tuple[int, int, int, int, float, int | None, int]]]:
+        """Execute frames through an AsyncInferQueue and collect results.
+
+        This is the inner implementation separated from :meth:`detect_batch`
+        so that the outer method can handle fallback and threshold management.
+        """
+        assert ov is not None
+
+        num_frames = len(frames)
+
+        # Pre-allocate storage for raw outputs indexed by frame position
+        raw_outputs: list[dict | None] = [None] * num_frames
+        frame_metadata: list[tuple[tuple, tuple] | None] = [None] * num_frames
+
+        # Build the async queue -------------------------------------------------
+        async_queue = ov.AsyncInferQueue(self.compiled_model, nireq)
+
+        def _on_complete(request: Any, userdata: int) -> None:
+            """Callback invoked when an individual request finishes.
+
+            ``userdata`` carries the original frame index so results land in
+            the correct position regardless of completion order.
+
+            We **copy** the output tensors because the underlying memory is
+            owned by the infer request and will be overwritten when the
+            request is reused for the next frame.
+            """
+            idx: int = userdata
+            results = request.results
+            det_tensor = np.copy(results[self.output_det])
+            proto_tensor = None
+            if self.output_proto and self.output_proto in results:
+                proto_tensor = np.copy(results[self.output_proto])
+            raw_outputs[idx] = {"det": det_tensor, "proto": proto_tensor}
+
+        async_queue.set_callback(_on_complete)
+
+        # Submit all frames (the queue blocks automatically when full) ----------
+        input_name = self.input_layer.any_name
+        for idx, frame in enumerate(frames):
+            if frame is None or frame.size == 0:
+                # Store empty sentinel — will yield an empty detection list
+                raw_outputs[idx] = {"det": None, "proto": None}
+                frame_metadata[idx] = ((0, 0, 0), (0, 0))
+                continue
+
+            input_tensor = self._preprocess(frame)
+            frame_metadata[idx] = (frame.shape, input_tensor.shape[2:])
+            async_queue.start_async({input_name: input_tensor}, userdata=idx)
+
+        async_queue.wait_all()
+
+        # Post-process collected outputs ----------------------------------------
+        all_detections: list[list[tuple[int, int, int, int, float, int | None, int]]] = []
+        for idx in range(num_frames):
+            outputs = raw_outputs[idx]
+            meta = frame_metadata[idx]
+
+            if outputs is None or meta is None or outputs["det"] is None:
+                all_detections.append([])
+                continue
+
+            original_shape, input_shape = meta
+
+            # Build a dict-like wrapper so _postprocess can index by Output keys
+            results_proxy = _OutputProxy(
+                det_tensor=outputs["det"],
+                proto_tensor=outputs["proto"],
+                det_key=self.output_det,
+                proto_key=self.output_proto,
+            )
+
+            detections, _ = self._postprocess(
+                results_proxy, original_shape, input_shape, decode_masks=False
+            )
+
+            predictions: list[tuple[int, int, int, int, float, int | None, int]] = []
+            for det in detections:
+                x1, y1, x2, y2, score, class_id = det[:6]
+                predictions.append(
+                    (int(x1), int(y1), int(x2), int(y2), float(score), None, int(class_id))
+                )
+            all_detections.append(predictions)
+
+        log.debug(
+            "openvino.batch.complete",
+            num_frames=num_frames,
+            nireq=nireq,
+            total_detections=sum(len(d) for d in all_detections),
+        )
+        return all_detections
 
     def predict(
         self, frame: np.ndarray, conf_threshold: float | None = None
@@ -587,6 +768,36 @@ class OpenVINOPlugin(DetectorPlugin):
     @property
     def model_input_shape(self) -> tuple[int, int]:
         return self.input_layer.shape[2], self.input_layer.shape[3]  # (h, w)
+
+
+class _OutputProxy:
+    """Lightweight proxy that mimics ``infer_request.results`` key access.
+
+    ``_postprocess`` indexes the results dict with ``self.output_det`` and
+    ``self.output_proto`` (``ov.Output`` objects).  When async callbacks
+    copy tensors into plain numpy arrays we lose the original dict keying.
+    This proxy re-establishes the mapping so ``_postprocess`` works
+    unchanged.
+    """
+
+    __slots__ = ("_store",)
+
+    def __init__(
+        self,
+        det_tensor: np.ndarray | None,
+        proto_tensor: np.ndarray | None,
+        det_key: Any,
+        proto_key: Any | None,
+    ) -> None:
+        self._store: dict[Any, np.ndarray | None] = {det_key: det_tensor}
+        if proto_key is not None:
+            self._store[proto_key] = proto_tensor
+
+    def __getitem__(self, key: Any) -> np.ndarray | None:
+        return self._store[key]
+
+    def __contains__(self, key: Any) -> bool:
+        return key in self._store
 
 
 def _letterbox(

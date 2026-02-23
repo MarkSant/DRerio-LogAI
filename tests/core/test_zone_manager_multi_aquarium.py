@@ -8,8 +8,8 @@ Coverage target: 80%+
 
 import pytest
 
-from zebtrack.core.detector import AquariumData, MultiAquariumZoneData, ZoneData
-from zebtrack.core.zone_manager import ZoneManager
+from zebtrack.core.detection import AquariumData, MultiAquariumZoneData, ZoneData
+from zebtrack.core.project.zone_manager import ZoneManager
 
 
 class TestZoneManagerMultiAquariumSerialization:

@@ -7,7 +7,9 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from zebtrack.core.video_selection_service import VideoSelectionService
+from zebtrack.core.video.video_selection_service import VideoSelectionService
+
+_NORMALIZE_ATTR = "zebtrack.core.project.video_manager.VideoManager.normalize_path"
 
 
 def test_select_pending_filters_processed():
@@ -34,7 +36,7 @@ def test_select_targeted_matches_normalized(monkeypatch):
     def normalize(path: str) -> str | None:
         return path.lower()
 
-    monkeypatch.setattr("zebtrack.core.video_manager.VideoManager.normalize_path", normalize)
+    monkeypatch.setattr(_NORMALIZE_ATTR, normalize)
 
     all_videos = [
         {"path": "A.MP4", "status": "pending"},
@@ -55,7 +57,7 @@ def test_select_targeted_tracks_missing(monkeypatch):
     def normalize(path: str) -> str | None:
         return path.lower()
 
-    monkeypatch.setattr("zebtrack.core.video_manager.VideoManager.normalize_path", normalize)
+    monkeypatch.setattr(_NORMALIZE_ATTR, normalize)
 
     all_videos = [{"path": "A.MP4", "status": "pending"}]
 
@@ -73,7 +75,7 @@ def test_select_targeted_ignores_sub_entries(monkeypatch):
     def normalize(path: str) -> str | None:
         return path
 
-    monkeypatch.setattr("zebtrack.core.video_manager.VideoManager.normalize_path", normalize)
+    monkeypatch.setattr(_NORMALIZE_ATTR, normalize)
 
     all_videos = [{"path": "video.mp4", "status": "pending"}]
 
@@ -88,7 +90,7 @@ def test_select_candidates_handles_invalid_paths(monkeypatch):
     service = VideoSelectionService()
 
     normalize_mock = MagicMock(side_effect=lambda path: path if path else None)
-    monkeypatch.setattr("zebtrack.core.video_manager.VideoManager.normalize_path", normalize_mock)
+    monkeypatch.setattr(_NORMALIZE_ATTR, normalize_mock)
 
     all_videos: list[dict[str, object]] = [
         {"path": "video.mp4", "status": "pending"},

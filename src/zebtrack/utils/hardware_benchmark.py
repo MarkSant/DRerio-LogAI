@@ -103,14 +103,14 @@ class BenchmarkRecommendation:
     # Backend selection
     backend: str  # "openvino" or "pytorch"
 
-    # Device selection
-    device_live: str  # Device for live camera analysis
-    device_batch: str  # Device for pre-recorded video
+    # Device selection (str to support both "cuda" for PyTorch and "AUTO"/"CPU"/"GPU" for OpenVINO)
+    device_live: str
+    device_batch: str
 
-    # OpenVINO specific
-    openvino_hint_live: str  # "LATENCY" or "THROUGHPUT"
+    # OpenVINO specific (str values: "LATENCY"/"THROUGHPUT", "FP32"/"FP16"/"INT8")
+    openvino_hint_live: str
     openvino_hint_batch: str
-    openvino_precision: str  # "FP32", "FP16", "INT8"
+    openvino_precision: str
     enable_model_cache: bool
 
     # Video decode
@@ -200,7 +200,7 @@ def detect_hardware_profile() -> HardwareProfile:
 
         profile.cpu_cores = os.cpu_count() or 1
     except Exception:
-        pass
+        log.debug("hardware_benchmark.cpu_probe.suppressed", exc_info=True)
 
     # Check CUDA/PyTorch
     try:
@@ -217,9 +217,9 @@ def detect_hardware_profile() -> HardwareProfile:
                     props = torch.cuda.get_device_properties(0)
                     profile.gpu_memory_gb = props.total_memory / (1024**3)
                 except Exception:
-                    pass
+                    log.debug("hardware_benchmark.cuda_gpu_memory.suppressed", exc_info=True)
     except ImportError:
-        pass
+        log.debug("hardware_benchmark.torch.not_available")
 
     # Check OpenVINO
     try:
@@ -233,7 +233,7 @@ def detect_hardware_profile() -> HardwareProfile:
         try:
             profile.cpu_name = core.get_property("CPU", "FULL_DEVICE_NAME")
         except Exception:
-            pass
+            log.debug("hardware_benchmark.openvino_cpu_name.suppressed", exc_info=True)
 
         # Check for GPU devices
         for device in profile.openvino_devices:
@@ -260,14 +260,16 @@ def detect_hardware_profile() -> HardwareProfile:
                         mem = core.get_property(device, "GPU_DEVICE_TOTAL_MEM_SIZE")
                         profile.gpu_memory_gb = mem / (1024**3)
                     except Exception:
-                        pass
+                        log.debug(
+                            "hardware_benchmark.openvino_gpu_memory.suppressed", exc_info=True
+                        )
 
                     # Get capabilities
                     try:
                         caps = core.get_property(device, "OPTIMIZATION_CAPABILITIES")
                         profile.gpu_capabilities = list(caps) if caps else []
                     except Exception:
-                        pass
+                        log.debug("hardware_benchmark.openvino_gpu_caps.suppressed", exc_info=True)
 
                     break  # Use first GPU found
 
@@ -275,7 +277,7 @@ def detect_hardware_profile() -> HardwareProfile:
                     log.warning("hardware.gpu_info_failed", device=device, error=str(e))
 
     except ImportError:
-        pass
+        log.debug("hardware_benchmark.openvino.not_available")
 
     # Generate fingerprint for cache invalidation
     fingerprint_data = f"{profile.cpu_name}|{profile.gpu_name}|{profile.gpu_memory_gb}"

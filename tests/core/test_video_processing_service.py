@@ -109,7 +109,7 @@ def video_processing_service(
     cancel_event,
 ):
     """Create VideoProcessingService with mocked dependencies."""
-    from zebtrack.core.video_processing_service import VideoProcessingService
+    from zebtrack.core.video.video_processing_service import VideoProcessingService
 
     service = VideoProcessingService(
         detector=mock_detector,
@@ -153,7 +153,7 @@ def test_service_with_null_detector_allowed(
     cancel_event,
 ):
     """Test that service can be instantiated with None detector (lazy initialization)."""
-    from zebtrack.core.video_processing_service import VideoProcessingService
+    from zebtrack.core.video.video_processing_service import VideoProcessingService
 
     service = VideoProcessingService(
         detector=None,  # Lazy initialization pattern

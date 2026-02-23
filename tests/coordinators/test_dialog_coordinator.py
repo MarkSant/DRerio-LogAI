@@ -148,7 +148,7 @@ class TestHandleMixedDataScenario:
 
         assert result is None
         # Verifica que evento foi publicado
-        mock_event_bus.publish_event.assert_called_once()
+        mock_event_bus.publish.assert_called_once()
 
     def test_none_have_data(self, dialog_coordinator):
         """Testa quando nenhum vídeo tem dados."""
@@ -211,7 +211,7 @@ class TestShowProcessingSkippedInfo:
         """Testa exibição via EventBus quando disponível."""
         dialog_coordinator._show_processing_skipped_info()
 
-        mock_event_bus.publish_event.assert_called_once()
+        mock_event_bus.publish.assert_called_once()
 
     def test_show_processing_skipped_without_event_bus(
         self, mock_ui_coordinator, mock_state_manager

@@ -5,7 +5,7 @@ from unittest.mock import MagicMock, patch
 import numpy as np
 import pytest
 
-from zebtrack.core.aquarium_detector import AquariumDetector
+from zebtrack.core.detection.aquarium_detector import AquariumDetector
 
 
 @pytest.fixture
@@ -52,7 +52,7 @@ def mock_yolo_result_5_percent():
     return [mock_result]
 
 
-@patch("zebtrack.core.aquarium_detector.YOLO")
+@patch("zebtrack.core.detection.aquarium_detector.YOLO")
 def test_detect_aquariums_default_thresholds(mock_yolo, mock_frame, mock_yolo_result_15_percent):
     """Test that default threshold (0.1) accepts 15% area."""
     mock_model = MagicMock()
@@ -62,7 +62,7 @@ def test_detect_aquariums_default_thresholds(mock_yolo, mock_frame, mock_yolo_re
     detector = AquariumDetector("mock_model.pt", mode="seg")
 
     # Run detection on "video"
-    with patch("zebtrack.core.aquarium_detector.VideoFileSource") as MockVideoSource:
+    with patch("zebtrack.core.detection.aquarium_detector.VideoFileSource") as MockVideoSource:
         instance = MockVideoSource.return_value
         instance.get_frame.return_value = (True, mock_frame)
 
@@ -73,7 +73,7 @@ def test_detect_aquariums_default_thresholds(mock_yolo, mock_frame, mock_yolo_re
         assert len(polygons[0]) == 4
 
 
-@patch("zebtrack.core.aquarium_detector.YOLO")
+@patch("zebtrack.core.detection.aquarium_detector.YOLO")
 def test_detect_aquariums_strict_threshold(mock_yolo, mock_frame, mock_yolo_result_15_percent):
     """Test that stricter threshold (0.2) rejects 15% area."""
     mock_model = MagicMock()
@@ -82,7 +82,7 @@ def test_detect_aquariums_strict_threshold(mock_yolo, mock_frame, mock_yolo_resu
 
     detector = AquariumDetector("mock_model.pt", mode="seg")
 
-    with patch("zebtrack.core.aquarium_detector.VideoFileSource") as MockVideoSource:
+    with patch("zebtrack.core.detection.aquarium_detector.VideoFileSource") as MockVideoSource:
         instance = MockVideoSource.return_value
         instance.get_frame.return_value = (True, mock_frame)
 
@@ -111,7 +111,7 @@ def test_detect_aquariums_strict_threshold(mock_yolo, mock_frame, mock_yolo_resu
             assert width != 15  # Should not be the 15% polygon
 
 
-@patch("zebtrack.core.aquarium_detector.YOLO")
+@patch("zebtrack.core.detection.aquarium_detector.YOLO")
 def test_process_segmentation_logic_direct(mock_yolo, mock_frame, mock_yolo_result_15_percent):
     """Test standard logic directly."""
     detector = AquariumDetector("mock_model.pt", mode="seg")

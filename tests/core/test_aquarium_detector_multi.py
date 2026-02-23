@@ -9,7 +9,7 @@ Coverage target: 80%+
 import numpy as np
 import pytest
 
-from zebtrack.core.aquarium_detector import ContourBasedMultiAquariumDetector
+from zebtrack.core.detection.aquarium_detector import ContourBasedMultiAquariumDetector
 
 
 class TestContourBasedMultiAquariumDetector:

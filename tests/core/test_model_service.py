@@ -8,7 +8,7 @@ OpenVINO conversion status, and configuration validation.
 import unittest
 from unittest.mock import Mock, patch
 
-from zebtrack.core.model_service import ModelService
+from zebtrack.core.services.model_service import ModelService
 
 
 class TestModelServiceConfiguration(unittest.TestCase):

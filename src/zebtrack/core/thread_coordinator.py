@@ -1,8 +1,8 @@
-"""Coordenador para gerenciamento de threads de background.
+"""Coordinator for background thread management.
 
-Este coordenador foi extraído do MainViewModel como parte da Fase 1 do
-plano de refatoração (PLANO_REFATORACAO_MAINVIEWMODEL.md).
-Responsável por gerenciar o ciclo de vida de threads de background.
+Extracted from MainViewModel as part of Phase 1 of the refactoring
+plan (PLANO_REFATORACAO_MAINVIEWMODEL.md).
+Responsible for managing the lifecycle of background threads.
 """
 
 import threading
@@ -17,20 +17,20 @@ log = structlog.get_logger()
 
 
 class ThreadCoordinator:
-    """Coordenador para gerenciar threads de background.
+    """Coordinator for managing background threads.
 
-    Centraliza o gerenciamento de ciclo de vida de threads,
-    incluindo join, cleanup e liberação de recursos.
+    Centralizes thread lifecycle management,
+    including join, cleanup, and resource release.
 
     Attributes:
-        program_exit_event: Evento para sinalizar saída do programa
-        processing_thread: Thread de processamento de vídeo
-        capture_thread: Thread de captura de frames (opcional)
-        camera: Instância da câmera (opcional)
+        program_exit_event: Event to signal program exit.
+        processing_thread: Video processing thread.
+        capture_thread: Frame capture thread (optional).
+        camera: Camera instance (optional).
     """
 
     def __init__(self) -> None:
-        """Inicializa o coordenador de threads."""
+        """Initialize the thread coordinator."""
         self.program_exit_event = threading.Event()
         self.processing_thread: threading.Thread | None = None
         self.capture_thread: threading.Thread | None = None
@@ -38,54 +38,54 @@ class ThreadCoordinator:
         self.log = structlog.get_logger()
 
     def register_processing_thread(self, thread: threading.Thread) -> None:
-        """Registra thread de processamento.
+        """Register a processing thread.
 
         Args:
-            thread: Thread de processamento a registrar
+            thread: Processing thread to register.
         """
         self.processing_thread = thread
         self.log.debug("thread_coordinator.processing_thread_registered")
 
     def register_capture_thread(self, thread: threading.Thread) -> None:
-        """Registra thread de captura.
+        """Register a capture thread.
 
         Args:
-            thread: Thread de captura a registrar
+            thread: Capture thread to register.
         """
         self.capture_thread = thread
         self.log.debug("thread_coordinator.capture_thread_registered")
 
     def register_camera(self, camera: "Camera") -> None:
-        """Registra instância da câmera.
+        """Register a camera instance.
 
         Args:
-            camera: Instância da câmera a registrar
+            camera: Camera instance to register.
         """
         self.camera = camera
         self.log.debug("thread_coordinator.camera_registered")
 
     def signal_exit(self) -> None:
-        """Sinaliza todas as threads para parar."""
+        """Signal all threads to stop."""
         self.log.info("thread_coordinator.signal_exit")
         self.program_exit_event.set()
 
     def join_threads(self) -> None:
-        """Sinaliza todas as threads para parar e aguarda finalização.
+        """Signal all threads to stop and wait for completion.
 
-        Realiza:
-        - Define evento de saída
-        - Aguarda conclusão de threads com timeout
-        - Libera recursos de câmera
-        - Previne deadlocks com timeout de 2 segundos por thread
+        Performs:
+        - Sets the exit event
+        - Waits for thread completion with timeout
+        - Releases camera resources
+        - Prevents deadlocks with a 2-second timeout per thread
 
         Note:
-            Se threads não terminarem dentro do timeout, logs de warning são emitidos
-            e o programa continua o shutdown (evita travamento indefinido).
+            If threads do not finish within the timeout, warning logs are emitted
+            and the program continues shutdown (avoids indefinite blocking).
         """
         self.log.info("thread_coordinator.shutdown.start")
         self.program_exit_event.set()
 
-        # Join background threads (processamento de vídeo) com timeout
+        # Join background threads (video processing) with timeout
         if self.processing_thread is not None and self.processing_thread.is_alive():
             self.log.info("thread_coordinator.join_processing_thread")
             self.processing_thread.join(timeout=2.0)
@@ -106,17 +106,18 @@ class ThreadCoordinator:
                 )
             self.capture_thread = None
 
-        # Libera recursos da câmera
+        # Release camera resources
         self._release_camera()
 
         self.log.info("thread_coordinator.shutdown.complete")
 
     def _release_camera(self) -> None:
-        """Libera recursos da câmera."""
+        """Release camera resources."""
         if self.camera:
             self.log.info("thread_coordinator.release_camera")
             try:
                 self.camera.release()
+            # except Exception justified: thread cleanup boundary
             except Exception as e:
                 self.log.warning(
                     "thread_coordinator.camera_release_error",
@@ -126,33 +127,33 @@ class ThreadCoordinator:
                 self.camera = None
 
     def cleanup(self) -> None:
-        """Limpa todos os recursos e threads.
+        """Clean up all resources and threads.
 
-        Método de conveniência que chama join_threads().
+        Convenience method that calls join_threads().
         """
         self.join_threads()
 
     def is_processing_active(self) -> bool:
-        """Verifica se thread de processamento está ativa.
+        """Check if the processing thread is active.
 
         Returns:
-            True se thread de processamento está viva, False caso contrário
+            True if the processing thread is alive, False otherwise.
         """
         return self.processing_thread is not None and self.processing_thread.is_alive()
 
     def is_capture_active(self) -> bool:
-        """Verifica se thread de captura está ativa.
+        """Check if the capture thread is active.
 
         Returns:
-            True se thread de captura está viva, False caso contrário
+            True if the capture thread is alive, False otherwise.
         """
         return self.capture_thread is not None and self.capture_thread.is_alive()
 
     def get_active_thread_count(self) -> int:
-        """Retorna número de threads ativas.
+        """Return the number of active threads.
 
         Returns:
-            Número de threads ativas (processamento + captura)
+            Number of active threads (processing + capture).
         """
         count = 0
         if self.is_processing_active():

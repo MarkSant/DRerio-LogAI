@@ -6,6 +6,231 @@ This document tracks all major agent interventions, technical debt resolutions, 
 
 ## Active Tasks
 
+### [2026-02-23] Mitigate EventBus slow-handler warnings for weight/OpenVINO UI events
+
+**ID:** TASK-037
+**Agent:** GitHub Copilot (GPT-5.3-Codex)
+**Status:** In Progress 🔄
+**Description:**
+Investigate `event_bus.slow_handler` warnings for `UI_SET_ACTIVE_WEIGHT` and
+`UI_UPDATE_OPENVINO_CHECKBOX`, then reduce synchronous handler latency by
+ensuring these UI updates are dispatched safely on Tk main thread.
+
+### Subtasks (TASK-037)
+
+- [x] Trace publishers/subscribers and timing source for the warnings.
+- [x] Run mandatory impact analysis for dispatcher/events.
+- [ ] Implement safe UI-thread dispatch for affected handlers.
+- [ ] Validate with focused tests and lint.
+- [ ] Mark task as completed with evidence.
+
+### [2026-02-23] Fix project-load UI tab regression from runtime errors
+
+**ID:** TASK-036
+**Agent:** GitHub Copilot (GPT-5.3-Codex)
+**Status:** Completed ✅
+**Description:**
+Investigate and fix two runtime errors seen during local tests that break
+project-view initialization when loading existing projects (only main tab shown),
+then validate with focused UI/event tests.
+
+### Subtasks (TASK-036)
+
+- [x] Capture runtime errors from logs and map failing handlers.
+- [x] Run mandatory impact analysis for implicated UI files.
+- [x] Apply focused wiring fixes for EventBus aliasing and zone context resolution.
+- [x] Run focused regression tests for project-load/event UI paths.
+- [x] Mark task as completed with test evidence.
+
+**Results:**
+
+- Fixed runtime error #1: `'ApplicationGUI' object has no attribute 'event_bus_v2'`
+  by restoring backward-compat alias `event_bus_v2` in `ApplicationGUI`.
+- Fixed runtime error #2: `'NoneType' object has no attribute 'get_zone_data_for_active_context'`
+  by injecting `ZoneContextService` into `CanvasManager` and `DialogManager` from `ApplicationGUI`.
+- Validation passed:
+  - `tests/ui/components/test_event_dispatcher.py`
+  - `tests/ui/test_gui_wiring_smoke.py`
+  - `tests/ui/test_project_workflow_adapter.py`
+  - `tests/ui/test_gui_zone_tab_navigation_guard.py`
+  - `tests/integration/test_video_tree_refresh_event.py`
+  - `tests/integration/test_zones_updated_event.py`
+  - `poetry run ruff check src/zebtrack/ui/gui.py`
+
+**2026-02-23 Follow-up (debug retest):**
+
+- Fixed additional runtime regression on project load:
+  `'ApplicationGUI' object has no attribute '_event_bus_handlers'`.
+- Root cause: backward-compat dictionary expected by `WidgetFactory` was not initialized
+  in `ApplicationGUI` before tab/event wiring.
+- Fix: initialized `self._event_bus_handlers = {}` in `ApplicationGUI.__init__`.
+- Re-validated with focused tests:
+  - `tests/ui/test_gui_wiring_smoke.py`
+  - `tests/ui/components/test_event_dispatcher.py`
+  - `tests/ui/test_project_workflow_adapter.py`
+
+**2026-02-23 Follow-up 2 (debug traceback):**
+
+- Fixed traceback in delayed snapshot builder callback:
+  `UIEvents.VIDEO_HIERARCHY_SNAPSHOT_UPDATED` →
+  `UIEvents.UI_VIDEO_HIERARCHY_SNAPSHOT_UPDATED` in
+  `video_selector_tree_manager._build_video_hierarchy_snapshot()`.
+- Root cause: wrong enum member name (without `UI_` prefix), causing AttributeError
+  in Tk `after()` callback path while project tabs were being built.
+- Validation passed:
+  - `tests/integration/test_video_tree_refresh_event.py`
+  - `tests/integration/test_readiness_snapshot_event.py`
+  - `poetry run ruff check src/zebtrack/ui/components/project_views/video_selector_tree_manager.py`
+
+### [2026-02-23] PR audit remediation bundle (critical + important + low)
+
+**ID:** TASK-035
+**Agent:** GitHub Copilot (GPT-5.3-Codex)
+**Status:** Completed ✅
+**Description:**
+Create a final branch from the current open branch and implement the review-audit
+remediation package derived from PRs #343-#365: critical, important, and low-priority
+items, with mandatory impact analysis and focused regression validation.
+
+### Subtasks (TASK-035)
+
+- [x] Create final branch from current branch tip.
+- [x] Run mandatory impact analysis for targeted remediation scope.
+- [x] Implement critical fixes (runtime correctness / safety / threading / contracts).
+- [x] Implement important fixes (robustness, typing/runtime guards, state consistency).
+- [x] Implement low-priority fixes (tooling/config consistency, minor UX correctness).
+- [x] Run focused tests plus fast suite validation.
+- [x] Update task status to completed with results summary.
+
+**Results:**
+
+- Created branch `final/pr-audit-remediation-20260223` from current branch tip.
+- Ran mandatory impact analysis for `BaseCoordinator`, `VideoProcessingCoordinator`,
+  `ReportGenerationCoordinator`, `SessionCoordinator`, `SingleDetector`, and key UI files.
+- Applied critical fixes: state category normalization, multi-aquarium overlay call contract,
+  live stop-session success propagation, safe cleanup of pending recording context,
+  sequential callback de-duplication, and Tk-safe deferred post-init.
+- Applied important fixes: metadata filtering preserving bool/list/dict,
+  group cache invalidation on video add/remove, robust `results_dir` type handling,
+  `type_label` UI string interpolation, and deadlock-safe `TTLCache.__repr__`.
+- Applied low-priority doc cleanup in MCP guide (placeholder removal and date correction).
+- Validation: targeted tests passed (`85` + `41`), and Ruff check passed on all changed Python files.
+
+### [2026-02-23] UI Event Bus wiring fix for BehavioralConfig warnings
+
+**ID:** TASK-034
+**Agent:** GitHub Copilot (GPT-5.3-Codex)
+**Status:** Completed ✅
+**Description:**
+Resolved warning spam from `BehavioralConfigWidget` by fixing a UI path that opened
+`SingleVideoConfigDialog` without injecting `event_bus`, causing
+`widget.event.no_bus` on behavioral config change events.
+
+### Subtasks (TASK-034)
+
+- [x] Run mandatory impact analysis for `event_dispatcher.py`.
+- [x] Fix `SingleVideoConfigDialog` creation path to pass `event_bus`.
+- [x] Validate changed file diagnostics.
+
+### [2026-02-19] Phase 8 — Documentation & Standardization
+
+**ID:** TASK-033
+**Agent:** GitHub Copilot (Claude Opus 4.6)
+**Status:** Completed ✅
+**Branch:** `refactor/phase-8-docs-standardization`
+**Completed:** 2026-02-03
+**Description:**
+Documentation standardization, coverage gate elevation with evidence-based
+thresholds, property-based testing expansion, ADR creation, and system
+integration map update.
+
+### Subtasks (TASK-033)
+
+- [x] 8.1 Translate Portuguese docstrings/comments to English (12 files)
+- [x] 8.2.0 Research scientific software coverage standards (JOSS, pyOpenSci, OpenSSF)
+- [x] 8.2.1 Measure current coverage baseline (46.1% overall)
+- [x] 8.2.2 Analyze coverage gaps (top uncovered modules)
+- [x] 8.2.3 Fix 5 test regressions from Phase 7 API changes
+- [x] 8.2.4 Raise CI gates (Linux core 50%, GUI 32%, Windows 28%, local 45%)
+- [x] 8.3 Add property-based tests with Hypothesis (6 files, 83 tests)
+- [x] 8.4 Create ADR-001, ADR-004; update ADR-009
+- [x] 8.5 Update system integration map (v3.2 → v4.0)
+- [x] CHANGELOG update and final commit
+
+---
+
+### [2026-02-19] Phase 7 — Performance Optimizations
+
+**ID:** TASK-032
+**Agent:** GitHub Copilot (Claude Opus 4.6)
+**Status:** Completed ✅
+**Branch:** `refactor/phase-7-performance`
+**Completed:** 2026-02-19
+**Description:**
+Seven performance optimizations targeting inference latency, data pipeline
+throughput, vectorized computation, IPC efficiency, and cache cleanup.
+
+### Subtasks (TASK-032)
+
+- [x] 7.8 Model warm-up in plugins (ultralytics + openvino)
+- [x] 7.4 Vectorize `get_angular_velocity()` (eliminate Python loop)
+- [x] 7.5 Columnar buffers for Recorder flush (bypass pd.DataFrame)
+- [x] 7.7 TTL cache utility replacing hand-rolled caches
+- [x] 7.6 ROI polygon mask cache (pixel lookup vs pointPolygonTest)
+- [x] 7.2 Batch inference in plugins (detect_batch)
+- [x] 7.3 SharedMemory for preview frames (replace Queue pickle)
+- [x] Benchmark test suite (pytest-benchmark)
+- [x] CHANGELOG, commit, push, PR
+
+**Results:**
+
+- 7 sub-tasks implemented across 12 source files
+- 42 new tests (20 cache + 11 shared memory + 11 benchmarks)
+- Measured speedups: angular velocity ~9×, recorder flush ~8×,
+  polygon containment ~1.7×, preview IPC write ~3×
+- Skipped 7.1 (detection-only model) — training outside codebase scope
+
+---
+
+### [2026-02-15] Phase 2 — Narrow Generic Exception Catches
+
+**ID:** TASK-031
+**Agent:** GitHub Copilot (Claude Opus 4.6)
+**Status:** Completed ✅
+**Branch:** `refactor/phase-2-narrow-exception-catches`
+**Completed:** 2026-02-15
+**Description:**
+Replaced ~344 `except Exception` catches with specific exception types across
+6 priority UI files and the coordinators/core/I/O layers. Each remaining
+`except Exception` carries a mandatory justification comment
+(`# except Exception justified: <reason>`). Deferred: `analysis/`, `utils/`,
+`plugins/` (~150 instances) — registered in backlog for post-Phase 4 rework.
+
+**Results:**
+
+- ~130 catches narrowed to specific types (TclError, OSError, ValueError, etc.)
+- ~155 catches justified with mandatory comment
+- ~45 catches already justified from Phase 1
+- 10 test files updated to raise matching exception types
+- 1 bug fix: `detector_service.py` L851 widened to `(OSError, ValueError)`
+- Full test suite: 2778 passed, 12 skipped, 0 failures
+
+### Subtasks (TASK-031)
+
+- [x] 2.1 `ui_coordinator.py` — 19 instances (1 narrowed, 18 justified)
+- [x] 2.2 `project_view_manager.py` — 13 instances (all narrowed)
+- [x] 2.3 `state_synchronizer.py` — 9 instances (all narrowed)
+- [x] 2.4 `window_utils.py` — 12 instances (11 narrowed, 1 justified)
+- [x] 2.5 `widget_factory.py` — 11 instances (all narrowed)
+- [x] 2.6 `gui.py` — 16 instances (all narrowed, removed duplicate raise)
+- [x] 2.7.1 `coordinators/` — 87 instances (15 narrowed, 68 justified)
+- [x] 2.7.2 `core/` — 136 instances (50 narrowed, 70 justified)
+- [x] 2.7.3 `io/` — 40 instances (8 narrowed, 17 justified)
+- [x] Validation: 2778 tests pass, ruff clean, E501 fixed
+- [x] CHANGELOG, commit, push, PR
+
+---
+
 ### [2026-02-14] CI remaining failures stabilization (PR #343)
 
 **ID:** TASK-030
