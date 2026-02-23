@@ -178,7 +178,21 @@ class BaseCoordinator:
             update_method(source=source, **kwargs)
         else:
             # Last resort: generic update_state
-            self.state_manager.update_state(cat_enum, **kwargs)
+            update_state_fn = getattr(self.state_manager, "update_state", None)
+            if callable(update_state_fn):
+                try:
+                    parameters = inspect.signature(update_state_fn).parameters
+                except (TypeError, ValueError):
+                    update_state_fn(cat_enum, **kwargs)
+                else:
+                    supports_source = "source" in parameters or any(
+                        parameter.kind == inspect.Parameter.VAR_KEYWORD
+                        for parameter in parameters.values()
+                    )
+                    if supports_source:
+                        update_state_fn(cat_enum, source=source, **kwargs)
+                    else:
+                        update_state_fn(cat_enum, **kwargs)
 
     def _get_state(self, category: str | StateCategory, key: str, default: Any = None) -> Any:
         """Get a value from state manager.
