@@ -3620,8 +3620,11 @@ class ProcessingCoordinator(BaseCoordinator):
                     result="SINGLE_SUBJECT",
                 )
                 return ProcessingMode.SINGLE_SUBJECT
-        except Exception:
-            pass
+        except Exception as exc:
+            log.debug(
+                "controller.determine_processing_mode.project_data_fallback_failed",
+                error=str(exc),
+            )
 
         return ProcessingMode.MULTI_TRACK
 
@@ -4882,8 +4885,12 @@ class ProcessingCoordinator(BaseCoordinator):
                     bg_path = os.path.join(results_dir, f"{exp_id}_bg.png")
                     cv2.imwrite(bg_path, frame)
                     return bg_path
-                except Exception:
-                    pass
+                except Exception as exc:
+                    log.debug(
+                        "processing.prepare_background_image.write_failed",
+                        error=str(exc),
+                        experiment_id=exp_id,
+                    )
         return video_file
 
     def _export_individual_outputs(self, analysis_result, results_dir, exp_id):

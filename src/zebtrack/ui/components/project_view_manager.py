@@ -1039,8 +1039,12 @@ class ProjectViewManager:
                     # If empty, might be a container, iterate children
                     for child in tree.get_children(item_id):
                         _collect(child)
-            except Exception:
-                pass
+            except Exception as exc:
+                log.debug(
+                    "project_view_manager.collect_selected_video_paths_failed",
+                    error=str(exc),
+                    item_id=item_id,
+                )
 
         for item in selection:
             _collect(item)
@@ -1311,8 +1315,12 @@ class ProjectViewManager:
             try:
                 os.chmod(path, stat.S_IWRITE)
                 func(path)
-            except Exception:
-                pass
+            except Exception as exc:
+                log.debug(
+                    "project_view_manager.remove_unified_reports_on_rm_error_failed",
+                    error=str(exc),
+                    path=path,
+                )
 
         if os.path.exists(unified_dir):
             success = False
@@ -1678,8 +1686,12 @@ class ProjectViewManager:
                 canonical_entry = pm.find_video_entry(path=video_path) if pm else None
                 if canonical_entry and isinstance(canonical_entry, dict):
                     multi_outputs = canonical_entry.get("multi_aquarium_outputs")
-            except Exception:
-                pass
+            except Exception as exc:
+                log.debug(
+                    "project_view_manager.multi_aquarium_outputs_lookup_failed",
+                    error=str(exc),
+                    video_path=video_path,
+                )
 
         if multi_outputs and isinstance(multi_outputs, dict) and len(multi_outputs) > 0:
             self._insert_multi_aquarium_nodes(

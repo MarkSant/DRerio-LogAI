@@ -121,8 +121,12 @@ class VideoValidationService:
                             info["is_multi_aquarium"] = True
                         if has_multi_rois:
                             info["has_rois"] = True
-                except Exception:
-                    pass
+                except Exception as exc:
+                    log.debug(
+                        "video_validation.multi_aquarium_zone_probe_failed",
+                        error=str(exc),
+                        video_path=path,
+                    )
 
                 # Trajectory Data (Multi)
                 multi_outputs = video_entry.get("multi_aquarium_outputs", {})

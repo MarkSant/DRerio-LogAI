@@ -148,7 +148,12 @@ class TestBaseCoordinatorStateMgmt:
         # The unified base falls back to state_manager.update_state
         coordinator._update_state(mock_category, test_field="value")
 
-        state_manager.update_state.assert_called_once_with(mock_category, test_field="value")
+        state_manager.update_state.assert_called_once()
+        call_args = state_manager.update_state.call_args
+        assert call_args.args[0] is mock_category
+        assert call_args.kwargs["test_field"] == "value"
+        assert "source" in call_args.kwargs
+        assert "ConcreteCoordinator" in call_args.kwargs["source"]
 
 
 class TestBaseCoordinatorEventBus:
