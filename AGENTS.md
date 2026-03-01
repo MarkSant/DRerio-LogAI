@@ -171,7 +171,6 @@ Use these conventions to get consistent diagnostics and avoid tool conflicts.
 ### Docs & Config
 
 - **YAML (Red Hat)**: Use for config validation; keep schemas in sync where provided.
-- **Markdown All in One**: Use for editing Markdown; respect markdownlint rules.
 - **markdownlint**: Follow repo lint settings; fix doc warnings instead of disabling.
 - **Code Spell Checker**: Add domain terms to workspace dictionary; avoid disabling globally.
 - **vscode-pdf**: Read-only PDF viewing; no code changes.

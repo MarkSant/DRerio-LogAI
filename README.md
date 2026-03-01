@@ -210,7 +210,7 @@ Para consistência no ambiente local, siga estas boas práticas com as extensõe
 - **GitHub Copilot / Chat / PRs / Actions**: faça mudanças incrementais e sempre com impacto analisado.
 - **Git History**: use para histórico/blame; diffs pequenos e objetivos.
 - **Docker / Container Tools / Dev Containers / WSL**: use apenas quando o projeto estiver rodando nesses ambientes.
-- **YAML / Markdown / markdownlint / Code Spell Checker**: mantenha lint ativo e corrija avisos.
+- **YAML / markdownlint / Code Spell Checker**: mantenha lint ativo e corrija avisos.
 - **MATLAB / matlab-formatter**: use apenas em arquivos `.m`.
 - **vscode-pdf**: visualização somente leitura.
 

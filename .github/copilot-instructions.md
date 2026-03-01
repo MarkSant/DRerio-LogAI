@@ -93,7 +93,7 @@ Keep editor diagnostics consistent and avoid formatter conflicts.
 - **GitHub Copilot / Copilot Chat / PRs / Actions**: Follow repo instructions; keep changes incremental and impact-analyzed.
 - **Git History**: Use for file history and blame; keep diffs small and focused.
 - **Docker / Container Tools / Dev Containers / WSL**: Use only when the workspace runs in those environments; avoid mixed paths.
-- **YAML / Markdown / markdownlint / Code Spell Checker**: Keep lint rules on; fix warnings rather than disable.
+- **YAML / markdownlint / Code Spell Checker**: Keep lint rules on; fix warnings rather than disable.
 - **MATLAB / matlab-formatter**: Apply only to `.m` files.
 - **vscode-pdf**: Read-only PDF viewing.
 
