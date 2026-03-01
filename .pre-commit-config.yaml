@@ -24,7 +24,11 @@ repos:
     rev: v0.41.0
     hooks:
       - id: markdownlint
-        args: ['--config', '.markdownlint.json', '--ignore-path', '.markdownlintignore']
+        args:
+          - "--config"
+          - ".markdownlint.json"
+          - "--ignore-path"
+          - ".markdownlintignore"
 
   # Python linting & formatting (Ruff)
   - repo: https://github.com/astral-sh/ruff-pre-commit

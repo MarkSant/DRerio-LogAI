@@ -48,7 +48,7 @@
     "python.analysis.extraPaths": [
         "./src"
     ],
-    "python.defaultInterpreterPath": ".venv/Scripts/python.exe",
+    "python.defaultInterpreterPath": "${workspaceFolder}/.venv/Scripts/python.exe",
     // Testing configuration (v2.1: pytest hang fixes applied)
     // Total: 2568 tests (1586 fast, 949 GUI, 35 slow)
     // Note: pytest-timeout plugin configured (300s per test)
@@ -89,6 +89,14 @@
     "python.linting.pylintEnabled": false,
     "python.linting.flake8Enabled": false,
     "python.formatting.provider": "none",
+    // ========================================
+    // YAML Extension (Red Hat) Configuration
+    // ========================================
+    "yaml.schemas": {
+        "https://json.schemastore.org/github-workflow.json": ".github/workflows/*.yml"
+    },
+    "yaml.validate": true,
+    "yaml.schemaStore.enable": true,
     "cSpell.language": "en,pt,pt-BR",
     "cSpell.words": [
         "agpl",
@@ -125,6 +133,7 @@
         "libavcodec",
         "libopencv",
         "logai",
+        "Matan",
         "matplotlib",
         "MSMF",
         "mvvm",
