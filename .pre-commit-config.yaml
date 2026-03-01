@@ -10,32 +10,28 @@ repos:
       - id: trailing-whitespace
       - id: end-of-file-fixer
       - id: check-yaml
-        args: [--unsafe]  # Allow custom YAML tags
+        args: ["--unsafe"]  # Allow custom YAML tags
       - id: check-added-large-files
-        args: [--maxkb=1000]
+        args: ["--maxkb=1000"]
         exclude: ^docs/archive/legacy/fapesp/(notebooks|manuscripts)/
       - id: check-merge-conflict
       - id: check-case-conflict
       - id: mixed-line-ending
-        args: [--fix=lf]
+        args: ["--fix=lf"]
 
   # Markdown linting
   - repo: https://github.com/igorshubovych/markdownlint-cli
     rev: v0.41.0
     hooks:
       - id: markdownlint
-        args:
-          - "--config"
-          - ".markdownlint.json"
-          - "--ignore-path"
-          - ".markdownlintignore"
+        args: ["--config", ".markdownlint.json", "--ignore-path", ".markdownlintignore"]
 
   # Python linting & formatting (Ruff)
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.9.7
     hooks:
       - id: ruff
-        args: [--fix, --exit-non-zero-on-fix]
+        args: ["--fix", "--exit-non-zero-on-fix"]
       - id: ruff-format
 
   # Poetry lock file check
@@ -44,7 +40,7 @@ repos:
     hooks:
       - id: poetry-check
       - id: poetry-lock
-        args: [--check]
+        args: ["--check"]
 
   # Local hooks for project-specific checks
   - repo: local
