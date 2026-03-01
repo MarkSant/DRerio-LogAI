@@ -6,6 +6,31 @@ This document tracks all major agent interventions, technical debt resolutions, 
 
 ## Active Tasks
 
+### [2026-03-01] Codebase Cleanup & Docs Sync
+
+**ID:** TASK-038
+**Agent:** GitHub Copilot (Claude Opus 4.6)
+**Status:** In Progress 🔄
+**Branch:** `refactor/codebase-cleanup-20260301`
+**Description:**
+4-phase cleanup: (0) branch creation, (1) sync all agent instruction files and
+meta-configs to current codebase state, (2) remove ~7,600 lines of dead code
+and decompose LiveCameraService (2,616→5 files) + VideoProcessingService
+(2,108→4 files), (3) fix tooling errors, (4) CI green + PR.
+
+### Subtasks (TASK-038)
+
+- [x] Phase 0: Create branch `refactor/codebase-cleanup-20260301` from base
+- [ ] Phase 1: Update AGENTS.md with accurate stats (gui.py=866, coordinators=24, dialogs=27, etc.)
+- [ ] Phase 1: Mirror to CLAUDE.md, copilot-instructions.md, GEMINI.md
+- [ ] Phase 1: Regenerate .copilot-impact-map.yaml and .copilot-context.yaml
+- [ ] Phase 2: Remove dead code (orchestrators/, core/events/payloads, orchestrator_registry)
+- [ ] Phase 2: Decompose LiveCameraService into 5 modules
+- [ ] Phase 2: Decompose VideoProcessingService into 4 modules
+- [ ] Phase 2: Run full test suite + lint
+
+---
+
 ### [2026-02-23] Mitigate EventBus slow-handler warnings for weight/OpenVINO UI events
 
 **ID:** TASK-037
