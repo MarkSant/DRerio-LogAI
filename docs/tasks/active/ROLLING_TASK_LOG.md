@@ -10,24 +10,26 @@ This document tracks all major agent interventions, technical debt resolutions, 
 
 **ID:** TASK-038
 **Agent:** GitHub Copilot (Claude Opus 4.6)
-**Status:** In Progress 🔄
+**Status:** Completed ✅
 **Branch:** `refactor/codebase-cleanup-20260301`
 **Description:**
 4-phase cleanup: (0) branch creation, (1) sync all agent instruction files and
-meta-configs to current codebase state, (2) remove ~7,600 lines of dead code
-and decompose LiveCameraService (2,616→5 files) + VideoProcessingService
-(2,108→4 files), (3) fix tooling errors, (4) CI green + PR.
+meta-configs to current codebase state, (2) remove ~1,177 net lines of dead
+code and decompose LiveCameraService (2,617→5 files) + VideoProcessingService
+(2,109→5 files), (3) fix tooling errors, (4) CI green + PR.
 
 ### Subtasks (TASK-038)
 
-- [x] Phase 0: Create branch `refactor/codebase-cleanup-20260301` from base
-- [ ] Phase 1: Update AGENTS.md with accurate stats (gui.py=866, coordinators=24, dialogs=27, etc.)
-- [ ] Phase 1: Mirror to CLAUDE.md, copilot-instructions.md, GEMINI.md
-- [ ] Phase 1: Regenerate .copilot-impact-map.yaml and .copilot-context.yaml
-- [ ] Phase 2: Remove dead code (orchestrators/, core/events/payloads, orchestrator_registry)
-- [ ] Phase 2: Decompose LiveCameraService into 5 modules
-- [ ] Phase 2: Decompose VideoProcessingService into 4 modules
-- [ ] Phase 2: Run full test suite + lint
+- [x] Phase 0: Create branch `refactor/codebase-cleanup-20260301` (commit f275817)
+- [x] Phase 1: Update AGENTS.md with accurate stats (commit 3a46603)
+- [x] Phase 1: Mirror to CLAUDE.md, copilot-instructions.md, GEMINI.md
+- [x] Phase 1: Regenerate .copilot-impact-map.yaml and .copilot-context.yaml
+- [x] Phase 2: Remove dead code (orchestrator_registry, thread_coordinator, core/events/)
+- [x] Phase 2: Decompose LiveCameraService into 5 modules (4 mixins + facade)
+- [x] Phase 2: Decompose VideoProcessingService into 5 modules (4 mixins + facade)
+- [x] Phase 2: Run full test suite (2702+ pass, 12 skip) + lint (commit fc0c31c)
+- [x] Phase 3: Ruff + pre-commit all pass
+- [x] Phase 4: Push branch + create PR
 
 ---
 
