@@ -54,9 +54,9 @@ class TestBuildRoisFromZonePolygons:
 
     def test_multiple_polygons(self) -> None:
         """Builds ROIs from multiple polygons."""
-        polys = [
-            [(0, 0), (10, 0), (10, 10), (0, 10)],
-            [(20, 20), (30, 20), (30, 30), (20, 30)],
+        polys: list[list[tuple[float, float]]] = [
+            [(0.0, 0.0), (10.0, 0.0), (10.0, 10.0), (0.0, 10.0)],
+            [(20.0, 20.0), (30.0, 20.0), (30.0, 30.0), (20.0, 30.0)],
         ]
         names = ["Zone A", "Zone B"]
         rois = build_rois_from_zone_polygons(polys, names)
@@ -66,7 +66,9 @@ class TestBuildRoisFromZonePolygons:
 
     def test_with_offset(self) -> None:
         """Offset is subtracted from all vertex coordinates."""
-        poly = [[(100, 200), (110, 200), (110, 210), (100, 210)]]
+        poly: list[list[tuple[float, float]]] = [
+            [(100.0, 200.0), (110.0, 200.0), (110.0, 210.0), (100.0, 210.0)]
+        ]
         names = ["Shifted"]
         rois = build_rois_from_zone_polygons(poly, names, offset=(100.0, 200.0))
         assert len(rois) == 1
@@ -75,9 +77,9 @@ class TestBuildRoisFromZonePolygons:
 
     def test_fallback_names(self) -> None:
         """When names list is shorter, ROI_<i> fallback is used."""
-        polys = [
-            [(0, 0), (1, 0), (1, 1), (0, 1)],
-            [(2, 2), (3, 2), (3, 3), (2, 3)],
+        polys: list[list[tuple[float, float]]] = [
+            [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)],
+            [(2.0, 2.0), (3.0, 2.0), (3.0, 3.0), (2.0, 3.0)],
         ]
         rois = build_rois_from_zone_polygons(polys, names=["First"])
         assert len(rois) == 2
@@ -86,9 +88,9 @@ class TestBuildRoisFromZonePolygons:
 
     def test_skips_degenerate(self) -> None:
         """Degenerate polygons (< 3 vertices) are silently skipped."""
-        polys = [
-            [(0, 0), (10, 0), (10, 10)],
-            [(5, 5)],  # degenerate
+        polys: list[list[tuple[float, float]]] = [
+            [(0.0, 0.0), (10.0, 0.0), (10.0, 10.0)],
+            [(5.0, 5.0)],  # degenerate
         ]
         rois = build_rois_from_zone_polygons(polys, names=["Good", "Bad"])
         assert len(rois) == 1

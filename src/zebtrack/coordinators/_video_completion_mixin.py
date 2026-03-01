@@ -11,14 +11,18 @@ from __future__ import annotations
 
 import os
 import re
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, Any, cast
 
 import structlog
 
 from zebtrack.ui.event_bus_v2 import UIEvents
 
 if TYPE_CHECKING:
-    pass
+    from zebtrack.coordinators.report_generation_coordinator import ReportGenerationCoordinator
+    from zebtrack.coordinators.sequential_processing_coordinator import (
+        SequentialProcessingCoordinator,
+    )
+    from zebtrack.core.project.project_manager import ProjectManager
 
 log = structlog.get_logger()
 
@@ -32,6 +36,14 @@ class VideoCompletionMixin:
     - self._sequential_coordinator
     - self._publish_event(event, payload)
     """
+
+    # Declare host-provided attributes for mypy (set by coordinator __init__)
+    project_manager: ProjectManager
+    _report_coordinator: ReportGenerationCoordinator | None
+    _sequential_coordinator: SequentialProcessingCoordinator | None
+
+    # Host-provided methods (declared for mypy, implemented by host/other mixins)
+    _publish_event: Any
 
     def _on_video_completed(self, videos_to_process, index, total, experiment_id, success) -> None:
         """Internal handler for single video completion."""

@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
-from hypothesis import given, settings
+from hypothesis import HealthCheck, assume, given, settings
 from hypothesis import strategies as st
 
 from zebtrack.core.detection.calibration import Calibration
@@ -22,8 +22,8 @@ _coord = st.floats(min_value=10.0, max_value=900.0, allow_nan=False, allow_infin
 
 @st.composite
 def four_points(draw: st.DrawFn) -> np.ndarray:
-    """Generate 4 distinct 2D points as float32 array."""
-    points = []
+    """Generate 4 arbitrary 2D points as float32 array."""
+    points: list[list[float]] = []
     for _ in range(4):
         x = draw(_coord)
         y = draw(_coord)
@@ -66,9 +66,22 @@ class TestOrderPointsProperties:
     """Property tests for Calibration._order_points."""
 
     @given(pts=four_points())
-    @settings(max_examples=50, database=None)
+    @settings(
+        max_examples=50,
+        database=None,
+        suppress_health_check=[HealthCheck.too_slow],
+    )
     def test_idempotent(self, pts: np.ndarray) -> None:
-        """Ordering twice produces the same result as ordering once."""
+        """Ordering twice produces the same result as ordering once.
+
+        Skips degenerate cases where sum/diff ties make argmin/argmax
+        ordering ambiguous (identical or collinear points).
+        """
+        sums = pts.sum(axis=1).tolist()
+        diffs = (pts[:, 0] - pts[:, 1]).tolist()
+        assume(len(set(sums)) == 4)
+        assume(len(set(diffs)) == 4)
+
         first = Calibration._order_points(pts)
         second = Calibration._order_points(first)
         np.testing.assert_array_equal(first, second)

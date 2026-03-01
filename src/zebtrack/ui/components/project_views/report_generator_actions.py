@@ -101,6 +101,7 @@ class ReportGeneratorActions:
         if replace_existing is None:
             return
 
+        assert self._event_dispatcher is not None
         self._event_dispatcher.publish_event(
             UIEvents.REPORT_GENERATE,
             {
@@ -143,6 +144,7 @@ class ReportGeneratorActions:
             if replace_existing is None:
                 return
 
+            assert self._event_dispatcher is not None
             self._event_dispatcher.publish_event(
                 UIEvents.REPORT_GENERATE,
                 {
@@ -187,6 +189,7 @@ class ReportGeneratorActions:
             if replace_existing is None:
                 return
 
+            assert self._event_dispatcher is not None
             self._event_dispatcher.publish_event(
                 UIEvents.REPORT_GENERATE,
                 {

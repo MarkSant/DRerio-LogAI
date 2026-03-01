@@ -72,6 +72,7 @@ class VideoSelectorTreeManager:
         """Subscribe to Event Bus V2 events relevant to video selector / overview."""
         from zebtrack.ui.event_bus_v2 import UIEvents
 
+        assert self.event_bus_v2 is not None
         self.event_bus_v2.subscribe(
             UIEvents.VIDEO_TREE_REFRESH_REQUESTED,
             self._on_video_tree_refresh_requested,
@@ -765,6 +766,8 @@ class VideoSelectorTreeManager:
 
         tree = self.gui.project_overview_widget.tree
         if not tree:
+            return
+        if event is None:
             return
 
         item_id = tree.identify_row(event.y)

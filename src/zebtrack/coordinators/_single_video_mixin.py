@@ -25,7 +25,13 @@ from zebtrack.core.video.processing_worker import (
 from zebtrack.ui.event_bus_v2 import UIEvents
 
 if TYPE_CHECKING:
-    pass
+    from threading import Event
+
+    from zebtrack.coordinators.multi_aquarium_coordinator import MultiAquariumCoordinator
+    from zebtrack.coordinators.sequential_processing_coordinator import (
+        SequentialProcessingCoordinator,
+    )
+    from zebtrack.settings import Settings
 
 log = structlog.get_logger()
 
@@ -49,6 +55,25 @@ class SingleVideoMixin:
     - self.create_processing_callbacks(...)
     - self.create_processing_context(...)
     """
+
+    # Declare host-provided attributes for mypy (set by coordinator __init__)
+    project_manager: ProjectManager
+    settings: Settings
+    view: Any
+    detector: Any
+    cancel_event: Event
+    processing_worker: ProcessingWorker | None
+    processing_thread: Any
+    _multi_aquarium_coordinator: MultiAquariumCoordinator | None
+    _sequential_coordinator: SequentialProcessingCoordinator | None
+
+    # Host-provided methods (declared for mypy, implemented by host/other mixins)
+    _publish_event: Any
+    validate_can_start_processing: Any
+    _show_validation_error: Any
+    _get_video_dimensions: Any
+    create_processing_callbacks: Any
+    create_processing_context: Any
 
     def start_single_video_processing(
         self,

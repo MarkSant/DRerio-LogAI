@@ -83,14 +83,16 @@ class ReportTreeBuilder:
         all_videos = pm.get_all_videos()
 
         for v in all_videos:
-            if v.get("path") and "CECT_8" in v.get("path", ""):
+            vpath = v.get("path")
+            if vpath and "CECT_8" in vpath:
                 log.info(
                     "debug.refresh_tab.video_state",
-                    path=os.path.basename(v.get("path")),
+                    path=os.path.basename(vpath),
                     has_traj=v.get("has_trajectory"),
                     has_arena=v.get("has_arena"),
                 )
 
+        assert self._validation_manager is not None
         hierarchy = self._validation_manager._build_video_hierarchy_data(all_videos, "")
 
         self._tree_metadata.clear()
@@ -126,6 +128,7 @@ class ReportTreeBuilder:
         pm = self.project_manager
         all_videos = pm.get_all_videos()
 
+        assert self._validation_manager is not None
         hierarchy = self._validation_manager._build_video_hierarchy_data(all_videos, "")
 
         status_counts = self.get_project_status_counts()
@@ -429,6 +432,7 @@ class ReportTreeBuilder:
         for file in os.listdir(results_dir):
             if file.endswith((".docx", ".xlsx")):
                 file_path = os.path.join(results_dir, file)
+                assert self._widget_factory is not None
                 item_id = self._widget_factory.build_processing_report_artifact_id(
                     parent_id, file_path
                 )

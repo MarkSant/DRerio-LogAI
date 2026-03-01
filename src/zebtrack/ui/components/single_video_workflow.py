@@ -210,7 +210,7 @@ class SingleVideoWorkflow:
                 gui.canvas_manager.clear_interactive_polygon()
 
         # 1. Get the zone data that the user drew
-        zone_data = gui._get_zone_data_for_active_context()
+        zone_data = gui._get_zone_data_for_active_context()  # type: ignore[attr-defined]
 
         # Validation for Single vs Multi Aquarium
         from zebtrack.core.detection import MultiAquariumZoneData

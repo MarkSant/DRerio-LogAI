@@ -40,7 +40,7 @@ class MenuManager:
         # Menu-related attributes
         self._overview_context_menu: Menu | None = None
         self._overview_menu_font: tkfont.Font | None = None
-        self._about_logo_image = None
+        self._about_logo_image: ImageTk.PhotoImage | None = None
 
     @property
     def dialog_manager(self) -> DialogManager:

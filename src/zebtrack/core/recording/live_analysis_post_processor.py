@@ -72,7 +72,7 @@ class LiveAnalysisPostProcessorMixin:
     current_output_dir: Path | None
 
     # Methods from other mixins
-    def stop_session(self) -> bool: ...
+    def stop_session(self) -> bool: ...  # type: ignore[empty-body]
     def _setup_session_timer(self, duration_s: float, output_dir: Path) -> None: ...
 
     def _on_session_complete(self, output_dir: Path) -> None:  # noqa: C901

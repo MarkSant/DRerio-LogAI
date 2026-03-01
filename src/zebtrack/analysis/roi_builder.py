@@ -7,13 +7,15 @@ these helpers instead of importing Shapely themselves.
 
 from __future__ import annotations
 
+from typing import Literal
+
 from zebtrack.analysis.roi import ROI
 
 
 def build_roi_from_polygon(
     name: str,
     coordinates: list[tuple[float, float]],
-    coordinate_space: str = "px",
+    coordinate_space: Literal["px", "cm"] = "px",
 ) -> ROI | None:
     """Build an :class:`ROI` from a list of polygon vertices.
 

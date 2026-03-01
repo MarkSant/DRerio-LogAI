@@ -105,7 +105,9 @@ class ReportsTreeManager:
 
     def _resolve_dialog_manager(self) -> DialogManager:
         """Return injected DialogManager or fall back to gui.dialog_manager."""
-        return self._dialog_manager or getattr(self.gui, "dialog_manager", None)
+        resolved = self._dialog_manager or getattr(self.gui, "dialog_manager", None)
+        assert resolved is not None, "DialogManager must be available"
+        return resolved
 
     @property
     def dialog_manager(self) -> DialogManager:
@@ -120,6 +122,7 @@ class ReportsTreeManager:
         """Subscribe to Event Bus V2 events relevant to reports."""
         from zebtrack.ui.event_bus_v2 import UIEvents
 
+        assert self.event_bus_v2 is not None
         self.event_bus_v2.subscribe(
             UIEvents.PROCESSING_REPORTS_ITEM_RIGHT_CLICK,
             self._on_processing_reports_right_click,

@@ -84,6 +84,7 @@ class ReportAssetActions:
 
     def delete_video_asset(self, video_path: str, asset: str) -> None:
         """Delete specific asset via MenuManager reuse."""
+        assert self._menu_manager is not None
         self._menu_manager.handle_overview_asset_removal(video_path, asset)
 
     def delete_all_processing_data(self, video_path: str) -> None:
@@ -107,12 +108,14 @@ class ReportAssetActions:
                 changed = True
 
         if changed:
+            assert self._video_selector_manager is not None
             self._video_selector_manager.refresh_project_views(
                 reason="Dados de processamento apagados", append_summary=True
             )
 
     def delete_video_from_project(self, video_path: str) -> None:
         """Delete video from project."""
+        assert self._menu_manager is not None
         self._menu_manager.handle_overview_asset_removal(video_path, "video")
 
     # ------------------------------------------------------------------

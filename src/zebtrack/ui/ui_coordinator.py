@@ -830,7 +830,8 @@ class UICoordinator:
                 reports_tree_manager = self.reports_tree_manager
 
                 def refresh_views():
-                    reports_tree_manager.update_reports_tree()
+                    if reports_tree_manager is not None:
+                        reports_tree_manager.update_reports_tree()
 
                 self._safe_ui_call(refresh_views)
 

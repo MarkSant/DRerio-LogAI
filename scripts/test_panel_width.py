@@ -12,7 +12,7 @@ from tkinter import ttk
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 from zebtrack.ui.components.zone_controls import ZoneControlsWidget
-from zebtrack.ui.event_bus import EventBus
+from zebtrack.ui.event_bus import EventBus  # type: ignore[import-untyped]
 
 
 def create_test_window():

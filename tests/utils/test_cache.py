@@ -165,7 +165,7 @@ class TestTTLCacheDecorator:
             return x
 
         compute(1)
-        compute.cache_clear()
+        compute.cache_clear()  # type: ignore[attr-defined]
         compute(1)
         assert call_count == 2
 
@@ -178,7 +178,7 @@ class TestTTLCacheDecorator:
         compute(1)  # hit
         compute(2)
 
-        info = compute.cache_info()
+        info = compute.cache_info()  # type: ignore[attr-defined]
         assert info.hits == 1
         assert info.misses == 2
         assert info.currsize == 2

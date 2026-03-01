@@ -9,7 +9,7 @@ Run with: poetry run pytest -m property tests/test_property_settings.py
 
 from __future__ import annotations
 
-from typing import ClassVar
+from typing import Any, ClassVar
 
 import pytest
 from hypothesis import HealthCheck, given
@@ -56,7 +56,7 @@ class TestYOLOModelSettingsProperties:
     """Property tests for YOLO inference size validation."""
 
     # Required fields for a valid YOLOModelSettings instance
-    _YOLO_DEFAULTS: ClassVar[dict[str, object]] = {
+    _YOLO_DEFAULTS: ClassVar[dict[str, Any]] = {
         "path": "best_oi.pt",
         "confidence_threshold": 0.5,
         "nms_threshold": 0.4,

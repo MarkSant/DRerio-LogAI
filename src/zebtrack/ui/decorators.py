@@ -41,7 +41,7 @@ def public_api(func: Callable[P, R]) -> Callable[P, R]:
         - RELATORIO_REMOCAO_WRAPPERS_FINAL.md - List of all public API methods
     """
     # Mark the function as public API
-    func.__public_api__ = True
+    setattr(func, _PUBLIC_API_ATTR, True)
 
     # Preserve original function metadata
     @wraps(func)
@@ -49,7 +49,7 @@ def public_api(func: Callable[P, R]) -> Callable[P, R]:
         return func(*args, **kwargs)
 
     # Copy the marker to wrapper
-    wrapper.__public_api__ = True
+    setattr(wrapper, _PUBLIC_API_ATTR, True)
 
     return wrapper
 

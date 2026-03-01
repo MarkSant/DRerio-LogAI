@@ -33,39 +33,39 @@ class TestLazyRefLifecycle:
     """Tests for the basic lifecycle of LazyRef: create → set → access."""
 
     def test_initial_state_is_unresolved(self):
-        ref = LazyRef("test")
+        ref: LazyRef[_FakeController] = LazyRef("test")
         assert ref.is_resolved is False
 
     def test_set_resolves_instance(self):
-        ref = LazyRef("test")
+        ref: LazyRef[_FakeController] = LazyRef("test")
         obj = _FakeController()
         ref.set(obj)
         assert ref.is_resolved is True
 
     def test_get_returns_instance_after_set(self):
-        ref = LazyRef("test")
+        ref: LazyRef[_FakeController] = LazyRef("test")
         obj = _FakeController("ctrl")
         ref.set(obj)
         assert ref.get() is obj
 
     def test_get_raises_before_set(self):
-        ref = LazyRef("test")
+        ref: LazyRef[_FakeController] = LazyRef("test")
         with pytest.raises(RuntimeError, match="instance not yet set"):
             ref.get()
 
     def test_set_twice_raises(self):
-        ref = LazyRef("test")
+        ref: LazyRef[_FakeController] = LazyRef("test")
         ref.set(_FakeController())
         with pytest.raises(RuntimeError, match="instance already set"):
             ref.set(_FakeController())
 
     def test_repr_unresolved(self):
-        ref = LazyRef("MainViewModel")
+        ref: LazyRef[_FakeController] = LazyRef("MainViewModel")
         assert "unresolved" in repr(ref)
         assert "MainViewModel" in repr(ref)
 
     def test_repr_resolved(self):
-        ref = LazyRef("MainViewModel")
+        ref: LazyRef[_FakeController] = LazyRef("MainViewModel")
         ref.set(_FakeController())
         r = repr(ref)
         assert "MainViewModel" in r
@@ -77,49 +77,49 @@ class TestLazyRefTransparentProxy:
     """Tests for __getattr__ delegation (the transparent proxy behavior)."""
 
     def test_attribute_access_after_set(self):
-        ref = LazyRef("ctrl")
+        ref: LazyRef[_FakeController] = LazyRef("ctrl")
         obj = _FakeController("alpha")
         ref.set(obj)
         assert ref.name == "alpha"
 
     def test_method_call_after_set(self):
-        ref = LazyRef("ctrl")
+        ref: LazyRef[_FakeController] = LazyRef("ctrl")
         obj = _FakeController("beta")
         ref.set(obj)
         assert ref.on_close() == "closed:beta"
         assert obj.call_count == 1
 
     def test_method_with_args_after_set(self):
-        ref = LazyRef("ctrl")
+        ref: LazyRef[_FakeController] = LazyRef("ctrl")
         obj = _FakeController("gamma")
         ref.set(obj)
         assert ref.greet("world") == "hello world from gamma"
 
     def test_attribute_access_before_set_raises(self):
-        ref = LazyRef("MyRef")
+        ref: LazyRef[_FakeController] = LazyRef("MyRef")
         with pytest.raises(RuntimeError, match="cannot access 'name' before set"):
             _ = ref.name
 
     def test_method_access_before_set_raises(self):
-        ref = LazyRef("MyRef")
+        ref: LazyRef[_FakeController] = LazyRef("MyRef")
         with pytest.raises(RuntimeError, match="cannot access 'on_close' before set"):
             ref.on_close()
 
     def test_setattr_after_set(self):
-        ref = LazyRef("ctrl")
+        ref: LazyRef[_FakeController] = LazyRef("ctrl")
         obj = _FakeController("delta")
         ref.set(obj)
         ref.name = "updated"
         assert obj.name == "updated"
 
     def test_setattr_before_set_raises(self):
-        ref = LazyRef("MyRef")
+        ref: LazyRef[_FakeController] = LazyRef("MyRef")
         with pytest.raises(RuntimeError, match="cannot set 'name' before set"):
             ref.name = "oops"
 
     def test_mock_controller_pattern(self):
         """Verify LazyRef works with MagicMock (as used in tests)."""
-        ref = LazyRef("ctrl")
+        ref: LazyRef[MagicMock] = LazyRef("ctrl")
         mock = MagicMock()
         mock.on_close.return_value = None
         ref.set(mock)
@@ -141,7 +141,7 @@ class TestLazyRefTkinterPattern:
 
     def test_store_reference_before_set_then_call_after_set(self):
         """Simulates the Tkinter WM_DELETE_WINDOW registration pattern."""
-        ref = LazyRef("MainViewModel")
+        ref: LazyRef[_FakeController] = LazyRef("MainViewModel")
         obj = _FakeController("real")
 
         # Simulate ApplicationGUI storing the callback
@@ -166,7 +166,7 @@ class TestLazyRefTkinterPattern:
 
     def test_direct_attribute_reference_pattern(self):
         """Test that ref.method_name works as a callable after set()."""
-        ref = LazyRef("ctrl")
+        ref: LazyRef[_FakeController] = LazyRef("ctrl")
         obj = _FakeController("direct")
         ref.set(obj)
 
@@ -181,7 +181,7 @@ class TestLazyRefThreadSafety:
 
     def test_concurrent_set_only_one_succeeds(self):
         """Verify that only one thread can set() the instance."""
-        ref = LazyRef("ctrl")
+        ref: LazyRef[_FakeController] = LazyRef("ctrl")
         results = {"success": 0, "error": 0}
         barrier = threading.Barrier(10)
 
@@ -204,7 +204,7 @@ class TestLazyRefThreadSafety:
 
     def test_concurrent_reads_after_set(self):
         """Verify concurrent attribute access works after resolution."""
-        ref = LazyRef("ctrl")
+        ref: LazyRef[_FakeController] = LazyRef("ctrl")
         obj = _FakeController("shared")
         ref.set(obj)
         errors = []

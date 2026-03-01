@@ -62,7 +62,7 @@ def coordinator_setup():
         video_selection_service=MagicMock(),
         video_validation_service=MagicMock(),
         video_classification_service=MagicMock(),
-        event_bus=event_bus,
+        event_bus=event_bus,  # type: ignore[arg-type]  # DummyEventBus duck-types EventBusV2
         dialog_coordinator=dialog_coordinator,
         view=view,
     )

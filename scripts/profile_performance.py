@@ -322,7 +322,7 @@ class PerformanceProfiler:
 
             with self.cpu_profile("detector_init"):
                 start = time.time()
-                plugin_instance = plugin_class(model_path=model_path, settings_obj=settings)
+                plugin_instance = plugin_class(model_path=model_path, settings_obj=settings)  # type: ignore[call-arg]
                 detector = Detector(
                     plugin=plugin_instance,
                     base_width=settings.camera.desired_width,

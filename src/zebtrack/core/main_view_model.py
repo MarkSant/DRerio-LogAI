@@ -777,7 +777,7 @@ class MainViewModel:
             ("processing_coordinator", self.processing_coordinator),
         ]
 
-        orchestrators_to_update = [
+        orchestrators_to_update: list[tuple[str, Any]] = [
             # Phase 0.3: VideoProcessingOrchestrator removed
             # Phase 3A/B/C/D: Removed superseded orchestrators
         ]

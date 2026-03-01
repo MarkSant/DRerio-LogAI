@@ -110,7 +110,7 @@ class ROICompletionStrategy(PolygonCompletionStrategy):
 
     def complete(self, video_points: list, gui: "ApplicationGUI") -> bool:
         # Ask for ROI name
-        roi_name = gui.ask_string("Nome da ROI", "Digite um nome:")
+        roi_name = gui.ask_string("Nome da ROI", "Digite um nome:")  # type: ignore[attr-defined]
         if not roi_name:
             return False
 

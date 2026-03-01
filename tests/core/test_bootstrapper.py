@@ -60,7 +60,7 @@ class TestApplicationBootstrapper:
         bootstrapper = ApplicationBootstrapper(dependencies)
 
         # Phase 6: Use LazyRef instead of bare MagicMock for controller
-        controller_ref = LazyRef("MainViewModel")
+        controller_ref: LazyRef[MagicMock] = LazyRef("MainViewModel")
 
         # Run initialize
         result = bootstrapper.initialize(controller_ref)

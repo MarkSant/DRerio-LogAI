@@ -55,7 +55,7 @@ class CameraConnectionMixin:
     camera: Camera | None
     preview_window: LivePreviewWindow | None
 
-    def stop_session(self) -> bool: ...  # from LiveSessionManagerMixin
+    def stop_session(self) -> bool: ...  # type: ignore[empty-body]  # from LiveSessionManagerMixin
 
     def _setup_camera(self, camera_index: int) -> bool:
         """Set up camera with given index."""

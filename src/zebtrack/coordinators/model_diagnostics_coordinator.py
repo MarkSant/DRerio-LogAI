@@ -30,7 +30,7 @@ except ImportError:
     ULTRALYTICS_AVAILABLE = False
 
 if TYPE_CHECKING:
-    from threading import Event
+    import threading as _threading
 
     from zebtrack.core.services.weight_manager import WeightManager
     from zebtrack.core.state_manager import StateManager
@@ -109,7 +109,7 @@ class ModelDiagnosticsCoordinator(BaseCoordinator):
         state_manager: StateManager,
         weight_manager: WeightManager,
         event_bus: EventBusV2 | None = None,
-        cancel_event: Event | None = None,
+        cancel_event: _threading.Event | None = None,
         root: Any | None = None,
         view: Any | None = None,
     ):
@@ -540,6 +540,7 @@ class ModelDiagnosticsCoordinator(BaseCoordinator):
                 )
             raise DiagnosticAbortError from None
 
+        assert ov_path is not None  # guaranteed by _is_valid_openvino_directory check above
         openvino_model = plugin_class(ov_path)
         if not hasattr(openvino_model, "predict"):
             log.error(

@@ -15,6 +15,9 @@ from zebtrack.ui.event_bus_v2 import UIEvents
 
 pytestmark = pytest.mark.gui
 
+# Arbitrary event used as a generic token in registration tests
+_TEST_EVENT = UIEvents.ZONE_AQUARIUM_SELECTED
+
 
 @pytest.fixture
 def mock_event_bus():
@@ -61,27 +64,27 @@ class TestRegisterHandler:
     def test_register_no_params(self, event_dispatcher, mock_event_bus, mock_handler):
         """Testa registro de handler sem parâmetros."""
         event_dispatcher.register_handler(
-            "test_event", mock_handler, mode=EventDispatcher.MODE_NO_PARAMS
+            _TEST_EVENT, mock_handler, mode=EventDispatcher.MODE_NO_PARAMS
         )
 
-        assert "test_event" in event_dispatcher.handlers
+        assert _TEST_EVENT in event_dispatcher.handlers
         mock_event_bus.subscribe.assert_called_once()
 
     def test_register_kwargs_all(self, event_dispatcher, mock_event_bus, mock_handler):
         """Testa registro de handler com kwargs_all."""
         event_dispatcher.register_handler(
-            "test_event", mock_handler, mode=EventDispatcher.MODE_KWARGS_ALL
+            _TEST_EVENT, mock_handler, mode=EventDispatcher.MODE_KWARGS_ALL
         )
 
-        assert "test_event" in event_dispatcher.handlers
+        assert _TEST_EVENT in event_dispatcher.handlers
 
     def test_register_without_event_bus(self, mock_handler):
         """Testa registro sem EventBus."""
         dispatcher = EventDispatcher(None)
 
-        dispatcher.register_handler("test_event", mock_handler)
+        dispatcher.register_handler(_TEST_EVENT, mock_handler)
 
-        assert "test_event" not in dispatcher.handlers
+        assert _TEST_EVENT not in dispatcher.handlers
 
 
 class TestGuiRequirements:
@@ -175,18 +178,18 @@ class TestRegisterDirectHandler:
 
     def test_register_direct_handler(self, event_dispatcher, mock_event_bus, mock_handler):
         """Testa registro de handler direto."""
-        event_dispatcher.register_direct_handler("test_event", mock_handler)
+        event_dispatcher.register_direct_handler(_TEST_EVENT, mock_handler)
 
-        assert "test_event" in event_dispatcher.handlers
-        mock_event_bus.subscribe.assert_called_once_with("test_event", mock_handler)
+        assert _TEST_EVENT in event_dispatcher.handlers
+        mock_event_bus.subscribe.assert_called_once_with(_TEST_EVENT, mock_handler)
 
     def test_register_direct_handler_without_event_bus(self, mock_handler):
         """Testa registro direto sem EventBus."""
         dispatcher = EventDispatcher(None)
 
-        dispatcher.register_direct_handler("test_event", mock_handler)
+        dispatcher.register_direct_handler(_TEST_EVENT, mock_handler)
 
-        assert "test_event" not in dispatcher.handlers
+        assert _TEST_EVENT not in dispatcher.handlers
 
 
 class TestGuiHandlers:

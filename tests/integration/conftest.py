@@ -282,7 +282,7 @@ def gui_fixture(tkinter_root, mock_gui_controller, mock_settings_for_gui):
     # Initialize main control frame to ensure widgets are created
     # This might fail if it tries to load project data, so we wrap it
     try:
-        gui._load_project_view()
+        gui._load_project_view()  # type: ignore[attr-defined]
     except Exception:
         pass
 

@@ -281,7 +281,7 @@ class ProjectManager:
             ZoneOrchestrationManager.persist_zone_data(
                 zone_data,
                 target_video=str(target_video) if target_video else None,
-                project_path=self.project_path,
+                project_path=Path(self.project_path) if self.project_path else None,
                 update_video_zone_flags_fn=self._update_video_zone_flags,
                 export_zones_to_parquet_fn=self.export_zones_to_parquet,
                 find_video_entry_fn=self.find_video_entry,
@@ -389,7 +389,7 @@ class ProjectManager:
     def _save_settings_snapshot(self):
         """Save a snapshot of the current settings to the project directory."""
         return ProjectLifecycleManager.save_settings_snapshot(
-            project_path=self.project_path,
+            project_path=Path(self.project_path) if self.project_path else None,
             settings_obj=self.settings,
         )
 
@@ -839,7 +839,7 @@ class ProjectManager:
         ZoneOrchestrationManager.persist_multi_aquarium_zone_data(
             str(Path(video_path) if isinstance(video_path, str) else video_path),
             multi_data,
-            self.project_path,
+            Path(self.project_path) if self.project_path else None,
             export_zones_to_parquet_fn=self.export_zones_to_parquet,
             find_video_entry_fn=self.find_video_entry,
             add_video_batch_fn=self.add_video_batch,

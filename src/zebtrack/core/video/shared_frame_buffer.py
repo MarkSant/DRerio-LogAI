@@ -143,10 +143,12 @@ class SharedFrameBuffer:
 
         # Write header
         header = struct.pack(HEADER_FMT, seq, h, w, c)
-        self._shm.buf[:HEADER_SIZE] = header
+        buf = self._shm.buf
+        assert buf is not None
+        buf[:HEADER_SIZE] = header
 
         # Write pixel data
-        self._shm.buf[HEADER_SIZE : HEADER_SIZE + nbytes] = data.tobytes()
+        buf[HEADER_SIZE : HEADER_SIZE + nbytes] = data.tobytes()
 
         return {
             "shm_seq": seq,
@@ -165,7 +167,9 @@ class SharedFrameBuffer:
         was already overwritten) or when the header is invalid.
         """
         try:
-            seq, h, w, c = struct.unpack(HEADER_FMT, bytes(self._shm.buf[:HEADER_SIZE]))
+            buf = self._shm.buf
+            assert buf is not None
+            seq, h, w, c = struct.unpack(HEADER_FMT, bytes(buf[:HEADER_SIZE]))
         except struct.error:
             return None
 
@@ -180,7 +184,7 @@ class SharedFrameBuffer:
         if HEADER_SIZE + nbytes > self._shm.size:
             return None
 
-        raw = bytes(self._shm.buf[HEADER_SIZE : HEADER_SIZE + nbytes])
+        raw = bytes(buf[HEADER_SIZE : HEADER_SIZE + nbytes])
         return np.frombuffer(raw, dtype=np.uint8).reshape(shape).copy()
 
     # ------------------------------------------------------------------

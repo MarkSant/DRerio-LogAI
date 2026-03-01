@@ -16,12 +16,13 @@ class DetectorPlugin(ABC):
     nms_threshold: float = 0.45
 
     @abstractmethod
-    def __init__(self, model_path: Path | str):
+    def __init__(self, model_path: Path | str, **kwargs):
         """
         Initializes the plugin and loads the specified model.
 
         Args:
             model_path: The path to the model file or directory.
+            **kwargs: Additional keyword arguments (e.g., settings_obj, expected_hash).
         """
         pass
 

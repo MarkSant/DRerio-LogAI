@@ -880,8 +880,8 @@ class SingleDetector:
             for frame_detections in batch_detections:
                 processed = []
                 for det in frame_detections:
-                    det = DetectionPostProcessor.ensure_track_tuple(det)
-                    processed.append(det)
+                    normalized_det = DetectionPostProcessor.ensure_track_tuple(det)
+                    processed.append(normalized_det)
 
                 if self._byte_tracker is not None and processed:
                     frame_shape_cached = (

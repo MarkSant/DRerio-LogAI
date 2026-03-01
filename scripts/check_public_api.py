@@ -16,30 +16,17 @@ except ImportError as e:
 
 # This list should theoretically come from a central source of truth or be parsed from MD.
 # For now, we mirror the test expectation.
+# Updated 2026-03-01: Methods moved to coordinators/components during Phase 2 decomposition
+# are no longer on ApplicationGUI.
 EXPECTED_PUBLIC_API = [
-    "setup_interactive_polygon",
-    "refresh_project_views",
-    "update_weights_dropdown",
-    "_on_analyze_single_video_clicked",
-    "setup_zone_definition_for_single_video",
+    "ask_missing_metadata",
+    "ask_recording_details_unified",
+    "hide_progress_bar",
     "set_status",
     "show_progress_bar",
-    "update_progress",
-    "update_idletasks",
-    "hide_progress_bar",
-    "show_error",
-    "show_warning",
-    "show_info",
-    "show_pending_videos_dialog",
-    "ask_ok_cancel",
-    "ask_string",
-    "ask_directory",
-    "ask_open_filenames",
-    "ask_save_filename",
     "update_button_state",
-    "ask_recording_details_unified",
-    "ask_missing_metadata",
-    "publish_event",
+    "update_idletasks",
+    "update_progress",
 ]
 
 

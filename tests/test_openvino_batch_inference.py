@@ -151,7 +151,7 @@ class TestDetectBatchEntryPoint:
     def test_multiple_frames_calls_run_async_batch(self, sample_frames: list[np.ndarray]) -> None:
         """Multiple frames should route through ``_run_async_batch``."""
         plugin = _make_plugin(nireq=2)
-        expected = [[] for _ in sample_frames]
+        expected: list[list[Any]] = [[] for _ in sample_frames]
         plugin._run_async_batch = MagicMock(return_value=expected)
 
         result = plugin.detect_batch(sample_frames)
@@ -228,7 +228,7 @@ class TestRunAsyncBatch:
         plugin: Any,
         num_frames: int,
         detections_per_frame: int = 1,
-    ) -> MagicMock:
+    ) -> list[tuple[dict, int]]:
         """Set up mocks so _run_async_batch exercises the full code path.
 
         Returns the patched ``ov.AsyncInferQueue`` constructor mock.
@@ -264,7 +264,7 @@ class TestRunAsyncBatch:
                     request.results = {plugin.output_det: det_tensor.copy()}
                     callback_fn(request, userdata)
 
-        ov_mock.AsyncInferQueue = FakeAsyncQueue
+        ov_mock.AsyncInferQueue = FakeAsyncQueue  # type: ignore[attr-defined]
 
         # Mock _preprocess to return a tensor with correct shape
         def fake_preprocess(frame: np.ndarray) -> np.ndarray:
@@ -354,7 +354,7 @@ class TestRunAsyncBatch:
                     req.results = {plugin.output_det: np.zeros((1, 6, 8400), dtype=np.float32)}
                     callback_fn_holder[0](req, userdata)
 
-        ov_mock.AsyncInferQueue = FakeQueue
+        ov_mock.AsyncInferQueue = FakeQueue  # type: ignore[attr-defined]
         plugin._preprocess = lambda f: np.zeros((1, 3, 640, 640), dtype=np.float32)
         plugin._postprocess = tracking_postprocess
 
@@ -396,7 +396,7 @@ class TestRunAsyncBatch:
                     req.results = {plugin.output_det: np.zeros((1, 6, 8400), dtype=np.float32)}
                     callback_fn_holder[0](req, userdata)
 
-        ov_mock.AsyncInferQueue = FakeQueue
+        ov_mock.AsyncInferQueue = FakeQueue  # type: ignore[attr-defined]
         plugin._preprocess = lambda f: np.zeros((1, 3, 640, 640), dtype=np.float32)
         plugin._postprocess = lambda r, os, is_, decode_masks=True: (
             np.array([[10, 10, 50, 50, 0.9, 0]]),

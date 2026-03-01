@@ -199,7 +199,7 @@ class VideoProcessingCoordinator(
         mac = self._multi_aquarium_coordinator
         bus.subscribe(
             UIEvents.ZONE_AUTO_DETECT,
-            lambda data: (
+            lambda data: (  # type: ignore[arg-type]
                 mac.run_aquarium_detection(
                     video_path=str(data.get("video_path", "")) if isinstance(data, dict) else "",
                     stabilization_frames=(

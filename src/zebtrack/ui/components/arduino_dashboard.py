@@ -70,7 +70,7 @@ class ArduinoDashboardWidget(BaseWidget):
         if self.event_bus:
             self.event_bus.subscribe(
                 UIEvents.UI_UPDATE_ARDUINO_STATUS,
-                lambda data: self.update_status(data.get("connected"), data.get("port")),
+                lambda data: self.update_status(bool(data.get("connected")), data.get("port")),
             )
 
         # Initialize dashboard state
