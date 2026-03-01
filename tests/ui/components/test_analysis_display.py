@@ -11,7 +11,7 @@ import pytest
 from PIL import Image, ImageTk
 
 from zebtrack.ui.components.analysis_display import AnalysisDisplayWidget
-from zebtrack.ui.event_bus_v2 import EventBusV2
+from zebtrack.ui.event_bus_v2 import Event, EventBusV2, UIEvents
 
 
 @pytest.mark.gui
@@ -22,7 +22,6 @@ class TestAnalysisDisplayWidget:
     def event_bus(self):
         """Create a mock event bus for testing."""
         bus = MagicMock(spec=EventBusV2)
-        bus.publish_event = MagicMock()
         bus.subscribe = MagicMock()
         return bus
 
@@ -284,18 +283,16 @@ class TestAnalysisDisplayWidget:
         widget.track_selector_var.set("2")
         widget._on_track_selection_changed()
 
-        event_bus.publish_event.assert_called_once_with(
-            event_name="analysis.track_selected",
-            data={"track_id": "2"},
+        event_bus.publish.assert_called_once_with(
+            Event(type=UIEvents.ANALYSIS_TRACK_SELECTED, data={"track_id": "2"})
         )
 
     def test_cancel_button_emits_event(self, widget, event_bus):
         """Test cancel button emits analysis.cancel_requested event."""
         widget._on_cancel_clicked()
 
-        event_bus.publish_event.assert_called_once_with(
-            event_name="analysis.cancel_requested",
-            data={},
+        event_bus.publish.assert_called_once_with(
+            Event(type=UIEvents.ANALYSIS_CANCEL_REQUESTED, data={})
         )
 
     def test_event_emission_without_bus(self, tkinter_root):

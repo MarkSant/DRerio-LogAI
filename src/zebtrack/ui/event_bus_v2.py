@@ -143,6 +143,7 @@ class UIEvents(Enum):
     # ── Arduino ───────────────────────────────────────────────────────
     ARDUINO_SETUP = auto()
     ARDUINO_LOG_EVENT = auto()
+    ARDUINO_PORT_UPDATE_REQUESTED = auto()
 
     # ── Reports / App / Wizard ────────────────────────────────────────
     REPORT_GENERATE = auto()
@@ -377,6 +378,7 @@ EVENT_NAME_TO_UIEVENT: dict[str, UIEvents] = {
     # Arduino
     "arduino:setup": UIEvents.ARDUINO_SETUP,
     "arduino:log_event": UIEvents.ARDUINO_LOG_EVENT,
+    "arduino.port_update_requested": UIEvents.ARDUINO_PORT_UPDATE_REQUESTED,
     # Reports / App / Wizard
     "report:generate": UIEvents.REPORT_GENERATE,
     "app:close": UIEvents.APP_CLOSE,

@@ -18,8 +18,8 @@ files:
   main_entry: "src/zebtrack/__main__.py"
   main_viewmodel: "src/zebtrack/ui/gui.py"
   settings: "src/zebtrack/settings.py"
-  detector_service: "N/A"
-  project_manager: "N/A"
+  detector_service: "src/zebtrack/core/services/detector_service.py"
+  project_manager: "src/zebtrack/core/project/project_manager.py"
   state_manager: "src/zebtrack/core/state_manager.py"
   recorder: "src/zebtrack/io/recorder.py"
 
@@ -115,6 +115,14 @@ discovered_classes:
     path: "src/zebtrack/settings.py"
     classes: ["CameraSettings", "LiveAnalysisSettings", "ArduinoSettings"]
     key_methods: []
+  detector_service:
+    path: "src/zebtrack/core/services/detector_service.py"
+    classes: ["DetectorService"]
+    key_methods: ["__init__", "initialize_detector", "get_params", "get_parameter_definitions", "get_available_configs"]
+  project_manager:
+    path: "src/zebtrack/core/project/project_manager.py"
+    classes: ["ProjectManager"]
+    key_methods: ["__init__", "_resolve_zone_entry", "list_roi_templates", "save_roi_template", "import_roi_template"]
   state_manager:
     path: "src/zebtrack/core/state_manager.py"
     classes: ["StateCategory", "ProjectState", "StateChange"]

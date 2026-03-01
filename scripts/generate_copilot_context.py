@@ -147,8 +147,8 @@ def scan_key_files() -> dict[str, Any]:
         "composition_root": SRC_DIR / "__main__.py",
         "main_viewmodel": SRC_DIR / "ui" / "gui.py",
         "settings": SRC_DIR / "settings.py",
-        "detector_service": SRC_DIR / "core" / "detector_service.py",
-        "project_manager": SRC_DIR / "core" / "project_manager.py",
+        "detector_service": SRC_DIR / "core" / "services" / "detector_service.py",
+        "project_manager": SRC_DIR / "core" / "project" / "project_manager.py",
         "state_manager": SRC_DIR / "core" / "state_manager.py",
         "recorder": SRC_DIR / "io" / "recorder.py",
     }

@@ -12,7 +12,7 @@ import pytest
 from tests.utils.wait_helpers import wait_for_condition, wait_for_thread_exit
 
 from zebtrack.ui.components.arduino_dashboard import ArduinoDashboardWidget
-from zebtrack.ui.event_bus_v2 import EventBusV2
+from zebtrack.ui.event_bus_v2 import EventBusV2, UIEvents
 
 
 @pytest.mark.gui
@@ -23,7 +23,6 @@ class TestArduinoDashboardWidget:
     def event_bus(self):
         """Create a mock event bus for testing."""
         bus = MagicMock(spec=EventBusV2)
-        bus.publish_event = MagicMock()
         bus.subscribe = MagicMock()
         return bus
 
@@ -201,10 +200,11 @@ class TestArduinoDashboardWidget:
         tkinter_root.update_idletasks()
 
         # Verify event was emitted
-        event_bus.publish_event.assert_called()
-        call_args = event_bus.publish_event.call_args
-        assert call_args[1]["event_name"] == "arduino.port_update_requested"
-        assert call_args[1]["data"]["port"] == "COM4"
+        event_bus.publish.assert_called()
+        call_args = event_bus.publish.call_args
+        event_obj = call_args[0][0]  # First positional arg
+        assert event_obj.type == UIEvents.ARDUINO_PORT_UPDATE_REQUESTED
+        assert event_obj.data["port"] == "COM4"
 
     @patch("zebtrack.ui.components.arduino_dashboard.serial.tools.list_ports.comports")
     @patch("zebtrack.ui.components.arduino_dashboard.messagebox.showwarning")
@@ -237,7 +237,7 @@ class TestArduinoDashboardWidget:
         tkinter_root.update_idletasks()
 
         # Should not emit event
-        event_bus.publish_event.assert_not_called()
+        event_bus.publish.assert_not_called()
 
     @patch("zebtrack.ui.components.arduino_dashboard.serial.tools.list_ports.comports")
     @patch("zebtrack.ui.components.arduino_dashboard.simpledialog.askstring")
