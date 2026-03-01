@@ -198,18 +198,18 @@ class TestGuiHandlers:
     def test_handle_setup_interactive_polygon_defaults(self):
         gui = SimpleNamespace(
             event_bus=MagicMock(),
-            setup_interactive_polygon=MagicMock(),
+            canvas_manager=MagicMock(),
         )
         dispatcher = EventDispatcher(cast(Any, gui))
 
         dispatcher._handle_setup_interactive_polygon(None)
 
-        gui.setup_interactive_polygon.assert_called_once_with([])
+        gui.canvas_manager.setup_interactive_polygon.assert_called_once()
 
     def test_handle_setup_zone_definition_valid(self):
         gui = SimpleNamespace(
             event_bus=MagicMock(),
-            setup_zone_definition_for_single_video=MagicMock(),
+            single_video_workflow=MagicMock(),
         )
         dispatcher = EventDispatcher(cast(Any, gui))
 
@@ -217,7 +217,7 @@ class TestGuiHandlers:
             {"video_path": "/path/video.mp4", "config": {"interval": 10}}
         )
 
-        gui.setup_zone_definition_for_single_video.assert_called_once_with(
+        gui.single_video_workflow.setup_zone_definition_for_single_video.assert_called_once_with(
             "/path/video.mp4", {"interval": 10}
         )
 
@@ -289,9 +289,9 @@ class TestGuiSubscriptions:
 
         dispatcher.subscribe_to_ui_events()
 
-        event_bus.subscribe.assert_any_call(UIEvents.SHOW_INFO, ANY)
-        event_bus.subscribe.assert_any_call(UIEvents.SHOW_WARNING, ANY)
-        event_bus.subscribe.assert_any_call(UIEvents.SHOW_ERROR, ANY)
+        event_bus.subscribe.assert_any_call(UIEvents.UI_SHOW_INFO, ANY)
+        event_bus.subscribe.assert_any_call(UIEvents.UI_SHOW_WARNING, ANY)
+        event_bus.subscribe.assert_any_call(UIEvents.UI_SHOW_ERROR, ANY)
 
 
 class TestUnregisterHandler:

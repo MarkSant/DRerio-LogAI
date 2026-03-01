@@ -314,12 +314,13 @@ class TestCanvasAccessAndEvents:
 
     def test_unsubscribe_from_live_frames(self, canvas_manager, mock_gui):
         """Unsubscribe from live frame events when event bus is available."""
-        mock_gui.event_bus = Mock()
+        mock_event_bus_v2 = Mock()
+        canvas_manager.event_bus_v2 = mock_event_bus_v2
         canvas_manager._live_frame_subscription = object()
 
         canvas_manager.unsubscribe_from_live_frames()
 
-        mock_gui.event_bus.unsubscribe.assert_called_once_with(
+        mock_event_bus_v2.unsubscribe.assert_called_once_with(
             UIEvents.UI_UPDATE_LIVE_FRAME, canvas_manager._on_live_frame_update
         )
         assert canvas_manager._live_frame_subscription is None
@@ -528,7 +529,7 @@ class TestBackgroundImageDrawing:
         mock_pil.fromarray.return_value = mock_pil_image
 
         # Mock _draw_bg_image_to_canvas to avoid downstream issues
-        canvas_manager._draw_bg_image_to_canvas = Mock()
+        canvas_manager.video_frame._draw_bg_image_to_canvas = Mock()
 
         result = canvas_manager.load_video_frame_to_canvas("/path/to/video.mp4", frame_number=10)
 

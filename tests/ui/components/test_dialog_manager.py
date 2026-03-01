@@ -109,6 +109,7 @@ def mock_gui(tkinter_root, mock_validation_manager, mock_controller):
     gui.update_openvino_checkbox = Mock()
     gui.set_active_weight_in_dropdown = Mock()
     gui.update_openvino_status_display = Mock()
+    gui.weight_hardware_manager = Mock()
     gui.roi_template_manager = Mock()
     gui.roi_template_manager.refresh_templates = Mock()
     gui.roi_template_manager.select_template_by_metadata = Mock()
@@ -477,9 +478,13 @@ class TestCalibrationDialogs:
 
         mock_controller.project_calibration_session.assert_called_once()
         mock_calibration_dialog.assert_called_once_with(mock_gui.root, mock_controller)
-        mock_gui.update_openvino_checkbox.assert_called_once_with(False)
-        mock_gui.set_active_weight_in_dropdown.assert_called_once_with("test_weight")
-        mock_gui.update_openvino_status_display.assert_called_once_with("disabled")
+        mock_gui.weight_hardware_manager.update_openvino_checkbox.assert_called_once_with(False)
+        mock_gui.weight_hardware_manager.set_active_weight_in_dropdown.assert_called_once_with(
+            "test_weight"
+        )
+        mock_gui.weight_hardware_manager.update_openvino_status_display.assert_called_once_with(
+            "disabled"
+        )
 
 
 @pytest.mark.gui
@@ -853,18 +858,14 @@ class TestProjectAndRecordingDialogs:
         dialog_manager.gui.event_dispatcher.publish_event.assert_not_called()
 
     @patch("zebtrack.ui.components.dialog_manager.filedialog")
-    @patch("zebtrack.ui.events.Events")
-    def test_open_project_workflow_success(
-        self, mock_events, mock_filedialog, dialog_manager, mock_gui
-    ):
+    def test_open_project_workflow_success(self, mock_filedialog, dialog_manager, mock_gui):
         """Test successful project workflow opening."""
         mock_filedialog.askdirectory.return_value = "/path/to/project"
-        mock_events.PROJECT_OPEN = "PROJECT_OPEN"
 
         dialog_manager.open_project_workflow()
 
         mock_gui.event_dispatcher.publish_event.assert_called_once_with(
-            "PROJECT_OPEN", {"project_path": "/path/to/project"}
+            UIEvents.PROJECT_OPEN, {"project_path": "/path/to/project"}
         )
 
 
@@ -1414,6 +1415,10 @@ class TestEdgeCases:
 
         dialog_manager.open_project_calibration_window()
 
-        mock_gui.update_openvino_checkbox.assert_called_once_with(True)
-        mock_gui.set_active_weight_in_dropdown.assert_called_once_with("custom_weight")
-        mock_gui.update_openvino_status_display.assert_called_once_with("enabled")
+        mock_gui.weight_hardware_manager.update_openvino_checkbox.assert_called_once_with(True)
+        mock_gui.weight_hardware_manager.set_active_weight_in_dropdown.assert_called_once_with(
+            "custom_weight"
+        )
+        mock_gui.weight_hardware_manager.update_openvino_status_display.assert_called_once_with(
+            "enabled"
+        )

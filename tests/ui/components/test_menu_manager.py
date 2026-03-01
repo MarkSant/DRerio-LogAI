@@ -445,10 +445,10 @@ class TestHandleOverviewAssetRemoval:
         # Verify event published
         from zebtrack.ui.event_bus_v2 import UIEvents
 
-        menu_manager.gui.event_dispatcher.publish.assert_called_once()
-        event = menu_manager.gui.event_dispatcher.publish.call_args[0][0]
-        assert event.type == UIEvents.PROJECT_DELETE_ASSET
-        assert event.data["asset"] == "arena"
+        menu_manager.gui.event_dispatcher.publish_event.assert_called_once()
+        args = menu_manager.gui.event_dispatcher.publish_event.call_args[0]
+        assert args[0] == UIEvents.PROJECT_DELETE_ASSET
+        assert args[1]["asset"] == "arena"
 
         # Verify UI updates
         menu_manager.gui.set_status.assert_called_once()
