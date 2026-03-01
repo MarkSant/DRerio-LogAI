@@ -21,9 +21,9 @@
 
 **BEFORE making ANY code change**, you MUST:
 
-1. **Read**: [`docs/guides/developer/impact_analysis.md`](../docs/guides/developer/impact_analysis.md) - Complete workflow
+1. **Read**: [impact_analysis.md](../docs/guides/developer/impact_analysis.md) - Complete workflow
 2. **Run**: `python scripts/impact_analyzer.py <type> <name>` - Trace all affected components
-3. **Consult**: [`.copilot-impact-map.yaml`](../.copilot-impact-map.yaml) - Quick dependency lookup
+3. **Consult**: [.copilot-impact-map.yaml](../.copilot-impact-map.yaml) - Quick dependency lookup
 4. **Verify**: Update ALL affected components consistently
 5. **Test**: Run domain-specific tests from protocol
 
@@ -50,7 +50,7 @@
 - **AGENTS.md is the canonical source** for all agent guidance.
 - If this file changes, **update AGENTS.md first** and then mirror the same changes here.
 - **SYNC REMINDER**: Every change to agent instructions must be mirrored across all instructions files immediately to prevent drift.
-- **PLANNING & TASKS**: Agents are REQUIRED to create a detailed task entry in [docs/tasks/active/ROLLING_TASK_LOG.md](../docs/tasks/active/ROLLING_TASK_LOG.md) before starting work. This ensures transparency and progress tracking.
+- **PLANNING & TASKS**: Agents are REQUIRED to create a detailed task entry in [ROLLING_TASK_LOG.md](../docs/tasks/active/ROLLING_TASK_LOG.md) before starting work. This ensures transparency and progress tracking.
 
 ---
 

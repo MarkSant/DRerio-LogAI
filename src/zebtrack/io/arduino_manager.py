@@ -12,22 +12,21 @@ from zebtrack.io.arduino import Arduino
 if TYPE_CHECKING:
     from zebtrack.core.main_view_model import MainViewModel
 
-SerialExceptionType: type[BaseException]
+_SerialExceptionBase: type[BaseException]
 
 try:  # pragma: no cover - serial may not be available during unit tests
-    from serial import SerialException
+    from serial import SerialException as _RealSerialException
 
-    SerialExceptionType = SerialException
+    _SerialExceptionBase = _RealSerialException
 except Exception:  # pragma: no cover - fallback when pyserial is missing
 
-    class _SerialExceptionError(Exception):
+    class _FallbackSerialError(Exception):
         """Fallback SerialException when pyserial is not installed."""
 
-        pass
+    _SerialExceptionBase = _FallbackSerialError
 
-    SerialExceptionType = _SerialExceptionError
-
-SerialException = SerialExceptionType
+SerialExceptionType = _SerialExceptionBase
+SerialException = _SerialExceptionBase
 
 
 log = structlog.get_logger()

@@ -161,7 +161,6 @@ module = [
     "shapely.*",
     "networkx.*",
     "seaborn.*",
-    "docxcompose",
     "docxtpl.*",
     "ttkbootstrap.*",
     "plotly.*",
