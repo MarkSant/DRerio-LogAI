@@ -222,7 +222,6 @@ class MainViewModel:
         self.video_selection_service = result.video_selection_service
         self.video_validation_service = result.video_validation_service
         self.batch_configuration_service = result.batch_configuration_service
-        self.thread_coordinator = result.thread_coordinator
         self.dialog_coordinator = result.dialog_coordinator
         self.event_dispatcher = result.event_dispatcher
 
@@ -255,8 +254,7 @@ class MainViewModel:
         # Phase 3.5/3.6: Removed video_orchestrator and analysis_coordinator (dead code)
         # Phase 4.7: Removed recording_coordinator and live_camera_coordinator (dead code)
 
-        # Registry & Adapter
-        self.orchestrators = result.orchestrators
+        # Adapter
         self.project_workflow_adapter = result.project_workflow_adapter
 
         # Runtime flags

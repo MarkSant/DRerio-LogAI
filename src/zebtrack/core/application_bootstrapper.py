@@ -32,9 +32,7 @@ from zebtrack.coordinators.dialog_coordinator import DialogCoordinator
 # Phase 3A/3B/3C/3D: Removed imports for superseded orchestrators
 from zebtrack.coordinators.ui_state_coordinator import UIStateController
 from zebtrack.core.dependency_container import MainViewModelDependencies
-from zebtrack.core.orchestrator_registry import OrchestratorRegistry
 from zebtrack.core.project.project_service import ProjectService
-from zebtrack.core.thread_coordinator import ThreadCoordinator
 from zebtrack.core.video.batch_configuration_service import BatchConfigurationService
 from zebtrack.core.video.video_classification_service import VideoClassificationService
 from zebtrack.core.video.video_selection_service import VideoSelectionService
@@ -60,7 +58,6 @@ class BootstrapResult:
     video_selection_service: VideoSelectionService
     video_validation_service: VideoValidationService
     batch_configuration_service: BatchConfigurationService
-    thread_coordinator: ThreadCoordinator
     dialog_coordinator: DialogCoordinator
     event_dispatcher: EventDispatcher
 
@@ -84,8 +81,7 @@ class BootstrapResult:
     # Legacy Orchestrators (required)
     ui_state_controller: UIStateController
 
-    # Registry & Adapter
-    orchestrators: OrchestratorRegistry
+    # Adapter
     project_workflow_adapter: ProjectWorkflowAdapter
 
     # Legacy Coordinators (created internally if not injected)
@@ -168,7 +164,6 @@ class ApplicationBootstrapper:
             video_selection_service=self._services["video_selection_service"],
             video_validation_service=self._services["video_validation_service"],
             batch_configuration_service=self._services["batch_configuration_service"],
-            thread_coordinator=self._services["thread_coordinator"],
             dialog_coordinator=self._services["dialog_coordinator"],
             event_dispatcher=self._services["event_dispatcher"],
             active_weight_name=self._hardware_state["active_weight_name"],
@@ -183,7 +178,6 @@ class ApplicationBootstrapper:
             cancel_event=self._runtime_state["cancel_event"],
             view=self.view,
             ui_state_controller=self._orchestrators["ui_state_controller"],
-            orchestrators=self._orchestrators["registry"],
             project_workflow_adapter=self._orchestrators["project_workflow_adapter"],
             legacy_coordinators=self._legacy_coordinators,
         )
@@ -208,7 +202,6 @@ class ApplicationBootstrapper:
             project_manager=self.deps.project_manager,
             settings_obj=self.settings,
         )
-        thread_coordinator = ThreadCoordinator()
         dialog_coordinator = DialogCoordinator(
             ui_coordinator=self.deps.ui_coordinator,
             event_bus=self.deps.event_bus,
@@ -224,7 +217,6 @@ class ApplicationBootstrapper:
             "video_selection_service": video_selection_service,
             "video_validation_service": video_validation_service,
             "batch_configuration_service": batch_configuration_service,
-            "thread_coordinator": thread_coordinator,
             "dialog_coordinator": dialog_coordinator,
             "event_dispatcher": event_dispatcher,
         }
@@ -469,12 +461,6 @@ class ApplicationBootstrapper:
         self._orchestrators = {
             "ui_state_controller": ui_state_controller,
         }
-
-        # Registry
-        registry = OrchestratorRegistry(
-            ui_state_controller=ui_state_controller,
-        )
-        self._orchestrators["registry"] = registry
 
         # Project Workflow Adapter (already ensured earlier in this method)
         self._orchestrators["project_workflow_adapter"] = project_workflow_adapter

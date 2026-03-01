@@ -42,8 +42,6 @@ Root modules (infrastructure)
 - ``dependency_container`` — DI container (MainViewModelDependencies)
 - ``main_view_model`` — Top-level application orchestrator
 - ``application_bootstrapper`` — Service initialization
-- ``orchestrator_registry`` — Centralized orchestrator registry
-- ``thread_coordinator`` — Background thread lifecycle management
 
 Phase 4.10 — Sub-packetize core/ into domain-specific sub-packages.
 """

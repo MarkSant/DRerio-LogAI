@@ -304,7 +304,7 @@ def test_prepare_results_directory_archives_existing(tmp_path):
     results_dir.mkdir()
     (results_dir / "old.txt").write_text("old")
 
-    with patch("zebtrack.core.video.video_processing_service.datetime") as dt_mock:
+    with patch("zebtrack.core.video.video_context_factory.datetime") as dt_mock:
         dt_mock.now.return_value.strftime.return_value = "20240101-120000"
         service._prepare_results_directory(str(results_dir))
 

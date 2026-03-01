@@ -205,7 +205,6 @@ def create_test_controller(root, **overrides):
         video_selection_service=overrides.get("video_selection_service", MagicMock()),
         video_validation_service=overrides.get("video_validation_service", MagicMock()),
         batch_configuration_service=overrides.get("batch_configuration_service", MagicMock()),
-        thread_coordinator=overrides.get("thread_coordinator", MagicMock()),
         dialog_coordinator=overrides.get("dialog_coordinator", MagicMock()),
         event_dispatcher=event_dispatcher,
         active_weight_name="best_seg.pt",
@@ -229,7 +228,6 @@ def create_test_controller(root, **overrides):
             ),
             # Phase 4.7: Removed recording_coordinator and live_camera_coordinator (dead code)
         },
-        orchestrators=overrides.get("orchestrators", MagicMock()),
         project_workflow_adapter=project_workflow_adapter,
     )
 

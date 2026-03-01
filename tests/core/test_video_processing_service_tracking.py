@@ -85,7 +85,7 @@ def video_processing_service(mock_services):
 class TestRunTrackingIfNeeded:
     """Test suite for run_tracking_if_needed method."""
 
-    @patch("zebtrack.core.video.video_processing_service.os.path.exists")
+    @patch("zebtrack.core.video.tracking_session_runner.os.path.exists")
     def test_skips_existing_trajectory(self, mock_exists, video_processing_service):
         """Test that existing trajectory file skips tracking generation."""
         mock_exists.return_value = True  # Trajectory already exists
@@ -104,7 +104,7 @@ class TestRunTrackingIfNeeded:
         assert polygon is not None
 
     @patch("zebtrack.core.video.processing_worker.ProcessingWorker")
-    @patch("zebtrack.core.video.video_processing_service.os.path.exists")
+    @patch("zebtrack.core.video.tracking_session_runner.os.path.exists")
     def test_returns_false_when_detector_none(
         self, mock_exists, mock_worker, video_processing_service
     ):
@@ -125,8 +125,8 @@ class TestRunTrackingIfNeeded:
         assert polygon is not None
 
     @patch("zebtrack.core.video.processing_worker.ProcessingWorker")
-    @patch("zebtrack.core.video.video_processing_service.os.path.exists")
-    @patch("zebtrack.core.video.video_processing_service.cv2.VideoCapture")
+    @patch("zebtrack.core.video.tracking_session_runner.os.path.exists")
+    @patch("zebtrack.core.video.tracking_session_runner.cv2.VideoCapture")
     def test_handles_video_open_failure(
         self, mock_videocap, mock_exists, mock_worker, video_processing_service
     ):
@@ -153,9 +153,9 @@ class TestRunTrackingIfNeeded:
         assert polygon is not None
 
     @patch("zebtrack.core.video.processing_worker.ProcessingWorker")
-    @patch("zebtrack.core.video.video_processing_service.log")
-    @patch("zebtrack.core.video.video_processing_service.os.path.exists")
-    @patch("zebtrack.core.video.video_processing_service.cv2.VideoCapture")
+    @patch("zebtrack.core.video.tracking_session_runner.log")
+    @patch("zebtrack.core.video.tracking_session_runner.os.path.exists")
+    @patch("zebtrack.core.video.tracking_session_runner.cv2.VideoCapture")
     def test_processes_video_frames(
         self, mock_videocap, mock_exists, mock_log, mock_worker, video_processing_service
     ):
@@ -194,8 +194,8 @@ class TestRunTrackingIfNeeded:
         mock_thread.join.assert_called_once()
 
     @patch("zebtrack.core.video.processing_worker.ProcessingWorker")
-    @patch("zebtrack.core.video.video_processing_service.os.path.exists")
-    @patch("zebtrack.core.video.video_processing_service.cv2.VideoCapture")
+    @patch("zebtrack.core.video.tracking_session_runner.os.path.exists")
+    @patch("zebtrack.core.video.tracking_session_runner.cv2.VideoCapture")
     def test_respects_analysis_interval(
         self, mock_videocap, mock_exists, mock_worker, video_processing_service
     ):
@@ -225,8 +225,8 @@ class TestRunTrackingIfNeeded:
         assert context.analysis_interval_frames == 5
 
     @patch("zebtrack.core.video.processing_worker.ProcessingWorker")
-    @patch("zebtrack.core.video.video_processing_service.os.path.exists")
-    @patch("zebtrack.core.video.video_processing_service.cv2.VideoCapture")
+    @patch("zebtrack.core.video.tracking_session_runner.os.path.exists")
+    @patch("zebtrack.core.video.tracking_session_runner.cv2.VideoCapture")
     def test_handles_cancellation(
         self, mock_videocap, mock_exists, mock_worker, video_processing_service
     ):
@@ -253,8 +253,8 @@ class TestRunTrackingIfNeeded:
         assert context.cancel_event == video_processing_service.cancel_event
 
     @patch("zebtrack.core.video.processing_worker.ProcessingWorker")
-    @patch("zebtrack.core.video.video_processing_service.os.path.exists")
-    @patch("zebtrack.core.video.video_processing_service.cv2.VideoCapture")
+    @patch("zebtrack.core.video.tracking_session_runner.os.path.exists")
+    @patch("zebtrack.core.video.tracking_session_runner.cv2.VideoCapture")
     def test_includes_calibration_data(
         self, mock_videocap, mock_exists, mock_worker, video_processing_service
     ):
@@ -280,8 +280,8 @@ class TestRunTrackingIfNeeded:
         assert context.zone_data == mock_zone_data
 
     @patch("zebtrack.core.video.processing_worker.ProcessingWorker")
-    @patch("zebtrack.core.video.video_processing_service.os.path.exists")
-    @patch("zebtrack.core.video.video_processing_service.cv2.VideoCapture")
+    @patch("zebtrack.core.video.tracking_session_runner.os.path.exists")
+    @patch("zebtrack.core.video.tracking_session_runner.cv2.VideoCapture")
     def test_calls_progress_callback(
         self, mock_videocap, mock_exists, mock_worker, video_processing_service
     ):
@@ -390,7 +390,7 @@ class TestBuildCalibrationContext:
             "aquarium_height_cm": 30.0,
         }
 
-        with patch("zebtrack.core.video.video_processing_service.Calibration") as mock_cal:
+        with patch("zebtrack.core.video.tracking_session_runner.Calibration") as mock_cal:
             mock_cal_instance = Mock()
             mock_cal_instance.pixel_per_cm_ratio = (10.0, 10.0)
             mock_cal.return_value = mock_cal_instance
@@ -455,10 +455,10 @@ class TestVideoContextHelpers:
     """Coverage for helper paths in VideoProcessingService."""
 
     @patch(
-        "zebtrack.core.video.video_processing_service.time.perf_counter",
+        "zebtrack.core.video.video_context_factory.time.perf_counter",
         side_effect=[0.0, 0.001],
     )
-    @patch("zebtrack.core.video.video_processing_service.cv2.VideoCapture")
+    @patch("zebtrack.core.video.video_context_factory.cv2.VideoCapture")
     def test_create_video_context_calibrates_skip_threshold(
         self, mock_videocap, mock_perf, video_processing_service
     ):
@@ -509,7 +509,7 @@ class TestVideoContextHelpers:
         bad_path.write_text("not_parquet")
 
         monkeypatch.setattr(
-            "zebtrack.core.video.video_processing_service.pd.read_parquet",
+            "zebtrack.core.video.video_context_factory.pd.read_parquet",
             Mock(side_effect=ValueError("boom")),
         )
 
@@ -537,7 +537,7 @@ class TestVideoContextHelpers:
         assert call_ev.type == UIEvents.SET_STATUS
         assert "Cancelamento" in call_ev.data["message"]
 
-    @patch("zebtrack.core.video.video_processing_service.time.time", return_value=15.0)
+    @patch("zebtrack.core.video.tracking_session_runner.time.time", return_value=15.0)
     def test_calculate_tracking_progress_stats(self, mock_time, video_processing_service):
         cap = FakeCap()
 

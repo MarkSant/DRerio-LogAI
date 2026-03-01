@@ -6,7 +6,7 @@ from unittest.mock import Mock
 
 import pytest
 
-from zebtrack.core.recording import live_camera_service as live_camera_module
+from zebtrack.core.recording import camera_connection_handler as camera_conn_module
 from zebtrack.core.recording.live_camera_service import LiveCameraService
 
 
@@ -136,7 +136,7 @@ def test_check_camera_disconnect_publishes_and_pauses(live_camera_service, monke
 
     live_camera_service.recorder.pause_recording = Mock()
 
-    monkeypatch.setattr(live_camera_module.time, "time", lambda: 13.0)
+    monkeypatch.setattr(camera_conn_module.time, "time", lambda: 13.0)
 
     live_camera_service._check_camera_disconnect()
 
@@ -161,7 +161,7 @@ def test_on_camera_reconnected_resumes_and_publishes(live_camera_service, monkey
     live_camera_service._disconnect_gaps = [(10.0, None)]
     live_camera_service.recorder.resume_recording = Mock()
 
-    monkeypatch.setattr(live_camera_module.time, "time", lambda: 15.0)
+    monkeypatch.setattr(camera_conn_module.time, "time", lambda: 15.0)
 
     live_camera_service._on_camera_reconnected()
 
