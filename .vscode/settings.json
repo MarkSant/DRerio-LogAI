@@ -97,6 +97,55 @@
     },
     "yaml.validate": true,
     "yaml.schemaStore.enable": true,
+    // ========================================
+    // Mypy (Matan Gover) — Daemon-based type checking
+    // ========================================
+    "mypy.runUsingActiveInterpreter": true,
+    // ========================================
+    // Error Lens — Inline diagnostics
+    // ========================================
+    "errorLens.enabledDiagnosticLevels": [
+        "error",
+        "warning"
+    ],
+    "errorLens.excludeBySource": [
+        "cSpell"
+    ],
+    "errorLens.delay": 500,
+    // ========================================
+    // TODO Tree — Track TODO/FIXME/HACK in code
+    // ========================================
+    "todo-tree.general.tags": [
+        "TODO",
+        "FIXME",
+        "HACK",
+        "BUG",
+        "XXX",
+        "DEPRECATED"
+    ],
+    "todo-tree.filtering.excludeGlobs": [
+        "**/node_modules/**",
+        "**/__pycache__/**",
+        "**/openvino_model_cache/**",
+        "**/htmlcov/**",
+        "**/docs/archive/**"
+    ],
+    "todo-tree.tree.showCountsInTree": true,
+    // ========================================
+    // GitLens — Git supercharged (replaces Git History)
+    // ========================================
+    "gitlens.codeLens.enabled": true,
+    "gitlens.currentLine.enabled": true,
+    "gitlens.hovers.currentLine.over": "line",
+    "gitlens.blame.format": "${author|10} ${agoOrDate|14-}",
+    // ========================================
+    // Jupyter — Notebook support for data analysis
+    // ========================================
+    "jupyter.askForKernelRestart": false,
+    "notebook.output.scrolling": true,
+    // ========================================
+    // Code Spell Checker
+    // ========================================
     "cSpell.language": "en,pt,pt-BR",
     "cSpell.words": [
         "agpl",

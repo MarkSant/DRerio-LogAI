@@ -87,23 +87,37 @@ Keep editor diagnostics consistent and avoid formatter conflicts.
 
 - **Python / Pylance**: Use the Poetry venv interpreter; keep terminal and editor aligned.
 - **Ruff**: Use Ruff as the only Python formatter/linter; enable on-save fixes.
-- **Mypy (Matan Gover) + Mypy Type Checker (Microsoft)**: Keep both aligned to the same config; if diagnostics duplicate, disable one in workspace or limit one to on-demand runs. Use “Mypy: Restart Daemon and Recheck Workspace” when stale.
+- **Mypy (Matan Gover)**: Single Mypy extension (daemon-based). Prefer `mypy.runUsingActiveInterpreter=true`; align with `mypy.ini`/`pyproject.toml`; use "Mypy: Restart Daemon and Recheck Workspace" if stale.
 - **Python Debugger**: Debug and manage envs using the same Poetry interpreter.
+- **Jupyter (Microsoft)**: For notebook exploration and data analysis; kernel auto-selects Poetry venv.
 - **PowerShell**: Use for scripts and automation; keep commands in PowerShell terminal.
+- **GitLens (GitKraken)**: Primary Git tool — inline blame, file history, comparison. Replaces Git History.
 - **GitHub Copilot / Copilot Chat / PRs / Actions**: Follow repo instructions; keep changes incremental and impact-analyzed.
-- **Git History**: Use for file history and blame; keep diffs small and focused.
-- **Docker / Container Tools / Dev Containers / WSL**: Use only when the workspace runs in those environments; avoid mixed paths.
+- **Error Lens**: Inline error/warning display; shows errors and warnings only (not hints/info); CSpell diagnostics excluded.
+- **TODO Tree**: Tracks TODO, FIXME, HACK, BUG, XXX, DEPRECATED tags; excludes build artifacts and archive folders.
 - **YAML / markdownlint / Code Spell Checker**: Keep lint rules on; fix warnings rather than disable.
-- **MATLAB / matlab-formatter**: Apply only to `.m` files.
-- **vscode-pdf**: Read-only PDF viewing.
+
+### Removed Extensions (DO NOT reinstall)
+
+| Extension | Reason |
+| --- | --- |
+| `ms-python.mypy-type-checker` | Duplicated diagnostics with `matangover.mypy` |
+| `ms-python.vscode-python-envs` | Triggered WSL popups via `wsl.exe` stub |
+| `yzhang.markdown-all-in-one` | Redundant with `davidanson.vscode-markdownlint` |
+| `donjayamanne.githistory` | Replaced by `eamodio.gitlens` |
+| `tomoki1207.pdf` | Unused — no PDF workflows |
+| `mechatroner.rainbow-csv` | Unused — project uses Parquet, not CSV |
 
 ### How to use/configure in VS Code
 
-- Use “Python: Select Interpreter” to pick the Poetry venv; keep terminals aligned.
+- Use "Python: Select Interpreter" to pick the Poetry venv; keep terminals aligned.
 - Prefer `python.analysis.typeCheckingMode=basic`; use `strict` only on targeted files.
-- Keep Mypy config in `mypy.ini`/pyproject; prefer `mypy.runUsingActiveInterpreter=true` and use “Mypy: Restart Daemon and Recheck Workspace” when stale.
+- Keep Mypy config in `mypy.ini`/pyproject; prefer `mypy.runUsingActiveInterpreter=true` and use "Mypy: Restart Daemon and Recheck Workspace" when stale.
 - Set Ruff as formatter with `editor.defaultFormatter=charliermarsh.ruff`, enable `editor.formatOnSave`, and `editor.codeActionsOnSave` with `source.fixAll.ruff` and `source.organizeImports.ruff`.
-- Use “Dev Containers: Reopen in Container” or “Remote-WSL: Reopen Folder in WSL” only when running in those environments.
+- GitLens: Enabled by default; inline blame and CodeLens active; use "GitLens: Compare" for file diffs.
+- Error Lens: Configured via workspace settings; shows errors/warnings inline; CSpell excluded.
+- TODO Tree: Scans workspace for tags; check sidebar panel for tag overview.
+- Jupyter: Kernel auto-selects Poetry venv; use for data exploration notebooks.
 
 ---
 
@@ -112,8 +126,10 @@ Keep editor diagnostics consistent and avoid formatter conflicts.
 - [ ] Active Python interpreter is the Poetry venv used by `poetry run`.
 - [ ] Ruff is the only Python formatter (disable Black/Pylint/Flake8 formatters).
 - [ ] Mypy config is centralized (mypy.ini/pyproject) and editor uses the same config.
-- [ ] If Mypy diagnostics duplicate, disable one Mypy extension or restrict one to on-demand runs.
+- [ ] Only `matangover.mypy` installed (NOT `ms-python.mypy-type-checker`).
 - [ ] YAML/Markdown linters are enabled for config/docs quality.
+- [ ] Error Lens shows errors/warnings only (not hints/info); CSpell excluded.
+- [ ] TODO Tree excludes build artifacts and archive folders.
 - [ ] If any agent instruction changes, update AGENTS.md first and mirror to other agent files.
 
 ---
