@@ -1,6 +1,6 @@
 <!-- ═══════════════════════════════════════════════════════════════════════════
      GEMINI INSTRUCTION FILE - ZebTrack-AI
-     Last Synced: 2026-02-03
+     Last Synced: 2026-03-01
      Canonical Source: AGENTS.md (always update AGENTS.md first, then mirror here)
      ═══════════════════════════════════════════════════════════════════════════ -->
 
@@ -71,9 +71,8 @@ event-driven architecture with dependency injection.
 ## Architecture Essentials
 
 - **State**: Immutable `StateManager` (see `docs/architecture/STATE_MANAGEMENT_GUIDE.md`)
-- **Events**: `EventBus` for cross-component communication
-- **Coordinators**: `ProcessingCoordinator`, `HardwareCoordinator`, `SessionCoordinator`,
-  `ProjectLifecycleCoordinator`
+- **Events**: `EventBusV2` (sole event bus; v1 removed) for cross-component communication
+- **Coordinators**: 24 decomposed coordinators including `VideoProcessingCoordinator`, `ReportGenerationCoordinator`, `MultiAquariumCoordinator`, `SequentialProcessingCoordinator`, `DetectorSetupCoordinator`, `LiveCameraSessionCoordinator`, `ProjectLifecycleCoordinator`, `CalibrationCoordinator`
 - **Multi-Aquarium**: Track ID = `aquarium_id * 1000 + local_track_id`
 
 ## Critical Rules

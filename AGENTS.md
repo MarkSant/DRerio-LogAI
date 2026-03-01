@@ -1,6 +1,6 @@
 <!-- ═══════════════════════════════════════════════════════════════════════════
      AGENTS.md - CANONICAL SOURCE OF TRUTH
-     Last Synced: 2026-02-03
+     Last Synced: 2026-03-01
      All other agent files (CLAUDE.md, GEMINI.md, copilot-instructions.md) must
      mirror changes from this file. Update here FIRST, then sync to others.
      ═══════════════════════════════════════════════════════════════════════════ -->
@@ -18,7 +18,7 @@ To provide an automated, high-precision tracking and analysis tool for Danio rer
 - **Framework**: Python 3.12+, Tkinter (GUI), Ultralytics YOLO / OpenVINO (Tracking).
 - **Architecture**: Event-driven with Dependency Injection.
 - **State Management**: strict `StateManager` usage (immutable state updates).
-- **Communication**: `EventBus` for all cross-component communication.
+- **Communication**: `EventBusV2` (sole event bus; v1 removed) for all cross-component communication.
 
 ## Critical Development Rules
 
@@ -102,6 +102,7 @@ Agent requirements:
 
 **Change Notes**:
 
+- `2026-03-01`: Major sync — corrected all stale stats (gui.py 865 lines, 24 coordinators, 27 dialog files, 2778 tests, EventBusV2 as sole bus, DI via application_bootstrapper.py, reporters/ sub-package, etc.). Removed references to deleted files (processing_coordinator.py, hardware_coordinator.py, session_coordinator.py, event_bus.py, events.py, orchestrators/). Fixed date typos (Jan 2025→Jan 2026).
 - `2026-02-03`: Added XML prompt engineering framework (system_directive, constraints, verbosity, deep_think_protocol) and Last Synced header to all agent files.
 - `2026-02-01`: Added VS Code extensions best practices, checklist, and source-of-truth sync rule for all agent instruction files.
 

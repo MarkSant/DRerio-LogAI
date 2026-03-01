@@ -1,6 +1,6 @@
 <!-- ═══════════════════════════════════════════════════════════════════════════
      COPILOT INSTRUCTION FILE - ZebTrack-AI
-     Last Synced: 2026-02-03
+     Last Synced: 2026-03-01
      Canonical Source: AGENTS.md (always update AGENTS.md first, then mirror here)
      ═══════════════════════════════════════════════════════════════════════════ -->
 
@@ -124,8 +124,8 @@ Keep editor diagnostics consistent and avoid formatter conflicts.
 
 ### File Quick Access (Minimize Search Time)
 
-- **Entry Point**: `src/zebtrack/__main__.py` (lines 140-280: Composition Root)
-- **Main UI**: `src/zebtrack/ui/gui.py` (MainWindow + MainViewModel)
+- **Entry Point**: `src/zebtrack/__main__.py` (789 lines; `main()` at line 25; DI delegated to `core/application_bootstrapper.py`)
+- **Main UI**: `src/zebtrack/ui/gui.py` (865 lines; 1 class `MainWindow`, 36 methods)
 - **Settings**: `src/zebtrack/settings.py` (Pydantic v2 models)
 - **Core Services**: `src/zebtrack/core/services/detector_service.py`, `core/project/project_manager.py`, `core/state_manager.py`, `core/video/processing_worker.py`
 - **Data I/O**: `src/zebtrack/io/{video_source,recorder}.py`
@@ -145,7 +145,7 @@ Keep editor diagnostics consistent and avoid formatter conflicts.
 - **Runtime**: Python 3.12+, Poetry-managed; launch with `poetry run zebtrack` or `python -m zebtrack`.
 - **Docs first**: Validate changes against `docs/explanation/architecture.md`, `docs/reference/operational_reference.md`, `docs/explanation/dependency_injection.md` before rerouting flows.
 - **Config**: Settings loaded via `load_settings()` in `__main__.py` (Composition Root) and injected as `settings_obj` parameter; precedence `config.yaml` < `config.local.yaml`; Pydantic v2 models enforce `extra="forbid"`. **Never import singleton** `from zebtrack import settings`—use constructor injection instead.
-- **Architecture**: MVVM with DI—`MainViewModel` receives all dependencies via constructor (11 parameters including `settings_obj`); `StateManager` tracks observable state; `EventBus` only enabled when `settings_obj.ui_features.enable_event_queue` is true. Composition Root in `__main__.py` wires all services.
+- **Architecture**: MVVM with DI—`MainViewModel` receives all dependencies via `MainViewModelDependencies` dataclass + `DependencyContainer`; `StateManager` tracks observable state; `EventBusV2` (sole event bus; v1 removed) handles all cross-component communication. Composition Root in `core/application_bootstrapper.py` wires all services.
 - **Lifecycle**: `io/video_source.py` feeds frames → `core/services/detector_service.DetectorService` wraps plugin detectors (`plugins/`) and zone scaling → `core/video/processing_worker.ProcessingWorker` handles background analysis → `io/recorder.Recorder` persists Parquet/MP4. All services receive `settings_obj` via constructor. **Threading** (v2.1): All worker threads (LiveCameraService, GUI live analysis) are daemon=True to allow Python shutdown.
 - **UI**: Tk widgets under `zebtrack.ui` never block main thread; schedule updates with `root.after(0, ...)` or via `core/ui_scheduler.UIScheduler`.
 - **Wizard**: `ui/wizard/` drives the 5-step project setup through `core/project_workflow_service.ProjectWorkflowService`; respect 1150×550 layout and keep SKIP/IMPORT/PARTIAL/FULL semantics.
@@ -154,17 +154,17 @@ Keep editor diagnostics consistent and avoid formatter conflicts.
 - **Hardware**: Startup runs `utils/hardware_detection.get_hardware_summary()` and `recommend_backend()`; OpenVINO auto-enabled only if `WeightManager` reports converted XML under `openvino_model_cache/`.
 - **Logging**: Use `structlog` with `domain.action.result` keys, e.g. `logger.info("controller.load_project.success", project=...)`.
 - **Data schema**: Recorder outputs `timestamp, frame, track_id, x1, y1, x2, y2, confidence, uncertainty, bbox_iou` with derived centers/cm appended; confirm schema in `tests/test_recorder.py`. Multi-aquarium adds per-aquarium directories `<video>_aquarium_N/`.
-- **Analysis**: `analysis/analysis_service.py` coordinates ROI metrics (`analysis/behavior.py`) and reporting (`analysis/reporter.py`); aggregated outputs saved under `<video>_results/` prefixed `1_`, `2_`, `3_`. Multi-aquarium: `run_multi_aquarium_analysis()` processes each aquarium separately; `data_transformer.py` includes thigmotaxis metrics.
-- **Multi-Aquarium v2**: Parallel detection via `detect_partitioned_parallel()` with ThreadPoolExecutor (~30-40% speedup); batch inference `detect_batch()` for offline; ROI cropping `_crop_aquarium_region()`; uncertainty/IoU tracking; thigmotaxis metrics; validation with warnings; trajectory gap detection per aquarium; error recovery with fallback. Events: `ZONE_MULTI_AUTO_DETECT_SUCCESS`, `ZONE_MULTI_AUTO_DETECT_FAILED`, `ZONE_AQUARIUM_CONFIG_UPDATED`. Track ID: `aquarium_id * 1000 + local_track_id` (Aquarium 0: 0-999, Aquarium 1: 1000-1999). Export R/Python scripts via `reporter.export_r_script()`, `export_python_script()`. Handlers: `ProcessingCoordinator._handle_multi_auto_detect()`, `ProjectLifecycleCoordinator._handle_aquarium_config_updated()`.
+- **Analysis**: `analysis/analysis_service.py` coordinates ROI metrics (`analysis/behavior.py`) and reporting (`analysis/reporters/` sub-package with 8 files); aggregated outputs saved under `<video>_results/` prefixed `1_`, `2_`, `3_`. Multi-aquarium: `run_multi_aquarium_analysis()` processes each aquarium separately; `data_transformer.py` includes thigmotaxis metrics.
+- **Multi-Aquarium v2**: Parallel detection via `detect_partitioned_parallel()` with ThreadPoolExecutor (~30-40% speedup); batch inference `detect_batch()` for offline; ROI cropping `_crop_aquarium_region()`; uncertainty/IoU tracking; thigmotaxis metrics; validation with warnings; trajectory gap detection per aquarium; error recovery with fallback. Events: `ZONE_MULTI_AUTO_DETECT_SUCCESS`, `ZONE_MULTI_AUTO_DETECT_FAILED`, `ZONE_AQUARIUM_CONFIG_UPDATED`. Track ID: `aquarium_id * 1000 + local_track_id` (Aquarium 0: 0-999, Aquarium 1: 1000-1999). Export R/Python scripts via `reporter.export_r_script()`, `export_python_script()`. Handlers: `MultiAquariumCoordinator._handle_multi_auto_detect()`, `ProjectLifecycleCoordinator._handle_aquarium_config_updated()`.
 - **Diagnostics**: `MainViewModel.run_model_diagnostic` drives `ui/gui.py`’s `DiagnosticProgressDialog`; keep cancel callbacks responsive via `root.after`.
 - **Plugins**: Implement detectors via `plugins/base.py` and register in `plugins/__init__.py`; handle missing `track_id` gracefully for integrations.
-- **Testing** (v2.1 fixes applied): Total ~2678 fast tests (+ ~949 GUI, ~35 slow). `poetry run pytest -q` for fast suite (~2678 tests), `poetry run pytest -m gui -n0` for Tk tests (~949 tests, sequential), `poetry run pytest -m slow` for slow tests (~35 tests), `poetry run pytest -m "" -n0` for all tests (~6-7 min). **CRITICAL**: All worker threads are daemon=True (prevents pytest hangs); pytest-timeout plugin configured (300s per test); pytest_sessionfinish hook forces cleanup. CI coverage gates: 50% Linux core, 32% Linux GUI, 28% Windows core.
+- **Testing** (v2.1 fixes applied): Total ~2778 fast tests (+ ~949 GUI, ~35 slow). `poetry run pytest -q` for fast suite (~2778 tests), `poetry run pytest -m gui -n0` for Tk tests (~949 tests, sequential), `poetry run pytest -m slow` for slow tests (~35 tests), `poetry run pytest -m "" -n0` for all tests (~6-7 min). **CRITICAL**: All worker threads are daemon=True (prevents pytest hangs); pytest-timeout plugin configured (300s per test); pytest_sessionfinish hook forces cleanup. CI coverage gates: 50% Linux core, 32% Linux GUI, 28% Windows core.
 - **Scenario coverage**: Consult fixtures in `tests/fixtures/` and flows in `tests/test_wizard_*.py`, `tests/test_interval_frames_config.py`, `test_scenarios/` for realistic data.
 - **Lint & Format**: `poetry run ruff check .` (line length 100); use `--fix` carefully.
 - **Pre-commit**: `poetry run pre-commit install` then `poetry run pre-commit run --all-files` mirrors CI checks.
 - **Scripts**: Tools like `scripts/build_templates.py` and `scripts/compile_translations.py` refresh shared assets; run before release branches.
 - **Thread safety**: `StateManager` is thread-safe for cross-thread updates; still pass updates through it instead of mutating view state directly.
-- **Dependency Injection**: All services use constructor injection. Add `settings_obj: Settings` parameter to new services; pass it from `__main__.py` Composition Root (lines 140-280). See `docs/architecture/DEPENDENCY_INJECTION_GUIDE.md` for patterns (RuntimeError vs graceful fallback).
+- **Dependency Injection**: All services use constructor injection. Add `settings_obj: Settings` parameter to new services; pass it from `core/application_bootstrapper.py` Composition Root. See `docs/architecture/DEPENDENCY_INJECTION_GUIDE.md` for patterns (RuntimeError vs graceful fallback).
 - **Common pitfalls**: Forgetting to rescale zones, skipping `root.after`, writing new columns mid-Parquet, or importing singleton `from zebtrack import settings`—existing tests catch these. **See `.copilot-impact-map.yaml` Section `pitfalls` for top 8 errors.**
 - **When extending**: Prefer augmenting services/adapters (e.g., `ProjectWorkflowService`, `DetectorService`) over bypassing them to keep UI/state synchronization intact. Inject settings via constructor, never use singleton.
 - **Impact Analysis**: **ALWAYS run `python scripts/impact_analyzer.py` before completing any change.** This tool traces all affected files, events, and DI chains.
@@ -200,7 +200,7 @@ When creating or updating documentation, follow these rules:
 
 **1. Multi-Aquarium Data Flow:**
 
-- **Zone Serialization**: `ProcessingCoordinator` now correctly detects `MultiAquariumZoneData` and serializes it using `ZoneManager.multi_aquarium_zone_data_to_dict`.
+- **Zone Serialization**: `VideoProcessingCoordinator` now correctly detects `MultiAquariumZoneData` and serializes it using `ZoneManager.multi_aquarium_zone_data_to_dict`.
 - **Worker Deserialization**: `ProcessingWorker` deserializes using `ZoneManager.multi_aquarium_zone_data_from_dict`.
 - **Partitioned Processing**: The worker automatically switches to `detector.detect_partitioned_optimized()` and `recorder.write_partitioned_detection_data()` when multi-aquarium data is detected.
 
@@ -214,7 +214,7 @@ When creating or updating documentation, follow these rules:
 - **Zone Selection**: `EventDispatcher` now subscribes to `ZONE_AQUARIUM_SELECTED` and delegates to `CanvasManager.update_zone_listbox()`.
 - **Listbox Update**: `update_zone_listbox` handles `MultiAquariumZoneData` by resolving the *active* aquarium's data before display.
 - **Rendering**: `CanvasRenderer` supports `MultiAquariumZoneData` natively, iterating through all aquariums to draw polygons with distinct labels.
-- **Trajectory Generation**: Added `PROCESSING_GENERATE_TRAJECTORIES` handler in `ProcessingCoordinator` to fix the "no handlers" warning in the Reports tab.
+- **Trajectory Generation**: Added `PROCESSING_GENERATE_TRAJECTORIES` handler in `ReportGenerationCoordinator` to fix the "no handlers" warning in the Reports tab.
 
 **4. Windows Taskbar Icon:**
 
