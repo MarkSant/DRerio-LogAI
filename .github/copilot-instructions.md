@@ -88,7 +88,7 @@ Keep editor diagnostics consistent and avoid formatter conflicts.
 - **Python / Pylance**: Use the Poetry venv interpreter; keep terminal and editor aligned.
 - **Ruff**: Use Ruff as the only Python formatter/linter; enable on-save fixes.
 - **Mypy (Matan Gover) + Mypy Type Checker (Microsoft)**: Keep both aligned to the same config; if diagnostics duplicate, disable one in workspace or limit one to on-demand runs. Use “Mypy: Restart Daemon and Recheck Workspace” when stale.
-- **Python Debugger / Python Environments**: Debug and manage envs using the same Poetry interpreter.
+- **Python Debugger**: Debug and manage envs using the same Poetry interpreter.
 - **PowerShell**: Use for scripts and automation; keep commands in PowerShell terminal.
 - **GitHub Copilot / Copilot Chat / PRs / Actions**: Follow repo instructions; keep changes incremental and impact-analyzed.
 - **Git History**: Use for file history and blame; keep diffs small and focused.

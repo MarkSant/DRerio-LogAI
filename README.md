@@ -205,7 +205,7 @@ Para consistência no ambiente local, siga estas boas práticas com as extensõe
 - **Python / Pylance**: use o interpretador do Poetry (venv) no editor e no terminal.
 - **Ruff**: use como **único** formatter/linter Python; evite Black/Pylint/Flake8 no VS Code.
 - **Mypy (Matan Gover) + Mypy Type Checker (Microsoft)**: mantenha a mesma configuração (`mypy.ini`/`pyproject`); se houver diagnósticos duplicados, desative um deles no workspace ou deixe um apenas “on-demand”.
-- **Python Debugger / Python Environments**: depure e gerencie ambientes usando o mesmo interpretador do Poetry.
+- **Python Debugger**: depure e gerencie ambientes usando o mesmo interpretador do Poetry.
 - **PowerShell**: use para scripts e automação; mantenha comandos no terminal PowerShell.
 - **GitHub Copilot / Chat / PRs / Actions**: faça mudanças incrementais e sempre com impacto analisado.
 - **Git History**: use para histórico/blame; diffs pequenos e objetivos.

@@ -153,7 +153,7 @@ Use these conventions to get consistent diagnostics and avoid tool conflicts.
 - **Ruff (Astral Software)**: Use Ruff as the **only** Python formatter and linter; enable on-save fixes.
 - **Mypy (Matan Gover)**: Prefer daemon checks; align with `mypy.ini`/`pyproject.toml`; use “Mypy: Restart Daemon and Recheck Workspace” if stale.
 - **Mypy Type Checker (Microsoft)**: Keep aligned with the same config; if diagnostics duplicate, disable one in workspace or limit one to on-demand runs.
-- **Python Debugger / Python Environments**: Debug with the same Poetry interpreter; do not mix interpreters across tasks.
+- **Python Debugger**: Debug with the same Poetry interpreter; do not mix interpreters across tasks.
 - **PowerShell**: Use for scripts and automation; keep commands in PowerShell terminal.
 
 ### Git & Collaboration
