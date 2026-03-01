@@ -51,6 +51,11 @@ def mock_gui(tkinter_root, mock_controller):
     gui.show_error = Mock()
     gui.show_warning = Mock()
     gui.ask_ok_cancel = Mock(return_value=False)
+    gui.dialog_manager = Mock()
+    gui.dialog_manager.ask_ok_cancel = Mock(return_value=False)
+    gui.dialog_manager.show_info = Mock()
+    gui.dialog_manager.show_error = Mock()
+    gui.dialog_manager.show_warning = Mock()
     gui.notebook = Mock()
     gui.zone_tab_frame = Mock()
     gui._overview_video_index = {}
@@ -316,17 +321,19 @@ class TestPrepareOverviewHierarchyForWidget:
 class TestCheckLiveProjectCalibration:
     """Tests for check_live_project_calibration method."""
 
-    def test_check_live_project_calibration_not_live(self, validation_manager, mock_controller):
+    def test_check_live_project_calibration_not_live(
+        self, validation_manager, mock_controller, mock_gui
+    ):
         """Test that method returns early for non-live projects."""
         mock_controller.project_manager.get_project_type.return_value = "pre-recorded"
 
         validation_manager.check_live_project_calibration()
 
         # Should not prompt user
-        validation_manager.gui.ask_ok_cancel.assert_not_called()
+        mock_gui.dialog_manager.ask_ok_cancel.assert_not_called()
 
     def test_check_live_project_calibration_has_arena(
-        self, validation_manager, mock_controller, mock_zone_data
+        self, validation_manager, mock_controller, mock_zone_data, mock_gui
     ):
         """Test that method returns early when arena exists."""
         mock_controller.project_manager.get_project_type.return_value = "live"
@@ -335,7 +342,7 @@ class TestCheckLiveProjectCalibration:
         validation_manager.check_live_project_calibration()
 
         # Should not prompt user
-        validation_manager.gui.ask_ok_cancel.assert_not_called()
+        mock_gui.dialog_manager.ask_ok_cancel.assert_not_called()
 
     def test_check_live_project_calibration_no_arena_declined(
         self, validation_manager, mock_controller, mock_gui
@@ -343,12 +350,12 @@ class TestCheckLiveProjectCalibration:
         """Test user declining auto-calibration."""
         mock_controller.project_manager.get_project_type.return_value = "live"
         mock_controller.project_manager.get_zone_data.return_value = ZoneData()
-        mock_gui.ask_ok_cancel.return_value = False
+        mock_gui.dialog_manager.ask_ok_cancel.return_value = False
 
         validation_manager.check_live_project_calibration()
 
         # Should prompt user
-        mock_gui.ask_ok_cancel.assert_called_once()
+        mock_gui.dialog_manager.ask_ok_cancel.assert_called_once()
         # Should not switch tabs
         mock_gui.notebook.select.assert_not_called()
 
@@ -358,12 +365,12 @@ class TestCheckLiveProjectCalibration:
         """Test user accepting auto-calibration."""
         mock_controller.project_manager.get_project_type.return_value = "live"
         mock_controller.project_manager.get_zone_data.return_value = ZoneData()
-        mock_gui.ask_ok_cancel.return_value = True
+        mock_gui.dialog_manager.ask_ok_cancel.return_value = True
 
         validation_manager.check_live_project_calibration()
 
         # Should prompt user
-        mock_gui.ask_ok_cancel.assert_called_once()
+        mock_gui.dialog_manager.ask_ok_cancel.assert_called_once()
         # Should switch to zone tab
         mock_gui.notebook.select.assert_called_once_with(mock_gui.zone_tab_frame)
         # Should show info message
@@ -514,7 +521,7 @@ class TestGetZoneDataForActiveContext:
         """Test exception handling."""
         mock_controller.project_manager.get_active_zone_video.return_value = "/path/to/video.mp4"
         mock_controller.project_manager.get_zone_data.side_effect = [
-            Exception("Test error"),
+            OSError("Test error"),
             mock_zone_data,
         ]
 

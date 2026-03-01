@@ -21,6 +21,7 @@ def mock_app(tkinter_root):
     app.event_bus_v2 = MagicMock()
     app.project_manager = MagicMock()
     app.menu_manager = MagicMock()
+    app.canvas_manager = MagicMock()
     app._subscribe_zone_component_events = MagicMock()
     app._on_canvas_configure = MagicMock()
 
@@ -113,6 +114,6 @@ def test_build_zone_tab_sets_up_components(mock_app):
         builder.build_zone_tab()
 
     mock_app.menu_manager.create_roi_context_menu.assert_called_once()
-    mock_app._subscribe_zone_component_events.assert_called_once()
+    mock_app.event_dispatcher.subscribe_zone_component_events.assert_called_once()
     assert mock_app.zone_controls is mock_zone_instance
     assert mock_app.video_display is mock_video_instance
