@@ -18,8 +18,8 @@ files:
   main_entry: "src/zebtrack/__main__.py"
   main_viewmodel: "src/zebtrack/ui/gui.py"
   settings: "src/zebtrack/settings.py"
-  detector_service: "src/zebtrack/core/services/detector_service.py"
-  project_manager: "src/zebtrack/core/project/project_manager.py"
+  detector_service: "N/A"
+  project_manager: "N/A"
   state_manager: "src/zebtrack/core/state_manager.py"
   recorder: "src/zebtrack/io/recorder.py"
 
