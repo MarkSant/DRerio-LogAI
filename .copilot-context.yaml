@@ -103,57 +103,23 @@ critical_docs:
 # === FILE STATS ===
 # Auto-discovered classes and entry points
 discovered_classes:
-  {
-    "composition_root": {
-      "path": "src/zebtrack/__main__.py",
-      "classes": [],
-      "key_methods": []
-    },
-    "main_viewmodel": {
-      "path": "src/zebtrack/ui/gui.py",
-      "classes": [
-        "ApplicationGUI"
-      ],
-      "key_methods": [
-        "__init__",
-        "_post_init",
-        "_extract_setting",
-        "_initialize_theme",
-        "_open_global_calibration_window"
-      ]
-    },
-    "settings": {
-      "path": "src/zebtrack/settings.py",
-      "classes": [
-        "CameraSettings",
-        "LiveAnalysisSettings",
-        "ArduinoSettings"
-      ],
-      "key_methods": []
-    },
-    "state_manager": {
-      "path": "src/zebtrack/core/state_manager.py",
-      "classes": [
-        "StateCategory",
-        "ProjectState",
-        "StateChange"
-      ],
-      "key_methods": [
-        "copy",
-        "copy"
-      ]
-    },
-    "recorder": {
-      "path": "src/zebtrack/io/recorder.py",
-      "classes": [
-        "Recorder"
-      ],
-      "key_methods": [
-        "__init__",
-        "pixel_per_cm_ratio",
-        "pixel_per_cm_ratio",
-        "calibration",
-        "calibration"
-      ]
-    }
-  }
+  composition_root:
+    path: "src/zebtrack/__main__.py"
+    classes: []
+    key_methods: []
+  main_viewmodel:
+    path: "src/zebtrack/ui/gui.py"
+    classes: ["ApplicationGUI"]
+    key_methods: ["__init__", "_post_init", "_extract_setting", "_initialize_theme", "_open_global_calibration_window"]
+  settings:
+    path: "src/zebtrack/settings.py"
+    classes: ["CameraSettings", "LiveAnalysisSettings", "ArduinoSettings"]
+    key_methods: []
+  state_manager:
+    path: "src/zebtrack/core/state_manager.py"
+    classes: ["StateCategory", "ProjectState", "StateChange"]
+    key_methods: ["copy", "copy"]
+  recorder:
+    path: "src/zebtrack/io/recorder.py"
+    classes: ["Recorder"]
+    key_methods: ["__init__", "pixel_per_cm_ratio", "pixel_per_cm_ratio", "calibration", "calibration"]
