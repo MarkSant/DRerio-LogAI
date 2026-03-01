@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, Any
 
 import structlog
 
-from zebtrack.ui.events import Events
+from zebtrack.ui.event_bus_v2 import Event, UIEvents
 
 if TYPE_CHECKING:
     from zebtrack.core.application_bootstrapper import BootstrapResult
@@ -26,10 +26,10 @@ class AnalysisControlViewModel:
         bootstrap_result: BootstrapResult,
         event_bus: Any,
     ) -> None:
-        self.video_processing_orchestrator = bootstrap_result.video_processing_orchestrator
         self.video_processing_service = dependencies.video_processing_service
         self.processing_coordinator = dependencies.processing_coordinator
-        self.session_coordinator = dependencies.session_coordinator
+        # Phase 4.7: Use live_camera_session_coordinator instead of session_coordinator
+        self.live_camera_session_coordinator = dependencies.live_camera_session_coordinator
         # Phase 3A: analysis_orchestrator removed (no production calls)
         self.analysis_service = bootstrap_result.analysis_service
         self.state_manager = dependencies.state_manager
@@ -50,11 +50,13 @@ class AnalysisControlViewModel:
         return self.state_manager.get_processing_state().is_processing
 
     def start_project_processing_workflow(self) -> None:
-        # TODO Phase 3.4: Migrate to ProcessingCoordinator after extracting dialog logic
-        # This method involves complex UI interaction (file picker, zone dialogs)
-        # that needs to be factored out before migration
-        if self.video_processing_orchestrator:
-            self.video_processing_orchestrator.start_project_processing_workflow()
+        """Start the project-level processing workflow.
+
+        Delegates to ProcessingCoordinator which handles file selection,
+        zone validation, and batch video processing.
+        """
+        if self.processing_coordinator:
+            self.processing_coordinator.start_project_processing_workflow()
 
     def start_single_video_workflow(
         self, video_path: str | Path, config: dict[str, Any], detector_vm: Any | None = None
@@ -73,16 +75,18 @@ class AnalysisControlViewModel:
 
         if animal_method == "det" and animals_per_aquarium > 1:
             if self.ui_event_bus:
-                self.ui_event_bus.publish_event(
-                    Events.UI_SHOW_ERROR,
-                    {
-                        "title": "Configuração Inválida",
-                        "message": (
-                            f"O modo de detecção (det) suporta apenas 1 animal por aquário.\n"
-                            f"Você configurou {animals_per_aquarium} animais por aquário.\n"
-                            "Para múltiplos animais, use o modo de segmentação (seg)."
-                        ),
-                    },
+                self.ui_event_bus.publish(
+                    Event(
+                        type=UIEvents.SHOW_ERROR,
+                        data={
+                            "title": "Configuração Inválida",
+                            "message": (
+                                f"O modo de detecção (det) suporta apenas 1 animal por aquário.\n"
+                                f"Você configurou {animals_per_aquarium} animais por aquário.\n"
+                                "Para múltiplos animais, use o modo de segmentação (seg)."
+                            ),
+                        },
+                    )
                 )
             return
 
@@ -97,9 +101,11 @@ class AnalysisControlViewModel:
                 if not detector_vm.setup_detector(temp_animal_method):
                     return
 
-        self.ui_event_bus.publish_event(
-            "ui:setup_zone_definition_for_single_video",
-            {"video_path": video_path, "config": config},
+        self.ui_event_bus.publish(
+            Event(
+                type=UIEvents.SETUP_ZONE_DEFINITION_FOR_SINGLE_VIDEO,
+                data={"video_path": video_path, "config": config},
+            )
         )
 
     def start_single_video_processing(self, **kwargs: Any) -> None:
@@ -110,7 +116,7 @@ class AnalysisControlViewModel:
             self.processing_coordinator.start_single_video_processing(
                 video_path=str(video_path_arg) if video_path_arg else "",
                 config=kwargs.get("config", {}),
-                zone_data=zone_data_arg if zone_data_arg else None,  # type: ignore
+                zone_data=zone_data_arg if zone_data_arg else None,  # type: ignore[arg-type]  # zone_data_arg is Any from kwargs
             )
 
     def cancel_current_analysis(self) -> None:
@@ -132,9 +138,9 @@ class AnalysisControlViewModel:
 
         # Check if there's an active live camera session
         live_session_active = bool(
-            self.session_coordinator
-            and self.session_coordinator.live_camera_service
-            and self.session_coordinator.live_camera_service.camera is not None
+            self.live_camera_session_coordinator
+            and self.live_camera_session_coordinator.live_camera_service
+            and self.live_camera_session_coordinator.live_camera_service.camera is not None
         )
 
         # If nothing is running, early return
@@ -153,15 +159,16 @@ class AnalysisControlViewModel:
             log.info(
                 "cancel_current_analysis.stopping_live_session",
                 has_camera=(
-                    self.session_coordinator.live_camera_service.camera is not None
-                    if self.session_coordinator
+                    self.live_camera_session_coordinator.live_camera_service.camera is not None
+                    if self.live_camera_session_coordinator
                     else False
                 ),
             )
             try:
-                if self.session_coordinator:
-                    self.session_coordinator.live_camera_service.stop_session()
+                if self.live_camera_session_coordinator:
+                    self.live_camera_session_coordinator.live_camera_service.stop_session()
                 log.info("cancel_current_analysis.live_session_stopped")
+            # except Exception justified: live camera stop — hardware + thread cleanup boundary
             except Exception as e:
                 log.error("cancel_current_analysis.live_session_stop_error", error=str(e))
 
@@ -188,8 +195,11 @@ class AnalysisControlViewModel:
         )
 
         if self.ui_event_bus:
-            self.ui_event_bus.publish_event(
-                Events.UI_SET_STATUS, {"message": "Cancelando análise em andamento..."}
+            self.ui_event_bus.publish(
+                Event(
+                    type=UIEvents.SET_STATUS,
+                    data={"message": "Cancelando análise em andamento..."},
+                )
             )
 
         if self.ui_state_controller:
@@ -241,7 +251,7 @@ class AnalysisControlViewModel:
                 "video_path": kwargs.get("video_path"),
                 "stabilization_frames": kwargs.get("stabilization_frames", 10),
             }
-            self.ui_event_bus.publish_event(Events.ZONE_AUTO_DETECT, payload)
+            self.ui_event_bus.publish(Event(type=UIEvents.ZONE_AUTO_DETECT, data=payload))
 
     def generate_parquet_summaries(self, video_paths: list[str]) -> None:
         """Generate summaries (Word/Excel) for the given video paths."""
@@ -254,7 +264,12 @@ class AnalysisControlViewModel:
         """Implementation of summary generation running in a separate thread."""
         import os
 
-        from zebtrack.analysis.reporter import Reporter
+        from zebtrack.analysis.reporters import (
+            ExcelReporter,
+            ParquetSummaryReporter,
+            ReporterContext,
+            WordReporter,
+        )
 
         if not self.ui_event_bus:
             return
@@ -262,8 +277,11 @@ class AnalysisControlViewModel:
         total = len(video_paths)
         for i, video_path in enumerate(video_paths):
             try:
-                self.ui_event_bus.publish_event(
-                    Events.UI_SET_STATUS, {"message": f"Gerando relatório {i + 1}/{total}..."}
+                self.ui_event_bus.publish(
+                    Event(
+                        type=UIEvents.SET_STATUS,
+                        data={"message": f"Gerando relatório {i + 1}/{total}..."},
+                    )
                 )
 
                 # Check directly in PM to ensure we have valid entry
@@ -331,7 +349,7 @@ class AnalysisControlViewModel:
                             ROI(name=name, geometry=Polygon(poly), coordinate_space="px")
                         )
                         roi_colors_dict[name] = color_rgb
-                    except Exception as e:
+                    except (ValueError, TypeError) as e:
                         log.warning(f"Skipping invalid ROI {name}: {e}")
 
                 # Retrieve analysis profile params
@@ -418,7 +436,7 @@ class AnalysisControlViewModel:
                 )
 
                 # Generate Reports
-                reporter = Reporter.from_analysis(analysis_result)
+                ctx = ReporterContext.from_analysis(analysis_result)
 
                 # sanitize helper
                 def _san(s):
@@ -439,15 +457,15 @@ class AnalysisControlViewModel:
 
                 # Excel Summary
                 excel_path = os.path.join(results_dir, excel_filename)
-                reporter.export_summary_data(excel_path, format="excel")
+                ExcelReporter(ctx).export_summary(excel_path)
 
                 # Parquet Summary (needed for unified project reports)
                 parquet_summary_path = os.path.join(results_dir, parquet_summary_filename)
-                reporter.export_summary_data(parquet_summary_path, format="parquet")
+                ParquetSummaryReporter(ctx).export_summary(parquet_summary_path)
 
                 # Word Report
                 docx_path = os.path.join(results_dir, docx_filename)
-                reporter.export_individual_report(docx_path)
+                WordReporter(ctx).export_individual_report(docx_path)
 
                 # Register outputs with ProjectManager to keep state consistent
                 # This ensures the 'summary' and 'trajectory' flags are set in the project data
@@ -467,19 +485,22 @@ class AnalysisControlViewModel:
                     summary_parquet=parquet_summary_path,
                 )
 
+            # except Exception justified: multi-step analysis pipeline — data + reporting subsystem
             except Exception as e:
                 log.error(
                     "generate_summaries.failed", video=video_path, error=str(e), exc_info=True
                 )
 
-        self.ui_event_bus.publish_event(
-            Events.UI_SET_STATUS, {"message": "Geração de relatórios concluída."}
+        self.ui_event_bus.publish(
+            Event(type=UIEvents.SET_STATUS, data={"message": "Geração de relatórios concluída."})
         )
 
         # Refresh tree to show new artifacts
-        self.ui_event_bus.publish_event(
-            Events.UI_REFRESH_PROJECT_VIEWS,
-            {"reason": "reports_generated", "append_summary": True, "immediate": False},
+        self.ui_event_bus.publish(
+            Event(
+                type=UIEvents.UI_REFRESH_PROJECT_VIEWS,
+                data={"reason": "reports_generated", "append_summary": True, "immediate": False},
+            )
         )
 
     def _process_single_video(self, detector: Any, **kwargs: Any) -> Any:

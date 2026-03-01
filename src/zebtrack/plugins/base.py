@@ -16,12 +16,13 @@ class DetectorPlugin(ABC):
     nms_threshold: float = 0.45
 
     @abstractmethod
-    def __init__(self, model_path: Path | str):
+    def __init__(self, model_path: Path | str, **kwargs):
         """
         Initializes the plugin and loads the specified model.
 
         Args:
             model_path: The path to the model file or directory.
+            **kwargs: Additional keyword arguments (e.g., settings_obj, expected_hash).
         """
         pass
 
@@ -60,3 +61,22 @@ class DetectorPlugin(ABC):
         Returns the expected input shape (height, width) of the model.
         """
         pass
+
+    def detect_batch(
+        self,
+        frames: list[np.ndarray],
+        conf_threshold: float | None = None,
+    ) -> list[list[tuple[int, int, int, int, float, int | None, int]]]:
+        """Process multiple frames in a single call (batch inference).
+
+        The default implementation falls back to sequential ``detect()`` calls.
+        Plugins that support native batch inference should override this.
+
+        Args:
+            frames: List of BGR frames.
+            conf_threshold: Optional confidence threshold override.
+
+        Returns:
+            List of detection lists, one per input frame.
+        """
+        return [self.detect(frame, conf_threshold=conf_threshold) for frame in frames]

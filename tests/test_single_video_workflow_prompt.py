@@ -25,14 +25,14 @@ class TestCanvasManagerPromptLogic:
         # Explicit setting is 1
         canvas_manager.gui.controller.settings.analysis_config.num_aquariums = 1
 
-        # Mock the prompt method
-        canvas_manager._prompt_add_second_aquarium = MagicMock()
+        # Mock the prompt method on the sub-component (where the real call happens)
+        canvas_manager.multi_aquarium._prompt_add_second_aquarium = MagicMock()
 
         # Execute
         canvas_manager._check_prompt_second_aquarium()
 
         # Verify prompt was NOT called
-        canvas_manager._prompt_add_second_aquarium.assert_not_called()
+        canvas_manager.multi_aquarium._prompt_add_second_aquarium.assert_not_called()
 
     def test_prompt_shown_when_setting_is_unknown_or_greater(self, canvas_manager):
         """Test that prompt is shown if settings imply more aquariums or default."""
@@ -52,14 +52,14 @@ class TestCanvasManagerPromptLogic:
 
         canvas_manager.gui.controller.settings.analysis_config.num_aquariums = 2
 
-        # Mock the prompt method
-        canvas_manager._prompt_add_second_aquarium = MagicMock()
+        # Mock the prompt method on the sub-component (where the real call happens)
+        canvas_manager.multi_aquarium._prompt_add_second_aquarium = MagicMock()
 
         # Execute
         canvas_manager._check_prompt_second_aquarium()
 
         # Verify prompt WAS called
-        canvas_manager._prompt_add_second_aquarium.assert_called_once()
+        canvas_manager.multi_aquarium._prompt_add_second_aquarium.assert_called_once()
 
     def test_auto_advance_logic_in_save_arena(self, canvas_manager):
         """Test auto-advance logic in save_arena (mocking the context)."""

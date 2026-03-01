@@ -6,12 +6,12 @@ import pytest
 from PIL import Image
 
 from zebtrack.ui.components.video_display import VideoDisplayWidget
+from zebtrack.ui.event_bus_v2 import Event, UIEvents
 
 
 @pytest.fixture
 def event_bus():
     bus = Mock()
-    bus.publish_event = Mock()
     bus.subscribe = Mock()
     return bus
 
@@ -73,9 +73,11 @@ def test_load_frame_missing_path_emits_error(widget, event_bus, monkeypatch):
 
     assert widget.load_frame("missing.mp4") is False
 
-    event_bus.publish_event.assert_called_once_with(
-        event_name="frame.error",
-        data={"reason": "video_not_found", "path": "missing.mp4"},
+    event_bus.publish.assert_called_once_with(
+        Event(
+            type=UIEvents.FRAME_ERROR,
+            data={"reason": "video_not_found", "path": "missing.mp4"},
+        )
     )
 
 

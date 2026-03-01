@@ -6,14 +6,14 @@ from tkinter import ttk
 import pytest
 
 from zebtrack.ui.components.zone_controls import ZoneControlsWidget
-from zebtrack.ui.event_bus import EventBus
+from zebtrack.ui.event_bus_v2 import EventBusV2
 
 
 @pytest.mark.gui
 def test_zone_controls_has_fixed_button_frame(tkinter_root):
     """Verify ZoneControlsWidget exposes a fixed_button_frame."""
     root = tkinter_root
-    event_bus = EventBus()
+    event_bus = EventBusV2()
     container = ttk.Frame(root)
     container.pack()
     widget = ZoneControlsWidget(container, event_bus=event_bus)

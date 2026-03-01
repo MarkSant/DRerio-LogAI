@@ -15,7 +15,7 @@ from typing import Any, ClassVar
 
 
 class PendingVideosDialog(simpledialog.Dialog):
-    """Dialog para revisar vídeos pendentes em formato hierárquico."""
+    """Dialog to review pending videos in hierarchical format."""
 
     TAG_STYLES: ClassVar[dict[str, dict[str, str]]] = {
         "ready_full": {"background": "#d4edda", "foreground": "#1e4620"},

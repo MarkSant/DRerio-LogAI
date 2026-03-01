@@ -5,19 +5,24 @@ Handles field validation, form validation, requirement checks, pre-conditions,
 data preparation, and formatting helpers.
 """
 
+from __future__ import annotations
+
 import copy
 import os
 import re
 from collections import Counter
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import structlog
 import yaml
 from pydantic import ValidationError
 
-from zebtrack.core.detector import ZoneData
+from zebtrack.core.detection import ZoneData
 from zebtrack.settings import Settings
+
+if TYPE_CHECKING:
+    from zebtrack.ui.components.dialog_manager import DialogManager
 
 log = structlog.get_logger()
 
@@ -41,15 +46,28 @@ PROJECT_STATUS_META: dict[str, tuple[str, str]] = {
 class ValidationManager:
     """Manages validation logic for ApplicationGUI."""
 
-    def __init__(self, gui, settings_obj: Settings | None = None):
+    def __init__(
+        self,
+        gui,
+        settings_obj: Settings | None = None,
+        *,
+        dialog_manager: DialogManager | None = None,
+    ):
         """Initialize ValidationManager.
 
         Args:
             gui: Reference to ApplicationGUI instance
             settings_obj: Settings instance for dependency injection
+            dialog_manager: Optional DialogManager for dependency injection.
         """
         self.gui = gui
         self._settings = settings_obj
+        self._dialog_manager = dialog_manager
+
+    @property
+    def dialog_manager(self) -> DialogManager:
+        """Return injected DialogManager or fall back to gui.dialog_manager."""
+        return self._dialog_manager or self.gui.dialog_manager
 
     # ========================================================================
     # Main Validation and Preparation Methods
@@ -110,14 +128,16 @@ class ValidationManager:
                 raise ValueError("Polyorder deve ser pelo menos 1.")
 
         except ValueError as exc:
-            self.gui.show_error("Erro de Validação", str(exc))
+            self.dialog_manager.show_error("Erro de Validação", str(exc))
             return
 
         update_payload: dict[str, Any] = values
 
         # Use injected settings object
         if self._settings is None:
-            self.gui.show_error("Erro", "Settings não disponível. Não foi possível salvar.")
+            self.dialog_manager.show_error(
+                "Erro", "Settings não disponível. Não foi possível salvar."
+            )
             return
 
         merged = self._deep_merge_dicts(self._settings.model_dump(), update_payload)
@@ -125,7 +145,7 @@ class ValidationManager:
         try:
             validated = Settings.model_validate(merged)
         except ValidationError as exc:
-            self.gui.show_error("Erro de Validação", str(exc))
+            self.dialog_manager.show_error("Erro de Validação", str(exc))
             return
 
         override_path = Path("config.local.yaml")
@@ -144,8 +164,10 @@ class ValidationManager:
                     sort_keys=False,
                     allow_unicode=True,
                 )
-        except Exception as exc:
-            self.gui.show_error("Erro", f"Não foi possível salvar config.local.yaml: {exc}")
+        except (OSError, yaml.YAMLError) as exc:
+            self.dialog_manager.show_error(
+                "Erro", f"Não foi possível salvar config.local.yaml: {exc}"
+            )
             return
 
         # Update injected settings object with validated values
@@ -157,7 +179,7 @@ class ValidationManager:
             )
 
         self.gui._reload_config_editor_values_widget()
-        self.gui.show_info(
+        self.dialog_manager.show_info(
             "Configurações salvas",
             "Alterações registradas em config.local.yaml e aplicadas ao aplicativo.",
         )
@@ -322,7 +344,7 @@ class ValidationManager:
         if not zone_data or not zone_data.polygon:
             log.info("ui.live_calibration.auto_prompt")
 
-            response = self.gui.ask_ok_cancel(
+            response = self.dialog_manager.ask_ok_cancel(
                 "Calibração Automática",
                 "Nenhuma arena principal foi definida para este projeto ao vivo.\n\n"
                 "Deseja configurar a calibração automaticamente agora?\n\n"
@@ -338,7 +360,7 @@ class ValidationManager:
                     self.gui.notebook.select(self.gui.zone_tab_frame)
 
                 # Show guidance message
-                self.gui.show_info(
+                self.dialog_manager.show_info(
                     "Configuração de Arena Principal",
                     "Configure a arena principal usando:\n\n"
                     "1. 'Detectar Aquário (Auto)' - Para detecção automática\n"
@@ -383,7 +405,7 @@ class ValidationManager:
             if stabilization_frames <= 0:
                 raise ValueError
         except (TypeError, ValueError):
-            self.gui.show_error(
+            self.dialog_manager.show_error(
                 "Erro",
                 (
                     "Os intervalos devem ser números inteiros positivos "
@@ -446,7 +468,8 @@ class ValidationManager:
                     video_path=active_video,
                     fallback_to_global=is_live_project,  # v2.3.1: Fallback for Live projects
                 )
-            except Exception:
+            except (OSError, ValueError, KeyError):
+                log.warning("validation.get_zone_data.fallback", video=str(active_video))
                 zone_data = ZoneData()
 
             if zone_data and (zone_data.polygon or zone_data.roi_polygons):
@@ -953,7 +976,7 @@ class ValidationManager:
                 day_num = int(match.group(1))
                 return f"Dia_{day_num}"
             except ValueError:
-                pass
+                log.debug("validation.format_day.parse_error", value=value_str, exc_info=True)
 
         # Fallback: use original value
         return f"Dia_{value_str}"
@@ -1278,7 +1301,7 @@ class ValidationManager:
                 if self.gui.controller.project_manager.project_path:
                     self.gui.controller.project_manager._save_settings_snapshot()
 
-                self.gui.show_info(
+                self.dialog_manager.show_info(
                     "Sucesso",
                     f"Configurações de ROI aplicadas:\n"
                     f"Regra: {self.gui.controller.settings.roi_inclusion_rule}\n"
@@ -1287,14 +1310,14 @@ class ValidationManager:
                     f"{self.gui.controller.settings.roi_min_bbox_overlap_ratio}",
                 )
             else:
-                self.gui.show_warning(
+                self.dialog_manager.show_warning(
                     "Aviso", "Settings não disponível. Configurações não foram salvas."
                 )
 
         except ValueError as e:
-            self.gui.show_error("Erro de Validação", str(e))
-        except Exception as e:
-            self.gui.show_error("Erro", f"Erro ao aplicar configurações: {e!s}")
+            self.dialog_manager.show_error("Erro de Validação", str(e))
+        except Exception as e:  # except Exception justified: multi-step settings apply pipeline
+            self.dialog_manager.show_error("Erro", f"Erro ao aplicar configurações: {e!s}")
 
     def resolve_subject_display(self, metadata: dict) -> str:
         """Resolve subject display name from various metadata fields."""

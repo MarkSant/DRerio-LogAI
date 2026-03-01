@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
-from zebtrack.core.video_processing_service import VideoContext, VideoProcessingService
-from zebtrack.ui.events import Events
+from zebtrack.core.video.video_processing_service import VideoContext, VideoProcessingService
+from zebtrack.ui.event_bus_v2 import Event, UIEvents
 
 
 def _make_service():
@@ -141,7 +141,10 @@ def test_ensure_arena_polygon_from_video_path(monkeypatch):
     cap.isOpened.return_value = True
     cap.get.side_effect = [640, 480]
 
-    monkeypatch.setattr("zebtrack.core.video_processing_service.cv2.VideoCapture", lambda _: cap)
+    monkeypatch.setattr(
+        "zebtrack.core.video.video_processing_service.cv2.VideoCapture",
+        lambda _: cap,
+    )
 
     polygon = service.ensure_arena_polygon(None, video_path="video.mp4")
 
@@ -158,9 +161,11 @@ def test_load_trajectory_dataframe_missing_file(tmp_path):
     assert result is None
     if service.ui_event_bus.publish.called:
         service.ui_event_bus.publish.assert_called_once()
+        event = service.ui_event_bus.publish.call_args[0][0]
+        assert event.type == UIEvents.SHOW_ERROR
     else:
         service.ui_event_bus.publish_event.assert_called_once()
-        assert service.ui_event_bus.publish_event.call_args[0][0] == Events.UI_SHOW_ERROR
+        assert service.ui_event_bus.publish_event.call_args[0][0] == UIEvents.SHOW_ERROR
 
 
 def test_build_metadata_context_skips_single_video_config():
@@ -209,8 +214,8 @@ def test_schedule_analysis_metadata_update_publishes():
 
     service._schedule_analysis_metadata_update({"group": "G1"})
 
-    service.ui_event_bus.publish_event.assert_called_once_with(
-        Events.UI_UPDATE_ANALYSIS_METADATA, {"metadata": {"group": "G1"}}
+    service.ui_event_bus.publish.assert_called_once_with(
+        Event(type=UIEvents.UI_UPDATE_ANALYSIS_METADATA, data={"metadata": {"group": "G1"}})
     )
 
 
@@ -219,9 +224,11 @@ def test_notify_task_status_start_publishes():
 
     service._notify_task_status_start(index=1, total=5, experiment_id="exp1")
 
-    service.ui_event_bus.publish_event.assert_called_once_with(
-        Events.UI_UPDATE_ANALYSIS_TASK_STATUS,
-        {"payload": {"index": 1, "total": 5, "experiment_id": "exp1"}},
+    service.ui_event_bus.publish.assert_called_once_with(
+        Event(
+            type=UIEvents.UI_UPDATE_ANALYSIS_TASK_STATUS,
+            data={"payload": {"index": 1, "total": 5, "experiment_id": "exp1"}},
+        )
     )
 
 
@@ -231,16 +238,18 @@ def test_make_progress_callback_publishes_status():
     callback = service._make_progress_callback(index=0, total_videos=2, experiment_id="exp1")
     callback(0.5, "Processing", None, None, None)
 
-    service.ui_event_bus.publish_event.assert_called_once_with(
-        Events.UI_UPDATE_ANALYSIS_TASK_STATUS,
-        {
-            "payload": {
-                "index": 0,
-                "total": 2,
-                "experiment_id": "exp1",
-                "step": "Processing",
-            }
-        },
+    service.ui_event_bus.publish.assert_called_once_with(
+        Event(
+            type=UIEvents.UI_UPDATE_ANALYSIS_TASK_STATUS,
+            data={
+                "payload": {
+                    "index": 0,
+                    "total": 2,
+                    "experiment_id": "exp1",
+                    "step": "Processing",
+                }
+            },
+        )
     )
 
 
@@ -295,7 +304,7 @@ def test_prepare_results_directory_archives_existing(tmp_path):
     results_dir.mkdir()
     (results_dir / "old.txt").write_text("old")
 
-    with patch("zebtrack.core.video_processing_service.datetime") as dt_mock:
+    with patch("zebtrack.core.video.video_context_factory.datetime") as dt_mock:
         dt_mock.now.return_value.strftime.return_value = "20240101-120000"
         service._prepare_results_directory(str(results_dir))
 

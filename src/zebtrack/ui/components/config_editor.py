@@ -14,7 +14,7 @@ import structlog
 
 from zebtrack.ui.components.base import BaseWidget
 from zebtrack.ui.components.behavioral_config_widget import BehavioralConfigWidget
-from zebtrack.ui.event_bus import EventBus
+from zebtrack.ui.event_bus_v2 import EventBusV2
 from zebtrack.ui.wizard.tooltip import create_help_label
 
 log = structlog.get_logger()
@@ -38,7 +38,7 @@ class ConfigEditorWidget(BaseWidget):
     - config.roi_rule_changed: ROI rule selection changed
     """
 
-    def __init__(self, parent, event_bus: EventBus | None = None, **kwargs):
+    def __init__(self, parent, event_bus: EventBusV2 | None = None, **kwargs):
         """
         Initialize configuration editor widget.
 

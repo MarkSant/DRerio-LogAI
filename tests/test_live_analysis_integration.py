@@ -15,8 +15,8 @@ from unittest.mock import MagicMock, Mock, patch
 import numpy as np
 import pytest
 
-from zebtrack.core.live_camera_service import LiveCameraService
-from zebtrack.ui.events import Events
+from zebtrack.core.recording.live_camera_service import LiveCameraService
+from zebtrack.ui.event_bus_v2 import Event, UIEvents
 
 
 @pytest.fixture
@@ -25,10 +25,10 @@ def mock_event_bus():
     bus = MagicMock()
     bus.published_events = []
 
-    def capture_event(event_name, data):
-        bus.published_events.append((event_name, data))
+    def capture_event(event):
+        bus.published_events.append(event)
 
-    bus.publish_event.side_effect = capture_event
+    bus.publish.side_effect = capture_event
     return bus
 
 
@@ -83,17 +83,19 @@ class TestLiveAnalysisCanvasIntegration:
         # Mock the code path: should_display=True, no preview_window
         # This simulates what happens in _processing_loop
         if not service._use_external_preview and service.event_bus:
-            service.event_bus.publish_event(
-                Events.UI_UPDATE_LIVE_FRAME,
-                {"frame": frame, "detections": detections, "fps": 30.0},
+            service.event_bus.publish(
+                Event(
+                    type=UIEvents.UI_UPDATE_LIVE_FRAME,
+                    data={"frame": frame, "detections": detections, "fps": 30.0},
+                )
             )
 
         # Verify event was published
         assert len(mock_event_bus.published_events) == 1
-        event_name, event_data = mock_event_bus.published_events[0]
-        assert event_name == Events.UI_UPDATE_LIVE_FRAME
-        assert "frame" in event_data
-        assert event_data["frame"] is frame
+        event = mock_event_bus.published_events[0]
+        assert event.type == UIEvents.UI_UPDATE_LIVE_FRAME
+        assert "frame" in event.data
+        assert event.data["frame"] is frame
 
     def test_no_event_when_external_preview_enabled(self, mock_event_bus, mock_dependencies):
         """Events should NOT be published when external preview window is used."""
@@ -116,8 +118,11 @@ class TestLiveAnalysisCanvasIntegration:
 
         # Should NOT publish when using external preview
         if not service._use_external_preview and service.event_bus:
-            service.event_bus.publish_event(
-                Events.UI_UPDATE_LIVE_FRAME, {"frame": frame, "detections": [], "fps": 30.0}
+            service.event_bus.publish(
+                Event(
+                    type=UIEvents.UI_UPDATE_LIVE_FRAME,
+                    data={"frame": frame, "detections": [], "fps": 30.0},
+                )
             )
 
         # Verify NO events published
@@ -169,11 +174,10 @@ class TestCanvasManagerIntegration:
 
         canvas_manager = CanvasManager(mock_gui, event_bus_v2)
 
-        # Verify subscription
-        if hasattr(mock_gui, "event_bus") and mock_gui.event_bus:
-            mock_gui.event_bus.subscribe.assert_called_with(
-                Events.UI_UPDATE_LIVE_FRAME, canvas_manager._on_live_frame_update
-            )
+        # Verify subscription on event_bus_v2 (v4.0 migration: subscriptions moved to event_bus_v2)
+        event_bus_v2.subscribe.assert_any_call(
+            UIEvents.UI_UPDATE_LIVE_FRAME, canvas_manager._on_live_frame_update
+        )
 
     def test_update_video_frame_checks_analysis_active(self):
         """update_video_frame must check analysis_active flag before displaying."""
@@ -190,7 +194,7 @@ class TestCanvasManagerIntegration:
         frame = np.zeros((480, 640, 3), dtype=np.uint8)
 
         # Should log debug message when analysis_active=False (changed from warning to debug)
-        with patch("zebtrack.ui.components.canvas_manager.log") as mock_log:
+        with patch("zebtrack.ui.components.canvas.video_frame_manager.log") as mock_log:
             canvas_manager.update_video_frame(frame)
             # Verify debug was logged (frame skipped) - uses debug level to reduce log noise
             assert any(
@@ -226,8 +230,11 @@ class TestRegressionPrevention:
         # Code that previously was inside `if self.preview_window:` block
         # Now MUST be outside to work without preview window
         if not service._use_external_preview and service.event_bus:
-            service.event_bus.publish_event(
-                Events.UI_UPDATE_LIVE_FRAME, {"frame": frame, "detections": [], "fps": 30.0}
+            service.event_bus.publish(
+                Event(
+                    type=UIEvents.UI_UPDATE_LIVE_FRAME,
+                    data={"frame": frame, "detections": [], "fps": 30.0},
+                )
             )
 
         # CRITICAL: Event must be published even without preview_window

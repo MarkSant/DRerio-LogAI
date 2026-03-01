@@ -1,5 +1,5 @@
 {
-    "chat.agent.maxRequests": 100,
+    "chat.agent.maxRequests": 500,
     "github.copilot.chat.codesearch.enabled": true,
     "github.copilot.chat.agent.thinkingTool": true,
     "github.copilot.chat.generateTests.codeLens": true,
@@ -48,7 +48,7 @@
     "python.analysis.extraPaths": [
         "./src"
     ],
-    "python.defaultInterpreterPath": ".venv/Scripts/python.exe",
+    "python.defaultInterpreterPath": "C:\\Users\\santa\\OneDrive\\UNESP\\Pesquisa Canabidiol\\Codigos_Programas\\ZebTrack-AI\\.venv\\Scripts\\python.exe",
     // Testing configuration (v2.1: pytest hang fixes applied)
     // Total: 2568 tests (1586 fast, 949 GUI, 35 slow)
     // Note: pytest-timeout plugin configured (300s per test)
@@ -89,20 +89,147 @@
     "python.linting.pylintEnabled": false,
     "python.linting.flake8Enabled": false,
     "python.formatting.provider": "none",
+    // ========================================
+    // YAML Extension (Red Hat) Configuration
+    // ========================================
+    "yaml.schemas": {
+        "https://json.schemastore.org/github-workflow.json": ".github/workflows/*.yml"
+    },
+    "yaml.validate": true,
+    "yaml.schemaStore.enable": true,
+    // ========================================
+    // Mypy (Matan Gover) — Daemon-based type checking
+    // ========================================
+    "mypy.runUsingActiveInterpreter": true,
+    // ========================================
+    // Error Lens — Inline diagnostics
+    // ========================================
+    "errorLens.enabledDiagnosticLevels": [
+        "error",
+        "warning"
+    ],
+    "errorLens.excludeBySource": [
+        "cSpell"
+    ],
+    "errorLens.delay": 500,
+    // ========================================
+    // TODO Tree — Track TODO/FIXME/HACK in code
+    // ========================================
+    "todo-tree.general.tags": [
+        "TODO",
+        "FIXME",
+        "HACK",
+        "BUG",
+        "XXX",
+        "DEPRECATED"
+    ],
+    "todo-tree.filtering.excludeGlobs": [
+        "**/node_modules/**",
+        "**/__pycache__/**",
+        "**/openvino_model_cache/**",
+        "**/htmlcov/**",
+        "**/docs/archive/**"
+    ],
+    "todo-tree.tree.showCountsInTree": true,
+    // ========================================
+    // GitLens — Git supercharged (replaces Git History)
+    // ========================================
+    "gitlens.codeLens.enabled": true,
+    "gitlens.currentLine.enabled": true,
+    "gitlens.hovers.currentLine.over": "line",
+    "gitlens.blame.format": "${author|10} ${agoOrDate|14-}",
+    // ========================================
+    // Jupyter — Notebook support for data analysis
+    // ========================================
+    "jupyter.askForKernelRestart": false,
+    "notebook.output.scrolling": true,
+    // ========================================
+    // Code Spell Checker
+    // ========================================
     "cSpell.language": "en,pt,pt-BR",
     "cSpell.words": [
+        "agpl",
+        "arduino",
+        "bbox",
+        "bootstrapper",
+        "botsort",
+        "bytetrack",
+        "charliermarsh",
+        "codecov",
+        "Commitlint",
+        "danio",
+        "dataclass",
+        "Diátaxis",
+        "docx",
+        "docxcompose",
+        "docxtpl",
+        "drerio",
         "DSHOW",
+        "fapesp",
+        "ffmpeg",
         "fourcc",
+        "geotaxis",
+        "golay",
+        "Gover",
+        "hashFiles",
         "imdecode",
         "IMREAD",
         "imshow",
         "imwrite",
+        "iou",
+        "isort",
+        "kalman",
         "LANCZOS",
+        "libavcodec",
+        "libopencv",
+        "logai",
+        "Matan",
+        "matplotlib",
         "MSMF",
+        "mvvm",
         "mypy",
+        "networkx",
+        "nireq",
+        "nms",
+        "numpy",
+        "opencv",
+        "openpyxl",
+        "openvino",
+        "parquet",
+        "pathlib",
+        "plotly",
         "polib",
+        "psutil",
+        "pyarrow",
+        "pydantic",
+        "Pylint",
+        "pyproject",
+        "pyserial",
         "pytest",
+        "pytorch",
+        "pyyaml",
+        "rerio",
+        "roi",
+        "ruff",
+        "savitzky",
+        "scipy",
+        "seaborn",
+        "servernum",
+        "sessionfinish",
+        "Setext",
+        "structlog",
+        "thigmotaxis",
         "tkinter",
+        "Treeview",
+        "ttkbootstrap",
+        "ultralytics",
+        "venv",
+        "viewmodel",
+        "virtualenvs",
+        "xvfb",
+        "yaml",
+        "yolo",
+        "zebrafish",
         "zebtrack"
     ]
 }

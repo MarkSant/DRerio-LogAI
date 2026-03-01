@@ -33,10 +33,10 @@ def test_composition_root_instantiates_state_manager():
 
 
 def test_composition_root_instantiates_event_bus():
-    """Validate EventBus instantiation."""
-    from zebtrack.ui.event_bus import EventBus
+    """Validate EventBusV2 instantiation."""
+    from zebtrack.ui.event_bus_v2 import EventBusV2
 
-    event_bus = EventBus(maxsize=0)
+    event_bus = EventBusV2()
 
     assert event_bus is not None
     assert hasattr(event_bus, "publish")
@@ -45,7 +45,7 @@ def test_composition_root_instantiates_event_bus():
 
 def test_composition_root_instantiates_project_manager():
     """Validate ProjectManager with settings_obj injection."""
-    from zebtrack.core.project_manager import ProjectManager
+    from zebtrack.core.project.project_manager import ProjectManager
     from zebtrack.settings import load_settings
 
     settings_obj = load_settings()
@@ -57,7 +57,7 @@ def test_composition_root_instantiates_project_manager():
 
 def test_composition_root_instantiates_weight_manager():
     """Validate WeightManager with settings_obj injection."""
-    from zebtrack.core.weight_manager import WeightManager
+    from zebtrack.core.services.weight_manager import WeightManager
     from zebtrack.settings import load_settings
 
     settings_obj = load_settings()
@@ -69,11 +69,11 @@ def test_composition_root_instantiates_weight_manager():
 
 def test_composition_root_instantiates_detector_service():
     """Validate DetectorService with all required dependencies."""
-    from zebtrack.core.detector_service import DetectorService
-    from zebtrack.core.model_service import ModelService
-    from zebtrack.core.project_manager import ProjectManager
+    from zebtrack.core.project.project_manager import ProjectManager
+    from zebtrack.core.services.detector_service import DetectorService
+    from zebtrack.core.services.model_service import ModelService
+    from zebtrack.core.services.weight_manager import WeightManager
     from zebtrack.core.state_manager import StateManager
-    from zebtrack.core.weight_manager import WeightManager
     from zebtrack.settings import load_settings
 
     settings_obj = load_settings()
@@ -104,18 +104,18 @@ def test_full_composition_root_assembly(tmp_path):
     assembly is tested separately in integration tests.
     """
     from zebtrack.analysis.analysis_service import AnalysisService
-    from zebtrack.core.project_manager import ProjectManager
+    from zebtrack.core.project.project_manager import ProjectManager
+    from zebtrack.core.services.weight_manager import WeightManager
     from zebtrack.core.state_manager import StateManager
-    from zebtrack.core.weight_manager import WeightManager
     from zebtrack.settings import load_settings
-    from zebtrack.ui.event_bus import EventBus
+    from zebtrack.ui.event_bus_v2 import EventBusV2
 
     # 1. Load settings
     settings_obj = load_settings()
 
     # 2. Instantiate core services (no dependencies)
     state_manager = StateManager()
-    event_bus = EventBus(maxsize=0)
+    event_bus = EventBusV2()
 
     # 3. Instantiate domain services (with settings_obj)
     project_manager = ProjectManager(settings_obj=settings_obj)
@@ -159,7 +159,7 @@ def test_no_singleton_settings_import():
 @pytest.mark.parametrize(
     "service_class",
     [
-        "zebtrack.core.weight_manager.WeightManager",
+        "zebtrack.core.services.weight_manager.WeightManager",
         "zebtrack.analysis.analysis_service.AnalysisService",
     ],
 )

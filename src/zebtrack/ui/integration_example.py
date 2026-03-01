@@ -13,7 +13,7 @@ from zebtrack.ui.components import (
     VideoDisplayWidget,
     ZoneControlsWidget,
 )
-from zebtrack.ui.event_bus import EventBus
+from zebtrack.ui.event_bus_v2 import EventBusV2, UIEvents
 
 
 class IntegrationExample:
@@ -24,7 +24,7 @@ class IntegrationExample:
     ao substituir código inline por componentes modulares.
     """
 
-    def __init__(self, root, controller, event_bus: EventBus):
+    def __init__(self, root, controller, event_bus: EventBusV2):
         """Initialize the integration example window.
 
         Args:
@@ -70,8 +70,8 @@ class IntegrationExample:
 
         # Subscrever eventos do componente
         if self.event_bus:
-            self.event_bus.subscribe("frame.loaded", self._on_frame_loaded)
-            self.event_bus.subscribe("frame.error", self._on_frame_error)
+            self.event_bus.subscribe(UIEvents.VIDEO_LOADED, self._on_frame_loaded)
+            self.event_bus.subscribe(UIEvents.FRAME_ERROR, self._on_frame_error)
 
         # Usar API pública para carregar frame
         # self.video_display.load_frame("/path/to/video.mp4", frame_number=0)
@@ -108,10 +108,10 @@ class IntegrationExample:
 
         # Subscrever eventos do componente
         if self.event_bus:
-            self.event_bus.subscribe("zone.auto_detect_clicked", self._on_auto_detect)
-            self.event_bus.subscribe("zone.draw_main_polygon", self._on_draw_main_polygon)
-            self.event_bus.subscribe("zone.draw_roi", self._on_draw_roi)
-            self.event_bus.subscribe("zone.template_apply", self._on_apply_template)
+            self.event_bus.subscribe(UIEvents.ZONE_AUTO_DETECT_CLICKED, self._on_auto_detect)
+            self.event_bus.subscribe(UIEvents.ZONE_DRAW_ARENA, self._on_draw_main_polygon)
+            self.event_bus.subscribe(UIEvents.ZONE_DRAW_ROI, self._on_draw_roi)
+            self.event_bus.subscribe(UIEvents.ZONE_TEMPLATE_APPLY, self._on_apply_template)
 
         # Usar API pública para controlar estado
         # self.zone_controls.set_draw_roi_enabled(True)
@@ -146,9 +146,9 @@ class IntegrationExample:
 
         # Subscrever eventos do componente
         if self.event_bus:
-            self.event_bus.subscribe("control.start_recording", self._on_start_recording)
-            self.event_bus.subscribe("control.stop_recording", self._on_stop_recording)
-            self.event_bus.subscribe("control.process_video", self._on_process_video)
+            self.event_bus.subscribe(UIEvents.RECORDING_START, self._on_start_recording)
+            self.event_bus.subscribe(UIEvents.RECORDING_STOP, self._on_stop_recording)
+            self.event_bus.subscribe(UIEvents.VIDEO_ANALYZE_SINGLE, self._on_process_video)
 
         # Usar API pública para atualizar estado
         # self.control_panel.set_recording_state(is_recording=True)
@@ -257,7 +257,7 @@ def main():
     root.geometry("1200x800")
 
     # Criar event bus mock
-    event_bus = EventBus()
+    event_bus = EventBusV2()
 
     # Criar controller mock (ou usar o real)
     controller = None  # Mock

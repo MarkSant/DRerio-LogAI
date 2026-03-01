@@ -4,7 +4,7 @@ Compatibility tests for Reporter refactoring (Sprint 5).
 Validates that all three construction paths produce equivalent results:
 1. Legacy constructor (trajectory_df + params) - DEPRECATED
 2. Modern constructor (analysis parameter)
-3. Factory method Reporter.from_analysis()
+3. Factory method ReporterContext.from_analysis()
 
 These tests ensure zero breaking changes during the migration period.
 """
@@ -19,7 +19,7 @@ from shapely.geometry import Polygon
 
 from zebtrack.analysis.analysis_service import AnalysisService
 from zebtrack.analysis.models import AnalysisResult, CalibrationParams
-from zebtrack.analysis.reporter import Reporter
+from zebtrack.analysis.reporters import ReporterContext
 from zebtrack.analysis.roi import ROI
 
 
@@ -123,13 +123,13 @@ class TestReporterLegacyConstructor:
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
 
-            Reporter(trajectory_df=sample_trajectory_df, rois=sample_rois, **analysis_params)
+            ReporterContext(trajectory_df=sample_trajectory_df, rois=sample_rois, **analysis_params)
 
             # Verify warning was emitted
             assert len(w) == 1
             assert issubclass(w[0].category, DeprecationWarning)
             assert "trajectory_df is DEPRECATED" in str(w[0].message)
-            assert "Reporter.from_analysis" in str(w[0].message)
+            assert "ReporterContext.from_analysis" in str(w[0].message)
             assert "v3.0" in str(w[0].message)
 
     def test_legacy_constructor_creates_valid_reporter(
@@ -139,7 +139,7 @@ class TestReporterLegacyConstructor:
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")  # Suppress deprecation warning
 
-            reporter = Reporter(
+            reporter = ReporterContext(
                 trajectory_df=sample_trajectory_df, rois=sample_rois, **analysis_params
             )
 
@@ -159,12 +159,12 @@ class TestReporterLegacyConstructor:
         with pytest.raises(
             ValueError, match="Either 'analysis' or 'trajectory_df' must be provided"
         ):
-            Reporter()  # No parameters
+            ReporterContext()  # No parameters
 
 
 @pytest.mark.unit
 class TestReporterFactoryMethod:
-    """Test Reporter.from_analysis() factory method (RECOMMENDED)."""
+    """Test ReporterContext.from_analysis() factory method (RECOMMENDED)."""
 
     def test_factory_method_creates_reporter_from_dto(
         self, sample_trajectory_df, sample_rois, analysis_params, mock_settings
@@ -194,7 +194,7 @@ class TestReporterFactoryMethod:
         )
 
         # Act: Create Reporter using factory method
-        reporter = Reporter.from_analysis(analysis)
+        reporter = ReporterContext.from_analysis(analysis)
 
         # Assert: Reporter is valid
         assert reporter is not None
@@ -234,7 +234,7 @@ class TestReporterFactoryMethod:
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
 
-            Reporter.from_analysis(analysis)
+            ReporterContext.from_analysis(analysis)
 
             # No warnings should be emitted
             deprecation_warnings = [x for x in w if issubclass(x.category, DeprecationWarning)]
@@ -273,7 +273,7 @@ class TestReporterModernConstructor:
         )
 
         # Act: Use modern constructor path
-        reporter = Reporter(analysis=analysis)
+        reporter = ReporterContext(analysis=analysis)
 
         # Assert: Reporter is valid
         assert reporter is not None
@@ -309,7 +309,7 @@ class TestReporterModernConstructor:
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
 
-            Reporter(analysis=analysis)
+            ReporterContext(analysis=analysis)
 
             # No deprecation warnings
             deprecation_warnings = [x for x in w if issubclass(x.category, DeprecationWarning)]
@@ -327,7 +327,7 @@ class TestReporterEquivalence:
         # Path 1: Legacy constructor
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
-            reporter_legacy = Reporter(
+            reporter_legacy = ReporterContext(
                 trajectory_df=sample_trajectory_df.copy(), rois=sample_rois, **analysis_params
             )
 
@@ -353,10 +353,10 @@ class TestReporterEquivalence:
                 ]
             },
         )
-        reporter_modern = Reporter(analysis=analysis)
+        reporter_modern = ReporterContext(analysis=analysis)
 
         # Path 3: Factory method
-        reporter_factory = Reporter.from_analysis(analysis)
+        reporter_factory = ReporterContext.from_analysis(analysis)
 
         # Verify all have same tidy data structure
         assert set(reporter_legacy.tidy_data.columns) == set(reporter_modern.tidy_data.columns)
@@ -371,7 +371,7 @@ class TestReporterEquivalence:
         # Legacy path
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
-            reporter_legacy = Reporter(
+            reporter_legacy = ReporterContext(
                 trajectory_df=sample_trajectory_df.copy(), rois=sample_rois, **analysis_params
             )
 
@@ -397,7 +397,7 @@ class TestReporterEquivalence:
                 ]
             },
         )
-        reporter_modern = Reporter(analysis=analysis)
+        reporter_modern = ReporterContext(analysis=analysis)
 
         # Verify report structure is identical
         assert set(reporter_legacy.report.keys()) == set(reporter_modern.report.keys())

@@ -4,6 +4,10 @@ Custom exception hierarchy for ZebTrack-AI.
 All application exceptions inherit from ZebTrackError for easy catching.
 """
 
+from __future__ import annotations
+
+from pathlib import Path
+
 # ============================================================================
 # Base Exception
 # ============================================================================
@@ -240,6 +244,46 @@ class ProjectSaveError(ProjectError):
     pass
 
 
+class ProjectInvalidError(ProjectError):
+    """Exception raised when project structure or data is invalid.
+
+    Raised when:
+    - Project directory cannot be created
+    - Project configuration file is missing or not found
+    - Project configuration is corrupted or contains invalid JSON
+    - Project file save operation fails due to permissions or disk errors
+
+    This exception replaces GUI messagebox calls for thread-safe error handling
+    and allows calling code to handle project validation errors appropriately.
+
+    Attributes:
+        path: Optional Path to the project directory or file involved
+        cause: Optional underlying exception that caused this error
+    """
+
+    def __init__(
+        self,
+        message: str,
+        path: Path | str | None = None,
+        cause: Exception | None = None,
+        *,
+        details: dict | None = None,
+    ):
+        """Initialize ProjectInvalidError with structured error information.
+
+        Args:
+            message: Human-readable error description
+            path: Optional path to the project directory or file involved
+            cause: Optional underlying exception that caused this error
+            details: Optional dictionary with error context
+        """
+        from pathlib import Path
+
+        self.path = Path(path) if path and not isinstance(path, Path) else path
+        self.cause = cause
+        super().__init__(message, details=details)
+
+
 # ============================================================================
 # Export for convenience
 # ============================================================================
@@ -283,4 +327,5 @@ __all__ = [  # noqa: RUF022 - grouped by domain for clarity
     "ProjectNotFoundError",
     "ProjectLoadError",
     "ProjectSaveError",
+    "ProjectInvalidError",
 ]

@@ -66,7 +66,8 @@ def test_application_gui_wiring(monkeypatch):
     monkeypatch.setattr(gui, "ValidationManager", _Dummy)
     monkeypatch.setattr(gui, "DialogManager", _Dummy)
     monkeypatch.setattr(gui, "WidgetFactory", _WidgetFactoryDummy)
-    monkeypatch.setattr(gui, "ProjectViewManager", _Dummy)
+    monkeypatch.setattr(gui, "VideoSelectorTreeManager", _Dummy)
+    monkeypatch.setattr(gui, "ReportsTreeManager", _Dummy)
     monkeypatch.setattr(gui, "UICoordinator", _Dummy)
     monkeypatch.setattr(gui, "DrawingStateManager", _Dummy)
     monkeypatch.setattr(gui, "PolygonDrawingService", _Dummy)
@@ -80,7 +81,10 @@ def test_application_gui_wiring(monkeypatch):
     controller = cast(Any, _Dummy())
     controller.on_close = lambda *a, **k: None
 
-    app = gui.ApplicationGUI(root=root, controller=controller)
+    from unittest.mock import MagicMock
+
+    mock_event_bus = MagicMock()
+    app = gui.ApplicationGUI(root=root, controller=controller, event_bus=mock_event_bus)
 
     assert app.root is root
     assert app.controller is controller

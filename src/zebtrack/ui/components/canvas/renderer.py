@@ -5,12 +5,17 @@ Handles drawing operations on the canvas, including background images,
 zones (arena/ROIs), detection overlays, and interactive polygons.
 """
 
-from typing import Any
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Any
 
 import cv2
 import numpy as np
 import structlog
 from PIL import Image, ImageTk
+
+if TYPE_CHECKING:
+    from zebtrack.core.services.zone_context_service import ZoneContextService
 
 log = structlog.get_logger()
 
@@ -18,14 +23,23 @@ log = structlog.get_logger()
 class CanvasRenderer:
     """Handles drawing operations on the canvas."""
 
-    def __init__(self, canvas_manager):
+    def __init__(self, canvas_manager, *, zone_context_service: ZoneContextService | None = None):
         """Initialize CanvasRenderer.
 
         Args:
             canvas_manager: Reference to parent CanvasManager
+            zone_context_service: Optional ZoneContextService for dependency injection.
         """
         self.manager = canvas_manager
         self.gui = canvas_manager.gui
+        self._zone_context_service = zone_context_service
+
+    @property
+    def zone_context_service(self):
+        """ZoneContextService instance (injected or resolved from gui)."""
+        if self._zone_context_service is not None:
+            return self._zone_context_service
+        return getattr(self.gui, "_zone_context_service", None)
 
     def _get_canvas(self):
         """Get the canvas safely, returning None if video_display doesn't exist or is destroyed."""
@@ -114,7 +128,7 @@ class CanvasRenderer:
             return
 
         if zone_data is None:
-            zone_data = self.gui._get_zone_data_for_active_context()
+            zone_data = self.zone_context_service.get_zone_data_for_active_context()
             if zone_data is None:
                 log.warning("gui.redraw_zones.no_zone_data")
                 return
@@ -124,7 +138,7 @@ class CanvasRenderer:
         self._draw_geotaxis_overlay()
 
         # Handle Multi-Aquarium Data
-        from zebtrack.core.detector import MultiAquariumZoneData
+        from zebtrack.core.detection import MultiAquariumZoneData
 
         if isinstance(zone_data, MultiAquariumZoneData):
             self._draw_multi_aquarium_zones(canvas, zone_data)
@@ -454,7 +468,7 @@ class CanvasRenderer:
                 isinstance(self.gui.current_editing_zone, tuple)
                 and self.gui.current_editing_zone[0] == "roi"
             ):
-                zone_data = self.gui._get_zone_data_for_active_context()
+                zone_data = self.zone_context_service.get_zone_data_for_active_context()
                 main_arena_poly = zone_data.polygon if zone_data else None
                 if main_arena_poly:
                     canvas_arena_poly = []
@@ -491,11 +505,14 @@ class CanvasRenderer:
                     tags="edit_clamp_indicator",
                 )
 
+            handler = self.gui.canvas_manager.event_handler
             canvas.tag_bind(
-                handle, "<ButtonPress-1>", lambda e, i=i: self.gui._on_handle_press(e, i)
+                handle,
+                "<ButtonPress-1>",
+                lambda e, i=i, h=handler: h.on_handle_press(e, i),
             )
-            canvas.tag_bind(handle, "<B1-Motion>", self.gui._on_handle_drag)
-            canvas.tag_bind(handle, "<ButtonRelease-1>", self.gui._on_handle_release)
+            canvas.tag_bind(handle, "<B1-Motion>", handler.on_handle_drag)
+            canvas.tag_bind(handle, "<ButtonRelease-1>", handler.on_handle_release)
 
     def redraw_polygon_in_progress(self):
         """Redraw the polygon vertices and edges after undo/redo."""
@@ -534,11 +551,11 @@ class CanvasRenderer:
         canvas.delete("geotaxis_zone")
 
         # Get zone data
-        zone_data = self.gui._get_zone_data_for_active_context()
+        zone_data = self.zone_context_service.get_zone_data_for_active_context()
         if not zone_data:
             return
 
-        from zebtrack.core.detector import MultiAquariumZoneData
+        from zebtrack.core.detection import MultiAquariumZoneData
 
         polygons_to_draw = []
         if isinstance(zone_data, MultiAquariumZoneData):

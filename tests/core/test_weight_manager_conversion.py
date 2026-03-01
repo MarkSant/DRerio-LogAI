@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from zebtrack.core.weight_manager import (
+from zebtrack.core.services.weight_manager import (
     OPENVINO_STATUS_FAILED,
     OPENVINO_STATUS_NOT_CONVERTED,
     OPENVINO_STATUS_READY,
@@ -52,8 +52,8 @@ def test_convert_to_openvino_failure_records_status(tmp_path):
     cached_dir = tmp_path / "openvino_model_cache" / "model_seg_openvino_model"
 
     with (
-        patch("zebtrack.core.weight_manager.ULTRALYTICS_AVAILABLE", True),
-        patch("zebtrack.core.weight_manager.YOLO") as mock_yolo,
+        patch("zebtrack.core.services.weight_manager.ULTRALYTICS_AVAILABLE", True),
+        patch("zebtrack.core.services.weight_manager.YOLO") as mock_yolo,
     ):
         mock_instance = MagicMock()
         mock_instance.export.side_effect = RuntimeError("boom")
@@ -85,8 +85,8 @@ def test_convert_to_openvino_success_updates_status(tmp_path):
     xml_path.write_text("<xml></xml>")
 
     with (
-        patch("zebtrack.core.weight_manager.ULTRALYTICS_AVAILABLE", True),
-        patch("zebtrack.core.weight_manager.YOLO") as mock_yolo,
+        patch("zebtrack.core.services.weight_manager.ULTRALYTICS_AVAILABLE", True),
+        patch("zebtrack.core.services.weight_manager.YOLO") as mock_yolo,
     ):
         mock_instance = MagicMock()
         mock_instance.export.return_value = str(export_dir)

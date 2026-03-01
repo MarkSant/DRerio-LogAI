@@ -17,13 +17,21 @@ def test_roi_snap_indicator_arena_clamp_implementation():
     with open(gui_file_path, encoding="utf-8") as f:
         gui_code = f.read()
 
-    # Phase 3: Canvas logic may be in CanvasManager
+    # Phase 3+4.5: Canvas logic may be in CanvasManager or its sub-modules
     canvas_manager_file = os.path.join(components_dir, "canvas_manager.py")
     combined_code = gui_code
 
     if os.path.exists(canvas_manager_file):
         with open(canvas_manager_file, encoding="utf-8") as f:
             combined_code += f.read()
+
+    # Phase 4.5: Also scan canvas sub-directory modules
+    canvas_subdir = os.path.join(components_dir, "canvas")
+    if os.path.isdir(canvas_subdir):
+        for fname in os.listdir(canvas_subdir):
+            if fname.endswith(".py"):
+                with open(os.path.join(canvas_subdir, fname), encoding="utf-8") as f:
+                    combined_code += f.read()
 
     # Just verify that canvas motion handling exists somewhere
     assert "_on_canvas_motion" in combined_code or (
@@ -46,13 +54,21 @@ def test_roi_vertex_editing_arena_clamp_implementation():
     with open(gui_file_path, encoding="utf-8") as f:
         gui_code = f.read()
 
-    # Phase 3: Vertex editing may be in CanvasManager
+    # Phase 3+4.5: Vertex editing may be in CanvasManager or its sub-modules
     canvas_manager_file = os.path.join(components_dir, "canvas_manager.py")
     combined_code = gui_code
 
     if os.path.exists(canvas_manager_file):
         with open(canvas_manager_file, encoding="utf-8") as f:
             combined_code += f.read()
+
+    # Phase 4.5: Also scan canvas sub-directory modules
+    canvas_subdir = os.path.join(components_dir, "canvas")
+    if os.path.isdir(canvas_subdir):
+        for fname in os.listdir(canvas_subdir):
+            if fname.endswith(".py"):
+                with open(os.path.join(canvas_subdir, fname), encoding="utf-8") as f:
+                    combined_code += f.read()
 
     # Just verify that handle/vertex dragging exists
     assert ("handle" in combined_code.lower() and "drag" in combined_code.lower()) or (

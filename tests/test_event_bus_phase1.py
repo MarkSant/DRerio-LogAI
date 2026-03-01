@@ -1,43 +1,36 @@
 """
-Test event bus implementation for Phase 1 refactoring.
+Test EventBusV2 implementation (migrated from Phase 1 EventBus tests).
 """
 
-from zebtrack.ui.event_bus import EventBus, EventType
-from zebtrack.ui.events import Events
+from zebtrack.ui.event_bus_v2 import Event, EventBusV2, UIEvents
 
 
-class TestEventBus:
-    """Tests for the enhanced EventBus with named events."""
+class TestEventBusV2:
+    """Tests for the EventBusV2 synchronous pub/sub bus."""
 
-    def test_publish_named_event(self):
-        """Test publishing a named event."""
-        bus = EventBus()
-        result = bus.publish_event("test:event", {"key": "value"})
-        assert result is True
-        assert bus.size() == 1
+    def test_publish_without_subscribers(self):
+        """Test publishing an event with no subscribers doesn't crash."""
+        bus = EventBusV2()
+        # Should not raise
+        bus.publish(Event(type=UIEvents.RECORDING_START, data={"key": "value"}))
 
-    def test_subscribe_and_dispatch(self):
-        """Test subscribing to and dispatching named events."""
-        bus = EventBus()
+    def test_subscribe_and_publish(self):
+        """Test subscribing to and publishing events (synchronous dispatch)."""
+        bus = EventBusV2()
         handler_called = []
 
         def handler(data):
             handler_called.append(data)
 
-        bus.subscribe("test:event", handler)
-        bus.publish_event("test:event", {"value": 42})
+        bus.subscribe(UIEvents.RECORDING_START, handler)
+        bus.publish(Event(type=UIEvents.RECORDING_START, data={"value": 42}))
 
-        events = bus.drain()
-        assert len(events) == 1
-        assert events[0].type == EventType.NAMED
-
-        bus.dispatch_named_event(events[0].payload)
         assert len(handler_called) == 1
         assert handler_called[0] == {"value": 42}
 
     def test_multiple_subscribers(self):
         """Test that multiple subscribers receive the same event."""
-        bus = EventBus()
+        bus = EventBusV2()
         calls = []
 
         def handler1(data):
@@ -46,12 +39,9 @@ class TestEventBus:
         def handler2(data):
             calls.append(("handler2", data))
 
-        bus.subscribe("test:event", handler1)
-        bus.subscribe("test:event", handler2)
-        bus.publish_event("test:event", {"id": 123})
-
-        events = bus.drain()
-        bus.dispatch_named_event(events[0].payload)
+        bus.subscribe(UIEvents.RECORDING_START, handler1)
+        bus.subscribe(UIEvents.RECORDING_START, handler2)
+        bus.publish(Event(type=UIEvents.RECORDING_START, data={"id": 123}))
 
         assert len(calls) == 2
         assert ("handler1", {"id": 123}) in calls
@@ -59,92 +49,80 @@ class TestEventBus:
 
     def test_unsubscribe(self):
         """Test unsubscribing a handler."""
-        bus = EventBus()
+        bus = EventBusV2()
         handler_called = []
 
         def handler(data):
             handler_called.append(data)
 
-        bus.subscribe("test:event", handler)
-        bus.unsubscribe("test:event", handler)
-        bus.publish_event("test:event", {"value": 42})
-
-        events = bus.drain()
-        bus.dispatch_named_event(events[0].payload)
+        bus.subscribe(UIEvents.RECORDING_START, handler)
+        bus.unsubscribe(UIEvents.RECORDING_START, handler)
+        bus.publish(Event(type=UIEvents.RECORDING_START, data={"value": 42}))
 
         assert len(handler_called) == 0
 
-    def test_get_subscribers(self):
-        """Test retrieving subscribers for an event."""
-        bus = EventBus()
+    def test_different_event_types_isolated(self):
+        """Test that subscribers only receive events they subscribed to."""
+        bus = EventBusV2()
+        calls = []
 
-        def handler1(data):
-            pass
+        def handler(data):
+            calls.append(data)
 
-        def handler2(data):
-            pass
+        bus.subscribe(UIEvents.RECORDING_START, handler)
+        bus.publish(Event(type=UIEvents.RECORDING_STOP, data={"wrong": True}))
 
-        bus.subscribe("test:event", handler1)
-        bus.subscribe("test:event", handler2)
+        assert len(calls) == 0
 
-        subscribers = bus.get_subscribers("test:event")
-        assert len(subscribers) == 2
-        assert handler1 in subscribers
-        assert handler2 in subscribers
-
-    def test_dispatch_event_without_handlers_doesnt_crash(self):
-        """Test that dispatching an event with no handlers doesn't crash."""
-        bus = EventBus()
-        bus.publish_event("orphan:event", {"data": "nobody listening"})
-
-        events = bus.drain()
+    def test_publish_event_without_handlers_doesnt_crash(self):
+        """Test that publishing an event with no handlers doesn't crash."""
+        bus = EventBusV2()
         # Should not raise an exception
-        bus.dispatch_named_event(events[0].payload)
-        # Test passes if we get here without exception
+        bus.publish(Event(type=UIEvents.PROJECT_CREATE, data={"data": "nobody listening"}))
 
-    def test_handler_exception_handling(self, caplog):
+    def test_handler_exception_handling(self):
         """Test that exceptions in handlers are caught and logged."""
-        bus = EventBus()
-
-        exception_caught = False
+        bus = EventBusV2()
 
         def failing_handler(data):
             raise ValueError("Handler failed!")
 
-        bus.subscribe("test:event", failing_handler)
-        bus.publish_event("test:event", {"value": 42})
+        bus.subscribe(UIEvents.RECORDING_START, failing_handler)
 
-        events = bus.drain()
+        # EventBusV2 catches handler exceptions internally — should not raise
+        bus.publish(Event(type=UIEvents.RECORDING_START, data={"value": 42}))
 
-        # The test passes if dispatch_named_event doesn't raise an exception
-        # (i.e., the exception is caught and logged internally)
-        try:
-            bus.dispatch_named_event(events[0].payload)
-            exception_caught = True
-        except ValueError:
-            # If the exception bubbles up, the test should fail
-            exception_caught = False
+    def test_event_data_passed_correctly(self):
+        """Test that event data dict is passed correctly to handlers."""
+        bus = EventBusV2()
+        received = []
 
-        # The event bus should have caught and logged the exception internally
-        assert exception_caught, "EventBus should catch and log handler exceptions, not raise them"
+        def handler(data):
+            received.append(data)
+
+        bus.subscribe(UIEvents.PROJECT_CREATE, handler)
+        bus.publish(Event(type=UIEvents.PROJECT_CREATE, data={"name": "test", "path": "/tmp"}))
+
+        assert len(received) == 1
+        assert received[0] == {"name": "test", "path": "/tmp"}
 
 
-class TestEventCatalog:
-    """Tests for the Events catalog."""
+class TestUIEventsCatalog:
+    """Tests for the UIEvents enum catalog."""
 
     def test_event_constants_defined(self):
         """Test that event constants are properly defined."""
-        assert hasattr(Events, "RECORDING_START")
-        assert hasattr(Events, "RECORDING_STOP")
-        assert hasattr(Events, "PROJECT_CREATE")
-        assert hasattr(Events, "PROJECT_OPEN")
-        assert hasattr(Events, "PROJECT_CLOSE")
-        assert hasattr(Events, "MODEL_SET_WEIGHT")
-        assert hasattr(Events, "VIDEO_ANALYZE_SINGLE")
+        assert hasattr(UIEvents, "RECORDING_START")
+        assert hasattr(UIEvents, "RECORDING_STOP")
+        assert hasattr(UIEvents, "PROJECT_CREATE")
+        assert hasattr(UIEvents, "PROJECT_OPEN")
+        assert hasattr(UIEvents, "PROJECT_CLOSE")
+        assert hasattr(UIEvents, "MODEL_SET_WEIGHT")
+        assert hasattr(UIEvents, "VIDEO_ANALYZE_SINGLE")
 
-    def test_event_naming_convention(self):
-        """Test that events follow the 'domain:action' naming convention."""
-        assert Events.RECORDING_START == "recording:start"
-        assert Events.PROJECT_CLOSE == "project:close"
-        assert Events.MODEL_SET_WEIGHT == "model:set_weight"
-        assert Events.VIDEO_CANCEL_ANALYSIS == "video:cancel_analysis"
+    def test_events_are_enum_members(self):
+        """Test that events are proper UIEvents enum members."""
+        assert isinstance(UIEvents.RECORDING_START, UIEvents)
+        assert isinstance(UIEvents.PROJECT_CLOSE, UIEvents)
+        assert isinstance(UIEvents.MODEL_SET_WEIGHT, UIEvents)
+        assert isinstance(UIEvents.VIDEO_CANCEL_ANALYSIS, UIEvents)

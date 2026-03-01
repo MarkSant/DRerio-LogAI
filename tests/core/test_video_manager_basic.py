@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from zebtrack.core.video_manager import VideoManager
+from zebtrack.core.project.video_manager import VideoManager
 
 
 def test_normalize_path_handles_none():

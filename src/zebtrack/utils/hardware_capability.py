@@ -216,7 +216,7 @@ class HardwareCapabilityDetector:
                 )
                 return True, gpu_name, gpu_mem_total, gpu_mem_free
         except (ImportError, Exception):
-            pass
+            logger.debug("hardware_capability.cuda_detection.unavailable", exc_info=True)
 
         # Check for OpenVINO support (Intel integrated graphics)
         # v2.2.1: Detect Intel GPU directly via OpenVINO Core, not just cached models

@@ -15,16 +15,16 @@ import structlog
 # Legacy imports kept for type hinting in signatures
 from zebtrack.core.application_bootstrapper import BootstrapResult
 from zebtrack.core.dependency_container import MainViewModelDependencies
-from zebtrack.core.detector import Detector, ZoneData
-from zebtrack.core.processing_mode import ProcessingMode
-from zebtrack.core.recording_service import RecordingService
+from zebtrack.core.detection import Detector, ZoneData
+from zebtrack.core.recording.recording_service import RecordingService
 from zebtrack.core.state_manager import StateCategory
+from zebtrack.core.video.processing_mode import ProcessingMode
 from zebtrack.core.viewmodels.analysis_control_view_model import AnalysisControlViewModel
 from zebtrack.core.viewmodels.hardware_status_view_model import HardwareStatusViewModel
 
 # New ViewModels
 from zebtrack.core.viewmodels.project_view_model import ProjectViewModel
-from zebtrack.ui.events import Events
+from zebtrack.ui.event_bus_v2 import Event, UIEvents
 
 if TYPE_CHECKING:
     pass
@@ -82,95 +82,94 @@ class MainViewModel:
             dependencies, bootstrap_result, self.ui_event_bus
         )
 
-        # Optional GUI reference (injected post-init when available)
-        self.view: Any | None = None
+        # Phase 6: self.view is now set inside _assign_bootstrap_result() from
+        # BootstrapResult.view — no longer needs a None default here.
 
         # 4. Subscribe to state changes
         self._subscribe_to_state()
 
         # 5. Setup event handlers mapping (Delegating to Sub-VMs)
         self._EVENT_METHOD_MAPPING = {
-            Events.RECORDING_START: (self.hardware_vm.start_recording, [], "no_params"),
-            Events.RECORDING_STOP: (self.hardware_vm.stop_recording, [], "no_params"),
-            Events.RECORDING_TOGGLE: (self.hardware_vm.toggle_recording, [], "no_params"),
-            Events.PROJECT_CREATE: (
+            UIEvents.RECORDING_START: (self.hardware_vm.start_recording, [], "no_params"),
+            UIEvents.RECORDING_STOP: (self.hardware_vm.stop_recording, [], "no_params"),
+            UIEvents.RECORDING_TOGGLE: (self.hardware_vm.toggle_recording, [], "no_params"),
+            UIEvents.PROJECT_CREATE: (
                 self.project_vm.create_project_workflow,
                 ["wizard_data"],
                 "kwargs_all",
             ),
-            Events.PROJECT_OPEN: (
+            UIEvents.PROJECT_OPEN: (
                 self.project_vm.open_project_workflow,
                 ["project_path"],
                 "positional",
             ),
-            Events.PROJECT_CLOSE: (self.project_vm.close_project, [], "no_params"),
+            UIEvents.PROJECT_CLOSE: (self.project_vm.close_project, [], "no_params"),
             # NOTE: PROJECT_PROCESS_VIDEOS is handled by ProcessingCoordinator
             # which properly accepts video_paths parameter
-            Events.PROJECT_ADD_VIDEOS: (self.project_vm.add_videos_to_project, [], "no_params"),
-            Events.MODEL_SET_OPENVINO: (self.hardware_vm.set_openvino_usage, [], "kwargs_all"),
-            Events.MODEL_SET_WEIGHT: (self.hardware_vm.set_active_weight, [], "kwargs_all"),
-            Events.MODEL_RUN_DIAGNOSTIC: (
+            UIEvents.MODEL_SET_OPENVINO: (self.hardware_vm.set_openvino_usage, [], "kwargs_all"),
+            UIEvents.MODEL_SET_WEIGHT: (self.hardware_vm.set_active_weight, [], "kwargs_all"),
+            UIEvents.MODEL_RUN_DIAGNOSTIC: (
                 self.hardware_vm.run_model_diagnostic,
                 ["config"],
                 "kwargs_all",
             ),
-            Events.UI_REQUEST_WEIGHT_FILE: (
+            UIEvents.UI_REQUEST_WEIGHT_FILE: (
                 self.hardware_vm.handle_request_weight_file,
                 [],
                 "no_params",
             ),
-            Events.UI_OPEN_MANAGE_WEIGHTS_DIALOG: (
+            UIEvents.UI_OPEN_MANAGE_WEIGHTS_DIALOG: (
                 self.handle_open_manage_weights,
                 [],
                 "no_params",
             ),  # Kept here or moved? Moved to HW VM but needs root.
-            Events.VIDEO_ANALYZE_SINGLE: (
+            UIEvents.VIDEO_ANALYZE_SINGLE: (
                 self.start_single_video_workflow,
                 [],
                 "kwargs_all",
             ),  # Facade wrapper due to complexity
             # NOTE: VIDEO_START_SINGLE_PROCESSING is handled by ProcessingCoordinator
             # to avoid duplicate execution (removed from here)
-            Events.VIDEO_CANCEL_ANALYSIS: (
+            UIEvents.VIDEO_CANCEL_ANALYSIS: (
                 self.analysis_vm.cancel_current_analysis,
                 [],
                 "no_params",
             ),
-            Events.MODEL_ADD_WEIGHT: (self.hardware_vm.add_new_weight, [], "kwargs_all"),
-            Events.MODEL_DELETE_WEIGHT: (self.hardware_vm.delete_weight, [], "kwargs_all"),
-            Events.MODEL_LOAD_NEW_WEIGHT: (self.hardware_vm.load_new_weight, [], "kwargs_all"),
-            Events.MODEL_MANAGE_WEIGHTS: (self.hardware_vm.manage_weights, [], "no_params"),
-            Events.ZONE_SAVE_MANUAL_ARENA: (
+            UIEvents.MODEL_ADD_WEIGHT: (self.hardware_vm.add_new_weight, [], "kwargs_all"),
+            UIEvents.MODEL_DELETE_WEIGHT: (self.hardware_vm.delete_weight, [], "kwargs_all"),
+            UIEvents.MODEL_LOAD_NEW_WEIGHT: (self.hardware_vm.load_new_weight, [], "kwargs_all"),
+            UIEvents.MODEL_MANAGE_WEIGHTS: (self.hardware_vm.manage_weights, [], "no_params"),
+            UIEvents.ZONE_SAVE_MANUAL_ARENA: (
                 self.analysis_vm.save_manual_arena,
                 ["polygon_points"],
                 "kwargs_get",
             ),
-            Events.PROJECT_DELETE_ASSET: (
+            UIEvents.PROJECT_DELETE_ASSET: (
                 self.project_vm.handle_delete_project_asset,
                 [],
                 "kwargs_all",
             ),
-            Events.CALIBRATION_COPY_TO_PROJECT: (
+            UIEvents.CALIBRATION_COPY_TO_PROJECT: (
                 self.project_vm.handle_calibration_copy_to_project,
                 [],
                 "no_params",
             ),
-            Events.CALIBRATION_SAVE_TO_PROJECT: (
+            UIEvents.CALIBRATION_SAVE_TO_PROJECT: (
                 self.project_vm.handle_calibration_save_to_project,
                 [],
                 "no_params",
             ),
-            Events.PROJECT_GENERATE_SUMMARIES: (
+            UIEvents.PROJECT_GENERATE_SUMMARIES: (
                 self.analysis_vm.generate_parquet_summaries,
                 ["video_paths"],
                 "kwargs_all",
             ),
-            Events.PROJECT_VIDEO_SELECTED: (
+            UIEvents.PROJECT_VIDEO_SELECTED: (
                 self.project_vm.on_video_selected,
                 ["video_path"],
                 "kwargs_get",
             ),
-            Events.PROJECT_SELECTION_CHANGED: (
+            UIEvents.PROJECT_SELECTION_CHANGED: (
                 self.project_vm.on_video_selected,
                 [
                     "video_path"
@@ -198,13 +197,17 @@ class MainViewModel:
 
         # Super coordinators
         self.project_lifecycle_coordinator = dependencies.project_lifecycle_coordinator
-        self.hardware_coordinator = dependencies.hardware_coordinator
+        # Phase 4.9: HardwareCoordinator decomposed into 2 sub-coordinators
+        self.detector_setup_coordinator = dependencies.detector_setup_coordinator
+        self.model_diagnostics_coordinator = dependencies.model_diagnostics_coordinator
         self.processing_coordinator = dependencies.processing_coordinator
-        self.session_coordinator = dependencies.session_coordinator
+        # Phase 4.7: SessionCoordinator decomposed into 3 sub-coordinators
+        self.recording_session_coordinator = dependencies.recording_session_coordinator
+        self.live_camera_session_coordinator = dependencies.live_camera_session_coordinator
+        self.live_calibration_coordinator = dependencies.live_calibration_coordinator
         self.live_batch_coordinator = dependencies.live_batch_coordinator  # v2.3.0
 
         # Legacy dependencies
-        self.recording_coordinator = dependencies.recording_coordinator
         self._live_camera_service_param = dependencies.live_camera_service
 
         if self._test_sync_event is not None:
@@ -219,9 +222,12 @@ class MainViewModel:
         self.video_selection_service = result.video_selection_service
         self.video_validation_service = result.video_validation_service
         self.batch_configuration_service = result.batch_configuration_service
-        self.thread_coordinator = result.thread_coordinator
         self.dialog_coordinator = result.dialog_coordinator
         self.event_dispatcher = result.event_dispatcher
+
+        # Phase 6: View is now assigned from BootstrapResult instead of external patching
+        # (previously set by bootstrapper via controller_proxy.view = self.view)
+        self.view = result.view
 
         # Hardware & Runtime
         # Note: active_weight_name and use_openvino are now properties that delegate to hardware_vm
@@ -238,20 +244,17 @@ class MainViewModel:
         self.cancel_event = result.cancel_event
 
         # Legacy Orchestrators
-        self.video_processing_orchestrator = result.video_processing_orchestrator
+        # Phase 0.3: VideoProcessingOrchestrator removed (migrated to ProcessingCoordinator)
         self.ui_state_controller = result.ui_state_controller
         # Phase 3A/B/C/D: Removed superseded orchestrators (see BootstrapResult)
 
         # Legacy Coordinators
-        self.detector_coordinator = result.legacy_coordinators.get("detector_coordinator")
-        self.video_orchestrator = result.legacy_coordinators.get("video_orchestrator")
-        self.analysis_coordinator = result.legacy_coordinators.get("analysis_coordinator")
-        self.project_coordinator = result.legacy_coordinators.get("project_coordinator")
-        self.recording_coordinator = result.legacy_coordinators.get("recording_coordinator")
-        self.live_camera_coordinator = result.legacy_coordinators.get("live_camera_coordinator")
+        # Phase 4.9: detector_coordinator replaced by detector_setup_coordinator
+        self.detector_setup_coordinator = result.legacy_coordinators.get("detector_coordinator")
+        # Phase 3.5/3.6: Removed video_orchestrator and analysis_coordinator (dead code)
+        # Phase 4.7: Removed recording_coordinator and live_camera_coordinator (dead code)
 
-        # Registry & Adapter
-        self.orchestrators = result.orchestrators
+        # Adapter
         self.project_workflow_adapter = result.project_workflow_adapter
 
         # Runtime flags
@@ -357,9 +360,6 @@ class MainViewModel:
     def start_project_processing_workflow(self) -> None:
         self.analysis_vm.start_project_processing_workflow()
 
-    def add_videos_to_project(self) -> None:
-        self.project_vm.add_videos_to_project()
-
     def run_model_diagnostic(self, config: dict) -> None:
         self.hardware_vm.run_model_diagnostic(config)
 
@@ -439,8 +439,7 @@ class MainViewModel:
         """Binds all UI events."""
         if self._use_event_bus:
             self._register_event_handlers()
-            if self.video_processing_orchestrator:
-                self.video_processing_orchestrator.register_event_handlers()
+            # Phase 0.3: VideoProcessingOrchestrator.register_event_handlers was no-op, removed
             if self.processing_coordinator:
                 self.processing_coordinator.register_event_handlers()
 
@@ -540,8 +539,8 @@ class MainViewModel:
             return
         if key == "active_zone_video" or key == "project_data":
             zone_data = self.project_manager.get_zone_data()
-            self.ui_event_bus.publish_event(Events.UI_REDRAW_ZONES, {"zone_data": zone_data})
-            self.ui_event_bus.publish_event(Events.UI_UPDATE_ZONE_LIST, {"zone_data": zone_data})
+            self.ui_event_bus.publish(Event(UIEvents.UI_REDRAW_ZONES, {"zone_data": zone_data}))
+            self.ui_event_bus.publish(Event(UIEvents.UI_UPDATE_ZONE_LIST, {"zone_data": zone_data}))
 
     def _on_detector_state_changed(
         self, category: StateCategory, key: str, old: Any, new: Any
@@ -549,9 +548,14 @@ class MainViewModel:
         if not self.ui_event_bus:
             return
         if key == "active_weight_name":
-            self.ui_event_bus.publish_event(Events.UI_SET_ACTIVE_WEIGHT, {"weight_name": new})
+            self.ui_event_bus.publish(Event(UIEvents.UI_SET_ACTIVE_WEIGHT, {"weight_name": new}))
         elif key == "use_openvino":
-            self.ui_event_bus.publish_event(Events.UI_UPDATE_OPENVINO_CHECKBOX, {"is_checked": new})
+            self.ui_event_bus.publish(
+                Event(
+                    UIEvents.UI_UPDATE_OPENVINO_CHECKBOX,
+                    {"is_checked": new},
+                )
+            )
             self.ui_state_controller.update_openvino_status()
 
     def _on_processing_state_changed(
@@ -568,14 +572,14 @@ class MainViewModel:
             if new:
                 # Navigate to analysis tab when processing starts
                 if self.ui_event_bus:
-                    event_name = Events.UI_NAVIGATE_TO_ANALYSIS_VIEW
+                    event_type = UIEvents.UI_NAVIGATE_TO_ANALYSIS_VIEW
                     log.info(
                         "controller.navigating_to_analysis_view",
-                        event_name=event_name,
+                        event_name=event_type.name,
                         event_bus_id=id(self.ui_event_bus),
                     )
-                    result = self.ui_event_bus.publish_event(event_name)
-                    log.info("controller.event_published", result=result)
+                    self.ui_event_bus.publish(Event(event_type))
+                    log.info("controller.event_published")
                 else:
                     log.warning("controller.ui_event_bus_not_available")
             else:
@@ -656,6 +660,7 @@ class MainViewModel:
         if camera:
             try:
                 camera_release_success = bool(camera.release())
+            # except Exception justified: service orchestration boundary
             except Exception as exc:
                 camera_release_success = False
                 log.error("controller.camera.release_failed", error=str(exc))
@@ -666,21 +671,23 @@ class MainViewModel:
                 message="Camera thread did not shut down cleanly",
             )
             if self.ui_event_bus:
-                self.ui_event_bus.publish_event(
-                    "error.occurred",
-                    {
-                        "title": "Erro Crítico",
-                        "message": (
-                            "A thread da câmera não foi finalizada corretamente. "
-                            "O aplicativo será encerrado."
-                        ),
-                    },
+                self.ui_event_bus.publish(
+                    Event(
+                        UIEvents.ERROR_OCCURRED,
+                        {
+                            "title": "Erro Crítico",
+                            "message": (
+                                "A thread da câmera não foi finalizada corretamente. "
+                                "O aplicativo será encerrado."
+                            ),
+                        },
+                    )
                 )
 
         self.hardware_vm._shutdown_arduino_manager()
         log.info("controller.shutdown.complete")
 
-    def _create_event_dispatcher(self, event_name: str) -> Callable[[dict], None]:
+    def _create_event_dispatcher(self, event_name: UIEvents) -> Callable[[dict], None]:
         if event_name not in self._EVENT_METHOD_MAPPING:
             # Type-safe empty dispatcher
             def empty_dispatcher(data: dict) -> None:
@@ -741,7 +748,7 @@ class MainViewModel:
 
         # Subscribe to internal event for project manager replacement
         self.ui_event_bus.subscribe(
-            Events.PROJECT_MANAGER_REPLACED,
+            UIEvents.PROJECT_MANAGER_REPLACED,
             self._handle_project_manager_replaced,
         )
 
@@ -767,14 +774,11 @@ class MainViewModel:
             ("detector_service", self.detector_service),
             ("video_processing_service", self.video_processing_service),
             ("recording_service", self.recording_service),
-            ("video_orchestrator", self.video_orchestrator),
-            ("analysis_coordinator", self.analysis_coordinator),
-            ("hardware_coordinator", self.hardware_coordinator),
             ("processing_coordinator", self.processing_coordinator),
         ]
 
-        orchestrators_to_update = [
-            ("video_processing_orchestrator", self.video_processing_orchestrator),
+        orchestrators_to_update: list[tuple[str, Any]] = [
+            # Phase 0.3: VideoProcessingOrchestrator removed
             # Phase 3A/B/C/D: Removed superseded orchestrators
         ]
 
@@ -782,6 +786,7 @@ class MainViewModel:
             if service and hasattr(service, "_on_project_manager_replaced"):
                 try:
                     service._on_project_manager_replaced(data)
+                # except Exception justified: service orchestration boundary
                 except Exception as e:
                     log.error(
                         "main_view_model.project_manager_replaced.service_update_failed",
@@ -791,7 +796,7 @@ class MainViewModel:
             elif service and hasattr(service, "project_manager"):
                 try:
                     service.project_manager = new_manager
-                except Exception as e:
+                except AttributeError as e:
                     log.error(
                         "main_view_model.project_manager_replaced.direct_update_failed",
                         service=name,

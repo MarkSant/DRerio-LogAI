@@ -282,4 +282,4 @@ class CameraDisconnectRecoveryDialog(tk.Toplevel):
         try:
             self.destroy()
         except tk.TclError:
-            pass  # Already destroyed
+            logger.debug("camera_recovery_dialog.close.already_destroyed", exc_info=True)

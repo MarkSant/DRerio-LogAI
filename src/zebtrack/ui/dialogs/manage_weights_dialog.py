@@ -12,7 +12,7 @@ from tkinter import (
 )
 from typing import Any
 
-from zebtrack.ui.events import Events
+from zebtrack.ui.event_bus_v2 import Event, UIEvents
 from zebtrack.ui.window_utils import schedule_maximize
 
 
@@ -133,7 +133,7 @@ class ManageWeightsDialog(simpledialog.Dialog):
         return self.listbox.item(selected[0])["values"][0]
 
     def set_default_seg(self):
-        """Define o peso selecionado como padrão para Segmentação."""
+        """Set the selected weight as default for Segmentation."""
         name = self.get_selected_item_name()
         if not name:
             return
@@ -163,7 +163,7 @@ class ManageWeightsDialog(simpledialog.Dialog):
             )
 
     def set_default_det(self):
-        """Define o peso selecionado como padrão para Detecção."""
+        """Set the selected weight as default for Detection."""
         name = self.get_selected_item_name()
         if not name:
             return
@@ -193,7 +193,7 @@ class ManageWeightsDialog(simpledialog.Dialog):
             )
 
     def set_default(self):
-        """Método legado mantido para compatibilidade."""
+        """Legacy method kept for backwards compatibility."""
         name = self.get_selected_item_name()
         if name:
             try:
@@ -211,8 +211,8 @@ class ManageWeightsDialog(simpledialog.Dialog):
             if messagebox.askyesno(
                 "Confirmar Exclusão", f"Tem certeza que deseja excluir '{name}'?"
             ):
-                self.controller.ui_event_bus.publish_event(
-                    Events.MODEL_DELETE_WEIGHT, {"name": name}
+                self.controller.ui_event_bus.publish(
+                    Event(type=UIEvents.MODEL_DELETE_WEIGHT, data={"name": name})
                 )
                 self.populate_list()
 

@@ -697,48 +697,51 @@ class ConcreteBehavioralAnalyzer(BehavioralAnalyzer):
         # Calculate angles using the specified window
         window = self._angle_calculation_window
 
-        for i in range(window, n_points - window):
-            # Get points at window intervals: (i-window), i, (i+window)
-            x_prev, y_prev = x[i - window], y[i - window]
-            x_curr, y_curr = x[i], y[i]
-            x_next, y_next = x[i + window], y[i + window]
+        # Phase 7: Fully vectorized angular velocity computation
+        # Slices: prev = [0 : n-2w], curr = [w : n-w], next = [2w : n]
+        x_prev = x[: n_points - 2 * window]
+        y_prev = y[: n_points - 2 * window]
+        x_curr = x[window : n_points - window]
+        y_curr = y[window : n_points - window]
+        x_next = x[2 * window :]
+        y_next = y[2 * window :]
 
-            # Calculate displacement vectors
-            dx_in = x_curr - x_prev
-            dy_in = y_curr - y_prev
-            dx_out = x_next - x_curr
-            dy_out = y_next - y_curr
+        # Displacement vectors (incoming and outgoing)
+        dx_in = x_curr - x_prev
+        dy_in = y_curr - y_prev
+        dx_out = x_next - x_curr
+        dy_out = y_next - y_curr
 
-            # Calculate displacement magnitudes
-            displacement_in = np.sqrt(dx_in**2 + dy_in**2)
-            displacement_out = np.sqrt(dx_out**2 + dy_out**2)
+        # Displacement magnitudes
+        displacement_in = np.hypot(dx_in, dy_in)
+        displacement_out = np.hypot(dx_out, dy_out)
 
-            # Apply minimum displacement threshold
-            if (
-                displacement_in < self._min_displacement_threshold_cm
-                or displacement_out < self._min_displacement_threshold_cm
-            ):
-                # Subject is stationary or moving below noise floor
-                continue
+        # Minimum displacement mask — skip near-stationary points
+        valid_mask = (displacement_in >= self._min_displacement_threshold_cm) & (
+            displacement_out >= self._min_displacement_threshold_cm
+        )
 
-            # Calculate angles of the two vectors
-            angle_in = np.arctan2(dy_in, dx_in)
-            angle_out = np.arctan2(dy_out, dx_out)
+        # Angles of the two vectors
+        angle_in = np.arctan2(dy_in, dx_in)
+        angle_out = np.arctan2(dy_out, dx_out)
 
-            # Calculate angular change with wraparound correction
-            d_theta = angle_out - angle_in
-            d_theta_normalized = (d_theta + np.pi) % (2 * np.pi) - np.pi
+        # Angular change with wraparound correction
+        d_theta = angle_out - angle_in
+        d_theta_normalized = (d_theta + np.pi) % (2 * np.pi) - np.pi
+        d_theta_deg = np.degrees(d_theta_normalized)
 
-            # Convert to degrees
-            d_theta_deg = np.degrees(d_theta_normalized)
+        # Time intervals — vectorized via pandas Series
+        t_prev = timestamps.iloc[: n_points - 2 * window].values
+        t_next = timestamps.iloc[2 * window :].values
+        dt = (t_next - t_prev).astype("timedelta64[ns]").astype(np.float64) / 1e9  # seconds
 
-            # Calculate time interval
-            t_prev = timestamps.iloc[i - window]
-            t_next = timestamps.iloc[i + window]
-            dt = (t_next - t_prev).total_seconds()
+        # Combine masks: valid displacement AND positive time interval
+        full_mask = valid_mask & (dt > 0)
 
-            if dt > 0:
-                angular_velocity_array[i] = d_theta_deg / dt
+        # Assign valid angular velocities to the output array
+        result_slice = np.full(len(dx_in), np.nan)
+        result_slice[full_mask] = d_theta_deg[full_mask] / dt[full_mask]
+        angular_velocity_array[window : n_points - window] = result_slice
 
         # Convert to Series
         angular_velocity_series = pd.Series(

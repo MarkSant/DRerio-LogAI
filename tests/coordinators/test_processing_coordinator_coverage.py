@@ -17,13 +17,16 @@ from unittest.mock import MagicMock, patch
 import numpy as np
 import pytest
 
-from zebtrack.coordinators.processing_coordinator import (
-    ProcessingCoordinator,
+from zebtrack.coordinators.multi_aquarium_coordinator import MultiAquariumCoordinator
+from zebtrack.coordinators.processing_types import (
     ProcessingCoordinatorError,
     ValidationResult,
 )
-from zebtrack.core.detector import ZoneData
-from zebtrack.core.processing_mode import ProcessingMode
+from zebtrack.coordinators.progress_tracking_coordinator import ProgressTrackingCoordinator
+from zebtrack.coordinators.report_generation_coordinator import ReportGenerationCoordinator
+from zebtrack.coordinators.video_processing_coordinator import VideoProcessingCoordinator
+from zebtrack.core.detection import ZoneData
+from zebtrack.core.video.processing_mode import ProcessingMode
 
 # =============================================================================
 # FIXTURES - Extended for Coverage
@@ -127,8 +130,11 @@ def coordinator(
     mock_analysis_service,
     mock_event_bus,
 ):
-    """Create ProcessingCoordinator with all dependencies."""
-    return ProcessingCoordinator(
+    """Create VideoProcessingCoordinator with wired sub-coordinators (Phase 4)."""
+    cancel_event = Event()
+
+    # Core coordinator (facade)
+    coord = VideoProcessingCoordinator(
         state_manager=mock_state_manager,
         project_manager=mock_project_manager,
         detector_service=mock_detector_service,
@@ -136,17 +142,55 @@ def coordinator(
         settings_obj=mock_settings,
         ui_coordinator=MagicMock(),
         ui_state_controller=MagicMock(),
-        cancel_event=Event(),
+        cancel_event=cancel_event,
         video_selection_service=MagicMock(),
         video_validation_service=MagicMock(),
         video_classification_service=MagicMock(),
-        analysis_service=mock_analysis_service,
         recorder_factory=MagicMock(),
         event_bus=mock_event_bus,
         view=None,
         root=None,
         detector=None,
     )
+
+    # Wire sub-coordinators for proxy methods
+    report_coord = ReportGenerationCoordinator(
+        state_manager=mock_state_manager,
+        project_manager=mock_project_manager,
+        settings_obj=mock_settings,
+        analysis_service=mock_analysis_service,
+        event_bus=mock_event_bus,
+    )
+    progress_coord = ProgressTrackingCoordinator(
+        state_manager=mock_state_manager,
+        settings_obj=mock_settings,
+        ui_coordinator=MagicMock(),
+        cancel_event=cancel_event,
+        event_bus=mock_event_bus,
+        view=None,
+        root=None,
+    )
+    multi_aq_coord = MultiAquariumCoordinator(
+        state_manager=mock_state_manager,
+        project_manager=mock_project_manager,
+        detector_service=mock_detector_service,
+        settings_obj=mock_settings,
+        ui_coordinator=MagicMock(),
+        ui_state_controller=MagicMock(),
+        cancel_event=cancel_event,
+        video_classification_service=MagicMock(),
+        event_bus=mock_event_bus,
+        view=None,
+        root=None,
+        detector=None,
+    )
+
+    coord._report_coordinator = report_coord
+    coord._progress_coordinator = progress_coord
+    coord._multi_aquarium_coordinator = multi_aq_coord
+    progress_coord._video_processing_coordinator = coord
+
+    return coord
 
 
 # =============================================================================
@@ -226,7 +270,8 @@ class TestValidationComprehensive:
         assert result.is_valid is True
 
         def test_create_processing_context_syncs_single_subject(coordinator, mock_settings):
-            coordinator._resolve_single_subject_tracker_preference = MagicMock(return_value=True)
+            mac = coordinator._multi_aquarium_coordinator
+            mac._resolve_single_subject_tracker_preference = MagicMock(return_value=True)
 
             context = coordinator.create_processing_context([], "/tmp/output")
 
@@ -241,16 +286,18 @@ class TestValidationComprehensive:
             )
 
         def test_resolve_single_subject_pref_prefers_single_video_config(coordinator):
+            mac = coordinator._multi_aquarium_coordinator
             coordinator.detector_service._resolve_single_subject_tracker_preference.reset_mock()
             config = {"animals_per_aquarium": 1}
 
-            result = coordinator._resolve_single_subject_tracker_preference(config)
+            result = mac._resolve_single_subject_tracker_preference(config)
 
             assert result is True
             coordinator.detector_service._resolve_single_subject_tracker_preference.assert_not_called()
 
         def test_determine_processing_intervals_from_config(coordinator):
-            analysis, display = coordinator._determine_processing_intervals(
+            mac = coordinator._multi_aquarium_coordinator
+            analysis, display = mac._determine_processing_intervals(
                 {"analysis_interval_frames": 5, "display_interval_frames": 7}
             )
 
@@ -307,11 +354,12 @@ class TestZoneArenaManagement:
 
 
 class TestProcessingModeManagement:
-    """Test processing mode determination and management."""
+    """Test processing mode determination and management (via sub-coordinator)."""
 
     def test_determine_processing_mode_returns_processing_mode(self, coordinator, mock_settings):
         """Test _determine_processing_mode returns a ProcessingMode."""
-        mode = coordinator._determine_processing_mode()
+        mac = coordinator._multi_aquarium_coordinator
+        mode = mac._determine_processing_mode()
 
         assert isinstance(mode, ProcessingMode)
 
@@ -320,8 +368,9 @@ class TestProcessingModeManagement:
     ):
         """Test SINGLE_SUBJECT mode from settings."""
         mock_settings.video_processing.single_animal_per_aquarium = True
+        mac = coordinator._multi_aquarium_coordinator
 
-        mode = coordinator._determine_processing_mode()
+        mode = mac._determine_processing_mode()
 
         # Mode depends on settings
         assert mode in [ProcessingMode.SINGLE_SUBJECT, ProcessingMode.MULTI_TRACK]
@@ -344,19 +393,21 @@ class TestProcessingModeManagement:
 
 
 class TestReportGeneration:
-    """Test report generation workflows."""
+    """Test report generation workflows (via sub-coordinator)."""
 
     def test_generate_project_reports_with_empty_list(self, coordinator):
         """Test generate_project_reports with empty video list."""
+        rc = coordinator._report_coordinator
         # Should not raise, just return early
-        coordinator.generate_project_reports([])
-        coordinator.generate_project_reports(None)
+        rc.generate_project_reports([])
+        rc.generate_project_reports(None)
 
     def test_generate_project_reports_creates_analysis_service_if_missing(
         self, coordinator, mock_project_manager, tmp_path
     ):
         """Test lazy creation of AnalysisService."""
-        coordinator.analysis_service = None
+        rc = coordinator._report_coordinator
+        rc.analysis_service = None
 
         # Create a mock video path
         video_path = str(tmp_path / "test_video.mp4")
@@ -365,14 +416,15 @@ class TestReportGeneration:
         mock_project_manager.find_video_entry.return_value = None
 
         with patch("zebtrack.analysis.analysis_service.AnalysisService") as mock_as:
-            coordinator.generate_project_reports([video_path])
+            rc.generate_project_reports([video_path])
 
             # AnalysisService should be created lazily
             mock_as.assert_called_once()
 
     def test_generate_parquet_summaries_with_empty_list(self, coordinator):
         """Test generate_parquet_summaries with empty video list."""
-        coordinator.generate_parquet_summaries([], coordinator.settings)
+        rc = coordinator._report_coordinator
+        rc.generate_parquet_summaries([])
 
         # Should not raise
 
@@ -380,13 +432,14 @@ class TestReportGeneration:
         self, coordinator, mock_project_manager, tmp_path
     ):
         """Test skipping videos without trajectory files."""
+        rc = coordinator._report_coordinator
         video_entry = {"path": str(tmp_path / "video.mp4"), "metadata": {}}
 
         mock_project_manager.find_video_entry.return_value = video_entry
         mock_project_manager.resolve_results_directory.return_value = str(tmp_path)
 
         # Don't create trajectory file - should skip
-        coordinator.generate_parquet_summaries([video_entry], coordinator.settings)
+        rc.generate_parquet_summaries([video_entry])
 
         # Should not raise
 
@@ -403,8 +456,8 @@ class TestVideoSelectionEligibility:
         """Test select_eligible_videos with all required parameters."""
         result = coordinator.select_eligible_videos(
             skip_dialog=True,
-            ready_with_trajectory=[{"path": "/v1.mp4"}],
-            ready_with_zones=[{"path": "/v2.mp4"}],
+            ready_traj=[{"path": "/v1.mp4"}],
+            ready_zones=[{"path": "/v2.mp4"}],
             arena_only=[],
             without_arena=[],
         )
@@ -415,8 +468,8 @@ class TestVideoSelectionEligibility:
         """Test select_eligible_videos with empty lists."""
         result = coordinator.select_eligible_videos(
             skip_dialog=True,
-            ready_with_trajectory=[],
-            ready_with_zones=[],
+            ready_traj=[],
+            ready_zones=[],
             arena_only=[],
             without_arena=[],
         )
@@ -452,9 +505,10 @@ class TestProcessingContextAndCallbacks:
         assert callbacks is not None
 
     def test_make_progress_callback_exists(self, coordinator):
-        """Test make_progress_callback method exists."""
-        assert hasattr(coordinator, "make_progress_callback")
-        assert callable(coordinator.make_progress_callback)
+        """Test make_progress_callback method exists on progress coordinator."""
+        ptc = coordinator._progress_coordinator
+        assert hasattr(ptc, "make_progress_callback")
+        assert callable(ptc.make_progress_callback)
 
 
 # =============================================================================
@@ -529,18 +583,20 @@ class TestErrorHandling:
 
 
 class TestAquariumDetection:
-    """Test aquarium detection workflow."""
+    """Test aquarium detection workflow (via sub-coordinator)."""
 
     def test_run_aquarium_detection_exists(self, coordinator):
-        """Test run_aquarium_detection method exists."""
-        assert hasattr(coordinator, "run_aquarium_detection")
-        assert callable(coordinator.run_aquarium_detection)
+        """Test run_aquarium_detection method exists on multi-aquarium coordinator."""
+        mac = coordinator._multi_aquarium_coordinator
+        assert hasattr(mac, "run_aquarium_detection")
+        assert callable(mac.run_aquarium_detection)
 
-    @patch("zebtrack.coordinators.processing_coordinator.AquariumDetector")
+    @patch("zebtrack.core.detection.aquarium_detector.AquariumDetector")
     def test_run_aquarium_detection_uses_detector(
         self, mock_aquarium_detector, coordinator, tmp_path
     ):
         """Test run_aquarium_detection uses AquariumDetector."""
+        mac = coordinator._multi_aquarium_coordinator
         # Create mock frame
         frame = np.zeros((480, 640, 3), dtype=np.uint8)
 
@@ -556,7 +612,7 @@ class TestAquariumDetection:
 
         # Call should work
         try:
-            coordinator.run_aquarium_detection(frame)
+            mac.run_aquarium_detection(frame)
         except Exception:
             pass  # May fail on other dependencies
 
@@ -578,8 +634,9 @@ class TestServiceIntegration:
         assert coordinator.video_validation_service is not None
 
     def test_coordinator_uses_analysis_service(self, coordinator):
-        """Test coordinator has analysis_service."""
-        assert coordinator.analysis_service is not None
+        """Test coordinator has analysis_service via report coordinator."""
+        assert coordinator._report_coordinator is not None
+        assert coordinator._report_coordinator.analysis_service is not None
 
     def test_coordinator_uses_detector_service(self, coordinator):
         """Test coordinator has detector_service."""
@@ -592,12 +649,12 @@ class TestServiceIntegration:
 
 
 class TestProcessingIntervals:
-    """Test processing interval determination."""
+    """Test processing interval determination (via sub-coordinator)."""
 
     def test_determine_processing_intervals_returns_tuple(self, coordinator, mock_settings):
         """Test _determine_processing_intervals returns tuple of intervals."""
-        # Method requires single_video_config parameter
-        intervals = coordinator._determine_processing_intervals(single_video_config={})
+        mac = coordinator._multi_aquarium_coordinator
+        intervals = mac._determine_processing_intervals(config={})
 
         assert isinstance(intervals, tuple)
         assert len(intervals) == 2  # (analysis_interval, display_interval)
@@ -606,8 +663,9 @@ class TestProcessingIntervals:
         """Test intervals come from settings."""
         mock_settings.video_processing.processing_interval = 5
         mock_settings.video_processing.display_interval = 10
+        mac = coordinator._multi_aquarium_coordinator
 
-        analysis, display = coordinator._determine_processing_intervals(single_video_config={})
+        analysis, display = mac._determine_processing_intervals(config={})
 
         assert analysis == 5
         assert display == 10
@@ -636,19 +694,20 @@ class TestMetadataExtraction:
 
 
 class TestTemporarySingleAnimalMode:
-    """Test temporary single animal mode context manager."""
+    """Test temporary single animal mode context manager (via sub-coordinator)."""
 
     def test_temporary_single_animal_mode_method_exists(self, coordinator):
-        """Test _temporary_single_animal_mode method exists."""
-        assert hasattr(coordinator, "_temporary_single_animal_mode")
-        assert callable(coordinator._temporary_single_animal_mode)
+        """Test _temporary_single_animal_mode method exists on multi-aquarium coordinator."""
+        mac = coordinator._multi_aquarium_coordinator
+        assert hasattr(mac, "_temporary_single_animal_mode")
+        assert callable(mac._temporary_single_animal_mode)
 
     def test_temporary_single_animal_mode_is_context_manager(
         self, coordinator, mock_detector_service
     ):
         """Test _temporary_single_animal_mode returns a context manager."""
-        # Get the context manager with required parameter
-        ctx = coordinator._temporary_single_animal_mode(single_video_config={})
+        mac = coordinator._multi_aquarium_coordinator
+        ctx = mac._temporary_single_animal_mode(single_video_config={})
 
         assert hasattr(ctx, "__enter__")
         assert hasattr(ctx, "__exit__")
@@ -657,9 +716,10 @@ class TestTemporarySingleAnimalMode:
         self, coordinator, mock_settings
     ):
         """Tracker preference follows single-animal mode when explicit pref is absent."""
-        coordinator._resolve_single_subject_tracker_preference = MagicMock(return_value=None)
+        mac = coordinator._multi_aquarium_coordinator
+        mac._resolve_single_subject_tracker_preference = MagicMock(return_value=None)
 
-        with coordinator._temporary_single_animal_mode({"animals_per_aquarium": 1}):
+        with mac._temporary_single_animal_mode({"single_animal_per_aquarium": True}):
             assert mock_settings.video_processing.single_animal_per_aquarium is True
             assert mock_settings.tracking.use_single_subject_tracker is True
 
@@ -685,7 +745,9 @@ class TestSummaryVideoProcessing:
 
         # Should not raise, should log warning
         try:
-            coordinator._process_summary_video(video_entry, coordinator.settings)
+            coordinator._report_coordinator._process_summary_video(
+                video_entry, coordinator.settings
+            )
         except FileNotFoundError:
             pass  # Expected - no trajectory file
         except Exception:
@@ -707,7 +769,7 @@ class TestValidationResultDataclass:
         assert result.is_valid is True
         assert result.error_code is None
         assert result.error_message is None
-        assert result.context is None
+        assert result.context == {}
 
     def test_validation_result_failure_has_error_info(self):
         """Test failure() creates invalid result with error info."""

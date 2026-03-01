@@ -1,3 +1,4 @@
+import time
 from pathlib import Path
 from typing import Any
 
@@ -73,6 +74,36 @@ class UltralyticsDetectorPlugin(DetectorPlugin):
         # ByteTrack buffer size
         self.track_buffer = 60
 
+        # Phase 7: Model warm-up — eliminates JIT compilation latency on first real frame
+        self._warm_up(log)
+
+    def _warm_up(self, log: Any) -> None:
+        """Run a single dummy inference to trigger JIT compilation and cache allocation.
+
+        First YOLO inference is significantly slower due to internal graph optimisation
+        and CUDA kernel compilation.  Running a dummy frame during ``__init__`` moves
+        that latency out of the real-time processing loop.
+
+        The dummy frame uses the same ``half``/``imgsz`` settings as production
+        inference so that all kernel variants are compiled ahead of time.
+        """
+        try:
+            h, w = self._imgsz, self._imgsz
+            dummy_frame = np.zeros((h, w, 3), dtype=np.uint8)
+            t0 = time.perf_counter()
+            self.model.predict(
+                dummy_frame,
+                verbose=False,
+                conf=self.conf_threshold,
+                iou=self.nms_threshold,
+                half=self._half_enabled,
+                imgsz=self._imgsz,
+            )
+            elapsed_ms = (time.perf_counter() - t0) * 1000
+            log.info("ultralytics.warmup.complete", elapsed_ms=round(elapsed_ms, 1))
+        except Exception as e:  # except Exception justified: warm-up is best-effort
+            log.warning("ultralytics.warmup.failed", error=str(e))
+
     def detect(
         self, frame: np.ndarray, conf_threshold: float | None = None
     ) -> list[tuple[int, int, int, int, float, int | None, int]]:
@@ -118,9 +149,9 @@ class UltralyticsDetectorPlugin(DetectorPlugin):
         predictions: list[tuple[int, int, int, int, float, int | None, int]] = []
         if results and results[0].boxes is not None:
             boxes = results[0].boxes
-            xyxys = boxes.xyxy.cpu().numpy()  # type: ignore[attr-defined]
-            confs = boxes.conf.cpu().numpy()  # type: ignore[attr-defined]
-            classes = boxes.cls.cpu().numpy()  # type: ignore[attr-defined]
+            xyxys = boxes.xyxy.cpu().numpy()
+            confs = boxes.conf.cpu().numpy()
+            classes = boxes.cls.cpu().numpy()
 
             # ✅ DEBUG: Log raw boxes from model
             log.debug(
@@ -179,7 +210,7 @@ class UltralyticsDetectorPlugin(DetectorPlugin):
 
             # Process boxes and masks together
             if result.boxes is not None:
-                for i, box in enumerate(result.boxes):  # type: ignore[arg-type]
+                for i, box in enumerate(result.boxes):
                     x1, y1, x2, y2 = box.xyxy[0].tolist()
                     class_id = int(box.cls)
                     confidence = float(box.conf)
@@ -187,8 +218,8 @@ class UltralyticsDetectorPlugin(DetectorPlugin):
                     # Check if corresponding mask exists
                     has_mask = (
                         result.masks is not None
-                        and result.masks.xy is not None  # type: ignore[union-attr]
-                        and i < len(result.masks.xy)  # type: ignore[union-attr]
+                        and result.masks.xy is not None
+                        and i < len(result.masks.xy)
                     )
 
                     formatted_results.append(
@@ -198,17 +229,15 @@ class UltralyticsDetectorPlugin(DetectorPlugin):
                             "class_id": class_id,
                             "class_name": result.names.get(class_id, f"class_{class_id}"),
                             "has_mask": has_mask,
-                            "mask_points": len(result.masks.xy[i])  # type: ignore[union-attr]
-                            if has_mask
-                            else 0,
+                            "mask_points": len(result.masks.xy[i]) if has_mask else 0,
                         }
                     )
 
             # Process orphan masks (without boxes)
-            if result.masks is not None and result.masks.xy is not None:  # type: ignore[union-attr]
+            if result.masks is not None and result.masks.xy is not None:
                 num_boxes = len(result.boxes) if result.boxes else 0
-                for i in range(num_boxes, len(result.masks.xy)):  # type: ignore[union-attr]
-                    mask_xy = result.masks.xy[i]  # type: ignore[union-attr]
+                for i in range(num_boxes, len(result.masks.xy)):
+                    mask_xy = result.masks.xy[i]
                     x_min = int(mask_xy[:, 0].min())
                     y_min = int(mask_xy[:, 1].min())
                     x_max = int(mask_xy[:, 0].max())
@@ -262,3 +291,62 @@ class UltralyticsDetectorPlugin(DetectorPlugin):
 
         # Ultralytics YOLO keeps minimal state across predict() calls, so no-op.
         pass
+
+    # Phase 7.2 — Batch inference
+    # =========================================================================
+
+    def detect_batch(
+        self,
+        frames: list[np.ndarray],
+        conf_threshold: float | None = None,
+    ) -> list[list[tuple[int, int, int, int, float, int | None, int]]]:
+        """Process multiple frames via Ultralytics native batch predict.
+
+        Passes the list of frames directly to ``model.predict()``, which
+        stacks them internally for GPU-efficient batch inference.
+
+        Args:
+            frames: List of BGR frames.
+            conf_threshold: Optional confidence threshold override.
+
+        Returns:
+            List of detection lists, one per input frame.
+        """
+        if not frames:
+            return []
+
+        conf = conf_threshold if conf_threshold is not None else self.conf_threshold
+
+        results = self.model.predict(
+            frames,
+            verbose=False,
+            conf=conf,
+            iou=self.nms_threshold,
+            classes=None,
+            half=self._half_enabled,
+            imgsz=self._imgsz,
+        )
+
+        all_detections: list[list[tuple[int, int, int, int, float, int | None, int]]] = []
+        for result in results:
+            frame_predictions: list[tuple[int, int, int, int, float, int | None, int]] = []
+            if result.boxes is not None:
+                xyxys = result.boxes.xyxy.cpu().numpy()
+                confs = result.boxes.conf.cpu().numpy()
+                classes = result.boxes.cls.cpu().numpy()
+                for i in range(len(xyxys)):
+                    x1, y1, x2, y2 = xyxys[i]
+                    frame_predictions.append(
+                        (
+                            int(x1),
+                            int(y1),
+                            int(x2),
+                            int(y2),
+                            float(confs[i]),
+                            None,
+                            int(classes[i]),
+                        )
+                    )
+            all_detections.append(frame_predictions)
+
+        return all_detections

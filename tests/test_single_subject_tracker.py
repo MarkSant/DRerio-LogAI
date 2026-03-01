@@ -1,6 +1,6 @@
 import unittest
 
-from zebtrack.core.single_subject_tracker import SingleSubjectTracker
+from zebtrack.core.detection.single_subject_tracker import SingleSubjectTracker
 
 
 class TestSingleSubjectTracker(unittest.TestCase):

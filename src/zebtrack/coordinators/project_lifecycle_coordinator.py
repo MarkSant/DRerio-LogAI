@@ -1,12 +1,13 @@
 """Project Lifecycle Coordinator - Phase 3 Super Coordinator.
 
-Consolidates project lifecycle, asset management, model overrides, and calibration.
-This is one of the 4 super coordinators created in Phase 3 of MainViewModel refactoring.
+Thin coordinator for project lifecycle and asset management.
+Delegates model-override logic to ModelOverrideService and calibration
+logic to CalibrationCoordinator (Phase 5B decomposition).
 
 Consolidates:
-- ProjectOrchestrator (Sprint 27)
-- CalibrationOrchestrator (Sprint 32)
-- ProjectWorkflowAdapter coordination logic
+- ProjectOrchestrator (Sprint 27)  — Groups A + B retained here
+- CalibrationOrchestrator (Sprint 32) — delegated to CalibrationCoordinator
+- Model Override management — delegated to ModelOverrideService
 
 CRITICAL: No dependency on MainViewModel. All dependencies injected explicitly.
 """
@@ -18,60 +19,44 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
-import numpy as np
 import structlog
 
 from zebtrack.coordinators.base_coordinator import BaseCoordinator
-from zebtrack.core.calibration import Calibration
-from zebtrack.core.project_manager import AssetType
-from zebtrack.ui.events import Events
+from zebtrack.core.project.project_manager import AssetType
+from zebtrack.ui.event_bus_v2 import UIEvents
 
 if TYPE_CHECKING:
-    from zebtrack.core.detector_service import DetectorService
-    from zebtrack.core.project_manager import ProjectManager
-    from zebtrack.core.project_workflow_service import ProjectWorkflowService
+    from zebtrack.coordinators.calibration_coordinator import (
+        CalibrationCoordinator as CalibrationCoordinatorType,
+    )
+    from zebtrack.core.detection.calibration import Calibration
+    from zebtrack.core.project.project_manager import ProjectManager
+    from zebtrack.core.project.project_workflow_service import ProjectWorkflowService
+    from zebtrack.core.services.detector_service import DetectorService
+    from zebtrack.core.services.model_override_service import ModelOverrideService
     from zebtrack.core.state_manager import StateManager
     from zebtrack.settings import Settings
-    from zebtrack.ui.event_bus import EventBus
+    from zebtrack.ui.event_bus_v2 import EventBusV2
     from zebtrack.ui.project_workflow_adapter import ProjectWorkflowAdapter
 
 log = structlog.get_logger()
 
 
 class ProjectLifecycleCoordinator(BaseCoordinator):
-    """Super coordinator for complete project lifecycle management.
+    """Thin coordinator for project lifecycle and asset management.
 
-    Responsibilities:
+    Responsibilities (retained):
     - Project lifecycle (create, open, close)
     - Project asset management (delete, validate, register outputs)
-    - Model override management (apply, save, resolve)
-    - Calibration scope and context management
     - Zone setup from project data
+    - Event handling (aquarium config updates)
+
+    Delegated (Phase 5B):
+    - Model override management → ModelOverrideService
+    - Calibration scope/context → CalibrationCoordinator
 
     Phase 3: Consolidates ProjectOrchestrator + CalibrationOrchestrator
-    Eliminates MainViewModel dependency through pure dependency injection.
-
-    Example:
-        coordinator = ProjectLifecycleCoordinator(
-            state_manager=state_manager,
-            project_manager=project_manager,
-            project_workflow_service=project_workflow_service,
-            project_workflow_adapter=project_workflow_adapter,
-            settings_obj=settings,
-            event_bus=event_bus
-        )
-
-        # Create project
-        path = coordinator.create_project(name="my_project", type="pre-recorded")
-
-        # Open project
-        coordinator.open_project(path)
-
-        # Manage calibration
-        info = coordinator.get_calibration_scope_info()
-
-        # Close project
-        coordinator.close_project()
+    Phase 5B: Decomposed into thin coordinator + 2 delegates
     """
 
     def __init__(
@@ -81,8 +66,10 @@ class ProjectLifecycleCoordinator(BaseCoordinator):
         project_workflow_service: ProjectWorkflowService,
         project_workflow_adapter: ProjectWorkflowAdapter,
         settings_obj: Settings,
-        event_bus: EventBus | None = None,
+        event_bus: EventBusV2 | None = None,
         detector_service: DetectorService | None = None,
+        model_override_service: ModelOverrideService | None = None,
+        calibration_coordinator: CalibrationCoordinatorType | None = None,
     ):
         """Initialize ProjectLifecycleCoordinator with dependency injection.
 
@@ -94,6 +81,8 @@ class ProjectLifecycleCoordinator(BaseCoordinator):
             settings_obj: Settings instance
             event_bus: Optional EventBus for publishing events
             detector_service: Optional DetectorService for detector setup callbacks
+            model_override_service: Optional delegate for model override logic
+            calibration_coordinator: Optional delegate for calibration logic
 
         Note:
             NEVER pass MainViewModel. All dependencies must be explicit.
@@ -105,9 +94,15 @@ class ProjectLifecycleCoordinator(BaseCoordinator):
         self.settings = settings_obj
         self.detector_service = detector_service
 
-        # Internal state (migrated from orchestrators)
-        self._using_project_overrides: bool = False
-        self._global_model_defaults: dict[str, Any] = {}
+        # Phase 5B delegates
+        self._model_override_service = model_override_service
+        self._calibration_coordinator = calibration_coordinator
+
+        # Backward-compat: expose state via properties for callers that
+        # read _using_project_overrides / _global_model_defaults directly.
+        if model_override_service is None:
+            self._using_project_overrides: bool = False
+            self._global_model_defaults: dict[str, Any] = {}
 
         # Zone manager reference for aquarium config updates
         self._zone_manager: Any = None
@@ -130,7 +125,7 @@ class ProjectLifecycleCoordinator(BaseCoordinator):
 
         # Subscribe to aquarium config update events
         self.event_bus.subscribe(
-            Events.ZONE_AQUARIUM_CONFIG_UPDATED,
+            UIEvents.ZONE_AQUARIUM_CONFIG_UPDATED,
             self._handle_aquarium_config_updated,
         )
 
@@ -208,7 +203,7 @@ class ProjectLifecycleCoordinator(BaseCoordinator):
                 video_path=str(video_path),
             )
 
-        except Exception as e:
+        except Exception as e:  # except Exception justified: event handler fault isolation
             log.error(
                 "aquarium_config_update.failed",
                 aquarium_id=aquarium_id,
@@ -239,7 +234,11 @@ class ProjectLifecycleCoordinator(BaseCoordinator):
         # Delegate to adapter which handles all UI coordination
         new_project_manager = self.project_workflow_adapter.close_project(
             restore_global_defaults_callback=restore_global_defaults_callback
-            or self._restore_global_model_defaults,
+            or (
+                self._model_override_service.restore_global_model_defaults
+                if self._model_override_service
+                else self._restore_global_model_defaults
+            ),
             settings_obj=self.settings,
         )
 
@@ -247,8 +246,8 @@ class ProjectLifecycleCoordinator(BaseCoordinator):
         self.project_manager = new_project_manager
 
         # Notify all services about the new project manager
-        self._publish_event(Events.PROJECT_MANAGER_REPLACED, {"new_manager": new_project_manager})
-        self._publish_event(Events.PROJECT_CLOSED, {})
+        self._publish_event(UIEvents.PROJECT_MANAGER_REPLACED, {"new_manager": new_project_manager})
+        self._publish_event(UIEvents.PROJECT_CLOSED, {})
         self.logger.info("project.close.complete")
 
         return new_project_manager
@@ -325,6 +324,7 @@ class ProjectLifecycleCoordinator(BaseCoordinator):
                     if not success:
                         self.logger.error("project.create.detector_setup_failed", error=error)
                     return success
+                # except Exception justified: ML inference heterogeneous errors
                 except Exception as e:
                     self.logger.error("project.create.detector_setup_failed", error=str(e))
                     return False
@@ -374,7 +374,7 @@ class ProjectLifecycleCoordinator(BaseCoordinator):
                             params=detector_params,
                             scope="project",
                         )
-                    except Exception as e:
+                    except Exception as e:  # except Exception justified: non-critical fallback
                         self.logger.warning("project.create.wizard_overrides_failed", error=str(e))
 
         # Delegate to adapter which handles all UI coordination
@@ -449,6 +449,7 @@ class ProjectLifecycleCoordinator(BaseCoordinator):
                     if not success:
                         self.logger.error("project.open.detector_setup_failed", error=error)
                     return success
+                # except Exception justified: ML inference heterogeneous errors
                 except Exception as e:
                     self.logger.error("project.open.detector_setup_failed", error=str(e))
                     return False
@@ -479,7 +480,7 @@ class ProjectLifecycleCoordinator(BaseCoordinator):
             if self.detector_service and settings:
                 try:
                     self.detector_service.restore_detector_settings(settings)
-                except Exception as e:
+                except Exception as e:  # except Exception justified: non-critical fallback
                     self.logger.warning("project.open.restore_detector_failed", error=str(e))
 
         def _default_get_active_weight_name() -> str:
@@ -558,7 +559,7 @@ class ProjectLifecycleCoordinator(BaseCoordinator):
         *,
         delete_source: bool = True,
     ) -> bool:
-        """Remove a project asset (arena, ROIs, trajetória, sumário ou vídeo).
+        """Remove a project asset (arena, ROIs, trajectory, summary, or video).
 
         Args:
             video_path: Path to video file
@@ -641,31 +642,20 @@ class ProjectLifecycleCoordinator(BaseCoordinator):
         self.logger.info("project.outputs.register.complete", video=video_path)
 
     # ========================================================================
-    # Group C: Model Override Management
+    # Group C: Model Override Management (delegated to ModelOverrideService)
     # ========================================================================
 
     def are_project_overrides_active(self) -> bool:
-        """Check if project-specific model overrides are currently active.
-
-        Returns:
-            True if using project overrides, False if using global settings
-
-        Phase 3: Consolidated from ProjectOrchestrator.are_project_overrides_active
-        """
+        """Check if project-specific model overrides are currently active."""
+        if self._model_override_service:
+            return self._model_override_service.are_project_overrides_active()
         return bool(self._using_project_overrides)
 
     def has_project_override_settings(self) -> bool:
-        """Check if project has any non-empty model override settings.
-
-        Returns:
-            True if project has model overrides, False otherwise
-
-        Phase 3: Consolidated from ProjectOrchestrator.has_project_override_settings
-        """
-        if not getattr(self.project_manager, "project_path", None):
-            return False
-        overrides = self._ensure_project_overrides_record()
-        return any(value not in (None, "", "inherit") for value in overrides.values())
+        """Check if project has any non-empty model override settings."""
+        if self._model_override_service:
+            return self._model_override_service.has_project_override_settings()
+        return False
 
     def copy_global_model_settings_to_project(
         self,
@@ -673,55 +663,19 @@ class ProjectLifecycleCoordinator(BaseCoordinator):
         get_active_weight_name: Callable[[], str | None],
         refresh_callback: Callable[[str, bool], None] | None = None,
     ) -> tuple[str | None, bool] | None:
-        """Copy global model settings to current project as overrides.
-
-        Args:
-            get_global_defaults: Callback to get global model defaults
-            get_active_weight_name: Callback to get active weight name
-            refresh_callback: Optional callback to refresh project views
-
-        Returns:
-            Tuple of (weight_name, use_openvino) if successful, None otherwise
-
-        Phase 3: Consolidated from ProjectOrchestrator.copy_global_model_settings_to_project
-        """
-        if not getattr(self.project_manager, "project_path", None):
-            self._publish_event(
-                Events.UI_SHOW_WARNING,
-                {
-                    "title": "Nenhum Projeto",
-                    "message": "Abra um projeto antes de copiar configurações globais.",
-                },
+        """Copy global model settings to current project as overrides."""
+        if self._model_override_service:
+            return self._model_override_service.copy_global_model_settings_to_project(
+                get_global_defaults, get_active_weight_name, refresh_callback
             )
-            return None
-
-        defaults = get_global_defaults()
-        weight = defaults.get("active_weight") or get_active_weight_name()
-        use_openvino = bool(defaults.get("use_openvino", False))
-
-        overrides = self._persist_project_model_settings(weight, use_openvino)
-
-        message = "Configurações globais aplicadas ao projeto."
-        self._publish_event(Events.UI_SET_STATUS, {"message": message})
-
-        if refresh_callback:
-            refresh_callback(message, True)
-
-        return overrides.get("active_weight"), bool(overrides.get("use_openvino"))
+        return None
 
     def resolve_project_model_settings(
         self, overrides: dict | None = None
     ) -> tuple[str | None, bool]:
-        """Resolve model settings considering project overrides and global defaults.
-
-        Args:
-            overrides: Optional override dictionary to merge
-
-        Returns:
-            Tuple of (resolved_weight, resolved_openvino)
-
-        Phase 3: Consolidated from ProjectOrchestrator.resolve_project_model_settings
-        """
+        """Resolve model settings considering project overrides and global defaults."""
+        if self._model_override_service:
+            return self._model_override_service.resolve_project_model_settings(overrides)
         return self.project_workflow_service.resolve_project_model_settings(overrides)
 
     def save_current_calibration_to_project(
@@ -730,47 +684,12 @@ class ProjectLifecycleCoordinator(BaseCoordinator):
         get_use_openvino: Callable[[], bool],
         refresh_callback: Callable[[str, bool], None] | None = None,
     ) -> tuple[str | None, bool] | None:
-        """Save current model settings as project-specific overrides.
-
-        Args:
-            get_active_weight_name: Callback to get active weight name
-            get_use_openvino: Callback to get OpenVINO usage
-            refresh_callback: Optional callback to refresh project views
-
-        Returns:
-            Tuple of (weight_name, use_openvino) if successful, None otherwise
-
-        Phase 3: Consolidated from ProjectOrchestrator.save_current_calibration_to_project
-        """
-        if not getattr(self.project_manager, "project_path", None):
-            self._publish_event(
-                Events.UI_SHOW_WARNING,
-                {
-                    "title": "Nenhum Projeto",
-                    "message": "Abra um projeto antes de salvar overrides de calibração.",
-                },
+        """Save current model settings as project-specific overrides."""
+        if self._model_override_service:
+            return self._model_override_service.save_current_calibration_to_project(
+                get_active_weight_name, get_use_openvino, refresh_callback
             )
-            return None
-
-        overrides = self._persist_project_model_settings(
-            get_active_weight_name() or None,
-            bool(get_use_openvino()),
-        )
-
-        # Apply overrides
-        self.apply_project_model_overrides(
-            overrides=overrides,
-            active_weight_setter=lambda w: None,  # Will be set by caller
-            use_openvino_setter=lambda v: None,  # Will be set by caller
-        )
-
-        message = "Overrides do projeto atualizados a partir desta calibração."
-        self._publish_event(Events.UI_SET_STATUS, {"message": message})
-
-        if refresh_callback:
-            refresh_callback(message, True)
-
-        return overrides.get("active_weight"), bool(overrides.get("use_openvino"))
+        return None
 
     def apply_project_model_overrides(
         self,
@@ -779,18 +698,13 @@ class ProjectLifecycleCoordinator(BaseCoordinator):
         active_weight_setter: Callable[[str], None],
         use_openvino_setter: Callable[[bool], None],
     ) -> tuple[str | None, bool]:
-        """Apply project-specific model overrides to current settings.
-
-        Args:
-            overrides: Optional override dictionary
-            active_weight_setter: Callback to set active weight
-            use_openvino_setter: Callback to set OpenVINO usage
-
-        Returns:
-            Tuple of (resolved_weight, resolved_openvino)
-
-        Phase 3: Consolidated from ProjectOrchestrator.apply_project_model_overrides
-        """
+        """Apply project-specific model overrides to current settings."""
+        if self._model_override_service:
+            return self._model_override_service.apply_project_model_overrides(
+                overrides=overrides,
+                active_weight_setter=active_weight_setter,
+                use_openvino_setter=use_openvino_setter,
+            )
         return self.project_workflow_service.apply_project_model_overrides(
             overrides=overrides,
             active_weight_setter=active_weight_setter,
@@ -804,47 +718,19 @@ class ProjectLifecycleCoordinator(BaseCoordinator):
         get_active_weight_name: Callable[[], str | None],
         get_use_openvino: Callable[[], bool],
     ) -> tuple[str | None, bool]:
-        """Save model settings as project overrides and apply them.
-
-        Args:
-            active_weight_override: Weight name to save as override
-            use_openvino_override: OpenVINO preference to save as override
-            get_active_weight_name: Callback to get active weight name
-            get_use_openvino: Callback to get OpenVINO usage
-
-        Returns:
-            Tuple of (resolved_weight, resolved_openvino)
-
-        Phase 3: Consolidated from ProjectOrchestrator.save_project_model_overrides
-        """
-        if not getattr(self.project_manager, "project_path", None):
-            self.logger.warning("project.overrides.no_project_loaded")
-            return (
-                get_active_weight_name() or None,
-                get_use_openvino(),
+        """Save model settings as project overrides and apply them."""
+        if self._model_override_service:
+            return self._model_override_service.save_project_model_overrides(
+                active_weight_override,
+                use_openvino_override,
+                get_active_weight_name,
+                get_use_openvino,
             )
-
-        overrides = self.project_manager.project_data.setdefault(
-            "model_overrides",
-            {"active_weight": None, "use_openvino": None},
-        )
-        overrides["active_weight"] = active_weight_override or None
-        overrides["use_openvino"] = use_openvino_override
-
-        # Apply overrides (callbacks will be set by caller)
-        resolved_weight, resolved_openvino = self.apply_project_model_overrides(
-            overrides=overrides,
-            active_weight_setter=lambda w: None,  # Will be set by caller
-            use_openvino_setter=lambda v: None,  # Will be set by caller
-        )
-
-        self.project_manager.project_data["model_overrides"] = overrides
-        self.project_manager.save_project()
-
-        return resolved_weight, resolved_openvino
+        # Fallback: no delegate, return current values
+        return get_active_weight_name() or None, get_use_openvino()
 
     # ========================================================================
-    # Group D: Calibration Management
+    # Group D: Calibration Management (delegated to CalibrationCoordinator)
     # ========================================================================
 
     def get_calibration_scope_info(
@@ -852,66 +738,16 @@ class ProjectLifecycleCoordinator(BaseCoordinator):
         get_active_weight_name: Callable[[], str | None] | None = None,
         gui_instance: Any | None = None,
     ) -> dict[str, Any]:
-        """Get calibration scope information for UI display.
-
-        Args:
-            get_active_weight_name: Callback to get active weight name
-            gui_instance: Optional GUI instance for single-video mode check
-
-        Returns:
-            Dictionary with scope, project status, labels, and detail messages
-
-        Phase 3: Consolidated from CalibrationOrchestrator.get_calibration_scope_info
-        """
-        project_path = getattr(self.project_manager, "project_path", None)
-        project_loaded = bool(project_path)
-        project_name = None
-        if project_loaded and hasattr(self.project_manager, "get_project_name"):
-            try:
-                project_name = self.project_manager.get_project_name()
-            except Exception:  # pragma: no cover - defensive
-                project_name = None
-
-        overrides_active = self.has_project_override_settings()
-        inheriting_globals = project_loaded and not overrides_active
-        scope = "project" if project_loaded and self._using_project_overrides else "global"
-
-        # Check if in single-video analysis mode
-        is_single_video_mode = False
-        if gui_instance:
-            is_single_video_mode = bool(getattr(gui_instance, "pending_single_video_path", None))
-
-        if scope == "project":
-            label = f"Escopo: Projeto ({project_name})" if project_name else "Escopo: Projeto"
-            if overrides_active:
-                detail = (
-                    "Este projeto usa overrides salvos. Ajustes nesta janela são "
-                    "persistidos apenas neste projeto."
-                )
-            else:
-                detail = (
-                    "Este projeto está herdando os padrões globais. Ao salvar "
-                    "aqui, os valores se tornam overrides específicos."
-                )
-        else:
-            label = "Escopo: Configuração Global"
-            if project_loaded:
-                detail = (
-                    "Alterações atualizam o padrão global. Use a ação de cópia para "
-                    "fixar estes valores no projeto atual."
-                )
-            else:
-                detail = "Nenhum projeto carregado; ajustes atualizam os padrões globais."
-
+        """Get calibration scope information for UI display."""
+        if self._calibration_coordinator:
+            return self._calibration_coordinator.get_calibration_scope_info(
+                get_active_weight_name, gui_instance
+            )
         return {
-            "scope": scope,
-            "project_loaded": project_loaded,
-            "project_name": project_name,
-            "overrides_active": overrides_active,
-            "inheriting_globals": inheriting_globals,
-            "is_single_video_mode": is_single_video_mode,
-            "label": label,
-            "detail": detail,
+            "scope": "global",
+            "project_loaded": False,
+            "label": "Escopo: Configuração Global",
+            "detail": "Delegates not available.",
         }
 
     def build_calibration_context(
@@ -919,35 +755,12 @@ class ProjectLifecycleCoordinator(BaseCoordinator):
         arena_polygon: list[list[int]] | list | None,
         calibration_data: dict | None,
     ) -> tuple[Calibration | None, tuple[float, float] | None]:
-        """Calculate calibration and pixel/cm ratio for tracking outputs.
-
-        Args:
-            arena_polygon: Arena polygon coordinates
-            calibration_data: Calibration data dictionary
-
-        Returns:
-            Tuple of (Calibration object, pixel_per_cm_ratio)
-
-        Phase 3: Consolidated from CalibrationOrchestrator._build_calibration_context
-        """
-        pixel_per_cm_ratio = None
-        cal = None
-
-        calibration_source = calibration_data or (
-            self.project_manager.project_data.get("calibration")
-            if self.project_manager and self.project_manager.project_data
-            else None
-        )
-
-        if calibration_source:
-            width_cm = calibration_source.get("aquarium_width_cm")
-            height_cm = calibration_source.get("aquarium_height_cm")
-            if width_cm and height_cm and arena_polygon:
-                polygon_array = np.array(arena_polygon)
-                cal = Calibration(polygon_array, width_cm, height_cm)
-                pixel_per_cm_ratio = cal.pixel_per_cm_ratio
-
-        return cal, pixel_per_cm_ratio
+        """Calculate calibration and pixel/cm ratio for tracking outputs."""
+        if self._calibration_coordinator:
+            return self._calibration_coordinator.build_calibration_context(
+                arena_polygon, calibration_data
+            )
+        return None, None
 
     @contextmanager
     def global_calibration_session(
@@ -955,50 +768,23 @@ class ProjectLifecycleCoordinator(BaseCoordinator):
         get_active_weight_name: Callable[[], str | None],
         get_use_openvino: Callable[[], bool],
     ) -> Generator[None, None, None]:
-        """Context manager for global calibration mode.
-
-        Temporarily disables project overrides and saves changes to global defaults.
-        Restores project overrides on exit if they were active before.
-
-        Args:
-            get_active_weight_name: Callback to get active weight name
-            get_use_openvino: Callback to get OpenVINO usage
-
-        Yields:
-            None
-
-        Phase 3: Consolidated from CalibrationOrchestrator.global_calibration_session
-        """
-        previous_flag = self._using_project_overrides
-        self._using_project_overrides = False
-        try:
+        """Context manager for global calibration mode."""
+        if self._calibration_coordinator:
+            with self._calibration_coordinator.global_calibration_session(
+                get_active_weight_name, get_use_openvino
+            ):
+                yield
+        else:
             yield
-        finally:
-            self._global_model_defaults["active_weight"] = get_active_weight_name() or None
-            self._global_model_defaults["use_openvino"] = get_use_openvino()
-            self._using_project_overrides = previous_flag
 
     @contextmanager
     def project_calibration_session(self) -> Generator[None, None, None]:
-        """Context manager for project-specific calibration mode.
-
-        Enables project override mode and saves changes to project settings.
-        Maintains override state on exit if project has overrides.
-
-        Yields:
-            None
-
-        Phase 3: Consolidated from ProjectOrchestrator.project_calibration_session
-        """
-        previous_flag = self._using_project_overrides
-        self._using_project_overrides = True
-        try:
+        """Context manager for project-specific calibration mode."""
+        if self._calibration_coordinator:
+            with self._calibration_coordinator.project_calibration_session():
+                yield
+        else:
             yield
-        finally:
-            if self.has_project_override_settings():
-                self._using_project_overrides = True
-            else:
-                self._using_project_overrides = previous_flag
 
     # ========================================================================
     # Group E: Supporting Methods (Private)
@@ -1012,8 +798,6 @@ class ProjectLifecycleCoordinator(BaseCoordinator):
 
         Args:
             setup_detector_zones_callback: Callback to setup detector zones
-
-        Phase 3: Consolidated from ProjectOrchestrator._setup_zones_from_project
         """
         if setup_detector_zones_callback is None:
             self.logger.warning("project.zones.setup.no_callback")
@@ -1023,60 +807,13 @@ class ProjectLifecycleCoordinator(BaseCoordinator):
             setup_detector_zones_callback=setup_detector_zones_callback,
         )
 
-    def _ensure_project_overrides_record(self) -> dict:
-        """Ensure project overrides record exists in project data.
-
-        Returns:
-            Model overrides dictionary
-
-        Phase 3: Consolidated from ProjectOrchestrator._ensure_project_overrides_record
-        """
-        project_data: dict[str, Any] = self.project_manager.project_data
-        overrides = project_data.get("model_overrides")
-        if not isinstance(overrides, dict):
-            overrides = {"active_weight": None, "use_openvino": None}
-            project_data["model_overrides"] = overrides
-        return overrides
-
-    def _persist_project_model_settings(
-        self, weight: str | None, use_openvino: bool
-    ) -> dict[str, Any]:
-        """Persist model settings to project configuration.
-
-        Args:
-            weight: Weight name to persist
-            use_openvino: OpenVINO usage flag to persist
-
-        Returns:
-            Updated overrides dictionary
-
-        Phase 3: Consolidated from ProjectOrchestrator._persist_project_model_settings
-        """
-        project_data = self.project_manager.project_data
-        overrides = self._ensure_project_overrides_record()
-
-        # Update overrides
-        overrides["active_weight"] = weight
-        overrides["use_openvino"] = use_openvino
-        project_data["active_weight"] = weight
-        project_data["use_openvino"] = bool(use_openvino)
-
-        # Update in-memory state
-        self.project_manager.project_data = project_data
-
-        # Delegate persistence to ProjectManager
-        if getattr(self.project_manager, "project_path", None):
-            self.project_manager.save_project()
-
-        return overrides
-
     def _restore_global_model_defaults(self) -> None:
-        """Restore global model defaults after closing a project.
-
-        Phase 3: Consolidated from ProjectOrchestrator._restore_global_model_defaults
-        """
-        detector_state = self.state_manager.get_detector_state()
-        self._global_model_defaults["active_weight"] = detector_state.active_weight_name
-        self._global_model_defaults["use_openvino"] = detector_state.use_openvino
-        self._using_project_overrides = False
-        self.logger.info("project.model_defaults.restored")
+        """Restore global model defaults (backward-compat fallback)."""
+        if self._model_override_service:
+            self._model_override_service.restore_global_model_defaults()
+        else:
+            detector_state = self.state_manager.get_detector_state()
+            self._global_model_defaults["active_weight"] = detector_state.active_weight_name
+            self._global_model_defaults["use_openvino"] = detector_state.use_openvino
+            self._using_project_overrides = False
+            self.logger.info("project.model_defaults.restored")

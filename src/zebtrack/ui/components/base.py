@@ -6,7 +6,7 @@ from typing import Any, cast
 
 import structlog
 
-from zebtrack.ui.event_bus import EventBus
+from zebtrack.ui.event_bus_v2 import EVENT_NAME_TO_UIEVENT, Event, EventBusV2, UIEvents
 
 log = structlog.get_logger()
 
@@ -27,13 +27,13 @@ class BaseWidget(ttk.Frame):
     - Use emit_event() to notify about user actions
     """
 
-    def __init__(self, parent: ttk.Widget, event_bus: EventBus | None = None, **kwargs):
+    def __init__(self, parent: ttk.Widget, event_bus: EventBusV2 | None = None, **kwargs):
         """
         Initialize the base widget.
 
         Args:
             parent: Parent Tkinter widget
-            event_bus: Optional event bus for emitting events
+            event_bus: Optional EventBusV2 for emitting events
             **kwargs: Additional arguments passed to ttk.Frame
         """
         super().__init__(parent, **kwargs)
@@ -52,44 +52,71 @@ class BaseWidget(ttk.Frame):
         """
         raise NotImplementedError(f"{self.__class__.__name__} must implement _build_ui()")
 
-    def emit_event(self, event_name: str, data: dict[str, Any]) -> None:
+    def emit_event(self, event_type: UIEvents | str, data: dict[str, Any] | None = None) -> None:
         """
-        Emit a named event to the event bus.
+        Emit a typed event to the EventBusV2.
 
         Args:
-            event_name: Name of the event (e.g., "zone.created", "button.clicked")
-            data: Event payload dictionary
+            event_type: UIEvents enum member, or legacy string name
+                (looked up via EVENT_NAME_TO_UIEVENT).
+            data: Event payload dictionary.
         """
         if self.event_bus is None:
             self._log.warning(
                 "widget.event.no_bus",
-                event_name=event_name,
+                event_type=event_type.name if isinstance(event_type, UIEvents) else str(event_type),
                 message="Event bus not configured, event not emitted",
             )
             return
 
-        # Use publish_event to properly wrap in UIEvent
-        self.event_bus.publish_event(event_name=event_name, data=data)
-        self._log.debug("widget.event.emitted", event_name=event_name, data_keys=list(data.keys()))
+        # Resolve string event names to UIEvents via legacy mapping
+        if isinstance(event_type, str):
+            resolved = EVENT_NAME_TO_UIEVENT.get(event_type)
+            if resolved is None:
+                self._log.warning(
+                    "widget.event.unknown_string",
+                    event_name=event_type,
+                    message="No UIEvents mapping found for legacy string event",
+                )
+                return
+            event_type = resolved
 
-    def bind_callback(self, event_name: str, callback: Callable[[dict], None]) -> None:
+        payload = data if data is not None else {}
+        self.event_bus.publish(Event(type=event_type, data=payload))
+        self._log.debug(
+            "widget.event.emitted",
+            event_type=event_type.name,
+            data_keys=list(payload.keys()),
+        )
+
+    def bind_callback(self, event_type: UIEvents | str, callback: Callable[[dict], None]) -> None:
         """
         Subscribe to events from the event bus.
 
         Args:
-            event_name: Name of the event to listen for
-            callback: Function to call when event is received
+            event_type: UIEvents enum member, or legacy string name.
+            callback: Function to call when event is received.
         """
         if self.event_bus is None:
             self._log.warning(
                 "widget.subscribe.no_bus",
-                event_name=event_name,
+                event_type=event_type.name if isinstance(event_type, UIEvents) else str(event_type),
                 message="Event bus not configured, cannot subscribe",
             )
             return
 
-        self.event_bus.subscribe(event_name, callback)
-        self._log.debug("widget.subscribed", event_name=event_name)
+        if isinstance(event_type, str):
+            resolved = EVENT_NAME_TO_UIEVENT.get(event_type)
+            if resolved is None:
+                self._log.warning(
+                    "widget.subscribe.unknown_string",
+                    event_name=event_type,
+                )
+                return
+            event_type = resolved
+
+        self.event_bus.subscribe(event_type, callback)
+        self._log.debug("widget.subscribed", event_type=event_type.name)
 
     def set_enabled(self, enabled: bool) -> None:
         """
@@ -113,7 +140,11 @@ class BaseWidget(ttk.Frame):
             cast(Any, widget).configure(state=state)
         except Exception:
             # Some widgets don't support state configuration
-            pass
+            log.debug(
+                "base.set_widget_state.unsupported",
+                widget=type(widget).__name__,
+                exc_info=True,
+            )
 
         for child in widget.winfo_children():
             self._set_widget_state(child, state)  # type: ignore[arg-type]

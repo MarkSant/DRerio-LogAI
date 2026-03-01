@@ -1,55 +1,55 @@
-"""Coordenador de diálogos e confirmações de usuário.
+"""Coordinator for user dialogs and confirmations.
 
-Este coordenador foi extraído do MainViewModel como parte da Fase 1 do
-plano de refatoração (PLANO_REFATORACAO_MAINVIEWMODEL.md).
-Responsável por coordenar todos os diálogos e confirmações de usuário.
+Extracted from MainViewModel as part of Phase 1 of the refactoring
+plan (PLANO_REFATORACAO_MAINVIEWMODEL.md).
+Responsible for coordinating all user dialogs and confirmations.
 """
 
 from typing import TYPE_CHECKING
 
 import structlog
 
-from zebtrack.core.video_metadata_service import VideoMetadataService
+from zebtrack.core.video.video_metadata_service import VideoMetadataService
 
 if TYPE_CHECKING:
-    from zebtrack.core.project_manager import ProjectManager
+    from zebtrack.core.project.project_manager import ProjectManager
     from zebtrack.core.state_manager import StateManager
     from zebtrack.core.ui_scheduler import UIScheduler
-    from zebtrack.ui.event_bus import EventBus
+    from zebtrack.ui.event_bus_v2 import EventBusV2
 
 log = structlog.get_logger()
 
 
 class DialogCoordinator:
-    """Coordenador para diálogos e confirmações de usuário.
+    """Coordinator for user dialogs and confirmations.
 
-    Centraliza toda a lógica de interação com usuário através de diálogos,
-    desacoplando o MainViewModel de chamadas diretas à view.
+    Centralizes all user interaction logic through dialogs,
+    decoupling MainViewModel from direct view calls.
 
     Attributes:
-        ui_coordinator: Coordenador de UI para mostrar diálogos
-        event_bus: Bus de eventos para comunicação com UI
-        state_manager: Gerenciador de estado da aplicação
-        project_manager: Gerenciador de projetos (para validação de zonas)
+        ui_coordinator: UI coordinator for showing dialogs.
+        event_bus: Event bus for UI communication.
+        state_manager: Application state manager.
+        project_manager: Project manager (for zone validation).
     """
 
     def __init__(
         self,
         ui_coordinator: "UIScheduler",
-        event_bus: "EventBus | None",
+        event_bus: "EventBusV2 | None",
         state_manager: "StateManager",
         project_manager: "ProjectManager | None" = None,
         video_metadata_service: VideoMetadataService | None = None,
     ):
-        """Inicializa o coordenador de diálogos.
+        """Initialize the dialog coordinator.
 
         Args:
-            ui_coordinator: Coordenador de UI
-            event_bus: Bus de eventos (opcional)
-            state_manager: Gerenciador de estado
-            project_manager: Gerenciador de projetos (opcional,
-                mas necessário para validação de zonas)
-            video_metadata_service: Serviço de metadados de vídeo (opcional)
+            ui_coordinator: UI coordinator.
+            event_bus: Event bus (optional).
+            state_manager: State manager.
+            project_manager: Project manager (optional,
+                but required for zone validation).
+            video_metadata_service: Video metadata service (optional).
         """
         self.ui_coordinator = ui_coordinator
         self.event_bus = event_bus
@@ -59,10 +59,10 @@ class DialogCoordinator:
         self.log = structlog.get_logger()
 
     def confirm_exit(self) -> bool:
-        """Solicita confirmação do usuário para sair da aplicação.
+        """Request user confirmation to exit the application.
 
         Returns:
-            True se usuário confirmou, False caso contrário
+            True if user confirmed, False otherwise.
         """
         return self.ui_coordinator.ask_ok_cancel("Sair", "Deseja realmente sair?")
 
@@ -70,26 +70,26 @@ class DialogCoordinator:
         self,
         scanned_videos: list[dict],
     ) -> list[dict] | None:
-        """Trata cenário onde alguns vídeos têm dados e outros não.
+        """Handle scenario where some videos have data and others don't.
 
         Args:
-            scanned_videos: Lista de informações de vídeos escaneados
+            scanned_videos: List of scanned video information dicts.
 
         Returns:
-            Lista de vídeos para processar, ou None se todos devem ser
-            ignorados/apenas adicionados
+            List of videos to process, or None if all should be
+            ignored/only added.
         """
         with_data = [v for v in scanned_videos if v.get("has_data")]
         without_data = [v for v in scanned_videos if not v.get("has_data")]
 
         if with_data and without_data:
-            # Caso misto: alguns têm dados, outros não
+            # Mixed case: some have data, others don't
             return self._handle_mixed_case(scanned_videos, with_data, without_data)
         elif with_data and not without_data:
-            # Todos os vídeos selecionados têm dados
+            # All selected videos have data
             return self._handle_all_have_data(scanned_videos, with_data)
         else:
-            # Nenhum vídeo tem dados, processar todos
+            # No videos have data, process all
             return without_data
 
     def _handle_mixed_case(
@@ -98,15 +98,15 @@ class DialogCoordinator:
         with_data: list[dict],
         without_data: list[dict],
     ) -> list[dict]:
-        """Trata caso onde há mix de vídeos com e sem dados.
+        """Handle case where there is a mix of videos with and without data.
 
         Args:
-            scanned_videos: Todos os vídeos escaneados
-            with_data: Vídeos que já têm dados
-            without_data: Vídeos sem dados
+            scanned_videos: All scanned videos.
+            with_data: Videos that already have data.
+            without_data: Videos without data.
 
         Returns:
-            Vídeos para processar
+            Videos to process.
         """
         msg = (
             f"{len(with_data)} vídeo(s) já possuem dados de análise.\n"
@@ -135,14 +135,14 @@ class DialogCoordinator:
         scanned_videos: list[dict],
         with_data: list[dict],
     ) -> list[dict] | None:
-        """Trata caso onde todos os vídeos já têm dados.
+        """Handle case where all videos already have data.
 
         Args:
-            scanned_videos: Todos os vídeos escaneados
-            with_data: Vídeos que têm dados (igual a scanned_videos neste caso)
+            scanned_videos: All scanned videos.
+            with_data: Videos that have data (same as scanned_videos in this case).
 
         Returns:
-            Vídeos para processar, ou None se nenhum deve ser processado
+            Videos to process, or None if none should be processed.
         """
         if self.ui_coordinator.ask_ok_cancel(
             "Dados Encontrados",
@@ -155,15 +155,15 @@ class DialogCoordinator:
             )
             return with_data
         else:
-            # Usuário não quer reprocessar - adicionar ao projeto mas não processar
+            # User doesn't want to reprocess - add to project but don't process
             self._show_processing_skipped_info()
-            # Note: A responsabilidade de adicionar ao projeto é do chamador
-            # O dialog coordinator apenas decide O QUE processar
+            # Note: Responsibility for adding to the project lies with the caller
+            # The dialog coordinator only decides WHAT to process
             self.log.info(
                 "dialog.all_have_data.skip",
                 total=len(with_data),
             )
-            return None  # Sinal: não processar
+            return None  # Signal: do not process
 
     def validate_zones_with_ui(self) -> bool:
         """
@@ -195,26 +195,36 @@ class DialogCoordinator:
             if response:
                 # Switch to zone tab and guide user
                 if self.event_bus:
-                    from zebtrack.ui.events import Events
+                    from zebtrack.ui.event_bus_v2 import Event, UIEvents
 
-                    self.event_bus.publish_event(Events.UI_SELECT_TAB, {"tab_name": "zone_tab"})
+                    self.event_bus.publish(
+                        Event(
+                            type=UIEvents.UI_SELECT_TAB,
+                            data={"tab_name": "zone_tab"},
+                        )
+                    )
 
                     # Load frame from first video if available
                     first_video = self.project_manager.get_next_video()
                     if first_video:
-                        self.event_bus.publish_event(
-                            Events.UI_DISPLAY_VIDEO_FRAME, {"video_path": first_video}
+                        self.event_bus.publish(
+                            Event(
+                                type=UIEvents.UI_DISPLAY_VIDEO_FRAME,
+                                data={"video_path": first_video},
+                            )
                         )
 
-                        self.event_bus.publish_event(
-                            Events.UI_SHOW_INFO,
-                            {
-                                "title": "Defina a Arena Principal",
-                                "message": "Por favor:\n"
-                                "1. Use 'Detectar Aquário (Auto)' ou\n"
-                                "2. Desenhe manualmente o polígono principal\n"
-                                "3. Depois volte para adicionar vídeos",
-                            },
+                        self.event_bus.publish(
+                            Event(
+                                type=UIEvents.UI_SHOW_INFO,
+                                data={
+                                    "title": "Defina a Arena Principal",
+                                    "message": "Por favor:\n"
+                                    "1. Use 'Detectar Aquário (Auto)' ou\n"
+                                    "2. Desenhe manualmente o polígono principal\n"
+                                    "3. Depois volte para adicionar vídeos",
+                                },
+                            )
                         )
                 return False
             else:
@@ -250,19 +260,21 @@ class DialogCoordinator:
                         )
 
                         if self.event_bus:
-                            from zebtrack.ui.events import Events
+                            from zebtrack.ui.event_bus_v2 import Event, UIEvents
 
-                            self.event_bus.publish_event(
-                                Events.UI_SHOW_INFO,
-                                {
-                                    "title": "Arena Padrão Criada",
-                                    "message": f"Arena padrão criada ({width}x{height})\n"
-                                    "Recomenda-se ajustar manualmente depois.",
-                                },
+                            self.event_bus.publish(
+                                Event(
+                                    type=UIEvents.UI_SHOW_INFO,
+                                    data={
+                                        "title": "Arena Padrão Criada",
+                                        "message": f"Arena padrão criada ({width}x{height})\n"
+                                        "Recomenda-se ajustar manualmente depois.",
+                                    },
+                                )
                             )
                             # Trigger redraw
-                            self.event_bus.publish_event(Events.UI_REDRAW_ZONES)
-                    except Exception as e:
+                            self.event_bus.publish(Event(type=UIEvents.UI_REDRAW_ZONES))
+                    except Exception as e:  # except Exception justified: non-critical fallback
                         self.show_error("Erro", f"Não foi possível criar arena padrão: {e}")
                         return False
                 else:
@@ -290,16 +302,18 @@ class DialogCoordinator:
         return True
 
     def _show_processing_skipped_info(self) -> None:
-        """Mostra diálogo informativo sobre processamento ignorado."""
+        """Show informational dialog about skipped processing."""
         if self.event_bus:
-            from zebtrack.ui.events import Events
+            from zebtrack.ui.event_bus_v2 import Event, UIEvents
 
-            self.event_bus.publish_event(
-                Events.UI_SHOW_INFO,
-                {
-                    "title": "Processamento Ignorado",
-                    "message": "Nenhum novo vídeo foi processado.",
-                },
+            self.event_bus.publish(
+                Event(
+                    type=UIEvents.UI_SHOW_INFO,
+                    data={
+                        "title": "Processamento Ignorado",
+                        "message": "Nenhum novo vídeo foi processado.",
+                    },
+                )
             )
         else:
             self.ui_coordinator.show_info(
@@ -308,19 +322,19 @@ class DialogCoordinator:
             )
 
     def show_info(self, title: str, message: str) -> None:
-        """Mostra diálogo informativo."""
+        """Show an informational dialog."""
         self.ui_coordinator.show_info(title, message)
 
     def show_warning(self, title: str, message: str) -> None:
-        """Mostra diálogo de aviso."""
+        """Show a warning dialog."""
         self.ui_coordinator.show_warning(title, message)
 
     def show_error(self, title: str, message: str) -> None:
-        """Mostra diálogo de erro."""
+        """Show an error dialog."""
         self.ui_coordinator.show_error(title, message)
 
     def ask_yes_no(self, title: str, message: str) -> bool:
-        """Solicita confirmação sim/não do usuário."""
+        """Request a yes/no confirmation from the user."""
         return self.ui_coordinator.ask_ok_cancel(title, message)
 
     def handle_validation_error(self, validation_result) -> bool:
@@ -341,48 +355,58 @@ class DialogCoordinator:
         error_message = validation_result.error_message
 
         if self.event_bus:
-            from zebtrack.ui.events import Events
+            from zebtrack.ui.event_bus_v2 import Event, UIEvents
 
             if error_code == "processing_already_active":
-                self.event_bus.publish_event(
-                    Events.UI_SHOW_WARNING,
-                    {
-                        "title": "Análise em Andamento",
-                        "message": error_message,
-                    },
+                self.event_bus.publish(
+                    Event(
+                        type=UIEvents.UI_SHOW_WARNING,
+                        data={
+                            "title": "Análise em Andamento",
+                            "message": error_message,
+                        },
+                    )
                 )
             elif error_code == "no_project_loaded":
-                self.event_bus.publish_event(
-                    Events.UI_SHOW_ERROR,
-                    {
-                        "title": "Nenhum Projeto Carregado",
-                        "message": error_message,
-                    },
+                self.event_bus.publish(
+                    Event(
+                        type=UIEvents.UI_SHOW_ERROR,
+                        data={
+                            "title": "Nenhum Projeto Carregado",
+                            "message": error_message,
+                        },
+                    )
                 )
             elif error_code == "no_videos":
-                self.event_bus.publish_event(
-                    Events.UI_SHOW_ERROR,
-                    {
-                        "title": "Nenhum Vídeo Encontrado",
-                        "message": error_message,
-                    },
+                self.event_bus.publish(
+                    Event(
+                        type=UIEvents.UI_SHOW_ERROR,
+                        data={
+                            "title": "Nenhum Vídeo Encontrado",
+                            "message": error_message,
+                        },
+                    )
                 )
             elif error_code == "no_weight_selected":
-                self.event_bus.publish_event(
-                    Events.UI_SHOW_ERROR,
-                    {
-                        "title": "Peso Não Selecionado",
-                        "message": error_message,
-                    },
+                self.event_bus.publish(
+                    Event(
+                        type=UIEvents.UI_SHOW_ERROR,
+                        data={
+                            "title": "Peso Não Selecionado",
+                            "message": error_message,
+                        },
+                    )
                 )
             else:
                 # Generic error fallback
-                self.event_bus.publish_event(
-                    Events.UI_SHOW_ERROR,
-                    {
-                        "title": "Erro de Validação",
-                        "message": error_message,
-                    },
+                self.event_bus.publish(
+                    Event(
+                        type=UIEvents.UI_SHOW_ERROR,
+                        data={
+                            "title": "Erro de Validação",
+                            "message": error_message,
+                        },
+                    )
                 )
         else:
             # Fallback to UI Coordinator direct calls if no event bus

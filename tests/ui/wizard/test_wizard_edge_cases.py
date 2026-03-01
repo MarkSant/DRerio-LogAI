@@ -11,7 +11,7 @@ from unittest.mock import Mock, patch
 import pytest
 from pydantic import ValidationError
 
-from zebtrack.core.wizard_service import WizardService
+from zebtrack.core.services.wizard_service import WizardService
 from zebtrack.ui.wizard.models import (
     CalibrationData,
     ExperimentalDesignData,
@@ -239,7 +239,7 @@ class TestCalibrationEdgeCases:
 class TestWizardServiceHardwareFailures:
     """Test suite for hardware detection failures."""
 
-    @patch("zebtrack.core.wizard_service.cv2.VideoCapture")
+    @patch("zebtrack.core.services.wizard_service.cv2.VideoCapture")
     def test_camera_detection_all_fail(self, mock_videocap):
         """Test camera detection when all cameras fail."""
         # Mock all cameras fail to open
@@ -252,7 +252,7 @@ class TestWizardServiceHardwareFailures:
         # Should return empty list
         assert cameras == []
 
-    @patch("zebtrack.core.wizard_service.serial.tools.list_ports.comports")
+    @patch("zebtrack.core.services.wizard_service.serial.tools.list_ports.comports")
     def test_arduino_detection_no_ports(self, mock_comports):
         """Test Arduino detection with no serial ports."""
         mock_comports.return_value = []
@@ -262,7 +262,7 @@ class TestWizardServiceHardwareFailures:
         # Should return empty list
         assert ports == []
 
-    @patch("zebtrack.core.wizard_service.serial.tools.list_ports.comports")
+    @patch("zebtrack.core.services.wizard_service.serial.tools.list_ports.comports")
     def test_arduino_detection_non_arduino_ports(self, mock_comports):
         """Test Arduino detection filters non-Arduino ports."""
         # Mock ports without Arduino
@@ -277,7 +277,7 @@ class TestWizardServiceHardwareFailures:
         # Should filter out non-Arduino
         # Implementation may or may not include all ports
 
-    @patch("zebtrack.core.wizard_service.cv2.VideoCapture")
+    @patch("zebtrack.core.services.wizard_service.cv2.VideoCapture")
     def test_camera_detection_handles_exception(self, mock_videocap):
         """Test camera detection handles exceptions gracefully."""
         # Mock VideoCapture raises exception
@@ -376,7 +376,7 @@ class TestWizardValidationRecovery:
 class TestWizardCaching:
     """Test suite for wizard service caching."""
 
-    @patch("zebtrack.core.wizard_service.cv2.VideoCapture")
+    @patch("zebtrack.core.services.wizard_service.cv2.VideoCapture")
     def test_camera_detection_cache_hit(self, mock_videocap):
         """Test camera detection uses cache on repeated calls."""
         mock_cap = Mock()

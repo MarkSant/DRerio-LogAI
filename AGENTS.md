@@ -1,6 +1,6 @@
 <!-- ═══════════════════════════════════════════════════════════════════════════
      AGENTS.md - CANONICAL SOURCE OF TRUTH
-     Last Synced: 2026-02-03
+     Last Synced: 2026-03-01
      All other agent files (CLAUDE.md, GEMINI.md, copilot-instructions.md) must
      mirror changes from this file. Update here FIRST, then sync to others.
      ═══════════════════════════════════════════════════════════════════════════ -->
@@ -18,7 +18,7 @@ To provide an automated, high-precision tracking and analysis tool for Danio rer
 - **Framework**: Python 3.12+, Tkinter (GUI), Ultralytics YOLO / OpenVINO (Tracking).
 - **Architecture**: Event-driven with Dependency Injection.
 - **State Management**: strict `StateManager` usage (immutable state updates).
-- **Communication**: `EventBus` for all cross-component communication.
+- **Communication**: `EventBusV2` (sole event bus; v1 removed) for all cross-component communication.
 
 ## Critical Development Rules
 
@@ -39,8 +39,7 @@ To provide an automated, high-precision tracking and analysis tool for Danio rer
 3. **Testing**:
    - Run tests heavily.
    - GUI tests require `xvfb` in headless environments.
-   - Coverage gate (core): Linux CI 55%; Windows CI 25% (see `.github/workflows/ci.yml`).
-   - GUI coverage is tracked separately and informational (target 40%).
+   - Coverage gates: Linux core 50%, Linux GUI 32%, Windows core 28% (see `.github/workflows/ci.yml`).
 4. **Linting**: Strict adherence to `ruff` rules.
 5. **Approved Commands**: Both `poetry` (run/install) and `powershell -Command` calls are pre-approved by the user and MUST be executed with `SafeToAutoRun: true` by agents. You can run these commands WITHOUT seeking explicit authorization.
 
@@ -103,6 +102,7 @@ Agent requirements:
 
 **Change Notes**:
 
+- `2026-03-01`: Major sync — corrected all stale stats (gui.py 865 lines, 24 coordinators, 27 dialog files, 2778 tests, EventBusV2 as sole bus, DI via application_bootstrapper.py, reporters/ sub-package, etc.). Removed references to deleted files (processing_coordinator.py, hardware_coordinator.py, session_coordinator.py, event_bus.py, events.py, orchestrators/). Fixed date typos (Jan 2025→Jan 2026).
 - `2026-02-03`: Added XML prompt engineering framework (system_directive, constraints, verbosity, deep_think_protocol) and Last Synced header to all agent files.
 - `2026-02-01`: Added VS Code extensions best practices, checklist, and source-of-truth sync rule for all agent instruction files.
 
@@ -151,43 +151,50 @@ Use these conventions to get consistent diagnostics and avoid tool conflicts.
 - **Python (Microsoft)**: Select the Poetry venv as the active interpreter; keep terminal and editor on the same interpreter.
 - **Pylance (Microsoft)**: Prefer `basic` type checking by default; go `strict` only on targeted files when needed.
 - **Ruff (Astral Software)**: Use Ruff as the **only** Python formatter and linter; enable on-save fixes.
-- **Mypy (Matan Gover)**: Prefer daemon checks; align with `mypy.ini`/`pyproject.toml`; use “Mypy: Restart Daemon and Recheck Workspace” if stale.
-- **Mypy Type Checker (Microsoft)**: Keep aligned with the same config; if diagnostics duplicate, disable one in workspace or limit one to on-demand runs.
-- **Python Debugger / Python Environments**: Debug with the same Poetry interpreter; do not mix interpreters across tasks.
+- **Mypy (Matan Gover)**: Single Mypy extension (daemon-based). Prefer `mypy.runUsingActiveInterpreter=true`; align with `mypy.ini`/`pyproject.toml`; use "Mypy: Restart Daemon and Recheck Workspace" if stale.
+- **Python Debugger**: Debug with the same Poetry interpreter; do not mix interpreters across tasks.
+- **Jupyter (Microsoft)**: For notebook exploration and data analysis; kernel auto-selects Poetry venv.
 - **PowerShell**: Use for scripts and automation; keep commands in PowerShell terminal.
 
 ### Git & Collaboration
 
+- **GitLens (GitKraken)**: Primary Git tool — inline blame, file history, comparison. Replaces Git History.
 - **GitHub Copilot / Copilot Chat**: Follow repository instructions; keep changes incremental and impact-analyzed.
 - **GitHub Pull Requests**: Use for reviewing PRs; avoid direct edits on default branch.
 - **GitHub Actions**: Use for workflow review only; validate any workflow edits with repo standards.
-- **Git History**: Use for quick blame/history; prefer small diffs and clear commit rationale.
 
-### Containers & Environment
+### Code Quality & Diagnostics
 
-- **Docker / Container Tools / Dev Containers**: Use only when the project is containerized; keep Compose files and devcontainer settings in sync.
-- **WSL**: Use only when workspace is opened in WSL; avoid mixing Windows and WSL paths.
+- **Error Lens**: Inline error/warning display; configured to show errors and warnings only (not hints/info); CSpell diagnostics excluded to reduce noise.
+- **TODO Tree**: Tracks TODO, FIXME, HACK, BUG, XXX, DEPRECATED tags across the codebase; excludes `__pycache__/`, `openvino_model_cache/`, `htmlcov/`, `docs/archive/` from scan.
 
 ### Docs & Config
 
 - **YAML (Red Hat)**: Use for config validation; keep schemas in sync where provided.
-- **Markdown All in One**: Use for editing Markdown; respect markdownlint rules.
 - **markdownlint**: Follow repo lint settings; fix doc warnings instead of disabling.
 - **Code Spell Checker**: Add domain terms to workspace dictionary; avoid disabling globally.
-- **vscode-pdf**: Read-only PDF viewing; no code changes.
 
-### Language-Specific
+### Removed Extensions (DO NOT reinstall)
 
-- **MATLAB / matlab-formatter**: Apply only to `.m` files; keep Python tooling unaffected.
+| Extension | Reason |
+| --- | --- |
+| `ms-python.mypy-type-checker` | Duplicated diagnostics with `matangover.mypy` |
+| `ms-python.vscode-python-envs` | Triggered WSL popups via `wsl.exe` stub |
+| `yzhang.markdown-all-in-one` | Redundant with `davidanson.vscode-markdownlint` |
+| `donjayamanne.githistory` | Replaced by `eamodio.gitlens` |
+| `tomoki1207.pdf` | Unused — no PDF workflows |
+| `mechatroner.rainbow-csv` | Unused — project uses Parquet, not CSV |
 
 ### How to use/configure in VS Code
 
 - **Interpreter**: Use “Python: Select Interpreter” and choose the Poetry venv; keep terminals aligned.
 - **Pylance**: Prefer `python.analysis.typeCheckingMode=basic`; use `strict` only for targeted files.
-- **Mypy (both extensions)**: Keep config in `mypy.ini`/pyproject and point with `mypy.configFile` if needed. Prefer `mypy.runUsingActiveInterpreter=true`. Use “Mypy: Recheck Workspace” and “Mypy: Restart Daemon and Recheck Workspace” when stale.
+- **Mypy**: Keep config in `mypy.ini`/pyproject and point with `mypy.configFile` if needed. Prefer `mypy.runUsingActiveInterpreter=true`. Use "Mypy: Restart Daemon and Recheck Workspace" when stale.
 - **Ruff**: Set `editor.defaultFormatter=charliermarsh.ruff`, `editor.formatOnSave=true`, and `editor.codeActionsOnSave` with `source.fixAll.ruff` and `source.organizeImports.ruff`.
-- **GitHub Actions / PRs / Git History**: Use for review only; do not change workflows without impact analysis.
-- **Dev Containers / WSL**: Use “Dev Containers: Reopen in Container” or “Remote-WSL: Reopen Folder in WSL” only when the project is running there.
+- **GitLens**: Enabled by default; inline blame and CodeLens active; use "GitLens: Compare" for file diffs.
+- **Error Lens**: Configured via workspace settings; shows errors/warnings inline; CSpell excluded.
+- **TODO Tree**: Scans workspace for tags; check sidebar panel for tag overview.
+- **Jupyter**: Kernel auto-selects Poetry venv; use for data exploration notebooks.
 
 ---
 
@@ -196,8 +203,10 @@ Use these conventions to get consistent diagnostics and avoid tool conflicts.
 - [ ] Active Python interpreter is the Poetry venv used by `poetry run`.
 - [ ] Ruff is the only Python formatter (disable Black/Pylint/Flake8 formatters).
 - [ ] Mypy config is centralized (mypy.ini/pyproject) and editor uses the same config.
-- [ ] If Mypy diagnostics duplicate, disable one Mypy extension or restrict one to on-demand runs.
+- [ ] Only `matangover.mypy` installed (NOT `ms-python.mypy-type-checker`).
 - [ ] YAML and Markdown linters are enabled for config/docs quality.
+- [ ] Error Lens shows errors/warnings only (not hints/info); CSpell excluded.
+- [ ] TODO Tree excludes build artifacts and archive folders.
 - [ ] If any agent instruction changes, update AGENTS.md first and mirror to other agent files.
 
 ## Setup & Commands

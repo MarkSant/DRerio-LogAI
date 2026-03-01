@@ -15,7 +15,7 @@ from unittest.mock import Mock, patch
 import pytest
 
 from tests.utils.wait_helpers import wait_for_thread_exit
-from zebtrack.core.weight_manager import WEIGHTS_CONFIG_FILE, WeightManager
+from zebtrack.core.services.weight_manager import WEIGHTS_CONFIG_FILE, WeightManager
 
 
 @pytest.fixture

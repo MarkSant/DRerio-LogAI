@@ -14,7 +14,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from zebtrack.core.detector import AquariumData, MultiAquariumZoneData
+from zebtrack.core.detection import AquariumData, MultiAquariumZoneData
 
 if TYPE_CHECKING:
     pass

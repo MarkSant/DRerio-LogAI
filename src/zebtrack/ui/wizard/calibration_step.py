@@ -19,7 +19,7 @@ from tkinter import (
 )
 from typing import TYPE_CHECKING, Any
 
-from zebtrack.core.wizard_service import WizardService
+from zebtrack.core.services.wizard_service import WizardService
 from zebtrack.ui.components.behavioral_config_widget import BehavioralConfigWidget
 from zebtrack.ui.wizard.base import WizardStep
 from zebtrack.ui.wizard.enums import ProjectType, WizardStepID
@@ -27,7 +27,7 @@ from zebtrack.ui.wizard.templates import format_template_banner
 from zebtrack.ui.wizard.tooltip import ToolTip
 
 if TYPE_CHECKING:
-    from zebtrack.ui.event_bus import EventBus
+    from zebtrack.ui.event_bus_v2 import EventBusV2
 
 
 class CalibrationStep(WizardStep):
@@ -52,7 +52,7 @@ class CalibrationStep(WizardStep):
         self,
         parent: "Frame",
         wizard_data: dict[str, Any],
-        event_bus: "EventBus | None" = None,
+        event_bus: "EventBusV2 | None" = None,
     ):
         """Initialize calibration step."""
         super().__init__(parent, wizard_data)

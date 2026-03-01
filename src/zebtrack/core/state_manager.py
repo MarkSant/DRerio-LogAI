@@ -693,6 +693,7 @@ class StateManager:
                     key=key,
                     observer=observer_name,
                 )
+            # except Exception justified: state notification boundary
             except Exception as e:
                 # Observer raised exception - log and continue
                 log.error(
@@ -906,7 +907,7 @@ class StateManager:
         snapshot = getter()
         if dataclasses.is_dataclass(snapshot):
             # mypy doesn't narrow type here effectively for asdict
-            state_dict = dataclasses.asdict(snapshot)  # type: ignore
+            state_dict = dataclasses.asdict(snapshot)  # type: ignore[arg-type]  # mypy can't narrow dataclass type after is_dataclass guard
         elif isinstance(snapshot, dict):
             state_dict = copy.deepcopy(snapshot)
         else:

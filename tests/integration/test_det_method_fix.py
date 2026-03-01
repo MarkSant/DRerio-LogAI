@@ -8,7 +8,7 @@ import os
 import tempfile
 from unittest.mock import MagicMock
 
-from zebtrack.core.weight_manager import WeightManager
+from zebtrack.core.services.weight_manager import WeightManager
 
 
 def test_animal_detection_det_method_issue():

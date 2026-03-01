@@ -157,7 +157,11 @@ def mock_tkinter_dialogs(request):
         # Validation manager patches
         patch("zebtrack.ui.components.validation_manager.messagebox", mock_messagebox, create=True),
         # Live camera service patches
-        patch("zebtrack.core.live_camera_service.messagebox", mock_messagebox, create=True),
+        patch(
+            "zebtrack.core.recording.live_camera_service.messagebox",
+            mock_messagebox,
+            create=True,
+        ),
         # UI scheduler patches
         patch("zebtrack.core.ui_scheduler.messagebox", mock_messagebox, create=True),
     ):
@@ -553,7 +557,7 @@ def single_aquarium_zone_data():
     the entire frame. Use this fixture when testing single-subject
     workflows that should work with the new data model.
     """
-    from zebtrack.core.detector import AquariumData, MultiAquariumZoneData
+    from zebtrack.core.detection import AquariumData, MultiAquariumZoneData
 
     return MultiAquariumZoneData(
         aquariums=[
@@ -584,7 +588,7 @@ def multi_aquarium_zone_data():
 
     Use this fixture for testing multi-aquarium workflows.
     """
-    from zebtrack.core.detector import AquariumData, MultiAquariumZoneData
+    from zebtrack.core.detection import AquariumData, MultiAquariumZoneData
 
     return MultiAquariumZoneData(
         aquariums=[
@@ -622,7 +626,7 @@ def multi_aquarium_zone_data_with_rois():
     Extends multi_aquarium_zone_data with sample ROI polygons
     for testing ROI-based analysis in multi-aquarium mode.
     """
-    from zebtrack.core.detector import AquariumData, MultiAquariumZoneData
+    from zebtrack.core.detection import AquariumData, MultiAquariumZoneData
 
     return MultiAquariumZoneData(
         aquariums=[
@@ -693,7 +697,7 @@ def sample_multi_aquarium_trajectories(sample_trajectory_df):
     Returns a dict mapping aquarium_id to (trajectory_df, AquariumData).
     Uses track ID offset convention: aquarium_id * 1000 + local_id.
     """
-    from zebtrack.core.detector import AquariumData
+    from zebtrack.core.detection import AquariumData
 
     # Aquarium 0: original trajectory
     df_aq0 = sample_trajectory_df.copy()

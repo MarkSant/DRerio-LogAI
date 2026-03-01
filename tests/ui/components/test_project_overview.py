@@ -7,15 +7,15 @@ from types import SimpleNamespace
 import pytest
 
 from zebtrack.ui.components.project_overview import ProjectOverviewWidget
-from zebtrack.ui.event_bus import EventBus
+from zebtrack.ui.event_bus_v2 import EventBusV2, UIEvents
 
 pytestmark = pytest.mark.gui
 
 
 @pytest.fixture
 def event_bus():
-    """Create an event bus instance."""
-    return EventBus()
+    """Create an EventBusV2 instance."""
+    return EventBusV2()
 
 
 @pytest.fixture
@@ -141,20 +141,13 @@ def test_event_emission_on_refresh(overview_widget, event_bus):
     def handler(data):
         events_received.append(("project.refresh_requested", data))
 
-    # Subscribe to the widget's event bus (not the fixture event bus)
-    overview_widget.event_bus.subscribe("project.refresh_requested", handler)
+    # Subscribe to the widget's event bus
+    overview_widget.event_bus.subscribe(UIEvents.PROJECT_REFRESH_REQUESTED, handler)
 
     # Trigger refresh (simulate button click)
     overview_widget._on_refresh_clicked()
 
-    # Process the event queue manually (since there's no background worker in tests)
-    from zebtrack.ui.event_bus import EventType
-
-    events = overview_widget.event_bus.drain(max_items=10)
-    for event in events:
-        if event.type == EventType.NAMED:
-            overview_widget.event_bus.dispatch_named_event(event.payload)
-
+    # EventBusV2 dispatches synchronously — handler already called
     assert len(events_received) == 1, f"Expected 1 event but got {len(events_received)}"
     assert events_received[0][0] == "project.refresh_requested"
 
@@ -295,37 +288,51 @@ def test_populate_tree_with_empty_hierarchy(overview_widget):
 
 def test_on_video_selected_emits_event(overview_widget):
     """Test selection handler emits event."""
+    events_received = []
+
+    def handler(data):
+        events_received.append(data)
+
+    overview_widget.event_bus.subscribe(UIEvents.PROJECT_VIDEO_SELECTED, handler)
     overview_widget.add_tree_item("item1", "Video 1", values=("", ""))
     overview_widget.project_overview_tree.selection_set("item1")
 
     overview_widget._on_video_selected(SimpleNamespace())
 
-    events = overview_widget.event_bus.drain(max_items=5)
-    assert any(e.payload.event_name == "project.video_selected" for e in events)
+    assert len(events_received) >= 1
 
 
 def test_on_video_double_click_emits_event(overview_widget):
     """Test double click handler emits event."""
+    events_received = []
+
+    def handler(data):
+        events_received.append(data)
+
+    overview_widget.event_bus.subscribe(UIEvents.PROJECT_VIDEO_DOUBLE_CLICK_WIDGET, handler)
     overview_widget.add_tree_item("item1", "Video 1", values=("", ""))
     overview_widget.project_overview_tree.selection_set("item1")
 
     overview_widget._on_video_double_click(SimpleNamespace())
 
-    events = overview_widget.event_bus.drain(max_items=5)
-    assert any(e.payload.event_name == "project.video_double_click" for e in events)
+    assert len(events_received) >= 1
 
 
 def test_on_video_right_click_emits_event(overview_widget):
     """Test right click handler emits event with coordinates."""
+    events_received = []
+
+    def handler(data):
+        events_received.append(data)
+
+    overview_widget.event_bus.subscribe(UIEvents.PROJECT_VIDEO_RIGHT_CLICK_WIDGET, handler)
     overview_widget.add_tree_item("item1", "Video 1", values=("", ""))
     overview_widget.project_overview_tree.identify_row = lambda _y: "item1"
 
     overview_widget._on_video_right_click(SimpleNamespace(y=5, x_root=10, y_root=20))
 
-    events = overview_widget.event_bus.drain(max_items=5)
-    right_click_events = [e for e in events if e.payload.event_name == "project.video_right_click"]
-    assert right_click_events
-    assert right_click_events[0].payload.data["item_id"] == "item1"
+    assert len(events_received) >= 1
+    assert events_received[0]["item_id"] == "item1"
 
 
 def test_update_tree_builds_video_index(overview_widget):

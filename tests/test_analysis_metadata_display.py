@@ -42,6 +42,14 @@ def _make_gui_instance() -> gui.ApplicationGUI:
     # Mock state_synchronizer with actual StateSynchronizer implementation
     inst_any.state_synchronizer = Mock()
 
+    # Phase 4.4: analysis_view_controller delegates back to gui methods;
+    # wire it so the delegation chain works in unit tests.
+    from zebtrack.ui.components.analysis_view_controller import AnalysisViewController
+
+    avc = AnalysisViewController.__new__(AnalysisViewController)
+    avc.gui = instance
+    inst_any.analysis_view_controller = avc
+
     def apply_metadata_strings(group: str, day: str, subject: str) -> None:
         combined = f"Grupo: {group} | Dia: {day} | Indivíduo: {subject}"
         inst_any.analysis_metadata_var.set(combined)
@@ -83,7 +91,7 @@ def _make_gui_instance() -> gui.ApplicationGUI:
 
 def test_update_analysis_metadata_formats_values() -> None:
     gui_instance = _make_gui_instance()
-    gui_instance.update_analysis_metadata(
+    gui_instance.analysis_view_controller.update_analysis_metadata(
         metadata={
             "group_display_name": "Tratamento A",
             "day": 3,
@@ -100,7 +108,7 @@ def test_update_analysis_metadata_formats_values() -> None:
 
 def test_update_analysis_metadata_handles_missing_values() -> None:
     gui_instance = _make_gui_instance()
-    gui_instance.update_analysis_metadata(metadata={})
+    gui_instance.analysis_view_controller.update_analysis_metadata(metadata={})
 
     assert gui_instance.analysis_metadata_var is not None
     assert (
@@ -111,7 +119,7 @@ def test_update_analysis_metadata_handles_missing_values() -> None:
 
 def test_update_analysis_task_status_formats_step() -> None:
     gui_instance = _make_gui_instance()
-    gui_instance.update_analysis_task_status(
+    gui_instance.analysis_view_controller.update_analysis_task_status(
         index=1,
         total=4,
         experiment_id="EXP123",
@@ -124,6 +132,8 @@ def test_update_analysis_task_status_formats_step() -> None:
 
 def test_update_analysis_task_status_without_step() -> None:
     gui_instance = _make_gui_instance()
-    gui_instance.update_analysis_task_status(index=0, total=0, experiment_id="")
+    gui_instance.analysis_view_controller.update_analysis_task_status(
+        index=0, total=0, experiment_id=""
+    )
 
     assert gui_instance.analysis_task_var.get() == "Vídeo 1 de 1"

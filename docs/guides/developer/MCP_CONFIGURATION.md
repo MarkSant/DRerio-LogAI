@@ -83,9 +83,9 @@ To add your own MCP servers:
 
 - [Model Context Protocol Documentation](https://modelcontextprotocol.io/)
 - [Docker Desktop MCP Integration](https://docs.docker.com/) (when available)
-- Issue: #[issue-number] - Docker MCP schema error fix
+- PR: #346 - Docker MCP schema error fix
 
 ## Version History
 
-- **2025-02-14**: Removed Docker MCP configuration due to compatibility issues
+- **2026-02-14**: Removed Docker MCP configuration due to compatibility issues
 - Initial configuration with Docker MCP gateway

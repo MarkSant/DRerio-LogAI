@@ -15,8 +15,8 @@ from unittest.mock import MagicMock, Mock, patch
 import pandas as pd
 import pytest
 
-from zebtrack.coordinators.processing_coordinator import ProcessingCoordinator
-from zebtrack.ui.events import Events
+from zebtrack.coordinators.report_generation_coordinator import ReportGenerationCoordinator
+from zebtrack.ui.event_bus_v2 import UIEvents
 
 # =============================================================================
 # FIXTURES
@@ -51,27 +51,19 @@ def mock_project_manager():
 
 @pytest.fixture
 def coordinator(mock_settings, mock_project_manager):
-    """Create ProcessingCoordinator with mocked dependencies."""
+    """Create ReportGenerationCoordinator with mocked dependencies (Phase 4)."""
 
-    class _TestProcessingCoordinator(ProcessingCoordinator):
+    class _TestReportCoordinator(ReportGenerationCoordinator):
         _publish_event: MagicMock
 
         def __init__(self, **kwargs):
             super().__init__(**kwargs)
             self._publish_event = MagicMock()
 
-    coord = _TestProcessingCoordinator(
+    coord = _TestReportCoordinator(
         project_manager=mock_project_manager,
-        detector_service=MagicMock(),
-        weight_manager=MagicMock(),
         settings_obj=mock_settings,
-        ui_coordinator=MagicMock(),
-        ui_state_controller=MagicMock(),
         state_manager=MagicMock(),
-        cancel_event=MagicMock(),
-        video_selection_service=MagicMock(),
-        video_validation_service=MagicMock(),
-        video_classification_service=MagicMock(),
     )
     return coord
 
@@ -149,7 +141,7 @@ def test_status_clears_after_unified_report_success(coordinator, sample_summary_
     status_calls = [
         call
         for call in coordinator._publish_event.call_args_list
-        if call[0][0] == Events.UI_SET_STATUS
+        if call[0][0] == UIEvents.UI_SET_STATUS
     ]
 
     assert len(status_calls) >= 2, "Should have at least 2 status updates (start + end)"
@@ -173,7 +165,7 @@ def test_status_not_cleared_on_failure(coordinator):
     status_calls = [
         call
         for call in coordinator._publish_event.call_args_list
-        if call[0][0] == Events.UI_SET_STATUS
+        if call[0][0] == UIEvents.UI_SET_STATUS
     ]
 
     # Should only have the initial status, not the final "Pronto."
@@ -407,7 +399,10 @@ def test_roi_mismatch_warning_shown_when_schemas_differ(
     warning_calls = [
         call
         for call in coordinator._publish_event.call_args_list
-        if call[0][0] == Events.UI_SHOW_WARNING and "ROIs Diferentes" in call[0][1].get("title", "")
+        if (
+            call[0][0] == UIEvents.UI_SHOW_WARNING
+            and "ROIs Diferentes" in call[0][1].get("title", "")
+        )
     ]
 
     assert len(warning_calls) == 1, "Should show ROI mismatch warning once"
@@ -448,7 +443,10 @@ def test_roi_mismatch_warning_suppressed_by_setting(
     warning_calls = [
         call
         for call in coordinator._publish_event.call_args_list
-        if call[0][0] == Events.UI_SHOW_WARNING and "ROIs Diferentes" in call[0][1].get("title", "")
+        if (
+            call[0][0] == UIEvents.UI_SHOW_WARNING
+            and "ROIs Diferentes" in call[0][1].get("title", "")
+        )
     ]
 
     assert len(warning_calls) == 0, "Warning should be suppressed"
@@ -563,7 +561,7 @@ def test_unified_report_full_workflow_with_different_rois(
     status_calls = [
         call
         for call in coordinator._publish_event.call_args_list
-        if call[0][0] == Events.UI_SET_STATUS
+        if call[0][0] == UIEvents.UI_SET_STATUS
     ]
     assert len(status_calls) >= 2
     assert status_calls[0][0][1]["message"] == "Gerando relatório unificado..."
@@ -573,7 +571,10 @@ def test_unified_report_full_workflow_with_different_rois(
     warning_calls = [
         call
         for call in coordinator._publish_event.call_args_list
-        if call[0][0] == Events.UI_SHOW_WARNING and "ROIs Diferentes" in call[0][1].get("title", "")
+        if (
+            call[0][0] == UIEvents.UI_SHOW_WARNING
+            and "ROIs Diferentes" in call[0][1].get("title", "")
+        )
     ]
     assert len(warning_calls) == 1
 
@@ -581,7 +582,7 @@ def test_unified_report_full_workflow_with_different_rois(
     info_calls = [
         call
         for call in coordinator._publish_event.call_args_list
-        if call[0][0] == Events.UI_SHOW_INFO
+        if call[0][0] == UIEvents.UI_SHOW_INFO
         and "Relatório Unificado" in call[0][1].get("title", "")
     ]
     assert len(info_calls) == 1
@@ -642,23 +643,24 @@ def test_unified_report_shows_error_when_all_exports_fail(
         monkeypatch.setattr(pd.DataFrame, "to_parquet", _raise_parquet_error)
         monkeypatch.setattr(pd.DataFrame, "to_excel", _raise_excel_error)
 
-        from zebtrack.analysis.reporter import Reporter
-
-        monkeypatch.setattr(Reporter, "export_project_report", _raise_word_error)
+        monkeypatch.setattr(
+            "zebtrack.analysis.reporters.export_project_report",
+            _raise_word_error,
+        )
 
         coordinator.generate_unified_report([str(tmp_path / "video1.mp4")])
 
     error_calls = [
         call
         for call in coordinator._publish_event.call_args_list
-        if call[0][0] == Events.UI_SHOW_ERROR
+        if call[0][0] == UIEvents.UI_SHOW_ERROR
     ]
     assert error_calls, "Expected UI_SHOW_ERROR when all unified exports fail"
 
     success_calls = [
         call
         for call in coordinator._publish_event.call_args_list
-        if call[0][0] == Events.UI_SHOW_INFO
+        if call[0][0] == UIEvents.UI_SHOW_INFO
         and "Relatório Unificado" in call[0][1].get("title", "")
     ]
     assert not success_calls, "Should not show success info when no unified files were generated"

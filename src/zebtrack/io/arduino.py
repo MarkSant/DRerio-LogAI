@@ -21,7 +21,7 @@ ALLOWED_ARDUINO_COMMANDS = frozenset(
 
 
 class ArduinoCommandError(ValueError):
-    """Erro quando comando Arduino é inválido."""
+    """Error when Arduino command is invalid."""
 
 
 class Arduino:
@@ -157,6 +157,7 @@ class Arduino:
             self.ser.flush()
             log.info("arduino.command.sent", command=command_clean)
             return True
+        # except Exception justified: serial write/flush — hardware I/O with diverse driver errors
         except Exception as e:
             log.error("arduino.command.error", error=str(e), exc_info=True)
             return False
@@ -191,7 +192,7 @@ class Arduino:
             try:
                 ser.reset_input_buffer()
             except Exception:  # pragma: no cover - not all drivers support it
-                pass
+                log.debug("arduino.probe.reset_buffer_unsupported", port=port, exc_info=True)
 
             if warmup_delay:
                 time.sleep(warmup_delay)
@@ -216,7 +217,7 @@ class Arduino:
             try:
                 ser.close()
             except Exception:  # pragma: no cover - best effort close
-                pass
+                log.debug("arduino.probe.close_error", port=port, exc_info=True)
 
     @classmethod
     def scan_available_ports(
@@ -227,7 +228,7 @@ class Arduino:
         fallback_ports: list[object] = []
 
         try:
-            from serial.tools import list_ports  # type: ignore
+            from serial.tools import list_ports
         except Exception:  # pragma: no cover - pyserial not installed
             log.warning("arduino.scan.list_ports_unavailable")
             return handshake_ports, fallback_ports
@@ -261,7 +262,7 @@ def main():
         from zebtrack.settings import load_settings
 
         settings = load_settings()
-    except Exception as e:
+    except (RuntimeError, ImportError) as e:
         print(f"Settings could not be loaded: {e}. Aborting test.")
         return
 

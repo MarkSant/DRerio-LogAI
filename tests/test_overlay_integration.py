@@ -28,7 +28,7 @@ class TestOverlayIntegration:
         """Test that detector.draw_overlay is called during tracking via mocking."""
         # Test that the VideoProcessingService implementation calls draw_overlay
         # We verify this by checking the method exists and can be called
-        from zebtrack.core.video_processing_service import VideoProcessingService
+        from zebtrack.core.video.video_processing_service import VideoProcessingService
 
         # Verify the service has _process_tracking_frame method
         assert hasattr(VideoProcessingService, "_process_tracking_frame")

@@ -290,8 +290,8 @@ class PerformanceProfiler:
         print("=" * 80 + "\n")
 
         try:
-            from zebtrack.core.detector import Detector
-            from zebtrack.core.weight_manager import WeightManager
+            from zebtrack.core.detection import Detector
+            from zebtrack.core.services.weight_manager import WeightManager
             from zebtrack.plugins import DETECTOR_PLUGINS
             from zebtrack.settings import load_settings
 
@@ -322,7 +322,7 @@ class PerformanceProfiler:
 
             with self.cpu_profile("detector_init"):
                 start = time.time()
-                plugin_instance = plugin_class(model_path=model_path, settings_obj=settings)
+                plugin_instance = plugin_class(model_path=model_path, settings_obj=settings)  # type: ignore[call-arg]
                 detector = Detector(
                     plugin=plugin_instance,
                     base_width=settings.camera.desired_width,

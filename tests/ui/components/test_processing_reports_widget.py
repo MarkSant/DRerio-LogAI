@@ -8,6 +8,7 @@ from unittest.mock import Mock, patch
 import pytest
 
 from zebtrack.ui.components.processing_reports import ProcessingReportsWidget
+from zebtrack.ui.event_bus_v2 import Event, UIEvents
 
 
 @pytest.fixture
@@ -157,8 +158,8 @@ def test_delete_unified_confirm_true(widget):
     with patch("tkinter.messagebox.askyesno", return_value=True):
         widget._on_delete_unified_clicked()
 
-    widget.event_bus.publish_event.assert_called_once_with(
-        event_name="reports.delete_unified", data={}
+    widget.event_bus.publish.assert_called_once_with(
+        Event(type=UIEvents.REPORTS_DELETE_UNIFIED, data={})
     )
     assert str(widget.btn_open_unified_word.cget("state")) == "disabled"
     assert str(widget.btn_open_unified_excel.cget("state")) == "disabled"
@@ -173,7 +174,7 @@ def test_delete_unified_confirm_false(widget):
     with patch("tkinter.messagebox.askyesno", return_value=False):
         widget._on_delete_unified_clicked()
 
-    widget.event_bus.publish_event.assert_not_called()
+    widget.event_bus.publish.assert_not_called()
     assert str(widget.btn_open_unified_word.cget("state")) == "normal"
 
 
@@ -249,9 +250,10 @@ def test_right_click_emits_event(widget):
 
     widget._on_item_right_click(event)
 
-    widget.event_bus.publish_event.assert_called_once()
-    call_args = widget.event_bus.publish_event.call_args
-    assert call_args[1]["event_name"] == "processing_reports.item_right_click"
+    widget.event_bus.publish.assert_called_once()
+    call_args = widget.event_bus.publish.call_args
+    event_obj = call_args[0][0]  # First positional arg
+    assert event_obj.type == UIEvents.PROCESSING_REPORTS_ITEM_RIGHT_CLICK
 
 
 @pytest.mark.gui

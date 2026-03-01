@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from zebtrack.core.calibration import Calibration
+from zebtrack.core.detection.calibration import Calibration
 
 
 @pytest.fixture

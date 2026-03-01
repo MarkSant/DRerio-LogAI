@@ -8,7 +8,7 @@ import cv2
 sys.path.append(str(Path(__file__).parent.parent / "src"))
 
 try:
-    from zebtrack.core.weight_manager import WeightManager
+    from zebtrack.core.services.weight_manager import WeightManager
     from zebtrack.plugins.ultralytics_detector import UltralyticsDetectorPlugin
     from zebtrack.settings import load_settings
 except ImportError as e:

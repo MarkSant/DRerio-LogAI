@@ -10,9 +10,10 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from zebtrack.core.detector import ZoneData
+from zebtrack.core.detection import ZoneData
 from zebtrack.core.state_manager import StateManager
 from zebtrack.io.recorder import Recorder
+from zebtrack.ui.event_bus_v2 import EventBusV2
 from zebtrack.ui.gui import ApplicationGUI
 
 
@@ -271,10 +272,12 @@ def gui_fixture(tkinter_root, mock_gui_controller, mock_settings_for_gui):
     except Exception:
         pass  # Mock root doesn't have withdraw
 
-    # Create GUI instance with mocked settings
+    # Create GUI instance with mocked settings and event bus
+    event_bus = EventBusV2()
     gui = ApplicationGUI(
         tkinter_root,
         mock_gui_controller,
+        event_bus=event_bus,
         settings_obj=mock_settings_for_gui,
         project_manager=mock_gui_controller.project_manager,
     )
@@ -282,7 +285,7 @@ def gui_fixture(tkinter_root, mock_gui_controller, mock_settings_for_gui):
     # Initialize main control frame to ensure widgets are created
     # This might fail if it tries to load project data, so we wrap it
     try:
-        gui._load_project_view()
+        gui._load_project_view()  # type: ignore[attr-defined]
     except Exception:
         pass
 

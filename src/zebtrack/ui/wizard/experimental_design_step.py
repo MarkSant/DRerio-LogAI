@@ -14,7 +14,7 @@ from tkinter import Button, Entry, Frame, IntVar, Label, LabelFrame, StringVar
 
 import structlog
 
-from zebtrack.core.wizard_service import WizardService
+from zebtrack.core.services.wizard_service import WizardService
 from zebtrack.ui.wizard.base import WizardStep
 from zebtrack.ui.wizard.enums import WizardStepID
 from zebtrack.ui.wizard.tooltip import ToolTip

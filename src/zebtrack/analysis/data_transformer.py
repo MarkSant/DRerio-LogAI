@@ -15,22 +15,14 @@ import pandas as pd
 import structlog
 
 from zebtrack.analysis.behavior import BehavioralAnalyzer
+from zebtrack.analysis.perspective_utils import (
+    normalize_aquarium_perspective as _normalize_aquarium_perspective,
+)
 from zebtrack.analysis.roi import ROIAnalyzer
 
 __all__ = ["DataTransformer"]
 
 log = structlog.get_logger(__name__)
-
-
-def _normalize_aquarium_perspective(perspective: str | None) -> str:
-    """Normalize perspective aliases to canonical values.
-
-    Canonical values are ``lateral`` and ``top_down``.
-    """
-    raw = str(perspective or "").strip().lower().replace("-", "_")
-    if raw in {"top_down", "top_down_view", "topdown", "top"}:
-        return "top_down"
-    return "lateral"
 
 
 # Color matching threshold for RGB space (50² in RGB space, 0-255 range)
@@ -619,7 +611,11 @@ class DataTransformer:
                         else:
                             rename_geo[col] = f"Geotaxis Zona {idx + 1} (%)"
                     except (IndexError, ValueError):
-                        pass
+                        log.debug(
+                            "data_transformer.geotaxis_rename.error",
+                            column=col,
+                            exc_info=True,
+                        )
             if rename_geo:
                 display_df = display_df.rename(columns=rename_geo)
 
@@ -674,7 +670,11 @@ class DataTransformer:
                 idx = int(parts[2])
                 return f"Geotaxis Zone {idx + 1} (%)"
             except (IndexError, ValueError):
-                pass
+                log.debug(
+                    "data_transformer.format_column.geo_error",
+                    col_name=col_name,
+                    exc_info=True,
+                )
 
         return col_name
 

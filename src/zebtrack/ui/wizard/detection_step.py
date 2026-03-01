@@ -19,7 +19,7 @@ from typing import Any
 
 import structlog
 
-from zebtrack.core.project_manager import ProjectManager
+from zebtrack.core.project.project_manager import ProjectManager
 from zebtrack.ui.window_utils import create_scrollbar
 from zebtrack.ui.wizard.base import WizardStep
 from zebtrack.ui.wizard.custom_regex_dialog import CustomRegexDialog

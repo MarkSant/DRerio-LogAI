@@ -58,7 +58,7 @@ def recorder_setup(tmp_path):
 
 def test_start_recording_creates_files(recorder_setup):
     """Test that start_recording creates metadata Parquet files and video file."""
-    from zebtrack.core.detector import ZoneData
+    from zebtrack.core.detection import ZoneData
 
     recorder, output_folder, frame_width, frame_height = recorder_setup
     mock_zones = ZoneData()  # Pass empty zones for this test
@@ -93,7 +93,7 @@ def test_start_recording_creates_files(recorder_setup):
 
 def test_metadata_parquet_content(recorder_setup):
     """Test that the metadata Parquet files have the correct content."""
-    from zebtrack.core.detector import ZoneData
+    from zebtrack.core.detection import ZoneData
 
     recorder, output_folder, frame_width, frame_height = recorder_setup
     mock_zones = ZoneData(
@@ -132,7 +132,7 @@ def test_write_detection_data_saves_parquet(recorder_setup):
     to a Parquet file, including calculated center points.
     """
     recorder, output_folder, frame_width, frame_height = recorder_setup
-    from zebtrack.core.detector import ZoneData
+    from zebtrack.core.detection import ZoneData
 
     mock_zones = ZoneData()
     # Provide a mock pixel-to-cm ratio to enable center point calculation
@@ -207,7 +207,7 @@ def test_write_detection_data_saves_parquet(recorder_setup):
 
 def test_periodic_flush_triggers_before_stop(recorder_setup):
     """Recorder should flush buffered data to disk automatically."""
-    from zebtrack.core.detector import ZoneData
+    from zebtrack.core.detection import ZoneData
 
     recorder, output_folder, frame_width, frame_height = recorder_setup
 
@@ -226,7 +226,7 @@ def test_periodic_flush_triggers_before_stop(recorder_setup):
 
 def test_pixel_ratio_change_during_recording_is_rejected(recorder_setup):
     """Changing calibration mid-recording should raise to avoid schema drift."""
-    from zebtrack.core.detector import ZoneData
+    from zebtrack.core.detection import ZoneData
 
     recorder, output_folder, frame_width, frame_height = recorder_setup
     recorder.start_recording(
@@ -246,7 +246,7 @@ def test_pixel_ratio_change_during_recording_is_rejected(recorder_setup):
 
 def test_schema_mismatch_flush_forces_stop(recorder_setup):
     """Schema changes mid-run should force-stop and bubble the error."""
-    from zebtrack.core.detector import ZoneData
+    from zebtrack.core.detection import ZoneData
 
     recorder, output_folder, frame_width, frame_height = recorder_setup
     recorder._flush_row_threshold = 10  # keep buffered until explicit flush
@@ -276,7 +276,7 @@ def test_schema_mismatch_flush_forces_stop(recorder_setup):
 
 
 def test_write_detection_data_coerces_track_id_types(recorder_setup):
-    from zebtrack.core.detector import ZoneData
+    from zebtrack.core.detection import ZoneData
 
     recorder, output_folder, frame_width, frame_height = recorder_setup
     recorder.start_recording(output_folder, frame_width, frame_height, zones=ZoneData())
@@ -295,7 +295,7 @@ def test_write_detection_data_coerces_track_id_types(recorder_setup):
 
 
 def test_write_detection_data_handles_multiple_tracks(recorder_setup):
-    from zebtrack.core.detector import ZoneData
+    from zebtrack.core.detection import ZoneData
 
     recorder, output_folder, frame_width, frame_height = recorder_setup
     recorder.start_recording(output_folder, frame_width, frame_height, zones=ZoneData())
@@ -322,7 +322,7 @@ def test_write_detection_data_handles_multiple_tracks(recorder_setup):
 
 def test_video_writing(recorder_setup):
     """Test that writing video frames increases file size."""
-    from zebtrack.core.detector import ZoneData
+    from zebtrack.core.detection import ZoneData
 
     recorder, output_folder, frame_width, frame_height = recorder_setup
     mock_zones = ZoneData()
@@ -346,7 +346,7 @@ def test_video_writing(recorder_setup):
 
 def test_start_recording_with_invalid_calibration_raises_error(recorder_setup):
     """Test that invalid calibration raises a ValueError."""
-    from zebtrack.core.detector import ZoneData
+    from zebtrack.core.detection import ZoneData
 
     recorder, output_folder, frame_width, frame_height = recorder_setup
     mock_zones = ZoneData()
@@ -373,7 +373,7 @@ class TestRecorderEdgeCases:
 
     def test_empty_detection_list(self, recorder_setup):
         """Test recording with empty detection list for multiple frames."""
-        from zebtrack.core.detector import ZoneData
+        from zebtrack.core.detection import ZoneData
 
         recorder, output_folder, frame_width, frame_height = recorder_setup
         recorder.start_recording(output_folder, frame_width, frame_height, zones=ZoneData())
@@ -398,7 +398,7 @@ class TestRecorderEdgeCases:
 
     def test_single_frame_recording(self, recorder_setup):
         """Test recording with only a single frame."""
-        from zebtrack.core.detector import ZoneData
+        from zebtrack.core.detection import ZoneData
 
         recorder, output_folder, frame_width, frame_height = recorder_setup
         recorder.start_recording(output_folder, frame_width, frame_height, zones=ZoneData())
@@ -422,7 +422,7 @@ class TestRecorderEdgeCases:
 
     def test_very_large_detection_count(self, recorder_setup):
         """Test recording with very large number of detections per frame (1000+)."""
-        from zebtrack.core.detector import ZoneData
+        from zebtrack.core.detection import ZoneData
 
         recorder, output_folder, frame_width, frame_height = recorder_setup
         recorder.start_recording(output_folder, frame_width, frame_height, zones=ZoneData())
@@ -453,7 +453,7 @@ class TestRecorderEdgeCases:
 
     def test_calibration_columns_with_valid_data(self, recorder_setup):
         """Test that calibration columns are correctly calculated with valid pixel_per_cm_ratio."""
-        from zebtrack.core.detector import ZoneData
+        from zebtrack.core.detection import ZoneData
 
         recorder, output_folder, frame_width, frame_height = recorder_setup
         pixel_ratio = (5.0, 5.0)  # 5 pixels per cm
@@ -491,7 +491,7 @@ class TestRecorderEdgeCases:
 
     def test_timestamp_discontinuities(self, recorder_setup):
         """Test handling of timestamp discontinuities (out of order, duplicates, large gaps)."""
-        from zebtrack.core.detector import ZoneData
+        from zebtrack.core.detection import ZoneData
 
         recorder, output_folder, frame_width, frame_height = recorder_setup
         recorder.start_recording(output_folder, frame_width, frame_height, zones=ZoneData())
@@ -526,7 +526,7 @@ class TestRecorderEdgeCases:
 
     def test_zero_dimension_frame(self, recorder_setup):
         """Test error handling with zero or negative frame dimensions."""
-        from zebtrack.core.detector import ZoneData
+        from zebtrack.core.detection import ZoneData
 
         recorder, output_folder, _, _ = recorder_setup
 
@@ -540,7 +540,7 @@ class TestRecorderEdgeCases:
 
     def test_extreme_confidence_values(self, recorder_setup):
         """Test handling of extreme confidence values (0.0, 1.0, >1.0)."""
-        from zebtrack.core.detector import ZoneData
+        from zebtrack.core.detection import ZoneData
 
         recorder, output_folder, frame_width, frame_height = recorder_setup
         recorder.start_recording(output_folder, frame_width, frame_height, zones=ZoneData())
@@ -574,7 +574,7 @@ class TestRecorderEdgeCases:
 
     def test_negative_coordinates(self, recorder_setup):
         """Test handling of negative bounding box coordinates."""
-        from zebtrack.core.detector import ZoneData
+        from zebtrack.core.detection import ZoneData
 
         recorder, output_folder, frame_width, frame_height = recorder_setup
         recorder.start_recording(output_folder, frame_width, frame_height, zones=ZoneData())
@@ -604,3 +604,118 @@ class TestRecorderEdgeCases:
         # Center calculation should still work
         assert df.iloc[0]["x_center_px"] == pytest.approx(0.0)
         assert df.iloc[0]["y_center_px"] == pytest.approx(0.0)
+
+
+def test_recorder_thread_safety_concurrent_writes(recorder_setup):
+    """Test that concurrent write_detection_data calls don't lose or corrupt data.
+
+    Phase 5.2: Validates that the threading.Lock in Recorder properly
+    serializes concurrent appends to detection_data.
+    """
+    import threading
+
+    from zebtrack.core.detection import ZoneData
+
+    recorder, output_folder, frame_width, frame_height = recorder_setup
+
+    recorder.start_recording(
+        output_folder=output_folder,
+        frame_width=frame_width,
+        frame_height=frame_height,
+        zones=ZoneData(),
+        is_video_file=True,
+    )
+
+    # Force large flush thresholds to accumulate data in-memory
+    recorder._flush_row_threshold = 100000
+    recorder._flush_interval_seconds = 9999
+
+    num_threads = 4
+    detections_per_thread = 50
+    barrier = threading.Barrier(num_threads)
+    errors: list[Exception] = []
+
+    def worker(thread_id: int) -> None:
+        try:
+            barrier.wait(timeout=5)  # Synchronize start
+            for i in range(detections_per_thread):
+                frame = thread_id * 1000 + i
+                ts = f"2025-01-01 00:00:{frame:02d}"
+                det = [(float(i), float(i), float(i + 10), float(i + 10), 0.9, thread_id)]
+                recorder.write_detection_data(ts, frame, det)
+        except Exception as exc:
+            errors.append(exc)
+
+    threads = [
+        threading.Thread(target=worker, args=(tid,), daemon=True) for tid in range(num_threads)
+    ]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join(timeout=10)
+
+    assert not errors, f"Worker threads raised errors: {errors}"
+
+    # All detections should be present (no data lost)
+    with recorder._data_lock:
+        total = len(recorder.detection_data)
+    expected = num_threads * detections_per_thread
+    assert total == expected, f"Expected {expected} detections but got {total}"
+
+    recorder.stop_recording()
+
+
+def test_recorder_atomic_write_leaves_no_tmp_on_success(recorder_setup):
+    """Test that atomic write produces final file and no .tmp artifact.
+
+    Phase 5.3: Validates the temp-file + rename pattern.
+    """
+    from zebtrack.core.detection import ZoneData
+
+    recorder, output_folder, frame_width, frame_height = recorder_setup
+
+    recorder.start_recording(
+        output_folder=output_folder,
+        frame_width=frame_width,
+        frame_height=frame_height,
+        zones=ZoneData(),
+        is_video_file=True,
+    )
+
+    ts = "2025-01-01 00:00:00"
+    det = [(10.0, 10.0, 20.0, 20.0, 0.95, 1)]
+    recorder.write_detection_data(ts, 1, det)
+    recorder.stop_recording()
+
+    time.sleep(0.1)
+
+    base_name = os.path.basename(output_folder)
+    parquet_path = os.path.join(output_folder, f"3_CoordMovimento_{base_name}.parquet")
+    tmp_path = parquet_path + ".tmp"
+
+    assert os.path.exists(parquet_path), "Final Parquet file should exist"
+    assert not os.path.exists(tmp_path), "Temp file should be cleaned up"
+
+
+def test_recorder_verify_parquet_integrity(tmp_path):
+    """Test that _verify_parquet_integrity correctly validates files.
+
+    Phase 5.3: Validates the integrity check utility.
+    """
+    import pyarrow as pa
+    from pyarrow import parquet as pq
+
+    # Valid file
+    valid_path = str(tmp_path / "valid.parquet")
+    table = pa.table({"a": [1, 2], "b": [3, 4]})
+    pq.write_table(table, valid_path)
+    assert Recorder._verify_parquet_integrity(valid_path) is True
+
+    # Invalid file (random bytes)
+    invalid_path = str(tmp_path / "invalid.parquet")
+    with open(invalid_path, "wb") as f:
+        f.write(b"this is not a parquet file")
+    assert Recorder._verify_parquet_integrity(invalid_path) is False
+
+    # Missing file
+    assert Recorder._verify_parquet_integrity(str(tmp_path / "nonexistent.parquet")) is False

@@ -11,7 +11,7 @@ from tkinter import StringVar, ttk
 import structlog
 
 from zebtrack.ui.components.base import BaseWidget
-from zebtrack.ui.event_bus import EventBus
+from zebtrack.ui.event_bus_v2 import EventBusV2
 
 log = structlog.get_logger()
 
@@ -39,7 +39,7 @@ class ProcessingReportsWidget(BaseWidget):
     def __init__(
         self,
         parent,
-        event_bus: EventBus | None = None,
+        event_bus: EventBusV2 | None = None,
         on_generate_trajectories: Callable | None = None,
         on_export_summaries: Callable | None = None,
         on_generate_partial_report: Callable | None = None,
@@ -330,10 +330,9 @@ class ProcessingReportsWidget(BaseWidget):
             return
 
         def expand_recursive(item_id: str) -> None:
-            # Type ignore needed because passing 'open' kwarg to item() might trigger stubs issues
-            # or simply because tree is known to be Treeview here.
-            tree.item(item_id, open=True)  # type: ignore[union-attr]
-            for child in tree.get_children(item_id):  # type: ignore[union-attr]
+            assert tree is not None  # narrowed by early return above
+            tree.item(item_id, open=True)
+            for child in tree.get_children(item_id):
                 expand_recursive(child)
 
         # Expand all root items and their children
@@ -347,8 +346,9 @@ class ProcessingReportsWidget(BaseWidget):
             return
 
         def collapse_recursive(item_id: str) -> None:
-            tree.item(item_id, open=False)  # type: ignore[union-attr]
-            for child in tree.get_children(item_id):  # type: ignore[union-attr]
+            assert tree is not None  # narrowed by early return above
+            tree.item(item_id, open=False)
+            for child in tree.get_children(item_id):
                 collapse_recursive(child)
 
         # Collapse all root items and their children
@@ -573,7 +573,7 @@ class ProcessingReportsWidget(BaseWidget):
                 if path:
                     video_selection.append(item)
             except Exception:
-                pass
+                log.debug("processing_reports.tree_video_path.suppressed", exc_info=True)
 
         has_selection = len(video_selection) > 0
 

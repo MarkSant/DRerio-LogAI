@@ -329,4 +329,4 @@ class AquariumDetectionProgressDialog(tk.Toplevel):
         try:
             self.destroy()
         except tk.TclError:
-            pass  # Already destroyed
+            logger.debug("aquarium_progress_dialog.close.already_destroyed", exc_info=True)

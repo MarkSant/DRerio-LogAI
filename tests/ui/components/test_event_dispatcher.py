@@ -11,9 +11,12 @@ from unittest.mock import ANY, MagicMock
 import pytest
 
 from zebtrack.ui.components.event_dispatcher import EventDispatcher
-from zebtrack.ui.events import Events
+from zebtrack.ui.event_bus_v2 import UIEvents
 
 pytestmark = pytest.mark.gui
+
+# Arbitrary event used as a generic token in registration tests
+_TEST_EVENT = UIEvents.ZONE_AQUARIUM_SELECTED
 
 
 @pytest.fixture
@@ -61,27 +64,27 @@ class TestRegisterHandler:
     def test_register_no_params(self, event_dispatcher, mock_event_bus, mock_handler):
         """Testa registro de handler sem parâmetros."""
         event_dispatcher.register_handler(
-            "test_event", mock_handler, mode=EventDispatcher.MODE_NO_PARAMS
+            _TEST_EVENT, mock_handler, mode=EventDispatcher.MODE_NO_PARAMS
         )
 
-        assert "test_event" in event_dispatcher.handlers
+        assert _TEST_EVENT in event_dispatcher.handlers
         mock_event_bus.subscribe.assert_called_once()
 
     def test_register_kwargs_all(self, event_dispatcher, mock_event_bus, mock_handler):
         """Testa registro de handler com kwargs_all."""
         event_dispatcher.register_handler(
-            "test_event", mock_handler, mode=EventDispatcher.MODE_KWARGS_ALL
+            _TEST_EVENT, mock_handler, mode=EventDispatcher.MODE_KWARGS_ALL
         )
 
-        assert "test_event" in event_dispatcher.handlers
+        assert _TEST_EVENT in event_dispatcher.handlers
 
     def test_register_without_event_bus(self, mock_handler):
         """Testa registro sem EventBus."""
         dispatcher = EventDispatcher(None)
 
-        dispatcher.register_handler("test_event", mock_handler)
+        dispatcher.register_handler(_TEST_EVENT, mock_handler)
 
-        assert "test_event" not in dispatcher.handlers
+        assert _TEST_EVENT not in dispatcher.handlers
 
 
 class TestGuiRequirements:
@@ -175,18 +178,18 @@ class TestRegisterDirectHandler:
 
     def test_register_direct_handler(self, event_dispatcher, mock_event_bus, mock_handler):
         """Testa registro de handler direto."""
-        event_dispatcher.register_direct_handler("test_event", mock_handler)
+        event_dispatcher.register_direct_handler(_TEST_EVENT, mock_handler)
 
-        assert "test_event" in event_dispatcher.handlers
-        mock_event_bus.subscribe.assert_called_once_with("test_event", mock_handler)
+        assert _TEST_EVENT in event_dispatcher.handlers
+        mock_event_bus.subscribe.assert_called_once_with(_TEST_EVENT, mock_handler)
 
     def test_register_direct_handler_without_event_bus(self, mock_handler):
         """Testa registro direto sem EventBus."""
         dispatcher = EventDispatcher(None)
 
-        dispatcher.register_direct_handler("test_event", mock_handler)
+        dispatcher.register_direct_handler(_TEST_EVENT, mock_handler)
 
-        assert "test_event" not in dispatcher.handlers
+        assert _TEST_EVENT not in dispatcher.handlers
 
 
 class TestGuiHandlers:
@@ -195,18 +198,18 @@ class TestGuiHandlers:
     def test_handle_setup_interactive_polygon_defaults(self):
         gui = SimpleNamespace(
             event_bus=MagicMock(),
-            setup_interactive_polygon=MagicMock(),
+            canvas_manager=MagicMock(),
         )
         dispatcher = EventDispatcher(cast(Any, gui))
 
         dispatcher._handle_setup_interactive_polygon(None)
 
-        gui.setup_interactive_polygon.assert_called_once_with([])
+        gui.canvas_manager.setup_interactive_polygon.assert_called_once()
 
     def test_handle_setup_zone_definition_valid(self):
         gui = SimpleNamespace(
             event_bus=MagicMock(),
-            setup_zone_definition_for_single_video=MagicMock(),
+            single_video_workflow=MagicMock(),
         )
         dispatcher = EventDispatcher(cast(Any, gui))
 
@@ -214,7 +217,7 @@ class TestGuiHandlers:
             {"video_path": "/path/video.mp4", "config": {"interval": 10}}
         )
 
-        gui.setup_zone_definition_for_single_video.assert_called_once_with(
+        gui.single_video_workflow.setup_zone_definition_for_single_video.assert_called_once_with(
             "/path/video.mp4", {"interval": 10}
         )
 
@@ -242,7 +245,7 @@ class TestGuiSubscriptions:
 
         event_bus.subscribe.assert_called_once()
         args, _kwargs = event_bus.subscribe.call_args
-        assert args[0] == Events.UI_SETUP_INTERACTIVE_POLYGON
+        assert args[0] == UIEvents.UI_SETUP_INTERACTIVE_POLYGON
 
     def test_subscribe_zone_component_events(self):
         event_bus = MagicMock()
@@ -263,10 +266,11 @@ class TestGuiSubscriptions:
 
         dispatcher.subscribe_zone_component_events()
 
-        event_bus.subscribe.assert_any_call(Events.ZONE_AUTO_DETECT_CLICKED, ANY)
+        event_bus.subscribe.assert_any_call(UIEvents.ZONE_AUTO_DETECT_CLICKED, ANY)
 
     def test_subscribe_to_ui_events(self):
         event_bus = MagicMock()
+        _vsm = MagicMock()
         gui = SimpleNamespace(
             event_bus=event_bus,
             widget_factory=MagicMock(),
@@ -274,7 +278,8 @@ class TestGuiSubscriptions:
             status_var=MagicMock(),
             notebook=MagicMock(),
             state_synchronizer=MagicMock(),
-            project_view_manager=MagicMock(),
+            video_selector_manager=_vsm,
+            project_view_manager=_vsm,
             canvas_manager=MagicMock(),
             zone_controls=MagicMock(),
             menu_manager=MagicMock(),
@@ -284,9 +289,9 @@ class TestGuiSubscriptions:
 
         dispatcher.subscribe_to_ui_events()
 
-        event_bus.subscribe.assert_any_call(Events.UI_SHOW_INFO, ANY)
-        event_bus.subscribe.assert_any_call(Events.UI_SHOW_WARNING, ANY)
-        event_bus.subscribe.assert_any_call(Events.UI_SHOW_ERROR, ANY)
+        event_bus.subscribe.assert_any_call(UIEvents.UI_SHOW_INFO, ANY)
+        event_bus.subscribe.assert_any_call(UIEvents.UI_SHOW_WARNING, ANY)
+        event_bus.subscribe.assert_any_call(UIEvents.UI_SHOW_ERROR, ANY)
 
 
 class TestUnregisterHandler:
@@ -328,41 +333,41 @@ class TestZoneComponentEventHandlers:
     """Testes para handlers de eventos do ZoneControlsWidget."""
 
     def test_filter_video_tree_delegation(self):
-        """Verifica delegação para ProjectViewManager com texto de busca."""
+        """Verifica delegação para VideoSelectorTreeManager com texto de busca."""
         # Arrange
         mock_gui = MagicMock()
         mock_gui.zone_controls = MagicMock()
         mock_gui.zone_controls.video_search_var.get.return_value = "test_search"
-        mock_gui.project_view_manager = MagicMock()
+        mock_gui.video_selector_manager = MagicMock()
 
         # Act
         mock_gui._filter_video_tree = lambda: (
             mock_gui.zone_controls
-            and mock_gui.project_view_manager._populate_video_selector_tree(
+            and mock_gui.video_selector_manager._populate_video_selector_tree(
                 filter_text=mock_gui.zone_controls.video_search_var.get()
             )
         )
         mock_gui._filter_video_tree()
 
         # Assert
-        mock_gui.project_view_manager._populate_video_selector_tree.assert_called_once_with(
+        mock_gui.video_selector_manager._populate_video_selector_tree.assert_called_once_with(
             filter_text="test_search"
         )
 
     def test_refresh_video_selector_tree_delegation(self):
-        """Verifica delegação para ProjectViewManager sem filtro."""
+        """Verifica delegação para VideoSelectorTreeManager sem filtro."""
         # Arrange
         mock_gui = MagicMock()
-        mock_gui.project_view_manager = MagicMock()
+        mock_gui.video_selector_manager = MagicMock()
 
         # Act
         mock_gui._refresh_video_selector_tree = lambda: (
-            mock_gui.project_view_manager._populate_video_selector_tree(filter_text=None)
+            mock_gui.video_selector_manager._populate_video_selector_tree(filter_text=None)
         )
         mock_gui._refresh_video_selector_tree()
 
         # Assert
-        mock_gui.project_view_manager._populate_video_selector_tree.assert_called_once_with(
+        mock_gui.video_selector_manager._populate_video_selector_tree.assert_called_once_with(
             filter_text=None
         )
 

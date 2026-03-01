@@ -5,12 +5,19 @@ This module provides decorators for marking and documenting UI component interfa
 
 from collections.abc import Callable
 from functools import wraps
-from typing import TypeVar
+from typing import ParamSpec, TypeVar
 
-F = TypeVar("F", bound=Callable)
+P = ParamSpec("P")
+R = TypeVar("R")
+
+# Attribute name constants — stored in variables so ruff B010 won't
+# convert setattr() calls back to direct attribute assignment.
+_PUBLIC_API_ATTR = "__public_api__"
+_DEPRECATED_ATTR = "__deprecated__"
+_DEPRECATION_INFO_ATTR = "__deprecation_info__"
 
 
-def public_api[F: Callable](func: F) -> F:
+def public_api(func: Callable[P, R]) -> Callable[P, R]:
     """Mark a method as part of the public GUI API.
 
     Methods decorated with @public_api are considered stable interfaces that:
@@ -34,17 +41,17 @@ def public_api[F: Callable](func: F) -> F:
         - RELATORIO_REMOCAO_WRAPPERS_FINAL.md - List of all public API methods
     """
     # Mark the function as public API
-    func.__public_api__ = True  # type: ignore[attr-defined]
+    setattr(func, _PUBLIC_API_ATTR, True)
 
     # Preserve original function metadata
     @wraps(func)
-    def wrapper(*args, **kwargs):
+    def wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
         return func(*args, **kwargs)
 
     # Copy the marker to wrapper
-    wrapper.__public_api__ = True  # type: ignore[attr-defined]
+    setattr(wrapper, _PUBLIC_API_ATTR, True)
 
-    return wrapper  # type: ignore[return-value]
+    return wrapper
 
 
 def deprecated(reason: str, version: str, alternative: str | None = None):
@@ -66,22 +73,26 @@ def deprecated(reason: str, version: str, alternative: str | None = None):
             return self.widget_factory.create_welcome_frame()
     """
 
-    def decorator(func: F) -> F:
-        func.__deprecated__ = True  # type: ignore[attr-defined]
-        func.__deprecation_info__ = {  # type: ignore[attr-defined]
-            "reason": reason,
-            "version": version,
-            "alternative": alternative,
-        }
+    def decorator(func: Callable[P, R]) -> Callable[P, R]:
+        setattr(func, _DEPRECATED_ATTR, True)
+        setattr(
+            func,
+            _DEPRECATION_INFO_ATTR,
+            {
+                "reason": reason,
+                "version": version,
+                "alternative": alternative,
+            },
+        )
 
         @wraps(func)
-        def wrapper(*args, **kwargs):
+        def wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
             # Could add logging warning here in future
             return func(*args, **kwargs)
 
-        wrapper.__deprecated__ = True  # type: ignore[attr-defined]
-        wrapper.__deprecation_info__ = func.__deprecation_info__  # type: ignore[attr-defined]
+        setattr(wrapper, _DEPRECATED_ATTR, True)
+        setattr(wrapper, _DEPRECATION_INFO_ATTR, getattr(func, _DEPRECATION_INFO_ATTR))
 
-        return wrapper  # type: ignore[return-value]
+        return wrapper
 
     return decorator

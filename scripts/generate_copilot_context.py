@@ -12,7 +12,6 @@ Usage:
 """
 
 import ast
-import json
 from pathlib import Path
 from typing import Any
 
@@ -148,8 +147,8 @@ def scan_key_files() -> dict[str, Any]:
         "composition_root": SRC_DIR / "__main__.py",
         "main_viewmodel": SRC_DIR / "ui" / "gui.py",
         "settings": SRC_DIR / "settings.py",
-        "detector_service": SRC_DIR / "core" / "detector_service.py",
-        "project_manager": SRC_DIR / "core" / "project_manager.py",
+        "detector_service": SRC_DIR / "core" / "services" / "detector_service.py",
+        "project_manager": SRC_DIR / "core" / "project" / "project_manager.py",
         "state_manager": SRC_DIR / "core" / "state_manager.py",
         "recorder": SRC_DIR / "io" / "recorder.py",
     }
@@ -175,8 +174,24 @@ def generate_yaml_context() -> str:
     _ = build_decision_trees()  # Reserved for future use
     file_index = scan_key_files()
 
-    discovered_json = json.dumps(file_index, indent=2)
-    discovered_block = "\n".join(f"  {line}" for line in discovered_json.splitlines())
+    # Build proper YAML block mapping (not JSON) to avoid YAML extension errors
+    discovered_lines: list[str] = []
+    for key, info in file_index.items():
+        discovered_lines.append(f"  {key}:")
+        discovered_lines.append(f'    path: "{info.get("path", "N/A")}"')
+        classes = info.get("classes", [])
+        if classes:
+            items = ", ".join(f'"{c}"' for c in classes)
+            discovered_lines.append(f"    classes: [{items}]")
+        else:
+            discovered_lines.append("    classes: []")
+        methods = info.get("key_methods", [])
+        if methods:
+            items = ", ".join(f'"{m}"' for m in methods)
+            discovered_lines.append(f"    key_methods: [{items}]")
+        else:
+            discovered_lines.append("    key_methods: []")
+    discovered_block = "\n".join(discovered_lines)
 
     yaml_content = f"""# ZebTrack-AI Copilot Context Map (Auto-generated)
 # Generated: {Path(__file__).name}

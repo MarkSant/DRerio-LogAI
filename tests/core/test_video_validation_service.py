@@ -5,7 +5,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 from unittest.mock import MagicMock
 
-from zebtrack.core.video_validation_service import VideoValidationService
+from zebtrack.core.video.video_validation_service import VideoValidationService
+
+_NORMALIZE_ATTR = "zebtrack.core.project.video_manager.VideoManager.normalize_path"
 
 
 @dataclass
@@ -31,7 +33,7 @@ def test_scan_and_validate_basic(monkeypatch):
     project_manager.find_video_entry.return_value = {"has_arena": False, "has_rois": False}
     project_manager.get_multi_aquarium_zone_data.return_value = None
 
-    monkeypatch.setattr("zebtrack.core.video_manager.VideoManager.normalize_path", _normalize)
+    monkeypatch.setattr(_NORMALIZE_ATTR, _normalize)
 
     result = service.scan_and_validate_paths(["VIDEO.MP4"], project_manager)
 
@@ -50,7 +52,7 @@ def test_scan_and_validate_multi_aquarium_flags(monkeypatch):
         aquariums=[_Aquarium(polygon=[(0, 0), (1, 0), (1, 1)], roi_polygons=[[1, 2, 3]])]
     )
 
-    monkeypatch.setattr("zebtrack.core.video_manager.VideoManager.normalize_path", _normalize)
+    monkeypatch.setattr(_NORMALIZE_ATTR, _normalize)
 
     result = service.scan_and_validate_paths(["VIDEO.MP4"], project_manager)
 
@@ -70,7 +72,7 @@ def test_scan_and_validate_multi_aquarium_outputs(monkeypatch):
     }
     project_manager.get_multi_aquarium_zone_data.return_value = None
 
-    monkeypatch.setattr("zebtrack.core.video_manager.VideoManager.normalize_path", _normalize)
+    monkeypatch.setattr(_NORMALIZE_ATTR, _normalize)
 
     result = service.scan_and_validate_paths(["VIDEO.MP4"], project_manager)
 
@@ -87,7 +89,7 @@ def test_scan_and_validate_missing_files(monkeypatch):
     project_manager.find_video_entry.return_value = None
     project_manager.get_multi_aquarium_zone_data.return_value = None
 
-    monkeypatch.setattr("zebtrack.core.video_manager.VideoManager.normalize_path", _normalize)
+    monkeypatch.setattr(_NORMALIZE_ATTR, _normalize)
 
     result = service.scan_and_validate_paths(["missing.mp4"], project_manager)
 

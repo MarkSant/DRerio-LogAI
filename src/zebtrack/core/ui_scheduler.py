@@ -14,6 +14,7 @@ This service provides:
 
 from __future__ import annotations
 
+import tkinter as tk
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
@@ -21,8 +22,6 @@ import structlog
 
 if TYPE_CHECKING:
     from tkinter import Tk
-
-    from zebtrack.ui.event_bus import EventBus
 
 log = structlog.get_logger()
 
@@ -47,17 +46,18 @@ class UIScheduler:
     def __init__(
         self,
         root: Tk | None = None,
-        event_bus: EventBus | None = None,
+        event_bus: Any = None,  # Kept for backward-compat signature; ignored in v2
     ):
         """
         Initialize UIScheduler.
 
         Args:
             root: Tkinter root window for scheduling
-            event_bus: Optional event bus for UI scheduling
+            event_bus: DEPRECATED — ignored. Retained in signature for
+                backward compatibility during the v1→v2 migration.
         """
         self.root = root
-        self.event_bus = event_bus
+        self.event_bus = None  # v2: no event_bus usage
         log.info("ui_scheduler.initialized", has_root=root is not None)
 
     def schedule(self, func: Callable, *args: Any, **kwargs: Any) -> None:
@@ -76,22 +76,13 @@ class UIScheduler:
             *args: Positional arguments for func
             **kwargs: Keyword arguments for func
         """
-        # Try event bus first
-        if self.event_bus is not None:
-            published = self.event_bus.publish_callable(func, *args, **kwargs)
-            if published:
-                return
-            log.warning(
-                "ui_scheduler.event_bus_failed",
-                callback=getattr(func, "__name__", repr(func)),
-            )
-
+        # v2: Always prefer root.after (no event_bus.publish_callable)
         # Try root.after
         if self.root is not None:
             try:
                 self.root.after(0, lambda: func(*args, **kwargs))
                 return
-            except Exception as e:
+            except tk.TclError as e:
                 log.warning(
                     "ui_scheduler.after_failed",
                     callback=getattr(func, "__name__", repr(func)),
@@ -101,6 +92,7 @@ class UIScheduler:
         # Fallback to direct execution
         try:
             func(*args, **kwargs)
+        # except Exception justified: arbitrary callback execution — caller errors unpredictable
         except Exception as e:
             log.error(
                 "ui_scheduler.direct_execution_failed",
@@ -132,7 +124,7 @@ class UIScheduler:
 
         try:
             return self.root.after(delay_ms, lambda: func(*args, **kwargs))
-        except Exception as e:
+        except tk.TclError as e:
             log.error(
                 "ui_scheduler.schedule_after_failed",
                 delay_ms=delay_ms,
@@ -153,7 +145,7 @@ class UIScheduler:
 
         try:
             self.root.after_cancel(after_id)
-        except Exception as e:
+        except tk.TclError as e:
             log.warning("ui_scheduler.cancel_failed", after_id=after_id, error=str(e))
 
     # === Convenience Methods for Common UI Operations ===
@@ -215,7 +207,7 @@ class UIScheduler:
                 from tkinter import messagebox
 
                 messagebox.showerror(title, title_or_message)
-            except Exception as e:
+            except tk.TclError as e:
                 log.error("ui_scheduler.show_error.failed", title=title, error=str(e))
             return
 
@@ -235,7 +227,7 @@ class UIScheduler:
                 from tkinter import messagebox
 
                 messagebox.showwarning(title, title_or_message)
-            except Exception as e:
+            except tk.TclError as e:
                 log.error("ui_scheduler.show_warning.failed", title=title, error=str(e))
             return
 
@@ -255,7 +247,7 @@ class UIScheduler:
                 from tkinter import messagebox
 
                 messagebox.showinfo(title, title_or_message)
-            except Exception as e:
+            except tk.TclError as e:
                 log.error("ui_scheduler.show_info.failed", title=title, error=str(e))
             return
 
@@ -351,7 +343,7 @@ class UIScheduler:
             from tkinter import messagebox
 
             return messagebox.askokcancel(title, message)
-        except Exception as e:
+        except tk.TclError as e:
             log.error(
                 "ui_scheduler.ask_ok_cancel.failed",
                 title=title,

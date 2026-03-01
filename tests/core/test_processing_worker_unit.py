@@ -5,8 +5,8 @@ from unittest.mock import patch
 
 import pytest
 
-from zebtrack.core.detector import ZoneData
-from zebtrack.core.processing_worker import WorkerConfig, _WorkerProcess
+from zebtrack.core.detection import ZoneData
+from zebtrack.core.video.processing_worker import WorkerConfig, _WorkerProcess
 
 
 class FakePlugin:
@@ -26,11 +26,21 @@ class FakePlugin:
 class FakeDetector:
     """Detector stub capturing single-subject mode updates."""
 
-    def __init__(self, plugin, base_width: int, base_height: int, settings_obj=None):
+    def __init__(
+        self,
+        plugin,
+        base_width: int,
+        base_height: int,
+        settings_obj=None,
+        zone_scaler=None,
+        post_processor=None,
+    ):
         self.plugin = plugin
         self.base_width = base_width
         self.base_height = base_height
         self.settings_obj = settings_obj
+        self.zone_scaler = zone_scaler
+        self.post_processor = post_processor
         self.single_mode: bool | None = None
 
     def set_single_subject_mode(self, enabled: bool):
@@ -64,7 +74,7 @@ def test_initialize_detector_syncs_interval_and_single_mode(worker_config):
 
     with (
         patch("zebtrack.plugins.ultralytics_detector.UltralyticsDetectorPlugin", FakePlugin),
-        patch("zebtrack.core.processing_worker.Detector", FakeDetector),
+        patch("zebtrack.core.video.processing_worker.Detector", FakeDetector),
     ):
         detector = worker._initialize_detector()
 

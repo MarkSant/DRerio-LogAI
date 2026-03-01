@@ -18,8 +18,8 @@ files:
   main_entry: "src/zebtrack/__main__.py"
   main_viewmodel: "src/zebtrack/ui/gui.py"
   settings: "src/zebtrack/settings.py"
-  detector_service: "src/zebtrack/core/detector_service.py"
-  project_manager: "src/zebtrack/core/project_manager.py"
+  detector_service: "src/zebtrack/core/services/detector_service.py"
+  project_manager: "src/zebtrack/core/project/project_manager.py"
   state_manager: "src/zebtrack/core/state_manager.py"
   recorder: "src/zebtrack/io/recorder.py"
 
@@ -103,85 +103,31 @@ critical_docs:
 # === FILE STATS ===
 # Auto-discovered classes and entry points
 discovered_classes:
-  {
-    "composition_root": {
-      "path": "src/zebtrack/__main__.py",
-      "classes": [],
-      "key_methods": []
-    },
-    "main_viewmodel": {
-      "path": "src/zebtrack/ui/gui.py",
-      "classes": [
-        "ApplicationGUI"
-      ],
-      "key_methods": [
-        "__init__",
-        "_post_init",
-        "handle_request_weight_type",
-        "handle_request_weight_action",
-        "_extract_setting"
-      ]
-    },
-    "settings": {
-      "path": "src/zebtrack/settings.py",
-      "classes": [
-        "CameraSettings",
-        "LiveAnalysisSettings",
-        "ArduinoSettings"
-      ],
-      "key_methods": []
-    },
-    "detector_service": {
-      "path": "src/zebtrack/core/detector_service.py",
-      "classes": [
-        "DetectorService"
-      ],
-      "key_methods": [
-        "__init__",
-        "initialize_detector",
-        "get_params",
-        "get_parameter_definitions",
-        "get_available_configs"
-      ]
-    },
-    "project_manager": {
-      "path": "src/zebtrack/core/project_manager.py",
-      "classes": [
-        "ProjectInvalidError",
-        "ProjectManager"
-      ],
-      "key_methods": [
-        "__init__",
-        "__init__",
-        "_ensure_zone_structures",
-        "_normalize_video_path",
-        "_resolve_zone_entry",
-        "_deduplicate_zone_keys"
-      ]
-    },
-    "state_manager": {
-      "path": "src/zebtrack/core/state_manager.py",
-      "classes": [
-        "StateCategory",
-        "ProjectState",
-        "StateChange"
-      ],
-      "key_methods": [
-        "copy",
-        "copy"
-      ]
-    },
-    "recorder": {
-      "path": "src/zebtrack/io/recorder.py",
-      "classes": [
-        "Recorder"
-      ],
-      "key_methods": [
-        "__init__",
-        "pixel_per_cm_ratio",
-        "pixel_per_cm_ratio",
-        "calibration",
-        "calibration"
-      ]
-    }
-  }
+  composition_root:
+    path: "src/zebtrack/__main__.py"
+    classes: []
+    key_methods: []
+  main_viewmodel:
+    path: "src/zebtrack/ui/gui.py"
+    classes: ["ApplicationGUI"]
+    key_methods: ["__init__", "_post_init", "_extract_setting", "_initialize_theme", "_open_global_calibration_window"]
+  settings:
+    path: "src/zebtrack/settings.py"
+    classes: ["CameraSettings", "LiveAnalysisSettings", "ArduinoSettings"]
+    key_methods: []
+  detector_service:
+    path: "src/zebtrack/core/services/detector_service.py"
+    classes: ["DetectorService"]
+    key_methods: ["__init__", "initialize_detector", "get_params", "get_parameter_definitions", "get_available_configs"]
+  project_manager:
+    path: "src/zebtrack/core/project/project_manager.py"
+    classes: ["ProjectManager"]
+    key_methods: ["__init__", "_resolve_zone_entry", "list_roi_templates", "save_roi_template", "import_roi_template"]
+  state_manager:
+    path: "src/zebtrack/core/state_manager.py"
+    classes: ["StateCategory", "ProjectState", "StateChange"]
+    key_methods: ["copy", "copy"]
+  recorder:
+    path: "src/zebtrack/io/recorder.py"
+    classes: ["Recorder"]
+    key_methods: ["__init__", "pixel_per_cm_ratio", "pixel_per_cm_ratio", "calibration", "calibration"]

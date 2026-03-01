@@ -320,6 +320,8 @@ class TestBaseUIComponentEventBus:
         self, tk_parent, mock_controller, mock_event_bus, settings_obj
     ):
         """Should emit events when event_bus is available."""
+        from zebtrack.ui.event_bus_v2 import UIEvents
+
         component = ConcreteUIComponent(
             parent=tk_parent,
             controller=mock_controller,
@@ -327,9 +329,12 @@ class TestBaseUIComponentEventBus:
             settings_obj=settings_obj,
         )
 
-        component._emit_event("TEST_EVENT", {"key": "value"})
+        component._emit_event(UIEvents.ZONES_UPDATED, {"key": "value"})
 
-        mock_event_bus.publish_event.assert_called_once_with("TEST_EVENT", {"key": "value"})
+        mock_event_bus.publish.assert_called_once()
+        event = mock_event_bus.publish.call_args[0][0]
+        assert event.type == UIEvents.ZONES_UPDATED
+        assert event.data == {"key": "value"}
 
     def test_emit_event_without_event_bus(self, tk_parent, mock_controller, settings_obj):
         """Should handle missing event_bus gracefully."""
@@ -347,6 +352,8 @@ class TestBaseUIComponentEventBus:
         self, tk_parent, mock_controller, mock_event_bus, settings_obj
     ):
         """Should convert None data to empty dict."""
+        from zebtrack.ui.event_bus_v2 import UIEvents
+
         component = ConcreteUIComponent(
             parent=tk_parent,
             controller=mock_controller,
@@ -354,9 +361,12 @@ class TestBaseUIComponentEventBus:
             settings_obj=settings_obj,
         )
 
-        component._emit_event("TEST_EVENT", None)
+        component._emit_event(UIEvents.ZONES_UPDATED, None)
 
-        mock_event_bus.publish_event.assert_called_once_with("TEST_EVENT", {})
+        mock_event_bus.publish.assert_called_once()
+        event = mock_event_bus.publish.call_args[0][0]
+        assert event.type == UIEvents.ZONES_UPDATED
+        assert event.data == {}
 
 
 class TestBaseUIComponentUIThreadScheduling:
@@ -552,6 +562,8 @@ class TestBaseUIComponentIntegration:
         self, tk_parent, mock_controller, mock_event_bus, settings_obj
     ):
         """Test integration with event bus."""
+        from zebtrack.ui.event_bus_v2 import UIEvents
+
         component = ConcreteUIComponent(
             parent=tk_parent,
             controller=mock_controller,
@@ -561,12 +573,13 @@ class TestBaseUIComponentIntegration:
 
         component.show()
 
-        # Emit event
-        component._emit_event("COMPONENT_READY", {"component": "test"})
+        # Emit event using a UIEvents enum member (v2 API)
+        component._emit_event(UIEvents.ZONES_UPDATED, {"component": "test"})
 
-        mock_event_bus.publish_event.assert_called_once_with(
-            "COMPONENT_READY", {"component": "test"}
-        )
+        mock_event_bus.publish.assert_called_once()
+        event = mock_event_bus.publish.call_args[0][0]
+        assert event.type == UIEvents.ZONES_UPDATED
+        assert event.data == {"component": "test"}
 
     def test_custom_cleanup_override(self, tk_parent, mock_controller, settings_obj):
         """Test that cleanup can be overridden."""

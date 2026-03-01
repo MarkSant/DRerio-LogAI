@@ -1,3 +1,4 @@
+# yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
 # GitHub Actions workflow for nightly stress tests
 # Runs intensive stress tests overnight to detect race conditions,
 # memory leaks, and flakiness without slowing down CI feedback loop

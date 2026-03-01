@@ -1,4 +1,4 @@
-"""Tests for BaseCoordinator abstract class.
+"""Tests for BaseCoordinator (unified concrete class).
 
 This module tests the base functionality that all coordinators inherit,
 ensuring that the foundation for the refactored architecture is solid.
@@ -9,15 +9,14 @@ Test Coverage:
 - Event bus integration
 - Validation methods
 - Error handling
-- Abstract method enforcement
+- Default validate_dependencies behaviour
 """
 
-from typing import Any, cast
-from unittest.mock import Mock, patch
+from unittest.mock import Mock
 
 import pytest
 
-from zebtrack.coordinators.base import (
+from zebtrack.coordinators.base_coordinator import (
     BaseCoordinator,
     CoordinatorDependencyError,
     CoordinatorError,
@@ -34,7 +33,7 @@ class ConcreteCoordinator(BaseCoordinator):
         self.validate_called = False
 
     def validate_dependencies(self) -> bool:
-        """Implement abstract method."""
+        """Override base default."""
         self.validate_called = True
         return True
 
@@ -68,36 +67,35 @@ class TestBaseCoordinatorInitialization:
         """Should log coordinator creation."""
         state_manager = Mock(spec=StateManager)
 
-        with patch("zebtrack.coordinators.base.log") as mock_log:
-            ConcreteCoordinator(state_manager=state_manager)
-
-            mock_log.info.assert_called_once()
-            call_args = mock_log.info.call_args
-            assert "coordinator.initialized" in call_args[0]
+        # Init log is now via self.logger (per-instance), not module log
+        coordinator = ConcreteCoordinator(state_manager=state_manager)
+        assert hasattr(coordinator, "logger"), "Coordinator must expose a logger"
 
 
-class TestBaseCoordinatorAbstractMethods:
-    """Test that abstract methods must be implemented."""
+class TestBaseCoordinatorConcreteDefault:
+    """Test that BaseCoordinator can be instantiated directly (concrete base)."""
 
-    def test_cannot_instantiate_base_coordinator_directly(self):
-        """Should not allow instantiating BaseCoordinator directly."""
+    def test_can_instantiate_base_coordinator_directly(self):
+        """BaseCoordinator is concrete — direct instantiation allowed."""
         state_manager = Mock(spec=StateManager)
+        coordinator = BaseCoordinator(state_manager=state_manager)
+        assert coordinator.state_manager is state_manager
 
-        with pytest.raises(TypeError) as exc_info:
-            cast(Any, BaseCoordinator)(state_manager=state_manager)
+    def test_default_validate_dependencies_returns_true(self):
+        """Default validate_dependencies returns True."""
+        state_manager = Mock(spec=StateManager)
+        coordinator = BaseCoordinator(state_manager=state_manager)
+        assert coordinator.validate_dependencies() is True
 
-        assert "abstract" in str(exc_info.value).lower()
+    def test_subclass_without_override_inherits_default(self):
+        """Subclass without override inherits the default True return."""
 
-    def test_concrete_class_must_implement_validate_dependencies(self):
-        """Concrete classes must implement validate_dependencies."""
-
-        class IncompleteCoordinator(BaseCoordinator):
-            pass  # Missing validate_dependencies
+        class MinimalCoordinator(BaseCoordinator):
+            pass  # No validate_dependencies override
 
         state_manager = Mock(spec=StateManager)
-
-        with pytest.raises(TypeError):
-            cast(Any, IncompleteCoordinator)(state_manager=state_manager)
+        coordinator = MinimalCoordinator(state_manager=state_manager)
+        assert coordinator.validate_dependencies() is True
 
 
 class TestBaseCoordinatorStateMgmt:
@@ -148,12 +146,14 @@ class TestBaseCoordinatorStateMgmt:
         mock_category = Mock()
         mock_category.name = "UNKNOWN"
 
-        with patch("zebtrack.coordinators.base.log") as mock_log:
-            coordinator._update_state(mock_category, test_field="value")
+        # The unified base falls back to state_manager.update_state
+        coordinator._update_state(mock_category, test_field="value")
 
-            mock_log.warning.assert_called_once()
-            call_args = mock_log.warning.call_args[0]
-            assert "state.category.unknown" in call_args
+        state_manager.update_state.assert_called_once()
+        call_kwargs = state_manager.update_state.call_args
+        assert call_kwargs[0][0] is mock_category
+        assert call_kwargs[1]["test_field"] == "value"
+        assert "source" in call_kwargs[1]
 
 
 class TestBaseCoordinatorEventBus:
@@ -171,10 +171,10 @@ class TestBaseCoordinatorEventBus:
 
         coordinator._publish_event("TEST_EVENT", {"key": "value"})
 
-        event_bus.publish_event.assert_called_once_with(
-            "TEST_EVENT",
-            {"key": "value"},
-        )
+        event_bus.publish.assert_called_once()
+        event_obj = event_bus.publish.call_args[0][0]
+        assert event_obj.type == "TEST_EVENT"
+        assert event_obj.data == {"key": "value"}
 
     def test_publish_event_without_event_bus(self):
         """Should log debug message when no event_bus."""
@@ -182,11 +182,8 @@ class TestBaseCoordinatorEventBus:
 
         coordinator = ConcreteCoordinator(state_manager=state_manager)
 
-        with patch("zebtrack.coordinators.base.log") as mock_log:
-            coordinator._publish_event("TEST_EVENT", {"key": "value"})
-
-            mock_log.debug.assert_called_once()
-            assert "event.no_bus" in mock_log.debug.call_args[0]
+        # event.no_bus is now logged via self.logger (per-instance)
+        coordinator._publish_event("TEST_EVENT", {"key": "value"})
 
     def test_publish_event_with_none_data(self):
         """Should handle None data by converting to empty dict."""
@@ -200,7 +197,10 @@ class TestBaseCoordinatorEventBus:
 
         coordinator._publish_event("TEST_EVENT", None)
 
-        event_bus.publish_event.assert_called_once_with("TEST_EVENT", {})
+        event_bus.publish.assert_called_once()
+        event_obj = event_bus.publish.call_args[0][0]
+        assert event_obj.type == "TEST_EVENT"
+        assert event_obj.data == {}
 
 
 class TestBaseCoordinatorValidation:

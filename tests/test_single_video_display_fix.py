@@ -23,7 +23,7 @@ def test_single_video_appears_in_project_overview():
     Test that a processed single video appears in the project overview
     even without a project file.
     """
-    from zebtrack.core.project_manager import ProjectManager
+    from zebtrack.core.project.project_manager import ProjectManager
 
     # Create mock tkinter root
     mock_root = MagicMock()
@@ -115,7 +115,7 @@ def test_single_video_does_not_create_project_file():
     """
     Test that single video workflow does not create a project file on disk.
     """
-    from zebtrack.core.project_manager import ProjectManager
+    from zebtrack.core.project.project_manager import ProjectManager
 
     # Create mock tkinter root
     mock_root = MagicMock()
@@ -161,7 +161,7 @@ def test_register_outputs_auto_adds_missing_video():
     This is part of the fix: if a video isn't registered yet,
     register_processing_outputs will add it automatically.
     """
-    from zebtrack.core.project_manager import ProjectManager
+    from zebtrack.core.project.project_manager import ProjectManager
 
     # Create mock tkinter root
     mock_root = MagicMock()

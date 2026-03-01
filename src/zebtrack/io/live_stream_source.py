@@ -213,7 +213,7 @@ if __name__ == "__main__":
         stream.release()
         cv2.destroyAllWindows()
 
-    except Exception as e:
+    except (OSError, RuntimeError) as e:
         print(f"Error: {e}")
         import traceback
 

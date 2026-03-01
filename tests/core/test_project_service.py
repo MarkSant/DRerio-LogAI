@@ -13,7 +13,7 @@ import pandas as pd
 import pytest
 from tests.utils.wait_helpers import wait_for_condition
 
-from zebtrack.core.project_service import (
+from zebtrack.core.project.project_service import (
     CONFIG_FILE_NAME,
     ProjectService,
 )
@@ -90,7 +90,7 @@ class TestProjectServiceCreation:
                 project_type="experimental",
             )
 
-    @patch("zebtrack.core.project_service.Path.mkdir")
+    @patch("zebtrack.core.project.project_service.Path.mkdir")
     def test_create_project_directory_os_error(self, mock_mkdir, tmp_path):
         """Test handling of OS error during directory creation."""
         service = ProjectService()

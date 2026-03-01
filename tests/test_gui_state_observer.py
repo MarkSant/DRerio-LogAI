@@ -197,6 +197,8 @@ class TestGUIStateObserver:
 
     def test_ui_updates_scheduled_on_main_thread(self, mock_gui, controller):
         """UI updates should always be scheduled on main thread via root.after."""
+        from tests.utils.wait_helpers import wait_for_condition
+
         # Clear previous callbacks
         mock_gui.root._scheduled_callbacks.clear()
 
@@ -204,6 +206,12 @@ class TestGUIStateObserver:
         controller.state_manager.update_recording_state(source="test", is_recording=True)
         controller.state_manager.update_processing_state(source="test", is_processing=True)
         controller.state_manager.update_detector_state(source="test", detector_initialized=True)
+
+        # Wait for async observers (ThreadPoolExecutor) to schedule callbacks
+        wait_for_condition(
+            lambda: len([c for c in mock_gui.root._scheduled_callbacks if c[0] == 0]) >= 2,
+            timeout=2.0,
+        )
 
         # Verify all UI updates were scheduled via root.after(0, ...)
         # This ensures thread safety

@@ -8,8 +8,8 @@ from unittest.mock import MagicMock, patch
 
 import numpy as np
 
-from zebtrack.core.detector import ZoneData
-from zebtrack.core.detector_service import DetectorService
+from zebtrack.core.detection import ZoneData
+from zebtrack.core.services.detector_service import DetectorService
 from zebtrack.plugins.base import DetectorPlugin
 
 
@@ -96,7 +96,7 @@ class TestDetectorService(unittest.TestCase):
         self.assertEqual(self.service.state_manager, self.state_manager)
         self.assertEqual(self.service.project_manager, self.project_manager)
 
-    @patch("zebtrack.core.detector_service.Detector")
+    @patch("zebtrack.core.services.detector_service.Detector")
     def test_initialize_detector_success(self, mock_detector_class):
         """Test successful detector initialization."""
         # Setup mocks
@@ -167,7 +167,7 @@ class TestDetectorService(unittest.TestCase):
         assert error is not None
         self.assertIn("peso correspondente", error)
 
-    @patch("zebtrack.core.detector_service.Detector")
+    @patch("zebtrack.core.services.detector_service.Detector")
     def test_initialize_detector_with_openvino(self, mock_detector_class):
         """Test detector initialization with OpenVINO."""
         # Setup mocks
@@ -205,7 +205,7 @@ class TestDetectorService(unittest.TestCase):
         self.assertTrue(success)
         self.assertIsNone(error)
 
-    @patch("zebtrack.core.detector_service.Detector")
+    @patch("zebtrack.core.services.detector_service.Detector")
     def test_initialize_detector_openvino_path_not_found(self, mock_detector_class):
         """Test detector initialization fails when OpenVINO path not found."""
         self.settings.model_selection.animal_method = "det"
@@ -658,7 +658,7 @@ class TestDetectorServiceModelCorruption(unittest.TestCase):
             "OpenVINO": MockDetectorPlugin,
         }
 
-    @patch("zebtrack.core.detector_service.Detector")
+    @patch("zebtrack.core.services.detector_service.Detector")
     def test_initialize_detector_model_file_corrupted(self, mock_detector_class):
         """Test detector initialization with corrupted model file."""
         self.settings.model_selection.animal_method = "det"
@@ -708,7 +708,7 @@ class TestDetectorServiceModelCorruption(unittest.TestCase):
         self.assertFalse(success)
         self.assertIsNotNone(error)
 
-    @patch("zebtrack.core.detector_service.Detector")
+    @patch("zebtrack.core.services.detector_service.Detector")
     def test_initialize_detector_openvino_hash_mismatch(self, mock_detector_class):
         """Test detector initialization with OpenVINO hash mismatch."""
         self.settings.model_selection.animal_method = "det"

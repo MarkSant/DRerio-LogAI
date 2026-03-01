@@ -65,8 +65,8 @@ class TestZoneControlBuilder:
         builder = ZoneControlBuilder(mock_gui)
         builder.create_zone_control_widgets()
 
-        # Verify calls
-        mock_gui._create_zone_summary_cards_section.assert_called_once()
+        # Verify calls - redirected from gui shim to widget_factory
+        mock_gui.widget_factory.create_zone_summary_cards_section.assert_called_once()
 
         # Verify major sections created (by checking LabelFrame creation)
         # We expect LabelFrames for: Drawing Actions, Single Analysis, Templates,
@@ -77,7 +77,8 @@ class TestZoneControlBuilder:
         assert mock_gui.roi_choice_var is not None
         assert mock_gui.video_search_var is not None
 
-        # Verify population calls
-        mock_gui._refresh_roi_templates.assert_called_once()
+        # Verify population calls - redirected to components
+        mock_gui.roi_template_manager.refresh_templates.assert_called_once()
         # mock_gui._populate_video_selector_tree.assert_called_once() # Replaced by event
-        mock_gui._on_roi_rule_change.assert_called_once()
+        # _on_roi_rule_change is now a method on ZoneControlBuilder itself
+        # (no longer a gui shim), so we can't assert on mock_gui

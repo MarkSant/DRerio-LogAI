@@ -5,13 +5,13 @@ from unittest.mock import Mock
 import pytest
 
 from zebtrack.ui.components.control_panel import ControlPanelWidget
-from zebtrack.ui.events import Events
+from zebtrack.ui.event_bus_v2 import Event, UIEvents
 
 
 @pytest.fixture
 def event_bus():
     bus = Mock()
-    bus.publish_event = Mock()
+    bus.publish = Mock()
     bus.subscribe = Mock()
     return bus
 
@@ -20,24 +20,24 @@ def event_bus():
 def widget(tkinter_root, event_bus):
     panel = ControlPanelWidget(tkinter_root, event_bus=event_bus)
     tkinter_root.update_idletasks()
-    event_bus.publish_event.reset_mock()
+    event_bus.publish.reset_mock()
     return panel
 
 
 @pytest.mark.gui
 def test_recording_buttons_publish_events(widget, event_bus):
     widget._on_start_recording_clicked()
-    event_bus.publish_event.assert_called_with(Events.RECORDING_START, {})
+    event_bus.publish.assert_called_with(Event(type=UIEvents.RECORDING_START, data={}))
 
-    event_bus.publish_event.reset_mock()
+    event_bus.publish.reset_mock()
     widget._on_stop_recording_clicked()
-    event_bus.publish_event.assert_called_with(Events.RECORDING_STOP, {})
+    event_bus.publish.assert_called_with(Event(type=UIEvents.RECORDING_STOP, data={}))
 
 
 @pytest.mark.gui
 def test_process_video_publishes_event(widget, event_bus):
     widget._on_process_video_clicked()
-    event_bus.publish_event.assert_called_with(Events.UI_REQUEST_PROCESS_VIDEOS, {})
+    event_bus.publish.assert_called_with(Event(type=UIEvents.UI_REQUEST_PROCESS_VIDEOS, data={}))
 
 
 @pytest.mark.gui
@@ -45,8 +45,8 @@ def test_preview_toggle_emits_event(widget, event_bus):
     widget.show_preview_var.set(False)
     widget._on_preview_toggled()
 
-    event_bus.publish_event.assert_called_with(
-        event_name="control.preview_toggled", data={"enabled": False}
+    event_bus.publish.assert_called_with(
+        Event(type=UIEvents.CONTROL_PREVIEW_TOGGLED, data={"enabled": False})
     )
 
 
@@ -55,8 +55,8 @@ def test_interval_changed_emits_event(widget, event_bus):
     widget.processing_interval_var.set("15")
     widget._on_interval_changed()
 
-    event_bus.publish_event.assert_called_with(
-        event_name="control.interval_changed", data={"interval": 15}
+    event_bus.publish.assert_called_with(
+        Event(type=UIEvents.CONTROL_INTERVAL_CHANGED, data={"interval": 15})
     )
 
 
@@ -65,7 +65,7 @@ def test_interval_changed_invalid_no_event(widget, event_bus):
     widget.processing_interval_var.set("abc")
     widget._on_interval_changed()
 
-    event_bus.publish_event.assert_not_called()
+    event_bus.publish.assert_not_called()
 
 
 @pytest.mark.gui

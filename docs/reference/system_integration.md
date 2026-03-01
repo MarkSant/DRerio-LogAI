@@ -1,44 +1,80 @@
 # ZebTrack-AI System Integration Map
 
 **Status:** Living Document
-**Last Updated:** Dec 28, 2025 (v3.2)
-**Purpose:** This document serves as the "source of truth" for AI Agents regarding system integration, event payloads, and control flows. It defines the strict contracts between the decoupled components of the Phase 3/4 Architecture.
+**Last Updated:** Feb 3, 2026 (v4.0)
+**Purpose:** This document serves as the "source of truth" for AI Agents regarding system integration, event payloads, and control flows. It defines the strict contracts between the decoupled components of the Phase 4 Architecture (16 specialized coordinators).
 
 ---
 
-## 0. Phase 3 Orchestrator Consolidation Status
+## 0. Coordinator Architecture
 
-### Completed Orchestrator Removals (7 orchestrators deleted, ~2,500+ lines removed)
+### 0.1. Phase 3 → Phase 4 Evolution
 
-| Orchestrator                   | Lines | Status     | Replacement                 |
-| ------------------------------ | ----- | ---------- | --------------------------- |
-| `AnalysisOrchestrator`         | ~200  | ❌ DELETED | ProcessingCoordinator       |
-| `ZoneArenaOrchestrator`        | ~150  | ❌ DELETED | ProjectLifecycleCoordinator |
-| `ProcessingConfigOrchestrator` | ~180  | ❌ DELETED | ProcessingCoordinator       |
-| `CalibrationOrchestrator`      | ~220  | ❌ DELETED | ProjectLifecycleCoordinator |
-| `ModelDiagnosticsOrchestrator` | ~250  | ❌ DELETED | HardwareCoordinator         |
-| `ProjectOrchestrator`          | ~300  | ❌ DELETED | ProjectLifecycleCoordinator |
-| `RecordingSessionOrchestrator` | ~633  | ❌ DELETED | SessionCoordinator          |
+Phase 3 consolidated 7 orchestrators into 4 "super coordinators." Phase 4 further decomposed these into 16 specialized coordinators with a unified base class, improving testability and single-responsibility adherence.
 
-### Slim Orchestrators (kept for UI orchestration only)
+**Phase 3 orchestrators deleted (7 total, ~2,500+ lines removed):**
 
-| Orchestrator                  | Lines | Status    | Notes                                         |
-| ----------------------------- | ----- | --------- | --------------------------------------------- |
-| `VideoProcessingOrchestrator` | 140   | ✅ SLIM   | Only `start_project_processing_workflow` kept |
-| `UIStateController`           | 543   | ✅ ACTIVE | 17 production calls, manages weight/zone UI   |
+| Orchestrator                   | Lines | Replacement (Phase 3)         |
+| ------------------------------ | ----- | ----------------------------- |
+| `AnalysisOrchestrator`         | ~200  | ProcessingCoordinator         |
+| `ZoneArenaOrchestrator`        | ~150  | ProjectLifecycleCoordinator   |
+| `ProcessingConfigOrchestrator` | ~180  | ProcessingCoordinator         |
+| `CalibrationOrchestrator`      | ~220  | ProjectLifecycleCoordinator   |
+| `ModelDiagnosticsOrchestrator` | ~250  | HardwareCoordinator           |
+| `ProjectOrchestrator`          | ~300  | ProjectLifecycleCoordinator   |
+| `RecordingSessionOrchestrator` | ~633  | SessionCoordinator            |
 
-### Super Coordinators (Phase 3 replacements)
+**Phase 3 "super coordinators" decomposed in Phase 4:**
 
-| Coordinator                   | Responsibilities                                      |
-| ----------------------------- | ----------------------------------------------------- |
-| `ProcessingCoordinator`       | Video processing, analysis coordination, frame queues |
-| `HardwareCoordinator`         | Detector, camera, model service coordination          |
-| `SessionCoordinator`          | Recording sessions, Arduino integration               |
-| `ProjectLifecycleCoordinator` | Project CRUD, calibration, zones, model overrides     |
+| Phase 3 Super Coordinator | Decomposed Into (Phase 4) |
+| --- | --- |
+| `ProcessingCoordinator` | `VideoProcessingCoordinator`, `ProgressTrackingCoordinator`, `SequentialProcessingCoordinator` |
+| `HardwareCoordinator` | `DetectorSetupCoordinator`, `ModelDiagnosticsCoordinator` |
+| `SessionCoordinator` | `RecordingSessionCoordinator`, `LiveCameraSessionCoordinator`, `LiveCalibrationCoordinator` |
+| (kept) | `ProjectLifecycleCoordinator` (unchanged from Phase 3) |
+
+### 0.2. Current Coordinator Registry (Phase 4 - 16 Coordinators)
+
+| Coordinator                         | Phase | Responsibility                                        |
+| ----------------------------------- | ----- | ----------------------------------------------------- |
+| `BaseCoordinator`                   | 4     | Unified base class (logging, error handling, DI)      |
+| `DetectorSetupCoordinator`          | 4.9   | Detector and weight configuration                     |
+| `DialogCoordinator`                 | 4     | Dialog lifecycle management                           |
+| `LiveBatchCoordinator`              | 4     | Live batch recording operations                       |
+| `LiveCalibrationCoordinator`        | 4.7   | Camera calibration and zone validation                |
+| `LiveCameraSessionCoordinator`      | 4.7   | Live camera analysis sessions                         |
+| `ModelDiagnosticsCoordinator`       | 4.9   | Model diagnostic tests                                |
+| `MultiAquariumCoordinator`          | 4     | Aquarium detection and zone management                |
+| `ProgressTrackingCoordinator`       | 4     | Processing progress and batch context                 |
+| `ProjectCoordinator`                | 3     | Project CRUD (Sprint 3)                               |
+| `ProjectLifecycleCoordinator`       | 3     | Project lifecycle, calibration, zones, model override |
+| `RecordingSessionCoordinator`       | 4.7   | Recording session lifecycle                           |
+| `ReportGenerationCoordinator`       | 4     | Report generation workflows                           |
+| `SequentialProcessingCoordinator`   | 4     | Sequential multi-aquarium processing                  |
+| `UIStateController`                 | 3     | UI state synchronization (17 production calls)        |
+| `VideoProcessingCoordinator`        | 4     | Core video processing workflow                        |
+
+**Shared Mixins:**
+
+| Mixin | Purpose |
+| --- | --- |
+| `_UnifiedReportMixin` | Unified report generation logic (Word/Excel) |
+| `_VideoSelectionMixin` | Video selection and filtering helpers |
+
+**Supporting Types:**
+
+| File | Contains |
+| --- | --- |
+| `_protocols.py` | Coordinator protocol definitions |
+| `processing_types.py` | `ProcessingCoordinatorError` and types |
 
 ---
 
 ## 1. Dual Event Bus Architecture
+
+> **Deprecation Notice (ADR-009):** EventBus v1 is deprecated. New features MUST use
+> EventBusV2 (`UIEvents` enum). Migration of existing v1 subscribers is planned but
+> not yet started. See [ADR-009](../decisions/ADR-009-event-bus-unification.md).
 
 **CRITICAL:** ZebTrack-AI uses **two coexisting event bus systems** by design. Agents must understand which system to use for each use case.
 
@@ -223,15 +259,23 @@ Understanding who holds what references prevents "AttributeError" and circular d
 - **Root Object:** Passed to `MainViewModel` and `ApplicationBootstrapper`.
 
 - **Contains:**
-  - `event_bus`: The communication channel.
+  - `event_bus`: Domain event communication (EventBus v1, deprecated — see ADR-009).
   - `cancel_event`: **Shared** `threading.Event` for global cancellation.
-  - `processing_coordinator`: Handles video loops.
-  - `hardware_coordinator`: Handles Detector/Camera.
-  - `session_coordinator`: Handles Recording/Arduino.
-  - `project_lifecycle_coordinator`: Handles Project CRUD.
+  - `video_processing_coordinator`: Core video processing workflow.
+  - `progress_tracking_coordinator`: Processing progress and batch context.
+  - `detector_setup_coordinator`: Detector and weight configuration.
+  - `model_diagnostics_coordinator`: Model diagnostic tests.
+  - `recording_session_coordinator`: Recording session lifecycle.
+  - `live_camera_session_coordinator`: Live camera analysis sessions.
+  - `live_calibration_coordinator`: Camera calibration and zone validation.
+  - `project_lifecycle_coordinator`: Project CRUD, calibration, zones.
+  - `multi_aquarium_coordinator`: Aquarium detection and zone management.
+  - `sequential_processing_coordinator`: Sequential multi-aquarium processing.
+  - `report_generation_coordinator`: Report generation workflows.
+  - `dialog_coordinator`: Dialog lifecycle management.
   - `ui_coordinator`: Renamed to `UIScheduler` (`zebtrack.core.ui_scheduler`) to avoid collision with `zebtrack.ui.ui_coordinator` (Mediator).
 
-### 4.2. ProcessingCoordinator
+### 4.2. VideoProcessingCoordinator (replaces Phase 3 ProcessingCoordinator)
 
 - **Owns:**
   - `ProcessingWorker` (The background process).
@@ -397,17 +441,97 @@ The following patterns remain in the codebase and should be addressed in future 
 
 Some coordinators still access `self.view` directly instead of publishing events:
 
-| Coordinator             | Pattern                                                | Recommended Fix                                               |
-| ----------------------- | ------------------------------------------------------ | ------------------------------------------------------------- |
-| `SessionCoordinator`    | `self.view.camera.get_frame()`                         | Inject camera service; publish frame events                   |
-| `ProcessingCoordinator` | `self.view.update_processing_mode()` via `UIScheduler` | Migrate to `EventBusV2` → `UIEvents.PROCESSING_STATS_UPDATED` |
-| `HardwareCoordinator`   | Direct `root.after()` calls                            | Use `UIScheduler` abstraction                                 |
+| Coordinator                    | Pattern                                                | Recommended Fix                                               |
+| ------------------------------ | ------------------------------------------------------ | ------------------------------------------------------------- |
+| `RecordingSessionCoordinator`  | `self.view.camera.get_frame()`                         | Inject camera service; publish frame events                   |
+| `VideoProcessingCoordinator`   | `self.view.update_processing_mode()` via `UIScheduler` | Migrate to `EventBusV2` → `UIEvents.PROCESSING_STATS_UPDATED` |
 
 ### 8.2. Hybrid Patterns (Acceptable)
 
 These patterns are intentional trade-offs documented in ADRs:
 
-| Pattern                                  | Location                                      | ADR Reference     |
-| ---------------------------------------- | --------------------------------------------- | ----------------- |
-| Live Camera direct display               | `LiveCameraCoordinator` → `LivePreviewWindow` | ADR-004           |
-| `UIScheduler.update_view()` direct calls | `ProcessingCoordinator`                       | ADR-003 (Phase 2) |
+| Pattern | Location | ADR Reference |
+| --- | --- | --- |
+| Live Camera direct display | `LiveCameraSessionCoordinator` → `LivePreviewWindow` | ADR-004 |
+| `UIScheduler.update_view()` direct calls | `VideoProcessingCoordinator` | ADR-003 (Phase 2) |
+
+### 8.3. EventBus v1 Deprecation (Planned)
+
+EventBus v1 (string-based `Events` class) is deprecated per ADR-009. All 90+ domain
+events should be migrated to `EventBusV2` (`UIEvents` enum) in a future phase.
+Migration has not started; coordinator decomposition (Phase 4) was prioritized first.
+
+---
+
+## 9. Performance Architecture (Phase 7)
+
+### 9.1. RecorderFactory (Lazy Loading)
+
+- **File:** `io/recorder_factory.py`
+- **Pattern:** Lazy-loads `Recorder` (pandas/pyarrow) only when first analysis starts
+- **Thread Safety:** Double-checked locking prevents duplicate initialization
+- **Impact:** Saves ~2.9s startup time + 150 MB memory by deferring heavy dependency imports
+- **API:** Delegates via `__getattr__` + context manager support (transparent proxy)
+
+### 9.2. Splash Screen
+
+- **File:** `ui/splash_screen.py`
+- **Pattern:** Professional loading UI displayed during app initialization
+- **Platform:** Segoe UI on Windows, Helvetica elsewhere; configurable duration via `SPLASH_DISPLAY_DURATION_MS`
+- **Integration:** Wired in `__main__.py` Composition Root
+
+### 9.3. Lazy Import Strategy
+
+Heavy imports (pandas, pyarrow, openpyxl) are deferred in:
+
+| Module                 | Deferred Imports                | Loaded When              |
+| ---------------------- | ------------------------------- | ------------------------ |
+| `project_manager.py`   | pandas                          | Accessing project data   |
+| `zone_manager.py`      | pandas                          | Reading zone parquets    |
+| `project_service.py`   | pandas                          | Processing project files |
+| `recorder_factory.py`  | pandas, pyarrow                 | First analysis start     |
+
+**Total Impact:** Startup time reduced from ~6.0s to ~2.0s (-67%).
+
+### 9.4. Detection Performance
+
+- **Partitioned Parallel Detection:** `detect_partitioned_parallel()` uses ThreadPoolExecutor (~30-40% speedup)
+- **Batch Inference:** `detect_batch()` for offline multi-frame processing
+- **Mask-Based Containment:** `_build_single_mask()` for per-aquarium region extraction
+
+---
+
+## 10. Documentation & Quality Standards (Phase 8)
+
+### 10.1. Language Policy
+
+- **Code comments and docstrings:** English (translated from Portuguese in Phase 8.1)
+- **User-facing strings:** Portuguese (PT-BR) — dialog titles, status messages, error messages
+- **Technical documentation:** English
+- **Wiki (`docs/wiki/`):** Portuguese
+
+### 10.2. Testing Standards
+
+- **Property-based testing:** Hypothesis (6 test files, 83+ tests) covering settings, detection types, recorder, zone scaler, behavior, and calibration
+- **Coverage gates (CI):** Linux core ≥50%, Linux GUI ≥32%, Windows core ≥28%
+- **Local gate:** pytest.ini `--cov-fail-under=45`
+- **Roadmap:** Target OpenSSF Silver (80% stmt)
+
+### 10.3. Architecture Decision Records
+
+| ADR | Title | Status |
+| --- | ----- | ------ |
+| [ADR-001](../decisions/ADR-001-multi-aquarium-support.md) | Multi-Aquarium Support | Accepted |
+| [ADR-004](../decisions/ADR-004-live-camera-divergence.md) | Live Camera Architecture Divergence | Accepted |
+| [ADR-009](../decisions/ADR-009-event-bus-unification.md) | Event Bus Unification | Accepted (migration pending) |
+
+---
+
+## 11. Document Changelog
+
+| Date | Version | Changes |
+| ---- | ------- | ------- |
+| Feb 3, 2026 | v4.0 | Phase 4 coordinator decomposition (16 coordinators), ADR-009 deprecation notice, performance architecture (Phase 7), documentation standards (Phase 8), updated dependency container |
+| Dec 28, 2025 | v3.2 | Unified report contracts, max speed metric, geotaxis data fixes |
+| Dec 2, 2025 | v3.1 | Sequential multi-aquarium processing, dead event cleanup |
+| Nov 2025 | v3.0 | Phase 3 orchestrator consolidation, multi-aquarium events |

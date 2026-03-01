@@ -8,7 +8,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from zebtrack.core.detector import Detector
+from zebtrack.core.detection import Detector
 from zebtrack.plugins.base import DetectorPlugin
 
 # --- Test Helpers (adapted from test_integration.py) ---

@@ -23,10 +23,10 @@ from zebtrack.analysis.metrics_cache import MetricsCache
 from zebtrack.analysis.models import AnalysisResult, CalibrationParams
 from zebtrack.analysis.roi import ROI, ROIAnalyzer
 from zebtrack.analysis.trajectory_validator import TrajectoryQualityValidator
-from zebtrack.ui.events import Events
+from zebtrack.ui.event_bus_v2 import Event, UIEvents
 
 if TYPE_CHECKING:
-    from zebtrack.core.detector import AquariumData
+    from zebtrack.core.detection import AquariumData
     from zebtrack.settings import Settings
 
 log = structlog.get_logger()
@@ -81,12 +81,11 @@ class AnalysisService:
     def _normalize_aquarium_perspective(perspective: str | None) -> str:
         """Normalize perspective aliases to canonical values.
 
-        Canonical values are ``lateral`` and ``top_down``.
+        Delegates to :func:`zebtrack.analysis.perspective_utils.normalize_aquarium_perspective`.
         """
-        raw = str(perspective or "").strip().lower().replace("-", "_")
-        if raw in {"top_down", "top_down_view", "topdown", "top"}:
-            return "top_down"
-        return "lateral"
+        from zebtrack.analysis.perspective_utils import normalize_aquarium_perspective
+
+        return normalize_aquarium_perspective(perspective)
 
     def run_full_analysis(
         self,
@@ -1131,13 +1130,15 @@ class AnalysisService:
                 )
                 root_tk.after(
                     0,
-                    lambda name=profile_name: controller.ui_event_bus.publish_event(
-                        Events.UI_UPDATE_SOCIAL_SUMMARY,
-                        {
-                            "profile": name,
-                            "stats": None,
-                            "tracks": [],
-                        },
+                    lambda name=profile_name: controller.ui_event_bus.publish(
+                        Event(
+                            type=UIEvents.UI_UPDATE_SOCIAL_SUMMARY,
+                            data={
+                                "profile": name,
+                                "stats": None,
+                                "tracks": [],
+                            },
+                        )
                     ),
                 )
 
@@ -1218,9 +1219,11 @@ class AnalysisService:
 
         root_tk.after(0, lambda: controller.view.set_status("Pronto."))
         controller._publish_processing_mode(source="processing.finalize", force=True)
-        controller.ui_event_bus.publish_event(
-            Events.UI_REFRESH_PROJECT_VIEWS,
-            {"reason": "Analysis completed", "append_summary": True},
+        controller.ui_event_bus.publish(
+            Event(
+                type=UIEvents.UI_REFRESH_PROJECT_VIEWS,
+                data={"reason": "Analysis completed", "append_summary": True},
+            )
         )
 
         def _refresh_views(*, immediate: bool) -> None:

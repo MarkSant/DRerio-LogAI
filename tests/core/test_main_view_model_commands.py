@@ -113,9 +113,13 @@ def mock_dependencies(mock_root):
         live_camera_service=None,
         # Phase 3: Super coordinators (properly mocked)
         project_lifecycle_coordinator=project_lifecycle_coord,
-        hardware_coordinator=hardware_coord,
+        detector_setup_coordinator=hardware_coord,
+        model_diagnostics_coordinator=Mock(),
         processing_coordinator=processing_coord,
-        session_coordinator=session_coord,
+        # Phase 4.7: Replaced session_coordinator with 3 focused coordinators
+        recording_session_coordinator=Mock(),
+        live_camera_session_coordinator=Mock(),
+        live_calibration_coordinator=Mock(),
     )
 
 
@@ -127,15 +131,11 @@ def mock_bootstrap_result():
     # Mocks for legacy coordinators
     result.legacy_coordinators = {
         "detector_coordinator": Mock(),
-        "video_orchestrator": Mock(),
-        "analysis_coordinator": Mock(),
-        "project_coordinator": Mock(),
-        "recording_coordinator": Mock(),
-        "live_camera_coordinator": Mock(),
+        # Phase 4.7: Removed recording_coordinator and live_camera_coordinator (dead code)
     }
 
     # Mocks for orchestrators (Phase 3A/3B/3C/3D: Removed superseded orchestrators)
-    result.video_processing_orchestrator = Mock()
+    # Phase 0.3: video_processing_orchestrator removed (migrated to ProcessingCoordinator)
     result.ui_state_controller = Mock()
 
     # Mocks for services
@@ -165,6 +165,9 @@ def mock_bootstrap_result():
 
     result.orchestrators = {}
     result.project_workflow_adapter = Mock()
+
+    # Phase 6: view is now assigned from BootstrapResult inside _assign_bootstrap_result
+    result.view = Mock()
 
     return result
 

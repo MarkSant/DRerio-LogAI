@@ -6,7 +6,7 @@ import structlog
 from PIL import Image, ImageTk
 
 from zebtrack.ui.components.base import BaseWidget
-from zebtrack.ui.event_bus import EventBus
+from zebtrack.ui.event_bus_v2 import EventBusV2
 
 log = structlog.get_logger()
 
@@ -27,7 +27,7 @@ class AnalysisControlsWidget(BaseWidget):
     - analysis.track_selected: User selected a track ID
     """
 
-    def __init__(self, parent, event_bus: EventBus | None = None, **kwargs):
+    def __init__(self, parent, event_bus: EventBusV2 | None = None, **kwargs):
         """
         Initialize the analysis controls widget.
 

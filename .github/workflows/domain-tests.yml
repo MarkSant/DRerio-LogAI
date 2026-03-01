@@ -1,3 +1,4 @@
+# yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
 name: Domain Tests
 
 on:
@@ -22,11 +23,11 @@ jobs:
   detect-changes:
     runs-on: ubuntu-latest
     outputs:
-      gui_changed: ${{ steps.changes.outputs.gui }}
-      processing_changed: ${{ steps.changes.outputs.processing }}
-      multi_aquarium_changed: ${{ steps.changes.outputs.multi_aquarium }}
-      events_changed: ${{ steps.changes.outputs.events }}
-      analysis_changed: ${{ steps.changes.outputs.analysis }}
+      gui_changed: "${{ steps.changes.outputs.gui }}"
+      processing_changed: "${{ steps.changes.outputs.processing }}"
+      multi_aquarium_changed: "${{ steps.changes.outputs.multi_aquarium }}"
+      events_changed: "${{ steps.changes.outputs.events }}"
+      analysis_changed: "${{ steps.changes.outputs.analysis }}"
     steps:
       - uses: actions/checkout@v6
         with:
@@ -343,13 +344,24 @@ jobs:
     if: always()
     steps:
       - name: Generate summary
+        env:
+          GUI_CHANGED: "${{ needs.detect-changes.outputs.gui_changed }}"
+          GUI_RESULT: "${{ needs.test-gui.result || 'skipped' }}"
+          PROC_CHANGED: "${{ needs.detect-changes.outputs.processing_changed }}"
+          PROC_RESULT: "${{ needs.test-processing.result || 'skipped' }}"
+          MULTI_CHANGED: "${{ needs.detect-changes.outputs.multi_aquarium_changed }}"
+          MULTI_RESULT: "${{ needs.test-multi-aquarium.result || 'skipped' }}"
+          EVENTS_CHANGED: "${{ needs.detect-changes.outputs.events_changed }}"
+          EVENTS_RESULT: "${{ needs.test-events.result || 'skipped' }}"
+          ANALYSIS_CHANGED: "${{ needs.detect-changes.outputs.analysis_changed }}"
+          ANALYSIS_RESULT: "${{ needs.test-analysis.result || 'skipped' }}"
         run: |
           echo "## Domain Test Results" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "| Domain | Changed | Status |" >> $GITHUB_STEP_SUMMARY
           echo "|--------|---------|--------|" >> $GITHUB_STEP_SUMMARY
-          echo "| GUI | ${{ needs.detect-changes.outputs.gui_changed }} | ${{ needs.test-gui.result || 'skipped' }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Processing | ${{ needs.detect-changes.outputs.processing_changed }} | ${{ needs.test-processing.result || 'skipped' }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Multi-Aquarium | ${{ needs.detect-changes.outputs.multi_aquarium_changed }} | ${{ needs.test-multi-aquarium.result || 'skipped' }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Events | ${{ needs.detect-changes.outputs.events_changed }} | ${{ needs.test-events.result || 'skipped' }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Analysis | ${{ needs.detect-changes.outputs.analysis_changed }} | ${{ needs.test-analysis.result || 'skipped' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| GUI | ${GUI_CHANGED} | ${GUI_RESULT} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Processing | ${PROC_CHANGED} | ${PROC_RESULT} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Multi-Aquarium | ${MULTI_CHANGED} | ${MULTI_RESULT} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Events | ${EVENTS_CHANGED} | ${EVENTS_RESULT} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Analysis | ${ANALYSIS_CHANGED} | ${ANALYSIS_RESULT} |" >> $GITHUB_STEP_SUMMARY

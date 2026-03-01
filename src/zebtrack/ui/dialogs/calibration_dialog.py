@@ -21,7 +21,7 @@ from pydantic import ValidationError
 
 from zebtrack.ui.collapsible_frame import CollapsibleFrame
 from zebtrack.ui.dialogs.manage_weights_dialog import ManageWeightsDialog
-from zebtrack.ui.events import Events
+from zebtrack.ui.event_bus_v2 import Event, UIEvents
 from zebtrack.ui.icon_utils import set_window_icon
 from zebtrack.ui.window_utils import schedule_maximize
 from zebtrack.ui.wizard.tooltip import ToolTip, create_help_label
@@ -155,7 +155,7 @@ class CalibrationDialog(simpledialog.Dialog):
                 child.destroy()
         except tk.TclError:
             # Frame already destroyed
-            pass
+            log.debug("calibration_dialog.clear_frame.suppressed", exc_info=True)
 
     def _build_calibration_section(self) -> None:
         if not self.calibration_section:
@@ -811,7 +811,7 @@ class CalibrationDialog(simpledialog.Dialog):
             try:
                 widget.configure(state=state)
             except Exception:
-                pass
+                log.debug("calibration_dialog.widget_state_config.suppressed", exc_info=True)
 
         if not enabled:
             self.bytetrack_hint_var.set(
@@ -823,7 +823,7 @@ class CalibrationDialog(simpledialog.Dialog):
                 try:
                     widget.configure(state="normal")
                 except Exception:
-                    pass
+                    log.debug("calibration_dialog.widget_reenable.suppressed", exc_info=True)
         else:
             self.bytetrack_hint_var.set(
                 "💡 ByteTrack ativo (Filtro de Kalman). Recomendado para maior estabilidade."
@@ -897,6 +897,7 @@ class CalibrationDialog(simpledialog.Dialog):
         try:
             params = self.controller.get_current_detector_parameters()
         except Exception:
+            log.debug("calibration.get_detector_params.fallback")
             params = {}
 
         resolved_params = _extract_params(params)
@@ -1051,14 +1052,19 @@ class CalibrationDialog(simpledialog.Dialog):
 
     def _on_weight_selected_local(self, event=None):
         selected_weight = self.active_weight_var.get()
-        self.controller.ui_event_bus.publish_event(
-            Events.MODEL_SET_WEIGHT, {"name": selected_weight, "dialog": self}
+        self.controller.ui_event_bus.publish(
+            Event(type=UIEvents.MODEL_SET_WEIGHT, data={"name": selected_weight, "dialog": self})
         )
 
     def _on_openvino_toggled_local(self):
-        self.controller.ui_event_bus.publish_event(
-            Events.MODEL_SET_OPENVINO,
-            {"use_openvino": self.use_openvino_var.get(), "dialog": self},
+        self.controller.ui_event_bus.publish(
+            Event(
+                type=UIEvents.MODEL_SET_OPENVINO,
+                data={
+                    "use_openvino": self.use_openvino_var.get(),
+                    "dialog": self,
+                },
+            )
         )
 
     def update_openvino_status_label(self, status: str):
@@ -1074,7 +1080,7 @@ class CalibrationDialog(simpledialog.Dialog):
     def _load_new_weight_local(self):
         if not self.weights_dropdown:
             return
-        self.controller.ui_event_bus.publish_event(Events.UI_REQUEST_WEIGHT_FILE, {})
+        self.controller.ui_event_bus.publish(Event(type=UIEvents.UI_REQUEST_WEIGHT_FILE, data={}))
         self._populate_weights_dropdown()
 
     def _manage_weights_local(self):
@@ -1128,7 +1134,12 @@ class CalibrationDialog(simpledialog.Dialog):
             "parent_dialog": self,
         }
 
-        self.controller.ui_event_bus.publish_event(Events.MODEL_RUN_DIAGNOSTIC, {"config": config})
+        self.controller.ui_event_bus.publish(
+            Event(
+                type=UIEvents.MODEL_RUN_DIAGNOSTIC,
+                data={"config": config},
+            )
+        )
 
     def buttonbox(self):
         """Create custom button box with calibration action buttons."""
@@ -1176,7 +1187,12 @@ class CalibrationDialog(simpledialog.Dialog):
 
         project_name = self.scope_info.get("project_name") or "projeto"
         if self.scope_info.get("scope") == "global":
-            self.controller.ui_event_bus.publish_event(Events.CALIBRATION_COPY_TO_PROJECT, {})
+            self.controller.ui_event_bus.publish(
+                Event(
+                    type=UIEvents.CALIBRATION_COPY_TO_PROJECT,
+                    data={},
+                )
+            )
             result = True
             if result:
                 messagebox.showinfo(
@@ -1184,7 +1200,12 @@ class CalibrationDialog(simpledialog.Dialog):
                     f"Os padrões globais foram copiados para o projeto {project_name}.",
                 )
         else:
-            self.controller.ui_event_bus.publish_event(Events.CALIBRATION_SAVE_TO_PROJECT, {})
+            self.controller.ui_event_bus.publish(
+                Event(
+                    type=UIEvents.CALIBRATION_SAVE_TO_PROJECT,
+                    data={},
+                )
+            )
             result = True
             if result:
                 messagebox.showinfo(

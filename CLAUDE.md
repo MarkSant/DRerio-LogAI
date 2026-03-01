@@ -1,6 +1,6 @@
 <!-- ═══════════════════════════════════════════════════════════════════════════
      CLAUDE INSTRUCTION FILE - ZebTrack-AI
-     Last Synced: 2026-02-03
+     Last Synced: 2026-03-01
      Canonical Source: AGENTS.md (always update AGENTS.md first, then mirror here)
      ═══════════════════════════════════════════════════════════════════════════ -->
 
@@ -62,11 +62,11 @@ Constraint: If a file is modified, output the ENTIRE changed section with suffic
 poetry install                    # First time
 poetry run zebtrack               # Run app
 
-# Testing (fast by default, 2568 tests total)
-poetry run pytest                 # Fast tests only (excludes GUI/slow) - ~1586 tests
+# Testing (fast by default, ~2778 tests total)
+poetry run pytest                 # Fast tests only (excludes GUI/slow) - ~2778 tests
 poetry run pytest -m gui -n0      # GUI tests (sequential) - ~949 tests
 poetry run pytest -m slow         # Slow tests only - ~35 tests
-poetry run pytest -m "" -n0       # All tests - ~2568 tests (6-7 min)
+poetry run pytest -m "" -n0       # All tests - ~3660+ tests (6-7 min)
 
 # Code Quality
 poetry run ruff check .           # Lint
@@ -114,23 +114,37 @@ Agent requirements:
 
 - **Python / Pylance**: Use the Poetry venv interpreter; keep terminal and editor aligned.
 - **Ruff**: Use Ruff as the only Python formatter/linter; enable on-save fixes.
-- **Mypy (Matan Gover) + Mypy Type Checker (Microsoft)**: Keep both aligned to the same config; if diagnostics duplicate, disable one in workspace or limit one to on-demand runs. Use “Mypy: Restart Daemon and Recheck Workspace” when stale.
-- **Python Debugger / Python Environments**: Debug and manage envs using the same Poetry interpreter.
+- **Mypy (Matan Gover)**: Single Mypy extension (daemon-based). Prefer `mypy.runUsingActiveInterpreter=true`; align with `mypy.ini`/`pyproject.toml`; use "Mypy: Restart Daemon and Recheck Workspace" if stale.
+- **Python Debugger**: Debug and manage envs using the same Poetry interpreter.
+- **Jupyter (Microsoft)**: For notebook exploration and data analysis; kernel auto-selects Poetry venv.
 - **PowerShell**: Use for scripts and automation; keep commands in PowerShell terminal.
+- **GitLens (GitKraken)**: Primary Git tool — inline blame, file history, comparison. Replaces Git History.
 - **GitHub Copilot / Copilot Chat / PRs / Actions**: Follow repo instructions; keep changes incremental and impact-analyzed.
-- **Git History**: Use for file history and blame; keep diffs small and focused.
-- **Docker / Container Tools / Dev Containers / WSL**: Use only when the workspace runs in those environments; avoid mixed paths.
-- **YAML / Markdown / markdownlint / Code Spell Checker**: Keep lint rules on; fix warnings rather than disable.
-- **MATLAB / matlab-formatter**: Apply only to `.m` files.
-- **vscode-pdf**: Read-only PDF viewing.
+- **Error Lens**: Inline error/warning display; shows errors and warnings only (not hints/info); CSpell diagnostics excluded.
+- **TODO Tree**: Tracks TODO, FIXME, HACK, BUG, XXX, DEPRECATED tags; excludes build artifacts and archive folders.
+- **YAML / markdownlint / Code Spell Checker**: Keep lint rules on; fix warnings rather than disable.
+
+### Removed Extensions (DO NOT reinstall)
+
+| Extension | Reason |
+| --- | --- |
+| `ms-python.mypy-type-checker` | Duplicated diagnostics with `matangover.mypy` |
+| `ms-python.vscode-python-envs` | Triggered WSL popups via `wsl.exe` stub |
+| `yzhang.markdown-all-in-one` | Redundant with `davidanson.vscode-markdownlint` |
+| `donjayamanne.githistory` | Replaced by `eamodio.gitlens` |
+| `tomoki1207.pdf` | Unused — no PDF workflows |
+| `mechatroner.rainbow-csv` | Unused — project uses Parquet, not CSV |
 
 ### How to use/configure in VS Code
 
-- Use “Python: Select Interpreter” to pick the Poetry venv; keep terminals aligned.
+- Use "Python: Select Interpreter" to pick the Poetry venv; keep terminals aligned.
 - Prefer `python.analysis.typeCheckingMode=basic`; use `strict` only on targeted files.
-- Keep Mypy config in `mypy.ini`/pyproject; prefer `mypy.runUsingActiveInterpreter=true` and use “Mypy: Restart Daemon and Recheck Workspace” when stale.
+- Keep Mypy config in `mypy.ini`/pyproject; prefer `mypy.runUsingActiveInterpreter=true` and use "Mypy: Restart Daemon and Recheck Workspace" when stale.
 - Set Ruff as formatter with `editor.defaultFormatter=charliermarsh.ruff`, enable `editor.formatOnSave`, and `editor.codeActionsOnSave` with `source.fixAll.ruff` and `source.organizeImports.ruff`.
-- Use “Dev Containers: Reopen in Container” or “Remote-WSL: Reopen Folder in WSL” only when running in those environments.
+- GitLens: Enabled by default; inline blame and CodeLens active; use "GitLens: Compare" for file diffs.
+- Error Lens: Configured via workspace settings; shows errors/warnings inline; CSpell excluded.
+- TODO Tree: Scans workspace for tags; check sidebar panel for tag overview.
+- Jupyter: Kernel auto-selects Poetry venv; use for data exploration notebooks.
 
 ---
 
@@ -139,8 +153,10 @@ Agent requirements:
 - [ ] Active Python interpreter is the Poetry venv used by `poetry run`.
 - [ ] Ruff is the only Python formatter (disable Black/Pylint/Flake8 formatters).
 - [ ] Mypy config is centralized (mypy.ini/pyproject) and editor uses the same config.
-- [ ] If Mypy diagnostics duplicate, disable one Mypy extension or restrict one to on-demand runs.
+- [ ] Only `matangover.mypy` installed (NOT `ms-python.mypy-type-checker`).
 - [ ] YAML/Markdown linters are enabled for config/docs quality.
+- [ ] Error Lens shows errors/warnings only (not hints/info); CSpell excluded.
+- [ ] TODO Tree excludes build artifacts and archive folders.
 - [ ] If any agent instruction changes, update AGENTS.md first and mirror to other agent files.
 
 ### Detailed Guides
@@ -153,20 +169,22 @@ Agent requirements:
 
 ### Composition Root
 
-- **`__main__.py`** (lines 140-280): All dependencies wired here
+- **DI wiring** in `core/application_bootstrapper.py` (509 lines) + `core/dependency_container.py` (205 lines)
+- `__main__.py` (789 lines): entry point at `main()` line 25; delegates DI to `ApplicationBootstrapper`
+- `DependencyContainer` holds all coordinator and service references; `LazyRef[T]` solves circular DI
 - Never use global settings: always `load_settings()` then inject `settings_obj`
 
 ### Core Layers (Phase 3/4 Architecture - Dec 2025)
 
-| Layer            | Key Files                                                                                 | Purpose                          |
-| ---------------- | ----------------------------------------------------------------------------------------- | -------------------------------- |
-| **Model**        | `core/{state_manager,project_manager,detector_service}.py`                                | State, project data, detection   |
-| **View**         | `ui/gui.py`, `ui/wizard/*.py`, `ui/dialogs/*.py`                                          | Tkinter UI (10759 lines gui.py)  |
-| **ViewModel**    | `core/main_view_model.py`                                                                 | Orchestrator (11+ injected deps) |
-| **Coordinators** | `coordinators/{processing,hardware,session,project_lifecycle}_coordinator.py`             | Super coordinators (Phase 3)     |
-| **Services**     | `core/{wizard_service,video_processing_service,live_camera_service,recording_service}.py` | Business logic                   |
-| **I/O**          | `io/{recorder,video_source,camera,live_stream_source,recorder_factory}.py`                | Persistence, frame sources       |
-| **Analysis**     | `analysis/{analysis_service,behavior,roi,reporter}.py`                                    | Behavioral metrics, reports      |
+| Layer | Key Files | Purpose |
+| --- | --- | --- |
+| **Model** | `core/state_manager.py`, `core/project/project_manager.py` (947 lines), `core/services/detector_service.py` | State, project data, detection |
+| **View** | `ui/gui.py` (865 lines), `ui/wizard/*.py`, `ui/dialogs/` (26 dialog files) | Tkinter UI |
+| **ViewModel** | `core/main_view_model.py` (873 lines) | Orchestrator (uses `DependencyContainer` + `MainViewModelDependencies`) |
+| **Coordinators** | `coordinators/` (24 files: video_processing, report_generation, multi_aquarium, sequential_processing, detector_setup, live_camera_session, project_lifecycle, calibration, dialog, progress_tracking, etc.) | Decomposed super coordinators |
+| **Services** | `core/services/wizard_service.py`, `core/video/video_processing_service.py`, `core/recording/{live_camera,recording}_service.py` | Business logic |
+| **I/O** | `io/{recorder,video_source,camera,live_stream_source,recorder_factory}.py` | Persistence, frame sources |
+| **Analysis** | `analysis/{analysis_service,behavior,roi}.py`, `analysis/reporters/` (8 files) | Behavioral metrics, reports |
 
 ### Performance Optimizations (v2.1+)
 
@@ -185,7 +203,7 @@ Agent requirements:
 ### Data Flow
 
 1. **User → Event → ViewModel → State → UI**:
-   UI emits events to `EventBus` → `MainViewModel` handles → `StateManager` updates → UI refreshes via `root.after(0, ...)`
+   UI emits events to `EventBusV2` → `MainViewModel` handles → `StateManager` updates → UI refreshes via `root.after(0, ...)`
 
 2. **Processing Pipeline** (Pre-recorded):
    `VideoSource` → `DetectorService` (zones + detection) → `Recorder` (Parquet + MP4) → `AnalysisService` → `Reporter`
@@ -242,7 +260,7 @@ timestamp, frame, track_id, x1, y1, x2, y2, confidence, [x_center_px, y_center_p
 
 ### Phase 4: Wizard Service Layer
 
-- **WizardService** (`core/wizard_service.py`): Business logic separate from UI
+- **WizardService** (`core/services/wizard_service.py`): Business logic separate from UI
   - Hardware detection (cameras, Arduino) with **30s TTL caching** (5x faster)
   - Validation methods for all wizard steps
 - **Pydantic Models** (`ui/wizard/models.py`): Type-safe validation
@@ -252,11 +270,11 @@ timestamp, frame, track_id, x1, y1, x2, y2, confidence, [x_center_px, y_center_p
 
 - **E2E Tests**: 16 integration tests (`test_wizard_live_e2e.py`)
 - **Cache Tests**: 8 tests (`test_wizard_service_caching.py`)
-- **Total**: 712 tests passing, 1 skipped
+- **Total**: 2778+ tests passing (as of Mar 2026)
 
 ### Phase 6: Live Camera Analysis (Nov 2025)
 
-- **LiveCameraService** (`core/live_camera_service.py`): Dedicated service for live camera sessions
+- **LiveCameraService** (`core/recording/live_camera_service.py`): Dedicated service for live camera sessions
   - Parallel threads: `_capture_loop()` + `_processing_loop()` for frame acquisition & detection
   - Integrated with `RecordingService` for timed sessions & coordination
   - Real-time preview via `LivePreviewWindow`
@@ -284,16 +302,16 @@ timestamp, frame, track_id, x1, y1, x2, y2, confidence, [x_center_px, y_center_p
 
 **VALIDATION**:
 
-- ✅ 2568 tests pass (8 skip, 1 xfail) in 6min40s - **no hang**
+- ✅ 2778+ tests pass (12 skip) — no hang (as of Mar 2026)
 - ✅ Coverage: 61% measured successfully
 - ✅ Works in terminal and VSCode Test Explorer
 - ✅ System remains responsive
 
-**FILES MODIFIED**: `tests/conftest.py`, `src/zebtrack/core/live_camera_service.py`, `src/zebtrack/ui/gui.py`, `pyproject.toml`
+**FILES MODIFIED**: `tests/conftest.py`, `src/zebtrack/core/recording/live_camera_service.py`, `src/zebtrack/ui/gui.py`, `pyproject.toml`
 
 **Full Details**: `docs/WIZARD_LIVE_IMPROVEMENTS.md`, `docs/archive/LIVE_*.md` (historical context)
 
-### Phase 8: Live Camera Unification (Jan 2025) 🔴 CRITICAL
+### Phase 8: Live Camera Unification (Jan 2026) 🔴 CRITICAL
 
 **PROBLEM RESOLVED**: Dual parallel systems for live camera management caused critical bugs: wrong camera selection, multiple cameras activating, preview failures, and ignored configuration settings.
 
@@ -327,13 +345,13 @@ timestamp, frame, track_id, x1, y1, x2, y2, confidence, [x_center_px, y_center_p
 - `src/zebtrack/ui/components/event_dispatcher.py`
 - `src/zebtrack/core/main_view_model.py` (2 new methods)
 - `src/zebtrack/ui/gui.py`
-- `src/zebtrack/core/live_camera_service.py` (major refactor)
+- `src/zebtrack/core/recording/live_camera_service.py` (major refactor)
 - `src/zebtrack/io/live_stream_source.py`
 - `src/zebtrack/io/frame_source_factory.py`
 
 **Full Details**: `docs/LIVE_CAMERA_UNIFICATION.md`, `PLANO_CORRECAO_FLUXOS_CAMERA_LIVE.md`
 
-### Phase 9: Legacy Code Removal - v3.0 (Jan 2025) ✅ COMPLETE
+### Phase 9: Legacy Code Removal - v3.0 (Jan 2026) ✅ COMPLETE
 
 **BREAKING CHANGE**: Removed all deprecated legacy thread system code from Live camera workflows.
 
@@ -386,7 +404,7 @@ timestamp, frame, track_id, x1, y1, x2, y2, confidence, [x_center_px, y_center_p
 - `tests/ui/components/test_project_view_manager_reports_tree_multi_aquarium.py`
 - `tests/analysis/test_visualization_generator_background_image.py`
 
-**Core Data Structures** (in `core/detector.py`):
+**Core Data Structures** (in `core/detection/`):
 
 - `AquariumData`: Holds `id`, `polygon`, `roi_mode`, `roi_data` for each aquarium
 - `MultiAquariumZoneData`: Container with `aquariums: list[AquariumData]`, `calibration`, `active_aquarium_id`, `sequential_processing`
@@ -415,7 +433,7 @@ timestamp, frame, track_id, x1, y1, x2, y2, confidence, [x_center_px, y_center_p
 - `uncertainty`: Detection confidence uncertainty (1 - confidence)
 - `bbox_iou`: Bounding box IoU with previous frame (tracking stability)
 
-**Events** (in `ui/events.py`):
+**Events** (UIEvents enum in `ui/event_bus_v2.py`):
 
 - `ZONE_MULTI_AUTO_DETECT` - Trigger multi-aquarium detection
 - `ZONE_MULTI_AUTO_DETECT_SUCCESS` - Detection succeeded (payload: `{video_path, polygons}`)
@@ -431,7 +449,7 @@ timestamp, frame, track_id, x1, y1, x2, y2, confidence, [x_center_px, y_center_p
 
 **Event Handlers** (Phase 5):
 
-- `ProcessingCoordinator._handle_multi_auto_detect()` - Handles ZONE_MULTI_AUTO_DETECT
+- `MultiAquariumCoordinator._handle_multi_auto_detect()` - Handles ZONE_MULTI_AUTO_DETECT
 - `ProjectLifecycleCoordinator._handle_aquarium_config_updated()` - Handles ZONE_AQUARIUM_CONFIG_UPDATED
 
 **UI Components**:
@@ -484,7 +502,7 @@ timestamp, frame, track_id, x1, y1, x2, y2, confidence, [x_center_px, y_center_p
 - Only visible when multi-aquarium mode is active
 - Emits `ZONE_PROCESSING_MODE_CHANGED` event
 
-**Key Methods** (in `coordinators/processing_coordinator.py`):
+**Key Methods** (in `coordinators/sequential_processing_coordinator.py`):
 
 - `_start_sequential_multi_aquarium_processing()` - Initializes sequential context
 - `_process_next_aquarium_in_sequence()` - Processes next aquarium, generates reports when done
@@ -554,22 +572,26 @@ logger.error("recorder.save_parquet.error", error=str(e))
 
 ### Entry Points & Core
 
-- `src/zebtrack/__main__.py` - CLI/GUI entry, DI wiring (lines 140-280)
-- `core/main_view_model.py` - Application orchestrator (`start_live_camera_analysis()` at line 2588)
+- `src/zebtrack/__main__.py` - CLI/GUI entry (789 lines); `main()` at line 25; delegates DI to `ApplicationBootstrapper`
+- `core/application_bootstrapper.py` - DI composition root (509 lines); wires all services and coordinators
+- `core/dependency_container.py` - Holds all coordinator/service refs; `LazyRef[T]` for circular DI (205 lines)
+- `core/main_view_model.py` - Application orchestrator (873 lines); uses `MainViewModelDependencies` + `DependencyContainer`
 - `core/state_manager.py` - Centralized state (v1.8+)
-- `core/{project_service,wizard_service,live_camera_service,recording_service}.py` - Service layer
-- `core/detector.py` - AI model + zone logic
+- `core/project/project_service.py`, `core/services/wizard_service.py` - Service layer
+- `core/recording/{live_camera_service,recording_service}.py` - Recording/Live
+- `core/detection/` - AI model + zone logic (sub-package, 9 files)
 
 ### I/O & Processing
 
 - `io/{recorder,video_source,camera,live_stream_source,frame_source_factory}.py` - Persistence, frame sources
-- `analysis/{analysis_service,behavior,roi,reporter}.py` - Metrics, reports
+- `analysis/{analysis_service,behavior,roi}.py`, `analysis/reporters/` (8 files) - Metrics, reports
 - `plugins/` - Detector implementations (YOLO, OpenVINO)
 
 ### UI
 
-- `ui/gui.py` - Main window (10759 lines after dialog extraction)
-- `ui/dialogs/` - Dialog classes (14 dialogs including `LiveAnalysisDialog`, `LivePreviewWindow`)
+- `ui/gui.py` - Main window (865 lines; 1 class `MainWindow`, 36 methods)
+- `ui/dialogs/` - Dialog classes (26 dialog files including `LiveAnalysisDialog`, `LivePreviewWindow`)
+- `ui/components/canvas/` - Canvas sub-package (5 files)
 - `ui/wizard/` - 5-step project wizard
 - `ui/wizard/models.py` - Pydantic validation models (v2.0)
 
@@ -592,10 +614,10 @@ logger.error("recorder.save_parquet.error", error=str(e))
 
 ## Testing Requirements
 
-- **Coverage**: CI gate 40% (Linux), 0% (Windows)
+- **Coverage gates**: 50% Linux core, 32% Linux GUI, 28% Windows core
 - **Markers**: `@pytest.mark.{gui,slow,integration,unit}`
 - **Fixtures**: `tests/conftest.py`
-- **Current Status**: 712 passing, 1 skipped
+- **Current Status**: 2778+ fast tests passing, 12 skipped (as of Mar 2026)
 
 ### Pre-Merge Checklist
 
@@ -628,15 +650,15 @@ logger.error("recorder.save_parquet.error", error=str(e))
 - **Line Length**: 100 chars (Ruff)
 - **Python**: ≥3.12 required
 - **setuptools**: Pinned <81 (docxcompose dependency)
-- **EventBus**: Opt-in (`ui_features.enable_event_queue: false` by default)
+- **EventBus**: `EventBusV2` is the sole event bus (v1 removed); `UIEvents` enum in `ui/event_bus_v2.py`
 
 ## Version History (Quick Reference)
 
 - **v3.3 (Dec 29, 2025)**: Unified Report Robustness - Deletion button (OneDrive safe), metadata authority fix, duplicate column cleanup
 - **v3.2 (Dec 28, 2025)**: Unified Report Fixes + Max Speed Metric - Geotaxis data in unified reports, column naming, subject identification
 - **v3.1 (Dec 2025)**: Sequential Multi-Aquarium Processing - Option to process aquariums in 2 video passes with automatic reports
-- **v3.0 (Jan 2025)**: 🔴 **BREAKING** - Removed all legacy thread system code for Live cameras (~90 lines)
-- **v2.1 (Jan 2025)**: Live Camera Unification - Fixed critical bugs (camera selection, intervals, preview)
+- **v3.0 (Jan 2026)**: 🔴 **BREAKING** - Removed all legacy thread system code for Live cameras (~90 lines)
+- **v2.1 (Jan 2026)**: Live Camera Unification - Fixed critical bugs (camera selection, intervals, preview)
 - **v2.0 (Nov 2025)**: ⚠️ **CRITICAL PYTEST FIXES** - Resolved system-freezing test hangs, daemon threads, Tkinter cleanup hooks
 - **v1.9 (Oct 2025)**: WizardService, dialog extraction, hardware caching, E2E tests, LiveCameraService
 - **v1.8**: StateManager (observable, thread-safe)
@@ -672,7 +694,7 @@ logger.error("recorder.save_parquet.error", error=str(e))
 
 - **Geotaxis Data in Unified Reports**: Fixed critical bug where geotaxis was always empty
   - **Root Cause**: `Reporter` legacy constructor didn't store `behavioral_config` before checking `hasattr()`
-  - **Fix**: `reporter.py:280-282` now explicitly stores `self.behavioral_config = behavioral_config or {}`
+  - **Fix**: Reporter constructor now explicitly stores `self.behavioral_config = behavioral_config or {}`
   - **Impact**: Geotaxis zone percentages now appear correctly in unified Excel/Word reports
 
 - **Column Naming in Word Reports**: Proper formatting with units
@@ -681,7 +703,7 @@ logger.error("recorder.save_parquet.error", error=str(e))
 
 - **Geotaxis Zone Naming**: 1-indexed user-friendly names
   - "geotaxis_zone_0_pct" → "Geotaxis Zona 1 - Fundo (%)"
-  - Fallback logic in `reporter.py:581-597` and `data_transformer.py:584-599`
+  - Fallback logic in `reporters/word_reporter.py` and `data_transformer.py`
 
 - **Subject Identification in Unified Reports**:
   - `_enrich_unified_report_metadata()` always adds group/subject/day/experiment_id (with "N/A" fallback)
@@ -696,13 +718,13 @@ logger.error("recorder.save_parquet.error", error=str(e))
 - **New Feature**: Toggle in Zone Controls to process aquariums sequentially (2 passes) vs parallel (1 pass)
 - **New Event**: `ZONE_PROCESSING_MODE_CHANGED` emitted when user changes processing mode
 - **New Field**: `MultiAquariumZoneData.sequential_processing: bool` - persisted in project files
-- **Key Methods**: `_start_sequential_multi_aquarium_processing()`, `_process_next_aquarium_in_sequence()`, `_start_single_aquarium_for_sequential()` in `ProcessingCoordinator`
+- **Key Methods**: `_start_sequential_multi_aquarium_processing()`, `_process_next_aquarium_in_sequence()`, `_start_single_aquarium_for_sequential()` in `SequentialProcessingCoordinator`
 - **Automatic Reports**: Word, Excel, and Parquet summary files generated for each aquarium after all complete
 - **UI**: Radio buttons appear in ZoneControls when multi-aquarium mode is active
 
 **1. Multi-Aquarium Data Flow:**
 
-- **Zone Serialization**: `ProcessingCoordinator` now correctly detects `MultiAquariumZoneData` and serializes it using `ZoneManager.multi_aquarium_zone_data_to_dict`.
+- **Zone Serialization**: `VideoProcessingCoordinator` now correctly detects `MultiAquariumZoneData` and serializes it using `ZoneManager.multi_aquarium_zone_data_to_dict`.
 - **Worker Deserialization**: `ProcessingWorker` deserializes using `ZoneManager.multi_aquarium_zone_data_from_dict`.
 - **Partitioned Processing**: The worker automatically switches to `detector.detect_partitioned_optimized()` and `recorder.write_partitioned_detection_data()` when multi-aquarium data is detected.
 
@@ -716,7 +738,7 @@ logger.error("recorder.save_parquet.error", error=str(e))
 - **Zone Selection**: `EventDispatcher` now subscribes to `ZONE_AQUARIUM_SELECTED` and delegates to `CanvasManager.update_zone_listbox()`.
 - **Listbox Update**: `update_zone_listbox` handles `MultiAquariumZoneData` by resolving the _active_ aquarium's data before display.
 - **Rendering**: `CanvasRenderer` supports `MultiAquariumZoneData` natively, iterating through all aquariums to draw polygons with distinct labels.
-- **Trajectory Generation**: Added `PROCESSING_GENERATE_TRAJECTORIES` handler in `ProcessingCoordinator` to fix the "no handlers" warning in the Reports tab.
+- **Trajectory Generation**: Added `PROCESSING_GENERATE_TRAJECTORIES` handler in `ReportGenerationCoordinator` to fix the "no handlers" warning in the Reports tab.
 
 **4. Windows Taskbar Icon:**
 
@@ -726,9 +748,8 @@ logger.error("recorder.save_parquet.error", error=str(e))
 
 - **Critical Bug Fixed**: Second aquarium Word reports were using first aquarium's cropped image and had misaligned trajectory/heatmap.
 - **Root Cause**: `generate_project_reports()` called `get_zone_data()` instead of `get_multi_aquarium_zone_data()`. The former returns only first aquarium's polygon for backward compatibility.
-- **Solution**: Changed `processing_coordinator.py:2998` to use `get_multi_aquarium_zone_data()` with fallback to `get_zone_data()` for single-aquarium videos.
-- **UI Fix**: Reports tab tree now displays aquarium folders (`🐠 Aquário 0`, `🐠 Aquário 1`) with their `.docx`/`.xlsx` artifacts.
-- **Files Modified**: `processing_coordinator.py` (line 2998), `project_view_manager.py` (lines 1443-1501, 1110-1127)
+- **Solution**: Changed report generation coordinator to use `get_multi_aquarium_zone_data()` with fallback to `get_zone_data()` for single-aquarium videos.
+- **UI Fix**: Reports tab tree now displays aquarium folders (`🐟 Aquário 0`, `🐟 Aquário 1`) with their `.docx`/`.xlsx` artifacts.
 - **Details**: See `docs/testing/MULTI_AQUARIUM_STATUS.md`
 
 **7. Unified Reports Robustness (v3.3 - Dec 29, 2025):**

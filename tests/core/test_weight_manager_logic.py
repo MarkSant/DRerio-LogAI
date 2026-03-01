@@ -13,7 +13,7 @@ import pytest
 @pytest.fixture
 def weight_manager():
     """Create WeightManager instance with real settings."""
-    from zebtrack.core.weight_manager import WeightManager
+    from zebtrack.core.services.weight_manager import WeightManager
     from zebtrack.settings import load_settings
 
     settings_obj = load_settings()
