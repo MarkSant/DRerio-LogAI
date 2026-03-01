@@ -10,12 +10,13 @@ build/
 dist/
 *.egg-info/
 
-# Test coverage
+# Test coverage & Hypothesis database
 .coverage
 .coverage.*
 htmlcov/
 coverage.xml
 .pytest_cache/
+.hypothesis/
 .tox/
 
 # Local dependencies
