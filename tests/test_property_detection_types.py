@@ -108,7 +108,7 @@ class TestAquariumDataConversion:
         aq = AquariumData(id=id_val, polygon=poly, group="test_group", subject_id="S1")
         zd = aq.to_zone_data()
         # ZoneData doesn't have 'id', 'group', or 'subject_id' attributes
-        assert not hasattr(zd, "id") or not hasattr(zd, "group")
+        assert not hasattr(zd, "id") and not hasattr(zd, "group")
 
 
 # =============================================================================

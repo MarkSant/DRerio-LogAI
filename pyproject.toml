@@ -39,7 +39,6 @@ tomli = "^2.0.1"
 # See: https://setuptools.pypa.io/en/latest/pkg_resources.html
 setuptools = "<81"
 plotly = "^5.18.0"
-mypy = "^1.15"
 
 [tool.poetry.scripts]
 zebtrack = "zebtrack.__main__:main"
@@ -58,7 +57,7 @@ sphinx-autodoc-typehints = "^3.5.2"
 myst-parser = "^4.0.1"
 pytest-benchmark = "^5.2.0"
 pytest-timeout = "^2.4.0"
-mypy = "^1.11.2"
+mypy = "^1.15"
 types-polib = "^1.2.0"
 types-pyyaml = "^6.0.12.20250915"
 types-pyserial = "^3.5.0.20251001"

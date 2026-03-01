@@ -51,7 +51,8 @@ class AquariumDetector:
         try:
             self.model = YOLO(model_path)
             log.info("aquarium_detector.init.success", model_path=model_path, mode=mode)
-        # except Exception justified: cv2 contour detection — poorly-typed errors
+        # except Exception justified: Ultralytics YOLO model initialization can raise
+        # heterogeneous exceptions (path/weights/config issues); log and re-raise.
         except Exception as e:
             log.error(
                 "aquarium_detector.init.failed",
@@ -77,7 +78,8 @@ class AquariumDetector:
                 return 0.0
 
             return intersection_area / union_area
-        # except Exception justified: cv2 morphological image processing — hardware-dependent
+        # except Exception justified: Shapely polygon geometry operations can raise
+        # heterogeneous exceptions (invalid geometry, topology errors); fallback to 0.
         except Exception as e:
             log.warning(
                 "aquarium_detector.iou_calculation_failed",

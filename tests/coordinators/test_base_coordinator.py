@@ -68,7 +68,8 @@ class TestBaseCoordinatorInitialization:
         state_manager = Mock(spec=StateManager)
 
         # Init log is now via self.logger (per-instance), not module log
-        ConcreteCoordinator(state_manager=state_manager)
+        coordinator = ConcreteCoordinator(state_manager=state_manager)
+        assert hasattr(coordinator, "logger"), "Coordinator must expose a logger"
 
 
 class TestBaseCoordinatorConcreteDefault:

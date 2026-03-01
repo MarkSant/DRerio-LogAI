@@ -81,12 +81,11 @@ class AnalysisService:
     def _normalize_aquarium_perspective(perspective: str | None) -> str:
         """Normalize perspective aliases to canonical values.
 
-        Canonical values are ``lateral`` and ``top_down``.
+        Delegates to :func:`zebtrack.analysis.perspective_utils.normalize_aquarium_perspective`.
         """
-        raw = str(perspective or "").strip().lower().replace("-", "_")
-        if raw in {"top_down", "top_down_view", "topdown", "top"}:
-            return "top_down"
-        return "lateral"
+        from zebtrack.analysis.perspective_utils import normalize_aquarium_perspective
+
+        return normalize_aquarium_perspective(perspective)
 
     def run_full_analysis(
         self,

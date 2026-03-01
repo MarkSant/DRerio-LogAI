@@ -111,6 +111,7 @@ class WordReporter:
             log.info("reporter.individual_report.saved", path=file_path)
         except Exception as e:
             log.error("reporter.individual_report.save_failed", error=str(e), exc_info=True)
+            raise
 
     # ------------------------------------------------------------------
     # Internal helpers
@@ -226,6 +227,10 @@ class WordReporter:
             elif isinstance(value, int | float):
                 if column_name.endswith("_s"):
                     row_cells[1].text = _format_time_minutes_seconds(value)
+                elif isinstance(value, int) or (
+                    isinstance(value, float) and value == int(value) and "count" in column_name
+                ):
+                    row_cells[1].text = str(int(value))
                 else:
                     row_cells[1].text = f"{value:.2f}"
             else:

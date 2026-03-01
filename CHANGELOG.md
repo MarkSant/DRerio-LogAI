@@ -149,7 +149,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **8.2 Coverage gates**: Researched JOSS, pyOpenSci, OpenSSF standards;
   measured baseline at 46.1%; raised CI gates (Linux core 45→50%, GUI
   30→32%, Windows 25→28%, local 40→45%); fixed 5 test regressions from
-  Phase 7 API changes; created `docs/testing/COVERAGE_STANDARDS_ANALYSIS.md`
+  Phase 7 API changes; documented coverage standards analysis
   with evidence-based roadmap to OpenSSF Silver (80%)
 - **8.3 Property-based testing**: Added Hypothesis ^6.100.0 dependency; 83
   property tests across 6 files covering settings round-trips, detection
@@ -295,7 +295,7 @@ narrowing/assignment (13).
   integrity verification), 11 video frame extractor, 6 trajectory data
   service, 9 ROI builder — total 2,642 fast tests passing
 
-### �🔄 Refactored
+### 🔄 Refactored
 
 #### Phase 4.10 — Sub-packetize `core/` into domain sub-packages (February 2026)
 
@@ -823,7 +823,7 @@ decomposition.
   `zebtrack.ui.event_bus` module
 - Will be removed when Phase 4+ migration completes
 
-### �🟢 New Features
+### 🟢 New Features
 
 #### LiveBatchCoordinator v2.3.0 Integration (January 2026)
 
@@ -866,7 +866,7 @@ decomposition.
 - Incomplete metadata handling (graceful skips)
 - Session coordinator integration with LiveBatchCoordinator
 
-### � Fixed
+### 🔧 Fixed
 
 #### Live Camera v2.2.0 - Audit Fixes (January 2026)
 
@@ -900,7 +900,7 @@ decomposition.
 - Added `ADR-006-live-batch-coordinator-future.md` documenting deferred batch coordinator integration
 - Created comprehensive audit fixes report in `docs/guides/developer/LIVE_CAMERA_AUDIT_FIXES_REPORT.md`
 
-### �🟢 New Features
+### 🟢 New Features
 
 #### Multi-Aquarium v2 Improvements (Phase 1-5)
 

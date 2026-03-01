@@ -405,10 +405,14 @@ class LiveCameraService(
             False to propagate exceptions
         """
         try:
+            self.exit_event.set()
             if self.current_output_dir:
-                self._on_session_complete(self.current_output_dir)
+                log.info(
+                    "live_camera_service.exit.session_complete",
+                    output_dir=str(self.current_output_dir),
+                )
             else:
-                self.stop_session()
+                log.info("live_camera_service.exit.no_active_session")
         # except Exception justified: graceful shutdown — cleanup must not propagate
         except Exception as e:
             log.warning("live_camera_service.cleanup.failed", error=str(e), exc_info=True)

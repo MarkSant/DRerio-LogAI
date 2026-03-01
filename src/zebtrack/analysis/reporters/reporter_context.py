@@ -324,10 +324,10 @@ class ReporterContext:
     # ------------------------------------------------------------------
     @staticmethod
     def _normalize_aquarium_perspective(perspective: str | None) -> str:
-        """Normalize perspective aliases to canonical names."""
-        value = str(perspective or "").strip().lower()
-        if not value:
-            return "lateral"
-        if value in {"top", "topdown", "top_down", "dorsal", "overhead"}:
-            return "top_down"
-        return "lateral"
+        """Normalize perspective aliases to canonical names.
+
+        Delegates to :func:`zebtrack.analysis.perspective_utils.normalize_aquarium_perspective`.
+        """
+        from zebtrack.analysis.perspective_utils import normalize_aquarium_perspective
+
+        return normalize_aquarium_perspective(perspective)
