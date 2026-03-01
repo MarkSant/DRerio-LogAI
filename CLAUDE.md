@@ -160,15 +160,15 @@ Agent requirements:
 
 ### Core Layers (Phase 3/4 Architecture - Dec 2025)
 
-| Layer            | Key Files                                                                                 | Purpose                          |
-| ---------------- | ----------------------------------------------------------------------------------------- | -------------------------------- |
-| **Model**        | `core/state_manager.py`, `core/project/project_manager.py` (947 lines), `core/services/detector_service.py` | State, project data, detection   |
-| **View**         | `ui/gui.py` (865 lines), `ui/wizard/*.py`, `ui/dialogs/` (26 dialog files)                | Tkinter UI                       |
-| **ViewModel**    | `core/main_view_model.py` (873 lines)                                                     | Orchestrator (uses `DependencyContainer` + `MainViewModelDependencies`)  |
-| **Coordinators** | `coordinators/` (24 files: video_processing, report_generation, multi_aquarium, sequential_processing, detector_setup, live_camera_session, project_lifecycle, calibration, dialog, progress_tracking, etc.) | Decomposed super coordinators    |
-| **Services**     | `core/services/wizard_service.py`, `core/video/video_processing_service.py`, `core/recording/{live_camera,recording}_service.py` | Business logic                   |
-| **I/O**          | `io/{recorder,video_source,camera,live_stream_source,recorder_factory}.py`                | Persistence, frame sources       |
-| **Analysis**     | `analysis/{analysis_service,behavior,roi}.py`, `analysis/reporters/` (8 files)            | Behavioral metrics, reports      |
+| Layer | Key Files | Purpose |
+| --- | --- | --- |
+| **Model** | `core/state_manager.py`, `core/project/project_manager.py` (947 lines), `core/services/detector_service.py` | State, project data, detection |
+| **View** | `ui/gui.py` (865 lines), `ui/wizard/*.py`, `ui/dialogs/` (26 dialog files) | Tkinter UI |
+| **ViewModel** | `core/main_view_model.py` (873 lines) | Orchestrator (uses `DependencyContainer` + `MainViewModelDependencies`) |
+| **Coordinators** | `coordinators/` (24 files: video_processing, report_generation, multi_aquarium, sequential_processing, detector_setup, live_camera_session, project_lifecycle, calibration, dialog, progress_tracking, etc.) | Decomposed super coordinators |
+| **Services** | `core/services/wizard_service.py`, `core/video/video_processing_service.py`, `core/recording/{live_camera,recording}_service.py` | Business logic |
+| **I/O** | `io/{recorder,video_source,camera,live_stream_source,recorder_factory}.py` | Persistence, frame sources |
+| **Analysis** | `analysis/{analysis_service,behavior,roi}.py`, `analysis/reporters/` (8 files) | Behavioral metrics, reports |
 
 ### Performance Optimizations (v2.1+)
 

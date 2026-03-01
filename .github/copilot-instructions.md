@@ -50,7 +50,7 @@
 - **AGENTS.md is the canonical source** for all agent guidance.
 - If this file changes, **update AGENTS.md first** and then mirror the same changes here.
 - **SYNC REMINDER**: Every change to agent instructions must be mirrored across all instructions files immediately to prevent drift.
-- **PLANNING & TASKS**: Agents are REQUIRED to create a detailed task entry in [docs/tasks/active/ROLLING_TASK_LOG.md](docs/tasks/active/ROLLING_TASK_LOG.md) before starting work. This ensures transparency and progress tracking.
+- **PLANNING & TASKS**: Agents are REQUIRED to create a detailed task entry in [docs/tasks/active/ROLLING_TASK_LOG.md](../docs/tasks/active/ROLLING_TASK_LOG.md) before starting work. This ensures transparency and progress tracking.
 
 ---
 

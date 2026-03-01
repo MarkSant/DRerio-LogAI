@@ -26,12 +26,12 @@ Phase 3 consolidated 7 orchestrators into 4 "super coordinators." Phase 4 furthe
 
 **Phase 3 "super coordinators" decomposed in Phase 4:**
 
-| Phase 3 Super Coordinator | Decomposed Into (Phase 4)                                                                     |
-| ------------------------- | --------------------------------------------------------------------------------------------- |
-| `ProcessingCoordinator`   | `VideoProcessingCoordinator`, `ProgressTrackingCoordinator`, `SequentialProcessingCoordinator` |
-| `HardwareCoordinator`     | `DetectorSetupCoordinator`, `ModelDiagnosticsCoordinator`                                     |
-| `SessionCoordinator`      | `RecordingSessionCoordinator`, `LiveCameraSessionCoordinator`, `LiveCalibrationCoordinator`    |
-| (kept)                    | `ProjectLifecycleCoordinator` (unchanged from Phase 3)                                        |
+| Phase 3 Super Coordinator | Decomposed Into (Phase 4) |
+| --- | --- |
+| `ProcessingCoordinator` | `VideoProcessingCoordinator`, `ProgressTrackingCoordinator`, `SequentialProcessingCoordinator` |
+| `HardwareCoordinator` | `DetectorSetupCoordinator`, `ModelDiagnosticsCoordinator` |
+| `SessionCoordinator` | `RecordingSessionCoordinator`, `LiveCameraSessionCoordinator`, `LiveCalibrationCoordinator` |
+| (kept) | `ProjectLifecycleCoordinator` (unchanged from Phase 3) |
 
 ### 0.2. Current Coordinator Registry (Phase 4 - 16 Coordinators)
 
@@ -56,16 +56,16 @@ Phase 3 consolidated 7 orchestrators into 4 "super coordinators." Phase 4 furthe
 
 **Shared Mixins:**
 
-| Mixin                    | Purpose                                          |
-| ------------------------ | ------------------------------------------------ |
-| `_UnifiedReportMixin`    | Unified report generation logic (Word/Excel)     |
-| `_VideoSelectionMixin`   | Video selection and filtering helpers             |
+| Mixin | Purpose |
+| --- | --- |
+| `_UnifiedReportMixin` | Unified report generation logic (Word/Excel) |
+| `_VideoSelectionMixin` | Video selection and filtering helpers |
 
 **Supporting Types:**
 
-| File              | Contains                                |
-| ----------------- | --------------------------------------- |
-| `_protocols.py`   | Coordinator protocol definitions        |
+| File | Contains |
+| --- | --- |
+| `_protocols.py` | Coordinator protocol definitions |
 | `processing_types.py` | `ProcessingCoordinatorError` and types |
 
 ---
@@ -450,10 +450,10 @@ Some coordinators still access `self.view` directly instead of publishing events
 
 These patterns are intentional trade-offs documented in ADRs:
 
-| Pattern                                  | Location                                            | ADR Reference     |
-| ---------------------------------------- | --------------------------------------------------- | ----------------- |
-| Live Camera direct display               | `LiveCameraSessionCoordinator` → `LivePreviewWindow` | ADR-004           |
-| `UIScheduler.update_view()` direct calls | `VideoProcessingCoordinator`                         | ADR-003 (Phase 2) |
+| Pattern | Location | ADR Reference |
+| --- | --- | --- |
+| Live Camera direct display | `LiveCameraSessionCoordinator` → `LivePreviewWindow` | ADR-004 |
+| `UIScheduler.update_view()` direct calls | `VideoProcessingCoordinator` | ADR-003 (Phase 2) |
 
 ### 8.3. EventBus v1 Deprecation (Planned)
 
