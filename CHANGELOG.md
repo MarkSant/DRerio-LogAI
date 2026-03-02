@@ -170,12 +170,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 **Measured speedups** (pytest-benchmark, -n0):
 
-| Optimization | Before | After | Speedup |
-|---|---|---|---|
-| Angular velocity (5 000 pts) | 13.5 ms (loop) | 1.4 ms (NumPy) | ~9× |
-| Recorder flush (500 rows) | 3.6 ms (pd.DataFrame) | 0.4 ms (pa.table) | ~8× |
-| Polygon containment (1 000 pts) | 3.2 ms (pointPolygonTest) | 1.9 ms (mask) | ~1.7× |
-| Preview IPC write (720p) | 2.8 ms (pickle) | 0.9 ms (SharedMemory) | ~3× |
+| Optimization                    | Before                    | After                 | Speedup |
+| ------------------------------- | ------------------------- | --------------------- | ------- |
+| Angular velocity (5 000 pts)    | 13.5 ms (loop)            | 1.4 ms (NumPy)        | ~9×     |
+| Recorder flush (500 rows)       | 3.6 ms (pd.DataFrame)     | 0.4 ms (pa.table)     | ~8×     |
+| Polygon containment (1 000 pts) | 3.2 ms (pointPolygonTest) | 1.9 ms (mask)         | ~1.7×   |
+| Preview IPC write (720p)        | 2.8 ms (pickle)           | 0.9 ms (SharedMemory) | ~3×     |
 
 - **7.2 Batch inference**: Added `detect_batch()` default to
   `DetectorPlugin` ABC (sequential fallback); `UltralyticsPlugin` overrides

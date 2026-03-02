@@ -115,6 +115,7 @@ Agent requirements:
 5. **Lists**: Use `-` for unordered, `1.` for ordered.
 6. **Code fences**: Always specify a language (` ```python `, ` ```yaml `).
 7. **Line length**: Keep prose under 100 characters when reasonable; code blocks/tables exempt.
+8. **Tables**: Align all pipe characters (`|`) vertically across every row (MD060). Pad separator rows to match column widths (`| --- |` not `|---|`). Wrap literal `*` or `_` inside backticks in table cells to prevent MD037.
 
 ---
 
