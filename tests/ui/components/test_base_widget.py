@@ -19,7 +19,7 @@ class _DummyWidget(BaseWidget):
 def test_emit_event_without_bus(tkinter_root):
     widget = _DummyWidget(tkinter_root, event_bus=None)
 
-    widget.emit_event("event.test", {"a": 1})
+    widget.emit_event(UIEvents.SHOW_INFO, {"a": 1})
 
     # No event bus, should not raise
 

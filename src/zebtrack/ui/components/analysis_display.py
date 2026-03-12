@@ -13,7 +13,7 @@ import structlog
 
 # Local imports
 from zebtrack.ui.components.base import BaseWidget
-from zebtrack.ui.event_bus_v2 import EventBusV2
+from zebtrack.ui.event_bus_v2 import EventBusV2, UIEvents
 
 log = structlog.get_logger()
 
@@ -230,11 +230,11 @@ class AnalysisDisplayWidget(BaseWidget):
     def _on_track_selection_changed(self, _event=None) -> None:
         """Handle track selection change."""
         selected_track = self.track_selector_var.get()
-        self.emit_event("analysis.track_selected", {"track_id": selected_track})
+        self.emit_event(UIEvents.ANALYSIS_TRACK_SELECTED, {"track_id": selected_track})
 
     def _on_cancel_clicked(self) -> None:
         """Handle cancel button click."""
-        self.emit_event("analysis.cancel_requested", {})
+        self.emit_event(UIEvents.ANALYSIS_CANCEL_REQUESTED, {})
 
     # Public API for updating widget state
 

@@ -147,13 +147,16 @@ class ControlPanelWidget(BaseWidget):
 
     def _on_preview_toggled(self) -> None:
         """Handle preview checkbox toggle."""
-        self.emit_event("control.preview_toggled", {"enabled": self.show_preview_var.get()})
+        self.emit_event(
+            UIEvents.CONTROL_PREVIEW_TOGGLED,
+            {"enabled": self.show_preview_var.get()},
+        )
 
     def _on_interval_changed(self, event=None) -> None:
         """Handle processing interval change."""
         try:
             interval = int(self.processing_interval_var.get())
-            self.emit_event("control.interval_changed", {"interval": interval})
+            self.emit_event(UIEvents.CONTROL_INTERVAL_CHANGED, {"interval": interval})
         except ValueError:
             self._log.warning(
                 "control_panel.invalid_interval",

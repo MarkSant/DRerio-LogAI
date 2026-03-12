@@ -6,6 +6,33 @@ This document tracks all major agent interventions, technical debt resolutions, 
 
 ## Active Tasks
 
+### [2026-03-12] Audit Phase 1 remediation (cleanup + integration coverage)
+
+**ID:** TASK-039
+**Agent:** GitHub Copilot (GPT-5.2-Codex)
+**Status:** Completed ✅
+**Branch:** `audit/phase1-cleanup-20260312`
+**Description:**
+Remove legacy artifacts, delete unused integration example, remove
+`EVENT_NAME_TO_UIEVENT` mapping and migrate usages, then add integration tests
+for critical coordinator flows per the audit remediation plan.
+
+### Subtasks (TASK-039)
+
+- [x] Phase 1.1: Remove legacy artifacts and mapping usage.
+- [x] Phase 1.2: Add integration tests for coordinator flows (happy + error).
+- [x] Validate with `poetry run ruff check .` and `poetry run pytest -q`.
+- [x] Run `poetry run pytest tests/integration/test_coordinator_flows.py -v`.
+- [x] Update task status with results and evidence.
+
+**Results:**
+
+- Removed legacy artifacts and UI string-to-enum mapping.
+- Added integration coverage for coordinator flows (10 tests).
+- `poetry run ruff check .` passed.
+- `poetry run pytest tests/integration/test_coordinator_flows.py -v` passed.
+- `poetry run pytest -q` passed (2714 tests).
+
 ### [2026-03-01] Codebase Cleanup & Docs Sync
 
 **ID:** TASK-038

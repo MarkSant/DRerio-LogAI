@@ -5,7 +5,7 @@ from tkinter import StringVar, ttk
 import structlog
 
 from zebtrack.ui.components.base import BaseWidget
-from zebtrack.ui.event_bus_v2 import EventBusV2
+from zebtrack.ui.event_bus_v2 import EventBusV2, UIEvents
 
 log = structlog.get_logger()
 
@@ -171,7 +171,7 @@ class ProjectOverviewWidget(BaseWidget):
 
     def _on_refresh_clicked(self) -> None:
         """Handle refresh button click."""
-        self.emit_event("project.refresh_requested", {})
+        self.emit_event(UIEvents.PROJECT_REFRESH_REQUESTED, {})
 
     def _on_video_selected(self, event) -> None:
         """Handle video selection in tree."""
@@ -179,7 +179,7 @@ class ProjectOverviewWidget(BaseWidget):
             selection = self.project_overview_tree.selection()
             if selection:
                 item_id = selection[0]
-                self.emit_event("project.video_selected", {"item_id": item_id})
+                self.emit_event(UIEvents.PROJECT_VIDEO_SELECTED, {"item_id": item_id})
 
     def _on_video_double_click(self, event) -> None:
         """Handle video double-click in tree."""
@@ -187,7 +187,10 @@ class ProjectOverviewWidget(BaseWidget):
             selection = self.project_overview_tree.selection()
             if selection:
                 item_id = selection[0]
-                self.emit_event("project.video_double_click", {"item_id": item_id})
+                self.emit_event(
+                    UIEvents.PROJECT_VIDEO_DOUBLE_CLICK_WIDGET,
+                    {"item_id": item_id},
+                )
 
     def _on_video_right_click(self, event) -> None:
         """Handle video right-click in tree."""
@@ -197,7 +200,7 @@ class ProjectOverviewWidget(BaseWidget):
             if item_id:
                 self.project_overview_tree.selection_set(item_id)
                 self.emit_event(
-                    "project.video_right_click",
+                    UIEvents.PROJECT_VIDEO_RIGHT_CLICK_WIDGET,
                     {"item_id": item_id, "x": event.x_root, "y": event.y_root},
                 )
 

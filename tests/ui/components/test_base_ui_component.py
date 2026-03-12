@@ -346,7 +346,9 @@ class TestBaseUIComponentEventBus:
         )
 
         # Should not raise error
-        component._emit_event("TEST_EVENT", {"key": "value"})
+        from zebtrack.ui.event_bus_v2 import UIEvents
+
+        component._emit_event(UIEvents.SHOW_INFO, {"key": "value"})
 
     def test_emit_event_with_none_data(
         self, tk_parent, mock_controller, mock_event_bus, settings_obj

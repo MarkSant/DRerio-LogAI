@@ -237,7 +237,7 @@ class ArduinoDashboardWidget(BaseWidget):
 
                     # Emit event to notify controller
                     self.emit_event(
-                        "arduino.port_update_requested",
+                        UIEvents.ARDUINO_PORT_UPDATE_REQUESTED,
                         {"port": selected_device, "old_port": old_port},
                     )
                 else:

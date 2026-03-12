@@ -6,7 +6,7 @@ from typing import Any, cast
 
 import structlog
 
-from zebtrack.ui.event_bus_v2 import EVENT_NAME_TO_UIEVENT, Event, EventBusV2, UIEvents
+from zebtrack.ui.event_bus_v2 import Event, EventBusV2, UIEvents
 
 log = structlog.get_logger()
 
@@ -52,34 +52,21 @@ class BaseWidget(ttk.Frame):
         """
         raise NotImplementedError(f"{self.__class__.__name__} must implement _build_ui()")
 
-    def emit_event(self, event_type: UIEvents | str, data: dict[str, Any] | None = None) -> None:
+    def emit_event(self, event_type: UIEvents, data: dict[str, Any] | None = None) -> None:
         """
         Emit a typed event to the EventBusV2.
 
         Args:
-            event_type: UIEvents enum member, or legacy string name
-                (looked up via EVENT_NAME_TO_UIEVENT).
+            event_type: UIEvents enum member.
             data: Event payload dictionary.
         """
         if self.event_bus is None:
             self._log.warning(
                 "widget.event.no_bus",
-                event_type=event_type.name if isinstance(event_type, UIEvents) else str(event_type),
+                event_type=event_type.name,
                 message="Event bus not configured, event not emitted",
             )
             return
-
-        # Resolve string event names to UIEvents via legacy mapping
-        if isinstance(event_type, str):
-            resolved = EVENT_NAME_TO_UIEVENT.get(event_type)
-            if resolved is None:
-                self._log.warning(
-                    "widget.event.unknown_string",
-                    event_name=event_type,
-                    message="No UIEvents mapping found for legacy string event",
-                )
-                return
-            event_type = resolved
 
         payload = data if data is not None else {}
         self.event_bus.publish(Event(type=event_type, data=payload))
@@ -89,31 +76,21 @@ class BaseWidget(ttk.Frame):
             data_keys=list(payload.keys()),
         )
 
-    def bind_callback(self, event_type: UIEvents | str, callback: Callable[[dict], None]) -> None:
+    def bind_callback(self, event_type: UIEvents, callback: Callable[[dict], None]) -> None:
         """
         Subscribe to events from the event bus.
 
         Args:
-            event_type: UIEvents enum member, or legacy string name.
+            event_type: UIEvents enum member.
             callback: Function to call when event is received.
         """
         if self.event_bus is None:
             self._log.warning(
                 "widget.subscribe.no_bus",
-                event_type=event_type.name if isinstance(event_type, UIEvents) else str(event_type),
+                event_type=event_type.name,
                 message="Event bus not configured, cannot subscribe",
             )
             return
-
-        if isinstance(event_type, str):
-            resolved = EVENT_NAME_TO_UIEVENT.get(event_type)
-            if resolved is None:
-                self._log.warning(
-                    "widget.subscribe.unknown_string",
-                    event_name=event_type,
-                )
-                return
-            event_type = resolved
 
         self.event_bus.subscribe(event_type, callback)
         self._log.debug("widget.subscribed", event_type=event_type.name)
