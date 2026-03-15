@@ -6,6 +6,45 @@ This document tracks all major agent interventions, technical debt resolutions, 
 
 ## Active Tasks
 
+### [2026-03-15] Audit excellence follow-up (payload strictness + verification)
+
+__ID:__ TASK-044
+__Agent:__ GitHub Copilot (GPT-5.2-Codex)
+__Status:__ Completed ✅
+__Branch:__ (current)
+__Description:__
+Apply the excellence follow-up plan: adjust integration verification command,
+reduce dict payload usage in critical flows, and add strict payload warnings in
+EventBusV2 while keeping tests passing.
+
+### Subtasks (TASK-044)
+
+- [x] Run mandatory impact analysis for plan + event bus + critical handlers.
+- [x] Update verification command for integration tests to avoid coverage failure.
+- [x] Migrate critical publishers/handlers to typed payloads.
+- [x] Add strict payload warning in EventBusV2 for dict usage.
+- [x] Run targeted validation tests and lint.
+- [x] Update task log with results and evidence.
+
+__Results:__
+
+- Impact analysis: ran for event bus, payloads, analysis widgets, project lifecycle,
+  plan doc, and key events (PROJECT_CREATE, UI_UPDATE_OPENVINO_CHECKBOX).
+- Updated verification command for integration tests to use `--no-cov`.
+- Migrated critical publishers/handlers to typed payloads (ProjectLifecycleCoordinator,
+  ProjectInitializer, AnalysisWidgetsBuilder).
+- Added warning for dict payload usage in EventBusV2.
+- Validation:
+  - `poetry run mypy src/zebtrack`
+  - `poetry run pytest -q`
+  - `poetry run pytest -m slow`
+  - `poetry run pytest -m gui -n0`
+  - `poetry run pytest tests/integration/test_coordinator_flows.py -v --no-cov`
+  - `poetry run ruff check .`
+  - `poetry run ruff format .`
+  - `poetry run python -m zebtrack`
+  - `npx markdownlint-cli2 -c .markdownlint.json "**/*.md" "!node_modules" "!htmlcov" "!openvino_model_cache" "!logs" "!live_analysis_sessions" "!docs/archive/**" "!.venv/**"`
+
 ### [2026-03-15] Audit Phase 4.2 remediation (DI container in __main__.py)
 
 __ID:__ TASK-043

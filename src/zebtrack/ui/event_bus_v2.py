@@ -542,6 +542,13 @@ def _coerce_payload(
     if payload_cls is None:
         return payloads.UnknownPayload(data)
 
+    if isinstance(data, dict) and payload_cls is not payloads.EmptyPayload:
+        log.warning(
+            "event_bus_v2.payload.dict_used",
+            event_type=event_type.name,
+            keys=list(data.keys()),
+        )
+
     payload_data = _normalize_payload_data(event_type, data)
     if payload_cls is payloads.EmptyPayload:
         return payload_cls()

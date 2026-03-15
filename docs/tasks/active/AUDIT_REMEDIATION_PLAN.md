@@ -54,7 +54,7 @@ Escrever integration tests para os 5 fluxos que têm 0% coverage nos coordinator
 - Marcar com `@pytest.mark.integration`
 - Target: cada fluxo com pelo menos 1 happy path + 1 error path test
 
-**Verificar**: `poetry run pytest tests/integration/test_coordinator_flows.py -v`
+**Verificar**: `poetry run pytest tests/integration/test_coordinator_flows.py -v --no-cov`
 
 ---
 
@@ -236,6 +236,22 @@ Verificações:
 | 4    | `__main__.py` <150 linhas + `MainViewModel` <400 linhas + all tests passing     |
 
 ---
+
+## Encerramento e Excelência (Obrigatório)
+
+Ao final de todo o plano, executar e corrigir **qualquer erro** antes de:
+commit, push e abertura de PR para `MAIN`.
+
+**Checklist final obrigatório:**
+
+1. `poetry run mypy src/zebtrack`
+2. `poetry run pytest -q`
+3. `poetry run pytest -m slow`
+4. `poetry run pytest -m gui -n0`
+5. `poetry run ruff check .`
+6. `poetry run ruff format .`
+7. `markdownlint` (com a configuração do repositório)
+8. Corrigir todos os erros acima antes de **commit**, **push** e **PR**.
 
 ## Notas para Agentes Executores
 

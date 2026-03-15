@@ -250,8 +250,11 @@ class ProjectLifecycleCoordinator(BaseCoordinator):
         self.project_manager = new_project_manager
 
         # Notify all services about the new project manager
-        self._publish_event(UIEvents.PROJECT_MANAGER_REPLACED, {"new_manager": new_project_manager})
-        self._publish_event(UIEvents.PROJECT_CLOSED, {})
+        self._publish_event(
+            UIEvents.PROJECT_MANAGER_REPLACED,
+            payloads.ProjectManagerReplacedPayload(new_manager=new_project_manager),
+        )
+        self._publish_event(UIEvents.PROJECT_CLOSED, payloads.EmptyPayload())
         self.logger.info("project.close.complete")
 
         return new_project_manager
@@ -298,7 +301,10 @@ class ProjectLifecycleCoordinator(BaseCoordinator):
         if not result["success"]:
             self._publish_event(
                 UIEvents.SHOW_ERROR,
-                {"title": "Configuração Inválida", "message": result["error_message"]},
+                payloads.MessagePayload(
+                    title="Configuração Inválida",
+                    message=result["error_message"] or "",
+                ),
             )
             self.logger.warning("project.create.failed")
             return False
@@ -310,12 +316,14 @@ class ProjectLifecycleCoordinator(BaseCoordinator):
             if wizard_metadata:
                 apply_wizard_overrides(wizard_metadata)
 
-            self._publish_event(UIEvents.UI_NAVIGATE_TO_PROJECT_VIEW, {})
+            self._publish_event(UIEvents.UI_NAVIGATE_TO_PROJECT_VIEW, payloads.EmptyPayload())
             self._publish_event(
-                UIEvents.UI_UPDATE_OPENVINO_CHECKBOX, {"is_checked": get_use_openvino()}
+                UIEvents.UI_UPDATE_OPENVINO_CHECKBOX,
+                payloads.UIUpdateOpenVinoCheckboxPayload(is_checked=get_use_openvino()),
             )
             self._publish_event(
-                UIEvents.UI_SET_ACTIVE_WEIGHT, {"weight_name": get_active_weight_name()}
+                UIEvents.UI_SET_ACTIVE_WEIGHT,
+                payloads.UISetActiveWeightPayload(weight_name=get_active_weight_name()),
             )
             update_openvino_status()
 
@@ -327,7 +335,10 @@ class ProjectLifecycleCoordinator(BaseCoordinator):
 
         self._publish_event(
             UIEvents.SHOW_ERROR,
-            {"title": "Erro", "message": "Falha ao configurar o detector."},
+            payloads.MessagePayload(
+                title="Erro",
+                message="Falha ao configurar o detector.",
+            ),
         )
         self.logger.error("project.create.detector_setup_failed")
         return False
@@ -424,7 +435,11 @@ class ProjectLifecycleCoordinator(BaseCoordinator):
         )
         if guide:
             self._publish_event(
-                UIEvents.SHOW_INFO, {"title": guide["title"], "message": guide["message"]}
+                UIEvents.SHOW_INFO,
+                payloads.MessagePayload(
+                    title=guide["title"],
+                    message=guide["message"],
+                ),
             )
 
     def open_project(

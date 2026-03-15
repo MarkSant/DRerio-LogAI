@@ -18,12 +18,6 @@ from zebtrack.ui.event_bus_v2 import UIEvents
 log = structlog.get_logger()
 
 
-def _payload_get(payload: payloads.EventPayload | dict[str, Any], key: str, default=None):
-    if isinstance(payload, dict):
-        return payload.get(key, default)
-    return getattr(payload, key, default)
-
-
 class AnalysisWidgetsBuilder:
     """Builder for analysis and processing/report tabs."""
 
@@ -133,14 +127,15 @@ class AnalysisWidgetsBuilder:
 
         if self.gui.event_bus:
 
-            def save_handler(data: payloads.EventPayload) -> None:
-                return self.on_save_global_config_from_widget(_payload_get(data, "values"))
+            def save_handler(data: payloads.ConfigSaveRequestedPayload) -> None:
+                values = dict(data.values or {})
+                return self.on_save_global_config_from_widget(values)
 
-            def reset_handler(data: payloads.EventPayload) -> None:
+            def reset_handler(_: payloads.EmptyPayload) -> None:
                 return self.on_reset_global_config_form_widget()
 
-            def roi_rule_handler(data: payloads.EventPayload) -> None:
-                return self.common.update_roi_rule_ui(_payload_get(data, "rule"))
+            def roi_rule_handler(data: payloads.ConfigRoiRuleChangedPayload) -> None:
+                return self.common.update_roi_rule_ui(data.rule)
 
             self.gui.event_bus.subscribe(UIEvents.CONFIG_SAVE_REQUESTED, save_handler)
             self.gui.event_bus.subscribe(UIEvents.CONFIG_RESET_REQUESTED, reset_handler)

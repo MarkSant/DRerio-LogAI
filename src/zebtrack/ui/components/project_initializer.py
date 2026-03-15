@@ -318,12 +318,22 @@ class ProjectInitializer:
             return
 
         # Pass wizard data directly to controller (via ProjectWorkflowService)
+        from zebtrack.ui import payloads
         from zebtrack.ui.event_bus_v2 import UIEvents
 
-        gui.event_dispatcher.publish_event(UIEvents.PROJECT_CREATE, wizard.result)
+        gui.event_dispatcher.publish_event(
+            UIEvents.PROJECT_CREATE,
+            payloads.ProjectCreatePayload(
+                project_path=wizard.result.get("project_path"),
+                project_name=wizard.result.get("project_name"),
+                project_type=wizard.result.get("project_type"),
+                wizard_data=wizard.result,
+            ),
+        )
 
     def open_project_workflow(self) -> None:
         """Handle the UI part of opening a project, then call the controller."""
+        from zebtrack.ui import payloads
         from zebtrack.ui.event_bus_v2 import UIEvents
 
         gui = self.gui
@@ -333,4 +343,7 @@ class ProjectInitializer:
         if not project_path:
             return
 
-        gui.event_dispatcher.publish_event(UIEvents.PROJECT_OPEN, {"project_path": project_path})
+        gui.event_dispatcher.publish_event(
+            UIEvents.PROJECT_OPEN,
+            payloads.ProjectOpenPayload(project_path=project_path),
+        )
