@@ -105,6 +105,15 @@ Escrever integration tests para os 5 fluxos que têm 0% coverage nos coordinator
 
 **Objetivo**: Resolver críticas 8.6 (duas `create_project` C901) e 8.7 (WidgetFactory 1467 linhas).
 
+**Status (2026-03-15)**: Concluído — `create_project()` unificado no
+`ProjectWorkflowService`, `ProjectLifecycleCoordinator.create_project()` agora
+delegando com helpers, `WidgetFactory` dividido em builders com tamanhos alvo.
+`poetry run pytest -q` passou (2714 passed, 12 skipped), `poetry run ruff check .`
+passou; `poetry run mypy src/zebtrack` reportou erros preexistentes em
+`event_bus_v2.py`, `arduino_dashboard.py`, `video_processing_coordinator.py`,
+`ui_coordinator.py`, `event_dispatcher.py`, `live_camera_service.py`, `gui.py`
+e `main_view_model.py`.
+
 **Agente deve receber este contexto**:
 
 > Refatoração estrutural de arquivos grandes. Manter API pública idêntica.

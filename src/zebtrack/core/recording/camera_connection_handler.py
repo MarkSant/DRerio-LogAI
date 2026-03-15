@@ -7,9 +7,12 @@ Provides the ``CameraConnectionMixin`` mixed into ``LiveCameraService``.
 from __future__ import annotations
 
 import time
+from dataclasses import is_dataclass
 from typing import TYPE_CHECKING, Any
 
 import structlog
+
+from zebtrack.ui import payloads as payloads
 
 if TYPE_CHECKING:
     from zebtrack.core.main_view_model import MainViewModel
@@ -22,6 +25,14 @@ if TYPE_CHECKING:
     from zebtrack.ui.event_bus_v2 import EventBusV2
 
 log = structlog.get_logger()
+
+
+def _payload_get(payload: payloads.EventPayload | dict[str, Any], key: str, default=None):
+    if isinstance(payload, dict):
+        return payload.get(key, default)
+    if is_dataclass(payload) and not isinstance(payload, type):
+        return getattr(payload, key, default)
+    return default
 
 
 class CameraConnectionMixin:
@@ -298,14 +309,16 @@ class CameraConnectionMixin:
 
         self._camera_disconnected = False
 
-    def _on_disconnect_user_action(self, event_data: dict[str, Any]) -> None:
+    def _on_disconnect_user_action(
+        self, event_data: payloads.EventPayload | dict[str, Any]
+    ) -> None:
         """Handle user action from disconnect recovery dialog.
 
         Args:
             event_data: Event payload with 'action' (wait|resume|stop) and 'experiment_id'
         """
-        action = event_data.get("action", "wait")
-        experiment_id = event_data.get("experiment_id", "unknown")
+        action = _payload_get(event_data, "action", "wait")
+        experiment_id = _payload_get(event_data, "experiment_id", "unknown")
 
         log.info(
             "live_camera_service.disconnect_user_action",

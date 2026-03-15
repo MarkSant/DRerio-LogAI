@@ -90,7 +90,7 @@ def test_build_project_actions_calls_button_factory(monkeypatch):
     factory = WidgetFactory(gui)
     create_buttons = Mock()
     monkeypatch.setattr(
-        "zebtrack.ui.components.widget_factory.ButtonFactory.create_project_action_buttons",
+        "zebtrack.ui.builders.project_widgets.ButtonFactory.create_project_action_buttons",
         create_buttons,
     )
 
@@ -117,7 +117,7 @@ def test_build_model_status_calls_panel_builder(monkeypatch):
     factory = WidgetFactory(gui)
     build_panel = Mock()
     monkeypatch.setattr(
-        "zebtrack.ui.components.widget_factory.PanelBuilder.build_model_status_panel",
+        "zebtrack.ui.builders.project_widgets.PanelBuilder.build_model_status_panel",
         build_panel,
     )
 
@@ -141,7 +141,7 @@ def test_create_zone_summary_cards_section_updates_project_view_manager(monkeypa
     factory = WidgetFactory(gui)
     create_cards = Mock(return_value=(Mock(), {"arena": Mock()}))
     monkeypatch.setattr(
-        "zebtrack.ui.components.widget_factory.PanelBuilder.create_zone_summary_cards",
+        "zebtrack.ui.builders.zone_widgets.PanelBuilder.create_zone_summary_cards",
         create_cards,
     )
 
@@ -165,7 +165,7 @@ def test_create_drawing_buttons_builds_and_positions(monkeypatch):
     frame = Mock()
     create_buttons = Mock(return_value=frame)
     monkeypatch.setattr(
-        "zebtrack.ui.components.widget_factory.ButtonFactory.create_floating_drawing_buttons",
+        "zebtrack.ui.builders.zone_widgets.ButtonFactory.create_floating_drawing_buttons",
         create_buttons,
     )
 

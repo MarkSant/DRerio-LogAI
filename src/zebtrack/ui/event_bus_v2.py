@@ -18,7 +18,7 @@ import threading
 from collections.abc import Callable
 from dataclasses import dataclass, field, fields, is_dataclass
 from enum import Enum, auto
-from typing import Any
+from typing import Any, cast
 
 import structlog
 
@@ -258,7 +258,7 @@ class UIEvents(Enum):
     ZONE_DISPLAY_CLEARED = auto()
 
 
-_PAYLOAD_TYPES: dict[UIEvents, type[payloads.EventPayload]] = {
+_PAYLOAD_TYPES: dict[UIEvents, type[Any]] = {
     # Recording
     UIEvents.RECORDING_START: payloads.RecordingStartPayload,
     UIEvents.RECORDING_STARTED: payloads.RecordingStartedPayload,
@@ -471,9 +471,11 @@ _PAYLOAD_TYPES: dict[UIEvents, type[payloads.EventPayload]] = {
 
 
 def _filter_payload_data(
-    payload_cls: type[payloads.EventPayload],
+    payload_cls: type[Any],
     data: dict[str, Any],
 ) -> dict[str, Any]:
+    if not is_dataclass(payload_cls):
+        return data
     field_names = {field.name for field in fields(payload_cls)}
     return {key: value for key, value in data.items() if key in field_names}
 
@@ -488,7 +490,8 @@ def _ensure_payload_accessors(obj: payloads.EventPayload) -> payloads.EventPaylo
                 return self.data.get(key, default)
             return default
 
-        obj.__class__.get = _payload_get
+        payload_cls = cast(Any, obj.__class__)
+        payload_cls.get = _payload_get
 
     if not hasattr(obj, "__getitem__"):
 
@@ -499,7 +502,8 @@ def _ensure_payload_accessors(obj: payloads.EventPayload) -> payloads.EventPaylo
                 return self.data[key]
             raise KeyError(key)
 
-        obj.__class__.__getitem__ = _payload_getitem
+        payload_cls = cast(Any, obj.__class__)
+        payload_cls.__getitem__ = _payload_getitem
 
     return obj
 

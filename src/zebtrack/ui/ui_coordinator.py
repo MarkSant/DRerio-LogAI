@@ -39,13 +39,13 @@ log = structlog.get_logger().bind(component="ui.ui_coordinator")
 def _payload_to_dict(payload: payloads.EventPayload | dict[str, Any]) -> dict[str, Any]:
     if isinstance(payload, dict):
         return payload
-    if is_dataclass(payload):
+    if is_dataclass(payload) and not isinstance(payload, type):
         return asdict(payload)
     return {}
 
 
 def _payload_get(payload: payloads.EventPayload | dict[str, Any], key: str, default=None):
-    if is_dataclass(payload):
+    if is_dataclass(payload) and not isinstance(payload, type):
         return getattr(payload, key, default)
     if isinstance(payload, dict):
         return payload.get(key, default)

@@ -192,26 +192,24 @@ class VideoProcessingCoordinator(
                 zone_data=cast(Any, _payload_get(payload, "zone_data")),
             ),
         )
-        bus.subscribe(
-            UIEvents.PROJECT_PROCESS_VIDEOS,
-            lambda payload: self.process_pending_project_videos(
-                _payload_get(payload, "video_paths")
-            ),
-        )
+
+        def _handle_project_process_videos(payload: payloads.EventPayload) -> None:
+            self.process_pending_project_videos(_payload_get(payload, "video_paths"))
+
+        bus.subscribe(UIEvents.PROJECT_PROCESS_VIDEOS, _handle_project_process_videos)
 
         # Aquarium detection → multi-aquarium coordinator
         mac = self._multi_aquarium_coordinator
-        bus.subscribe(
-            UIEvents.ZONE_AUTO_DETECT,
-            lambda payload: (
-                mac.run_aquarium_detection(
-                    video_path=str(_payload_get(payload, "video_path", "")),
-                    stabilization_frames=int(_payload_get(payload, "stabilization_frames", 10)),
-                )
-                if mac
-                else None
-            ),
-        )
+
+        def _handle_zone_auto_detect(payload: payloads.EventPayload) -> None:
+            if not mac:
+                return
+            mac.run_aquarium_detection(
+                video_path=str(_payload_get(payload, "video_path", "")),
+                stabilization_frames=int(_payload_get(payload, "stabilization_frames", 10)),
+            )
+
+        bus.subscribe(UIEvents.ZONE_AUTO_DETECT, _handle_zone_auto_detect)
 
         # Report generation → report coordinator
         rc = self._report_coordinator
@@ -264,7 +262,13 @@ class VideoProcessingCoordinator(
                 return
             report_type = _payload_get(payload, "report_type")
             videos = _payload_get(payload, "videos", [])
-            paths = [v.get("path") for v in videos if isinstance(v, dict) and v.get("path")]
+            paths: list[str] = []
+            for item in videos:
+                if not isinstance(item, dict):
+                    continue
+                path = item.get("path")
+                if isinstance(path, str) and path:
+                    paths.append(path)
             replace_existing = bool(_payload_get(payload, "replace_existing", False))
             report_scope = str(_payload_get(payload, "report_scope", "all"))
             if report_type == "unified":

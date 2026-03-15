@@ -6,6 +6,41 @@ This document tracks all major agent interventions, technical debt resolutions, 
 
 ## Active Tasks
 
+### [2026-03-15] Audit Phase 3 remediation (create_project + WidgetFactory)
+
+**ID:** TASK-041
+**Agent:** GitHub Copilot (GPT-5.2-Codex)
+**Status:** Completed ✅
+**Branch:** (current)
+**Description:**
+Unify `create_project()` ownership under ProjectWorkflowService, make
+ProjectLifecycleCoordinator delegate only, and decompose WidgetFactory into
+domain builders while preserving public APIs.
+
+### Subtasks (TASK-041)
+
+- [x] Run mandatory impact analysis for ProjectLifecycleCoordinator,
+  ProjectWorkflowService, and WidgetFactory.
+- [x] Refactor ProjectWorkflowService.create_project into private helpers and
+  remove `noqa: C901`.
+- [x] Simplify ProjectLifecycleCoordinator.create_project to delegate to
+  ProjectWorkflowService without duplicate logic.
+- [x] Split WidgetFactory into builders (zone/analysis/project/common) and keep
+  WidgetFactory as thin facade.
+- [x] Ensure no resulting file exceeds 400 lines; WidgetFactory <100 lines.
+- [x] Run `poetry run pytest -q`, `poetry run mypy`, and `poetry run ruff check .`.
+- [x] Update task log with results and evidence.
+
+**Results:**
+
+- Impact analysis run for: ProjectLifecycleCoordinator, ProjectWorkflowService,
+  WidgetFactory, EventBusV2, GUI, EventDispatcher, UICoordinator,
+  VideoProcessingCoordinator, LiveCameraService, CameraConnectionMixin, and
+  CommonWidgetsBuilder.
+- `poetry run pytest -q` (2714 passed, 12 skipped).
+- `poetry run mypy src/zebtrack` (success, no issues).
+- `poetry run ruff check .` (pass).
+
 ### [2026-03-12] Audit Phase 2 remediation (typed event payloads)
 
 **ID:** TASK-040

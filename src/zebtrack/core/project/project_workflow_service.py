@@ -353,79 +353,106 @@ class ProjectWorkflowService:
 
     # === Project Creation Orchestration ===
 
-    def create_project(  # noqa: C901
+    def create_project(
         self,
         setup_detector_callback: Callable[..., Any],
         active_weight_setter: Callable[..., Any] | None = None,
         use_openvino_setter: Callable[..., Any] | None = None,
         **kwargs: Any,
     ) -> dict[str, Any]:
-        """
-        Orchestrate project creation workflow.
+        """Orchestrate project creation workflow."""
+        prepared_kwargs, context = self._prepare_project_input(**kwargs)
+        animal_method = context["animal_method"]
+        animals_per_aquarium = context["animals_per_aquarium"]
+        wizard_metadata = context["wizard_metadata"]
 
-        Phase 5: Extracted from controller.create_project_workflow().
+        is_valid, error_msg = self._validate_project_input(**prepared_kwargs)
+        if not is_valid:
+            log.warning(
+                "project_workflow_service.create_project.validation_failed",
+                error=error_msg,
+            )
+            return {
+                "success": False,
+                "error_message": error_msg,
+                "wizard_metadata": None,
+                "animal_method": None,
+                "project_path": None,
+                "import_success": None,
+            }
 
-        This method handles:
-        1. Parameter preparation and validation
-        2. Project creation via ProjectManager
-        3. State updates
-        4. Model override application
-        5. Wizard data import
+        if animal_method == "det" and animals_per_aquarium == 1:
+            log.info(
+                "project_workflow_service.create_project.det_single_animal",
+                animal_method=animal_method,
+                animals_per_aquarium=animals_per_aquarium,
+            )
 
-        The controller is responsible for:
-        - Calling setup_detector with the returned animal_method
-        - Loading the project view
-        - Updating UI controls
-        - Displaying the post-creation guide
+        self._apply_runtime_model_defaults(
+            prepared_kwargs,
+            active_weight_setter=active_weight_setter,
+            use_openvino_setter=use_openvino_setter,
+        )
 
-        Args:
-            setup_detector_callback: Callback for detector setup (returns bool)
-            active_weight_setter: Optional callback to set active_weight
-            use_openvino_setter: Optional callback to set use_openvino
-            **kwargs: Project parameters from wizard or dialog
+        filtered_kwargs = self.prepare_controller_parameters(**prepared_kwargs)
+        created, create_error = self._create_project_structure(filtered_kwargs)
+        if not created:
+            return {
+                "success": False,
+                "error_message": create_error,
+                "wizard_metadata": None,
+                "animal_method": None,
+                "project_path": None,
+                "import_success": None,
+            }
 
-        Returns:
-            dict with:
-                - success: bool
-                - error_message: str | None
-                - wizard_metadata: dict | None
-                - animal_method: str | None
-                - project_path: Path | None
-                - import_success: bool | None
-        """
-        from pathlib import Path
+        self._persist_project_data(prepared_kwargs)
+        self._emit_project_created_event()
 
-        # Prepare parameters
-        # Use settings default if available, otherwise fall back to 'det'
+        self._using_project_overrides = True
+        self.apply_project_model_overrides(
+            overrides=None,
+            active_weight_setter=active_weight_setter,
+            use_openvino_setter=use_openvino_setter,
+        )
+
+        import_success = self._import_wizard_parquets(wizard_metadata)
+
+        return {
+            "success": True,
+            "error_message": None,
+            "wizard_metadata": wizard_metadata if wizard_metadata else None,
+            "animal_method": animal_method,
+            "project_path": Path(self.project_manager.project_path)
+            if self.project_manager.project_path
+            else None,
+            "import_success": import_success,
+        }
+
+    def _prepare_project_input(self, **kwargs: Any) -> tuple[dict[str, Any], dict[str, Any]]:
         default_animal_method = "det"
         if self.settings and hasattr(self.settings, "model_selection"):
             default_animal_method = self.settings.model_selection.animal_method
         animal_method = kwargs.get("animal_method", default_animal_method)
         animals_per_aquarium = kwargs.get("animals_per_aquarium", 1)
 
-        # Add animal_method to kwargs if not present (needed for validation)
         if "animal_method" not in kwargs:
             kwargs["animal_method"] = animal_method
 
-        # Set use_single_subject_tracker if not provided
         if "use_single_subject_tracker" not in kwargs:
             kwargs["use_single_subject_tracker"] = animals_per_aquarium == 1
         else:
             kwargs["use_single_subject_tracker"] = bool(kwargs["use_single_subject_tracker"])
 
-        # Process wizard data directly: transform wizard output to controller format
-        # This logic was moved from wizard_adapter.py (Phase 7)
         from zebtrack.ui.wizard.enums import ProjectType
 
         project_type_value = kwargs.get("project_type", ProjectType.EXPERIMENTAL.value)
         is_live = project_type_value == ProjectType.LIVE.value
         is_exploratory = project_type_value == ProjectType.EXPLORATORY.value
 
-        # Normalize project_type to "live" or "pre-recorded"
         if "project_type" in kwargs:
             kwargs["project_type"] = "live" if is_live else "pre-recorded"
 
-        # Process scanned videos and enrich with design metadata
         scanned_videos = kwargs.get("scanned_videos", [])
         detected_design = kwargs.get("detected_design")
         custom_patterns = kwargs.get("custom_regex_patterns")
@@ -439,11 +466,8 @@ class ProjectWorkflowService:
                 custom_patterns,
                 group_display_names,
             )
-            # Update kwargs with enriched videos
             kwargs["scanned_videos"] = enriched_scanned_videos
 
-            # If user chose not to import parquets, clear the data availability flags
-            # so the project starts fresh without showing existing parquet data
             parquet_import_scope = kwargs.get("parquet_import_scope")
             if not parquet_import_scope:
                 log.info(
@@ -457,7 +481,6 @@ class ProjectWorkflowService:
                     video_info["has_complete_data"] = False
                     video_info["has_data"] = False
 
-            # Convert scanned videos to video_files format
             video_files = []
             for video_info in enriched_scanned_videos:
                 converted = copy.deepcopy(video_info)
@@ -467,7 +490,6 @@ class ProjectWorkflowService:
                 video_files.append(converted)
             kwargs["video_files"] = video_files
 
-        # Extract experimental design if detected and not exploratory
         if not is_exploratory and detected_design:
             groups = detected_design.get("groups", [])
             days = detected_design.get("days", [])
@@ -480,7 +502,6 @@ class ProjectWorkflowService:
             if days and "experiment_days" not in kwargs:
                 kwargs["experiment_days"] = len(days)
 
-            # Calculate subjects_per_group from detected subjects dict
             if (
                 subjects_dict
                 and isinstance(subjects_dict, dict)
@@ -490,7 +511,6 @@ class ProjectWorkflowService:
                 if subject_counts:
                     kwargs["subjects_per_group"] = max(subject_counts)
 
-        # Extract active_weight from model selection if available
         weight_assignments = kwargs.get("weight_assignments")
         if (
             weight_assignments
@@ -501,7 +521,6 @@ class ProjectWorkflowService:
             if animal_weight:
                 kwargs["active_weight"] = animal_weight
 
-        # Store wizard metadata for future use
         wizard_metadata = {
             "wizard_schema_version": kwargs.get("wizard_schema_version"),
             "created_at": kwargs.get("created_at"),
@@ -520,78 +539,55 @@ class ProjectWorkflowService:
             "detector_parameters": kwargs.get("detector_parameters"),
             "model_selection": kwargs.get("model_selection"),
             "use_openvino": kwargs.get("use_openvino"),
-            "custom_regex_patterns": custom_patterns,  # CRITICAL: Save for multi-aquarium
+            "custom_regex_patterns": custom_patterns,
         }
         kwargs["_wizard_metadata"] = wizard_metadata
 
-        # Validate parameters
-        is_valid, error_msg = self.validate_project_parameters(**kwargs)
-        if not is_valid:
-            log.warning(
-                "project_workflow_service.create_project.validation_failed",
-                error=error_msg,
-            )
-            return {
-                "success": False,
-                "error_message": error_msg,
-                "wizard_metadata": None,
-                "animal_method": None,
-                "project_path": None,
-                "import_success": None,
-            }
+        return kwargs, {
+            "animal_method": animal_method,
+            "animals_per_aquarium": animals_per_aquarium,
+            "wizard_metadata": wizard_metadata,
+        }
 
-        # Log detection mode configuration
-        if animal_method == "det" and animals_per_aquarium == 1:
-            log.info(
-                "project_workflow_service.create_project.det_single_animal",
-                animal_method=animal_method,
-                animals_per_aquarium=animals_per_aquarium,
-            )
+    def _validate_project_input(self, **kwargs: Any) -> tuple[bool, str | None]:
+        return self.validate_project_parameters(**kwargs)
 
-        # Apply OpenVINO setting if provided
+    def _apply_runtime_model_defaults(
+        self,
+        kwargs: dict[str, Any],
+        *,
+        active_weight_setter: Callable[..., Any] | None,
+        use_openvino_setter: Callable[..., Any] | None,
+    ) -> None:
         if "use_openvino" in kwargs and use_openvino_setter:
             use_openvino_setter(kwargs["use_openvino"])
 
-        # Add active weight and OpenVINO to kwargs if not already provided
-        # Use global defaults as fallback for missing parameters
         if active_weight_setter is not None and "active_weight" not in kwargs:
             kwargs["active_weight"] = self._global_model_defaults.get("active_weight")
         if use_openvino_setter is not None and "use_openvino" not in kwargs:
             kwargs["use_openvino"] = self._global_model_defaults.get("use_openvino", False)
 
-        # Filter parameters using whitelist
-        filtered_kwargs = self.prepare_controller_parameters(**kwargs)
-
-        # Create the project
+    def _create_project_structure(self, filtered_kwargs: dict[str, Any]) -> tuple[bool, str | None]:
         try:
             self.project_manager.create_new_project(**filtered_kwargs)
         except ProjectInvalidError as e:
             log.error("project_workflow_service.create_project.failed", error=str(e))
-            return {
-                "success": False,
-                "error_message": str(e),
-                "wizard_metadata": None,
-                "animal_method": None,
-                "project_path": None,
-                "import_success": None,
-            }
+            return False, str(e)
 
         log.info(
             "project_workflow_service.create_project.success",
             path=self.project_manager.project_path,
         )
+        return True, None
 
-        # Update StateManager
+    def _persist_project_data(self, kwargs: dict[str, Any]) -> None:
         project_updated = False
-
-        # Persist behavioral configuration collected in wizard calibration step
         behavioral_analysis = kwargs.get("behavioral_analysis")
         if isinstance(behavioral_analysis, dict) and behavioral_analysis:
             if self.project_manager.project_data.get("behavioral_config") != behavioral_analysis:
                 self.project_manager.project_data["behavioral_config"] = behavioral_analysis
                 project_updated = True
 
-        # Persist live-session defaults captured in live wizard flow
         live_defaults = {
             "selected_live_mode": kwargs.get("selected_live_mode"),
             "experimental_group": kwargs.get("experimental_group"),
@@ -620,18 +616,14 @@ class ProjectWorkflowService:
             active_zone_video=self.project_manager.get_active_zone_video(),
         )
 
-        # Apply project model overrides
-        self._using_project_overrides = True
-        self.apply_project_model_overrides(
-            overrides=None,
-            active_weight_setter=active_weight_setter,
-            use_openvino_setter=use_openvino_setter,
+    def _emit_project_created_event(self) -> None:
+        log.info(
+            "project_workflow_service.create_project.emitted",
+            project_path=self.project_manager.project_path,
         )
 
-        # Execute parquet import if wizard provided import configuration
-        wizard_metadata = kwargs.get("_wizard_metadata", {})
+    def _import_wizard_parquets(self, wizard_metadata: dict | None) -> bool | None:
         import_success = None
-
         if wizard_metadata:
             import_config = wizard_metadata.get("import_config", [])
             roi_merge_strategy = wizard_metadata.get("roi_merge_strategy", "replace")
@@ -653,16 +645,7 @@ class ProjectWorkflowService:
                 else:
                     log.warning("project_workflow_service.create_project.parquet_import_failed")
 
-        return {
-            "success": True,
-            "error_message": None,
-            "wizard_metadata": wizard_metadata if wizard_metadata else None,
-            "animal_method": animal_method,
-            "project_path": Path(self.project_manager.project_path)
-            if self.project_manager.project_path
-            else None,
-            "import_success": import_success,
-        }
+        return import_success
 
     # === Project Opening Orchestration ===
 

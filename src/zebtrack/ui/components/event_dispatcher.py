@@ -24,13 +24,13 @@ log = structlog.get_logger()
 def _payload_to_dict(payload: payloads.EventPayload | dict[str, Any]) -> dict[str, Any]:
     if isinstance(payload, dict):
         return payload
-    if is_dataclass(payload):
+    if is_dataclass(payload) and not isinstance(payload, type):
         return asdict(payload)
     return {}
 
 
 def _payload_get(payload: payloads.EventPayload | dict[str, Any], key: str, default=None):
-    if is_dataclass(payload):
+    if is_dataclass(payload) and not isinstance(payload, type):
         return getattr(payload, key, default)
     if isinstance(payload, dict):
         return payload.get(key, default)
@@ -525,7 +525,7 @@ class EventDispatcher:
             lambda d: gui.dialog_manager.import_and_apply_roi_template(),
         )
 
-        def _clear_applied_templates(d: dict) -> None:
+        def _clear_applied_templates(_: payloads.EventPayload) -> None:
             gui.roi_template_manager.clear_applied_template_drawings()
 
         event_bus.subscribe(

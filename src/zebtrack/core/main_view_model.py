@@ -37,7 +37,7 @@ log = structlog.get_logger()
 def _payload_to_dict(payload: payloads.EventPayload | dict[str, Any]) -> dict[str, Any]:
     if isinstance(payload, dict):
         return payload
-    if is_dataclass(payload):
+    if is_dataclass(payload) and not isinstance(payload, type):
         return asdict(payload)
     return {}
 
@@ -45,7 +45,9 @@ def _payload_to_dict(payload: payloads.EventPayload | dict[str, Any]) -> dict[st
 def _payload_get(payload: payloads.EventPayload | dict[str, Any], key: str, default=None):
     if isinstance(payload, dict):
         return payload.get(key, default)
-    return getattr(payload, key, default)
+    if is_dataclass(payload) and not isinstance(payload, type):
+        return getattr(payload, key, default)
+    return default
 
 
 class MainViewModel:
@@ -730,7 +732,7 @@ class MainViewModel:
             payload = data
             payload_dict = _payload_to_dict(payload)
             if not payload_dict and not is_dataclass(payload) and not isinstance(payload, dict):
-                self.log.warning(
+                log.warning(
                     "main_view_model.dispatcher.invalid_data_type",
                     event_name=event_name,
                     data_type=type(payload).__name__,
