@@ -61,7 +61,7 @@ class WizardDialog(Dialog):
     Usage:
         >>> wizard = WizardDialog(root)
         >>> if wizard.result:
-        ...     controller.create_new_project(**wizard.result)
+        ...     controller.project_vm.create_project_workflow(**wizard.result)
 
     Attributes:
         all_steps (list[WizardStep]): All possible wizard steps

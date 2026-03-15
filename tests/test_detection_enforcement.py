@@ -126,7 +126,11 @@ def test_single_video_detection_mode_enforcement():
         }
 
         # This should show an error and return early
-        controller.start_single_video_workflow("/tmp/test.mp4", config)
+        controller.analysis_vm.start_single_video_workflow(
+            "/tmp/test.mp4",
+            config,
+            detector_vm=controller.hardware_vm,
+        )
 
         # Verify error was shown via v2 publish(Event(...))
         mock_event_bus.publish.assert_called_once()

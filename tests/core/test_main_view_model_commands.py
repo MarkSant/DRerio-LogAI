@@ -15,6 +15,8 @@ import pytest
 from zebtrack.core.application_bootstrapper import BootstrapResult
 from zebtrack.core.dependency_container import MainViewModelDependencies
 from zebtrack.core.main_view_model import MainViewModel
+from zebtrack.ui import payloads
+from zebtrack.ui.event_bus_v2 import UIEvents
 
 
 @pytest.fixture
@@ -233,7 +235,21 @@ class TestCreateProjectWorkflow:
             return_value={"success": True, "animal_method": "det", "wizard_metadata": {}}
         )
 
-        main_view_model.create_project_workflow(**wizard_data)
+        event_payload = payloads.ProjectCreatePayload(
+            project_name=wizard_data["project_name"],
+            project_path=wizard_data["project_path"],
+            project_type=wizard_data["project_type"],
+            wizard_data=wizard_data,
+        )
+
+        main_view_model._runtime_handlers.handle_event(UIEvents.PROJECT_CREATE, event_payload)
 
         # Should call workflow service through project_vm
-        main_view_model.project_vm.create_project_workflow.assert_called_once_with(**wizard_data)
+        main_view_model.project_vm.create_project_workflow.assert_called_once_with(
+            **{
+                "project_name": wizard_data["project_name"],
+                "project_path": wizard_data["project_path"],
+                "project_type": wizard_data["project_type"],
+                "wizard_data": wizard_data,
+            }
+        )

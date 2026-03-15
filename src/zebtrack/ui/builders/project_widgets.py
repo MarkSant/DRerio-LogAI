@@ -29,7 +29,7 @@ class ProjectWidgetsBuilder:
         commands = {
             "calibration": self.gui._open_global_calibration_window,
             "single_analysis": self.gui.single_video_workflow.on_analyze_single_video_clicked,
-            "live_camera": lambda: self.gui.controller.start_live_camera_analysis(),
+            "live_camera": lambda: self.gui.controller.hardware_vm.start_live_camera_analysis(),
             "create_project": self.gui.project_initializer.create_project_workflow,
             "open_project": self.gui.project_initializer.open_project_workflow,
         }

@@ -304,7 +304,7 @@ class MenuManager:
             video_path: Path to the video file
             asset: Asset type to remove
         """
-        allowed, reason = self.gui.controller.can_remove_project_asset(video_path, asset)
+        allowed, reason = self.gui.controller.project_vm.can_remove_project_asset(video_path, asset)
         if not allowed:
             self.dialog_manager.show_warning(
                 "Ação indisponível",

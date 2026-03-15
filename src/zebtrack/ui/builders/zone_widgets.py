@@ -149,14 +149,14 @@ class ZoneWidgetsBuilder:
             self.gui.dialog_manager.show_error("Erro", "Selecione um aquário ativo primeiro.")
             return
 
-        arena_data = self.gui.controller.get_arena_data(current_arena_id)
-        if not arena_data or "polygon_px" not in arena_data:
+        arena_data = self.gui.controller.project_manager.get_zone_data()
+        if not arena_data or not arena_data.polygon:
             self.gui.dialog_manager.show_error(
                 "Erro", "Não foi possível obter os dados do polígono do aquário."
             )
             return
 
-        poly_points = np.array(arena_data["polygon_px"])
+        poly_points = np.array(arena_data.polygon)
         x_min, y_min = poly_points.min(axis=0)
         x_max, y_max = poly_points.max(axis=0)
         width = x_max - x_min

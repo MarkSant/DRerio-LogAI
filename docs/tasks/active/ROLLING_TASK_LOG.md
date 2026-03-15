@@ -6,6 +6,33 @@ This document tracks all major agent interventions, technical debt resolutions, 
 
 ## Active Tasks
 
+### [2026-03-15] Audit Phase 4 remediation (MainViewModel decomposition)
+
+**ID:** TASK-042
+**Agent:** GitHub Copilot (GPT-5.2-Codex)
+**Status:** Completed ✅
+**Branch:** (current)
+**Description:**
+Decompose MainViewModel by migrating runtime flags into StateManager state,
+eliminating trivial facade methods, and simplifying event dispatch to a
+pattern-matching handler while keeping behavior stable.
+
+### Subtasks (TASK-042)
+
+- [x] Run mandatory impact analysis for MainViewModel and StateManager.
+- [x] Migrate runtime flags to StateManager (processing + recording state).
+- [x] Remove or inline trivial facade methods with safe call-site updates.
+- [x] Replace _EVENT_METHOD_MAPPING with pattern-matching event handler.
+- [x] Keep MainViewModel under 400 lines and behavior stable.
+- [x] Validate with pytest, mypy, and ruff; update task log with evidence.
+
+**Results:**
+
+- Impact analysis run for MainViewModel and StateManager.
+- `poetry run pytest -q` (2714 passed).
+- `poetry run mypy src/zebtrack` (success, no issues).
+- `poetry run ruff check .` (pass).
+
 ### [2026-03-15] Audit Phase 3 remediation (create_project + WidgetFactory)
 
 **ID:** TASK-041

@@ -826,7 +826,7 @@ class VideoSelectorTreeManager:
         if not hasattr(self.gui, "_openvino_display_var"):
             return
 
-        openvino_status = self.gui.controller.get_openvino_cache_status()
+        openvino_status = self.gui.controller.hardware_vm.get_openvino_cache_status()
         self.gui._openvino_display_var.set(openvino_status)
 
     # ==================================================================

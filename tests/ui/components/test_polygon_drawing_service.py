@@ -41,12 +41,12 @@ def test_polygon_service_completion_arena():
     mock_gui = MagicMock()
 
     # Mock controller
-    mock_gui.controller.set_main_arena_polygon.return_value = True
+    mock_gui.controller.analysis_vm.set_main_arena_polygon.return_value = True
 
     result = service.complete_polygon("arena", [(0, 0), (100, 0), (100, 100)], mock_gui)
 
     assert result is True
-    mock_gui.controller.set_main_arena_polygon.assert_called_once()
+    mock_gui.controller.analysis_vm.set_main_arena_polygon.assert_called_once()
     mock_gui.canvas_manager.redraw_zones_from_project_data.assert_called_once()
     # mock_gui.update_zone_listbox.assert_called_once() # Replaced by event
 
@@ -55,7 +55,7 @@ def test_polygon_service_completion_arena_publishes_event():
     """Testa publicação de evento ao completar arena."""
     service = PolygonDrawingService()
     mock_gui = MagicMock()
-    mock_gui.controller.set_main_arena_polygon.return_value = True
+    mock_gui.controller.analysis_vm.set_main_arena_polygon.return_value = True
     mock_gui.event_bus_v2 = Mock()
 
     result = service.complete_polygon("arena", [(0, 0), (100, 0), (100, 100)], mock_gui)
@@ -77,7 +77,7 @@ def test_polygon_service_completion_roi_cancel_name():
     result = service.complete_polygon("roi", [(0, 0), (100, 0), (100, 100)], mock_gui)
 
     assert result is False
-    mock_gui.controller.add_roi_polygon.assert_not_called()
+    mock_gui.controller.analysis_vm.add_roi_polygon.assert_not_called()
 
 
 def test_polygon_service_completion_roi_color_cancelled():
@@ -93,7 +93,7 @@ def test_polygon_service_completion_roi_color_cancelled():
         result = service.complete_polygon("roi", [(0, 0), (100, 0), (100, 100)], mock_gui)
 
     assert result is False
-    mock_gui.controller.add_roi_polygon.assert_not_called()
+    mock_gui.controller.analysis_vm.add_roi_polygon.assert_not_called()
 
 
 def test_polygon_service_completion_roi_success():
@@ -101,7 +101,7 @@ def test_polygon_service_completion_roi_success():
     service = PolygonDrawingService()
     mock_gui = MagicMock()
     mock_gui.ask_string.return_value = "ROI 1"
-    mock_gui.controller.add_roi_polygon.return_value = True
+    mock_gui.controller.analysis_vm.add_roi_polygon.return_value = True
     mock_gui.event_bus_v2 = Mock()
 
     dialog_instance = Mock()
@@ -111,7 +111,7 @@ def test_polygon_service_completion_roi_success():
         result = service.complete_polygon("roi", [(0, 0), (100, 0), (100, 100)], mock_gui)
 
     assert result is True
-    mock_gui.controller.add_roi_polygon.assert_called_once_with(
+    mock_gui.controller.analysis_vm.add_roi_polygon.assert_called_once_with(
         [(0, 0), (100, 0), (100, 100)], "ROI 1", "#123456"
     )
     assert mock_gui.event_bus_v2.publish.call_count == 1

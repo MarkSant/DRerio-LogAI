@@ -1062,7 +1062,9 @@ class AnalysisService:
 
         # Apply settings if batch project
         if not single_video_config:
-            settings_success = controller.apply_project_settings_to_batch(videos_to_process)
+            settings_success = controller.project_vm.apply_project_settings_to_batch(
+                videos_to_process
+            )
             if not settings_success:
                 self.log.warning("analysis_service.batch.settings_partial_failure")
 

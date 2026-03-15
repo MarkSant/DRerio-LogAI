@@ -46,14 +46,32 @@ def mock_settings():
 def mock_state_manager():
     """Create a mock StateManager."""
     state_manager = Mock()
-    state_manager.update_processing_state.return_value = None
-    state_manager.update_detection_state.return_value = None
-    state_manager.update_recording_state.return_value = None
+    processing_state = SimpleNamespace(
+        is_processing=False,
+        processing_thread=None,
+        pending_single_video_analysis=None,
+    )
+    recording_state = SimpleNamespace(is_recording=False, is_capturing_for_video=False)
+    detector_state = SimpleNamespace(detector_initialized=False)
+
+    def _update_state(target_state, **kwargs):
+        for key, value in kwargs.items():
+            setattr(target_state, key, value)
+
+    state_manager.update_processing_state.side_effect = lambda **kwargs: _update_state(
+        processing_state, **kwargs
+    )
+    state_manager.update_detector_state.side_effect = lambda **kwargs: _update_state(
+        detector_state, **kwargs
+    )
+    state_manager.update_recording_state.side_effect = lambda **kwargs: _update_state(
+        recording_state, **kwargs
+    )
     state_manager.subscribe.return_value = None
     state_manager.subscribe_all.return_value = None
-    state_manager.get_recording_state.return_value = SimpleNamespace(is_recording=False)
-    state_manager.get_detector_state.return_value = SimpleNamespace(detector_initialized=False)
-    state_manager.get_processing_state.return_value = SimpleNamespace(is_processing=False)
+    state_manager.get_recording_state.return_value = recording_state
+    state_manager.get_detector_state.return_value = detector_state
+    state_manager.get_processing_state.return_value = processing_state
     return state_manager
 
 

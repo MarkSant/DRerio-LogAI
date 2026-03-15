@@ -622,7 +622,7 @@ class ZoneEditor:
                 )
         else:
             # Fallback
-            self.gui.controller.save_manual_arena(self.gui.edited_polygon_points)
+            self.gui.controller.analysis_vm.save_manual_arena(self.gui.edited_polygon_points)
             status_message = "Zona salva com sucesso."
             self.gui.set_status(status_message)
             self.update_roi_button_state()
