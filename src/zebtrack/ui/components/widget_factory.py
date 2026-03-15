@@ -27,6 +27,7 @@ import yaml
 from pydantic import ValidationError
 
 from zebtrack.settings import Settings
+from zebtrack.ui import payloads as payloads
 from zebtrack.ui.builders.button_factory import ButtonFactory
 from zebtrack.ui.builders.panel_builder import PanelBuilder
 from zebtrack.ui.builders.zone_control_builder import ZoneControlBuilder
@@ -37,6 +38,13 @@ if TYPE_CHECKING:
     from zebtrack.ui.components.dialog_manager import DialogManager
 
 log = structlog.get_logger()
+
+
+def _payload_get(payload: payloads.EventPayload | dict[str, Any], key: str, default=None):
+    if isinstance(payload, dict):
+        return payload.get(key, default)
+    return getattr(payload, key, default)
+
 
 # Status symbols used in UI
 STATUS_SYMBOLS = {
@@ -416,14 +424,14 @@ class WidgetFactory:
         # Connect events
         if self.gui.event_bus:
             # Register handlers directly in event_bus (not just in dictionary)
-            def save_handler(data):
-                return self.on_save_global_config_from_widget(data["values"])
+            def save_handler(data: payloads.EventPayload) -> None:
+                return self.on_save_global_config_from_widget(_payload_get(data, "values"))
 
-            def reset_handler(data):
+            def reset_handler(data: payloads.EventPayload) -> None:
                 return self.on_reset_global_config_form_widget()
 
-            def roi_rule_handler(data):
-                return self.update_roi_rule_ui(data["rule"])
+            def roi_rule_handler(data: payloads.EventPayload) -> None:
+                return self.update_roi_rule_ui(_payload_get(data, "rule"))
 
             # Subscribe to event_bus (v2)
             self.gui.event_bus.subscribe(UIEvents.CONFIG_SAVE_REQUESTED, save_handler)

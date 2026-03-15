@@ -23,6 +23,7 @@ import structlog
 
 from zebtrack.coordinators.base_coordinator import BaseCoordinator
 from zebtrack.core.project.project_manager import AssetType
+from zebtrack.ui import payloads as payloads
 from zebtrack.ui.event_bus_v2 import UIEvents
 
 if TYPE_CHECKING:
@@ -40,6 +41,12 @@ if TYPE_CHECKING:
     from zebtrack.ui.project_workflow_adapter import ProjectWorkflowAdapter
 
 log = structlog.get_logger()
+
+
+def _payload_get(payload: payloads.EventPayload | dict[str, Any], key: str, default=None):
+    if isinstance(payload, dict):
+        return payload.get(key, default)
+    return getattr(payload, key, default)
 
 
 class ProjectLifecycleCoordinator(BaseCoordinator):
@@ -131,7 +138,7 @@ class ProjectLifecycleCoordinator(BaseCoordinator):
 
         log.info("project_lifecycle_coordinator.register_handlers.complete")
 
-    def _handle_aquarium_config_updated(self, payload: dict) -> None:
+    def _handle_aquarium_config_updated(self, payload: payloads.EventPayload) -> None:
         """Handle aquarium configuration update event.
 
         Phase 5: Updates aquarium configuration in zone data.
@@ -139,12 +146,9 @@ class ProjectLifecycleCoordinator(BaseCoordinator):
         Args:
             payload: Event payload with aquarium_id, config, and video_path.
         """
-        if not isinstance(payload, dict):
-            return
-
-        aquarium_id = payload.get("aquarium_id")
-        config = payload.get("config")
-        video_path = payload.get("video_path")
+        aquarium_id = _payload_get(payload, "aquarium_id")
+        config = _payload_get(payload, "config")
+        video_path = _payload_get(payload, "video_path")
 
         if aquarium_id is None or not config or not video_path:
             log.warning(

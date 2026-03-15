@@ -209,7 +209,7 @@ class TestGUIStateObserver:
 
         # Wait for async observers (ThreadPoolExecutor) to schedule callbacks
         wait_for_condition(
-            lambda: len([c for c in mock_gui.root._scheduled_callbacks if c[0] == 0]) >= 2,
+            lambda: len([c for c in mock_gui.root._scheduled_callbacks if c[0] == 0]) >= 3,
             timeout=2.0,
         )
 
@@ -217,8 +217,8 @@ class TestGUIStateObserver:
         # This ensures thread safety
         zero_delay_callbacks = [item for item in mock_gui.root._scheduled_callbacks if item[0] == 0]
 
-        # Should have at least 2 calls (recording + processing; detector doesn't schedule UI update)
-        assert len(zero_delay_callbacks) >= 2
+        # Should have at least 3 calls (recording + processing + detector)
+        assert len(zero_delay_callbacks) >= 3
 
         # Phase 1.2: Process all scheduled updates
         mock_gui.root.update_idletasks()

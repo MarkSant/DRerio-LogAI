@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Generator
 from contextlib import contextmanager
+from dataclasses import asdict, is_dataclass
 from typing import TYPE_CHECKING, Any
 
 import structlog
@@ -24,12 +25,27 @@ from zebtrack.core.viewmodels.hardware_status_view_model import HardwareStatusVi
 
 # New ViewModels
 from zebtrack.core.viewmodels.project_view_model import ProjectViewModel
+from zebtrack.ui import payloads as payloads
 from zebtrack.ui.event_bus_v2 import Event, UIEvents
 
 if TYPE_CHECKING:
     pass
 
 log = structlog.get_logger()
+
+
+def _payload_to_dict(payload: payloads.EventPayload | dict[str, Any]) -> dict[str, Any]:
+    if isinstance(payload, dict):
+        return payload
+    if is_dataclass(payload):
+        return asdict(payload)
+    return {}
+
+
+def _payload_get(payload: payloads.EventPayload | dict[str, Any], key: str, default=None):
+    if isinstance(payload, dict):
+        return payload.get(key, default)
+    return getattr(payload, key, default)
 
 
 class MainViewModel:
@@ -687,19 +703,21 @@ class MainViewModel:
         self.hardware_vm._shutdown_arduino_manager()
         log.info("controller.shutdown.complete")
 
-    def _create_event_dispatcher(self, event_name: UIEvents) -> Callable[[dict], None]:
+    def _create_event_dispatcher(
+        self, event_name: UIEvents
+    ) -> Callable[[payloads.EventPayload], None]:
         if event_name not in self._EVENT_METHOD_MAPPING:
             # Type-safe empty dispatcher
-            def empty_dispatcher(data: dict) -> None:
+            def empty_dispatcher(data: payloads.EventPayload) -> None:
                 pass
 
             # Explicitly type the dispatcher variable to match expected signature
-            method: Callable[[dict], None] = empty_dispatcher
+            method: Callable[[payloads.EventPayload], None] = empty_dispatcher
             return method
 
         method_ref, param_names, mode = self._EVENT_METHOD_MAPPING[event_name]
 
-        def dispatcher(data: dict) -> None:
+        def dispatcher(data: payloads.EventPayload) -> None:
             method: Callable | Any | None = None
             if isinstance(method_ref, str):
                 method = getattr(self, method_ref, None)
@@ -709,27 +727,28 @@ class MainViewModel:
             if not method or not callable(method):
                 return
 
-            # Ensure data is a dict before processing
-            if not isinstance(data, dict):
+            payload = data
+            payload_dict = _payload_to_dict(payload)
+            if not payload_dict and not is_dataclass(payload) and not isinstance(payload, dict):
                 self.log.warning(
                     "main_view_model.dispatcher.invalid_data_type",
                     event_name=event_name,
-                    data_type=type(data).__name__,
+                    data_type=type(payload).__name__,
                 )
                 return
 
             if mode == "no_params":
                 method()
             elif mode == "kwargs_all":
-                method(**data)
+                method(**payload_dict)
             elif mode == "kwargs_get":
-                kwargs = {param: data.get(param) for param in param_names}
+                kwargs = {param: _payload_get(payload, param) for param in param_names}
                 method(**kwargs)
             elif mode == "positional":
-                args = [data[param] for param in param_names]
+                args = [_payload_get(payload, param) for param in param_names]
                 method(*args)
             elif mode == "positional_optional":
-                args = [data.get(param) for param in param_names]
+                args = [_payload_get(payload, param) for param in param_names]
                 method(*args)
             else:
                 raise NotImplementedError(
@@ -752,16 +771,8 @@ class MainViewModel:
             self._handle_project_manager_replaced,
         )
 
-    def _handle_project_manager_replaced(self, data: dict) -> None:
-        if not isinstance(data, dict):
-            self.log.warning(
-                "main_view_model._handle_project_manager_replaced.invalid_data_type",
-                expected="dict",
-                got=type(data).__name__,
-            )
-            return
-
-        new_manager = data.get("new_manager")
+    def _handle_project_manager_replaced(self, data: payloads.EventPayload) -> None:
+        new_manager = _payload_get(data, "new_manager")
         if not new_manager:
             return
 

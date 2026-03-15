@@ -236,7 +236,7 @@ class BaseUIComponent(ABC):
         """
         self._log.info("component.cleanup")
 
-    def _emit_event(self, event_type: UIEvents, data: dict[str, Any] | None = None):
+    def _emit_event(self, event_type: UIEvents, data: Any | None = None):
         """
         Helper to emit events via EventBusV2.
 

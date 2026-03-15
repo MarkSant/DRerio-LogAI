@@ -6,6 +6,41 @@ This document tracks all major agent interventions, technical debt resolutions, 
 
 ## Active Tasks
 
+### [2026-03-12] Audit Phase 2 remediation (typed event payloads)
+
+**ID:** TASK-040
+**Agent:** GitHub Copilot (GPT-5.2-Codex)
+**Status:** Completed ✅
+**Branch:** (current)
+**Description:**
+Implement Phase 2 of audit remediation: introduce typed event payload dataclasses,
+update EventBusV2 to accept typed payloads with backward compatibility, and
+migrate handlers by domain (Zone → Processing → Project → UI) while keeping tests
+passing.
+
+### Subtasks (TASK-040)
+
+- [ ] Run mandatory impact analysis for EventBusV2 and event payload changes.
+- [ ] Add/expand typed payload dataclasses in ui/payloads.py.
+- [ ] Update EventBusV2 publish signature and compatibility logic.
+- [ ] Migrate Zone-domain handlers to typed payloads.
+- [ ] Migrate Processing-domain handlers to typed payloads.
+- [ ] Migrate Project-domain handlers to typed payloads.
+- [ ] Migrate UI-domain handlers to typed payloads.
+- [ ] Validate with pytest, mypy (targeted), and ruff.
+- [ ] Update task log with results and evidence.
+
+**Results:**
+
+- Added typed payload compatibility updates across EventBusV2 handlers (MainViewModel, CanvasManager,
+  VideoProcessingCoordinator, VideoSelectorTreeManager, WidgetFactory) and expanded payloads for
+  report generation + readiness snapshots.
+- Restored backward-compatible payload access (`get`/`__getitem__`) for typed payloads in EventBusV2.
+- Tests and checks:
+  - `poetry run pytest -q` (2714 passed)
+  - `poetry run mypy src/zebtrack/ui/event_bus_v2.py src/zebtrack/ui/payloads.py`
+  - `poetry run ruff check .`
+
 ### [2026-03-12] Audit Phase 1 remediation (cleanup + integration coverage)
 
 **ID:** TASK-039

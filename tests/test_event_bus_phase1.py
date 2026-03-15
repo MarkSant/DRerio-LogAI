@@ -2,6 +2,7 @@
 Test EventBusV2 implementation (migrated from Phase 1 EventBus tests).
 """
 
+from zebtrack.ui import payloads as payloads
 from zebtrack.ui.event_bus_v2 import Event, EventBusV2, UIEvents
 
 
@@ -23,10 +24,11 @@ class TestEventBusV2:
             handler_called.append(data)
 
         bus.subscribe(UIEvents.RECORDING_START, handler)
-        bus.publish(Event(type=UIEvents.RECORDING_START, data={"value": 42}))
+        bus.publish(Event(type=UIEvents.RECORDING_START, data={"camera_index": 1}))
 
         assert len(handler_called) == 1
-        assert handler_called[0] == {"value": 42}
+        assert isinstance(handler_called[0], payloads.RecordingStartPayload)
+        assert handler_called[0].camera_index == 1
 
     def test_multiple_subscribers(self):
         """Test that multiple subscribers receive the same event."""
@@ -41,11 +43,11 @@ class TestEventBusV2:
 
         bus.subscribe(UIEvents.RECORDING_START, handler1)
         bus.subscribe(UIEvents.RECORDING_START, handler2)
-        bus.publish(Event(type=UIEvents.RECORDING_START, data={"id": 123}))
+        bus.publish(Event(type=UIEvents.RECORDING_START, data={"camera_index": 2}))
 
         assert len(calls) == 2
-        assert ("handler1", {"id": 123}) in calls
-        assert ("handler2", {"id": 123}) in calls
+        assert ("handler1", payloads.RecordingStartPayload(camera_index=2)) in calls
+        assert ("handler2", payloads.RecordingStartPayload(camera_index=2)) in calls
 
     def test_unsubscribe(self):
         """Test unsubscribing a handler."""
@@ -101,10 +103,17 @@ class TestEventBusV2:
             received.append(data)
 
         bus.subscribe(UIEvents.PROJECT_CREATE, handler)
-        bus.publish(Event(type=UIEvents.PROJECT_CREATE, data={"name": "test", "path": "/tmp"}))
+        bus.publish(
+            Event(
+                type=UIEvents.PROJECT_CREATE,
+                data={"project_name": "test", "project_path": "/tmp"},
+            )
+        )
 
         assert len(received) == 1
-        assert received[0] == {"name": "test", "path": "/tmp"}
+        assert isinstance(received[0], payloads.ProjectCreatePayload)
+        assert received[0].project_name == "test"
+        assert received[0].project_path == "/tmp"
 
 
 class TestUIEventsCatalog:

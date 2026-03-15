@@ -20,7 +20,7 @@ This file retains:
 from __future__ import annotations
 
 import typing
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 import structlog
@@ -29,6 +29,7 @@ from zebtrack.ui.components.canvas.event_handler import CanvasEventHandler
 
 if TYPE_CHECKING:
     from zebtrack.core.services.zone_context_service import ZoneContextService
+from zebtrack.ui import payloads as payloads
 from zebtrack.ui.components.canvas.multi_aquarium_overlay import MultiAquariumOverlayManager
 from zebtrack.ui.components.canvas.renderer import CanvasRenderer
 from zebtrack.ui.components.canvas.video_frame_manager import VideoFrameManager
@@ -37,6 +38,12 @@ from zebtrack.ui.event_bus_v2 import UIEvents
 from zebtrack.utils.geometry_service import GeometryService
 
 log = structlog.get_logger()
+
+
+def _payload_get(payload: payloads.EventPayload | dict[str, Any], key: str, default=None):
+    if isinstance(payload, dict):
+        return payload.get(key, default)
+    return getattr(payload, key, default)
 
 
 class CanvasManager:
@@ -147,58 +154,37 @@ class CanvasManager:
             # Note: _live_session_active remains False until a live session actually starts
             log.debug("canvas_manager.subscribed_to_live_frame_updates")
 
-    def _on_zones_updated(self, data: dict):
+    def _on_zones_updated(self, data: payloads.EventPayload):
         """Handle ZONES_UPDATED event.
 
         Args:
             data: Event payload containing zone_data
         """
-        if not isinstance(data, dict):
-            log.warning(
-                "canvas_manager._on_zones_updated.invalid_data_type",
-                data_type=type(data).__name__,
-            )
-            return
-        zone_data = data.get("zone_data")
+        zone_data = _payload_get(data, "zone_data")
         log.debug(
             "canvas_manager.zones_updated_event_received", has_zone_data=zone_data is not None
         )
         self.update_zone_listbox(zone_data)
 
-    def _on_polygon_edit_requested(self, data: dict):
+    def _on_polygon_edit_requested(self, data: payloads.EventPayload):
         """Handle POLYGON_EDIT_REQUESTED event.
 
         Args:
             data: Event payload containing:
                 - polygon: np.ndarray of polygon points
         """
-        if not isinstance(data, dict):
-            log.warning(
-                "canvas_manager._on_polygon_edit_requested.invalid_data_type",
-                data_type=type(data).__name__,
-            )
-            return
-        polygon = data.get("polygon")
+        polygon = _payload_get(data, "polygon")
         if polygon is not None:
             self.setup_interactive_polygon(polygon)
 
-    def _on_live_frame_update(self, data: dict):
+    def _on_live_frame_update(self, data: payloads.EventPayload):
         """Handle UI_UPDATE_LIVE_FRAME event from LiveCameraService.
 
         Args:
             data: Payload with 'frame' (np.ndarray) and 'detections'.
         """
-        log.debug(
-            "canvas_manager._on_live_frame_update.called",
-            has_data=isinstance(data, dict),
-            has_frame=isinstance(data, dict) and "frame" in data,
-        )
-
-        if not isinstance(data, dict):
-            return
-
-        frame = data.get("frame")
-        detections = data.get("detections")
+        frame = _payload_get(data, "frame")
+        detections = _payload_get(data, "detections")
 
         if frame is not None:
             # We are already on the main thread here via EventDispatcher polling

@@ -6,7 +6,8 @@ from typing import Any, cast
 
 import structlog
 
-from zebtrack.ui.event_bus_v2 import Event, EventBusV2, UIEvents
+from zebtrack.ui import payloads as payloads
+from zebtrack.ui.event_bus_v2 import EventBusV2, UIEvents
 
 log = structlog.get_logger()
 
@@ -52,7 +53,11 @@ class BaseWidget(ttk.Frame):
         """
         raise NotImplementedError(f"{self.__class__.__name__} must implement _build_ui()")
 
-    def emit_event(self, event_type: UIEvents, data: dict[str, Any] | None = None) -> None:
+    def emit_event(
+        self,
+        event_type: UIEvents,
+        data: payloads.EventPayload | dict[str, Any] | None = None,
+    ) -> None:
         """
         Emit a typed event to the EventBusV2.
 
@@ -69,14 +74,18 @@ class BaseWidget(ttk.Frame):
             return
 
         payload = data if data is not None else {}
-        self.event_bus.publish(Event(type=event_type, data=payload))
+        self.event_bus.publish(event_type, payload)
         self._log.debug(
             "widget.event.emitted",
             event_type=event_type.name,
-            data_keys=list(payload.keys()),
+            data_keys=list(payload.keys()) if isinstance(payload, dict) else [],
         )
 
-    def bind_callback(self, event_type: UIEvents, callback: Callable[[dict], None]) -> None:
+    def bind_callback(
+        self,
+        event_type: UIEvents,
+        callback: Callable[[payloads.EventPayload], None],
+    ) -> None:
         """
         Subscribe to events from the event bus.
 

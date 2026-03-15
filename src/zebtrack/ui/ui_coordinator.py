@@ -10,11 +10,13 @@ from __future__ import annotations
 
 import tkinter as tk
 from collections.abc import Callable
+from dataclasses import asdict, is_dataclass
 from typing import TYPE_CHECKING, Any
 
 import structlog
 
-from zebtrack.ui.event_bus_v2 import Event, EventBusV2, UIEvents
+from zebtrack.ui import payloads as payloads
+from zebtrack.ui.event_bus_v2 import EventBusV2, UIEvents
 
 if TYPE_CHECKING:
     from zebtrack.ui.components.canvas_manager import CanvasManager
@@ -32,6 +34,22 @@ if TYPE_CHECKING:
     )
 
 log = structlog.get_logger().bind(component="ui.ui_coordinator")
+
+
+def _payload_to_dict(payload: payloads.EventPayload | dict[str, Any]) -> dict[str, Any]:
+    if isinstance(payload, dict):
+        return payload
+    if is_dataclass(payload):
+        return asdict(payload)
+    return {}
+
+
+def _payload_get(payload: payloads.EventPayload | dict[str, Any], key: str, default=None):
+    if is_dataclass(payload):
+        return getattr(payload, key, default)
+    if isinstance(payload, dict):
+        return payload.get(key, default)
+    return default
 
 
 class UICoordinator:
@@ -190,7 +208,7 @@ class UICoordinator:
     # Event Handlers (Workflows)
     # ===========================
 
-    def _on_zones_updated(self, data: dict[str, Any]) -> None:
+    def _on_zones_updated(self, data: payloads.EventPayload) -> None:
         """Handle ZONES_UPDATED event - coordinate UI updates.
 
         **Workflow 1: Zone Update Coordination**
@@ -209,7 +227,7 @@ class UICoordinator:
                 - zone_data: ZoneData | None - The updated zone data
         """
         self._events_handled += 1
-        zone_data = data.get("zone_data")
+        zone_data = _payload_get(data, "zone_data")
 
         try:
             # 1. Update canvas zone listbox
@@ -250,7 +268,7 @@ class UICoordinator:
                 errors_count=self._errors_count,
             )
 
-    def _on_video_tree_refresh_requested(self, data: dict[str, Any]) -> None:
+    def _on_video_tree_refresh_requested(self, data: payloads.EventPayload) -> None:
         """Handle VIDEO_TREE_REFRESH_REQUESTED event.
 
         **Workflow 2: Video Tree Refresh Coordination**
@@ -266,7 +284,7 @@ class UICoordinator:
                 - filter_text: str | None - Filter string for the video tree
         """
         self._events_handled += 1
-        filter_text = data.get("filter_text")
+        filter_text = _payload_get(data, "filter_text")
 
         try:
             video_selector_manager = self.video_selector_manager
@@ -283,7 +301,7 @@ class UICoordinator:
             self._errors_count += 1
             log.exception("ui_coordinator.video_tree_refresh.error", error=str(e))
 
-    def _on_readiness_snapshot_updated(self, data: dict[str, Any]) -> None:
+    def _on_readiness_snapshot_updated(self, data: payloads.EventPayload) -> None:
         """Handle READINESS_SNAPSHOT_UPDATED event.
 
         **Workflow 3: Readiness Snapshot Update Coordination**
@@ -308,10 +326,10 @@ class UICoordinator:
             if video_selector_manager is not None:
                 self._safe_ui_call(
                     lambda: video_selector_manager.apply_pending_readiness_snapshot(
-                        ready_with_trajectory=data.get("ready_with_trajectory", []),
-                        ready_with_zones=data.get("ready_with_zones", []),
-                        arena_only=data.get("arena_only", []),
-                        without_arena=data.get("without_arena", []),
+                        ready_with_trajectory=_payload_get(data, "ready_with_trajectory", []),
+                        ready_with_zones=_payload_get(data, "ready_with_zones", []),
+                        arena_only=_payload_get(data, "arena_only", []),
+                        without_arena=_payload_get(data, "without_arena", []),
                     )
                 )
                 log.debug("ui_coordinator.readiness_snapshot.updated")
@@ -320,7 +338,7 @@ class UICoordinator:
             self._errors_count += 1
             log.exception("ui_coordinator.readiness_snapshot.error", error=str(e))
 
-    def _on_polygon_edit_requested(self, data: dict[str, Any]) -> None:
+    def _on_polygon_edit_requested(self, data: payloads.EventPayload) -> None:
         """Handle POLYGON_EDIT_REQUESTED event.
 
         **Workflow 4: Polygon Edit Setup Coordination**
@@ -336,7 +354,7 @@ class UICoordinator:
                 - polygon: np.ndarray - The polygon points to edit
         """
         self._events_handled += 1
-        polygon = data.get("polygon")
+        polygon = _payload_get(data, "polygon")
 
         try:
             canvas_manager = self.canvas_manager
@@ -348,7 +366,7 @@ class UICoordinator:
             self._errors_count += 1
             log.exception("ui_coordinator.polygon_edit.error", error=str(e))
 
-    def _on_video_hierarchy_snapshot_requested(self, data: dict[str, Any]) -> None:
+    def _on_video_hierarchy_snapshot_requested(self, data: payloads.EventPayload) -> None:
         """Handle VIDEO_HIERARCHY_SNAPSHOT_REQUESTED event.
 
         **Workflow 5: Video Hierarchy Snapshot Build Coordination**
@@ -378,7 +396,7 @@ class UICoordinator:
             self._errors_count += 1
             log.exception("ui_coordinator.video_hierarchy_snapshot.error", error=str(e))
 
-    def _on_video_loaded(self, data: dict[str, Any]) -> None:
+    def _on_video_loaded(self, data: payloads.EventPayload) -> None:
         """Handle VIDEO_LOADED event.
 
         **Workflow 6: Video Load Coordination**
@@ -395,7 +413,7 @@ class UICoordinator:
                 - video_path: str - Path to the loaded video
         """
         self._events_handled += 1
-        video_path = data.get("video_path")
+        video_path = _payload_get(data, "video_path")
 
         try:
             # 1. Load frame to canvas
@@ -419,7 +437,7 @@ class UICoordinator:
             self._errors_count += 1
             log.exception("ui_coordinator.video_loaded.error", error=str(e))
 
-    def _on_project_views_refresh_requested(self, data: dict[str, Any]) -> None:
+    def _on_project_views_refresh_requested(self, data: payloads.EventPayload) -> None:
         """Handle PROJECT_VIEWS_REFRESH_REQUESTED event.
 
         **Workflow 7: Project Views Refresh Coordination**
@@ -442,9 +460,9 @@ class UICoordinator:
         try:
             video_selector_manager = self.video_selector_manager
             if video_selector_manager is not None:
-                reason = data.get("reason")
-                append_summary = data.get("append_summary", False)
-                immediate = data.get("immediate", False)
+                reason = _payload_get(data, "reason")
+                append_summary = _payload_get(data, "append_summary", False)
+                immediate = _payload_get(data, "immediate", False)
 
                 self._safe_ui_call(
                     lambda: video_selector_manager.refresh_project_views(
@@ -457,40 +475,46 @@ class UICoordinator:
             self._errors_count += 1
             log.exception("ui_coordinator.project_views_refresh.error", error=str(e))
 
-    def _on_processing_stats_updated(self, data: dict[str, Any]) -> None:
+    def _on_processing_stats_updated(self, data: payloads.EventPayload) -> None:
         """Handle PROCESSING_STATS_UPDATED event."""
         self._events_handled += 1
         try:
             if self.state_synchronizer:
                 state_synchronizer = self.state_synchronizer
-                self._safe_ui_call(lambda: state_synchronizer.update_processing_stats(**data))
+                self._safe_ui_call(
+                    lambda: state_synchronizer.update_processing_stats(**_payload_to_dict(data))
+                )
         except Exception as e:  # except Exception justified: event-bus fault-isolation boundary
             self._errors_count += 1
             log.exception("ui_coordinator.processing_stats_updated.error", error=str(e))
 
-    def _on_social_summary_updated(self, data: dict[str, Any]) -> None:
+    def _on_social_summary_updated(self, data: payloads.EventPayload) -> None:
         """Handle SOCIAL_SUMMARY_UPDATED event."""
         self._events_handled += 1
         try:
             if self.state_synchronizer:
                 state_synchronizer = self.state_synchronizer
-                self._safe_ui_call(lambda: state_synchronizer.update_social_summary(**data))
+                self._safe_ui_call(
+                    lambda: state_synchronizer.update_social_summary(**_payload_to_dict(data))
+                )
         except Exception as e:  # except Exception justified: event-bus fault-isolation boundary
             self._errors_count += 1
             log.exception("ui_coordinator.social_summary_updated.error", error=str(e))
 
-    def _on_analysis_task_status_updated(self, data: dict[str, Any]) -> None:
+    def _on_analysis_task_status_updated(self, data: payloads.EventPayload) -> None:
         """Handle ANALYSIS_TASK_STATUS_UPDATED event."""
         self._events_handled += 1
         try:
             if self.state_synchronizer:
                 state_synchronizer = self.state_synchronizer
-                self._safe_ui_call(lambda: state_synchronizer.update_analysis_task_status(**data))
+                self._safe_ui_call(
+                    lambda: state_synchronizer.update_analysis_task_status(**_payload_to_dict(data))
+                )
         except Exception as e:  # except Exception justified: event-bus fault-isolation boundary
             self._errors_count += 1
             log.exception("ui_coordinator.analysis_task_status_updated.error", error=str(e))
 
-    def _on_external_trigger_notice(self, data: dict[str, Any]) -> None:
+    def _on_external_trigger_notice(self, data: payloads.EventPayload) -> None:
         """Handle EXTERNAL_TRIGGER_NOTICE event."""
         self._events_handled += 1
         try:
@@ -498,14 +522,15 @@ class UICoordinator:
                 dialog_manager = self.dialog_manager
                 self._safe_ui_call(
                     lambda: dialog_manager.show_external_trigger_notice(
-                        data.get("session_label", ""), **data
+                        _payload_get(data, "session_label", ""),
+                        **_payload_to_dict(data),
                     )
                 )
         except Exception as e:  # except Exception justified: event-bus fault-isolation boundary
             self._errors_count += 1
             log.exception("ui_coordinator.external_trigger_notice.error", error=str(e))
 
-    def _on_external_trigger_notice_cleared(self, data: dict[str, Any]) -> None:
+    def _on_external_trigger_notice_cleared(self, data: payloads.EventPayload) -> None:
         """Handle EXTERNAL_TRIGGER_NOTICE_CLEARED event."""
         self._events_handled += 1
         try:
@@ -516,7 +541,7 @@ class UICoordinator:
             self._errors_count += 1
             log.exception("ui_coordinator.external_trigger_notice_cleared.error", error=str(e))
 
-    def _on_zone_display_cleared(self, data: dict[str, Any]) -> None:
+    def _on_zone_display_cleared(self, data: payloads.EventPayload) -> None:
         """Handle ZONE_DISPLAY_CLEARED event.
 
         **Workflow: Zone Display Clear Coordination (v2.3.2)**
@@ -535,8 +560,8 @@ class UICoordinator:
                 - asset: str - Type of asset deleted (video, arena)
         """
         self._events_handled += 1
-        deleted_video = data.get("deleted_video_path")
-        asset = data.get("asset", "")
+        deleted_video = _payload_get(data, "deleted_video_path")
+        asset = _payload_get(data, "asset", "")
 
         try:
             log.info(
@@ -619,7 +644,7 @@ class UICoordinator:
     # Live Camera Event Handlers (v2.2.0)
     # =========================================================================
 
-    def _on_camera_disconnect(self, event_data: dict[str, Any]) -> None:
+    def _on_camera_disconnect(self, event_data: payloads.EventPayload) -> None:
         """Handle camera disconnect event.
 
         Shows recovery dialog with options: Wait | Resume | Stop.
@@ -632,8 +657,8 @@ class UICoordinator:
                 CameraDisconnectRecoveryDialog,
             )
 
-            gap_duration = event_data.get("gap_duration_s", 0.0)
-            experiment_id = event_data.get("experiment_id", "unknown")
+            gap_duration = _payload_get(event_data, "gap_duration_s", 0.0)
+            experiment_id = _payload_get(event_data, "experiment_id", "unknown")
 
             log.info(
                 "ui_coordinator.camera_disconnect",
@@ -655,11 +680,8 @@ class UICoordinator:
                     )
                     # Publish action event via EventBusV2
                     self.event_bus.publish(
-                        Event(
-                            type=UIEvents.CAMERA_DISCONNECT_USER_ACTION,
-                            data={"action": action, "experiment_id": experiment_id},
-                            source="ui_coordinator.camera_disconnect",
-                        )
+                        UIEvents.CAMERA_DISCONNECT_USER_ACTION,
+                        {"action": action, "experiment_id": experiment_id},
                     )
 
                 CameraDisconnectRecoveryDialog(
@@ -680,7 +702,7 @@ class UICoordinator:
             )
             self._errors_count += 1
 
-    def _on_camera_reconnected(self, event_data: dict[str, Any]) -> None:
+    def _on_camera_reconnected(self, event_data: payloads.EventPayload) -> None:
         """Handle camera reconnected event.
 
         Logs reconnection and optionally shows toast notification.
@@ -689,8 +711,8 @@ class UICoordinator:
             event_data: Event payload with gap_duration_s, total_gaps, etc.
         """
         try:
-            gap_duration = event_data.get("gap_duration_s", 0.0)
-            total_gaps = event_data.get("total_gaps", 0)
+            gap_duration = _payload_get(event_data, "gap_duration_s", 0.0)
+            total_gaps = _payload_get(event_data, "total_gaps", 0)
 
             log.info(
                 "ui_coordinator.camera_reconnected",
@@ -719,7 +741,7 @@ class UICoordinator:
             )
             self._errors_count += 1
 
-    def _on_aquarium_detection_progress(self, event_data: dict[str, Any]) -> None:
+    def _on_aquarium_detection_progress(self, event_data: payloads.EventPayload) -> None:
         """Handle aquarium detection progress event.
 
         Creates dialog on first event, updates it on subsequent events.
@@ -729,11 +751,11 @@ class UICoordinator:
             event_data: Event payload with frame_number, frame_image, bbox, etc.
         """
         try:
-            frame_number = event_data.get("frame_number", 0)
-            experiment_id = event_data.get("experiment_id", "unknown")
-            frame_image = event_data.get("frame_image")
-            detected_bbox = event_data.get("detected_bbox")
-            is_valid = event_data.get("is_valid", False)
+            frame_number = _payload_get(event_data, "frame_number", 0)
+            experiment_id = _payload_get(event_data, "experiment_id", "unknown")
+            frame_image = _payload_get(event_data, "frame_image")
+            detected_bbox = _payload_get(event_data, "detected_bbox")
+            is_valid = _payload_get(event_data, "is_valid", False)
 
             log.debug(
                 "ui_coordinator.aquarium_detection_progress",
@@ -805,7 +827,7 @@ class UICoordinator:
             )
             self._errors_count += 1
 
-    def _on_batch_analysis_completed(self, event_data: dict[str, Any]) -> None:
+    def _on_batch_analysis_completed(self, event_data: payloads.EventPayload) -> None:
         """Handle batch analysis completed event (v2.3.0).
 
         Updates status and refreshes views without blocking popups.
@@ -814,9 +836,9 @@ class UICoordinator:
             event_data: Event payload with batch_id, report_path, session_count
         """
         try:
-            batch_id = event_data.get("batch_id", "unknown")
-            report_path = event_data.get("report_path")
-            session_count = event_data.get("session_count", 0)
+            batch_id = _payload_get(event_data, "batch_id", "unknown")
+            report_path = _payload_get(event_data, "report_path")
+            session_count = _payload_get(event_data, "session_count", 0)
 
             log.info(
                 "ui_coordinator.batch_analysis_completed",
