@@ -5,7 +5,7 @@ import pytest
 
 from zebtrack.ui.components.control_panel import ControlPanelWidget
 from zebtrack.ui.components.zone_controls import ZoneControlsWidget
-from zebtrack.ui.event_bus_v2 import Event, EventBusV2, UIEvents
+from zebtrack.ui.event_bus_v2 import EventBusV2, UIEvents
 
 
 @pytest.fixture
@@ -29,10 +29,10 @@ def test_control_panel_publishes_events(tkinter_root, mock_event_bus):
 
     # Simulate button clicks and check if the correct event is published
     widget.start_rec_btn.invoke()
-    mock_event_bus.publish.assert_called_with(Event(type=UIEvents.RECORDING_START, data={}))
+    mock_event_bus.publish.assert_called_with(UIEvents.RECORDING_START, {})
 
     widget.stop_rec_btn.invoke()
-    mock_event_bus.publish.assert_called_with(Event(type=UIEvents.RECORDING_STOP, data={}))
+    mock_event_bus.publish.assert_called_with(UIEvents.RECORDING_STOP, {})
 
 
 @pytest.mark.gui
@@ -46,15 +46,14 @@ def test_zone_controls_publishes_events(tkinter_root, mock_event_bus):
     assert widget.auto_detect_button is not None
     widget.auto_detect_button.invoke()
     mock_event_bus.publish.assert_called_with(
-        Event(
-            type=UIEvents.ZONE_AUTO_DETECT_CLICKED,
-            data={"stabilization_frames": str(widget.stabilization_frames_var.get())},
-        ),
+        UIEvents.ZONE_AUTO_DETECT_CLICKED,
+        {"stabilization_frames": str(widget.stabilization_frames_var.get())},
     )
 
     widget.draw_arena_button.invoke()
     mock_event_bus.publish.assert_called_with(
-        Event(type=UIEvents.ZONE_DRAW_ARENA, data={}),
+        UIEvents.ZONE_DRAW_ARENA,
+        {},
     )
 
     # Ensure no direct controller/view_model calls exist

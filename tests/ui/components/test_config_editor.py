@@ -113,7 +113,7 @@ def test_event_emission_on_save(config_widget, event_bus):
 
     # Handler should have been called synchronously
     assert len(events_received) == 1
-    assert "values" in events_received[0]
+    assert events_received[0].get("values") is not None
 
 
 def test_event_emission_on_reset(config_widget, event_bus):
@@ -147,7 +147,7 @@ def test_event_emission_on_roi_rule_change(config_widget, event_bus):
 
     # Handler should have been called synchronously
     assert len(events_received) == 1
-    assert events_received[0]["rule"] == "seg_overlap"
+    assert events_received[0].get("rule") == "seg_overlap"
 
 
 def test_invalid_input_handling(config_widget):

@@ -11,7 +11,7 @@ import pytest
 from PIL import Image, ImageTk
 
 from zebtrack.ui.components.analysis_display import AnalysisDisplayWidget
-from zebtrack.ui.event_bus_v2 import Event, EventBusV2, UIEvents
+from zebtrack.ui.event_bus_v2 import EventBusV2, UIEvents
 
 
 @pytest.mark.gui
@@ -284,7 +284,8 @@ class TestAnalysisDisplayWidget:
         widget._on_track_selection_changed()
 
         event_bus.publish.assert_called_once_with(
-            Event(type=UIEvents.ANALYSIS_TRACK_SELECTED, data={"track_id": "2"})
+            UIEvents.ANALYSIS_TRACK_SELECTED,
+            {"track_id": "2"},
         )
 
     def test_cancel_button_emits_event(self, widget, event_bus):
@@ -292,7 +293,8 @@ class TestAnalysisDisplayWidget:
         widget._on_cancel_clicked()
 
         event_bus.publish.assert_called_once_with(
-            Event(type=UIEvents.ANALYSIS_CANCEL_REQUESTED, data={})
+            UIEvents.ANALYSIS_CANCEL_REQUESTED,
+            {},
         )
 
     def test_event_emission_without_bus(self, tkinter_root):
