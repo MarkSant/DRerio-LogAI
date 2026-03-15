@@ -212,6 +212,18 @@ e `main_view_model.py`.
 - `poetry run mypy src/zebtrack/core/di_registrations.py`
 - Verificar que a aplicação inicia: `poetry run zebtrack`
 
+#### Status (2026-03-15): Concluído
+
+- DI container `punq` instalado e registrado em [src/zebtrack/core/di_registrations.py](src/zebtrack/core/di_registrations.py)
+- `__main__.py` reduzido para entrypoint fino com `run_app` e DI via container
+- Post-construction injection removida do fluxo de startup (LazyRef usado no container)
+Verificações:
+
+- `poetry run pytest -q` (2714 passed)
+- `poetry run mypy src/zebtrack/core/di_registrations.py`
+- `poetry run ruff check .`
+- `poetry run zebtrack` (iniciou e logou inicialização)
+
 ---
 
 ## Critérios de Completude por Fase

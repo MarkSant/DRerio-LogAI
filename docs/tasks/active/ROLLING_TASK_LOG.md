@@ -6,13 +6,42 @@ This document tracks all major agent interventions, technical debt resolutions, 
 
 ## Active Tasks
 
+### [2026-03-15] Audit Phase 4.2 remediation (DI container in __main__.py)
+
+__ID:__ TASK-043
+__Agent:__ GitHub Copilot (GPT-5.2-Codex)
+__Status:__ Completed ✅
+__Branch:__ (current)
+__Description:__
+Introduce a DI container to replace manual wiring in __main__.py, move
+registrations to core/di_registrations.py, keep ApplicationBootstrapper as
+initialization coordinator, and remove post-construction injection while
+keeping behavior stable.
+
+### Subtasks (TASK-043)
+
+- [x] Run mandatory impact analysis for __main__.py and DI chain.
+- [x] Add punq dependency and create core/di_registrations.py.
+- [x] Migrate __main__.py to container.resolve(MainViewModel) and shrink file.
+- [x] Remove post-construction injections via LazyRef and constructor wiring.
+- [x] Validate with pytest, mypy, ruff, and app startup.
+- [x] Update AUDIT_REMEDIATION_PLAN.md and task log with results.
+
+__Results:__
+
+- Impact analysis: `python scripts/impact_analyzer.py file src/zebtrack/__main__.py` and `python scripts/impact_analyzer.py di`
+- Tests: `poetry run pytest -q` (2714 passed)
+- Mypy: `poetry run mypy src/zebtrack/core/di_registrations.py`
+- Ruff: `poetry run ruff check .`
+- App start: `poetry run python -m zebtrack`
+
 ### [2026-03-15] Audit Phase 4 remediation (MainViewModel decomposition)
 
-**ID:** TASK-042
-**Agent:** GitHub Copilot (GPT-5.2-Codex)
-**Status:** Completed ✅
-**Branch:** (current)
-**Description:**
+__ID:__ TASK-042
+__Agent:__ GitHub Copilot (GPT-5.2-Codex)
+__Status:__ Completed ✅
+__Branch:__ (current)
+__Description:__
 Decompose MainViewModel by migrating runtime flags into StateManager state,
 eliminating trivial facade methods, and simplifying event dispatch to a
 pattern-matching handler while keeping behavior stable.
@@ -26,7 +55,7 @@ pattern-matching handler while keeping behavior stable.
 - [x] Keep MainViewModel under 400 lines and behavior stable.
 - [x] Validate with pytest, mypy, and ruff; update task log with evidence.
 
-**Results:**
+__Results:__
 
 - Impact analysis run for MainViewModel and StateManager.
 - `poetry run pytest -q` (2714 passed).
@@ -35,11 +64,11 @@ pattern-matching handler while keeping behavior stable.
 
 ### [2026-03-15] Audit Phase 3 remediation (create_project + WidgetFactory)
 
-**ID:** TASK-041
-**Agent:** GitHub Copilot (GPT-5.2-Codex)
-**Status:** Completed ✅
-**Branch:** (current)
-**Description:**
+__ID:__ TASK-041
+__Agent:__ GitHub Copilot (GPT-5.2-Codex)
+__Status:__ Completed ✅
+__Branch:__ (current)
+__Description:__
 Unify `create_project()` ownership under ProjectWorkflowService, make
 ProjectLifecycleCoordinator delegate only, and decompose WidgetFactory into
 domain builders while preserving public APIs.
@@ -58,7 +87,7 @@ domain builders while preserving public APIs.
 - [x] Run `poetry run pytest -q`, `poetry run mypy`, and `poetry run ruff check .`.
 - [x] Update task log with results and evidence.
 
-**Results:**
+__Results:__
 
 - Impact analysis run for: ProjectLifecycleCoordinator, ProjectWorkflowService,
   WidgetFactory, EventBusV2, GUI, EventDispatcher, UICoordinator,
@@ -70,11 +99,11 @@ domain builders while preserving public APIs.
 
 ### [2026-03-12] Audit Phase 2 remediation (typed event payloads)
 
-**ID:** TASK-040
-**Agent:** GitHub Copilot (GPT-5.2-Codex)
-**Status:** Completed ✅
-**Branch:** (current)
-**Description:**
+__ID:__ TASK-040
+__Agent:__ GitHub Copilot (GPT-5.2-Codex)
+__Status:__ Completed ✅
+__Branch:__ (current)
+__Description:__
 Implement Phase 2 of audit remediation: introduce typed event payload dataclasses,
 update EventBusV2 to accept typed payloads with backward compatibility, and
 migrate handlers by domain (Zone → Processing → Project → UI) while keeping tests
@@ -92,7 +121,7 @@ passing.
 - [ ] Validate with pytest, mypy (targeted), and ruff.
 - [ ] Update task log with results and evidence.
 
-**Results:**
+__Results:__
 
 - Added typed payload compatibility updates across EventBusV2 handlers (MainViewModel, CanvasManager,
   VideoProcessingCoordinator, VideoSelectorTreeManager, WidgetFactory) and expanded payloads for
@@ -105,11 +134,11 @@ passing.
 
 ### [2026-03-12] Audit Phase 1 remediation (cleanup + integration coverage)
 
-**ID:** TASK-039
-**Agent:** GitHub Copilot (GPT-5.2-Codex)
-**Status:** Completed ✅
-**Branch:** `audit/phase1-cleanup-20260312`
-**Description:**
+__ID:__ TASK-039
+__Agent:__ GitHub Copilot (GPT-5.2-Codex)
+__Status:__ Completed ✅
+__Branch:__ `audit/phase1-cleanup-20260312`
+__Description:__
 Remove legacy artifacts, delete unused integration example, remove
 `EVENT_NAME_TO_UIEVENT` mapping and migrate usages, then add integration tests
 for critical coordinator flows per the audit remediation plan.
@@ -122,7 +151,7 @@ for critical coordinator flows per the audit remediation plan.
 - [x] Run `poetry run pytest tests/integration/test_coordinator_flows.py -v`.
 - [x] Update task status with results and evidence.
 
-**Results:**
+__Results:__
 
 - Removed legacy artifacts and UI string-to-enum mapping.
 - Added integration coverage for coordinator flows (10 tests).
@@ -132,11 +161,11 @@ for critical coordinator flows per the audit remediation plan.
 
 ### [2026-03-01] Codebase Cleanup & Docs Sync
 
-**ID:** TASK-038
-**Agent:** GitHub Copilot (Claude Opus 4.6)
-**Status:** Completed ✅
-**Branch:** `refactor/codebase-cleanup-20260301`
-**Description:**
+__ID:__ TASK-038
+__Agent:__ GitHub Copilot (Claude Opus 4.6)
+__Status:__ Completed ✅
+__Branch:__ `refactor/codebase-cleanup-20260301`
+__Description:__
 4-phase cleanup: (0) branch creation, (1) sync all agent instruction files and
 meta-configs to current codebase state, (2) remove ~1,177 net lines of dead
 code and decompose LiveCameraService (2,617→5 files) + VideoProcessingService
@@ -159,10 +188,10 @@ code and decompose LiveCameraService (2,617→5 files) + VideoProcessingService
 
 ### [2026-02-23] Mitigate EventBus slow-handler warnings for weight/OpenVINO UI events
 
-**ID:** TASK-037
-**Agent:** GitHub Copilot (GPT-5.3-Codex)
-**Status:** In Progress 🔄
-**Description:**
+__ID:__ TASK-037
+__Agent:__ GitHub Copilot (GPT-5.3-Codex)
+__Status:__ In Progress 🔄
+__Description:__
 Investigate `event_bus.slow_handler` warnings for `UI_SET_ACTIVE_WEIGHT` and
 `UI_UPDATE_OPENVINO_CHECKBOX`, then reduce synchronous handler latency by
 ensuring these UI updates are dispatched safely on Tk main thread.
@@ -177,10 +206,10 @@ ensuring these UI updates are dispatched safely on Tk main thread.
 
 ### [2026-02-23] Fix project-load UI tab regression from runtime errors
 
-**ID:** TASK-036
-**Agent:** GitHub Copilot (GPT-5.3-Codex)
-**Status:** Completed ✅
-**Description:**
+__ID:__ TASK-036
+__Agent:__ GitHub Copilot (GPT-5.3-Codex)
+__Status:__ Completed ✅
+__Description:__
 Investigate and fix two runtime errors seen during local tests that break
 project-view initialization when loading existing projects (only main tab shown),
 then validate with focused UI/event tests.
@@ -193,7 +222,7 @@ then validate with focused UI/event tests.
 - [x] Run focused regression tests for project-load/event UI paths.
 - [x] Mark task as completed with test evidence.
 
-**Results:**
+__Results:__
 
 - Fixed runtime error #1: `'ApplicationGUI' object has no attribute 'event_bus_v2'`
   by restoring backward-compat alias `event_bus_v2` in `ApplicationGUI`.
@@ -208,7 +237,7 @@ then validate with focused UI/event tests.
   - `tests/integration/test_zones_updated_event.py`
   - `poetry run ruff check src/zebtrack/ui/gui.py`
 
-**2026-02-23 Follow-up (debug retest):**
+__2026-02-23 Follow-up (debug retest):__
 
 - Fixed additional runtime regression on project load:
   `'ApplicationGUI' object has no attribute '_event_bus_handlers'`.
@@ -220,7 +249,7 @@ then validate with focused UI/event tests.
   - `tests/ui/components/test_event_dispatcher.py`
   - `tests/ui/test_project_workflow_adapter.py`
 
-**2026-02-23 Follow-up 2 (debug traceback):**
+__2026-02-23 Follow-up 2 (debug traceback):__
 
 - Fixed traceback in delayed snapshot builder callback:
   `UIEvents.VIDEO_HIERARCHY_SNAPSHOT_UPDATED` →
@@ -235,10 +264,10 @@ then validate with focused UI/event tests.
 
 ### [2026-02-23] PR audit remediation bundle (critical + important + low)
 
-**ID:** TASK-035
-**Agent:** GitHub Copilot (GPT-5.3-Codex)
-**Status:** Completed ✅
-**Description:**
+__ID:__ TASK-035
+__Agent:__ GitHub Copilot (GPT-5.3-Codex)
+__Status:__ Completed ✅
+__Description:__
 Create a final branch from the current open branch and implement the review-audit
 remediation package derived from PRs #343-#365: critical, important, and low-priority
 items, with mandatory impact analysis and focused regression validation.
@@ -253,7 +282,7 @@ items, with mandatory impact analysis and focused regression validation.
 - [x] Run focused tests plus fast suite validation.
 - [x] Update task status to completed with results summary.
 
-**Results:**
+__Results:__
 
 - Created branch `final/pr-audit-remediation-20260223` from current branch tip.
 - Ran mandatory impact analysis for `BaseCoordinator`, `VideoProcessingCoordinator`,
@@ -269,10 +298,10 @@ items, with mandatory impact analysis and focused regression validation.
 
 ### [2026-02-23] UI Event Bus wiring fix for BehavioralConfig warnings
 
-**ID:** TASK-034
-**Agent:** GitHub Copilot (GPT-5.3-Codex)
-**Status:** Completed ✅
-**Description:**
+__ID:__ TASK-034
+__Agent:__ GitHub Copilot (GPT-5.3-Codex)
+__Status:__ Completed ✅
+__Description:__
 Resolved warning spam from `BehavioralConfigWidget` by fixing a UI path that opened
 `SingleVideoConfigDialog` without injecting `event_bus`, causing
 `widget.event.no_bus` on behavioral config change events.
@@ -285,12 +314,12 @@ Resolved warning spam from `BehavioralConfigWidget` by fixing a UI path that ope
 
 ### [2026-02-19] Phase 8 — Documentation & Standardization
 
-**ID:** TASK-033
-**Agent:** GitHub Copilot (Claude Opus 4.6)
-**Status:** Completed ✅
-**Branch:** `refactor/phase-8-docs-standardization`
-**Completed:** 2026-02-03
-**Description:**
+__ID:__ TASK-033
+__Agent:__ GitHub Copilot (Claude Opus 4.6)
+__Status:__ Completed ✅
+__Branch:__ `refactor/phase-8-docs-standardization`
+__Completed:__ 2026-02-03
+__Description:__
 Documentation standardization, coverage gate elevation with evidence-based
 thresholds, property-based testing expansion, ADR creation, and system
 integration map update.
@@ -312,12 +341,12 @@ integration map update.
 
 ### [2026-02-19] Phase 7 — Performance Optimizations
 
-**ID:** TASK-032
-**Agent:** GitHub Copilot (Claude Opus 4.6)
-**Status:** Completed ✅
-**Branch:** `refactor/phase-7-performance`
-**Completed:** 2026-02-19
-**Description:**
+__ID:__ TASK-032
+__Agent:__ GitHub Copilot (Claude Opus 4.6)
+__Status:__ Completed ✅
+__Branch:__ `refactor/phase-7-performance`
+__Completed:__ 2026-02-19
+__Description:__
 Seven performance optimizations targeting inference latency, data pipeline
 throughput, vectorized computation, IPC efficiency, and cache cleanup.
 
@@ -333,7 +362,7 @@ throughput, vectorized computation, IPC efficiency, and cache cleanup.
 - [x] Benchmark test suite (pytest-benchmark)
 - [x] CHANGELOG, commit, push, PR
 
-**Results:**
+__Results:__
 
 - 7 sub-tasks implemented across 12 source files
 - 42 new tests (20 cache + 11 shared memory + 11 benchmarks)
@@ -345,19 +374,19 @@ throughput, vectorized computation, IPC efficiency, and cache cleanup.
 
 ### [2026-02-15] Phase 2 — Narrow Generic Exception Catches
 
-**ID:** TASK-031
-**Agent:** GitHub Copilot (Claude Opus 4.6)
-**Status:** Completed ✅
-**Branch:** `refactor/phase-2-narrow-exception-catches`
-**Completed:** 2026-02-15
-**Description:**
+__ID:__ TASK-031
+__Agent:__ GitHub Copilot (Claude Opus 4.6)
+__Status:__ Completed ✅
+__Branch:__ `refactor/phase-2-narrow-exception-catches`
+__Completed:__ 2026-02-15
+__Description:__
 Replaced ~344 `except Exception` catches with specific exception types across
 6 priority UI files and the coordinators/core/I/O layers. Each remaining
 `except Exception` carries a mandatory justification comment
 (`# except Exception justified: <reason>`). Deferred: `analysis/`, `utils/`,
 `plugins/` (~150 instances) — registered in backlog for post-Phase 4 rework.
 
-**Results:**
+__Results:__
 
 - ~130 catches narrowed to specific types (TclError, OSError, ValueError, etc.)
 - ~155 catches justified with mandatory comment
@@ -384,10 +413,10 @@ Replaced ~344 `except Exception` catches with specific exception types across
 
 ### [2026-02-14] CI remaining failures stabilization (PR #343)
 
-**ID:** TASK-030
-**Agent:** GitHub Copilot (GPT-5.3-Codex)
-**Status:** In Progress 🔄
-**Description:**
+__ID:__ TASK-030
+__Agent:__ GitHub Copilot (GPT-5.3-Codex)
+__Status:__ In Progress 🔄
+__Description:__
 Investigate and fix the remaining PR #343 CI failures after initial commitlint-permission
 correction, including commitlint false negatives and Domain Tests instability on headless Linux.
 
@@ -400,40 +429,40 @@ correction, including commitlint false negatives and Domain Tests instability on
 - [x] Resolve headless Tkinter errors in multi-aquarium domain shard.
 - [x] Re-run CI and confirm all required checks pass.
 
-**2026-02-14 Follow-up (chat continuation):** Fixed a residual lint gate failure
+__2026-02-14 Follow-up (chat continuation):__ Fixed a residual lint gate failure
 (`MD040`) by adding an explicit language marker to a fenced block in
 `docs/guides/developer/MCP_CONFIGURATION.md`, and completed first-phase Codecov
 hardening by injecting `secrets.CODECOV_TOKEN` into all Codecov upload steps in
 `ci.yml` (Linux core/gui and Windows core) while keeping `fail_ci_if_error: false`
 to avoid introducing hard failures before upload stability is fully observed.
 
-**2026-02-15 Follow-up (chat continuation):** Stabilized Codecov required patch
+__2026-02-15 Follow-up (chat continuation):__ Stabilized Codecov required patch
 status by replacing fixed patch target (`60%`) with `target: auto` in
 `codecov.yml`, preserving patch checks while avoiding brittle failures on
 low-signal infra/docs-heavy diffs.
 
-**2026-02-15 Follow-up 2 (chat continuation):** Implemented second-phase
+__2026-02-15 Follow-up 2 (chat continuation):__ Implemented second-phase
 Codecov hardening with OS/suite-specific flags to improve diagnostics and reduce
 cross-job coupling: CI uploads now use `core-linux`, `core-windows`, and
 `gui-linux`, and `codecov.yml` project statuses were split accordingly
 (`core_linux` required, `core_windows` informational, `gui_linux`
 informational), with explicit `flags` mapping and carryforward enabled.
 
-**2026-02-15 Follow-up 3 (chat continuation):** Enabled conservative Codecov PR
+__2026-02-15 Follow-up 3 (chat continuation):__ Enabled conservative Codecov PR
 comment reporting in `codecov.yml` using `layout: "diff, flags, files"` and
 `require_changes: true` to surface coverage context with low noise.
 
-**2026-02-15 Follow-up 4 (chat continuation):** Reduced duplicate PR check noise
+__2026-02-15 Follow-up 4 (chat continuation):__ Reduced duplicate PR check noise
 by changing `CI` workflow trigger scope in `.github/workflows/ci.yml` from
 `push` on all branches to `push` on `main` only, keeping full execution on
 `pull_request` to `main`.
 
 ### [2026-02-13] Batch UX, ROI template safeguards, processing-mode label, and unified reports hardening
 
-**ID:** TASK-029
-**Agent:** GitHub Copilot (GPT-5.3-Codex)
-**Status:** In Progress 🔄
-**Description:**
+__ID:__ TASK-029
+__Agent:__ GitHub Copilot (GPT-5.3-Codex)
+__Status:__ In Progress 🔄
+__Description:__
 Implement an integrated fix set for user-reported issues across pre-recorded processing and
 reporting: incorrect multi-individual tracking mode label in single-animal runs, missing
 save/discard/cancel guard when switching videos with pending ROI edits, missing action to clear
@@ -453,28 +482,28 @@ and temporal-gap listing consistency in individual DOC reports.
 - [ ] Align temporal-gap keys/section rendering in individual DOC report appendices.
 - [ ] Add/adjust targeted tests and run focused + fast regression validation.
 
-**2026-02-13 Follow-up (chat continuation):** Added targeted regression coverage for
+__2026-02-13 Follow-up (chat continuation):__ Added targeted regression coverage for
 zone-tab navigation guard, ensuring tab switch is reverted when user cancels
 "Salvar/Descartar/Cancelar" flow with pending zone edits.
 
-**2026-02-13 Follow-up 2 (chat continuation):** Fixed single-animal tracker-mode
+__2026-02-13 Follow-up 2 (chat continuation):__ Fixed single-animal tracker-mode
 consistency by inferring tracker preference from resolved single-animal mode when
 explicit preference is absent, and added regression tests for legacy project
 `animals_per_aquarium` fallback plus temporary-mode tracker inference.
 
-**2026-02-13 Follow-up 3 (chat continuation):** Removed blocking success dialog
+__2026-02-13 Follow-up 3 (chat continuation):__ Removed blocking success dialog
 for multi-video completion in `VideoOrchestrator` to avoid manual OK gates during
 batch workflows, and added explicit user warnings after accepting zone reuse from
 previous video and after template application, with focused regression tests.
 
-**2026-02-13 Follow-up 4 (chat continuation):** Fixed silent unified-report
+__2026-02-13 Follow-up 4 (chat continuation):__ Fixed silent unified-report
 failure path where UI could show success even when no artifact was exported.
 `ProcessingCoordinator._export_unified_reports` now validates exported files,
 raises error when zero files are generated, emits partial-generation warnings,
 and logs export failures with traceback. Added regression test for all-export
 failure to enforce UI error and prevent false success messages.
 
-**2026-02-13 Follow-up 5 (chat continuation):** Implemented unified-report
+__2026-02-13 Follow-up 5 (chat continuation):__ Implemented unified-report
 generation strategy alignment for repeated runs and selected-scope behavior:
 `ProjectViewManager` now resolves overwrite/append/cancel via tri-state dialog
 for existing unified artifacts and routes selected generation through
@@ -484,10 +513,10 @@ for existing unified artifacts and routes selected generation through
 latest-by-extension. Added focused regression tests for manifest-priority open,
 manifest-missing fallback, strategy resolution, and selected unified payload.
 
-**2026-02-13 Follow-up 6 (chat continuation):** Definitively fixed the recurring
+__2026-02-13 Follow-up 6 (chat continuation):__ Definitively fixed the recurring
 tracking-mode label bug ("Multi-indivíduos" shown for single-animal projects).
 
-**2026-02-14 Follow-up 7 (chat continuation):** Executed full CI-equivalent
+__2026-02-14 Follow-up 7 (chat continuation):__ Executed full CI-equivalent
 validation and stabilized gates before PR: ran pytest fast/slow/gui suites,
 Windows-style coverage commands (`not gui` and `gui` with thresholds),
 markdownlint/ruff/format/public API/mypy/bandit/pip-audit, fixed lint and
@@ -495,7 +524,7 @@ typing regressions, upgraded `Pillow` to patched version (`>=12.1.1`) for
 `pip-audit --strict`, and added GUI-marked coverage tests for
 `zebtrack.ui.format_utils` to make GUI coverage threshold pass reliably.
 
-**Root Cause:** Race condition between deferred UI scheduling paths.
+__Root Cause:__ Race condition between deferred UI scheduling paths.
 `_publish_processing_mode()` scheduled the mode update via `UIScheduler.schedule()`
 → `event_bus.publish_callable()` → enqueued on event bus queue (polled every ~50ms).
 Meanwhile `state_manager.update_processing_state(is_processing=True)` triggered
@@ -503,10 +532,10 @@ observers via `ThreadPoolExecutor` → `root.after(0, ...)` (runs on next Tkinte
 iteration ~0ms). So `start_analysis_view_mode()` ran BEFORE the event bus queue
 was polled, reading the stale `MULTI_TRACK` default.
 
-**Fix (3-layer defense):**
+__Fix (3-layer defense):__
 
 1. `processing_coordinator._publish_processing_mode()` now sets
-   `self.view._active_processing_mode = mode` **synchronously** (bypassing the
+   `self.view._active_processing_mode = mode` __synchronously__ (bypassing the
    deferred event-bus queue) before scheduling the full UI update.
 2. `gui.start_analysis_view_mode()` adds a defensive fallback: if its local
    `_active_processing_mode` is still the init default (`MULTI_TRACK`), it reads
@@ -515,21 +544,21 @@ was polled, reading the stale `MULTI_TRACK` default.
    `processing_coordinator._active_processing_mode` (ground-truth) instead of
    `main_view_model._active_processing_mode` (dead field, never updated).
 
-**Files Modified:**
+__Files Modified:__
 
 - `src/zebtrack/coordinators/processing_coordinator.py` (synchronous mode set)
 - `src/zebtrack/ui/gui.py` (defensive mode sync in `start_analysis_view_mode`)
 - `src/zebtrack/orchestrators/ui_state_controller.py` (read from coordinator)
 - `tests/ui/components/test_analysis_display.py` (update test expectations)
 
-**Tests:** 2802 non-GUI + 893 GUI = 3695 passed, 0 failed.
+__Tests:__ 2802 non-GUI + 893 GUI = 3695 passed, 0 failed.
 
 ### [2026-02-12] Fix analysis overlay/mode sync, ROI template UX, top-down geotaxis DOC, and processing reset
 
-**ID:** TASK-028
-**Agent:** GitHub Copilot (GPT-5.3-Codex)
-**Status:** Completed ✅
-**Description:**
+__ID:__ TASK-028
+__Agent:__ GitHub Copilot (GPT-5.3-Codex)
+__Status:__ Completed ✅
+__Description:__
 Implement integrated fixes for five user-reported behaviors: missing bbox/confidence during
 analysis, incorrect multi/social UI text for single-animal projects, ROI template list/import/
 delete and conclude-flow UX inconsistencies, incorrect geotaxis section in DOC reports for
@@ -548,10 +577,10 @@ top-down videos, and stale processing state that blocks restarting analysis afte
 
 ### [2026-02-12] Fix pre-recorded analysis startup warnings + analysis UI progress + DOCX report failure
 
-**ID:** TASK-027
-**Agent:** GitHub Copilot (GPT-5.3-Codex)
-**Status:** In Progress 🔄
-**Description:**
+__ID:__ TASK-027
+__Agent:__ GitHub Copilot (GPT-5.3-Codex)
+__Status:__ In Progress 🔄
+__Description:__
 Investigate and fix the pre-recorded project analysis flow where startup emits incorrect
 "video not found / not in project" warnings, analysis view shows frames/overlays but keeps
 progress/statistics and metadata placeholders (`-`), and report generation fails with
@@ -580,10 +609,10 @@ and classify trajectory gaps as expected (downsampling) vs anomalous.
 
 ### [2026-02-08] Reports Final Polish (Layperson Sections)
 
-**ID:** TASK-026
-**Agent:** GitHub Copilot (GPT-5.2)
-**Status:** Completed ✅
-**Description:**
+__ID:__ TASK-026
+__Agent:__ GitHub Copilot (GPT-5.2)
+__Status:__ Completed ✅
+__Description:__
 Finalize the two generated reports by adding layperson-focused explanations: (1) limitations and
 mitigations in real lab videos, (2) what is recorded for reproducibility/auditability, and (3) a small
 glossary of key AI terms. Re-export updated `.docx` artifacts.
@@ -596,10 +625,10 @@ glossary of key AI terms. Re-export updated `.docx` artifacts.
 
 ### [2026-02-08] README Version History (v1–v3) + Fix Changelog Link
 
-**ID:** TASK-025
-**Agent:** GitHub Copilot (GPT-5.2)
-**Status:** Completed ✅
-**Description:**
+__ID:__ TASK-025
+__Agent:__ GitHub Copilot (GPT-5.2)
+__Status:__ Completed ✅
+__Description:__
 Add a concise but detailed version-history section to `README.md` covering v1–v3 milestones based
 strictly on `CHANGELOG.md`, and fix the README “Changelog” link to point to the correct file.
 
@@ -611,10 +640,10 @@ strictly on `CHANGELOG.md`, and fix the README “Changelog” link to point to 
 
 ### [2026-02-08] Historical Archive Organization + Annex Link Updates
 
-**ID:** TASK-024
-**Agent:** GitHub Copilot (GPT-5.2-Codex)
-**Status:** Completed ✅
-**Description:**
+__ID:__ TASK-024
+__Agent:__ GitHub Copilot (GPT-5.2-Codex)
+__Status:__ Completed ✅
+__Description:__
 Organize historical FAPESP artifacts into a single archive area under
 `docs/archive/legacy/fapesp/` (reports, proposals, manuscripts, finance, notebooks) and update
 the annex pointers in `Relat Parcial 3.md` to reference the new locations. Add an index file
@@ -629,10 +658,10 @@ the annex pointers in `Relat Parcial 3.md` to reference the new locations. Add a
 
 ### [2026-02-08] Report Corrections (Current State: Lateral + Auto-AOI + Tkinter) + Word Export
 
-**ID:** TASK-023
-**Agent:** GitHub Copilot (GPT-5.2-Codex)
-**Status:** Completed ✅
-**Description:**
+__ID:__ TASK-023
+__Agent:__ GitHub Copilot (GPT-5.2-Codex)
+__Status:__ Completed ✅
+__Description:__
 Correct `Relat Parcial 3.md` to reflect the current implementation/training status (perspectiva
 lateral already trained, AOI/ROI auto-detection already implemented, UI already built with
 Tkinter). Rephrase these items as robustness/validation and dataset-variability work (including
@@ -657,10 +686,10 @@ matches the engineering iteration loop.
 
 ### [2026-02-08] README Enrichment (Wizard + Tabs + Weights + det-vs-seg)
 
-**ID:** TASK-022
-**Agent:** GitHub Copilot (GPT-5.2-Codex)
-**Status:** Completed ✅
-**Description:**
+__ID:__ TASK-022
+__Agent:__ GitHub Copilot (GPT-5.2-Codex)
+__Status:__ Completed ✅
+__Description:__
 Update `README.md` to reflect the verified application behavior described in the expanded
 partial report: dynamic wizard flows (live vs pre-recorded), tab-by-tab UI responsibilities,
 weight management (seg vs det defaults) and OpenVINO conversion/caching semantics, and a
@@ -675,10 +704,10 @@ claims (Python version badge and non-existent CLI subcommands).
 
 ### [2026-02-08] Report Enrichment (Wizard + Project Tabs + Weights + det-vs-seg)
 
-**ID:** TASK-021
-**Agent:** GitHub Copilot (GPT-5.2-Codex)
-**Status:** Completed ✅
-**Description:**
+__ID:__ TASK-021
+__Agent:__ GitHub Copilot (GPT-5.2-Codex)
+__Status:__ Completed ✅
+__Description:__
 Expand `Relat Parcial 3.md` to accurately and technically document the engineering density
 that was still underrepresented: (i) the dynamic project-creation Wizard (step-by-step, per
 project type), (ii) pre-recorded vs live project windows with tab-by-tab functional coverage,
@@ -695,10 +724,10 @@ trade-offs for ROI logic, stability, and computational cost.
 
 ### [2026-02-08] Report Enrichment (UI Parameterization + In-App Explanations)
 
-**ID:** TASK-020
-**Agent:** GitHub Copilot (GPT-5.2-Codex)
-**Status:** Completed ✅
-**Description:**
+__ID:__ TASK-020
+__Agent:__ GitHub Copilot (GPT-5.2-Codex)
+__Status:__ Completed ✅
+__Description:__
 Strengthen `Relat Parcial 3.md` by explicitly documenting the app’s differentiator: extensive
 UI-exposed parameters with contextual help (tooltips/help labels), validated saving, and
 persistent overrides via `config.local.yaml` for reproducible experimental control.
@@ -712,10 +741,10 @@ persistent overrides via `config.local.yaml` for reproducible experimental contr
 
 ### [2026-02-06] Proposal Consolidation (Mudança + Prorrogação) + Word Export
 
-**ID:** TASK-019
-**Agent:** GitHub Copilot (GPT-5.2-Codex)
-**Status:** Completed ✅
-**Description:**
+__ID:__ TASK-019
+__Agent:__ GitHub Copilot (GPT-5.2-Codex)
+__Status:__ Completed ✅
+__Description:__
 Explain why two proposal documents existed (mudança/extensão vs prorrogação excepcional) and
 consolidate both into a single improved proposal document. Export the unified Markdown file to
 Word (.docx) using Pandoc.
@@ -728,10 +757,10 @@ Word (.docx) using Pandoc.
 
 ### [2026-02-06] Report Patch (R Methodology Memorial + References)
 
-**ID:** TASK-018
-**Agent:** GitHub Copilot (GPT-5.2-Codex)
-**Status:** Completed ✅
-**Description:**
+__ID:__ TASK-018
+__Agent:__ GitHub Copilot (GPT-5.2-Codex)
+__Status:__ Completed ✅
+__Description:__
 Integrate the “Memorial de Evolução Metodológica em R (ciclo 2025)” into `Relat Parcial 3.md`
 as a dedicated methodological subsection under section 5, renumbering the results subsection
 accordingly. Expand the report and proposal bibliographies with the most relevant sources
@@ -746,10 +775,10 @@ and add core R/GLMM tooling references (diagnostics and marginal means).
 
 ### [2026-02-06] Exceptional Extension Proposal (Accepted) — New Document
 
-**ID:** TASK-017
-**Agent:** GitHub Copilot (GPT-5.2-Codex)
-**Status:** Completed ✅
-**Description:**
+__ID:__ TASK-017
+__Agent:__ GitHub Copilot (GPT-5.2-Codex)
+__Status:__ Completed ✅
+__Description:__
 Create a new exceptional extension (prorrogação excepcional) proposal document, submitted and
 accepted, to be delivered alongside `Relat Parcial 3.md`. The new proposal mirrors the
 structure of the existing extension/mudança document and frames the additional 12-month period
@@ -765,10 +794,10 @@ behavior analysis).
 
 ### [2026-02-06] Report Enrichment (Functions/Innovations + IA Annotation Work)
 
-**ID:** TASK-015
-**Agent:** GitHub Copilot (GPT-5.2-Codex)
-**Status:** Completed ✅
-**Description:**
+__ID:__ TASK-015
+__Agent:__ GitHub Copilot (GPT-5.2-Codex)
+__Status:__ Completed ✅
+__Description:__
 Enrich `Relat Parcial 3.md` with a more detailed description of software functions and
 innovations across the program’s evolution, emphasizing how AI (YOLO) underpins the
 experimental method and documenting the manual workload of dataset annotation/curation.
@@ -781,10 +810,10 @@ experimental method and documenting the manual workload of dataset annotation/cu
 
 ### [2026-02-06] Report Addendum (Chronological Software Evolution Section)
 
-**ID:** TASK-016
-**Agent:** GitHub Copilot (GPT-5.2-Codex)
-**Status:** Completed ✅
-**Description:**
+__ID:__ TASK-016
+__Agent:__ GitHub Copilot (GPT-5.2-Codex)
+__Status:__ Completed ✅
+__Description:__
 Add section “3.4 Evolução do desenvolvimento do programa (funções e inovações)” to
 `Relat Parcial 3.md`, and update the Sumário to include it.
 
@@ -796,10 +825,10 @@ Add section “3.4 Evolução do desenvolvimento do programa (funções e inova�
 
 ### [2026-02-06] Report Rebuild (Mirror Partial 1–2 + Integrate TEPT Draft)
 
-**ID:** TASK-014
-**Agent:** GitHub Copilot (GPT-5.2-Codex)
-**Status:** Completed ✅
-**Description:**
+__ID:__ TASK-014
+__Agent:__ GitHub Copilot (GPT-5.2-Codex)
+__Status:__ Completed ✅
+__Description:__
 Rebuild and substantially expand `Relat Parcial 3.md` to mirror the structure and
 detail level of Partial Reports 1–2, integrating content from the extension/mudança
 document and the TEPT model validation draft, while preserving previously validated
@@ -816,10 +845,10 @@ Roboflow metrics and 2025 spend totals.
 
 ### [2026-02-06] Report Update (Git History + Roboflow + Spend CSV)
 
-**ID:** TASK-013
-**Agent:** GitHub Copilot (GPT-5.2-Codex)
-**Status:** Completed ✅
-**Description:**
+__ID:__ TASK-013
+__Agent:__ GitHub Copilot (GPT-5.2-Codex)
+__Status:__ Completed ✅
+__Description:__
 Update `Relat Parcial 3.md` with verified Roboflow metrics, validated 2025 spend
 totals from the attached CSV, and corrected repository timeline/branch framing
 based on exported git logs.
@@ -833,10 +862,10 @@ based on exported git logs.
 
 ### [2026-02-06] CI Security Fixes (Bandit + Codecov)
 
-**ID:** TASK-012
-**Agent:** GitHub Copilot (GPT-5.2-Codex)
-**Status:** In Progress
-**Description:**
+__ID:__ TASK-012
+__Agent:__ GitHub Copilot (GPT-5.2-Codex)
+__Status:__ In Progress
+__Description:__
 Resolve Bandit security warnings (hashing, pickle usage, shell calls) and
 stabilize Codecov upload in Linux CI.
 
@@ -850,10 +879,10 @@ stabilize Codecov upload in Linux CI.
 
 ### [2026-02-06] Ubuntu GUI CI Fixes (Open Path + Wizard Validation)
 
-**ID:** TASK-011
-**Agent:** GitHub Copilot (GPT-5.2-Codex)
-**Status:** In Progress
-**Description:**
+__ID:__ TASK-011
+__Agent:__ GitHub Copilot (GPT-5.2-Codex)
+__Status:__ In Progress
+__Description:__
 Resolve Ubuntu GUI test failures in open-path utilities, processing report open
 behavior, and wizard project name validation handling.
 
@@ -867,10 +896,10 @@ behavior, and wizard project name validation handling.
 
 ### [2026-02-05] Windows CI Fixes (ROI Template + Analysis Coordinator)
 
-**ID:** TASK-010
-**Agent:** GitHub Copilot (GPT-5.2-Codex)
-**Status:** In Progress
-**Description:**
+__ID:__ TASK-010
+__Agent:__ GitHub Copilot (GPT-5.2-Codex)
+__Status:__ In Progress
+__Description:__
 Fix Windows CI failures for ROI template manager Tk variable initialization and
 AnalysisCoordinator summary video state.
 
@@ -891,10 +920,10 @@ AnalysisCoordinator summary video state.
 
 ### [2026-02-05] CI Fixes (ProcessingWorker + BaseUIComponent)
 
-**ID:** TASK-009
-**Agent:** GitHub Copilot (GPT-5.2-Codex)
-**Status:** Completed ✅
-**Description:**
+__ID:__ TASK-009
+__Agent:__ GitHub Copilot (GPT-5.2-Codex)
+__Status:__ Completed ✅
+__Description:__
 Resolve Linux CI failure in ProcessingWorker cancellation handling and Windows
 CI failures in BaseUIComponent logger initialization.
 
@@ -908,10 +937,10 @@ CI failures in BaseUIComponent logger initialization.
 
 ### [2026-02-03] Phase 7 CI Hygiene (Mypy + Markdownlint + Ruff)
 
-**ID:** TASK-008
-**Agent:** GitHub Copilot (GPT-5.2-Codex)
-**Status:** Completed ✅
-**Description:**
+__ID:__ TASK-008
+__Agent:__ GitHub Copilot (GPT-5.2-Codex)
+__Status:__ Completed ✅
+__Description:__
 Resolve mypy errors in tests, fix markdownlint issues in documentation outside
 archive, and re-run lint/test suites to ensure CI readiness.
 
@@ -923,10 +952,10 @@ archive, and re-run lint/test suites to ensure CI readiness.
 
 ### [2026-02-03] Phase 5 Coverage Expansion (Dialogs + Wizard)
 
-**ID:** TASK-006
-**Agent:** GitHub Copilot (GPT-5.2-Codex)
-**Status:** Completed ✅
-**Description:**
+__ID:__ TASK-006
+__Agent:__ GitHub Copilot (GPT-5.2-Codex)
+__Status:__ Completed ✅
+__Description:__
 Expand coverage for dialog workflows and wizard steps, prioritizing low-coverage paths and
 event-driven behaviors while preserving UI thread-safety and event contracts.
 
@@ -940,10 +969,10 @@ event-driven behaviors while preserving UI thread-safety and event contracts.
 
 ### [2026-02-03] Phase 6 Finalization (Review + Readiness)
 
-**ID:** TASK-007
-**Agent:** GitHub Copilot (GPT-5.2-Codex)
-**Status:** In Progress
-**Description:**
+__ID:__ TASK-007
+__Agent:__ GitHub Copilot (GPT-5.2-Codex)
+__Status:__ In Progress
+__Description:__
 Finalize coverage expansion by reviewing changes, validating readiness, and
 preparing the final summary for handoff.
 
@@ -955,10 +984,10 @@ preparing the final summary for handoff.
 
 ### [2026-02-03] Phase 3 Coverage Expansion (UI Canvas + Event Handling)
 
-**ID:** TASK-005
-**Agent:** GitHub Copilot (GPT-5.2-Codex)
-**Status:** Completed ✅
-**Description:**
+__ID:__ TASK-005
+__Agent:__ GitHub Copilot (GPT-5.2-Codex)
+__Status:__ Completed ✅
+__Description:__
 Increase UI coverage for canvas interaction logic, focusing on event handling and selection flows
 while preserving thread-safety and existing event contracts.
 
@@ -973,17 +1002,17 @@ while preserving thread-safety and existing event contracts.
 
 ### [2026-02-03] Phase 2 Coverage Expansion (Core + Utilities)
 
-**ID:** TASK-004
-**Agent:** GitHub Copilot (GPT-5.2-Codex)
-**Status:** In Progress
-**Description:**
+__ID:__ TASK-004
+__Agent:__ GitHub Copilot (GPT-5.2-Codex)
+__Status:__ In Progress
+__Description:__
 Expand coverage for core utilities and composition root; stabilize property-based tests; add public
 exception tests; target low-coverage modules to raise overall baseline.
 
 ### Subtasks (TASK-004)
 
 - [x] Stabilize Hypothesis centroid property test (disable database, relax numeric checks).
-- [x] Expand **main** composition tests (logging and benchmark paths).
+- [x] Expand __main__ composition tests (logging and benchmark paths).
 - [x] Add public exception hierarchy tests for zebtrack.exceptions.
 - [x] Add direct-load tests for src/zebtrack/utils.py to ensure coverage.
 - [x] Add cache/recommendation tests for utils/hardware_benchmark.py.
@@ -1054,10 +1083,10 @@ exception tests; target low-coverage modules to raise overall baseline.
 
 ### [2026-02-03] CI Reliability, Coverage Split, Headless Tests, Markdownlint
 
-**ID:** TASK-003
-**Agent:** GitHub Copilot (GPT-5.2-Codex)
-**Status:** Completed ✅
-**Description:**
+__ID:__ TASK-003
+__Agent:__ GitHub Copilot (GPT-5.2-Codex)
+__Status:__ Completed ✅
+__Description:__
 Implement security scanning, Codecov split coverage (core/gui), headless test mode for Windows (25% gate), markdownlint enforcement, commitlint on PR merge, and mutation testing (nightly core-only). Update agent documentation for markdownlint practices.
 
 ### Subtasks (TASK-003)
@@ -1067,16 +1096,16 @@ Implement security scanning, Codecov split coverage (core/gui), headless test mo
 - [x] Implement headless test mode in conftest and Windows CI gate at 25%.
 - [x] Add markdownlint to pre-commit and CI; remove md exclusions.
 - [x] Update AGENTS.md and mirror to agent instruction files.
-- [x] Add composition root tests for **main**.py.
+- [x] Add composition root tests for __main__.py.
 - [x] Add mutation testing (core/) to nightly workflow.
 - [x] Add commitlint action enforcing conventional commits on PR merge.
 
 ### [2026-02-02] Docs Audit, Linting, and Test Validation
 
-**ID:** TASK-002
-**Agent:** GitHub Copilot (GPT-5.2-Codex)
-**Status:** Completed ✅
-**Description:**
+__ID:__ TASK-002
+__Agent:__ GitHub Copilot (GPT-5.2-Codex)
+__Status:__ Completed ✅
+__Description:__
 Audit docs outside docs/archive for accuracy and references, verify agent guidance, fix markdown lint issues, and run full pytest, ruff, and mypy checks.
 
 ### Subtasks (TASK-002)
@@ -1089,12 +1118,12 @@ Audit docs outside docs/archive for accuracy and references, verify agent guidan
 
 ### [2026-02-02] Documentation & Tooling Consolidation (Diátaxis Alignment) - Summary
 
-**ID:** TASK-001
-**Agent:** GitHub Copilot (Gemini 1.5 Flash)
-**Status:** Completed ✅
-**Description:**
+__ID:__ TASK-001
+__Agent:__ GitHub Copilot (Gemini 1.5 Flash)
+__Status:__ Completed ✅
+__Description:__
 Full repository audit and restructuring to align with Diátaxis standards, reconcile tool configurations, and enforce technical documentation standards (English).
-**Status:** Completed ✅
+__Status:__ Completed ✅
 
 ### Subtasks (TASK-001)
 
@@ -1111,7 +1140,7 @@ Full repository audit and restructuring to align with Diátaxis standards, recon
 - [x] Finalize agent instruction sync across `AGENTS.md` and `.github/copilot-instructions.md`.
 - [x] Recursive audit and archival of fragmented docs (migration, testing, reference, guides).
 
-**Details:**
+__Details:__
 
 - Unified `ARCHITECTURE.md` and `ARCHITECTURE_V4.md` into `docs/explanation/architecture.md`.
 - Consolidated all events into `docs/reference/events.md`.
@@ -1126,6 +1155,6 @@ Full repository audit and restructuring to align with Diátaxis standards, recon
 
 ### [2026-02-02] Documentation & Tooling Consolidation (Diátaxis Alignment)
 
-**Agent:** GitHub Copilot (Gemini 1.5 Flash)
-**Description:** Full repository audit and restructuring to align with Diátaxis standards and enforce technical documentation standards.
-**Outcome:** Repository now follows a strict English technical policy, has centralized event and architecture references, and includes mandatory task logging for agents.
+__Agent:__ GitHub Copilot (Gemini 1.5 Flash)
+__Description:__ Full repository audit and restructuring to align with Diátaxis standards and enforce technical documentation standards.
+__Outcome:__ Repository now follows a strict English technical policy, has centralized event and architecture references, and includes mandatory task logging for agents.

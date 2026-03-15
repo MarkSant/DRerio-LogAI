@@ -39,6 +39,7 @@ tomli = "^2.0.1"
 # See: https://setuptools.pypa.io/en/latest/pkg_resources.html
 setuptools = "<81"
 plotly = "^5.18.0"
+punq = "^0.7.0"
 
 [tool.poetry.scripts]
 zebtrack = "zebtrack.__main__:main"
