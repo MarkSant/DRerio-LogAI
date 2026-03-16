@@ -28,11 +28,15 @@ format. Ensure checks pass.
 __Results:__
 
 - Impact analysis run for updated files and task log entry.
+- Added Tk availability auto-detect to skip GUI tests when Tcl/Tk is missing.
 - Validation:
   - `poetry run pytest tests/coordinators/test_video_processing_migrated.py`
   - `poetry run pytest tests/integration/test_coordinator_flows.py`
   - `poetry run pytest tests/core/test_project_workflow_service.py`
   - `poetry run pytest tests/test_interval_frames_config.py`
+  - `poetry run pytest tests/integration/test_error_scenarios.py`
+  - `poetry run pytest tests/ui/wizard/test_wizard_confirmation.py`
+  - `poetry run pytest tests/ui/test_zone_controls_multi_aquarium.py`
 
 ### [2026-03-15] Audit excellence follow-up (payload strictness + verification)
 
