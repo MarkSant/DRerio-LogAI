@@ -5,7 +5,7 @@ and UI-side dispatching (routing UI updates to widgets).
 """
 
 from collections.abc import Callable
-from dataclasses import asdict, is_dataclass
+from dataclasses import fields, is_dataclass
 from typing import TYPE_CHECKING, Any, cast
 
 import structlog
@@ -25,7 +25,7 @@ def _payload_to_dict(payload: payloads.EventPayload | dict[str, Any]) -> dict[st
     if isinstance(payload, dict):
         return payload
     if is_dataclass(payload) and not isinstance(payload, type):
-        return asdict(payload)
+        return {field.name: getattr(payload, field.name) for field in fields(payload)}
     return {}
 
 
@@ -627,11 +627,7 @@ class EventDispatcher:
 
         Opens the assignment dialog and publishes completion event if confirmed.
         """
-        print("[DIAGNOSTIC] _on_show_aquarium_assignment_dialog called")
-        print(f"[DIAGNOSTIC] data={data}")
-
         if not self.gui:
-            print("[DIAGNOSTIC] returning early - no gui")
             return
 
         payload = _payload_to_dict(data)
@@ -639,21 +635,17 @@ class EventDispatcher:
         gui = self._require_gui()
 
         video_path = payload.get("video_path")
-        print(f"[DIAGNOSTIC] video_path={video_path}")
 
         self.log.info(
             "aquarium_assignment_dialog.showing",
             video_path=video_path,
             available_groups=payload.get("available_groups", []),
         )
-
-        print("[DIAGNOSTIC] calling dialog_manager.show_aquarium_assignment_dialog")
         configs, apply_to_all = gui.dialog_manager.show_aquarium_assignment_dialog(
             available_groups=payload.get("available_groups", []),
             video_path=video_path,
             multi_aquarium_config=payload.get("multi_aquarium_config"),
         )
-        print(f"[DIAGNOSTIC] dialog returned configs={configs}, apply_to_all={apply_to_all}")
 
         self.log.info(
             "aquarium_assignment_dialog.result",

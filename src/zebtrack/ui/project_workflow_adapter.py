@@ -155,7 +155,6 @@ class ProjectWorkflowAdapter:
 
         # Orchestrate project creation via service
         result = self.project_workflow_service.create_project(
-            setup_detector_callback=setup_detector_callback,
             active_weight_setter=set_active_weight_callback,
             use_openvino_setter=set_openvino_usage_callback,
             **kwargs,

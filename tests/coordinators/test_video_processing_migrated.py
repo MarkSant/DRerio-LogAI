@@ -12,6 +12,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from zebtrack.coordinators.video_processing_coordinator import VideoProcessingCoordinator
+from zebtrack.ui import payloads as payloads
 from zebtrack.ui.event_bus_v2 import Event as BusEvent
 from zebtrack.ui.event_bus_v2 import UIEvents
 
@@ -20,11 +21,18 @@ class DummyEventBus:
     """Lightweight event bus that records published events."""
 
     def __init__(self):
-        self.events: list[tuple[UIEvents, dict]] = []
+        self.events: list[tuple[UIEvents, payloads.EventPayload | dict[str, object]]] = []
         self.handlers: dict[UIEvents, list] = {}
 
-    def publish(self, event: BusEvent):
-        self.events.append((event.type, event.data))
+    def publish(
+        self,
+        event_type: UIEvents | BusEvent,
+        payload: payloads.EventPayload | dict[str, object] | None = None,
+    ) -> None:
+        if isinstance(event_type, BusEvent):
+            self.events.append((event_type.type, event_type.data))
+            return
+        self.events.append((event_type, payload or {}))
 
     def subscribe(self, event_type: UIEvents, handler):
         self.handlers.setdefault(event_type, []).append(handler)

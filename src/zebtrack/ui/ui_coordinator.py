@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import tkinter as tk
 from collections.abc import Callable
-from dataclasses import asdict, is_dataclass
+from dataclasses import fields, is_dataclass
 from typing import TYPE_CHECKING, Any
 
 import structlog
@@ -40,7 +40,7 @@ def _payload_to_dict(payload: payloads.EventPayload | dict[str, Any]) -> dict[st
     if isinstance(payload, dict):
         return payload
     if is_dataclass(payload) and not isinstance(payload, type):
-        return asdict(payload)
+        return {field.name: getattr(payload, field.name) for field in fields(payload)}
     return {}
 
 

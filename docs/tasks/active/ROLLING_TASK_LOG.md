@@ -6,6 +6,34 @@ This document tracks all major agent interventions, technical debt resolutions, 
 
 ## Active Tasks
 
+### [2026-03-15] PR 373 fixes (mypy + reviewer feedback + checks)
+
+__ID:__ TASK-045
+__Agent:__ GitHub Copilot (GPT-5.2-Codex)
+__Status:__ In Progress 🔄
+__Branch:__ (current)
+__Description:__
+Resolve PR #373 CI failures (mypy, Domain Tests), apply reviewer feedback
+(payload conversions, diagnostic prints), and update PR title to conventional
+format. Ensure checks pass.
+
+### Subtasks (TASK-045)
+
+- [x] Run mandatory impact analysis for affected files and events.
+- [x] Fix reviewer comments (shallow payload conversion, remove prints).
+- [x] Fix mypy errors in coordinator integration tests.
+- [x] Evaluate pytest coverage threshold and adjust if needed.
+- [ ] Update PR title to conventional format and recheck CI.
+
+__Results:__
+
+- Impact analysis run for updated files and task log entry.
+- Validation:
+  - `poetry run pytest tests/coordinators/test_video_processing_migrated.py`
+  - `poetry run pytest tests/integration/test_coordinator_flows.py`
+  - `poetry run pytest tests/core/test_project_workflow_service.py`
+  - `poetry run pytest tests/test_interval_frames_config.py`
+
 ### [2026-03-15] Audit excellence follow-up (payload strictness + verification)
 
 __ID:__ TASK-044

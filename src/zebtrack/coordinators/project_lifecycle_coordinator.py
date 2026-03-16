@@ -292,7 +292,6 @@ class ProjectLifecycleCoordinator(BaseCoordinator):
         )
 
         result = self.project_workflow_service.create_project(
-            setup_detector_callback=setup_detector,
             active_weight_setter=set_active_weight,
             use_openvino_setter=set_openvino_usage,
             **wizard_data,

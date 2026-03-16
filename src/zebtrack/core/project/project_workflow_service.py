@@ -355,7 +355,6 @@ class ProjectWorkflowService:
 
     def create_project(
         self,
-        setup_detector_callback: Callable[..., Any],
         active_weight_setter: Callable[..., Any] | None = None,
         use_openvino_setter: Callable[..., Any] | None = None,
         **kwargs: Any,

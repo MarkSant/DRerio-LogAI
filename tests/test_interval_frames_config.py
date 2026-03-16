@@ -148,14 +148,11 @@ def test_controller_workflow_roundtrip_persists_intervals(
     video_entries = ProjectManager.scan_input_paths([str(video_path)])
     assert video_entries
 
-    # Mock detector setup
-    mock_setup_detector = MagicMock(return_value=True)
     mock_weight_setter = MagicMock()
     mock_openvino_setter = MagicMock()
 
     # Create project via service
     result = service.create_project(
-        setup_detector_callback=mock_setup_detector,
         active_weight_setter=mock_weight_setter,
         use_openvino_setter=mock_openvino_setter,
         project_path=str(project_dir),

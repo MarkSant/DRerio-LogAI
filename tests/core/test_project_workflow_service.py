@@ -279,10 +279,7 @@ class TestProjectWorkflowServiceProjectCreation(unittest.TestCase):
         # Mock get_all_weight_names to return a list
         self.mock_model_service.get_all_weight_names.return_value = ["default_weight.pt"]
 
-        mock_setup_detector = Mock(return_value=True)
-
         result = self.service.create_project(
-            setup_detector_callback=mock_setup_detector,
             project_path="/path/to/project",
             project_type="live",
             animals_per_aquarium=1,
@@ -297,7 +294,6 @@ class TestProjectWorkflowServiceProjectCreation(unittest.TestCase):
     def test_create_project_validation_failure(self):
         """Test project creation fails validation."""
         result = self.service.create_project(
-            setup_detector_callback=Mock(),
             animal_method="det",  # Explicitly pass animal_method
             animals_per_aquarium=5,  # Invalid for det mode
         )
@@ -316,7 +312,6 @@ class TestProjectWorkflowServiceProjectCreation(unittest.TestCase):
         )
 
         result = self.service.create_project(
-            setup_detector_callback=Mock(),
             project_path="/path/to/project",
             animals_per_aquarium=1,
         )
@@ -339,7 +334,6 @@ class TestProjectWorkflowServiceProjectCreation(unittest.TestCase):
 
         # Pass wizard data as kwargs (simulating direct wizard output)
         result = self.service.create_project(
-            setup_detector_callback=Mock(),
             project_path="/path/to/project",
             animals_per_aquarium=2,
             import_config=[{"video": "/path/to/video.mp4", "import_arena": True}],
@@ -693,7 +687,6 @@ class TestProjectWorkflowServiceZoneImportFailures(unittest.TestCase):
         self.mock_project_manager.import_parquets_from_wizard.return_value = False
 
         result = self.service.create_project(
-            setup_detector_callback=Mock(),
             project_path="/path/to/project",
             animals_per_aquarium=1,
             import_config=import_config,
@@ -726,7 +719,6 @@ class TestProjectWorkflowServiceZoneImportFailures(unittest.TestCase):
         # Should propagate exception
         with self.assertRaises(ValueError):
             self.service.create_project(
-                setup_detector_callback=Mock(),
                 project_path="/path/to/project",
                 animals_per_aquarium=1,
                 import_config=import_config,
@@ -753,7 +745,6 @@ class TestProjectWorkflowServiceZoneImportFailures(unittest.TestCase):
         self.mock_project_manager.import_parquets_from_wizard.return_value = False
 
         result = self.service.create_project(
-            setup_detector_callback=Mock(),
             project_path="/path/to/project",
             animals_per_aquarium=1,
             import_config=import_config,

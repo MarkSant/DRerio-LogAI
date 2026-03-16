@@ -23,6 +23,7 @@ from zebtrack.core.exceptions import ProjectInvalidError
 from zebtrack.core.project.project_manager import ProjectManager
 from zebtrack.core.project.project_workflow_service import ProjectWorkflowService
 from zebtrack.core.state_manager import StateManager
+from zebtrack.ui import payloads as payloads
 from zebtrack.ui.event_bus_v2 import EventBusV2, UIEvents
 from zebtrack.ui.project_workflow_adapter import ProjectWorkflowAdapter
 from zebtrack.ui.wizard.enums import ProjectType
@@ -87,7 +88,7 @@ def test_project_lifecycle_create_project_happy_path(tmp_path, test_settings) ->
         detector_service=detector_service,
     )
 
-    events: list[dict] = []
+    events: list[payloads.EventPayload | dict[str, object]] = []
     event_bus.subscribe(UIEvents.UI_NAVIGATE_TO_PROJECT_VIEW, lambda data: events.append(data))
 
     project_path = tmp_path / "proj"
@@ -145,7 +146,7 @@ def test_project_lifecycle_create_project_validation_error(tmp_path, test_settin
         detector_service=detector_service,
     )
 
-    errors: list[dict] = []
+    errors: list[payloads.EventPayload | dict[str, object]] = []
     event_bus.subscribe(UIEvents.SHOW_ERROR, lambda data: errors.append(data))
 
     result = coordinator.create_project(
@@ -258,7 +259,7 @@ def test_video_processing_process_pending_videos_validation_error(test_settings)
     project_manager.project_path = None
     project_manager.get_all_videos.return_value = []
 
-    warnings: list[dict] = []
+    warnings: list[payloads.EventPayload | dict[str, object]] = []
     event_bus.subscribe(UIEvents.UI_SHOW_WARNING, lambda data: warnings.append(data))
 
     coordinator = VideoProcessingCoordinator(
@@ -397,8 +398,8 @@ def test_live_camera_session_start_stop_happy_path(test_settings):
         event_bus=event_bus,
     )
 
-    started: list[dict] = []
-    stopped: list[dict] = []
+    started: list[payloads.EventPayload | dict[str, object]] = []
+    stopped: list[payloads.EventPayload | dict[str, object]] = []
     event_bus.subscribe(UIEvents.LIVE_SESSION_STARTED, lambda data: started.append(data))
     event_bus.subscribe(UIEvents.LIVE_SESSION_STOPPED, lambda data: stopped.append(data))
 
