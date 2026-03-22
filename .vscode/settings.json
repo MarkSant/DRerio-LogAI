@@ -49,6 +49,13 @@
         "./src"
     ],
     "python.defaultInterpreterPath": "C:\\Users\\santa\\OneDrive\\UNESP\\Pesquisa Canabidiol\\Codigos_Programas\\ZebTrack-AI\\.venv\\Scripts\\python.exe",
+    "python.terminal.activateEnvironment": true,
+    "python.terminal.activateEnvInCurrentTerminal": true,
+    "terminal.integrated.defaultProfile.windows": "PowerShell",
+    "terminal.integrated.enablePersistentSessions": false,
+    "terminal.integrated.environmentChangesRelaunch": false,
+    "gitlens.gitkraken.cli.integration.enabled": false,
+    "gitlens.gitkraken.cli.insiders.enabled": false,
     // Testing configuration (v2.1: pytest hang fixes applied)
     // Total: 2568 tests (1586 fast, 949 GUI, 35 slow)
     // Note: pytest-timeout plugin configured (300s per test)
@@ -231,5 +238,11 @@
         "yolo",
         "zebrafish",
         "zebtrack"
-    ]
+    ],
+    "powershell.startAutomatically": false,
+    "powershell.integratedConsole.startInBackground": true,
+    "powershell.integratedConsole.showOnStartup": false,
+    "python-envs.defaultEnvManager": "ms-python.python:system"
 }
+
+
