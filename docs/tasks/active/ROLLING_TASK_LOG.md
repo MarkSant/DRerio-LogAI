@@ -6,6 +6,35 @@ This document tracks all major agent interventions, technical debt resolutions, 
 
 ## Active Tasks
 
+### [2026-03-24] Restore missing path consistency pre-commit hook script
+
+**ID:** TASK-040
+**Agent:** GitHub Copilot (GPT-5.3-Codex)
+**Status:** Completed ✅
+**Branch:** `main`
+**Description:**
+Investigate missing `scripts/check_path_consistency.py` referenced by pre-commit,
+recover its historical behavior from Git history, and restore the script so local
+hooks no longer fail with file-not-found.
+
+### Subtasks (TASK-040)
+
+- [x] Locate hook reference and confirm missing script condition.
+- [x] Recover original script from repository history.
+- [x] Restore `scripts/check_path_consistency.py` with validated behavior.
+- [x] Validate hook execution flow and document evidence.
+
+**Results:**
+
+- Confirmed `.pre-commit-config.yaml` had active hook `check-path-consistency`
+  referencing `scripts/check_path_consistency.py`.
+- Verified script lifecycle in Git history:
+  - Added in commit `5cd9c01a264d5b6ec256889dcf2306f2e3ac58dc`
+  - Removed in commit `d6dd08bd89fa3a9bcbaf02f6bd0f3388ffe0cbd3`
+- Restored `scripts/check_path_consistency.py` with behavior aligned to historical
+  AST-based validation of path-like parameters requiring `Path`-compatible annotations.
+- Validation passed: `poetry run pre-commit run check-path-consistency --all-files`.
+
 ### [2026-03-23] GitHub/GitLens integration stabilization in VS Code
 
 **ID:** TASK-039
