@@ -28,6 +28,7 @@ To provide an automated, high-precision tracking and analysis tool for Danio rer
 >
 > - **Poetry**: `poetry install`, `poetry run ...` (including `pytest`, `ruff`, `mypy`, `zebtrack`, `pre-commit`).
 > - **Mypy**: Any `mypy` call, with or without `poetry run` prefix.
+> - **Code Quality**: `ruff`, `pytest`, `pre-commit` (direct or via Poetry).
 > - **PowerShell**: `powershell -Command "..."` or simple script executions.
 > - **Impact Analysis**: `python scripts/impact_analyzer.py ...`.
 
@@ -161,8 +162,9 @@ Use these conventions to get consistent diagnostics and avoid tool conflicts.
 
 - **GitLens (GitKraken)**: Primary Git tool — inline blame, file history, comparison. Replaces Git History.
 - **GitHub Copilot / Copilot Chat**: Follow repository instructions; keep changes incremental and impact-analyzed.
-- **GitHub Pull Requests**: Use for reviewing PRs; avoid direct edits on default branch.
-- **GitHub Actions**: Use for workflow review only; validate any workflow edits with repo standards.
+- **GitHub Pull Requests**: Use for PR metadata/review workflows; avoid direct edits on default branch.
+- **GitHub Actions**: Use for workflow review only; validate edits against coverage gates in `.github/workflows/ci.yml` and existing Poetry + pre-commit patterns.
+- **Authority Matrix**: Use GitLens as source of truth for local commit graph/history; use GitHub Pull Requests extension as source of truth for PR linkage/base metadata.
 
 ### Code Quality & Diagnostics
 
@@ -189,6 +191,7 @@ Use these conventions to get consistent diagnostics and avoid tool conflicts.
 ### How to use/configure in VS Code
 
 - **Interpreter**: Use “Python: Select Interpreter” and choose the Poetry venv; keep terminals aligned.
+- **Terminal**: Set `terminal.integrated.defaultProfile.windows` to `PowerShell` for command parity with repo scripts.
 - **Pylance**: Prefer `python.analysis.typeCheckingMode=basic`; use `strict` only for targeted files.
 - **Mypy**: Keep config in `mypy.ini`/pyproject and point with `mypy.configFile` if needed. Prefer `mypy.runUsingActiveInterpreter=true`. Use "Mypy: Restart Daemon and Recheck Workspace" when stale.
 - **Ruff**: Set `editor.defaultFormatter=charliermarsh.ruff`, `editor.formatOnSave=true`, and `editor.codeActionsOnSave` with `source.fixAll.ruff` and `source.organizeImports.ruff`.
@@ -196,6 +199,7 @@ Use these conventions to get consistent diagnostics and avoid tool conflicts.
 - **Error Lens**: Configured via workspace settings; shows errors/warnings inline; CSpell excluded.
 - **TODO Tree**: Scans workspace for tags; check sidebar panel for tag overview.
 - **Jupyter**: Kernel auto-selects Poetry venv; use for data exploration notebooks.
+- **MCP (Optional)**: If `.mcp.json` is absent or MCP servers are unavailable, continue with local tools and GitHub extensions without blocking tasks.
 
 ---
 

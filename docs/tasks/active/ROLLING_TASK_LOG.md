@@ -6,6 +6,36 @@ This document tracks all major agent interventions, technical debt resolutions, 
 
 ## Active Tasks
 
+### [2026-03-23] GitHub/GitLens integration stabilization in VS Code
+
+**ID:** TASK-039
+**Agent:** GitHub Copilot (GPT-5.3-Codex)
+**Status:** Completed ✅
+**Branch:** `main`
+**Description:**
+Investigate and remediate VS Code Git integration inconsistencies affecting
+commit/branch graph rendering and cross-extension behavior (GitLens, GitHub PR,
+GitHub Actions, MCP). Apply environment-level and repository-local fixes,
+standardize workspace guidance, and validate with a reproducible checklist.
+
+### Subtasks (TASK-039)
+
+- [x] Run mandatory impact analysis before edits.
+- [x] Perform root-cause investigation across workspace/global VS Code config.
+- [x] Clean local Git metadata conflicts impacting graph/merge-base resolution.
+- [x] Remove/disable conflicting extensions and align with project recommendations.
+- [x] Update workspace/instruction docs for stable fallback behavior (MCP/PR/GitLens).
+- [x] Validate end-to-end graph/branch/PR consistency and record evidence.
+
+**Results:**
+
+- Normalized duplicate local metadata in `.git/config` and pruned stale remote refs with `git fetch --prune`.
+- Removed conflicting global VS Code extensions (`ms-python.vscode-python-envs`, `ms-python.mypy-type-checker`, `yzhang.markdown-all-in-one`, `mechatroner.rainbow-csv`).
+- Updated workspace settings for stable behavior (`chat.agent.maxRequests=250`, PowerShell default terminal, portable interpreter path).
+- Updated extension policy baseline in `.vscode/extensions.json` (added GitHub PR/Actions recommendations and blocked known conflicts).
+- Synced instruction files (`AGENTS.md`, `CLAUDE.md`, `.github/copilot-instructions.md`) for command auto-approval parity, authority matrix, and MCP optional fallback guidance.
+- Validation passed: `tests/test_smoke.py` (16 passed), git metadata checks clean, and target Git/GitHub extensions present.
+
 ### [2026-03-01] Codebase Cleanup & Docs Sync
 
 **ID:** TASK-038

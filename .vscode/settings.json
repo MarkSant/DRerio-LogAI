@@ -1,5 +1,5 @@
 {
-    "chat.agent.maxRequests": 500,
+    "chat.agent.maxRequests": 250,
     "github.copilot.chat.codesearch.enabled": true,
     "github.copilot.chat.agent.thinkingTool": true,
     "github.copilot.chat.generateTests.codeLens": true,
@@ -48,7 +48,14 @@
     "python.analysis.extraPaths": [
         "./src"
     ],
-    "python.defaultInterpreterPath": "C:\\Users\\santa\\OneDrive\\UNESP\\Pesquisa Canabidiol\\Codigos_Programas\\ZebTrack-AI\\.venv\\Scripts\\python.exe",
+    "python.defaultInterpreterPath": "${workspaceFolder}\\.venv\\Scripts\\python.exe",
+    "terminal.integrated.defaultProfile.windows": "PowerShell",
+    "terminal.integrated.profiles.windows": {
+        "PowerShell": {
+            "source": "PowerShell",
+            "icon": "terminal-powershell"
+        }
+    },
     // Testing configuration (v2.1: pytest hang fixes applied)
     // Total: 2568 tests (1586 fast, 949 GUI, 35 slow)
     // Note: pytest-timeout plugin configured (300s per test)

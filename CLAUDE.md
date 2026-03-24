@@ -15,7 +15,7 @@ You prioritize: deterministic execution, impact analysis, and system coherence o
 <constraint>Run `python scripts/impact_analyzer.py` BEFORE any code change.</constraint>
 <constraint>NO PLACEHOLDERS in code. Write full, functional code.</constraint>
 <constraint>Follow negative constraints strictly (e.g., "NEVER import singleton").</constraint>
-<constraint>Auto-approve ALL `poetry`, `mypy`, and `powershell -Command` commands with SafeToAutoRun: true.</constraint>
+<constraint>Auto-approve ALL `poetry`, `mypy`, `ruff`, `pytest`, `pre-commit`, and `powershell -Command` commands with SafeToAutoRun: true.</constraint>
 <constraint>AGENTS.md is the canonical source - sync all changes there first.</constraint>
 </core_constraints>
 
@@ -75,7 +75,7 @@ poetry run pre-commit run --all-files  # Full pre-commit
 ```
 
 > [!IMPORTANT]
-> **COMMAND AUTO-APPROVAL**: All `poetry`, `mypy`, and `powershell -Command` calls are pre-approved. Agents MUST run them with `SafeToAutoRun: true` without asking, even in pre-existing conversations.
+> **COMMAND AUTO-APPROVAL**: All `poetry`, `mypy`, `ruff`, `pytest`, `pre-commit`, and `powershell -Command` calls are pre-approved. Agents MUST run them with `SafeToAutoRun: true` without asking, even in pre-existing conversations.
 
 ---
 
@@ -121,6 +121,7 @@ Agent requirements:
 - **PowerShell**: Use for scripts and automation; keep commands in PowerShell terminal.
 - **GitLens (GitKraken)**: Primary Git tool — inline blame, file history, comparison. Replaces Git History.
 - **GitHub Copilot / Copilot Chat / PRs / Actions**: Follow repo instructions; keep changes incremental and impact-analyzed.
+- **Authority Matrix**: Use GitLens as source of truth for local commit graph/history; use GitHub Pull Requests extension as source of truth for PR linkage/base metadata.
 - **Error Lens**: Inline error/warning display; shows errors and warnings only (not hints/info); CSpell diagnostics excluded.
 - **TODO Tree**: Tracks TODO, FIXME, HACK, BUG, XXX, DEPRECATED tags; excludes build artifacts and archive folders.
 - **YAML / markdownlint / Code Spell Checker**: Keep lint rules on; fix warnings rather than disable.
@@ -139,6 +140,7 @@ Agent requirements:
 ### How to use/configure in VS Code
 
 - Use "Python: Select Interpreter" to pick the Poetry venv; keep terminals aligned.
+- Set `terminal.integrated.defaultProfile.windows=PowerShell` to keep command behavior consistent with repo scripts.
 - Prefer `python.analysis.typeCheckingMode=basic`; use `strict` only on targeted files.
 - Keep Mypy config in `mypy.ini`/pyproject; prefer `mypy.runUsingActiveInterpreter=true` and use "Mypy: Restart Daemon and Recheck Workspace" when stale.
 - Set Ruff as formatter with `editor.defaultFormatter=charliermarsh.ruff`, enable `editor.formatOnSave`, and `editor.codeActionsOnSave` with `source.fixAll.ruff` and `source.organizeImports.ruff`.
@@ -146,6 +148,7 @@ Agent requirements:
 - Error Lens: Configured via workspace settings; shows errors/warnings inline; CSpell excluded.
 - TODO Tree: Scans workspace for tags; check sidebar panel for tag overview.
 - Jupyter: Kernel auto-selects Poetry venv; use for data exploration notebooks.
+- MCP (Optional): if `.mcp.json` is absent or MCP servers are unavailable, continue with local tools and GitHub extensions without blocking tasks.
 
 ---
 
@@ -864,7 +867,7 @@ Plan:
 <!-- REMINDER: Critical rules that MUST be followed in every response -->
 
 - Impact analysis is MANDATORY before ANY code change
-- Use Poetry for all Python commands (auto-approved)
+- Use Poetry for all Python commands (auto-approved; includes ruff/pytest/pre-commit)
 - Multi-aquarium: ALWAYS use get_multi_aquarium_zone_data()
 - UI updates: ALWAYS use root.after(0, ...) from non-main threads
 - DI: NEVER import singleton `from zebtrack import settings`
