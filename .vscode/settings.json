@@ -1,5 +1,5 @@
 {
-    "chat.agent.maxRequests": 500,
+    "chat.agent.maxRequests": 250,
     "github.copilot.chat.codesearch.enabled": true,
     "github.copilot.chat.agent.thinkingTool": true,
     "github.copilot.chat.generateTests.codeLens": true,
@@ -68,10 +68,16 @@
     "python.analysis.extraPaths": [
         "./src"
     ],
-    "python.defaultInterpreterPath": "C:\\Users\\santa\\OneDrive\\UNESP\\Pesquisa Canabidiol\\Codigos_Programas\\ZebTrack-AI\\.venv\\Scripts\\python.exe",
+    "python.defaultInterpreterPath": "${workspaceFolder}\\.venv\\Scripts\\python.exe",
     "python.terminal.activateEnvironment": true,
     "python.terminal.activateEnvInCurrentTerminal": true,
     "terminal.integrated.defaultProfile.windows": "PowerShell",
+    "terminal.integrated.profiles.windows": {
+        "PowerShell": {
+            "source": "PowerShell",
+            "icon": "terminal-powershell"
+        }
+    },
     "terminal.integrated.enablePersistentSessions": false,
     "terminal.integrated.environmentChangesRelaunch": "auto",
     // Testing configuration (v2.1: pytest hang fixes applied)

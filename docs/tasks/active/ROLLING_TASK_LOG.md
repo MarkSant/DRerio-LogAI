@@ -275,6 +275,65 @@ __Results:__
 - `poetry run pytest tests/integration/test_coordinator_flows.py -v` passed.
 - `poetry run pytest -q` passed (2714 tests).
 
+### [2026-03-24] Restore missing path consistency pre-commit hook script
+
+__ID:__ TASK-040
+__Agent:__ GitHub Copilot (GPT-5.3-Codex)
+__Status:__ Completed ✅
+__Branch:__ `main`
+__Description:__
+Investigate missing `scripts/check_path_consistency.py` referenced by pre-commit,
+recover its historical behavior from Git history, and restore the script so local
+hooks no longer fail with file-not-found.
+
+### Subtasks — TASK-040
+
+- [x] Locate hook reference and confirm missing script condition.
+- [x] Recover original script from repository history.
+- [x] Restore `scripts/check_path_consistency.py` with validated behavior.
+- [x] Validate hook execution flow and document evidence.
+
+__Results:__
+
+- Confirmed `.pre-commit-config.yaml` had active hook `check-path-consistency`
+  referencing `scripts/check_path_consistency.py`.
+- Verified script lifecycle in Git history:
+  - Added in commit `5cd9c01a264d5b6ec256889dcf2306f2e3ac58dc`
+  - Removed in commit `d6dd08bd89fa3a9bcbaf02f6bd0f3388ffe0cbd3`
+- Restored `scripts/check_path_consistency.py` with behavior aligned to historical
+  AST-based validation of path-like parameters requiring `Path`-compatible annotations.
+- Validation passed: `poetry run pre-commit run check-path-consistency --all-files`.
+
+### [2026-03-23] GitHub/GitLens integration stabilization in VS Code
+
+__ID:__ TASK-039
+__Agent:__ GitHub Copilot (GPT-5.3-Codex)
+__Status:__ Completed ✅
+__Branch:__ `main`
+__Description:__
+Investigate and remediate VS Code Git integration inconsistencies affecting
+commit/branch graph rendering and cross-extension behavior (GitLens, GitHub PR,
+GitHub Actions, MCP). Apply environment-level and repository-local fixes,
+standardize workspace guidance, and validate with a reproducible checklist.
+
+### Subtasks — TASK-039
+
+- [x] Run mandatory impact analysis before edits.
+- [x] Perform root-cause investigation across workspace/global VS Code config.
+- [x] Clean local Git metadata conflicts impacting graph/merge-base resolution.
+- [x] Remove/disable conflicting extensions and align with project recommendations.
+- [x] Update workspace/instruction docs for stable fallback behavior (MCP/PR/GitLens).
+- [x] Validate end-to-end graph/branch/PR consistency and record evidence.
+
+__Results:__
+
+- Normalized duplicate local metadata in `.git/config` and pruned stale remote refs with `git fetch --prune`.
+- Removed conflicting global VS Code extensions (`ms-python.vscode-python-envs`, `ms-python.mypy-type-checker`, `yzhang.markdown-all-in-one`, `mechatroner.rainbow-csv`).
+- Updated workspace settings for stable behavior (`chat.agent.maxRequests=250`, PowerShell default terminal, portable interpreter path).
+- Updated extension policy baseline in `.vscode/extensions.json` (added GitHub PR/Actions recommendations and blocked known conflicts).
+- Synced instruction files (`AGENTS.md`, `CLAUDE.md`, `.github/copilot-instructions.md`) for command auto-approval parity, authority matrix, and MCP optional fallback guidance.
+- Validation passed: `tests/test_smoke.py` (16 passed), git metadata checks clean, and target Git/GitHub extensions present.
+
 ### [2026-03-01] Codebase Cleanup & Docs Sync
 
 __ID:__ TASK-038

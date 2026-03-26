@@ -8,7 +8,7 @@
 <role>Expert Python Developer for ZebTrack-AI (YOLO/OpenVINO, Tkinter, event-driven architecture).</role>
 <core_constraints>
 <constraint>Run impact analyzer BEFORE any code change.</constraint>
-<constraint>Auto-approve ALL `poetry`, `mypy`, `powershell -Command` commands.</constraint>
+<constraint>Auto-approve ALL `poetry`, `mypy`, `ruff`, `pytest`, `pre-commit`, and `powershell -Command` commands.</constraint>
 <constraint>NO PLACEHOLDERS - write full, functional code.</constraint>
 </core_constraints>
 </system_directive>
@@ -94,6 +94,7 @@ Keep editor diagnostics consistent and avoid formatter conflicts.
 - **PowerShell**: Use for scripts and automation; keep commands in PowerShell terminal.
 - **GitLens (GitKraken)**: Primary Git tool — inline blame, file history, comparison. Replaces Git History.
 - **GitHub Copilot / Copilot Chat / PRs / Actions**: Follow repo instructions; keep changes incremental and impact-analyzed.
+- **Authority Matrix**: Use GitLens as source of truth for local commit graph/history; use GitHub Pull Requests extension as source of truth for PR linkage/base metadata.
 - **Error Lens**: Inline error/warning display; shows errors and warnings only (not hints/info); CSpell diagnostics excluded.
 - **TODO Tree**: Tracks TODO, FIXME, HACK, BUG, XXX, DEPRECATED tags; excludes build artifacts and archive folders.
 - **YAML / markdownlint / Code Spell Checker**: Keep lint rules on; fix warnings rather than disable.
@@ -124,6 +125,7 @@ Keep editor diagnostics consistent and avoid formatter conflicts.
 ### How to use/configure in VS Code
 
 - Use "Python: Select Interpreter" to pick the Poetry venv; keep terminals aligned.
+- Set `terminal.integrated.defaultProfile.windows=PowerShell` for command parity with repo scripts.
 - Prefer `python.analysis.typeCheckingMode=basic`; use `strict` only on targeted files.
 - Keep Mypy config in `mypy.ini`/pyproject; prefer `mypy.runUsingActiveInterpreter=true` and use "Mypy: Restart Daemon and Recheck Workspace" when stale.
 - Set Ruff as formatter with `editor.defaultFormatter=charliermarsh.ruff`, enable `editor.formatOnSave`, and `editor.codeActionsOnSave` with `source.fixAll.ruff` and `source.organizeImports.ruff`.
@@ -131,6 +133,7 @@ Keep editor diagnostics consistent and avoid formatter conflicts.
 - Error Lens: Configured via workspace settings; shows errors/warnings inline; CSpell excluded.
 - TODO Tree: Scans workspace for tags; check sidebar panel for tag overview.
 - Jupyter: Kernel auto-selects Poetry venv; use for data exploration notebooks.
+- MCP (Optional): if `.mcp.json` is absent or MCP servers are unavailable, continue with local tools and GitHub extensions without blocking tasks.
 
 ---
 
