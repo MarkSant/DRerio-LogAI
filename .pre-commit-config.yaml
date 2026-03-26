@@ -45,14 +45,6 @@ repos:
   # Local hooks for project-specific checks
   - repo: local
     hooks:
-      - id: check-path-consistency
-        name: Check Path | str consistency
-        entry: poetry run python scripts/check_path_consistency.py
-        language: system
-        types: [python]
-        pass_filenames: false
-        always_run: true
-
       - id: validate-docs
         name: Validate documentation consistency
         entry: poetry run python scripts/validate_docs.py

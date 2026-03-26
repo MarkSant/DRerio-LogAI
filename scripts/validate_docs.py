@@ -51,7 +51,9 @@ def check_settings_documentation() -> list[str]:
 
     for class_name in config_classes:
         if class_name not in ref_content:
-            issues.append(f"⚠️  Settings class '{class_name}' not documented in REFERENCE_GUIDE.md")
+            issues.append(
+                f"[WARN] Settings class '{class_name}' not documented in REFERENCE_GUIDE.md"
+            )
 
     return issues
 
@@ -71,7 +73,9 @@ def check_singleton_imports() -> list[str]:
 
         if forbidden_pattern.search(content):
             rel_path = py_file.relative_to(BASE_DIR)
-            issues.append(f"❌ Singleton import found in {rel_path} (use constructor injection)")
+            issues.append(
+                f"[FAIL] Singleton import found in {rel_path} (use constructor injection)"
+            )
 
     return issues
 
@@ -97,7 +101,7 @@ def check_key_docstrings() -> list[str]:
             if isinstance(node, ast.ClassDef):
                 if not ast.get_docstring(node):
                     rel_path = file_path.relative_to(BASE_DIR)
-                    issues.append(f"📝 Class '{node.name}' in {rel_path} missing docstring")
+                    issues.append(f"[INFO] Class '{node.name}' in {rel_path} missing docstring")
 
     return issues
 
@@ -108,7 +112,7 @@ def check_context_file_freshness() -> list[str]:
     context_file = BASE_DIR / ".copilot-context.yaml"
 
     if not context_file.exists():
-        issues.append("⚠️  .copilot-context.yaml not found - run generate_copilot_context.py")
+        issues.append("[WARN] .copilot-context.yaml not found - run generate_copilot_context.py")
         return issues
 
     # Verifica se é mais antigo que arquivos principais
@@ -122,7 +126,7 @@ def check_context_file_freshness() -> list[str]:
     for key_file in key_files:
         if key_file.exists() and key_file.stat().st_mtime > context_mtime:
             issues.append(
-                "⏰ .copilot-context.yaml outdated - run: "
+                "[WARN] .copilot-context.yaml outdated - run: "
                 "poetry run python scripts/generate_copilot_context.py"
             )
             break
@@ -132,7 +136,7 @@ def check_context_file_freshness() -> list[str]:
 
 def main():
     """Executa todas as validações."""
-    print("🔍 Validating documentation consistency...\n")
+    print("Validating documentation consistency...\n")
 
     all_issues = []
     all_issues.extend(check_settings_documentation())
@@ -141,13 +145,13 @@ def main():
     all_issues.extend(check_context_file_freshness())
 
     if all_issues:
-        print("❌ Documentation issues found:\n")
+        print("[FAIL] Documentation issues found:\n")
         for issue in all_issues:
             print(f"  {issue}")
-        print(f"\n📊 Total issues: {len(all_issues)}")
+        print(f"\nTotal issues: {len(all_issues)}")
         sys.exit(1)
     else:
-        print("✅ All documentation checks passed!")
+        print("[OK] All documentation checks passed!")
         sys.exit(0)
 
 

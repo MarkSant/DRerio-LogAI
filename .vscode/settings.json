@@ -42,7 +42,27 @@
         "**/*.code-search": true,
         "**/openvino_model_cache": true,
         "**/__pycache__": true,
-        "**/*.pyc": true
+        "**/*.pyc": true,
+        "**/htmlcov": true,
+        "**/MagicMock": true,
+        "**/live_analysis_sessions": true,
+        "**/logs": true,
+        "**/.ruff_cache": true,
+        "**/.pytest_cache": true,
+        "**/.hypothesis": true
+    },
+    // File watcher exclusions (critical for OneDrive workspace performance)
+    "files.watcherExclude": {
+        "**/openvino_model_cache/**": true,
+        "**/htmlcov/**": true,
+        "**/MagicMock/**": true,
+        "**/live_analysis_sessions/**": true,
+        "**/logs/**": true,
+        "**/__pycache__/**": true,
+        "**/.ruff_cache/**": true,
+        "**/.pytest_cache/**": true,
+        "**/.hypothesis/**": true,
+        "**/.mypy_cache/**": true
     },
     // Python settings
     "python.analysis.extraPaths": [
@@ -53,9 +73,7 @@
     "python.terminal.activateEnvInCurrentTerminal": true,
     "terminal.integrated.defaultProfile.windows": "PowerShell",
     "terminal.integrated.enablePersistentSessions": false,
-    "terminal.integrated.environmentChangesRelaunch": false,
-    "gitlens.gitkraken.cli.integration.enabled": false,
-    "gitlens.gitkraken.cli.insiders.enabled": false,
+    "terminal.integrated.environmentChangesRelaunch": "auto",
     // Testing configuration (v2.1: pytest hang fixes applied)
     // Total: 2568 tests (1586 fast, 949 GUI, 35 slow)
     // Note: pytest-timeout plugin configured (300s per test)
@@ -91,11 +109,7 @@
     "ruff.fixAll": true,
     // Line length is configured in pyproject.toml (line-length = 100)
     // No need to duplicate here with deprecated args
-    // Disable conflicting formatters/linters
-    "python.linting.enabled": false,
-    "python.linting.pylintEnabled": false,
-    "python.linting.flake8Enabled": false,
-    "python.formatting.provider": "none",
+    // Ruff is the sole formatter/linter (conflicting tools excluded in extensions.json)
     // ========================================
     // YAML Extension (Red Hat) Configuration
     // ========================================
@@ -241,8 +255,5 @@
     ],
     "powershell.startAutomatically": false,
     "powershell.integratedConsole.startInBackground": true,
-    "powershell.integratedConsole.showOnStartup": false,
-    "python-envs.defaultEnvManager": "ms-python.python:system"
+    "powershell.integratedConsole.showOnStartup": false
 }
-
-
