@@ -19,6 +19,7 @@ import structlog
 
 from zebtrack.coordinators.base_coordinator import BaseCoordinator
 from zebtrack.core.video.processing_mode import ProcessingMode
+from zebtrack.ui import payloads as payloads
 from zebtrack.ui.event_bus_v2 import UIEvents
 
 if TYPE_CHECKING:
@@ -35,6 +36,12 @@ if TYPE_CHECKING:
     from zebtrack.ui.event_bus_v2 import EventBusV2
 
 log = structlog.get_logger()
+
+
+def _payload_get(payload: payloads.EventPayload | dict[str, Any], key: str, default=None):
+    if isinstance(payload, dict):
+        return payload.get(key, default)
+    return getattr(payload, key, default)
 
 
 class MultiAquariumCoordinator(BaseCoordinator):
@@ -105,11 +112,10 @@ class MultiAquariumCoordinator(BaseCoordinator):
     # Processing Mode Management
     # ========================================================================
 
-    def _on_processing_mode_changed(self, payload: dict) -> None:
+    def _on_processing_mode_changed(self, payload: payloads.EventPayload) -> None:
         """Handle ZONE_PROCESSING_MODE_CHANGED event."""
-        sequential = payload.get("sequential", False)
-
-        video_path = payload.get("video_path")
+        sequential = bool(_payload_get(payload, "sequential", False))
+        video_path = _payload_get(payload, "video_path")
         if video_path:
             self._apply_processing_mode_to_video(video_path, sequential=sequential)
         else:
@@ -276,15 +282,15 @@ class MultiAquariumCoordinator(BaseCoordinator):
         finally:
             self._is_detecting_aquarium = False
 
-    def _handle_multi_auto_detect(self, payload: dict) -> None:
+    def _handle_multi_auto_detect(self, payload: payloads.EventPayload) -> None:
         """Handle ZONE_MULTI_AUTO_DETECT event.
 
         Extracts video_path and expected_count from event payload
         and delegates to run_aquarium_detection.
         """
-        video_path = payload.get("video_path", "")
-        expected_count = payload.get("expected_count", 2)
-        method = payload.get("method", "auto")
+        video_path = _payload_get(payload, "video_path", "")
+        expected_count = _payload_get(payload, "expected_count", 2)
+        method = _payload_get(payload, "method", "auto")
 
         if not video_path:
             log.warning("processing_coordinator.multi_auto_detect.no_video_path")
@@ -307,14 +313,14 @@ class MultiAquariumCoordinator(BaseCoordinator):
     # Aquarium Assignment
     # ========================================================================
 
-    def _on_aquarium_assignment_completed(self, payload: dict) -> None:
+    def _on_aquarium_assignment_completed(self, payload: payloads.EventPayload) -> None:
         """Handle ZONE_AQUARIUM_ASSIGNMENT_COMPLETED event.
 
         Processes aquarium group/subject/day assignments and updates project metadata.
         """
-        configs = payload.get("configs", [])
-        video_path = payload.get("video_path", "")
-        apply_to_all = payload.get("apply_to_all", False)
+        configs = _payload_get(payload, "configs", [])
+        video_path = _payload_get(payload, "video_path", "")
+        apply_to_all = bool(_payload_get(payload, "apply_to_all", False))
 
         if not configs:
             log.warning("processing_coordinator.assignment.no_configs")

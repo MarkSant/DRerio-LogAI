@@ -225,7 +225,11 @@ class BaseCoordinator:
     # Event helpers
     # ------------------------------------------------------------------
 
-    def _publish_event(self, event_type: Any, data: dict[str, Any] | None = None) -> None:
+    def _publish_event(
+        self,
+        event_type: Any,
+        data: Any | None = None,
+    ) -> None:
         """Publish an event via EventBusV2.
 
         Args:

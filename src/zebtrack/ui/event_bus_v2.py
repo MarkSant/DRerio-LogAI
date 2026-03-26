@@ -4,8 +4,6 @@ This module provides:
 - ``UIEvents`` enum — the canonical set of all application events (type-safe).
 - ``Event`` dataclass — immutable event payload container.
 - ``EventBusV2`` — thread-safe synchronous pub/sub bus.
-- ``EVENT_NAME_TO_UIEVENT`` — reverse lookup from legacy v1 string names to
-  ``UIEvents`` members (used during migration; will be removed in v6.0).
 
 Phase 4 Migration (Feb 2026):
     Absorbed all ~113 ``Events`` string constants from the former ``events.py``
@@ -18,11 +16,13 @@ from __future__ import annotations
 
 import threading
 from collections.abc import Callable
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, fields, is_dataclass
 from enum import Enum, auto
-from typing import Any
+from typing import Any, cast
 
 import structlog
+
+from zebtrack.ui import payloads as payloads
 
 log = structlog.get_logger().bind(component="ui.event_bus_v2")
 
@@ -258,6 +258,315 @@ class UIEvents(Enum):
     ZONE_DISPLAY_CLEARED = auto()
 
 
+_PAYLOAD_TYPES: dict[UIEvents, type[Any]] = {
+    # Recording
+    UIEvents.RECORDING_START: payloads.RecordingStartPayload,
+    UIEvents.RECORDING_STARTED: payloads.RecordingStartedPayload,
+    UIEvents.RECORDING_STOP: payloads.EmptyPayload,
+    UIEvents.RECORDING_TOGGLE: payloads.EmptyPayload,
+    UIEvents.RECORDING_TRIGGER: payloads.RecordingTriggerPayload,
+    UIEvents.RECORDING_STOPPED: payloads.RecordingStoppedPayload,
+    # Project
+    UIEvents.PROJECT_CREATE: payloads.ProjectCreatePayload,
+    UIEvents.PROJECT_CREATED: payloads.ProjectCreatedPayload,
+    UIEvents.PROJECT_OPEN: payloads.ProjectOpenPayload,
+    UIEvents.PROJECT_OPENED: payloads.ProjectOpenedPayload,
+    UIEvents.PROJECT_CLOSE: payloads.EmptyPayload,
+    UIEvents.PROJECT_CLOSED: payloads.EmptyPayload,
+    UIEvents.PROJECT_MANAGER_REPLACED: payloads.ProjectManagerReplacedPayload,
+    UIEvents.PROJECT_PROCESS_VIDEOS: payloads.ProjectProcessVideosPayload,
+    UIEvents.PROJECT_GENERATE_SUMMARIES: payloads.ProjectGenerateSummariesPayload,
+    UIEvents.PROJECT_APPLY_SETTINGS: payloads.ProjectApplySettingsPayload,
+    UIEvents.PROJECT_DELETE_ASSET: payloads.ProjectDeleteAssetPayload,
+    UIEvents.PROJECT_VIDEO_SELECTED: payloads.ProjectVideoSelectedPayload,
+    UIEvents.PROJECT_SELECTION_CHANGED: payloads.ProjectSelectionChangedPayload,
+    # Video Processing
+    UIEvents.VIDEO_ANALYZE_SINGLE: payloads.VideoAnalyzeSinglePayload,
+    UIEvents.VIDEO_START_SINGLE_PROCESSING: payloads.VideoStartSingleProcessingPayload,
+    UIEvents.VIDEO_CANCEL_ANALYSIS: payloads.VideoCancelAnalysisPayload,
+    # Model & Weights
+    UIEvents.MODEL_SET_WEIGHT: payloads.ModelSetWeightPayload,
+    UIEvents.MODEL_SET_OPENVINO: payloads.ModelSetOpenVinoPayload,
+    UIEvents.MODEL_CONVERT_OPENVINO: payloads.ModelConvertOpenVinoPayload,
+    UIEvents.MODEL_UPDATE_OPENVINO_STATUS: payloads.ModelUpdateOpenVinoStatusPayload,
+    UIEvents.MODEL_ADD_WEIGHT: payloads.ModelAddWeightPayload,
+    UIEvents.MODEL_DELETE_WEIGHT: payloads.ModelDeleteWeightPayload,
+    UIEvents.MODEL_RUN_DIAGNOSTIC: payloads.ModelRunDiagnosticPayload,
+    UIEvents.MODEL_LOAD_NEW_WEIGHT: payloads.ModelLoadNewWeightPayload,
+    UIEvents.MODEL_MANAGE_WEIGHTS: payloads.EmptyPayload,
+    # Detector & Zone Commands
+    UIEvents.DETECTOR_SETUP: payloads.DetectorSetupPayload,
+    UIEvents.DETECTOR_SETUP_ZONES: payloads.DetectorSetupZonesPayload,
+    UIEvents.DETECTOR_UPDATE_PARAMETERS: payloads.DetectorUpdateParametersPayload,
+    UIEvents.DETECTOR_UPDATE_ZONES: payloads.DetectorUpdateZonesPayload,
+    UIEvents.ZONE_SET_ARENA_POLYGON: payloads.EmptyPayload,
+    UIEvents.ZONE_SAVE_MANUAL_ARENA: payloads.EmptyPayload,
+    UIEvents.ZONE_UPDATE_ARENA: payloads.EmptyPayload,
+    UIEvents.ZONE_AUTO_DETECT: payloads.ZoneAutoDetectPayload,
+    UIEvents.ZONE_START_DRAW_ARENA: payloads.EmptyPayload,
+    UIEvents.ZONE_APPLY_ROI_TEMPLATE: payloads.ZoneTemplateApplyPayload,
+    UIEvents.ZONE_SAVE_ROI_TEMPLATE: payloads.EmptyPayload,
+    UIEvents.ZONE_IMPORT_AND_APPLY_ROI_TEMPLATE: payloads.EmptyPayload,
+    UIEvents.ZONE_RENAME_SELECTED_ROI: payloads.EmptyPayload,
+    UIEvents.ZONE_CHANGE_ROI_COLOR: payloads.EmptyPayload,
+    UIEvents.ZONE_REMOVE_SELECTED_ROI: payloads.EmptyPayload,
+    UIEvents.ZONE_APPLY_ROI_SETTINGS: payloads.ZoneApplyRoiSettingsPayload,
+    # Zone Widget Component Events
+    UIEvents.ZONE_DRAW_ARENA: payloads.EmptyPayload,
+    UIEvents.ZONE_DRAW_ROI: payloads.EmptyPayload,
+    UIEvents.ZONE_TOGGLE_VIEW: payloads.EmptyPayload,
+    UIEvents.ZONE_TEMPLATE_APPLY: payloads.ZoneTemplateApplyPayload,
+    UIEvents.ZONE_TEMPLATE_SAVE: payloads.EmptyPayload,
+    UIEvents.ZONE_TEMPLATE_IMPORT: payloads.EmptyPayload,
+    UIEvents.ZONE_TEMPLATE_CLEAR_APPLIED: payloads.EmptyPayload,
+    UIEvents.ZONE_VIDEO_SEARCH_CHANGED: payloads.ZoneVideoSearchChangedPayload,
+    UIEvents.ZONE_VIDEO_REFRESH: payloads.EmptyPayload,
+    UIEvents.ZONE_VIDEO_DOUBLE_CLICK: payloads.ZoneVideoDoubleClickPayload,
+    UIEvents.ZONE_VIDEO_FRAME_LOAD: payloads.ZoneVideoFrameLoadPayload,
+    UIEvents.ZONE_LIST_ITEM_RIGHT_CLICK: payloads.ZoneListItemRightClickPayload,
+    UIEvents.ZONE_LIST_ITEM_DOUBLE_CLICK: payloads.ZoneListItemPayload,
+    UIEvents.ZONE_SAVE_ARENA: payloads.EmptyPayload,
+    UIEvents.ZONE_DISCARD_ARENA: payloads.EmptyPayload,
+    UIEvents.ZONE_FINISH_DRAWING: payloads.EmptyPayload,
+    UIEvents.ZONE_AUTO_DETECT_CLICKED: payloads.ZoneAutoDetectClickedPayload,
+    UIEvents.ZONE_COPY_ZONES: payloads.VideoPathPayload,
+    UIEvents.ZONE_PASTE_ZONES: payloads.VideoPathPayload,
+    UIEvents.ZONE_DELETE_ZONES: payloads.VideoPathPayload,
+    UIEvents.ZONE_CONCLUDE_VIDEO: payloads.EmptyPayload,
+    # Multi-Aquarium
+    UIEvents.ZONE_MULTI_AUTO_DETECT: payloads.ZoneMultiAutoDetectPayload,
+    UIEvents.ZONE_MULTI_AUTO_DETECT_SUCCESS: payloads.ZoneMultiAutoDetectSuccessPayload,
+    UIEvents.ZONE_MULTI_AUTO_DETECT_FAILED: payloads.ZoneMultiAutoDetectFailedPayload,
+    UIEvents.ZONE_AQUARIUM_SELECTED: payloads.ZoneAquariumSelectedPayload,
+    UIEvents.ZONE_MULTI_DETECT_COMPLETED: payloads.ZoneMultiDetectCompletedPayload,
+    UIEvents.ZONE_AQUARIUM_CONFIG_CONFIRMED: payloads.ZoneAquariumConfigConfirmedPayload,
+    UIEvents.ZONE_AQUARIUM_CONFIG_UPDATED: payloads.ZoneAquariumConfigUpdatedPayload,
+    UIEvents.ZONE_AQUARIUM_COUNT_CONFIRMED: payloads.ZoneAquariumCountConfirmedPayload,
+    UIEvents.ZONE_AQUARIUM_ASSIGNMENT_COMPLETED: payloads.ZoneAquariumAssignmentCompletedPayload,
+    UIEvents.ZONE_SHOW_AQUARIUM_COUNT_DIALOG: payloads.EmptyPayload,
+    UIEvents.ZONE_SHOW_AQUARIUM_ASSIGNMENT_DIALOG: payloads.ZoneShowAquariumAssignmentDialogPayload,
+    UIEvents.ZONE_PROCESSING_MODE_CHANGED: payloads.ZoneProcessingModeChangedPayload,
+    # Processing Reports
+    UIEvents.PROCESSING_GENERATE_TRAJECTORIES: payloads.ProcessingGenerateTrajectoriesPayload,
+    UIEvents.PROCESSING_EXPORT_SUMMARIES: payloads.ProcessingExportSummariesPayload,
+    UIEvents.REPORTS_GENERATE_PARTIAL: payloads.ReportsGeneratePartialPayload,
+    UIEvents.REPORTS_GENERATE_UNIFIED: payloads.ReportsGenerateUnifiedPayload,
+    # Calibration
+    UIEvents.CALIBRATION_RUN_LIVE: payloads.CalibrationRunLivePayload,
+    UIEvents.CALIBRATION_COPY_TO_PROJECT: payloads.CalibrationCopyToProjectPayload,
+    UIEvents.CALIBRATION_SAVE_TO_PROJECT: payloads.CalibrationSaveToProjectPayload,
+    # Arduino
+    UIEvents.ARDUINO_SETUP: payloads.ArduinoSetupPayload,
+    UIEvents.ARDUINO_LOG_EVENT: payloads.ArduinoLogEventPayload,
+    UIEvents.ARDUINO_PORT_UPDATE_REQUESTED: payloads.ArduinoPortUpdateRequestedPayload,
+    # Reports / App / Wizard
+    UIEvents.REPORT_GENERATE: payloads.ReportGeneratePayload,
+    UIEvents.APP_CLOSE: payloads.EmptyPayload,
+    UIEvents.WIZARD_CREATE_PROJECT: payloads.WizardCreateProjectPayload,
+    # Controller -> UI Events
+    UIEvents.UI_SHOW_ERROR: payloads.MessagePayload,
+    UIEvents.UI_SHOW_WARNING: payloads.MessagePayload,
+    UIEvents.UI_SHOW_INFO: payloads.MessagePayload,
+    UIEvents.UI_SET_STATUS: payloads.StatusPayload,
+    UIEvents.UI_UPDATE_BUTTON_STATE: payloads.UpdateButtonStatePayload,
+    UIEvents.UI_REFRESH_PROJECT_VIEWS: payloads.ProjectViewsRefreshRequestedPayload,
+    UIEvents.UI_UPDATE_ARDUINO_STATUS: payloads.UIUpdateArduinoStatusPayload,
+    UIEvents.UI_APPEND_ARDUINO_LOG: payloads.UIAppendArduinoLogPayload,
+    UIEvents.UI_UPDATE_OPENVINO_STATUS: payloads.UIUpdateOpenVinoStatusPayload,
+    UIEvents.UI_SETUP_INTERACTIVE_POLYGON: payloads.SetupInteractivePolygonPayload,
+    UIEvents.UI_DISPLAY_VIDEO_FRAME: payloads.VideoPathPayload,
+    UIEvents.UI_UPDATE_PROCESSING_MODE: payloads.UpdateProcessingModePayload,
+    UIEvents.UI_NAVIGATE_TO_WELCOME: payloads.EmptyPayload,
+    UIEvents.UI_NAVIGATE_TO_PROJECT_VIEW: payloads.EmptyPayload,
+    UIEvents.UI_NAVIGATE_TO_ANALYSIS_VIEW: payloads.EmptyPayload,
+    UIEvents.UI_NAVIGATE_FROM_ANALYSIS_VIEW: payloads.EmptyPayload,
+    UIEvents.UI_SELECT_TAB: payloads.UISelectTabPayload,
+    UIEvents.UI_UPDATE_OPENVINO_CHECKBOX: payloads.UIUpdateOpenVinoCheckboxPayload,
+    UIEvents.UI_SET_ACTIVE_WEIGHT: payloads.UISetActiveWeightPayload,
+    UIEvents.UI_UPDATE_WEIGHTS_LIST: payloads.UIUpdateWeightsListPayload,
+    UIEvents.UI_REDRAW_ZONES: payloads.ZonesUpdatedPayload,
+    UIEvents.UI_UPDATE_ZONE_LIST: payloads.ZonesUpdatedPayload,
+    UIEvents.UI_SHOW_EXTERNAL_TRIGGER_NOTICE: payloads.ExternalTriggerNoticePayload,
+    UIEvents.UI_CLEAR_EXTERNAL_TRIGGER_NOTICE: payloads.EmptyPayload,
+    UIEvents.UI_UPDATE_ANALYSIS_METADATA: payloads.AnalysisMetadataPayload,
+    UIEvents.UI_UPDATE_ANALYSIS_TASK_STATUS: payloads.AnalysisTaskStatusPayload,
+    UIEvents.UI_UPDATE_DETECTION_OVERLAY: payloads.DetectionOverlayPayload,
+    UIEvents.UI_DISPLAY_FRAME: payloads.FrameDisplayPayload,
+    UIEvents.UI_UPDATE_SOCIAL_SUMMARY: payloads.SocialSummaryPayload,
+    UIEvents.UI_UPDATE_PROCESSING_STATS: payloads.ProcessingStatsWrapperPayload,
+    UIEvents.UI_VIDEO_HIERARCHY_SNAPSHOT_UPDATED: payloads.VideoHierarchySnapshotUpdatedPayload,
+    UIEvents.UI_REQUEST_WEIGHT_FILE: payloads.UIRequestWeightFilePayload,
+    UIEvents.UI_REQUEST_WEIGHT_TYPE: payloads.UIRequestWeightTypePayload,
+    UIEvents.UI_REQUEST_WEIGHT_ACTION: payloads.UIRequestWeightActionPayload,
+    UIEvents.UI_OPEN_MANAGE_WEIGHTS_DIALOG: payloads.EmptyPayload,
+    # Multi-Aquarium UI Events
+    UIEvents.UI_SHOW_AQUARIUM_COUNT_DIALOG: payloads.EmptyPayload,
+    UIEvents.UI_SHOW_AQUARIUM_ASSIGNMENT_DIALOG: payloads.ZoneShowAquariumAssignmentDialogPayload,
+    UIEvents.UI_UPDATE_AQUARIUM_SELECTOR: payloads.UpdateAquariumSelectorPayload,
+    UIEvents.UI_SET_AQUARIUM_SELECTOR_VISIBLE: payloads.SetAquariumSelectorVisiblePayload,
+    # Live Analysis
+    UIEvents.UI_UPDATE_LIVE_FRAME: payloads.UIUpdateLiveFramePayload,
+    UIEvents.LIVE_SESSION_STARTED: payloads.LiveSessionStartedPayload,
+    UIEvents.LIVE_SESSION_STOPPED: payloads.LiveSessionStoppedPayload,
+    # Widget Internal Events
+    UIEvents.BEHAVIORAL_CONFIG_PERSPECTIVE_CHANGED: (
+        payloads.BehavioralConfigPerspectiveChangedPayload
+    ),
+    UIEvents.BEHAVIORAL_CONFIG_VALUES_CHANGED: payloads.BehavioralConfigValuesChangedPayload,
+    UIEvents.BEHAVIORAL_CONFIG_GEOTAXIS_TOGGLED: payloads.BehavioralConfigGeotaxisToggledPayload,
+    UIEvents.CONFIG_SAVE_REQUESTED: payloads.ConfigSaveRequestedPayload,
+    UIEvents.CONFIG_VALIDATION_ERROR: payloads.ConfigValidationErrorPayload,
+    UIEvents.CONFIG_RESET_REQUESTED: payloads.EmptyPayload,
+    UIEvents.CONFIG_ROI_RULE_CHANGED: payloads.ConfigRoiRuleChangedPayload,
+    UIEvents.PROJECT_REFRESH_REQUESTED: payloads.ProjectRefreshRequestedPayload,
+    UIEvents.PROJECT_VIDEO_DOUBLE_CLICK_WIDGET: payloads.VideoPathPayload,
+    UIEvents.PROJECT_VIDEO_RIGHT_CLICK_WIDGET: payloads.VideoPathPayload,
+    UIEvents.PROJECT_ITEM_DOUBLE_CLICK: payloads.ItemIdPayload,
+    UIEvents.REPORTS_DELETE_UNIFIED: payloads.ReportsDeleteUnifiedPayload,
+    UIEvents.CONTROL_PREVIEW_TOGGLED: payloads.ControlPreviewToggledPayload,
+    UIEvents.CONTROL_INTERVAL_CHANGED: payloads.ControlIntervalChangedPayload,
+    UIEvents.FRAME_ERROR: payloads.FrameErrorPayload,
+    UIEvents.VIDEO_METADATA_UPDATED: payloads.VideoMetadataUpdatedPayload,
+    UIEvents.ANALYSIS_TRACK_SELECTED: payloads.TrackIdPayload,
+    UIEvents.ANALYSIS_CANCEL_REQUESTED: payloads.EmptyPayload,
+    UIEvents.VIDEO_RECONFIGURE_SUBJECTS: payloads.VideoReconfigureSubjectsPayload,
+    UIEvents.SETUP_ZONE_DEFINITION_FOR_SINGLE_VIDEO: payloads.SetupZoneDefinitionPayload,
+    # V2 Legacy
+    UIEvents.ZONES_UPDATED: payloads.ZonesUpdatedPayload,
+    UIEvents.ZONE_SELECTED_V2: payloads.ItemIdPayload,
+    UIEvents.POLYGON_EDIT_REQUESTED: payloads.PolygonEditRequestedPayload,
+    UIEvents.VIDEO_LOADED: payloads.VideoLoadedPayload,
+    UIEvents.PROJECT_VIEWS_REFRESH_REQUESTED: payloads.ProjectViewsRefreshRequestedPayload,
+    UIEvents.VIDEO_TREE_REFRESH_REQUESTED: payloads.VideoTreeRefreshRequestedPayload,
+    UIEvents.VIDEO_HIERARCHY_SNAPSHOT_REQUESTED: payloads.EmptyPayload,
+    UIEvents.READINESS_SNAPSHOT_UPDATED: payloads.ReadinessSnapshotUpdatedPayload,
+    UIEvents.PROCESSING_REPORTS_ITEM_RIGHT_CLICK: payloads.ItemIdPayload,
+    UIEvents.UI_REQUEST_PROCESS_VIDEOS: payloads.EmptyPayload,
+    UIEvents.PROCESSING_STATS_UPDATED: payloads.ProcessingStatsPayload,
+    UIEvents.SOCIAL_SUMMARY_UPDATED: payloads.SocialSummaryPayload,
+    UIEvents.ANALYSIS_TASK_STATUS_UPDATED: payloads.AnalysisTaskStatusPayload,
+    UIEvents.SHOW_ERROR: payloads.MessagePayload,
+    UIEvents.SHOW_WARNING: payloads.MessagePayload,
+    UIEvents.SHOW_INFO: payloads.MessagePayload,
+    UIEvents.SET_STATUS: payloads.StatusPayload,
+    UIEvents.EXTERNAL_TRIGGER_NOTICE: payloads.ExternalTriggerNoticePayload,
+    UIEvents.EXTERNAL_TRIGGER_NOTICE_CLEARED: payloads.EmptyPayload,
+    UIEvents.ERROR_OCCURRED: payloads.ErrorOccurredPayload,
+    UIEvents.PROGRESS_UPDATE: payloads.ProcessingProgressPayload,
+    UIEvents.TRACKING_COMPLETE: payloads.TrackingCompletePayload,
+    UIEvents.FRAME_DISPLAYED: payloads.FramePayload,
+    UIEvents.ANALYSIS_STARTED: payloads.AnalysisStartedPayload,
+    UIEvents.ANALYSIS_COMPLETED: payloads.AnalysisCompletedPayload,
+    UIEvents.DISPLAY_VIDEO_FRAME: payloads.VideoPathPayload,
+    UIEvents.NAVIGATE_TO_WELCOME: payloads.EmptyPayload,
+    UIEvents.NAVIGATE_TO_PROJECT: payloads.EmptyPayload,
+    UIEvents.NAVIGATE_TO_ANALYSIS: payloads.EmptyPayload,
+    UIEvents.CAMERA_DISCONNECT_DETECTED: payloads.CameraDisconnectPayload,
+    UIEvents.CAMERA_DISCONNECT_USER_ACTION: payloads.CameraDisconnectPayload,
+    UIEvents.CAMERA_RECONNECTED: payloads.CameraDisconnectPayload,
+    UIEvents.AQUARIUM_DETECTION_PROGRESS: payloads.AquariumDetectionProgressPayload,
+    UIEvents.BATCH_ANALYSIS_COMPLETED: payloads.BatchAnalysisCompletedPayload,
+    UIEvents.ZONE_DISPLAY_CLEARED: payloads.EmptyPayload,
+}
+
+
+def _filter_payload_data(
+    payload_cls: type[Any],
+    data: dict[str, Any],
+) -> dict[str, Any]:
+    if not is_dataclass(payload_cls):
+        return data
+    field_names = {field.name for field in fields(payload_cls)}
+    return {key: value for key, value in data.items() if key in field_names}
+
+
+def _ensure_payload_accessors(obj: payloads.EventPayload) -> payloads.EventPayload:
+    if not hasattr(obj, "get"):
+
+        def _payload_get(self, key: str, default=None):
+            if hasattr(self, key):
+                return getattr(self, key, default)
+            if hasattr(self, "data") and isinstance(self.data, dict):
+                return self.data.get(key, default)
+            return default
+
+        payload_cls = cast(Any, obj.__class__)
+        payload_cls.get = _payload_get
+
+    if not hasattr(obj, "__getitem__"):
+
+        def _payload_getitem(self, key: str):
+            if hasattr(self, key):
+                return getattr(self, key)
+            if hasattr(self, "data") and isinstance(self.data, dict):
+                return self.data[key]
+            raise KeyError(key)
+
+        payload_cls = cast(Any, obj.__class__)
+        payload_cls.__getitem__ = _payload_getitem
+
+    return obj
+
+
+def _normalize_payload_data(event_type: UIEvents, data: dict[str, Any]) -> dict[str, Any]:
+    if event_type == UIEvents.UI_UPDATE_PROCESSING_STATS:
+        stats = data.get("stats")
+        return {"stats": stats} if isinstance(stats, dict) else data
+    if event_type == UIEvents.UI_UPDATE_ANALYSIS_TASK_STATUS:
+        nested = data.get("payload")
+        return nested if isinstance(nested, dict) else data
+    if event_type == UIEvents.PROJECT_CREATE:
+        return {**data, "wizard_data": data}
+    return data
+
+
+def _coerce_payload(
+    event_type: UIEvents,
+    data: payloads.EventPayload | dict[str, Any] | None,
+) -> payloads.EventPayload:
+    if data is None:
+        data = {}
+
+    if is_dataclass(data):
+        return _ensure_payload_accessors(data)
+
+    if not isinstance(data, dict):
+        log.warning(
+            "event_bus_v2.payload.invalid_type",
+            event_type=event_type.name,
+            payload_type=type(data).__name__,
+        )
+        return payloads.UnknownPayload({"value": data})
+
+    payload_cls = _PAYLOAD_TYPES.get(event_type)
+    if payload_cls is None:
+        return payloads.UnknownPayload(data)
+
+    if isinstance(data, dict) and payload_cls is not payloads.EmptyPayload:
+        log.warning(
+            "event_bus_v2.payload.dict_used",
+            event_type=event_type.name,
+            keys=list(data.keys()),
+        )
+
+    payload_data = _normalize_payload_data(event_type, data)
+    if payload_cls is payloads.EmptyPayload:
+        return payload_cls()
+
+    filtered = _filter_payload_data(payload_cls, payload_data)
+    try:
+        payload_obj = payload_cls(**filtered)
+    except Exception as exc:
+        log.warning(
+            "event_bus_v2.payload.coerce_failed",
+            event_type=event_type.name,
+            error=str(exc),
+        )
+        return payloads.UnknownPayload(data)
+
+    return _ensure_payload_accessors(payload_obj)
+
+
 @dataclass(frozen=True)
 class Event:
     """Event data container.
@@ -269,187 +578,8 @@ class Event:
     """
 
     type: UIEvents
-    data: dict[str, Any] = field(default_factory=dict)
+    data: payloads.EventPayload | dict[str, Any] = field(default_factory=dict)
     source: str | None = None
-
-
-# ── Legacy String → UIEvents Mapping ──────────────────────────────────
-# Used by components still referencing the old string-based event names.
-# Will be removed in v6.0 after full migration.
-EVENT_NAME_TO_UIEVENT: dict[str, UIEvents] = {
-    # Recording
-    "recording:start": UIEvents.RECORDING_START,
-    "RECORDING_STARTED": UIEvents.RECORDING_STARTED,
-    "recording:stop": UIEvents.RECORDING_STOP,
-    "recording:toggle": UIEvents.RECORDING_TOGGLE,
-    "recording:trigger": UIEvents.RECORDING_TRIGGER,
-    "RECORDING_STOPPED": UIEvents.RECORDING_STOPPED,
-    # Project
-    "project:create": UIEvents.PROJECT_CREATE,
-    "project:created": UIEvents.PROJECT_CREATED,
-    "project:open": UIEvents.PROJECT_OPEN,
-    "project:opened": UIEvents.PROJECT_OPENED,
-    "project:close": UIEvents.PROJECT_CLOSE,
-    "project:closed": UIEvents.PROJECT_CLOSED,
-    "project:manager_replaced": UIEvents.PROJECT_MANAGER_REPLACED,
-    "project:process_videos": UIEvents.PROJECT_PROCESS_VIDEOS,
-    "project:generate_summaries": UIEvents.PROJECT_GENERATE_SUMMARIES,
-    "project:apply_settings_to_batch": UIEvents.PROJECT_APPLY_SETTINGS,
-    "project:delete_asset": UIEvents.PROJECT_DELETE_ASSET,
-    "project.video_selected": UIEvents.PROJECT_VIDEO_SELECTED,
-    "project.selection_changed": UIEvents.PROJECT_SELECTION_CHANGED,
-    "PROJECT_CREATED": UIEvents.PROJECT_CREATED,  # Raw string variant
-    # Video Processing
-    "video:analyze_single": UIEvents.VIDEO_ANALYZE_SINGLE,
-    "video:start_single_processing": UIEvents.VIDEO_START_SINGLE_PROCESSING,
-    "video:cancel_analysis": UIEvents.VIDEO_CANCEL_ANALYSIS,
-    # Model & Weights
-    "model:set_weight": UIEvents.MODEL_SET_WEIGHT,
-    "model:set_openvino": UIEvents.MODEL_SET_OPENVINO,
-    "model:convert_to_openvino": UIEvents.MODEL_CONVERT_OPENVINO,
-    "model:update_openvino_status": UIEvents.MODEL_UPDATE_OPENVINO_STATUS,
-    "model:add_weight": UIEvents.MODEL_ADD_WEIGHT,
-    "model:delete_weight": UIEvents.MODEL_DELETE_WEIGHT,
-    "model:run_diagnostic": UIEvents.MODEL_RUN_DIAGNOSTIC,
-    "model:load_new_weight": UIEvents.MODEL_LOAD_NEW_WEIGHT,
-    "model:manage_weights": UIEvents.MODEL_MANAGE_WEIGHTS,
-    # Detector & Zones
-    "detector:setup": UIEvents.DETECTOR_SETUP,
-    "detector:setup_zones": UIEvents.DETECTOR_SETUP_ZONES,
-    "detector:update_parameters": UIEvents.DETECTOR_UPDATE_PARAMETERS,
-    "detector:update_zones": UIEvents.DETECTOR_UPDATE_ZONES,
-    "zone:set_arena_polygon": UIEvents.ZONE_SET_ARENA_POLYGON,
-    "zone:save_manual_arena": UIEvents.ZONE_SAVE_MANUAL_ARENA,
-    "zone:update_arena": UIEvents.ZONE_UPDATE_ARENA,
-    "zone:auto_detect": UIEvents.ZONE_AUTO_DETECT,
-    "zone:start_draw_arena": UIEvents.ZONE_START_DRAW_ARENA,
-    "zone:apply_roi_template": UIEvents.ZONE_APPLY_ROI_TEMPLATE,
-    "zone:save_roi_template": UIEvents.ZONE_SAVE_ROI_TEMPLATE,
-    "zone:import_and_apply_roi_template": UIEvents.ZONE_IMPORT_AND_APPLY_ROI_TEMPLATE,
-    "zone:rename_selected_roi": UIEvents.ZONE_RENAME_SELECTED_ROI,
-    "zone:change_roi_color": UIEvents.ZONE_CHANGE_ROI_COLOR,
-    "zone:remove_selected_roi": UIEvents.ZONE_REMOVE_SELECTED_ROI,
-    "zone:apply_roi_settings": UIEvents.ZONE_APPLY_ROI_SETTINGS,
-    # Zone Widget Component Events
-    "zone.draw_arena": UIEvents.ZONE_DRAW_ARENA,
-    "zone.draw_roi": UIEvents.ZONE_DRAW_ROI,
-    "zone.toggle_view": UIEvents.ZONE_TOGGLE_VIEW,
-    "zone.template_apply": UIEvents.ZONE_TEMPLATE_APPLY,
-    "zone.template_save": UIEvents.ZONE_TEMPLATE_SAVE,
-    "zone.template_import": UIEvents.ZONE_TEMPLATE_IMPORT,
-    "zone.template_clear_applied": UIEvents.ZONE_TEMPLATE_CLEAR_APPLIED,
-    "zone.video_search_changed": UIEvents.ZONE_VIDEO_SEARCH_CHANGED,
-    "zone.video_refresh": UIEvents.ZONE_VIDEO_REFRESH,
-    "zone.video_double_click": UIEvents.ZONE_VIDEO_DOUBLE_CLICK,
-    "zone.video_frame_load": UIEvents.ZONE_VIDEO_FRAME_LOAD,
-    "zone.list_item_right_click": UIEvents.ZONE_LIST_ITEM_RIGHT_CLICK,
-    "zone.list_item_double_click": UIEvents.ZONE_LIST_ITEM_DOUBLE_CLICK,
-    "zone.save_arena": UIEvents.ZONE_SAVE_ARENA,
-    "zone.discard_arena": UIEvents.ZONE_DISCARD_ARENA,
-    "zone.finish_drawing": UIEvents.ZONE_FINISH_DRAWING,
-    "zone.auto_detect_clicked": UIEvents.ZONE_AUTO_DETECT_CLICKED,
-    "zone.copy_zones": UIEvents.ZONE_COPY_ZONES,
-    "zone.paste_zones": UIEvents.ZONE_PASTE_ZONES,
-    "zone.delete_zones": UIEvents.ZONE_DELETE_ZONES,
-    "zone.conclude_video": UIEvents.ZONE_CONCLUDE_VIDEO,
-    # Multi-Aquarium
-    "zone:multi_auto_detect": UIEvents.ZONE_MULTI_AUTO_DETECT,
-    "zone:multi_auto_detect_success": UIEvents.ZONE_MULTI_AUTO_DETECT_SUCCESS,
-    "zone:multi_auto_detect_failed": UIEvents.ZONE_MULTI_AUTO_DETECT_FAILED,
-    "zone:aquarium_selected": UIEvents.ZONE_AQUARIUM_SELECTED,
-    "zone:multi_detect_completed": UIEvents.ZONE_MULTI_DETECT_COMPLETED,
-    "zone:aquarium_config_confirmed": UIEvents.ZONE_AQUARIUM_CONFIG_CONFIRMED,
-    "zone:aquarium_config_updated": UIEvents.ZONE_AQUARIUM_CONFIG_UPDATED,
-    "zone:aquarium_count_confirmed": UIEvents.ZONE_AQUARIUM_COUNT_CONFIRMED,
-    "zone:aquarium_assignment_completed": UIEvents.ZONE_AQUARIUM_ASSIGNMENT_COMPLETED,
-    "zone:show_aquarium_count_dialog": UIEvents.ZONE_SHOW_AQUARIUM_COUNT_DIALOG,
-    "zone:show_aquarium_assignment_dialog": UIEvents.ZONE_SHOW_AQUARIUM_ASSIGNMENT_DIALOG,
-    "zone:processing_mode_changed": UIEvents.ZONE_PROCESSING_MODE_CHANGED,
-    # Processing Reports
-    "processing.generate_trajectories": UIEvents.PROCESSING_GENERATE_TRAJECTORIES,
-    "processing.export_summaries": UIEvents.PROCESSING_EXPORT_SUMMARIES,
-    "reports.generate_partial": UIEvents.REPORTS_GENERATE_PARTIAL,
-    "reports.generate_unified": UIEvents.REPORTS_GENERATE_UNIFIED,
-    "processing_reports.item_right_click": UIEvents.PROCESSING_REPORTS_ITEM_RIGHT_CLICK,
-    # Calibration
-    "calibration:run_live": UIEvents.CALIBRATION_RUN_LIVE,
-    "calibration:copy_to_project": UIEvents.CALIBRATION_COPY_TO_PROJECT,
-    "calibration:save_to_project": UIEvents.CALIBRATION_SAVE_TO_PROJECT,
-    # Arduino
-    "arduino:setup": UIEvents.ARDUINO_SETUP,
-    "arduino:log_event": UIEvents.ARDUINO_LOG_EVENT,
-    "arduino.port_update_requested": UIEvents.ARDUINO_PORT_UPDATE_REQUESTED,
-    # Reports / App / Wizard
-    "report:generate": UIEvents.REPORT_GENERATE,
-    "app:close": UIEvents.APP_CLOSE,
-    "wizard:create_project": UIEvents.WIZARD_CREATE_PROJECT,
-    # Controller → UI
-    "ui:show_error": UIEvents.UI_SHOW_ERROR,
-    "ui:show_warning": UIEvents.UI_SHOW_WARNING,
-    "ui:show_info": UIEvents.UI_SHOW_INFO,
-    "ui:set_status": UIEvents.UI_SET_STATUS,
-    "ui:update_button_state": UIEvents.UI_UPDATE_BUTTON_STATE,
-    "ui:refresh_project_views": UIEvents.UI_REFRESH_PROJECT_VIEWS,
-    "ui:update_arduino_status": UIEvents.UI_UPDATE_ARDUINO_STATUS,
-    "ui:append_arduino_log": UIEvents.UI_APPEND_ARDUINO_LOG,
-    "ui:update_openvino_status": UIEvents.UI_UPDATE_OPENVINO_STATUS,
-    "ui:setup_interactive_polygon": UIEvents.UI_SETUP_INTERACTIVE_POLYGON,
-    "ui:display_video_frame": UIEvents.UI_DISPLAY_VIDEO_FRAME,
-    "ui:update_processing_mode": UIEvents.UI_UPDATE_PROCESSING_MODE,
-    "ui:request_process_videos": UIEvents.UI_REQUEST_PROCESS_VIDEOS,
-    "ui:navigate_to_welcome": UIEvents.UI_NAVIGATE_TO_WELCOME,
-    "ui:navigate_to_project_view": UIEvents.UI_NAVIGATE_TO_PROJECT_VIEW,
-    "ui:navigate_to_analysis_view": UIEvents.UI_NAVIGATE_TO_ANALYSIS_VIEW,
-    "ui:navigate_from_analysis_view": UIEvents.UI_NAVIGATE_FROM_ANALYSIS_VIEW,
-    "ui:select_tab": UIEvents.UI_SELECT_TAB,
-    "ui:update_openvino_checkbox": UIEvents.UI_UPDATE_OPENVINO_CHECKBOX,
-    "ui:set_active_weight": UIEvents.UI_SET_ACTIVE_WEIGHT,
-    "ui:update_weights_list": UIEvents.UI_UPDATE_WEIGHTS_LIST,
-    "ui:redraw_zones": UIEvents.UI_REDRAW_ZONES,
-    "ui:update_zone_list": UIEvents.UI_UPDATE_ZONE_LIST,
-    "ui:show_external_trigger_notice": UIEvents.UI_SHOW_EXTERNAL_TRIGGER_NOTICE,
-    "ui:clear_external_trigger_notice": UIEvents.UI_CLEAR_EXTERNAL_TRIGGER_NOTICE,
-    "ui:update_analysis_metadata": UIEvents.UI_UPDATE_ANALYSIS_METADATA,
-    "ui:update_analysis_task_status": UIEvents.UI_UPDATE_ANALYSIS_TASK_STATUS,
-    "ui:update_detection_overlay": UIEvents.UI_UPDATE_DETECTION_OVERLAY,
-    "ui:display_frame": UIEvents.UI_DISPLAY_FRAME,
-    "ui:update_social_summary": UIEvents.UI_UPDATE_SOCIAL_SUMMARY,
-    "ui:update_processing_stats": UIEvents.UI_UPDATE_PROCESSING_STATS,
-    "ui:video_hierarchy_snapshot_updated": UIEvents.UI_VIDEO_HIERARCHY_SNAPSHOT_UPDATED,
-    "ui:request_weight_file": UIEvents.UI_REQUEST_WEIGHT_FILE,
-    "ui:request_weight_type": UIEvents.UI_REQUEST_WEIGHT_TYPE,
-    "ui:request_weight_action": UIEvents.UI_REQUEST_WEIGHT_ACTION,
-    "ui:open_manage_weights_dialog": UIEvents.UI_OPEN_MANAGE_WEIGHTS_DIALOG,
-    # Multi-Aquarium UI
-    "ui:show_aquarium_count_dialog": UIEvents.UI_SHOW_AQUARIUM_COUNT_DIALOG,
-    "ui:show_aquarium_assignment_dialog": UIEvents.UI_SHOW_AQUARIUM_ASSIGNMENT_DIALOG,
-    "ui:update_aquarium_selector": UIEvents.UI_UPDATE_AQUARIUM_SELECTOR,
-    "ui:set_aquarium_selector_visible": UIEvents.UI_SET_AQUARIUM_SELECTOR_VISIBLE,
-    # Live Analysis
-    "ui:update_live_frame": UIEvents.UI_UPDATE_LIVE_FRAME,
-    "LIVE_SESSION_STOPPED": UIEvents.LIVE_SESSION_STOPPED,
-    # Widget Internal (raw strings)
-    "behavioral_config.perspective_changed": UIEvents.BEHAVIORAL_CONFIG_PERSPECTIVE_CHANGED,
-    "behavioral_config.values_changed": UIEvents.BEHAVIORAL_CONFIG_VALUES_CHANGED,
-    "behavioral_config.geotaxis_toggled": UIEvents.BEHAVIORAL_CONFIG_GEOTAXIS_TOGGLED,
-    "config.save_requested": UIEvents.CONFIG_SAVE_REQUESTED,
-    "config.validation_error": UIEvents.CONFIG_VALIDATION_ERROR,
-    "config.reset_requested": UIEvents.CONFIG_RESET_REQUESTED,
-    "config.roi_rule_changed": UIEvents.CONFIG_ROI_RULE_CHANGED,
-    "project.refresh_requested": UIEvents.PROJECT_REFRESH_REQUESTED,
-    "project.video_double_click": UIEvents.PROJECT_VIDEO_DOUBLE_CLICK_WIDGET,
-    "project.video_right_click": UIEvents.PROJECT_VIDEO_RIGHT_CLICK_WIDGET,
-    "project.item_double_click": UIEvents.PROJECT_ITEM_DOUBLE_CLICK,
-    "reports.delete_unified": UIEvents.REPORTS_DELETE_UNIFIED,
-    "control.preview_toggled": UIEvents.CONTROL_PREVIEW_TOGGLED,
-    "control.interval_changed": UIEvents.CONTROL_INTERVAL_CHANGED,
-    "frame.error": UIEvents.FRAME_ERROR,
-    "video.metadata_updated": UIEvents.VIDEO_METADATA_UPDATED,
-    "analysis.track_selected": UIEvents.ANALYSIS_TRACK_SELECTED,
-    "analysis.cancel_requested": UIEvents.ANALYSIS_CANCEL_REQUESTED,
-    "video.reconfigure_subjects": UIEvents.VIDEO_RECONFIGURE_SUBJECTS,
-    "ui:setup_zone_definition_for_single_video": UIEvents.SETUP_ZONE_DEFINITION_FOR_SINGLE_VIDEO,
-}
 
 
 class EventBusV2:
@@ -463,10 +593,14 @@ class EventBusV2:
     """
 
     def __init__(self) -> None:
-        self._subscribers: dict[UIEvents, list[Callable[[dict[str, Any]], None]]] = {}
+        self._subscribers: dict[UIEvents, list[Callable[[payloads.EventPayload], None]]] = {}
         self._lock = threading.RLock()
 
-    def subscribe(self, event_type: UIEvents, handler: Callable[[dict[str, Any]], None]) -> None:
+    def subscribe(
+        self,
+        event_type: UIEvents,
+        handler: Callable[[payloads.EventPayload], None],
+    ) -> None:
         """Subscribe a handler to an event type.
 
         Args:
@@ -483,7 +617,11 @@ class EventBusV2:
                     "event_bus_v2.subscribed", event_type=event_type.name, handler=str(handler)
                 )
 
-    def unsubscribe(self, event_type: UIEvents, handler: Callable[[dict[str, Any]], None]) -> None:
+    def unsubscribe(
+        self,
+        event_type: UIEvents,
+        handler: Callable[[payloads.EventPayload], None],
+    ) -> None:
         """Unsubscribe a handler from an event type.
 
         Args:
@@ -506,7 +644,11 @@ class EventBusV2:
                         event_type=event_type.name,
                     )
 
-    def publish(self, event: Event) -> None:
+    def publish(
+        self,
+        event: UIEvents | Event,
+        data: payloads.EventPayload | dict[str, Any] | None = None,
+    ) -> None:
         """Publish an event to all subscribers.
 
         Executes handlers synchronously. Captures exceptions in handlers
@@ -523,10 +665,16 @@ class EventBusV2:
         import time
 
         # Snapshot handlers under lock to avoid holding lock during execution
-        handlers = []
+        handlers: list[Callable[[payloads.EventPayload], None]] = []
+        if isinstance(event, Event):
+            event_type = event.type
+            payload = _coerce_payload(event.type, event.data)
+        else:
+            event_type = event
+            payload = _coerce_payload(event, data)
         with self._lock:
-            if event.type in self._subscribers:
-                handlers = list(self._subscribers[event.type])
+            if event_type in self._subscribers:
+                handlers = list(self._subscribers[event_type])
 
         if not handlers:
             return
@@ -537,8 +685,8 @@ class EventBusV2:
 
         log.debug(
             "event_bus_v2.publishing",
-            event_type=event.type.name,
-            source=event.source,
+            event_type=event_type.name,
+            source=event.source if isinstance(event, Event) else None,
             subscriber_count=len(handlers),
         )
 
@@ -547,7 +695,7 @@ class EventBusV2:
         for handler in handlers:
             try:
                 start = time.perf_counter()
-                handler(event.data)
+                handler(payload)
                 elapsed = time.perf_counter() - start
                 elapsed_ms = int(elapsed * 1000)
 
@@ -558,20 +706,19 @@ class EventBusV2:
                         handler=handler.__name__ if hasattr(handler, "__name__") else str(handler),
                         elapsed_ms=elapsed_ms,
                         threshold_ms=SLOW_HANDLER_THRESHOLD_MS,
-                        event_type=event.type.name,
+                        event_type=event_type.name,
                         tech_debt="Move I/O operations to background thread",
                     )
             except Exception as e:
                 log.exception(
                     "event_bus_v2.handler_failed",
-                    event_type=event.type.name,
+                    event_type=event_type.name,
                     handler=str(handler),
                     error=str(e),
                 )
 
 
 __all__ = [
-    "EVENT_NAME_TO_UIEVENT",
     "Event",
     "EventBusV2",
     "UIEvents",

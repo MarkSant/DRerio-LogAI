@@ -19,6 +19,7 @@ from typing import TYPE_CHECKING, Any
 
 import structlog
 
+from zebtrack.ui import payloads as payloads
 from zebtrack.ui.components.project_views.project_view_helpers import (
     summarize_batch_data,
     video_sort_key,
@@ -28,6 +29,12 @@ if TYPE_CHECKING:
     from zebtrack.ui.components.dialog_manager import DialogManager
 
 log = structlog.get_logger()
+
+
+def _payload_get(payload: payloads.EventPayload | dict[str, Any], key: str, default=None):
+    if isinstance(payload, dict):
+        return payload.get(key, default)
+    return getattr(payload, key, default)
 
 
 class VideoSelectorTreeManager:
@@ -117,15 +124,9 @@ class VideoSelectorTreeManager:
     # Event handlers
     # ------------------------------------------------------------------
 
-    def _on_video_tree_refresh_requested(self, data: dict) -> None:
+    def _on_video_tree_refresh_requested(self, data: payloads.EventPayload) -> None:
         """Handle VIDEO_TREE_REFRESH_REQUESTED event."""
-        if not isinstance(data, dict):
-            log.warning(
-                "video_selector_tree_manager._on_video_tree_refresh_requested.invalid_data_type",
-                data_type=type(data).__name__,
-            )
-            return
-        filter_text = data.get("filter_text")
+        filter_text = _payload_get(data, "filter_text")
         log.debug(
             "video_selector_tree_manager.video_tree_refresh_event_received",
             filter_text=filter_text,
@@ -141,18 +142,12 @@ class VideoSelectorTreeManager:
         log.info("video_selector_tree_manager.request_process_videos")
         self.trigger_batch_trajectory_processing(fallback_to_pending=True)
 
-    def _on_readiness_snapshot_updated(self, data: dict) -> None:
+    def _on_readiness_snapshot_updated(self, data: payloads.EventPayload) -> None:
         """Handle READINESS_SNAPSHOT_UPDATED event."""
-        if not isinstance(data, dict):
-            log.warning(
-                "video_selector_tree_manager._on_readiness_snapshot_updated.invalid_data_type",
-                data_type=type(data).__name__,
-            )
-            return
-        ready_with_trajectory = data.get("ready_with_trajectory", [])
-        ready_with_zones = data.get("ready_with_zones", [])
-        arena_only = data.get("arena_only", [])
-        without_arena = data.get("without_arena", [])
+        ready_with_trajectory = _payload_get(data, "ready_with_trajectory", [])
+        ready_with_zones = _payload_get(data, "ready_with_zones", [])
+        arena_only = _payload_get(data, "arena_only", [])
+        without_arena = _payload_get(data, "without_arena", [])
 
         log.debug(
             "video_selector_tree_manager.readiness_snapshot_event_received",
@@ -831,7 +826,7 @@ class VideoSelectorTreeManager:
         if not hasattr(self.gui, "_openvino_display_var"):
             return
 
-        openvino_status = self.gui.controller.get_openvino_cache_status()
+        openvino_status = self.gui.controller.hardware_vm.get_openvino_cache_status()
         self.gui._openvino_display_var.set(openvino_status)
 
     # ==================================================================

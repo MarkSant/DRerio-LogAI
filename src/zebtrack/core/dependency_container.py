@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
+    from zebtrack.coordinators.dialog_coordinator import DialogCoordinator
     from zebtrack.coordinators.live_batch_coordinator import LiveBatchCoordinator
 
 import structlog
@@ -180,6 +181,7 @@ class MainViewModelDependencies:
     recording_service: RecordingService | None = None
     live_camera_service: LiveCameraService | None = None
     ui_state_controller: UIStateController | None = None
+    dialog_coordinator: DialogCoordinator | None = None
 
     # Phase 3 → Phase 4: Super Coordinators
     # processing_coordinator now is VideoProcessingCoordinator (Phase 4 decomposition)

@@ -10,7 +10,7 @@ import structlog
 from PIL import Image, ImageTk
 
 from zebtrack.ui.components.base import BaseWidget
-from zebtrack.ui.event_bus_v2 import EventBusV2
+from zebtrack.ui.event_bus_v2 import EventBusV2, UIEvents
 
 log = structlog.get_logger()
 
@@ -111,7 +111,10 @@ class VideoDisplayWidget(BaseWidget):
         """
         if not video_path or not os.path.exists(video_path):
             self._log.error("video_display.load_frame.no_video", path=video_path)
-            self.emit_event("frame.error", {"reason": "video_not_found", "path": video_path})
+            self.emit_event(
+                UIEvents.FRAME_ERROR,
+                {"reason": "video_not_found", "path": video_path},
+            )
             return False
 
         try:
@@ -127,7 +130,7 @@ class VideoDisplayWidget(BaseWidget):
                     frame=frame_number,
                 )
                 self.emit_event(
-                    "frame.error",
+                    UIEvents.FRAME_ERROR,
                     {
                         "reason": "read_failed",
                         "path": video_path,
@@ -147,7 +150,7 @@ class VideoDisplayWidget(BaseWidget):
             self._log.info("video_display.frame_loaded", path=video_path, frame=frame_number)
 
             self.emit_event(
-                "frame.loaded",
+                UIEvents.FRAME_DISPLAYED,
                 {
                     "path": video_path,
                     "frame": frame_number,
@@ -166,7 +169,7 @@ class VideoDisplayWidget(BaseWidget):
                 error=str(e),
             )
             self.emit_event(
-                "frame.error",
+                UIEvents.FRAME_ERROR,
                 {
                     "reason": "exception",
                     "path": video_path,

@@ -7,7 +7,9 @@ and port configuration management for live tracking sessions.
 
 # Standard library imports
 import time
+from dataclasses import is_dataclass
 from tkinter import Label, StringVar, Text, messagebox, simpledialog, ttk
+from typing import Any
 
 # Third-party imports
 import serial.tools.list_ports
@@ -18,6 +20,14 @@ from zebtrack.ui.components.base import BaseWidget
 from zebtrack.ui.event_bus_v2 import EventBusV2, UIEvents
 
 log = structlog.get_logger()
+
+
+def _payload_get(payload: Any, key: str, default=None):
+    if isinstance(payload, dict):
+        return payload.get(key, default)
+    if is_dataclass(payload) and not isinstance(payload, type):
+        return getattr(payload, key, default)
+    return default
 
 
 class ArduinoDashboardWidget(BaseWidget):
@@ -70,7 +80,10 @@ class ArduinoDashboardWidget(BaseWidget):
         if self.event_bus:
             self.event_bus.subscribe(
                 UIEvents.UI_UPDATE_ARDUINO_STATUS,
-                lambda data: self.update_status(bool(data.get("connected")), data.get("port")),
+                lambda data: self.update_status(
+                    bool(_payload_get(data, "connected", False)),
+                    _payload_get(data, "port"),
+                ),
             )
 
         # Initialize dashboard state
@@ -237,7 +250,7 @@ class ArduinoDashboardWidget(BaseWidget):
 
                     # Emit event to notify controller
                     self.emit_event(
-                        "arduino.port_update_requested",
+                        UIEvents.ARDUINO_PORT_UPDATE_REQUESTED,
                         {"port": selected_device, "old_port": old_port},
                     )
                 else:

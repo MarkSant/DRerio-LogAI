@@ -101,7 +101,7 @@ class ManageWeightsDialog(simpledialog.Dialog):
         for item in self.listbox.get_children():
             self.listbox.delete(item)
 
-        weights = self.controller.get_all_weight_names()
+        weights = self.controller.hardware_vm.get_all_weight_names()
         default_seg_name, _ = self.controller.weight_manager.get_default_seg_weight()
         default_det_name, _ = self.controller.weight_manager.get_default_det_weight()
 

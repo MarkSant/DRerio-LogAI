@@ -9,6 +9,7 @@ import unittest
 from unittest.mock import Mock, patch
 
 from zebtrack.core.main_view_model import MainViewModel
+from zebtrack.core.viewmodels.main_view_model_runtime import MainViewModelRuntime
 
 
 class TestProjectManagerReplacedEvent(unittest.TestCase):
@@ -44,8 +45,8 @@ class TestProjectManagerReplacedEvent(unittest.TestCase):
             controller.live_camera_session_coordinator = Mock()  # type: ignore
             controller.recording_service = None  # type: ignore
 
-            # Call handler
-            controller._handle_project_manager_replaced({"new_manager": new_manager})
+            runtime = MainViewModelRuntime(controller)
+            runtime.handle_project_manager_replaced({"new_manager": new_manager})
 
             # Verify services were updated
             assert mock_service1.project_manager == new_manager
@@ -72,8 +73,8 @@ class TestProjectManagerReplacedEvent(unittest.TestCase):
             controller.live_camera_session_coordinator = Mock()  # type: ignore
             controller.recording_service = None  # type: ignore
 
-            # Should not raise exception
-            controller._handle_project_manager_replaced({"new_manager": new_manager})
+            runtime = MainViewModelRuntime(controller)
+            runtime.handle_project_manager_replaced({"new_manager": new_manager})
 
     def test_handler_handles_none_new_manager(self):
         """Test that handler returns early if new_manager is None."""
@@ -96,8 +97,8 @@ class TestProjectManagerReplacedEvent(unittest.TestCase):
 
             old_manager = mock_service.project_manager
 
-            # Call with None
-            controller._handle_project_manager_replaced({"new_manager": None})
+            runtime = MainViewModelRuntime(controller)
+            runtime.handle_project_manager_replaced({"new_manager": None})
 
             # Service should not be updated
             assert mock_service.project_manager == old_manager
@@ -123,8 +124,8 @@ class TestProjectManagerReplacedEvent(unittest.TestCase):
 
             old_manager = mock_service.project_manager
 
-            # Call with empty dict
-            controller._handle_project_manager_replaced({})
+            runtime = MainViewModelRuntime(controller)
+            runtime.handle_project_manager_replaced({})
 
             # Service should not be updated
             assert mock_service.project_manager == old_manager

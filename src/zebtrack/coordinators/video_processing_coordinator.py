@@ -33,6 +33,7 @@ from zebtrack.core.video.processing_worker import (
     ProcessingContext,
     ProcessingWorker,
 )
+from zebtrack.ui import payloads as payloads
 from zebtrack.ui.event_bus_v2 import UIEvents
 
 if TYPE_CHECKING:
@@ -59,6 +60,12 @@ if TYPE_CHECKING:
     from zebtrack.ui.event_bus_v2 import EventBusV2
 
 log = structlog.get_logger()
+
+
+def _payload_get(payload: payloads.EventPayload | dict[str, Any], key: str, default=None):
+    if isinstance(payload, dict):
+        return payload.get(key, default)
+    return getattr(payload, key, default)
 
 
 class VideoProcessingCoordinator(
@@ -179,56 +186,43 @@ class VideoProcessingCoordinator(
         # Video processing events → self
         bus.subscribe(
             UIEvents.VIDEO_START_SINGLE_PROCESSING,
-            lambda data: self.start_single_video_processing(
-                video_path=str(data.get("video_path", "")) if isinstance(data, dict) else "",
-                config=data.get("config", {}) if isinstance(data, dict) else {},
-                zone_data=cast(
-                    Any,
-                    data.get("zone_data") if isinstance(data, dict) else None,
-                ),
-            ),
-        )
-        bus.subscribe(
-            UIEvents.PROJECT_PROCESS_VIDEOS,
-            lambda data: self.process_pending_project_videos(
-                data.get("video_paths") if isinstance(data, dict) else None
+            lambda payload: self.start_single_video_processing(
+                video_path=str(_payload_get(payload, "video_path", "")),
+                config=_payload_get(payload, "config", {}) or {},
+                zone_data=cast(Any, _payload_get(payload, "zone_data")),
             ),
         )
 
+        def _handle_project_process_videos(payload: payloads.EventPayload) -> None:
+            self.process_pending_project_videos(_payload_get(payload, "video_paths"))
+
+        bus.subscribe(UIEvents.PROJECT_PROCESS_VIDEOS, _handle_project_process_videos)
+
         # Aquarium detection → multi-aquarium coordinator
         mac = self._multi_aquarium_coordinator
-        bus.subscribe(
-            UIEvents.ZONE_AUTO_DETECT,
-            lambda data: (  # type: ignore[arg-type]
-                mac.run_aquarium_detection(
-                    video_path=str(data.get("video_path", "")) if isinstance(data, dict) else "",
-                    stabilization_frames=(
-                        int(data.get("stabilization_frames", 10)) if isinstance(data, dict) else 10
-                    ),
-                )
-                if mac
-                else None
-            ),
-        )
+
+        def _handle_zone_auto_detect(payload: payloads.EventPayload) -> None:
+            if not mac:
+                return
+            mac.run_aquarium_detection(
+                video_path=str(_payload_get(payload, "video_path", "")),
+                stabilization_frames=int(_payload_get(payload, "stabilization_frames", 10)),
+            )
+
+        bus.subscribe(UIEvents.ZONE_AUTO_DETECT, _handle_zone_auto_detect)
 
         # Report generation → report coordinator
         rc = self._report_coordinator
         bus.subscribe(
             UIEvents.PROJECT_GENERATE_SUMMARIES,
-            lambda data: (
-                rc.generate_project_reports(
-                    data.get("video_paths") if isinstance(data, dict) else None
-                )
-                if rc
-                else None
+            lambda payload: (
+                rc.generate_project_reports(_payload_get(payload, "video_paths")) if rc else None
             ),
         )
 
         # Generate trajectories (from Reports tab)
-        def _handle_generate_trajectories(data: dict | None) -> None:
-            if not isinstance(data, dict) or "selection" not in data:
-                return
-            selection = data.get("selection", ())
+        def _handle_generate_trajectories(payload: payloads.EventPayload) -> None:
+            selection = _payload_get(payload, "selection", ())
             if any(
                 "_sub_" in str(s) or not str(s).endswith((".mp4", ".avi", ".mov", ".mkv"))
                 for s in selection
@@ -251,11 +245,11 @@ class VideoProcessingCoordinator(
         # Multi-aquarium events → multi-aquarium coordinator
         bus.subscribe(
             UIEvents.ZONE_MULTI_AUTO_DETECT,
-            lambda data: mac._handle_multi_auto_detect(data) if mac else None,
+            lambda payload: mac._handle_multi_auto_detect(payload) if mac else None,
         )
         bus.subscribe(
             UIEvents.ZONE_AQUARIUM_ASSIGNMENT_COMPLETED,
-            lambda data: mac._on_aquarium_assignment_completed(data) if mac else None,
+            lambda payload: mac._on_aquarium_assignment_completed(payload) if mac else None,
         )
         bus.subscribe(
             UIEvents.ZONE_PROCESSING_MODE_CHANGED,
@@ -263,14 +257,20 @@ class VideoProcessingCoordinator(
         )
 
         # Unified report generation
-        def _handle_report_generate(data):
-            if not isinstance(data, dict) or not rc:
+        def _handle_report_generate(payload: payloads.EventPayload) -> None:
+            if not rc:
                 return
-            report_type = data.get("report_type")
-            videos = data.get("videos", [])
-            paths = [v.get("path") for v in videos if v.get("path")]
-            replace_existing = bool(data.get("replace_existing", False))
-            report_scope = str(data.get("report_scope", "all"))
+            report_type = _payload_get(payload, "report_type")
+            videos = _payload_get(payload, "videos", [])
+            paths: list[str] = []
+            for item in videos:
+                if not isinstance(item, dict):
+                    continue
+                path = item.get("path")
+                if isinstance(path, str) and path:
+                    paths.append(path)
+            replace_existing = bool(_payload_get(payload, "replace_existing", False))
+            report_scope = str(_payload_get(payload, "report_scope", "all"))
             if report_type == "unified":
                 rc.generate_unified_report(
                     paths, replace_existing=replace_existing, report_scope=report_scope

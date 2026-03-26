@@ -8,7 +8,7 @@ from unittest.mock import Mock, patch
 import pytest
 
 from zebtrack.ui.components.processing_reports import ProcessingReportsWidget
-from zebtrack.ui.event_bus_v2 import Event, UIEvents
+from zebtrack.ui.event_bus_v2 import UIEvents
 
 
 @pytest.fixture
@@ -159,7 +159,8 @@ def test_delete_unified_confirm_true(widget):
         widget._on_delete_unified_clicked()
 
     widget.event_bus.publish.assert_called_once_with(
-        Event(type=UIEvents.REPORTS_DELETE_UNIFIED, data={})
+        UIEvents.REPORTS_DELETE_UNIFIED,
+        {},
     )
     assert str(widget.btn_open_unified_word.cget("state")) == "disabled"
     assert str(widget.btn_open_unified_excel.cget("state")) == "disabled"

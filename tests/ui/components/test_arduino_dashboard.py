@@ -202,9 +202,8 @@ class TestArduinoDashboardWidget:
         # Verify event was emitted
         event_bus.publish.assert_called()
         call_args = event_bus.publish.call_args
-        event_obj = call_args[0][0]  # First positional arg
-        assert event_obj.type == UIEvents.ARDUINO_PORT_UPDATE_REQUESTED
-        assert event_obj.data["port"] == "COM4"
+        assert call_args[0][0] == UIEvents.ARDUINO_PORT_UPDATE_REQUESTED
+        assert call_args[0][1]["port"] == "COM4"
 
     @patch("zebtrack.ui.components.arduino_dashboard.serial.tools.list_ports.comports")
     @patch("zebtrack.ui.components.arduino_dashboard.messagebox.showwarning")

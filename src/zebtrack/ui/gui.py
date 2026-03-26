@@ -1,5 +1,6 @@
 """Main graphical user interface (GUI) module for the Zebtrack application."""
 
+from dataclasses import is_dataclass
 from tkinter import (
     BooleanVar,
     Button,
@@ -59,6 +60,15 @@ from zebtrack.ui.event_bus_v2 import Event, EventBusV2, UIEvents
 from zebtrack.ui.ui_coordinator import UICoordinator
 
 log = structlog.get_logger()
+
+
+def _payload_get(payload: Any, key: str, default=None):
+    if isinstance(payload, dict):
+        return payload.get(key, default)
+    if is_dataclass(payload) and not isinstance(payload, type):
+        return getattr(payload, key, default)
+    return default
+
 
 STATUS_SYMBOLS = {
     "arena": "\U0001f3df",  # 🏟
@@ -122,8 +132,8 @@ class ApplicationGUI:
                 lambda data: self.root.after(
                     0,
                     lambda: self.dialog_manager.show_error(
-                        data.get("title", "Erro"),
-                        data.get("message", "Ocorreu um erro desconhecido."),
+                        _payload_get(data, "title", "Erro"),
+                        _payload_get(data, "message", "Ocorreu um erro desconhecido."),
                     ),
                 ),
             )

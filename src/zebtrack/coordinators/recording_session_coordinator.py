@@ -30,6 +30,7 @@ from zebtrack.coordinators.base_coordinator import (
     CoordinatorValidationError,
 )
 from zebtrack.core.state_manager import StateCategory
+from zebtrack.ui import payloads as payloads
 from zebtrack.ui.event_bus_v2 import Event, UIEvents
 
 if TYPE_CHECKING:
@@ -710,7 +711,7 @@ class RecordingSessionCoordinator(BaseCoordinator):
         self.event_bus.subscribe(UIEvents.ZONE_SET_ARENA_POLYGON, self._on_zone_saved)
         self.event_bus.subscribe(UIEvents.ZONE_SAVE_ARENA, self._on_zone_saved)
 
-    def _on_zone_saved(self, data: dict | None = None):
+    def _on_zone_saved(self, data: payloads.EventPayload | None = None) -> None:
         """Handle zone saved event to resume pending recording."""
         if not self.live_calibration_coordinator.pending_zone_confirmation:
             return

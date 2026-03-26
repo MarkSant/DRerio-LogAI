@@ -248,7 +248,7 @@ class TestCanvasAccessAndEvents:
 
         canvas_manager._on_zones_updated(["invalid"])
 
-        canvas_manager.update_zone_listbox.assert_not_called()
+        canvas_manager.update_zone_listbox.assert_called_once_with(None)
 
     def test_on_zones_updated_updates_listbox(self, canvas_manager):
         """Update listbox with provided zone data."""

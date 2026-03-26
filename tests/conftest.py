@@ -15,6 +15,21 @@ os.environ["ZEBTRACK_SUPPRESS_CONSOLE_LOGS"] = "1"
 HEADLESS_TESTS = os.environ.get("ZEBTRACK_HEADLESS_TESTS", "0") == "1"
 
 
+def _can_initialize_tk() -> bool:
+    try:
+        root = tk.Tk()
+        root.withdraw()
+        root.destroy()
+    except tk.TclError:
+        return False
+    return True
+
+
+if not HEADLESS_TESTS:
+    # Skip GUI tests when Tk cannot initialize (missing Tcl/Tk or no display).
+    HEADLESS_TESTS = not _can_initialize_tk()
+
+
 class _NullHandler(logging.Handler):
     """A handler that does nothing - discards all logs."""
 

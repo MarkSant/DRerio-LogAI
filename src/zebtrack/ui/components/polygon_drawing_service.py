@@ -35,7 +35,7 @@ class ArenaCompletionStrategy(PolygonCompletionStrategy):
         if is_multi_aquarium:
             success = self._complete_multi_aquarium(video_points, gui, zone_controls)
         else:
-            success = gui.controller.set_main_arena_polygon(video_points)
+            success = gui.controller.analysis_vm.set_main_arena_polygon(video_points)
 
         if success:
             gui.canvas_manager.redraw_zones_from_project_data()
@@ -126,7 +126,7 @@ class ROICompletionStrategy(PolygonCompletionStrategy):
         # but verify ColorSelectionDialog implementation if possible.
         # Assuming plan is correct.
         roi_color = color_dialog.result["rgb"]
-        success = gui.controller.add_roi_polygon(video_points, roi_name, roi_color)
+        success = gui.controller.analysis_vm.add_roi_polygon(video_points, roi_name, roi_color)
 
         if success:
             gui.canvas_manager.redraw_zones_from_project_data()

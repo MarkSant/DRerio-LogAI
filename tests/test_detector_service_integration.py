@@ -237,7 +237,7 @@ class TestDetectorServiceIntegration(unittest.TestCase):
             "match_threshold": 0.20,
         }
 
-        success = self.controller.update_detector_parameters(new_params)
+        success = self.controller.hardware_vm.update_detector_parameters(new_params)
 
         # Verify success
         self.assertTrue(success)
@@ -282,7 +282,7 @@ class TestDetectorServiceIntegration(unittest.TestCase):
         self.mock_settings.bytetrack.match_threshold = 0.22
 
         # Get parameters through controller
-        params = self.controller.get_current_detector_parameters()
+        params = self.controller.hardware_vm.get_current_detector_parameters()
 
         # Verify we get the actual values (from plugin and settings)
         self.assertAlmostEqual(params["conf_threshold"], 0.42)
@@ -392,13 +392,13 @@ class TestDetectorServiceIntegration(unittest.TestCase):
             "match_threshold": 0.20,
         }
 
-        success = self.controller.update_detector_parameters(new_params)
+        success = self.controller.hardware_vm.update_detector_parameters(new_params)
 
         # Verify success
         self.assertTrue(success)
 
         # Parameters should be retrievable (from defaults)
-        params = self.controller.get_current_detector_parameters()
+        params = self.controller.hardware_vm.get_current_detector_parameters()
         self.assertIn("conf_threshold", params)
         self.assertIn("nms_threshold", params)
 

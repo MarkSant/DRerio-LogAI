@@ -55,7 +55,7 @@ class CalibrationDialog(simpledialog.Dialog):
         self.active_weight_var = StringVar()
         self.use_openvino_var = BooleanVar()
         self.openvino_status_var = StringVar()
-        self.scope_info = controller.get_calibration_scope_info()
+        self.scope_info = controller.project_vm.get_calibration_scope_info()
         self.scope = self.scope_info.get("scope", "global")
         self.scope_label_var = StringVar(value=self.scope_info["label"])
         self.scope_detail_var = StringVar(value=self.scope_info["detail"])
@@ -217,7 +217,11 @@ class CalibrationDialog(simpledialog.Dialog):
             ).grid(row=0, column=0, sticky="w", padx=12, pady=12)
             return
 
-        defaults = self.controller.get_global_model_defaults()
+        detector_state = self.controller.state_manager.get_detector_state()
+        defaults = {
+            "active_weight": detector_state.active_weight_name,
+            "use_openvino": detector_state.use_openvino,
+        }
         overrides = self._get_current_overrides()
 
         heading = ttk.Label(
@@ -227,7 +231,7 @@ class CalibrationDialog(simpledialog.Dialog):
         )
         heading.grid(row=0, column=0, columnspan=2, sticky="w", padx=12, pady=(8, 4))
 
-        weights = self.controller.get_all_weight_names()
+        weights = self.controller.hardware_vm.get_all_weight_names()
         display_values = [self.WEIGHT_INHERIT_LABEL, *weights]
 
         current_weight_override = overrides.get("active_weight")
@@ -387,11 +391,13 @@ class CalibrationDialog(simpledialog.Dialog):
             return
 
         weight_override, openvino_override = self._get_preferences_overrides()
-        resolved_weight, resolved_openvino = self.controller.resolve_project_model_settings(
-            {
-                "active_weight": weight_override,
-                "use_openvino": openvino_override,
-            }
+        resolved_weight, resolved_openvino = (
+            self.controller.project_vm.resolve_project_model_settings(
+                {
+                    "active_weight": weight_override,
+                    "use_openvino": openvino_override,
+                }
+            )
         )
 
         self.effective_weight_var.set(resolved_weight or "Nenhum peso disponível")
@@ -404,7 +410,9 @@ class CalibrationDialog(simpledialog.Dialog):
         weight_override, openvino_override = self._get_preferences_overrides()
 
         try:
-            self.controller.save_project_model_overrides(weight_override, openvino_override)
+            self.controller.project_vm.save_project_model_overrides(
+                weight_override, openvino_override
+            )
         except ValidationError as exc:  # pragma: no cover - defensive
             messagebox.showerror("Erro", str(exc))
             return
@@ -480,8 +488,8 @@ class CalibrationDialog(simpledialog.Dialog):
             pady=(0, 5),
         )
 
-        self.use_openvino_var.set(self.controller.use_openvino)
-        self.update_openvino_status_label(self.controller.get_openvino_status())
+        self.use_openvino_var.set(self.controller.hardware_vm.use_openvino)
+        self.update_openvino_status_label(self.controller.hardware_vm.get_openvino_status())
 
         diag_frame = ttk.LabelFrame(
             master,
@@ -895,7 +903,7 @@ class CalibrationDialog(simpledialog.Dialog):
             project_params = _extract_params(project_data.get("detector_state"))
 
         try:
-            params = self.controller.get_current_detector_parameters()
+            params = self.controller.hardware_vm.get_current_detector_parameters()
         except Exception:
             log.debug("calibration.get_detector_params.fallback")
             params = {}
@@ -990,7 +998,7 @@ class CalibrationDialog(simpledialog.Dialog):
             return
 
         try:
-            updated = self.controller.update_detector_parameters(
+            updated = self.controller.hardware_vm.update_detector_parameters(
                 {
                     "confidence_threshold": conf,
                     "nms_threshold": nms,
@@ -1021,7 +1029,7 @@ class CalibrationDialog(simpledialog.Dialog):
     def _restore_detector_defaults(self, scope_override: str | None = None) -> None:
         scope = scope_override or self.scope
         try:
-            restored = self.controller.restore_detector_defaults(scope=scope)
+            restored = self.controller.hardware_vm.restore_detector_defaults(scope=scope)
         except Exception as exc:  # pragma: no cover - defensive
             messagebox.showerror("Erro", str(exc))
             return
@@ -1037,14 +1045,14 @@ class CalibrationDialog(simpledialog.Dialog):
     def _populate_weights_dropdown(self):
         if not self.weights_dropdown:
             return
-        weights_list = self.controller.get_all_weight_names()
+        weights_list = self.controller.hardware_vm.get_all_weight_names()
         self.weights_dropdown["values"] = weights_list
         if not weights_list:
             self.active_weight_var.set("Nenhum peso encontrado.")
             self.weights_dropdown.config(state="disabled")
         else:
             self.weights_dropdown.config(state="readonly")
-            current_weight = self.controller.active_weight_name
+            current_weight = self.controller.hardware_vm.active_weight_name
             if current_weight in weights_list:
                 self.active_weight_var.set(current_weight)
             elif weights_list:
@@ -1158,7 +1166,7 @@ class CalibrationDialog(simpledialog.Dialog):
         return "Salvar calibração neste projeto"
 
     def _refresh_scope_context(self) -> None:
-        self.scope_info = self.controller.get_calibration_scope_info()
+        self.scope_info = self.controller.project_vm.get_calibration_scope_info()
         self.scope = self.scope_info.get("scope", self.scope)
         self.scope_label_var.set(self.scope_info["label"])
         self.scope_detail_var.set(self.scope_info["detail"])
@@ -1214,5 +1222,5 @@ class CalibrationDialog(simpledialog.Dialog):
                 )
 
         self._populate_weights_dropdown()
-        self.use_openvino_var.set(self.controller.use_openvino)
+        self.use_openvino_var.set(self.controller.hardware_vm.use_openvino)
         self._refresh_scope_context()

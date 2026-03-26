@@ -144,6 +144,18 @@ Agent requirements:
 | `tomoki1207.pdf` | Unused — no PDF workflows |
 | `mechatroner.rainbow-csv` | Unused — project uses Parquet, not CSV |
 
+### MCP Server Configuration (Agent Integration)
+
+- **GitHub MCP** (`.vscode/mcp.json`): Configured via `@modelcontextprotocol/server-github`. Enables agents to interact with issues, PRs, code search, and repository metadata directly from VS Code.
+- **Root-level** (`.mcp.json`): Same GitHub server config for agents using root-level MCP (e.g., Claude CLI). Requires `GITHUB_TOKEN` env var.
+- **Requirement**: Node.js must be installed (for `npx`). A GitHub PAT with `repo` scope is needed.
+
+### Workspace Performance (OneDrive Optimization)
+
+- **`files.watcherExclude`**: Configured in `.vscode/settings.json` to exclude `openvino_model_cache/`, `htmlcov/`, `MagicMock/`, `live_analysis_sessions/`, `logs/`, `__pycache__/`, `.ruff_cache/`, `.pytest_cache/`, `.hypothesis/`, `.mypy_cache/` from file watching. Critical for reducing CPU/disk I/O on OneDrive-synced workspaces.
+- **`search.exclude`**: Extended to also exclude `htmlcov/`, `MagicMock/`, `live_analysis_sessions/`, `logs/`, `.ruff_cache/`, `.pytest_cache/`, `.hypothesis/` from global search results.
+- **Deprecated settings removed** (Mar 2026): `python.linting.*`, `python.formatting.provider`, `python-envs.defaultEnvManager` — all deprecated by the Python extension. Ruff handles all formatting/linting.
+
 ### How to use/configure in VS Code
 
 - Use "Python: Select Interpreter" to pick the Poetry venv; keep terminals aligned.

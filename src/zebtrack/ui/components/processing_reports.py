@@ -11,7 +11,7 @@ from tkinter import StringVar, ttk
 import structlog
 
 from zebtrack.ui.components.base import BaseWidget
-from zebtrack.ui.event_bus_v2 import EventBusV2
+from zebtrack.ui.event_bus_v2 import EventBusV2, UIEvents
 
 log = structlog.get_logger()
 
@@ -301,7 +301,7 @@ class ProcessingReportsWidget(BaseWidget):
     def _on_refresh_clicked(self) -> None:
         """Handle refresh button click."""
         log.debug("processing_reports.refresh_clicked")
-        self.emit_event("project.refresh_requested", {})
+        self.emit_event(UIEvents.PROJECT_REFRESH_REQUESTED, {})
 
     def _on_expand_collapse_clicked(self) -> None:
         """Handle expand/collapse all button click."""
@@ -359,7 +359,7 @@ class ProcessingReportsWidget(BaseWidget):
         """Handle tree selection change."""
         selection = self.tree.selection() if self.tree else []
         log.debug("processing_reports.selection_changed", count=len(selection))
-        self.emit_event("project.selection_changed", {"selection": selection})
+        self.emit_event(UIEvents.PROJECT_SELECTION_CHANGED, {"selection": selection})
         self._update_button_states()
 
     def _on_item_double_click(self, event) -> None:
@@ -378,7 +378,10 @@ class ProcessingReportsWidget(BaseWidget):
 
         if item_id:
             log.debug("processing_reports.item_double_clicked", item_id=item_id)
-            self.emit_event("project.item_double_click", {"item_id": item_id, "event": event})
+            self.emit_event(
+                UIEvents.PROJECT_ITEM_DOUBLE_CLICK,
+                {"item_id": item_id, "event": event},
+            )
 
     def _on_item_right_click(self, event) -> None:
         """Handle item right-click in tree."""
@@ -392,7 +395,7 @@ class ProcessingReportsWidget(BaseWidget):
             # Ensure item is selected
             self.tree.selection_set(item_id)
             self.emit_event(
-                "processing_reports.item_right_click",
+                UIEvents.PROCESSING_REPORTS_ITEM_RIGHT_CLICK,
                 {
                     "item_id": item_id,
                     "column_id": column_id,
@@ -412,7 +415,7 @@ class ProcessingReportsWidget(BaseWidget):
         """Handle Export Summaries button click."""
         log.info("processing_reports.export_summaries_clicked")
         selection = self.tree.selection() if self.tree else []
-        self.emit_event("processing.export_summaries", {"selection": selection})
+        self.emit_event(UIEvents.PROCESSING_EXPORT_SUMMARIES, {"selection": selection})
         if self._on_export_summaries:
             self._on_export_summaries()
 
@@ -420,7 +423,7 @@ class ProcessingReportsWidget(BaseWidget):
         """Handle Generate Partial Report button click."""
         log.info("processing_reports.generate_partial_report_clicked")
         selection = self.tree.selection() if self.tree else []
-        self.emit_event("reports.generate_partial", {"selection": selection})
+        self.emit_event(UIEvents.REPORTS_GENERATE_PARTIAL, {"selection": selection})
         if self._on_generate_partial_report:
             self._on_generate_partial_report()
 
@@ -457,7 +460,7 @@ class ProcessingReportsWidget(BaseWidget):
         )
 
         if confirm:
-            self.emit_event("reports.delete_unified", {})
+            self.emit_event(UIEvents.REPORTS_DELETE_UNIFIED, {})
             # Optimistically disable buttons, though actual deletion happens in controller
             if self.btn_open_unified_word:
                 self.btn_open_unified_word.config(state="disabled")

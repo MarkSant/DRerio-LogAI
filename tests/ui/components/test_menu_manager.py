@@ -28,7 +28,8 @@ def mock_controller():
     """Create a mock controller."""
     controller = Mock()
     controller.start_live_camera_analysis = Mock()
-    controller.can_remove_project_asset = Mock(return_value=(True, None))
+    controller.project_vm = Mock()
+    controller.project_vm.can_remove_project_asset = Mock(return_value=(True, None))
     return controller
 
 
@@ -402,7 +403,7 @@ class TestHandleOverviewAssetRemoval:
         self, mock_messagebox, menu_manager, mock_controller
     ):
         """Test handling when removal is not allowed."""
-        mock_controller.can_remove_project_asset.return_value = (
+        mock_controller.project_vm.can_remove_project_asset.return_value = (
             False,
             "Video is being processed",
         )
@@ -419,7 +420,7 @@ class TestHandleOverviewAssetRemoval:
         self, mock_messagebox, menu_manager, mock_controller
     ):
         """Test handling when user cancels confirmation."""
-        mock_controller.can_remove_project_asset.return_value = (True, None)
+        mock_controller.project_vm.can_remove_project_asset.return_value = (True, None)
         mock_messagebox.askyesno.return_value = False
 
         menu_manager.handle_overview_asset_removal("/path/to/video.mp4", "arena")
@@ -432,7 +433,7 @@ class TestHandleOverviewAssetRemoval:
         self, mock_messagebox, menu_manager, mock_controller
     ):
         """Test arena removal."""
-        mock_controller.can_remove_project_asset.return_value = (True, None)
+        mock_controller.project_vm.can_remove_project_asset.return_value = (True, None)
         mock_messagebox.askyesno.return_value = True
 
         menu_manager.handle_overview_asset_removal("/path/to/video.mp4", "arena")
@@ -467,7 +468,7 @@ class TestHandleOverviewAssetRemoval:
         self, mock_messagebox, menu_manager, mock_controller
     ):
         """Test video removal with file deletion."""
-        mock_controller.can_remove_project_asset.return_value = (True, None)
+        mock_controller.project_vm.can_remove_project_asset.return_value = (True, None)
         mock_messagebox.askyesno.side_effect = [True, True]  # Confirm removal and deletion
 
         menu_manager.handle_overview_asset_removal("/path/to/video.mp4", "video")
@@ -484,7 +485,7 @@ class TestHandleOverviewAssetRemoval:
         self, mock_messagebox, menu_manager, mock_controller
     ):
         """Test video removal without file deletion."""
-        mock_controller.can_remove_project_asset.return_value = (True, None)
+        mock_controller.project_vm.can_remove_project_asset.return_value = (True, None)
         mock_messagebox.askyesno.side_effect = [True, False]  # Confirm removal, keep files
 
         menu_manager.handle_overview_asset_removal("/path/to/video.mp4", "video")
@@ -508,7 +509,7 @@ class TestHandleOverviewAssetRemoval:
         self, mock_messagebox, menu_manager, mock_controller, asset, expected_status
     ):
         """Test that correct status messages are shown for each asset type."""
-        mock_controller.can_remove_project_asset.return_value = (True, None)
+        mock_controller.project_vm.can_remove_project_asset.return_value = (True, None)
         mock_messagebox.askyesno.return_value = True
 
         menu_manager.handle_overview_asset_removal("/path/to/video.mp4", asset)

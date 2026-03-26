@@ -5,7 +5,7 @@ from unittest.mock import Mock
 import pytest
 
 from zebtrack.ui.components.zone_controls import ZoneControlsWidget
-from zebtrack.ui.event_bus_v2 import Event, UIEvents
+from zebtrack.ui.event_bus_v2 import UIEvents
 
 
 @pytest.fixture
@@ -84,10 +84,8 @@ def test_on_roi_rule_changed_emits_event(widget, event_bus):
     widget._on_roi_rule_changed(None)
 
     event_bus.publish.assert_called_with(
-        Event(
-            type=UIEvents.DETECTOR_UPDATE_PARAMETERS,
-            data={"rule": "centroid_in_on_buffered_roi"},
-        )
+        UIEvents.DETECTOR_UPDATE_PARAMETERS,
+        {"rule": "centroid_in_on_buffered_roi"},
     )
     assert "centroide" in widget.rule_help_label.cget("text")
 
@@ -101,10 +99,8 @@ def test_apply_roi_settings_emits_event(widget, event_bus):
     widget._on_apply_roi_settings_clicked()
 
     event_bus.publish.assert_called_with(
-        Event(
-            type=UIEvents.DETECTOR_UPDATE_PARAMETERS,
-            data={"rule": "bbox_intersects", "buffer_radius": 1.2, "overlap_ratio": 0.25},
-        )
+        UIEvents.DETECTOR_UPDATE_PARAMETERS,
+        {"rule": "bbox_intersects", "buffer_radius": 1.2, "overlap_ratio": 0.25},
     )
 
 
@@ -114,7 +110,8 @@ def test_on_video_search_changed_emits_event(widget, event_bus):
     widget._on_video_search_changed()
 
     event_bus.publish.assert_called_with(
-        Event(type=UIEvents.ZONE_VIDEO_SEARCH_CHANGED, data={"search_text": "demo"})
+        UIEvents.ZONE_VIDEO_SEARCH_CHANGED,
+        {"search_text": "demo"},
     )
 
 
@@ -126,5 +123,6 @@ def test_on_video_tree_double_click_emits_event(widget, event_bus):
     widget._on_video_tree_double_click(Mock())
 
     event_bus.publish.assert_called_with(
-        Event(type=UIEvents.ZONE_VIDEO_DOUBLE_CLICK, data={"item_id": item_id})
+        UIEvents.ZONE_VIDEO_DOUBLE_CLICK,
+        {"item_id": item_id},
     )

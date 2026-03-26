@@ -6,6 +6,7 @@ from unittest.mock import Mock
 
 import pytest
 
+from zebtrack.ui import payloads as payloads
 from zebtrack.ui.event_bus_v2 import Event, EventBusV2, UIEvents
 
 
@@ -20,11 +21,13 @@ def test_subscribe_and_publish(event_bus):
     handler = Mock()
     event_bus.subscribe(UIEvents.ZONES_UPDATED, handler)
 
-    payload = {"key": "value"}
+    payload = {"zone_data": "value"}
     event = Event(type=UIEvents.ZONES_UPDATED, data=payload)
     event_bus.publish(event)
-
-    handler.assert_called_once_with(payload)
+    handler.assert_called_once()
+    arg = handler.call_args[0][0]
+    assert isinstance(arg, payloads.ZonesUpdatedPayload)
+    assert arg.zone_data == "value"
 
 
 def test_multiple_subscribers(event_bus):
@@ -35,7 +38,7 @@ def test_multiple_subscribers(event_bus):
     event_bus.subscribe(UIEvents.VIDEO_LOADED, handler1)
     event_bus.subscribe(UIEvents.VIDEO_LOADED, handler2)
 
-    event = Event(type=UIEvents.VIDEO_LOADED)
+    event = Event(type=UIEvents.VIDEO_LOADED, data={"video_path": "/tmp/test.mp4"})
     event_bus.publish(event)
 
     handler1.assert_called_once()
@@ -69,7 +72,7 @@ def test_handler_exception_isolation(event_bus):
     event_bus.subscribe(UIEvents.ANALYSIS_STARTED, failing_handler)
     event_bus.subscribe(UIEvents.ANALYSIS_STARTED, working_handler)
 
-    event = Event(type=UIEvents.ANALYSIS_STARTED)
+    event = Event(type=UIEvents.ANALYSIS_STARTED, data={"video_path": "/tmp/test.mp4"})
     event_bus.publish(event)
 
     failing_handler.assert_called_once()
@@ -92,11 +95,11 @@ def test_thread_safety(event_bus):
 
     def worker_subscribe_publish(thread_name, handler):
         # Subscribe
-        event_bus.subscribe(UIEvents.PROCESSING_STATS_UPDATED, handler)
+        event_bus.subscribe(UIEvents.ZONES_UPDATED, handler)
 
         # Publish 100 times
         for i in range(100):
-            event_bus.publish(Event(UIEvents.PROCESSING_STATS_UPDATED, {"iter": i}))
+            event_bus.publish(Event(UIEvents.ZONES_UPDATED, {"zone_data": i}))
             time.sleep(0.001)  # Small delay to encourage interleaving
 
     t1 = threading.Thread(target=worker_subscribe_publish, args=("t1", handler_t1))

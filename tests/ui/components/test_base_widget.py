@@ -6,7 +6,7 @@ from unittest.mock import Mock
 import pytest
 
 from zebtrack.ui.components.base import BaseWidget
-from zebtrack.ui.event_bus_v2 import Event, UIEvents
+from zebtrack.ui.event_bus_v2 import UIEvents
 
 
 class _DummyWidget(BaseWidget):
@@ -19,7 +19,7 @@ class _DummyWidget(BaseWidget):
 def test_emit_event_without_bus(tkinter_root):
     widget = _DummyWidget(tkinter_root, event_bus=None)
 
-    widget.emit_event("event.test", {"a": 1})
+    widget.emit_event(UIEvents.SHOW_INFO, {"a": 1})
 
     # No event bus, should not raise
 
@@ -32,7 +32,7 @@ def test_emit_event_with_bus(tkinter_root):
 
     widget.emit_event(UIEvents.FRAME_ERROR, {"a": 1})
 
-    event_bus.publish.assert_called_once_with(Event(type=UIEvents.FRAME_ERROR, data={"a": 1}))
+    event_bus.publish.assert_called_once_with(UIEvents.FRAME_ERROR, {"a": 1})
 
 
 @pytest.mark.gui

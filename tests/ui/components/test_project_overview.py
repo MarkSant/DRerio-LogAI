@@ -332,7 +332,11 @@ def test_on_video_right_click_emits_event(overview_widget):
     overview_widget._on_video_right_click(SimpleNamespace(y=5, x_root=10, y_root=20))
 
     assert len(events_received) >= 1
-    assert events_received[0]["item_id"] == "item1"
+    payload = events_received[0]
+    item_id = getattr(payload, "item_id", None)
+    if item_id is None and hasattr(payload, "data") and isinstance(payload.data, dict):
+        item_id = payload.data.get("item_id")
+    assert item_id == "item1"
 
 
 def test_update_tree_builds_video_index(overview_widget):

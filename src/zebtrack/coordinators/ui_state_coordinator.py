@@ -60,6 +60,7 @@ class UIStateController:
         detector_coordinator: Any,  # DetectorSetupCoordinator (Phase 4.9)
         project_workflow_service: ProjectWorkflowService,
         main_view_model: Any | None = None,
+        view: Any | None = None,
     ):
         """Initialize with direct dependency injection.
 
@@ -92,8 +93,16 @@ class UIStateController:
         # Optional MainViewModel reference (for legacy delegation if needed)
         self.main_view_model = main_view_model
 
-        # View will be set later by MainViewModel or Bootstrapper
-        self.view = getattr(main_view_model, "view", None) if main_view_model else None
+        if view is not None:
+            self.view = view
+        elif main_view_model is None:
+            self.view = None
+        else:
+            is_resolved = getattr(main_view_model, "is_resolved", None)
+            if isinstance(is_resolved, bool) and not is_resolved:
+                self.view = None
+            else:
+                self.view = getattr(main_view_model, "view", None)
 
     # ========================================================================
     # Group H: Core Utilities (extract first - most fundamental)

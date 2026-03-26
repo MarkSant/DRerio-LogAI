@@ -202,6 +202,7 @@ class RecordingState:
     """Immutable snapshot of recording-related state."""
 
     is_recording: bool = False
+    is_capturing_for_video: bool = False
     output_path: Path | None = None
     recording_start_time: datetime | None = None
     arduino_connected: bool = False
@@ -214,6 +215,7 @@ class RecordingState:
         """Create a deep copy of recording state."""
         return RecordingState(
             is_recording=self.is_recording,
+            is_capturing_for_video=self.is_capturing_for_video,
             output_path=self.output_path,
             recording_start_time=self.recording_start_time,
             arduino_connected=self.arduino_connected,
@@ -231,6 +233,8 @@ class ProcessingState:
     is_processing: bool = False
     processing_mode: str = "MULTI_TRACK"  # ProcessingMode enum
     processing_type: str | None = None
+    processing_thread: threading.Thread | None = None
+    pending_single_video_analysis: Any | None = None
     current_video: str | None = None
     current_frame: int = 0
     total_frames: int = 0
@@ -249,6 +253,8 @@ class ProcessingState:
             is_processing=self.is_processing,
             processing_mode=self.processing_mode,
             processing_type=self.processing_type,
+            processing_thread=self.processing_thread,
+            pending_single_video_analysis=self.pending_single_video_analysis,
             current_video=self.current_video,
             current_frame=self.current_frame,
             total_frames=self.total_frames,

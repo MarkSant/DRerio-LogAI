@@ -54,7 +54,7 @@ Escrever integration tests para os 5 fluxos que têm 0% coverage nos coordinator
 - Marcar com `@pytest.mark.integration`
 - Target: cada fluxo com pelo menos 1 happy path + 1 error path test
 
-**Verificar**: `poetry run pytest tests/integration/test_coordinator_flows.py -v`
+**Verificar**: `poetry run pytest tests/integration/test_coordinator_flows.py -v --no-cov`
 
 ---
 
@@ -104,6 +104,15 @@ Escrever integration tests para os 5 fluxos que têm 0% coverage nos coordinator
 ## Fase 3 — Decomposição de Módulos Gigantes (Risco médio)
 
 **Objetivo**: Resolver críticas 8.6 (duas `create_project` C901) e 8.7 (WidgetFactory 1467 linhas).
+
+**Status (2026-03-15)**: Concluído — `create_project()` unificado no
+`ProjectWorkflowService`, `ProjectLifecycleCoordinator.create_project()` agora
+delegando com helpers, `WidgetFactory` dividido em builders com tamanhos alvo.
+`poetry run pytest -q` passou (2714 passed, 12 skipped), `poetry run ruff check .`
+passou; `poetry run mypy src/zebtrack` reportou erros preexistentes em
+`event_bus_v2.py`, `arduino_dashboard.py`, `video_processing_coordinator.py`,
+`ui_coordinator.py`, `event_dispatcher.py`, `live_camera_service.py`, `gui.py`
+e `main_view_model.py`.
 
 **Agente deve receber este contexto**:
 
@@ -203,6 +212,18 @@ Escrever integration tests para os 5 fluxos que têm 0% coverage nos coordinator
 - `poetry run mypy src/zebtrack/core/di_registrations.py`
 - Verificar que a aplicação inicia: `poetry run zebtrack`
 
+#### Status (2026-03-15): Concluído
+
+- DI container `punq` instalado e registrado em [src/zebtrack/core/di_registrations.py](src/zebtrack/core/di_registrations.py)
+- `__main__.py` reduzido para entrypoint fino com `run_app` e DI via container
+- Post-construction injection removida do fluxo de startup (LazyRef usado no container)
+Verificações:
+
+- `poetry run pytest -q` (2714 passed)
+- `poetry run mypy src/zebtrack/core/di_registrations.py`
+- `poetry run ruff check .`
+- `poetry run zebtrack` (iniciou e logou inicialização)
+
 ---
 
 ## Critérios de Completude por Fase
@@ -215,6 +236,22 @@ Escrever integration tests para os 5 fluxos que têm 0% coverage nos coordinator
 | 4    | `__main__.py` <150 linhas + `MainViewModel` <400 linhas + all tests passing     |
 
 ---
+
+## Encerramento e Excelência (Obrigatório)
+
+Ao final de todo o plano, executar e corrigir **qualquer erro** antes de:
+commit, push e abertura de PR para `MAIN`.
+
+**Checklist final obrigatório:**
+
+1. `poetry run mypy src/zebtrack`
+2. `poetry run pytest -q`
+3. `poetry run pytest -m slow`
+4. `poetry run pytest -m gui -n0`
+5. `poetry run ruff check .`
+6. `poetry run ruff format .`
+7. `markdownlint` (com a configuração do repositório)
+8. Corrigir todos os erros acima antes de **commit**, **push** e **PR**.
 
 ## Notas para Agentes Executores
 

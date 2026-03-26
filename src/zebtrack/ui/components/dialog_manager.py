@@ -315,12 +315,14 @@ class DialogManager:
 
         with self.gui.controller.project_calibration_session():
             CalibrationDialog(self.gui.root, self.gui.controller)
-        self.gui.weight_hardware_manager.update_openvino_checkbox(self.gui.controller.use_openvino)
+        self.gui.weight_hardware_manager.update_openvino_checkbox(
+            self.gui.controller.hardware_vm.use_openvino
+        )
         self.gui.weight_hardware_manager.set_active_weight_in_dropdown(
-            self.gui.controller.active_weight_name
+            self.gui.controller.hardware_vm.active_weight_name
         )
         self.gui.weight_hardware_manager.update_openvino_status_display(
-            self.gui.controller.get_openvino_status()
+            self.gui.controller.hardware_vm.get_openvino_status()
         )
 
     # =========================================================================
@@ -720,7 +722,7 @@ class DialogManager:
                 project_type = pm.get_project_type()
 
                 if project_type == "live":
-                    success = self.gui.controller.start_live_project_session(
+                    success = self.gui.controller.hardware_vm.start_live_project_session(
                         day=day,
                         group=group_name,
                         subject=str(subject_id),
@@ -733,7 +735,7 @@ class DialogManager:
                         )
                 else:
                     # Legacy path for pre-recorded projects
-                    self.gui.controller.start_recording(
+                    self.gui.controller.hardware_vm.start_recording(
                         day=day, group=group_name, cobaia=str(subject_id)
                     )
 

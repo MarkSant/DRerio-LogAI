@@ -44,9 +44,10 @@ def mock_controller():
     controller.project_manager.save_zone_data = Mock()
     controller.project_manager.set_active_zone_video = Mock()
     controller.settings = Mock()
-    controller.use_openvino = False
-    controller.active_weight_name = "test_weight"
-    controller.get_openvino_status = Mock(return_value="disabled")
+    controller.hardware_vm = Mock()
+    controller.hardware_vm.use_openvino = False
+    controller.hardware_vm.active_weight_name = "test_weight"
+    controller.hardware_vm.get_openvino_status = Mock(return_value="disabled")
     controller.setup_detector_zones = Mock()
     controller.global_calibration_session = Mock()
     controller.project_calibration_session = Mock()
@@ -1110,12 +1111,12 @@ class TestGridCellClick:
         mock_gui.controller.project_manager.get_completed_sessions.return_value = []
         mock_gui.controller.project_manager.project_data["subjects_per_group"] = 3
         mock_gui.controller.project_manager.get_project_type.return_value = "live"
-        mock_gui.controller.start_live_project_session = Mock(return_value=True)
+        mock_gui.controller.hardware_vm.start_live_project_session = Mock(return_value=True)
         mock_gui.widget_factory = Mock()
 
         dialog_manager.handle_grid_cell_click(1, "G1")
 
-        mock_gui.controller.start_live_project_session.assert_called_once_with(
+        mock_gui.controller.hardware_vm.start_live_project_session.assert_called_once_with(
             day=1, group="G1", subject="2"
         )
         mock_gui.widget_factory.render_progress_grid.assert_called_once()
@@ -1409,9 +1410,9 @@ class TestEdgeCases:
         mock_context.__enter__ = Mock(return_value=None)
         mock_context.__exit__ = Mock(return_value=False)
         mock_controller.project_calibration_session.return_value = mock_context
-        mock_controller.use_openvino = True
-        mock_controller.active_weight_name = "custom_weight"
-        mock_controller.get_openvino_status.return_value = "enabled"
+        mock_controller.hardware_vm.use_openvino = True
+        mock_controller.hardware_vm.active_weight_name = "custom_weight"
+        mock_controller.hardware_vm.get_openvino_status.return_value = "enabled"
 
         dialog_manager.open_project_calibration_window()
 

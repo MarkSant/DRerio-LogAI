@@ -14,7 +14,7 @@ import structlog
 
 from zebtrack.ui.components.base import BaseWidget
 from zebtrack.ui.components.behavioral_config_widget import BehavioralConfigWidget
-from zebtrack.ui.event_bus_v2 import EventBusV2
+from zebtrack.ui.event_bus_v2 import EventBusV2, UIEvents
 from zebtrack.ui.wizard.tooltip import create_help_label
 
 log = structlog.get_logger()
@@ -568,15 +568,15 @@ class ConfigEditorWidget(BaseWidget):
         """Handle save button click."""
         try:
             values = self.get_values()
-            self.emit_event("config.save_requested", {"values": values})
+            self.emit_event(UIEvents.CONFIG_SAVE_REQUESTED, {"values": values})
         except ValueError as e:
-            self.emit_event("config.validation_error", {"error": str(e)})
+            self.emit_event(UIEvents.CONFIG_VALIDATION_ERROR, {"error": str(e)})
 
     def _on_reset_clicked(self) -> None:
         """Handle reset button click."""
-        self.emit_event("config.reset_requested", {})
+        self.emit_event(UIEvents.CONFIG_RESET_REQUESTED, {})
 
     def _on_roi_rule_changed(self, event=None) -> None:
         """Handle ROI rule combobox change."""
         selected_rule = self.roi_inclusion_rule_var.get()
-        self.emit_event("config.roi_rule_changed", {"rule": selected_rule})
+        self.emit_event(UIEvents.CONFIG_ROI_RULE_CHANGED, {"rule": selected_rule})

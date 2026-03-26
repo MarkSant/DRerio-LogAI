@@ -38,7 +38,7 @@ from typing import TYPE_CHECKING, Any
 
 import structlog
 
-from zebtrack.ui.event_bus_v2 import EVENT_NAME_TO_UIEVENT, Event, EventBusV2, UIEvents
+from zebtrack.ui.event_bus_v2 import Event, EventBusV2, UIEvents
 
 if TYPE_CHECKING:
     from zebtrack.settings import Settings
@@ -236,21 +236,15 @@ class BaseUIComponent(ABC):
         """
         self._log.info("component.cleanup")
 
-    def _emit_event(self, event_type: UIEvents | str, data: dict[str, Any] | None = None):
+    def _emit_event(self, event_type: UIEvents, data: Any | None = None):
         """
         Helper to emit events via EventBusV2.
 
         Args:
-            event_type: UIEvents enum member or legacy string name.
+            event_type: UIEvents enum member.
             data: Optional event data.
         """
         if self.event_bus:
-            if isinstance(event_type, str):
-                resolved = EVENT_NAME_TO_UIEVENT.get(event_type)
-                if resolved is None:
-                    self._log.warning("component.event.unknown_string", event_name=event_type)
-                    return
-                event_type = resolved
             self.event_bus.publish(Event(type=event_type, data=data or {}))
             self._log.debug("component.event.emitted", event_type=event_type.name)
         else:

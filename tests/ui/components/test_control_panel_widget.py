@@ -5,7 +5,7 @@ from unittest.mock import Mock
 import pytest
 
 from zebtrack.ui.components.control_panel import ControlPanelWidget
-from zebtrack.ui.event_bus_v2 import Event, UIEvents
+from zebtrack.ui.event_bus_v2 import UIEvents
 
 
 @pytest.fixture
@@ -27,17 +27,17 @@ def widget(tkinter_root, event_bus):
 @pytest.mark.gui
 def test_recording_buttons_publish_events(widget, event_bus):
     widget._on_start_recording_clicked()
-    event_bus.publish.assert_called_with(Event(type=UIEvents.RECORDING_START, data={}))
+    event_bus.publish.assert_called_with(UIEvents.RECORDING_START, {})
 
     event_bus.publish.reset_mock()
     widget._on_stop_recording_clicked()
-    event_bus.publish.assert_called_with(Event(type=UIEvents.RECORDING_STOP, data={}))
+    event_bus.publish.assert_called_with(UIEvents.RECORDING_STOP, {})
 
 
 @pytest.mark.gui
 def test_process_video_publishes_event(widget, event_bus):
     widget._on_process_video_clicked()
-    event_bus.publish.assert_called_with(Event(type=UIEvents.UI_REQUEST_PROCESS_VIDEOS, data={}))
+    event_bus.publish.assert_called_with(UIEvents.UI_REQUEST_PROCESS_VIDEOS, {})
 
 
 @pytest.mark.gui
@@ -46,7 +46,8 @@ def test_preview_toggle_emits_event(widget, event_bus):
     widget._on_preview_toggled()
 
     event_bus.publish.assert_called_with(
-        Event(type=UIEvents.CONTROL_PREVIEW_TOGGLED, data={"enabled": False})
+        UIEvents.CONTROL_PREVIEW_TOGGLED,
+        {"enabled": False},
     )
 
 
@@ -56,7 +57,8 @@ def test_interval_changed_emits_event(widget, event_bus):
     widget._on_interval_changed()
 
     event_bus.publish.assert_called_with(
-        Event(type=UIEvents.CONTROL_INTERVAL_CHANGED, data={"interval": 15})
+        UIEvents.CONTROL_INTERVAL_CHANGED,
+        {"interval": 15},
     )
 
 

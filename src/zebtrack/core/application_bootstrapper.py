@@ -202,12 +202,14 @@ class ApplicationBootstrapper:
             project_manager=self.deps.project_manager,
             settings_obj=self.settings,
         )
-        dialog_coordinator = DialogCoordinator(
-            ui_coordinator=self.deps.ui_coordinator,
-            event_bus=self.deps.event_bus,
-            state_manager=self.state_manager,
-            project_manager=self.deps.project_manager,
-        )
+        dialog_coordinator = self.deps.dialog_coordinator
+        if dialog_coordinator is None:
+            dialog_coordinator = DialogCoordinator(
+                ui_coordinator=self.deps.ui_coordinator,
+                event_bus=self.deps.event_bus,
+                state_manager=self.state_manager,
+                project_manager=self.deps.project_manager,
+            )
         event_dispatcher = EventDispatcher(self.deps.event_bus)
 
         self._services = {
