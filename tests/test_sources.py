@@ -70,9 +70,10 @@ def test_video_file_source_read_frames_and_eos(dummy_video_file):
             break
         frames_read += 1
         assert isinstance(frame, np.ndarray)
-        # Check that the frame content is as expected
+        # Check that the frame content is approximately as expected
+        # (MJPG is lossy, so exact equality may fail on some platforms)
         expected_value = frames_read - 1
-        assert np.all(frame == expected_value)
+        assert np.allclose(frame, expected_value, atol=5)
 
     assert frames_read == frame_count
 
