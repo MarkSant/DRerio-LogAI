@@ -4,7 +4,7 @@ updates:
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
-      interval: "weekly"
+      interval: "monthly"
     groups:
       dependencies:
         patterns:
@@ -14,8 +14,12 @@ updates:
   - package-ecosystem: "pip"
     directory: "/"
     schedule:
-      interval: "weekly"
+      interval: "monthly"
     groups:
       dependencies:
         patterns:
           - "*"
+    ignore:
+      # setuptools pinned <81 due to docxcompose/pkg_resources dependency
+      - dependency-name: "setuptools"
+        update-types: ["version-update:semver-major"]

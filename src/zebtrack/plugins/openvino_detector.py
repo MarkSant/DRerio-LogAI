@@ -30,29 +30,25 @@ except ImportError:
     torch = None  # type: ignore[assignment]  # conditional import fallback
     TORCH_AVAILABLE = False
 
-# Replace direct imports with block compatible with multiple ultralytics versions
+# Compatible with ultralytics >=8.3 and >=8.4 (API moves between versions)
 try:
-    # Versions where non_max_suppression is in ops
-    from ultralytics.utils.ops import (
+    from ultralytics.utils.nms import non_max_suppression
+    from ultralytics.utils.ops import process_mask, scale_boxes
+except ImportError:
+    from ultralytics.utils.ops import (  # type: ignore[attr-defined]
         non_max_suppression,
         process_mask,
         scale_boxes,
-        scale_image,
     )
-except ImportError:
-    try:
-        # Fallback for versions that expose non_max_suppression in utils.nms
-        from ultralytics.utils.nms import non_max_suppression
-        from ultralytics.utils.ops import (
-            process_mask,
-            scale_boxes,
-            scale_image,
-        )
-    except ImportError as e:
-        raise ImportError(
-            "Falha ao importar utilitários da biblioteca ultralytics. "
-            "Atualize a dependência ou ajuste o caminho do import."
-        ) from e
+
+
+def _scale_image(masks: np.ndarray, target_hw: tuple[int, int]) -> np.ndarray:
+    """Resize masks (H, W, C) to target (H, W) using bilinear interpolation.
+
+    Replaces ultralytics.utils.ops.scale_image removed in v8.4.
+    """
+    return cv2.resize(masks, (target_hw[1], target_hw[0]), interpolation=cv2.INTER_LINEAR)
+
 
 log = structlog.get_logger()
 
@@ -694,11 +690,11 @@ class OpenVINOPlugin(DetectorPlugin):
             )
 
             # Scale masks to original image size
-            # scale_image (ultralytics) expects numpy array in (H, W, C) format for resizing
+            # expects numpy array in (H, W, C) format for resizing
             masks_np = masks.cpu().numpy()
             masks_np = np.transpose(masks_np, (1, 2, 0))
 
-            masks_np = scale_image(masks_np, original_frame_shape[:2])
+            masks_np = _scale_image(masks_np, original_frame_shape[:2])
 
             # Handle single mask case where resize might drop the channel dim
             if len(masks_np.shape) == 2:
