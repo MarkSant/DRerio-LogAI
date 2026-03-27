@@ -194,3 +194,86 @@ class TestBuildSingleMaskProperties:
         mask = ZoneScaler._build_single_mask(polygon, 100, 100)
 
         assert mask[0, 0] == 0  # top-left corner outside polygon
+
+
+# ---------------------------------------------------------------------------
+# Vertex count preservation
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.property
+class TestScalingPreservesVertexCount:
+    """Scaling must never change the number of polygon vertices."""
+
+    @given(
+        polygon=simple_rectangle_polygon(),
+        actual_w=st.integers(min_value=320, max_value=3840),
+        actual_h=st.integers(min_value=240, max_value=2160),
+    )
+    @settings(max_examples=30, database=None)
+    def test_polygon_vertex_count_preserved(
+        self,
+        polygon: np.ndarray,
+        actual_w: int,
+        actual_h: int,
+    ) -> None:
+        """Scaled polygon has the same number of vertices as original."""
+        scaler = ZoneScaler(base_width=1280, base_height=720)
+        zones = ZoneData(polygon=polygon.tolist(), roi_polygons=[])
+
+        scaler.update_scaling(zones, actual_width=actual_w, actual_height=actual_h)
+
+        assert len(scaler.scaled_polygon) == len(polygon)
+
+    @given(
+        polygon=simple_rectangle_polygon(),
+        roi_count=st.integers(min_value=1, max_value=3),
+    )
+    @settings(max_examples=20, database=None)
+    def test_roi_polygon_count_preserved(
+        self,
+        polygon: np.ndarray,
+        roi_count: int,
+    ) -> None:
+        """Number of ROI polygons stays the same after scaling."""
+        rois = [polygon.tolist() for _ in range(roi_count)]
+        scaler = ZoneScaler(base_width=1280, base_height=720)
+        zones = ZoneData(polygon=polygon.tolist(), roi_polygons=rois)
+
+        scaler.update_scaling(zones, actual_width=1920, actual_height=1080)
+
+        assert len(scaler.scaled_roi_polygons) == roi_count
+
+
+# ---------------------------------------------------------------------------
+# Cache consistency
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.property
+class TestScalingCacheConsistency:
+    """Calling update_scaling twice with same dims yields identical results."""
+
+    @given(
+        polygon=simple_rectangle_polygon(),
+        actual_w=st.integers(min_value=320, max_value=3840),
+        actual_h=st.integers(min_value=240, max_value=2160),
+    )
+    @settings(max_examples=20, database=None)
+    def test_cache_hit_same_result(
+        self,
+        polygon: np.ndarray,
+        actual_w: int,
+        actual_h: int,
+    ) -> None:
+        """Second call with same dimensions returns array-equal polygon."""
+        scaler = ZoneScaler(base_width=1280, base_height=720)
+        zones = ZoneData(polygon=polygon.tolist(), roi_polygons=[])
+
+        scaler.update_scaling(zones, actual_width=actual_w, actual_height=actual_h)
+        first = scaler.scaled_polygon.copy()
+
+        scaler.update_scaling(zones, actual_width=actual_w, actual_height=actual_h)
+        second = scaler.scaled_polygon
+
+        np.testing.assert_array_equal(first, second)

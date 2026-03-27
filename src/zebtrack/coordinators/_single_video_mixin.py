@@ -182,19 +182,19 @@ class SingleVideoMixin:
                 n_aq = int(config.get("num_aquariums", 1))
                 self.settings.analysis_config.num_aquariums = n_aq
             except (TypeError, ValueError):
-                pass
+                log.debug("config.num_aquariums.parse_skipped", exc_info=True)
             try:
                 raw_w = config.get("aquarium_width_cm")
                 if raw_w is not None and str(raw_w).strip():
                     w_cm = float(raw_w)
             except (TypeError, ValueError):
-                pass
+                log.debug("config.aquarium_width.parse_skipped", exc_info=True)
             try:
                 raw_h = config.get("aquarium_height_cm")
                 if raw_h is not None and str(raw_h).strip():
                     h_cm = float(raw_h)
             except (TypeError, ValueError):
-                pass
+                log.debug("config.aquarium_height.parse_skipped", exc_info=True)
         return {"w": w_cm, "h": h_cm, "n": n_aq}
 
     def _extract_metadata_from_config(self, config: dict) -> dict:
@@ -211,7 +211,9 @@ class SingleVideoMixin:
                         try:
                             metadata[dim_key] = float(str(val))
                         except (TypeError, ValueError):
-                            pass
+                            log.debug(
+                                "config.metadata_dim.parse_skipped", key=dim_key, exc_info=True
+                            )
         metadata.setdefault("group", "single_video")
         metadata.setdefault("group_display_name", "Vídeo Único")
         metadata.setdefault("day", "1")
@@ -250,7 +252,7 @@ class SingleVideoMixin:
         except (ValueError, KeyError, TypeError) as e:
             log.error("calibration.multi_aquarium.conversion_failed", error=str(e))
 
-    def _sync_multi_aquarium_setup(self, video_path, n_aq, zone_data) -> Any:
+    def _sync_multi_aquarium_setup(self, video_path: Path | str, n_aq, zone_data) -> Any:
         """Sync multi-aquarium setup with UI and model."""
         if n_aq > 1:
             from zebtrack.core.detection import AquariumData
@@ -297,7 +299,9 @@ class SingleVideoMixin:
             self.project_manager.save_project()
         log.info("workflow.single_video.cal_saved", w=w_cm, h=h_cm)
 
-    def _ensure_single_video_registered(self, video_path, config, zone_data, calib) -> None:
+    def _ensure_single_video_registered(
+        self, video_path: Path | str, config, zone_data, calib
+    ) -> None:
         """Ensure single video is registered in project."""
         v_entry = self.project_manager.find_video_entry(path=video_path)
         if v_entry:
@@ -330,7 +334,7 @@ class SingleVideoMixin:
         self.project_manager.add_video_batch([v_dict], save_project=False)
         self._publish_event(UIEvents.UI_REFRESH_PROJECT_VIEWS, {"reason": "reg", "imm": True})
 
-    def _ensure_single_video_zones_saved(self, video_path, zone_data) -> None:
+    def _ensure_single_video_zones_saved(self, video_path: Path | str, zone_data) -> None:
         """Ensure zones are saved for single video."""
         should_s = False
         if zone_data:
@@ -343,7 +347,7 @@ class SingleVideoMixin:
                 zone_data, video_path, persist=bool(self.project_manager.project_path)
             )
 
-    def _setup_detector_for_single_video(self, video_path, zone_data) -> bool:
+    def _setup_detector_for_single_video(self, video_path: Path | str, zone_data) -> bool:
         """Setup detector with zones for single video."""
         if not self.detector:
             return True
@@ -360,7 +364,7 @@ class SingleVideoMixin:
         self.detector.set_aquarium_region_defined(has_aq)
         return True
 
-    def _execute_single_video_analysis(self, video_path) -> None:
+    def _execute_single_video_analysis(self, video_path: Path | str) -> None:
         """Final execution start for single video."""
         scanned = ProjectManager.scan_input_paths([str(video_path)])
         if not scanned:

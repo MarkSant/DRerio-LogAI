@@ -14,6 +14,7 @@ This mixin provides:
 from __future__ import annotations
 
 import os
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import structlog
@@ -193,7 +194,7 @@ class VideoSelectionMixin:
                 if isinstance(result, bool):
                     return result
             except (AttributeError, RuntimeError):
-                pass
+                log.debug("live_session.active_check.fallback", exc_info=True)
         camera = getattr(getattr(live_cam_coordinator, "live_camera_service", None), "camera", None)
         return camera is not None
 
@@ -208,7 +209,9 @@ class VideoSelectionMixin:
             {"title": "Validação Falhou", "message": val.error_message},
         )
 
-    def _handle_targeted_selection_errors(self, selection_result, video_paths) -> bool:
+    def _handle_targeted_selection_errors(
+        self, selection_result, video_paths: list[Path | str]
+    ) -> bool:
         """Handle UI feedback for targeted selection mode errors."""
         if not video_paths:
             self._publish_event(

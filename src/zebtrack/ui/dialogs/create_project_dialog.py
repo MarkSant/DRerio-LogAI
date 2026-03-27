@@ -20,7 +20,11 @@ from tkinter import (
 )
 from typing import Any
 
+import structlog
+
 from zebtrack.ui.window_utils import schedule_maximize
+
+log = structlog.get_logger()
 
 
 class CreateProjectDialog(simpledialog.Dialog):
@@ -480,14 +484,14 @@ class CreateProjectDialog(simpledialog.Dialog):
                 # Duration in minutes, convert to seconds for internal use
                 duration = float(self.recording_duration_var.get()) * 60
             except ValueError:
-                pass  # Should be caught by validate
+                log.debug("dialog.recording_duration.parse_fallback", exc_info=True)
 
         countdown_duration = 0
         if self.use_countdown_var.get():
             try:
                 countdown_duration = int(self.countdown_duration_var.get())
             except ValueError:
-                pass
+                log.debug("dialog.countdown_duration.parse_fallback", exc_info=True)
 
         # Use video_paths if available, fallback to empty list
         video_paths = getattr(self, "video_paths", [])

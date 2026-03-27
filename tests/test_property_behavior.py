@@ -264,3 +264,88 @@ class TestTortuosityProperties:
 
         if not np.isnan(tortuosity):
             assert tortuosity >= 1.0 - 0.05  # allow small floating-point tolerance
+
+
+# ---------------------------------------------------------------------------
+# Angular velocity
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.property
+class TestAngularVelocityProperties:
+    """Property tests for ConcreteBehavioralAnalyzer.get_angular_velocity."""
+
+    @given(x=_px_coord, y=_px_coord)
+    @settings(max_examples=20, database=None)
+    def test_stationary_angular_velocity_nan_or_zero(self, x: float, y: float) -> None:
+        """A stationary subject has NaN or ~0 angular velocity everywhere."""
+        analyzer = _make_analyzer(xs=[x] * 20, ys=[y] * 20)
+        av = analyzer.get_angular_velocity(unit="degrees")
+        valid = av.dropna()
+        if not valid.empty:
+            assert valid.abs().max() < 1e-3
+
+    @given(
+        x=st.floats(min_value=200.0, max_value=8000.0),
+        dx=st.floats(min_value=50.0, max_value=1000.0),
+    )
+    @settings(max_examples=20, database=None)
+    def test_straight_line_angular_velocity_near_zero(self, x: float, dx: float) -> None:
+        """A straight-line path has angular velocity near 0."""
+        xs = [x + i * dx / 19 for i in range(20)]
+        ys = [5000.0] * 20
+        analyzer = _make_analyzer(xs=xs, ys=ys)
+        av = analyzer.get_angular_velocity(unit="degrees")
+        valid = av.dropna()
+        if not valid.empty:
+            assert valid.abs().max() < 5.0  # near-zero with some tolerance
+
+    @given(
+        x1=_px_coord,
+        y1=_px_coord,
+        x2=_px_coord,
+        y2=_px_coord,
+    )
+    @settings(max_examples=20, database=None)
+    def test_angular_velocity_length_matches_trajectory(
+        self, x1: float, y1: float, x2: float, y2: float
+    ) -> None:
+        """Angular velocity series has same length as input trajectory."""
+        xs = [x1 + (x2 - x1) * i / 9 for i in range(10)]
+        ys = [y1 + (y2 - y1) * i / 9 for i in range(10)]
+        analyzer = _make_analyzer(xs=xs, ys=ys)
+        av = analyzer.get_angular_velocity(unit="degrees")
+        assert len(av) == 10
+
+
+# ---------------------------------------------------------------------------
+# Freezing episodes
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.property
+class TestFreezingEpisodeProperties:
+    """Property tests for detect_freezing_episodes."""
+
+    @given(x=_px_coord, y=_px_coord)
+    @settings(max_examples=20, database=None)
+    def test_stationary_freezing_detected(self, x: float, y: float) -> None:
+        """A stationary subject with enough frames triggers a freezing episode."""
+        analyzer = _make_analyzer(xs=[x] * 30, ys=[y] * 30, fps=30.0)
+        episodes = analyzer.detect_freezing_episodes(min_duration=0.1, vel_threshold=10.0)
+        # At least one freezing episode expected for a stationary subject
+        assert len(episodes) >= 1
+
+    @given(
+        x=st.floats(min_value=200.0, max_value=8000.0),
+        dx=st.floats(min_value=200.0, max_value=2000.0),
+    )
+    @settings(max_examples=20, database=None)
+    def test_freezing_episode_durations_positive(self, x: float, dx: float) -> None:
+        """All detected freezing episodes have positive duration."""
+        xs = [x + (i % 5) * dx / 4 for i in range(30)]
+        ys = [5000.0] * 30
+        analyzer = _make_analyzer(xs=xs, ys=ys, fps=30.0)
+        episodes = analyzer.detect_freezing_episodes(min_duration=0.05, vel_threshold=100.0)
+        for ep in episodes:
+            assert ep["duration"] > 0.0

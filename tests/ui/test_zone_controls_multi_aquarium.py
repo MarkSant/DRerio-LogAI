@@ -103,14 +103,10 @@ class TestGetAquariumCount:
 class TestAquariumSelectorVisibility:
     """Tests for aquarium selector show/hide functionality."""
 
-    @pytest.mark.skip(reason="Widget packing behavior is complex in tests")
     def test_selector_initially_hidden(self, zone_controls):
-        """Test aquarium selector is initially hidden."""
-        # Check that the frame is not packed (not visible)
-        zone_controls.aquarium_selector_frame.pack_info()
-        # If pack_info doesn't raise, the widget is packed
-        # We expect it to NOT be packed initially
-        pytest.skip("Widget packing behavior is complex in tests")
+        """Test aquarium selector is initially hidden (not packed)."""
+        with pytest.raises(tk.TclError):
+            zone_controls.aquarium_selector_frame.pack_info()
 
     def test_show_aquarium_selector(self, zone_controls):
         """Test show_aquarium_selector makes the frame visible."""

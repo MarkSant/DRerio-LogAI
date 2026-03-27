@@ -619,8 +619,21 @@ class EventDispatcher:
         # ROI Settings
         event_bus.subscribe(
             UIEvents.DETECTOR_UPDATE_PARAMETERS,
-            lambda d: gui._on_apply_roi_settings(_payload_to_dict(d)),
+            self._on_apply_roi_settings,
         )
+
+    def _on_apply_roi_settings(self, data: payloads.EventPayload) -> None:
+        """Handle DETECTOR_UPDATE_PARAMETERS event.
+
+        Applies ROI inclusion settings via the hardware ViewModel.
+        """
+        gui = self._require_gui()
+        if not gui:
+            return
+
+        params = _payload_to_dict(data)
+        if params and gui.controller:
+            gui.controller.hardware_vm.update_detector_parameters(params)
 
     def _on_show_aquarium_assignment_dialog(self, data: payloads.EventPayload) -> None:
         """Handle ZONE_SHOW_AQUARIUM_ASSIGNMENT_DIALOG event.

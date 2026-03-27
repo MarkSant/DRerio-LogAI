@@ -12,7 +12,11 @@ from unittest.mock import Mock
 
 import pytest
 
-from zebtrack.core.application_bootstrapper import BootstrapResult
+from zebtrack.core.application_bootstrapper import (
+    BootstrapResult,
+    HardwareBootstrap,
+    RuntimeBootstrap,
+)
 from zebtrack.core.dependency_container import MainViewModelDependencies
 from zebtrack.core.main_view_model import MainViewModel
 from zebtrack.ui import payloads
@@ -151,19 +155,22 @@ def mock_bootstrap_result():
     result.dialog_coordinator = Mock()
     result.event_dispatcher = Mock()
 
-    # Mocks for hardware/runtime
-    result.active_weight_name = "yolo11n.pt"
-    result.use_openvino = False
-    result.hardware_summary = "CPU"
-    result.recommended_backend = "pytorch"
-    result.recorder = Mock()
-    result.arduino_manager = Mock()
+    # Mocks for hardware/runtime (grouped)
+    hardware = Mock(spec=HardwareBootstrap)
+    hardware.active_weight_name = "yolo11n.pt"
+    hardware.use_openvino = False
+    hardware.hardware_summary = "CPU"
+    hardware.recommended_backend = "pytorch"
+    hardware.recorder = Mock()
+    hardware.arduino_manager = Mock()
+    result.hardware = hardware
 
-    # Mocks for queues/events
-    result.frame_queue = Mock()
-    result.video_queue = Mock()
-    result.program_exit_event = Mock()
-    result.cancel_event = Mock()
+    runtime = Mock(spec=RuntimeBootstrap)
+    runtime.frame_queue = Mock()
+    runtime.video_queue = Mock()
+    runtime.program_exit_event = Mock()
+    runtime.cancel_event = Mock()
+    result.runtime = runtime
 
     result.orchestrators = {}
     result.project_workflow_adapter = Mock()

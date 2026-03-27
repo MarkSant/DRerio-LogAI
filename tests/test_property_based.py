@@ -330,3 +330,26 @@ class TestNumericalStability:
             expected = small / 2
             # Allow for floating point imprecision
             assert math.isclose(cx, expected, rel_tol=1e-3) or abs(cx - expected) < 1e-10
+
+    @given(
+        cx=coordinate,
+        cy=coordinate,
+        radius=st.floats(min_value=1.0, max_value=1000.0),
+        n_sides=st.integers(min_value=3, max_value=12),
+    )
+    @settings(max_examples=50, database=None)
+    def test_regular_polygon_centroid_is_center(self, cx, cy, radius, n_sides):
+        """Centroid of a regular polygon centered at (cx, cy) is (cx, cy)."""
+        import math as _math
+
+        points = [
+            (
+                cx + radius * _math.cos(2 * _math.pi * i / n_sides),
+                cy + radius * _math.sin(2 * _math.pi * i / n_sides),
+            )
+            for i in range(n_sides)
+        ]
+        result = polygon_centroid(points)
+        if result is not None:
+            assert _math.isclose(result[0], cx, rel_tol=1e-4, abs_tol=1e-6)
+            assert _math.isclose(result[1], cy, rel_tol=1e-4, abs_tol=1e-6)

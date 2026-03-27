@@ -2,103 +2,67 @@
 Advanced unit tests for logging configuration.
 
 Phase: Sprint 4.6 - Additional logging test coverage
-Tests log rotation, formatters, level configuration,
+Tests formatters, level configuration, handler setup,
 and module-specific logging.
 """
 
 import logging
-from unittest.mock import Mock, mock_open, patch
+import logging.handlers
+import os
+from unittest.mock import Mock, patch
 
 import pytest
 import structlog
 
 
-class TestLogRotation:
-    """Test suite for log rotation configuration."""
+class TestLogHandlerSetup:
+    """Test suite for handler types based on log file name."""
 
-    @pytest.mark.skip(
-        reason="Current implementation uses FileHandler for default logs (analysis.log), "
-        "not RotatingFileHandler. RotatingFileHandler only used for non-default log files."
-    )
-    @patch("logging.handlers.RotatingFileHandler")
-    def test_rotating_handler_max_bytes(self, mock_handler):
-        """Test rotating handler configured with correct max bytes."""
-        from zebtrack.__main__ import configure_logging
+    def test_default_log_uses_file_handler(self, tmp_path):
+        """Default log (analysis.log) uses FileHandler, not RotatingFileHandler."""
+        from zebtrack.logging_config import configure_logging
 
-        configure_logging()
+        log_file = str(tmp_path / "analysis.log")
+        with patch("zebtrack.logging_config.resolve_log_path", return_value=log_file):
+            configure_logging("analysis.log")
 
-        # Should create handler with 5MB max
-        mock_handler.assert_called()
-        call_args = mock_handler.call_args
-        assert call_args[1]["maxBytes"] == 5 * 1024 * 1024
+        root = logging.getLogger()
+        file_handlers = [h for h in root.handlers if isinstance(h, logging.FileHandler)]
+        rotating = [h for h in file_handlers if isinstance(h, logging.handlers.RotatingFileHandler)]
+        assert len(file_handlers) >= 1, "Should have at least one FileHandler"
+        assert len(rotating) == 0, "Default log should NOT use RotatingFileHandler"
 
-    @pytest.mark.skip(
-        reason="Current implementation uses FileHandler for default logs (analysis.log), "
-        "not RotatingFileHandler. RotatingFileHandler only used for non-default log files."
-    )
-    @patch("logging.handlers.RotatingFileHandler")
-    def test_rotating_handler_backup_count(self, mock_handler):
-        """Test rotating handler keeps 5 backup files."""
-        from zebtrack.__main__ import configure_logging
+    def test_non_default_log_uses_rotating_handler(self, tmp_path):
+        """Non-default log files use RotatingFileHandler."""
+        from zebtrack.logging_config import configure_logging
 
-        configure_logging()
+        log_file = str(tmp_path / "custom.log")
+        with patch("zebtrack.logging_config.resolve_log_path", return_value=log_file):
+            configure_logging("custom.log")
 
-        call_args = mock_handler.call_args
-        assert call_args[1]["backupCount"] == 5
-
-    @pytest.mark.skip(
-        reason="Current implementation uses FileHandler for default logs (analysis.log), "
-        "not RotatingFileHandler. RotatingFileHandler only used for non-default log files."
-    )
-    @patch("logging.handlers.RotatingFileHandler")
-    def test_rotating_handler_file_path(self, mock_handler):
-        """Test rotating handler writes to analysis.log."""
-        from zebtrack.__main__ import configure_logging
-
-        configure_logging()
-
-        call_args = mock_handler.call_args
-        assert call_args[0][0] == "analysis.log"
+        root = logging.getLogger()
+        rotating = [h for h in root.handlers if isinstance(h, logging.handlers.RotatingFileHandler)]
+        assert len(rotating) == 1, "Non-default log should use RotatingFileHandler"
+        assert rotating[0].maxBytes == 10 * 1024 * 1024
+        assert rotating[0].backupCount == 1
 
 
 class TestLogFormatters:
     """Test suite for log formatters."""
 
-    @pytest.mark.skip(
-        reason="Current implementation uses FileHandler for default logs, not RotatingFileHandler. "
-        "Mock setup doesn't match actual handler creation."
-    )
-    @patch("logging.handlers.RotatingFileHandler")
-    @patch("logging.StreamHandler")
-    def test_file_handler_uses_json_formatter(self, mock_stream, mock_rotating):
-        """Test file handler uses JSON formatter."""
-        from zebtrack.__main__ import configure_logging
+    def test_file_handler_uses_json_formatter(self, tmp_path):
+        """File handler uses JSON formatter (ProcessorFormatter wrapping JSONRenderer)."""
+        from zebtrack.logging_config import configure_logging
 
-        mock_file_handler = Mock()
-        mock_rotating.return_value = mock_file_handler
+        log_file = str(tmp_path / "analysis.log")
+        with patch("zebtrack.logging_config.resolve_log_path", return_value=log_file):
+            configure_logging("analysis.log")
 
-        configure_logging()
-
-        # Should set JSON formatter
-        mock_file_handler.setFormatter.assert_called_once()
-
-    @pytest.mark.skip(
-        reason="Current implementation uses FileHandler for default logs, not RotatingFileHandler. "
-        "Mock setup doesn't match actual handler creation."
-    )
-    @patch("logging.handlers.RotatingFileHandler")
-    @patch("logging.StreamHandler")
-    def test_console_handler_uses_console_formatter(self, mock_stream, mock_rotating):
-        """Test console handler uses console formatter."""
-        from zebtrack.__main__ import configure_logging
-
-        mock_console_handler = Mock()
-        mock_stream.return_value = mock_console_handler
-
-        configure_logging()
-
-        # Should set console formatter
-        mock_console_handler.setFormatter.assert_called_once()
+        root = logging.getLogger()
+        file_handlers = [h for h in root.handlers if isinstance(h, logging.FileHandler)]
+        assert len(file_handlers) >= 1
+        formatter = file_handlers[0].formatter
+        assert isinstance(formatter, structlog.stdlib.ProcessorFormatter)
 
     def test_compact_console_renderer_reduces_whitespace(self):
         """Test CompactConsoleRenderer compacts multiple spaces."""
@@ -106,40 +70,25 @@ class TestLogFormatters:
 
         renderer = CompactConsoleRenderer()
 
-        # Mock parent call
         with patch.object(
             renderer.__class__.__bases__[0], "__call__", return_value="test  message    here  "
         ):
             renderer(None, None, {})
 
-            # Should have fewer consecutive spaces
-            # Implementation may vary
-
 
 class TestLogLevelConfiguration:
     """Test suite for log level configuration."""
 
-    @pytest.mark.skip(
-        reason="Mock doesn't capture actual root logger setup - configure_logging() creates "
-        "real handlers and sets levels directly on logging.getLogger()."
-    )
-    @patch("logging.getLogger")
-    def test_root_logger_set_to_debug(self, mock_get_logger):
-        """Test root logger level set to DEBUG.
-
-        The root logger is set to DEBUG to capture all logs, with filtering
-        done at the handler level. This allows more granular control over
-        which logs are shown in console vs written to file.
-        """
+    def test_root_logger_set_to_debug(self, tmp_path):
+        """Root logger level is set to DEBUG after configure_logging."""
         from zebtrack.logging_config import configure_logging
 
-        mock_root_logger = Mock()
-        mock_get_logger.return_value = mock_root_logger
+        log_file = str(tmp_path / "analysis.log")
+        with patch("zebtrack.logging_config.resolve_log_path", return_value=log_file):
+            configure_logging("analysis.log")
 
-        configure_logging()
-
-        # Should set DEBUG level (handlers do filtering)
-        mock_root_logger.setLevel.assert_called_with(logging.DEBUG)
+        root = logging.getLogger()
+        assert root.level == logging.DEBUG
 
     @patch("structlog.get_logger")
     @patch("logging.getLogger")
@@ -220,19 +169,18 @@ class TestStructlogConfiguration:
 class TestLogFileCreation:
     """Test suite for log file creation."""
 
-    @pytest.mark.skip(
-        reason="Current implementation uses FileHandler for default logs, not RotatingFileHandler."
-    )
-    @patch("builtins.open", new_callable=mock_open)
-    @patch("logging.handlers.RotatingFileHandler")
-    def test_log_file_created_on_startup(self, mock_handler, mock_file):
-        """Test log file is created on startup."""
-        from zebtrack.__main__ import configure_logging
+    def test_log_file_created_on_startup(self, tmp_path):
+        """Log file is created after configure_logging."""
+        from zebtrack.logging_config import configure_logging
 
-        configure_logging()
+        log_file = str(tmp_path / "analysis.log")
+        with patch("zebtrack.logging_config.resolve_log_path", return_value=log_file):
+            configure_logging("analysis.log")
 
-        # Handler should be created
-        mock_handler.assert_called_once()
+        root = logging.getLogger()
+        file_handlers = [h for h in root.handlers if isinstance(h, logging.FileHandler)]
+        assert len(file_handlers) >= 1
+        assert os.path.exists(log_file)
 
     @patch("os.path.exists")
     def test_log_file_exists_after_configuration(self, mock_exists):
@@ -279,26 +227,21 @@ class TestLoggerUsage:
 class TestLoggingEdgeCases:
     """Test suite for logging edge cases."""
 
-    @pytest.mark.skip(
-        reason=(
-            "Mock doesn't capture actual logging setup - "
-            "configure_logging() uses real logging module."
+    def test_configure_logging_called_multiple_times(self, tmp_path):
+        """Calling configure_logging twice does not duplicate handlers."""
+        from zebtrack.logging_config import configure_logging
+
+        log_file = str(tmp_path / "analysis.log")
+        with patch("zebtrack.logging_config.resolve_log_path", return_value=log_file):
+            configure_logging("analysis.log")
+            handler_count_first = len(logging.getLogger().handlers)
+
+            configure_logging("analysis.log")
+            handler_count_second = len(logging.getLogger().handlers)
+
+        assert handler_count_second == handler_count_first, (
+            "Calling configure_logging twice should not duplicate handlers"
         )
-    )
-    @patch("logging.getLogger")
-    def test_configure_logging_called_multiple_times(self, mock_get_logger):
-        """Test calling configure_logging multiple times."""
-        from zebtrack.__main__ import configure_logging
-
-        mock_logger = Mock()
-        mock_get_logger.return_value = mock_logger
-
-        # Call multiple times
-        configure_logging()
-        configure_logging()
-
-        # Should handle gracefully (may add multiple handlers)
-        # Implementation-specific behavior
 
     @patch("logging.getLogger")
     def test_log_level_case_insensitive(self, mock_get_logger):

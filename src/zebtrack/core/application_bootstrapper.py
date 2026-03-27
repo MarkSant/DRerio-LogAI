@@ -19,6 +19,7 @@ import os
 import queue
 import threading
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
 
 import structlog
@@ -48,6 +49,28 @@ log = structlog.get_logger()
 
 
 @dataclass
+class HardwareBootstrap:
+    """Hardware detection and model state from bootstrap."""
+
+    active_weight_name: str | None
+    use_openvino: bool
+    hardware_summary: dict
+    recommended_backend: str
+    recorder: Recorder
+    arduino_manager: ArduinoManager | None
+
+
+@dataclass
+class RuntimeBootstrap:
+    """Threading and queue state from bootstrap."""
+
+    frame_queue: queue.Queue
+    video_queue: queue.Queue
+    program_exit_event: threading.Event
+    cancel_event: threading.Event
+
+
+@dataclass
 class BootstrapResult:
     """Result of the application bootstrap process."""
 
@@ -61,19 +84,9 @@ class BootstrapResult:
     dialog_coordinator: DialogCoordinator
     event_dispatcher: EventDispatcher
 
-    # Hardware & Runtime State
-    active_weight_name: str | None
-    use_openvino: bool
-    hardware_summary: dict
-    recommended_backend: str
-    recorder: Recorder
-    arduino_manager: ArduinoManager | None
-
-    # Threading & Queues
-    frame_queue: queue.Queue
-    video_queue: queue.Queue
-    program_exit_event: threading.Event
-    cancel_event: threading.Event
+    # Hardware & Runtime (grouped)
+    hardware: HardwareBootstrap
+    runtime: RuntimeBootstrap
 
     # View
     view: ApplicationGUI
@@ -166,16 +179,20 @@ class ApplicationBootstrapper:
             batch_configuration_service=self._services["batch_configuration_service"],
             dialog_coordinator=self._services["dialog_coordinator"],
             event_dispatcher=self._services["event_dispatcher"],
-            active_weight_name=self._hardware_state["active_weight_name"],
-            use_openvino=self._hardware_state["use_openvino"],
-            hardware_summary=self._hardware_state["hardware_summary"],
-            recommended_backend=self._hardware_state["recommended_backend"],
-            recorder=self._runtime_state["recorder"],
-            arduino_manager=self._runtime_state["arduino_manager"],
-            frame_queue=self._runtime_state["frame_queue"],
-            video_queue=self._runtime_state["video_queue"],
-            program_exit_event=self._runtime_state["program_exit_event"],
-            cancel_event=self._runtime_state["cancel_event"],
+            hardware=HardwareBootstrap(
+                active_weight_name=self._hardware_state["active_weight_name"],
+                use_openvino=self._hardware_state["use_openvino"],
+                hardware_summary=self._hardware_state["hardware_summary"],
+                recommended_backend=self._hardware_state["recommended_backend"],
+                recorder=self._runtime_state["recorder"],
+                arduino_manager=self._runtime_state["arduino_manager"],
+            ),
+            runtime=RuntimeBootstrap(
+                frame_queue=self._runtime_state["frame_queue"],
+                video_queue=self._runtime_state["video_queue"],
+                program_exit_event=self._runtime_state["program_exit_event"],
+                cancel_event=self._runtime_state["cancel_event"],
+            ),
             view=self.view,
             ui_state_controller=self._orchestrators["ui_state_controller"],
             project_workflow_adapter=self._orchestrators["project_workflow_adapter"],
@@ -488,7 +505,7 @@ class ApplicationBootstrapper:
             return result, None
         return None, None
 
-    def _is_valid_openvino_directory(self, path: str | None) -> bool:
+    def _is_valid_openvino_directory(self, path: Path | str | None) -> bool:
         if not path or not os.path.exists(path):
             return False
         if not os.path.isdir(path):

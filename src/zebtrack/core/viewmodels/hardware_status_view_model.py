@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import structlog
@@ -28,7 +29,7 @@ class HardwareStatusViewModel:
         # Phase 4.9: HardwareCoordinator decomposed
         self.detector_setup_coordinator = dependencies.detector_setup_coordinator
         self.model_diagnostics_coordinator = dependencies.model_diagnostics_coordinator
-        self.arduino_manager = bootstrap_result.arduino_manager
+        self.arduino_manager = bootstrap_result.hardware.arduino_manager
         self.weight_manager = dependencies.weight_manager
         # Phase 4.7: Replaced single session_coordinator with 3 focused coordinators
         self.recording_session_coordinator = dependencies.recording_session_coordinator
@@ -47,8 +48,8 @@ class HardwareStatusViewModel:
         self.active_frame_source = None
 
         # Bootstrapped values
-        self.active_weight_name = bootstrap_result.active_weight_name
-        self.use_openvino = bootstrap_result.use_openvino
+        self.active_weight_name = bootstrap_result.hardware.active_weight_name
+        self.use_openvino = bootstrap_result.hardware.use_openvino
 
         self._recording_service = None
 
@@ -168,7 +169,9 @@ class HardwareStatusViewModel:
     def load_new_weight(self, **kwargs):
         self.ui_state_controller.load_new_weight(**kwargs)
 
-    def add_new_weight(self, path: str, set_as_default: bool, weight_type: str | None = None):
+    def add_new_weight(
+        self, path: Path | str, set_as_default: bool, weight_type: str | None = None
+    ):
         self.ui_state_controller.add_new_weight(path, set_as_default, weight_type)
 
     def delete_weight(self, name: str):

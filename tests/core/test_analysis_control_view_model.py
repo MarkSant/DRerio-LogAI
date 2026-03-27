@@ -44,8 +44,8 @@ def view_model():
     bootstrap_result = SimpleNamespace(
         analysis_service=Mock(),
         ui_state_controller=Mock(),
-        recorder=Mock(),
-        cancel_event=ThreadingEvent(),
+        hardware=SimpleNamespace(recorder=Mock()),
+        runtime=SimpleNamespace(cancel_event=ThreadingEvent()),
     )
     event_bus = Mock()
     return AnalysisControlViewModel(

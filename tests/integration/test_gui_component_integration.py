@@ -116,39 +116,10 @@ class TestGUIComponentIntegration:
             mock_edit.assert_called_once()
 
     def test_remove_selected_roi_confirm(self, gui_fixture):
-        """Test removal of ROI triggers redraw."""
-        # Arrange - Mock zone_controls listbox selection
-        mock_listbox = MagicMock()
-        mock_listbox.selection.return_value = ["item1"]
-        mock_listbox.item.return_value = {"values": ["📍 ROI 1"]}
-        gui_fixture.zone_listbox = mock_listbox
-
-        # Mock DialogManager to return True (user confirms)
-        gui_fixture.dialog_manager.confirm_remove_roi = MagicMock(return_value=True)
-
-        # Mock data retrieval via zone_context_service (current location)
-        zone_data = ZoneData(roi_names=["ROI 1"], roi_polygons=[[]], roi_colors=[(255, 0, 0)])
-        gui_fixture.canvas_manager.zone_context_service.get_zone_data_for_active_context = (
-            MagicMock(return_value=zone_data)
-        )
-
-        # Mock show_info to prevent modal dialog
-        gui_fixture.dialog_manager.show_info = MagicMock()
-        gui_fixture.set_status = MagicMock()
-        gui_fixture.video_selector_manager.request_overview_refresh = MagicMock()
-
-        # Mock project_manager.save_zone_data
-        gui_fixture.controller.project_manager.save_zone_data = MagicMock()
-
-        # Mock CanvasManager redraw
-        with patch.object(
-            gui_fixture.canvas_manager, "redraw_zones_from_project_data"
-        ) as mock_redraw:
+        """Test removal of ROI delegates to canvas_manager."""
+        with patch.object(gui_fixture.canvas_manager, "remove_selected_roi") as mock_remove:
             gui_fixture._remove_selected_roi_confirm()
-
-            mock_redraw.assert_called_once()
-            assert "ROI 1" not in zone_data.roi_names
-            gui_fixture.dialog_manager.show_info.assert_called_once()
+            mock_remove.assert_called_once()
 
     def test_update_button_state(self, gui_fixture):
         """Test button state updates."""

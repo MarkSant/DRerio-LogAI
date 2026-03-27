@@ -149,9 +149,11 @@ class UltralyticsDetectorPlugin(DetectorPlugin):
         predictions: list[tuple[int, int, int, int, float, int | None, int]] = []
         if results and results[0].boxes is not None:
             boxes = results[0].boxes
-            xyxys = boxes.xyxy.cpu().numpy()  # type: ignore[union-attr]
-            confs = boxes.conf.cpu().numpy()  # type: ignore[union-attr]
-            classes = boxes.cls.cpu().numpy()  # type: ignore[union-attr]
+            if boxes.xyxy is None or boxes.conf is None or boxes.cls is None:
+                return predictions
+            xyxys = boxes.xyxy.cpu().numpy()
+            confs = boxes.conf.cpu().numpy()
+            classes = boxes.cls.cpu().numpy()
 
             # ✅ DEBUG: Log raw boxes from model
             log.debug(
@@ -222,6 +224,10 @@ class UltralyticsDetectorPlugin(DetectorPlugin):
                         and i < len(result.masks.xy)
                     )
 
+                    mask_points = 0
+                    if has_mask and result.masks is not None and result.masks.xy is not None:
+                        mask_points = len(result.masks.xy[i])
+
                     formatted_results.append(
                         {
                             "box": [int(x1), int(y1), int(x2), int(y2)],
@@ -229,7 +235,7 @@ class UltralyticsDetectorPlugin(DetectorPlugin):
                             "class_id": class_id,
                             "class_name": result.names.get(class_id, f"class_{class_id}"),
                             "has_mask": has_mask,
-                            "mask_points": len(result.masks.xy[i]) if has_mask else 0,  # type: ignore[union-attr]
+                            "mask_points": mask_points,
                         }
                     )
 
@@ -331,9 +337,16 @@ class UltralyticsDetectorPlugin(DetectorPlugin):
         for result in results:
             frame_predictions: list[tuple[int, int, int, int, float, int | None, int]] = []
             if result.boxes is not None:
-                xyxys = result.boxes.xyxy.cpu().numpy()  # type: ignore[union-attr]
-                confs = result.boxes.conf.cpu().numpy()  # type: ignore[union-attr]
-                classes = result.boxes.cls.cpu().numpy()  # type: ignore[union-attr]
+                if (
+                    result.boxes.xyxy is None
+                    or result.boxes.conf is None
+                    or result.boxes.cls is None
+                ):
+                    all_detections.append(frame_predictions)
+                    continue
+                xyxys = result.boxes.xyxy.cpu().numpy()
+                confs = result.boxes.conf.cpu().numpy()
+                classes = result.boxes.cls.cpu().numpy()
                 for i in range(len(xyxys)):
                     x1, y1, x2, y2 = xyxys[i]
                     frame_predictions.append(

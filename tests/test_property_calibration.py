@@ -196,3 +196,68 @@ class TestTransformBboxProperties:
         x1_w, y1_w, x2_w, y2_w = cal.transform_bbox(cx - half, cy - half, cx + half, cy + half)
         assert x1_w <= x2_w
         assert y1_w <= y2_w
+
+
+# ---------------------------------------------------------------------------
+# Aspect ratio consistency
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.property
+class TestCalibrationAspectRatioProperties:
+    """Property tests for calibration aspect ratio preservation."""
+
+    @given(
+        real_w=st.floats(min_value=5.0, max_value=100.0),
+        real_h=st.floats(min_value=5.0, max_value=100.0),
+        polygon=rectangle_corners(),
+    )
+    @settings(max_examples=20, database=None)
+    def test_px_per_cm_ratio_respects_real_dims(
+        self,
+        real_w: float,
+        real_h: float,
+        polygon: np.ndarray,
+    ) -> None:
+        """pixel_per_cm ratio is inversely proportional to real dimensions."""
+        cal = Calibration(polygon=polygon, real_width_cm=real_w, real_height_cm=real_h)
+        if cal.homography_matrix is None:
+            return
+        px_x, px_y = cal.pixel_per_cm_ratio
+        w_px, h_px = cal.target_dims_px
+        # px_per_cm = target_px / real_cm
+        assert abs(px_x - w_px / real_w) < 0.01
+        assert abs(px_y - h_px / real_h) < 0.01
+
+
+# ---------------------------------------------------------------------------
+# Null polygon safety
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.property
+class TestCalibrationNullSafetyProperties:
+    """Property tests for null polygon handling."""
+
+    @given(
+        real_w=st.floats(min_value=1.0, max_value=100.0),
+        real_h=st.floats(min_value=1.0, max_value=100.0),
+    )
+    @settings(max_examples=20, database=None)
+    def test_none_polygon_no_homography(self, real_w: float, real_h: float) -> None:
+        """Calibration with None polygon produces no homography matrix."""
+        cal = Calibration(polygon=None, real_width_cm=real_w, real_height_cm=real_h)
+        assert cal.homography_matrix is None
+        assert cal.pixel_per_cm_ratio == (0.0, 0.0)
+
+    @given(
+        real_w=st.floats(min_value=1.0, max_value=100.0),
+        real_h=st.floats(min_value=1.0, max_value=100.0),
+    )
+    @settings(max_examples=20, database=None)
+    def test_none_polygon_warp_passthrough(self, real_w: float, real_h: float) -> None:
+        """warp_frame returns original frame when polygon is None."""
+        cal = Calibration(polygon=None, real_width_cm=real_w, real_height_cm=real_h)
+        frame = np.zeros((100, 100, 3), dtype=np.uint8)
+        result = cal.warp_frame(frame)
+        np.testing.assert_array_equal(result, frame)

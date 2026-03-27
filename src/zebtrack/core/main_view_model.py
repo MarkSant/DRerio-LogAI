@@ -141,16 +141,16 @@ class MainViewModel:
         # Hardware & Runtime
         # Note: active_weight_name and use_openvino are now properties that delegate to hardware_vm
         # (initialized in hardware_vm from bootstrap_result values)
-        self._hardware_summary = result.hardware_summary
-        self._recommended_backend = result.recommended_backend
-        self.recorder = result.recorder
-        self.arduino_manager = result.arduino_manager
+        self._hardware_summary = result.hardware.hardware_summary
+        self._recommended_backend = result.hardware.recommended_backend
+        self.recorder = result.hardware.recorder
+        self.arduino_manager = result.hardware.arduino_manager
 
         # Queues & Events
-        self.frame_queue = result.frame_queue
-        self.video_queue = result.video_queue
-        self.program_exit_event = result.program_exit_event
-        self.cancel_event = result.cancel_event
+        self.frame_queue = result.runtime.frame_queue
+        self.video_queue = result.runtime.video_queue
+        self.program_exit_event = result.runtime.program_exit_event
+        self.cancel_event = result.runtime.cancel_event
 
         # Legacy Orchestrators
         # Phase 0.3: VideoProcessingOrchestrator removed (migrated to ProcessingCoordinator)

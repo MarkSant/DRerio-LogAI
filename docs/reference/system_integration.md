@@ -513,7 +513,7 @@ Heavy imports (pandas, pyarrow, openpyxl) are deferred in:
 ### 10.2. Testing Standards
 
 - **Property-based testing:** Hypothesis (6 test files, 83+ tests) covering settings, detection types, recorder, zone scaler, behavior, and calibration
-- **Coverage gates (CI):** Linux core ≥50%, Linux GUI ≥32%, Windows core ≥28%
+- **Coverage gates (CI):** Linux core ≥45%, Linux GUI ≥32%, Windows core ≥28%
 - **Local gate:** pytest.ini `--cov-fail-under=45`
 - **Roadmap:** Target OpenSSF Silver (80% stmt)
 

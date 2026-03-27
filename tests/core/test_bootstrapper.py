@@ -68,7 +68,7 @@ class TestApplicationBootstrapper:
         # Verify result
         assert result is not None
         assert result.view is not None
-        assert result.recorder is not None
+        assert result.hardware.recorder is not None
         assert result.event_dispatcher is not None
 
         # Phase 6: Proxy is NOT populated with attributes anymore — MainViewModel.__init__

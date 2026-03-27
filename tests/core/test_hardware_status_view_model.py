@@ -41,10 +41,12 @@ def view_model():
     detector_setup_coordinator.setup_detector.return_value = (True, None)
     bootstrap_result = SimpleNamespace(
         legacy_coordinators={"detector_coordinator": detector_setup_coordinator},
-        arduino_manager=Mock(),
+        hardware=SimpleNamespace(
+            arduino_manager=Mock(),
+            active_weight_name="weights.pt",
+            use_openvino=True,
+        ),
         ui_state_controller=Mock(),
-        active_weight_name="weights.pt",
-        use_openvino=True,
     )
 
     event_bus = Mock()

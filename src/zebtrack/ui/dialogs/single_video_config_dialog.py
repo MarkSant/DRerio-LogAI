@@ -563,6 +563,8 @@ class SingleVideoConfigDialog(simpledialog.Dialog):
 
                 if hasattr(self.settings, "behavioral_analysis"):
                     # Phase 9: Persist behavioral settings
+                    # Keys from BehavioralConfigWidget.get_values() use short names;
+                    # map to the "default_" prefixed settings field names.
                     if "aquarium_perspective" in behavioral_config:
                         self.settings.behavioral_analysis.aquarium_perspective = behavioral_config[
                             "aquarium_perspective"
@@ -571,22 +573,32 @@ class SingleVideoConfigDialog(simpledialog.Dialog):
                         self.settings.behavioral_analysis.geotaxis_mode = behavioral_config[
                             "geotaxis_mode"
                         ]
-                    if "default_geotaxis_num_zones" in behavioral_config:
-                        self.settings.behavioral_analysis.default_geotaxis_num_zones = (
-                            behavioral_config["default_geotaxis_num_zones"]
-                        )
-                    if "default_geotaxis_bottom_zones" in behavioral_config:
+                    num_zones = behavioral_config.get(
+                        "geotaxis_num_zones",
+                        behavioral_config.get("default_geotaxis_num_zones"),
+                    )
+                    if num_zones is not None:
+                        self.settings.behavioral_analysis.default_geotaxis_num_zones = num_zones
+                    bottom_zones = behavioral_config.get(
+                        "geotaxis_bottom_zones",
+                        behavioral_config.get("default_geotaxis_bottom_zones"),
+                    )
+                    if bottom_zones is not None:
                         self.settings.behavioral_analysis.default_geotaxis_bottom_zones = (
-                            behavioral_config["default_geotaxis_bottom_zones"]
+                            bottom_zones
                         )
-                    if "default_thigmotaxis_distance_cm" in behavioral_config:
-                        self.settings.behavioral_analysis.default_thigmotaxis_distance_cm = (
-                            behavioral_config["default_thigmotaxis_distance_cm"]
-                        )
-                    if "default_geotaxis_distance_cm" in behavioral_config:
-                        self.settings.behavioral_analysis.default_geotaxis_distance_cm = (
-                            behavioral_config["default_geotaxis_distance_cm"]
-                        )
+                    thigmo = behavioral_config.get(
+                        "thigmotaxis_distance_cm",
+                        behavioral_config.get("default_thigmotaxis_distance_cm"),
+                    )
+                    if thigmo is not None:
+                        self.settings.behavioral_analysis.default_thigmotaxis_distance_cm = thigmo
+                    geo_dist = behavioral_config.get(
+                        "geotaxis_distance_cm",
+                        behavioral_config.get("default_geotaxis_distance_cm"),
+                    )
+                    if geo_dist is not None:
+                        self.settings.behavioral_analysis.default_geotaxis_distance_cm = geo_dist
 
                 log.info("single_video_dialog.apply.settings_updated")
             except Exception as e:

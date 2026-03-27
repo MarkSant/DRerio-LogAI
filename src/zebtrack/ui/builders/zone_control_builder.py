@@ -87,6 +87,25 @@ class ZoneControlBuilder:
         if hasattr(self.gui, "rule_help_label") and self.gui.rule_help_label:
             self.gui.rule_help_label.config(text=help_text)
 
+    def _emit_apply_roi_settings(self) -> None:
+        """Emit DETECTOR_UPDATE_PARAMETERS event with current ROI settings from UI."""
+        from zebtrack.ui.event_bus_v2 import Event, UIEvents
+
+        if self.event_bus_v2:
+            self.event_bus_v2.publish(
+                Event(
+                    type=UIEvents.DETECTOR_UPDATE_PARAMETERS,
+                    data={
+                        "rule": self.gui.roi_inclusion_rule_var.get(),
+                        "buffer_radius": float(self.gui.roi_buffer_radius_var.get() or 0.5),
+                        "overlap_ratio": float(self.gui.roi_overlap_ratio_var.get() or 0.10),
+                    },
+                    source="ZoneControlBuilder._emit_apply_roi_settings",
+                )
+            )
+        else:
+            log.warning("zone_control_builder.apply_roi_settings.no_event_bus")
+
     def _refresh_video_tree_dual_mode(self, filter_text: str | None = None):
         """Refresh video tree via Event Bus.
 
@@ -550,7 +569,7 @@ class ZoneControlBuilder:
         ttk.Button(
             save_settings_frame,
             text="Aplicar Configurações",
-            command=self.gui._on_apply_roi_settings,
+            command=self._emit_apply_roi_settings,
         ).pack(side="right")
 
         # Initialize display based on current rule

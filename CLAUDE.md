@@ -630,7 +630,7 @@ logger.error("recorder.save_parquet.error", error=str(e))
 
 ## Testing Requirements
 
-- **Coverage gates**: 50% Linux core, 32% Linux GUI, 28% Windows core
+- **Coverage gates**: 45% Linux core, 32% Linux GUI, 28% Windows core
 - **Markers**: `@pytest.mark.{gui,slow,integration,unit}`
 - **Fixtures**: `tests/conftest.py`
 - **Current Status**: 2778+ fast tests passing, 12 skipped (as of Mar 2026)

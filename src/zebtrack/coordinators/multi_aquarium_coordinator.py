@@ -13,6 +13,7 @@ import contextlib
 import os
 import shutil
 from collections.abc import Generator
+from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
 import structlog
@@ -121,7 +122,7 @@ class MultiAquariumCoordinator(BaseCoordinator):
         else:
             self._apply_processing_mode_to_all_videos(sequential=sequential)
 
-    def _apply_processing_mode_to_video(self, video_path: str, *, sequential: bool) -> None:
+    def _apply_processing_mode_to_video(self, video_path: Path | str, *, sequential: bool) -> None:
         """Apply sequential/parallel mode to a specific video's multi-aquarium data."""
         from zebtrack.core.project.zone_manager import ZoneManager
 
@@ -153,7 +154,7 @@ class MultiAquariumCoordinator(BaseCoordinator):
 
     def run_aquarium_detection(
         self,
-        video_path: str,
+        video_path: Path | str,
         *,
         count: int | None = None,
         method: str = "auto",
@@ -394,7 +395,7 @@ class MultiAquariumCoordinator(BaseCoordinator):
         log.info("processing_coordinator.assignment.completed", videos=len(target_videos))
 
     def _relocate_multi_aquarium_folders(
-        self, video_path: str, entry: dict, configs: list[dict]
+        self, video_path: Path | str, entry: dict, configs: list[dict]
     ) -> None:
         """Relocate multi-aquarium output folders from generic to named paths.
 
@@ -470,7 +471,11 @@ class MultiAquariumCoordinator(BaseCoordinator):
                         if os.path.exists(parent) and not os.listdir(parent):
                             os.rmdir(parent)
                 except OSError:
-                    pass
+                    log.debug(
+                        "coordinator.empty_dir_cleanup.skipped",
+                        path=str(old_results_dir),
+                        exc_info=True,
+                    )
 
                 log.info(
                     "processing_coordinator.folder_relocated",

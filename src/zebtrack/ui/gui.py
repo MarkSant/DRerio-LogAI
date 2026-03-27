@@ -56,7 +56,7 @@ from zebtrack.ui.dialogs import (
     MissingMetadataDialog,
     StartRecordingDialog,
 )
-from zebtrack.ui.event_bus_v2 import Event, EventBusV2, UIEvents
+from zebtrack.ui.event_bus_v2 import EventBusV2, UIEvents
 from zebtrack.ui.ui_coordinator import UICoordinator
 
 log = structlog.get_logger()
@@ -669,100 +669,21 @@ class ApplicationGUI:
         self.video_selector_manager._populate_video_selector_tree(filter_text=search_text)
 
     def _on_apply_roi_settings(self, params: dict | None = None) -> None:
-        """Apply ROI settings.
+        """Apply ROI settings. Delegates to EventBusV2 / hardware ViewModel.
 
-        If params are provided (via EventBusV2), applies them directly.
-        If params are None (via legacy UI button), reads from UI variables.
+        Kept as thin stub for backward compatibility with tests.
         """
-        try:
-            # Case 1: Params provided via Event (e.g. from ConfigEditor or EventDispatcher)
-            if params:
-                if self.controller:
-                    self.controller.hardware_vm.update_detector_parameters(params)
-                return
-
-            # Case 2: No params (Legacy UI interaction) - Read from StringVars
-            self.controller.settings.roi_inclusion_rule = self.roi_inclusion_rule_var.get()
-            self.controller.settings.roi_buffer_radius_value = float(
-                self.roi_buffer_radius_var.get()
-            )
-            self.controller.settings.roi_min_bbox_overlap_ratio = float(
-                self.roi_overlap_ratio_var.get()
-            )
-
-            if self.controller.project_manager.project_path:
-                self.controller.project_manager._save_settings_snapshot()
-
-            self.dialog_manager.show_info("Sucesso", "Configurações de ROI aplicadas.")
-
-        except ValueError:
-            self.dialog_manager.show_error("Erro", "Valores inválidos para parâmetros de ROI.")
-        except (AttributeError, OSError) as e:
-            log.error("gui.apply_roi_settings.error", error=str(e))
-            self.dialog_manager.show_error("Erro", f"Falha ao aplicar configurações: {e!s}")
+        if params and self.controller:
+            self.controller.hardware_vm.update_detector_parameters(params)
 
     def _remove_selected_roi_confirm(self) -> None:
-        """Remove the selected ROI after user confirmation (legacy UI flow)."""
-        listbox = None
-        if hasattr(self, "zone_listbox") and self.zone_listbox:
-            listbox = self.zone_listbox
-        elif self.zone_controls and self.zone_controls.zone_listbox:
-            listbox = self.zone_controls.zone_listbox
+        """Remove the selected ROI after user confirmation.
 
-        if not listbox:
-            return
-
-        selected = listbox.selection()
-        if not selected:
-            return
-
-        item = listbox.item(selected[0])
-        values = item.get("values") if isinstance(item, dict) else None
-        if not values:
-            return
-
-        roi_name = str(values[0]).replace("📍 ", "")
-        confirm = self.dialog_manager.confirm_remove_roi(roi_name)
-        if not confirm:
-            return
-
-        zone_data = self.canvas_manager.zone_context_service.get_zone_data_for_active_context()
-        if not zone_data or not getattr(zone_data, "roi_names", None):
-            return
-
-        try:
-            idx = zone_data.roi_names.index(roi_name)
-        except ValueError:
-            self.dialog_manager.show_error("Erro", "ROI não encontrada")
-            return
-
-        zone_data.roi_names = list(zone_data.roi_names)
-        zone_data.roi_names.pop(idx)
-
-        if isinstance(zone_data.roi_polygons, list) and idx < len(zone_data.roi_polygons):
-            zone_data.roi_polygons.pop(idx)
-
-        roi_colors = getattr(zone_data, "roi_colors", None)
-        if isinstance(roi_colors, list) and idx < len(roi_colors):
-            roi_colors.pop(idx)
-
-        self.controller.project_manager.save_zone_data(zone_data)
-        self.canvas_manager.redraw_zones_from_project_data()
-
-        status_message = f"ROI '{roi_name}' removida com sucesso."
-        self.dialog_manager.show_info("Sucesso", status_message)
-        self.set_status(status_message)
-        self.video_selector_manager.request_overview_refresh(reason=status_message)
-
-        # Publish dual-path event for observers still listening to Event Bus v2
-        if self.event_bus:
-            self.event_bus.publish(
-                Event(
-                    type=UIEvents.ZONES_UPDATED,
-                    data={"zone_data": zone_data},
-                    source="ApplicationGUI._remove_selected_roi_confirm",
-                )
-            )
+        Delegates to canvas_manager.remove_selected_roi() (modern path).
+        Kept as thin stub for backward compatibility with tests.
+        """
+        if self.canvas_manager:
+            self.canvas_manager.remove_selected_roi()
 
     @public_api
     def set_status(self, text):

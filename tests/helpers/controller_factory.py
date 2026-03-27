@@ -69,7 +69,11 @@ def create_test_controller(root, **overrides):
     """
     from unittest.mock import MagicMock
 
-    from zebtrack.core.application_bootstrapper import BootstrapResult
+    from zebtrack.core.application_bootstrapper import (
+        BootstrapResult,
+        HardwareBootstrap,
+        RuntimeBootstrap,
+    )
     from zebtrack.core.dependency_container import MainViewModelDependencies
     from zebtrack.core.main_view_model import MainViewModel
     from zebtrack.core.project.project_workflow_service import ProjectWorkflowService
@@ -207,17 +211,21 @@ def create_test_controller(root, **overrides):
         batch_configuration_service=overrides.get("batch_configuration_service", MagicMock()),
         dialog_coordinator=overrides.get("dialog_coordinator", MagicMock()),
         event_dispatcher=event_dispatcher,
-        active_weight_name="best_seg.pt",
-        use_openvino=False,
-        hardware_summary={},
-        recommended_backend="CPU",
-        recorder=overrides.get("recorder", MagicMock()),
-        arduino_manager=overrides.get("arduino_manager", MagicMock()),
-        frame_queue=overrides.get("frame_queue", MagicMock()),
-        video_queue=overrides.get("video_queue", MagicMock()),
-        program_exit_event=overrides.get("program_exit_event", MagicMock()),
-        # Use a real threading.Event so thread lifecycle tests behave correctly
-        cancel_event=cancel_event,
+        hardware=HardwareBootstrap(
+            active_weight_name="best_seg.pt",
+            use_openvino=False,
+            hardware_summary={},
+            recommended_backend="CPU",
+            recorder=overrides.get("recorder", MagicMock()),
+            arduino_manager=overrides.get("arduino_manager", MagicMock()),
+        ),
+        runtime=RuntimeBootstrap(
+            frame_queue=overrides.get("frame_queue", MagicMock()),
+            video_queue=overrides.get("video_queue", MagicMock()),
+            program_exit_event=overrides.get("program_exit_event", MagicMock()),
+            # Use a real threading.Event so thread lifecycle tests behave correctly
+            cancel_event=cancel_event,
+        ),
         view=MagicMock(),  # Added missing view argument
         ui_state_controller=overrides.get("ui_state_controller", MagicMock()),
         # Phase 3A/3B/3C/3D/3E: Removed unused orchestrators (superseded by Super Coordinators)

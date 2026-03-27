@@ -90,6 +90,18 @@ class LiveSessionManagerMixin:
     timer_id: str | None
     current_output_dir: Path | None
     analysis_completed: bool
+    _analysis_lag_frames: int
+
+    # Cross-mixin method stubs — visible to type checkers only so they
+    # don't shadow the real implementations resolved through the MRO.
+    if TYPE_CHECKING:
+
+        def set_last_detections(self, detections: list) -> None: ...
+        def _create_preview_window(self, camera_index: int, duration_s: float) -> None: ...
+        def _setup_camera(self, camera_index: int) -> bool: ...
+        def _start_threads(self) -> bool: ...
+        def _clear_queues(self) -> None: ...
+        def _on_session_complete(self, output_dir: Path) -> None: ...
 
     def _cleanup_existing_session_folders(
         self,
@@ -151,7 +163,7 @@ class LiveSessionManagerMixin:
         analysis_interval_frames: int = 1,
         display_interval_frames: int = 1,
         record_video: bool = True,
-        output_base_dir: str | None = None,
+        output_base_dir: Path | str | None = None,
         animals_per_aquarium: int = 1,
         analysis_config: dict | None = None,
         use_external_preview: bool = False,
@@ -189,7 +201,7 @@ class LiveSessionManagerMixin:
         self.display_interval_frames = display_interval_frames
         self.is_capturing_for_video = record_video
         self.analysis_completed = False
-        self.set_last_detections([])  # type: ignore[attr-defined]
+        self.set_last_detections([])
         self._animals_per_aquarium = animals_per_aquarium
         self._experiment_id = experiment_id
         self._preview_window_destroyed = False
@@ -206,7 +218,7 @@ class LiveSessionManagerMixin:
                 "live_camera_service.about_to_create_preview_window",
                 camera_index=camera_index,
             )
-            self._create_preview_window(camera_index, duration_s)  # type: ignore[attr-defined]
+            self._create_preview_window(camera_index, duration_s)
             log.info(
                 "live_camera_service.preview_window_creation_complete",
                 camera_index=camera_index,
@@ -225,7 +237,7 @@ class LiveSessionManagerMixin:
             self.preview_window.update_status_text("⏳ Aquecendo câmera...", color="orange")
 
         # Setup camera
-        if not self._setup_camera(camera_index):  # type: ignore[attr-defined]
+        if not self._setup_camera(camera_index):
             import os
 
             if os.environ.get("PYTEST_CURRENT_TEST") is None:
@@ -366,7 +378,7 @@ class LiveSessionManagerMixin:
             self.preview_window.update_status_text("⏳ Iniciando captura...", color="orange")
 
         # Start threads before recording service
-        if not self._start_threads():  # type: ignore[attr-defined]
+        if not self._start_threads():
             return False
 
         # Update state
@@ -457,7 +469,7 @@ class LiveSessionManagerMixin:
                 log.warning("live_camera_service.recorder_stop_error", error=str(e))
 
         # Clear queues BEFORE setting exit_event
-        self._clear_queues()  # type: ignore[attr-defined]
+        self._clear_queues()
         log.info("live_camera_service.queues_cleared_before_exit")
 
         # Signal threads to exit
@@ -515,7 +527,7 @@ class LiveSessionManagerMixin:
         )
 
         # Clear queues
-        self._clear_queues()  # type: ignore[attr-defined]
+        self._clear_queues()
 
         # Restore button state
         if self.event_bus:
@@ -568,7 +580,7 @@ class LiveSessionManagerMixin:
         def on_timer_expired() -> None:
             """Called when duration expires."""
             log.info("live_camera_service.timer_expired", duration_s=duration_s)
-            self._on_session_complete(output_dir)  # type: ignore[attr-defined]
+            self._on_session_complete(output_dir)
 
         if self.root:
             self.timer_id = self.root.after(int(duration_s * 1000), on_timer_expired)
@@ -623,7 +635,7 @@ class LiveSessionManagerMixin:
         log.debug(
             "live_camera_service.analysis_lag_status",
             lag_seconds=lag_seconds,
-            lag_frames=self._analysis_lag_frames,  # type: ignore[attr-defined]
+            lag_frames=self._analysis_lag_frames,
             queue_size=self.frame_queue.qsize(),
         )
 

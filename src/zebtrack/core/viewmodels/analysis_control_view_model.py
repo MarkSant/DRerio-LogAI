@@ -35,7 +35,7 @@ class AnalysisControlViewModel:
         self.state_manager = dependencies.state_manager
         self.ui_state_controller = bootstrap_result.ui_state_controller
         self.project_manager = dependencies.project_manager
-        self.recorder = bootstrap_result.recorder
+        self.recorder = bootstrap_result.hardware.recorder
         self.settings = dependencies.settings_obj
 
         self.ui_event_bus = event_bus
@@ -43,7 +43,7 @@ class AnalysisControlViewModel:
         # Flags and state
         self.processing_thread = None
         self.processing_worker = None
-        self.cancel_event = bootstrap_result.cancel_event
+        self.cancel_event = bootstrap_result.runtime.cancel_event
 
     @property
     def is_processing(self) -> bool:
@@ -260,7 +260,7 @@ class AnalysisControlViewModel:
             target=self._generate_summaries_impl, args=(video_paths,), daemon=True
         ).start()
 
-    def _generate_summaries_impl(self, video_paths: list[str]) -> None:
+    def _generate_summaries_impl(self, video_paths: list[str]) -> None:  # noqa: C901
         """Implementation of summary generation running in a separate thread."""
         import os
 
@@ -270,6 +270,7 @@ class AnalysisControlViewModel:
             ReporterContext,
             WordReporter,
         )
+        from zebtrack.core.video.video_metadata_service import VideoMetadataService
 
         if not self.ui_event_bus:
             return
@@ -418,11 +419,25 @@ class AnalysisControlViewModel:
                     real_height_cm=real_height_cm,
                 )
 
+                # Resolve video height from actual video file
+                video_height_px = 720  # Default fallback
+                try:
+                    dims = VideoMetadataService.get_video_dimensions(video_path)
+                    if dims:
+                        video_height_px = dims[1]
+                except (ValueError, OSError):
+                    # Fallback: estimate from arena polygon bounding box
+                    if arena_poly and len(arena_poly) > 2:
+                        try:
+                            video_height_px = int(max(p[1] for p in arena_poly) * 1.1)
+                        except (IndexError, TypeError):
+                            pass
+
                 analysis_result = self.analysis_service.run_full_analysis_as_dto(
                     trajectory_df=df,
                     pixelcm_x=pixelcm_x,
                     pixelcm_y=pixelcm_y,
-                    video_height_px=1080,  # Placeholder, should come from video
+                    video_height_px=video_height_px,
                     arena_polygon_px=[(float(x), float(y)) for x, y in arena_poly],
                     rois=rois_list,
                     fps=fps,
