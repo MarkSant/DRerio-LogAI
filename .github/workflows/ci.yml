@@ -52,7 +52,7 @@ jobs:
 
       - name: Cache pip/poetry downloads (Linux)
         if: runner.os == 'Linux'
-        uses: actions/cache@v6
+        uses: actions/cache@v5
         with:
           path: |
             ~/.cache/pip
@@ -68,16 +68,9 @@ jobs:
           "PIP_CACHE_DIR=$env:LOCALAPPDATA\pip\Cache" | Out-File -FilePath $env:GITHUB_ENV -Append
           "POETRY_CACHE_DIR=$env:LOCALAPPDATA\pypoetry\Cache" | Out-File -FilePath $env:GITHUB_ENV -Append
 
-      - name: Set cache dirs (Windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          "PIP_CACHE_DIR=$env:LOCALAPPDATA\pip\Cache" | Out-File -FilePath $env:GITHUB_ENV -Append
-          "POETRY_CACHE_DIR=$env:LOCALAPPDATA\pypoetry\Cache" | Out-File -FilePath $env:GITHUB_ENV -Append
-
       - name: Cache pip/poetry downloads (Windows)
         if: runner.os == 'Windows'
-        uses: actions/cache@v6
+        uses: actions/cache@v5
         with:
           path: |
             ${{ env.PIP_CACHE_DIR }}
@@ -108,7 +101,7 @@ jobs:
           python -c "from pathlib import Path; Path('src/zebtrack').mkdir(parents=True, exist_ok=True); Path('src/zebtrack/locale').mkdir(parents=True, exist_ok=True); Path('src/zebtrack/wizard_templates.zip').touch(exist_ok=True)"
 
       - name: Cache build artifacts
-        uses: actions/cache@v6
+        uses: actions/cache@v5
         with:
           path: |
             src/zebtrack/wizard_templates.zip
@@ -211,7 +204,7 @@ jobs:
 
       - name: Cache pip/poetry downloads (Linux)
         if: runner.os == 'Linux'
-        uses: actions/cache@v6
+        uses: actions/cache@v5
         with:
           path: |
             ~/.cache/pip
@@ -222,7 +215,7 @@ jobs:
 
       - name: Cache pip/poetry downloads (Windows)
         if: runner.os == 'Windows'
-        uses: actions/cache@v6
+        uses: actions/cache@v5
         with:
           path: |
             ${{ env.PIP_CACHE_DIR }}
@@ -233,7 +226,7 @@ jobs:
 
       - name: Cache in-project virtualenv (Windows only)
         if: runner.os == 'Windows'
-        uses: actions/cache@v6
+        uses: actions/cache@v5
         with:
           path: .venv
           key: ${{ runner.os }}-venv-${{ hashFiles('**/poetry.lock') }}
@@ -258,7 +251,7 @@ jobs:
           python -c "from pathlib import Path; Path('src/zebtrack').mkdir(parents=True, exist_ok=True); Path('src/zebtrack/locale').mkdir(parents=True, exist_ok=True); Path('src/zebtrack/wizard_templates.zip').touch(exist_ok=True)"
 
       - name: Cache build artifacts
-        uses: actions/cache@v6
+        uses: actions/cache@v5
         with:
           path: |
             src/zebtrack/wizard_templates.zip
