@@ -12,6 +12,7 @@ import glob
 import os
 import shutil
 import threading
+from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
 import cv2
@@ -26,7 +27,7 @@ try:
 
     ULTRALYTICS_AVAILABLE = True
 except ImportError:
-    YOLO = None
+    YOLO = None  # type: ignore[misc,assignment]
     ULTRALYTICS_AVAILABLE = False
 
 if TYPE_CHECKING:
@@ -66,7 +67,7 @@ class DiagnosticAbortError(RuntimeError):
 # =============================================================================
 
 
-def _is_valid_openvino_directory(path: str | None) -> bool:
+def _is_valid_openvino_directory(path: Path | str | None) -> bool:
     """Validate if an OpenVINO model directory exists and contains required .xml files.
 
     Args:
@@ -77,7 +78,7 @@ def _is_valid_openvino_directory(path: str | None) -> bool:
     """
     if not path or not os.path.exists(path) or not os.path.isdir(path):
         return False
-    xml_files = glob.glob(os.path.join(path, "*.xml"))
+    xml_files = glob.glob(os.path.join(str(path), "*.xml"))
     return len(xml_files) > 0
 
 
@@ -570,7 +571,7 @@ class ModelDiagnosticsCoordinator(BaseCoordinator):
 
     def _run_diagnostic_frame_loop(
         self,
-        video_path: str,
+        video_path: Path | str,
         frames_to_analyze: int,
         conf_threshold: float,
         yolo_model: Any,

@@ -35,7 +35,7 @@ try:
     from ultralytics.utils.nms import non_max_suppression
     from ultralytics.utils.ops import process_mask, scale_boxes
 except ImportError:
-    from ultralytics.utils.ops import (  # type: ignore[attr-defined]
+    from ultralytics.utils.ops import (  # type: ignore[attr-defined,no-redef]
         non_max_suppression,
         process_mask,
         scale_boxes,

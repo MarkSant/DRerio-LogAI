@@ -9,7 +9,7 @@ try:
 
     ULTRALYTICS_AVAILABLE = True
 except ImportError:
-    YOLO = None
+    YOLO = None  # type: ignore[misc,assignment]
     ULTRALYTICS_AVAILABLE = False
 
 from zebtrack.plugins.base import DetectorPlugin
@@ -149,9 +149,9 @@ class UltralyticsDetectorPlugin(DetectorPlugin):
         predictions: list[tuple[int, int, int, int, float, int | None, int]] = []
         if results and results[0].boxes is not None:
             boxes = results[0].boxes
-            xyxys = boxes.xyxy.cpu().numpy()
-            confs = boxes.conf.cpu().numpy()
-            classes = boxes.cls.cpu().numpy()
+            xyxys = boxes.xyxy.cpu().numpy()  # type: ignore[union-attr]
+            confs = boxes.conf.cpu().numpy()  # type: ignore[union-attr]
+            classes = boxes.cls.cpu().numpy()  # type: ignore[union-attr]
 
             # ✅ DEBUG: Log raw boxes from model
             log.debug(
@@ -229,7 +229,7 @@ class UltralyticsDetectorPlugin(DetectorPlugin):
                             "class_id": class_id,
                             "class_name": result.names.get(class_id, f"class_{class_id}"),
                             "has_mask": has_mask,
-                            "mask_points": len(result.masks.xy[i]) if has_mask else 0,
+                            "mask_points": len(result.masks.xy[i]) if has_mask else 0,  # type: ignore[union-attr]
                         }
                     )
 
@@ -331,9 +331,9 @@ class UltralyticsDetectorPlugin(DetectorPlugin):
         for result in results:
             frame_predictions: list[tuple[int, int, int, int, float, int | None, int]] = []
             if result.boxes is not None:
-                xyxys = result.boxes.xyxy.cpu().numpy()
-                confs = result.boxes.conf.cpu().numpy()
-                classes = result.boxes.cls.cpu().numpy()
+                xyxys = result.boxes.xyxy.cpu().numpy()  # type: ignore[union-attr]
+                confs = result.boxes.conf.cpu().numpy()  # type: ignore[union-attr]
+                classes = result.boxes.cls.cpu().numpy()  # type: ignore[union-attr]
                 for i in range(len(xyxys)):
                     x1, y1, x2, y2 = xyxys[i]
                     frame_predictions.append(

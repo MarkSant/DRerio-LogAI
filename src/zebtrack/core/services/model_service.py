@@ -521,7 +521,7 @@ class ModelService:
 
         try:
             # Load model
-            model = YOLO(model_path)
+            model = YOLO(model_path)  # type: ignore[arg-type]
 
             # Extract model information
             class_names = dict(model.names)
@@ -529,7 +529,7 @@ class ModelService:
             model_task = model.task  # 'detect', 'segment', 'classify', etc.
 
             # Get input shape (imgsz can be int or tuple)
-            input_shape = model.model.args.get("imgsz", 640) if hasattr(model, "model") else 640
+            input_shape = model.model.args.get("imgsz", 640) if hasattr(model, "model") else 640  # type: ignore[union-attr]
 
             result = {
                 "weight_name": weight_name,

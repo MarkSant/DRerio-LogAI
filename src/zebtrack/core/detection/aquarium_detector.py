@@ -21,7 +21,7 @@ try:
 
     ULTRALYTICS_AVAILABLE = True
 except ImportError:
-    YOLO = None
+    YOLO = None  # type: ignore[misc,assignment]
     ULTRALYTICS_AVAILABLE = False
 
 from zebtrack.io.video_source import VideoFileSource

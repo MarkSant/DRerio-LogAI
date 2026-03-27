@@ -20,7 +20,7 @@ try:
 
     ULTRALYTICS_AVAILABLE = True
 except ImportError:
-    YOLO = None
+    YOLO = None  # type: ignore[misc,assignment]
     ULTRALYTICS_AVAILABLE = False
 
 from zebtrack.utils import calculate_sha256
@@ -85,7 +85,7 @@ class WeightManager:
     conversion of PyTorch models to OpenVINO format for optimized inference.
     """
 
-    def __init__(self, settings_obj: Settings | None = None, config_dir: str = "."):
+    def __init__(self, settings_obj: Settings | None = None, config_dir: Path | str = "."):
         """Initialize WeightManager with settings dependency injection.
 
         Args:
@@ -93,7 +93,7 @@ class WeightManager:
             config_dir: Directory for weights configuration file
         """
         self.settings = settings_obj
-        self.config_dir = config_dir
+        self.config_dir = str(config_dir)
         self.config_path = os.path.join(self.config_dir, WEIGHTS_CONFIG_FILE)
         self.weights: dict[str, Any] = {}
         self._load_weights()

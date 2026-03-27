@@ -535,7 +535,7 @@ class TestAquariumDetectorDetection:
 
             # Frame inválido (None)
             with pytest.raises(Exception, match="Invalid frame"):
-                detector.model.predict(None)
+                detector.model.predict(None)  # type: ignore[arg-type]
 
     @pytest.mark.skipif(not ULTRALYTICS_AVAILABLE, reason="Ultralytics not available")
     def test_mode_switching(self, tmp_path, sample_frame):

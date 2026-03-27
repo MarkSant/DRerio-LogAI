@@ -455,7 +455,7 @@ class LiveCalibrationCoordinator(BaseCoordinator):
 
                 if results and results[0].boxes and len(results[0].boxes) > 0:
                     # Get the largest detection box
-                    boxes = results[0].boxes.xyxy.cpu().numpy()
+                    boxes = results[0].boxes.xyxy.cpu().numpy()  # type: ignore[union-attr]
                     areas = [(x2 - x1) * (y2 - y1) for x1, y1, x2, y2 in boxes]
                     max_idx = areas.index(max(areas)) if areas else 0
                     x1, y1, x2, y2 = boxes[max_idx]

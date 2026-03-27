@@ -120,7 +120,7 @@ class WizardService:
             sys.stderr = open(os.devnull, "w")
 
             # Also set OpenCV log level to ERROR
-            cv2.utils.logging.setLogLevel(0)  # LOG_LEVEL_SILENT
+            cv2.utils.logging.setLogLevel(0)  # type: ignore[attr-defined]  # LOG_LEVEL_SILENT
 
             yield
 
@@ -132,7 +132,7 @@ class WizardService:
             sys.stderr.close()
             sys.stderr = old_stderr
             # Restore OpenCV log level
-            cv2.utils.logging.setLogLevel(3)  # LOG_LEVEL_ERROR
+            cv2.utils.logging.setLogLevel(3)  # type: ignore[attr-defined]  # LOG_LEVEL_ERROR
 
     @classmethod
     def clear_hardware_cache(cls) -> None:

@@ -98,6 +98,11 @@
     ], // Ruff line length
     "files.trimTrailingWhitespace": true,
     "files.insertFinalNewline": true,
+    "files.trimFinalNewlines": true,
+    // Ensure Markdown also trims whitespace (project uses markdownlint, not trailing-space <br>)
+    "[markdown]": {
+        "files.trimTrailingWhitespace": true
+    },
     // ========================================
     // Ruff Linter & Formatter (Native Extension)
     // ========================================

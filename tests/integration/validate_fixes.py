@@ -45,7 +45,7 @@ def test_1_yolo_both_classes(model_path, video_path):
 
             results = model.predict(frame, conf=0.01, verbose=False)
             if results and results[0].boxes is not None:
-                for box in results[0].boxes:
+                for box in results[0].boxes:  # type: ignore[attr-defined]
                     class_id = int(box.cls)
                     classes_found.add(class_id)
 
@@ -356,13 +356,13 @@ def test_6_instance_segmentation(model_path, video_path):
         print(f"   Mascaras detectadas: {'SIM' if has_masks else 'NAO'}")
 
         if has_boxes:
-            print(f"   Numero de boxes: {len(result.boxes)}")
+            print(f"   Numero de boxes: {len(result.boxes)}")  # type: ignore[arg-type]
 
         if has_masks:
-            print(f"   Numero de mascaras: {len(result.masks.xy)}")
+            print(f"   Numero de mascaras: {len(result.masks.xy)}")  # type: ignore[union-attr]
 
             # Analisa primeira máscara
-            mask = result.masks.xy[0]
+            mask = result.masks.xy[0]  # type: ignore[union-attr]
             x_min, y_min = mask[:, 0].min(), mask[:, 1].min()
             x_max, y_max = mask[:, 0].max(), mask[:, 1].max()
             area = (x_max - x_min) * (y_max - y_min)
