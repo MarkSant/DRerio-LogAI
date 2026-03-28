@@ -586,7 +586,7 @@ class ProcessingReportsWidget(BaseWidget):
         if project_path:
             import os
 
-            self._project_path = project_path  # Cache for file opening
+            self._project_path = str(project_path)  # Cache for file opening
             unified_dir = os.path.join(project_path, "unified_reports")
             has_unified_reports = False
 

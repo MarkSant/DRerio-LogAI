@@ -260,6 +260,7 @@ class Recorder:
             log.warning("recorder.start.already_recording")
             return False
 
+        output_folder = str(output_folder)
         os.makedirs(output_folder, exist_ok=True)
         self.output_folder = output_folder
         self.base_name = base_name or os.path.basename(output_folder)
@@ -1088,7 +1089,7 @@ class Recorder:
             compression: Compression codec (default: instance setting).
         """
         comp = compression or self._parquet_compression
-        tmp_path = target_path + ".tmp"
+        tmp_path = str(target_path) + ".tmp"
         try:
             pq.write_table(table, tmp_path, compression=comp)
             os.replace(tmp_path, target_path)
