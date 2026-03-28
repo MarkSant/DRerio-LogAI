@@ -14,6 +14,7 @@ This mixin provides:
 from __future__ import annotations
 
 import os
+from collections.abc import Sequence
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -210,7 +211,7 @@ class VideoSelectionMixin:
         )
 
     def _handle_targeted_selection_errors(
-        self, selection_result, video_paths: list[Path | str]
+        self, selection_result, video_paths: Sequence[Path | str] | None
     ) -> bool:
         """Handle UI feedback for targeted selection mode errors."""
         if not video_paths:

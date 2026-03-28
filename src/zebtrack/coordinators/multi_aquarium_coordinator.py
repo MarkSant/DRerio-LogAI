@@ -436,7 +436,7 @@ class MultiAquariumCoordinator(BaseCoordinator):
             new_results_dir = str(
                 self.project_manager.resolve_results_directory(
                     experiment_id=f"{experiment_id}_aq{aq_id}",
-                    video_path=video_path,
+                    video_path=str(video_path),
                     metadata=metadata,
                 )
             )

@@ -151,9 +151,9 @@ class UltralyticsDetectorPlugin(DetectorPlugin):
             boxes = results[0].boxes
             if boxes.xyxy is None or boxes.conf is None or boxes.cls is None:
                 return predictions
-            xyxys = boxes.xyxy.cpu().numpy()
-            confs = boxes.conf.cpu().numpy()
-            classes = boxes.cls.cpu().numpy()
+            xyxys = boxes.xyxy.cpu().numpy()  # type: ignore[union-attr]
+            confs = boxes.conf.cpu().numpy()  # type: ignore[union-attr]
+            classes = boxes.cls.cpu().numpy()  # type: ignore[union-attr]
 
             # ✅ DEBUG: Log raw boxes from model
             log.debug(
@@ -344,9 +344,9 @@ class UltralyticsDetectorPlugin(DetectorPlugin):
                 ):
                     all_detections.append(frame_predictions)
                     continue
-                xyxys = result.boxes.xyxy.cpu().numpy()
-                confs = result.boxes.conf.cpu().numpy()
-                classes = result.boxes.cls.cpu().numpy()
+                xyxys = result.boxes.xyxy.cpu().numpy()  # type: ignore[union-attr]
+                confs = result.boxes.conf.cpu().numpy()  # type: ignore[union-attr]
+                classes = result.boxes.cls.cpu().numpy()  # type: ignore[union-attr]
                 for i in range(len(xyxys)):
                     x1, y1, x2, y2 = xyxys[i]
                     frame_predictions.append(
