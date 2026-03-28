@@ -1,5 +1,8 @@
 """Main graphical user interface (GUI) module for the Zebtrack application."""
 
+from __future__ import annotations
+
+import tkinter as tk
 from dataclasses import is_dataclass
 from tkinter import (
     BooleanVar,
@@ -11,7 +14,7 @@ from tkinter import (
     ttk,
 )
 from tkinter import font as tkfont
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
 
 import structlog
 
@@ -58,6 +61,11 @@ from zebtrack.ui.dialogs import (
 )
 from zebtrack.ui.event_bus_v2 import EventBusV2, UIEvents
 from zebtrack.ui.ui_coordinator import UICoordinator
+
+if TYPE_CHECKING:
+    from zebtrack.core.project.project_manager import ProjectManager
+    from zebtrack.core.state_manager import StateManager
+    from zebtrack.settings import Settings
 
 log = structlog.get_logger()
 
@@ -107,12 +115,12 @@ class ApplicationGUI:
 
     def __init__(
         self,
-        root,
-        controller,
+        root: tk.Tk,
+        controller: Any,
         event_bus: EventBusV2 | None = None,
-        settings_obj=None,
-        project_manager: Any | None = None,
-        state_manager: Any | None = None,
+        settings_obj: Settings | None = None,
+        project_manager: ProjectManager | None = None,
+        state_manager: StateManager | None = None,
     ):
         """Initialize the ApplicationGUI."""
         self.root = root
@@ -127,16 +135,17 @@ class ApplicationGUI:
         self._zone_context_service = ZoneContextService(project_manager=self.project_manager)
         # Subscribe to VideoProcessingService events (v2.2 UI decoupling)
         if self.event_bus:
-            self.event_bus.subscribe(
-                UIEvents.ERROR_OCCURRED,
-                lambda data: self.root.after(
+
+            def _on_error_occurred(data: Any) -> None:
+                self.root.after(
                     0,
                     lambda: self.dialog_manager.show_error(
                         _payload_get(data, "title", "Erro"),
                         _payload_get(data, "message", "Ocorreu um erro desconhecido."),
                     ),
-                ),
-            )
+                )
+
+            self.event_bus.subscribe(UIEvents.ERROR_OCCURRED, _on_error_occurred)
 
         self.root.title("DRerio LogAI")
         self.root.protocol("WM_DELETE_WINDOW", lambda: self.controller.on_close())

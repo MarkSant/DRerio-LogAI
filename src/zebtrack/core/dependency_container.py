@@ -205,3 +205,23 @@ class MainViewModelDependencies:
 
     # Testing
     test_sync_event: Any = None
+
+    def validate(self) -> list[str]:
+        """Check that all coordinator slots expected at runtime are populated.
+
+        Returns:
+            List of field names that are still ``None``.  An empty list means
+            all optional coordinators have been wired.
+        """
+        coordinator_fields = (
+            "project_lifecycle_coordinator",
+            "detector_setup_coordinator",
+            "model_diagnostics_coordinator",
+            "processing_coordinator",
+            "recording_session_coordinator",
+            "live_camera_session_coordinator",
+            "live_calibration_coordinator",
+            "project_workflow_adapter",
+            "live_batch_coordinator",
+        )
+        return [name for name in coordinator_fields if getattr(self, name) is None]

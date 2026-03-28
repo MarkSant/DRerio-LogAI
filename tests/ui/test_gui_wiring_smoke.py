@@ -77,14 +77,14 @@ def test_application_gui_wiring(monkeypatch):
     monkeypatch.setattr(gui, "ButtonFactory", _Dummy)
     monkeypatch.setattr(gui, "PanelBuilder", _Dummy)
 
-    root = _RootStub()
+    root = _RootStub()  # type: ignore[arg-type]
     controller = cast(Any, _Dummy())
     controller.on_close = lambda *a, **k: None
 
     from unittest.mock import MagicMock
 
     mock_event_bus = MagicMock()
-    app = gui.ApplicationGUI(root=root, controller=controller, event_bus=mock_event_bus)
+    app = gui.ApplicationGUI(root=root, controller=controller, event_bus=mock_event_bus)  # type: ignore[arg-type]
 
     assert app.root is root
     assert app.controller is controller

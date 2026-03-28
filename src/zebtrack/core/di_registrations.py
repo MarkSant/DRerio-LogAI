@@ -11,6 +11,7 @@ from dataclasses import dataclass
 from typing import Any, TypeVar, cast
 
 import punq  # type: ignore[import-untyped]
+import structlog
 
 from zebtrack.analysis.analysis_service import AnalysisService
 from zebtrack.coordinators.calibration_coordinator import CalibrationCoordinator
@@ -71,6 +72,8 @@ class ContainerContext:
 
 
 T = TypeVar("T")
+
+log = structlog.get_logger()
 
 
 def _resolve(container: punq.Container, cls: type[T]) -> T:
@@ -339,6 +342,16 @@ def resolve_main_view_model(container: punq.Container) -> MainViewModel:
     """Resolve the fully wired MainViewModel with bootstrap initialization."""
     controller_ref = _resolve(container, LazyRef)
     dependencies = _resolve(container, MainViewModelDependencies)
+
+    # Fail-fast: surface missing coordinator wiring before the app starts
+    missing = dependencies.validate()
+    if missing:
+        log.warning(
+            "di.dependencies.missing_coordinators",
+            missing=missing,
+            msg="Some coordinator slots were not wired during DI registration",
+        )
+
     bootstrapper = _resolve(container, ApplicationBootstrapper)
     bootstrap_result = bootstrapper.initialize(controller_ref)
 

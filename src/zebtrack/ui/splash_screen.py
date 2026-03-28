@@ -7,6 +7,8 @@ from tkinter import ttk
 
 import structlog
 
+from zebtrack.constants import SPLASH_HEIGHT, SPLASH_WIDTH
+
 log = structlog.get_logger()
 
 # Platform-specific font selection
@@ -41,8 +43,8 @@ class SplashScreen:
         screen_height = self.splash.winfo_screenheight()
 
         # Splash dimensions
-        splash_width = 500
-        splash_height = 400
+        splash_width = SPLASH_WIDTH
+        splash_height = SPLASH_HEIGHT
 
         # Calculate position for center of screen
         x = (screen_width - splash_width) // 2

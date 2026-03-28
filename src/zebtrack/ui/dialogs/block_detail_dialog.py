@@ -7,10 +7,7 @@ Version: 2.3.1
 
 from __future__ import annotations
 
-import os
 import re
-import subprocess
-import sys
 from datetime import datetime
 from pathlib import Path
 from tkinter import Button, Canvas, Frame, Label, Toplevel, messagebox, simpledialog, ttk
@@ -409,12 +406,9 @@ class BlockDetailDialog(Toplevel):
 
         try:
             # Open folder in system file explorer
-            if sys.platform == "win32":
-                os.startfile(session_folder)
-            elif sys.platform == "darwin":
-                subprocess.run(["open", str(session_folder)], check=True)
-            else:
-                subprocess.run(["xdg-open", str(session_folder)], check=True)
+            from zebtrack.utils.os_opener import open_path
+
+            open_path(session_folder)
 
             log.info(
                 "block_detail.view_results.opened",
@@ -427,7 +421,7 @@ class BlockDetailDialog(Toplevel):
                 f"Falha ao abrir pasta de resultados:\n{e!s}",
             )
 
-    def generate_partial_report(self):  # noqa: C901
+    def generate_partial_report(self):
         """Generate partial report for completed sessions in this block.
 
         Collects all summary Excel files from completed sessions and aggregates
@@ -577,12 +571,9 @@ class BlockDetailDialog(Toplevel):
 
             if result:
                 try:
-                    if sys.platform == "win32":
-                        os.startfile(output_path)
-                    elif sys.platform == "darwin":
-                        subprocess.run(["open", str(output_path)], check=True)
-                    else:
-                        subprocess.run(["xdg-open", str(output_path)], check=True)
+                    from zebtrack.utils.os_opener import open_path
+
+                    open_path(output_path)
                 except Exception as e:
                     log.warning("block_detail.partial_report.open_failed", error=str(e))
                     messagebox.showwarning(

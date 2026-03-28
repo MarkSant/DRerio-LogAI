@@ -32,6 +32,7 @@ from shapely.geometry import Polygon as ShapelyPolygon
 
 from zebtrack.analysis.behavior import ConcreteBehavioralAnalyzer
 from zebtrack.analysis.roi import ROI, ROIAnalyzer
+from zebtrack.constants import DEFAULT_MAX_PARALLEL_PLOTS
 
 __all__ = ["VisualizationGenerator"]
 
@@ -266,7 +267,7 @@ class VisualizationGenerator:
         return []
 
     def generate_trajectory_plot(
-        self, ax: Axes | None = None, video_path: str | None = None
+        self, ax: Axes | None = None, video_path: Path | str | None = None
     ) -> Figure:
         """Generate trajectory plot with optional video background.
 
@@ -538,7 +539,7 @@ class VisualizationGenerator:
     def generate_roi_reference_plot(  # noqa: C901
         self,
         ax: Axes | None = None,
-        video_path: str | None = None,
+        video_path: Path | str | None = None,
         calibration=None,
     ) -> Figure:
         """Generate ROI reference map showing arena and ROIs with optional video background.
@@ -1081,10 +1082,12 @@ class VisualizationGenerator:
             ThreadPoolExecutor calls to avoid thread exhaustion.
         """
         # Get configured max parallel plots from settings (use injected or default)
-        max_workers = 3  # Default
+        max_workers = DEFAULT_MAX_PARALLEL_PLOTS
         if self.settings is not None:
             max_workers = getattr(
-                getattr(self.settings, "performance", None), "max_parallel_plots", 3
+                getattr(self.settings, "performance", None),
+                "max_parallel_plots",
+                DEFAULT_MAX_PARALLEL_PLOTS,
             )
 
         # Store results with their original indices to maintain order
@@ -1124,9 +1127,18 @@ class VisualizationGenerator:
         Returns:
             matplotlib.figure.Figure: Generated figure
         """
+        import warnings
+
         fig, ax = plt.subplots(figsize=(8, 6))
-        sns.boxplot(x="group_id", y=metric, data=df, ax=ax)
-        sns.stripplot(x="group_id", y=metric, data=df, ax=ax, color=".25", size=6)
+        # seaborn 0.13 passes deprecated `vert` kwarg to matplotlib internally
+        with warnings.catch_warnings():
+            warnings.filterwarnings(
+                "ignore",
+                message="vert.*deprecated",
+                category=PendingDeprecationWarning,
+            )
+            sns.boxplot(x="group_id", y=metric, data=df, ax=ax)
+            sns.stripplot(x="group_id", y=metric, data=df, ax=ax, color=".25", size=6)
         ax.set_title(title, fontsize=16)
         ax.set_xlabel("Experimental Group", fontsize=12)
         ax.set_ylabel(metric.replace("_", " ").title(), fontsize=12)

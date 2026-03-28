@@ -76,7 +76,7 @@ def configure_logging(log_file: str = "analysis.log"):
     log_name = Path(log_file).name
     overwrite_each_run_files = {"analysis.log", "analysis_worker.log"}
 
-    def _truncate_file(path: str, create_if_missing: bool = True) -> None:
+    def _truncate_file(path: Path | str, create_if_missing: bool = True) -> None:
         """Truncate a file.
 
         Args:
@@ -138,7 +138,7 @@ def configure_logging(log_file: str = "analysis.log"):
     console_formatter = structlog.stdlib.ProcessorFormatter(
         processor=CompactConsoleRenderer(
             colors=True,
-            pad_event=1,  # Minimal padding (1 space between event and fields)
+            pad_event_to=1,  # Minimal padding (1 space between event and fields)
         ),
     )
 

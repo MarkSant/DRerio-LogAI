@@ -16,6 +16,8 @@ import cv2
 import numpy as np
 import structlog
 
+from zebtrack.core.detection.multi_aquarium_detector import AQUARIUM_TRACK_ID_MULTIPLIER
+
 if TYPE_CHECKING:
     from zebtrack.core.detection import MultiAquariumZoneData
     from zebtrack.ui.components.canvas_manager import CanvasManager
@@ -419,7 +421,7 @@ class MultiAquariumOverlayManager:
 
                         # Draw track ID (local ID without offset)
                         if track_id is not None:
-                            local_id = int(track_id) % 1000
+                            local_id = int(track_id) % AQUARIUM_TRACK_ID_MULTIPLIER
                             id_label = f"ID:{local_id}"
                             cv2.putText(
                                 overlay,
@@ -518,7 +520,7 @@ class MultiAquariumOverlayManager:
                         if dx1 >= 0 and dy1 >= 0:
                             cv2.rectangle(crop, (dx1, dy1), (dx2, dy2), border_color, 2)
                             if track_id is not None:
-                                local_id = int(track_id) % 1000
+                                local_id = int(track_id) % AQUARIUM_TRACK_ID_MULTIPLIER
                                 cv2.putText(
                                     crop,
                                     f"ID:{local_id}",

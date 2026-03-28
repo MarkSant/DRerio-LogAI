@@ -12,7 +12,6 @@ Cross-component calls:
 from __future__ import annotations
 
 import os
-import subprocess
 import tkinter as tk
 from collections import Counter
 from typing import TYPE_CHECKING, Any
@@ -740,14 +739,9 @@ class VideoSelectorTreeManager:
         if results_dir and os.path.exists(results_dir):
             log.info("gui.open_results_folder", path=results_dir)
             try:
-                if os.name == "nt":
-                    startfile = getattr(os, "startfile", None)
-                    if callable(startfile):
-                        startfile(results_dir)
-                    else:
-                        raise OSError("startfile not available")
-                elif os.name == "posix":
-                    subprocess.Popen(["xdg-open", results_dir])
+                from zebtrack.utils.os_opener import open_path
+
+                open_path(results_dir)
             except OSError as e:
                 log.error("gui.open_results_folder.failed", error=str(e))
                 self.dialog_manager.show_error("Erro", f"Não foi possível abrir a pasta: {e}")

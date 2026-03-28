@@ -6,6 +6,7 @@ This widget consolidates functionality from the old "Trajectories and Summaries"
 """
 
 from collections.abc import Callable
+from pathlib import Path
 from tkinter import StringVar, ttk
 
 import structlog
@@ -484,8 +485,6 @@ class ProcessingReportsWidget(BaseWidget):
         import glob
         import json
         import os
-        from collections.abc import Callable
-        from typing import Any, cast
 
         unified_dir = os.path.join(self._project_path, "unified_reports")
         if not os.path.exists(unified_dir):
@@ -537,25 +536,15 @@ class ProcessingReportsWidget(BaseWidget):
 
         try:
             # Open file with default system application
-            startfile = getattr(os, "startfile", None)
-            if callable(startfile):
-                cast(Callable[[str], Any], startfile)(latest_file)
-            elif os.name == "posix":  # macOS/Linux
-                import platform
-                import subprocess
+            from zebtrack.utils.os_opener import open_path
 
-                if platform.system() == "Darwin":  # macOS
-                    subprocess.call(["open", latest_file])
-                else:  # Linux
-                    subprocess.call(["xdg-open", latest_file])
-            else:
-                raise OSError("startfile not available")
+            open_path(latest_file)
 
             log.info("processing_reports.open_unified.success", file=os.path.basename(latest_file))
         except Exception as e:
             log.error("processing_reports.open_unified.failed", file=latest_file, error=str(e))
 
-    def _update_button_states(self, project_path: str | None = None) -> None:
+    def _update_button_states(self, project_path: Path | str | None = None) -> None:
         """Update button enabled/disabled states based on selection and available reports.
 
         Args:

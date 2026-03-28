@@ -44,8 +44,8 @@ def test_ttkbootstrap_style_initialization(monkeypatch, caplog):
 
     # Create app instance
     app = ApplicationGUI.__new__(ApplicationGUI)
-    app.root = fake_root
-    app.settings = SimpleNamespace(ui_theme_name="cosmo")
+    app.root = fake_root  # type: ignore[assignment]
+    app.settings = SimpleNamespace(ui_theme_name="cosmo")  # type: ignore[assignment]
     app._ttkbootstrap_style = None
 
     # Run initialization

@@ -7,8 +7,6 @@ Handles messagebox wrappers, file dialogs, custom dialogs, and user confirmation
 from __future__ import annotations
 
 import os
-import subprocess
-import sys
 from pathlib import Path
 from tkinter import filedialog, messagebox, simpledialog
 from typing import TYPE_CHECKING, Any, Literal
@@ -203,7 +201,7 @@ class DialogManager:
     # File Dialogs
     # =========================================================================
 
-    def ask_directory(self, title: str, initial_dir: str | None = None) -> str:
+    def ask_directory(self, title: str, initial_dir: Path | str | None = None) -> str:
         """Show a dialog to select a directory.
 
         Args:
@@ -222,7 +220,7 @@ class DialogManager:
         self,
         title: str,
         filetypes: list[tuple[str, str]],
-        initial_dir: str | None = None,
+        initial_dir: Path | str | None = None,
     ) -> str:
         """Show a dialog to select a single file.
 
@@ -243,7 +241,7 @@ class DialogManager:
         self,
         title: str,
         filetypes: list[tuple[str, str]],
-        initial_dir: str | None = None,
+        initial_dir: Path | str | None = None,
     ) -> tuple[str, ...]:
         """Show a dialog to select one or more files.
 
@@ -938,23 +936,16 @@ class DialogManager:
         if self.gui.analysis_display_widget and self.gui.analysis_display_widget.cancel_btn:
             self.gui.analysis_display_widget.cancel_btn.config(state="normal")
 
-    def open_path_in_explorer(self, target_path: str) -> None:
+    def open_path_in_explorer(self, target_path: Path | str) -> None:
         """Open the given directory in the user's file explorer.
 
         Args:
             target_path: Path to open in file explorer
         """
         try:
-            if sys.platform.startswith("win"):
-                startfile = getattr(os, "startfile", None)
-                if callable(startfile):
-                    startfile(target_path)
-                else:
-                    raise OSError("startfile not available")
-            elif sys.platform == "darwin":
-                subprocess.Popen(["open", target_path])
-            else:
-                subprocess.Popen(["xdg-open", target_path])
+            from zebtrack.utils.os_opener import open_path
+
+            open_path(target_path)
         except Exception as exc:  # pragma: no cover - GUI feedback
             self.show_error(
                 "Erro ao abrir pasta",
@@ -964,7 +955,7 @@ class DialogManager:
                 ),
             )
 
-    def offer_zone_reuse(self, video_path: str) -> None:
+    def offer_zone_reuse(self, video_path: Path | str) -> None:
         """Prompt user to reuse the last zones when the current video has none.
 
         Args:

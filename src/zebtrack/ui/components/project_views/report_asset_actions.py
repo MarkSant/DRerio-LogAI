@@ -8,8 +8,6 @@ file opening in explorer, and artifact manipulation from entries.
 from __future__ import annotations
 
 import os
-import subprocess
-import sys
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -82,12 +80,12 @@ class ReportAssetActions:
     # Deletion helpers
     # ------------------------------------------------------------------
 
-    def delete_video_asset(self, video_path: str, asset: str) -> None:
+    def delete_video_asset(self, video_path: Path | str, asset: str) -> None:
         """Delete specific asset via MenuManager reuse."""
         assert self._menu_manager is not None
         self._menu_manager.handle_overview_asset_removal(video_path, asset)
 
-    def delete_all_processing_data(self, video_path: str) -> None:
+    def delete_all_processing_data(self, video_path: Path | str) -> None:
         """Delete all processing data (arena, rois, trajectory, summary)."""
         pm = self.project_manager
 
@@ -113,7 +111,7 @@ class ReportAssetActions:
                 reason="Dados de processamento apagados", append_summary=True
             )
 
-    def delete_video_from_project(self, video_path: str) -> None:
+    def delete_video_from_project(self, video_path: Path | str) -> None:
         """Delete video from project."""
         assert self._menu_manager is not None
         self._menu_manager.handle_overview_asset_removal(video_path, "video")
@@ -324,19 +322,12 @@ class ReportAssetActions:
     # Private utilities
     # ------------------------------------------------------------------
 
-    def _open_path_in_explorer(self, path: str) -> None:
+    def _open_path_in_explorer(self, path: Path | str) -> None:
         """Open a file or folder in the system file explorer."""
         try:
-            if sys.platform == "win32":
-                startfile = getattr(os, "startfile", None)
-                if callable(startfile):
-                    startfile(path)
-                else:
-                    raise OSError("startfile not available")
-            elif sys.platform == "darwin":
-                subprocess.Popen(["open", path])
-            else:
-                subprocess.Popen(["xdg-open", path])
+            from zebtrack.utils.os_opener import open_path
+
+            open_path(path)
         except OSError as e:
             log.error("gui.open_path.failed", path=path, error=str(e))
             self.dialog_manager.show_error("Erro", f"Não foi possível abrir: {e}")

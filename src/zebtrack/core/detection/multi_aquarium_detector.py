@@ -7,7 +7,7 @@ video frame. Each aquarium gets independent tracking with offset track IDs.
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from types import SimpleNamespace
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Final
 
 import cv2
 import numpy as np
@@ -25,7 +25,11 @@ if TYPE_CHECKING:
 
 log = structlog.get_logger()
 
-__all__ = ["MultiAquariumDetector"]
+# Track-ID offset multiplier: global_id = aquarium_id * MULTIPLIER + local_id
+AQUARIUM_TRACK_ID_MULTIPLIER: Final[int] = 1000
+MAX_LOCAL_TRACK_ID: Final[int] = AQUARIUM_TRACK_ID_MULTIPLIER - 1
+
+__all__ = ["AQUARIUM_TRACK_ID_MULTIPLIER", "MAX_LOCAL_TRACK_ID", "MultiAquariumDetector"]
 
 
 class MultiAquariumDetector:
@@ -717,16 +721,18 @@ class MultiAquariumDetector:
         for det in tracked:
             x1, y1, x2, y2, conf, track_id, class_id = det
             if track_id is not None:
-                if track_id >= 1000:
+                if track_id > MAX_LOCAL_TRACK_ID:
                     log.error(
                         "multi_aquarium_detector.track_id_overflow",
                         aquarium_id=aq_id,
                         local_track_id=track_id,
-                        msg="local_track_id >= 1000 causa colisão de IDs",
+                        msg=(f"local_track_id > {MAX_LOCAL_TRACK_ID} causa colisão de IDs"),
                     )
-                    offset_id = aq_id * 1000 + (track_id % 1000)
+                    offset_id = aq_id * AQUARIUM_TRACK_ID_MULTIPLIER + (
+                        track_id % AQUARIUM_TRACK_ID_MULTIPLIER
+                    )
                 else:
-                    offset_id = aq_id * 1000 + track_id
+                    offset_id = aq_id * AQUARIUM_TRACK_ID_MULTIPLIER + track_id
             else:
                 offset_id = None
             offset_tracked.append((x1, y1, x2, y2, conf, offset_id, class_id))

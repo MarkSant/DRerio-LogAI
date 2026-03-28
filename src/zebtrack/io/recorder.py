@@ -12,6 +12,7 @@ import pyarrow as pa
 import structlog
 from pyarrow import parquet as pq
 
+from zebtrack.constants import DEFAULT_FLUSH_INTERVAL_SECONDS, DEFAULT_FLUSH_ROW_THRESHOLD
 from zebtrack.core.detection import ZoneData
 from zebtrack.utils.validation import validate_calibration
 
@@ -66,6 +67,11 @@ class Recorder:
         self.recording_start_frame = 0
         self.detection_data: list[dict[str, Any]] = []
 
+        # Safety cap: discard oldest rows when buffer exceeds this size.
+        # Prevents unbounded memory growth when flush I/O is slower than
+        # incoming detections (e.g., slow disk or OneDrive lock).
+        self._max_buffer_rows: int = 10_000
+
         # Phase 5: Thread-safety lock for detection_data buffer operations.
         # Protects append/flush/clear sequences from concurrent access
         # (e.g., LiveCameraService capture vs processing threads).
@@ -102,12 +108,14 @@ class Recorder:
             performance_settings = getattr(settings_obj, "performance", None)
 
             self._flush_interval_seconds: float = float(
-                getattr(recorder_settings, "flush_interval_seconds", 5.0)
+                getattr(recorder_settings, "flush_interval_seconds", DEFAULT_FLUSH_INTERVAL_SECONDS)
                 if recorder_settings
-                else 5.0
+                else DEFAULT_FLUSH_INTERVAL_SECONDS
             )
             self._flush_row_threshold: int = int(
-                getattr(recorder_settings, "flush_row_threshold", 500) if recorder_settings else 500
+                getattr(recorder_settings, "flush_row_threshold", DEFAULT_FLUSH_ROW_THRESHOLD)
+                if recorder_settings
+                else DEFAULT_FLUSH_ROW_THRESHOLD
             )
 
             # Phase 8: Performance settings for compression
@@ -122,8 +130,8 @@ class Recorder:
                 self._fps = float(getattr(settings_obj.video_processing, "fps", 30.0))
         else:
             # Use defaults if no settings provided
-            self._flush_interval_seconds = 5.0
-            self._flush_row_threshold = 500
+            self._flush_interval_seconds = DEFAULT_FLUSH_INTERVAL_SECONDS
+            self._flush_row_threshold = DEFAULT_FLUSH_ROW_THRESHOLD
             self._parquet_compression = "snappy"
 
     @property
@@ -209,7 +217,7 @@ class Recorder:
 
     def start_recording(
         self,
-        output_folder,
+        output_folder: Path | str,
         frame_width,
         frame_height,
         zones: ZoneData,
@@ -402,7 +410,7 @@ class Recorder:
 
     def start_recording_multi_aquarium(
         self,
-        output_folder: str,
+        output_folder: Path | str,
         width: int,
         height: int,
         zones_by_aquarium: dict[int, ZoneData],
@@ -873,7 +881,11 @@ class Recorder:
     def _should_flush(self) -> bool:
         if not self.detection_data:
             return False
-        if self._flush_row_threshold > 0 and len(self.detection_data) >= self._flush_row_threshold:
+        buf_len = len(self.detection_data)
+        # Force flush when buffer hits safety cap to prevent OOM
+        if buf_len >= self._max_buffer_rows:
+            return True
+        if self._flush_row_threshold > 0 and buf_len >= self._flush_row_threshold:
             return True
         if self._flush_interval_seconds <= 0:
             return False
@@ -977,9 +989,19 @@ class Recorder:
             self.stop_recording(force_stop=True)
             raise  # Re-raise the exception to notify the caller
         except Exception as e:  # pragma: no cover - unexpected failures logged
-            # Best-effort recovery: re-inject snapshot for retry on next flush
+            # Best-effort recovery: re-inject snapshot for retry on next flush,
+            # but respect the safety cap to prevent unbounded growth.
             with self._data_lock:
-                self.detection_data = snapshot + self.detection_data
+                combined = snapshot + self.detection_data
+                if len(combined) > self._max_buffer_rows:
+                    dropped = len(combined) - self._max_buffer_rows
+                    combined = combined[-self._max_buffer_rows :]
+                    log.warning(
+                        "recorder.flush.reinjection_capped",
+                        dropped_rows=dropped,
+                        max_buffer_rows=self._max_buffer_rows,
+                    )
+                self.detection_data = combined
             log.error(
                 "recorder.flush.error",
                 path=self._parquet_filename,
@@ -1051,7 +1073,7 @@ class Recorder:
     def _atomic_write_table(
         self,
         table: pa.Table,
-        target_path: str,
+        target_path: Path | str,
         compression: str | None = None,
     ) -> None:
         """Write a PyArrow table atomically using temp-file + rename.
@@ -1079,7 +1101,7 @@ class Recorder:
             raise
 
     @staticmethod
-    def _verify_parquet_integrity(path: str) -> bool:
+    def _verify_parquet_integrity(path: Path | str) -> bool:
         """Verify that a Parquet file is readable by checking its metadata.
 
         Args:

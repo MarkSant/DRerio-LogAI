@@ -11,6 +11,12 @@ from typing import TYPE_CHECKING, Any
 
 import structlog
 
+from zebtrack.constants import (
+    WIZARD_MIN_HEIGHT,
+    WIZARD_MIN_WIDTH,
+    WIZARD_TARGET_HEIGHT,
+    WIZARD_TARGET_WIDTH,
+)
 from zebtrack.ui.wizard.base import WizardStep
 from zebtrack.ui.wizard.cache import WizardCache
 
@@ -335,17 +341,17 @@ class WizardDialog(Dialog):
         # Previous: 1150x850 (can overflow on 1080p with 125%+ scaling)
         # New: 1050x780 (fits 1080p reliably, increased 30px for calibration step)
 
-        target_width = 1050
-        target_height = 780
+        target_width = WIZARD_TARGET_WIDTH
+        target_height = WIZARD_TARGET_HEIGHT
 
         # But don't exceed available space on smaller screens
         width = min(target_width, usable_w)
         height = min(target_height, usable_h)
 
         # Ensure absolute minimums for usability
-        width = max(width, 900)
-        if usable_h >= 650:
-            height = max(height, 650)
+        width = max(width, WIZARD_MIN_WIDTH)
+        if usable_h >= WIZARD_MIN_HEIGHT:
+            height = max(height, WIZARD_MIN_HEIGHT)
 
         # Set resizable bounds (more conservative for better compatibility)
         min_width = max(int(target_width * 0.80), 850)

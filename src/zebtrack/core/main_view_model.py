@@ -6,6 +6,7 @@ and orchestrates video processing workflows with dependency injection.
 
 from __future__ import annotations
 
+import threading
 from collections.abc import Generator
 from contextlib import contextmanager
 from typing import TYPE_CHECKING, Any
@@ -239,12 +240,12 @@ class MainViewModel:
             self._recording_service = value
 
     @property
-    def processing_thread(self) -> Any | None:
+    def processing_thread(self) -> threading.Thread | None:
         state = self.state_manager.get_processing_state()
         return getattr(state, "processing_thread", None)
 
     @processing_thread.setter
-    def processing_thread(self, value: Any | None) -> None:
+    def processing_thread(self, value: threading.Thread | None) -> None:
         self.state_manager.update_processing_state(
             source="main_view_model.processing_thread",
             processing_thread=value,

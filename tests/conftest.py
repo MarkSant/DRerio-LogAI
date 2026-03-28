@@ -245,18 +245,23 @@ def pytest_sessionfinish(session, exitstatus):
     gc.collect()
 
     # 1.5. Shutdown ThreadPoolExecutors
+    # Find all ThreadPoolExecutor instances and shutdown
+    # Wrap in catch_warnings because gc.get_objects() can trigger
+    # FutureWarning from torch.distributed.reduce_op during isinstance checks
+    import warnings
     from concurrent.futures import ThreadPoolExecutor
 
-    # Find all ThreadPoolExecutor instances and shutdown
     all_objects = gc.get_objects()
     executors_shutdown = 0
-    for obj in all_objects:
-        try:
-            if isinstance(obj, ThreadPoolExecutor):
-                obj.shutdown(wait=False)
-                executors_shutdown += 1
-        except (Exception, ReferenceError):
-            pass
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", FutureWarning)
+        for obj in all_objects:
+            try:
+                if isinstance(obj, ThreadPoolExecutor):
+                    obj.shutdown(wait=False)
+                    executors_shutdown += 1
+            except (Exception, ReferenceError):
+                pass
 
     if executors_shutdown > 0:
         print("\n=== PYTEST SESSION CLEANUP ===")

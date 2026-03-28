@@ -12,6 +12,11 @@ import numpy as np
 import pandas as pd
 import structlog
 
+from zebtrack.core.detection.multi_aquarium_detector import (
+    AQUARIUM_TRACK_ID_MULTIPLIER,
+    MAX_LOCAL_TRACK_ID,
+)
+
 log = structlog.get_logger()
 
 
@@ -385,8 +390,8 @@ class TrajectoryQualityValidator:
         aquarium_stats = {}
 
         for aq_id, group in df.groupby("aquarium_id"):
-            expected_min = int(aq_id) * 1000
-            expected_max = expected_min + 999
+            expected_min = int(aq_id) * AQUARIUM_TRACK_ID_MULTIPLIER
+            expected_max = expected_min + MAX_LOCAL_TRACK_ID
 
             track_ids = group["track_id"].dropna().unique()
             out_of_range = [tid for tid in track_ids if not (expected_min <= tid <= expected_max)]
@@ -404,7 +409,8 @@ class TrajectoryQualityValidator:
             for aq_id, bad_ids in id_violations:
                 warnings.append(
                     f"Aquarium {aq_id}: Track IDs {bad_ids} are outside expected range "
-                    f"({int(aq_id) * 1000}-{int(aq_id) * 1000 + 999}). "
+                    f"({int(aq_id) * AQUARIUM_TRACK_ID_MULTIPLIER}-"
+                    f"{int(aq_id) * AQUARIUM_TRACK_ID_MULTIPLIER + MAX_LOCAL_TRACK_ID}). "
                     f"This may indicate cross-aquarium ID assignment."
                 )
 

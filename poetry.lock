@@ -3874,14 +3874,14 @@ files = [
 
 [[package]]
 name = "ultralytics"
-version = "8.4.30"
+version = "8.3.253"
 description = "Ultralytics YOLO 🚀 for SOTA object detection, multi-object tracking, instance segmentation, pose estimation and image classification."
 optional = false
 python-versions = ">=3.8"
 groups = ["main"]
 files = [
-    {file = "ultralytics-8.4.30-py3-none-any.whl", hash = "sha256:8a667d6c0a828f7da3d3fe778eba705e1ffd67aa19131f94b05d81c478e647c7"},
-    {file = "ultralytics-8.4.30.tar.gz", hash = "sha256:fcc0579e35c537fa2093d8a10fed01e78cf1ad78af4924310e82138ff125f001"},
+    {file = "ultralytics-8.3.253-py3-none-any.whl", hash = "sha256:c2ad53388ce00e0587a21745a9c5ab1bdcb4169b74545488fab3fd1b25fe86f2"},
+    {file = "ultralytics-8.3.253.tar.gz", hash = "sha256:3d0c01a46550d4171c89c09ba6172649f718cb33e74d2679106555bcc0a18a54"},
 ]
 
 [package.dependencies]
@@ -3903,10 +3903,10 @@ ultralytics-thop = ">=2.0.18"
 
 [package.extras]
 dev = ["coverage[toml]", "ipython", "minijinja (>=2.0.0)", "mkdocs-ultralytics-plugin (>=0.2.4)", "pytest", "pytest-cov", "zensical (>=0.0.15) ; python_version >= \"3.10\""]
-export = ["coremltools (>=9.0) ; platform_system != \"Windows\" and python_version <= \"3.13\"", "h5py (!=3.11.0) ; platform_machine == \"aarch64\"", "numpy (<2.0.0)", "onnx (>=1.12.0) ; platform_system != \"Darwin\"", "onnx (>=1.12.0,<1.18.0) ; platform_system == \"Darwin\"", "onnxslim (>=0.1.82)", "openvino (>=2024.0.0)", "packaging (>=26.0) ; platform_machine == \"aarch64\" and platform_system == \"Linux\" and python_version >= \"3.9\"", "scikit-learn (>=1.3.2) ; platform_system != \"Windows\" and python_version <= \"3.13\"", "setuptools (<=81.0.0)", "tensorflow (>=2.0.0,<=2.19.0)", "tensorflowjs (>=2.0.0)", "tensorstore (>=0.1.63) ; platform_machine == \"aarch64\" and python_version >= \"3.9\"", "ydf (<0.13.0) ; platform_machine != \"aarch64\""]
-extra = ["albumentations (>=1.4.6)", "faster-coco-eval (>=1.6.7)", "ipython"]
+export = ["coremltools (>=9.0) ; platform_system != \"Windows\" and python_version <= \"3.13\"", "h5py (!=3.11.0) ; platform_machine == \"aarch64\"", "numpy (<2.0.0)", "onnx (>=1.12.0) ; platform_system != \"Darwin\"", "onnx (>=1.12.0,<1.18.0) ; platform_system == \"Darwin\"", "onnxslim (>=0.1.82)", "openvino (>=2024.0.0)", "scikit-learn (>=1.3.2) ; platform_system != \"Windows\" and python_version <= \"3.13\"", "tensorflow (>=2.0.0,<=2.19.0)", "tensorflowjs (>=2.0.0)", "tensorstore (>=0.1.63) ; platform_machine == \"aarch64\" and python_version >= \"3.9\""]
+extra = ["albumentations (>=1.4.6)", "faster-coco-eval (>=1.6.7)", "hub-sdk (>=0.0.12)", "ipython"]
 logging = ["mlflow", "tensorboard", "wandb"]
-solutions = ["flask (>=3.0.1)", "shapely (>=2.0.0)", "streamlit (>=1.29.0,<1.51.0) ; python_version < \"3.10\" and (python_version < \"3.9\" or platform_machine != \"aarch64\" or platform_system != \"Linux\")", "streamlit (>=1.51.0) ; python_version >= \"3.10\""]
+solutions = ["flask (>=3.0.1)", "shapely (>=2.0.0)", "streamlit (>=1.29.0)"]
 typing = ["scipy-stubs (>=1.14.1.4) ; python_version >= \"3.10\"", "types-pillow", "types-psutil", "types-pyyaml", "types-requests", "types-shapely"]
 
 [[package]]
@@ -3964,4 +3964,4 @@ python-discovery = ">=1"
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.12,<3.15"
-content-hash = "1985ab16c1f92bc87cf50bb907c04e070236ff5a8285401cf02ed6591a635ee9"
+content-hash = "a34b1f8253135bc29e0ba07c59c17eebbb37f195056e26d0a93d2667e38de4d9"

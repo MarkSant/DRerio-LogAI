@@ -13,6 +13,7 @@ from typing import Any, Literal, cast
 
 import structlog
 
+from zebtrack.constants import SPLASH_CLOSE_DELAY_MS
 from zebtrack.logging_config import configure_logging
 
 # Suppress pkg_resources deprecation from docxcompose (setuptools pinned to <81)
@@ -122,7 +123,7 @@ def run_app(
             maximize_window(root)
             root.deiconify()
 
-        root.after(300, close_splash_and_show_main)
+        root.after(SPLASH_CLOSE_DELAY_MS, close_splash_and_show_main)
         controller.run()
 
     except Exception:
