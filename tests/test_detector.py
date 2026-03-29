@@ -443,7 +443,7 @@ class TestDetectorZoneLogic(unittest.TestCase):
         self.mock_plugin.set_detect_return_value([(150, 150, 160, 160, 0.8, None, 1)])
 
         with patch.object(self.detector.zone_scaler, "is_inside_polygon", return_value=True):
-            detections, _ = self.detector.detect(dummy_frame, "pre-recorded")
+            _detections, _ = self.detector.detect(dummy_frame, "pre-recorded")
 
         # Verify plugin.detect was called
         self.assertGreater(self.mock_plugin.detect_calls, 0)

@@ -101,7 +101,7 @@ def test_workflow_returns_early_without_view():
 
 def test_workflow_validation_fails(coordinator_setup):
     """Workflow should stop if validation fails."""
-    coordinator, view, dialog_coordinator, pm, event_bus = coordinator_setup
+    coordinator, view, dialog_coordinator, _pm, _event_bus = coordinator_setup
 
     validation_result = MagicMock()
     validation_result.is_valid = False
@@ -117,7 +117,7 @@ def test_workflow_validation_fails(coordinator_setup):
 
 def test_workflow_zone_validation_fails(coordinator_setup):
     """Workflow should stop if zone validation fails."""
-    coordinator, view, dialog_coordinator, pm, event_bus = coordinator_setup
+    coordinator, _view, dialog_coordinator, _pm, _event_bus = coordinator_setup
 
     validation_result = MagicMock()
     validation_result.is_valid = True
@@ -132,7 +132,7 @@ def test_workflow_zone_validation_fails(coordinator_setup):
 
 def test_workflow_user_cancels_file_dialog(coordinator_setup):
     """Workflow should stop if user cancels file dialog."""
-    coordinator, view, dialog_coordinator, pm, event_bus = coordinator_setup
+    coordinator, view, dialog_coordinator, pm, _event_bus = coordinator_setup
 
     validation_result = MagicMock()
     validation_result.is_valid = True

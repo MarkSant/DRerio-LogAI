@@ -203,7 +203,7 @@ class TestFrameSourceFactoryCreate:
         """Test error with invalid source type in dict."""
         config = {"type": "invalid_type"}
 
-        with pytest.raises(ValueError, match="Invalid source type.*'invalid_type'"):
+        with pytest.raises(ValueError, match=r"Invalid source type.*'invalid_type'"):
             FrameSourceFactory.create(config)
 
     def test_create_invalid_source_type(self):

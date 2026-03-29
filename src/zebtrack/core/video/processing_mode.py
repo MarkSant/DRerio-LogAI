@@ -7,10 +7,10 @@ and related data structures for processing reports.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from enum import Enum
+from enum import StrEnum
 
 
-class ProcessingMode(str, Enum):
+class ProcessingMode(StrEnum):
     """Enumerates the tracking pipelines available to the application."""
 
     MULTI_TRACK = "multi_track"

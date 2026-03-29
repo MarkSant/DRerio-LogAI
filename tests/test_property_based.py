@@ -326,7 +326,7 @@ class TestNumericalStability:
         result = polygon_centroid(square)
 
         if result is not None:
-            cx, cy = result
+            cx, _cy = result
             expected = small / 2
             # Allow for floating point imprecision
             assert math.isclose(cx, expected, rel_tol=1e-3) or abs(cx - expected) < 1e-10

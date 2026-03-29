@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import math
 import os
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import structlog
@@ -81,10 +82,10 @@ class ReportGenerationCoordinator(BaseCoordinator, UnifiedReportMixin):
     # Internal helpers — delegated I/O
     # ========================================================================
 
-    def _read_trajectory(self, path: str) -> pd.DataFrame:
+    def _read_trajectory(self, path: Path | str) -> pd.DataFrame:
         """Read a trajectory Parquet file via injected service or fallback."""
         if self._trajectory_data_service is not None:
-            return self._trajectory_data_service.load_trajectory(path)
+            return self._trajectory_data_service.load_trajectory(str(path))
         import pandas as _pd  # pragma: no cover — fallback only
 
         return _pd.read_parquet(path)  # pragma: no cover
@@ -128,7 +129,7 @@ class ReportGenerationCoordinator(BaseCoordinator, UnifiedReportMixin):
 
         self._finalize_report_generation(count, errors)
 
-    def _generate_single_video_reports(self, path: str) -> None:
+    def _generate_single_video_reports(self, path: Path | str) -> None:
         """Orchestrate report generation for a single video path."""
         experiment_id = os.path.splitext(os.path.basename(path))[0]
         entry = self.project_manager.find_video_entry(path=path)
@@ -144,7 +145,7 @@ class ReportGenerationCoordinator(BaseCoordinator, UnifiedReportMixin):
             self._generate_standard_report(path, experiment_id, entry, metadata)
 
     def _generate_multi_aquarium_reports(
-        self, path: str, exp_id: str, entry: dict, multi_outputs: dict
+        self, path: Path | str, exp_id: str, entry: dict, multi_outputs: dict
     ) -> None:
         """Generate reports for multi-aquarium videos."""
         project_data = getattr(self.project_manager, "project_data", {}) or {}
@@ -182,7 +183,18 @@ class ReportGenerationCoordinator(BaseCoordinator, UnifiedReportMixin):
             )
 
     def _process_single_aquarium_in_multi(
-        self, path, exp_id, entry, aq_id, output_info, zone_data, calib, fps, p_w, p_h, params
+        self,
+        path: Path | str,
+        exp_id,
+        entry,
+        aq_id,
+        output_info,
+        zone_data,
+        calib,
+        fps,
+        p_w,
+        p_h,
+        params,
     ) -> None:
         """Process a single aquarium within a multi-aquarium video for report generation."""
         aq_results_dir = output_info.get("results_dir")
@@ -262,7 +274,7 @@ class ReportGenerationCoordinator(BaseCoordinator, UnifiedReportMixin):
         self._export_individual_outputs(analysis_result, aq_results_dir, f"{exp_id}_aq{aq_id}")
 
     def _generate_standard_report(
-        self, path: str, exp_id: str, entry: dict, metadata: dict
+        self, path: Path | str, exp_id: str, entry: dict, metadata: dict
     ) -> None:
         """Generate report for a standard (single aquarium) video."""
         metadata = dict(metadata) if isinstance(metadata, dict) else {}
@@ -273,7 +285,7 @@ class ReportGenerationCoordinator(BaseCoordinator, UnifiedReportMixin):
         metadata.setdefault("subject", "1")
 
         results_path = self.project_manager.resolve_results_directory(
-            exp_id, video_path=path, metadata=metadata
+            exp_id, video_path=str(path), metadata=metadata
         )
         os.makedirs(results_path, exist_ok=True)
 
@@ -396,7 +408,7 @@ class ReportGenerationCoordinator(BaseCoordinator, UnifiedReportMixin):
 
         completed, failed, skipped = 0, 0, 0
         for video in video_entries:
-            status, msg, summary_path, changed = self._process_summary_video(
+            status, msg, _summary_path, _changed = self._process_summary_video(
                 video, settings, expected_roi_names
             )
             if status == "completed":
@@ -467,7 +479,7 @@ class ReportGenerationCoordinator(BaseCoordinator, UnifiedReportMixin):
         )
 
     def _process_multi_summary_video(
-        self, video, exp_id, path, multi_outputs, settings, expected_rois
+        self, video, exp_id, path: Path | str, multi_outputs, settings, expected_rois
     ):
         """Process multi-aquarium video for summary generation."""
 
@@ -507,7 +519,7 @@ class ReportGenerationCoordinator(BaseCoordinator, UnifiedReportMixin):
             return "failed", f"{exp_id}: erro multi-aquário {e}", None, False
 
     def _process_one_aquarium_summary(
-        self, video, exp_id, path, aq_id, out, multi_zone, settings, expected
+        self, video, exp_id, path: Path | str, aq_id, out, multi_zone, settings, expected
     ):
         """Process summary for a single aquarium in multi-aquarium mode."""
         from zebtrack.analysis.reporters import ParquetSummaryReporter, ReporterContext
@@ -559,7 +571,7 @@ class ReportGenerationCoordinator(BaseCoordinator, UnifiedReportMixin):
             rois=rois,
             fps=settings.video_processing.fps,
             roi_colors=colors,
-            video_path=path,
+            video_path=str(path),
             calibration=cal,
             frame_crop_box=out.get("frame_crop_box"),
             behavioral_config=behavioral_config,
@@ -572,11 +584,11 @@ class ReportGenerationCoordinator(BaseCoordinator, UnifiedReportMixin):
         video["multi_aquarium_outputs"][str(aq_id)]["parquet_files"]["summary"] = s_path
         return s_path
 
-    def _process_standard_summary_video(self, video, exp_id, path, settings, expected):
+    def _process_standard_summary_video(self, video, exp_id, path: Path | str, settings, expected):
         """Process standard single-aquarium video for summary generation."""
         from zebtrack.analysis.reporters import ParquetSummaryReporter, ReporterContext
 
-        res_path = self.project_manager.resolve_results_directory(exp_id, video_path=path)
+        res_path = self.project_manager.resolve_results_directory(exp_id, video_path=str(path))
         res_dir = str(res_path)
         traj_path = video.get("parquet_files", {}).get("trajectory")
         if not traj_path or not os.path.exists(traj_path):
@@ -604,9 +616,9 @@ class ReportGenerationCoordinator(BaseCoordinator, UnifiedReportMixin):
                 calib,
             )
 
-            meta = self.project_manager.get_metadata_for_experiment(exp_id, video_path=path) or {
-                "experiment_id": exp_id
-            }
+            meta = self.project_manager.get_metadata_for_experiment(
+                exp_id, video_path=str(path)
+            ) or {"experiment_id": exp_id}
             behavioral_config = {}
             service = self.analysis_service
             if service:
@@ -624,8 +636,7 @@ class ReportGenerationCoordinator(BaseCoordinator, UnifiedReportMixin):
                 rois=rois,
                 fps=settings.video_processing.fps,
                 roi_colors=colors,
-                video_path=path,
-                calibration=cal,
+                video_path=str(path),
                 behavioral_config=behavioral_config,
                 settings_obj=settings,
             )
@@ -801,14 +812,14 @@ class ReportGenerationCoordinator(BaseCoordinator, UnifiedReportMixin):
 
     def _prepare_background_image(
         self,
-        video_file: str,
+        video_file: Path | str,
         exp_id: str,
-        results_dir: str,
+        results_dir: Path | str,
         crop_box: tuple | None,
     ) -> str:
         """Extract and save a cropped frame for report backgrounds."""
         if crop_box:
-            frame = self._extract_cropped_background_frame(video_file, crop_box)
+            frame = self._extract_cropped_background_frame(str(video_file), crop_box)
             if frame is not None:
                 try:
                     bg_path = os.path.join(results_dir, f"{exp_id}_bg.png")
@@ -824,10 +835,10 @@ class ReportGenerationCoordinator(BaseCoordinator, UnifiedReportMixin):
                         "processing_coordinator.save_background_frame.failed",
                         exc_info=True,
                     )
-        return video_file
+        return str(video_file)
 
     def _export_individual_outputs(
-        self, analysis_result: Any, results_dir: str, exp_id: str
+        self, analysis_result: Any, results_dir: Path | str, exp_id: str
     ) -> dict[str, str]:
         """Export individual Word and Excel reports."""
         from zebtrack.analysis.reporters import (

@@ -372,7 +372,7 @@ class CanvasRenderer:
             try:
                 # Unpack detection (support both 6 and 7 element tuples)
                 if len(det) == 6:
-                    x1, y1, x2, y2, conf, track_id = det
+                    x1, y1, x2, y2, _conf, track_id = det
                     class_id = 0
                 else:
                     x1, y1, x2, y2, _conf, track_id, class_id = det

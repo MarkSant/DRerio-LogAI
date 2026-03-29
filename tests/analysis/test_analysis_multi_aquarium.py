@@ -355,7 +355,7 @@ class TestReporterMultiAquarium:
         """Test that export errors are handled gracefully."""
         output_dirs = {0: tmp_path / "aq0", 1: tmp_path / "aq1"}
 
-        stack, ctx_cls, excel_cls, _word_cls = self._patch_reporters()
+        stack, _ctx_cls, excel_cls, _word_cls = self._patch_reporters()
         with stack:
             # Make first export fail via ExcelReporter.export_summary
             excel_instance = MagicMock()

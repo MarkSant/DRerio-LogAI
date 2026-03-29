@@ -6,7 +6,7 @@ replacing plain dictionaries with validated models that ensure data integrity.
 """
 
 import re
-from enum import Enum
+from enum import StrEnum
 from pathlib import Path
 from typing import Literal
 
@@ -20,7 +20,7 @@ log = structlog.get_logger()
 # =============================================================================
 
 
-class AquariumPerspective(str, Enum):
+class AquariumPerspective(StrEnum):
     """Perspective/view angle of the aquarium camera.
 
     This affects which behavioral metrics can be calculated:
@@ -32,7 +32,7 @@ class AquariumPerspective(str, Enum):
     LATERAL = "lateral"
 
 
-class GeotaxisMode(str, Enum):
+class GeotaxisMode(StrEnum):
     """Mode for calculating geotaxis (preference for bottom of aquarium).
 
     - DISTANCE: Use a fixed distance threshold from the bottom.

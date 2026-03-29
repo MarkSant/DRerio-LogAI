@@ -178,7 +178,7 @@ class TestWizardServiceIntegration:
             "subjects_per_group": 1,
             "group_names": ["Group1"],
         }
-        is_valid, error = WizardService.validate_experimental_design(data_min)
+        is_valid, _error = WizardService.validate_experimental_design(data_min)
         assert is_valid
 
         # Test maximum values

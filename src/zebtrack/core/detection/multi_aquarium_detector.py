@@ -407,7 +407,7 @@ class MultiAquariumDetector:
 
         for raw_det in raw_detections:
             det = DetectionPostProcessor.ensure_track_tuple(raw_det)
-            x1, y1, x2, y2, conf, _, class_id = det
+            x1, y1, x2, y2, conf, _, _class_id = det
             centroid = ((x1 + x2) / 2, (y1 + y2) / 2)
 
             for aq in self._aquariums:

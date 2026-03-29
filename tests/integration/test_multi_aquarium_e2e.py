@@ -330,7 +330,7 @@ class TestMultiAquariumDataFlow:
 
         # Convert to trajectory format
         for det in detections_aq0:
-            x1, y1, x2, y2, conf, track_id, _ = det
+            x1, y1, x2, y2, _conf, track_id, _ = det
             center_x = (x1 + x2) / 2
             (y1 + y2) / 2
             assert track_id < 1000  # Aquarium 0 IDs
