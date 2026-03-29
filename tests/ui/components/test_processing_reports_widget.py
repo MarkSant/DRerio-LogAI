@@ -29,23 +29,23 @@ def _insert_video_item(widget: ProcessingReportsWidget, item_id: str, video_path
 @pytest.mark.gui
 def test_open_unified_no_project_path(widget, monkeypatch):
     widget._project_path = None
-    startfile = Mock()
-    monkeypatch.setattr("os.startfile", startfile, raising=False)
+    mock_open = Mock()
+    monkeypatch.setattr("zebtrack.utils.os_opener.open_path", mock_open)
 
     widget._open_latest_unified_file(".xlsx")
 
-    startfile.assert_not_called()
+    mock_open.assert_not_called()
 
 
 @pytest.mark.gui
 def test_open_unified_missing_dir(widget, tmp_path, monkeypatch):
     widget._project_path = str(tmp_path)
-    startfile = Mock()
-    monkeypatch.setattr("os.startfile", startfile, raising=False)
+    mock_open = Mock()
+    monkeypatch.setattr("zebtrack.utils.os_opener.open_path", mock_open)
 
     widget._open_latest_unified_file(".xlsx")
 
-    startfile.assert_not_called()
+    mock_open.assert_not_called()
 
 
 @pytest.mark.gui
@@ -70,12 +70,12 @@ def test_open_unified_opens_latest(widget, tmp_path, monkeypatch):
     os.utime(first, first_utime)
     os.utime(second, second_utime)
 
-    startfile = Mock()
-    monkeypatch.setattr("os.startfile", startfile, raising=False)
+    mock_open = Mock()
+    monkeypatch.setattr("zebtrack.utils.os_opener.open_path", mock_open)
 
     widget._open_latest_unified_file(".xlsx")
 
-    startfile.assert_called_once_with(str(second))
+    mock_open.assert_called_once_with(str(second))
 
 
 @pytest.mark.gui
@@ -108,12 +108,12 @@ def test_open_unified_prefers_latest_manifest_artifact(widget, tmp_path, monkeyp
     }
     (unified_dir / "latest_unified_run.json").write_text(json.dumps(manifest), encoding="utf-8")
 
-    startfile = Mock()
-    monkeypatch.setattr("os.startfile", startfile, raising=False)
+    mock_open = Mock()
+    monkeypatch.setattr("zebtrack.utils.os_opener.open_path", mock_open)
 
     widget._open_latest_unified_file(".xlsx")
 
-    startfile.assert_called_once_with(str(from_manifest))
+    mock_open.assert_called_once_with(str(from_manifest))
 
 
 @pytest.mark.gui
@@ -140,12 +140,12 @@ def test_open_unified_manifest_missing_artifact_falls_back_to_latest(widget, tmp
     }
     (unified_dir / "latest_unified_run.json").write_text(json.dumps(manifest), encoding="utf-8")
 
-    startfile = Mock()
-    monkeypatch.setattr("os.startfile", startfile, raising=False)
+    mock_open = Mock()
+    monkeypatch.setattr("zebtrack.utils.os_opener.open_path", mock_open)
 
     widget._open_latest_unified_file(".xlsx")
 
-    startfile.assert_called_once_with(str(latest))
+    mock_open.assert_called_once_with(str(latest))
 
 
 @pytest.mark.gui
