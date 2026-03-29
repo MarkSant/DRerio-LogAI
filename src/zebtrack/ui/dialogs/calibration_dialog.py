@@ -488,6 +488,22 @@ class CalibrationDialog(simpledialog.Dialog):
             pady=(0, 5),
         )
 
+        # Device selection combobox (only shows detected devices)
+        ttk.Label(model_frame, text="Dispositivo OpenVINO:").grid(
+            row=4, column=0, sticky="w", padx=5, pady=3
+        )
+        self.device_var = tk.StringVar(value="AUTO")
+        self.device_combobox = ttk.Combobox(
+            model_frame, textvariable=self.device_var, state="readonly", width=20
+        )
+        self._populate_device_combobox()
+        self.device_combobox.grid(row=4, column=1, sticky="w", padx=5, pady=3)
+        self.device_combobox.bind("<<ComboboxSelected>>", self._on_device_selected)
+
+        # Sync initial state: disable if OpenVINO is off
+        if not self.use_openvino_var.get():
+            self.device_combobox.configure(state="disabled")
+
         self.use_openvino_var.set(self.controller.hardware_vm.use_openvino)
         self.update_openvino_status_label(self.controller.hardware_vm.get_openvino_status())
 
@@ -1074,6 +1090,12 @@ class CalibrationDialog(simpledialog.Dialog):
                 },
             )
         )
+        # Enable/disable device combobox based on OpenVINO toggle
+        if hasattr(self, "device_combobox"):
+            if self.use_openvino_var.get():
+                self.device_combobox.configure(state="readonly")
+            else:
+                self.device_combobox.configure(state="disabled")
 
     def update_openvino_status_label(self, status: str):
         """Update the OpenVINO status label with current status.
@@ -1084,6 +1106,44 @@ class CalibrationDialog(simpledialog.Dialog):
         self.openvino_status_var.set(status)
         if not self.openvino_status_label:
             return
+
+    def _populate_device_combobox(self):
+        """Populate device combobox with only detected OpenVINO devices."""
+        from zebtrack.utils.hardware_detection import get_openvino_devices
+
+        devices = list(get_openvino_devices())
+        # Build user-facing options: AUTO always first, then detected devices
+        options = ["AUTO"]
+        for d in ("CPU", "GPU", "NPU"):
+            if any(d in dev for dev in devices):
+                options.append(d)
+        self.device_combobox["values"] = options
+
+        # Restore current setting
+        if hasattr(self.controller, "settings_obj") and self.controller.settings_obj is not None:
+            current = self.controller.settings_obj.openvino.device
+            if current in options:
+                self.device_var.set(current)
+            else:
+                self.device_var.set("AUTO")
+        else:
+            self.device_var.set("AUTO")
+
+    def _on_device_selected(self, _event=None):
+        """Handle device combobox selection change."""
+        selected_device = self.device_var.get()
+        log.info("calibration.device_selected", device=selected_device)
+        # Publish event so hardware_vm / settings sync picks it up
+        self.controller.ui_event_bus.publish(
+            Event(
+                type=UIEvents.MODEL_SET_OPENVINO,
+                data={
+                    "use_openvino": self.use_openvino_var.get(),
+                    "device": selected_device,
+                    "dialog": self,
+                },
+            )
+        )
 
     def _load_new_weight_local(self):
         if not self.weights_dropdown:

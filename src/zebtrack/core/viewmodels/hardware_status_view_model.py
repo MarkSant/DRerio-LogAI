@@ -160,8 +160,8 @@ class HardwareStatusViewModel:
     def set_active_weight(self, name: str | None, dialog=None):
         return self.ui_state_controller.set_active_weight(name, dialog)
 
-    def set_openvino_usage(self, use_openvino: bool, dialog=None):
-        return self.ui_state_controller.set_openvino_usage(use_openvino, dialog)
+    def set_openvino_usage(self, use_openvino: bool, dialog=None, device: str | None = None):
+        return self.ui_state_controller.set_openvino_usage(use_openvino, dialog, device=device)
 
     def update_openvino_status(self, dialog=None):
         return self.ui_state_controller.update_openvino_status(dialog)

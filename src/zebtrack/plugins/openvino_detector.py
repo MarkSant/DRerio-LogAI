@@ -190,8 +190,24 @@ class OpenVINOPlugin(DetectorPlugin):
             # Ensure cache directory exists
             Path(cache_dir).mkdir(parents=True, exist_ok=True)
             config["CACHE_DIR"] = str(cache_dir)
-        if precision_hint and "GPU" in device_name:
+        if precision_hint and ("GPU" in device_name or device_name == "NPU"):
             config["INFERENCE_PRECISION_HINT"] = precision_hint
+
+        # NPU-specific configuration
+        if device_name == "NPU":
+            # NPU works best with FP16 natively
+            if not precision_hint:
+                config["INFERENCE_PRECISION_HINT"] = "f16"
+            # Enable turbo mode if configured
+            if (
+                self._settings is not None
+                and hasattr(self._settings, "openvino")
+                and self._settings.openvino.npu_turbo
+            ):
+                try:
+                    config["NPU_TURBO"] = True
+                except Exception:
+                    log.debug("openvino.npu_turbo.not_supported")
 
         try:
             self.compiled_model = core.compile_model(
@@ -202,9 +218,14 @@ class OpenVINOPlugin(DetectorPlugin):
                 "openvino.compilation.failed_on_target",
                 target_device=device_name,
                 error=str(e),
-                fallback="AUTO",
+                fallback="CPU" if device_name == "NPU" else "AUTO",
             )
-            self.compiled_model = core.compile_model(model=model, device_name="AUTO", config=config)
+            # NPU failures fall back to CPU (more predictable than AUTO)
+            fallback_device = "CPU" if device_name == "NPU" else "AUTO"
+            fallback_config = {k: v for k, v in config.items() if k != "NPU_TURBO"}
+            self.compiled_model = core.compile_model(
+                model=model, device_name=fallback_device, config=fallback_config
+            )
 
         # Log actual execution devices
         try:

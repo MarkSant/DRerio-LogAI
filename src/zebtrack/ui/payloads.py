@@ -594,6 +594,7 @@ class ModelSetWeightPayload:
 @dataclass(frozen=True)
 class ModelSetOpenVinoPayload:
     enabled: bool
+    device: str | None = None
 
 
 @dataclass(frozen=True)

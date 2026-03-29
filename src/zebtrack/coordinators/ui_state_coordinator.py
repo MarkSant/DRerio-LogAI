@@ -296,16 +296,26 @@ class UIStateController:
             # Add as an alternative
             self.add_new_weight(path=filepath, set_as_default=False, weight_type=weight_type)
 
-    def set_openvino_usage(self, use_openvino: bool, dialog=None):
+    def set_openvino_usage(self, use_openvino: bool, dialog=None, device: str | None = None):
         """Enable or disable OpenVINO inference mode.
 
         Args:
             use_openvino: True to enable OpenVINO, False to use PyTorch.
             dialog: Optional dialog to update with status.
+            device: Optional OpenVINO device override (AUTO, CPU, GPU, NPU).
         """
         if self.main_view_model:
             self.main_view_model.use_openvino = bool(use_openvino)
             logger.info("controller.openvino_usage.set", enabled=self.main_view_model.use_openvino)
+
+            # Update device in settings if provided
+            if device is not None and hasattr(self.main_view_model, "settings_obj"):
+                settings_obj = self.main_view_model.settings_obj
+                if settings_obj is not None and hasattr(settings_obj, "openvino"):
+                    settings_obj.openvino.device = device
+                    settings_obj.openvino.device_batch = device
+                    logger.info("controller.openvino_device.set", device=device)
+
             self.ui_event_bus.publish(
                 Event(
                     type=UIEvents.UI_UPDATE_OPENVINO_CHECKBOX,

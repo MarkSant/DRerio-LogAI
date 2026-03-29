@@ -566,19 +566,29 @@ class OpenVINOSettings(BaseModel):
         extra="forbid",
     )
 
-    device: Literal["AUTO", "CPU", "GPU"] = Field(
+    device: Literal["AUTO", "CPU", "GPU", "NPU"] = Field(
         "AUTO",
         description=(
             "OpenVINO device for inference. 'AUTO' lets OpenVINO choose, "
-            "'CPU' forces CPU, 'GPU' forces Intel GPU. "
+            "'CPU' forces CPU, 'GPU' forces Intel GPU, "
+            "'NPU' forces Intel NPU (Neural Processing Unit, requires Core Ultra+). "
             "Use 'AUTO' unless benchmark shows specific device is faster."
         ),
     )
-    device_batch: Literal["AUTO", "CPU", "GPU"] = Field(
+    device_batch: Literal["AUTO", "CPU", "GPU", "NPU"] = Field(
         "AUTO",
         description=(
             "OpenVINO device for batch/offline video processing. "
-            "Can be different from live camera device."
+            "Can be different from live camera device. "
+            "NPU requires Intel Core Ultra or newer with NPU driver installed."
+        ),
+    )
+    npu_turbo: bool = Field(
+        False,
+        description=(
+            "Enable Intel NPU turbo mode for higher clock speeds. "
+            "Increases performance but also power consumption. "
+            "Not recommended for sustained workloads. Ignored if device is not NPU."
         ),
     )
     performance_hint_live: Literal["LATENCY", "THROUGHPUT"] = Field(
@@ -743,6 +753,23 @@ class PerformanceSettings(BaseModel):
         description=(
             "Enable parallel execution of independent analysis components. "
             "When True, BehavioralAnalyzer and ROIAnalyzer may run concurrently where possible."
+        ),
+    )
+    memory_mode: Literal["normal", "low"] = Field(
+        "normal",
+        description=(
+            "Memory usage mode. 'normal' uses full parallelism and buffering. "
+            "'low' reduces batch_nireq to 1, disables parallel analysis, "
+            "and increases processing_interval to reduce peak RAM. "
+            "Auto-detected at startup if system has less than 8 GB RAM."
+        ),
+    )
+    auto_inference_size: bool = Field(
+        True,
+        description=(
+            "Automatically select inference_size based on hardware benchmark. "
+            "When True, CPU-only systems may use 416 or 320 for faster inference. "
+            "Set to False to always use the configured yolo_model.inference_size."
         ),
     )
 

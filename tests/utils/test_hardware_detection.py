@@ -10,6 +10,7 @@ from zebtrack.utils.hardware_detection import (
     get_hardware_summary,
     get_openvino_devices,
     has_intel_gpu,
+    has_npu,
     is_cuda_available,
     is_openvino_available,
     recommend_backend,
@@ -23,6 +24,7 @@ def clear_hardware_caches():
     is_openvino_available.cache_clear()
     get_openvino_devices.cache_clear()
     has_intel_gpu.cache_clear()
+    has_npu.cache_clear()
     recommend_backend.cache_clear()
     get_hardware_summary.cache_clear()
     yield
@@ -136,22 +138,45 @@ class TestBackendRecommendation:
 
     @patch("zebtrack.utils.hardware_detection.is_cuda_available")
     @patch("zebtrack.utils.hardware_detection.is_openvino_available")
+    @patch("zebtrack.utils.hardware_detection.has_npu")
     @patch("zebtrack.utils.hardware_detection.has_intel_gpu")
-    def test_recommend_openvino_with_intel_gpu(self, mock_intel, mock_ov_avail, mock_cuda_avail):
+    def test_recommend_openvino_with_intel_gpu(
+        self, mock_intel, mock_npu, mock_ov_avail, mock_cuda_avail
+    ):
         """Test recommendation when Intel GPU is available but no CUDA."""
         mock_cuda_avail.return_value = False
         mock_ov_avail.return_value = True
+        mock_npu.return_value = False
         mock_intel.return_value = True
 
         assert recommend_backend() == "openvino"
 
     @patch("zebtrack.utils.hardware_detection.is_cuda_available")
     @patch("zebtrack.utils.hardware_detection.is_openvino_available")
+    @patch("zebtrack.utils.hardware_detection.has_npu")
     @patch("zebtrack.utils.hardware_detection.has_intel_gpu")
-    def test_recommend_openvino_cpu_only(self, mock_intel, mock_ov_avail, mock_cuda_avail):
+    def test_recommend_openvino_with_npu(
+        self, mock_intel, mock_npu, mock_ov_avail, mock_cuda_avail
+    ):
+        """Test recommendation when NPU is available."""
+        mock_cuda_avail.return_value = False
+        mock_ov_avail.return_value = True
+        mock_npu.return_value = True
+        mock_intel.return_value = False
+
+        assert recommend_backend() == "openvino"
+
+    @patch("zebtrack.utils.hardware_detection.is_cuda_available")
+    @patch("zebtrack.utils.hardware_detection.is_openvino_available")
+    @patch("zebtrack.utils.hardware_detection.has_npu")
+    @patch("zebtrack.utils.hardware_detection.has_intel_gpu")
+    def test_recommend_openvino_cpu_only(
+        self, mock_intel, mock_npu, mock_ov_avail, mock_cuda_avail
+    ):
         """Test recommendation when only OpenVINO CPU is available."""
         mock_cuda_avail.return_value = False
         mock_ov_avail.return_value = True
+        mock_npu.return_value = False
         mock_intel.return_value = False
 
         assert recommend_backend() == "openvino"
@@ -167,6 +192,31 @@ class TestBackendRecommendation:
         assert recommend_backend() == "pytorch"
 
 
+class TestNPUDetection:
+    """Tests for Intel NPU detection."""
+
+    @patch("zebtrack.utils.hardware_detection.get_openvino_devices")
+    def test_has_npu_true(self, mock_get_devices):
+        """Test when Intel NPU is detected."""
+        mock_get_devices.return_value = ("CPU", "GPU.0", "NPU")
+
+        assert has_npu() is True
+
+    @patch("zebtrack.utils.hardware_detection.get_openvino_devices")
+    def test_has_npu_false(self, mock_get_devices):
+        """Test when NPU is not available."""
+        mock_get_devices.return_value = ("CPU", "GPU.0")
+
+        assert has_npu() is False
+
+    @patch("zebtrack.utils.hardware_detection.get_openvino_devices")
+    def test_has_npu_no_devices(self, mock_get_devices):
+        """Test when no devices are detected."""
+        mock_get_devices.return_value = ()
+
+        assert has_npu() is False
+
+
 class TestHardwareSummary:
     """Tests for hardware summary generation."""
 
@@ -174,10 +224,12 @@ class TestHardwareSummary:
     @patch("zebtrack.utils.hardware_detection.is_openvino_available")
     @patch("zebtrack.utils.hardware_detection.get_openvino_devices")
     @patch("zebtrack.utils.hardware_detection.has_intel_gpu")
+    @patch("zebtrack.utils.hardware_detection.has_npu")
     @patch("zebtrack.utils.hardware_detection.recommend_backend")
     def test_get_hardware_summary(
         self,
         mock_recommend,
+        mock_npu,
         mock_intel,
         mock_devices,
         mock_ov_avail,
@@ -188,6 +240,7 @@ class TestHardwareSummary:
         mock_ov_avail.return_value = True
         mock_devices.return_value = ["CPU", "GPU.0"]
         mock_intel.return_value = True
+        mock_npu.return_value = False
         mock_recommend.return_value = "pytorch"
 
         summary = get_hardware_summary()
@@ -196,4 +249,5 @@ class TestHardwareSummary:
         assert summary["openvino_available"] is True
         assert summary["openvino_devices"] == ["CPU", "GPU.0"]
         assert summary["has_intel_gpu"] is True
+        assert summary["has_npu"] is False
         assert summary["recommended_backend"] == "pytorch"

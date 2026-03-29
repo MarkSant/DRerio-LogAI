@@ -707,3 +707,139 @@ class WeightManager:
             if temp_export_path and os.path.exists(temp_export_path):
                 shutil.rmtree(temp_export_path, ignore_errors=True)
                 log.info("openvino.export.cleanup", path=temp_export_path)
+
+    def convert_to_openvino_int8(self, name: str) -> str | None:
+        """Convert the specified weight to OpenVINO INT8 quantized format.
+
+        Uses Ultralytics built-in INT8 quantization (NNCF under the hood)
+        with default COCO calibration data. Provides 2-4x speedup on CPU
+        with minimal accuracy loss (<1%).
+
+        Args:
+            name: Weight name from weights_config.json.
+
+        Returns:
+            Path to the converted INT8 model directory or None on failure.
+
+        Raises:
+            OpenVINOExportError: If conversion fails.
+        """
+        details = self.get_weight_details(name)
+        if not details:
+            log.error("openvino.convert_int8.not_found", name=name)
+            return None
+
+        pt_path = details["path"]
+        base_model_name = os.path.splitext(os.path.basename(pt_path))[0]
+        cached_model_dir_name = f"{base_model_name}_openvino_int8_model"
+
+        openvino_base_cache_dir = os.path.join(self.config_dir, OPENVINO_CACHE_DIR)
+        cached_model_dir = os.path.join(openvino_base_cache_dir, cached_model_dir_name)
+
+        if os.path.exists(cached_model_dir):
+            log.info("openvino.int8_cache.found", path=cached_model_dir)
+            details["openvino_int8_path"] = os.path.abspath(cached_model_dir)
+            details["openvino_int8_status"] = OPENVINO_STATUS_READY
+            self.save_weights()
+            return details["openvino_int8_path"]
+
+        log.info("openvino.export_int8.start", model=name)
+        temp_export_path = None
+
+        if not ULTRALYTICS_AVAILABLE:
+            details["openvino_int8_status"] = OPENVINO_STATUS_FAILED
+            details["last_conversion_error"] = "Ultralytics package is required for INT8 export"
+            self.save_weights()
+            raise ImportError(
+                "Ultralytics is not available for INT8 export. Please install ultralytics package."
+            )
+
+        details["openvino_int8_status"] = OPENVINO_STATUS_CONVERTING
+        details["last_conversion_error"] = None
+        self.save_weights()
+
+        try:
+            assert YOLO is not None
+            model = YOLO(pt_path)
+            # int8=True enables INT8 quantization via NNCF with default calibration
+            temp_export_path = model.export(format="openvino", int8=True)
+
+            os.makedirs(openvino_base_cache_dir, exist_ok=True)
+
+            if os.path.exists(cached_model_dir):
+                shutil.rmtree(cached_model_dir, ignore_errors=True)
+
+            shutil.move(temp_export_path, cached_model_dir)
+            temp_export_path = None
+
+            weight_type = details.get("type", "seg")
+            class_names = {str(k): v for k, v in model.names.items()}
+            num_classes = len(class_names)
+
+            model_type = "instance_segmentation" if weight_type == "seg" else "object_detection"
+            metadata = {
+                "model_type": model_type,
+                "num_classes": num_classes,
+                "class_names": class_names,
+                "task": "segment" if weight_type == "seg" else "detect",
+                "weight_type": weight_type,
+                "quantization": "INT8",
+                "description": f"Modelo {weight_type} convertido com quantização INT8",
+                "original_model": os.path.basename(pt_path),
+                "conversion_date": time.strftime("%Y-%m-%d %H:%M:%S"),
+            }
+
+            metadata_path = os.path.join(cached_model_dir, "metadata.json")
+            with open(metadata_path, "w", encoding="utf-8") as f:
+                json.dump(metadata, f, indent=2)
+
+            log.info(
+                "openvino.int8_metadata.created",
+                path=metadata_path,
+                model_type=metadata["model_type"],
+            )
+
+            openvino_model_path = os.path.abspath(cached_model_dir)
+            xml_files = list(Path(cached_model_dir).glob("*.xml"))
+            if not xml_files:
+                log.error("openvino.export_int8.xml_not_found", path=cached_model_dir)
+                shutil.rmtree(cached_model_dir, ignore_errors=True)
+                details["openvino_int8_status"] = OPENVINO_STATUS_FAILED
+                details["last_conversion_error"] = (
+                    "Arquivo .xml do modelo INT8 não encontrado após conversão."
+                )
+                self.save_weights()
+                raise OpenVINOExportError(
+                    "Arquivo .xml do modelo INT8 não encontrado após conversão."
+                )
+
+            xml_path = xml_files[0]
+            model_hash = calculate_sha256(str(xml_path))
+
+            details["openvino_int8_path"] = openvino_model_path
+            details["openvino_int8_hash"] = model_hash
+            details["openvino_int8_status"] = OPENVINO_STATUS_READY
+            details["last_conversion_error"] = None
+            self.save_weights()
+
+            log.info(
+                "openvino.export_int8.success",
+                path=openvino_model_path,
+                hash=model_hash,
+            )
+            return openvino_model_path
+
+        except Exception as e:
+            log.error("openvino.export_int8.failed", exc_info=e)
+            if os.path.exists(cached_model_dir):
+                shutil.rmtree(cached_model_dir, ignore_errors=True)
+            details["openvino_int8_path"] = ""
+            details["openvino_int8_hash"] = ""
+            details["openvino_int8_status"] = OPENVINO_STATUS_FAILED
+            details["last_conversion_error"] = str(e)
+            self.save_weights()
+            raise OpenVINOExportError(f"Falha ao converter '{name}' para INT8: {e}") from e
+        finally:
+            if temp_export_path and os.path.exists(temp_export_path):
+                shutil.rmtree(temp_export_path, ignore_errors=True)
+                log.info("openvino.export_int8.cleanup", path=temp_export_path)

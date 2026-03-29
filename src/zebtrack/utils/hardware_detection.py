@@ -99,15 +99,33 @@ def has_intel_gpu() -> bool:
 
 
 @lru_cache(maxsize=1)
+def has_npu() -> bool:
+    """
+    Check if Intel NPU (Neural Processing Unit) is available for OpenVINO.
+
+    Requires Intel Core Ultra (Meteor Lake+) with NPU driver installed.
+
+    Returns:
+        bool: True if NPU device is detected in OpenVINO.
+    """
+    devices = get_openvino_devices()
+    has_npu_device = any("NPU" in device for device in devices)
+    if has_npu_device:
+        log.info("hardware.intel_npu.detected", devices=devices)
+    return has_npu_device
+
+
+@lru_cache(maxsize=1)
 def recommend_backend() -> str:
     """
     Recommend optimal inference backend based on available hardware.
 
     Decision logic:
     1. If NVIDIA CUDA is available -> recommend 'pytorch'
-    2. Else if OpenVINO is available with GPU (Intel/EVO) -> recommend 'openvino'
-    3. Else if OpenVINO is available (CPU only) -> recommend 'openvino'
-    4. Else -> recommend 'pytorch' (fallback, will use CPU)
+    2. Else if OpenVINO is available with NPU -> recommend 'openvino'
+    3. Else if OpenVINO is available with GPU (Intel/EVO) -> recommend 'openvino'
+    4. Else if OpenVINO is available (CPU only) -> recommend 'openvino'
+    5. Else -> recommend 'pytorch' (fallback, will use CPU)
 
     Returns:
         str: 'pytorch' or 'openvino'
@@ -121,8 +139,15 @@ def recommend_backend() -> str:
         )
         return "pytorch"
 
-    # Priority 2: OpenVINO with GPU acceleration
+    # Priority 2: OpenVINO with NPU or GPU acceleration
     if is_openvino_available():
+        if has_npu():
+            log.info(
+                "hardware.recommendation",
+                backend="openvino",
+                reason="OpenVINO with Intel NPU acceleration",
+            )
+            return "openvino"
         if has_intel_gpu():
             log.info(
                 "hardware.recommendation",
@@ -130,14 +155,13 @@ def recommend_backend() -> str:
                 reason="OpenVINO with Intel GPU acceleration",
             )
             return "openvino"
-        else:
-            # OpenVINO available but CPU only
-            log.info(
-                "hardware.recommendation",
-                backend="openvino",
-                reason="OpenVINO available (CPU inference)",
-            )
-            return "openvino"
+        # OpenVINO available but CPU only
+        log.info(
+            "hardware.recommendation",
+            backend="openvino",
+            reason="OpenVINO available (CPU inference)",
+        )
+        return "openvino"
 
     # Fallback: PyTorch CPU
     log.info(
@@ -166,6 +190,7 @@ def get_hardware_summary() -> dict:
         "openvino_available": is_openvino_available(),
         "openvino_devices": list(get_openvino_devices()),  # Convert tuple to list for JSON
         "has_intel_gpu": has_intel_gpu(),
+        "has_npu": has_npu(),
         "recommended_backend": recommend_backend(),
     }
     log.info("hardware.summary", **summary)

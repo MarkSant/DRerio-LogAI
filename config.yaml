@@ -190,18 +190,23 @@ model_selection:
   use_openvino: false
 
 # -----------------------------------------------------------------------------
-# OpenVINO Settings (GPU Acceleration)
+# OpenVINO Settings (Hardware Acceleration)
 # -----------------------------------------------------------------------------
-# These settings control how OpenVINO uses your GPU for inference.
+# These settings control how OpenVINO uses your hardware for inference.
 # The system runs a hardware benchmark on first startup and auto-configures
 # optimal settings. You can override them here if needed.
 openvino:
-  # Device for inference: "AUTO" (let OpenVINO choose), "CPU", "GPU"
-  # Benchmark will determine the fastest device for your system
+  # Device for inference: "AUTO" (let OpenVINO choose), "CPU", "GPU", "NPU"
+  # "NPU" requires Intel Core Ultra (Meteor Lake+) with NPU driver installed.
+  # Benchmark will determine the fastest device for your system.
   device: "AUTO"
 
   # Device for batch/offline video processing (can differ from live)
   device_batch: "AUTO"
+
+  # Enable NPU turbo mode (higher clocks, more power; not for sustained loads)
+  # Only applies when device is NPU; ignored otherwise.
+  npu_turbo: false
 
   # Performance hint for live camera analysis
   # "LATENCY" = minimize delay per frame (recommended for real-time)
@@ -339,6 +344,18 @@ performance:
   # Enable parallel execution of independent analysis components
   # When true, BehavioralAnalyzer and ROIAnalyzer may run concurrently
   enable_parallel_analysis: true
+
+  # Memory usage mode for constrained hardware
+  # Options:
+  #   - "normal": Full parallelism and buffering (default)
+  #   - "low": Reduces batch_nireq to 1, disables parallel analysis,
+  #            increases processing interval. Auto-detected if RAM < 8 GB.
+  memory_mode: "normal"
+
+  # Automatically select inference_size based on hardware benchmark
+  # When true, CPU-only systems may use 416 or 320 for faster inference
+  # Set to false to always use the configured yolo_model.inference_size
+  auto_inference_size: true
 
 # -----------------------------------------------------------------------------
 # Logging Settings

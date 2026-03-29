@@ -254,10 +254,10 @@ def _run_benchmark_if_enabled(
                 if rec.backend == "openvino":
                     settings_obj.model_selection.use_openvino = True
                     settings_obj.openvino.device = cast(
-                        Literal["AUTO", "CPU", "GPU"], rec.device_live
+                        Literal["AUTO", "CPU", "GPU", "NPU"], rec.device_live
                     )
                     settings_obj.openvino.device_batch = cast(
-                        Literal["AUTO", "CPU", "GPU"], rec.device_batch
+                        Literal["AUTO", "CPU", "GPU", "NPU"], rec.device_batch
                     )
                     settings_obj.openvino.performance_hint_live = cast(
                         Literal["LATENCY", "THROUGHPUT"], rec.openvino_hint_live
@@ -269,6 +269,26 @@ def _run_benchmark_if_enabled(
                         Literal["FP32", "FP16", "INT8"], rec.openvino_precision
                     )
                     settings_obj.openvino.enable_model_cache = rec.enable_model_cache
+
+                # Apply memory mode recommendation
+                settings_obj.performance.memory_mode = cast(
+                    Literal["normal", "low"], rec.recommended_memory_mode
+                )
+
+                # Apply adaptive inference size if enabled
+                if settings_obj.performance.auto_inference_size:
+                    if rec.recommended_inference_size != 640:
+                        settings_obj.yolo_model.inference_size = rec.recommended_inference_size
+                        log.info(
+                            "benchmark.inference_size_adapted",
+                            size=rec.recommended_inference_size,
+                        )
+
+                # Apply low-memory overrides
+                if rec.recommended_memory_mode == "low":
+                    settings_obj.openvino.batch_nireq = 1
+                    settings_obj.performance.enable_parallel_analysis = False
+                    log.info("benchmark.low_memory_mode_applied")
 
                 try:
                     save_settings(settings_obj)

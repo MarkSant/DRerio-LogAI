@@ -68,10 +68,14 @@
     "python.analysis.extraPaths": [
         "./src"
     ],
+    // Pylance performance (optimized for 32GB+ RAM systems)
+    "python.analysis.persistAllIndices": true,
+    "python.analysis.indexing.maxFileSize": 10000,
     "python.defaultInterpreterPath": "${workspaceFolder}\\.venv\\Scripts\\python.exe",
     "python.terminal.activateEnvironment": true,
     "python.terminal.activateEnvInCurrentTerminal": true,
     "terminal.integrated.defaultProfile.windows": "PowerShell",
+    "terminal.integrated.scrollback": 10000,
     "terminal.integrated.profiles.windows": {
         "PowerShell": {
             "source": "PowerShell",
@@ -80,17 +84,22 @@
     },
     "terminal.integrated.enablePersistentSessions": false,
     "terminal.integrated.environmentChangesRelaunch": "auto",
-    // Testing configuration (v2.1: pytest hang fixes applied)
-    // Total: 2568 tests (1586 fast, 949 GUI, 35 slow)
-    // Note: pytest-timeout plugin configured (300s per test)
+    // Testing configuration (v2.1 hang fixes + v3.x: 2806+ tests)
+    // Fast suite  : ~2806 tests  (excludes gui / slow / ttkbootstrap_singleton)
+    // GUI suite   : ~949  tests  (run separately: pytest -m gui -n0)
+    // Slow suite  : ~35   tests  (run separately: pytest -m slow)
+    // IMPORTANT: --override-ini=addopts= clears pytest.ini addopts so we must
+    //            re-declare timeout settings here to prevent Test Explorer hangs.
     "python.testing.pytestEnabled": true,
     "python.testing.unittestEnabled": false,
     "python.testing.pytestArgs": [
-        "-v",
-        "--override-ini=addopts=", // Clear pytest.ini addopts to avoid -n=auto conflict
-        "--no-cov", // Disable coverage in Test Explorer for faster discovery
+        "--override-ini=addopts=", // Clear pytest.ini addopts (coverage, -n0, etc.)
+        "--no-cov", // Disable coverage for faster discovery & run in Test Explorer
+        "-n0", // Sequential in Test Explorer (avoids xdist output buffering issues)
+        "--timeout=300", // Required: re-declare since addopts was cleared
+        "--timeout-method=thread", // Required: thread-based timeout (safe for Tkinter)
         "-m",
-        "not (gui or slow)" // Match pytest.ini defaults (exclude GUI and slow tests)
+        "not (gui or slow or ttkbootstrap_singleton)" // Exclude long-running suites
     ],
     // Editor hints
     "editor.rulers": [

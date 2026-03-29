@@ -145,7 +145,7 @@ def test_ui_state_controller_weight_actions(view_model):
 
     ui_state = view_model.ui_state_controller
     ui_state.set_active_weight.assert_called_once_with("w1", "d")
-    ui_state.set_openvino_usage.assert_called_once_with(True, "d")
+    ui_state.set_openvino_usage.assert_called_once_with(True, "d", device=None)
     ui_state.update_openvino_status.assert_called_once_with("d")
     ui_state.load_new_weight.assert_called_once_with(path="p")
     ui_state.add_new_weight.assert_called_once_with("p", True, "det")

@@ -35,11 +35,12 @@ log = structlog.get_logger()
 
 
 class GPUType(Enum):
-    """Type of GPU detected in the system."""
+    """Type of GPU/accelerator detected in the system."""
 
     NONE = "none"
     INTEL_IGPU = "intel_igpu"  # Intel Iris Xe, UHD (integrated)
     INTEL_ARC = "intel_arc"  # Intel Arc (discrete)
+    INTEL_NPU = "intel_npu"  # Intel NPU (Neural Processing Unit, Core Ultra+)
     NVIDIA = "nvidia"  # NVIDIA with CUDA
     AMD = "amd"  # AMD with ROCm
     UNKNOWN = "unknown"
@@ -67,6 +68,9 @@ class HardwareProfile:
 
     # System fingerprint (for cache invalidation)
     fingerprint: str = ""
+
+    # System memory
+    total_memory_gb: float = 0.0
 
     def to_dict(self) -> dict:
         result = asdict(self)
@@ -122,6 +126,10 @@ class BenchmarkRecommendation:
     # Performance estimates
     estimated_fps_live: float
     estimated_fps_batch: float
+
+    # Hardware-aware sizing
+    recommended_inference_size: int = 640
+    recommended_memory_mode: str = "normal"
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -180,6 +188,18 @@ class SystemBenchmarkResult:
         if data.get("recommendation"):
             result.recommendation = BenchmarkRecommendation.from_dict(data["recommendation"])
         return result
+
+
+def _detect_system_memory_gb() -> float:
+    """Detect total system RAM in GB. Returns 0.0 if psutil unavailable."""
+    try:
+        import psutil
+
+        mem = psutil.virtual_memory()
+        return round(mem.total / (1024**3), 1)
+    except ImportError:
+        log.debug("hardware_benchmark.psutil.not_available")
+        return 0.0
 
 
 def detect_hardware_profile() -> HardwareProfile:
@@ -276,11 +296,29 @@ def detect_hardware_profile() -> HardwareProfile:
                 except Exception as e:
                     log.warning("hardware.gpu_info_failed", device=device, error=str(e))
 
+        # Check for NPU device
+        if any("NPU" in d for d in profile.openvino_devices):
+            # If no discrete GPU was detected, set type to NPU
+            # (NPU can coexist with GPU; GPUType tracks the primary accelerator)
+            if profile.gpu_type in (GPUType.NONE, GPUType.UNKNOWN):
+                profile.gpu_type = GPUType.INTEL_NPU
+            try:
+                npu_name = core.get_property("NPU", "FULL_DEVICE_NAME")
+                log.info("hardware.npu_detected", npu_name=npu_name)
+            except Exception:
+                log.info("hardware.npu_detected", npu_name="Intel NPU")
+
     except ImportError:
         log.debug("hardware_benchmark.openvino.not_available")
 
-    # Generate fingerprint for cache invalidation
-    fingerprint_data = f"{profile.cpu_name}|{profile.gpu_name}|{profile.gpu_memory_gb}"
+    # Detect system RAM
+    profile.total_memory_gb = _detect_system_memory_gb()
+
+    # Generate fingerprint for cache invalidation (includes NPU presence)
+    has_npu = any("NPU" in d for d in profile.openvino_devices)
+    fingerprint_data = (
+        f"{profile.cpu_name}|{profile.gpu_name}|{profile.gpu_memory_gb}|npu={has_npu}"
+    )
     profile.fingerprint = hashlib.sha256(fingerprint_data.encode()).hexdigest()[:12]
 
     log.info(
@@ -416,6 +454,11 @@ def _benchmark_openvino_inference(
         if "FP16" in profile.gpu_capabilities:
             test_configs.append(("GPU", "LATENCY", "GPU_LATENCY_FP16"))
 
+    # NPU tests (static shapes, FP16 native)
+    if "NPU" in profile.openvino_devices:
+        test_configs.append(("NPU", "LATENCY", "NPU_LATENCY"))
+        test_configs.append(("NPU", "THROUGHPUT", "NPU_THROUGHPUT"))
+
     for device, hint, key in test_configs:
         try:
             config = {"PERFORMANCE_HINT": hint}
@@ -534,7 +577,7 @@ def _benchmark_pipeline_complete(
         model = core.read_model(str(model_path))
 
         config = {"PERFORMANCE_HINT": hint}
-        if device == "GPU":
+        if device in ("GPU", "NPU"):
             config["CACHE_DIR"] = "openvino_model_cache/compiled_cache"
 
         compiled = core.compile_model(model, device, config)
@@ -661,11 +704,17 @@ def _generate_recommendation(
             if compute_results["GPU_LATENCY_FP16"].fps > compute_results["GPU_LATENCY"].fps:
                 recommendation.openvino_precision = "FP16"
 
+        # NPU uses FP16 natively
+        if recommendation.device_live == "NPU" or recommendation.device_batch == "NPU":
+            recommendation.openvino_precision = "FP16"
+
         # Determine batch size based on GPU type and memory
         if profile.gpu_type == GPUType.INTEL_ARC:
             recommendation.recommended_batch_size = min(8, int(profile.gpu_memory_gb * 2))
         elif profile.gpu_type == GPUType.INTEL_IGPU:
             recommendation.recommended_batch_size = 1  # Shared memory, avoid batching
+        elif profile.gpu_type == GPUType.INTEL_NPU:
+            recommendation.recommended_batch_size = 1  # NPU: single request is optimal
         else:
             recommendation.recommended_batch_size = min(4, int(profile.gpu_memory_gb))
 
@@ -676,7 +725,37 @@ def _generate_recommendation(
             best_decode_fps = result.fps
             recommendation.decode_backend = key
 
+    # Apply hardware-aware sizing recommendations
+    _apply_hardware_sizing(recommendation, profile)
+
     return recommendation
+
+
+def _apply_hardware_sizing(
+    recommendation: BenchmarkRecommendation,
+    profile: HardwareProfile,
+) -> None:
+    """Apply adaptive inference size and memory mode based on hardware."""
+    # CPU-only systems benefit significantly from smaller input sizes
+    if profile.gpu_type in (GPUType.NONE, GPUType.UNKNOWN) and not profile.cuda_available:
+        if profile.total_memory_gb < 6:
+            recommendation.recommended_inference_size = 320  # ~75% faster
+        elif profile.total_memory_gb < 10:
+            recommendation.recommended_inference_size = 416  # ~40% faster
+
+    # Memory mode recommendation based on available RAM
+    if profile.total_memory_gb < 8:
+        recommendation.recommended_memory_mode = "low"
+
+
+def _get_benchmark_devices(profile: HardwareProfile) -> list[str]:
+    """Return list of OpenVINO devices available for benchmarking."""
+    devices = ["CPU"]
+    if "GPU" in profile.openvino_devices:
+        devices.append("GPU")
+    if "NPU" in profile.openvino_devices:
+        devices.append("NPU")
+    return devices
 
 
 def run_adaptive_benchmark(
@@ -752,9 +831,8 @@ def run_adaptive_benchmark(
     report_progress(4, 6, "Testing live camera pipeline...")
     pipeline_live_results = {}
     if video_path and model_path and profile.openvino_available:
-        for device in ["CPU", "GPU"]:
-            if device == "GPU" and "GPU" not in profile.openvino_devices:
-                continue
+        available = _get_benchmark_devices(profile)
+        for device in available:
             result_bench = _benchmark_pipeline_complete(
                 video_path, model_path, device, "LATENCY", num_frames
             )
@@ -767,13 +845,13 @@ def run_adaptive_benchmark(
     report_progress(5, 6, "Testing batch processing pipeline...")
     pipeline_batch_results = {}
     if video_path and model_path and profile.openvino_available:
-        for device in ["CPU", "GPU"]:
-            if device == "GPU" and "GPU" not in profile.openvino_devices:
-                continue
-
+        available = _get_benchmark_devices(profile)
+        for device in available:
             hints_to_test = ["LATENCY"]
-            # Only test THROUGHPUT on discrete GPUs
+            # Only test THROUGHPUT on discrete GPUs and NPU
             if device == "GPU" and profile.gpu_type in [GPUType.INTEL_ARC, GPUType.NVIDIA]:
+                hints_to_test.append("THROUGHPUT")
+            if device == "NPU":
                 hints_to_test.append("THROUGHPUT")
 
             for hint in hints_to_test:
@@ -917,10 +995,14 @@ def get_optimal_settings(
             "precision": rec.openvino_precision,
             "enable_model_cache": rec.enable_model_cache,
         },
+        "performance": {
+            "memory_mode": rec.recommended_memory_mode,
+        },
         "decode_backend": rec.decode_backend,
         "batch_size": rec.recommended_batch_size,
         "estimated_fps_live": rec.estimated_fps_live,
         "estimated_fps_batch": rec.estimated_fps_batch,
+        "recommended_inference_size": rec.recommended_inference_size,
     }
 
 
@@ -934,6 +1016,7 @@ def print_benchmark_summary(result: SystemBenchmarkResult) -> None:
     print(f"\nCPU: {hw.cpu_name}")
     print(f"GPU: {hw.gpu_name} ({hw.gpu_type.value})")
     print(f"GPU Memory: {hw.gpu_memory_gb:.2f} GB")
+    print(f"System RAM: {hw.total_memory_gb:.1f} GB")
     print(f"OpenVINO Devices: {hw.openvino_devices}")
 
     if result.compute_results:
