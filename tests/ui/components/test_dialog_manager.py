@@ -1,6 +1,5 @@
 """Tests for DialogManager component."""
 
-import sys
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
@@ -1232,38 +1231,17 @@ class TestUtilityMethods:
         pack_call = mock_gui.analysis_display_widget.progress_frame.pack.call_args
         assert "before" not in pack_call[1]
 
-    @patch("zebtrack.ui.components.dialog_manager.os.startfile")
-    def test_open_path_in_explorer_windows(self, mock_startfile, dialog_manager, monkeypatch):
-        """Test open_path_in_explorer on Windows."""
-        monkeypatch.setattr(sys, "platform", "win32")
-
+    @patch("zebtrack.utils.os_opener.open_path")
+    def test_open_path_in_explorer_delegates_to_os_opener(self, mock_open_path, dialog_manager):
+        """Test open_path_in_explorer delegates to os_opener.open_path."""
         dialog_manager.open_path_in_explorer("/path/to/directory")
 
-        mock_startfile.assert_called_once_with("/path/to/directory")
+        mock_open_path.assert_called_once_with("/path/to/directory")
 
-    @patch("zebtrack.ui.components.dialog_manager.subprocess.Popen")
-    def test_open_path_in_explorer_macos(self, mock_popen, dialog_manager, monkeypatch):
-        """Test open_path_in_explorer on macOS."""
-        monkeypatch.setattr(sys, "platform", "darwin")
-
-        dialog_manager.open_path_in_explorer("/path/to/directory")
-
-        mock_popen.assert_called_once_with(["open", "/path/to/directory"])
-
-    @patch("zebtrack.ui.components.dialog_manager.subprocess.Popen")
-    def test_open_path_in_explorer_linux(self, mock_popen, dialog_manager, monkeypatch):
-        """Test open_path_in_explorer on Linux."""
-        monkeypatch.setattr(sys, "platform", "linux")
-
-        dialog_manager.open_path_in_explorer("/path/to/directory")
-
-        mock_popen.assert_called_once_with(["xdg-open", "/path/to/directory"])
-
-    @patch("zebtrack.ui.components.dialog_manager.subprocess.Popen")
-    def test_open_path_in_explorer_error(self, mock_popen, dialog_manager, monkeypatch):
+    @patch("zebtrack.utils.os_opener.open_path")
+    def test_open_path_in_explorer_error(self, mock_open_path, dialog_manager):
         """Test open_path_in_explorer handles errors."""
-        monkeypatch.setattr(sys, "platform", "linux")
-        mock_popen.side_effect = Exception("Command failed")
+        mock_open_path.side_effect = Exception("Command failed")
 
         with patch.object(dialog_manager, "show_error") as mock_error:
             dialog_manager.open_path_in_explorer("/path/to/directory")
