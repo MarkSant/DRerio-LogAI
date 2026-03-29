@@ -61,7 +61,7 @@ A v4.0 representa uma reescrita fundamental do sistema com foco em estabilidade,
   - `RecorderFactory` para carregamento sob demanda de pandas/pyarrow
   - Cache de hardware com TTL de 30s (5x mais rápido)
 - **🔒 Confiabilidade**: Sistema de testes robusto
-  - 2568 testes (61% de cobertura)
+  - ~3700 testes (~48% de cobertura)
   - Testes E2E para fluxos críticos
   - Timeout automático para prevenir travamentos (pytest-timeout)
 - **🐛 Correções Críticas**: Resolução de bugs de câmera ao vivo
@@ -94,6 +94,14 @@ Suporte avançado para análise simultânea de múltiplos aquários:
 - **🧠 Geotaxia (Novel Tank Test)**: Suporte nativo para perspectiva lateral com zonas verticais (Fundo/Meio/Superfície)
 - **📏 Demarcação Visual**: Linhas de zona automáticas em plots de trajetória e heatmaps para visualização clara de preferência de altura
 - **📄 Relatórios Contextuais**: Nomenclatura adaptativa de colunas baseada na perspectiva da câmera
+
+### Suporte a NPU e Hardware Heterogêneo (Novo!)
+
+- **🔌 Intel NPU**: Suporte a Neural Processing Unit em processadores Intel Core Ultra via OpenVINO
+- **📦 Variantes de Modelo**: `standard`, `lite` e `nano` com seleção automática conforme capacidade do hardware
+- **📈 Benchmark Automático**: Medição de throughput (FPS) entre CPU, GPU e NPU para recomendação ideal
+- **⚡ Fallback Inteligente**: Downgrade automático de variante quando hardware detectado é insuficiente
+- **🔧 CI Robustecido**: Badge dinâmico, trigger manual, mocks cross-platform para Linux
 
 ## 📚 Histórico de versões (v1–v3)
 
@@ -138,13 +146,14 @@ O README destaca o estado atual (v4.0). Para detalhes completos por release, con
 
 ### Requisitos do Sistema
 
-| Componente | Versão Mínima            | Recomendado                |
-| ---------- | ------------------------ | -------------------------- |
-| Python     | 3.11                     | 3.12+                      |
-| RAM        | 4 GB                     | 8 GB+                      |
-| CPU        | Dual-core                | Quad-core+                 |
-| GPU        | Não requerida            | NVIDIA com CUDA (opcional) |
-| SO         | Windows 10, Linux, macOS | Ubuntu 22.04+              |
+| Componente | Versão Mínima            | Recomendado                         |
+| ---------- | ------------------------ | ----------------------------------- |
+| Python     | 3.11                     | 3.12+                               |
+| RAM        | 4 GB                     | 8 GB+                               |
+| CPU        | Dual-core                | Quad-core+ (Intel Core Ultra p/ NPU)|
+| GPU        | Não requerida            | NVIDIA com CUDA (opcional)          |
+| NPU        | Não requerido            | Intel Core Ultra (via OpenVINO)     |
+| SO         | Windows 10, Linux, macOS | Ubuntu 22.04+                       |
 
 ### Instalação Rápida
 
@@ -204,30 +213,30 @@ Para consistência no ambiente local, siga estas boas práticas com as extensõe
 
 - **Python / Pylance**: use o interpretador do Poetry (venv) no editor e no terminal.
 - **Ruff**: use como **único** formatter/linter Python; evite Black/Pylint/Flake8 no VS Code.
-- **Mypy (Matan Gover) + Mypy Type Checker (Microsoft)**: mantenha a mesma configuração (`mypy.ini`/`pyproject`); se houver diagnósticos duplicados, desative um deles no workspace ou deixe um apenas “on-demand”.
+- **Mypy (Matan Gover)**: extensão única de daemon Mypy; prefira `mypy.runUsingActiveInterpreter=true`;
+  alinhe com `mypy.ini`/`pyproject.toml`.
 - **Python Debugger**: depure e gerencie ambientes usando o mesmo interpretador do Poetry.
 - **PowerShell**: use para scripts e automação; mantenha comandos no terminal PowerShell.
 - **GitHub Copilot / Chat / PRs / Actions**: faça mudanças incrementais e sempre com impacto analisado.
-- **Git History**: use para histórico/blame; diffs pequenos e objetivos.
-- **Docker / Container Tools / Dev Containers / WSL**: use apenas quando o projeto estiver rodando nesses ambientes.
+- **GitLens (GitKraken)**: ferramenta Git principal — blame inline, histórico e comparação.
+- **Error Lens**: exibe erros/warnings inline; CSpell excluído.
+- **TODO Tree**: rastreia tags TODO, FIXME, HACK, BUG, XXX, DEPRECATED.
 - **YAML / markdownlint / Code Spell Checker**: mantenha lint ativo e corrija avisos.
-- **MATLAB / matlab-formatter**: use apenas em arquivos `.m`.
-- **vscode-pdf**: visualização somente leitura.
 
 Checklist rápido:
 
 - [ ] Interpretador ativo é o venv do Poetry.
-- [ ] Ruff é o único formatter Python.
-- [ ] Configuração do Mypy é única e compartilhada com o CLI.
+- [ ] Ruff é o único formatter Python (Black/Pylint/Flake8 desativados).
+- [ ] Apenas `matangover.mypy` instalado (NÃO `ms-python.mypy-type-checker`).
 - [ ] Linters de YAML/Markdown estão ativos.
 
 Como configurar no VS Code:
 
-- Use “Python: Select Interpreter” para escolher o venv do Poetry.
+- Use "Python: Select Interpreter" para escolher o venv do Poetry.
 - Prefira `python.analysis.typeCheckingMode=basic` e use `strict` apenas em arquivos alvo.
 - Mypy: mantenha config em `mypy.ini`/pyproject e prefira `mypy.runUsingActiveInterpreter=true`.
 - Ruff: `editor.defaultFormatter=charliermarsh.ruff`, `editor.formatOnSave=true` e `editor.codeActionsOnSave` com `source.fixAll.ruff` e `source.organizeImports.ruff`.
-- Dev Containers/WSL: use apenas quando o projeto estiver rodando nesses ambientes.
+- GitLens: habilitado por padrão; blame inline e CodeLens ativos.
 
 > Nota para agentes: as instruções de agentes têm **fonte de verdade** em AGENTS.md e mudanças devem começar por lá.
 
@@ -315,7 +324,8 @@ comandos e rechecagem de portas.
 ### Detecção e Rastreamento
 
 - **Modelos**: Ultralytics YOLO (detecção e/ou segmentação conforme o objetivo)
-- **Aceleração**: OpenVINO para CPUs Intel (3-5x mais rápido)
+- **Aceleração**: OpenVINO para CPUs Intel (3-5x mais rápido), suporte a NPU (Intel Core Ultra)
+- **Variantes de Modelo**: `standard`, `lite`, `nano` — seleção automática por hardware
 - **Multi-objeto**: Rastreamento simultâneo de até 96 peixes
 - **Filtragem**: Savitzky-Golay para suavização de trajetórias
 - **Persistência**: Manutenção de IDs através de oclusões temporárias
@@ -389,7 +399,7 @@ A documentação técnica está disponível na pasta `docs/`:
 - 🏗️ [**ARCHITECTURE.md**](docs/architecture/ARCHITECTURE.md) - Arquitetura Event-Driven e Mediator
 - 👨‍💻 [**DEVELOPER_GUIDE.md**](docs/guides/developer/DEVELOPER_GUIDE.md) - Guia completo para contribuidores
 - 🧙 [**DEVELOPER_GUIDE_WIZARD.md**](docs/guides/developer/DEVELOPER_GUIDE_WIZARD.md) - Desenvolvimento do Wizard
-- 🧪 [**README_TESTS.md**](README_TESTS.md) - Guia completo de testes (2568 testes)
+- 🧪 [**README_TESTS.md**](README_TESTS.md) - Guia completo de testes (~3700 testes)
 
 ### Guias Técnicos
 
@@ -399,6 +409,8 @@ A documentação técnica está disponível na pasta `docs/`:
 - 🗺️ [**COORDINATE_SYSTEMS.md**](docs/reference/COORDINATE_SYSTEMS.md) - Sistemas de coordenadas
 - 🎯 [**STATE_MANAGEMENT_GUIDE.md**](docs/architecture/STATE_MANAGEMENT_GUIDE.md) - Gerenciamento de estado
 - 🚀 [**PERFORMANCE_TUNING.md**](docs/performance/PERFORMANCE_TUNING.md) - Otimizações
+- 🔌 [**HARDWARE_OPTIMIZATION_GUIDE.md**](docs/performance/HARDWARE_OPTIMIZATION_GUIDE.md) - NPU e hardware
+- 💻 [**NPU_SETUP_GUIDE.md**](docs/performance/NPU_SETUP_GUIDE.md) - Configuração de NPU Intel
 
 ### Guias Operacionais
 
@@ -420,66 +432,74 @@ A documentação técnica está disponível na pasta `docs/`:
 ```text
 ZebTrack-AI/
 ├── src/zebtrack/               # Código-fonte principal
-│   ├── __main__.py            # Entry point e Composition Root (DI)
-│   ├── core/                   # Camada de negócios
+│   ├── __main__.py            # Entry point (DI delegada a ApplicationBootstrapper)
+│   ├── core/                   # Camada de negócios (6 sub-packages)
 │   │   ├── state_manager.py   # Gerenciamento de estado (thread-safe)
 │   │   ├── main_view_model.py # Orquestrador principal (MVVM)
-│   │   ├── detector.py        # Serviço de detecção AI
-│   │   ├── detector_service.py # Wrapper do detector
-│   │   ├── project_manager.py  # Gerenciamento de projetos
-│   │   ├── project_service.py  # Lógica de projetos
-│   │   ├── wizard_service.py   # Lógica do wizard
-│   │   ├── live_camera_service.py # Análise ao vivo
-│   │   ├── recording_service.py   # Gravação de sessões
-│   │   └── video_processing_service.py # Processamento de vídeos
+│   │   ├── application_bootstrapper.py # Composition Root (DI)
+│   │   ├── dependency_container.py     # Container DI com LazyRef[T]
+│   │   ├── detection/          # Detecção AI (9 módulos)
+│   │   │   ├── single_detector.py      # Detecção single-aquarium
+│   │   │   ├── multi_aquarium_detector.py # Detecção multi-aquário
+│   │   │   ├── zone_scaler.py          # Escalonamento de zonas
+│   │   │   └── detection_types.py      # ZoneData, MultiAquariumZoneData
+│   │   ├── project/            # Gerenciamento de projetos (14 módulos)
+│   │   │   ├── project_manager.py      # Gerenciador principal
+│   │   │   └── zone_manager.py         # Zonas e parquets
+│   │   ├── video/              # Processamento de vídeo (8 módulos)
+│   │   │   ├── processing_worker.py    # Worker em background
+│   │   │   └── video_processing_service.py
+│   │   ├── recording/          # Gravação e câmera ao vivo (5 módulos)
+│   │   │   ├── live_camera_service.py  # Análise ao vivo
+│   │   │   └── recording_service.py    # Gravação de sessões
+│   │   └── services/           # Serviços de domínio (5 módulos)
+│   │       ├── detector_service.py
+│   │       ├── weight_manager.py       # Pesos + variantes (standard/lite/nano)
+│   │       └── wizard_service.py
+│   ├── coordinators/           # Coordinators decompostos (24 arquivos)
+│   │   ├── video_processing_coordinator.py
+│   │   ├── report_generation_coordinator.py
+│   │   ├── multi_aquarium_coordinator.py
+│   │   ├── sequential_processing_coordinator.py
+│   │   └── ...
 │   ├── io/                     # Camada de I/O
-│   │   ├── recorder.py         # Persistência Parquet
+│   │   ├── recorder.py         # Persistência Parquet (thread-safe, atomic writes)
 │   │   ├── recorder_factory.py # Lazy loading de recorder
 │   │   ├── video_source.py     # Fonte de frames (vídeos)
 │   │   ├── camera.py           # Captura de câmera
-│   │   ├── live_stream_source.py # Fonte limitada por tempo
 │   │   └── frame_source_factory.py # Factory de fontes
 │   ├── ui/                     # Interface gráfica
-│   │   ├── gui.py              # Janela principal
-│   │   ├── ui_coordinator.py   # Mediator (Event-Driven)
-│   │   ├── components/         # Gerenciadores de UI
-│   │   │   ├── canvas_manager.py
+│   │   ├── gui.py              # Janela principal (865 linhas)
+│   │   ├── event_bus_v2.py     # EventBusV2 (único sistema de eventos)
+│   │   ├── components/         # Componentes UI decompostos
+│   │   │   ├── canvas/         # Sub-package canvas (5 módulos)
+│   │   │   ├── project_views/  # Sub-package reports/tree (3 módulos)
 │   │   │   ├── event_dispatcher.py
-│   │   │   ├── project_view_manager.py
-│   │   │   └── video_manager.py
-│   │   ├── dialogs/            # Diálogos extraídos (14 diálogos)
-│   │   │   ├── live_analysis_dialog.py
-│   │   │   ├── live_preview_window.py
 │   │   │   └── ...
-│   │   ├── wizard/             # Wizard de 5 etapas
-│   │   │   ├── wizard_dialog.py
-│   │   │   ├── discovery_step.py
-│   │   │   ├── file_selection_step.py
-│   │   │   ├── experimental_design_step.py
-│   │   │   ├── live_config_step.py
-│   │   │   ├── calibration_step.py
-│   │   │   ├── detection_step.py
-│   │   │   ├── model_selection_step.py
-│   │   │   ├── import_config_step.py
-│   │   │   └── confirmation_step.py
-│   │   └── assets/             # Recursos visuais (logos)
+│   │   ├── dialogs/            # Diálogos extraídos (26 diálogos)
+│   │   └── wizard/             # Wizard de 5 etapas + models Pydantic
 │   ├── analysis/               # Análise comportamental
 │   │   ├── analysis_service.py
-│   │   ├── behavior.py         # Métricas comportamentais
+│   │   ├── behavior.py         # Métricas (velocidade, angular, thigmotaxis)
 │   │   ├── roi.py              # Análise de ROIs
-│   │   └── reporter.py         # Geração de relatórios
+│   │   └── reporters/          # Sub-package de relatórios (8 módulos)
+│   │       ├── word_reporter.py
+│   │       ├── excel_reporter.py
+│   │       ├── parquet_reporter.py
+│   │       └── script_exporter.py
 │   ├── plugins/                # Sistema de plugins
-│   │   ├── base.py             # Interface de plugins
-│   │   ├── yolov8_detector.py
-│   │   └── openvino_detector.py
+│   │   ├── base.py             # Interface de plugins (detect_batch ABC)
+│   │   ├── yolov8_detector.py  # Ultralytics YOLO (CPU/GPU)
+│   │   └── openvino_detector.py # OpenVINO (CPU/GPU/NPU)
 │   └── utils/                  # Utilitários
+│       ├── hardware_detection.py # Detecção CPU/GPU/NPU
+│       ├── hardware_benchmark.py # Benchmark automático
 │       ├── geometry.py         # Cálculos geométricos
-│       ├── coordinates.py      # Conversão de coordenadas
-│       └── filters.py          # Filtros de trajetória
-├── tests/                      # Suíte de testes (2568 testes)
+│       └── cache.py            # TTLCache thread-safe
+├── tests/                      # Suíte de testes (~3700 testes)
 │   ├── conftest.py            # Fixtures e hooks pytest
-│   ├── unit/                  # Testes unitários (~1586)
-│   ├── integration/           # Testes de integração (~949)
+│   ├── unit/                  # Testes unitários (~2806)
+│   ├── integration/           # Testes de integração (~891 GUI)
 │   └── e2e/                   # Testes end-to-end (~35)
 ├── docs/                       # Documentação técnica
 │   ├── ARCHITECTURE.md
@@ -496,19 +516,20 @@ ZebTrack-AI/
 
 #### Camadas Principais
 
-| Camada        | Responsabilidade   | Componentes Chave                                       |
-| ------------- | ------------------ | ------------------------------------------------------- |
-| **Model**     | Estado e dados     | `StateManager`, `ProjectManager`, `DetectorService`     |
-| **View**      | Interface Tkinter  | `GUI`, `Dialogs`, `Wizard`                              |
-| **ViewModel** | Orquestração       | `MainViewModel`, `UICoordinator`                        |
-| **Services**  | Lógica de negócios | `WizardService`, `AnalysisService`, `LiveCameraService` |
+| Camada         | Responsabilidade   | Componentes Chave                                           |
+| -------------- | ------------------ | ----------------------------------------------------------- |
+| **Model**      | Estado e dados     | `StateManager`, `ProjectManager`, `DetectorService`         |
+| **View**       | Interface Tkinter  | `ApplicationGUI`, `Dialogs`, `Wizard`                       |
+| **ViewModel**  | Orquestração       | `MainViewModel`, `DependencyContainer`                      |
+| **Coordinators** | Fluxos de domínio | 24 coordinators decompostos (Video, Reports, MultiAq, etc.) |
+| **Services**   | Lógica de negócios | `WizardService`, `AnalysisService`, `LiveCameraService`     |
 
 #### Fluxo de Dados (Event-Driven)
 
 ```text
-User → UI Event → EventBus → Handler → StateManager → UI Update
-                                ↓
-                          Services/Model
+User → UI Event → EventBusV2 → Coordinator/Handler → StateManager → UI Update (root.after)
+                                    ↓
+                              Services/Model
 ```
 
 **Benefícios**:
@@ -523,13 +544,13 @@ User → UI Event → EventBus → Handler → StateManager → UI Update
 ### Executar Testes
 
 ```bash
-# Testes rápidos (excluindo GUI/slow) - ~1586 testes
+# Testes rápidos (excluindo GUI/slow) - ~2806 testes
 poetry run pytest
 
-# Todos os testes - ~2568 testes (6-7 min)
+# Todos os testes - ~3700 testes (6-7 min)
 poetry run pytest -m "" -n0
 
-# Testes de GUI (sequencial) - ~949 testes
+# Testes de GUI (sequencial) - ~891 testes
 poetry run pytest -m gui -n0
 
 # Testes lentos - ~35 testes
@@ -543,18 +564,16 @@ poetry run pytest --cov=src/zebtrack --cov-report=html
 
 | Categoria                | Quantidade | Tempo       |
 | ------------------------ | ---------- | ----------- |
-| **Testes Unitários**     | 1586       | ~2 min      |
-| **Testes de GUI**        | 949        | ~3 min      |
-| **Testes de Integração** | 33         | ~1 min      |
-| **Testes E2E**           | 16         | ~30s        |
-| **Testes Lentos**        | 35         | ~1 min      |
-| **TOTAL**                | **2568**   | **6-7 min** |
+| **Testes Rápidos**       | ~2806      | ~3 min      |
+| **Testes de GUI**        | ~891       | ~3 min      |
+| **Testes Lentos**        | ~35        | ~1 min      |
+| **TOTAL**                | **~3700**  | **6-7 min** |
 
 ### Cobertura
 
-- **Cobertura Global**: 61%
-- **Módulos Críticos**: >80% (detector, recorder, state_manager)
-- **Meta**: 70% (em progresso)
+- **Cobertura Global**: ~48%
+- **CI Gates**: Linux core 45%, Linux GUI 32%, Windows core 28%
+- **Meta**: OpenSSF Silver 80% (roadmap em progresso)
 
 ### Marcadores de Teste
 

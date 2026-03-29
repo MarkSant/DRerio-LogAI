@@ -5,10 +5,10 @@ authors:
     given-names: "Marco A. S."
     orcid: "https://orcid.org/0009-0000-0014-1485"
   - name: "The Zebtrack Controller Project"
-title: "Zebtrack Controller"
-version: 0.1.0
-date-released: 2025-08-15
-abstract: "A graphical application for object tracking in video streams, with integration for hardware control."
+title: "ZebTrack-AI"
+version: 4.0.0
+date-released: 2026-03-29
+abstract: "An intelligent tracking and behavioral analysis platform for Danio rerio (zebrafish) research using YOLO/OpenVINO deep learning and event-driven architecture."
 keywords:
   - "object tracking"
   - "behavioral analysis"

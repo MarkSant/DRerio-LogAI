@@ -36,7 +36,7 @@ from zebtrack.core.exceptions import (
     ZoneError,
 )
 
-__version__ = "2.1.0"
+__version__ = "4.0.0"
 
 __all__ = [
     "AnalysisError",

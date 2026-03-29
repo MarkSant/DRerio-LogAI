@@ -9,6 +9,69 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [4.0.0] - 2026-03-29
+
+### 🚀 Highlights
+
+v4.0 is a comprehensive rewrite of ZebTrack-AI focused on **stability**,
+**maintainability**, **performance**, and **hardware flexibility**. 133 commits
+since the initial audit plan, spanning 10 refactoring phases, performance
+optimizations, security hardening, and NPU support.
+
+**Breaking Changes:**
+
+- EventBus v1 removed — sole event system is now `EventBusV2`
+- ~108 GUI shim methods removed — consumers use DI-injected components directly
+- `core/` reorganized into 6 domain sub-packages (`detection/`, `project/`,
+  `video/`, `recording/`, `services/`, `events/`)
+- `ProcessingCoordinator` god class decomposed into 5 coordinators
+- `ProjectManager` decomposed into 5 sub-managers
+- `Detector` decomposed into 5 focused modules
+- `reporter.py` decomposed into `reporters/` sub-package (8 files)
+- `SessionCoordinator` decomposed into 3 focused coordinators
+- Legacy thread system for live cameras fully removed
+
+### ✨ New Features
+
+#### NPU & Low-End Hardware Optimization (March 2026)
+
+- **NPU (Neural Processing Unit) support**: Added `npu` device option for
+  OpenVINO inference on Intel Core Ultra processors with dedicated AI
+  accelerator hardware
+- **Model variants**: `WeightManager` now supports `standard`, `lite`, and
+  `nano` variants with automatic selection based on hardware capabilities
+- **Hardware benchmark**: `HardwareBenchmark` utility for automated
+  throughput measurement across CPU, GPU, and NPU devices
+- **Smart backend recommendation**: `recommend_backend()` now considers NPU
+  availability and returns optimal device based on actual benchmark results
+- **Low-end device fallback**: Automatic model variant downgrade when
+  hardware scoring indicates insufficient resources
+- **HardwareStatusViewModel**: New viewmodel for real-time hardware status
+  display with device capabilities and benchmark results
+
+### 🔧 CI & Tooling (March 2026)
+
+- **Live CI badge**: Replaced static "2568 passing" badge with dynamic
+  GitHub Actions CI status badge
+- **Manual CI trigger**: Added `workflow_dispatch` to ci.yml for on-demand runs
+- **VS Code Testing panel**: Configured `--timeout=300`, `--timeout-method=thread`
+  in `.vscode/settings.json` for reliable test execution
+- **Cross-platform test mocks**: Fixed GUI tests that mocked `os.startfile`
+  (Windows-only) — now mock `zebtrack.utils.os_opener.open_path` for Linux CI
+- **Ruff 0.15.8 compatibility**: Fixed 20 new lint errors (RUF059 unused
+  unpacked vars, UP042 StrEnum migration, RUF043 unescaped regex, I001 imports)
+- **Path|str consistency**: Enforced `Path | str` type annotations in
+  `ReportGenerationCoordinator` (10 parameters) with `str()` normalization
+
+### 🔄 Code Quality (March 2026)
+
+- **P0/P1 improvements**: Buffer capacity enforcement, DI validation guards,
+  constants extraction, cross-platform `os_opener` utility, expanded type hints
+- **StrEnum migration**: `ProcessingMode`, `AquariumPerspective`, `GeotaxisMode`
+  migrated from `(str, Enum)` to `StrEnum` (Python 3.11+)
+- **CVE fix**: Updated `requests` 2.32.4 → 2.33.0 (CVE-2026-25645)
+- **Dependencies**: Updated all dependencies and GitHub Actions to latest versions
+
 ### ⚡ Performance
 
 #### Phase 7 — OpenVINO AsyncInferQueue Batch Inference (February 2026)
