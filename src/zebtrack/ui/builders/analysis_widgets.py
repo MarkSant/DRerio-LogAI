@@ -60,7 +60,10 @@ class AnalysisWidgetsBuilder:
                 return self.gui.canvas_manager._render_last_analysis_frame()
 
             def cancel_handler(data):
-                return self.gui.event_dispatcher.publish_event(UIEvents.VIDEO_CANCEL_ANALYSIS, {})
+                return self.gui.event_dispatcher.publish_event(
+                    UIEvents.VIDEO_CANCEL_ANALYSIS,
+                    payloads.VideoCancelAnalysisPayload(),
+                )
 
             self.gui.event_bus_v2.subscribe(UIEvents.ANALYSIS_TRACK_SELECTED, track_handler)
             self.gui.event_bus_v2.subscribe(UIEvents.ANALYSIS_CANCEL_REQUESTED, cancel_handler)

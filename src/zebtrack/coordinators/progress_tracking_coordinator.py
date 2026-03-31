@@ -12,11 +12,13 @@ from __future__ import annotations
 
 import os
 import time
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import structlog
 
 from zebtrack.coordinators.base_coordinator import BaseCoordinator
+from zebtrack.ui import payloads
 from zebtrack.ui.event_bus_v2 import UIEvents
 
 if TYPE_CHECKING:
@@ -136,7 +138,7 @@ class ProgressTrackingCoordinator(BaseCoordinator):
     # Processing Lifecycle Callbacks
     # ========================================================================
 
-    def _on_processing_started(self, video_path: str) -> None:
+    def _on_processing_started(self, video_path: Path | str) -> None:
         """Handle processing start event (callback from ProcessingWorker)."""
         video_name = os.path.basename(video_path)
         log.info("processing_coordinator.processing_started", video=video_name)
@@ -229,7 +231,7 @@ class ProgressTrackingCoordinator(BaseCoordinator):
         else:
             self._publish_event(
                 UIEvents.UI_SHOW_WARNING,
-                {"title": "Erro no Processamento", "message": error_msg},
+                payloads.MessagePayload(title="Erro no Processamento", message=error_msg),
             )
 
     def _on_processing_fatal_error(self, error_data: dict) -> None:
@@ -254,7 +256,7 @@ class ProgressTrackingCoordinator(BaseCoordinator):
 
         self._publish_event(
             UIEvents.UI_SHOW_ERROR,
-            {"title": "Erro Fatal", "message": error_msg},
+            payloads.MessagePayload(title="Erro Fatal", message=error_msg),
         )
 
     def _update_ui_for_processing_stop(self) -> None:
@@ -309,10 +311,16 @@ class ProgressTrackingCoordinator(BaseCoordinator):
             if success:
                 self._publish_event(
                     UIEvents.UI_SHOW_INFO,
-                    {"title": "Concluído", "message": "Processamento concluído com sucesso."},
+                    payloads.MessagePayload(
+                        title="Concluído",
+                        message="Processamento concluído com sucesso.",
+                    ),
                 )
 
-        self._publish_event(UIEvents.UI_REFRESH_PROJECT_VIEWS, {})
+        self._publish_event(
+            UIEvents.UI_REFRESH_PROJECT_VIEWS,
+            payloads.ProjectViewsRefreshRequestedPayload(),
+        )
 
     def _show_batch_summary(self, ctx: dict | None) -> None:
         """Show summary dialog after batch processing finishes."""
@@ -341,7 +349,10 @@ class ProgressTrackingCoordinator(BaseCoordinator):
         event_name = UIEvents.UI_SHOW_WARNING if failed else UIEvents.UI_SHOW_INFO
         self._publish_event(
             event_name,
-            {"title": "Processamento em Lote", "message": "\n".join(msg_parts)},
+            payloads.MessagePayload(
+                title="Processamento em Lote",
+                message="\n".join(msg_parts),
+            ),
         )
 
     # ========================================================================

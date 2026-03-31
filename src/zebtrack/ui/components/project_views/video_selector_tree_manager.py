@@ -338,7 +338,7 @@ class VideoSelectorTreeManager:
                 self.event_bus_v2.publish(
                     Event(
                         type=UIEvents.UI_VIDEO_HIERARCHY_SNAPSHOT_UPDATED,
-                        data={"snapshot": snapshot},
+                        data=payloads.VideoHierarchySnapshotUpdatedPayload(snapshot=snapshot),
                         source="VideoSelectorTreeManager._build_video_hierarchy_snapshot",
                     )
                 )
@@ -415,7 +415,7 @@ class VideoSelectorTreeManager:
                 self.event_bus_v2.publish(
                     Event(
                         type=UIEvents.VIDEO_TREE_REFRESH_REQUESTED,
-                        data={"filter_text": filter_text},
+                        data=payloads.VideoTreeRefreshRequestedPayload(filter_text=filter_text),
                         source="VideoSelectorTreeManager._build_readiness_snapshot",
                     )
                 )

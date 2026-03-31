@@ -205,7 +205,7 @@ class EventDispatcher:
 
         event_bus.subscribe(
             UIEvents.UI_NAVIGATE_TO_PROJECT_VIEW,
-            lambda d: gui.project_initializer.create_main_control_frame(),
+            lambda d: gui.root.after(0, gui.project_initializer.create_main_control_frame),
         )
 
         event_bus.subscribe(
@@ -213,26 +213,36 @@ class EventDispatcher:
             lambda d: gui.state_synchronizer._destroy_notebook_and_main_controls(),
         )
 
-        # Generic UI updates
+        # Generic UI updates — schedule via root.after so the event bus handler
+        # returns immediately and is not counted as "slow" by the timing monitor.
         event_bus.subscribe(
             UIEvents.UI_SHOW_INFO,
-            lambda d: gui.dialog_manager.show_info(
-                _payload_get(d, "title", "Info"),
-                _payload_get(d, "message", ""),
+            lambda d: gui.root.after(
+                0,
+                lambda: gui.dialog_manager.show_info(
+                    _payload_get(d, "title", "Info"),
+                    _payload_get(d, "message", ""),
+                ),
             ),
         )
         event_bus.subscribe(
             UIEvents.UI_SHOW_WARNING,
-            lambda d: gui.dialog_manager.show_warning(
-                _payload_get(d, "title", "Aviso"),
-                _payload_get(d, "message", ""),
+            lambda d: gui.root.after(
+                0,
+                lambda: gui.dialog_manager.show_warning(
+                    _payload_get(d, "title", "Aviso"),
+                    _payload_get(d, "message", ""),
+                ),
             ),
         )
         event_bus.subscribe(
             UIEvents.UI_SHOW_ERROR,
-            lambda d: gui.dialog_manager.show_error(
-                _payload_get(d, "title", "Erro"),
-                _payload_get(d, "message", ""),
+            lambda d: gui.root.after(
+                0,
+                lambda: gui.dialog_manager.show_error(
+                    _payload_get(d, "title", "Erro"),
+                    _payload_get(d, "message", ""),
+                ),
             ),
         )
 
@@ -240,8 +250,14 @@ class EventDispatcher:
         event_bus.subscribe(
             UIEvents.UI_SHOW_EXTERNAL_TRIGGER_NOTICE,
             lambda d: gui.dialog_manager.show_external_trigger_notice(
-                _payload_get(d, "session_label", ""),
-                **({k: v for k, v in _payload_to_dict(d).items() if k != "session_label"}),
+                _payload_get(d, "session_label", "") or _payload_get(d, "folder_name", ""),
+                **(
+                    {
+                        k: v
+                        for k, v in _payload_to_dict(d).items()
+                        if k not in ("session_label", "folder_name")
+                    }
+                ),
             ),
         )
         event_bus.subscribe(

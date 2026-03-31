@@ -80,12 +80,13 @@ class ProjectInitializer:
 
         # Populate video selector tree after tabs are built
         if gui.event_bus:
+            from zebtrack.ui import payloads
             from zebtrack.ui.event_bus_v2 import Event, UIEvents
 
             gui.event_bus.publish(
                 Event(
                     type=UIEvents.VIDEO_TREE_REFRESH_REQUESTED,
-                    data={"filter_text": None},
+                    data=payloads.VideoTreeRefreshRequestedPayload(filter_text=None),
                     source="ProjectInitializer.create_main_control_frame",
                 )
             )
@@ -242,12 +243,13 @@ class ProjectInitializer:
         gui.reports_tree_manager.update_reports_tree()
 
         if gui.event_bus:
+            from zebtrack.ui import payloads
             from zebtrack.ui.event_bus_v2 import Event, UIEvents
 
             gui.event_bus.publish(
                 Event(
                     type=UIEvents.VIDEO_TREE_REFRESH_REQUESTED,
-                    data={"filter_text": None},
+                    data=payloads.VideoTreeRefreshRequestedPayload(filter_text=None),
                     source="ProjectInitializer.initialize_prerecorded",
                 )
             )

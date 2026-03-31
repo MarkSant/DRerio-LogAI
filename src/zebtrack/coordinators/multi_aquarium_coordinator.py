@@ -19,7 +19,7 @@ from typing import TYPE_CHECKING, Any, cast
 import structlog
 
 from zebtrack.coordinators.base_coordinator import BaseCoordinator
-from zebtrack.core.video.processing_mode import ProcessingMode
+from zebtrack.core.video.processing_mode import ProcessingMode, ProcessingReport
 from zebtrack.ui import payloads as payloads
 from zebtrack.ui.event_bus_v2 import UIEvents
 
@@ -391,7 +391,9 @@ class MultiAquariumCoordinator(BaseCoordinator):
 
         self.project_manager.save_project()
 
-        self._publish_event(UIEvents.UI_REFRESH_PROJECT_VIEWS, {})
+        self._publish_event(
+            UIEvents.UI_REFRESH_PROJECT_VIEWS, payloads.ProjectViewsRefreshRequestedPayload()
+        )
         log.info("processing_coordinator.assignment.completed", videos=len(target_videos))
 
     def _relocate_multi_aquarium_folders(
@@ -655,8 +657,8 @@ class MultiAquariumCoordinator(BaseCoordinator):
         )
 
         self._publish_event(
-            UIEvents.ZONE_PROCESSING_MODE_CHANGED,
-            {"mode": mode.name, "source": source},
+            UIEvents.UI_UPDATE_PROCESSING_MODE,
+            payloads.UpdateProcessingModePayload(report=ProcessingReport(mode=mode, source=source)),
         )
 
         log.debug(

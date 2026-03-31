@@ -603,12 +603,13 @@ class LiveSessionManagerMixin:
 
         if self.event_bus and remaining > 0:
             from zebtrack.ui.event_bus_v2 import Event, UIEvents
+            from zebtrack.ui.payloads import StatusPayload
 
             status_msg = (
                 f"● Gravando: {elapsed:.1f}s / {duration_s:.1f}s (Restante: {remaining:.1f}s)"
             )
             self.event_bus.publish(
-                Event(type=UIEvents.UI_SET_STATUS, data={"message": status_msg}),
+                Event(type=UIEvents.UI_SET_STATUS, data=StatusPayload(message=status_msg)),
             )
             self.root.after(1000, self._update_session_countdown, duration_s)
 
@@ -622,6 +623,7 @@ class LiveSessionManagerMixin:
             return
 
         from zebtrack.ui.event_bus_v2 import Event, UIEvents
+        from zebtrack.ui.payloads import StatusPayload
 
         if lag_seconds < 2.0:
             status_msg = f"⏳ Analisando... ({lag_seconds:.1f}s atrás) - Gravação OK"
@@ -640,5 +642,5 @@ class LiveSessionManagerMixin:
         )
 
         self.event_bus.publish(
-            Event(type=UIEvents.UI_SET_STATUS, data={"message": status_msg}),
+            Event(type=UIEvents.UI_SET_STATUS, data=StatusPayload(message=status_msg)),
         )

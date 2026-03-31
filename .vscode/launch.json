@@ -12,7 +12,29 @@
             "console": "integratedTerminal",
             "cwd": "${workspaceFolder}",
             "env": {
-                "PYTHONPATH": "${workspaceFolder}/src"
+                "PYTHONPATH": "${workspaceFolder}/src",
+                // Dumps Python traceback to stderr on fatal crashes (segfault, etc.)
+                "PYTHONFAULTHANDLER": "1"
+            }
+        },
+        {
+            "name": "ZebTrack: Run App (Verbose Logs)",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "zebtrack",
+            // Enables DEBUG level for all zebtrack modules.
+            // Logs are written to logs/analysis.log AND printed in the Debug Console.
+            "args": [
+                "--log-level", "zebtrack=DEBUG"
+            ],
+            "justMyCode": false,
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}/src",
+                "PYTHONFAULTHANDLER": "1",
+                // Writes logs to logs/debug_session.log (separate from analysis.log)
+                "ZEBTRACK_LOG_DIR": "${workspaceFolder}/logs"
             }
         },
         {
@@ -25,7 +47,8 @@
             "console": "integratedTerminal",
             "cwd": "${workspaceFolder}",
             "env": {
-                "PYTHONPATH": "${workspaceFolder}/src"
+                "PYTHONPATH": "${workspaceFolder}/src",
+                "PYTHONFAULTHANDLER": "1"
             }
         },
         {

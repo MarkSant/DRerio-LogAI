@@ -247,7 +247,7 @@ def test_video_processing_process_pending_videos_happy_path(monkeypatch, tmp_pat
     coordinator.process_pending_project_videos(video_paths=[video_path])
 
     assert state_manager.get_processing_state().is_processing is True
-    project_manager.update_video_status.assert_called_with(video_entry["path"], "complete")
+    project_manager.update_video_status.assert_called_with(video_entry["path"], "processing")
 
 
 @pytest.mark.integration

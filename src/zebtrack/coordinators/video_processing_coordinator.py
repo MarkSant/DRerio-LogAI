@@ -141,7 +141,7 @@ class VideoProcessingCoordinator(
     # Internal helpers
     # ------------------------------------------------------------------
 
-    def _get_video_dimensions(self, video_path: str) -> tuple[int, int] | None:
+    def _get_video_dimensions(self, video_path: Path | str) -> tuple[int, int] | None:
         """Return (width, height) for a video file, or *None* on failure.
 
         Delegates to ``VideoMetadataService`` when available; falls back to
@@ -364,7 +364,7 @@ class VideoProcessingCoordinator(
             self.ui_state_controller.activate_analysis_view_mode()
 
         for video in videos_to_process:
-            self.project_manager.update_video_status(video["path"], "complete")
+            self.project_manager.update_video_status(video["path"], "processing")
 
         self._publish_event(
             UIEvents.UI_SHOW_INFO,
@@ -382,7 +382,7 @@ class VideoProcessingCoordinator(
     def create_processing_context(
         self,
         videos_to_process: list[dict],
-        output_base_dir: str,
+        output_base_dir: Path | str,
         single_video_config: dict | None = None,
         zone_data: Any = None,
         process_single_video_func: Callable | None = None,
@@ -450,9 +450,7 @@ class VideoProcessingCoordinator(
         def _on_started_wrapper():
             if ptc:
                 # PTC._on_processing_started expects a video_path: str
-                first_video = (
-                    videos_to_process[0].get("video_path", "") if videos_to_process else ""
-                )
+                first_video = videos_to_process[0].get("path", "") if videos_to_process else ""
                 ptc._on_processing_started(first_video)
 
         def _on_progress_wrapper(
@@ -474,10 +472,13 @@ class VideoProcessingCoordinator(
         ) -> None:
             self._on_video_completed(videos_to_process, idx, total, exp_id, success)
 
-        def _on_completed_wrapper(cancelled: bool, output_dir: str, summary: dict | None = None):
+        def _on_completed_wrapper(
+            cancelled: bool, output_dir: Path | str, summary: dict | None = None
+        ):
             if ptc:
                 result_data = {
                     "videos_to_process": videos_to_process,
+                    "success": not cancelled,
                     "cancelled": cancelled,
                     "output_dir": output_dir,
                     "summary": summary,
@@ -712,7 +713,7 @@ class VideoProcessingCoordinator(
             for video_info in final_tasks:
                 pv = video_info.get("path")
                 if pv:
-                    self.project_manager.update_video_status(pv, "complete")
+                    self.project_manager.update_video_status(pv, "processing")
 
             if len(final_tasks) > 1:
                 self._publish_event(

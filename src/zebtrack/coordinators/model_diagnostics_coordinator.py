@@ -21,6 +21,7 @@ import structlog
 from zebtrack.coordinators.base_coordinator import BaseCoordinator, CoordinatorValidationError
 from zebtrack.plugins import DETECTOR_PLUGINS
 from zebtrack.ui.event_bus_v2 import Event, EventBusV2, UIEvents
+from zebtrack.ui.payloads import MessagePayload, StatusPayload
 
 try:
     from ultralytics import YOLO
@@ -230,7 +231,7 @@ class ModelDiagnosticsCoordinator(BaseCoordinator):
                 self.event_bus.publish(
                     Event(
                         type=UIEvents.UI_SHOW_ERROR,
-                        data={"title": "Erro", "message": "Nenhum peso ativo selecionado."},
+                        data=MessagePayload(title="Erro", message="Nenhum peso ativo selecionado."),
                     )
                 )
             return
@@ -286,10 +287,10 @@ class ModelDiagnosticsCoordinator(BaseCoordinator):
                             self.event_bus.publish(
                                 Event(
                                     type=UIEvents.UI_SHOW_ERROR,
-                                    data={
-                                        "title": "Erro",
-                                        "message": "A conversão para OpenVINO falhou.",
-                                    },
+                                    data=MessagePayload(
+                                        title="Erro",
+                                        message="A conversão para OpenVINO falhou.",
+                                    ),
                                 )
                             )
                         return
@@ -303,7 +304,7 @@ class ModelDiagnosticsCoordinator(BaseCoordinator):
                             self.event_bus.publish(
                                 Event(
                                     type=UIEvents.UI_SET_STATUS,
-                                    data={"message": "Diagnóstico cancelado."},
+                                    data=StatusPayload(message="Diagnóstico cancelado."),
                                 )
                             )
                         return
@@ -381,7 +382,7 @@ class ModelDiagnosticsCoordinator(BaseCoordinator):
                 self.event_bus.publish(
                     Event(
                         type=UIEvents.UI_SHOW_ERROR,
-                        data={"title": "Erro ao Carregar Modelo", "message": f"Falha: {e}"},
+                        data=MessagePayload(title="Erro ao Carregar Modelo", message=f"Falha: {e}"),
                     )
                 )
 
@@ -458,10 +459,10 @@ class ModelDiagnosticsCoordinator(BaseCoordinator):
                 self.event_bus.publish(
                     Event(
                         type=UIEvents.UI_SHOW_ERROR,
-                        data={
-                            "title": "Erro",
-                            "message": "YOLO não está disponível (ultralytics não instalado)",
-                        },
+                        data=MessagePayload(
+                            title="Erro",
+                            message="YOLO não está disponível (ultralytics não instalado)",
+                        ),
                     )
                 )
             raise DiagnosticAbortError from None
@@ -514,13 +515,13 @@ class ModelDiagnosticsCoordinator(BaseCoordinator):
                 self.event_bus.publish(
                     Event(
                         type=UIEvents.UI_SHOW_ERROR,
-                        data={
-                            "title": "Erro de Modelo",
-                            "message": (
+                        data=MessagePayload(
+                            title="Erro de Modelo",
+                            message=(
                                 "O diretório do modelo OpenVINO não contém arquivos "
                                 ".xml necessários. Por favor, reconverta o modelo."
                             ),
-                        },
+                        ),
                     )
                 )
             raise DiagnosticAbortError from None
@@ -533,10 +534,10 @@ class ModelDiagnosticsCoordinator(BaseCoordinator):
                 self.event_bus.publish(
                     Event(
                         type=UIEvents.UI_SHOW_ERROR,
-                        data={
-                            "title": "Erro de Plugin",
-                            "message": "Plugin OpenVINO não encontrado para diagnóstico.",
-                        },
+                        data=MessagePayload(
+                            title="Erro de Plugin",
+                            message="Plugin OpenVINO não encontrado para diagnóstico.",
+                        ),
                     )
                 )
             raise DiagnosticAbortError from None
@@ -553,10 +554,10 @@ class ModelDiagnosticsCoordinator(BaseCoordinator):
                 self.event_bus.publish(
                     Event(
                         type=UIEvents.UI_SHOW_ERROR,
-                        data={
-                            "title": "Erro de Plugin",
-                            "message": "O plugin OpenVINO não possui o método predict necessário.",
-                        },
+                        data=MessagePayload(
+                            title="Erro de Plugin",
+                            message="O plugin OpenVINO não possui o método predict necessário.",
+                        ),
                     )
                 )
             raise DiagnosticAbortError from None
@@ -601,10 +602,10 @@ class ModelDiagnosticsCoordinator(BaseCoordinator):
                 self.event_bus.publish(
                     Event(
                         type=UIEvents.UI_SHOW_ERROR,
-                        data={
-                            "title": "Erro",
-                            "message": f"Não foi possível abrir o vídeo: {video_path}",
-                        },
+                        data=MessagePayload(
+                            title="Erro",
+                            message=f"Não foi possível abrir o vídeo: {video_path}",
+                        ),
                     )
                 )
             raise DiagnosticAbortError from None
@@ -637,7 +638,7 @@ class ModelDiagnosticsCoordinator(BaseCoordinator):
                     self.event_bus.publish(
                         Event(
                             type=UIEvents.UI_SET_STATUS,
-                            data={"message": status_msg},
+                            data=StatusPayload(message=status_msg),
                         )
                     )
 
@@ -669,12 +670,12 @@ class ModelDiagnosticsCoordinator(BaseCoordinator):
                             self.event_bus.publish(
                                 Event(
                                     type=UIEvents.UI_SHOW_ERROR,
-                                    data={
-                                        "title": "Erro de Inferência OpenVINO",
-                                        "message": (
+                                    data=MessagePayload(
+                                        title="Erro de Inferência OpenVINO",
+                                        message=(
                                             f"Falha na inferência do frame {frame_count + 1}: {exc}"
                                         ),
-                                    },
+                                    ),
                                 )
                             )
                         raise DiagnosticAbortError from None
@@ -709,10 +710,10 @@ class ModelDiagnosticsCoordinator(BaseCoordinator):
                     self.event_bus.publish(
                         Event(
                             type=UIEvents.UI_SHOW_INFO,
-                            data={
-                                "title": "Sucesso",
-                                "message": f"Relatório de diagnóstico salvo em:\n{save_path}",
-                            },
+                            data=MessagePayload(
+                                title="Sucesso",
+                                message=f"Relatório de diagnóstico salvo em:\n{save_path}",
+                            ),
                         )
                     )
             except OSError as e:
@@ -720,17 +721,18 @@ class ModelDiagnosticsCoordinator(BaseCoordinator):
                     self.event_bus.publish(
                         Event(
                             type=UIEvents.UI_SHOW_ERROR,
-                            data={
-                                "title": "Erro ao Salvar",
-                                "message": f"Não foi possível salvar o arquivo: {e}",
-                            },
+                            data=MessagePayload(
+                                title="Erro ao Salvar",
+                                message=f"Não foi possível salvar o arquivo: {e}",
+                            ),
                         )
                     )
 
         if self.event_bus:
             self.event_bus.publish(
                 Event(
-                    type=UIEvents.UI_SET_STATUS, data={"message": "Diagnóstico concluído. Pronto."}
+                    type=UIEvents.UI_SET_STATUS,
+                    data=StatusPayload(message="Diagnóstico concluído. Pronto."),
                 )
             )
 

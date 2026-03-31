@@ -6,7 +6,9 @@ from typing import TYPE_CHECKING, Any
 
 import structlog
 
+from zebtrack.ui import payloads as payloads
 from zebtrack.ui.event_bus_v2 import Event, UIEvents
+from zebtrack.ui.payloads import StatusPayload
 
 if TYPE_CHECKING:
     from zebtrack.core.application_bootstrapper import BootstrapResult
@@ -507,14 +509,21 @@ class AnalysisControlViewModel:
                 )
 
         self.ui_event_bus.publish(
-            Event(type=UIEvents.SET_STATUS, data={"message": "Geração de relatórios concluída."})
+            Event(
+                type=UIEvents.SET_STATUS,
+                data=StatusPayload(message="Geração de relatórios concluída."),
+            )
         )
 
         # Refresh tree to show new artifacts
         self.ui_event_bus.publish(
             Event(
                 type=UIEvents.UI_REFRESH_PROJECT_VIEWS,
-                data={"reason": "reports_generated", "append_summary": True, "immediate": False},
+                data=payloads.ProjectViewsRefreshRequestedPayload(
+                    reason="reports_generated",
+                    append_summary=True,
+                    immediate=False,
+                ),
             )
         )
 

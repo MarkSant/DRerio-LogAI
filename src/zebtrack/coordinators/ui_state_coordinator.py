@@ -15,6 +15,19 @@ import structlog
 from zebtrack.core.services.weight_manager import OpenVINOExportError
 from zebtrack.core.video.processing_mode import ProcessingMode, ProcessingReport
 from zebtrack.ui.event_bus_v2 import Event, UIEvents
+from zebtrack.ui.payloads import (
+    MessagePayload,
+    StatusPayload,
+    UIRequestWeightActionPayload,
+    UIRequestWeightTypePayload,
+    UISelectTabPayload,
+    UISetActiveWeightPayload,
+    UIUpdateOpenVinoCheckboxPayload,
+    UIUpdateOpenVinoStatusPayload,
+    UIUpdateWeightsListPayload,
+    UpdateProcessingModePayload,
+    VideoPathPayload,
+)
 
 if TYPE_CHECKING:
     from zebtrack.core.project.project_manager import ProjectManager
@@ -160,13 +173,15 @@ class UIStateController:
                 self.ui_event_bus.publish(
                     Event(
                         type=UIEvents.UI_UPDATE_WEIGHTS_LIST,
-                        data={"weights": self.main_view_model.get_all_weight_names()},
+                        data=UIUpdateWeightsListPayload(
+                            weights=self.main_view_model.get_all_weight_names()
+                        ),
                     )
                 )
             self.ui_event_bus.publish(
                 Event(
                     type=UIEvents.UI_SET_ACTIVE_WEIGHT,
-                    data={"weight_name": new_name},
+                    data=UISetActiveWeightPayload(weight_name=new_name),
                 )
             )
             self.set_active_weight(new_name)  # This will also trigger conversion check
@@ -175,7 +190,7 @@ class UIStateController:
             self.ui_event_bus.publish(
                 Event(
                     type=UIEvents.UI_SHOW_ERROR,
-                    data={"title": "Erro ao Adicionar Peso", "message": str(e)},
+                    data=MessagePayload(title="Erro ao Adicionar Peso", message=str(e)),
                 )
             )
 
@@ -192,12 +207,17 @@ class UIStateController:
                 self.ui_event_bus.publish(
                     Event(
                         type=UIEvents.UI_UPDATE_WEIGHTS_LIST,
-                        data={"weights": self.main_view_model.get_all_weight_names()},
+                        data=UIUpdateWeightsListPayload(
+                            weights=self.main_view_model.get_all_weight_names()
+                        ),
                     )
                 )
             default_name, _ = self.weight_manager.get_default_weight()
             self.ui_event_bus.publish(
-                Event(type=UIEvents.UI_SET_ACTIVE_WEIGHT, data={"weight_name": default_name})
+                Event(
+                    type=UIEvents.UI_SET_ACTIVE_WEIGHT,
+                    data=UISetActiveWeightPayload(weight_name=default_name),
+                )
             )
             self.set_active_weight(default_name, None)
         except (ValueError, OSError) as e:
@@ -205,7 +225,7 @@ class UIStateController:
             self.ui_event_bus.publish(
                 Event(
                     type=UIEvents.UI_SHOW_ERROR,
-                    data={"title": "Erro ao Excluir Peso", "message": str(e)},
+                    data=MessagePayload(title="Erro ao Excluir Peso", message=str(e)),
                 )
             )
 
@@ -226,7 +246,10 @@ class UIStateController:
 
                 logger.info("controller.active_weight.set", name=candidate)
                 self.ui_event_bus.publish(
-                    Event(type=UIEvents.UI_SET_ACTIVE_WEIGHT, data={"weight_name": candidate})
+                    Event(
+                        type=UIEvents.UI_SET_ACTIVE_WEIGHT,
+                        data=UISetActiveWeightPayload(weight_name=candidate),
+                    )
                 )
                 self.update_openvino_status(dialog)
                 if self.main_view_model.use_openvino:
@@ -240,7 +263,7 @@ class UIStateController:
                 self.ui_event_bus.publish(
                     Event(
                         type=UIEvents.UI_SET_ACTIVE_WEIGHT,
-                        data={"weight_name": ""},
+                        data=UISetActiveWeightPayload(weight_name=""),
                     )
                 )
                 self.update_openvino_status(dialog)
@@ -273,7 +296,10 @@ class UIStateController:
         # If type cannot be determined, ask user
         if weight_type is None:
             self.ui_event_bus.publish(
-                Event(type=UIEvents.UI_REQUEST_WEIGHT_TYPE, data={"filepath": str(filepath)})
+                Event(
+                    type=UIEvents.UI_REQUEST_WEIGHT_TYPE,
+                    data=UIRequestWeightTypePayload(filepath=str(filepath)),
+                )
             )
             return
 
@@ -282,7 +308,9 @@ class UIStateController:
             self.ui_event_bus.publish(
                 Event(
                     type=UIEvents.UI_REQUEST_WEIGHT_ACTION,
-                    data={"weight_type": weight_type, "filepath": str(filepath)},
+                    data=UIRequestWeightActionPayload(
+                        weight_type=weight_type, filepath=str(filepath)
+                    ),
                 )
             )
             return
@@ -319,7 +347,9 @@ class UIStateController:
             self.ui_event_bus.publish(
                 Event(
                     type=UIEvents.UI_UPDATE_OPENVINO_CHECKBOX,
-                    data={"is_checked": self.main_view_model.use_openvino},
+                    data=UIUpdateOpenVinoCheckboxPayload(
+                        is_checked=self.main_view_model.use_openvino,
+                    ),
                 )
             )
             if self.main_view_model.use_openvino and self.main_view_model.active_weight_name:
@@ -348,7 +378,9 @@ class UIStateController:
             self.ui_event_bus.publish(
                 Event(
                     type=UIEvents.UI_SET_STATUS,
-                    data={"message": f"Convertendo {active_weight} para OpenVINO..."},
+                    data=StatusPayload(
+                        message=f"Convertendo {active_weight} para OpenVINO...",
+                    ),
                 )
             )
 
@@ -360,7 +392,9 @@ class UIStateController:
                 self.ui_event_bus.publish(
                     Event(
                         type=UIEvents.UI_SET_STATUS,
-                        data={"message": "Verificação de conversão concluída. Pronto."},
+                        data=StatusPayload(
+                            message="Verificação de conversão concluída. Pronto.",
+                        ),
                     )
                 )
         except OpenVINOExportError as e:
@@ -374,13 +408,13 @@ class UIStateController:
                 self.ui_event_bus.publish(
                     Event(
                         type=UIEvents.UI_SHOW_ERROR,
-                        data={"title": "Erro na Conversão OpenVINO", "message": str(e)},
+                        data=MessagePayload(title="Erro na Conversão OpenVINO", message=str(e)),
                     )
                 )
                 self.ui_event_bus.publish(
                     Event(
                         type=UIEvents.UI_SET_STATUS,
-                        data={"message": "Erro na conversão OpenVINO."},
+                        data=StatusPayload(message="Erro na conversão OpenVINO."),
                     )
                 )
 
@@ -420,7 +454,7 @@ class UIStateController:
         self.ui_event_bus.publish(
             Event(
                 type=UIEvents.UI_UPDATE_PROCESSING_MODE,
-                data={"report": report},
+                data=UpdateProcessingModePayload(report=report),
             )
         )
 
@@ -435,7 +469,7 @@ class UIStateController:
         self.ui_event_bus.publish(
             Event(
                 type=UIEvents.UI_UPDATE_OPENVINO_STATUS,
-                data={"status": status},
+                data=UIUpdateOpenVinoStatusPayload(status=status),
             )
         )
 
@@ -462,7 +496,7 @@ class UIStateController:
                 self.ui_event_bus.publish(
                     Event(
                         type=UIEvents.UI_SET_STATUS,
-                        data={"message": "Parâmetros do detector atualizados."},
+                        data=StatusPayload(message="Parâmetros do detector atualizados."),
                     )
                 )
 
@@ -472,7 +506,7 @@ class UIStateController:
             self.ui_event_bus.publish(
                 Event(
                     type=UIEvents.UI_SHOW_ERROR,
-                    data={"title": "Erro de Validação", "message": str(e)},
+                    data=MessagePayload(title="Erro de Validação", message=str(e)),
                 )
             )
             return False
@@ -505,25 +539,26 @@ class UIStateController:
                 self.ui_event_bus.publish(
                     Event(
                         type=UIEvents.UI_SELECT_TAB,
-                        data={"tab_name": "zone_tab"},
+                        data=UISelectTabPayload(tab_name="zone_tab"),
                     )
                 )
                 first_video = self.project_manager.get_next_video()
                 if first_video:
                     self.ui_event_bus.publish(
                         Event(
-                            type=UIEvents.UI_DISPLAY_VIDEO_FRAME, data={"video_path": first_video}
+                            type=UIEvents.UI_DISPLAY_VIDEO_FRAME,
+                            data=VideoPathPayload(video_path=first_video),
                         )
                     )
                 self.ui_event_bus.publish(
                     Event(
                         type=UIEvents.UI_SHOW_ERROR,
-                        data={
-                            "title": "Configuração Necessária",
-                            "message": "Erro: A área de processamento principal (aquário) não foi "
+                        data=MessagePayload(
+                            title="Configuração Necessária",
+                            message="Erro: A área de processamento principal (aquário) não foi "
                             "definida. Por favor, defina-a na aba 'Configuração de Zonas' "
                             "antes de continuar.",
-                        },
+                        ),
                     )
                 )
 
@@ -535,10 +570,10 @@ class UIStateController:
             self.ui_event_bus.publish(
                 Event(
                     type=UIEvents.UI_SHOW_WARNING,
-                    data={
-                        "title": "Vídeo não selecionado",
-                        "message": "Selecione um vídeo na lista antes de aplicar o template.",
-                    },
+                    data=MessagePayload(
+                        title="Vídeo não selecionado",
+                        message="Selecione um vídeo na lista antes de aplicar o template.",
+                    ),
                 )
             )
             return
@@ -558,10 +593,10 @@ class UIStateController:
             self.ui_event_bus.publish(
                 Event(
                     type=UIEvents.UI_SHOW_INFO,
-                    data={
-                        "title": "Template Aplicado",
-                        "message": f"As zonas foram atualizadas com o template '{template_name}'.",
-                    },
+                    data=MessagePayload(
+                        title="Template Aplicado",
+                        message=f"As zonas foram atualizadas com o template '{template_name}'.",
+                    ),
                 )
             )
         except FileNotFoundError as exc:
@@ -571,10 +606,10 @@ class UIStateController:
             self.ui_event_bus.publish(
                 Event(
                     type=UIEvents.UI_SHOW_ERROR,
-                    data={
-                        "title": "Arquivo não encontrado",
-                        "message": "O arquivo associado ao template não foi encontrado.",
-                    },
+                    data=MessagePayload(
+                        title="Arquivo não encontrado",
+                        message="O arquivo associado ao template não foi encontrado.",
+                    ),
                 )
             )
         except Exception as exc:
@@ -584,7 +619,7 @@ class UIStateController:
             self.ui_event_bus.publish(
                 Event(
                     type=UIEvents.UI_SHOW_ERROR,
-                    data={"title": "Erro ao aplicar template", "message": str(exc)},
+                    data=MessagePayload(title="Erro ao aplicar template", message=str(exc)),
                 )
             )
 
@@ -632,7 +667,7 @@ class UIStateController:
             self.ui_event_bus.publish(
                 Event(
                     type=UIEvents.UI_SHOW_INFO,
-                    data={"title": guide["title"], "message": guide["message"]},
+                    data=MessagePayload(title=guide["title"], message=guide["message"]),
                 )
             )
 

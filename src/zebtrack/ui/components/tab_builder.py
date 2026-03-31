@@ -3,6 +3,7 @@ from typing import TYPE_CHECKING, Any, cast
 
 import structlog
 
+from zebtrack.ui import payloads
 from zebtrack.ui.components.arduino_dashboard import ArduinoDashboardWidget
 from zebtrack.ui.components.video_display import VideoDisplayWidget
 from zebtrack.ui.components.zone_controls import ZoneControlsWidget
@@ -48,7 +49,10 @@ class TabBuilder:
         Button(
             controls_container,
             text="Fechar Projeto",
-            command=lambda: self.gui.event_dispatcher.publish_event(UIEvents.PROJECT_CLOSE, {}),
+            command=lambda: self.gui.event_dispatcher.publish_event(
+                UIEvents.PROJECT_CLOSE,
+                payloads.EmptyPayload(),
+            ),
         ).pack(side="right", padx=5)
 
         # Build overview panel (Delegates to GUI/WidgetFactory)
@@ -69,11 +73,11 @@ class TabBuilder:
             self.gui.event_bus_v2.publish(
                 Event(
                     type=UIEvents.PROJECT_VIEWS_REFRESH_REQUESTED,
-                    data={
-                        "reason": "TabBuilder initialization",
-                        "append_summary": False,
-                        "immediate": False,
-                    },
+                    data=payloads.ProjectViewsRefreshRequestedPayload(
+                        reason="TabBuilder initialization",
+                        append_summary=False,
+                        immediate=False,
+                    ),
                     source="TabBuilder.build_main_controls_tab",
                 )
             )
@@ -192,14 +196,20 @@ class TabBuilder:
         self.gui.start_rec_btn = Button(
             parent,
             text="Iniciar Gravação",
-            command=lambda: self.gui.event_dispatcher.publish_event(UIEvents.RECORDING_START, {}),
+            command=lambda: self.gui.event_dispatcher.publish_event(
+                UIEvents.RECORDING_START,
+                payloads.EmptyPayload(),
+            ),
         )
         self.gui.start_rec_btn.pack(side="left", padx=5)
 
         self.gui.stop_rec_btn = Button(
             parent,
             text="Parar Gravação",
-            command=lambda: self.gui.event_dispatcher.publish_event(UIEvents.RECORDING_STOP, {}),
+            command=lambda: self.gui.event_dispatcher.publish_event(
+                UIEvents.RECORDING_STOP,
+                payloads.EmptyPayload(),
+            ),
             state="disabled",
         )
         self.gui.stop_rec_btn.pack(side="left", padx=5)

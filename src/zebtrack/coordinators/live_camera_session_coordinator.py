@@ -30,6 +30,7 @@ from zebtrack.coordinators.base_coordinator import (
     CoordinatorValidationError,
 )
 from zebtrack.core.state_manager import StateCategory
+from zebtrack.ui import payloads
 from zebtrack.ui.event_bus_v2 import Event, UIEvents
 
 if TYPE_CHECKING:
@@ -167,7 +168,7 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
         analysis_interval_frames: int = 1,
         display_interval_frames: int = 1,
         record_video: bool = True,
-        output_base_dir: str | None = None,
+        output_base_dir: Path | str | None = None,
         zones: list[dict] | None = None,
         wizard_data: dict | None = None,
     ) -> bool:
@@ -369,7 +370,7 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
             )
 
             # Publish event
-            self._publish_event(UIEvents.LIVE_SESSION_STOPPED, {})
+            self._publish_event(UIEvents.LIVE_SESSION_STOPPED, payloads.EmptyPayload())
 
             # v2.3.1: Re-enable start recording button after session ends
             if self.event_bus:

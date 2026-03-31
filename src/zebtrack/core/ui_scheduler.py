@@ -169,6 +169,11 @@ class UIScheduler:
         # Check if method exists before scheduling
         try:
             method = getattr(view, method_name, None)
+            if (method is None or not callable(method)) and hasattr(
+                view, "analysis_view_controller"
+            ):
+                controller = getattr(view, "analysis_view_controller", None)
+                method = getattr(controller, method_name, None) if controller is not None else None
             if method is None or not callable(method):
                 log.error(
                     "ui_scheduler.update_view_method_not_found",

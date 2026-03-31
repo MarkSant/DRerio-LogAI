@@ -4,6 +4,7 @@ from tkinter import StringVar, ttk
 
 import structlog
 
+from zebtrack.ui import payloads
 from zebtrack.ui.components.base import BaseWidget
 from zebtrack.ui.event_bus_v2 import EventBusV2, UIEvents
 
@@ -42,6 +43,9 @@ class ProjectOverviewWidget(BaseWidget):
         # Widget references
         self.project_overview_tree: ttk.Treeview | None = None
         self.status_cards_frame: ttk.Frame | None = None
+
+        # Reverse mapping: treeview iid → video_path
+        self._iid_to_path: dict[str, str] = {}
 
         super().__init__(parent, event_bus=event_bus, **kwargs)
 
@@ -171,7 +175,9 @@ class ProjectOverviewWidget(BaseWidget):
 
     def _on_refresh_clicked(self) -> None:
         """Handle refresh button click."""
-        self.emit_event(UIEvents.PROJECT_REFRESH_REQUESTED, {})
+        self.emit_event(
+            UIEvents.PROJECT_REFRESH_REQUESTED, payloads.ProjectRefreshRequestedPayload()
+        )
 
     def _on_video_selected(self, event) -> None:
         """Handle video selection in tree."""
@@ -179,7 +185,17 @@ class ProjectOverviewWidget(BaseWidget):
             selection = self.project_overview_tree.selection()
             if selection:
                 item_id = selection[0]
-                self.emit_event(UIEvents.PROJECT_VIDEO_SELECTED, {"item_id": item_id})
+                video_path = self._iid_to_path.get(item_id)
+                if video_path:
+                    self.emit_event(
+                        UIEvents.PROJECT_VIDEO_SELECTED,
+                        payloads.ProjectVideoSelectedPayload(video_path=video_path),
+                    )
+                else:
+                    log.debug(
+                        "project_overview.video_selected.no_path",
+                        item_id=item_id,
+                    )
 
     def _on_video_double_click(self, event) -> None:
         """Handle video double-click in tree."""
@@ -310,6 +326,9 @@ class ProjectOverviewWidget(BaseWidget):
         # Clear existing tree
         self.clear_tree()
 
+        # Reset reverse mapping
+        self._iid_to_path = {}
+
         # Store video index reference (for context menus, etc.)
         self._video_index = video_index
 
@@ -339,6 +358,9 @@ class ProjectOverviewWidget(BaseWidget):
                 # Add videos
                 for video in day.get("videos", []):
                     video_id = video["id"]
+                    video_path = video.get("path", "")
+                    if video_path:
+                        self._iid_to_path[video_id] = video_path
 
                     self.add_tree_item(
                         item_id=video_id,

@@ -9,6 +9,7 @@ from typing import Any
 
 import structlog
 
+from zebtrack.ui import payloads
 from zebtrack.ui.components.base import BaseWidget
 from zebtrack.ui.event_bus_v2 import EventBusV2, UIEvents
 from zebtrack.ui.wizard.models import AquariumPerspective, GeotaxisMode
@@ -353,7 +354,7 @@ class BehavioralConfigWidget(BaseWidget):
         self._update_geotaxis_visibility()
         self.emit_event(
             UIEvents.BEHAVIORAL_CONFIG_PERSPECTIVE_CHANGED,
-            {"perspective": perspective},
+            payloads.BehavioralConfigPerspectiveChangedPayload(perspective=perspective),
         )
         self._emit_values_changed()
 
@@ -361,7 +362,10 @@ class BehavioralConfigWidget(BaseWidget):
         """Handle geotaxis enable/disable toggle."""
         self._update_geotaxis_visibility()
         enabled = self.geotaxis_enabled_var.get()
-        self.emit_event(UIEvents.BEHAVIORAL_CONFIG_GEOTAXIS_TOGGLED, {"enabled": enabled})
+        self.emit_event(
+            UIEvents.BEHAVIORAL_CONFIG_GEOTAXIS_TOGGLED,
+            payloads.BehavioralConfigGeotaxisToggledPayload(enabled=enabled),
+        )
         self._emit_values_changed()
 
     def _on_mode_changed(self, event=None) -> None:
@@ -375,7 +379,10 @@ class BehavioralConfigWidget(BaseWidget):
 
     def _emit_values_changed(self) -> None:
         """Emit event with current configuration values."""
-        self.emit_event(UIEvents.BEHAVIORAL_CONFIG_VALUES_CHANGED, {"config": self.get_values()})
+        self.emit_event(
+            UIEvents.BEHAVIORAL_CONFIG_VALUES_CHANGED,
+            payloads.BehavioralConfigValuesChangedPayload(config=self.get_values()),
+        )
 
     def _update_geotaxis_visibility(self) -> None:
         """Update visibility of geotaxis sub-options based on current state."""

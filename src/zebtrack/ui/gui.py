@@ -11,6 +11,7 @@ from tkinter import (
     Menu,
     StringVar,
     TclError,
+    messagebox,
     ttk,
 )
 from tkinter import font as tkfont
@@ -721,6 +722,21 @@ class ApplicationGUI:
         """Hide the progress bar."""
         if self.analysis_display_widget:
             self.analysis_display_widget.hide_progress()
+
+    @public_api
+    def show_info(self, title: str, message: str) -> None:
+        """Show an informational dialog."""
+        messagebox.showinfo(title, message)
+
+    @public_api
+    def show_warning(self, title: str, message: str) -> None:
+        """Show a warning dialog."""
+        messagebox.showwarning(title, message)
+
+    @public_api
+    def show_error(self, title: str, message: str) -> None:
+        """Show an error dialog."""
+        messagebox.showerror(title, message)
 
     @public_api
     def update_button_state(self, button_name, state):

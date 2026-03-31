@@ -24,6 +24,14 @@ if TYPE_CHECKING:
     from zebtrack.ui.event_bus_v2 import EventBusV2
 
 from zebtrack.ui.event_bus_v2 import Event, UIEvents
+from zebtrack.ui.payloads import (
+    AnalysisMetadataPayload,
+    AnalysisTaskStatusPayload,
+    DetectionOverlayPayload,
+    FrameDisplayPayload,
+    ProcessingStatsWrapperPayload,
+    StatusPayload,
+)
 
 log = structlog.get_logger()
 
@@ -75,43 +83,42 @@ class ProgressNotifierMixin:
             self.ui_event_bus.publish(
                 Event(
                     type=UIEvents.SET_STATUS,
-                    data={"message": f"{overall_progress} - {step_status}"},
+                    data=StatusPayload(message=f"{overall_progress} - {step_status}"),
                 )
             )
             self.ui_event_bus.publish(
                 Event(
                     type=UIEvents.UI_UPDATE_ANALYSIS_TASK_STATUS,
-                    data={
-                        "payload": {
-                            "index": index,
-                            "total": total_videos,
-                            "experiment_id": experiment_id,
-                            "step": status_message,
-                            "progress": progress_fraction,
-                        }
-                    },
+                    data=AnalysisTaskStatusPayload(
+                        index=index,
+                        total=total_videos,
+                        experiment_id=experiment_id,
+                        step=status_message,
+                        progress=progress_fraction,
+                    ),
                 )
             )
 
             self.ui_event_bus.publish(
                 Event(
                     type=UIEvents.UI_UPDATE_ANALYSIS_TASK_STATUS,
-                    data={
-                        "payload": {
-                            "index": index,
-                            "total": total_videos,
-                            "experiment_id": experiment_id,
-                            "step": status_message,
-                            "progress_fraction": float(progress_fraction),
-                        }
-                    },
+                    data=AnalysisTaskStatusPayload(
+                        index=index,
+                        total=total_videos,
+                        experiment_id=experiment_id,
+                        step=status_message,
+                        progress_fraction=float(progress_fraction),
+                    ),
                 )
             )
 
             if stats:
                 if self.ui_event_bus:
                     self.ui_event_bus.publish(
-                        Event(type=UIEvents.UI_UPDATE_PROCESSING_STATS, data={"stats": stats})
+                        Event(
+                            type=UIEvents.UI_UPDATE_PROCESSING_STATS,
+                            data=ProcessingStatsWrapperPayload(stats=stats),
+                        )
                     )
 
             processing_report = None
@@ -127,10 +134,10 @@ class ProgressNotifierMixin:
                     self.ui_event_bus.publish(
                         Event(
                             type=UIEvents.UI_UPDATE_DETECTION_OVERLAY,
-                            data={
-                                "detections": detections,
-                                "report": processing_report,
-                            },
+                            data=DetectionOverlayPayload(
+                                detections=detections,
+                                report=processing_report,
+                            ),
                         )
                     )
 
@@ -139,10 +146,10 @@ class ProgressNotifierMixin:
                     self.ui_event_bus.publish(
                         Event(
                             type=UIEvents.UI_DISPLAY_FRAME,
-                            data={
-                                "frame": frame,
-                                "detections": detections or [],
-                            },
+                            data=FrameDisplayPayload(
+                                frame=frame,
+                                detections=detections or [],
+                            ),
                         )
                     )
 
@@ -171,21 +178,22 @@ class ProgressNotifierMixin:
             self.ui_event_bus.publish(
                 Event(
                     type=UIEvents.UI_UPDATE_ANALYSIS_TASK_STATUS,
-                    data={
-                        "payload": {
-                            "index": index,
-                            "total": total_videos,
-                            "experiment_id": experiment_id,
-                            "step": status_message,
-                        }
-                    },
+                    data=AnalysisTaskStatusPayload(
+                        index=index,
+                        total=total_videos,
+                        experiment_id=experiment_id,
+                        step=status_message,
+                    ),
                 )
             )
 
             if stats:
                 if self.ui_event_bus:
                     self.ui_event_bus.publish(
-                        Event(type=UIEvents.UI_UPDATE_PROCESSING_STATS, data={"stats": stats})
+                        Event(
+                            type=UIEvents.UI_UPDATE_PROCESSING_STATS,
+                            data=ProcessingStatsWrapperPayload(stats=stats),
+                        )
                     )
 
             processing_report = None
@@ -201,10 +209,10 @@ class ProgressNotifierMixin:
                     self.ui_event_bus.publish(
                         Event(
                             type=UIEvents.UI_UPDATE_DETECTION_OVERLAY,
-                            data={
-                                "detections": detections,
-                                "report": processing_report,
-                            },
+                            data=DetectionOverlayPayload(
+                                detections=detections,
+                                report=processing_report,
+                            ),
                         )
                     )
 
@@ -213,10 +221,10 @@ class ProgressNotifierMixin:
                     self.ui_event_bus.publish(
                         Event(
                             type=UIEvents.UI_DISPLAY_FRAME,
-                            data={
-                                "frame": frame,
-                                "detections": detections or [],
-                            },
+                            data=FrameDisplayPayload(
+                                frame=frame,
+                                detections=detections or [],
+                            ),
                         )
                     )
 
@@ -254,7 +262,10 @@ class ProgressNotifierMixin:
         """Schedule analysis metadata update via event bus."""
         if self.ui_event_bus:
             self.ui_event_bus.publish(
-                Event(type=UIEvents.UI_UPDATE_ANALYSIS_METADATA, data={"metadata": metadata})
+                Event(
+                    type=UIEvents.UI_UPDATE_ANALYSIS_METADATA,
+                    data=AnalysisMetadataPayload(metadata=metadata),
+                )
             )
 
     def _notify_task_status_start(self, *, index: int, total: int, experiment_id: str) -> None:
@@ -263,13 +274,11 @@ class ProgressNotifierMixin:
             self.ui_event_bus.publish(
                 Event(
                     type=UIEvents.UI_UPDATE_ANALYSIS_TASK_STATUS,
-                    data={
-                        "payload": {
-                            "index": index,
-                            "total": total,
-                            "experiment_id": experiment_id,
-                        }
-                    },
+                    data=AnalysisTaskStatusPayload(
+                        index=index,
+                        total=total,
+                        experiment_id=experiment_id,
+                    ),
                 )
             )
 

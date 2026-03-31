@@ -38,6 +38,7 @@ from typing import TYPE_CHECKING, Any
 
 import structlog
 
+from zebtrack.ui import payloads
 from zebtrack.ui.event_bus_v2 import Event, EventBusV2, UIEvents
 
 if TYPE_CHECKING:
@@ -245,7 +246,9 @@ class BaseUIComponent(ABC):
             data: Optional event data.
         """
         if self.event_bus:
-            self.event_bus.publish(Event(type=event_type, data=data or {}))
+            self.event_bus.publish(
+                Event(type=event_type, data=data if data is not None else payloads.EmptyPayload())
+            )
             self._log.debug("component.event.emitted", event_type=event_type.name)
         else:
             self._log.debug("component.event.no_bus", event_type=str(event_type))

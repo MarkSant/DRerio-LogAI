@@ -6,6 +6,7 @@ from unittest.mock import MagicMock, patch
 
 from zebtrack.core.video.video_processing_service import VideoContext, VideoProcessingService
 from zebtrack.ui.event_bus_v2 import Event, UIEvents
+from zebtrack.ui.payloads import AnalysisMetadataPayload, AnalysisTaskStatusPayload
 
 
 def _make_service():
@@ -215,7 +216,10 @@ def test_schedule_analysis_metadata_update_publishes():
     service._schedule_analysis_metadata_update({"group": "G1"})
 
     service.ui_event_bus.publish.assert_called_once_with(
-        Event(type=UIEvents.UI_UPDATE_ANALYSIS_METADATA, data={"metadata": {"group": "G1"}})
+        Event(
+            type=UIEvents.UI_UPDATE_ANALYSIS_METADATA,
+            data=AnalysisMetadataPayload(metadata={"group": "G1"}),
+        )
     )
 
 
@@ -227,7 +231,7 @@ def test_notify_task_status_start_publishes():
     service.ui_event_bus.publish.assert_called_once_with(
         Event(
             type=UIEvents.UI_UPDATE_ANALYSIS_TASK_STATUS,
-            data={"payload": {"index": 1, "total": 5, "experiment_id": "exp1"}},
+            data=AnalysisTaskStatusPayload(index=1, total=5, experiment_id="exp1"),
         )
     )
 
@@ -241,14 +245,12 @@ def test_make_progress_callback_publishes_status():
     service.ui_event_bus.publish.assert_called_once_with(
         Event(
             type=UIEvents.UI_UPDATE_ANALYSIS_TASK_STATUS,
-            data={
-                "payload": {
-                    "index": 0,
-                    "total": 2,
-                    "experiment_id": "exp1",
-                    "step": "Processing",
-                }
-            },
+            data=AnalysisTaskStatusPayload(
+                index=0,
+                total=2,
+                experiment_id="exp1",
+                step="Processing",
+            ),
         )
     )
 

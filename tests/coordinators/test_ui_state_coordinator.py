@@ -10,6 +10,13 @@ import pytest
 
 from zebtrack.coordinators.ui_state_coordinator import UIStateController
 from zebtrack.ui.event_bus_v2 import Event, UIEvents
+from zebtrack.ui.payloads import (
+    UIRequestWeightActionPayload,
+    UIRequestWeightTypePayload,
+    UISetActiveWeightPayload,
+    UIUpdateOpenVinoCheckboxPayload,
+    UIUpdateWeightsListPayload,
+)
 
 
 @pytest.fixture
@@ -65,10 +72,11 @@ def test_add_new_weight_success_updates_ui(controller):
     calls = controller.ui_event_bus.publish.call_args_list
     assert calls[0].args[0] == Event(
         type=UIEvents.UI_UPDATE_WEIGHTS_LIST,
-        data={"weights": ["w1", "w2"]},
+        data=UIUpdateWeightsListPayload(weights=["w1", "w2"]),
     )
     assert calls[1].args[0] == Event(
-        type=UIEvents.UI_SET_ACTIVE_WEIGHT, data={"weight_name": "w3.pt"}
+        type=UIEvents.UI_SET_ACTIVE_WEIGHT,
+        data=UISetActiveWeightPayload(weight_name="w3.pt"),
     )
     controller.set_active_weight.assert_called_once_with("w3.pt")
 
@@ -92,10 +100,11 @@ def test_delete_weight_success_publishes_updates(controller):
     calls = controller.ui_event_bus.publish.call_args_list
     assert calls[0].args[0] == Event(
         type=UIEvents.UI_UPDATE_WEIGHTS_LIST,
-        data={"weights": ["w1", "w2"]},
+        data=UIUpdateWeightsListPayload(weights=["w1", "w2"]),
     )
     assert calls[1].args[0] == Event(
-        type=UIEvents.UI_SET_ACTIVE_WEIGHT, data={"weight_name": "default.pt"}
+        type=UIEvents.UI_SET_ACTIVE_WEIGHT,
+        data=UISetActiveWeightPayload(weight_name="default.pt"),
     )
     controller.set_active_weight.assert_called_once_with("default.pt", None)
 
@@ -114,7 +123,10 @@ def test_load_new_weight_requests_type(controller):
     controller.load_new_weight(filepath="/tmp/w.pt", weight_type=None)
 
     controller.ui_event_bus.publish.assert_called_once_with(
-        Event(type=UIEvents.UI_REQUEST_WEIGHT_TYPE, data={"filepath": str(Path("/tmp/w.pt"))})
+        Event(
+            type=UIEvents.UI_REQUEST_WEIGHT_TYPE,
+            data=UIRequestWeightTypePayload(filepath=str(Path("/tmp/w.pt"))),
+        )
     )
 
 
@@ -126,7 +138,7 @@ def test_load_new_weight_requests_action(controller):
     controller.ui_event_bus.publish.assert_called_once_with(
         Event(
             type=UIEvents.UI_REQUEST_WEIGHT_ACTION,
-            data={"weight_type": "seg", "filepath": str(Path("/tmp/w.pt"))},
+            data=UIRequestWeightActionPayload(weight_type="seg", filepath=str(Path("/tmp/w.pt"))),
         )
     )
 
@@ -159,7 +171,10 @@ def test_set_openvino_usage_publishes_and_updates(controller):
     controller.set_openvino_usage(True, dialog="dlg")
 
     controller.ui_event_bus.publish.assert_called_once_with(
-        Event(type=UIEvents.UI_UPDATE_OPENVINO_CHECKBOX, data={"is_checked": True})
+        Event(
+            type=UIEvents.UI_UPDATE_OPENVINO_CHECKBOX,
+            data=UIUpdateOpenVinoCheckboxPayload(is_checked=True),
+        )
     )
     controller.convert_active_weight_to_openvino.assert_called_once_with("dlg")
     controller.update_openvino_status.assert_called_once_with("dlg")

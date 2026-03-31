@@ -10,11 +10,13 @@ Estimated size: ~450 lines (target <800).
 from __future__ import annotations
 
 import os
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import structlog
 
 from zebtrack.coordinators.base_coordinator import BaseCoordinator
+from zebtrack.ui import payloads as payloads
 from zebtrack.ui.event_bus_v2 import UIEvents
 
 if TYPE_CHECKING:
@@ -91,7 +93,7 @@ class SequentialProcessingCoordinator(BaseCoordinator):
 
     def _start_sequential_multi_aquarium_processing(
         self,
-        video_path: str,
+        video_path: Path | str,
         multi_zone_data: Any,
         single_video_config: dict | None = None,
     ) -> None:
@@ -350,7 +352,7 @@ class SequentialProcessingCoordinator(BaseCoordinator):
     # Sequential Advancement (from _on_video_completed)
     # ========================================================================
 
-    def _handle_sequential_multi_aquarium(self, video_path: str) -> bool:
+    def _handle_sequential_multi_aquarium(self, video_path: Path | str) -> bool:
         """Check and advance sequential multi-aquarium processing.
 
         Called from _on_video_completed to check if we need to advance
@@ -372,7 +374,7 @@ class SequentialProcessingCoordinator(BaseCoordinator):
         return True
 
     def _handle_sequential_single_video_start(
-        self, video_path: str, multi_zone_data: Any, single_video_config: dict | None
+        self, video_path: Path | str, multi_zone_data: Any, single_video_config: dict | None
     ) -> bool:
         """Handle starting sequential processing for a single video.
 
@@ -455,7 +457,9 @@ class SequentialProcessingCoordinator(BaseCoordinator):
             UIEvents.UI_SHOW_INFO if not failed else UIEvents.UI_SHOW_WARNING,
             {"title": "Processamento Sequencial", "message": msg},
         )
-        self._publish_event(UIEvents.UI_REFRESH_PROJECT_VIEWS, {})
+        self._publish_event(
+            UIEvents.UI_REFRESH_PROJECT_VIEWS, payloads.ProjectViewsRefreshRequestedPayload()
+        )
 
         # Clear context
         self._sequential_context = None

@@ -338,11 +338,16 @@ class RecordingSessionCoordinator(BaseCoordinator):
 
         # FIX: Navigate to Analysis View to show recording progress
         if self.event_bus:
-            self.event_bus.publish(Event(type=UIEvents.UI_NAVIGATE_TO_ANALYSIS_VIEW, data={}))
+            self.event_bus.publish(
+                Event(
+                    type=UIEvents.UI_NAVIGATE_TO_ANALYSIS_VIEW,
+                    data=payloads.EmptyPayload(),
+                )
+            )
             self.event_bus.publish(
                 Event(
                     type=UIEvents.UI_UPDATE_ANALYSIS_TASK_STATUS,
-                    data={"status": "recording", "message": "Iniciando gravação..."},
+                    data=payloads.AnalysisTaskStatusPayload(step="Iniciando gravação..."),
                 )
             )
 
@@ -386,7 +391,7 @@ class RecordingSessionCoordinator(BaseCoordinator):
             )
 
             # Publish events
-            self._publish_event(UIEvents.RECORDING_STOPPED, {})
+            self._publish_event(UIEvents.RECORDING_STOPPED, payloads.EmptyPayload())
             if self.event_bus:
                 self.event_bus.publish(
                     Event(
@@ -476,19 +481,21 @@ class RecordingSessionCoordinator(BaseCoordinator):
                 self.event_bus.publish(
                     Event(
                         type=UIEvents.UI_SHOW_EXTERNAL_TRIGGER_NOTICE,
-                        data={
-                            "folder_name": context["folder_name"],
-                            "day": context.get("day"),
-                            "group": context.get("group"),
-                            "cobaia": context.get("cobaia"),
-                            "port": port,
-                        },
+                        data=payloads.ExternalTriggerNoticePayload(
+                            folder_name=context["folder_name"],
+                            day=context.get("day"),
+                            group=context.get("group"),
+                            cobaia=context.get("cobaia"),
+                            port=port,
+                        ),
                     )
                 )
                 self.event_bus.publish(
                     Event(
                         type=UIEvents.UI_SET_STATUS,
-                        data={"message": f"Aguardando sinal externo... (porta {port})"},
+                        data=payloads.StatusPayload(
+                            message=f"Aguardando sinal externo... (porta {port})"
+                        ),
                     )
                 )
             return True
@@ -547,19 +554,21 @@ class RecordingSessionCoordinator(BaseCoordinator):
             self.event_bus.publish(
                 Event(
                     type=UIEvents.UI_UPDATE_BUTTON_STATE,
-                    data={"button_name": "start_rec", "state": "normal"},
+                    data=payloads.UpdateButtonStatePayload(button_name="start_rec", state="normal"),
                 )
             )
             self.event_bus.publish(
                 Event(
                     type=UIEvents.UI_UPDATE_BUTTON_STATE,
-                    data={"button_name": "stop_rec", "state": "disabled"},
+                    data=payloads.UpdateButtonStatePayload(
+                        button_name="stop_rec", state="disabled"
+                    ),
                 )
             )
             self.event_bus.publish(
                 Event(
                     type=UIEvents.UI_SET_STATUS,
-                    data={"message": "Pronto."},
+                    data=payloads.StatusPayload(message="Pronto."),
                 )
             )
 

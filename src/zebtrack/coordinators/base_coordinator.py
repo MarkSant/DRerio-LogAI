@@ -242,7 +242,7 @@ class BaseCoordinator:
         if self.event_bus is not None:
             from zebtrack.ui.event_bus_v2 import Event
 
-            self.event_bus.publish(Event(type=event_type, data=data or {}))
+            self.event_bus.publish(Event(type=event_type, data=data))
             self.logger.debug(
                 "event.published",
                 event_type=getattr(event_type, "name", str(event_type)),

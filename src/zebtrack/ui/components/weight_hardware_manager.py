@@ -51,7 +51,7 @@ class WeightHardwareManager:
     # Weight type / action dialogs
     # ------------------------------------------------------------------
 
-    def handle_request_weight_type(self, filepath: str) -> None:
+    def handle_request_weight_type(self, filepath: Path | str) -> None:
         """Handle request to identify weight type."""
         from tkinter import simpledialog
 
@@ -75,7 +75,7 @@ class WeightHardwareManager:
                 filepath=filepath, weight_type=weight_type
             )
 
-    def handle_request_weight_action(self, filepath: str, weight_type: str) -> None:
+    def handle_request_weight_action(self, filepath: Path | str, weight_type: str) -> None:
         """Handle request for action on new weight."""
         from tkinter import messagebox
 
@@ -164,6 +164,7 @@ class WeightHardwareManager:
         """Update the GPU hardware information shown in the UI."""
         gpu_name = "CPU apenas"
         recommended_backend = hardware_summary.get("recommended_backend", "pytorch")
+        npu_suffix = ""
 
         # Try to get NVIDIA GPU name first
         if hardware_summary.get("cuda_available", False):
@@ -181,12 +182,16 @@ class WeightHardwareManager:
             if gpu_devices:
                 gpu_name = "Intel GPU"
 
+        # Check for NPU availability
+        if hardware_summary.get("has_npu", False):
+            npu_suffix = " + NPU"
+
         # Format display string
         backend_display = "PyTorch" if recommended_backend == "pytorch" else "OpenVINO"
-        if "CPU" in gpu_name:
+        if "CPU" in gpu_name and not npu_suffix:
             display_text = f"Hardware: {gpu_name}"
         else:
-            display_text = f"Hardware: {gpu_name} (recomendado: {backend_display})"
+            display_text = f"Hardware: {gpu_name}{npu_suffix} (recomendado: {backend_display})"
 
         self._gpu_display_var.set(display_text)
 

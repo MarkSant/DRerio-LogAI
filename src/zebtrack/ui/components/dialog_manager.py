@@ -473,12 +473,13 @@ class DialogManager:
 
         # NEW PATH - Event-Driven Architecture v4.0
         if self.event_bus_v2:
+            from zebtrack.ui import payloads
             from zebtrack.ui.event_bus_v2 import Event, UIEvents
 
             self.event_bus_v2.publish(
                 Event(
                     type=UIEvents.ZONES_UPDATED,
-                    data={"zone_data": None},
+                    data=payloads.ZonesUpdatedPayload(zone_data=None),
                     source="DialogManager.import_and_apply_template",
                 )
             )
@@ -609,17 +610,18 @@ class DialogManager:
         """
         # NEW PATH - Event-Driven Architecture v4.0
         if self.event_bus_v2:
+            from zebtrack.ui import payloads
             from zebtrack.ui.event_bus_v2 import Event, UIEvents
 
             self.event_bus_v2.publish(
                 Event(
                     type=UIEvents.READINESS_SNAPSHOT_UPDATED,
-                    data={
-                        "ready_with_trajectory": ready_with_trajectory,
-                        "ready_with_zones": ready_with_zones,
-                        "arena_only": arena_only,
-                        "without_arena": without_arena,
-                    },
+                    data=payloads.ReadinessSnapshotUpdatedPayload(
+                        ready_with_trajectory=ready_with_trajectory,
+                        ready_with_zones=ready_with_zones,
+                        arena_only=arena_only,
+                        without_arena=without_arena,
+                    ),
                     source="DialogManager.ask_reuse_zones",
                 )
             )
@@ -1010,26 +1012,30 @@ class DialogManager:
             )
 
             if self.event_bus_v2:
+                from zebtrack.ui import payloads
                 from zebtrack.ui.event_bus_v2 import Event, UIEvents
 
                 self.event_bus_v2.publish(
                     Event(
                         type=UIEvents.ZONES_UPDATED,
-                        data={"zone_data": None},
+                        data=payloads.ZonesUpdatedPayload(zone_data=None),
                         source="DialogManager.offer_zone_reuse",
                     )
                 )
                 self.event_bus_v2.publish(
                     Event(
                         type=UIEvents.VIDEO_TREE_REFRESH_REQUESTED,
-                        data={"filter_text": None},
+                        data=payloads.VideoTreeRefreshRequestedPayload(filter_text=None),
                         source="DialogManager.offer_zone_reuse",
                     )
                 )
                 self.event_bus_v2.publish(
                     Event(
                         type=UIEvents.PROJECT_VIEWS_REFRESH_REQUESTED,
-                        data={"reason": status_message, "append_summary": True},
+                        data=payloads.ProjectViewsRefreshRequestedPayload(
+                            reason=status_message,
+                            append_summary=True,
+                        ),
                         source="DialogManager.offer_zone_reuse",
                     )
                 )
@@ -1049,19 +1055,23 @@ class DialogManager:
             self.gui.set_status(status_message)
 
             if self.event_bus_v2:
+                from zebtrack.ui import payloads
                 from zebtrack.ui.event_bus_v2 import Event, UIEvents
 
                 self.event_bus_v2.publish(
                     Event(
                         type=UIEvents.PROJECT_VIEWS_REFRESH_REQUESTED,
-                        data={"reason": status_message, "append_summary": True},
+                        data=payloads.ProjectViewsRefreshRequestedPayload(
+                            reason=status_message,
+                            append_summary=True,
+                        ),
                         source="DialogManager.offer_zone_reuse",
                     )
                 )
                 self.event_bus_v2.publish(
                     Event(
                         type=UIEvents.VIDEO_TREE_REFRESH_REQUESTED,
-                        data={"filter_text": None},
+                        data=payloads.VideoTreeRefreshRequestedPayload(filter_text=None),
                         source="DialogManager.offer_zone_reuse",
                     )
                 )
@@ -1101,19 +1111,23 @@ class DialogManager:
             self.show_info("Sucesso", status_message)
 
             if self.event_bus_v2:
+                from zebtrack.ui import payloads
                 from zebtrack.ui.event_bus_v2 import Event, UIEvents
 
                 self.event_bus_v2.publish(
                     Event(
                         type=UIEvents.ZONES_UPDATED,
-                        data={"zone_data": zone_data},
+                        data=payloads.ZonesUpdatedPayload(zone_data=zone_data),
                         source="DialogManager.change_roi_color",
                     )
                 )
                 self.event_bus_v2.publish(
                     Event(
                         type=UIEvents.PROJECT_VIEWS_REFRESH_REQUESTED,
-                        data={"reason": status_message, "append_summary": True},
+                        data=payloads.ProjectViewsRefreshRequestedPayload(
+                            reason=status_message,
+                            append_summary=True,
+                        ),
                         source="DialogManager.change_roi_color",
                     )
                 )
@@ -1152,19 +1166,23 @@ class DialogManager:
                 self.show_info("Sucesso", status_message)
 
                 if self.event_bus_v2:
+                    from zebtrack.ui import payloads
                     from zebtrack.ui.event_bus_v2 import Event, UIEvents
 
                     self.event_bus_v2.publish(
                         Event(
                             type=UIEvents.ZONES_UPDATED,
-                            data={"zone_data": zone_data},
+                            data=payloads.ZonesUpdatedPayload(zone_data=zone_data),
                             source="DialogManager.rename_selected_roi",
                         )
                     )
                     self.event_bus_v2.publish(
                         Event(
                             type=UIEvents.PROJECT_VIEWS_REFRESH_REQUESTED,
-                            data={"reason": status_message, "append_summary": True},
+                            data=payloads.ProjectViewsRefreshRequestedPayload(
+                                reason=status_message,
+                                append_summary=True,
+                            ),
                             source="DialogManager.rename_selected_roi",
                         )
                     )

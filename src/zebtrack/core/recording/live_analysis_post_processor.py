@@ -309,6 +309,7 @@ class LiveAnalysisPostProcessorMixin:
             return
 
         from zebtrack.ui.event_bus_v2 import Event, UIEvents
+        from zebtrack.ui.payloads import MessagePayload
 
         if analysis_success and stats:
             message = (
@@ -343,7 +344,10 @@ class LiveAnalysisPostProcessorMixin:
             title = "Gravação Concluída"
 
         self.event_bus.publish(
-            Event(type=UIEvents.UI_SHOW_INFO, data={"title": title, "message": message}),
+            Event(
+                type=UIEvents.UI_SHOW_INFO,
+                data=MessagePayload(title=title, message=message),
+            ),
         )
 
     def _start_recording_after_arena(self) -> None:

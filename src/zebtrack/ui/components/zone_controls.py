@@ -6,6 +6,7 @@ from typing import Any
 
 import structlog
 
+from zebtrack.ui import payloads
 from zebtrack.ui.components.base import BaseWidget
 from zebtrack.ui.event_bus_v2 import EventBusV2, UIEvents
 
@@ -737,7 +738,7 @@ class ZoneControlsWidget(BaseWidget):
 
     def _on_conclude_video_clicked(self) -> None:
         """Handle conclude video button click."""
-        self.emit_event(UIEvents.ZONE_CONCLUDE_VIDEO, {})
+        self.emit_event(UIEvents.ZONE_CONCLUDE_VIDEO, payloads.EmptyPayload())
 
     def _on_auto_detect_clicked(self) -> None:
         """Handle auto-detect button click."""
@@ -779,15 +780,15 @@ class ZoneControlsWidget(BaseWidget):
 
     def _on_draw_main_polygon_clicked(self) -> None:
         """Handle draw main polygon button click."""
-        self.emit_event(UIEvents.ZONE_DRAW_ARENA, {})
+        self.emit_event(UIEvents.ZONE_DRAW_ARENA, payloads.EmptyPayload())
 
     def _on_draw_roi_clicked(self) -> None:
         """Handle draw ROI button click."""
-        self.emit_event(UIEvents.ZONE_DRAW_ROI, {})
+        self.emit_event(UIEvents.ZONE_DRAW_ROI, payloads.EmptyPayload())
 
     def _on_toggle_view_clicked(self) -> None:
         """Handle toggle view button click."""
-        self.emit_event(UIEvents.ZONE_TOGGLE_VIEW, {})
+        self.emit_event(UIEvents.ZONE_TOGGLE_VIEW, payloads.EmptyPayload())
 
     def _on_apply_template_clicked(self) -> None:
         """Handle apply template button click."""
@@ -798,15 +799,15 @@ class ZoneControlsWidget(BaseWidget):
 
     def _on_save_template_clicked(self) -> None:
         """Handle save template button click."""
-        self.emit_event(UIEvents.ZONE_TEMPLATE_SAVE, {})
+        self.emit_event(UIEvents.ZONE_TEMPLATE_SAVE, payloads.EmptyPayload())
 
     def _on_import_template_clicked(self) -> None:
         """Handle import template button click."""
-        self.emit_event(UIEvents.ZONE_TEMPLATE_IMPORT, {})
+        self.emit_event(UIEvents.ZONE_TEMPLATE_IMPORT, payloads.EmptyPayload())
 
     def _on_clear_applied_template_clicked(self) -> None:
         """Handle clear applied template drawings from active video."""
-        self.emit_event(UIEvents.ZONE_TEMPLATE_CLEAR_APPLIED, {})
+        self.emit_event(UIEvents.ZONE_TEMPLATE_CLEAR_APPLIED, payloads.EmptyPayload())
 
     def _on_video_search_changed(self) -> None:
         """Handle video search text change."""
@@ -817,7 +818,7 @@ class ZoneControlsWidget(BaseWidget):
 
     def _on_video_refresh_clicked(self) -> None:
         """Handle video refresh button click."""
-        self.emit_event(UIEvents.ZONE_VIDEO_REFRESH, {})
+        self.emit_event(UIEvents.ZONE_VIDEO_REFRESH, payloads.EmptyPayload())
 
     def _on_video_tree_double_click(self, event: tk.Event) -> None:
         """Handle video tree double-click."""
@@ -827,7 +828,10 @@ class ZoneControlsWidget(BaseWidget):
         selection = self.video_selector_tree.selection()
         if selection:
             item_id = selection[0]
-            self.emit_event(UIEvents.ZONE_VIDEO_DOUBLE_CLICK, {"item_id": item_id})
+            self.emit_event(
+                UIEvents.ZONE_VIDEO_DOUBLE_CLICK,
+                payloads.ZoneVideoDoubleClickPayload(item_id=item_id),
+            )
 
     def _on_video_tree_right_click(self, event) -> None:
         """Handle video tree right-click to show context menu."""
@@ -914,14 +918,17 @@ class ZoneControlsWidget(BaseWidget):
     def _on_copy_zones_clicked(self) -> None:
         """Handle copy zones from context menu."""
         if hasattr(self, "_context_menu_video_path") and self._context_menu_video_path:
-            self.emit_event(UIEvents.ZONE_COPY_ZONES, {"video_path": self._context_menu_video_path})
+            self.emit_event(
+                UIEvents.ZONE_COPY_ZONES,
+                payloads.VideoPathPayload(video_path=self._context_menu_video_path),
+            )
 
     def _on_paste_zones_clicked(self) -> None:
         """Handle paste zones from context menu."""
         if hasattr(self, "_context_menu_video_path") and self._context_menu_video_path:
             self.emit_event(
                 UIEvents.ZONE_PASTE_ZONES,
-                {"video_path": self._context_menu_video_path},
+                payloads.VideoPathPayload(video_path=self._context_menu_video_path),
             )
 
     def _on_delete_zones_clicked(self) -> None:
@@ -929,7 +936,7 @@ class ZoneControlsWidget(BaseWidget):
         if hasattr(self, "_context_menu_video_path") and self._context_menu_video_path:
             self.emit_event(
                 UIEvents.ZONE_DELETE_ZONES,
-                {"video_path": self._context_menu_video_path},
+                payloads.VideoPathPayload(video_path=self._context_menu_video_path),
             )
 
     def _on_reconfigure_subjects_clicked(self) -> None:
@@ -979,15 +986,18 @@ class ZoneControlsWidget(BaseWidget):
                 video_entry["subject"] = new_subject
                 pm.save_project()
                 log.info("zone_controls.reconfigure.success", subject=new_subject)
-                self.emit_event(UIEvents.VIDEO_METADATA_UPDATED, {"video_path": video_path})
+                self.emit_event(
+                    UIEvents.VIDEO_METADATA_UPDATED,
+                    payloads.VideoMetadataUpdatedPayload(video_path=video_path),
+                )
         else:
             # Multi-subject - emit event for external dialog
             self.emit_event(
                 UIEvents.VIDEO_RECONFIGURE_SUBJECTS,
-                {
-                    "video_path": video_path,
-                    "current_entries": subject_entries,
-                },
+                payloads.VideoReconfigureSubjectsPayload(
+                    video_path=video_path,
+                    current_entries=subject_entries,
+                ),
             )
 
     def _on_load_video_frame_clicked(self) -> None:
@@ -998,7 +1008,9 @@ class ZoneControlsWidget(BaseWidget):
         selection = self.video_selector_tree.selection()
         if selection:
             item_id = selection[0]
-            self.emit_event(UIEvents.ZONE_VIDEO_FRAME_LOAD, {"item_id": item_id})
+            self.emit_event(
+                UIEvents.ZONE_VIDEO_FRAME_LOAD, payloads.ZoneVideoFrameLoadPayload(item_id=item_id)
+            )
 
     def _on_zone_right_click(self, event) -> None:
         """Handle zone list right-click."""
@@ -1010,7 +1022,9 @@ class ZoneControlsWidget(BaseWidget):
             item_id = selection[0]
             self.emit_event(
                 UIEvents.ZONE_LIST_ITEM_RIGHT_CLICK,
-                {"item_id": item_id, "x": event.x_root, "y": event.y_root},
+                payloads.ZoneListItemRightClickPayload(
+                    item_id=item_id, x=event.x_root, y=event.y_root
+                ),
             )
 
     def _on_zone_double_click(self, event) -> None:
@@ -1021,19 +1035,21 @@ class ZoneControlsWidget(BaseWidget):
         selection = self.zone_listbox.selection()
         if selection:
             item_id = selection[0]
-            self.emit_event(UIEvents.ZONE_LIST_ITEM_DOUBLE_CLICK, {"item_id": item_id})
+            self.emit_event(
+                UIEvents.ZONE_LIST_ITEM_DOUBLE_CLICK, payloads.ZoneListItemPayload(item_id=item_id)
+            )
 
     def _on_save_arena_clicked(self) -> None:
         """Handle save arena button click."""
-        self.emit_event(UIEvents.ZONE_SAVE_ARENA, {})
+        self.emit_event(UIEvents.ZONE_SAVE_ARENA, payloads.EmptyPayload())
 
     def _on_discard_arena_clicked(self) -> None:
         """Handle discard arena button click."""
-        self.emit_event(UIEvents.ZONE_DISCARD_ARENA, {})
+        self.emit_event(UIEvents.ZONE_DISCARD_ARENA, payloads.EmptyPayload())
 
     def _on_finish_drawing_clicked(self) -> None:
         """Handle finish drawing button click - completes polygon without double-click."""
-        self.emit_event(UIEvents.ZONE_FINISH_DRAWING, {})
+        self.emit_event(UIEvents.ZONE_FINISH_DRAWING, payloads.EmptyPayload())
 
     def _on_roi_rule_changed(self, event) -> None:
         """Handle ROI rule change."""
@@ -1069,17 +1085,19 @@ class ZoneControlsWidget(BaseWidget):
         if self.rule_help_label:
             self.rule_help_label.config(text=help_text)
 
-        self.emit_event(UIEvents.DETECTOR_UPDATE_PARAMETERS, {"rule": rule})
+        self.emit_event(
+            UIEvents.DETECTOR_UPDATE_PARAMETERS, payloads.DetectorUpdateParametersPayload(rule=rule)
+        )
 
     def _on_apply_roi_settings_clicked(self) -> None:
         """Handle apply ROI settings button click."""
         self.emit_event(
             UIEvents.DETECTOR_UPDATE_PARAMETERS,
-            {
-                "rule": self.roi_inclusion_rule_var.get(),
-                "buffer_radius": float(self.roi_buffer_radius_var.get() or 0.5),
-                "overlap_ratio": float(self.roi_overlap_ratio_var.get() or 0.10),
-            },
+            payloads.DetectorUpdateParametersPayload(
+                rule=self.roi_inclusion_rule_var.get(),
+                buffer_radius=float(self.roi_buffer_radius_var.get() or 0.5),
+                overlap_ratio=float(self.roi_overlap_ratio_var.get() or 0.10),
+            ),
         )
 
     # Public API for controlling widget state

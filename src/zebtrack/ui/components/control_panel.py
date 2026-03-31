@@ -4,6 +4,7 @@ from tkinter import BooleanVar, Button, StringVar, ttk
 
 import structlog
 
+from zebtrack.ui import payloads
 from zebtrack.ui.components.base import BaseWidget
 from zebtrack.ui.event_bus_v2 import EventBusV2, UIEvents
 
@@ -132,28 +133,31 @@ class ControlPanelWidget(BaseWidget):
 
     def _on_start_recording_clicked(self) -> None:
         """Handle start recording button click."""
-        self.emit_event(UIEvents.RECORDING_START, {})
+        self.emit_event(UIEvents.RECORDING_START, payloads.RecordingStartPayload())
 
     def _on_stop_recording_clicked(self) -> None:
         """Handle stop recording button click."""
-        self.emit_event(UIEvents.RECORDING_STOP, {})
+        self.emit_event(UIEvents.RECORDING_STOP, payloads.EmptyPayload())
 
     def _on_process_video_clicked(self) -> None:
         """Handle process video button click."""
-        self.emit_event(UIEvents.UI_REQUEST_PROCESS_VIDEOS, {})
+        self.emit_event(UIEvents.UI_REQUEST_PROCESS_VIDEOS, payloads.EmptyPayload())
 
     def _on_preview_toggled(self) -> None:
         """Handle preview checkbox toggle."""
         self.emit_event(
             UIEvents.CONTROL_PREVIEW_TOGGLED,
-            {"enabled": self.show_preview_var.get()},
+            payloads.ControlPreviewToggledPayload(preview_enabled=self.show_preview_var.get()),
         )
 
     def _on_interval_changed(self, event=None) -> None:
         """Handle processing interval change."""
         try:
             interval = int(self.processing_interval_var.get())
-            self.emit_event(UIEvents.CONTROL_INTERVAL_CHANGED, {"interval": interval})
+            self.emit_event(
+                UIEvents.CONTROL_INTERVAL_CHANGED,
+                payloads.ControlIntervalChangedPayload(interval=interval),
+            )
         except ValueError:
             self._log.warning(
                 "control_panel.invalid_interval",

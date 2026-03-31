@@ -19,6 +19,7 @@ from typing import Any
 import structlog
 from pydantic import ValidationError
 
+from zebtrack.ui import payloads
 from zebtrack.ui.collapsible_frame import CollapsibleFrame
 from zebtrack.ui.dialogs.manage_weights_dialog import ManageWeightsDialog
 from zebtrack.ui.event_bus_v2 import Event, UIEvents
@@ -500,12 +501,15 @@ class CalibrationDialog(simpledialog.Dialog):
         self.device_combobox.grid(row=4, column=1, sticky="w", padx=5, pady=3)
         self.device_combobox.bind("<<ComboboxSelected>>", self._on_device_selected)
 
-        # Sync initial state: disable if OpenVINO is off
-        if not self.use_openvino_var.get():
-            self.device_combobox.configure(state="disabled")
-
+        # Set OpenVINO var from current state, THEN sync combobox
         self.use_openvino_var.set(self.controller.hardware_vm.use_openvino)
         self.update_openvino_status_label(self.controller.hardware_vm.get_openvino_status())
+
+        # Sync device combobox state with current OpenVINO toggle
+        if self.use_openvino_var.get():
+            self.device_combobox.configure(state="readonly")
+        else:
+            self.device_combobox.configure(state="disabled")
 
         diag_frame = ttk.LabelFrame(
             master,
@@ -1076,18 +1080,25 @@ class CalibrationDialog(simpledialog.Dialog):
 
     def _on_weight_selected_local(self, event=None):
         selected_weight = self.active_weight_var.get()
+        from zebtrack.ui.payloads import ModelSetWeightPayload
+
         self.controller.ui_event_bus.publish(
-            Event(type=UIEvents.MODEL_SET_WEIGHT, data={"name": selected_weight, "dialog": self})
+            Event(
+                type=UIEvents.MODEL_SET_WEIGHT,
+                data=ModelSetWeightPayload(name=selected_weight, dialog=self),
+            )
         )
 
     def _on_openvino_toggled_local(self):
+        from zebtrack.ui.payloads import ModelSetOpenVinoPayload
+
         self.controller.ui_event_bus.publish(
             Event(
                 type=UIEvents.MODEL_SET_OPENVINO,
-                data={
-                    "use_openvino": self.use_openvino_var.get(),
-                    "dialog": self,
-                },
+                data=ModelSetOpenVinoPayload(
+                    use_openvino=self.use_openvino_var.get(),
+                    dialog=self,
+                ),
             )
         )
         # Enable/disable device combobox based on OpenVINO toggle
@@ -1134,21 +1145,25 @@ class CalibrationDialog(simpledialog.Dialog):
         selected_device = self.device_var.get()
         log.info("calibration.device_selected", device=selected_device)
         # Publish event so hardware_vm / settings sync picks it up
+        from zebtrack.ui.payloads import ModelSetOpenVinoPayload
+
         self.controller.ui_event_bus.publish(
             Event(
                 type=UIEvents.MODEL_SET_OPENVINO,
-                data={
-                    "use_openvino": self.use_openvino_var.get(),
-                    "device": selected_device,
-                    "dialog": self,
-                },
+                data=ModelSetOpenVinoPayload(
+                    use_openvino=self.use_openvino_var.get(),
+                    device=selected_device,
+                    dialog=self,
+                ),
             )
         )
 
     def _load_new_weight_local(self):
         if not self.weights_dropdown:
             return
-        self.controller.ui_event_bus.publish(Event(type=UIEvents.UI_REQUEST_WEIGHT_FILE, data={}))
+        self.controller.ui_event_bus.publish(
+            Event(type=UIEvents.UI_REQUEST_WEIGHT_FILE, data=payloads.EmptyPayload())
+        )
         self._populate_weights_dropdown()
 
     def _manage_weights_local(self):
@@ -1202,10 +1217,12 @@ class CalibrationDialog(simpledialog.Dialog):
             "parent_dialog": self,
         }
 
+        from zebtrack.ui.payloads import ModelRunDiagnosticPayload
+
         self.controller.ui_event_bus.publish(
             Event(
                 type=UIEvents.MODEL_RUN_DIAGNOSTIC,
-                data={"config": config},
+                data=ModelRunDiagnosticPayload(config=config),
             )
         )
 
@@ -1255,10 +1272,12 @@ class CalibrationDialog(simpledialog.Dialog):
 
         project_name = self.scope_info.get("project_name") or "projeto"
         if self.scope_info.get("scope") == "global":
+            from zebtrack.ui.payloads import CalibrationCopyToProjectPayload
+
             self.controller.ui_event_bus.publish(
                 Event(
                     type=UIEvents.CALIBRATION_COPY_TO_PROJECT,
-                    data={},
+                    data=CalibrationCopyToProjectPayload(),
                 )
             )
             result = True
@@ -1268,10 +1287,12 @@ class CalibrationDialog(simpledialog.Dialog):
                     f"Os padrões globais foram copiados para o projeto {project_name}.",
                 )
         else:
+            from zebtrack.ui.payloads import CalibrationSaveToProjectPayload
+
             self.controller.ui_event_bus.publish(
                 Event(
                     type=UIEvents.CALIBRATION_SAVE_TO_PROJECT,
-                    data={},
+                    data=CalibrationSaveToProjectPayload(),
                 )
             )
             result = True

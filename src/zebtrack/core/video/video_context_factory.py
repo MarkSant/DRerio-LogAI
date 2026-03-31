@@ -29,6 +29,7 @@ if TYPE_CHECKING:
     from zebtrack.ui.event_bus_v2 import EventBusV2
 
 from zebtrack.ui.event_bus_v2 import Event, UIEvents
+from zebtrack.ui.payloads import FrameDisplayPayload
 
 log = structlog.get_logger()
 
@@ -159,7 +160,9 @@ class VideoContextFactoryMixin:
             frame: Optional pre-loaded frame
         """
         if frame is not None:
-            self.ui_event_bus.publish(Event(type=UIEvents.UI_DISPLAY_FRAME, data={"frame": frame}))
+            self.ui_event_bus.publish(
+                Event(type=UIEvents.UI_DISPLAY_FRAME, data=FrameDisplayPayload(frame=frame))
+            )
             return
 
         video_path = str(Path(video_path) if isinstance(video_path, str) else video_path)
@@ -171,7 +174,7 @@ class VideoContextFactoryMixin:
                 self.ui_event_bus.publish(
                     Event(
                         type=UIEvents.UI_DISPLAY_FRAME,
-                        data={"frame": frame},
+                        data=FrameDisplayPayload(frame=frame),
                     )
                 )
         # except Exception justified: cv2 VideoCapture frame display — poorly-typed errors
@@ -329,7 +332,7 @@ class VideoContextFactoryMixin:
             )
             return set()
 
-    def _cleanup_cancelled_results(self, results_dir: str, baseline_items: set[str]) -> None:
+    def _cleanup_cancelled_results(self, results_dir: Path | str, baseline_items: set[str]) -> None:
         """Remove artifacts created during a cancelled analysis run."""
         results_path = Path(results_dir)
         if not results_path.exists():
@@ -364,7 +367,7 @@ class VideoContextFactoryMixin:
                 exc_info=True,
             )
 
-    def _prepare_results_directory(self, results_dir: str) -> None:
+    def _prepare_results_directory(self, results_dir: Path | str) -> None:
         """Keep per-video results folders clean and archive older runs."""
         path = Path(results_dir)
         path.mkdir(parents=True, exist_ok=True)

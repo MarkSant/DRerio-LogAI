@@ -508,18 +508,6 @@ def _ensure_payload_accessors(obj: payloads.EventPayload) -> payloads.EventPaylo
     return obj
 
 
-def _normalize_payload_data(event_type: UIEvents, data: dict[str, Any]) -> dict[str, Any]:
-    if event_type == UIEvents.UI_UPDATE_PROCESSING_STATS:
-        stats = data.get("stats")
-        return {"stats": stats} if isinstance(stats, dict) else data
-    if event_type == UIEvents.UI_UPDATE_ANALYSIS_TASK_STATUS:
-        nested = data.get("payload")
-        return nested if isinstance(nested, dict) else data
-    if event_type == UIEvents.PROJECT_CREATE:
-        return {**data, "wizard_data": data}
-    return data
-
-
 def _coerce_payload(
     event_type: UIEvents,
     data: payloads.EventPayload | dict[str, Any] | None,
@@ -549,7 +537,7 @@ def _coerce_payload(
             keys=list(data.keys()),
         )
 
-    payload_data = _normalize_payload_data(event_type, data)
+    payload_data = data
     if payload_cls is payloads.EmptyPayload:
         return payload_cls()
 

@@ -75,13 +75,41 @@ class SplashScreen:
         )
         subtitle_label.pack(pady=(0, 40))
 
-        # Loading indicator (indeterminate progress bar)
-        progress_frame = tk.Frame(container, bg=BG_COLOR)
-        progress_frame.pack(fill=tk.X, pady=(0, 15))
+        # First-launch hint label (hidden by default)
+        self._first_launch_var = tk.StringVar(value="")
+        self._first_launch_label = tk.Label(
+            container,
+            textvariable=self._first_launch_var,
+            font=(FONT_FAMILY, 9, "italic"),
+            bg=BG_COLOR,
+            fg=ACCENT_COLOR,
+        )
+        self._first_launch_label.pack(pady=(0, 8))
 
-        self.progress_bar = ttk.Progressbar(progress_frame, mode="indeterminate", length=400)
+        # Loading indicator (determinate progress bar)
+        progress_frame = tk.Frame(container, bg=BG_COLOR)
+        progress_frame.pack(fill=tk.X, pady=(0, 8))
+
+        self._progress_value = tk.DoubleVar(value=0.0)
+        self.progress_bar = ttk.Progressbar(
+            progress_frame,
+            mode="determinate",
+            length=400,
+            maximum=100,
+            variable=self._progress_value,
+        )
         self.progress_bar.pack()
-        self.progress_bar.start(10)  # Animate every 10ms
+
+        # Percentage label
+        self._pct_var = tk.StringVar(value="0%")
+        pct_label = tk.Label(
+            container,
+            textvariable=self._pct_var,
+            font=(FONT_FAMILY, 9),
+            bg=BG_COLOR,
+            fg=TEXT_MUTED,
+        )
+        pct_label.pack(pady=(0, 4))
 
         # Status label
         self.status_var = tk.StringVar(value="Inicializando...")
@@ -164,10 +192,36 @@ class SplashScreen:
         self.splash.update()
         log.debug("splash.status.updated", message=message)
 
+    def update_progress(self, fraction: float, message: str | None = None) -> None:
+        """Update progress bar and optionally the status message.
+
+        Args:
+            fraction: Progress fraction between 0.0 and 1.0.
+            message: Optional status text to display alongside the progress.
+        """
+        pct = max(0.0, min(fraction, 1.0)) * 100
+        self._progress_value.set(pct)
+        self._pct_var.set(f"{int(pct)}%")
+        if message is not None:
+            self.status_var.set(message)
+        self.splash.update()
+        log.debug("splash.progress.updated", pct=int(pct), message=message)
+
+    def set_first_launch(self, is_first: bool) -> None:
+        """Show or hide the first-launch hint.
+
+        Args:
+            is_first: Whether this is the first app launch (no cached benchmark).
+        """
+        if is_first:
+            self._first_launch_var.set("Primeira execução — otimizando para seu hardware...")
+        else:
+            self._first_launch_var.set("")
+        self.splash.update()
+
     def destroy(self) -> None:
         """Close and destroy splash screen."""
         try:
-            self.progress_bar.stop()
             self.splash.destroy()
             log.info("splash.destroyed")
         except Exception as e:

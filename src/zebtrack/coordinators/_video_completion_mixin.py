@@ -11,10 +11,12 @@ from __future__ import annotations
 
 import os
 import re
+from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
 import structlog
 
+from zebtrack.ui import payloads as payloads
 from zebtrack.ui.event_bus_v2 import UIEvents
 
 if TYPE_CHECKING:
@@ -137,6 +139,9 @@ class VideoCompletionMixin:
             if alt_multi_outputs:
                 trajectory_exists = False
 
+        if video_path:
+            self.project_manager.update_video_status(video_path, "complete")
+
         self._register_completed_outputs(
             video_path,
             results_dir,
@@ -149,13 +154,13 @@ class VideoCompletionMixin:
 
     def _register_completed_outputs(
         self,
-        video_path,
-        results_dir,
-        trajectory_path,
+        video_path: Path | str,
+        results_dir: Path | str,
+        trajectory_path: Path | str,
         trajectory_exists,
         alt_multi_outputs,
         experiment_id,
-        video_results_dir,
+        video_results_dir: Path | str | None,
     ) -> None:
         """Register outputs after video completion."""
         outputs_by_aquarium = alt_multi_outputs.copy() if alt_multi_outputs else {}
@@ -197,12 +202,17 @@ class VideoCompletionMixin:
             seq = self._sequential_coordinator
             if seq:
                 seq._handle_sequential_multi_aquarium(video_path)
-            self._publish_event(UIEvents.UI_REFRESH_PROJECT_VIEWS, {})
+            self._publish_event(
+                UIEvents.UI_REFRESH_PROJECT_VIEWS,
+                payloads.ProjectViewsRefreshRequestedPayload(),
+            )
             self._generate_completion_reports(video_path, experiment_id, True)
         elif trajectory_exists:
             self._generate_completion_reports(video_path, experiment_id, False)
 
-    def _scan_multi_aquarium_outputs(self, results_dir, experiment_id, outputs_by_aquarium):
+    def _scan_multi_aquarium_outputs(
+        self, results_dir: Path | str, experiment_id, outputs_by_aquarium
+    ):
         """Scan directory for multi-aquarium outputs."""
         if not results_dir or not os.path.exists(results_dir):
             return
@@ -228,7 +238,7 @@ class VideoCompletionMixin:
                         "day": 1,
                     }
 
-    def _generate_completion_reports(self, video_path, experiment_id, is_multi):
+    def _generate_completion_reports(self, video_path: Path | str, experiment_id, is_multi):
         """Generate reports after video completion."""
         rc = self._report_coordinator
         if not rc:

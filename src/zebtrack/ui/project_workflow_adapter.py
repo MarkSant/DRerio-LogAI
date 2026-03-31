@@ -22,6 +22,8 @@ from typing import TYPE_CHECKING, Any
 
 import structlog
 
+from zebtrack.ui import payloads
+
 if TYPE_CHECKING:
     from zebtrack.core.project.project_manager import ProjectManager
     from zebtrack.core.project.project_workflow_service import ProjectWorkflowService
@@ -74,7 +76,7 @@ class ProjectWorkflowAdapter:
         if self.ui_event_bus:
             from zebtrack.ui.event_bus_v2 import Event
 
-            self.ui_event_bus.publish(Event(type=event_type, data=data or {}))
+            self.ui_event_bus.publish(Event(type=event_type, data=data))
 
     def close_project(
         self,
@@ -164,7 +166,10 @@ class ProjectWorkflowAdapter:
         if not result["success"]:
             self._publish_event(
                 UIEvents.SHOW_ERROR,
-                {"title": "Configuração Inválida", "message": result["error_message"]},
+                payloads.MessagePayload(
+                    title="Configuração Inválida",
+                    message=result["error_message"],
+                ),
             )
             return False
 
@@ -178,12 +183,14 @@ class ProjectWorkflowAdapter:
                 apply_wizard_overrides_callback(wizard_metadata)
 
             # Update UI
-            self._publish_event(UIEvents.UI_NAVIGATE_TO_PROJECT_VIEW, {})
+            self._publish_event(UIEvents.UI_NAVIGATE_TO_PROJECT_VIEW, payloads.EmptyPayload())
             self._publish_event(
-                UIEvents.UI_UPDATE_OPENVINO_CHECKBOX, {"is_checked": get_use_openvino()}
+                UIEvents.UI_UPDATE_OPENVINO_CHECKBOX,
+                payloads.UIUpdateOpenVinoCheckboxPayload(is_checked=get_use_openvino()),
             )
             self._publish_event(
-                UIEvents.UI_SET_ACTIVE_WEIGHT, {"weight_name": get_active_weight_name()}
+                UIEvents.UI_SET_ACTIVE_WEIGHT,
+                payloads.UISetActiveWeightPayload(weight_name=get_active_weight_name()),
             )
             update_openvino_status_callback()
 
@@ -196,7 +203,10 @@ class ProjectWorkflowAdapter:
         else:
             self._publish_event(
                 UIEvents.SHOW_ERROR,
-                {"title": "Erro", "message": "Falha ao configurar o detector."},
+                payloads.MessagePayload(
+                    title="Erro",
+                    message="Falha ao configurar o detector.",
+                ),
             )
             log.error("project_workflow_adapter.create_project.detector_setup_failed")
             return False
@@ -253,7 +263,10 @@ class ProjectWorkflowAdapter:
         if not result["success"]:
             self._publish_event(
                 UIEvents.SHOW_ERROR,
-                {"title": "Erro", "message": result["error_message"]},
+                payloads.MessagePayload(
+                    title="Erro",
+                    message=result["error_message"],
+                ),
             )
             return False
 
@@ -263,11 +276,11 @@ class ProjectWorkflowAdapter:
         # Update UI to reflect restored state
         self._publish_event(
             UIEvents.UI_UPDATE_OPENVINO_CHECKBOX,
-            {"is_checked": get_use_openvino()},
+            payloads.UIUpdateOpenVinoCheckboxPayload(is_checked=get_use_openvino()),
         )
         self._publish_event(
             UIEvents.UI_SET_ACTIVE_WEIGHT,
-            {"weight_name": get_active_weight_name()},
+            payloads.UISetActiveWeightPayload(weight_name=get_active_weight_name()),
         )
         update_openvino_status_callback()
 
@@ -277,20 +290,20 @@ class ProjectWorkflowAdapter:
             return False
         else:
             # Load project view
-            self._publish_event(UIEvents.UI_NAVIGATE_TO_PROJECT_VIEW, {})
+            self._publish_event(UIEvents.UI_NAVIGATE_TO_PROJECT_VIEW, payloads.EmptyPayload())
 
         # Display success message
         self._publish_event(
             UIEvents.SHOW_INFO,
-            {
-                "title": "Projeto Carregado",
-                "message": f"Projeto '{project_info['name']}' carregado com sucesso!\n\n"
+            payloads.MessagePayload(
+                title="Projeto Carregado",
+                message=f"Projeto '{project_info['name']}' carregado com sucesso!\n\n"
                 f"• Vídeos: {project_info['videos_count']}\n"
                 f"• Arena Principal: {project_info['zone_status']}\n"
                 f"• ROIs: {project_info['roi_count']}\n"
                 f"• Peso: {project_info['active_weight']}\n"
                 f"• OpenVINO: {'✓' if project_info['use_openvino'] else '✗'}",
-            },
+            ),
         )
 
         log.info(
@@ -317,8 +330,11 @@ class ProjectWorkflowAdapter:
         setup_detector_zones_callback()
 
         # Update zone visualization in GUI
-        self._publish_event(UIEvents.UI_REDRAW_ZONES)
-        self._publish_event(UIEvents.UI_UPDATE_ZONE_LIST)
+        self._publish_event(UIEvents.UI_REDRAW_ZONES, payloads.ZonesUpdatedPayload(zone_data=None))
+        self._publish_event(
+            UIEvents.UI_UPDATE_ZONE_LIST,
+            payloads.ZonesUpdatedPayload(zone_data=None),
+        )
 
         log.debug("project_workflow_adapter.setup_zones.complete")
 
@@ -350,6 +366,7 @@ class ProjectWorkflowAdapter:
         # Display guide if generated
         if guide:
             self._publish_event(
-                UIEvents.SHOW_INFO, {"title": guide["title"], "message": guide["message"]}
+                UIEvents.SHOW_INFO,
+                payloads.MessagePayload(title=guide["title"], message=guide["message"]),
             )
             log.debug("project_workflow_adapter.post_creation_guide.shown")

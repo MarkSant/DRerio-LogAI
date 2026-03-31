@@ -13,6 +13,7 @@ from tkinter import (
 from typing import Any
 
 from zebtrack.ui.event_bus_v2 import Event, UIEvents
+from zebtrack.ui.payloads import ModelDeleteWeightPayload
 from zebtrack.ui.window_utils import schedule_maximize
 
 
@@ -212,7 +213,9 @@ class ManageWeightsDialog(simpledialog.Dialog):
                 "Confirmar Exclusão", f"Tem certeza que deseja excluir '{name}'?"
             ):
                 self.controller.ui_event_bus.publish(
-                    Event(type=UIEvents.MODEL_DELETE_WEIGHT, data={"name": name})
+                    Event(
+                        type=UIEvents.MODEL_DELETE_WEIGHT, data=ModelDeleteWeightPayload(name=name)
+                    )
                 )
                 self.populate_list()
 

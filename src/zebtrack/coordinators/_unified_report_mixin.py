@@ -22,6 +22,7 @@ from typing import TYPE_CHECKING, Any
 import pandas as pd
 import structlog
 
+from zebtrack.ui import payloads
 from zebtrack.ui.event_bus_v2 import UIEvents
 
 if TYPE_CHECKING:
@@ -69,7 +70,10 @@ class UnifiedReportMixin:
             scope=scope,
             replace_existing=replace_existing,
         )
-        self._publish_event(UIEvents.UI_SET_STATUS, {"message": "Gerando relatório unificado..."})
+        self._publish_event(
+            UIEvents.UI_SET_STATUS,
+            payloads.StatusPayload(message="Gerando relatório unificado..."),
+        )
 
         project_path = self.project_manager.project_path
         if not project_path:
@@ -166,10 +170,10 @@ class UnifiedReportMixin:
         if not dfs:
             self._publish_event(
                 UIEvents.UI_SHOW_WARNING,
-                {
-                    "title": "Dados insuficientes",
-                    "message": ("Não foi possível encontrar sumários para os vídeos selecionados."),
-                },
+                payloads.MessagePayload(
+                    title="Dados insuficientes",
+                    message="Não foi possível encontrar sumários para os vídeos selecionados.",
+                ),
             )
             return
 
@@ -188,11 +192,14 @@ class UnifiedReportMixin:
             log.error("workflow.unified_report.failed", error=str(e), exc_info=True)
             self._publish_event(
                 UIEvents.UI_SHOW_ERROR,
-                {"title": "Erro no Relatório", "message": f"{e}"},
+                payloads.MessagePayload(title="Erro no Relatório", message=f"{e}"),
             )
         finally:
-            self._publish_event(UIEvents.UI_SET_STATUS, {"message": "Pronto."})
-            self._publish_event(UIEvents.UI_REFRESH_PROJECT_VIEWS, {})
+            self._publish_event(UIEvents.UI_SET_STATUS, payloads.StatusPayload(message="Pronto."))
+            self._publish_event(
+                UIEvents.UI_REFRESH_PROJECT_VIEWS,
+                payloads.ProjectViewsRefreshRequestedPayload(),
+            )
 
     # ------------------------------------------------------------------
     # DataFrame alignment
@@ -389,16 +396,16 @@ class UnifiedReportMixin:
         if export_failures:
             self._publish_event(
                 UIEvents.UI_SHOW_WARNING,
-                {
-                    "title": "Relatório Unificado Parcial",
-                    "message": (
+                payloads.MessagePayload(
+                    title="Relatório Unificado Parcial",
+                    message=(
                         "Alguns arquivos não puderam ser gerados.\n"
                         "Gerados: "
                         + ", ".join(exported_artifacts)
                         + "\n\nFalhas:\n"
                         + "\n".join(f"• {item}" for item in export_failures[:3])
                     ),
-                },
+                ),
             )
 
         self._write_unified_run_manifest(
@@ -419,31 +426,30 @@ class UnifiedReportMixin:
             if not self.settings.ui_features.suppress_roi_mismatch_warning:
                 self._publish_event(
                     UIEvents.UI_SHOW_WARNING,
-                    {
-                        "title": "ROIs Diferentes",
-                        "message": (
+                    payloads.MessagePayload(
+                        title="ROIs Diferentes",
+                        message=(
                             "Os vídeos selecionados possuem ROIs diferentes.\n"
-                            "Colunas ausentes foram preenchidas com "
-                            "valores vazios (NA)."
+                            "Colunas ausentes foram preenchidas com valores vazios (NA)."
                         ),
-                    },
+                    ),
                 )
 
         if not self._is_batch_processing():
             self._publish_event(
                 UIEvents.UI_SHOW_INFO,
-                {
-                    "title": (
+                payloads.MessagePayload(
+                    title=(
                         "Relatório Unificado Parcial"
                         if report_scope == "selected"
                         else "Relatório Unificado"
                     ),
-                    "message": (
+                    message=(
                         f"Relatório unificado gerado com sucesso em:\n"
                         f"{unified_dir}\n\n"
                         f"Arquivos: {', '.join(exported_artifacts)}"
                     ),
-                },
+                ),
             )
 
     # ------------------------------------------------------------------

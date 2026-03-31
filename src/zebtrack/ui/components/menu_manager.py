@@ -16,6 +16,7 @@ from typing import TYPE_CHECKING, Any
 import structlog
 from PIL import Image, ImageTk
 
+from zebtrack.ui import payloads
 from zebtrack.ui.event_bus_v2 import Event, UIEvents
 
 if TYPE_CHECKING:
@@ -260,7 +261,7 @@ class MenuManager:
     def show_overview_context_menu(
         self,
         event,
-        video_path: str,
+        video_path: Path | str,
         asset: str,
     ) -> None:
         """Show context menu for overview asset removal.
@@ -297,7 +298,7 @@ class MenuManager:
         finally:
             menu.grab_release()
 
-    def handle_overview_asset_removal(self, video_path: str, asset: str) -> None:
+    def handle_overview_asset_removal(self, video_path: Path | str, asset: str) -> None:
         """Handle removal of project assets (arena, ROIs, trajectory, summary, video).
 
         Args:
@@ -438,7 +439,9 @@ class MenuManager:
             self.gui.event_bus_v2.publish(
                 Event(
                     type=UIEvents.PROJECT_VIEWS_REFRESH_REQUESTED,
-                    data={"reason": status_message, "append_summary": True, "immediate": True},
+                    data=payloads.ProjectViewsRefreshRequestedPayload(
+                        reason=status_message, append_summary=True, immediate=True
+                    ),
                     source="MenuManager.handle_overview_asset_removal",
                 )
             )
@@ -446,7 +449,7 @@ class MenuManager:
             self.gui.event_bus_v2.publish(
                 Event(
                     type=UIEvents.VIDEO_TREE_REFRESH_REQUESTED,
-                    data={},
+                    data=payloads.VideoTreeRefreshRequestedPayload(),
                     source="MenuManager.handle_overview_asset_removal",
                 )
             )
@@ -462,7 +465,7 @@ class MenuManager:
 
     def show_processing_reports_context_menu(
         self,
-        video_path: str,
+        video_path: Path | str,
         column_id: str,
         x: int,
         y: int,

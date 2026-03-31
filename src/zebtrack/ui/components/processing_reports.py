@@ -11,6 +11,7 @@ from tkinter import StringVar, ttk
 
 import structlog
 
+from zebtrack.ui import payloads
 from zebtrack.ui.components.base import BaseWidget
 from zebtrack.ui.event_bus_v2 import EventBusV2, UIEvents
 
@@ -302,7 +303,9 @@ class ProcessingReportsWidget(BaseWidget):
     def _on_refresh_clicked(self) -> None:
         """Handle refresh button click."""
         log.debug("processing_reports.refresh_clicked")
-        self.emit_event(UIEvents.PROJECT_REFRESH_REQUESTED, {})
+        self.emit_event(
+            UIEvents.PROJECT_REFRESH_REQUESTED, payloads.ProjectRefreshRequestedPayload()
+        )
 
     def _on_expand_collapse_clicked(self) -> None:
         """Handle expand/collapse all button click."""
@@ -360,7 +363,10 @@ class ProcessingReportsWidget(BaseWidget):
         """Handle tree selection change."""
         selection = self.tree.selection() if self.tree else []
         log.debug("processing_reports.selection_changed", count=len(selection))
-        self.emit_event(UIEvents.PROJECT_SELECTION_CHANGED, {"selection": selection})
+        self.emit_event(
+            UIEvents.PROJECT_SELECTION_CHANGED,
+            payloads.ProjectSelectionChangedPayload(selection=selection),
+        )
         self._update_button_states()
 
     def _on_item_double_click(self, event) -> None:
@@ -381,7 +387,7 @@ class ProcessingReportsWidget(BaseWidget):
             log.debug("processing_reports.item_double_clicked", item_id=item_id)
             self.emit_event(
                 UIEvents.PROJECT_ITEM_DOUBLE_CLICK,
-                {"item_id": item_id, "event": event},
+                payloads.ItemIdPayload(item_id=item_id),
             )
 
     def _on_item_right_click(self, event) -> None:
@@ -390,19 +396,13 @@ class ProcessingReportsWidget(BaseWidget):
             return
 
         item_id = self.tree.identify_row(event.y)
-        column_id = self.tree.identify_column(event.x)
 
         if item_id:
             # Ensure item is selected
             self.tree.selection_set(item_id)
             self.emit_event(
                 UIEvents.PROCESSING_REPORTS_ITEM_RIGHT_CLICK,
-                {
-                    "item_id": item_id,
-                    "column_id": column_id,
-                    "x": event.x_root,
-                    "y": event.y_root,
-                },
+                payloads.ItemIdPayload(item_id=item_id),
             )
 
     def _on_generate_trajectories_clicked(self) -> None:
@@ -416,7 +416,10 @@ class ProcessingReportsWidget(BaseWidget):
         """Handle Export Summaries button click."""
         log.info("processing_reports.export_summaries_clicked")
         selection = self.tree.selection() if self.tree else []
-        self.emit_event(UIEvents.PROCESSING_EXPORT_SUMMARIES, {"selection": selection})
+        self.emit_event(
+            UIEvents.PROCESSING_EXPORT_SUMMARIES,
+            payloads.ProcessingExportSummariesPayload(selection=selection),
+        )
         if self._on_export_summaries:
             self._on_export_summaries()
 
@@ -424,7 +427,10 @@ class ProcessingReportsWidget(BaseWidget):
         """Handle Generate Partial Report button click."""
         log.info("processing_reports.generate_partial_report_clicked")
         selection = self.tree.selection() if self.tree else []
-        self.emit_event(UIEvents.REPORTS_GENERATE_PARTIAL, {"selection": selection})
+        self.emit_event(
+            UIEvents.REPORTS_GENERATE_PARTIAL,
+            payloads.ReportsGeneratePartialPayload(selection=selection),
+        )
         if self._on_generate_partial_report:
             self._on_generate_partial_report()
 
@@ -461,7 +467,7 @@ class ProcessingReportsWidget(BaseWidget):
         )
 
         if confirm:
-            self.emit_event(UIEvents.REPORTS_DELETE_UNIFIED, {})
+            self.emit_event(UIEvents.REPORTS_DELETE_UNIFIED, payloads.ReportsDeleteUnifiedPayload())
             # Optimistically disable buttons, though actual deletion happens in controller
             if self.btn_open_unified_word:
                 self.btn_open_unified_word.config(state="disabled")

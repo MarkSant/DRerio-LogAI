@@ -23,6 +23,7 @@ from zebtrack.coordinators._unified_report_mixin import UnifiedReportMixin
 from zebtrack.coordinators.base_coordinator import BaseCoordinator
 from zebtrack.core.detection import MultiAquariumZoneData, ZoneData
 from zebtrack.core.detection.calibration import Calibration
+from zebtrack.ui import payloads
 from zebtrack.ui.event_bus_v2 import UIEvents
 
 if TYPE_CHECKING:
@@ -111,7 +112,10 @@ class ReportGenerationCoordinator(BaseCoordinator, UnifiedReportMixin):
             return
 
         log.info("workflow.reports.start", count=len(video_paths))
-        self._publish_event(UIEvents.UI_SET_STATUS, {"message": "Gerando relatórios detalhados..."})
+        self._publish_event(
+            UIEvents.UI_SET_STATUS,
+            payloads.StatusPayload(message="Gerando relatórios detalhados..."),
+        )
 
         entries = [self.project_manager.find_video_entry(path=p) for p in video_paths]
         self.generate_parquet_summaries([e for e in entries if e], self.settings)
@@ -360,7 +364,10 @@ class ReportGenerationCoordinator(BaseCoordinator, UnifiedReportMixin):
 
     def _finalize_report_generation(self, count: int, errors: list[str]) -> None:
         """Finalize report generation UI feedback."""
-        self._publish_event(UIEvents.UI_SET_STATUS, {"message": "Relatórios gerados."})
+        self._publish_event(
+            UIEvents.UI_SET_STATUS,
+            payloads.StatusPayload(message="Relatórios gerados."),
+        )
 
         if self._is_batch_processing():
             return

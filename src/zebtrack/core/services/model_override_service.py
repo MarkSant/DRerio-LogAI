@@ -13,6 +13,8 @@ from typing import TYPE_CHECKING, Any
 
 import structlog
 
+from zebtrack.ui import payloads
+
 if TYPE_CHECKING:
     from zebtrack.core.project.project_manager import ProjectManager
     from zebtrack.core.project.project_workflow_service import ProjectWorkflowService
@@ -70,7 +72,7 @@ class ModelOverrideService:
     # Event helper (mirrors BaseCoordinator._publish_event)
     # ------------------------------------------------------------------
 
-    def _publish_event(self, event_type: Any, data: dict[str, Any] | None = None) -> None:
+    def _publish_event(self, event_type: Any, data: Any = None) -> None:
         """Publish an event via EventBusV2.
 
         Args:
@@ -80,7 +82,7 @@ class ModelOverrideService:
         if self.event_bus is not None:
             from zebtrack.ui.event_bus_v2 import Event
 
-            self.event_bus.publish(Event(type=event_type, data=data or {}))
+            self.event_bus.publish(Event(type=event_type, data=data))
 
     # ------------------------------------------------------------------
     # Public API
@@ -126,10 +128,10 @@ class ModelOverrideService:
         if not getattr(self.project_manager, "project_path", None):
             self._publish_event(
                 UIEvents.UI_SHOW_WARNING,
-                {
-                    "title": "Nenhum Projeto",
-                    "message": "Abra um projeto antes de copiar configurações globais.",
-                },
+                payloads.MessagePayload(
+                    title="Nenhum Projeto",
+                    message="Abra um projeto antes de copiar configurações globais.",
+                ),
             )
             return None
 
@@ -140,7 +142,7 @@ class ModelOverrideService:
         overrides = self._persist_project_model_settings(weight, use_openvino)
 
         message = "Configurações globais aplicadas ao projeto."
-        self._publish_event(UIEvents.UI_SET_STATUS, {"message": message})
+        self._publish_event(UIEvents.UI_SET_STATUS, payloads.StatusPayload(message=message))
 
         if refresh_callback:
             refresh_callback(message, True)
@@ -181,10 +183,10 @@ class ModelOverrideService:
         if not getattr(self.project_manager, "project_path", None):
             self._publish_event(
                 UIEvents.UI_SHOW_WARNING,
-                {
-                    "title": "Nenhum Projeto",
-                    "message": "Abra um projeto antes de salvar overrides de calibração.",
-                },
+                payloads.MessagePayload(
+                    title="Nenhum Projeto",
+                    message="Abra um projeto antes de salvar overrides de calibração.",
+                ),
             )
             return None
 
@@ -201,7 +203,7 @@ class ModelOverrideService:
         )
 
         message = "Overrides do projeto atualizados a partir desta calibração."
-        self._publish_event(UIEvents.UI_SET_STATUS, {"message": message})
+        self._publish_event(UIEvents.UI_SET_STATUS, payloads.StatusPayload(message=message))
 
         if refresh_callback:
             refresh_callback(message, True)

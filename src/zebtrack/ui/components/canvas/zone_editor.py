@@ -11,12 +11,14 @@ All methods access the parent CanvasManager via self.canvas_manager back-referen
 from __future__ import annotations
 
 import typing
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 import numpy as np
 import structlog
 import ttkbootstrap as ttk
 
+from zebtrack.ui import payloads
 from zebtrack.ui.event_bus_v2 import Event, UIEvents
 
 if TYPE_CHECKING:
@@ -439,7 +441,7 @@ class ZoneEditor:
                 self.canvas_manager.event_bus_v2.publish(
                     Event(
                         type=UIEvents.POLYGON_EDIT_REQUESTED,
-                        data={"polygon": polygon_points},
+                        data=payloads.PolygonEditRequestedPayload(polygon=polygon_points),
                         source="CanvasManager.edit_selected_zone_vertices.arena",
                     )
                 )
@@ -470,7 +472,7 @@ class ZoneEditor:
                     self.canvas_manager.event_bus_v2.publish(
                         Event(
                             type=UIEvents.POLYGON_EDIT_REQUESTED,
-                            data={"polygon": polygon_points},
+                            data=payloads.PolygonEditRequestedPayload(polygon=polygon_points),
                             source=(f"CanvasManager.edit_selected_zone_vertices.roi.{roi_name}"),
                         )
                     )
@@ -545,7 +547,7 @@ class ZoneEditor:
                         self.canvas_manager.event_bus_v2.publish(
                             Event(
                                 type=UIEvents.ZONES_UPDATED,
-                                data={"zone_data": None},
+                                data=payloads.ZonesUpdatedPayload(zone_data=None),
                                 source="CanvasManager.save_arena.multi_aquarium",
                             )
                         )
@@ -553,10 +555,10 @@ class ZoneEditor:
                         self.canvas_manager.event_bus_v2.publish(
                             Event(
                                 type=UIEvents.PROJECT_VIEWS_REFRESH_REQUESTED,
-                                data={
-                                    "reason": status_message,
-                                    "append_summary": True,
-                                },
+                                data=payloads.ProjectViewsRefreshRequestedPayload(
+                                    reason=status_message,
+                                    append_summary=True,
+                                ),
                                 source="CanvasManager.save_arena.multi_aquarium",
                             )
                         )
@@ -564,7 +566,7 @@ class ZoneEditor:
                         self.canvas_manager.event_bus_v2.publish(
                             Event(
                                 type=UIEvents.VIDEO_TREE_REFRESH_REQUESTED,
-                                data={"filter_text": None},
+                                data=payloads.VideoTreeRefreshRequestedPayload(filter_text=None),
                                 source="CanvasManager.save_arena.multi_aquarium",
                             )
                         )
@@ -584,10 +586,10 @@ class ZoneEditor:
                 self.canvas_manager.event_bus_v2.publish(
                     Event(
                         type=UIEvents.PROJECT_VIEWS_REFRESH_REQUESTED,
-                        data={
-                            "reason": status_message,
-                            "append_summary": True,
-                        },
+                        data=payloads.ProjectViewsRefreshRequestedPayload(
+                            reason=status_message,
+                            append_summary=True,
+                        ),
                         source="CanvasManager.save_arena",
                     )
                 )
@@ -613,10 +615,10 @@ class ZoneEditor:
                 self.canvas_manager.event_bus_v2.publish(
                     Event(
                         type=UIEvents.PROJECT_VIEWS_REFRESH_REQUESTED,
-                        data={
-                            "reason": status_message,
-                            "append_summary": True,
-                        },
+                        data=payloads.ProjectViewsRefreshRequestedPayload(
+                            reason=status_message,
+                            append_summary=True,
+                        ),
                         source="CanvasManager.save_arena",
                     )
                 )
@@ -631,10 +633,10 @@ class ZoneEditor:
                 self.canvas_manager.event_bus_v2.publish(
                     Event(
                         type=UIEvents.PROJECT_VIEWS_REFRESH_REQUESTED,
-                        data={
-                            "reason": status_message,
-                            "append_summary": True,
-                        },
+                        data=payloads.ProjectViewsRefreshRequestedPayload(
+                            reason=status_message,
+                            append_summary=True,
+                        ),
                         source="CanvasManager.save_arena",
                     )
                 )
@@ -646,7 +648,7 @@ class ZoneEditor:
             self.canvas_manager.event_bus_v2.publish(
                 Event(
                     type=UIEvents.ZONES_UPDATED,
-                    data={"zone_data": None},
+                    data=payloads.ZonesUpdatedPayload(zone_data=None),
                     source="CanvasManager.save_arena",
                 )
             )
@@ -767,17 +769,17 @@ class ZoneEditor:
                     self.canvas_manager.event_bus_v2.publish(
                         Event(
                             type=UIEvents.PROJECT_VIEWS_REFRESH_REQUESTED,
-                            data={
-                                "reason": status_message,
-                                "append_summary": True,
-                            },
+                            data=payloads.ProjectViewsRefreshRequestedPayload(
+                                reason=status_message,
+                                append_summary=True,
+                            ),
                             source="CanvasManager.remove_selected_roi",
                         )
                     )
                     self.canvas_manager.event_bus_v2.publish(
                         Event(
                             type=UIEvents.ZONES_UPDATED,
-                            data={"zone_data": None},
+                            data=payloads.ZonesUpdatedPayload(zone_data=None),
                             source="CanvasManager.remove_selected_roi",
                         )
                     )
@@ -815,7 +817,7 @@ class ZoneEditor:
     # Zone Copy/Paste/Delete Operations
     # -------------------------------------------------------------------------
 
-    def copy_zones_from_video(self, video_path: str | None) -> None:
+    def copy_zones_from_video(self, video_path: Path | str | None) -> None:
         """Copy zones from the specified video to clipboard.
 
         Args:
@@ -853,7 +855,7 @@ class ZoneEditor:
             roi_count=roi_count,
         )
 
-    def paste_zones_to_video(self, video_path: str | None) -> None:
+    def paste_zones_to_video(self, video_path: Path | str | None) -> None:
         """Paste zones from clipboard to the specified video.
 
         Args:
@@ -906,12 +908,12 @@ class ZoneEditor:
             self.canvas_manager.event_bus_v2.publish(
                 Event(
                     type=UIEvents.VIDEO_TREE_REFRESH_REQUESTED,
-                    data={"filter_text": None},
+                    data=payloads.VideoTreeRefreshRequestedPayload(filter_text=None),
                     source="CanvasManager.paste_zones_to_video",
                 )
             )
 
-    def delete_zones_from_video(self, video_path: str | None) -> None:
+    def delete_zones_from_video(self, video_path: Path | str | None) -> None:
         """Delete all zones from the specified video.
 
         Args:
@@ -950,7 +952,7 @@ class ZoneEditor:
             self.canvas_manager.event_bus_v2.publish(
                 Event(
                     type=UIEvents.VIDEO_TREE_REFRESH_REQUESTED,
-                    data={"filter_text": None},
+                    data=payloads.VideoTreeRefreshRequestedPayload(filter_text=None),
                     source="CanvasManager.delete_zones_from_video",
                 )
             )

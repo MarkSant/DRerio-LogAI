@@ -163,6 +163,7 @@ class TestUISchedulerViewUpdates(unittest.TestCase):
         """Test update_view handles missing method gracefully."""
         # Configure mock to not have the method
         del self.mock_view.nonexistent_method
+        self.mock_view.analysis_view_controller = None
 
         # Should not raise error, just log warning
         self.coordinator.update_view(self.mock_view, "nonexistent_method", "arg")

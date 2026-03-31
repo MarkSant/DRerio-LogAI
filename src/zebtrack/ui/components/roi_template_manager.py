@@ -209,12 +209,13 @@ class ROITemplateManager:
 
             # NEW PATH - Event-Driven Architecture v4.0
             if self.event_bus_v2:
+                from zebtrack.ui import payloads
                 from zebtrack.ui.event_bus_v2 import Event, UIEvents
 
                 self.event_bus_v2.publish(
                     Event(
                         type=UIEvents.ZONES_UPDATED,
-                        data={"zone_data": zone_data},
+                        data=payloads.ZonesUpdatedPayload(zone_data=zone_data),
                         source="ROITemplateManager.apply_template",
                     )
                 )
@@ -223,12 +224,16 @@ class ROITemplateManager:
 
             # Force refresh of video list indicators
             if self.event_bus_v2:
+                from zebtrack.ui import payloads
                 from zebtrack.ui.event_bus_v2 import Event, UIEvents
 
                 self.event_bus_v2.publish(
                     Event(
                         type=UIEvents.PROJECT_VIEWS_REFRESH_REQUESTED,
-                        data={"reason": "Template Applied", "append_summary": False},
+                        data=payloads.ProjectViewsRefreshRequestedPayload(
+                            reason="Template Applied",
+                            append_summary=False,
+                        ),
                         source="ROITemplateManager.apply_template",
                     )
                 )

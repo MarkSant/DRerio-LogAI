@@ -22,6 +22,7 @@ from zebtrack.core.video.processing_mode import ProcessingMode
 from zebtrack.core.video.processing_worker import (
     ProcessingWorker,
 )
+from zebtrack.ui import payloads
 from zebtrack.ui.event_bus_v2 import UIEvents
 
 if TYPE_CHECKING:
@@ -101,13 +102,13 @@ class SingleVideoMixin:
                         )
                         self._publish_event(
                             UIEvents.UI_SHOW_ERROR,
-                            {
-                                "title": "Configuração Incompleta",
-                                "message": (
+                            payloads.MessagePayload(
+                                title="Configuração Incompleta",
+                                message=(
                                     f"Aquário {aq.id} não tem sujeito definido. "
                                     "Configure os aquários antes de processar."
                                 ),
-                            },
+                            ),
                         )
                         return
 
@@ -332,7 +333,10 @@ class SingleVideoMixin:
         if meta:
             v_dict["metadata"] = meta
         self.project_manager.add_video_batch([v_dict], save_project=False)
-        self._publish_event(UIEvents.UI_REFRESH_PROJECT_VIEWS, {"reason": "reg", "imm": True})
+        self._publish_event(
+            UIEvents.UI_REFRESH_PROJECT_VIEWS,
+            payloads.ProjectViewsRefreshRequestedPayload(reason="reg", imm=True),
+        )
 
     def _ensure_single_video_zones_saved(self, video_path: Path | str, zone_data) -> None:
         """Ensure zones are saved for single video."""
@@ -355,7 +359,10 @@ class SingleVideoMixin:
         if dims is None:
             self._publish_event(
                 UIEvents.UI_SHOW_ERROR,
-                {"title": "Erro", "message": f"Não foi possível abrir: {video_path}"},
+                payloads.MessagePayload(
+                    title="Erro",
+                    message=f"Não foi possível abrir: {video_path}",
+                ),
             )
             return False
         w, h = dims

@@ -30,7 +30,9 @@ from zebtrack.coordinators.base_coordinator import (
 )
 from zebtrack.core.detection.aquarium_detector import AquariumDetector
 from zebtrack.io.camera import Camera
+from zebtrack.ui import payloads
 from zebtrack.ui.event_bus_v2 import Event, UIEvents
+from zebtrack.ui.payloads import VideoPathPayload
 
 if TYPE_CHECKING:
     from zebtrack.core.project.project_manager import ProjectManager
@@ -262,7 +264,12 @@ class LiveCalibrationCoordinator(BaseCoordinator):
                     # The image display event handler will redraw zones after loading.
 
                     # Only update zone list (not redraw - that happens after image loads)
-                    self.event_bus.publish(Event(type=UIEvents.UI_UPDATE_ZONE_LIST, data={}))
+                    self.event_bus.publish(
+                        Event(
+                            type=UIEvents.UI_UPDATE_ZONE_LIST,
+                            data=payloads.EmptyPayload(),
+                        )
+                    )
 
                     self.event_bus.publish(
                         Event(
@@ -782,7 +789,10 @@ class LiveCalibrationCoordinator(BaseCoordinator):
 
         if self.event_bus:
             self.event_bus.publish(
-                Event(type=UIEvents.UI_DISPLAY_VIDEO_FRAME, data={"video_path": reference_path})
+                Event(
+                    type=UIEvents.UI_DISPLAY_VIDEO_FRAME,
+                    data=VideoPathPayload(video_path=reference_path),
+                )
             )
 
         log.info(

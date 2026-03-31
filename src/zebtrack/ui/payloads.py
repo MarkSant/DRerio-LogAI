@@ -165,8 +165,12 @@ class ErrorOccurredPayload:
 
 @dataclass(frozen=True)
 class ExternalTriggerNoticePayload:
-    message: str
+    folder_name: str | None = None
     session_label: str | None = None
+    day: str | int | None = None
+    group: str | None = None
+    cobaia: str | None = None
+    port: str | None = None
     level: str | None = None
 
 
@@ -462,7 +466,7 @@ class SetupZoneDefinitionPayload:
 
 @dataclass(frozen=True)
 class VideoCancelAnalysisPayload:
-    video_path: str
+    video_path: str | None = None
 
 
 @dataclass(frozen=True)
@@ -522,7 +526,7 @@ class ReportsGenerateUnifiedPayload:
 
 @dataclass(frozen=True)
 class ReportsDeleteUnifiedPayload:
-    video_path: str
+    video_path: str | None = None
 
 
 @dataclass(frozen=True)
@@ -593,8 +597,9 @@ class ModelSetWeightPayload:
 
 @dataclass(frozen=True)
 class ModelSetOpenVinoPayload:
-    enabled: bool
+    use_openvino: bool
     device: str | None = None
+    dialog: Any | None = None
 
 
 @dataclass(frozen=True)
@@ -622,7 +627,8 @@ class ModelDeleteWeightPayload:
 
 @dataclass(frozen=True)
 class ModelRunDiagnosticPayload:
-    weight_name: str
+    config: dict[str, Any] | None = None
+    weight_name: str | None = None
     test_video: str | None = None
 
 
@@ -683,12 +689,12 @@ class CalibrationRunLivePayload:
 
 @dataclass(frozen=True)
 class CalibrationCopyToProjectPayload:
-    calibration_data: Mapping[str, Any]
+    calibration_data: Mapping[str, Any] | None = None
 
 
 @dataclass(frozen=True)
 class CalibrationSaveToProjectPayload:
-    calibration_data: Mapping[str, Any]
+    calibration_data: Mapping[str, Any] | None = None
 
 
 @dataclass(frozen=True)

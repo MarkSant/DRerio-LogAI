@@ -12,6 +12,7 @@ from typing import Any
 
 import structlog
 
+from zebtrack.ui import payloads
 from zebtrack.ui.components.base import BaseWidget
 from zebtrack.ui.components.behavioral_config_widget import BehavioralConfigWidget
 from zebtrack.ui.event_bus_v2 import EventBusV2, UIEvents
@@ -568,15 +569,23 @@ class ConfigEditorWidget(BaseWidget):
         """Handle save button click."""
         try:
             values = self.get_values()
-            self.emit_event(UIEvents.CONFIG_SAVE_REQUESTED, {"values": values})
+            self.emit_event(
+                UIEvents.CONFIG_SAVE_REQUESTED, payloads.ConfigSaveRequestedPayload(values=values)
+            )
         except ValueError as e:
-            self.emit_event(UIEvents.CONFIG_VALIDATION_ERROR, {"error": str(e)})
+            self.emit_event(
+                UIEvents.CONFIG_VALIDATION_ERROR,
+                payloads.ConfigValidationErrorPayload(error=str(e)),
+            )
 
     def _on_reset_clicked(self) -> None:
         """Handle reset button click."""
-        self.emit_event(UIEvents.CONFIG_RESET_REQUESTED, {})
+        self.emit_event(UIEvents.CONFIG_RESET_REQUESTED, payloads.EmptyPayload())
 
     def _on_roi_rule_changed(self, event=None) -> None:
         """Handle ROI rule combobox change."""
         selected_rule = self.roi_inclusion_rule_var.get()
-        self.emit_event(UIEvents.CONFIG_ROI_RULE_CHANGED, {"rule": selected_rule})
+        self.emit_event(
+            UIEvents.CONFIG_ROI_RULE_CHANGED,
+            payloads.ConfigRoiRuleChangedPayload(rule=selected_rule),
+        )

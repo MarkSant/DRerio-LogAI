@@ -17,7 +17,15 @@ import pytest
 
 
 def _setup_main_mocks(monkeypatch):
-    """Set up common mocks for main() testing."""
+    """Set up common mocks for main() testing.
+
+    IMPORTANT: We replace ``app_main.tk`` and ``app_main.messagebox`` with
+    stand-alone MagicMock objects instead of patching attributes *on* the real
+    ``tkinter`` module.  Patching ``tkinter.Tk`` globally breaks
+    ``ttkbootstrap`` which iterates over tkinter widget classes during its
+    first import and tries to set ``__init__`` — an unsupported operation on
+    MagicMock.
+    """
     from zebtrack import __main__ as app_main
 
     monkeypatch.setattr(sys, "argv", ["zebtrack"])
@@ -28,8 +36,14 @@ def _setup_main_mocks(monkeypatch):
     mock_root.after = MagicMock()
     mock_root.update = MagicMock()
     mock_root.mainloop = MagicMock()
-    monkeypatch.setattr(app_main.tk, "Tk", MagicMock(return_value=mock_root))
-    monkeypatch.setattr(app_main.messagebox, "showerror", MagicMock())
+
+    # Create isolated mock modules so the real tkinter stays untouched
+    mock_tk = MagicMock()
+    mock_tk.Tk = MagicMock(return_value=mock_root)
+    monkeypatch.setattr(app_main, "tk", mock_tk)
+
+    mock_messagebox = MagicMock()
+    monkeypatch.setattr(app_main, "messagebox", mock_messagebox)
 
     return app_main
 
@@ -333,7 +347,9 @@ class TestLoggingAndBenchmarkPaths:
 
         app_main.main()
 
-        load_cached_mock.assert_called_once()
+        # load_cached_benchmark is called twice: once by _detect_first_launch,
+        # once by _run_benchmark_if_enabled
+        assert load_cached_mock.call_count == 2
         get_or_run_mock.assert_not_called()
 
     def test_benchmark_first_run_persists_settings(self, monkeypatch):
@@ -378,7 +394,9 @@ class TestLoggingAndBenchmarkPaths:
 
         app_main.main()
 
-        load_cached_mock.assert_called_once()
+        # load_cached_benchmark is called twice: once by _detect_first_launch,
+        # once by _run_benchmark_if_enabled
+        assert load_cached_mock.call_count == 2
         get_or_run_mock.assert_called_once()
         save_settings_mock.assert_called_once_with(settings_obj)
 

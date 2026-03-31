@@ -396,6 +396,7 @@ class CanvasEventHandler:
             )
 
             if success:
+                from zebtrack.ui import payloads
                 from zebtrack.ui.event_bus_v2 import Event, UIEvents
 
                 drawing_type = self.gui.drawing_state_manager.drawing_type
@@ -410,7 +411,10 @@ class CanvasEventHandler:
                     self.manager.event_bus_v2.publish(
                         Event(
                             type=UIEvents.PROJECT_VIEWS_REFRESH_REQUESTED,
-                            data={"reason": status_message, "append_summary": True},
+                            data=payloads.ProjectViewsRefreshRequestedPayload(
+                                reason=status_message,
+                                append_summary=True,
+                            ),
                             source="CanvasEventHandler.on_canvas_double_click",
                         )
                     )

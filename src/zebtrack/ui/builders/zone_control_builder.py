@@ -8,6 +8,7 @@ from tkinter import StringVar, ttk
 
 import structlog
 
+from zebtrack.ui import payloads
 from zebtrack.ui.window_utils import create_scrollbar
 
 log = structlog.get_logger()
@@ -89,17 +90,18 @@ class ZoneControlBuilder:
 
     def _emit_apply_roi_settings(self) -> None:
         """Emit DETECTOR_UPDATE_PARAMETERS event with current ROI settings from UI."""
+        from zebtrack.ui import payloads
         from zebtrack.ui.event_bus_v2 import Event, UIEvents
 
         if self.event_bus_v2:
             self.event_bus_v2.publish(
                 Event(
                     type=UIEvents.DETECTOR_UPDATE_PARAMETERS,
-                    data={
-                        "rule": self.gui.roi_inclusion_rule_var.get(),
-                        "buffer_radius": float(self.gui.roi_buffer_radius_var.get() or 0.5),
-                        "overlap_ratio": float(self.gui.roi_overlap_ratio_var.get() or 0.10),
-                    },
+                    data=payloads.DetectorUpdateParametersPayload(
+                        rule=self.gui.roi_inclusion_rule_var.get(),
+                        buffer_radius=float(self.gui.roi_buffer_radius_var.get() or 0.5),
+                        overlap_ratio=float(self.gui.roi_overlap_ratio_var.get() or 0.10),
+                    ),
                     source="ZoneControlBuilder._emit_apply_roi_settings",
                 )
             )
@@ -114,12 +116,13 @@ class ZoneControlBuilder:
         """
         # NEW PATH - Event-Driven Architecture v4.0
         if self.event_bus_v2:
+            from zebtrack.ui import payloads
             from zebtrack.ui.event_bus_v2 import Event, UIEvents
 
             self.event_bus_v2.publish(
                 Event(
                     type=UIEvents.VIDEO_TREE_REFRESH_REQUESTED,
-                    data={"filter_text": filter_text},
+                    data=payloads.VideoTreeRefreshRequestedPayload(filter_text=filter_text),
                     source="ZoneControlBuilder._refresh_video_tree_dual_mode",
                 )
             )
@@ -152,7 +155,9 @@ class ZoneControlBuilder:
         from zebtrack.ui.event_bus_v2 import Event, UIEvents
 
         if hasattr(self.gui, "event_bus") and self.gui.event_bus:
-            self.gui.event_bus.publish(Event(type=UIEvents.ZONE_SAVE_ARENA, data={}))
+            self.gui.event_bus.publish(
+                Event(type=UIEvents.ZONE_SAVE_ARENA, data=payloads.EmptyPayload())
+            )
             log.info("zone_control_builder.conclude_video.zone_saved_event_emitted")
 
         # 3. Optional: Feedback

@@ -42,12 +42,13 @@ class ArenaCompletionStrategy(PolygonCompletionStrategy):
 
             # NEW PATH (v4.0)
             if hasattr(gui, "event_bus_v2") and gui.event_bus_v2:
+                from zebtrack.ui import payloads
                 from zebtrack.ui.event_bus_v2 import Event, UIEvents
 
                 gui.event_bus_v2.publish(
                     Event(
                         type=UIEvents.ZONES_UPDATED,
-                        data={"zone_data": None},
+                        data=payloads.ZonesUpdatedPayload(zone_data=None),
                         source="ArenaCompletionStrategy.complete",
                     )
                 )
@@ -133,12 +134,13 @@ class ROICompletionStrategy(PolygonCompletionStrategy):
 
             # NEW PATH (v4.0)
             if hasattr(gui, "event_bus_v2") and gui.event_bus_v2:
+                from zebtrack.ui import payloads
                 from zebtrack.ui.event_bus_v2 import Event, UIEvents
 
                 gui.event_bus_v2.publish(
                     Event(
                         type=UIEvents.ZONES_UPDATED,
-                        data={"zone_data": None},
+                        data=payloads.ZonesUpdatedPayload(zone_data=None),
                         source="ROICompletionStrategy.complete",
                     )
                 )

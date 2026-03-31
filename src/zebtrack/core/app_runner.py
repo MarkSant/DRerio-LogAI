@@ -87,7 +87,10 @@ def run_app(
 
         set_window_icon(root)
         splash = create_splash(parent=root)
-        splash.update_status("Carregando configurações...")
+        splash.update_progress(0.0, "Carregando configurações...")
+
+        # Detect first launch (no cached benchmark) and inform user
+        _detect_first_launch(settings_obj, splash)
 
         _run_benchmark_if_enabled(settings_obj, splash, save_settings, log)
 
@@ -115,7 +118,7 @@ def run_app(
         controller = resolve_main_view_model(container)
         controller.bind_events()
 
-        splash.update_status("Pronto!")
+        splash.update_progress(1.0, "Pronto!")
         root.update()
 
         def close_splash_and_show_main() -> None:
@@ -220,6 +223,19 @@ def _set_windows_app_id(log: Any) -> None:
         log.debug("main.app_user_model_id.suppressed", exc_info=True)
 
 
+def _detect_first_launch(settings_obj: Any, splash: Any) -> None:
+    """Detect first launch and inform the splash screen."""
+    if not settings_obj.openvino.auto_benchmark:
+        return
+    try:
+        from zebtrack.utils.hardware_benchmark import load_cached_benchmark
+
+        is_first = load_cached_benchmark() is None
+        splash.set_first_launch(is_first)
+    except Exception:
+        structlog.get_logger().debug("app.detect_first_launch.suppressed", exc_info=True)
+
+
 def _run_benchmark_if_enabled(
     settings_obj: Any,
     splash: Any,
@@ -237,11 +253,13 @@ def _run_benchmark_if_enabled(
 
         cached = load_cached_benchmark()
         if cached is None:
-            splash.update_status("Otimizando para seu hardware (primeira execução)...")
+            splash.update_progress(0.02, "Otimizando para seu hardware (primeira execução)...")
             log.info("benchmark.running_first_time")
 
             def progress_cb(step: int, total: int, message: str) -> None:
-                splash.update_status(f"Benchmark: {message}")
+                # Benchmark occupies progress range 0.02-0.15
+                frac = 0.02 + (step / max(total, 1)) * 0.13
+                splash.update_progress(frac, f"Benchmark: {message}")
 
             benchmark_result = get_or_run_benchmark(
                 quick_mode=True,
@@ -319,18 +337,29 @@ def _warm_container(container: Any, splash: Any) -> None:
     from zebtrack.core.video.video_processing_service import VideoProcessingService
     from zebtrack.ui.gui import ApplicationGUI
 
-    splash.update_status("Carregando sistema de modelos...")
+    # Phase weights: (cumulative fraction, message)
+    # Benchmark phase occupies 0.0-0.15, warm-up occupies 0.15-0.95
+    phases = [
+        (0.20, "Carregando sistema de modelos..."),
+        (0.35, "Inicializando gerenciador de projetos..."),
+        (0.50, "Configurando detector..."),
+        (0.65, "Preparando processamento de vídeo..."),
+        (0.85, "Criando interface gráfica..."),
+        (0.95, "Finalizando inicialização..."),
+    ]
+
+    splash.update_progress(phases[0][0], phases[0][1])
     container.resolve(ModelService)
-    splash.update_status("Inicializando gerenciador de projetos...")
+    splash.update_progress(phases[1][0], phases[1][1])
     container.resolve(ProjectManager)
     container.resolve(ProjectWorkflowService)
-    splash.update_status("Configurando detector...")
+    splash.update_progress(phases[2][0], phases[2][1])
     container.resolve(DetectorService)
-    splash.update_status("Preparando processamento de vídeo...")
+    splash.update_progress(phases[3][0], phases[3][1])
     container.resolve(VideoProcessingService)
-    splash.update_status("Criando interface gráfica...")
+    splash.update_progress(phases[4][0], phases[4][1])
     container.resolve(ApplicationGUI)
-    splash.update_status("Finalizando inicialização...")
+    splash.update_progress(phases[5][0], phases[5][1])
 
 
 def _handle_fatal_error(

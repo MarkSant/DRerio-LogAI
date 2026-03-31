@@ -287,19 +287,41 @@ def test_populate_tree_with_empty_hierarchy(overview_widget):
 
 
 def test_on_video_selected_emits_event(overview_widget):
-    """Test selection handler emits event."""
+    """Test selection handler emits typed ProjectVideoSelectedPayload."""
+    from zebtrack.ui.payloads import ProjectVideoSelectedPayload
+
     events_received = []
 
     def handler(data):
         events_received.append(data)
 
     overview_widget.event_bus.subscribe(UIEvents.PROJECT_VIDEO_SELECTED, handler)
-    overview_widget.add_tree_item("item1", "Video 1", values=("", ""))
-    overview_widget.project_overview_tree.selection_set("item1")
+    overview_widget.add_tree_item("video_test", "Video 1", values=("", ""))
+    overview_widget._iid_to_path["video_test"] = "/path/to/video.mp4"
+    overview_widget.project_overview_tree.selection_set("video_test")
 
     overview_widget._on_video_selected(SimpleNamespace())
 
-    assert len(events_received) >= 1
+    assert len(events_received) == 1
+    payload = events_received[0]
+    assert isinstance(payload, ProjectVideoSelectedPayload)
+    assert payload.video_path == "/path/to/video.mp4"
+
+
+def test_on_video_selected_no_event_for_non_video_node(overview_widget):
+    """Test selection of non-video nodes (groups/days) does not emit event."""
+    events_received = []
+
+    def handler(data):
+        events_received.append(data)
+
+    overview_widget.event_bus.subscribe(UIEvents.PROJECT_VIDEO_SELECTED, handler)
+    overview_widget.add_tree_item("group_G1", "Group 1", values=("", ""))
+    overview_widget.project_overview_tree.selection_set("group_G1")
+
+    overview_widget._on_video_selected(SimpleNamespace())
+
+    assert len(events_received) == 0
 
 
 def test_on_video_double_click_emits_event(overview_widget):
@@ -368,3 +390,4 @@ def test_update_tree_builds_video_index(overview_widget):
     )
 
     assert "/path/video.mp4" in overview_widget._video_index
+    assert overview_widget._iid_to_path["V1"] == "/path/video.mp4"

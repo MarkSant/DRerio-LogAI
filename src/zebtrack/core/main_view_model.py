@@ -302,6 +302,46 @@ class MainViewModel:
         return getattr(self, "_detector", None) is not None
 
     @property
+    def active_weight_name(self) -> str | None:
+        if hasattr(self, "hardware_vm"):
+            return self.hardware_vm.active_weight_name
+        return getattr(self, "_active_weight_name", None)
+
+    @active_weight_name.setter
+    def active_weight_name(self, value: str | None) -> None:
+        if hasattr(self, "hardware_vm"):
+            self.hardware_vm.active_weight_name = value
+        else:
+            self._active_weight_name = value
+
+    @property
+    def use_openvino(self) -> bool:
+        if hasattr(self, "hardware_vm"):
+            return self.hardware_vm.use_openvino
+        return getattr(self, "_use_openvino", False)
+
+    @use_openvino.setter
+    def use_openvino(self, value: bool) -> None:
+        if hasattr(self, "hardware_vm"):
+            self.hardware_vm.use_openvino = value
+        else:
+            self._use_openvino = value
+
+    @property
+    def settings_obj(self) -> Any:
+        return self.settings
+
+    def get_openvino_status(self) -> str:
+        if hasattr(self, "hardware_vm"):
+            return self.hardware_vm.get_openvino_status()
+        return "Desconhecido"
+
+    def get_all_weight_names(self) -> list[str]:
+        if hasattr(self, "hardware_vm"):
+            return self.hardware_vm.get_all_weight_names()
+        return []
+
+    @property
     def is_processing(self) -> bool:
         return self.analysis_vm.is_processing
 

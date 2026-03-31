@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from dataclasses import asdict, is_dataclass
+from dataclasses import fields, is_dataclass
 from typing import TYPE_CHECKING, Any
 
 import structlog
@@ -26,7 +26,7 @@ def _payload_to_dict(
     if isinstance(payload, dict):
         return payload
     if is_dataclass(payload) and not isinstance(payload, type):
-        return asdict(payload)
+        return {f.name: getattr(payload, f.name) for f in fields(payload)}
     return {}
 
 
@@ -244,9 +244,13 @@ class MainViewModelRuntime:
             return
         if key in ("active_zone_video", "project_data"):
             zone_data = self._vm.project_manager.get_zone_data()
-            self._vm.ui_event_bus.publish(Event(UIEvents.UI_REDRAW_ZONES, {"zone_data": zone_data}))
             self._vm.ui_event_bus.publish(
-                Event(UIEvents.UI_UPDATE_ZONE_LIST, {"zone_data": zone_data})
+                Event(UIEvents.UI_REDRAW_ZONES, payloads.ZonesUpdatedPayload(zone_data=zone_data))
+            )
+            self._vm.ui_event_bus.publish(
+                Event(
+                    UIEvents.UI_UPDATE_ZONE_LIST, payloads.ZonesUpdatedPayload(zone_data=zone_data)
+                )
             )
 
     def on_detector_state_changed(
@@ -256,11 +260,17 @@ class MainViewModelRuntime:
             return
         if key == "active_weight_name":
             self._vm.ui_event_bus.publish(
-                Event(UIEvents.UI_SET_ACTIVE_WEIGHT, {"weight_name": new})
+                Event(
+                    UIEvents.UI_SET_ACTIVE_WEIGHT,
+                    payloads.UISetActiveWeightPayload(weight_name=new),
+                )
             )
         elif key == "use_openvino":
             self._vm.ui_event_bus.publish(
-                Event(UIEvents.UI_UPDATE_OPENVINO_CHECKBOX, {"is_checked": new})
+                Event(
+                    UIEvents.UI_UPDATE_OPENVINO_CHECKBOX,
+                    payloads.UIUpdateOpenVinoCheckboxPayload(is_checked=new),
+                )
             )
             self._vm.ui_state_controller.update_openvino_status()
 
