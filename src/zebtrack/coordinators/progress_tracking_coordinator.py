@@ -157,7 +157,7 @@ class ProgressTrackingCoordinator(BaseCoordinator):
             )
 
     def _update_ui_for_processing_start(
-        self, video_name: str, video_path: str | None = None
+        self, video_name: str, video_path: Path | str | None = None
     ) -> None:
         """Update UI when processing starts (must run on main thread)."""
         if self.view:
@@ -171,7 +171,7 @@ class ProgressTrackingCoordinator(BaseCoordinator):
 
             self._publish_analysis_metadata_for_video(video_path)
 
-    def _publish_analysis_metadata_for_video(self, video_path: str | None) -> None:
+    def _publish_analysis_metadata_for_video(self, video_path: Path | str | None) -> None:
         """Publish analysis metadata after view mode initialization.
 
         This must run after `start_analysis_view_mode` so defaults are not kept.
@@ -185,11 +185,17 @@ class ProgressTrackingCoordinator(BaseCoordinator):
             return
 
         entry = project_manager.find_video_entry(path=video_path)
-        metadata = (entry or {}).get("metadata", {})
-        if metadata:
+        combined: dict = {}
+        if entry:
+            combined.update(dict(entry.get("metadata") or {}))
+            for key in ("group", "group_display_name", "day", "subject"):
+                value = entry.get(key)
+                if value not in (None, "") and key not in combined:
+                    combined[key] = value
+        if combined:
             self._publish_event(
                 UIEvents.UI_UPDATE_ANALYSIS_METADATA,
-                payloads.AnalysisMetadataPayload(metadata=metadata),
+                payloads.AnalysisMetadataPayload(metadata=combined),
             )
 
     def _on_processing_progress(self, progress_data: dict) -> None:
@@ -222,6 +228,9 @@ class ProgressTrackingCoordinator(BaseCoordinator):
             self._publish_event(
                 UIEvents.UI_UPDATE_ANALYSIS_TASK_STATUS,
                 payloads.AnalysisTaskStatusPayload(
+                    index=progress_data.get("idx"),
+                    total=progress_data.get("total_videos"),
+                    experiment_id=progress_data.get("exp_id"),
                     step=f"Processando quadros: {processed}/{total}",
                     progress_fraction=progress_fraction,
                 ),

@@ -7,6 +7,7 @@ Handles state observation, UI updates based on state changes, and reset operatio
 from __future__ import annotations
 
 import tkinter as tk
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import structlog
@@ -173,7 +174,7 @@ class StateSynchronizer:
             else:
                 log.debug("gui.arduino_state.disconnected")
 
-    def _update_project_ui(self, project_path) -> None:
+    def _update_project_ui(self, project_path: Path | str | None) -> None:
         """Update UI elements based on project state."""
         if project_path:
             log.debug("gui.project_state.loaded", project_path=str(project_path))
@@ -763,8 +764,10 @@ class StateSynchronizer:
             except (TypeError, ValueError):
                 log.debug("state_sync.progress_fraction_clamp.suppressed", exc_info=True)
 
-        # Update metadata display (group, day, subject)
-        group_str = str(group) if group else "Sem Grupo"
-        day_str = str(day) if day else "Sem Dia"
-        subject_str = str(subject) if subject else "Não informado"
-        self._apply_analysis_metadata_strings(group_str, day_str, subject_str)
+        # Update metadata display only when at least one field is explicitly provided;
+        # otherwise preserve values already set via UI_UPDATE_ANALYSIS_METADATA.
+        if group is not None or day is not None or subject is not None:
+            group_str = str(group) if group else "Sem Grupo"
+            day_str = str(day) if day else "Sem Dia"
+            subject_str = str(subject) if subject else "Não informado"
+            self._apply_analysis_metadata_strings(group_str, day_str, subject_str)
