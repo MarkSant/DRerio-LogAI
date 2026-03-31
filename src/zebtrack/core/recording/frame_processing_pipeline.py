@@ -385,29 +385,28 @@ class FrameProcessingMixin:
 
                                     # Publish progress event
                                     if self.event_bus:
+                                        from zebtrack.ui import payloads
                                         from zebtrack.ui.event_bus_v2 import Event, UIEvents
 
                                         self.event_bus.publish(
                                             Event(
                                                 type=UIEvents.AQUARIUM_DETECTION_PROGRESS,
-                                                data={
-                                                    "frame_number": self._aquarium_detection_frames,
-                                                    "max_frames": self._aquarium_detection_max_frames,  # noqa: E501
-                                                    "frame_image": frame.copy(),
-                                                    "detected_bbox": (
+                                                data=payloads.AquariumDetectionProgressPayload(
+                                                    frame_number=self._aquarium_detection_frames,
+                                                    max_frames=self._aquarium_detection_max_frames,
+                                                    frame_image=frame.copy(),
+                                                    detected_bbox=(
                                                         int(x1),
                                                         int(y1),
                                                         int(x2),
                                                         int(y2),
                                                     ),
-                                                    "is_valid": True,
-                                                    "experiment_id": self._analysis_params.get(
+                                                    is_valid=True,
+                                                    experiment_id=self._analysis_params.get(
                                                         "experiment_id", "unknown"
                                                     ),
-                                                    "valid_count": len(
-                                                        self._detected_aquarium_bboxes
-                                                    ),
-                                                },
+                                                    valid_count=len(self._detected_aquarium_bboxes),
+                                                ),
                                             ),
                                         )
                                 else:
@@ -420,29 +419,28 @@ class FrameProcessingMixin:
                                     )
 
                                     if self.event_bus and frame_number % 5 == 0:
+                                        from zebtrack.ui import payloads
                                         from zebtrack.ui.event_bus_v2 import Event, UIEvents
 
                                         self.event_bus.publish(
                                             Event(
                                                 type=UIEvents.AQUARIUM_DETECTION_PROGRESS,
-                                                data={
-                                                    "frame_number": self._aquarium_detection_frames,
-                                                    "max_frames": self._aquarium_detection_max_frames,  # noqa: E501
-                                                    "frame_image": frame.copy(),
-                                                    "detected_bbox": (
+                                                data=payloads.AquariumDetectionProgressPayload(
+                                                    frame_number=self._aquarium_detection_frames,
+                                                    max_frames=self._aquarium_detection_max_frames,
+                                                    frame_image=frame.copy(),
+                                                    detected_bbox=(
                                                         int(x1),
                                                         int(y1),
                                                         int(x2),
                                                         int(y2),
                                                     ),
-                                                    "is_valid": False,
-                                                    "experiment_id": self._analysis_params.get(
+                                                    is_valid=False,
+                                                    experiment_id=self._analysis_params.get(
                                                         "experiment_id", "unknown"
                                                     ),
-                                                    "valid_count": len(
-                                                        self._detected_aquarium_bboxes
-                                                    ),
-                                                },
+                                                    valid_count=len(self._detected_aquarium_bboxes),
+                                                ),
                                             ),
                                         )
 
@@ -614,14 +612,16 @@ class FrameProcessingMixin:
                         has_detections=len(detections) if detections else 0,
                     )
 
+                    from zebtrack.ui import payloads
+
                     self.event_bus.publish(
                         Event(
                             type=UIEvents.UI_UPDATE_LIVE_FRAME,
-                            data={
-                                "frame": frame,
-                                "detections": detections,
-                                "fps": self._actual_fps,
-                            },
+                            data=payloads.UIUpdateLiveFramePayload(
+                                frame=frame,
+                                detections=detections,
+                                fps=self._actual_fps,
+                            ),
                         ),
                     )
                 elif (

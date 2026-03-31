@@ -396,13 +396,17 @@ class RecordingSessionCoordinator(BaseCoordinator):
                 self.event_bus.publish(
                     Event(
                         type=UIEvents.UI_UPDATE_BUTTON_STATE,
-                        data={"button_name": "start_rec", "state": "normal"},
+                        data=payloads.UpdateButtonStatePayload(
+                            button_name="start_rec", state="normal"
+                        ),
                     )
                 )
                 self.event_bus.publish(
                     Event(
                         type=UIEvents.UI_UPDATE_BUTTON_STATE,
-                        data={"button_name": "stop_rec", "state": "disabled"},
+                        data=payloads.UpdateButtonStatePayload(
+                            button_name="stop_rec", state="disabled"
+                        ),
                     )
                 )
 
@@ -466,10 +470,10 @@ class RecordingSessionCoordinator(BaseCoordinator):
                 self.event_bus.publish(
                     Event(
                         type=UIEvents.UI_SHOW_ERROR,
-                        data={
-                            "title": "Trigger Externo Indisponível",
-                            "message": "O modo de trigger externo exige um Arduino configurado.",
-                        },
+                        data=payloads.ErrorOccurredPayload(
+                            title="Trigger Externo Indisponível",
+                            message="O modo de trigger externo exige um Arduino configurado.",
+                        ),
                     )
                 )
             return True

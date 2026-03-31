@@ -197,18 +197,19 @@ class LiveBatchCoordinator:
 
             # Publish event
             if self.event_bus:
+                from zebtrack.ui import payloads
                 from zebtrack.ui.event_bus_v2 import Event, UIEvents
 
                 self.event_bus.publish(
                     Event(
                         type=UIEvents.BATCH_ANALYSIS_COMPLETED,
-                        data={
-                            "batch_id": batch_id,
-                            "session_count": batch.session_count,
-                            "group": batch.group,
-                            "day": batch.day,
-                            "subject_id": batch.subject_id,
-                        },
+                        data=payloads.LiveBatchCompletedPayload(
+                            batch_id=batch_id,
+                            session_count=batch.session_count,
+                            group=batch.group,
+                            day=batch.day,
+                            subject_id=batch.subject_id,
+                        ),
                     )
                 )
         else:

@@ -11,6 +11,7 @@ from unittest.mock import Mock, patch
 import pytest
 
 from zebtrack.core.viewmodels.analysis_control_view_model import AnalysisControlViewModel
+from zebtrack.ui import payloads
 from zebtrack.ui.event_bus_v2 import Event, UIEvents
 
 
@@ -71,7 +72,7 @@ def test_start_single_video_workflow_invalid_det_config(view_model):
     view_model.ui_event_bus.publish.assert_called_once()
     event = view_model.ui_event_bus.publish.call_args[0][0]
     assert event.type == UIEvents.SHOW_ERROR
-    assert event.data["title"] == "Configuração Inválida"
+    assert event.data.title == "Configuração Inválida"
 
 
 def test_start_single_video_workflow_detector_setup_failure(view_model):
@@ -101,10 +102,12 @@ def test_start_single_video_workflow_detector_setup_success(view_model):
     view_model.project_manager.set_active_zone_video.assert_called_once_with(
         str(Path("/video.mp4"))
     )
+    from zebtrack.ui.payloads import SetupZoneDefinitionPayload
+
     view_model.ui_event_bus.publish.assert_called_once_with(
         Event(
             type=UIEvents.SETUP_ZONE_DEFINITION_FOR_SINGLE_VIDEO,
-            data={"video_path": Path("/video.mp4"), "config": config},
+            data=SetupZoneDefinitionPayload(video_path="\\video.mp4", config=config),
         )
     )
 
@@ -118,7 +121,7 @@ def test_start_single_video_workflow_without_detector_vm(view_model):
     view_model.ui_event_bus.publish.assert_called_once()
     event = view_model.ui_event_bus.publish.call_args[0][0]
     assert event.type == UIEvents.SETUP_ZONE_DEFINITION_FOR_SINGLE_VIDEO
-    assert event.data["config"] == config
+    assert event.data.config == config
 
 
 def test_start_single_video_processing_delegates(view_model):
@@ -139,7 +142,7 @@ def test_auto_detect_zones_publishes_event(view_model):
     view_model.ui_event_bus.publish.assert_called_once_with(
         Event(
             type=UIEvents.ZONE_AUTO_DETECT,
-            data={"video_path": "/video.mp4", "stabilization_frames": 15},
+            data=payloads.ZoneAutoDetectPayload(video_path="/video.mp4", stabilization_frames=15),
         )
     )
 
@@ -166,7 +169,10 @@ def test_cancel_current_analysis_stops_live_session(view_model):
     view_model.processing_coordinator.cancel_processing.assert_called_once()
     view_model.state_manager.update_processing_state.assert_called_once()
     view_model.ui_event_bus.publish.assert_called_once_with(
-        Event(type=UIEvents.SET_STATUS, data={"message": "Cancelando análise em andamento..."})
+        Event(
+            type=UIEvents.SET_STATUS,
+            data=payloads.StatusPayload(message="Cancelando análise em andamento..."),
+        )
     )
     view_model.ui_state_controller._show_cancel_feedback.assert_called_once()
     tmock.assert_called_once()

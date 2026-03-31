@@ -258,12 +258,15 @@ class LiveAnalysisPostProcessorMixin:
                     )
 
                     if self.event_bus:
+                        from zebtrack.ui import payloads
                         from zebtrack.ui.event_bus_v2 import Event, UIEvents
 
                         self.event_bus.publish(
                             Event(
                                 type=UIEvents.UI_REFRESH_PROJECT_VIEWS,
-                                data={"reason": "Live analysis complete"},
+                                data=payloads.ProjectViewsRefreshRequestedPayload(
+                                    reason="Live analysis complete"
+                                ),
                             )
                         )
 

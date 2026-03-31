@@ -32,6 +32,7 @@ if TYPE_CHECKING:
 
 from zebtrack.core.detection import ZoneData
 from zebtrack.core.detection.calibration import Calibration
+from zebtrack.ui import payloads as payloads
 from zebtrack.ui.event_bus_v2 import Event, UIEvents
 
 log = structlog.get_logger()
@@ -222,7 +223,9 @@ class TrackingSessionRunnerMixin:
             self.ui_event_bus.publish(
                 Event(
                     type=UIEvents.SET_STATUS,
-                    data={"message": f"Cancelamento solicitado para {experiment_id}."},
+                    data=payloads.StatusPayload(
+                        message=f"Cancelamento solicitado para {experiment_id}."
+                    ),
                 )
             )
             return False, arena_polygon
@@ -231,7 +234,7 @@ class TrackingSessionRunnerMixin:
         self.ui_event_bus.publish(
             Event(
                 type=UIEvents.SET_STATUS,
-                data={"message": f"Trajetória para {experiment_id} gerada."},
+                data=payloads.StatusPayload(message=f"Trajetória para {experiment_id} gerada."),
             )
         )
         return True, arena_polygon
@@ -270,7 +273,7 @@ class TrackingSessionRunnerMixin:
         self.ui_event_bus.publish(
             Event(
                 type=UIEvents.SET_STATUS,
-                data={"message": f"Iniciando processo para {experiment_id}..."},
+                data=payloads.StatusPayload(message=f"Iniciando processo para {experiment_id}..."),
             )
         )
 
@@ -332,10 +335,10 @@ class TrackingSessionRunnerMixin:
                     self.ui_event_bus.publish(
                         Event(
                             type=UIEvents.UI_DISPLAY_FRAME,
-                            data={
-                                "frame": frame,
-                                "detections": detections or [],
-                            },
+                            data=payloads.FrameDisplayPayload(
+                                frame=frame,
+                                detections=detections or [],
+                            ),
                         )
                     )
 

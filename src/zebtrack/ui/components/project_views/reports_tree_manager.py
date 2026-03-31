@@ -188,6 +188,8 @@ class ReportsTreeManager:
         # Refresh delegate widget reference (may have been created after init)
         widget = getattr(self.gui, "processing_reports_widget", None)
         self._tree_builder._processing_reports_widget = widget
+        self._assets._processing_reports_widget = widget
+        self._generator._processing_reports_widget = widget
 
         self._tree_builder.refresh_tab()
 
@@ -202,6 +204,8 @@ class ReportsTreeManager:
         # Refresh delegate widget reference
         widget = getattr(self.gui, "processing_reports_widget", None)
         self._tree_builder._processing_reports_widget = widget
+        self._assets._processing_reports_widget = widget
+        self._generator._processing_reports_widget = widget
 
         self._tree_builder.update_tree()
 
@@ -233,9 +237,21 @@ class ReportsTreeManager:
     # Public API — Double-click / file opening (delegate to ReportAssetActions)
     # ------------------------------------------------------------------
 
+    def on_processing_reports_item_click(self, event: Any | None = None) -> None:
+        """Handle single-click on processing reports tree file nodes."""
+        # Sync metadata ref before delegating
+        self._assets._processing_reports_widget = getattr(
+            self.gui, "processing_reports_widget", None
+        )
+        self._assets._tree_metadata = self._tree_metadata
+        self._assets.on_processing_reports_item_click(event)
+
     def on_processing_reports_item_double_click(self, event: Any | None = None) -> None:
         """Handle double-click on items in the Processing Reports tree."""
         # Sync metadata ref before delegating
+        self._assets._processing_reports_widget = getattr(
+            self.gui, "processing_reports_widget", None
+        )
         self._assets._tree_metadata = self._tree_metadata
         self._assets.on_processing_reports_item_double_click(event)
 

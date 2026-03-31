@@ -681,7 +681,9 @@ class UICoordinator:
                     # Publish action event via EventBusV2
                     self.event_bus.publish(
                         UIEvents.CAMERA_DISCONNECT_USER_ACTION,
-                        {"action": action, "experiment_id": experiment_id},
+                        payloads.CameraDisconnectPayload(
+                            action=action, experiment_id=experiment_id
+                        ),
                     )
 
                 CameraDisconnectRecoveryDialog(

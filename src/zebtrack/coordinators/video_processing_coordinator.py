@@ -328,12 +328,12 @@ class VideoProcessingCoordinator(
         if not scanned_videos:
             self._publish_event(
                 UIEvents.UI_SHOW_WARNING,
-                {
-                    "title": "Nenhum Vídeo Encontrado",
-                    "message": (
+                payloads.MessagePayload(
+                    title="Nenhum Vídeo Encontrado",
+                    message=(
                         "Nenhum novo arquivo de vídeo foi encontrado nos caminhos selecionados."
                     ),
-                },
+                ),
             )
             return
 
@@ -343,10 +343,10 @@ class VideoProcessingCoordinator(
         if not videos_to_process:
             self._publish_event(
                 UIEvents.UI_SHOW_INFO,
-                {
-                    "title": "Processamento Concluído",
-                    "message": "Nenhum novo vídeo para processar.",
-                },
+                payloads.MessagePayload(
+                    title="Processamento Concluído",
+                    message="Nenhum novo vídeo para processar.",
+                ),
             )
             return
 
@@ -368,10 +368,10 @@ class VideoProcessingCoordinator(
 
         self._publish_event(
             UIEvents.UI_SHOW_INFO,
-            {
-                "title": "Sucesso",
-                "message": f"{len(videos_to_process)} vídeo(s) adicionado(s) para processamento.",
-            },
+            payloads.MessagePayload(
+                title="Sucesso",
+                message=f"{len(videos_to_process)} vídeo(s) adicionado(s) para processamento.",
+            ),
         )
         log.info("workflow.project_processing.started", videos_count=len(videos_to_process))
 
@@ -457,6 +457,13 @@ class VideoProcessingCoordinator(
             idx: int, total: int, exp_id: str | None, fraction: float, msg: str, stats: dict | None
         ) -> None:
             if ptc:
+                if stats is None:
+                    log.debug(
+                        "progress_wrapper.stats_is_none",
+                        fraction=fraction,
+                        msg=msg,
+                        exp_id=exp_id,
+                    )
                 progress_data = {
                     "idx": idx,
                     "total_videos": total,
@@ -563,7 +570,10 @@ class VideoProcessingCoordinator(
         if not validation_result.is_valid:
             self._publish_event(
                 UIEvents.UI_SHOW_WARNING,
-                {"title": "Validação Falhou", "message": validation_result.error_message},
+                payloads.MessagePayload(
+                    title="Validação Falhou",
+                    message=validation_result.error_message,
+                ),
             )
             return
 
@@ -628,10 +638,10 @@ class VideoProcessingCoordinator(
         if not (ready_with_trajectory or ready_with_zones or arena_only):
             self._publish_event(
                 UIEvents.UI_SHOW_INFO,
-                {
-                    "title": "Processamento",
-                    "message": "Nenhum vídeo elegível foi encontrado com dados para análise.",
-                },
+                payloads.MessagePayload(
+                    title="Processamento",
+                    message="Nenhum vídeo elegível foi encontrado com dados para análise.",
+                ),
             )
             return
 
@@ -653,14 +663,14 @@ class VideoProcessingCoordinator(
             if missing_subjects:
                 self._publish_event(
                     UIEvents.UI_SHOW_ERROR,
-                    {
-                        "title": "Configuração Incompleta",
-                        "message": (
+                    payloads.ErrorOccurredPayload(
+                        title="Configuração Incompleta",
+                        message=(
                             f"O vídeo '{os.path.basename(str(vp))}' tem aquários "
                             f"sem sujeito definido:\n\n{', '.join(missing_subjects)}\n\n"
                             "Configure os aquários antes de processar."
                         ),
-                    },
+                    ),
                 )
                 return
 
@@ -688,10 +698,10 @@ class VideoProcessingCoordinator(
             log.exception("workflow.project_processing.worker_creation_failed", error=str(exc))
             self._publish_event(
                 UIEvents.UI_SHOW_ERROR,
-                {
-                    "title": "Erro ao Iniciar Processamento",
-                    "message": f"Falha ao criar worker de processamento: {exc}",
-                },
+                payloads.ErrorOccurredPayload(
+                    title="Erro ao Iniciar Processamento",
+                    message=f"Falha ao criar worker de processamento: {exc}",
+                ),
             )
             return
 
@@ -718,15 +728,17 @@ class VideoProcessingCoordinator(
             if len(final_tasks) > 1:
                 self._publish_event(
                     UIEvents.UI_SET_STATUS,
-                    {"message": f"Processamento em lote iniciado: {len(final_tasks)} vídeo(s)."},
+                    payloads.StatusPayload(
+                        message=f"Processamento em lote iniciado: {len(final_tasks)} vídeo(s).",
+                    ),
                 )
             else:
                 self._publish_event(
                     UIEvents.UI_SHOW_INFO,
-                    {
-                        "title": "Processamento Iniciado",
-                        "message": f"O processamento de {len(final_tasks)} vídeo(s) foi iniciado.",
-                    },
+                    payloads.MessagePayload(
+                        title="Processamento Iniciado",
+                        message=f"O processamento de {len(final_tasks)} vídeo(s) foi iniciado.",
+                    ),
                 )
             log.info(
                 "workflow.project_processing.resume_started",

@@ -309,7 +309,7 @@ class VideoSelectorTreeManager:
             self.event_bus_v2.publish(
                 Event(
                     type=UIEvents.VIDEO_HIERARCHY_SNAPSHOT_REQUESTED,
-                    data={},
+                    data=payloads.EmptyPayload(),
                     source="VideoSelectorTreeManager._update_project_overview_tree",
                 )
             )

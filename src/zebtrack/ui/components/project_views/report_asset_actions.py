@@ -175,6 +175,35 @@ class ReportAssetActions:
     # Double-click / file opening
     # ------------------------------------------------------------------
 
+    def on_processing_reports_item_click(self, event: Any | None = None) -> None:
+        """Handle single-click on processing reports tree.
+
+        Single click opens file nodes only. Folder/video nodes keep normal
+        selection behavior and still require double-click to open.
+        """
+        widget = self._processing_reports_widget
+        if not widget or not widget.tree:
+            return
+
+        tree = widget.tree
+
+        item_id = None
+        if event is not None:
+            item_id = tree.identify_row(event.y)
+        if not item_id:
+            selection = tree.selection()
+            if selection:
+                item_id = selection[0]
+        if not item_id:
+            return
+
+        metadata = self._tree_metadata.get(item_id)
+        if not metadata:
+            return
+
+        if metadata.get("type") == "file":
+            self._handle_report_file_node(metadata)
+
     def on_processing_reports_item_double_click(self, event: Any | None = None) -> None:
         """Handle double-click on items in the Processing Reports tree."""
         widget = self._processing_reports_widget
@@ -224,7 +253,18 @@ class ReportAssetActions:
     def _handle_report_file_node(self, metadata: dict) -> None:
         """Handle opening of report file node."""
         file_path = metadata.get("file_path") or metadata.get("path")
-        if not file_path or not os.path.exists(file_path):
+        if not file_path:
+            log.warning("gui.open_report_file.missing_path", metadata_keys=list(metadata.keys()))
+            self.dialog_manager.show_warning(
+                "Arquivo indisponível", "Caminho do relatório não foi encontrado."
+            )
+            return
+
+        if not os.path.exists(file_path):
+            log.warning("gui.open_report_file.not_found", path=file_path)
+            self.dialog_manager.show_warning(
+                "Arquivo não encontrado", f"O arquivo não existe mais:\n{file_path}"
+            )
             return
 
         log.info("gui.open_report_file", path=file_path)

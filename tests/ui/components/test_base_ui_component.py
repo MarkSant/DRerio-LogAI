@@ -21,6 +21,7 @@ from unittest.mock import Mock, patch
 import pytest
 
 from zebtrack.settings import Settings
+from zebtrack.ui import payloads
 from zebtrack.ui.components.base_component import BaseUIComponent, UIComponentError
 
 MINIMAL_SETTINGS_DATA = {
@@ -368,7 +369,8 @@ class TestBaseUIComponentEventBus:
         mock_event_bus.publish.assert_called_once()
         event = mock_event_bus.publish.call_args[0][0]
         assert event.type == UIEvents.ZONES_UPDATED
-        assert event.data == {}
+        # _emit_event uses EmptyPayload() as sentinel for None data
+        assert isinstance(event.data, payloads.EmptyPayload)
 
 
 class TestBaseUIComponentUIThreadScheduling:

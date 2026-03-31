@@ -794,7 +794,7 @@ class ZoneControlsWidget(BaseWidget):
         """Handle apply template button click."""
         self.emit_event(
             UIEvents.ZONE_TEMPLATE_APPLY,
-            {"template_name": self.roi_template_var.get()},
+            payloads.ZoneTemplateApplyPayload(template_name=self.roi_template_var.get()),
         )
 
     def _on_save_template_clicked(self) -> None:

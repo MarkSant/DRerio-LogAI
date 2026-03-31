@@ -176,15 +176,41 @@ class ExternalTriggerNoticePayload:
 
 @dataclass(frozen=True)
 class CameraDisconnectPayload:
-    camera_index: int
+    camera_index: int = 0
     action: str | None = None
+    gap_duration_s: float | None = None
+    gap_start_time: float | None = None
+    experiment_id: str | None = None
+    total_gaps: int | None = None
 
 
 @dataclass(frozen=True)
 class AquariumDetectionProgressPayload:
-    current_aquarium: int
-    total_aquariums: int
-    message: str
+    current_aquarium: int = 0
+    total_aquariums: int = 0
+    message: str = ""
+    frame_number: int | None = None
+    max_frames: int | None = None
+    frame_image: Any | None = None
+    detected_bbox: tuple[int, ...] | None = None
+    is_valid: bool | None = None
+    experiment_id: str | None = None
+    valid_count: int | None = None
+
+
+@dataclass(frozen=True)
+class ZoneDisplayClearedPayload:
+    deleted_video_path: str | None = None
+    asset: str | None = None
+
+
+@dataclass(frozen=True)
+class LiveBatchCompletedPayload:
+    batch_id: str | None = None
+    session_count: int = 0
+    group: str | None = None
+    day: str | int | None = None
+    subject_id: str | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -448,7 +474,7 @@ class SetupInteractivePolygonPayload:
 @dataclass(frozen=True)
 class VideoAnalyzeSinglePayload:
     video_path: str
-    analysis_config: Mapping[str, Any] | None = None
+    config: Mapping[str, Any] | None = None
 
 
 @dataclass(frozen=True)
@@ -777,6 +803,7 @@ class UIUpdateLiveFramePayload:
     frame: Any
     detections: Sequence[Any] | None = None
     frame_number: int | None = None
+    fps: float | None = None
 
 
 # ---------------------------------------------------------------------------

@@ -458,7 +458,9 @@ class MenuManager:
                 self.gui.event_bus_v2.publish(
                     Event(
                         type=UIEvents.ZONE_DISPLAY_CLEARED,
-                        data={"deleted_video_path": video_path, "asset": asset},
+                        data=payloads.ZoneDisplayClearedPayload(
+                            deleted_video_path=video_path, asset=asset
+                        ),
                         source="MenuManager.handle_overview_asset_removal",
                     )
                 )

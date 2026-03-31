@@ -232,7 +232,9 @@ class ApplicationGUI:
         # Phase 6 components (extracted from gui.py — Phase 4.4 decomposition)
         self.analysis_view_controller = AnalysisViewController(self)
         self.project_initializer = ProjectInitializer(self)
-        self.single_video_workflow = SingleVideoWorkflow(self)
+        self.single_video_workflow = SingleVideoWorkflow(
+            self, zone_context_service=self._zone_context_service
+        )
         self.weight_hardware_manager = WeightHardwareManager(self)
         self.zone_edit_guard = ZoneEditGuard(self)
 

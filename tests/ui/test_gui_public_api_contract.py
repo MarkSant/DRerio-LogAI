@@ -2,7 +2,7 @@ import inspect
 
 from zebtrack.ui.gui import ApplicationGUI
 
-# List of expected public API methods (Total: 8 after Phase 3 shim removal)
+# List of expected public API methods (Total: 11 after dialog helpers added)
 # Most methods moved to component managers (CanvasManager, DialogManager, etc.)
 EXPECTED_PUBLIC_API = [
     # 1. Core UI API (Status & Progress)
@@ -15,6 +15,10 @@ EXPECTED_PUBLIC_API = [
     # 2. Dialog entry points (still on ApplicationGUI)
     "ask_recording_details_unified",
     "ask_missing_metadata",
+    # 3. Simple message dialogs
+    "show_info",
+    "show_warning",
+    "show_error",
 ]
 
 

@@ -531,18 +531,21 @@ class LiveSessionManagerMixin:
 
         # Restore button state
         if self.event_bus:
+            from zebtrack.ui import payloads
             from zebtrack.ui.event_bus_v2 import Event, UIEvents
 
             self.event_bus.publish(
                 Event(
                     type=UIEvents.UI_UPDATE_BUTTON_STATE,
-                    data={"button_name": "start_rec", "state": "normal"},
+                    data=payloads.UpdateButtonStatePayload(button_name="start_rec", state="normal"),
                 )
             )
             self.event_bus.publish(
                 Event(
                     type=UIEvents.UI_UPDATE_BUTTON_STATE,
-                    data={"button_name": "stop_rec", "state": "disabled"},
+                    data=payloads.UpdateButtonStatePayload(
+                        button_name="stop_rec", state="disabled"
+                    ),
                 )
             )
             log.info("live_camera_service.buttons_restored_after_session_end")

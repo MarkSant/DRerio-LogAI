@@ -71,7 +71,10 @@ class BaseCoordinator:
 
                 def create_project(self, name: str) -> Path:
                     self.logger.info("project.create.start", name=name)
-                    self._publish_event(UIEvents.PROJECT_CREATED, {"name": name})
+                    self._publish_event(
+                        UIEvents.PROJECT_CREATED,
+                        payloads.ProjectCreatedPayload(project=name, path=project_path),
+                    )
                     return project_path
     """
 

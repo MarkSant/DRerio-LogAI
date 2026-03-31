@@ -200,7 +200,7 @@ class TestBaseCoordinatorEventBus:
         event_bus.publish.assert_called_once()
         event_obj = event_bus.publish.call_args[0][0]
         assert event_obj.type == "TEST_EVENT"
-        assert event_obj.data == {}
+        assert event_obj.data is None
 
 
 class TestBaseCoordinatorValidation:

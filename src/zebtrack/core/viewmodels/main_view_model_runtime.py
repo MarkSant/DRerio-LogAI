@@ -383,13 +383,13 @@ class MainViewModelRuntime:
                 vm.ui_event_bus.publish(
                     Event(
                         UIEvents.ERROR_OCCURRED,
-                        {
-                            "title": "Erro Crítico",
-                            "message": (
+                        payloads.ErrorOccurredPayload(
+                            title="Erro Crítico",
+                            message=(
                                 "A thread da câmera não foi finalizada corretamente. "
                                 "O aplicativo será encerrado."
                             ),
-                        },
+                        ),
                     )
                 )
 

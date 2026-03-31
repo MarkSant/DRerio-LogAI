@@ -535,7 +535,7 @@ class TestVideoContextHelpers:
         video_processing_service.ui_event_bus.publish.assert_called_once()
         call_ev = video_processing_service.ui_event_bus.publish.call_args[0][0]
         assert call_ev.type == UIEvents.SET_STATUS
-        assert "Cancelamento" in call_ev.data["message"]
+        assert "Cancelamento" in call_ev.data.message
 
     @patch("zebtrack.core.video.tracking_session_runner.time.time", return_value=15.0)
     def test_calculate_tracking_progress_stats(self, mock_time, video_processing_service):

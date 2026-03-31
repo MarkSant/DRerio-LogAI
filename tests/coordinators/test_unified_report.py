@@ -148,7 +148,7 @@ def test_status_clears_after_unified_report_success(coordinator, sample_summary_
 
     # Last status update should be "Pronto."
     last_status_call = status_calls[-1]
-    assert last_status_call[0][1]["message"] == "Pronto."
+    assert last_status_call[0][1].message == "Pronto."
 
 
 def test_status_not_cleared_on_failure(coordinator):
@@ -169,7 +169,7 @@ def test_status_not_cleared_on_failure(coordinator):
     ]
 
     # Should only have the initial status, not the final "Pronto."
-    status_messages = [call[0][1]["message"] for call in status_calls]
+    status_messages = [call[0][1].message for call in status_calls]
     assert "Pronto." not in status_messages
 
 
@@ -401,12 +401,12 @@ def test_roi_mismatch_warning_shown_when_schemas_differ(
         for call in coordinator._publish_event.call_args_list
         if (
             call[0][0] == UIEvents.UI_SHOW_WARNING
-            and "ROIs Diferentes" in call[0][1].get("title", "")
+            and "ROIs Diferentes" in getattr(call[0][1], "title", "")
         )
     ]
 
     assert len(warning_calls) == 1, "Should show ROI mismatch warning once"
-    assert "ROIs diferentes" in warning_calls[0][0][1]["message"]
+    assert "ROIs diferentes" in warning_calls[0][0][1].message
 
 
 def test_roi_mismatch_warning_suppressed_by_setting(
@@ -445,7 +445,7 @@ def test_roi_mismatch_warning_suppressed_by_setting(
         for call in coordinator._publish_event.call_args_list
         if (
             call[0][0] == UIEvents.UI_SHOW_WARNING
-            and "ROIs Diferentes" in call[0][1].get("title", "")
+            and "ROIs Diferentes" in getattr(call[0][1], "title", "")
         )
     ]
 
@@ -564,8 +564,8 @@ def test_unified_report_full_workflow_with_different_rois(
         if call[0][0] == UIEvents.UI_SET_STATUS
     ]
     assert len(status_calls) >= 2
-    assert status_calls[0][0][1]["message"] == "Gerando relatório unificado..."
-    assert status_calls[-1][0][1]["message"] == "Pronto."
+    assert status_calls[0][0][1].message == "Gerando relatório unificado..."
+    assert status_calls[-1][0][1].message == "Pronto."
 
     # 2. ROI mismatch warning
     warning_calls = [
@@ -573,7 +573,7 @@ def test_unified_report_full_workflow_with_different_rois(
         for call in coordinator._publish_event.call_args_list
         if (
             call[0][0] == UIEvents.UI_SHOW_WARNING
-            and "ROIs Diferentes" in call[0][1].get("title", "")
+            and "ROIs Diferentes" in getattr(call[0][1], "title", "")
         )
     ]
     assert len(warning_calls) == 1
@@ -583,7 +583,7 @@ def test_unified_report_full_workflow_with_different_rois(
         call
         for call in coordinator._publish_event.call_args_list
         if call[0][0] == UIEvents.UI_SHOW_INFO
-        and "Relatório Unificado" in call[0][1].get("title", "")
+        and "Relatório Unificado" in getattr(call[0][1], "title", "")
     ]
     assert len(info_calls) == 1
 
@@ -661,6 +661,6 @@ def test_unified_report_shows_error_when_all_exports_fail(
         call
         for call in coordinator._publish_event.call_args_list
         if call[0][0] == UIEvents.UI_SHOW_INFO
-        and "Relatório Unificado" in call[0][1].get("title", "")
+        and "Relatório Unificado" in getattr(call[0][1], "title", "")
     ]
     assert not success_calls, "Should not show success info when no unified files were generated"

@@ -23,6 +23,7 @@ from zebtrack.analysis.metrics_cache import MetricsCache
 from zebtrack.analysis.models import AnalysisResult, CalibrationParams
 from zebtrack.analysis.roi import ROI, ROIAnalyzer
 from zebtrack.analysis.trajectory_validator import TrajectoryQualityValidator
+from zebtrack.ui import payloads as payloads
 from zebtrack.ui.event_bus_v2 import Event, UIEvents
 
 if TYPE_CHECKING:
@@ -1135,11 +1136,11 @@ class AnalysisService:
                     lambda name=profile_name: controller.ui_event_bus.publish(
                         Event(
                             type=UIEvents.UI_UPDATE_SOCIAL_SUMMARY,
-                            data={
-                                "profile": name,
-                                "stats": None,
-                                "tracks": [],
-                            },
+                            data=payloads.SocialSummaryPayload(
+                                profile=name,
+                                stats=None,
+                                tracks=[],
+                            ),
                         )
                     ),
                 )
@@ -1224,7 +1225,9 @@ class AnalysisService:
         controller.ui_event_bus.publish(
             Event(
                 type=UIEvents.UI_REFRESH_PROJECT_VIEWS,
-                data={"reason": "Analysis completed", "append_summary": True},
+                data=payloads.ProjectViewsRefreshRequestedPayload(
+                    reason="Analysis completed", append_summary=True
+                ),
             )
         )
 

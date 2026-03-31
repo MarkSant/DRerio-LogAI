@@ -209,6 +209,10 @@ class VideoCompletionMixin:
             self._generate_completion_reports(video_path, experiment_id, True)
         elif trajectory_exists:
             self._generate_completion_reports(video_path, experiment_id, False)
+            self._publish_event(
+                UIEvents.UI_REFRESH_PROJECT_VIEWS,
+                payloads.ProjectViewsRefreshRequestedPayload(),
+            )
 
     def _scan_multi_aquarium_outputs(
         self, results_dir: Path | str, experiment_id, outputs_by_aquarium
@@ -242,12 +246,30 @@ class VideoCompletionMixin:
         """Generate reports after video completion."""
         rc = self._report_coordinator
         if not rc:
+            log.warning(
+                "controller.video_completed.report_coordinator_missing",
+                video=experiment_id,
+                is_multi=is_multi,
+            )
             return
         try:
             rc.generate_project_reports([video_path])
+            log.info(
+                "controller.video_completed.reports_generated",
+                video=experiment_id,
+                is_multi=is_multi,
+            )
         except Exception as e:  # except Exception justified: report generation I/O + data
             log.error(
                 f"controller.video_completed.report_failed_{'multi' if is_multi else 'single'}",
                 video=experiment_id,
                 error=str(e),
+                exc_info=True,
+            )
+            self._publish_event(
+                UIEvents.UI_SHOW_WARNING,
+                payloads.MessagePayload(
+                    title="Erro ao Gerar Relatórios",
+                    message=f"Falha ao gerar relatórios para '{experiment_id}':\n{e}",
+                ),
             )

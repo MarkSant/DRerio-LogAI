@@ -140,7 +140,8 @@ class ProgressTrackingCoordinator(BaseCoordinator):
 
     def _on_processing_started(self, video_path: Path | str) -> None:
         """Handle processing start event (callback from ProcessingWorker)."""
-        video_name = os.path.basename(video_path)
+        video_path_str = str(video_path)
+        video_name = os.path.basename(video_path_str)
         log.info("processing_coordinator.processing_started", video=video_name)
 
         self.state_manager.update_processing_state(
@@ -150,19 +151,53 @@ class ProgressTrackingCoordinator(BaseCoordinator):
         )
 
         if self.view and self.root:
-            self.root.after(0, lambda: self._update_ui_for_processing_start(video_name))
+            self.root.after(
+                0,
+                lambda: self._update_ui_for_processing_start(video_name, video_path_str),
+            )
 
-    def _update_ui_for_processing_start(self, video_name: str) -> None:
+    def _update_ui_for_processing_start(
+        self, video_name: str, video_path: str | None = None
+    ) -> None:
         """Update UI when processing starts (must run on main thread)."""
         if self.view:
             self.ui_coordinator.update_view(self.view, "start_analysis_view_mode")
-            self.ui_coordinator.set_status(self.view, f"Processando: {video_name}")
+            status_text = f"Processando: {video_name}"
+            self.ui_coordinator.set_status(self.view, status_text)
+
+            analysis_controller = getattr(self.view, "analysis_view_controller", None)
+            if analysis_controller and hasattr(analysis_controller, "update_analysis_progress"):
+                analysis_controller.update_analysis_progress(0.0, status_text=status_text)
+
+            self._publish_analysis_metadata_for_video(video_path)
+
+    def _publish_analysis_metadata_for_video(self, video_path: str | None) -> None:
+        """Publish analysis metadata after view mode initialization.
+
+        This must run after `start_analysis_view_mode` so defaults are not kept.
+        """
+        if not video_path:
+            return
+
+        vpc = self._video_processing_coordinator
+        project_manager = getattr(vpc, "project_manager", None) if vpc else None
+        if project_manager is None or not hasattr(project_manager, "find_video_entry"):
+            return
+
+        entry = project_manager.find_video_entry(path=video_path)
+        metadata = (entry or {}).get("metadata", {})
+        if metadata:
+            self._publish_event(
+                UIEvents.UI_UPDATE_ANALYSIS_METADATA,
+                payloads.AnalysisMetadataPayload(metadata=metadata),
+            )
 
     def _on_processing_progress(self, progress_data: dict) -> None:
         """Handle processing progress updates (callback from ProcessingWorker)."""
         total = progress_data.get("total_frames", 0)
         processed = progress_data.get("processed_frames", progress_data.get("current_frame", 0))
         detected = progress_data.get("detected_frames", 0)
+        fraction = progress_data.get("fraction", -1)
 
         # Thread-safe state update
         self.state_manager.update_processing_state(
@@ -171,21 +206,63 @@ class ProgressTrackingCoordinator(BaseCoordinator):
             total_frames=total,
         )
 
+        self._publish_event(
+            UIEvents.UI_UPDATE_PROCESSING_STATS,
+            payloads.ProcessingStatsWrapperPayload(stats=progress_data),
+        )
+
         if total > 0 and self.view and self.root:
-            pct = int((processed / total) * 100)
-            self.root.after(
-                0,
-                lambda: self._update_ui_progress(pct, processed, total, detected),
+            # Use worker's pre-computed fraction (frame_num / total_frames);
+            # fall back to processed/total only if fraction is unavailable.
+            if fraction >= 0:
+                progress_fraction = float(fraction)
+            else:
+                progress_fraction = processed / total
+
+            self._publish_event(
+                UIEvents.UI_UPDATE_ANALYSIS_TASK_STATUS,
+                payloads.AnalysisTaskStatusPayload(
+                    step=f"Processando quadros: {processed}/{total}",
+                    progress_fraction=progress_fraction,
+                ),
             )
 
-    def _update_ui_progress(self, pct: int, processed: int, total: int, detected: int) -> None:
-        """Update progress bar and status (must run on main thread)."""
-        if self.view:
-            self.ui_coordinator.update_progress(self.view, pct)
-            self.ui_coordinator.set_status(
-                self.view,
-                f"Processando: {processed}/{total} quadros ({pct}%) - {detected} detecções",
+            self.root.after(
+                0,
+                lambda: self._update_ui_progress(progress_fraction, processed, total, detected),
             )
+        elif total == 0:
+            log.debug(
+                "progress_tracking.skipped_ui_update",
+                total_frames=total,
+                has_view=bool(self.view),
+                has_root=bool(self.root),
+                fraction=fraction,
+                progress_keys=list(progress_data.keys()),
+            )
+
+    def _update_ui_progress(
+        self, fraction: float, processed: int, total: int, detected: int
+    ) -> None:
+        """Update progress bar and status (must run on main thread).
+
+        Args:
+            fraction: Progress as 0.0-1.0 float (matches UIScheduler/AnalysisDisplay contract).
+            processed: Number of detector-analyzed frames.
+            total: Total video frames.
+            detected: Number of frames with detections.
+        """
+        if self.view:
+            pct = int(fraction * 100)
+            status_text = (
+                f"Processando: {processed}/{total} quadros ({pct}%) - {detected} detecções"
+            )
+            self.ui_coordinator.update_progress(self.view, fraction)
+            self.ui_coordinator.set_status(self.view, status_text)
+
+            analysis_controller = getattr(self.view, "analysis_view_controller", None)
+            if analysis_controller and hasattr(analysis_controller, "update_analysis_progress"):
+                analysis_controller.update_analysis_progress(fraction, status_text=status_text)
 
     def _on_frame_processed(self, frame_data: dict) -> None:
         """Handle per-frame processing updates for real-time overlay."""
@@ -196,7 +273,7 @@ class ProgressTrackingCoordinator(BaseCoordinator):
         frame = frame_data.get("frame")
         frame_number = frame_data.get("frame_number", 0)
 
-        if frame is not None and detections:
+        if frame is not None:
             self.root.after(
                 0,
                 lambda f=frame, d=detections, n=frame_number: self._update_frame_display(f, d, n),
@@ -208,8 +285,8 @@ class ProgressTrackingCoordinator(BaseCoordinator):
             return
         try:
             canvas_manager = getattr(self.view, "canvas_manager", None)
-            if canvas_manager and hasattr(canvas_manager, "display_detection_frame"):
-                canvas_manager.display_detection_frame(frame, detections, frame_number)
+            if canvas_manager and hasattr(canvas_manager, "update_video_frame"):
+                canvas_manager.update_video_frame(frame, detections)
         except Exception:  # except Exception justified: Tkinter canvas + getattr fallible
             log.debug("progress_tracking.frame_display.suppressed", exc_info=True)
 
@@ -266,19 +343,34 @@ class ProgressTrackingCoordinator(BaseCoordinator):
             self.ui_coordinator.hide_progress_bar(self.view)
             self.ui_coordinator.set_status(self.view, "Pronto.")
 
+    def _finalize_progress_and_stop(self) -> None:
+        """Set progress to 100%, brief pause, then reset UI (runs on main thread)."""
+        if self.view:
+            self.ui_coordinator.update_progress(self.view, 1.0)
+            self.ui_coordinator.set_status(self.view, "Finalizando...")
+        # Small delay so user sees 100% before the bar disappears
+        if self.root:
+            self.root.after(500, self._update_ui_for_processing_stop)
+
     def _on_processing_complete(self, result_data: dict) -> None:
         """Handle processing completion for a single video or batch.
 
         Args:
-            result_data: Dict with keys like 'video_path', 'success', 'output_dir'
+            result_data: Dict with keys like 'videos_to_process', 'success',
+                         'output_dir', 'on_completed_callback'
         """
-        video_path = result_data.get("video_path", "")
+        videos_to_process = result_data.get("videos_to_process", [])
+        video_path = ""
+        if videos_to_process and len(videos_to_process) == 1:
+            video_path = videos_to_process[0].get("path", "")
         success = result_data.get("success", True)
+        output_dir = result_data.get("output_dir", "")
 
         log.info(
             "processing_coordinator.processing_complete",
             video=os.path.basename(video_path) if video_path else "batch",
             success=success,
+            output_dir=output_dir,
         )
 
         # Reset processing state
@@ -288,8 +380,9 @@ class ProgressTrackingCoordinator(BaseCoordinator):
             current_video=None,
         )
 
+        # Ensure progress bar shows 100% before hiding it
         if self.view and self.root:
-            self.root.after(0, lambda: self._update_ui_for_processing_stop())
+            self.root.after(0, lambda: self._finalize_progress_and_stop())
 
         # Handle batch context
         if self._is_batch_processing():
@@ -309,11 +402,14 @@ class ProgressTrackingCoordinator(BaseCoordinator):
         else:
             # Single video completion
             if success:
+                msg = "Processamento concluído com sucesso."
+                if output_dir:
+                    msg += f"\nResultados em: {output_dir}"
                 self._publish_event(
                     UIEvents.UI_SHOW_INFO,
                     payloads.MessagePayload(
                         title="Concluído",
-                        message="Processamento concluído com sucesso.",
+                        message=msg,
                     ),
                 )
 
@@ -321,6 +417,17 @@ class ProgressTrackingCoordinator(BaseCoordinator):
             UIEvents.UI_REFRESH_PROJECT_VIEWS,
             payloads.ProjectViewsRefreshRequestedPayload(),
         )
+
+        # Invoke caller-provided completion callback (e.g. wizard post-processing)
+        on_completed_callback = result_data.get("on_completed_callback")
+        if callable(on_completed_callback):
+            try:
+                on_completed_callback()
+            except Exception:
+                log.error(
+                    "processing_coordinator.on_completed_callback_failed",
+                    exc_info=True,
+                )
 
     def _show_batch_summary(self, ctx: dict | None) -> None:
         """Show summary dialog after batch processing finishes."""

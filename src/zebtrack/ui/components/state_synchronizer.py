@@ -710,6 +710,7 @@ class StateSynchronizer:
         total: int | None = None,
         experiment_id: str | None = None,
         step: str | None = None,
+        progress: float | None = None,
         progress_fraction: float | None = None,
         group: str | None = None,
         day: str | None = None,
@@ -747,13 +748,17 @@ class StateSynchronizer:
 
         task_var.set(" ".join(parts))
 
+        effective_progress = progress_fraction
+        if effective_progress is None:
+            effective_progress = progress
+
         if (
-            progress_fraction is not None
+            effective_progress is not None
             and analysis_widget
             and getattr(analysis_widget, "update_progress", None) is not None
         ):
             try:
-                clamped_progress = max(0.0, min(1.0, float(progress_fraction)))
+                clamped_progress = max(0.0, min(1.0, float(effective_progress)))
                 analysis_widget.update_progress(clamped_progress)
             except (TypeError, ValueError):
                 log.debug("state_sync.progress_fraction_clamp.suppressed", exc_info=True)

@@ -465,8 +465,8 @@ _PAYLOAD_TYPES: dict[UIEvents, type[Any]] = {
     UIEvents.CAMERA_DISCONNECT_USER_ACTION: payloads.CameraDisconnectPayload,
     UIEvents.CAMERA_RECONNECTED: payloads.CameraDisconnectPayload,
     UIEvents.AQUARIUM_DETECTION_PROGRESS: payloads.AquariumDetectionProgressPayload,
-    UIEvents.BATCH_ANALYSIS_COMPLETED: payloads.BatchAnalysisCompletedPayload,
-    UIEvents.ZONE_DISPLAY_CLEARED: payloads.EmptyPayload,
+    UIEvents.BATCH_ANALYSIS_COMPLETED: payloads.LiveBatchCompletedPayload,
+    UIEvents.ZONE_DISPLAY_CLEARED: payloads.ZoneDisplayClearedPayload,
 }
 
 

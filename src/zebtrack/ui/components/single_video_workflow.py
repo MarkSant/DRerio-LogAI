@@ -12,10 +12,12 @@ from typing import TYPE_CHECKING
 
 import structlog
 
+from zebtrack.ui import payloads
 from zebtrack.ui.decorators import public_api
 from zebtrack.ui.event_bus_v2 import UIEvents
 
 if TYPE_CHECKING:
+    from zebtrack.core.services.zone_context_service import ZoneContextService
     from zebtrack.ui.components.dialog_manager import DialogManager
     from zebtrack.ui.gui import ApplicationGUI
 
@@ -33,14 +35,23 @@ class SingleVideoWorkflow:
         gui: ApplicationGUI,
         *,
         dialog_manager: DialogManager | None = None,
+        zone_context_service: ZoneContextService | None = None,
     ) -> None:
         self.gui = gui
         self._dialog_manager = dialog_manager
+        self._zone_context_service = zone_context_service
 
     @property
     def dialog_manager(self) -> DialogManager:
         """DialogManager instance (injected or resolved from gui)."""
         return self._dialog_manager or self.gui.dialog_manager
+
+    @property
+    def zone_context_service(self) -> ZoneContextService:
+        """ZoneContextService instance (injected or resolved from gui)."""
+        if self._zone_context_service is not None:
+            return self._zone_context_service
+        return getattr(self.gui, "_zone_context_service", None)
 
     # ------------------------------------------------------------------
     # Entry point
@@ -181,10 +192,10 @@ class SingleVideoWorkflow:
 
         gui.event_dispatcher.publish_event(
             UIEvents.ZONE_AUTO_DETECT,
-            {
-                "video_path": video_path,
-                "stabilization_frames": stabilization_frames_int,
-            },
+            payloads.ZoneAutoDetectPayload(
+                video_path=video_path,
+                stabilization_frames=stabilization_frames_int,
+            ),
         )
 
     # ------------------------------------------------------------------
@@ -210,7 +221,9 @@ class SingleVideoWorkflow:
                 gui.canvas_manager.clear_interactive_polygon()
 
         # 1. Get the zone data that the user drew
-        zone_data = gui._get_zone_data_for_active_context()  # type: ignore[attr-defined]
+        zone_data = self.zone_context_service.get_zone_data_for_active_context(
+            pending_single_video_path=getattr(gui, "pending_single_video_path", None),
+        )
 
         # Validation for Single vs Multi Aquarium
         from zebtrack.core.detection import MultiAquariumZoneData
@@ -236,11 +249,11 @@ class SingleVideoWorkflow:
             gui.start_single_analysis_btn.config(state="disabled")
         gui.event_dispatcher.publish_event(
             UIEvents.VIDEO_START_SINGLE_PROCESSING,
-            {
-                "video_path": gui.pending_single_video_path,
-                "config": gui.pending_single_video_config,
-                "zone_data": zone_data,
-            },
+            payloads.VideoStartSingleProcessingPayload(
+                video_path=gui.pending_single_video_path,
+                config=gui.pending_single_video_config,
+                zone_data=zone_data,
+            ),
         )
 
         # 3. Clear the pending state

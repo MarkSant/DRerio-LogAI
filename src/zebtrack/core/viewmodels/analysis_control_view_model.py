@@ -80,14 +80,14 @@ class AnalysisControlViewModel:
                 self.ui_event_bus.publish(
                     Event(
                         type=UIEvents.SHOW_ERROR,
-                        data={
-                            "title": "Configuração Inválida",
-                            "message": (
+                        data=payloads.ErrorOccurredPayload(
+                            title="Configuração Inválida",
+                            message=(
                                 f"O modo de detecção (det) suporta apenas 1 animal por aquário.\n"
                                 f"Você configurou {animals_per_aquarium} animais por aquário.\n"
                                 "Para múltiplos animais, use o modo de segmentação (seg)."
                             ),
-                        },
+                        ),
                     )
                 )
             return
@@ -106,7 +106,10 @@ class AnalysisControlViewModel:
         self.ui_event_bus.publish(
             Event(
                 type=UIEvents.SETUP_ZONE_DEFINITION_FOR_SINGLE_VIDEO,
-                data={"video_path": video_path, "config": config},
+                data=payloads.SetupZoneDefinitionPayload(
+                    video_path=str(video_path),
+                    config=config,
+                ),
             )
         )
 
@@ -200,7 +203,7 @@ class AnalysisControlViewModel:
             self.ui_event_bus.publish(
                 Event(
                     type=UIEvents.SET_STATUS,
-                    data={"message": "Cancelando análise em andamento..."},
+                    data=payloads.StatusPayload(message="Cancelando análise em andamento..."),
                 )
             )
 
@@ -249,10 +252,10 @@ class AnalysisControlViewModel:
         Trigger auto-detection of aquarium zones via event.
         """
         if self.ui_event_bus:
-            payload = {
-                "video_path": kwargs.get("video_path"),
-                "stabilization_frames": kwargs.get("stabilization_frames", 10),
-            }
+            payload = payloads.ZoneAutoDetectPayload(
+                video_path=kwargs.get("video_path"),
+                stabilization_frames=kwargs.get("stabilization_frames", 10),
+            )
             self.ui_event_bus.publish(Event(type=UIEvents.ZONE_AUTO_DETECT, data=payload))
 
     def generate_parquet_summaries(self, video_paths: list[str]) -> None:
@@ -283,7 +286,9 @@ class AnalysisControlViewModel:
                 self.ui_event_bus.publish(
                     Event(
                         type=UIEvents.SET_STATUS,
-                        data={"message": f"Gerando relatório {i + 1}/{total}..."},
+                        data=payloads.StatusPayload(
+                            message=f"Gerando relatório {i + 1}/{total}..."
+                        ),
                     )
                 )
 

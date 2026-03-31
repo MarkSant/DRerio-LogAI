@@ -71,6 +71,6 @@ def test_process_videos_batch_publishes_social_summary_event(analysis_service, m
     # Verify payload
     event = social_summary_calls[0][0][0]
     assert event.type == UIEvents.UI_UPDATE_SOCIAL_SUMMARY
-    assert "profile" in event.data
-    assert "stats" in event.data
-    assert "tracks" in event.data
+    assert hasattr(event.data, "profile")
+    assert hasattr(event.data, "stats")
+    assert hasattr(event.data, "tracks")

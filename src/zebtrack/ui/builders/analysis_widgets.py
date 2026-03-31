@@ -104,8 +104,14 @@ class AnalysisWidgetsBuilder:
 
         if self.gui.processing_reports_widget.tree:
             self.gui.processing_reports_widget.tree.bind(
+                "<ButtonRelease-1>",
+                self.gui.reports_tree_manager.on_processing_reports_item_click,
+                add="+",
+            )
+            self.gui.processing_reports_widget.tree.bind(
                 "<Double-Button-1>",
                 self.gui.reports_tree_manager.on_processing_reports_item_double_click,
+                add="+",
             )
 
         self.gui.reports_tree_manager.refresh_processing_reports_tab()

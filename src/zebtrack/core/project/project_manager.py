@@ -495,7 +495,7 @@ class ProjectManager:
         changed = VideoManager.update_video_status(
             self.project_data, video_path.as_posix(), new_status
         )
-        if changed:
+        if changed and self.project_path:
             self.save_project()
         return changed
 

@@ -173,7 +173,7 @@ class SingleVideoMixin:
             mac._publish_processing_mode(source="single_video.preflight", force=True)
 
         # 9. Execute
-        self._execute_single_video_analysis(video_path)
+        self._execute_single_video_analysis(video_path, zone_data=zone_data)
 
     def _extract_calibration_from_config(self, config: dict) -> dict:
         """Extract calibration params from config."""
@@ -371,7 +371,7 @@ class SingleVideoMixin:
         self.detector.set_aquarium_region_defined(has_aq)
         return True
 
-    def _execute_single_video_analysis(self, video_path: Path | str) -> None:
+    def _execute_single_video_analysis(self, video_path: Path | str, zone_data: Any = None) -> None:
         """Final execution start for single video."""
         scanned = ProjectManager.scan_input_paths([str(video_path)])
         if not scanned:
@@ -380,19 +380,27 @@ class SingleVideoMixin:
                     "Erro", "Não foi possível identificar vídeo válido."
                 )
             return
+
         video_stem = Path(video_path).stem
         out_dir = self.project_manager.resolve_results_directory(
             video_stem, video_path=str(video_path)
         )
-        self.process_videos(scanned, out_dir)
+        self.process_videos(scanned, out_dir, zone_data=zone_data)
 
-    def process_videos(self, videos_to_process: list[dict], output_base_dir: Path | str) -> None:
+    def process_videos(
+        self,
+        videos_to_process: list[dict],
+        output_base_dir: Path | str,
+        zone_data: Any = None,
+    ) -> None:
         """Execute processing for a list of videos (legacy support)."""
         output_dir_str = str(output_base_dir)
 
         # Reuse the unified callback factory
         callbacks = self.create_processing_callbacks(videos_to_process)
-        context = self.create_processing_context(videos_to_process, output_dir_str)
+        context = self.create_processing_context(
+            videos_to_process, output_dir_str, zone_data=zone_data
+        )
         if self.cancel_event:
             self.cancel_event.clear()
         self.processing_worker = ProcessingWorker(context, callbacks)

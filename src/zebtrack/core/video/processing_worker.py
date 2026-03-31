@@ -163,6 +163,50 @@ class ProcessingWorker:
             self._shm_buffer = None
             shm_name = ""
 
+        # Resolve model type and path from settings snapshot
+        # The main process selects model via detector_service/weight_manager,
+        # but the worker needs to reconstruct the same selection from settings.
+        resolved_model_type = "yolo"
+        resolved_model_path = ""
+        settings = self.context.settings
+        if hasattr(settings, "model_selection"):
+            ms = settings.model_selection
+            use_ov = getattr(ms, "use_openvino", False)
+            animal_method = getattr(ms, "animal_method", "det")
+            if use_ov:
+                resolved_model_type = "openvino"
+            # Resolve the correct weight filename based on method
+            if hasattr(settings, "weights"):
+                if animal_method == "det":
+                    resolved_model_path = getattr(settings.weights, "det_filename", "")
+                else:
+                    resolved_model_path = getattr(settings.weights, "seg_filename", "")
+            if not resolved_model_path:
+                resolved_model_path = getattr(settings.yolo_model, "path", "")
+            # For OpenVINO, resolve to the cached model directory
+            if use_ov and resolved_model_path:
+                stem = os.path.splitext(os.path.basename(resolved_model_path))[0]
+                ov_dir = os.path.join("openvino_model_cache", f"{stem}_openvino_model")
+                if os.path.exists(ov_dir):
+                    resolved_model_path = os.path.abspath(ov_dir)
+                    log.info(
+                        "worker.model.resolved_openvino",
+                        path=resolved_model_path,
+                    )
+                else:
+                    log.warning(
+                        "worker.model.openvino_cache_missing",
+                        expected=ov_dir,
+                        fallback="yolo",
+                    )
+                    resolved_model_type = "yolo"
+
+        log.info(
+            "worker.model.resolved",
+            model_type=resolved_model_type,
+            model_path=resolved_model_path,
+        )
+
         # Create WorkerConfig
         config = WorkerConfig(
             settings=self.context.settings,
@@ -173,7 +217,8 @@ class ProcessingWorker:
             display_interval_frames=self.context.display_interval_frames,
             zone_data=z_dict,
             shm_name=shm_name,
-            # Model path logic inside _WorkerProcess will handle defaults
+            model_type=resolved_model_type,
+            model_path=resolved_model_path,
         )
 
         self.process = _WorkerProcess(config, self.result_queue, self.command_queue)
@@ -201,6 +246,7 @@ class ProcessingWorker:
         cancel_sent = False  # Track if we've sent cancel command
         completed_received = False
         worker_exit_detected_at: float | None = None
+        msg_counts: dict[str, int] = {}  # Phase 1c: message counter
 
         # Log cancel_event details for debugging
         log.info(
@@ -249,6 +295,7 @@ class ProcessingWorker:
                 worker_exit_detected_at = None
 
                 msg_type = msg.get("type")
+                msg_counts[msg_type] = msg_counts.get(msg_type, 0) + 1
 
                 if msg_type == "progress":
                     if self.callbacks.on_progress is not None:
@@ -327,6 +374,12 @@ class ProcessingWorker:
                 elif self.callbacks.on_error is not None:
                     self.callbacks.on_error(e, "Monitor loop failure")
                 break
+
+        log.info(
+            "monitor_loop.finished",
+            msg_counts=msg_counts,
+            completed_received=completed_received,
+        )
 
         if self.process:
             self.process.join(timeout=2.0)

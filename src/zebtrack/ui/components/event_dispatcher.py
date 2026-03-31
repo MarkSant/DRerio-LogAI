@@ -484,7 +484,7 @@ class EventDispatcher:
         gui = self._require_gui()
         video_path = payload.get("video_path")
         config = payload.get("config")
-        if video_path and config:
+        if video_path and config is not None:
             if hasattr(gui, "single_video_workflow"):
                 self.log.info(
                     "event_dispatcher._handle_setup_zone_definition_for_single_video.calling_gui_method"
@@ -498,7 +498,7 @@ class EventDispatcher:
             self.log.error(
                 "event_dispatcher._handle_setup_zone_definition_for_single_video.missing_data",
                 has_video_path=bool(video_path),
-                has_config=bool(config),
+                has_config=config is not None,
             )
 
     def subscribe_zone_component_events(self) -> None:
@@ -835,6 +835,7 @@ class EventDispatcher:
             video_path=video_path,
         )
         self.publish_event(
-            UIEvents.VIDEO_ANALYZE_SINGLE, {"video_path": video_path, "config": config}
+            UIEvents.VIDEO_ANALYZE_SINGLE,
+            payloads.VideoAnalyzeSinglePayload(video_path=video_path, config=config),
         )
         self.log.info("event_dispatcher.handle_analyze_single_video_clicked.event_published")

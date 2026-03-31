@@ -40,6 +40,7 @@ from zebtrack.analysis.reporters import (
 from zebtrack.analysis.roi import ROI, ROIAnalyzer
 from zebtrack.core.detection import ZoneData
 from zebtrack.core.detection.calibration import Calibration
+from zebtrack.ui import payloads
 from zebtrack.ui.event_bus_v2 import Event, UIEvents
 
 log = structlog.get_logger()
@@ -432,7 +433,7 @@ class AnalysisPipelineRunnerMixin:
             self.ui_event_bus.publish(
                 Event(
                     type=UIEvents.UI_REFRESH_PROJECT_VIEWS,
-                    data={"reason": "processing_complete"},
+                    data=payloads.ProjectViewsRefreshRequestedPayload(reason="processing_complete"),
                 )
             )
 
@@ -501,10 +502,10 @@ class AnalysisPipelineRunnerMixin:
             self.ui_event_bus.publish(
                 Event(
                     type=UIEvents.SHOW_ERROR,
-                    data={
-                        "title": "Erro de Processamento",
-                        "message": "Dados de calibração incompletos.",
-                    },
+                    data=payloads.ErrorOccurredPayload(
+                        title="Erro de Processamento",
+                        message="Dados de calibração incompletos.",
+                    ),
                 )
             )
             return False
@@ -535,10 +536,10 @@ class AnalysisPipelineRunnerMixin:
             self.ui_event_bus.publish(
                 Event(
                     type=UIEvents.SHOW_ERROR,
-                    data={
-                        "title": "Erro de Processamento",
-                        "message": "Falha ao preparar dados de calibração.",
-                    },
+                    data=payloads.ErrorOccurredPayload(
+                        title="Erro de Processamento",
+                        message="Falha ao preparar dados de calibração.",
+                    ),
                 )
             )
             return False
@@ -596,11 +597,11 @@ class AnalysisPipelineRunnerMixin:
         self.ui_event_bus.publish(
             Event(
                 type=UIEvents.UI_UPDATE_SOCIAL_SUMMARY,
-                data={
-                    "profile": profile_name,
-                    "stats": social_summary,
-                    "tracks": resolved_track_ids,
-                },
+                data=payloads.SocialSummaryPayload(
+                    profile=profile_name,
+                    stats=social_summary,
+                    tracks=resolved_track_ids,
+                ),
             )
         )
 

@@ -249,11 +249,11 @@ class CameraConnectionMixin:
                 self.event_bus.publish(
                     Event(
                         type=UIEvents.CAMERA_DISCONNECT_DETECTED,
-                        data={
-                            "gap_duration_s": gap_duration,
-                            "gap_start_time": gap_start_time,
-                            "experiment_id": self._analysis_params.get("experiment_id", "unknown"),
-                        },
+                        data=payloads.CameraDisconnectPayload(
+                            gap_duration_s=gap_duration,
+                            gap_start_time=gap_start_time,
+                            experiment_id=self._analysis_params.get("experiment_id", "unknown"),
+                        ),
                     ),
                 )
 
@@ -300,10 +300,10 @@ class CameraConnectionMixin:
             self.event_bus.publish(
                 Event(
                     type=UIEvents.CAMERA_RECONNECTED,
-                    data={
-                        "gap_duration_s": gap_duration if self._disconnect_gaps else 0.0,
-                        "total_gaps": len(self._disconnect_gaps),
-                    },
+                    data=payloads.CameraDisconnectPayload(
+                        gap_duration_s=gap_duration if self._disconnect_gaps else 0.0,
+                        total_gaps=len(self._disconnect_gaps),
+                    ),
                 ),
             )
 

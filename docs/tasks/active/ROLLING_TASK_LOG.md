@@ -6,6 +6,54 @@ This document tracks all major agent interventions, technical debt resolutions, 
 
 ## Active Tasks
 
+### [2026-03-31] Processing Reports tree double-click open hotfix
+
+__ID:__ TASK-050
+__Agent:__ GitHub Copilot (GPT-5.3-Codex)
+__Status:__ In Progress 🔄
+__Branch:__ main
+__Description:__
+Fix no-op behavior when double-clicking report file items in Processing and
+Reports tree by synchronizing delegate widget references and preserving
+existing tree handlers.
+
+### Subtasks (TASK-050)
+
+- [x] Run mandatory impact analysis for affected files.
+- [x] Sync ProcessingReportsWidget reference before click delegation.
+- [x] Keep double-click binding additive to avoid overriding widget handlers.
+- [ ] Validate with lint and tests.
+
+### [2026-03-31] UI_UPDATE_ANALYSIS_TASK_STATUS payload compatibility hotfix
+
+__ID:__ TASK-049
+__Agent:__ GitHub Copilot (GPT-5.3-Codex)
+__Status:__ Completed ✅
+__Branch:__ main
+__Description:__
+Fix runtime EventBus handler failure caused by payload key mismatch where
+`AnalysisTaskStatusPayload` includes `progress` but
+`StateSynchronizer.update_analysis_task_status()` did not accept it.
+
+### Subtasks (TASK-049)
+
+- [x] Run mandatory impact analysis for event + target handler file.
+- [x] Implement backward-compatible handler signature for `progress` alias.
+- [x] Validate with lint and tests.
+
+__Results:__
+
+- Mandatory impact analysis executed:
+  - `python scripts/impact_analyzer.py event UI_UPDATE_ANALYSIS_TASK_STATUS`
+  - `python scripts/impact_analyzer.py file src/zebtrack/ui/components/state_synchronizer.py`
+- Fix applied in `StateSynchronizer.update_analysis_task_status(...)`:
+  - Added `progress: float | None = None` parameter.
+  - Unified progress handling by using `progress_fraction` first and
+    `progress` as fallback alias.
+- Validation:
+  - `poetry run ruff check src/zebtrack/ui/components/state_synchronizer.py` ✅
+  - `poetry run pytest -q --timeout=120 -x` ✅ (2783 passed, 2 skipped)
+
 ### [2026-03-29] Video selection payload and processing lifecycle fix
 
 __ID:__ TASK-048

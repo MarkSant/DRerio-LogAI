@@ -377,13 +377,17 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
                 self.event_bus.publish(
                     Event(
                         type=UIEvents.UI_UPDATE_BUTTON_STATE,
-                        data={"button_name": "start_rec", "state": "normal"},
+                        data=payloads.UpdateButtonStatePayload(
+                            button_name="start_rec", state="normal"
+                        ),
                     )
                 )
                 self.event_bus.publish(
                     Event(
                         type=UIEvents.UI_UPDATE_BUTTON_STATE,
-                        data={"button_name": "stop_rec", "state": "disabled"},
+                        data=payloads.UpdateButtonStatePayload(
+                            button_name="stop_rec", state="disabled"
+                        ),
                     )
                 )
                 log.info("live_camera_session_coordinator.stop_live_session.buttons_restored")
@@ -745,23 +749,23 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
             self.event_bus.publish(
                 Event(
                     type=UIEvents.UI_SET_STATUS,
-                    data={
-                        "message": (
+                    data=payloads.StatusPayload(
+                        message=(
                             f"Analisando câmera {camera_index} "
                             f"(análise: {analysis_interval_frames}f, "
                             f"exibição: {display_interval_frames}f)"
                         )
-                    },
+                    ),
                 )
             )
         elif not success and self.event_bus:
             self.event_bus.publish(
                 Event(
                     type=UIEvents.UI_SHOW_ERROR,
-                    data={
-                        "title": "Erro na Análise",
-                        "message": f"Falha ao iniciar análise de câmera {camera_index}.",
-                    },
+                    data=payloads.ErrorOccurredPayload(
+                        title="Erro na Análise",
+                        message=f"Falha ao iniciar análise de câmera {camera_index}.",
+                    ),
                 )
             )
 
