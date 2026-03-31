@@ -130,6 +130,11 @@ class TestProjectWorkflowServiceValidation(unittest.TestCase):
         assert result["num_aquariums"] == 2
         assert result["use_openvino"] is True
 
+        # Newly supported parameter should be preserved
+        kwargs_with_device = kwargs | {"openvino_device": "GPU"}
+        result_with_device = self.service.prepare_controller_parameters(**kwargs_with_device)
+        assert result_with_device["openvino_device"] == "GPU"
+
         # Invalid params should be filtered out
         assert "invalid_param" not in result
         assert "another_invalid" not in result
@@ -345,6 +350,36 @@ class TestProjectWorkflowServiceProjectCreation(unittest.TestCase):
         assert result["wizard_metadata"] is not None
         assert result["import_success"] is True
         self.mock_project_manager.import_parquets_from_wizard.assert_called_once()
+
+    def test_prepare_project_input_generates_video_files_without_detected_design(self):
+        """Pre-recorded flow must include video_files even when design detection is absent."""
+        kwargs, _context = self.service._prepare_project_input(
+            project_path="/tmp/project",
+            project_type="experimental",
+            scanned_videos=[
+                {
+                    "path": "/tmp/video1.mp4",
+                    "filename": "video1.mp4",
+                    "has_complete_data": True,
+                }
+            ],
+            parquet_import_scope=None,
+        )
+
+        assert "video_files" in kwargs
+        assert len(kwargs["video_files"]) == 1
+        assert kwargs["video_files"][0]["path"] == "/tmp/video1.mp4"
+        assert kwargs["video_files"][0]["has_data"] is False
+
+    def test_prepare_project_input_propagates_openvino_device_from_model_selection(self):
+        """Model selection should propagate OpenVINO device when top-level value is absent."""
+        kwargs, _context = self.service._prepare_project_input(
+            project_path="/tmp/project",
+            project_type="experimental",
+            model_selection={"use_openvino": True, "openvino_device": "NPU"},
+        )
+
+        assert kwargs["openvino_device"] == "NPU"
 
 
 class TestProjectWorkflowServiceProjectOpening(unittest.TestCase):

@@ -156,6 +156,7 @@ class ProjectWorkflowService:
             "project_path",
             "project_type",
             "use_openvino",
+            "openvino_device",
             "active_weight",
             "video_files",
             "num_aquariums",
@@ -293,6 +294,33 @@ class ProjectWorkflowService:
 
         return resolved_weight, resolved_openvino
 
+    def _resolve_openvino_device(self, overrides: dict | None = None) -> str:
+        """Resolve OpenVINO target device from overrides/project/settings."""
+        project_data = getattr(self.project_manager, "project_data", {}) or {}
+        base_overrides = project_data.get("model_overrides") or {}
+        merged_overrides = base_overrides.copy()
+        if overrides is not None:
+            merged_overrides.update(overrides)
+
+        device_override = merged_overrides.get("device")
+        if isinstance(device_override, str):
+            candidate = device_override.strip().upper()
+            if candidate:
+                return candidate
+
+        project_device = project_data.get("openvino_device")
+        if isinstance(project_device, str):
+            candidate = project_device.strip().upper()
+            if candidate:
+                return candidate
+
+        if self.settings and hasattr(self.settings, "openvino"):
+            configured = getattr(self.settings.openvino, "device", "AUTO")
+            if isinstance(configured, str) and configured.strip():
+                return configured.strip().upper()
+
+        return "AUTO"
+
     def apply_project_model_overrides(
         self,
         overrides: dict | None = None,
@@ -320,6 +348,7 @@ class ProjectWorkflowService:
             )
 
         resolved_weight, resolved_openvino = self.resolve_project_model_settings(overrides)
+        resolved_device = self._resolve_openvino_device(overrides)
 
         self._using_project_overrides = True
 
@@ -340,6 +369,29 @@ class ProjectWorkflowService:
             self.project_manager.project_data["use_openvino"] = resolved_openvino
             updated = True
 
+        model_overrides = self.project_manager.project_data.setdefault(
+            "model_overrides",
+            {"active_weight": None, "use_openvino": None, "device": "AUTO"},
+        )
+        if model_overrides.get("active_weight") != resolved_weight:
+            model_overrides["active_weight"] = resolved_weight
+            updated = True
+        if model_overrides.get("use_openvino") != resolved_openvino:
+            model_overrides["use_openvino"] = resolved_openvino
+            updated = True
+        if model_overrides.get("device") != resolved_device:
+            model_overrides["device"] = resolved_device
+            updated = True
+
+        if self.project_manager.project_data.get("openvino_device") != resolved_device:
+            self.project_manager.project_data["openvino_device"] = resolved_device
+            updated = True
+
+        if self.settings and hasattr(self.settings, "openvino"):
+            self.settings.openvino.device = resolved_device
+            if hasattr(self.settings.openvino, "device_batch"):
+                self.settings.openvino.device_batch = resolved_device
+
         # Save project if updated
         if updated and getattr(self.project_manager, "project_path", None):
             self.project_manager.save_project()
@@ -347,6 +399,7 @@ class ProjectWorkflowService:
                 "project_workflow_service.model_settings_saved",
                 weight=resolved_weight,
                 openvino=resolved_openvino,
+                device=resolved_device,
             )
 
         return resolved_weight, resolved_openvino
@@ -457,14 +510,15 @@ class ProjectWorkflowService:
         custom_patterns = kwargs.get("custom_regex_patterns")
         enriched_scanned_videos = copy.deepcopy(scanned_videos)
 
-        if scanned_videos and detected_design and not is_live:
-            group_display_names = detected_design.get("group_display_names")
-            enriched_scanned_videos = self._enrich_videos_with_design_metadata(
-                scanned_videos,
-                detected_design,
-                custom_patterns,
-                group_display_names,
-            )
+        if scanned_videos and not is_live:
+            if detected_design:
+                group_display_names = detected_design.get("group_display_names")
+                enriched_scanned_videos = self._enrich_videos_with_design_metadata(
+                    scanned_videos,
+                    detected_design,
+                    custom_patterns,
+                    group_display_names,
+                )
             kwargs["scanned_videos"] = enriched_scanned_videos
 
             parquet_import_scope = kwargs.get("parquet_import_scope")
@@ -520,6 +574,14 @@ class ProjectWorkflowService:
             if animal_weight:
                 kwargs["active_weight"] = animal_weight
 
+        model_selection = kwargs.get("model_selection")
+        if (
+            "openvino_device" not in kwargs
+            and isinstance(model_selection, dict)
+            and model_selection.get("openvino_device")
+        ):
+            kwargs["openvino_device"] = str(model_selection.get("openvino_device"))
+
         wizard_metadata = {
             "wizard_schema_version": kwargs.get("wizard_schema_version"),
             "created_at": kwargs.get("created_at"),
@@ -538,6 +600,7 @@ class ProjectWorkflowService:
             "detector_parameters": kwargs.get("detector_parameters"),
             "model_selection": kwargs.get("model_selection"),
             "use_openvino": kwargs.get("use_openvino"),
+            "openvino_device": kwargs.get("openvino_device"),
             "custom_regex_patterns": custom_patterns,
         }
         kwargs["_wizard_metadata"] = wizard_metadata
@@ -565,6 +628,11 @@ class ProjectWorkflowService:
             kwargs["active_weight"] = self._global_model_defaults.get("active_weight")
         if use_openvino_setter is not None and "use_openvino" not in kwargs:
             kwargs["use_openvino"] = self._global_model_defaults.get("use_openvino", False)
+        if "openvino_device" not in kwargs:
+            if self.settings and hasattr(self.settings, "openvino"):
+                kwargs["openvino_device"] = str(self.settings.openvino.device or "AUTO").upper()
+            else:
+                kwargs["openvino_device"] = "AUTO"
 
     def _create_project_structure(self, filtered_kwargs: dict[str, Any]) -> tuple[bool, str | None]:
         try:
@@ -1048,7 +1116,7 @@ class ProjectWorkflowService:
         self,
         metadata: dict,
         enriched: dict,
-        path_str: str,
+        path_str: Path | str,
         group_pattern: str | None,
         group_lookup: dict,
         group_display_names: dict | None = None,
@@ -1056,9 +1124,11 @@ class ProjectWorkflowService:
         """Extract group metadata from path string."""
         import re
 
+        path_text = str(path_str)
+
         group_id = metadata.get("group") or enriched.get("group")
         if not group_id and group_pattern:
-            match = re.search(group_pattern, path_str, re.IGNORECASE)
+            match = re.search(group_pattern, path_text, re.IGNORECASE)
             if match:
                 matched_group = match.group(1) if match.groups() else match.group(0)
                 lookup_key = matched_group.lower()
@@ -1088,16 +1158,18 @@ class ProjectWorkflowService:
         self,
         metadata: dict,
         enriched: dict,
-        path_str: str,
+        path_str: Path | str,
         day_pattern: str | None,
         day_lookup: dict,
     ) -> str | None:
         """Extract day metadata from path string."""
         import re
 
+        path_text = str(path_str)
+
         day_value = metadata.get("day") or enriched.get("day")
         if not day_value and day_pattern:
-            match = re.search(day_pattern, path_str, re.IGNORECASE)
+            match = re.search(day_pattern, path_text, re.IGNORECASE)
             if match:
                 matched_day = match.group(1) if match.groups() else match.group(0)
                 if isinstance(matched_day, str) and matched_day.isdigit():
@@ -1119,7 +1191,7 @@ class ProjectWorkflowService:
         self,
         metadata: dict,
         enriched: dict,
-        path_str: str,
+        path_str: Path | str,
         subject_pattern: str | None,
         subject_lookup: dict,
         group_id: str | None,
@@ -1127,9 +1199,11 @@ class ProjectWorkflowService:
         """Extract subject metadata from path string."""
         import re
 
+        path_text = str(path_str)
+
         subject_value = metadata.get("subject") or enriched.get("subject")
         if not subject_value and subject_pattern:
-            match = re.search(subject_pattern, path_str, re.IGNORECASE)
+            match = re.search(subject_pattern, path_text, re.IGNORECASE)
             if match:
                 matched_subject = match.group(1) if match.groups() else match.group(0)
                 normalised = self._normalise_subject_id(matched_subject)
@@ -1138,7 +1212,7 @@ class ProjectWorkflowService:
         if subject_value is None and group_id:
             candidates = subject_lookup.get(group_id, {})
             for candidate_lower, candidate_value in candidates.items():
-                if candidate_lower in path_str.lower():
+                if candidate_lower in path_text.lower():
                     subject_value = candidate_value
                     break
 

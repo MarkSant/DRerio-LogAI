@@ -509,6 +509,7 @@ class ProjectService:
         project_data: dict[str, Any],
         active_weight: str | None,
         use_openvino: bool,
+        device: str | None = None,
     ) -> dict[str, Any | None]:
         """
         Save model configuration overrides to project.
@@ -518,6 +519,7 @@ class ProjectService:
             project_data: Current project data dictionary
             active_weight: Active weight name or None
             use_openvino: Whether to use OpenVINO
+            device: Optional OpenVINO target device (AUTO/CPU/GPU/NPU)
 
         Returns:
             dict: Updated model overrides
@@ -527,12 +529,16 @@ class ProjectService:
         # Ensure model_overrides exists in project data
         overrides = project_data.setdefault(
             "model_overrides",
-            {"active_weight": None, "use_openvino": None},
+            {"active_weight": None, "use_openvino": None, "device": "AUTO"},
         )
 
         # Update overrides
         overrides["active_weight"] = active_weight
         overrides["use_openvino"] = use_openvino
+        if device is not None:
+            normalized_device = str(device).strip().upper() or "AUTO"
+            overrides["device"] = normalized_device
+            project_data["openvino_device"] = normalized_device
 
         # Update root-level settings for backward compatibility
         project_data["active_weight"] = active_weight

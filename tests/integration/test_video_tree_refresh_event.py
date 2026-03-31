@@ -199,6 +199,59 @@ class TestVideoTreeRefreshEvent:
         assert len(events_received) == 1
         assert events_received[0]["filter_text"] is None
 
+    def test_populate_video_selector_tree_inserts_items_when_project_has_videos(self):
+        """Tree population should insert hierarchy nodes for available project videos."""
+        event_bus = EventBusV2()
+        gui_mock = MagicMock()
+        gui_mock.event_bus_v2 = event_bus
+
+        tree = MagicMock()
+        tree.get_children.return_value = []
+        gui_mock.zone_controls = MagicMock()
+        gui_mock.zone_controls.video_selector_tree = tree
+
+        pm = MagicMock()
+        pm.get_all_videos.return_value = [
+            {
+                "path": "C:/data/video_01.mp4",
+                "filename": "video_01.mp4",
+                "metadata": {"group": "G1", "day": "1", "subject": "S1"},
+                "has_arena": True,
+                "has_rois": True,
+                "has_trajectory": False,
+            }
+        ]
+        gui_mock.controller = MagicMock(project_manager=pm)
+
+        validation = MagicMock()
+        validation._build_video_hierarchy_data.return_value = {
+            "G1": {
+                "display": "G1",
+                "days": {
+                    "1": [
+                        {
+                            "path": "C:/data/video_01.mp4",
+                            "filename": "video_01.mp4",
+                            "metadata": {"group": "G1", "day": "1", "subject": "S1"},
+                            "subject": "S1",
+                            "has_arena": True,
+                            "has_rois": True,
+                            "has_trajectory": False,
+                        }
+                    ]
+                },
+            }
+        }
+        validation.format_subject_label.return_value = "S1"
+        gui_mock.validation_manager = validation
+
+        from zebtrack.ui.components.project_views import VideoSelectorTreeManager
+
+        view_manager = VideoSelectorTreeManager(gui_mock, event_bus_v2=event_bus)
+        view_manager._populate_video_selector_tree()
+
+        assert tree.insert.call_count >= 3  # group, day, subject nodes
+
 
 @pytest.mark.integration
 class TestVideoTreeRefreshEventEdgeCases:

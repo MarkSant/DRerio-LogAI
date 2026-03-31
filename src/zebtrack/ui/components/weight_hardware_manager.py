@@ -141,10 +141,32 @@ class WeightHardwareManager:
     def _refresh_openvino_summary(self) -> None:
         state_text = "Ativado" if self.gui._openvino_enabled else "Desativado"
         status_text = self.gui._openvino_status_message.strip()
+        device_text = self._get_openvino_device_label()
+
+        summary = f"OpenVINO: {state_text}"
+        if device_text:
+            summary = f"{summary} ({device_text})"
+
         if status_text:
-            self._openvino_display_var.set(f"OpenVINO: {state_text} — {status_text}")
+            self._openvino_display_var.set(f"{summary} — {status_text}")
         else:
-            self._openvino_display_var.set(f"OpenVINO: {state_text}")
+            self._openvino_display_var.set(summary)
+
+    def _get_openvino_device_label(self) -> str:
+        """Return human-readable OpenVINO device target from active settings."""
+        controller = getattr(self.gui, "controller", None)
+        if not controller:
+            return ""
+
+        settings_obj = getattr(controller, "settings", None) or getattr(
+            controller, "settings_obj", None
+        )
+        if settings_obj and hasattr(settings_obj, "openvino"):
+            raw_device = getattr(settings_obj.openvino, "device", "")
+            if isinstance(raw_device, str) and raw_device.strip():
+                return f"dispositivo: {raw_device.strip().upper()}"
+
+        return ""
 
     # ------------------------------------------------------------------
     # Active weight display

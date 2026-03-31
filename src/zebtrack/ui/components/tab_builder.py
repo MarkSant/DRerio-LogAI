@@ -240,6 +240,11 @@ class TabBuilder:
             model_status_frame,
             textvariable=self.gui._openvino_display_var,
         ).pack(anchor="w", pady=(4, 0))
+        ttk.Label(
+            model_status_frame,
+            textvariable=self.gui._gpu_hardware_display_var,
+            foreground="gray",
+        ).pack(anchor="w", pady=(4, 0))
 
         button_row = ttk.Frame(model_status_frame)
         button_row.pack(anchor="w", pady=(6, 0))

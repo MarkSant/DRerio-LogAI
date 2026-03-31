@@ -6,6 +6,62 @@ This document tracks all major agent interventions, technical debt resolutions, 
 
 ## Active Tasks
 
+### [2026-03-31] Project creation payload + wizard device + UI refresh hardening
+
+__ID:__ TASK-051
+__Agent:__ GitHub Copilot (GPT-5.3-Codex)
+__Status:__ Completed ✅
+__Branch:__ main
+__Description:__
+Fix project creation contract break that drops wizard data, ensure project videos
+are persisted even when design detection is absent, add explicit OpenVINO device
+selection (AUTO/CPU/GPU/NPU) in wizard model step, and harden post-create/open
+project view refresh paths.
+
+### Subtasks (TASK-051)
+
+- [x] Run mandatory impact analysis for affected files/events.
+- [x] Fix `PROJECT_CREATE` payload flattening/consumption contract.
+- [x] Ensure `video_files` population from scanned videos even without detected design.
+- [x] Add explicit device selection to wizard model step and persist project override.
+- [x] Harden project view initialization/refresh consistency for create + open.
+- [x] Validate with targeted tests and lint.
+
+__Results:__
+
+- Mandatory impact analysis executed:
+  - `python scripts/impact_analyzer.py file src/zebtrack/ui/components/project_initializer.py`
+  - `python scripts/impact_analyzer.py file src/zebtrack/core/project/project_workflow_service.py`
+  - `python scripts/impact_analyzer.py file src/zebtrack/ui/wizard/model_selection_step.py`
+  - `python scripts/impact_analyzer.py file src/zebtrack/core/viewmodels/main_view_model_runtime.py`
+  - `python scripts/impact_analyzer.py file src/zebtrack/core/project/project_lifecycle_manager.py`
+  - `python scripts/impact_analyzer.py event PROJECT_CREATE`
+- Contract fix: `PROJECT_CREATE` now merges nested `wizard_data` safely before invoking project creation.
+- Workflow fix: `video_files` are now generated from `scanned_videos` for pre-recorded projects even when design detection is absent.
+- Wizard enhancement: explicit OpenVINO device selector (`AUTO/CPU/GPU/NPU`) added in model step and propagated through wizard data.
+- Persistence enhancement: `openvino_device` and `model_overrides.device` now persist in project lifecycle/service paths with legacy migration defaults.
+- UI hardening: project navigation now uses `load_project_view` to run full create/open initialization path consistently.
+- Validation:
+  - `poetry run ruff check src/zebtrack/core/viewmodels/main_view_model_runtime.py src/zebtrack/ui/components/event_dispatcher.py src/zebtrack/core/project/project_workflow_service.py src/zebtrack/core/project/project_lifecycle_manager.py src/zebtrack/core/project/project_service.py src/zebtrack/ui/wizard/model_selection_step.py` ✅
+  - `poetry run pytest tests/core/test_project_workflow_service.py tests/ui/wizard/test_model_selection_step.py tests/integration/test_video_tree_refresh_event.py --no-cov -q` ✅
+  - `poetry run pytest tests/ui/components/test_widget_factory.py tests/core/test_project_manager_replaced_event.py --no-cov -q` ✅
+  - `poetry run ruff check src/zebtrack/ui/components/tab_builder.py src/zebtrack/ui/components/weight_hardware_manager.py tests/core/test_project_workflow_service.py tests/core/test_main_view_model_runtime_project_create.py` ✅
+  - `poetry run pytest tests/core/test_project_workflow_service.py tests/core/test_main_view_model_runtime_project_create.py tests/ui/wizard/test_model_selection_step.py tests/integration/test_video_tree_refresh_event.py --no-cov -q` ✅
+
+__Addendum (Wave 2):__
+
+- UI model status section now explicitly renders hardware summary label and OpenVINO summary includes selected device context.
+- Added runtime regression tests for `PROJECT_CREATE` nested payload merge handling.
+- Added workflow regression tests for `video_files` generation without detected design and `openvino_device` propagation from wizard model selection.
+
+__Addendum (Wave 3):__
+
+- Added UI navigation regression to ensure `UI_NAVIGATE_TO_PROJECT_VIEW` routes through full `load_project_view` initialization path.
+- Added integration regression that verifies `_populate_video_selector_tree()` inserts hierarchy nodes when project videos are available.
+- Validation:
+  - `poetry run pytest -q tests/ui/components/test_event_dispatcher.py -m gui -k project_view_navigation_uses_load_project_view --no-cov -n0` ✅
+  - `poetry run pytest -q tests/integration/test_video_tree_refresh_event.py -k populate_video_selector_tree_inserts_items_when_project_has_videos --no-cov` ✅
+
 ### [2026-03-31] Processing Reports tree double-click open hotfix
 
 __ID:__ TASK-050

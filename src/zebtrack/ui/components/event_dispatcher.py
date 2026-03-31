@@ -205,7 +205,7 @@ class EventDispatcher:
 
         event_bus.subscribe(
             UIEvents.UI_NAVIGATE_TO_PROJECT_VIEW,
-            lambda d: gui.root.after(0, gui.project_initializer.create_main_control_frame),
+            lambda d: gui.root.after(0, gui.project_initializer.load_project_view),
         )
 
         event_bus.subscribe(

@@ -306,6 +306,7 @@ class ProjectLifecycleManager:
         save_project_fn,
         *,
         use_openvino: bool = False,
+        openvino_device: str = "AUTO",
         active_weight: str | None = None,
         video_files: list | None = None,
         num_aquariums: int = 1,
@@ -405,10 +406,12 @@ class ProjectLifecycleManager:
                 "aquarium_height_cm": aquarium_height_cm,
             },
             "use_openvino": use_openvino,
+            "openvino_device": (openvino_device or "AUTO").upper(),
             "active_weight": active_weight,
             "model_overrides": {
                 "active_weight": None,
                 "use_openvino": None,
+                "device": (openvino_device or "AUTO").upper(),
             },
             "use_timed_recording": use_timed_recording,
             "recording_duration_s": recording_duration_s,
@@ -640,6 +643,11 @@ class ProjectLifecycleManager:
             migration_applied = True
             migrated_fields.append("camera_index")
 
+        if "openvino_device" not in loaded_data or loaded_data["openvino_device"] is None:
+            loaded_data["openvino_device"] = "AUTO"
+            migration_applied = True
+            migrated_fields.append("openvino_device")
+
         if "use_arduino" not in loaded_data or loaded_data["use_arduino"] is None:
             loaded_data["use_arduino"] = False
             migration_applied = True
@@ -661,7 +669,7 @@ class ProjectLifecycleManager:
         overrides = loaded_data.get("model_overrides")
         overrides_updated = False
         if not isinstance(overrides, dict):
-            overrides = {"active_weight": None, "use_openvino": None}
+            overrides = {"active_weight": None, "use_openvino": None, "device": "AUTO"}
             overrides_updated = True
         else:
             if "active_weight" not in overrides:
@@ -669,6 +677,9 @@ class ProjectLifecycleManager:
                 overrides_updated = True
             if "use_openvino" not in overrides:
                 overrides["use_openvino"] = None
+                overrides_updated = True
+            if "device" not in overrides:
+                overrides["device"] = loaded_data.get("openvino_device", "AUTO")
                 overrides_updated = True
 
         if overrides_updated:

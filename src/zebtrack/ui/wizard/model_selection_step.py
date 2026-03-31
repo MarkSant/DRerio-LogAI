@@ -13,7 +13,7 @@ from zebtrack.ui.wizard.base import WizardStep
 from zebtrack.ui.wizard.enums import WizardStepID
 from zebtrack.ui.wizard.templates import format_template_banner
 from zebtrack.ui.wizard.tooltip import ToolTip
-from zebtrack.utils.hardware_detection import recommend_backend
+from zebtrack.utils.hardware_detection import get_openvino_devices, recommend_backend
 
 if TYPE_CHECKING:
     from zebtrack.settings import Settings
@@ -60,6 +60,7 @@ class ModelSelectionStep(WizardStep):
         self.animal_method_var = StringVar()
         self.animal_weight_var = StringVar()
         self.use_openvino_var = BooleanVar(value=False)
+        self.openvino_device_var = StringVar(value="AUTO")
 
         self.confidence_var = StringVar()
         self.nms_var = StringVar()
@@ -175,6 +176,11 @@ class ModelSelectionStep(WizardStep):
         self.animal_method_var.set(self._method_display(animal_method))
         self.use_openvino_var.set(bool(use_openvino))
 
+        openvino_device = selection.get("openvino_device")
+        if not openvino_device and self.settings and hasattr(self.settings, "openvino"):
+            openvino_device = self.settings.openvino.device
+        self.openvino_device_var.set(self._normalize_openvino_device(openvino_device))
+
         aquarium_weight = weight_assignments.get("aquarium")
         animal_weight = weight_assignments.get("animal")
 
@@ -237,6 +243,28 @@ class ModelSelectionStep(WizardStep):
             name, _ = self.weight_manager.get_default_det_weight()
             return name or (self.det_weight_names[0] if self.det_weight_names else "")
         return ""
+
+    def _available_openvino_devices(self) -> list[str]:
+        """Return UI options for OpenVINO target device."""
+        options = ["AUTO"]
+        try:
+            devices = tuple(get_openvino_devices())
+        except Exception:  # pragma: no cover - defensive fallback
+            devices = ()
+
+        for candidate in ("CPU", "GPU", "NPU"):
+            if any(candidate in device for device in devices):
+                options.append(candidate)
+
+        return options
+
+    def _normalize_openvino_device(self, device: str | None) -> str:
+        """Normalize arbitrary device value into a supported combo option."""
+        normalized = (device or "AUTO").strip().upper()
+        options = self._available_openvino_devices()
+        if normalized in options:
+            return normalized
+        return "AUTO"
 
     # ------------------------------------------------------------------
     # UI construction
@@ -347,6 +375,24 @@ class ModelSelectionStep(WizardStep):
             openvino_check,
             "Ative quando o modelo OpenVINO correspondente já foi convertido."
             " Permite inferência mais rápida em CPUs compatíveis.",
+        )
+
+        device_row = ttk.Frame(acceleration_frame)
+        device_row.pack(fill="x", pady=(6, 0))
+        ttk.Label(device_row, text="Dispositivo OpenVINO:").pack(side="left")
+
+        device_combo = ttk.Combobox(
+            device_row,
+            textvariable=self.openvino_device_var,
+            values=self._available_openvino_devices(),
+            state="readonly",
+            width=10,
+        )
+        device_combo.pack(side="left", padx=(8, 0))
+        ToolTip(
+            device_combo,
+            "AUTO usa seleção automática do OpenVINO.\n"
+            "Escolha CPU/GPU/NPU para forçar o alvo, quando disponível.",
         )
 
         detector_frame = LabelFrame(
@@ -940,6 +986,8 @@ class ModelSelectionStep(WizardStep):
             model_selection["animal_method"] = data["animal_method"]
         if "use_openvino" in data:
             model_selection["use_openvino"] = data["use_openvino"]
+        if "openvino_device" in data:
+            model_selection["openvino_device"] = data["openvino_device"]
         if "weight_assignments" in data:
             self.wizard_data["weight_assignments"] = data.get("weight_assignments")
         if "detector_parameters" in data:
@@ -1051,6 +1099,7 @@ class ModelSelectionStep(WizardStep):
             "aquarium_method": aquarium_method,
             "animal_method": animal_method,
             "use_openvino": bool(self.use_openvino_var.get()),
+            "openvino_device": self._normalize_openvino_device(self.openvino_device_var.get()),
             "weight_assignments": {
                 "aquarium": self.aquarium_weight_var.get() or None,
                 "animal": self.animal_weight_var.get() or None,
@@ -1069,5 +1118,6 @@ class ModelSelectionStep(WizardStep):
                 "aquarium_method": aquarium_method,
                 "animal_method": animal_method,
                 "use_openvino": bool(self.use_openvino_var.get()),
+                "openvino_device": self._normalize_openvino_device(self.openvino_device_var.get()),
             },
         }

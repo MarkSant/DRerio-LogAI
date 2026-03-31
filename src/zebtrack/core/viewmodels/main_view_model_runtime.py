@@ -154,7 +154,19 @@ class MainViewModelRuntime:
     ) -> None:
         vm = self._vm
         if event_name is UIEvents.PROJECT_CREATE:
-            vm.project_vm.create_project_workflow(**payload_dict)
+            # Backward-compatible merge: PROJECT_CREATE may carry full wizard data
+            # nested under "wizard_data" while legacy callers send flattened fields.
+            merged_wizard_data: dict[str, Any] = {}
+            nested = payload_dict.get("wizard_data")
+            if isinstance(nested, dict):
+                merged_wizard_data.update(nested)
+
+            for key in ("project_path", "project_name", "project_type"):
+                value = payload_dict.get(key)
+                if value is not None:
+                    merged_wizard_data.setdefault(key, value)
+
+            vm.project_vm.create_project_workflow(**merged_wizard_data)
         elif event_name is UIEvents.PROJECT_OPEN:
             project_path = _payload_get(data, "project_path")
             if project_path:

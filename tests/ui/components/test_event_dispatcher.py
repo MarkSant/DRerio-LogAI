@@ -236,6 +236,49 @@ class TestGuiHandlers:
 class TestGuiSubscriptions:
     """Testes para subscriptions com GUI."""
 
+    def test_project_view_navigation_uses_load_project_view(self):
+        """UI_NAVIGATE_TO_PROJECT_VIEW must route through full load_project_view path."""
+        event_bus = MagicMock()
+        root = MagicMock()
+        root.after.side_effect = lambda _delay, cb: cb()
+
+        gui = SimpleNamespace(
+            event_bus=event_bus,
+            root=root,
+            project_initializer=SimpleNamespace(load_project_view=MagicMock()),
+            widget_factory=MagicMock(),
+            dialog_manager=MagicMock(),
+            status_var=MagicMock(),
+            notebook=MagicMock(),
+            state_synchronizer=MagicMock(),
+            video_selector_manager=MagicMock(),
+            project_view_manager=MagicMock(),
+            canvas_manager=MagicMock(),
+            zone_controls=MagicMock(),
+            menu_manager=MagicMock(),
+            zone_control_builder=MagicMock(),
+            analysis_view_controller=MagicMock(),
+            weight_hardware_manager=MagicMock(),
+            arduino_dashboard_widget=None,
+            single_video_workflow=MagicMock(),
+            setup_zone_definition_for_single_video=MagicMock(),
+            external_trigger_notice_var=MagicMock(),
+        )
+
+        dispatcher = EventDispatcher(cast(Any, gui))
+        dispatcher.subscribe_to_ui_events()
+
+        subscribed_handler = None
+        for call in event_bus.subscribe.call_args_list:
+            args, _kwargs = call
+            if args and args[0] == UIEvents.UI_NAVIGATE_TO_PROJECT_VIEW:
+                subscribed_handler = args[1]
+                break
+
+        assert subscribed_handler is not None
+        subscribed_handler({})
+        gui.project_initializer.load_project_view.assert_called_once()
+
     def test_register_event_bus_handlers_subscribes(self):
         event_bus = MagicMock()
         gui = SimpleNamespace(event_bus=event_bus, setup_interactive_polygon=MagicMock())
