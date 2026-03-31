@@ -6,6 +6,42 @@ This document tracks all major agent interventions, technical debt resolutions, 
 
 ## Active Tasks
 
+### [2026-03-31] Analysis header metadata + mode fallback correction
+
+__ID:__ TASK-052
+__Agent:__ GitHub Copilot (GPT-5.3-Codex)
+__Status:__ Completed ✅
+__Branch:__ main
+__Description:__
+Fix incorrect defaults in the Analysis tab header where metadata falls back to
+"Sem Grupo/Sem Dia/Não informado" and tracking mode stays "Multi-indivíduos"
+for single-animal projects. Ensure metadata merge includes top-level video
+fields and processing mode resolution honors `animals_per_aquarium == 1` when
+boolean single-animal flags are absent.
+
+### Subtasks (TASK-052)
+
+- [x] Run mandatory impact analysis for affected files.
+- [x] Fix metadata fallback overwrite path in state synchronization.
+- [x] Fix processing mode resolver fallback from project data.
+- [x] Validate with lint and targeted tests.
+
+__Results:__
+
+- Mandatory impact analysis executed:
+  - `python scripts/impact_analyzer.py file src/zebtrack/ui/components/state_synchronizer.py`
+  - `python scripts/impact_analyzer.py file src/zebtrack/coordinators/multi_aquarium_coordinator.py`
+- `state_synchronizer.py`: `update_processing_mode(...)` now merges metadata from both
+  `entry["metadata"]` and top-level entry fields (`group/day/subject`) and only applies
+  fallback labels when metadata exists, preventing overwrite of valid UI metadata.
+- `multi_aquarium_coordinator.py`: `_resolve_single_animal_mode(...)` now falls back to
+  `animals_per_aquarium` (config/project_data), mapping `<= 1` to single-subject mode.
+- Validation:
+  - `poetry run ruff check src/zebtrack/ui/components/state_synchronizer.py src/zebtrack/coordinators/multi_aquarium_coordinator.py` ✅
+  - `poetry run pytest tests/test_analysis_metadata_display.py -q --no-cov --tb=short` ✅ (4 passed)
+  - `poetry run pytest tests/coordinators/test_processing_coordinator_batch_and_mode.py -q --no-cov --tb=short` ✅ (6 passed)
+  - `poetry run pytest tests/ui/components/test_state_synchronizer.py -q --no-cov --tb=short` ✅ (15 passed)
+
 ### [2026-03-31] Project creation payload + wizard device + UI refresh hardening
 
 __ID:__ TASK-051

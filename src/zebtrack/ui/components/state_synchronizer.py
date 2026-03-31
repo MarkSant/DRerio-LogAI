@@ -692,18 +692,29 @@ class StateSynchronizer:
             pm = self.gui.controller.project_manager
             active_video = pm.get_active_zone_video()
 
-            metadata = {}
+            combined_metadata: dict = {}
             if active_video:
                 entry = pm.find_video_entry(path=active_video)
                 if entry:
-                    metadata = entry.get("metadata", {})
+                    combined_metadata.update(dict(entry.get("metadata") or {}))
+                    for key in ("group", "group_display_name", "day", "subject"):
+                        value = entry.get(key)
+                        if value not in (None, "") and key not in combined_metadata:
+                            combined_metadata[key] = value
 
-            # 2. Update UI variables
-            group = metadata.get("group", "Sem Grupo")
-            day = metadata.get("day", "Sem Dia")
-            subject = metadata.get("subject", "Não informado")
+            # 2. Update UI variables only when metadata exists.
+            #    This avoids overwriting values that were already published by
+            #    UI_UPDATE_ANALYSIS_METADATA with fallback defaults.
+            if combined_metadata:
+                group = combined_metadata.get("group")
+                day = combined_metadata.get("day")
+                subject = combined_metadata.get("subject")
 
-            self._apply_analysis_metadata_strings(str(group), str(day), str(subject))
+                group_str = str(group) if group not in (None, "") else "Sem Grupo"
+                day_str = str(day) if day not in (None, "") else "Sem Dia"
+                subject_str = str(subject) if subject not in (None, "") else "Não informado"
+
+                self._apply_analysis_metadata_strings(group_str, day_str, subject_str)
 
     def update_analysis_task_status(
         self,

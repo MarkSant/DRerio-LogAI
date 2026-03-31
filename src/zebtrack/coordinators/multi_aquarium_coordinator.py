@@ -676,16 +676,33 @@ class MultiAquariumCoordinator(BaseCoordinator):
         Returns:
             True for single animal, False for multi, None if unresolvable.
         """
+
+        def _from_animals_count(value: object) -> bool | None:
+            if value in (None, ""):
+                return None
+            try:
+                return int(value) <= 1
+            except (TypeError, ValueError):
+                return None
+
         if config:
             val = config.get("single_animal_per_aquarium")
             if val is not None:
                 return bool(val)
+
+            count_based = _from_animals_count(config.get("animals_per_aquarium"))
+            if count_based is not None:
+                return count_based
 
         # Check project data
         project_data = getattr(self.project_manager, "project_data", {}) or {}
         val = project_data.get("single_animal_per_aquarium")
         if val is not None:
             return bool(val)
+
+        count_based = _from_animals_count(project_data.get("animals_per_aquarium"))
+        if count_based is not None:
+            return count_based
 
         return None
 
