@@ -1182,13 +1182,20 @@ class ZoneControlsWidget(BaseWidget):
             color: Color name to display
             color_hex: Optional hex color code for text styling (e.g., "#FF0000")
         """
-        if self.zone_listbox:
-            self.zone_listbox.insert("", "end", iid=zone_id, values=(name, zone_type, color))
+        if not self.zone_listbox:
+            return
+        try:
+            lb = self.zone_listbox
+            if not (hasattr(lb, "winfo_exists") and lb.winfo_exists()):
+                return
+            lb.insert("", "end", iid=zone_id, values=(name, zone_type, color))
             # Apply colored text styling if hex color is provided
             if color_hex:
                 tag_name = f"color_{zone_id}"
-                self.zone_listbox.tag_configure(tag_name, foreground=color_hex)
-                self.zone_listbox.item(zone_id, tags=(tag_name,))
+                lb.tag_configure(tag_name, foreground=color_hex)
+                lb.item(zone_id, tags=(tag_name,))
+        except Exception:
+            log.debug("zone_controls.add_zone_to_list.suppressed", exc_info=True)
 
     # Multi-aquarium public API
 

@@ -97,6 +97,13 @@ class ZoneEditor:
 
     def update_zone_listbox(self, zone_data=None) -> None:
         """Update zone listbox. Delegates to Renderer and ZoneControls."""
+        # Guard: abort early if the zone_controls widget or its listbox has been destroyed.
+        _controls = getattr(self.gui, "zone_controls", None)
+        if _controls is not None:
+            _lb = getattr(_controls, "zone_listbox", None)
+            if _lb is not None and hasattr(_lb, "winfo_exists") and not _lb.winfo_exists():
+                return
+
         self.canvas_manager.renderer.redraw_zones(zone_data)
 
         # Update the listbox widget via ZoneControls (Restored Logic)
