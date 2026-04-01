@@ -449,6 +449,10 @@ class VideoProcessingCoordinator(
 
         def _on_started_wrapper():
             if ptc:
+                # Store the batch video list so PTC can re-publish metadata
+                # when the worker switches to a new video (detected via idx change).
+                ptc._batch_videos = videos_to_process
+                ptc._current_video_idx = 0
                 # PTC._on_processing_started expects a video_path: str
                 first_video = videos_to_process[0].get("path", "") if videos_to_process else ""
                 ptc._on_processing_started(first_video)

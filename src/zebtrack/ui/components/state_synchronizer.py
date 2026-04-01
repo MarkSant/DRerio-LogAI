@@ -136,15 +136,23 @@ class StateSynchronizer:
                 self.gui.stop_rec_btn.config(state="disabled")
 
     def _update_processing_ui(self, is_processing: bool) -> None:
-        """Update UI elements based on processing state."""
+        """Update UI elements based on processing state.
+
+        NOTE: When ``is_processing=True`` we intentionally do **not** call
+        ``start_analysis_view_mode()`` here.  That method resets analysis
+        metadata to defaults, and because this callback is deferred via
+        ``root.after(0)`` it races against the metadata publish that runs
+        immediately after the *explicit* ``start_analysis_view_mode()`` call
+        inside ``ProgressTrackingCoordinator._update_ui_for_processing_start``.
+        The result was that correct metadata (group/day/subject) was erased.
+        The coordinator already handles view-mode switching with proper
+        metadata sequencing, so we only need to disable the button here.
+        """
         if is_processing:
             log.debug("gui.processing_state.started")
             # Disable process button during processing
             if self.gui.process_video_btn:
                 self.gui.process_video_btn.config(state="disabled")
-            # Switch to analysis view mode
-            if hasattr(self.gui, "analysis_view_controller"):
-                self.gui.analysis_view_controller.start_analysis_view_mode()
         else:
             log.debug("gui.processing_state.stopped")
             # Re-enable process button after processing

@@ -696,13 +696,30 @@ class MultiAquariumCoordinator(BaseCoordinator):
 
         # Check project data
         project_data = getattr(self.project_manager, "project_data", {}) or {}
+
+        # 1. Explicit flag at top level (legacy)
         val = project_data.get("single_animal_per_aquarium")
         if val is not None:
             return bool(val)
 
+        # 2. Top-level animals_per_aquarium (legacy)
         count_based = _from_animals_count(project_data.get("animals_per_aquarium"))
         if count_based is not None:
             return count_based
+
+        # 3. tracking.use_single_subject_tracker (set by wizard at project creation)
+        tracking = project_data.get("tracking")
+        if isinstance(tracking, dict):
+            tracker_pref = tracking.get("use_single_subject_tracker")
+            if tracker_pref is not None:
+                return bool(tracker_pref)
+
+        # 4. calibration.animals_per_aquarium (set by wizard at project creation)
+        calibration = project_data.get("calibration")
+        if isinstance(calibration, dict):
+            count_based = _from_animals_count(calibration.get("animals_per_aquarium"))
+            if count_based is not None:
+                return count_based
 
         return None
 

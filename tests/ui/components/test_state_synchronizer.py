@@ -197,10 +197,14 @@ def test_update_processing_ui_toggles_buttons_and_view_mode():
     synchronizer._update_processing_ui(True)
 
     gui.process_video_btn.config.assert_called_with(state="disabled")
-    analysis_view_controller.start_analysis_view_mode.assert_called_once()
+    # start_analysis_view_mode is NOT called here to avoid a race condition:
+    # ProgressTrackingCoordinator._update_ui_for_processing_start already calls
+    # it synchronously before publishing metadata.  If _update_processing_ui
+    # also called it (deferred via root.after), the metadata defaults would
+    # overwrite the correct values.
+    analysis_view_controller.start_analysis_view_mode.assert_not_called()
 
     gui.process_video_btn.config.reset_mock()
-    analysis_view_controller.start_analysis_view_mode.reset_mock()
 
     synchronizer._update_processing_ui(False)
 

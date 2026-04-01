@@ -262,9 +262,20 @@ class AnalysisViewController:
     def update_analysis_metadata(self, *, metadata: dict | None) -> None:
         """Update the metadata display for the currently processed video."""
         metadata = metadata or {}
+        log.info(
+            "analysis_view_controller.update_analysis_metadata.received",
+            metadata_keys=list(metadata.keys()),
+            metadata=metadata,
+        )
         group_display = self._validation_manager.resolve_group_display(metadata)
         day_display = self._validation_manager.resolve_day_display(metadata)
         subject_display = self._validation_manager.resolve_subject_display(metadata)
+        log.info(
+            "analysis_view_controller.update_analysis_metadata.resolved",
+            group=group_display,
+            day=day_display,
+            subject=subject_display,
+        )
 
         self._state_synchronizer._apply_analysis_metadata_strings(
             group_display,

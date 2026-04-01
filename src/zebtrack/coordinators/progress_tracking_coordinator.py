@@ -69,6 +69,11 @@ class ProgressTrackingCoordinator(BaseCoordinator):
         # Cross-coordinator references (set post-construction)
         self._video_processing_coordinator: Any = None
 
+        # Batch video list and current index — set by _on_started_wrapper,
+        # used to re-publish metadata when the worker switches to the next video.
+        self._batch_videos: list[dict] = []
+        self._current_video_idx: int = -1
+
         log.info("progress_tracking_coordinator.initialized")
 
     # ========================================================================
@@ -159,13 +164,32 @@ class ProgressTrackingCoordinator(BaseCoordinator):
     def _update_ui_for_processing_start(
         self, video_name: str, video_path: Path | str | None = None
     ) -> None:
-        """Update UI when processing starts (must run on main thread)."""
+        """Update UI when processing starts (must run on main thread).
+
+        IMPORTANT: ``start_analysis_view_mode`` MUST be called **synchronously**
+        (not via ``ui_coordinator.update_view`` which defers through
+        ``root.after(0)``).  Otherwise the metadata reset inside
+        ``start_analysis_view_mode`` fires **after** the metadata publish
+        below, erasing the correct values.  Since this method already runs on
+        the main thread (scheduled via ``root.after``), a direct call is safe.
+        """
         if self.view:
-            self.ui_coordinator.update_view(self.view, "start_analysis_view_mode")
+            # Call start_analysis_view_mode SYNCHRONOUSLY.  Using
+            # self.ui_coordinator.update_view() would defer via root.after(0)
+            # and cause a race: metadata defaults would overwrite the real
+            # metadata published below.
+            analysis_controller = getattr(self.view, "analysis_view_controller", None)
+            if analysis_controller and hasattr(analysis_controller, "start_analysis_view_mode"):
+                analysis_controller.start_analysis_view_mode()
+            else:
+                # Fallback: try direct attribute on view (legacy path)
+                start_fn = getattr(self.view, "start_analysis_view_mode", None)
+                if start_fn and callable(start_fn):
+                    start_fn()
+
             status_text = f"Processando: {video_name}"
             self.ui_coordinator.set_status(self.view, status_text)
 
-            analysis_controller = getattr(self.view, "analysis_view_controller", None)
             if analysis_controller and hasattr(analysis_controller, "update_analysis_progress"):
                 analysis_controller.update_analysis_progress(0.0, status_text=status_text)
 
@@ -175,16 +199,33 @@ class ProgressTrackingCoordinator(BaseCoordinator):
         """Publish analysis metadata after view mode initialization.
 
         This must run after `start_analysis_view_mode` so defaults are not kept.
+        Fallback chain:
+        1. Per-video metadata from video entry
+        2. Top-level keys on the video entry (group, day, subject)
+        3. Project-level metadata (last_selected_group, last_selected_day, subjects_per_group)
         """
         if not video_path:
+            log.debug("publish_analysis_metadata.skipped.no_video_path")
             return
 
         vpc = self._video_processing_coordinator
         project_manager = getattr(vpc, "project_manager", None) if vpc else None
         if project_manager is None or not hasattr(project_manager, "find_video_entry"):
+            log.debug("publish_analysis_metadata.skipped.no_project_manager")
             return
 
         entry = project_manager.find_video_entry(path=video_path)
+        log.info(
+            "publish_analysis_metadata.video_entry_lookup",
+            video_path=str(video_path)[-60:],
+            entry_found=entry is not None,
+            entry_metadata=dict(entry.get("metadata") or {}) if entry else None,
+            entry_top_keys={
+                k: entry.get(k) for k in ("group", "group_display_name", "day", "subject")
+            }
+            if entry
+            else None,
+        )
         combined: dict = {}
         if entry:
             combined.update(dict(entry.get("metadata") or {}))
@@ -192,11 +233,51 @@ class ProgressTrackingCoordinator(BaseCoordinator):
                 value = entry.get(key)
                 if value not in (None, "") and key not in combined:
                     combined[key] = value
+
+        # Fallback: project-level metadata from wizard when per-video metadata
+        # is missing (e.g. exploratory projects or unmatched filename patterns).
+        project_data = getattr(project_manager, "project_data", None) or {}
+        if not combined.get("group"):
+            last_group = project_data.get("last_selected_group")
+            if last_group:
+                combined.setdefault("group", last_group)
+                combined.setdefault("group_display_name", last_group)
+            else:
+                groups = project_data.get("groups") or []
+                if groups:
+                    combined.setdefault("group", groups[0])
+                    combined.setdefault("group_display_name", groups[0])
+
+        if not combined.get("day"):
+            last_day = project_data.get("last_selected_day")
+            if last_day is not None:
+                combined.setdefault("day", last_day)
+
+        if not combined.get("subject"):
+            subjects_per_group = project_data.get("subjects_per_group")
+            if subjects_per_group is not None:
+                try:
+                    combined.setdefault("subject", int(subjects_per_group))
+                except (TypeError, ValueError):
+                    pass
+
+        log.info(
+            "publish_analysis_metadata.fallback_result",
+            combined_keys=list(combined.keys()),
+            combined=combined,
+            project_groups=project_data.get("groups"),
+            project_last_group=project_data.get("last_selected_group"),
+            project_last_day=project_data.get("last_selected_day"),
+            project_subjects_per_group=project_data.get("subjects_per_group"),
+        )
+
         if combined:
             self._publish_event(
                 UIEvents.UI_UPDATE_ANALYSIS_METADATA,
                 payloads.AnalysisMetadataPayload(metadata=combined),
             )
+        else:
+            log.warning("publish_analysis_metadata.no_metadata_to_publish")
 
     def _on_processing_progress(self, progress_data: dict) -> None:
         """Handle processing progress updates (callback from ProcessingWorker)."""
@@ -204,6 +285,18 @@ class ProgressTrackingCoordinator(BaseCoordinator):
         processed = progress_data.get("processed_frames", progress_data.get("current_frame", 0))
         detected = progress_data.get("detected_frames", 0)
         fraction = progress_data.get("fraction", -1)
+
+        # Detect video index change to re-publish metadata for the new video.
+        idx = progress_data.get("idx")
+        if idx is not None and idx != self._current_video_idx:
+            self._current_video_idx = idx
+            if 0 <= idx < len(self._batch_videos):
+                new_video_path = self._batch_videos[idx].get("path")
+                if new_video_path and self.root:
+                    self.root.after(
+                        0,
+                        lambda vp=new_video_path: self._publish_analysis_metadata_for_video(vp),
+                    )
 
         # Thread-safe state update
         self.state_manager.update_processing_state(
