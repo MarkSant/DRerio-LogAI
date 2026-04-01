@@ -282,7 +282,7 @@ jobs:
 
       - name: Upload Codecov core coverage (Linux)
         if: runner.os == 'Linux'
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@v6
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: coverage-core.xml
@@ -291,7 +291,7 @@ jobs:
 
       - name: Upload Codecov gui coverage (Linux)
         if: runner.os == 'Linux'
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@v6
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: coverage-gui.xml
@@ -300,7 +300,7 @@ jobs:
 
       - name: Upload Codecov core coverage (Windows)
         if: runner.os == 'Windows'
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@v6
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: coverage-core.xml
