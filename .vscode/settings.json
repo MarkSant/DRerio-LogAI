@@ -12,6 +12,11 @@
         "WIDGETS.md": "markdown",
         "*.yaml": "yaml"
     },
+
+    "github.copilot.editor.enableAutoCompletions": false,
+
+
+
     // Quick navigation bookmarks (use File Explorer → right-click → "Reveal in File Explorer")
     // Key files for development:
     // Core Architecture
@@ -196,6 +201,7 @@
         "botsort",
         "bytetrack",
         "charliermarsh",
+        "claude",
         "codecov",
         "Commitlint",
         "danio",
@@ -232,7 +238,10 @@
         "networkx",
         "nireq",
         "nms",
+        "nomic",
+        "Nomic",
         "numpy",
+        "ollama",
         "opencv",
         "openpyxl",
         "openvino",
@@ -249,6 +258,7 @@
         "pytest",
         "pytorch",
         "pyyaml",
+        "qwen",
         "rerio",
         "roi",
         "ruff",

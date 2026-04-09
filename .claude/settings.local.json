@@ -31,7 +31,8 @@
       "Bash(git push:*)",
       "Bash(wmic path Win32_VideoController get:*)",
       "Bash(timeout 300 poetry run pytest:*)",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "Bash(PYTHONIOENCODING=utf-8 poetry run pytest -q --no-header)"
     ],
     "deny": [],
     "ask": []
