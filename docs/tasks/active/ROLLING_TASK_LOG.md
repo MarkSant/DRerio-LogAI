@@ -6,6 +6,61 @@ This document tracks all major agent interventions, technical debt resolutions, 
 
 ## Active Tasks
 
+### [2026-04-09] Continue workspace context and agent overlay
+
+__ID:__ TASK-059
+__Agent:__ GitHub Copilot (GPT-5.4)
+__Status:__ Phase 4 Complete ✅ | Phase 5 (Secrets/Runtime) ✅ | Phase 6 (Validation) ✅
+__Branch:__ main
+__Description:__
+
+Implement Continue context configuration for ZebTrack-AI in three phases:
+
+- __Phase 1__: Workspace-scoped rules, remove hardcoded secrets from `.vscode/mcp.json`
+- __Phase 2__: Global agent configuration, secure environment variable setup, comprehensive guide
+- __Phase 3__: Validation and optional custom RAG if needed
+
+### Subtasks (TASK-059)
+
+- [x] Add `.continue/rules` files for architecture, guardrails, workflow, and Continue-specific context.
+- [x] Remove the hardcoded GitHub PAT from `.vscode/mcp.json` and rely on inherited environment variables.
+- [x] Add developer documentation for the Continue workspace split between global config and workspace overlays.
+- [x] Update `docs/INDEX.md` to expose the new Continue guide.
+- [x] Remove invalid workspace Continue MCP YAML that blocked profile loading in Continue 1.2.22.
+- [x] Tighten workspace rule and guide so prompt #5 uses the repo's active paths and avoids unverified schema examples.
+- [x] Add GitHub MCP server (`@modelcontextprotocol/server-github`) to global `config.yaml` under `mcpServers:`.
+- [x] Add Continue documentation indexing to global `config.yaml` under `docs:` (uses Nomic Embed; accessible via `@docs`).
+
+__Files Modified:__
+
+| File | Change | Phase |
+| --- | --- | --- |
+| `.continue/rules/01-zebtrack-architecture.md` | Architecture/context rule pointing to canonical sources | 1 |
+| `.continue/rules/02-zebtrack-guardrails.md` | Critical implementation guardrails (DI, EventBusV2, UI threading) | 1 |
+| `.continue/rules/03-zebtrack-workflow.md` | Workflow expectations (task logging, Poetry, docs, performance) | 1 |
+| `.continue/rules/04-continue-context.md` | Continue-specific guidance for workspace overlay | 1 |
+| `.vscode/mcp.json` | Removed hardcoded GitHub PAT; now uses environment variables | 1 |
+| `docs/guides/developer/continue_workspace_setup.md` | Developer guide for Continue global/workspace split | 1 + 2 |
+| `docs/INDEX.md` | Added Continue setup guide to documentation index | 1 |
+| `C:\Users\santa\.continue\config.yaml` | __Phase 2__: Removed hardcoded API keys; added agent mode config | 2 |
+
+__Phase 1 Results:__
+
+- ✅ Workspace overlay created under `.continue/` with 4 rules
+- ✅ Dedicated Continue setup guide with validation prompts
+- ✅ GitHub PAT removed from `.vscode/mcp.json`; now expects environment variable
+- ✅ All new files validated (no Markdown, YAML, or JSON errors)
+
+__Phase 2 Additions:__
+
+- ✅ Global Continue config securized and reduced to installed local models only
+- ✅ Continue profile loading restored by removing invalid workspace MCP YAML
+- ✅ Workspace guidance aligned to current repo reality: `.continue/rules/*.md` + `.vscode/mcp.json`
+- ✅ Phase 4: GitHub MCP added to global config; Continue docs indexed via `docs:` section (Nomic Embed)
+- ✅ Confirmed `@continuedev/continue-docs-mcp` does not exist on npm; native `docs:` is the correct alternative
+- ✅ Guide expanded with Phase 2 setup, security fixes, model selection, Windows launch flow
+- ✅ Environment setup documented: `$env:ANTHROPIC_API_KEY`, `$env:GITHUB_PERSONAL_ACCESS_TOKEN`
+
 ### [2026-04-01] Multi-subject detection never finds >1 subject for full-context regex patterns
 
 __ID:__ TASK-058

@@ -43,6 +43,7 @@ docs/
 ### For Developers
 
 - **[Performance Tuning](guides/developer/performance-tuning.md)** - Troubleshooting bottlenecks and configuring parallel plots.
+- **[Continue Workspace Setup](guides/developer/continue_workspace_setup.md)** - Continue rules, MCPs, and secret flow for this repository.
 - **[Getting Started](guides/developer/getting_started.md)** - Setting up the development environment.
 - **[Debugging Guide](guides/developer/debugging.md)** - Troubleshooting common tracking issues.
 - **[GUI Testing (Windows)](guides/developer/testing_gui_windows.md)** - Running Tkinter tests safely.
