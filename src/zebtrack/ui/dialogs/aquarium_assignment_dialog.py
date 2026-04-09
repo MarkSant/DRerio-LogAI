@@ -10,6 +10,7 @@ Allows assigning group, subject_id, and day to each aquarium.
 
 import tkinter as tk
 from collections.abc import Callable
+from pathlib import Path
 from tkinter import simpledialog, ttk
 
 import structlog
@@ -48,8 +49,9 @@ class AquariumAssignmentDialog(simpledialog.Dialog):
         self,
         parent: tk.Toplevel | tk.Tk,
         available_groups: list[str],
-        video_path: str | None = None,
+        video_path: Path | str | None = None,
         multi_aquarium_config: "MultiAquariumData | None" = None,
+        entry_metadata: dict | None = None,
         on_confirm: Callable[[list[AquariumConfig], bool], None] | None = None,
         on_cancel: Callable[[], None] | None = None,
     ):
@@ -60,12 +62,14 @@ class AquariumAssignmentDialog(simpledialog.Dialog):
             available_groups: List of available group names.
             video_path: Path to the video being configured.
             multi_aquarium_config: Config object with regex patterns.
+            entry_metadata: Pre-existing metadata from project entry (group, subject, day).
             on_confirm: Callback with (configs, apply_to_all) when confirmed.
             on_cancel: Callback when cancelled.
         """
         self.available_groups = available_groups or ["Controle", "Tratamento"]
         self.video_path = video_path
         self.multi_aquarium_config = multi_aquarium_config
+        self.entry_metadata = entry_metadata or {}
         self._on_confirm = on_confirm
         self._on_cancel = on_cancel
         self.result: list[AquariumConfig] | None = None
@@ -157,11 +161,49 @@ class AquariumAssignmentDialog(simpledialog.Dialog):
         )
         apply_all_check.pack(anchor=tk.W, pady=(15, 0))
 
+        # Pre-populate from project entry metadata (regex-derived during project creation)
+        # Applied BEFORE regex auto-fill so that regex can override with per-aquarium data
+        self._apply_entry_metadata_defaults()
+
         # Auto-fill automatically when dialog opens if regex pattern is available
         if self.multi_aquarium_config and self.multi_aquarium_config.regex_pattern:
             self._perform_auto_fill_silent()
 
         return first_combo  # Initial focus
+
+    def _apply_entry_metadata_defaults(self) -> None:
+        """Apply pre-existing project metadata as defaults for all aquarium fields.
+
+        Uses group/subject/day from the video entry metadata (extracted during
+        project creation via regex). This runs before regex auto-fill, so regex
+        can override with per-aquarium specifics when available.
+        """
+        if not self.entry_metadata:
+            return
+
+        group = self.entry_metadata.get("group", "")
+        subject = self.entry_metadata.get("subject", "")
+        day = self.entry_metadata.get("day")
+
+        log.info(
+            "aquarium_assignment.apply_entry_metadata",
+            group=group,
+            subject=subject,
+            day=day,
+        )
+
+        for i in range(len(self._group_vars)):
+            if group:
+                group_value = self._resolve_group_name(group)
+                self._ensure_group_in_combobox(i, group_value)
+                self._group_vars[i].set(group_value)
+            if subject:
+                self._subject_vars[i].set(subject)
+            if day is not None:
+                try:
+                    self._day_vars[i].set(int(day))
+                except (ValueError, TypeError):
+                    pass
 
     def _on_auto_fill_click(self):
         """Auto-fill fields using regex pattern from filename."""

@@ -221,29 +221,39 @@ class MultiAquariumCoordinator(BaseCoordinator):
 
                     self._publish_event(
                         UIEvents.ZONE_MULTI_AUTO_DETECT_SUCCESS,
-                        {
-                            "video_path": video_path,
-                            "polygons": polygon_lists,
-                            "count": len(polygon_lists),
-                            "method": method,
-                        },
+                        payloads.ZoneMultiAutoDetectSuccessPayload(
+                            video_path=video_path,
+                            polygons=polygon_lists,
+                            count=len(polygon_lists),
+                            method=method,
+                        ),
                     )
+
+                    # Retrieve pre-existing metadata from project entry
+                    entry_metadata = None
+                    entry = self.project_manager.find_video_entry(path=str(video_path))
+                    if entry:
+                        entry_metadata = entry.get("metadata")
 
                     # Trigger assignment dialog
                     self._publish_event(
                         UIEvents.ZONE_SHOW_AQUARIUM_ASSIGNMENT_DIALOG,
-                        {
-                            "video_path": video_path,
-                            "polygons": polygon_lists,
-                            "count": len(polygon_lists),
-                        },
+                        payloads.ZoneShowAquariumAssignmentDialogPayload(
+                            video_path=video_path,
+                            polygons=polygon_lists,
+                            count=len(polygon_lists),
+                            entry_metadata=entry_metadata,
+                        ),
                     )
                     return {"polygons": polygon_lists, "count": len(polygon_lists)}
                 else:
                     log.warning("processing_coordinator.aquarium_detection.multi_failed")
                     self._publish_event(
                         UIEvents.ZONE_MULTI_AUTO_DETECT_FAILED,
-                        {"video_path": video_path, "reason": "Detecção falhou"},
+                        payloads.ZoneMultiAutoDetectFailedPayload(
+                            video_path=video_path,
+                            reason="Detecção falhou",
+                        ),
                     )
                 return None
             else:
@@ -363,8 +373,8 @@ class MultiAquariumCoordinator(BaseCoordinator):
                 aq_id = config.get("aquarium_id", 0)
                 for aq in multi_data.aquariums:
                     if aq.id == aq_id:
-                        aq.group = config.get("group_name", "")
-                        aq.subject_id = config.get("subject_name", "")
+                        aq.group = config.get("group", "")
+                        aq.subject_id = config.get("subject_id", "")
                         aq.day = config.get("day", "1")
                         break
 
@@ -374,14 +384,29 @@ class MultiAquariumCoordinator(BaseCoordinator):
             serialized = ZoneManager.multi_aquarium_zone_data_to_dict(multi_data)
             entry["multi_aquarium_zone_data"] = serialized
 
+            # Propagate assignment metadata to entry["metadata"] for UI visibility
+            # Use first aquarium's config as the video-level metadata
+            metadata = entry.setdefault("metadata", {})
+            if configs:
+                first_config = configs[0]
+                group_val = first_config.get("group", "")
+                subject_val = first_config.get("subject_id", "")
+                day_val = first_config.get("day", "1")
+                if group_val:
+                    metadata["group"] = group_val
+                if subject_val:
+                    metadata["subject"] = subject_val
+                if day_val:
+                    metadata["day"] = day_val
+
             # Update metadata in multi_aquarium_outputs if they exist
             multi_outputs = entry.get("multi_aquarium_outputs")
             if multi_outputs:
                 for config in configs:
                     aq_id_str = str(config.get("aquarium_id", 0))
                     if aq_id_str in multi_outputs:
-                        multi_outputs[aq_id_str]["group"] = config.get("group_name", "")
-                        multi_outputs[aq_id_str]["subject_id"] = config.get("subject_name", "")
+                        multi_outputs[aq_id_str]["group"] = config.get("group", "")
+                        multi_outputs[aq_id_str]["subject_id"] = config.get("subject_id", "")
                         multi_outputs[aq_id_str]["day"] = config.get("day", "1")
 
             # Relocate folders if needed
@@ -416,8 +441,8 @@ class MultiAquariumCoordinator(BaseCoordinator):
         for config in configs:
             aq_id = config.get("aquarium_id", 0)
             aq_id_str = str(aq_id)
-            group = config.get("group_name", "")
-            subject = config.get("subject_name", "")
+            group = config.get("group", "")
+            subject = config.get("subject_id", "")
             day = config.get("day", "1")
 
             if aq_id_str not in multi_outputs:

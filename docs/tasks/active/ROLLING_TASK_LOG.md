@@ -6,6 +6,230 @@ This document tracks all major agent interventions, technical debt resolutions, 
 
 ## Active Tasks
 
+### [2026-04-01] Multi-subject detection never finds >1 subject for full-context regex patterns
+
+__ID:__ TASK-058
+__Agent:__ Claude Opus 4.6
+__Status:__ Completed ✅
+__Branch:__ main
+__Description:__
+Fix multi-subject video files (e.g., `G1_D1_C1_G1_D1_C2.mp4`) only showing the
+first subject (C1) in the project tree, ignoring the second (C2).
+
+__Root Cause Analysis:__
+Investigated the real `project_config.json` and found `subject_mappings` only
+contained 1 entry per video — the multi-subject detection itself was broken,
+not just the enrichment or tree expansion. Three cascading bugs:
+
+1. __`build_combined_regex_pattern` produces invalid pattern for full-context
+   user patterns.__ User patterns like `(G\d+)_D\d+_C\d+` contain the full
+   block structure with separators. `build_combined_regex_pattern` naively
+   joins them with `_`, producing a triple-block pattern
+   (`(G\d+)_D\d+_C\d+_G\d+_D(\d+)_C\d+_G\d+_D\d+_(C\d+)`) that never
+   matches a filename with only 2 blocks.
+2. __`_process_path_with_individual_patterns` only finds the first subject.__
+   Uses `re.search()` (first match) instead of `re.finditer()` (all matches)
+   for the subject pattern.
+3. __Caller used `.append()` instead of `.extend()` for the fallback result.__
+   Even if the fallback returned multiple entries, the caller treated the
+   return value as a single dict.
+
+### Subtasks (TASK-058)
+
+- [x] Inspect real `project_config.json` — confirmed `subject_mappings` has 1 entry per video.
+- [x] Reproduce: `build_combined_regex_pattern` returns invalid pattern for full-context user patterns.
+- [x] Fix `build_combined_regex_pattern`: detect full-context patterns (contain separators) and return `""` so the individual-pattern fallback handles multi-subject detection.
+- [x] Fix `_process_path_with_individual_patterns`: use `re.finditer()` for subject pattern → return `list[dict]` instead of single `dict`.
+- [x] Fix caller in `_pattern_custom_regex`: `.append(fallback_result)` → `.extend(fallback_results)`.
+- [x] Validate with lint and tests.
+
+__Files Modified:__
+
+| File | Change |
+| --- | --- |
+| `src/zebtrack/ui/wizard/models.py` | `build_combined_regex_pattern`: Added `_is_full_context()` detector; returns `""` for patterns containing separators. Atomic patterns (e.g., `G(\d+)`) still combine normally. |
+| `src/zebtrack/ui/wizard/detection_step.py` | `_process_path_with_individual_patterns`: Changed `re.search()` → `re.finditer()` for subject pattern. Returns `list[dict]` (one entry per subject) instead of single `dict \| None`. |
+| `src/zebtrack/ui/wizard/detection_step.py` | `_pattern_custom_regex`: Changed `.append(fallback_result)` → `.extend(fallback_results)` to handle list return from individual patterns. |
+
+__Results:__
+
+- Verified with real user patterns (`(G\d+)_D\d+_C\d+` / `G\d+_D(\d+)_C\d+` / `G\d+_D\d+_(C\d+)`) on filename `G1_D1_C1_G1_D1_C2.mp4`:
+  - Before fix: `subject_mappings` = `[{group: G1, subject: C1}]` (1 entry)
+  - After fix: `subject_mappings` = `[{group: G1, subject: C1}, {group: G1, subject: C2}]` (2 entries)
+- Atomic patterns (`G(\d+)`, `D(\d+)`, `C(\d+)`) still work correctly via combined pattern path.
+- Validation:
+  - `poetry run ruff check` ✅
+  - `poetry run pytest -q` ✅ (2784 passed, 4 pre-existing failures, 0 regressions)
+  - `poetry run pytest -k "wizard or detection or multi_subject or regex or combined"` ✅ (241 passed)
+
+---
+
+### [2026-04-01] Multi-subject tree expansion regex fallback in enrichment
+
+__ID:__ TASK-057
+__Agent:__ Claude Opus 4.6
+__Status:__ Completed ✅ (superseded by TASK-058)
+__Branch:__ main
+__Description:__
+Added regex fallback in `project_workflow_service._enrich_videos_with_design_metadata()`
+for when `subject_mappings` path lookup fails due to Windows path normalization.
+This was a defense-in-depth fix; the real bug turned out to be upstream (TASK-058).
+
+__Files Modified:__
+
+| File | Change |
+| --- | --- |
+| `src/zebtrack/core/project/project_workflow_service.py` | Lines 1316-1344: Added `re.finditer()` fallback using `build_combined_regex_pattern` on filename when both original and normalized path lookups fail. |
+
+---
+
+### [2026-04-01] Pre-populate aquarium assignment dialog with regex-derived metadata
+
+__ID:__ TASK-056
+__Agent:__ Claude Opus 4.6
+__Status:__ Completed ✅
+__Branch:__ main
+__Description:__
+Thread project-creation regex metadata (`entry["metadata"]`) through to the
+aquarium assignment dialog so fields are pre-populated with group/subject/day
+already extracted from filenames. Currently the dialog ignores existing metadata
+and re-runs regex from scratch.
+
+### Subtasks (TASK-056)
+
+- [x] Add `entry_metadata` field to `ZoneShowAquariumAssignmentDialogPayload`.
+- [x] Pass `entry["metadata"]` from coordinator when publishing dialog event.
+- [x] Thread metadata through `event_dispatcher` to the dialog constructor.
+- [x] Use pre-existing metadata as defaults in the assignment dialog fields.
+- [x] Validate with lint and targeted tests.
+
+__Results:__
+
+- `payloads.py`: Added `entry_metadata: Mapping[str, Any] | None = None` to `ZoneShowAquariumAssignmentDialogPayload`.
+- `multi_aquarium_coordinator.py`: After multi-aquarium detection success, reads `entry["metadata"]` from `project_manager.find_video_entry()` and includes it in the dialog payload.
+- `event_dispatcher.py`: Passes `entry_metadata` from payload to `dialog_manager.show_aquarium_assignment_dialog()`.
+- `dialog_manager.py`: Added `entry_metadata` parameter, forwards to `AquariumAssignmentDialog`.
+- `aquarium_assignment_dialog.py`: New `_apply_entry_metadata_defaults()` method pre-populates group/subject/day for all aquariums from project metadata. Runs BEFORE regex auto-fill (which can override with per-aquarium specifics).
+- Validation:
+  - `poetry run ruff check` on all 5 modified files ✅
+  - `poetry run pytest tests/ui/test_multi_aquarium_events.py tests/coordinators/ -k "multi or aquarium or assignment"` ✅ (31 passed)
+  - `poetry run pytest -q` ✅ (2784 passed, 4 pre-existing failures, 0 regressions)
+
+---
+
+### [2026-04-01] Aquarium assignment metadata not reflected in UI
+
+__ID:__ TASK-055
+__Agent:__ Claude Opus 4.6
+__Status:__ Completed ✅
+__Branch:__ main
+__Description:__
+Fix 3 bugs causing aquarium assignment metadata (group, subject, day) set
+in the popup dialog after auto-detection to never appear in the project
+tree or any UI tab. Root causes: missing `video_path` in payload class,
+`entry["metadata"]` never updated, and raw dict payload in event_dispatcher.
+
+### Subtasks (TASK-055)
+
+- [x] Fix BUG #6: Add `video_path` field to `ZoneAquariumAssignmentCompletedPayload`.
+- [x] Fix BUG #5: Propagate assignment metadata to `entry["metadata"]` in `multi_aquarium_coordinator.py`.
+- [x] Convert event_dispatcher raw dict to typed payload for consistency.
+- [x] Validate with lint and targeted tests.
+
+__Results:__
+
+- `payloads.py`: Added `video_path: str = ""` to `ZoneAquariumAssignmentCompletedPayload` — field was missing, causing coercion to drop it.
+- `event_dispatcher.py`: Replaced raw dict with typed `ZoneAquariumAssignmentCompletedPayload(...)`.
+- `multi_aquarium_coordinator.py`: After updating `multi_aquarium_zone_data`, now also propagates first aquarium's config to `entry["metadata"]` with keys `group`, `subject`, `day` — the format the UI tree reads.
+- Validation:
+  - `poetry run ruff check` on all 3 modified files ✅
+  - `poetry run pytest tests/ui/test_multi_aquarium_events.py tests/coordinators/ -k "multi or aquarium or assignment"` ✅ (31 passed)
+  - `poetry run pytest -q` ✅ (2784 passed, 4 pre-existing failures, 0 regressions)
+
+---
+
+### [2026-04-01] Multi-aquarium auto-detection and assignment flow fix
+
+__ID:__ TASK-054
+__Agent:__ Claude Opus 4.6
+__Status:__ Completed ✅
+__Branch:__ main
+__Description:__
+Fix 4 bugs in the multi-aquarium auto-detection and assignment flow for
+pre-recorded videos that were broken after Phase 4 coordinator extraction.
+Auto-detect never triggered multi-aquarium mode, assignment metadata was
+silently lost due to key mismatches, expected_count was never propagated,
+and raw dicts were used instead of typed payloads.
+
+### Subtasks (TASK-054)
+
+- [x] Audit full event chain from UI button to coordinator handler.
+- [x] Fix BUG #2 (CRITICAL): Assignment key names — `group_name`→`group`, `subject_name`→`subject_id` (6 places in `multi_aquarium_coordinator.py`).
+- [x] Fix BUG #3 (MEDIUM): Propagate `expected_count` from `settings.analysis_config.num_aquariums` in `single_video_workflow.py`.
+- [x] Fix BUG #1 (CRITICAL): Route to multi-aquarium detection when `expected_count >= 2` in `video_processing_coordinator.py`.
+- [x] Fix BUG #4 (LOW): Replace raw dicts with typed payloads (`ZoneMultiAutoDetectSuccessPayload`, `ZoneShowAquariumAssignmentDialogPayload`, `ZoneMultiAutoDetectFailedPayload`).
+- [x] Validate with lint and full test suite.
+
+__Results:__
+
+- Event chain traced end-to-end: `ZoneControls._on_auto_detect_clicked()` → `ZONE_AUTO_DETECT_CLICKED` → `SingleVideoWorkflow.on_auto_detect_clicked()` → `ZONE_AUTO_DETECT` → `VideoProcessingCoordinator._handle_zone_auto_detect()` → `MultiAquariumCoordinator.run_aquarium_detection()`.
+- `multi_aquarium_coordinator.py`: Fixed 6 key name mismatches (`config.get("group_name")` → `config.get("group")`, `config.get("subject_name")` → `config.get("subject_id")`) at lines 365-366, 382-383, 419-420. Replaced 3 raw dict payloads with typed payload classes.
+- `single_video_workflow.py`: `ZoneAutoDetectPayload` now includes `expected_count=num_aquariums` when `num_aquariums >= 2`.
+- `video_processing_coordinator.py`: `_handle_zone_auto_detect` now reads `expected_count` from payload (+ settings fallback) and passes `multi_aquarium=True, count=N` when N >= 2.
+- Validation:
+  - `poetry run ruff check` on all 3 modified files ✅
+  - `poetry run pytest tests/ui/test_multi_aquarium_events.py -v` ✅ (19 passed)
+  - `poetry run pytest tests/coordinators/ -v -k multi` ✅ (2 passed)
+  - `poetry run pytest -q` ✅ (2783 passed, 5 pre-existing failures, 0 regressions)
+
+---
+
+### [2026-04-01] Fix analysis tab metadata not displayed for first/single video
+
+__ID:__ TASK-053
+__Agent:__ Claude Opus 4.6
+__Status:__ Completed ✅
+__Branch:__ main
+__Description:__
+Fix metadata (Grupo, Dia, Indivíduo) not displayed correctly in the analysis
+tab when processing a single video or the first video in a batch from a project.
+Root causes: fence-post error in video index tracking, redundant metadata reset
+via `start_analysis_view_mode()`, and thread-unsafe EventBus publish from worker
+thread.
+
+### Subtasks (TASK-053)
+
+- [x] Investigate metadata flow from project entry to analysis tab UI.
+- [x] Identify root causes (fence-post idx, race condition, thread-safety).
+- [x] Fix `_current_video_idx` initialization from `0` to `-1` in
+      `_on_started_wrapper` so first video triggers idx-change re-publish.
+- [x] Guard `start_analysis_view_mode()` in `_update_ui_for_processing_start`
+      to skip redundant metadata reset when analysis view is already active.
+- [x] Defer `_schedule_analysis_metadata_update()` publish to main thread via
+      `ui_coordinator.schedule_after(0, ...)` for Tkinter thread-safety.
+- [x] Update test `test_schedule_analysis_metadata_update_publishes` for new
+      deferred publish API.
+- [x] Validate with ruff and pytest (2784 passed, 4 pre-existing failures).
+
+__Results:__
+
+- __Fix 1__ (`video_processing_coordinator.py:470`): Changed
+  `ptc._current_video_idx = 0` → `-1`. First progress update (idx=0) now
+  triggers metadata re-publish via idx-change detection (`0 != -1` → TRUE).
+- __Fix 2__ (`progress_tracking_coordinator.py:164-199`): Added
+  `already_active = getattr(self.view, "analysis_active", False)` guard.
+  Skips `start_analysis_view_mode()` call (and its metadata reset) when
+  analysis view was already activated by another code path.
+- __Fix 3__ (`progress_notifier.py:261-290`): Changed direct
+  `ui_event_bus.publish()` to `ui_coordinator.schedule_after(0, _publish)`
+  so EventBus handlers (which set Tkinter StringVars) execute on the main
+  thread instead of the worker thread.
+- __Test fix__ (`test_video_processing_service_helpers.py:213`): Added
+  `schedule_after.side_effect` to simulate immediate execution in test.
+- Validation:
+  - `poetry run ruff check` ✅ (all checks passed)
+  - `poetry run pytest -q` ✅ (2784 passed, 4 pre-existing failures)
+
 ### [2026-03-31] Analysis header metadata + mode fallback correction
 
 __ID:__ TASK-052

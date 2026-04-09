@@ -212,6 +212,9 @@ def test_build_metadata_context_handles_errors():
 
 def test_schedule_analysis_metadata_update_publishes():
     service = _make_service()
+    # schedule_after defers the publish to the main thread; simulate immediate
+    # execution so the test can assert on the final publish call.
+    service.ui_coordinator.schedule_after.side_effect = lambda _delay, fn, *a, **kw: fn(*a, **kw)
 
     service._schedule_analysis_metadata_update({"group": "G1"})
 

@@ -166,26 +166,26 @@ class ProgressTrackingCoordinator(BaseCoordinator):
     ) -> None:
         """Update UI when processing starts (must run on main thread).
 
-        IMPORTANT: ``start_analysis_view_mode`` MUST be called **synchronously**
-        (not via ``ui_coordinator.update_view`` which defers through
-        ``root.after(0)``).  Otherwise the metadata reset inside
-        ``start_analysis_view_mode`` fires **after** the metadata publish
-        below, erasing the correct values.  Since this method already runs on
-        the main thread (scheduled via ``root.after``), a direct call is safe.
+        Only calls ``start_analysis_view_mode`` when the analysis view is not
+        already active.  This avoids a redundant metadata reset that would
+        erase values previously set (e.g. by ``activate_analysis_view_mode``
+        or by the worker-thread metadata publish).
+
+        The metadata publish at the end always runs regardless, so values are
+        authoritative even when the view mode initialisation is skipped.
         """
         if self.view:
-            # Call start_analysis_view_mode SYNCHRONOUSLY.  Using
-            # self.ui_coordinator.update_view() would defer via root.after(0)
-            # and cause a race: metadata defaults would overwrite the real
-            # metadata published below.
             analysis_controller = getattr(self.view, "analysis_view_controller", None)
-            if analysis_controller and hasattr(analysis_controller, "start_analysis_view_mode"):
-                analysis_controller.start_analysis_view_mode()
-            else:
-                # Fallback: try direct attribute on view (legacy path)
-                start_fn = getattr(self.view, "start_analysis_view_mode", None)
-                if start_fn and callable(start_fn):
-                    start_fn()
+            already_active = getattr(self.view, "analysis_active", False)
+
+            if not already_active:
+                # Initialise analysis view (includes metadata defaults reset).
+                if analysis_controller and hasattr(analysis_controller, "start_analysis_view_mode"):
+                    analysis_controller.start_analysis_view_mode()
+                else:
+                    start_fn = getattr(self.view, "start_analysis_view_mode", None)
+                    if start_fn and callable(start_fn):
+                        start_fn()
 
             status_text = f"Processando: {video_name}"
             self.ui_coordinator.set_status(self.view, status_text)
@@ -193,6 +193,8 @@ class ProgressTrackingCoordinator(BaseCoordinator):
             if analysis_controller and hasattr(analysis_controller, "update_analysis_progress"):
                 analysis_controller.update_analysis_progress(0.0, status_text=status_text)
 
+            # Always publish metadata — this is the authoritative source for
+            # the first video and acts as a safety net for subsequent ones.
             self._publish_analysis_metadata_for_video(video_path)
 
     def _publish_analysis_metadata_for_video(self, video_path: Path | str | None) -> None:

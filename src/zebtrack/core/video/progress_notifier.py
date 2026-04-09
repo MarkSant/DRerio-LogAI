@@ -259,14 +259,31 @@ class ProgressNotifierMixin:
         return metadata_context
 
     def _schedule_analysis_metadata_update(self, metadata: dict) -> None:
-        """Schedule analysis metadata update via event bus."""
-        if self.ui_event_bus:
+        """Schedule analysis metadata update via event bus on the main thread.
+
+        This method is typically called from the worker thread.  Publishing
+        directly on the worker would execute EventBus handlers (which set
+        Tkinter StringVars) on a non-main thread — violating Tkinter's
+        thread-safety contract.  We therefore defer the publish via
+        ``ui_coordinator.schedule_after(0, ...)`` so the handler runs on the
+        main thread.
+        """
+        if not self.ui_event_bus:
+            return
+
+        def _publish() -> None:
             self.ui_event_bus.publish(
                 Event(
                     type=UIEvents.UI_UPDATE_ANALYSIS_METADATA,
                     data=AnalysisMetadataPayload(metadata=metadata),
                 )
             )
+
+        if self.ui_coordinator:
+            self.ui_coordinator.schedule_after(0, _publish)
+        else:
+            # Fallback: publish directly (may be on worker thread)
+            _publish()
 
     def _notify_task_status_start(self, *, index: int, total: int, experiment_id: str) -> None:
         """Notify UI of task start via event bus."""

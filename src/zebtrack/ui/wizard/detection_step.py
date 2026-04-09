@@ -443,13 +443,13 @@ class DetectionStep(WizardStep):
                     matched = True
                     match_count += 1
 
-            # Fallback
+            # Fallback: individual patterns (returns list of dicts)
             if not matched:
-                fallback_result = self._process_path_with_individual_patterns(
+                fallback_results = self._process_path_with_individual_patterns(
                     str(path), patterns, groups_found, days_found, subjects_per_group
                 )
-                if fallback_result:
-                    file_subjects.append(fallback_result)
+                if fallback_results:
+                    file_subjects.extend(fallback_results)
                     match_count += 1
 
             if file_subjects:
@@ -460,7 +460,7 @@ class DetectionStep(WizardStep):
         )
 
     def _process_path_with_combined_pattern(
-        self, path_str, pattern, groups_found, days_found, subjects_per_group
+        self, path_str: Path | str, pattern, groups_found, days_found, subjects_per_group
     ):
         """Process path using combined regex pattern."""
         file_subjects = []
@@ -482,50 +482,74 @@ class DetectionStep(WizardStep):
         return file_subjects
 
     def _process_path_with_individual_patterns(
-        self, path_str, patterns, groups_found, days_found, subjects_per_group
+        self, path_str: Path | str, patterns, groups_found, days_found, subjects_per_group
     ):
-        """Process path using individual regex patterns as fallback."""
-        group = None
-        group_pattern = patterns.get("group_pattern")
-        if group_pattern:
-            try:
-                match = re.search(group_pattern, path_str)
-                if match:
-                    group = match.group(1) if match.groups() else match.group(0)
-            except re.error as e:
-                log.error("wizard.detection.custom_regex.group_error", error=str(e))
-                return None
+        """Process path using individual regex patterns as fallback.
 
-        if not group:
+        Uses ``findall`` on each individual pattern to detect ALL occurrences
+        in the filename/path.  When the subject pattern matches more than once
+        (multi-subject file), a list with one dict per subject is returned so
+        the caller can populate ``subject_mappings`` correctly.
+
+        Returns:
+            list[dict] | None: A list of ``{"group", "day", "subject"}`` dicts,
+            one per detected subject.  ``None`` if the group pattern did not
+            match at all (the file is not recognised).
+        """
+        # --- groups ----------------------------------------------------------
+        group_pattern = patterns.get("group_pattern")
+        if not group_pattern:
             return None
 
+        try:
+            group_match = re.search(group_pattern, path_str)
+        except re.error as e:
+            log.error("wizard.detection.custom_regex.group_error", error=str(e))
+            return None
+
+        if not group_match:
+            return None
+
+        group = group_match.group(1) if group_match.groups() else group_match.group(0)
+
+        # --- days ------------------------------------------------------------
         day = None
         day_pattern = patterns.get("day_pattern")
         if day_pattern:
             try:
-                match = re.search(day_pattern, path_str)
-                if match:
-                    day = match.group(1) if match.groups() else match.group(0)
+                day_match = re.search(day_pattern, path_str)
+                if day_match:
+                    day = day_match.group(1) if day_match.groups() else day_match.group(0)
                     if day.isdigit():
                         day = f"Day{day.zfill(2)}"
             except re.error as e:
                 log.error("wizard.detection.custom_regex.day_error", error=str(e))
 
-        subject = None
+        # --- subjects (finditer → ALL matches) -------------------------------
+        subjects: list[str] = []
         subject_pattern = patterns.get("subject_pattern")
         if subject_pattern:
             try:
-                match = re.search(subject_pattern, path_str)
-                if match:
-                    subject = match.group(1) if match.groups() else match.group(0)
-                    if subject.isdigit():
-                        subject = f"S{subject.zfill(2)}"
+                for sub_match in re.finditer(subject_pattern, path_str):
+                    val = sub_match.group(1) if sub_match.groups() else sub_match.group(0)
+                    if val.isdigit():
+                        val = f"S{val.zfill(2)}"
+                    if val not in subjects:
+                        subjects.append(val)
             except re.error as e:
                 log.error("wizard.detection.custom_regex.subject_error", error=str(e))
 
-        data = {"group": group, "day": day or "", "subject": subject or ""}
-        self._update_detected_sets(data, groups_found, days_found, subjects_per_group)
-        return data
+        if not subjects:
+            subjects = [""]
+
+        # Build one entry per subject and register in detection sets
+        results: list[dict] = []
+        for subject in subjects:
+            data = {"group": group, "day": day or "", "subject": subject}
+            self._update_detected_sets(data, groups_found, days_found, subjects_per_group)
+            results.append(data)
+
+        return results
 
     def _extract_match_data(self, groups_dict):
         """Extract and normalize data from regex match dict."""
@@ -556,7 +580,7 @@ class DetectionStep(WizardStep):
 
     def _build_custom_regex_result(
         self,
-        paths,
+        paths: list[Path],
         groups_found,
         days_found,
         subjects_per_group,

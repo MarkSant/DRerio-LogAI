@@ -445,6 +445,7 @@ class ZoneAquariumCountConfirmedPayload:
 class ZoneAquariumAssignmentCompletedPayload:
     configs: Sequence[Mapping[str, Any]]
     apply_to_all: bool
+    video_path: str = ""
 
 
 @dataclass(frozen=True)
@@ -452,6 +453,7 @@ class ZoneShowAquariumAssignmentDialogPayload:
     video_path: str
     polygons: Sequence[Any]
     count: int
+    entry_metadata: Mapping[str, Any] | None = None
 
 
 @dataclass(frozen=True)

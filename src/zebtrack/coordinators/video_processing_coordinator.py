@@ -204,9 +204,27 @@ class VideoProcessingCoordinator(
         def _handle_zone_auto_detect(payload: payloads.EventPayload) -> None:
             if not mac:
                 return
+            video_path = str(_payload_get(payload, "video_path", ""))
+            stabilization_frames = int(_payload_get(payload, "stabilization_frames", 10))
+            expected_count = _payload_get(payload, "expected_count")
+
+            # Fallback: read num_aquariums from settings if not in payload
+            if expected_count is None and self.settings:
+                num_aq = getattr(
+                    getattr(self.settings, "analysis_config", None),
+                    "num_aquariums",
+                    1,
+                )
+                if num_aq >= 2:
+                    expected_count = num_aq
+
+            multi_aquarium = expected_count is not None and expected_count >= 2
+
             mac.run_aquarium_detection(
-                video_path=str(_payload_get(payload, "video_path", "")),
-                stabilization_frames=int(_payload_get(payload, "stabilization_frames", 10)),
+                video_path=video_path,
+                count=expected_count if multi_aquarium else None,
+                multi_aquarium=multi_aquarium,
+                stabilization_frames=stabilization_frames,
             )
 
         bus.subscribe(UIEvents.ZONE_AUTO_DETECT, _handle_zone_auto_detect)
@@ -452,7 +470,7 @@ class VideoProcessingCoordinator(
                 # Store the batch video list so PTC can re-publish metadata
                 # when the worker switches to a new video (detected via idx change).
                 ptc._batch_videos = videos_to_process
-                ptc._current_video_idx = 0
+                ptc._current_video_idx = -1
                 # PTC._on_processing_started expects a video_path: str
                 first_video = videos_to_process[0].get("path", "") if videos_to_process else ""
                 ptc._on_processing_started(first_video)

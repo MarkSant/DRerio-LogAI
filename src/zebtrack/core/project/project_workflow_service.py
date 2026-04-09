@@ -1313,6 +1313,36 @@ class ProjectWorkflowService:
                 normalized_path = str(Path(path_str).as_posix()) if path_str else ""
                 file_subjects = subject_mappings.get(normalized_path, [])
 
+            # Fallback: if subject_mappings lookup failed but custom_patterns exist,
+            # apply combined regex directly on filename with finditer to detect
+            # multiple subjects. This handles path normalization mismatches
+            # (e.g., Windows backslashes vs POSIX slashes, OneDrive paths).
+            if not file_subjects and custom_patterns and custom_patterns.get("group_pattern"):
+                from zebtrack.ui.wizard.models import MultiAquariumData
+
+                combined = MultiAquariumData.build_combined_regex_pattern(
+                    group_pattern=custom_patterns.get("group_pattern"),
+                    day_pattern=custom_patterns.get("day_pattern"),
+                    subject_pattern=custom_patterns.get("subject_pattern"),
+                )
+                if combined:
+                    filename = Path(path_str).name
+                    for m in re.finditer(combined, filename):
+                        groups = m.groupdict()
+                        file_subjects.append(
+                            {
+                                "group": groups.get("group", ""),
+                                "subject": groups.get("subject", ""),
+                                "day": groups.get("day", ""),
+                            }
+                        )
+                    if file_subjects:
+                        log.info(
+                            "project_workflow_service.enrich_regex_fallback",
+                            filename=filename,
+                            subjects_found=len(file_subjects),
+                        )
+
             # DEBUG: Log lookup result
             log.info(
                 "project_workflow_service.enrich_video_debug",

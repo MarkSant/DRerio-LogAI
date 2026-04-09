@@ -257,26 +257,52 @@ class MultiAquariumData(BaseModel):
         """Build a combined regex pattern from individual patterns.
 
         Combines separate group, day, and subject patterns into a single
-        pattern with named capture groups that can be used with `re.finditer`
-        to extract multiple subjects from filenames like "G1_D1_S1--G1_D1_S2".
+        pattern with named capture groups that can be used with ``re.finditer``
+        to extract multiple subjects from filenames like ``G1_D1_S1--G1_D1_S2``.
+
+        Supports two pattern styles:
+
+        **Atomic** (short, prefix-only):
+            ``G(\\d+)`` — captures only the field of interest.
+            These are joined with ``_`` to form a combined pattern like
+            ``G(?P<group>\\d+)_D(?P<day>\\d+)_S(?P<subject>\\d+)``.
+
+        **Full-context** (each pattern contains separators / other fields):
+            ``(G\\d+)_D\\d+_C\\d+`` — already matches the whole block.
+            Joining these with ``_`` would produce an invalid pattern.
+            In this case we build a single self-contained pattern from
+            the **subject** pattern, injecting named groups for all three
+            captures so that a single ``finditer`` pass extracts group,
+            day **and** subject from each block.
 
         Args:
-            group_pattern: Pattern for capturing group ID (e.g., r"G(\\d+)")
-            day_pattern: Pattern for capturing day (e.g., r"D(\\d+)")
-            subject_pattern: Pattern for capturing subject (e.g., r"S(\\d+)")
-            separator: Regex pattern for block separator (default: `--` or `_`)
+            group_pattern: Pattern for capturing group ID
+            day_pattern: Pattern for capturing day
+            subject_pattern: Pattern for capturing subject
+            separator: Regex pattern for block separator (unused for atomic,
+                kept for API compatibility)
 
         Returns:
-            Combined regex pattern with named groups (?P<group>...), (?P<day>...),
-            (?P<subject>...). Returns empty string if no patterns provided.
+            Combined regex with named groups, or ``""`` if nothing provided.
 
         Examples:
-            >>> MultiAquariumData.build_combined_regex_pattern(
-            ...     group_pattern=r"G(\\d+)",
-            ...     day_pattern=r"D(\\d+)",
-            ...     subject_pattern=r"S(\\d+)"
-            ... )
-            'G(?P<group>\\d+)_D(?P<day>\\d+)_S(?P<subject>\\d+)'
+            Atomic patterns::
+
+                >>> MultiAquariumData.build_combined_regex_pattern(
+                ...     group_pattern=r"G(\\d+)",
+                ...     day_pattern=r"D(\\d+)",
+                ...     subject_pattern=r"S(\\d+)",
+                ... )
+                'G(?P<group>\\d+)_D(?P<day>\\d+)_S(?P<subject>\\d+)'
+
+            Full-context patterns::
+
+                >>> MultiAquariumData.build_combined_regex_pattern(
+                ...     group_pattern=r"(G\\d+)_D\\d+_C\\d+",
+                ...     day_pattern=r"G\\d+_D(\\d+)_C\\d+",
+                ...     subject_pattern=r"G\\d+_D\\d+_(C\\d+)",
+                ... )
+                '(?P<group>G\\d+)_D(?P<day>\\d+)_(?P<subject>C\\d+)'
         """
         if not any([group_pattern, day_pattern, subject_pattern]):
             return ""
@@ -297,7 +323,7 @@ class MultiAquariumData(BaseModel):
             if has_capture:
                 # Replace first non-named capture group with named group
                 # Pattern: G(\d+) -> G(?P<group>\d+)
-                def replace_first_group(m):
+                def replace_first_group(m: re.Match) -> str:
                     return f"(?P<{group_name}>"
 
                 # Only replace the first occurrence
@@ -308,15 +334,48 @@ class MultiAquariumData(BaseModel):
                 # Pattern: G\d+ -> (?P<group>G\d+)
                 return f"(?P<{group_name}>{pattern})"
 
-        # Build component patterns with named groups
+        def _is_full_context(pattern: str | None) -> bool:
+            """Return True if *pattern* contains separators (_, --, etc.).
+
+            Full-context patterns embed the structure of the whole block,
+            e.g. ``(G\\d+)_D\\d+_C\\d+``, meaning they already match the
+            entire ``group_day_subject`` block on their own.
+            """
+            if not pattern:
+                return False
+            # Strip out regex character classes [...] to avoid false positives
+            cleaned = re.sub(r"\[.*?\]", "", pattern)
+            return bool(re.search(r"[_\-]{2}|(?<![\\])_", cleaned))
+
+        full_context = any(
+            _is_full_context(p) for p in [group_pattern, day_pattern, subject_pattern]
+        )
+
+        if full_context:
+            # Full-context patterns already contain separators and match the
+            # entire block structure (e.g. ``(G\d+)_D\d+_C\d+``).
+            # Joining them with ``_`` would produce an invalid mega-pattern.
+            #
+            # Return empty string so the caller falls through to the
+            # individual-pattern fallback (``_process_path_with_individual_patterns``)
+            # which uses ``finditer`` on each pattern independently and
+            # correctly handles multi-subject filenames.
+            log.debug(
+                "multi_aquarium.build_combined_pattern",
+                mode="full_context_skipped",
+                group_pattern=group_pattern,
+                day_pattern=day_pattern,
+                subject_pattern=subject_pattern,
+                result="(skipped — patterns are full-context)",
+            )
+            return ""
+
+        # Atomic strategy: join converted parts with underscore
         group_named = convert_to_named_group(group_pattern, "group")
         day_named = convert_to_named_group(day_pattern, "day")
         subject_named = convert_to_named_group(subject_pattern, "subject")
 
-        # Build the combined pattern
-        # The pattern structure depends on which components are available
         parts = []
-
         if group_named:
             parts.append(group_named)
         if day_named:
@@ -333,6 +392,7 @@ class MultiAquariumData(BaseModel):
 
         log.debug(
             "multi_aquarium.build_combined_pattern",
+            mode="atomic",
             group_pattern=group_pattern,
             day_pattern=day_pattern,
             subject_pattern=subject_pattern,

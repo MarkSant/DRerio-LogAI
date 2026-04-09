@@ -7,6 +7,7 @@ without a full project context.
 
 from __future__ import annotations
 
+from pathlib import Path
 from tkinter import TclError, ttk
 from typing import TYPE_CHECKING
 
@@ -73,7 +74,7 @@ class SingleVideoWorkflow:
     # ------------------------------------------------------------------
 
     @public_api
-    def setup_zone_definition_for_single_video(self, video_path: str, config: dict) -> None:
+    def setup_zone_definition_for_single_video(self, video_path: Path | str, config: dict) -> None:
         """Prepare and display the zone configuration tab for a single video."""
         gui = self.gui
         log.info(
@@ -190,11 +191,17 @@ class SingleVideoWorkflow:
             ),
         )
 
+        # Read num_aquariums from settings for multi-aquarium auto-detection
+        num_aquariums = 1
+        if gui.settings and hasattr(gui.settings, "analysis_config"):
+            num_aquariums = gui.settings.analysis_config.num_aquariums
+
         gui.event_dispatcher.publish_event(
             UIEvents.ZONE_AUTO_DETECT,
             payloads.ZoneAutoDetectPayload(
                 video_path=video_path,
                 stabilization_frames=stabilization_frames_int,
+                expected_count=num_aquariums if num_aquariums >= 2 else None,
             ),
         )
 

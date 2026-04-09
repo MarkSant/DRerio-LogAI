@@ -565,6 +565,7 @@ class DialogManager:
         available_groups: list[str],
         video_path: str | None = None,
         multi_aquarium_config: Any = None,
+        entry_metadata: dict | None = None,
         on_confirm: Any = None,
         on_cancel: Any = None,
     ) -> tuple[Any, bool]:
@@ -580,6 +581,7 @@ class DialogManager:
             available_groups=available_groups,
             video_path=video_path,
             multi_aquarium_config=multi_aquarium_config,
+            entry_metadata=entry_metadata,
             on_confirm=on_confirm,
             on_cancel=on_cancel,
         )

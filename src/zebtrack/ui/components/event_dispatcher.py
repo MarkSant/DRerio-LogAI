@@ -674,6 +674,7 @@ class EventDispatcher:
             available_groups=payload.get("available_groups", []),
             video_path=video_path,
             multi_aquarium_config=payload.get("multi_aquarium_config"),
+            entry_metadata=payload.get("entry_metadata"),
         )
 
         self.log.info(
@@ -714,11 +715,11 @@ class EventDispatcher:
 
             self.publish_event(
                 UIEvents.ZONE_AQUARIUM_ASSIGNMENT_COMPLETED,
-                {
-                    "video_path": video_path,
-                    "configs": configs_as_dicts,
-                    "apply_to_all": apply_to_all,
-                },
+                payloads.ZoneAquariumAssignmentCompletedPayload(
+                    configs=configs_as_dicts,
+                    apply_to_all=apply_to_all,
+                    video_path=video_path or "",
+                ),
             )
 
     # --- High-Level UI Action Handlers ---
