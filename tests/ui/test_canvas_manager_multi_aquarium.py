@@ -7,6 +7,7 @@ multiple aquariums with distinct colors and labels.
 
 from __future__ import annotations
 
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import numpy as np
@@ -351,3 +352,64 @@ class TestMultiAquariumOverlayIntegration:
         assert result is not None
         # Frame should have content drawn
         assert result.sum() > 0
+
+
+def test_on_multi_auto_detect_success_persists_source_video_dimensions() -> None:
+    with patch.object(CanvasManager, "__init__", lambda self, *args, **kwargs: None):
+        canvas_manager = CanvasManager(MagicMock())
+
+    project_manager = MagicMock()
+    project_manager.get_active_zone_video.return_value = "video.mp4"
+    project_manager.get_multi_aquarium_zone_data.return_value = MultiAquariumZoneData(
+        aquariums=[
+            AquariumData(
+                id=0,
+                polygon=[(0, 0), (1, 0), (1, 1)],
+                roi_polygons=[[(1, 1), (2, 1), (2, 2)]],
+                roi_names=["roi"],
+                roi_colors=[(1, 2, 3)],
+                group="Controle",
+                subject_id="S01",
+                day=2,
+            )
+        ],
+        sequential_processing=True,
+    )
+
+    gui = MagicMock()
+    gui.controller = MagicMock(
+        project_manager=project_manager,
+        settings=SimpleNamespace(camera=SimpleNamespace(desired_width=1280, desired_height=720)),
+    )
+    gui.zone_controls = MagicMock()
+    gui.dialog_manager = MagicMock()
+    gui._original_image = None
+
+    canvas_manager.gui = gui
+    canvas_manager.redraw_zones_from_project_data = MagicMock()
+    canvas_manager.update_zone_listbox = MagicMock()
+
+    overlay = MultiAquariumOverlayManager(canvas_manager)
+
+    with patch(
+        "zebtrack.ui.components.canvas.multi_aquarium_overlay.cv2.VideoCapture",
+    ) as capture_mock:
+        overlay.on_multi_auto_detect_success(
+            {
+                "video_path": "video.mp4",
+                "source_video_width": 1920,
+                "source_video_height": 1080,
+                "polygons": [
+                    [(10, 10), (200, 10), (200, 200), (10, 200)],
+                    [(220, 10), (400, 10), (400, 200), (220, 200)],
+                ],
+            }
+        )
+
+    saved_multi_data = project_manager.save_multi_aquarium_zone_data.call_args.args[1]
+    assert isinstance(saved_multi_data, MultiAquariumZoneData)
+    assert saved_multi_data.video_width == 1920
+    assert saved_multi_data.video_height == 1080
+    assert saved_multi_data.sequential_processing is True
+    assert saved_multi_data.aquariums[0].roi_names == ["roi"]
+    capture_mock.assert_not_called()

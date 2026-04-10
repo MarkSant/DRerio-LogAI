@@ -45,6 +45,8 @@ class AquariumDetector:
             raise ImportError("Ultralytics is not available. Please install ultralytics package.")
 
         self.mode = mode
+        self._last_source_width = 0
+        self._last_source_height = 0
         if mode not in ["seg", "det"]:
             raise ValueError(f"Invalid mode '{mode}'. Must be 'seg' or 'det'.")
 
@@ -582,6 +584,8 @@ class AquariumDetector:
         source = None
         try:
             source = VideoFileSource(video_path_str)
+            self._last_source_width = int(getattr(source, "width", 0) or 0)
+            self._last_source_height = int(getattr(source, "height", 0) or 0)
             all_polygons = []
 
             # MELHORIA: Unified logic with LiveCameraService (frame skip + early exit)
@@ -604,6 +608,9 @@ class AquariumDetector:
 
                 if frame is None:
                     continue
+
+                self._last_source_width = int(frame.shape[1])
+                self._last_source_height = int(frame.shape[0])
 
                 # Detect all aquariums (class 0) with lower threshold
                 results = self.model.predict(frame, verbose=False, classes=[0], conf=0.05)
@@ -683,6 +690,12 @@ class AquariumDetector:
         return contour_detector.detect_multiple_aquariums(
             video_path_str, expected_count, stabilization_frames
         )
+
+    def get_last_source_dimensions(self) -> tuple[int, int] | None:
+        """Return dimensions of the source frame used in the last detection run."""
+        if self._last_source_width > 0 and self._last_source_height > 0:
+            return (self._last_source_width, self._last_source_height)
+        return None
 
 
 class ContourBasedMultiAquariumDetector:

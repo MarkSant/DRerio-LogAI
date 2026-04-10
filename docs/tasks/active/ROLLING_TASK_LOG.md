@@ -6,6 +6,83 @@ This document tracks all major agent interventions, technical debt resolutions, 
 
 ## Active Tasks
 
+### [2026-04-09] Sequential multi-aquarium overlay misalignment after auto-detection
+
+__ID:__ TASK-060
+__Agent:__ GitHub Copilot (GPT-5.4)
+__Status:__ Reopened - In Progress 🔄
+__Branch:__ main
+__Description:__
+Investigate and fix the analysis-tab overlay/box misalignment that occurs when a
+project is configured with 2 aquariums per video, aquariums are auto-detected,
+metadata is assigned per aquarium, and the videos are processed sequentially.
+The bug reproduces primarily on videos whose native resolution differs from the
+reference 1280x720 dimensions, indicating a coordinate-space or scaling contract
+break between auto-detection persistence and sequential processing.
+
+### Subtasks (TASK-060)
+
+- [x] Audit the end-to-end flow: auto-detect -> assignment -> sequential processing -> analysis overlay.
+- [x] Confirm reproduction characteristics with the user (auto-detect, non-1280x720 videos).
+- [x] Preserve source/reference dimensions in multi-aquarium persistence.
+- [x] Correct sequential processing zone configuration to keep coordinate-space context.
+- [x] Add regression tests for non-1280x720 sequential multi-aquarium overlays.
+- [x] Validate with focused tests and lint.
+
+__Files Expected:__
+
+| File | Planned Change |
+| --- | --- |
+| `src/zebtrack/ui/components/canvas/multi_aquarium_overlay.py` | Preserve video dimensions and coordinate metadata when persisting auto-detected aquariums |
+| `src/zebtrack/coordinators/sequential_processing_coordinator.py` | Pass reference/video dimensions through sequential single-aquarium setup |
+| `src/zebtrack/core/detection/detection_types.py` | Extend zone metadata transport helpers if needed |
+| `src/zebtrack/core/project/zone_manager.py` | Keep multi-aquarium serialization symmetric for new metadata |
+| `src/zebtrack/core/services/detector_service.py` | Avoid silent dimension fallback in sequential setup when metadata exists |
+| `src/zebtrack/core/video/processing_worker.py` | Prevent incorrect base-dimension override or double-scaling |
+| `tests/...` | Add focused regression coverage for sequential multi-aquarium scaling |
+
+__Results:__
+
+- `multi_aquarium_overlay.py`: auto-detected polygons now persist the source video dimensions and preserve existing ROI metadata when re-detecting aquariums.
+- `detection_types.py` + `sequential_processing_coordinator.py`: sequential single-aquarium conversion now carries `source_video_width` / `source_video_height` through `ZoneData.metadata` and passes them explicitly into detector configuration.
+- `processing_worker.py`: worker-side deserialization now preserves `ZoneData.metadata`, resolves source dimensions from both `ZoneData` and `MultiAquariumZoneData`, and aligns detector + zone scaler bases before scaling.
+- `zone_manager.py`: multi-aquarium serialization is now symmetric for `roi_mode` and `roi_data`.
+- Focused validation passed:
+  - `runTests` on 5 targeted files: 95 passed
+  - `poetry run ruff check` on all modified files: passed
+
+__Follow-up (same day):__
+
+- Added source-dimension propagation from detector runtime into `ZONE_MULTI_AUTO_DETECT_SUCCESS` payload so persistence uses the exact frame dimensions used during auto-detection.
+- Added backward-compatible dimension backfill in sequential startup for legacy projects where `video_width`/`video_height` were missing.
+- Additional validation passed:
+  - `runTests` on focused detector/coordinator/UI files: 71 passed
+  - `poetry run ruff check` on all follow-up files: passed
+
+__Hotfix Reopen (same day, terminal-verified):__
+
+- Debug run confirmed live symptom in worker logs: `zone_source_dimensions=(None, None)` in sequential processing.
+- In the same execution, `single_detector.zones.set` showed `actual_dimensions=(864, 480)` with `base_dimensions=(1280, 720)`, consistent with wrong-scale overlay.
+- New implementation scope: preserve `ZoneData.metadata` (`source_video_width/height`) across `ZoneManager` serialization paths and validate worker consumption end-to-end.
+
+__Hotfix Implementation (same day):__
+
+- `zone_manager.py`: `zone_data_to_dict()` and `zone_data_from_dict()` now persist and restore `metadata` symmetrically.
+- `test_zone_manager_multi_aquarium.py`: added regression assertions for compatibility path (`zones_by_video`) preserving `source_video_width/source_video_height` and direct round-trip metadata test.
+- Validation:
+  - `runTests tests/core/test_zone_manager_multi_aquarium.py` → 19 passed
+  - `runTests tests/core/test_processing_worker_unit.py` → 12 passed
+  - `poetry run ruff check src/zebtrack/core/project/zone_manager.py tests/core/test_zone_manager_multi_aquarium.py` → passed
+
+__Hotfix Implementation 2 (same day):__
+
+- Root cause confirmed in batch/sequential path: `_explode_sequential_tasks()` rebuilt per-aquarium `ZoneData` with `aq.to_zone_data()` (metadata dropped).
+- `video_processing_coordinator.py`: switched to `multi_data.to_zone_data(aq.id)` so each exploded task keeps `source_video_width/source_video_height` in `zone_data.metadata`.
+- `test_coordinator_flows.py`: added integration regression `test_explode_sequential_tasks_preserves_source_dimensions`.
+- Validation:
+  - `runTests tests/integration/test_coordinator_flows.py::test_explode_sequential_tasks_preserves_source_dimensions` → passed
+  - `poetry run ruff check src/zebtrack/coordinators/video_processing_coordinator.py tests/integration/test_coordinator_flows.py` → passed
+
 ### [2026-04-09] Continue workspace context and agent overlay
 
 __ID:__ TASK-059

@@ -48,13 +48,14 @@ class AquariumData:
         default_factory=dict
     )  # Dados extras de ROI (ex: grid_rows, grid_cols)
 
-    def to_zone_data(self) -> ZoneData:
+    def to_zone_data(self, metadata: dict[str, Any] | None = None) -> ZoneData:
         """Helper to get current zone configuration as ZoneData object."""
         return ZoneData(
             polygon=self.polygon,
             roi_polygons=self.roi_polygons,
             roi_names=self.roi_names,
             roi_colors=self.roi_colors,
+            metadata=dict(metadata or {}),
         )
 
 
@@ -104,7 +105,11 @@ class MultiAquariumZoneData:
         """
         aquarium = self.get_aquarium(aquarium_id)
         if aquarium:
-            return aquarium.to_zone_data()
+            metadata: dict[str, Any] = {}
+            if self.video_width > 0 and self.video_height > 0:
+                metadata["source_video_width"] = self.video_width
+                metadata["source_video_height"] = self.video_height
+            return aquarium.to_zone_data(metadata=metadata)
         return ZoneData()
 
     @property

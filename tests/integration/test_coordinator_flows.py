@@ -22,6 +22,7 @@ from zebtrack.core.detection import AquariumData, MultiAquariumZoneData, ZoneDat
 from zebtrack.core.exceptions import ProjectInvalidError
 from zebtrack.core.project.project_manager import ProjectManager
 from zebtrack.core.project.project_workflow_service import ProjectWorkflowService
+from zebtrack.core.project.zone_manager import ZoneManager
 from zebtrack.core.state_manager import StateManager
 from zebtrack.ui import payloads as payloads
 from zebtrack.ui.event_bus_v2 import EventBusV2, UIEvents
@@ -513,3 +514,130 @@ def test_multi_aquarium_sequential_flow_skipped(test_settings):
     )
 
     assert result is False
+
+
+@pytest.mark.integration
+def test_sequential_single_aquarium_preserves_source_dimensions(
+    monkeypatch, tmp_path, test_settings
+):
+    state_manager = StateManager()
+    video_path = str(tmp_path / "video.mp4")
+    aquarium = AquariumData(id=1, polygon=[(100, 50), (300, 50), (300, 250), (100, 250)])
+    multi_data = MultiAquariumZoneData(
+        aquariums=[aquarium],
+        video_width=1920,
+        video_height=1080,
+        sequential_processing=True,
+    )
+
+    project_manager = MagicMock()
+    project_manager.resolve_results_directory.return_value = tmp_path / "results"
+
+    detector_service = MagicMock()
+    created_contexts: list[object] = []
+
+    class DummyWorker:
+        def __init__(self, context, callbacks):
+            created_contexts.append(context)
+
+        def start_in_thread(self):
+            return MagicMock(name="worker_thread")
+
+    monkeypatch.setattr(
+        "zebtrack.core.video.processing_worker.ProcessingWorker",
+        DummyWorker,
+    )
+
+    seq_coord = SequentialProcessingCoordinator(
+        state_manager=state_manager,
+        project_manager=project_manager,
+        detector_service=detector_service,
+        settings_obj=test_settings,
+        ui_coordinator=MagicMock(),
+        cancel_event=threading.Event(),
+        recorder_factory=None,
+        event_bus=None,
+    )
+
+    seq_coord._start_single_aquarium_for_sequential(
+        aquarium,
+        {
+            "video_path": video_path,
+            "multi_zone_data": multi_data,
+            "current_index": 0,
+            "single_video_config": {"analysis_interval_frames": 2, "display_interval_frames": 3},
+        },
+    )
+
+    detector_service.configure_zones.assert_called_once()
+    configure_kwargs = detector_service.configure_zones.call_args.kwargs
+    assert configure_kwargs["video_width"] == 1920
+    assert configure_kwargs["video_height"] == 1080
+
+    zone_data = configure_kwargs["zones_data"]
+    assert zone_data.metadata == {
+        "source_video_width": 1920,
+        "source_video_height": 1080,
+    }
+
+    assert created_contexts
+    context_zone_data = created_contexts[0].zone_data
+    assert context_zone_data["metadata"] == {
+        "source_video_width": 1920,
+        "source_video_height": 1080,
+    }
+
+
+@pytest.mark.integration
+def test_explode_sequential_tasks_preserves_source_dimensions(tmp_path, test_settings):
+    state_manager = StateManager()
+    event_bus = EventBusV2()
+
+    project_manager = MagicMock()
+    project_manager.project_path = str(tmp_path / "project")
+    project_manager.project_data = {}
+    project_manager.resolve_multi_aquarium_results_directories.return_value = {
+        0: tmp_path / "aq0",
+        1: tmp_path / "aq1",
+    }
+
+    coordinator = VideoProcessingCoordinator(
+        state_manager=state_manager,
+        project_manager=project_manager,
+        detector_service=MagicMock(),
+        weight_manager=MagicMock(),
+        settings_obj=test_settings,
+        ui_coordinator=MagicMock(),
+        ui_state_controller=MagicMock(),
+        cancel_event=threading.Event(),
+        video_selection_service=MagicMock(),
+        video_validation_service=MagicMock(),
+        video_classification_service=MagicMock(),
+        event_bus=event_bus,
+    )
+
+    multi_data = MultiAquariumZoneData(
+        aquariums=[
+            AquariumData(id=0, polygon=[(10, 10), (110, 10), (110, 210), (10, 210)]),
+            AquariumData(id=1, polygon=[(120, 10), (220, 10), (220, 210), (120, 210)]),
+        ],
+        video_width=864,
+        video_height=480,
+        sequential_processing=True,
+    )
+
+    eligible_videos = [
+        {
+            "path": str(tmp_path / "video.mp4"),
+            "results_dir": str(tmp_path / "results"),
+            "zone_data": ZoneManager.multi_aquarium_zone_data_to_dict(multi_data),
+        }
+    ]
+
+    tasks = coordinator._explode_sequential_tasks(eligible_videos)
+
+    assert len(tasks) == 2
+    for task in tasks:
+        metadata = task["zone_data"].get("metadata", {})
+        assert metadata.get("source_video_width") == 864
+        assert metadata.get("source_video_height") == 480

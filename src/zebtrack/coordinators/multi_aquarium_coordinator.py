@@ -211,9 +211,13 @@ class MultiAquariumCoordinator(BaseCoordinator):
                     stabilization_frames=stabilization_frames,
                 )
                 if polygons:
+                    source_dims = detector.get_last_source_dimensions()
+                    source_w = source_dims[0] if source_dims else None
+                    source_h = source_dims[1] if source_dims else None
                     log.info(
                         "processing_coordinator.aquarium_detection.multi_success",
                         count=len(polygons),
+                        source_dimensions=(source_w, source_h),
                     )
 
                     # Convert numpy arrays to lists for serialization
@@ -226,6 +230,8 @@ class MultiAquariumCoordinator(BaseCoordinator):
                             polygons=polygon_lists,
                             count=len(polygon_lists),
                             method=method,
+                            source_video_width=source_w,
+                            source_video_height=source_h,
                         ),
                     )
 
@@ -235,6 +241,41 @@ class MultiAquariumCoordinator(BaseCoordinator):
                     if entry:
                         entry_metadata = entry.get("metadata")
 
+                    # Retrieve custom regex config from calibration so the
+                    # assignment dialog can auto-fill group/subject/day fields.
+                    multi_aquarium_config = None
+                    try:
+                        from zebtrack.ui.wizard.models import MultiAquariumData
+
+                        project_data = self.project_manager.project_data or {}
+                        calibration = project_data.get("calibration") or {}
+                        multi_aq_dict = calibration.get("multi_aquarium")
+                        if isinstance(multi_aq_dict, dict) and multi_aq_dict.get("regex_pattern"):
+                            multi_aquarium_config = MultiAquariumData.model_validate(multi_aq_dict)
+
+                        # Fallback: many projects store custom regex only in
+                        # _wizard_metadata.custom_regex_patterns.
+                        if not multi_aquarium_config:
+                            wizard_metadata = project_data.get("_wizard_metadata") or {}
+                            custom_patterns = wizard_metadata.get("custom_regex_patterns")
+                            if isinstance(custom_patterns, dict):
+                                combined_pattern = MultiAquariumData.build_combined_regex_pattern(
+                                    group_pattern=custom_patterns.get("group_pattern"),
+                                    day_pattern=custom_patterns.get("day_pattern"),
+                                    subject_pattern=custom_patterns.get("subject_pattern"),
+                                )
+                                if combined_pattern:
+                                    multi_aquarium_config = MultiAquariumData(
+                                        enabled=True,
+                                        regex_pattern=combined_pattern,
+                                        regex_group_field="group",
+                                        regex_subject_field="subject",
+                                        regex_day_field="day",
+                                        aquarium_configs=[],
+                                    )
+                    except Exception:
+                        multi_aquarium_config = None
+
                     # Trigger assignment dialog
                     self._publish_event(
                         UIEvents.ZONE_SHOW_AQUARIUM_ASSIGNMENT_DIALOG,
@@ -243,9 +284,15 @@ class MultiAquariumCoordinator(BaseCoordinator):
                             polygons=polygon_lists,
                             count=len(polygon_lists),
                             entry_metadata=entry_metadata,
+                            multi_aquarium_config=multi_aquarium_config,
                         ),
                     )
-                    return {"polygons": polygon_lists, "count": len(polygon_lists)}
+                    return {
+                        "polygons": polygon_lists,
+                        "count": len(polygon_lists),
+                        "source_video_width": source_w,
+                        "source_video_height": source_h,
+                    }
                 else:
                     log.warning("processing_coordinator.aquarium_detection.multi_failed")
                     self._publish_event(
@@ -377,6 +424,10 @@ class MultiAquariumCoordinator(BaseCoordinator):
                         aq.subject_id = config.get("subject_id", "")
                         aq.day = config.get("day", "1")
                         break
+
+            # Persist into multi_aquarium_zones (source of truth read by
+            # processing validation), not only into the video entry mirror.
+            self.project_manager.save_multi_aquarium_zone_data(vpath, multi_data, persist=False)
 
             # Save updated multi-aquarium data
             from zebtrack.core.project.zone_manager import ZoneManager

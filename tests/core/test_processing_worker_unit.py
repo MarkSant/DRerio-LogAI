@@ -5,7 +5,7 @@ from unittest.mock import patch
 
 import pytest
 
-from zebtrack.core.detection import ZoneData
+from zebtrack.core.detection import MultiAquariumZoneData, ZoneData
 from zebtrack.core.video.processing_worker import WorkerConfig, _WorkerProcess
 
 
@@ -108,11 +108,91 @@ def test_get_zone_data_prefers_video_metadata(worker_config):
     assert isinstance(zone, ZoneData)
     assert zone.polygon == zone_polygon
     assert zone.roi_names == ["roi"]
+    assert zone.metadata == {}
 
     meta_without_zone = {"path": "/video2.mp4"}
     fallback_zone = worker._get_zone_data_for_video(meta_without_zone)
     assert isinstance(fallback_zone, ZoneData)
     assert fallback_zone is worker._default_zone_data
+
+
+def test_get_zone_data_preserves_zone_metadata(worker_config):
+    result_queue: mp.Queue[object] = mp.Queue()
+    command_queue: mp.Queue[object] = mp.Queue()
+    worker = _WorkerProcess(worker_config, result_queue, command_queue)
+
+    metadata = {"source_video_width": 1920, "source_video_height": 1080}
+    zone = worker._get_zone_data_for_video(
+        {
+            "path": "/video.mp4",
+            "zone_data": {
+                "polygon": [[0, 0], [10, 0], [10, 10]],
+                "roi_polygons": [],
+                "roi_names": [],
+                "roi_colors": [],
+                "metadata": metadata,
+            },
+        }
+    )
+
+    assert isinstance(zone, ZoneData)
+    assert zone.metadata == metadata
+
+
+def test_resolve_zone_source_dimensions_prefers_explicit_metadata(worker_config):
+    result_queue: mp.Queue[object] = mp.Queue()
+    command_queue: mp.Queue[object] = mp.Queue()
+    worker = _WorkerProcess(worker_config, result_queue, command_queue)
+
+    zone_data = ZoneData(metadata={"source_video_width": 1920, "source_video_height": 1080})
+
+    assert worker._resolve_zone_source_dimensions(zone_data) == (1920, 1080)
+
+
+def test_resolve_zone_source_dimensions_reads_multi_aquarium_video_size(worker_config):
+    result_queue: mp.Queue[object] = mp.Queue()
+    command_queue: mp.Queue[object] = mp.Queue()
+    worker = _WorkerProcess(worker_config, result_queue, command_queue)
+
+    multi_data = MultiAquariumZoneData(video_width=1920, video_height=1080)
+
+    assert worker._resolve_zone_source_dimensions(multi_data) == (1920, 1080)
+
+
+def test_repair_source_dimensions_switches_to_desired_base_when_polygon_tiny(worker_config):
+    result_queue: mp.Queue[object] = mp.Queue()
+    command_queue: mp.Queue[object] = mp.Queue()
+    worker = _WorkerProcess(worker_config, result_queue, command_queue)
+
+    zone_data = ZoneData(polygon=[[100, 80], [520, 80], [520, 320], [100, 320]])
+
+    repaired = worker._repair_source_dimensions_if_needed(
+        zone_data,
+        source_width=1920,
+        source_height=1080,
+        actual_width=1920,
+        actual_height=1080,
+    )
+
+    assert repaired == (320, 240)
+
+
+def test_repair_source_dimensions_keeps_source_when_ratio_is_reasonable(worker_config):
+    result_queue: mp.Queue[object] = mp.Queue()
+    command_queue: mp.Queue[object] = mp.Queue()
+    worker = _WorkerProcess(worker_config, result_queue, command_queue)
+
+    zone_data = ZoneData(polygon=[[120, 90], [1040, 90], [1040, 600], [120, 600]])
+
+    repaired = worker._repair_source_dimensions_if_needed(
+        zone_data,
+        source_width=1920,
+        source_height=1080,
+        actual_width=1920,
+        actual_height=1080,
+    )
+
+    assert repaired == (1920, 1080)
 
 
 def test_sanitize_component_replaces_invalid_chars():

@@ -405,6 +405,8 @@ class ZoneMultiAutoDetectSuccessPayload:
     polygons: Sequence[Any]
     count: int
     method: str | None = None
+    source_video_width: int | None = None
+    source_video_height: int | None = None
 
 
 @dataclass(frozen=True)
@@ -454,6 +456,7 @@ class ZoneShowAquariumAssignmentDialogPayload:
     polygons: Sequence[Any]
     count: int
     entry_metadata: Mapping[str, Any] | None = None
+    multi_aquarium_config: Any | None = None
 
 
 @dataclass(frozen=True)

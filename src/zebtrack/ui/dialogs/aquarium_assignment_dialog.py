@@ -181,6 +181,34 @@ class AquariumAssignmentDialog(simpledialog.Dialog):
         if not self.entry_metadata:
             return
 
+        subject_entries = self.entry_metadata.get("subject_entries")
+        if isinstance(subject_entries, list) and subject_entries:
+            log.info(
+                "aquarium_assignment.apply_entry_subject_entries",
+                entries=len(subject_entries),
+            )
+            for i in range(min(2, len(subject_entries))):
+                entry = subject_entries[i] if isinstance(subject_entries[i], dict) else {}
+
+                entry_group = entry.get("group", "")
+                if entry_group:
+                    group_value = self._resolve_group_name(entry_group)
+                    self._ensure_group_in_combobox(i, group_value)
+                    self._group_vars[i].set(group_value)
+
+                entry_subject = entry.get("subject", "")
+                if entry_subject:
+                    self._subject_vars[i].set(str(entry_subject))
+
+                entry_day = entry.get("day")
+                if entry_day is not None:
+                    try:
+                        day_int = int("".join(ch for ch in str(entry_day) if ch.isdigit()))
+                        if day_int > 0:
+                            self._day_vars[i].set(day_int)
+                    except (ValueError, TypeError):
+                        pass
+
         group = self.entry_metadata.get("group", "")
         subject = self.entry_metadata.get("subject", "")
         day = self.entry_metadata.get("day")
@@ -197,9 +225,9 @@ class AquariumAssignmentDialog(simpledialog.Dialog):
                 group_value = self._resolve_group_name(group)
                 self._ensure_group_in_combobox(i, group_value)
                 self._group_vars[i].set(group_value)
-            if subject:
+            if subject and not self._subject_vars[i].get().strip():
                 self._subject_vars[i].set(subject)
-            if day is not None:
+            if day is not None and not self._day_vars[i].get():
                 try:
                     self._day_vars[i].set(int(day))
                 except (ValueError, TypeError):
@@ -603,6 +631,9 @@ class AquariumAssignmentDialog(simpledialog.Dialog):
 
             if not group_raw:
                 raise ValueError(f"Grupo do Aquário {i + 1} não pode estar vazio")
+
+            if not subject:
+                raise ValueError(f"Sujeito do Aquário {i + 1} não pode estar vazio")
 
             # CRITICAL FIX: Resolve group name to match available_groups format
             # The StringVar might have '1', but we need 'G01'

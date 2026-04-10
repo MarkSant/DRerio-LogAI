@@ -34,6 +34,8 @@ class TestZoneManagerMultiAquariumSerialization:
                     group="Controle",
                     subject_id="S01",
                     day=1,
+                    roi_mode="grid",
+                    roi_data={"rows": 2, "cols": 2},
                 ),
                 AquariumData(
                     id=1,
@@ -69,6 +71,8 @@ class TestZoneManagerMultiAquariumSerialization:
         assert aq0["group"] == "Controle"
         assert aq0["subject_id"] == "S01"
         assert aq0["day"] == 1
+        assert aq0["roi_mode"] == "grid"
+        assert aq0["roi_data"] == {"rows": 2, "cols": 2}
         assert len(aq0["polygon"]) == 4
         assert len(aq0["roi_polygons"]) == 1
         assert aq0["roi_names"] == ["ROI_Left"]
@@ -103,6 +107,8 @@ class TestZoneManagerMultiAquariumSerialization:
                     "group": "Controle",
                     "subject_id": "S01",
                     "day": 2,
+                    "roi_mode": "grid",
+                    "roi_data": {"rows": 3, "cols": 4},
                 },
                 {
                     "id": 1,
@@ -132,6 +138,8 @@ class TestZoneManagerMultiAquariumSerialization:
         assert aq0.group == "Controle"
         assert aq0.subject_id == "S01"
         assert aq0.day == 2
+        assert aq0.roi_mode == "grid"
+        assert aq0.roi_data == {"rows": 3, "cols": 4}
 
         # Check second aquarium
         aq1 = result.aquariums[1]
@@ -170,6 +178,8 @@ class TestZoneManagerMultiAquariumSerialization:
             assert restored.group == orig.group
             assert restored.subject_id == orig.subject_id
             assert restored.day == orig.day
+            assert restored.roi_mode == orig.roi_mode
+            assert restored.roi_data == orig.roi_data
 
 
 class TestZoneManagerMultiAquariumStorage:
@@ -425,3 +435,18 @@ class TestZoneManagerMultiAquariumProjectFile:
         assert zone_data.polygon == [[0, 0], [100, 0], [100, 100], [0, 100]]
         assert len(zone_data.roi_polygons) == 1
         assert zone_data.roi_names == ["ROI1"]
+        assert zone_data.metadata["source_video_width"] == 640
+        assert zone_data.metadata["source_video_height"] == 480
+
+    def test_zone_data_roundtrip_preserves_metadata(self, zone_manager):
+        """Testa que zone_data serializa/deserializa metadata sem perda."""
+        zone_data = ZoneData(
+            polygon=[[0, 0], [100, 0], [100, 100], [0, 100]],
+            metadata={"source_video_width": 864, "source_video_height": 480},
+        )
+
+        serialized = zone_manager.zone_data_to_dict(zone_data)
+        restored = zone_manager.zone_data_from_dict(serialized)
+
+        assert restored.metadata["source_video_width"] == 864
+        assert restored.metadata["source_video_height"] == 480

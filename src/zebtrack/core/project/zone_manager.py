@@ -84,6 +84,7 @@ class ZoneManager:
                 "roi_polygons": [],
                 "roi_names": [],
                 "roi_colors": [],
+                "metadata": {},
             }
 
         serialized = {
@@ -93,6 +94,7 @@ class ZoneManager:
             ],
             "roi_names": list(zone_data.roi_names or []),
             "roi_colors": [list(color) for color in (zone_data.roi_colors or [])],
+            "metadata": dict(getattr(zone_data, "metadata", {}) or {}),
         }
         return serialized
 
@@ -116,12 +118,14 @@ class ZoneManager:
 
         roi_names = list(data.get("roi_names", []))
         roi_colors = [tuple(color) for color in data.get("roi_colors", [])]
+        metadata = dict(data.get("metadata", {}) or {})
 
         return ZoneData(
             polygon=polygon,
             roi_polygons=roi_polygons,
             roi_names=roi_names,
             roi_colors=roi_colors,
+            metadata=metadata,
         )
 
     def resolve_zone_entry(
@@ -786,6 +790,8 @@ class ZoneManager:
                 "group": aquarium.group,
                 "subject_id": aquarium.subject_id,
                 "day": aquarium.day,
+                "roi_mode": aquarium.roi_mode,
+                "roi_data": dict(aquarium.roi_data or {}),
             }
             aquariums_serialized.append(aquarium_dict)
 
@@ -827,6 +833,8 @@ class ZoneManager:
                 group=aquarium_dict.get("group", ""),
                 subject_id=aquarium_dict.get("subject_id", ""),
                 day=aquarium_dict.get("day", 0),
+                roi_mode=aquarium_dict.get("roi_mode", ""),
+                roi_data=dict(aquarium_dict.get("roi_data", {}) or {}),
             )
             aquariums.append(aquarium)
 

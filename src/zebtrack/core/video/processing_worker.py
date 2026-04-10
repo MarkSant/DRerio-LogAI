@@ -137,6 +137,7 @@ class ProcessingWorker:
                         "roi_polygons": getattr(z_data, "roi_polygons", []),
                         "roi_names": getattr(z_data, "roi_names", []),
                         "roi_colors": getattr(z_data, "roi_colors", []),
+                        "metadata": getattr(z_data, "metadata", {}),
                     }
 
             # DEBUG: Log serialized zone data
@@ -658,6 +659,7 @@ class _WorkerProcess(multiprocessing.Process):
                 zd.roi_polygons = self.config.zone_data.get("roi_polygons", [])
                 zd.roi_names = self.config.zone_data.get("roi_names", [])
                 zd.roi_colors = self.config.zone_data.get("roi_colors", [])
+                zd.metadata = dict(self.config.zone_data.get("metadata", {}) or {})
 
                 # DEBUG: Log deserialized zone data
                 log.info(
@@ -724,6 +726,7 @@ class _WorkerProcess(multiprocessing.Process):
             zd.roi_polygons = video_zone_dict.get("roi_polygons", [])
             zd.roi_names = video_zone_dict.get("roi_names", [])
             zd.roi_colors = video_zone_dict.get("roi_colors", [])
+            zd.metadata = dict(video_zone_dict.get("metadata", {}) or {})
 
             log.info(
                 "worker.using_per_video_zone_data",
@@ -753,23 +756,141 @@ class _WorkerProcess(multiprocessing.Process):
             )
             return self._default_zone_data
 
+    @staticmethod
+    def _resolve_zone_source_dimensions(
+        zone_data: ZoneData | MultiAquariumZoneData,
+    ) -> tuple[int | None, int | None]:
+        """Resolve the source dimensions associated with a zone payload."""
+        source_width = 0
+        source_height = 0
+
+        if isinstance(zone_data, MultiAquariumZoneData):
+            source_width = int(getattr(zone_data, "video_width", 0) or 0)
+            source_height = int(getattr(zone_data, "video_height", 0) or 0)
+        elif isinstance(zone_data, ZoneData):
+            metadata = getattr(zone_data, "metadata", {}) or {}
+            if isinstance(metadata, dict):
+                source_width = int(metadata.get("source_video_width", 0) or 0)
+                source_height = int(metadata.get("source_video_height", 0) or 0)
+
+        if source_width > 0 and source_height > 0:
+            return source_width, source_height
+        return None, None
+
+    @staticmethod
+    def _set_detector_base_dimensions(
+        detector: Detector,
+        base_width: int,
+        base_height: int,
+    ) -> None:
+        """Keep detector and zone scaler aligned to the same coordinate base."""
+        detector.base_width = base_width
+        detector.base_height = base_height
+        if hasattr(detector, "zone_scaler") and detector.zone_scaler is not None:
+            detector.zone_scaler.base_width = base_width
+            detector.zone_scaler.base_height = base_height
+
+    @staticmethod
+    def _polygon_area_ratio_for_base(
+        zone_data: ZoneData,
+        *,
+        base_width: int,
+        base_height: int,
+        actual_width: int,
+        actual_height: int,
+    ) -> float:
+        """Estimate arena area ratio after scaling from a candidate base to the frame."""
+        if base_width <= 0 or base_height <= 0:
+            return 0.0
+        if not zone_data.polygon or len(zone_data.polygon) < 3:
+            return 0.0
+
+        polygon = np.array(zone_data.polygon, dtype=np.float32)
+        scale_x = actual_width / float(base_width)
+        scale_y = actual_height / float(base_height)
+        scaled_polygon = (polygon * [scale_x, scale_y]).astype(np.float32)
+        area = float(cv2.contourArea(scaled_polygon))
+        frame_area = float(actual_width * actual_height)
+        if frame_area <= 0:
+            return 0.0
+        return max(0.0, area / frame_area)
+
+    def _repair_source_dimensions_if_needed(
+        self,
+        zone_data: ZoneData | MultiAquariumZoneData,
+        *,
+        source_width: int | None,
+        source_height: int | None,
+        actual_width: int,
+        actual_height: int,
+    ) -> tuple[int | None, int | None]:
+        """Fix likely wrong source dimensions when arena ratio becomes implausibly small."""
+        if source_width is None or source_height is None:
+            return source_width, source_height
+        if not isinstance(zone_data, ZoneData):
+            return source_width, source_height
+
+        desired_width = int(getattr(self.config.settings.camera, "desired_width", 0) or 0)
+        desired_height = int(getattr(self.config.settings.camera, "desired_height", 0) or 0)
+        if desired_width <= 0 or desired_height <= 0:
+            return source_width, source_height
+
+        current_ratio = self._polygon_area_ratio_for_base(
+            zone_data,
+            base_width=source_width,
+            base_height=source_height,
+            actual_width=actual_width,
+            actual_height=actual_height,
+        )
+        desired_ratio = self._polygon_area_ratio_for_base(
+            zone_data,
+            base_width=desired_width,
+            base_height=desired_height,
+            actual_width=actual_width,
+            actual_height=actual_height,
+        )
+
+        # If current scaling makes the aquarium implausibly tiny but the desired
+        # reference yields a realistic area, prefer desired_* as coordinate base.
+        if (
+            current_ratio < 0.12
+            and desired_ratio > 0.12
+            and desired_ratio > (current_ratio * 1.35)
+            and (source_width, source_height) != (desired_width, desired_height)
+        ):
+            log.warning(
+                "worker.zone_source_dimensions.repaired",
+                current_source=(source_width, source_height),
+                desired_source=(desired_width, desired_height),
+                current_ratio=current_ratio,
+                desired_ratio=desired_ratio,
+                actual_dimensions=(actual_width, actual_height),
+            )
+            return desired_width, desired_height
+
+        return source_width, source_height
+
     def _process_single_video(  # noqa: C901
         self,
         index: int,
         total_videos: int,
-        video_path: str,
+        video_path: Path | str,
         experiment_id: str,
         detector: Detector,
         video_metadata: dict,
     ) -> bool:
         """Process a single video file."""
 
+        video_path = Path(video_path) if isinstance(video_path, str) else video_path
+
         # 1. Open Video
         # 1. Open Video
-        if isinstance(video_path, str) and video_path.isdigit():
+        if isinstance(video_path, Path) and str(video_path).isdigit():
+            cap = cv2.VideoCapture(int(str(video_path)))
+        elif isinstance(video_path, str) and video_path.isdigit():
             cap = cv2.VideoCapture(int(video_path))
         else:
-            cap = cv2.VideoCapture(video_path)
+            cap = cv2.VideoCapture(str(video_path))
 
         if not cap.isOpened():
             raise FileNotFoundError(f"Could not open video: {video_path}")
@@ -781,11 +902,21 @@ class _WorkerProcess(multiprocessing.Process):
         # 2. Setup Zones & Calibration
         # Use per-video zone data if available (batch processing), otherwise use default
         video_zone_data = self._get_zone_data_for_video(video_metadata)
-
-        # Force base dimensions to match video to prevent double-scaling
-        # if zones are already in native coords
-        detector.base_width = width
-        detector.base_height = height
+        source_width, source_height = self._resolve_zone_source_dimensions(video_zone_data)
+        source_width, source_height = self._repair_source_dimensions_if_needed(
+            video_zone_data,
+            source_width=source_width,
+            source_height=source_height,
+            actual_width=width,
+            actual_height=height,
+        )
+        if source_width is not None and source_height is not None:
+            self._set_detector_base_dimensions(detector, source_width, source_height)
+            log.info(
+                "worker.zone_source_dimensions.applied",
+                source_dimensions=(source_width, source_height),
+                actual_dimensions=(width, height),
+            )
 
         # 2. Setup Zones
         is_multi_aquarium = isinstance(video_zone_data, MultiAquariumZoneData) and bool(
@@ -795,13 +926,16 @@ class _WorkerProcess(multiprocessing.Process):
 
         if is_multi_aquarium:
             assert isinstance(video_zone_data, MultiAquariumZoneData)
+            multi_base_width = source_width or detector.zone_scaler.base_width
+            multi_base_height = source_height or detector.zone_scaler.base_height
+            self._set_detector_base_dimensions(detector, multi_base_width, multi_base_height)
             # Create a MultiAquariumDetector sharing the same plugin/helpers
             multi_aq_detector = MultiAquariumDetector(
                 plugin=detector.plugin,
                 zone_scaler=detector.zone_scaler,
                 post_processor=detector.post_processor,
-                base_width=width,
-                base_height=height,
+                base_width=multi_base_width,
+                base_height=multi_base_height,
                 settings_obj=detector.settings,
             )
             multi_aq_detector.set_multi_aquarium_zones(
@@ -825,6 +959,7 @@ class _WorkerProcess(multiprocessing.Process):
             "worker.zones_configured_for_video",
             video=experiment_id,
             video_dimensions=(width, height),
+            zone_source_dimensions=(source_width, source_height),
             polygon_points=len(video_zone_data.aquariums[0].polygon)
             if isinstance(video_zone_data, MultiAquariumZoneData) and video_zone_data.aquariums
             else len(video_zone_data.polygon)
@@ -858,7 +993,7 @@ class _WorkerProcess(multiprocessing.Process):
                 results_dir = ""
             if not results_dir:
                 # Fallback: Create results directory next to the video file
-                video_dir = os.path.dirname(video_path)
+                video_dir = os.path.dirname(str(video_path))
                 results_dir = os.path.join(video_dir, f"{experiment_id}_results")
             os.makedirs(results_dir, exist_ok=True)
             log.info(

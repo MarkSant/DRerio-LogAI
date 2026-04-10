@@ -680,7 +680,7 @@ class VideoProcessingCoordinator(
             if not multi_data or not vp:
                 continue
             missing_subjects = [
-                f"Aquário {aq.id}" for aq in multi_data.aquariums if not aq.subject_id
+                f"Aquário {aq.id + 1}" for aq in multi_data.aquariums if not aq.subject_id
             ]
             if missing_subjects:
                 self._publish_event(
@@ -800,7 +800,8 @@ class VideoProcessingCoordinator(
                     )
                     for aq in multi_data.aquariums:
                         aq_task = video_info.copy()
-                        aq_zone_data = aq.to_zone_data()
+                        # Preserve source video dimensions for worker scaling logic.
+                        aq_zone_data = multi_data.to_zone_data(aq.id)
                         aq_task["zone_data"] = ZoneManager.zone_data_to_dict(aq_zone_data)
                         aq_task["is_multi_aquarium"] = False
                         aq_results_dir = aq_dirs.get(aq.id)

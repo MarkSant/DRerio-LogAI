@@ -13,6 +13,7 @@ import os
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+import cv2
 import structlog
 
 from zebtrack.coordinators.base_coordinator import BaseCoordinator
@@ -184,14 +185,50 @@ class SequentialProcessingCoordinator(BaseCoordinator):
         single_video_config = ctx.get("single_video_config")
         aq_id = getattr(aquarium, "id", ctx["current_index"])
         experiment_id = os.path.splitext(os.path.basename(video_path))[0]
+        source_video_width = int(getattr(_multi_zone_data, "video_width", 0) or 0)
+        source_video_height = int(getattr(_multi_zone_data, "video_height", 0) or 0)
+        if source_video_width <= 0 or source_video_height <= 0:
+            cap = cv2.VideoCapture(str(video_path))
+            try:
+                if cap.isOpened():
+                    inferred_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+                    inferred_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+                    if inferred_width > 0 and inferred_height > 0:
+                        source_video_width = inferred_width
+                        source_video_height = inferred_height
+                        if hasattr(_multi_zone_data, "video_width"):
+                            _multi_zone_data.video_width = inferred_width
+                        if hasattr(_multi_zone_data, "video_height"):
+                            _multi_zone_data.video_height = inferred_height
+                        self.project_manager.save_multi_aquarium_zone_data(
+                            video_path,
+                            _multi_zone_data,
+                            persist=False,
+                        )
+                        log.info(
+                            "processing_coordinator.sequential.source_dims_backfilled",
+                            video=os.path.basename(video_path),
+                            source_dimensions=(inferred_width, inferred_height),
+                        )
+            finally:
+                cap.release()
 
         # Convert aquarium to ZoneData for standard processing
-        zone_data = ZoneData(
-            polygon=aquarium.polygon or [],
-            roi_polygons=getattr(aquarium, "roi_polygons", []) or [],
-            roi_names=getattr(aquarium, "roi_names", []) or [],
-            roi_colors=getattr(aquarium, "roi_colors", []) or [],
-        )
+        if hasattr(_multi_zone_data, "to_zone_data"):
+            zone_data = _multi_zone_data.to_zone_data(aq_id)
+        else:
+            zone_data = ZoneData(
+                polygon=aquarium.polygon or [],
+                roi_polygons=getattr(aquarium, "roi_polygons", []) or [],
+                roi_names=getattr(aquarium, "roi_names", []) or [],
+                roi_colors=getattr(aquarium, "roi_colors", []) or [],
+            )
+
+        zone_metadata = dict(getattr(zone_data, "metadata", {}) or {})
+        if source_video_width > 0 and source_video_height > 0:
+            zone_metadata["source_video_width"] = source_video_width
+            zone_metadata["source_video_height"] = source_video_height
+        zone_data.metadata = zone_metadata
 
         # Resolve results directory for this aquarium
         aq_metadata = {
@@ -210,7 +247,11 @@ class SequentialProcessingCoordinator(BaseCoordinator):
         os.makedirs(results_dir, exist_ok=True)
 
         # Set up detector zones
-        self.detector_service.configure_zones(zones_data=zone_data)
+        configure_kwargs: dict[str, Any] = {"zones_data": zone_data}
+        if source_video_width > 0 and source_video_height > 0:
+            configure_kwargs["video_width"] = source_video_width
+            configure_kwargs["video_height"] = source_video_height
+        self.detector_service.configure_zones(**configure_kwargs)
 
         # Determine intervals
         analysis_interval = self.settings.video_processing.processing_interval
@@ -240,6 +281,7 @@ class SequentialProcessingCoordinator(BaseCoordinator):
                 "roi_polygons": zone_data.roi_polygons,
                 "roi_names": zone_data.roi_names,
                 "roi_colors": zone_data.roi_colors,
+                "metadata": zone_data.metadata,
             },
             analysis_interval_frames=analysis_interval,
             display_interval_frames=display_interval,

@@ -10,6 +10,7 @@ All methods access the parent CanvasManager via self.canvas_manager back-referen
 from __future__ import annotations
 
 import typing
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 import cv2
@@ -69,6 +70,48 @@ class MultiAquariumOverlayManager:
         """DialogManager instance (injected or resolved from gui)."""
         return self._dialog_manager or self.gui.dialog_manager
 
+    def _resolve_video_dimensions(
+        self,
+        video_path: Path | str,
+        *,
+        fallback_width: int = 0,
+        fallback_height: int = 0,
+    ) -> tuple[int, int]:
+        """Return source video dimensions for auto-detected aquarium polygons."""
+        video_path = Path(video_path) if isinstance(video_path, str) else video_path
+        if fallback_width > 0 and fallback_height > 0:
+            return fallback_width, fallback_height
+
+        active_video = None
+        project_manager = getattr(getattr(self.gui, "controller", None), "project_manager", None)
+        if project_manager and hasattr(project_manager, "get_active_zone_video"):
+            active_video = project_manager.get_active_zone_video()
+
+        original_image = getattr(self.gui, "_original_image", None)
+        if original_image is not None and (
+            not active_video or str(active_video) == str(video_path)
+        ):
+            width, height = original_image.size
+            if width > 0 and height > 0:
+                return int(width), int(height)
+
+        capture = cv2.VideoCapture(str(video_path))
+        try:
+            if capture.isOpened():
+                width = int(capture.get(cv2.CAP_PROP_FRAME_WIDTH))
+                height = int(capture.get(cv2.CAP_PROP_FRAME_HEIGHT))
+                if width > 0 and height > 0:
+                    return width, height
+        finally:
+            capture.release()
+
+        settings = getattr(getattr(self.gui, "controller", None), "settings", None)
+        camera = getattr(settings, "camera", None)
+        return (
+            int(getattr(camera, "desired_width", 0) or 0),
+            int(getattr(camera, "desired_height", 0) or 0),
+        )
+
     def on_multi_auto_detect_success(self, data: dict) -> None:
         """Handle successful multi-aquarium detection.
 
@@ -77,6 +120,8 @@ class MultiAquariumOverlayManager:
         """
         polygons = data.get("polygons")
         video_path = data.get("video_path")
+        payload_width = int(data.get("source_video_width") or 0)
+        payload_height = int(data.get("source_video_height") or 0)
 
         if not polygons or not video_path:
             log.warning("canvas_manager.multi_success.missing_data", data=data)
@@ -110,6 +155,9 @@ class MultiAquariumOverlayManager:
                 new_aq = AquariumData(
                     id=i,
                     polygon=p,
+                    roi_polygons=existing_aq.roi_polygons,
+                    roi_names=existing_aq.roi_names,
+                    roi_colors=existing_aq.roi_colors,
                     group=existing_aq.group,
                     subject_id=existing_aq.subject_id,
                     day=existing_aq.day,
@@ -127,7 +175,21 @@ class MultiAquariumOverlayManager:
                 new_aq = AquariumData(id=i, polygon=p)
             aquariums_list.append(new_aq)
 
-        multi_data = MultiAquariumZoneData(aquariums=aquariums_list)
+        existing_width = getattr(existing_data, "video_width", 0) if existing_data else 0
+        existing_height = getattr(existing_data, "video_height", 0) if existing_data else 0
+        fallback_width = payload_width or int(existing_width or 0)
+        fallback_height = payload_height or int(existing_height or 0)
+        video_width, video_height = self._resolve_video_dimensions(
+            video_path,
+            fallback_width=fallback_width,
+            fallback_height=fallback_height,
+        )
+
+        multi_data = MultiAquariumZoneData(
+            aquariums=aquariums_list,
+            video_width=video_width,
+            video_height=video_height,
+        )
 
         # Copy sequential_processing flag from existing data if available
         if existing_data and hasattr(existing_data, "sequential_processing"):

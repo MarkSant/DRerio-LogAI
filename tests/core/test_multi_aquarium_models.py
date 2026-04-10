@@ -82,6 +82,7 @@ class TestAquariumData:
         assert zone_data.roi_polygons == roi_polygons
         assert zone_data.roi_names == roi_names
         assert zone_data.roi_colors == roi_colors
+        assert zone_data.metadata == {}
 
     def test_polygon_with_multiple_points(self):
         """Testa polígonos com múltiplos pontos (forma irregular)."""
@@ -169,6 +170,14 @@ class TestMultiAquariumZoneData:
 
         assert isinstance(zone_data_1, ZoneData)
         assert zone_data_1.polygon == [[350, 0], [650, 0], [650, 400], [350, 400]]
+        assert zone_data_0.metadata == {
+            "source_video_width": 1280,
+            "source_video_height": 720,
+        }
+        assert zone_data_1.metadata == {
+            "source_video_width": 1280,
+            "source_video_height": 720,
+        }
 
     def test_to_zone_data_not_found_returns_empty(self, two_aquariums):
         """Testa que to_zone_data retorna ZoneData vazio se ID não existe."""
