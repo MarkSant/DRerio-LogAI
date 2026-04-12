@@ -502,7 +502,7 @@ class DetectionStep(WizardStep):
             return None
 
         try:
-            group_match = re.search(group_pattern, path_str)
+            group_match = re.search(group_pattern, str(path_str))
         except re.error as e:
             log.error("wizard.detection.custom_regex.group_error", error=str(e))
             return None
@@ -517,7 +517,7 @@ class DetectionStep(WizardStep):
         day_pattern = patterns.get("day_pattern")
         if day_pattern:
             try:
-                day_match = re.search(day_pattern, path_str)
+                day_match = re.search(day_pattern, str(path_str))
                 if day_match:
                     day = day_match.group(1) if day_match.groups() else day_match.group(0)
                     if day.isdigit():
@@ -530,7 +530,7 @@ class DetectionStep(WizardStep):
         subject_pattern = patterns.get("subject_pattern")
         if subject_pattern:
             try:
-                for sub_match in re.finditer(subject_pattern, path_str):
+                for sub_match in re.finditer(subject_pattern, str(path_str)):
                     val = sub_match.group(1) if sub_match.groups() else sub_match.group(0)
                     if val.isdigit():
                         val = f"S{val.zfill(2)}"

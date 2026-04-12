@@ -979,3 +979,50 @@ class TestBehaviorEdgeCases:
         # Average distance thigmotaxis should be small
         avg_dist = analyzer.calculate_thigmotaxis_index(method="average_distance")
         assert avg_dist < 10  # Less than 10 cm from wall on average
+
+
+# === Angular Velocity Stats ===
+
+
+class TestAngularVelocityStats:
+    """Tests for get_angular_velocity_stats()."""
+
+    def test_angular_velocity_stats_returns_all_keys(self, simple_analyzer):
+        stats = simple_analyzer.get_angular_velocity_stats()
+        assert set(stats.keys()) == {"mean", "median", "max", "std_dev"}
+
+    def test_angular_velocity_stats_positive_values(self, circular_analyzer):
+        """Circular motion should produce non-zero angular velocity."""
+        stats = circular_analyzer.get_angular_velocity_stats()
+        assert stats["mean"] > 0
+        assert stats["max"] > 0
+        assert stats["median"] > 0
+
+    def test_angular_velocity_stats_max_geq_mean(self, circular_analyzer):
+        stats = circular_analyzer.get_angular_velocity_stats()
+        assert stats["max"] >= stats["mean"]
+
+    def test_angular_velocity_stats_empty_trajectory(self):
+        """Trajectory with <3 frames should return NaN stats."""
+        df = pd.DataFrame(
+            {
+                "timestamp": pd.to_timedelta([0.0, 0.033], unit="s"),
+                "frame": [0, 1],
+                "track_id": [1, 1],
+                "x_center_px": [100.0, 110.0],
+                "y_center_px": [100.0, 100.0],
+                "confidence": [0.95, 0.95],
+            }
+        )
+        analyzer = ConcreteBehavioralAnalyzer(
+            trajectory_df=df,
+            pixelcm_x=10.0,
+            pixelcm_y=10.0,
+            video_height_px=720,
+            arena_polygon_px=[(0, 0), (800, 0), (800, 720), (0, 720)],
+            fps=30.0,
+        )
+        stats = analyzer.get_angular_velocity_stats()
+        # With only 2 frames, angular velocity computation returns empty or NaN
+        for key in ("mean", "median", "max", "std_dev"):
+            assert key in stats

@@ -226,7 +226,7 @@ class MultiAquariumCoordinator(BaseCoordinator):
                     self._publish_event(
                         UIEvents.ZONE_MULTI_AUTO_DETECT_SUCCESS,
                         payloads.ZoneMultiAutoDetectSuccessPayload(
-                            video_path=video_path,
+                            video_path=str(video_path),
                             polygons=polygon_lists,
                             count=len(polygon_lists),
                             method=method,
@@ -280,7 +280,7 @@ class MultiAquariumCoordinator(BaseCoordinator):
                     self._publish_event(
                         UIEvents.ZONE_SHOW_AQUARIUM_ASSIGNMENT_DIALOG,
                         payloads.ZoneShowAquariumAssignmentDialogPayload(
-                            video_path=video_path,
+                            video_path=str(video_path),
                             polygons=polygon_lists,
                             count=len(polygon_lists),
                             entry_metadata=entry_metadata,
@@ -298,7 +298,7 @@ class MultiAquariumCoordinator(BaseCoordinator):
                     self._publish_event(
                         UIEvents.ZONE_MULTI_AUTO_DETECT_FAILED,
                         payloads.ZoneMultiAutoDetectFailedPayload(
-                            video_path=video_path,
+                            video_path=str(video_path),
                             reason="Detecção falhou",
                         ),
                     )
@@ -757,7 +757,7 @@ class MultiAquariumCoordinator(BaseCoordinator):
             if value in (None, ""):
                 return None
             try:
-                return int(value) <= 1
+                return int(str(value)) <= 1
             except (TypeError, ValueError):
                 return None
 

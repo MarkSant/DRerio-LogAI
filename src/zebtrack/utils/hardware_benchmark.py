@@ -788,7 +788,7 @@ def run_adaptive_benchmark(
             progress_callback(step, total, message)
 
     # Step 1: Detect hardware
-    report_progress(1, 6, "Detecting hardware...")
+    report_progress(1, 6, "Passo 1/6 — Detectando hardware...")
     profile = detect_hardware_profile()
     result.hardware = profile
 
@@ -806,14 +806,14 @@ def run_adaptive_benchmark(
         sample_frame = np.random.randint(0, 255, (720, 1280, 3), dtype=np.uint8)
 
     # Step 2: Video decode benchmark
-    report_progress(2, 6, "Testing video decode...")
+    report_progress(2, 6, "Passo 2/6 — Testando decodificação de vídeo...")
     decode_results = {}
     if video_path:
         decode_results = _benchmark_video_decode(video_path, num_frames=num_frames)
         result.decode_results = {k: v.to_dict() for k, v in decode_results.items()}
 
     # Step 3: Compute/Inference benchmark
-    report_progress(3, 6, "Testing inference performance...")
+    report_progress(3, 6, "Passo 3/6 — Testando desempenho de inferência...")
     compute_results = {}
 
     if model_path and profile.openvino_available:
@@ -828,7 +828,7 @@ def run_adaptive_benchmark(
     result.compute_results = {k: v.to_dict() for k, v in compute_results.items()}
 
     # Step 4: Pipeline Live benchmark
-    report_progress(4, 6, "Testing live camera pipeline...")
+    report_progress(4, 6, "Passo 4/6 — Testando pipeline de câmera ao vivo...")
     pipeline_live_results = {}
     if video_path and model_path and profile.openvino_available:
         available = _get_benchmark_devices(profile)
@@ -842,7 +842,7 @@ def run_adaptive_benchmark(
     result.pipeline_live_results = {k: v.to_dict() for k, v in pipeline_live_results.items()}
 
     # Step 5: Pipeline Batch benchmark
-    report_progress(5, 6, "Testing batch processing pipeline...")
+    report_progress(5, 6, "Passo 5/6 — Testando processamento em lote...")
     pipeline_batch_results = {}
     if video_path and model_path and profile.openvino_available:
         available = _get_benchmark_devices(profile)
@@ -864,7 +864,7 @@ def run_adaptive_benchmark(
     result.pipeline_batch_results = {k: v.to_dict() for k, v in pipeline_batch_results.items()}
 
     # Step 6: Generate recommendations
-    report_progress(6, 6, "Generating recommendations...")
+    report_progress(6, 6, "Passo 6/6 — Gerando recomendações...")
     result.recommendation = _generate_recommendation(
         profile,
         compute_results,

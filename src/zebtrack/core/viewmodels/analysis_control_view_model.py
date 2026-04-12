@@ -253,7 +253,7 @@ class AnalysisControlViewModel:
         """
         if self.ui_event_bus:
             payload = payloads.ZoneAutoDetectPayload(
-                video_path=kwargs.get("video_path"),
+                video_path=kwargs.get("video_path") or "",
                 stabilization_frames=kwargs.get("stabilization_frames", 10),
             )
             self.ui_event_bus.publish(Event(type=UIEvents.ZONE_AUTO_DETECT, data=payload))

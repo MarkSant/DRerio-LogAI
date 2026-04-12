@@ -199,52 +199,53 @@ class EventDispatcher:
         # Import UIEvents to use constants
 
         # Navigation & Lifecycle
-        event_bus.subscribe(
-            UIEvents.UI_NAVIGATE_TO_WELCOME, lambda d: gui.widget_factory.create_welcome_frame()
-        )
+        def _navigate_welcome(d: payloads.EventPayload) -> None:
+            gui.widget_factory.create_welcome_frame()
 
-        event_bus.subscribe(
-            UIEvents.UI_NAVIGATE_TO_PROJECT_VIEW,
-            lambda d: gui.root.after(0, gui.project_initializer.load_project_view),
-        )
+        event_bus.subscribe(UIEvents.UI_NAVIGATE_TO_WELCOME, _navigate_welcome)
 
-        event_bus.subscribe(
-            UIEvents.PROJECT_CLOSED,
-            lambda d: gui.state_synchronizer._destroy_notebook_and_main_controls(),
-        )
+        def _navigate_project_view(d: payloads.EventPayload) -> None:
+            gui.root.after(0, gui.project_initializer.load_project_view)
+
+        event_bus.subscribe(UIEvents.UI_NAVIGATE_TO_PROJECT_VIEW, _navigate_project_view)
+
+        def _on_project_closed(d: payloads.EventPayload) -> None:
+            gui.state_synchronizer._destroy_notebook_and_main_controls()
+
+        event_bus.subscribe(UIEvents.PROJECT_CLOSED, _on_project_closed)
 
         # Generic UI updates — schedule via root.after so the event bus handler
         # returns immediately and is not counted as "slow" by the timing monitor.
-        event_bus.subscribe(
-            UIEvents.UI_SHOW_INFO,
-            lambda d: gui.root.after(
+        def _show_info(d: payloads.EventPayload) -> None:
+            gui.root.after(
                 0,
                 lambda: gui.dialog_manager.show_info(
                     _payload_get(d, "title", "Info"),
                     _payload_get(d, "message", ""),
                 ),
-            ),
-        )
-        event_bus.subscribe(
-            UIEvents.UI_SHOW_WARNING,
-            lambda d: gui.root.after(
+            )
+
+        def _show_warning(d: payloads.EventPayload) -> None:
+            gui.root.after(
                 0,
                 lambda: gui.dialog_manager.show_warning(
                     _payload_get(d, "title", "Aviso"),
                     _payload_get(d, "message", ""),
                 ),
-            ),
-        )
-        event_bus.subscribe(
-            UIEvents.UI_SHOW_ERROR,
-            lambda d: gui.root.after(
+            )
+
+        def _show_error(d: payloads.EventPayload) -> None:
+            gui.root.after(
                 0,
                 lambda: gui.dialog_manager.show_error(
                     _payload_get(d, "title", "Erro"),
                     _payload_get(d, "message", ""),
                 ),
-            ),
-        )
+            )
+
+        event_bus.subscribe(UIEvents.UI_SHOW_INFO, _show_info)
+        event_bus.subscribe(UIEvents.UI_SHOW_WARNING, _show_warning)
+        event_bus.subscribe(UIEvents.UI_SHOW_ERROR, _show_error)
 
         # External Triggers
         event_bus.subscribe(

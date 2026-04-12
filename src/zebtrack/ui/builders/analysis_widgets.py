@@ -150,9 +150,17 @@ class AnalysisWidgetsBuilder:
             self.gui.event_bus.subscribe(UIEvents.CONFIG_RESET_REQUESTED, reset_handler)
             self.gui.event_bus.subscribe(UIEvents.CONFIG_ROI_RULE_CHANGED, roi_rule_handler)
 
+            def calibration_handler(_: payloads.EmptyPayload) -> None:
+                self.gui._open_global_calibration_window()
+
+            self.gui.event_bus.subscribe(
+                UIEvents.CONFIG_OPEN_CALIBRATION_DIALOG, calibration_handler
+            )
+
             self.gui._event_bus_handlers["config.save_requested"] = save_handler
             self.gui._event_bus_handlers["config.reset_requested"] = reset_handler
             self.gui._event_bus_handlers["config.roi_rule_changed"] = roi_rule_handler
+            self.gui._event_bus_handlers["config.open_calibration_dialog"] = calibration_handler
 
         self.reload_config_editor_values_widget()
 

@@ -206,6 +206,7 @@ class UIEvents(Enum):
     CONFIG_VALIDATION_ERROR = auto()
     CONFIG_RESET_REQUESTED = auto()
     CONFIG_ROI_RULE_CHANGED = auto()
+    CONFIG_OPEN_CALIBRATION_DIALOG = auto()
     PROJECT_REFRESH_REQUESTED = auto()
     PROJECT_VIDEO_DOUBLE_CLICK_WIDGET = auto()
     PROJECT_VIDEO_RIGHT_CLICK_WIDGET = auto()
@@ -418,6 +419,7 @@ _PAYLOAD_TYPES: dict[UIEvents, type[Any]] = {
     UIEvents.CONFIG_VALIDATION_ERROR: payloads.ConfigValidationErrorPayload,
     UIEvents.CONFIG_RESET_REQUESTED: payloads.EmptyPayload,
     UIEvents.CONFIG_ROI_RULE_CHANGED: payloads.ConfigRoiRuleChangedPayload,
+    UIEvents.CONFIG_OPEN_CALIBRATION_DIALOG: payloads.EmptyPayload,
     UIEvents.PROJECT_REFRESH_REQUESTED: payloads.ProjectRefreshRequestedPayload,
     UIEvents.PROJECT_VIDEO_DOUBLE_CLICK_WIDGET: payloads.VideoPathPayload,
     UIEvents.PROJECT_VIDEO_RIGHT_CLICK_WIDGET: payloads.VideoPathPayload,

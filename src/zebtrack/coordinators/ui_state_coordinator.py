@@ -216,7 +216,7 @@ class UIStateController:
             self.ui_event_bus.publish(
                 Event(
                     type=UIEvents.UI_SET_ACTIVE_WEIGHT,
-                    data=UISetActiveWeightPayload(weight_name=default_name),
+                    data=UISetActiveWeightPayload(weight_name=default_name or ""),
                 )
             )
             self.set_active_weight(default_name, None)

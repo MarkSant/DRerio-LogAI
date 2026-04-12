@@ -149,7 +149,7 @@ class VideoProcessingCoordinator(
         """
         if self._video_metadata_service is not None:
             try:
-                return self._video_metadata_service.get_video_dimensions(video_path)
+                return self._video_metadata_service.get_video_dimensions(str(video_path))
             except (OSError, ValueError, RuntimeError):
                 log.warning(
                     "video_processing_coordinator.get_dims.service_failed",
@@ -161,7 +161,7 @@ class VideoProcessingCoordinator(
         try:  # pragma: no cover
             import cv2 as _cv2  # pragma: no cover
 
-            cap = _cv2.VideoCapture(video_path)  # pragma: no cover
+            cap = _cv2.VideoCapture(str(video_path))  # pragma: no cover
             if not cap.isOpened():  # pragma: no cover
                 return None  # pragma: no cover
             w = int(cap.get(_cv2.CAP_PROP_FRAME_WIDTH))  # pragma: no cover
@@ -441,7 +441,7 @@ class VideoProcessingCoordinator(
         )
         return ProcessingContext(
             videos_to_process=videos_to_process,
-            output_base_dir=output_base_dir,
+            output_base_dir=str(output_base_dir),
             cancel_event=self.cancel_event,
             settings=settings_snapshot,
             single_video_config=single_video_config,
@@ -594,7 +594,7 @@ class VideoProcessingCoordinator(
                 UIEvents.UI_SHOW_WARNING,
                 payloads.MessagePayload(
                     title="Validação Falhou",
-                    message=validation_result.error_message,
+                    message=validation_result.error_message or "",
                 ),
             )
             return

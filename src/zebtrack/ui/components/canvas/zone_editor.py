@@ -10,6 +10,7 @@ All methods access the parent CanvasManager via self.canvas_manager back-referen
 
 from __future__ import annotations
 
+import os
 import typing
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -946,6 +947,23 @@ class ZoneEditor:
         from zebtrack.core.project.project_manager import ZoneData
 
         project_manager.save_zone_data(ZoneData(), video_path)
+
+        # Remove orphaned zone parquet files from disk
+        video_path_str = str(video_path)
+        entry = project_manager.find_video_entry(path=video_path_str)
+        if entry:
+            results_dir = entry.get("results_dir")
+            if results_dir and os.path.isdir(results_dir):
+                for fname in os.listdir(results_dir):
+                    if fname.startswith(("1_ProcessingArea", "2_ZonasROI")) and fname.endswith(
+                        ".parquet"
+                    ):
+                        fpath = os.path.join(results_dir, fname)
+                        try:
+                            os.remove(fpath)
+                            log.debug("canvas_manager.delete_zones.parquet_removed", file=fpath)
+                        except OSError:
+                            pass
 
         self.gui.set_status("Zonas excluídas com sucesso.")
         log.info("canvas_manager.delete_zones.success", video_path=video_path)

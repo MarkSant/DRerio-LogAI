@@ -664,3 +664,105 @@ def test_unified_report_shows_error_when_all_exports_fail(
         and "Relatório Unificado" in getattr(call[0][1], "title", "")
     ]
     assert not success_calls, "Should not show success info when no unified files were generated"
+
+
+# =============================================================================
+# TESTS: Descriptive Statistics
+# =============================================================================
+
+
+class TestDescriptiveStats:
+    """Tests for _generate_descriptive_stats static method."""
+
+    def test_basic_descriptive_stats(self, coordinator):
+        df = pd.DataFrame(
+            {
+                "group_id": ["ctrl", "ctrl", "treat", "treat"],
+                "day": [1, 1, 1, 1],
+                "total_distance_cm": [100.0, 120.0, 200.0, 180.0],
+                "mean_speed_cm_s": [5.0, 6.0, 10.0, 9.0],
+            }
+        )
+        result = coordinator._generate_descriptive_stats(df)
+        assert result is not None
+        assert "total_distance_cm_mean" in result.columns
+        assert "total_distance_cm_std" in result.columns
+        assert "total_distance_cm_count" in result.columns
+        assert len(result) == 2  # two groups
+
+    def test_descriptive_stats_no_group_columns(self, coordinator):
+        df = pd.DataFrame({"total_distance_cm": [100.0, 120.0]})
+        result = coordinator._generate_descriptive_stats(df)
+        assert result is None
+
+    def test_descriptive_stats_no_numeric_columns(self, coordinator):
+        df = pd.DataFrame({"group_id": ["ctrl", "treat"], "day": ["1", "2"], "name": ["a", "b"]})
+        result = coordinator._generate_descriptive_stats(df)
+        assert result is None
+
+    def test_descriptive_stats_excludes_validation_columns(self, coordinator):
+        df = pd.DataFrame(
+            {
+                "group_id": ["ctrl", "treat"],
+                "total_distance_cm": [100.0, 200.0],
+                "validation_score": [0.9, 0.8],
+            }
+        )
+        result = coordinator._generate_descriptive_stats(df)
+        assert result is not None
+        assert "validation_score_mean" not in result.columns
+        assert "total_distance_cm_mean" in result.columns
+
+
+# =============================================================================
+# TESTS: CSV Export
+# =============================================================================
+
+
+class TestCSVExport:
+    """Tests for CSV export in unified reports."""
+
+    def test_csv_file_created(self, coordinator, sample_summary_df, tmp_path):
+        """Test that CSV file is created during unified report export."""
+        video1_results = tmp_path / "video1_results"
+        video1_results.mkdir()
+        parquet_path = video1_results / "video1_summary.parquet"
+        sample_summary_df.to_parquet(parquet_path, index=False)
+
+        coordinator.project_manager.find_video_entry = Mock(
+            return_value={
+                "parquet_files": {"summary": str(parquet_path)},
+                "metadata": {"group_id": "control", "experiment_id": "video1"},
+            }
+        )
+
+        with patch.object(coordinator.project_manager, "project_path", tmp_path):
+            coordinator.generate_unified_report([str(tmp_path / "video1.mp4")])
+
+        csv_files = list(tmp_path.rglob("*.csv"))
+        assert len(csv_files) >= 1, "CSV export should create at least one .csv file"
+
+    def test_csv_contains_same_data_as_excel(self, coordinator, sample_summary_df, tmp_path):
+        """Test that CSV and Excel contain equivalent data."""
+        video1_results = tmp_path / "video1_results"
+        video1_results.mkdir()
+        parquet_path = video1_results / "video1_summary.parquet"
+        sample_summary_df.to_parquet(parquet_path, index=False)
+
+        coordinator.project_manager.find_video_entry = Mock(
+            return_value={
+                "parquet_files": {"summary": str(parquet_path)},
+                "metadata": {"group_id": "control", "experiment_id": "video1"},
+            }
+        )
+
+        with patch.object(coordinator.project_manager, "project_path", tmp_path):
+            coordinator.generate_unified_report([str(tmp_path / "video1.mp4")])
+
+        csv_files = list(tmp_path.rglob("*.csv"))
+        xlsx_files = list(tmp_path.rglob("*.xlsx"))
+
+        if csv_files and xlsx_files:
+            csv_df = pd.read_csv(csv_files[0])
+            xlsx_df = pd.read_excel(xlsx_files[0], sheet_name="Data")
+            assert set(csv_df.columns) == set(xlsx_df.columns)

@@ -351,27 +351,112 @@ reproduzir o trade-off escolhido em cada experimento.
 
 ### Métricas Comportamentais
 
-#### Métricas Espaciais
+<!-- EN: Complete behavioral metrics reference with formulas and column names.
+     PT: Referência completa de métricas com fórmulas e nomes de colunas. -->
 
-- **Distância Total Percorrida**: Em pixels e centímetros (com calibração)
-- **Velocidade Média/Máxima**: Cálculo frame-a-frame com janelas temporais
-- **Ocupação de Zonas**: Tempo em centro vs. periferia (tixotropismo)
-- **Ocupação de ROIs**: Tempo em cada região de interesse definida
-- **Proximidade Social**: Distância média entre indivíduos
+#### Métricas Locomotoras / Locomotor Metrics
 
-#### Métricas Temporais
+| Métrica / Metric | Coluna / Column | Fórmula / Formula |
+| --- | --- | --- |
+| Distância Total / Total Distance | `total_distance_cm` | $D = \sum_{i=1}^{N-1} \sqrt{(x_{i+1}-x_i)^2 + (y_{i+1}-y_i)^2}$ |
+| Velocidade Média / Mean Speed | `mean_speed_cm_s` | $\bar{v} = \text{mean}(v_i)$ onde $v_i = d_i \times FPS$ |
+| Velocidade Máxima / Max Speed | `max_speed_cm_s` | $v_{\max} = \max(v_i)$ |
+| Desvio Padrão Vel. / Speed Std Dev | `std_speed_cm_s` | $\sigma_v = \text{std}(v_i)$ |
+| Tortuosidade / Tortuosity | `tortuosity` | $T = D_{\text{path}} / D_{\text{net}}$ (≥ 1.0; 1.0 = reta perfeita) |
 
-- **Tempo de Imobilidade**: Detecção de freezing (velocidade < threshold)
-- **Tempo em Movimento**: Atividade locomotora contínua
-- **Latência de Resposta**: Tempo até primeiro movimento após estímulo
-- **Frequência de Eventos**: Entradas/saídas de zonas ou ROIs
+#### Velocidade Angular / Angular Velocity
 
-#### Métricas Avançadas
+| Métrica / Metric | Coluna / Column | Fórmula / Formula |
+| --- | --- | --- |
+| Vel. Angular Média / Mean Angular Vel. | `mean_angular_velocity_deg_s` | $\bar{\omega} = \text{mean}(\|\omega_i\|)$ |
+| Vel. Angular Máx. / Max Angular Vel. | `max_angular_velocity_deg_s` | $\omega_{\max} = \max(\|\omega_i\|)$ |
+| Desvio Padrão / Angular Vel. Std Dev | `angular_velocity_std_dev_deg_s` | $\sigma_\omega = \text{std}(\|\omega_i\|)$ |
+| Curvas Acentuadas / Sharp Turns | `sharp_turns_count` | Frames onde $\|\omega_i\| >$ threshold |
+| Curvas por Minuto / Turns per Minute | `sharp_turns_per_minute` | $\text{count} \times 60 / T_{\text{total}}$ |
 
-- **Tortuosidade**: Razão entre distância percorrida e distância euclidiana
-- **Meandros**: Mudanças de direção (ângulos de curva)
-- **Distribuição Espacial**: Heatmaps e mapas de ocupação
-- **Padrões Circadianos**: Análise de atividade ao longo do tempo
+Onde $\omega_i = \arctan2(\vec{v}_i \times \vec{v}_{i-1},\; \vec{v}_i \cdot \vec{v}_{i-1}) \times FPS$ — signed angle between consecutive displacement vectors.
+
+#### Episódios Comportamentais / Behavioral Episodes
+
+| Métrica / Metric | Coluna / Column | Descrição / Description |
+| --- | --- | --- |
+| Rajadas de Velocidade / Speed Bursts | `speed_bursts_count`, `speed_bursts_total_duration_s` | Episódios com $v > $ threshold |
+| Periodos de Inatividade / Inactivity | `inactivity_count`, `inactivity_total_duration_s`, `inactivity_percentage_of_recording` | $v <$ threshold por duração mínima |
+
+#### Métricas Espaciais / Spatial Metrics
+
+| Métrica / Metric | Coluna / Column | Descrição / Description |
+| --- | --- | --- |
+| Tigmotaxia (parede) / Thigmotaxis | `thigmotaxis_time_near_wall_pct` | % tempo próximo à parede |
+| Distância Média da Parede / Avg Wall Dist | `thigmotaxis_avg_wall_distance_cm` | Distância média ao contorno da arena |
+| Ocupação Geotaxia / Geotaxis Zones | `geotaxis_zone_{i}_pct` | % tempo em cada zona vertical (vista lateral) |
+
+Para cada ROI definida pelo usuário, métricas adicionais são geradas: tempo, entradas, saídas, latência, distância e velocidade dentro da ROI.
+
+> **Referência completa**: [docs/reference/metrics.md](docs/reference/metrics.md) — [Full reference with all column names and formulas]
+
+#### Metadados de Sessão / Session Metadata
+
+| Coluna / Column | Descrição / Description |
+| --- | --- |
+| `experiment_id` | Identificador do vídeo/experimento |
+| `group_id` | Grupo experimental |
+| `day` | Dia experimental |
+| `video_duration_s` | Duração do vídeo em segundos |
+| `total_frames_analyzed` | Total de frames processados |
+
+### Schema Parquet (Trajetória) / Parquet Schema (Trajectory)
+
+O schema de colunas do arquivo de trajetória (`3_CoordMovimento_*.parquet`) é imutável:
+
+```text
+timestamp, frame, track_id, x1, y1, x2, y2, confidence
+[x_center_px, y_center_px, x_cm, y_cm]*  — quando calibração disponível
+```
+
+### Estrutura de Saída / Output Directory Structure
+
+Cada vídeo processado gera uma pasta de resultados:
+
+```text
+<video>_results/
+├── 1_ArenaROI_<video>.parquet       # Definições Arena/ROI
+├── 2_Zones_<video>.parquet          # Metadados de zonas
+├── 3_CoordMovimento_<video>.parquet # Trajetória (schema imutável)
+├── <video>_summary.xlsx             # Resumo por ROI
+└── <video>_report.docx              # Relatório Word com gráficos
+```
+
+Multi-aquário adiciona subpastas por aquário:
+
+```text
+<video>_results/
+├── aquarium_0/
+│   ├── 3_CoordMovimento_<video>.parquet
+│   ├── <video>_aq0_summary.parquet
+│   ├── 4_Relatorio_<video>_aq0.docx
+│   └── 4_Relatorio_<video>_aq0.xlsx
+└── aquarium_1/
+    ├── 3_CoordMovimento_<video>.parquet
+    ├── <video>_aq1_summary.parquet
+    ├── 4_Relatorio_<video>_aq1.docx
+    └── 4_Relatorio_<video>_aq1.xlsx
+```
+
+### Relatório Unificado / Unified Report
+
+Ao gerar relatórios unificados para o projeto, os seguintes arquivos são criados:
+
+```text
+<project>/unified_reports/
+├── project_summary_<run_id>.parquet   # Dados brutos (colunas EN internas)
+├── project_summary_<run_id>.xlsx      # Excel com 2 abas: "Data" + "Descriptive Stats"
+├── project_summary_<run_id>.csv       # CSV idêntico à aba "Data" do Excel
+├── project_summary_<run_id>.docx      # Word: boxplots comparativos + tabela descritiva
+└── project_summary_<run_id>.json      # Manifesto com metadados do run
+```
+
+O Excel e CSV utilizam nomes de colunas traduzidos (display names). A aba "Descriptive Stats" contém estatísticas descritivas (mean, std, count, min, max) agrupadas por grupo e dia.
 
 ### Calibração e Coordenadas
 
@@ -415,7 +500,7 @@ A documentação técnica está disponível na pasta `docs/`:
 ### Guias Operacionais
 
 - 📋 [**REFERENCE_GUIDE.md**](docs/reference/REFERENCE_GUIDE.md) - Guia operacional completo
-
+- 📊 [**metrics.md**](docs/reference/metrics.md) - Referência canônica de métricas comportamentais
 - 🔄 [**WORKFLOWS.md**](docs/guides/developer/WORKFLOWS.md) - Fluxos de trabalho detalhados
 - 🐛 [**QUICK_DEBUG_GUIDE.md**](docs/guides/developer/QUICK_DEBUG_GUIDE.md) - Solução de problemas
 - ⚠️ [**KNOWN_ISSUES.md**](docs/reference/KNOWN_ISSUES.md) - Problemas conhecidos e soluções

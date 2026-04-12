@@ -386,8 +386,8 @@ def test_on_multi_auto_detect_success_persists_source_video_dimensions() -> None
     gui._original_image = None
 
     canvas_manager.gui = gui
-    canvas_manager.redraw_zones_from_project_data = MagicMock()
-    canvas_manager.update_zone_listbox = MagicMock()
+    canvas_manager.redraw_zones_from_project_data = MagicMock()  # type: ignore[method-assign]
+    canvas_manager.update_zone_listbox = MagicMock()  # type: ignore[method-assign]
 
     overlay = MultiAquariumOverlayManager(canvas_manager)
 

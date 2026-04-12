@@ -388,9 +388,9 @@ class ProjectWorkflowService:
             updated = True
 
         if self.settings and hasattr(self.settings, "openvino"):
-            self.settings.openvino.device = resolved_device
+            self.settings.openvino.device = resolved_device  # type: ignore[assignment]
             if hasattr(self.settings.openvino, "device_batch"):
-                self.settings.openvino.device_batch = resolved_device
+                self.settings.openvino.device_batch = resolved_device  # type: ignore[assignment]
 
         # Save project if updated
         if updated and getattr(self.project_manager, "project_path", None):

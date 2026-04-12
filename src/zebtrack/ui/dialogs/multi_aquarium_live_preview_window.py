@@ -140,7 +140,7 @@ class MultiAquariumLivePreviewWindow:
 
             aq_frame = ttk.LabelFrame(
                 grid_frame,
-                text=f"Aquário {aq_id}",
+                text=f"Aquário {aq_id + 1}",
                 padding=5,
             )
             aq_frame.grid(row=row, column=col, padx=5, pady=5, sticky="nsew")

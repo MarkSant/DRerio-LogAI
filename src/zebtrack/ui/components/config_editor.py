@@ -93,6 +93,7 @@ class ConfigEditorWidget(BaseWidget):
 
         self._build_roi_section(right_column)
         self._build_behavioral_analysis_section(right_column)
+        self._build_detection_summary_section(right_column)
 
     def _build_behavioral_analysis_section(self, parent=None) -> None:
         """Build behavioral analysis default settings."""
@@ -412,6 +413,66 @@ class ConfigEditorWidget(BaseWidget):
             foreground="#555555",
         ).grid(row=3, column=0, columnspan=4, sticky="w", pady=(6, 0))
 
+    def _build_detection_summary_section(self, parent=None) -> None:
+        """Build read-only summary of detection/model parameters with edit button."""
+        container = parent if parent else self
+        det_frame = ttk.LabelFrame(
+            container,
+            text="Modelo e Detecção",
+            padding=10,
+        )
+        det_frame.pack(fill="x", pady=6)
+
+        # Summary labels (updated via update_detection_summary)
+        self._detection_labels: dict[str, ttk.Label] = {}
+        params = [
+            ("confidence", "Confiança mínima:"),
+            ("nms", "NMS threshold:"),
+            ("bytetrack", "ByteTrack:"),
+            ("track_thresh", "Track threshold:"),
+            ("match_thresh", "Match threshold:"),
+        ]
+        for row, (key, text) in enumerate(params):
+            ttk.Label(det_frame, text=text).grid(row=row, column=0, sticky="w", padx=(0, 6), pady=1)
+            val_label = ttk.Label(det_frame, text="—", foreground="#555555")
+            val_label.grid(row=row, column=1, sticky="w", pady=1)
+            self._detection_labels[key] = val_label
+
+        # Edit button
+        ttk.Button(
+            det_frame,
+            text="⚙ Editar Calibração...",
+            command=self._on_open_calibration_clicked,
+        ).grid(row=len(params), column=0, columnspan=2, sticky="w", pady=(8, 0))
+
+        # Hint
+        ttk.Label(
+            det_frame,
+            text="💡 Abre o diálogo de Calibração e Detecção.",
+            font=("TkDefaultFont", 8),
+            foreground="#555555",
+        ).grid(row=len(params) + 1, column=0, columnspan=2, sticky="w", pady=(2, 0))
+
+    def update_detection_summary(self, settings_dict: dict[str, Any]) -> None:
+        """Update the detection summary labels from a settings dictionary."""
+        if not hasattr(self, "_detection_labels"):
+            return
+        yolo = settings_dict.get("yolo_model", {})
+        bt = settings_dict.get("bytetrack", {})
+        tracking = settings_dict.get("tracking", {})
+        self._detection_labels["confidence"].configure(
+            text=str(yolo.get("confidence_threshold", "—"))
+        )
+        self._detection_labels["nms"].configure(text=str(yolo.get("nms_threshold", "—")))
+        use_bt = tracking.get("use_bytetrack", True)
+        self._detection_labels["bytetrack"].configure(text="Ativado" if use_bt else "Desativado")
+        self._detection_labels["track_thresh"].configure(text=str(bt.get("track_threshold", "—")))
+        self._detection_labels["match_thresh"].configure(text=str(bt.get("match_threshold", "—")))
+
+    def _on_open_calibration_clicked(self) -> None:
+        """Emit event to open calibration dialog."""
+        self.emit_event(UIEvents.CONFIG_OPEN_CALIBRATION_DIALOG, payloads.EmptyPayload())
+
     def _build_action_buttons(self, parent=None) -> None:
         """Build action buttons frame."""
         container = parent if parent else self
@@ -496,6 +557,7 @@ class ConfigEditorWidget(BaseWidget):
         self._set_recorder(values.get("recorder", {}))
         self._set_roi_settings(values)
         self._set_behavioral_analysis(values.get("behavioral_analysis", {}))
+        self.update_detection_summary(values)
 
     def _set_video_processing(self, vp: dict[str, Any]) -> None:
         """Populate video processing settings."""

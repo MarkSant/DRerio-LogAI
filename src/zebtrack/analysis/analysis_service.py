@@ -168,7 +168,7 @@ class AnalysisService:
         validation_warnings = validation_result["warnings"]
         validation_stats = validation_result["stats"]
         if validation_warnings:
-            self.log.warning(
+            self.log.info(
                 "analysis_service.trajectory_validation_warnings",
                 warnings=validation_warnings,
                 stats=validation_stats,
@@ -224,6 +224,7 @@ class AnalysisService:
             "comportamento_geral": {
                 "distancia_total_cm": b_analyzer.calculate_total_distance(),
                 "estatisticas_velocidade": b_analyzer.get_velocity_stats(),
+                "estatisticas_velocidade_angular": b_analyzer.get_angular_velocity_stats(),
                 "rajadas_velocidade": b_analyzer.calculate_speed_bursts(),
                 "episodios_congelamento": b_analyzer.detect_freezing_episodes(
                     vel_threshold=freezing_vel_threshold,
@@ -234,6 +235,12 @@ class AnalysisService:
                 "curvas_acentuadas": b_analyzer.calculate_sharp_turns(
                     90.0
                 ),  # Assuming 90 as default
+                "total_frames_analisados": validation_result["stats"].get("total_frames"),
+                "duracao_video_s": (
+                    validation_result["stats"].get("total_frames", 0) / fps
+                    if fps and fps > 0
+                    else None
+                ),
             },
             "validacao": {
                 "avisos": validation_warnings,
@@ -325,7 +332,7 @@ class AnalysisService:
         smoothing_polyorder: int | None = None,
         max_plausible_speed_cm_s: float = 50.0,
         # Optional parameters
-        video_path: str | None = None,
+        video_path: Path | str | None = None,
         calibration=None,
         sharp_turn_threshold: float = 45.0,
         frame_crop_box: tuple[int, int, int, int] | None = None,
@@ -411,7 +418,7 @@ class AnalysisService:
             calibration_params=calibration_params,
             rois=rois,
             roi_colors=roi_colors,
-            video_path=video_path,
+            video_path=str(video_path) if video_path else None,
             sharp_turn_threshold=sharp_turn_threshold,
             freezing_threshold=freezing_vel_threshold,
             freezing_duration=freezing_min_duration,
@@ -1026,7 +1033,7 @@ class AnalysisService:
     def process_videos_batch(
         self,
         videos_to_process: list[dict],
-        output_base_dir: str,
+        output_base_dir: Path | str,
         single_video_config: dict | None,
         controller,  # MainViewModel reference for callbacks
         cancel_event,
@@ -1185,13 +1192,13 @@ class AnalysisService:
                 root_tk=root_tk,
             )
 
-        return was_cancelled, final_output_dir
+        return was_cancelled, str(final_output_dir)
 
     def _finalize_batch_processing(
         self,
         was_cancelled: bool,
         videos_to_process: list[dict],
-        final_output_dir: str,
+        final_output_dir: Path | str,
         controller,
         project_manager,
         root_tk,

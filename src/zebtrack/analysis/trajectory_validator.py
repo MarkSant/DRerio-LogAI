@@ -361,7 +361,7 @@ class TrajectoryQualityValidator:
                 stats=stats,
             )
         elif warnings:
-            log.warning(
+            log.info(
                 "trajectory_validator.validation_warnings",
                 warnings=warnings,
                 stats=stats,

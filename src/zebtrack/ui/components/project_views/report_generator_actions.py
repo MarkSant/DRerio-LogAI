@@ -13,6 +13,8 @@ from typing import TYPE_CHECKING, Any
 
 import structlog
 
+from zebtrack.ui import payloads
+
 if TYPE_CHECKING:
     from zebtrack.ui.components.dialog_manager import DialogManager
 
@@ -104,12 +106,12 @@ class ReportGeneratorActions:
         assert self._event_dispatcher is not None
         self._event_dispatcher.publish_event(
             UIEvents.REPORT_GENERATE,
-            {
-                "videos": all_videos,
-                "report_type": "unified",
-                "report_scope": "all",
-                "replace_existing": replace_existing,
-            },
+            payloads.ReportGeneratePayload(
+                videos=all_videos,
+                report_type="unified",
+                report_scope="all",
+                replace_existing=replace_existing,
+            ),
         )
 
     def on_processing_reports_generate_partial(self) -> None:
@@ -147,12 +149,12 @@ class ReportGeneratorActions:
             assert self._event_dispatcher is not None
             self._event_dispatcher.publish_event(
                 UIEvents.REPORT_GENERATE,
-                {
-                    "videos": selected_videos,
-                    "report_type": "unified",
-                    "report_scope": "selected",
-                    "replace_existing": replace_existing,
-                },
+                payloads.ReportGeneratePayload(
+                    videos=selected_videos,
+                    report_type="unified",
+                    report_scope="selected",
+                    replace_existing=replace_existing,
+                ),
             )
 
     def generate_partial_report(self) -> None:
@@ -192,12 +194,12 @@ class ReportGeneratorActions:
             assert self._event_dispatcher is not None
             self._event_dispatcher.publish_event(
                 UIEvents.REPORT_GENERATE,
-                {
-                    "videos": selected_videos,
-                    "report_type": "unified",
-                    "report_scope": "selected",
-                    "replace_existing": replace_existing,
-                },
+                payloads.ReportGeneratePayload(
+                    videos=selected_videos,
+                    report_type="unified",
+                    report_scope="selected",
+                    replace_existing=replace_existing,
+                ),
             )
 
     # ------------------------------------------------------------------
@@ -263,7 +265,7 @@ class ReportGeneratorActions:
 
         unified_dir = os.path.join(pm.project_path, "unified_reports")
 
-        def on_rm_error(func, path, exc_info):
+        def on_rm_error(func: Any, path: Path | str, exc_info: Any) -> None:
             """Handler to clear read-only/locked files."""
             try:
                 os.chmod(path, stat.S_IWRITE)
@@ -308,5 +310,10 @@ class ReportGeneratorActions:
                     )
 
                 self.dialog_manager.show_error("Erro ao Apagar", f"{msg}\n\nErro: {last_error}")
+
+        # Always refresh button states regardless of success/failure
+        widget = self._processing_reports_widget
+        if widget and hasattr(widget, "_update_button_states"):
+            widget._update_button_states(pm.project_path)
         else:
             self.dialog_manager.show_info("Aviso", "Não havia relatórios unificados para apagar.")

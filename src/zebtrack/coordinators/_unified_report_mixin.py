@@ -263,6 +263,19 @@ class UnifiedReportMixin:
                 )
                 final_df = pd.concat(non_empty_dfs, ignore_index=True)
 
+            # Row-level deduplication: remove exact duplicate rows that arise when
+            # multi-aquarium entries cause the same summary to be loaded twice.
+            before_count = len(final_df)
+            final_df = final_df.drop_duplicates(keep="last")
+            final_df = final_df.reset_index(drop=True)
+            after_count = len(final_df)
+            if before_count != after_count:
+                log.info(
+                    "workflow.unified_report.duplicates_removed",
+                    before=before_count,
+                    after=after_count,
+                )
+
         return final_df, schema_mismatch, all_columns
 
     # ------------------------------------------------------------------
@@ -274,6 +287,7 @@ class UnifiedReportMixin:
         patterns = [
             "*.docx",
             "*.xlsx",
+            "*.csv",
             "*.parquet",
             "unified_run_*.json",
             "latest_unified_run.json",
@@ -321,6 +335,8 @@ class UnifiedReportMixin:
         exported_artifacts: list[str] = []
         export_failures: list[str] = []
         exported_paths: dict[str, str] = {}
+        display_df: pd.DataFrame | None = None
+        desc_stats_df: pd.DataFrame | None = None
 
         # 1. Export Parquet
         parquet_path = unified_dir / f"{scope_prefix}_summary_{run_id}.parquet"
@@ -340,13 +356,20 @@ class UnifiedReportMixin:
                 exc_info=True,
             )
 
-        # 2. Export Excel
+        # 2. Export Excel (with descriptive statistics sheet)
         excel_path = unified_dir / f"{scope_prefix}_summary_{run_id}.xlsx"
         try:
             from zebtrack.analysis.data_transformer import DataTransformer
 
             display_df = DataTransformer().prepare_for_display(final_df)
-            display_df.to_excel(excel_path, index=False, engine="openpyxl")
+
+            desc_stats_df = self._generate_descriptive_stats(final_df)
+
+            with pd.ExcelWriter(excel_path, engine="openpyxl") as writer:
+                display_df.to_excel(writer, sheet_name="Data", index=False)
+                if desc_stats_df is not None and not desc_stats_df.empty:
+                    desc_stats_df.to_excel(writer, sheet_name="Descriptive Stats")
+
             exported_artifacts.append(excel_path.name)
             exported_paths["excel"] = str(excel_path)
             log.info("workflow.unified_report.excel_exported", path=str(excel_path))
@@ -354,6 +377,22 @@ class UnifiedReportMixin:
             export_failures.append(f"Excel: {e}")
             log.error(
                 "workflow.unified_report.excel_failed",
+                error=str(e),
+                exc_info=True,
+            )
+
+        # 2b. Export CSV (same display-friendly columns as Excel)
+        csv_path = unified_dir / f"{scope_prefix}_summary_{run_id}.csv"
+        try:
+            csv_display_df = display_df if display_df is not None else final_df
+            csv_display_df.to_csv(csv_path, index=False)
+            exported_artifacts.append(csv_path.name)
+            exported_paths["csv"] = str(csv_path)
+            log.info("workflow.unified_report.csv_exported", path=str(csv_path))
+        except (OSError, ValueError, NameError) as e:
+            export_failures.append(f"CSV: {e}")
+            log.error(
+                "workflow.unified_report.csv_failed",
                 error=str(e),
                 exc_info=True,
             )
@@ -371,6 +410,7 @@ class UnifiedReportMixin:
                 output_path=word_path,
                 roi_colors=roi_colors_map if roi_colors_map else None,
                 detector_params=None,
+                descriptive_stats_df=desc_stats_df if desc_stats_df is not None else None,
             )
             exported_artifacts.append(f"{word_path.name}.docx")
             exported_paths["word"] = f"{word_path}.docx"
@@ -451,6 +491,41 @@ class UnifiedReportMixin:
                     ),
                 ),
             )
+
+    # ------------------------------------------------------------------
+    # Descriptive Statistics
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _generate_descriptive_stats(final_df: pd.DataFrame) -> pd.DataFrame | None:
+        """Generate descriptive statistics grouped by group_id and day.
+
+        Returns a pivot table with mean, std, count, min, max for numeric columns.
+        Returns None if the DataFrame lacks the required grouping columns.
+        """
+        group_cols = [c for c in ("group_id", "day") if c in final_df.columns]
+        if not group_cols:
+            return None
+
+        numeric_cols = final_df.select_dtypes(include="number").columns.tolist()
+        # Exclude internal/validation columns from summary
+        exclude_prefixes = ("validation_", "roi_color_")
+        numeric_cols = [
+            c for c in numeric_cols if not any(c.startswith(p) for p in exclude_prefixes)
+        ]
+        if not numeric_cols:
+            return None
+
+        try:
+            stats_df = final_df.groupby(group_cols, dropna=False)[numeric_cols].agg(
+                ["mean", "std", "count", "min", "max"]
+            )
+            # Flatten MultiIndex columns: ("total_distance_cm", "mean") -> "total_distance_cm_mean"
+            stats_df.columns = [f"{col}_{stat}" for col, stat in stats_df.columns]
+            return stats_df
+        except Exception:
+            log.warning("workflow.unified_report.descriptive_stats_failed", exc_info=True)
+            return None
 
     # ------------------------------------------------------------------
     # Manifest

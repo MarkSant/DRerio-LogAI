@@ -149,8 +149,12 @@ class AnalysisControlsWidget(BaseWidget):
     def _on_track_selection_changed(self, event) -> None:
         """Handle track selection change."""
         selected_track = self.track_selector_var.get()
+        try:
+            track_id = int(selected_track)
+        except (ValueError, TypeError):
+            track_id = -1
         self.emit_event(
-            UIEvents.ANALYSIS_TRACK_SELECTED, payloads.TrackIdPayload(track_id=selected_track)
+            UIEvents.ANALYSIS_TRACK_SELECTED, payloads.TrackIdPayload(track_id=track_id)
         )
 
     # Public API for updating widget state

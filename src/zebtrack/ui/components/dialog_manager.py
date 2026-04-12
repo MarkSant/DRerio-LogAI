@@ -1062,6 +1062,13 @@ class DialogManager:
 
                 self.event_bus_v2.publish(
                     Event(
+                        type=UIEvents.ZONES_UPDATED,
+                        data=payloads.ZonesUpdatedPayload(zone_data=None),
+                        source="DialogManager.offer_zone_reuse.declined",
+                    )
+                )
+                self.event_bus_v2.publish(
+                    Event(
                         type=UIEvents.PROJECT_VIEWS_REFRESH_REQUESTED,
                         data=payloads.ProjectViewsRefreshRequestedPayload(
                             reason=status_message,

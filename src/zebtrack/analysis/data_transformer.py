@@ -57,6 +57,15 @@ COLUMN_MAPPING = {
     "geotaxis_time_near_bottom_pct": "geotaxis_time_near_bottom_pct",
     "geotaxis_distance_threshold_cm": "geotaxis_distance_threshold_cm",
     "geotaxis_bottom_zones_pct": "geotaxis_bottom_zones_pct",
+    # Tortuosity
+    "tortuosidade": "tortuosity",
+    # Angular velocity summary stats
+    "velocidade_angular_media_deg_s": "mean_angular_velocity_deg_s",
+    "velocidade_angular_max_deg_s": "max_angular_velocity_deg_s",
+    "velocidade_angular_std_dev_deg_s": "angular_velocity_std_dev_deg_s",
+    # Video duration
+    "duracao_video_s": "video_duration_s",
+    "total_frames_analisados": "total_frames_analyzed",
     # Validation/Quality metrics (from Word appendix)
     "validation_total_frames": "validation_total_frames",
     "validation_frame_range_min": "validation_frame_range_min",
@@ -93,6 +102,12 @@ DISPLAY_COLUMN_MAPPING = {
     "geotaxis_time_near_bottom_pct": "Geotaxis Near Bottom (%)",
     "geotaxis_distance_threshold_cm": "Geotaxis Threshold (cm)",
     "geotaxis_bottom_zones_pct": "Geotaxis Bottom Zones (%)",
+    "tortuosity": "Tortuosity",
+    "mean_angular_velocity_deg_s": "Mean Angular Velocity (°/s)",
+    "max_angular_velocity_deg_s": "Max Angular Velocity (°/s)",
+    "angular_velocity_std_dev_deg_s": "Angular Velocity Std Dev (°/s)",
+    "video_duration_s": "Video Duration (s)",
+    "total_frames_analyzed": "Total Frames Analyzed",
     "validation_total_frames": "Val: Total Frames",
     "validation_unique_tracks": "Val: Unique Tracks",
     "validation_temporal_coverage_pct": "Val: Coverage (%)",
@@ -284,6 +299,19 @@ class DataTransformer:
             "percentage_of_recording"
         )
         combined_data["periodos_inatividade_limiar_cm_s"] = inactivity.get("threshold_cm_s")
+
+        # --- Tortuosity ---
+        combined_data["tortuosidade"] = general_behavior.get("tortuosidade")
+
+        # --- Angular Velocity Summary Stats ---
+        angular_velocity_stats = general_behavior.get("estatisticas_velocidade_angular", {})
+        combined_data["velocidade_angular_media_deg_s"] = angular_velocity_stats.get("mean")
+        combined_data["velocidade_angular_max_deg_s"] = angular_velocity_stats.get("max")
+        combined_data["velocidade_angular_std_dev_deg_s"] = angular_velocity_stats.get("std_dev")
+
+        # --- Video Duration and Frame Count ---
+        combined_data["total_frames_analisados"] = general_behavior.get("total_frames_analisados")
+        combined_data["duracao_video_s"] = general_behavior.get("duracao_video_s")
 
         # --- Thigmotaxis Metrics (now with configurable threshold) ---
         try:

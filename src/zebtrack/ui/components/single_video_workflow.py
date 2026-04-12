@@ -52,7 +52,7 @@ class SingleVideoWorkflow:
         """ZoneContextService instance (injected or resolved from gui)."""
         if self._zone_context_service is not None:
             return self._zone_context_service
-        return getattr(self.gui, "_zone_context_service", None)
+        return getattr(self.gui, "_zone_context_service", None)  # type: ignore[return-value]
 
     # ------------------------------------------------------------------
     # Entry point
@@ -92,7 +92,7 @@ class SingleVideoWorkflow:
             except (TclError, AttributeError):
                 log.debug("single_video_workflow.video_label_clear.suppressed", exc_info=True)
 
-        gui.pending_single_video_path = video_path
+        gui.pending_single_video_path = str(video_path)
         gui.pending_single_video_config = config
 
         # Save num_aquariums to global settings so
@@ -199,7 +199,7 @@ class SingleVideoWorkflow:
         gui.event_dispatcher.publish_event(
             UIEvents.ZONE_AUTO_DETECT,
             payloads.ZoneAutoDetectPayload(
-                video_path=video_path,
+                video_path=str(video_path) if video_path else "",
                 stabilization_frames=stabilization_frames_int,
                 expected_count=num_aquariums if num_aquariums >= 2 else None,
             ),
@@ -257,7 +257,7 @@ class SingleVideoWorkflow:
         gui.event_dispatcher.publish_event(
             UIEvents.VIDEO_START_SINGLE_PROCESSING,
             payloads.VideoStartSingleProcessingPayload(
-                video_path=gui.pending_single_video_path,
+                video_path=gui.pending_single_video_path or "",
                 config=gui.pending_single_video_config,
                 zone_data=zone_data,
             ),

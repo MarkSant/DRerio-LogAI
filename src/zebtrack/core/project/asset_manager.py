@@ -764,7 +764,7 @@ class AssetManager:
 
     def remove_arena_asset(
         self,
-        video_path: str,
+        video_path: Path | str,
         video_entry: dict,
         delete_files: bool,
         *,
@@ -783,7 +783,7 @@ class AssetManager:
         """
         changed = False
 
-        clear_zone_data_fn(video_path)
+        clear_zone_data_fn(str(video_path))
         parquet_files = video_entry.get("parquet_files") or {}
 
         for key in ("arena", "rois"):
@@ -806,7 +806,7 @@ class AssetManager:
 
     def remove_rois_asset(
         self,
-        video_path: str,
+        video_path: Path | str,
         video_entry: dict,
         delete_files: bool,
         *,
@@ -852,7 +852,7 @@ class AssetManager:
 
     def remove_video_entry(  # noqa: C901
         self,
-        video_path: str,
+        video_path: Path | str,
         video_entry: dict,
         delete_files: bool,
         *,
@@ -873,7 +873,7 @@ class AssetManager:
         Returns:
             True if any changes were made, False otherwise.
         """
-        normalized_video_path = video_path.replace("\\", "/").lower()
+        normalized_video_path = str(video_path).replace("\\", "/").lower()
         changed = False
 
         parquet_files = dict(video_entry.get("parquet_files") or {})
@@ -919,6 +919,26 @@ class AssetManager:
                 except OSError as e:
                     log.warning("project_manager.folder_cleanup_failed", error=str(e))
 
+                # Clean empty ancestor directories (day → group) up to
+                # project root to avoid accumulating empty folders.
+                project_path = project_data.get("project_path")
+                if project_path:
+                    project_root = Path(project_path)
+                    parent = video_dir.parent
+                    while parent != project_root and parent != parent.parent:
+                        try:
+                            if parent.exists() and parent.is_dir() and not any(parent.iterdir()):
+                                parent.rmdir()
+                                log.info(
+                                    "project_manager.empty_ancestor_deleted",
+                                    folder=str(parent),
+                                )
+                            else:
+                                break
+                        except OSError:
+                            break
+                        parent = parent.parent
+
             # Delete multi-aquarium output directories if present
             multi_aq_outputs = video_entry.get("multi_aquarium_outputs", {})
             if multi_aq_outputs:
@@ -946,7 +966,7 @@ class AssetManager:
                         if pq_path:
                             self.delete_file_if_exists(pq_path)
 
-        clear_zone_data_fn(video_path)
+        clear_zone_data_fn(str(video_path))
 
         for batch in project_data.get("batches", []):
             original_count = len(batch.get("videos", []))

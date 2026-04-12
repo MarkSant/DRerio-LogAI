@@ -860,3 +860,107 @@ def test_standardize_roi_columns_does_not_modify_original_dataframe():
 
     # Result should have new columns
     assert "tempo_no_roi2_s" in result.columns
+
+
+# === New Metric Extraction Tests ===
+
+
+class TestNewMetricExtraction:
+    """Tests for tortuosity, angular velocity stats, video duration, and frame count
+    extraction in create_tidy_dataframe."""
+
+    @pytest.fixture
+    def _transformer(self):
+        return DataTransformer()
+
+    @pytest.fixture
+    def _report_with_new_metrics(self, sample_report):
+        """Extend sample_report with new metric fields."""
+        report = sample_report.copy()
+        report["comportamento_geral"] = {
+            **report["comportamento_geral"],
+            "tortuosidade": 1.35,
+            "estatisticas_velocidade_angular": {
+                "mean": 45.2,
+                "median": 40.0,
+                "max": 120.5,
+                "std_dev": 18.3,
+            },
+            "total_frames_analisados": 900,
+            "duracao_video_s": 30.0,
+        }
+        return report
+
+    def test_tortuosity_extracted(self, _transformer, _report_with_new_metrics, behavior_analyzer):
+        df = _transformer.create_tidy_dataframe(
+            report=_report_with_new_metrics,
+            metadata={"experiment_id": "t1", "group_id": "ctrl"},
+            b_analyzer=behavior_analyzer,
+        )
+        assert "tortuosidade" in df.columns
+        assert df["tortuosidade"].iloc[0] == pytest.approx(1.35)
+
+    def test_angular_velocity_stats_extracted(
+        self, _transformer, _report_with_new_metrics, behavior_analyzer
+    ):
+        df = _transformer.create_tidy_dataframe(
+            report=_report_with_new_metrics,
+            metadata={"experiment_id": "t1", "group_id": "ctrl"},
+            b_analyzer=behavior_analyzer,
+        )
+        assert "velocidade_angular_media_deg_s" in df.columns
+        assert df["velocidade_angular_media_deg_s"].iloc[0] == pytest.approx(45.2)
+        assert df["velocidade_angular_max_deg_s"].iloc[0] == pytest.approx(120.5)
+        assert df["velocidade_angular_std_dev_deg_s"].iloc[0] == pytest.approx(18.3)
+
+    def test_video_duration_extracted(
+        self, _transformer, _report_with_new_metrics, behavior_analyzer
+    ):
+        df = _transformer.create_tidy_dataframe(
+            report=_report_with_new_metrics,
+            metadata={"experiment_id": "t1", "group_id": "ctrl"},
+            b_analyzer=behavior_analyzer,
+        )
+        assert "duracao_video_s" in df.columns
+        assert df["duracao_video_s"].iloc[0] == pytest.approx(30.0)
+
+    def test_total_frames_extracted(
+        self, _transformer, _report_with_new_metrics, behavior_analyzer
+    ):
+        df = _transformer.create_tidy_dataframe(
+            report=_report_with_new_metrics,
+            metadata={"experiment_id": "t1", "group_id": "ctrl"},
+            b_analyzer=behavior_analyzer,
+        )
+        assert "total_frames_analisados" in df.columns
+        assert df["total_frames_analisados"].iloc[0] == 900
+
+    def test_missing_angular_velocity_stats_graceful(
+        self, _transformer, sample_report, behavior_analyzer
+    ):
+        """When angular velocity stats are absent, columns should be None/NaN."""
+        df = _transformer.create_tidy_dataframe(
+            report=sample_report,
+            metadata={"experiment_id": "t1", "group_id": "ctrl"},
+            b_analyzer=behavior_analyzer,
+        )
+        assert "velocidade_angular_media_deg_s" in df.columns
+        assert pd.isna(df["velocidade_angular_media_deg_s"].iloc[0])
+
+    def test_new_columns_standardize_to_english(self, _transformer):
+        """COLUMN_MAPPING should translate new PT columns to EN."""
+        from zebtrack.analysis.data_transformer import COLUMN_MAPPING
+
+        assert COLUMN_MAPPING["tortuosidade"] == "tortuosity"
+        assert COLUMN_MAPPING["velocidade_angular_media_deg_s"] == "mean_angular_velocity_deg_s"
+        assert COLUMN_MAPPING["duracao_video_s"] == "video_duration_s"
+        assert COLUMN_MAPPING["total_frames_analisados"] == "total_frames_analyzed"
+
+    def test_new_columns_display_mapping(self, _transformer):
+        """DISPLAY_COLUMN_MAPPING should have display names for new EN columns."""
+        from zebtrack.analysis.data_transformer import DISPLAY_COLUMN_MAPPING
+
+        assert DISPLAY_COLUMN_MAPPING["tortuosity"] == "Tortuosity"
+        assert "Angular Velocity" in DISPLAY_COLUMN_MAPPING["mean_angular_velocity_deg_s"]
+        assert DISPLAY_COLUMN_MAPPING["video_duration_s"] == "Video Duration (s)"
+        assert DISPLAY_COLUMN_MAPPING["total_frames_analyzed"] == "Total Frames Analyzed"

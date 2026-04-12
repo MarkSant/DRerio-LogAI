@@ -459,7 +459,7 @@ class MenuManager:
                     Event(
                         type=UIEvents.ZONE_DISPLAY_CLEARED,
                         data=payloads.ZoneDisplayClearedPayload(
-                            deleted_video_path=video_path, asset=asset
+                            deleted_video_path=str(video_path) if video_path else None, asset=asset
                         ),
                         source="MenuManager.handle_overview_asset_removal",
                     )

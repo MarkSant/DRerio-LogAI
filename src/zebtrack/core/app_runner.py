@@ -259,7 +259,7 @@ def _run_benchmark_if_enabled(
             def progress_cb(step: int, total: int, message: str) -> None:
                 # Benchmark occupies progress range 0.02-0.15
                 frac = 0.02 + (step / max(total, 1)) * 0.13
-                splash.update_progress(frac, f"Benchmark: {message}")
+                splash.update_progress(frac, message)
 
             benchmark_result = get_or_run_benchmark(
                 quick_mode=True,

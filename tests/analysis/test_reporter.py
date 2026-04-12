@@ -626,3 +626,72 @@ class TestExportRPython:
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
+
+
+# =============================================================================
+# TESTS: Project Reporter - Version & Descriptive Stats
+# =============================================================================
+
+
+class TestProjectReporter:
+    """Tests for export_project_report improvements."""
+
+    @pytest.fixture
+    def sample_aggregated_df(self):
+        return pd.DataFrame(
+            {
+                "group_id": ["ctrl", "ctrl", "treat", "treat"],
+                "total_distance_cm": [100.0, 120.0, 200.0, 180.0],
+                "mean_speed_cm_s": [5.0, 6.0, 10.0, 9.0],
+            }
+        )
+
+    def test_export_creates_docx(self, sample_aggregated_df, tmp_path):
+        from zebtrack.analysis.reporters.project_reporter import export_project_report
+
+        output = tmp_path / "test_report"
+        export_project_report(sample_aggregated_df, output)
+        assert (tmp_path / "test_report.docx").exists()
+
+    def test_version_in_document(self, sample_aggregated_df, tmp_path):
+        from docx import Document
+
+        from zebtrack.analysis.reporters.project_reporter import export_project_report
+
+        output = tmp_path / "test_report"
+        export_project_report(sample_aggregated_df, output)
+
+        doc = Document(str(tmp_path / "test_report.docx"))
+        full_text = "\n".join(p.text for p in doc.paragraphs)
+        assert "DRerio LogAI v" in full_text
+
+    def test_descriptive_stats_rendered_in_word(self, sample_aggregated_df, tmp_path):
+        from docx import Document
+
+        from zebtrack.analysis.reporters.project_reporter import export_project_report
+
+        desc_df = pd.DataFrame(
+            {
+                "total_distance_cm_mean": [110.0, 190.0],
+                "total_distance_cm_std": [14.1, 14.1],
+            },
+            index=["ctrl", "treat"],
+        )
+        output = tmp_path / "test_report"
+        export_project_report(sample_aggregated_df, output, descriptive_stats_df=desc_df)
+
+        doc = Document(str(tmp_path / "test_report.docx"))
+        full_text = "\n".join(p.text for p in doc.paragraphs)
+        assert "Descriptive Statistics Summary" in full_text
+
+    def test_no_descriptive_stats_when_none(self, sample_aggregated_df, tmp_path):
+        from docx import Document
+
+        from zebtrack.analysis.reporters.project_reporter import export_project_report
+
+        output = tmp_path / "test_report"
+        export_project_report(sample_aggregated_df, output, descriptive_stats_df=None)
+
+        doc = Document(str(tmp_path / "test_report.docx"))
+        full_text = "\n".join(p.text for p in doc.paragraphs)
+        assert "Descriptive Statistics Summary" not in full_text

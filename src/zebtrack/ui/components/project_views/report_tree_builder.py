@@ -239,6 +239,18 @@ class ReportTreeBuilder:
         subject = video.get("subject", "")
         subject_label = f"Sujeito {subject}" if subject else video_name
 
+        # Enrich label with aquarium info for multi-subject entries to avoid
+        # redundant subject + aquarium lines in the tree hierarchy.
+        multi_subject_index = video.get("multi_subject_index", 0)
+        is_multi_subject_entry = video.get("is_multi_subject_entry", False)
+        if is_multi_subject_entry:
+            subject_entries = video.get("metadata", {}).get("subject_entries", [])
+            if multi_subject_index < len(subject_entries):
+                se = subject_entries[multi_subject_index]
+                aq_display = se.get("aquarium_id")
+                if aq_display is not None:
+                    subject_label += f" — Aq. {int(aq_display) + 1}"
+
         col_arena = STATUS_SYMBOLS["arena"] if video.get("has_arena") else ""
         col_rois = STATUS_SYMBOLS["rois"] if video.get("has_rois") else ""
         col_traj = STATUS_SYMBOLS["trajectory"] if video.get("has_trajectory") else ""
@@ -248,8 +260,6 @@ class ReportTreeBuilder:
         if not video.get("has_arena"):
             status_label = "Sem Arena"
 
-        multi_subject_index = video.get("multi_subject_index", 0)
-        is_multi_subject_entry = video.get("is_multi_subject_entry", False)
         if is_multi_subject_entry:
             video_node_id = f"{parent}_video_{video_path}_sub_{multi_subject_index}"
         else:
@@ -355,11 +365,14 @@ class ReportTreeBuilder:
             aq_col_traj = STATUS_SYMBOLS["trajectory"] if aq_has_traj else ""
             aq_col_summary = STATUS_SYMBOLS["summary"] if aq_has_summary else ""
 
-            aq_label = f"Aquário {aq_id}"
-            if aq_group:
-                aq_label += f" - {aq_group}"
-            if aq_subject:
-                aq_label += f" ({aq_subject})"
+            aq_label = f"Aquário {aq_id + 1}"
+            # For multi-subject entries the subject/group info is already in
+            # the parent node, so avoid duplicating it in the aquarium label.
+            if not is_multi_subject_entry:
+                if aq_group:
+                    aq_label += f" - {aq_group}"
+                if aq_subject:
+                    aq_label += f" ({aq_subject})"
 
             aq_node_id = f"{parent}_aquarium_{aq_id}"
 
@@ -395,7 +408,7 @@ class ReportTreeBuilder:
         tree: Any,
         parent: str,
         video: dict,
-        video_path: str,
+        video_path: Path | str,
         metadata_store: dict,
     ) -> None:
         """Insert nodes for single-aquarium outputs."""
@@ -405,7 +418,7 @@ class ReportTreeBuilder:
             results_dir = pm.resolve_results_directory(
                 experiment_id=video.get("experiment_id")
                 or video.get("metadata", {}).get("experiment_id"),
-                video_path=video_path,
+                video_path=str(video_path),
                 metadata=video.get("metadata"),
             )
             if isinstance(results_dir, Path):
@@ -422,7 +435,7 @@ class ReportTreeBuilder:
         self,
         tree: Any,
         parent_id: str,
-        results_dir: str,
+        results_dir: Path | str,
         metadata_store: dict,
     ) -> None:
         """Append report artifacts (docx, xlsx) to tree node."""

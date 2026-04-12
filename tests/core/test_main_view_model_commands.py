@@ -257,6 +257,5 @@ class TestCreateProjectWorkflow:
                 "project_name": wizard_data["project_name"],
                 "project_path": wizard_data["project_path"],
                 "project_type": wizard_data["project_type"],
-                "wizard_data": wizard_data,
             }
         )

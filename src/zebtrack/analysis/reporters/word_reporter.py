@@ -172,7 +172,18 @@ class WordReporter:
         ctx = self._ctx
 
         document.add_heading(_("Experiment Metadata"), level=2)
+        # Filter out internal-only metadata keys not meaningful to end users
+        _internal_metadata_keys = {
+            "is_multi_subject",
+            "is_multi_subject_entry",
+            "multi_subject_index",
+            "subject_entries",
+            "parquet_files",
+            "multi_aquarium_outputs",
+        }
         for key, value in (ctx.metadata or {}).items():
+            if key in _internal_metadata_keys:
+                continue
             document.add_paragraph(f"{key.replace('_', ' ').title()}: {value}")
         progress_callback(1 / total_steps, _("Metadata added"))
 

@@ -763,6 +763,27 @@ class ConcreteBehavioralAnalyzer(BehavioralAnalyzer):
 
         return angular_velocity_series
 
+    def get_angular_velocity_stats(self) -> dict[str, float]:
+        """Calculate summary statistics for angular velocity.
+
+        Returns:
+            Dict with mean, median, max, and std_dev of angular velocity (deg/s).
+            NaN values from stationary periods are excluded.
+        """
+        av_series = self.get_angular_velocity().dropna()
+        if av_series.empty:
+            nan = float("nan")
+            return {"mean": nan, "median": nan, "max": nan, "std_dev": nan}
+
+        # Use absolute values for summary stats (direction-agnostic magnitude)
+        av_abs = av_series.abs()
+        return {
+            "mean": float(av_abs.mean()),
+            "median": float(av_abs.median()),
+            "max": float(av_abs.max()),
+            "std_dev": float(av_abs.std()),
+        }
+
     def get_tortuosity(
         self, window_size: float | None = None, step: float | None = None
     ) -> float | pd.Series:

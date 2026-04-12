@@ -581,7 +581,7 @@ def test_sequential_single_aquarium_preserves_source_dimensions(
     }
 
     assert created_contexts
-    context_zone_data = created_contexts[0].zone_data
+    context_zone_data = created_contexts[0].zone_data  # type: ignore[attr-defined]
     assert context_zone_data["metadata"] == {
         "source_video_width": 1920,
         "source_video_height": 1080,

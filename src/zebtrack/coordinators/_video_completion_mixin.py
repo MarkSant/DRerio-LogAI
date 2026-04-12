@@ -143,7 +143,7 @@ class VideoCompletionMixin:
             self.project_manager.update_video_status(video_path, "complete")
 
         self._register_completed_outputs(
-            video_path,
+            video_path or "",
             results_dir,
             trajectory_path,
             trajectory_exists,
@@ -174,7 +174,9 @@ class VideoCompletionMixin:
 
         if trajectory_exists and not outputs_by_aquarium:
             self.project_manager.register_processing_outputs(
-                video_path=video_path, results_dir=results_dir, trajectory_path=trajectory_path
+                video_path=str(video_path),
+                results_dir=str(results_dir),
+                trajectory_path=str(trajectory_path),
             )
             log.info(
                 "controller.video_completed.trajectory_registered",
@@ -253,7 +255,7 @@ class VideoCompletionMixin:
             )
             return
         try:
-            rc.generate_project_reports([video_path])
+            rc.generate_project_reports([str(video_path)])
             log.info(
                 "controller.video_completed.reports_generated",
                 video=experiment_id,

@@ -82,15 +82,6 @@ class AquariumAssignmentDialog(simpledialog.Dialog):
         self._day_vars: list[tk.IntVar] = []
         self._apply_all_var: tk.BooleanVar | None = None
 
-        print("[DIAGNOSTIC] AquariumAssignmentDialog.__init__ called")
-        print(f"[DIAGNOSTIC] video_path={video_path}")
-        print(f"[DIAGNOSTIC] has_multi_aquarium_config={bool(multi_aquarium_config)}")
-        if multi_aquarium_config:
-            print(
-                f"[DIAGNOSTIC] regex_pattern="
-                f"{getattr(multi_aquarium_config, 'regex_pattern', 'NONE')}"
-            )
-
         log.debug(
             "aquarium_assignment.dialog.init",
             video_path=video_path,
@@ -335,12 +326,7 @@ class AquariumAssignmentDialog(simpledialog.Dialog):
 
         This is called automatically if a regex pattern is configured.
         """
-        print("[DIAGNOSTIC] _perform_auto_fill_silent called")
-        print(f"[DIAGNOSTIC] has_video_path={bool(self.video_path)}")
-        print(f"[DIAGNOSTIC] has_multi_aquarium_config={bool(self.multi_aquarium_config)}")
-
         if not self.video_path or not self.multi_aquarium_config:
-            print("[DIAGNOSTIC] auto_fill SKIPPED - missing video_path or config")
             log.debug(
                 "aquarium_assignment.auto_fill_silent.skipped",
                 has_video_path=bool(self.video_path),
@@ -352,9 +338,6 @@ class AquariumAssignmentDialog(simpledialog.Dialog):
 
         filename = os.path.basename(self.video_path)
         regex_pattern = getattr(self.multi_aquarium_config, "regex_pattern", "")
-        print(f"[DIAGNOSTIC] filename={filename}")
-        print(f"[DIAGNOSTIC] regex_pattern={regex_pattern}")
-
         log.info(
             "aquarium_assignment.auto_fill_silent.starting",
             filename=filename,
@@ -362,7 +345,6 @@ class AquariumAssignmentDialog(simpledialog.Dialog):
         )
 
         matches = self.multi_aquarium_config.extract_metadata(filename)
-        print(f"[DIAGNOSTIC] matches={matches}")
 
         if not matches:
             log.warning(
@@ -559,15 +541,11 @@ class AquariumAssignmentDialog(simpledialog.Dialog):
 
     def _on_confirm_click(self) -> None:
         """Handle confirmation and validate inputs."""
-        print("[DIAGNOSTIC] _on_confirm_click called")
-
         try:
             configs = self.get_configs()
-            print(f"[DIAGNOSTIC] configs={configs}")
 
             self.result = configs
             self.apply_to_all = self._apply_all_var.get() if self._apply_all_var else False
-            print(f"[DIAGNOSTIC] apply_to_all={self.apply_to_all}")
 
             log.info(
                 "aquarium_assignment.dialog.confirmed",
@@ -579,12 +557,8 @@ class AquariumAssignmentDialog(simpledialog.Dialog):
             )
 
             if self._on_confirm:
-                print("[DIAGNOSTIC] calling on_confirm callback")
                 self._on_confirm(configs, self.apply_to_all)
-            else:
-                print("[DIAGNOSTIC] no on_confirm callback provided")
 
-            print("[DIAGNOSTIC] calling self.ok()")
             self.ok()
 
         except ValueError as e:
@@ -600,16 +574,11 @@ class AquariumAssignmentDialog(simpledialog.Dialog):
         Note: This is also called by the base Dialog.ok() after validation succeeds.
         We only reset self.result if it hasn't been set yet (user cancelled).
         """
-        print(f"[DIAGNOSTIC] cancel called, current result={self.result}")
-
         # Only reset result if user is actually cancelling (not coming from ok())
         if self.result is None:
             log.debug("aquarium_assignment.dialog.cancelled")
             if self._on_cancel:
-                print("[DIAGNOSTIC] calling on_cancel callback")
                 self._on_cancel()
-            else:
-                print("[DIAGNOSTIC] no on_cancel callback provided")
 
         super().cancel()
 
@@ -638,8 +607,6 @@ class AquariumAssignmentDialog(simpledialog.Dialog):
             # CRITICAL FIX: Resolve group name to match available_groups format
             # The StringVar might have '1', but we need 'G01'
             group = self._resolve_group_name(group_raw)
-
-            print(f"[DIAGNOSTIC] get_configs[{i}]: '{group_raw}' → '{group}'")
 
             config = AquariumConfig(
                 aquarium_id=i,
