@@ -4,6 +4,7 @@ from unittest.mock import Mock
 
 import pytest
 
+from zebtrack.ui import payloads
 from zebtrack.ui.components.zone_controls import ZoneControlsWidget
 from zebtrack.ui.event_bus_v2 import UIEvents
 
@@ -85,7 +86,7 @@ def test_on_roi_rule_changed_emits_event(widget, event_bus):
 
     event_bus.publish.assert_called_with(
         UIEvents.DETECTOR_UPDATE_PARAMETERS,
-        {"rule": "centroid_in_on_buffered_roi"},
+        payloads.DetectorUpdateParametersPayload(rule="centroid_in_on_buffered_roi"),
     )
     assert "centroide" in widget.rule_help_label.cget("text")
 
@@ -100,7 +101,9 @@ def test_apply_roi_settings_emits_event(widget, event_bus):
 
     event_bus.publish.assert_called_with(
         UIEvents.DETECTOR_UPDATE_PARAMETERS,
-        {"rule": "bbox_intersects", "buffer_radius": 1.2, "overlap_ratio": 0.25},
+        payloads.DetectorUpdateParametersPayload(
+            rule="bbox_intersects", buffer_radius=1.2, overlap_ratio=0.25
+        ),
     )
 
 
@@ -124,5 +127,5 @@ def test_on_video_tree_double_click_emits_event(widget, event_bus):
 
     event_bus.publish.assert_called_with(
         UIEvents.ZONE_VIDEO_DOUBLE_CLICK,
-        {"item_id": item_id},
+        payloads.ZoneVideoDoubleClickPayload(item_id=item_id),
     )

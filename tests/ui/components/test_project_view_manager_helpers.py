@@ -6,6 +6,7 @@ from unittest.mock import Mock
 
 import pytest
 
+from zebtrack.ui import payloads
 from zebtrack.ui.components.project_views import (
     ReportsTreeManager,
     VideoSelectorTreeManager,
@@ -198,10 +199,10 @@ def test_processing_reports_generate_partial_dispatches_unified_selected_payload
 
     gui.event_dispatcher.publish_event.assert_called_once_with(
         UIEvents.REPORT_GENERATE,
-        {
-            "videos": [{"path": "/videos/v1.mp4", "status": "complete"}],
-            "report_type": "unified",
-            "report_scope": "selected",
-            "replace_existing": True,
-        },
+        payloads.ReportGeneratePayload(
+            videos=[{"path": "/videos/v1.mp4", "status": "complete"}],
+            report_type="unified",
+            report_scope="selected",
+            replace_existing=True,
+        ),
     )

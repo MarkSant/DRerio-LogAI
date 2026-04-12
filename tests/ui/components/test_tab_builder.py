@@ -33,6 +33,7 @@ def mock_app(tkinter_root):
     app.display_interval_var = StringVar(master=tkinter_root, value="10")
     app._active_weight_display_var = StringVar(master=tkinter_root, value="")
     app._openvino_display_var = StringVar(master=tkinter_root, value="")
+    app._gpu_hardware_display_var = StringVar(master=tkinter_root, value="")
     app.external_trigger_notice_var = StringVar(master=tkinter_root, value="")
 
     # Mock frames that will be created
