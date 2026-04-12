@@ -107,7 +107,7 @@ def test_start_single_video_workflow_detector_setup_success(view_model):
     view_model.ui_event_bus.publish.assert_called_once_with(
         Event(
             type=UIEvents.SETUP_ZONE_DEFINITION_FOR_SINGLE_VIDEO,
-            data=SetupZoneDefinitionPayload(video_path="\\video.mp4", config=config),
+            data=SetupZoneDefinitionPayload(video_path=str(Path("/video.mp4")), config=config),
         )
     )
 

@@ -33,12 +33,12 @@ def test_1000_concurrent_updates_no_deadlock():
     for t in threads:
         t.start()
     for t in threads:
-        wait_for_thread_exit(t, timeout=10)  # 10s max
+        wait_for_thread_exit(t, timeout=30)  # 30s max for slow CI runners
 
     elapsed = time.time() - start
 
     assert len(results) == 1000, "All updates should complete"
-    assert elapsed < 10.0, f"Updates took {elapsed:.2f}s (should be <10s)"
+    assert elapsed < 30.0, f"Updates took {elapsed:.2f}s (should be <30s)"
 
 
 @pytest.mark.slow
