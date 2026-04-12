@@ -3,6 +3,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from zebtrack.ui import payloads
 from zebtrack.ui.components.control_panel import ControlPanelWidget
 from zebtrack.ui.components.zone_controls import ZoneControlsWidget
 from zebtrack.ui.event_bus_v2 import EventBusV2, UIEvents
@@ -29,10 +30,12 @@ def test_control_panel_publishes_events(tkinter_root, mock_event_bus):
 
     # Simulate button clicks and check if the correct event is published
     widget.start_rec_btn.invoke()
-    mock_event_bus.publish.assert_called_with(UIEvents.RECORDING_START, {})
+    mock_event_bus.publish.assert_called_with(
+        UIEvents.RECORDING_START, payloads.RecordingStartPayload()
+    )
 
     widget.stop_rec_btn.invoke()
-    mock_event_bus.publish.assert_called_with(UIEvents.RECORDING_STOP, {})
+    mock_event_bus.publish.assert_called_with(UIEvents.RECORDING_STOP, payloads.EmptyPayload())
 
 
 @pytest.mark.gui
@@ -53,7 +56,7 @@ def test_zone_controls_publishes_events(tkinter_root, mock_event_bus):
     widget.draw_arena_button.invoke()
     mock_event_bus.publish.assert_called_with(
         UIEvents.ZONE_DRAW_ARENA,
-        {},
+        payloads.EmptyPayload(),
     )
 
     # Ensure no direct controller/view_model calls exist

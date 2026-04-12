@@ -4,6 +4,7 @@ from unittest.mock import Mock
 
 import pytest
 
+from zebtrack.ui import payloads
 from zebtrack.ui.components.analysis_controls import AnalysisControlsWidget
 from zebtrack.ui.event_bus_v2 import UIEvents
 
@@ -47,7 +48,7 @@ def test_update_track_options_and_emit(widget):
 
     widget.event_bus.publish.assert_called_once_with(
         UIEvents.ANALYSIS_TRACK_SELECTED,
-        {"track_id": "2"},
+        payloads.TrackIdPayload(track_id=2),
     )
 
 

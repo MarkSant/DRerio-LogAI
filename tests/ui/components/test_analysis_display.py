@@ -10,6 +10,7 @@ from unittest.mock import MagicMock
 import pytest
 from PIL import Image, ImageTk
 
+from zebtrack.ui import payloads
 from zebtrack.ui.components.analysis_display import AnalysisDisplayWidget
 from zebtrack.ui.event_bus_v2 import EventBusV2, UIEvents
 
@@ -285,7 +286,7 @@ class TestAnalysisDisplayWidget:
 
         event_bus.publish.assert_called_once_with(
             UIEvents.ANALYSIS_TRACK_SELECTED,
-            {"track_id": "2"},
+            payloads.TrackIdPayload(track_id=2),
         )
 
     def test_cancel_button_emits_event(self, widget, event_bus):
@@ -294,7 +295,7 @@ class TestAnalysisDisplayWidget:
 
         event_bus.publish.assert_called_once_with(
             UIEvents.ANALYSIS_CANCEL_REQUESTED,
-            {},
+            payloads.EmptyPayload(),
         )
 
     def test_event_emission_without_bus(self, tkinter_root):
