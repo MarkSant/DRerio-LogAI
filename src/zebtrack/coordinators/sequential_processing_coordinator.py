@@ -239,7 +239,7 @@ class SequentialProcessingCoordinator(BaseCoordinator):
         }
         results_dir = str(
             self.project_manager.resolve_results_directory(
-                experiment_id=f"{experiment_id}_aq{aq_id}",
+                experiment_id=f"{experiment_id}_aq{aq_id + 1}",
                 video_path=video_path,
                 metadata=aq_metadata,
             )
@@ -266,7 +266,7 @@ class SequentialProcessingCoordinator(BaseCoordinator):
         # Build processing context (matches ProcessingContext dataclass fields)
         video_info = {
             "video_path": video_path,
-            "experiment_id": f"{experiment_id}_aq{aq_id}",
+            "experiment_id": f"{experiment_id}_aq{aq_id + 1}",
             "output_dir": results_dir,
             **aq_metadata,
         }

@@ -533,7 +533,7 @@ class DiscoveryStep(WizardStep):
             parent=self,
         )
 
-    def _apply_template_data(self, template: dict, template_path: str):
+    def _apply_template_data(self, template: dict, template_path: Path | str):
         template_name = template.get("name") or Path(template_path).stem
 
         metadata = {
@@ -563,6 +563,8 @@ class DiscoveryStep(WizardStep):
             "detector_parameters": template.get("detector_parameters"),
             "use_openvino": template.get("use_openvino"),
             "wizard_schema_version": template.get("wizard_schema_version"),
+            "has_folder_structure": template.get("has_folder_structure"),
+            "folder_meaning": template.get("folder_meaning"),
         }
 
         for key, value in mappings.items():
@@ -584,6 +586,8 @@ class DiscoveryStep(WizardStep):
             "project_type": self.wizard_data.get("project_type"),
             "parquet_import_scope": parquet_scope,
             "has_parquets": bool(parquet_scope),
+            "has_folder_structure": self.wizard_data.get("has_folder_structure"),
+            "folder_meaning": self.wizard_data.get("folder_meaning"),
         }
 
         self.set_data(discovery_data)

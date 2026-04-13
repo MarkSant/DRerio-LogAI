@@ -38,8 +38,8 @@ class TestStartRecordingMultiAquarium:
         )
 
         assert success
-        assert (tmp_path / "results" / "aquarium_0").exists()
         assert (tmp_path / "results" / "aquarium_1").exists()
+        assert (tmp_path / "results" / "aquarium_2").exists()
 
         recorder.stop_recording_multi_aquarium()
 
@@ -262,8 +262,8 @@ class TestParquetSchemaWithAquariumId:
         recorder.stop_recording_multi_aquarium()
 
         # Check Parquet files
-        parquet_0 = tmp_path / "aquarium_0" / "3_CoordMovimento_aquarium_0.parquet"
-        parquet_1 = tmp_path / "aquarium_1" / "3_CoordMovimento_aquarium_1.parquet"
+        parquet_0 = tmp_path / "aquarium_1" / "3_CoordMovimento_aquarium_1.parquet"
+        parquet_1 = tmp_path / "aquarium_2" / "3_CoordMovimento_aquarium_2.parquet"
 
         assert parquet_0.exists()
         assert parquet_1.exists()
@@ -392,16 +392,16 @@ class TestStopRecordingMultiAquarium:
         recorder.stop_recording_multi_aquarium()
 
         # Verify files for aquarium 0
-        aq0_folder = tmp_path / "aquarium_0"
-        assert (aq0_folder / "1_ProcessingArea_aquarium_0.parquet").exists()
-        assert (aq0_folder / "2_AreasOfInterest_aquarium_0.parquet").exists()
-        assert (aq0_folder / "3_CoordMovimento_aquarium_0.parquet").exists()
+        aq0_folder = tmp_path / "aquarium_1"
+        assert (aq0_folder / "1_ProcessingArea_aquarium_1.parquet").exists()
+        assert (aq0_folder / "2_AreasOfInterest_aquarium_1.parquet").exists()
+        assert (aq0_folder / "3_CoordMovimento_aquarium_1.parquet").exists()
 
         # Verify files for aquarium 1
-        aq1_folder = tmp_path / "aquarium_1"
-        assert (aq1_folder / "1_ProcessingArea_aquarium_1.parquet").exists()
-        assert (aq1_folder / "2_AreasOfInterest_aquarium_1.parquet").exists()
-        assert (aq1_folder / "3_CoordMovimento_aquarium_1.parquet").exists()
+        aq1_folder = tmp_path / "aquarium_2"
+        assert (aq1_folder / "1_ProcessingArea_aquarium_2.parquet").exists()
+        assert (aq1_folder / "2_AreasOfInterest_aquarium_2.parquet").exists()
+        assert (aq1_folder / "3_CoordMovimento_aquarium_2.parquet").exists()
 
     def test_no_error_when_not_in_multi_mode(self):
         """Test that stopping when not in multi-mode doesn't error."""
@@ -441,8 +441,8 @@ class TestWriteVideoFrameMultiAquarium:
         recorder.stop_recording_multi_aquarium()
 
         # Verify video files exist
-        assert (tmp_path / "aquarium_0" / "aquarium_0.mp4").exists()
         assert (tmp_path / "aquarium_1" / "aquarium_1.mp4").exists()
+        assert (tmp_path / "aquarium_2" / "aquarium_2.mp4").exists()
 
 
 class TestDetermineParquetColumns:
@@ -594,13 +594,13 @@ class TestIntegrationMultiAquariumRecording:
 
         # Verify outputs
         for aq_id in [0, 1]:
-            folder = tmp_path / f"aquarium_{aq_id}"
+            folder = tmp_path / f"aquarium_{aq_id + 1}"
             assert folder.exists()
 
             # Check Parquet files exist
-            processing_area = folder / f"1_ProcessingArea_aquarium_{aq_id}.parquet"
-            areas_of_interest = folder / f"2_AreasOfInterest_aquarium_{aq_id}.parquet"
-            coord_movimento = folder / f"3_CoordMovimento_aquarium_{aq_id}.parquet"
+            processing_area = folder / f"1_ProcessingArea_aquarium_{aq_id + 1}.parquet"
+            areas_of_interest = folder / f"2_AreasOfInterest_aquarium_{aq_id + 1}.parquet"
+            coord_movimento = folder / f"3_CoordMovimento_aquarium_{aq_id + 1}.parquet"
 
             assert processing_area.exists()
             assert areas_of_interest.exists()

@@ -498,7 +498,7 @@ class _WorkerProcess(multiprocessing.Process):
 
                 # Append aquarium ID if present (for exploded tasks)
                 if "aquarium_id" in video_info:
-                    experiment_id = f"{experiment_id}_aq{video_info['aquarium_id']}"
+                    experiment_id = f"{experiment_id}_aq{video_info['aquarium_id'] + 1}"
 
                 log.info(
                     "worker.process.video_start",

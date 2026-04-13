@@ -38,7 +38,16 @@ def run_app(
         action="append",
         help="Override log level: MODULE=LEVEL (e.g., zebtrack.core.detector=DEBUG)",
     )
+    parser.add_argument(
+        "--reset",
+        action="store_true",
+        help="Reset benchmark cache and local config, then exit.",
+    )
     args = parser.parse_args()
+
+    if args.reset:
+        _perform_reset()
+        sys.exit(0)
 
     if configure_logging_fn is None:
         configure_logging_fn = configure_logging
@@ -136,6 +145,23 @@ def run_app(
         _handle_fatal_error(messagebox_module, log, root=root_obj, splash=splash_obj)
     finally:
         log.info("application.finished", component="main")
+
+
+def _perform_reset() -> None:
+    """Delete benchmark cache and local config to restore defaults."""
+    from pathlib import Path
+
+    targets = [
+        Path("openvino_model_cache") / "system_benchmark.json",
+        Path("config.local.yaml"),
+    ]
+    for path in targets:
+        if path.exists():
+            path.unlink()
+            print(f"Removed: {path}")
+        else:
+            print(f"Not found (skip): {path}")
+    print("Reset complete. Restart the application to apply defaults.")
 
 
 def _setup_logging(

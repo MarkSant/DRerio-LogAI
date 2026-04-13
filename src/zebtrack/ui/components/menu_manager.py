@@ -61,10 +61,40 @@ class MenuManager:
         # Bind keyboard shortcuts
         self.gui.root.bind("<Control-q>", lambda e: self.gui.root.quit())
 
+        # Tools menu
+        tools_menu = Menu(menubar, tearoff=0)
+        menubar.add_cascade(label="Ferramentas", menu=tools_menu)
+        tools_menu.add_command(
+            label="Restaurar Padrões (Reiniciar)",
+            command=self._reset_defaults,
+        )
+
         # Help menu
         help_menu = Menu(menubar, tearoff=0)
         menubar.add_cascade(label="Ajuda", menu=help_menu)
         help_menu.add_command(label="Sobre DRerio LogAI", command=self.show_about_dialog)
+
+    def _reset_defaults(self):
+        """Reset benchmark cache and local config after user confirmation."""
+        confirm = messagebox.askyesno(
+            "Restaurar Padrões",
+            "Isso irá remover o cache de benchmark e o config.local.yaml.\n"
+            "O aplicativo será fechado e precisará ser reiniciado.\n\n"
+            "Deseja continuar?",
+            parent=self.gui.root,
+        )
+        if not confirm:
+            return
+
+        from zebtrack.core.app_runner import _perform_reset
+
+        _perform_reset()
+        messagebox.showinfo(
+            "Restaurar Padrões",
+            "Padrões restaurados com sucesso.\nO aplicativo será encerrado agora.",
+            parent=self.gui.root,
+        )
+        self.gui.root.quit()
 
     def show_about_dialog(self):
         """Show the About dialog with application information."""

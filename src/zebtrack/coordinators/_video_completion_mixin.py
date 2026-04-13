@@ -106,16 +106,16 @@ class VideoCompletionMixin:
             and os.path.exists(results_dir)
         ):
             for aq_id in [0, 1]:
-                aq_subdir = os.path.join(results_dir, f"aquarium_{aq_id}")
+                aq_subdir = os.path.join(results_dir, f"aquarium_{aq_id + 1}")
                 if not os.path.exists(aq_subdir):
                     continue
                 alt_paths = [
                     os.path.join(
-                        aq_subdir, f"3_CoordMovimento_{v_exp_id}_aquarium_{aq_id}.parquet"
+                        aq_subdir, f"3_CoordMovimento_{v_exp_id}_aquarium_{aq_id + 1}.parquet"
                     ),
                     os.path.join(
                         aq_subdir,
-                        f"3_CoordMovimento_{experiment_id}_aquarium_{aq_id}.parquet",
+                        f"3_CoordMovimento_{experiment_id}_aquarium_{aq_id + 1}.parquet",
                     ),
                     os.path.join(aq_subdir, f"3_CoordMovimento_{v_exp_id}.parquet"),
                     os.path.join(aq_subdir, f"3_CoordMovimento_{experiment_id}.parquet"),
@@ -228,11 +228,11 @@ class VideoCompletionMixin:
                 continue
             match = re.match(r"^aquarium_(\d+)$", item)
             if match:
-                aq_id = int(match.group(1))
+                aq_id = int(match.group(1)) - 1
                 traj_candidates = [
                     os.path.join(
                         item_path,
-                        f"3_CoordMovimento_{experiment_id}_aquarium_{aq_id}.parquet",
+                        f"3_CoordMovimento_{experiment_id}_aquarium_{aq_id + 1}.parquet",
                     ),
                     os.path.join(item_path, f"3_CoordMovimento_{experiment_id}.parquet"),
                 ]

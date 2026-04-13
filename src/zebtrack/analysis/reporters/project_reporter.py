@@ -15,7 +15,8 @@ from typing import Any
 import pandas as pd
 import structlog
 from docx import Document
-from docx.shared import Inches
+from docx.enum.section import WD_ORIENT
+from docx.shared import Inches, Mm
 
 from zebtrack.analysis.data_transformer import DISPLAY_COLUMN_MAPPING, DataTransformer
 from zebtrack.analysis.visualization_generator import VisualizationGenerator
@@ -169,8 +170,17 @@ def export_project_report(
 
 
 def _render_descriptive_stats_table(document: Any, descriptive_stats_df: pd.DataFrame) -> None:
-    """Render descriptive statistics pivot table into a Word document."""
-    document.add_page_break()
+    """Render descriptive statistics pivot table into a Word document in landscape."""
+    # Switch to landscape orientation for wide tables
+    section = document.add_section()
+    section.orientation = WD_ORIENT.LANDSCAPE
+    section.page_width, section.page_height = section.page_height, section.page_width
+    # Adjust margins for landscape
+    section.left_margin = Mm(15)
+    section.right_margin = Mm(15)
+    section.top_margin = Mm(15)
+    section.bottom_margin = Mm(15)
+
     document.add_heading("Descriptive Statistics Summary (Group × Day)", level=2)
     document.add_paragraph(
         "Aggregated statistics (mean, std, count, min, max) grouped by Group and Day."
@@ -279,11 +289,11 @@ def export_multi_aquarium_reports(
             )
 
         if config:
-            group = getattr(config, "group", f"aq{aq_id}")
+            group = getattr(config, "group", f"aq{aq_id + 1}")
             subject = getattr(config, "subject_id", "")
             suffix = f"_{group}_{subject}" if subject else f"_{group}"
         else:
-            suffix = f"_aq{aq_id}"
+            suffix = f"_aq{aq_id + 1}"
 
         output_base = f"{base_name}{suffix}"
 

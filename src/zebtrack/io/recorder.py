@@ -428,11 +428,11 @@ class Recorder:
 
         Creates structure (default):
             output_folder/
-            ├── aquarium_0/
+            ├── aquarium_1/
             │   ├── 1_ProcessingArea_*.parquet
             │   ├── 2_AreasOfInterest_*.parquet
             │   └── 3_CoordMovimento_*.parquet
-            └── aquarium_1/
+            └── aquarium_2/
                 ├── 1_ProcessingArea_*.parquet
                 ├── 2_AreasOfInterest_*.parquet
                 └── 3_CoordMovimento_*.parquet
@@ -484,7 +484,7 @@ class Recorder:
                     folder=str(aq_folder),
                 )
             else:
-                aq_folder = base_folder / f"aquarium_{aq_id}"
+                aq_folder = base_folder / f"aquarium_{aq_id + 1}"
             aq_folder.mkdir(parents=True, exist_ok=True)
 
             # Create sub-recorder for this aquarium
@@ -493,7 +493,9 @@ class Recorder:
             aq_recorder._fps = fps
 
             # Construct base name for sub-recorder
-            aq_base_name = f"{base_name}_aquarium_{aq_id}" if base_name else f"aquarium_{aq_id}"
+            aq_base_name = (
+                f"{base_name}_aquarium_{aq_id + 1}" if base_name else f"aquarium_{aq_id + 1}"
+            )
 
             # Determine calibration for this aquarium
             aq_calibration = calibration

@@ -275,7 +275,7 @@ class ReportGenerationCoordinator(BaseCoordinator, UnifiedReportMixin):
             behavioral_config=params.get("behavioral_config"),
         )
 
-        self._export_individual_outputs(analysis_result, aq_results_dir, f"{exp_id}_aq{aq_id}")
+        self._export_individual_outputs(analysis_result, aq_results_dir, f"{exp_id}_aq{aq_id + 1}")
 
     def _generate_standard_report(
         self, path: Path | str, exp_id: str, entry: dict, metadata: dict
@@ -554,12 +554,12 @@ class ReportGenerationCoordinator(BaseCoordinator, UnifiedReportMixin):
         )
 
         aq_meta = {
-            "experiment_id": f"{exp_id}_aq{aq_id}",
+            "experiment_id": f"{exp_id}_aq{aq_id + 1}",
             "video_name": exp_id,
             "group": out.get("group"),
             "subject": out.get("subject_id"),
             "day": out.get("day"),
-            "aquarium_id": aq_id,
+            "aquarium_id": aq_id + 1,
         }
 
         behavioral_config = {}
@@ -586,7 +586,7 @@ class ReportGenerationCoordinator(BaseCoordinator, UnifiedReportMixin):
         )
 
         os.makedirs(aq_results_dir, exist_ok=True)
-        s_path = os.path.join(aq_results_dir, f"{exp_id}_aq{aq_id}_summary.parquet")
+        s_path = os.path.join(aq_results_dir, f"{exp_id}_aq{aq_id + 1}_summary.parquet")
         ParquetSummaryReporter(ctx).export_summary(s_path, expected_roi_names=expected)
         video["multi_aquarium_outputs"][str(aq_id)]["parquet_files"]["summary"] = s_path
         return s_path

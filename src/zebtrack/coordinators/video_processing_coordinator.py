@@ -808,7 +808,9 @@ class VideoProcessingCoordinator(
                         aq_task["results_dir"] = (
                             str(aq_results_dir)
                             if aq_results_dir
-                            else str(Path(video_info.get("results_dir", "")) / f"aquarium_{aq.id}")
+                            else str(
+                                Path(video_info.get("results_dir", "")) / f"aquarium_{aq.id + 1}"
+                            )
                         )
                         aq_task["aquarium_id"] = aq.id
                         aq_task["group"] = aq.group

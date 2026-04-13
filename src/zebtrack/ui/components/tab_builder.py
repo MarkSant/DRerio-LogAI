@@ -246,21 +246,6 @@ class TabBuilder:
             foreground="gray",
         ).pack(anchor="w", pady=(4, 0))
 
-        button_row = ttk.Frame(model_status_frame)
-        button_row.pack(anchor="w", pady=(6, 0))
-        ttk.Button(
-            button_row,
-            text="Calibração Global...",
-            command=self.gui._open_global_calibration_window,
-        ).pack(side="left", padx=(0, 6))
-
-        if getattr(self.project_manager, "project_path", None):
-            ttk.Button(
-                button_row,
-                text="Calibração e Preferências do Projeto...",
-                command=self.gui._open_project_calibration_window,
-            ).pack(side="left")
-
     def _build_live_project_widgets(self, parent):
         """Build widgets specific to live projects."""
         label = Label(

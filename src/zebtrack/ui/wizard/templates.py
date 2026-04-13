@@ -102,6 +102,9 @@ class TemplateManager:
                 "num_groups": wizard_data.get("num_groups"),
                 "subjects_per_group": wizard_data.get("subjects_per_group"),
                 "group_names": deepcopy(wizard_data.get("group_names")),
+                # Folder organization fields
+                "has_folder_structure": wizard_data.get("has_folder_structure"),
+                "folder_meaning": wizard_data.get("folder_meaning"),
             }
 
             # Write template to file

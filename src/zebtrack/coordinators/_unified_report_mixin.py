@@ -128,9 +128,10 @@ class UnifiedReportMixin:
                                 "subject": out_info.get("subject_id") or fresh_meta.get("subject"),
                                 "day": out_info.get("day") or fresh_meta.get("day"),
                                 "experiment_id": (
-                                    f"{os.path.splitext(os.path.basename(path))[0]}_aq{aq_id}"
+                                    f"{os.path.splitext(os.path.basename(path))[0]}"
+                                    f"_aq{int(aq_id) + 1}"
                                 ),
-                                "aquarium_id": aq_id,
+                                "aquarium_id": int(aq_id) + 1,
                             },
                             "is_multi": True,
                         }
