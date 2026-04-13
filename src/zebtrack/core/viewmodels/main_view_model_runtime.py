@@ -67,6 +67,9 @@ class MainViewModelRuntime:
         UIEvents.MODEL_MANAGE_WEIGHTS,
         UIEvents.ZONE_SAVE_MANUAL_ARENA,
         UIEvents.PROJECT_DELETE_ASSET,
+        UIEvents.PROJECT_DELETE_GROUP,
+        UIEvents.PROJECT_DELETE_DAY,
+        UIEvents.PROJECT_DELETE_SUBJECT,
         UIEvents.CALIBRATION_COPY_TO_PROJECT,
         UIEvents.CALIBRATION_SAVE_TO_PROJECT,
         UIEvents.PROJECT_GENERATE_SUMMARIES,
@@ -228,6 +231,18 @@ class MainViewModelRuntime:
         if event_name is UIEvents.PROJECT_DELETE_ASSET:
             if payload_dict:
                 vm.project_vm.handle_delete_project_asset(**payload_dict)
+        elif event_name in (
+            UIEvents.PROJECT_DELETE_GROUP,
+            UIEvents.PROJECT_DELETE_DAY,
+            UIEvents.PROJECT_DELETE_SUBJECT,
+        ):
+            if payload_dict:
+                node_type = {
+                    UIEvents.PROJECT_DELETE_GROUP: "group",
+                    UIEvents.PROJECT_DELETE_DAY: "day",
+                    UIEvents.PROJECT_DELETE_SUBJECT: "subject",
+                }[event_name]
+                vm.project_vm.handle_delete_hierarchy_node(node_type, **payload_dict)
         elif event_name is UIEvents.CALIBRATION_COPY_TO_PROJECT:
             vm.project_vm.handle_calibration_copy_to_project()
         elif event_name is UIEvents.CALIBRATION_SAVE_TO_PROJECT:

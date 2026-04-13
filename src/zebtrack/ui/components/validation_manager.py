@@ -227,7 +227,13 @@ class ValidationManager:
             hierarchy.items(), key=lambda item: str(item[1]["display"]).lower()
         ):
             days_dict = group_data.get("days") or {}
-            group_entries = [entry for videos in days_dict.values() for entry in videos or []]
+            # Flatten: days_dict is {day_id: {subject_id: [videos]}}
+            group_entries = [
+                entry
+                for subjects in days_dict.values()
+                for videos in subjects.values()
+                for entry in videos or []
+            ]
             if not group_entries:
                 continue
 
@@ -240,72 +246,101 @@ class ValidationManager:
 
             # Prepare days list for this group
             days_list = []
-            for day_id, entries in sorted(
+            for day_id, subjects_dict in sorted(
                 days_dict.items(), key=lambda item: self._video_sort_key(item[0])
             ):
-                entries = entries or []
-                if not entries:
+                subjects_dict = subjects_dict or {}
+                if not subjects_dict:
+                    continue
+
+                # Flatten day entries for summary
+                day_entries = [entry for videos in subjects_dict.values() for entry in videos or []]
+                if not day_entries:
                     continue
 
                 # Calculate day-level summaries
                 day_counts: Counter = Counter(
-                    (str(entry.get("status") or "pending")).strip().lower() for entry in entries
+                    (str(entry.get("status") or "pending")).strip().lower() for entry in day_entries
                 )
                 day_status = self.format_status_summary(day_counts)
-                day_data = self.summarize_batch_data(entries)
-                sample_metadata = entries[0].get("metadata") if entries else None
+                day_data = self.summarize_batch_data(day_entries)
+                sample_metadata = day_entries[0].get("metadata") if day_entries else None
                 day_title = self._build_day_title(day_id, sample_metadata)
 
-                # Prepare videos list for this day
-                videos_list = []
-                for entry in sorted(
-                    entries,
-                    key=lambda item: self._video_sort_key(item.get("subject")),
+                # Prepare subjects list for this day
+                subjects_list = []
+                for subject_id, entries in sorted(
+                    subjects_dict.items(),
+                    key=lambda item: self._video_sort_key(item[0]),
                 ):
-                    path = entry.get("path") or ""
-                    filename = entry.get("filename") or (
-                        os.path.basename(path) if path else "(sem arquivo)"
+                    entries = entries or []
+                    if not entries:
+                        continue
+
+                    subject_label = self.format_subject_label(subject_id)
+
+                    # Calculate subject-level summaries
+                    subj_counts: Counter = Counter(
+                        (str(e.get("status") or "pending")).strip().lower() for e in entries
                     )
-                    metadata = entry.get("metadata") or {}
-                    meta_snippet = self.format_video_metadata(metadata)
+                    subj_status = self.format_status_summary(subj_counts)
+                    subj_data = self.summarize_batch_data(entries)
 
-                    subject_label = self.format_subject_label(entry.get("subject"))
-                    display_name = f"🐟 Sujeito {subject_label}"
-                    if filename:
-                        display_name = f"{display_name} ({filename})"
-                    if meta_snippet:
-                        display_name = f"{display_name} [{meta_snippet}]"
+                    # Prepare videos list for this subject
+                    videos_list = []
+                    for entry in sorted(entries, key=lambda item: item.get("filename", "")):
+                        path = entry.get("path") or ""
+                        filename = entry.get("filename") or (
+                            os.path.basename(path) if path else "(sem arquivo)"
+                        )
+                        metadata = entry.get("metadata") or {}
+                        meta_snippet = self.format_video_metadata(metadata)
 
-                    status_key = str(entry.get("status") or "pending").strip().lower()
-                    status_display = self.format_status_label(status_key)
-                    data_badges = self.format_data_badges(entry)
+                        display_name = f"🎬 {filename}"
+                        if meta_snippet:
+                            display_name = f"{display_name} [{meta_snippet}]"
 
-                    # Generate unique video ID (include subject index for multi-subject entries)
-                    is_multi_subject_entry = entry.get("is_multi_subject_entry", False)
-                    multi_subject_index = entry.get("multi_subject_index", 0)
-                    if path:
-                        if is_multi_subject_entry:
-                            video_id = f"video_{path}_sub_{multi_subject_index}"
+                        status_key = str(entry.get("status") or "pending").strip().lower()
+                        status_display = self.format_status_label(status_key)
+                        data_badges = self.format_data_badges(entry)
+
+                        # Generate unique video ID
+                        is_multi_subject_entry = entry.get("is_multi_subject_entry", False)
+                        multi_subject_index = entry.get("multi_subject_index", 0)
+                        if path:
+                            if is_multi_subject_entry:
+                                video_id = f"video_{path}_sub_{multi_subject_index}"
+                            else:
+                                video_id = f"video_{path}"
                         else:
-                            video_id = f"video_{path}"
-                    else:
-                        video_id = (
-                            f"video_{group_id}_{day_id}_{len(self.gui._overview_video_index)}"
+                            video_id = (
+                                f"video_{group_id}_{day_id}_{subject_id}"
+                                f"_{len(self.gui._overview_video_index)}"
+                            )
+
+                        videos_list.append(
+                            {
+                                "id": video_id,
+                                "display_name": display_name,
+                                "status": status_display,
+                                "data_badges": data_badges,
+                                "path": path,
+                            }
                         )
 
-                    videos_list.append(
+                        # Store in video index for lookups
+                        if path:
+                            self.gui._overview_video_index[path] = dict(entry)
+
+                    subjects_list.append(
                         {
-                            "id": video_id,
-                            "display_name": display_name,
-                            "status": status_display,
-                            "data_badges": data_badges,
-                            "path": path,
+                            "id": subject_id,
+                            "label": f"🐟 Sujeito {subject_label}",
+                            "status": subj_status,
+                            "data": subj_data,
+                            "videos": videos_list,
                         }
                     )
-
-                    # Store in video index for lookups
-                    if path:
-                        self.gui._overview_video_index[path] = dict(entry)
 
                 # Add day to list
                 days_list.append(
@@ -314,7 +349,7 @@ class ValidationManager:
                         "title": day_title,
                         "status": day_status,
                         "data": day_data,
-                        "videos": videos_list,
+                        "subjects": subjects_list,
                     }
                 )
 
@@ -1075,7 +1110,7 @@ class ValidationManager:
         all_videos: list[dict],
         search_text: str,
     ) -> dict[str, dict]:
-        """Build hierarchical data structure for videos grouped by group and day.
+        """Build hierarchical data structure for videos grouped by group, day, and subject.
 
         Now supports multi-subject files by expanding them into separate entries.
 
@@ -1084,7 +1119,8 @@ class ValidationManager:
             search_text: Optional search filter
 
         Returns:
-            Nested dictionary: {group_id: {display, days: {day_id: [videos]}}}
+            Nested dictionary:
+            ``{group_id: {display, days: {day_id: {subject_id: [videos]}}}}``
         """
         hierarchy: dict[str, dict] = {}
 
@@ -1214,7 +1250,8 @@ class ValidationManager:
             "multi_subject_index": multi_subject_index,
         }
 
-        days_dict.setdefault(day_id, []).append(video_entry)
+        subject_key = str(subject_id) if subject_id is not None else "??"
+        days_dict.setdefault(day_id, {}).setdefault(subject_key, []).append(video_entry)
 
     def build_video_hierarchy_snapshot(self) -> list[dict]:
         """Build hierarchical snapshot of videos for display."""
@@ -1237,40 +1274,52 @@ class ValidationManager:
                 "filename_display": "",
                 "children": [],
             }
-            for day_id, videos in sorted(
+            for day_id, subjects_dict in sorted(
                 group_data["days"].items(),
                 key=lambda item: self._video_sort_key(item[0]),
             ):
-                sample_metadata = videos[0].get("metadata") if videos else None
+                # Flatten subjects to get a sample metadata for day title
+                all_day_videos = [v for subj_videos in subjects_dict.values() for v in subj_videos]
+                sample_metadata = all_day_videos[0].get("metadata") if all_day_videos else None
                 day_title = self._build_day_title(day_id, sample_metadata)
                 day_entry: dict[str, Any] = {
                     "label": f"📅 {day_title}",
                     "status_label": "",
                     "children": [],
                 }
-                for video_entry in sorted(
-                    videos,
-                    key=lambda entry: self._video_sort_key(entry.get("subject")),
+                for subject_id, videos in sorted(
+                    subjects_dict.items(),
+                    key=lambda item: self._video_sort_key(item[0]),
                 ):
-                    subject_label = self.format_subject_label(video_entry.get("subject"))
-                    has_arena = video_entry.get("has_arena", False)
-                    has_rois = video_entry.get("has_rois", False)
-                    has_traj = video_entry.get("has_trajectory", False)
-                    status_tokens = "    ".join(
-                        [
-                            self.format_status_token(has_arena, "arena"),
-                            self.format_status_token(has_rois, "rois"),
-                            self.format_status_token(has_traj, "trajectory"),
-                        ]
-                    )
-                    day_entry["children"].append(
-                        {
-                            "path": video_entry.get("path"),
-                            "label": f"🐟 Sujeito {subject_label}",
-                            "filename": video_entry.get("filename", ""),
-                            "status_label": status_tokens,
-                        }
-                    )
+                    subject_label = self.format_subject_label(subject_id)
+                    subject_entry: dict[str, Any] = {
+                        "label": f"🐟 Sujeito {subject_label}",
+                        "status_label": "",
+                        "children": [],
+                    }
+                    for video_entry in sorted(
+                        videos,
+                        key=lambda entry: entry.get("filename", ""),
+                    ):
+                        has_arena = video_entry.get("has_arena", False)
+                        has_rois = video_entry.get("has_rois", False)
+                        has_traj = video_entry.get("has_trajectory", False)
+                        status_tokens = "    ".join(
+                            [
+                                self.format_status_token(has_arena, "arena"),
+                                self.format_status_token(has_rois, "rois"),
+                                self.format_status_token(has_traj, "trajectory"),
+                            ]
+                        )
+                        subject_entry["children"].append(
+                            {
+                                "path": video_entry.get("path"),
+                                "label": f"🎬 {video_entry.get('filename', '')}",
+                                "filename": video_entry.get("filename", ""),
+                                "status_label": status_tokens,
+                            }
+                        )
+                    day_entry["children"].append(subject_entry)
                 group_entry["children"].append(day_entry)
             snapshot.append(group_entry)
 

@@ -55,6 +55,9 @@ class UIEvents(Enum):
     PROJECT_GENERATE_SUMMARIES = auto()
     PROJECT_APPLY_SETTINGS = auto()
     PROJECT_DELETE_ASSET = auto()
+    PROJECT_DELETE_GROUP = auto()
+    PROJECT_DELETE_DAY = auto()
+    PROJECT_DELETE_SUBJECT = auto()
     PROJECT_VIDEO_SELECTED = auto()
     PROJECT_SELECTION_CHANGED = auto()
 
@@ -279,6 +282,9 @@ _PAYLOAD_TYPES: dict[UIEvents, type[Any]] = {
     UIEvents.PROJECT_GENERATE_SUMMARIES: payloads.ProjectGenerateSummariesPayload,
     UIEvents.PROJECT_APPLY_SETTINGS: payloads.ProjectApplySettingsPayload,
     UIEvents.PROJECT_DELETE_ASSET: payloads.ProjectDeleteAssetPayload,
+    UIEvents.PROJECT_DELETE_GROUP: payloads.ProjectDeleteGroupPayload,
+    UIEvents.PROJECT_DELETE_DAY: payloads.ProjectDeleteDayPayload,
+    UIEvents.PROJECT_DELETE_SUBJECT: payloads.ProjectDeleteSubjectPayload,
     UIEvents.PROJECT_VIDEO_SELECTED: payloads.ProjectVideoSelectedPayload,
     UIEvents.PROJECT_SELECTION_CHANGED: payloads.ProjectSelectionChangedPayload,
     # Video Processing

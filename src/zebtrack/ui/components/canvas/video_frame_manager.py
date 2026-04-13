@@ -18,6 +18,8 @@ import structlog
 from PIL import Image
 
 if TYPE_CHECKING:
+    from pathlib import Path
+
     from zebtrack.ui.components.canvas_manager import CanvasManager
     from zebtrack.ui.components.dialog_manager import DialogManager
 
@@ -74,7 +76,7 @@ class VideoFrameManager:
         if hasattr(self.gui, "controller") and self.gui.controller:
             self.canvas_manager.redraw_zones_from_project_data()
 
-    def display_roi_video_frame(self, video_path) -> None:
+    def display_roi_video_frame(self, video_path: Path | str) -> None:
         """Load the first frame of a video, display it on the canvas, and adjust window size.
 
         Args:
@@ -342,7 +344,9 @@ class VideoFrameManager:
             log.debug("canvas_manager._render_last_analysis_frame.called")
             self.update_video_frame(self._last_analysis_frame, self._last_detections)
 
-    def load_video_frame_to_canvas(self, video_path: str | None = None, frame_number: int = 0):
+    def load_video_frame_to_canvas(
+        self, video_path: Path | str | None = None, frame_number: int = 0
+    ):
         """Load a video frame to the canvas.
 
         Args:
@@ -476,6 +480,15 @@ class VideoFrameManager:
             return
 
         video_path = tags[0]
+
+        # Reject non-video hierarchy nodes (group, day, subject)
+        if video_path in ("group", "day", "subject"):
+            self.dialog_manager.show_info(
+                "Selecione um Vídeo",
+                "Por favor, escolha um item com ícone de vídeo (🎬) para carregar o frame.",
+            )
+            return
+
         success = self.load_video_frame_to_canvas(video_path, frame_number=0)
 
         if success:

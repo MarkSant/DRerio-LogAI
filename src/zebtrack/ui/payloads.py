@@ -271,6 +271,27 @@ class ProjectDeleteAssetPayload:
 
 
 @dataclass(frozen=True)
+class ProjectDeleteGroupPayload:
+    group_id: str
+    delete_files: bool = True
+
+
+@dataclass(frozen=True)
+class ProjectDeleteDayPayload:
+    group_id: str
+    day_id: str
+    delete_files: bool = True
+
+
+@dataclass(frozen=True)
+class ProjectDeleteSubjectPayload:
+    group_id: str
+    day_id: str
+    subject_id: str
+    delete_files: bool = True
+
+
+@dataclass(frozen=True)
 class ProjectVideoSelectedPayload:
     video_path: str
     video_entry: Mapping[str, Any] | None = None

@@ -574,6 +574,130 @@ class ProjectManager:
 
         return changed
 
+    # ====================================================================
+    # Hierarchy cascade deletion  (Phase 3C.2)
+    # ====================================================================
+
+    def remove_subject(
+        self,
+        group_id: str,
+        day_id: str,
+        subject_id: str,
+        *,
+        delete_files: bool = True,
+    ) -> tuple[int, int]:
+        """Remove all data belonging to a single subject.
+
+        For multi-aquarium videos the aquarium entry is removed but the
+        video itself survives if other aquariums remain.  For
+        single-subject videos the entire video entry is removed.
+
+        Returns:
+            ``(removed_count, failed_count)``
+        """
+        removed = 0
+        failed = 0
+
+        for video_entry in list(self.get_all_videos()):
+            meta = video_entry.get("metadata") or {}
+            if meta.get("group") != group_id or str(meta.get("day")) != str(day_id):
+                continue
+            if str(meta.get("subject", "")) != str(subject_id):
+                continue
+
+            ma_outputs = video_entry.get("multi_aquarium_outputs")
+            if ma_outputs and len(ma_outputs) > 1:
+                # Multi-subject: remove only this subject's aquarium
+                aq_id = self._find_aquarium_for_subject(video_entry, subject_id)
+                if aq_id is not None:
+                    ok = self.asset_manager.remove_aquarium_subject_data(
+                        video_entry, aq_id, delete_files
+                    )
+                    if ok:
+                        removed += 1
+                    else:
+                        failed += 1
+                else:
+                    failed += 1
+            else:
+                # Single-subject (or last subject): full video removal
+                video_path = video_entry.get("path", "")
+                ok = self.asset_manager.remove_video_entry(
+                    video_path,
+                    video_entry,
+                    delete_files,
+                    project_data=self.project_data,
+                    clear_zone_data_fn=lambda vp: self.clear_zone_data_for_video(vp, persist=False),
+                    refresh_last_zone_source_fn=self._refresh_last_zone_source,
+                )
+                if ok:
+                    removed += 1
+                else:
+                    failed += 1
+
+        if removed:
+            self.invalidate_groups_cache()
+            self.save_project()
+
+        return removed, failed
+
+    def remove_day(
+        self,
+        group_id: str,
+        day_id: str,
+        *,
+        delete_files: bool = True,
+    ) -> tuple[int, int]:
+        """Remove all subjects/videos belonging to a given day."""
+        subjects = {
+            str(v.get("metadata", {}).get("subject", ""))
+            for v in self.get_all_videos()
+            if v.get("metadata", {}).get("group") == group_id
+            and str(v.get("metadata", {}).get("day")) == str(day_id)
+        }
+        total_removed = 0
+        total_failed = 0
+        for subj in subjects:
+            r, f = self.remove_subject(group_id, day_id, subj, delete_files=delete_files)
+            total_removed += r
+            total_failed += f
+        return total_removed, total_failed
+
+    def remove_group(
+        self,
+        group_id: str,
+        *,
+        delete_files: bool = True,
+    ) -> tuple[int, int]:
+        """Remove all days/subjects/videos in a group."""
+        days = {
+            str(v.get("metadata", {}).get("day"))
+            for v in self.get_all_videos()
+            if v.get("metadata", {}).get("group") == group_id
+        }
+        total_removed = 0
+        total_failed = 0
+        for day in days:
+            r, f = self.remove_day(group_id, day, delete_files=delete_files)
+            total_removed += r
+            total_failed += f
+        return total_removed, total_failed
+
+    @staticmethod
+    def _find_aquarium_for_subject(video_entry: dict, subject_id: str) -> int | None:
+        """Find the aquarium_id whose subject matches *subject_id*."""
+        ma_outputs = video_entry.get("multi_aquarium_outputs") or {}
+        for aq_key, aq_data in ma_outputs.items():
+            if str(aq_data.get("subject_id", "")) == str(subject_id):
+                return int(aq_key)
+
+        # Fallback: assume subject index equals aquarium id
+        # (convention: aquarium_id * 1000 + local_track_id)
+        for aq_key in ma_outputs:
+            if str(aq_key) == str(subject_id):
+                return int(aq_key)
+        return None
+
     def find_video_entry(
         self,
         *,
@@ -770,7 +894,7 @@ class ProjectManager:
 
     def set_arena_for_video(
         self,
-        video_path: str,
+        video_path: Path | str,
         polygon: Sequence[Sequence[int]] | None,
     ) -> None:
         """Set the arena polygon for a specific video."""
@@ -780,7 +904,7 @@ class ProjectManager:
 
     def get_arena_for_video(
         self,
-        video_path: str,
+        video_path: Path | str,
     ) -> Sequence[Sequence[int]] | None:
         """Get the arena polygon for a specific video."""
         zone_data = self.get_zone_data(video_path=video_path, fallback_to_global=False)
@@ -788,7 +912,7 @@ class ProjectManager:
 
     def set_rois_for_video(
         self,
-        video_path: str,
+        video_path: Path | str,
         roi_polygons: Sequence[Sequence[Sequence[int]]] | None = None,
         roi_names: Sequence[str] | None = None,
         roi_colors: Sequence[tuple[int, int, int]] | None = None,
@@ -800,7 +924,7 @@ class ProjectManager:
         zone_data.roi_colors = roi_colors or []
         self.save_zone_data(zone_data, video_path, persist=True)
 
-    def get_rois_for_video(self, video_path: str) -> dict[str, Any]:
+    def get_rois_for_video(self, video_path: Path | str) -> dict[str, Any]:
         """Get ROIs for a specific video as a dict."""
         zone_data = self.get_zone_data(video_path=video_path, fallback_to_global=False)
         return {
@@ -899,7 +1023,7 @@ class ProjectManager:
         self.metadata = MetadataManager.load_metadata(self.project_path)
 
     def get_metadata_for_experiment(
-        self, experiment_id: str | None, video_path: str | None = None
+        self, experiment_id: str | None, video_path: Path | str | None = None
     ) -> dict:
         """Retrieve metadata for an experiment. Delegates to MetadataManager."""
         return MetadataManager.get_metadata_for_experiment(

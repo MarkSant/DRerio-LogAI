@@ -472,45 +472,69 @@ class VideoSelectorTreeManager:
             hierarchy.items(), key=lambda item: str(item[1]["display"]).lower()
         ):
             group_display = f"🏷️ {group_data['display']}"
-            group_node = tree.insert("", "end", text=group_display, open=True)
+            group_node = tree.insert(
+                "",
+                "end",
+                text=group_display,
+                open=True,
+                tags=("group", _group_id),
+            )
 
-            for day_id, videos in sorted(
+            for day_id, subjects_dict in sorted(
                 group_data["days"].items(),
                 key=lambda item: video_sort_key(item[0]),
             ):
-                sample_meta = videos[0].get("metadata") if videos else None
+                # Flatten to get sample metadata for day title
+                all_day_videos = [v for subj_videos in subjects_dict.values() for v in subj_videos]
+                sample_meta = all_day_videos[0].get("metadata") if all_day_videos else None
                 day_title = self._build_day_title(day_id, sample_meta)
-                day_node = tree.insert(group_node, "end", text=f"📅 {day_title}", open=True)
+                day_node = tree.insert(
+                    group_node,
+                    "end",
+                    text=f"📅 {day_title}",
+                    open=True,
+                    tags=("day", _group_id, day_id),
+                )
 
-                for video_entry in sorted(
-                    videos,
-                    key=lambda entry: video_sort_key(entry.get("subject")),
+                for subject_id, videos in sorted(
+                    subjects_dict.items(),
+                    key=lambda item: video_sort_key(item[0]),
                 ):
-                    subject_val = video_entry.get("subject")
-                    subject_label = self.gui.validation_manager.format_subject_label(subject_val)
-
-                    filename = video_entry.get("filename", "")
-                    path = video_entry.get("path", "")
-
-                    badges = []
-                    if video_entry.get("has_arena"):
-                        badges.append(STATUS_SYMBOLS["arena"])
-                    if video_entry.get("has_rois"):
-                        badges.append(STATUS_SYMBOLS["rois"])
-                    if video_entry.get("has_trajectory"):
-                        badges.append(STATUS_SYMBOLS["trajectory"])
-
-                    status_display = " ".join(badges) if badges else "—"
-
-                    display_text = f"🐟 Sujeito {subject_label}"
-
-                    tree.insert(
+                    subject_label = self.gui.validation_manager.format_subject_label(subject_id)
+                    subject_node = tree.insert(
                         day_node,
                         "end",
-                        text=display_text,
-                        values=(status_display, filename),
-                        tags=(path,),
+                        text=f"🐟 Sujeito {subject_label}",
+                        open=True,
+                        tags=("subject", _group_id, day_id, subject_id),
                     )
+
+                    for video_entry in sorted(
+                        videos,
+                        key=lambda entry: entry.get("filename", ""),
+                    ):
+                        filename = video_entry.get("filename", "")
+                        path = video_entry.get("path", "")
+
+                        badges = []
+                        if video_entry.get("has_arena"):
+                            badges.append(STATUS_SYMBOLS["arena"])
+                        if video_entry.get("has_rois"):
+                            badges.append(STATUS_SYMBOLS["rois"])
+                        if video_entry.get("has_trajectory"):
+                            badges.append(STATUS_SYMBOLS["trajectory"])
+
+                        status_display = " ".join(badges) if badges else "—"
+
+                        display_text = f"🎬 {filename}" if filename else "🎬 (vídeo)"
+
+                        tree.insert(
+                            subject_node,
+                            "end",
+                            text=display_text,
+                            values=(status_display, filename),
+                            tags=(path,),
+                        )
 
         if hasattr(zone_controls, "apply_video_tree_expand_state"):
             zone_controls.apply_video_tree_expand_state()

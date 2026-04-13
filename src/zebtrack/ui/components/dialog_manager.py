@@ -9,7 +9,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 from tkinter import filedialog, messagebox, simpledialog
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Any, ClassVar, Literal
 
 import structlog
 
@@ -196,6 +196,61 @@ class DialogManager:
             True if Yes, False if No, None if Cancel
         """
         return messagebox.askyesnocancel(title, message, icon=icon)
+
+    # =========================================================================
+    # Hierarchy Deletion Dialogs
+    # =========================================================================
+
+    _NODE_TYPE_LABELS: ClassVar[dict[str, str]] = {
+        "group": "Grupo",
+        "day": "Dia",
+        "subject": "Sujeito",
+    }
+
+    def confirm_delete_hierarchy_node(
+        self,
+        node_type: str,
+        node_label: str,
+        video_count: int,
+        video_names: list[str],
+    ) -> tuple[bool, bool]:
+        """Two-step confirmation for hierarchy node cascade deletion.
+
+        Step 1: Confirm intent (shows affected video count and names).
+        Step 2: Ask whether to delete physical files from disk.
+
+        Args:
+            node_type: One of ``"group"``, ``"day"``, ``"subject"``.
+            node_label: Display label for the node being deleted.
+            video_count: Number of videos that will be affected.
+            video_names: Filenames of affected videos (first 5 shown).
+
+        Returns:
+            Tuple ``(confirmed, delete_files)``.
+            ``confirmed`` is ``False`` if the user cancelled at step 1.
+        """
+        type_label = self._NODE_TYPE_LABELS.get(node_type, node_type)
+        preview = "\n".join(f"  • {n}" for n in video_names[:5])
+        if video_count > 5:
+            preview += f"\n  … e mais {video_count - 5} vídeo(s)"
+
+        msg = (
+            f"Remover {type_label} '{node_label}'?\n\n"
+            f"Isso afetará {video_count} vídeo(s):\n{preview}\n\n"
+            "Esta ação não pode ser desfeita."
+        )
+
+        confirmed = messagebox.askyesno(f"Excluir {type_label}", msg, icon="warning")
+        if not confirmed:
+            return False, False
+
+        delete_files = messagebox.askyesno(
+            "Excluir Arquivos do Disco",
+            "Deseja também excluir os arquivos (Parquets, relatórios) do disco?\n\n"
+            "Se escolher 'Não', apenas a referência no projeto será removida.",
+            icon="question",
+        )
+        return True, delete_files
 
     # =========================================================================
     # File Dialogs

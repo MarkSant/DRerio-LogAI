@@ -991,3 +991,104 @@ class AssetManager:
             and video_entry.get("has_rois")
             and video_entry.get("has_trajectory")
         )
+
+    # ====================================================================
+    # Hierarchy cascade deletion helpers (Phase 3C.2)
+    # ====================================================================
+
+    def remove_aquarium_subject_data(
+        self,
+        video_entry: dict,
+        aquarium_id: int,
+        delete_files: bool,
+    ) -> bool:
+        """Remove one aquarium's data from a multi-subject video entry.
+
+        Deletes the aquarium's results directory and parquet files,
+        removes the key from ``multi_aquarium_outputs``, and refreshes
+        status flags.  Does **not** remove the video entry itself.
+
+        Args:
+            video_entry: The video entry dictionary (mutated in place).
+            aquarium_id: Integer aquarium ID to remove.
+            delete_files: Whether to delete physical files on disk.
+
+        Returns:
+            ``True`` if any change was made.
+        """
+        ma_outputs: dict | None = video_entry.get("multi_aquarium_outputs")
+        if not ma_outputs:
+            return False
+
+        # Normalize key lookup (int or str)
+        aq_data = ma_outputs.get(aquarium_id) or ma_outputs.get(str(aquarium_id))
+        if aq_data is None:
+            return False
+
+        # Determine canonical key for deletion
+        aq_key: int | str = aquarium_id if aquarium_id in ma_outputs else str(aquarium_id)
+
+        if delete_files:
+            results_dir = aq_data.get("results_dir")
+            if results_dir and os.path.isdir(results_dir):
+                self._rmtree_safe(results_dir)
+
+            for pq_path in (aq_data.get("parquet_files") or {}).values():
+                if pq_path:
+                    self.delete_file_if_exists(pq_path)
+
+        # Remove the aquarium key
+        ma_outputs.pop(aq_key, None)
+        # Also pop the alternative representation
+        ma_outputs.pop(
+            str(aquarium_id) if isinstance(aq_key, int) else int(aq_key),
+            None,
+        )
+
+        # If no aquariums left, clean up multi-aquarium mode entirely
+        if not ma_outputs:
+            video_entry.pop("multi_aquarium_outputs", None)
+            video_entry.pop("multi_aquarium_mode", None)
+
+        # Refresh status flags based on remaining aquariums
+        self._refresh_multi_aquarium_flags(video_entry)
+        return True
+
+    def _refresh_multi_aquarium_flags(self, video_entry: dict) -> None:
+        """Update has_trajectory / has_summary from remaining aquariums."""
+        ma_outputs = video_entry.get("multi_aquarium_outputs")
+        if not ma_outputs:
+            video_entry["has_trajectory"] = False
+            video_entry["has_summary"] = False
+        else:
+            video_entry["has_trajectory"] = any(
+                (aq.get("parquet_files") or {}).get("trajectory") for aq in ma_outputs.values()
+            )
+            video_entry["has_summary"] = any(
+                (aq.get("parquet_files") or {}).get("summary") for aq in ma_outputs.values()
+            )
+        self._refresh_complete_flag_static(video_entry)
+
+    @staticmethod
+    def _rmtree_safe(path: str | Path, retries: int = 3) -> bool:
+        """``shutil.rmtree`` with OneDrive-safe retry and chmod unlock."""
+        import shutil
+        import stat
+        import time
+
+        def _on_rm_error(func: Any, fpath: str | Path, _exc_info: Any) -> None:
+            try:
+                os.chmod(fpath, stat.S_IWRITE)
+                func(fpath)
+            except OSError:
+                pass
+
+        for attempt in range(retries):
+            try:
+                shutil.rmtree(path, onerror=_on_rm_error)
+                return True
+            except OSError:
+                if attempt < retries - 1:
+                    time.sleep(0.5)
+        log.warning("asset_manager.rmtree_failed", path=str(path))
+        return False

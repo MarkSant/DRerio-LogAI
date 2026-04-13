@@ -282,9 +282,10 @@ class ProjectOverviewWidget(BaseWidget):
         video_index = {}
         for group in snapshot:
             for day in group.get("days", []):
-                for video in day.get("videos", []):
-                    if "path" in video:
-                        video_index[video["path"]] = video
+                for subject in day.get("subjects", []):
+                    for video in subject.get("videos", []):
+                        if "path" in video:
+                            video_index[video["path"]] = video
 
         self.populate_tree_with_hierarchy(hierarchy_data, video_index)
 
@@ -307,13 +308,21 @@ class ProjectOverviewWidget(BaseWidget):
                                     'title': str,
                                     'status': str,
                                     'data': str,
-                                    'videos': [
+                                    'subjects': [
                                         {
                                             'id': str,
-                                            'display_name': str,
+                                            'label': str,
                                             'status': str,
-                                            'data_badges': str,
-                                            'path': str (optional)
+                                            'data': str,
+                                            'videos': [
+                                                {
+                                                    'id': str,
+                                                    'display_name': str,
+                                                    'status': str,
+                                                    'data_badges': str,
+                                                    'path': str (optional)
+                                                }
+                                            ]
                                         }
                                     ]
                                 }
@@ -355,16 +364,27 @@ class ProjectOverviewWidget(BaseWidget):
                     values=(day["status"], day["data"]),
                 )
 
-                # Add videos
-                for video in day.get("videos", []):
-                    video_id = video["id"]
-                    video_path = video.get("path", "")
-                    if video_path:
-                        self._iid_to_path[video_id] = video_path
+                # Add subjects
+                for subject in day.get("subjects", []):
+                    subject_id = f"subject_{group['id']}_{day['id']}_{subject['id']}"
 
                     self.add_tree_item(
-                        item_id=video_id,
+                        item_id=subject_id,
                         parent=day_id,
-                        text=video["display_name"],
-                        values=(video["status"], video["data_badges"]),
+                        text=subject.get("label", f"🐟 Sujeito {subject['id']}"),
+                        values=(subject.get("status", ""), subject.get("data", "")),
                     )
+
+                    # Add videos
+                    for video in subject.get("videos", []):
+                        video_id = video["id"]
+                        video_path = video.get("path", "")
+                        if video_path:
+                            self._iid_to_path[video_id] = video_path
+
+                        self.add_tree_item(
+                            item_id=video_id,
+                            parent=subject_id,
+                            text=video["display_name"],
+                            values=(video["status"], video["data_badges"]),
+                        )

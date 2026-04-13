@@ -228,17 +228,19 @@ class TestVideoTreeRefreshEvent:
             "G1": {
                 "display": "G1",
                 "days": {
-                    "1": [
-                        {
-                            "path": "C:/data/video_01.mp4",
-                            "filename": "video_01.mp4",
-                            "metadata": {"group": "G1", "day": "1", "subject": "S1"},
-                            "subject": "S1",
-                            "has_arena": True,
-                            "has_rois": True,
-                            "has_trajectory": False,
-                        }
-                    ]
+                    "1": {
+                        "S1": [
+                            {
+                                "path": "C:/data/video_01.mp4",
+                                "filename": "video_01.mp4",
+                                "metadata": {"group": "G1", "day": "1", "subject": "S1"},
+                                "subject": "S1",
+                                "has_arena": True,
+                                "has_rois": True,
+                                "has_trajectory": False,
+                            }
+                        ]
+                    },
                 },
             }
         }
@@ -250,7 +252,7 @@ class TestVideoTreeRefreshEvent:
         view_manager = VideoSelectorTreeManager(gui_mock, event_bus_v2=event_bus)
         view_manager._populate_video_selector_tree()
 
-        assert tree.insert.call_count >= 3  # group, day, subject nodes
+        assert tree.insert.call_count >= 4  # group, day, subject, video nodes
 
 
 @pytest.mark.integration

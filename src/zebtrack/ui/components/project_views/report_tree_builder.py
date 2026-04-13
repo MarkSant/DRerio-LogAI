@@ -183,22 +183,26 @@ class ReportTreeBuilder:
         }
 
         days = group_data.get("days", {})
-        for day_id, videos in sorted(days.items(), key=lambda x: str(x[0])):
-            self._insert_day_node(tree, group_node_id, day_id, videos, group_id, metadata_store)
+        for day_id, subjects_dict in sorted(days.items(), key=lambda x: str(x[0])):
+            self._insert_day_node(
+                tree, group_node_id, day_id, subjects_dict, group_id, metadata_store
+            )
 
     def _insert_day_node(
         self,
         tree: Any,
         parent: str,
         day_id: str | int,
-        videos: list,
+        subjects_dict: dict,
         group_id: str | int,
         metadata_store: dict,
     ) -> None:
-        """Insert a day node and its videos into the tree."""
+        """Insert a day node and its subjects into the tree."""
+        # Flatten to get sample metadata for day label
+        all_day_videos = [v for subj_videos in subjects_dict.values() for v in subj_videos]
         day_label = f"Dia {day_id}"
-        if videos and isinstance(videos, list) and len(videos) > 0:
-            first_video = videos[0]
+        if all_day_videos:
+            first_video = all_day_videos[0]
             if isinstance(first_video, dict):
                 meta = first_video.get("metadata", {})
                 if meta and meta.get("day") is not None:
@@ -224,8 +228,45 @@ class ReportTreeBuilder:
             "day_id": day_id,
         }
 
+        for subject_id, videos in sorted(subjects_dict.items(), key=lambda x: str(x[0])):
+            self._insert_subject_node(
+                tree, day_node_id, subject_id, videos, group_id, day_id, metadata_store
+            )
+
+    def _insert_subject_node(
+        self,
+        tree: Any,
+        parent: str,
+        subject_id: str | int,
+        videos: list,
+        group_id: str | int,
+        day_id: str | int,
+        metadata_store: dict,
+    ) -> None:
+        """Insert a subject node and its videos into the tree."""
+        from zebtrack.ui.components.validation_manager import ValidationManager
+
+        subject_label = ValidationManager.format_subject_label(subject_id)
+        subject_node_id = f"{parent}_subject_{subject_id}"
+
+        tree.insert(
+            parent,
+            "end",
+            iid=subject_node_id,
+            text=f"🐟 Sujeito {subject_label}",
+            values=("", "", "", "", "", ""),
+            open=True,
+        )
+
+        metadata_store[subject_node_id] = {
+            "type": "subject",
+            "group_id": group_id,
+            "day_id": day_id,
+            "subject_id": subject_id,
+        }
+
         for video in videos:
-            self._insert_video_node(tree, day_node_id, video, metadata_store)
+            self._insert_video_node(tree, subject_node_id, video, metadata_store)
 
     def _insert_video_node(self, tree: Any, parent: str, video: dict, metadata_store: dict) -> None:
         """Insert a video node into the tree."""

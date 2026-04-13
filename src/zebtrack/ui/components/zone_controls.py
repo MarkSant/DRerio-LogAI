@@ -2,7 +2,7 @@
 
 import tkinter as tk
 from tkinter import Menu, StringVar, ttk
-from typing import Any
+from typing import Any, ClassVar
 
 import structlog
 
@@ -846,6 +846,12 @@ class ZoneControlsWidget(BaseWidget):
         # Select the item
         self.video_selector_tree.selection_set(item_id)
 
+        # Check if this is a hierarchy node (group, day, subject)
+        node_info = self._get_hierarchy_node_info(item_id)
+        if node_info is not None:
+            self._show_hierarchy_context_menu(event, node_info)
+            return
+
         # Check if this is a video item (has a video_path stored)
         video_path = self._get_video_path_from_item(item_id)
         if not video_path:
@@ -879,11 +885,127 @@ class ZoneControlsWidget(BaseWidget):
         )
         self._context_menu_video_path = None
 
+    # ── Hierarchy context menu (group / day / subject) ────────────────
+
+    _HIERARCHY_EVENT_MAP: ClassVar[dict[str, UIEvents]] = {
+        "group": UIEvents.PROJECT_DELETE_GROUP,
+        "day": UIEvents.PROJECT_DELETE_DAY,
+        "subject": UIEvents.PROJECT_DELETE_SUBJECT,
+    }
+
+    _HIERARCHY_LABEL_MAP: ClassVar[dict[str, str]] = {
+        "group": "Grupo",
+        "day": "Dia",
+        "subject": "Sujeito",
+    }
+
+    def _get_hierarchy_node_info(self, item_id: str) -> tuple[str, tuple[str, ...]] | None:
+        """Return ``(node_type, tag_tuple)`` if *item_id* is a hierarchy node.
+
+        Tags for hierarchy nodes have the pattern
+        ``("group", gid)``, ``("day", gid, did)``,
+        ``("subject", gid, did, sid)``.
+        Returns ``None`` for video nodes and nodes with no tags.
+        """
+        if not self.video_selector_tree:
+            return None
+        tags = self.video_selector_tree.item(item_id, "tags")
+        if not tags:
+            return None
+        first = str(tags[0])
+        if first in self._HIERARCHY_TAG_PREFIXES:
+            return first, tuple(str(t) for t in tags)
+        return None
+
+    def _show_hierarchy_context_menu(
+        self,
+        event: Any,
+        node_info: tuple[str, tuple[str, ...]],
+    ) -> None:
+        """Build and show a context menu for a hierarchy node."""
+        node_type, tag_tuple = node_info
+        label = self._HIERARCHY_LABEL_MAP.get(node_type, node_type)
+        # Derive display name from the tree item text
+        item_id = self.video_selector_tree.selection()[0]
+        item_text = self.video_selector_tree.item(item_id, "text")
+
+        menu = Menu(self.video_selector_tree, tearoff=0, font=("TkDefaultFont", 9))
+        menu.add_command(
+            label=f"🗑️ Excluir {label}…",
+            command=lambda: self._on_delete_hierarchy_node(node_type, tag_tuple, item_text),
+        )
+        menu.post(event.x_root, event.y_root)
+
+    def _on_delete_hierarchy_node(
+        self,
+        node_type: str,
+        tag_tuple: tuple[str, ...],
+        display_label: str,
+    ) -> None:
+        """Handle hierarchy node deletion via confirmation + event emission."""
+        # Collect affected videos
+        videos = self._collect_descendant_videos(self.video_selector_tree.selection()[0])
+        video_names = [v.rsplit("\\", 1)[-1].rsplit("/", 1)[-1] for v in videos]
+
+        if not video_names:
+            return
+
+        dm = getattr(self, "dialog_manager", None)
+        if dm is None:
+            # Fallback: walk up to gui
+            gui = getattr(self, "gui", None)
+            dm = getattr(gui, "dialog_manager", None) if gui else None
+        if dm is None:
+            return
+
+        confirmed, delete_files = dm.confirm_delete_hierarchy_node(
+            node_type, display_label, len(video_names), video_names
+        )
+        if not confirmed:
+            return
+
+        # Build payload kwargs from structured tags
+        kwargs: dict[str, Any] = {"delete_files": delete_files}
+        if node_type == "group":
+            kwargs["group_id"] = tag_tuple[1]
+        elif node_type == "day":
+            kwargs["group_id"] = tag_tuple[1]
+            kwargs["day_id"] = tag_tuple[2]
+        elif node_type == "subject":
+            kwargs["group_id"] = tag_tuple[1]
+            kwargs["day_id"] = tag_tuple[2]
+            kwargs["subject_id"] = tag_tuple[3]
+
+        event_type = self._HIERARCHY_EVENT_MAP.get(node_type)
+        if event_type:
+            self.emit_event(event_type, kwargs)
+
+    def _collect_descendant_videos(self, item_id: str) -> list[str]:
+        """Recursively collect video paths from all descendants of *item_id*."""
+        tree = self.video_selector_tree
+        result: list[str] = []
+
+        def _walk(node: str) -> None:
+            for child in tree.get_children(node):
+                path = self._get_video_path_from_item(child)
+                if path:
+                    result.append(path)
+                else:
+                    _walk(child)
+
+        _walk(item_id)
+        return result
+
+    # Tags that identify non-video hierarchy nodes (group, day, subject).
+    _HIERARCHY_TAG_PREFIXES = frozenset(("group", "day", "subject"))
+
     def _get_video_path_from_item(self, item_id: str) -> str | None:
         """Get video path from a tree item ID.
 
         The video path is stored in the item's tags, not values.
         Only leaf nodes (video items) have tags with the path.
+        Group, Day, and Subject nodes use structured tuple tags
+        (e.g. ``("group", group_id)``) and are skipped.
         """
         if not self.video_selector_tree:
             return None
@@ -900,11 +1022,17 @@ class ZoneControlsWidget(BaseWidget):
 
         # Handle case where tags is a string (single tag)
         if isinstance(tags, str):
+            # Skip hierarchy nodes whose single tag is a known prefix
+            if tags in self._HIERARCHY_TAG_PREFIXES:
+                return None
             return tags if tags else None
 
         # Handle case where tags is a tuple/list
         if len(tags) > 0:
             tag = tags[0]
+            # Skip hierarchy nodes (group, day, subject)
+            if str(tag) in self._HIERARCHY_TAG_PREFIXES:
+                return None
             # Return the tag if it looks like a path (contains path separator or file extension)
             if tag and (
                 "/" in str(tag)

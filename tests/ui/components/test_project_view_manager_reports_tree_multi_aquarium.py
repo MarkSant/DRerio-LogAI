@@ -76,16 +76,18 @@ def test_reports_tree_includes_both_aquariums_via_canonical_fallback(monkeypatch
         "G1": {
             "display": "Grupo 1",
             "days": {
-                1: [
-                    {
-                        "path": video_path,
-                        "metadata": {"subject": "S1", "day": 1},
-                        "has_arena": True,
-                        "has_rois": True,
-                        "has_trajectory": True,
-                        "has_summary": True,
-                    }
-                ]
+                1: {
+                    "S1": [
+                        {
+                            "path": video_path,
+                            "metadata": {"subject": "S1", "day": 1},
+                            "has_arena": True,
+                            "has_rois": True,
+                            "has_trajectory": True,
+                            "has_summary": True,
+                        }
+                    ]
+                },
             },
         }
     }
@@ -129,26 +131,34 @@ def test_reports_tree_normalizes_mixed_aquarium_keys(monkeypatch):
         "G1": {
             "display": "Grupo 1",
             "days": {
-                1: [
-                    {
-                        "path": video_path,
-                        "metadata": {"subject": "S2", "day": 1},
-                        "has_arena": True,
-                        "has_rois": True,
-                        "has_trajectory": True,
-                        "has_summary": True,
-                        # Mixed keys should merge into aquarium 0 + aquarium 1.
-                        "multi_aquarium_outputs": {
-                            0: {"results_dir": "", "parquet_files": {"trajectory": "t0.parquet"}},
-                            "0": {
-                                "results_dir": "",
-                                "parquet_files": {"summary": "s0.parquet"},
-                                "frame_crop_box": (1, 2, 3, 4),
+                1: {
+                    "S2": [
+                        {
+                            "path": video_path,
+                            "metadata": {"subject": "S2", "day": 1},
+                            "has_arena": True,
+                            "has_rois": True,
+                            "has_trajectory": True,
+                            "has_summary": True,
+                            # Mixed keys should merge into aquarium 0 + aquarium 1.
+                            "multi_aquarium_outputs": {
+                                0: {
+                                    "results_dir": "",
+                                    "parquet_files": {"trajectory": "t0.parquet"},
+                                },
+                                "0": {
+                                    "results_dir": "",
+                                    "parquet_files": {"summary": "s0.parquet"},
+                                    "frame_crop_box": (1, 2, 3, 4),
+                                },
+                                "1": {
+                                    "results_dir": "",
+                                    "parquet_files": {"trajectory": "t1.parquet"},
+                                },
                             },
-                            "1": {"results_dir": "", "parquet_files": {"trajectory": "t1.parquet"}},
-                        },
-                    }
-                ]
+                        }
+                    ]
+                },
             },
         }
     }

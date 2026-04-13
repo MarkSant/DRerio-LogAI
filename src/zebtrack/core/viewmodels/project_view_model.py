@@ -12,6 +12,8 @@ import structlog
 from zebtrack.core.state_manager import StateCategory
 
 if TYPE_CHECKING:
+    from pathlib import Path
+
     from zebtrack.core.application_bootstrapper import BootstrapResult
     from zebtrack.core.dependency_container import MainViewModelDependencies
 
@@ -43,7 +45,7 @@ class ProjectViewModel:
             return self.project_lifecycle_coordinator.create_project(**wizard_data)
         return None
 
-    def open_project_workflow(self, project_path):
+    def open_project_workflow(self, project_path: Path | str):
         if self.project_lifecycle_coordinator:
             return self.project_lifecycle_coordinator.open_project(project_path)
         return None
@@ -53,18 +55,41 @@ class ProjectViewModel:
             return self.project_lifecycle_coordinator.close_project()
         return None
 
-    def on_video_selected(self, video_path: str):
+    def on_video_selected(self, video_path: Path | str):
         """Handle video selection event."""
         if self.project_manager:
             self.project_manager.set_active_zone_video(video_path)
 
-    def handle_delete_project_asset(self, video_path: str, asset: str, delete_source: bool = False):
+    def handle_delete_project_asset(
+        self, video_path: Path | str, asset: str, delete_source: bool = False
+    ):
         if self.project_lifecycle_coordinator:
             self.project_lifecycle_coordinator.delete_project_asset(
                 video_path, asset, delete_source=delete_source
             )
 
-    def can_remove_project_asset(self, video_path: str, asset: str) -> tuple[bool, str | None]:
+    def handle_delete_hierarchy_node(
+        self,
+        node_type: str,
+        *,
+        group_id: str,
+        day_id: str | None = None,
+        subject_id: str | None = None,
+        delete_files: bool = True,
+    ) -> tuple[int, int]:
+        if self.project_lifecycle_coordinator:
+            return self.project_lifecycle_coordinator.delete_hierarchy_node(
+                node_type,
+                group_id=group_id,
+                day_id=day_id,
+                subject_id=subject_id,
+                delete_files=delete_files,
+            )
+        return 0, 0
+
+    def can_remove_project_asset(
+        self, video_path: Path | str, asset: str
+    ) -> tuple[bool, str | None]:
         if self.project_lifecycle_coordinator:
             return self.project_lifecycle_coordinator.can_remove_project_asset(video_path, asset)
         return (False, "ProjectLifecycleCoordinator not available")

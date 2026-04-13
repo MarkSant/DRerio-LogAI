@@ -640,6 +640,58 @@ class ProjectLifecycleCoordinator(BaseCoordinator):
             )
             return False
 
+    # ====================================================================
+    # Hierarchy cascade deletion  (Phase 3C.2)
+    # ====================================================================
+
+    def delete_hierarchy_node(
+        self,
+        node_type: str,
+        *,
+        group_id: str,
+        day_id: str | None = None,
+        subject_id: str | None = None,
+        delete_files: bool = True,
+    ) -> tuple[int, int]:
+        """Remove a group, day, or subject and refresh project views.
+
+        Returns:
+            ``(removed, failed)`` counts.
+        """
+        pm = self.project_manager
+        if not pm:
+            return 0, 0
+
+        if node_type == "subject" and day_id and subject_id:
+            removed, failed = pm.remove_subject(
+                group_id, day_id, subject_id, delete_files=delete_files
+            )
+        elif node_type == "day" and day_id:
+            removed, failed = pm.remove_day(group_id, day_id, delete_files=delete_files)
+        elif node_type == "group":
+            removed, failed = pm.remove_group(group_id, delete_files=delete_files)
+        else:
+            self.logger.warning("project.hierarchy_delete.bad_type", node_type=node_type)
+            return 0, 0
+
+        self.logger.info(
+            "project.hierarchy_delete.result",
+            node_type=node_type,
+            group=group_id,
+            day=day_id,
+            subject=subject_id,
+            removed=removed,
+            failed=failed,
+        )
+
+        # Trigger full tree refresh
+        if self.event_bus and removed:
+            self.event_bus.publish(
+                UIEvents.VIDEO_TREE_REFRESH_REQUESTED, {"source": "hierarchy_delete"}
+            )
+
+        return removed, failed
+
     def register_project_outputs(
         self,
         *,

@@ -6,6 +6,70 @@ This document tracks all major agent interventions, technical debt resolutions, 
 
 ## Active Tasks
 
+### [2026-04-14] Phase 3C: Subject-Level Tree Hierarchy + Cascade Deletion
+
+__ID:__ TASK-062
+__Agent:__ GitHub Copilot (Claude Opus 4.6)
+__Status:__ Complete ✅
+__Branch:__ main
+__Description:__
+Two-part enhancement to the Project Video Tree: (3C.1) reorganize the flat video
+list into a __Group → Day → Subject → Video__ hierarchy, and (3C.2) add cascade
+deletion for hierarchy nodes via right-click context menus.
+
+### Subtasks (TASK-062)
+
+#### Phase 3C.1 — Subject-Level Tree Hierarchy
+
+- [x] `validation_manager.py`: Walk hierarchy nodes when resolving video items.
+- [x] `video_selector_tree_manager.py`: Build 4-level tree with tags
+      `("group", gid)`, `("day", gid, did)`, `("subject", gid, did, sid)`.
+- [x] `report_tree_builder.py`: Match hierarchy traversal pattern.
+- [x] `project_overview.py`: Aggregate counts from nested hierarchy.
+- [x] `zone_controls.py`: Resolve selected video path from any tree depth.
+- [x] `video_frame_manager.py`: Handle `IndexError` on hierarchy nodes.
+- [x] Tests: `test_video_tree_refresh_event.py`, updated
+      `test_project_view_manager_reports_tree_multi_aquarium.py`,
+      `test_project_overview.py`.
+
+#### Phase 3C.2 — Cascade Deletion of Group / Day / Subject
+
+- [x] P2-1: Add 3 new `UIEvents` + frozen payload dataclasses.
+- [x] P2-2: `DialogManager.confirm_delete_hierarchy_node()` two-step dialog.
+- [x] P2-3: Hierarchy right-click context menu in `zone_controls.py`.
+- [x] P2-4/5: `AssetManager.remove_aquarium_subject_data()`, `_rmtree_safe()`.
+- [x] P2-6: `ProjectManager.remove_subject/day/group()` cascade orchestration.
+- [x] P2-7: `ProjectLifecycleCoordinator.delete_hierarchy_node()`, wired
+      through `ProjectViewModel` → `MainViewModelRuntime` event routing.
+
+__Files Changed:__
+
+| File                                              | Change                                             |
+| ------------------------------------------------- | -------------------------------------------------- |
+| `src/zebtrack/ui/event_bus_v2.py`                 | 3 new events + payload mappings                    |
+| `src/zebtrack/ui/payloads.py`                     | 3 new frozen dataclass payloads                    |
+| `src/zebtrack/ui/components/dialog_manager.py`    | `confirm_delete_hierarchy_node()` two-step dialog  |
+| `src/zebtrack/ui/components/zone_controls.py`     | Hierarchy context menu + `ClassVar` dicts          |
+| `src/zebtrack/core/project/asset_manager.py`      | `remove_aquarium_subject_data()`, `_rmtree_safe()` |
+| `src/zebtrack/core/project/project_manager.py`    | `remove_subject/day/group()` cascade methods       |
+| `src/zebtrack/coordinators/project_lifecycle_coordinator.py` | `delete_hierarchy_node()` dispatcher    |
+| `src/zebtrack/core/viewmodels/project_view_model.py` | `handle_delete_hierarchy_node()` handler        |
+| `src/zebtrack/core/viewmodels/main_view_model_runtime.py` | Event routing for 3 new events           |
+| `src/zebtrack/ui/components/validation_manager.py` | Phase 3C.1: hierarchy node traversal              |
+| `src/zebtrack/ui/components/video_selector_tree_manager.py` | Phase 3C.1: 4-level tree builder       |
+| `src/zebtrack/ui/components/report_tree_builder.py` | Phase 3C.1: hierarchy traversal                 |
+| `src/zebtrack/ui/project_overview.py`             | Phase 3C.1: nested count aggregation               |
+| `src/zebtrack/ui/components/video_frame_manager.py` | Phase 3C.1: IndexError guard                    |
+| `tests/test_video_tree_refresh_event.py`          | Phase 3C.1: hierarchy tree tests                   |
+| `tests/ui/components/test_project_view_manager_reports_tree_multi_aquarium.py` | Updated |
+| `tests/test_project_overview.py`                  | Phase 3C.1: hierarchy count tests                  |
+
+__Validation:__
+
+- `poetry run ruff check` on all modified files → All checks passed
+- `poetry run pytest -q --timeout=120` → 2818 passed, 2 skipped
+- Coverage gate: 48.02% (threshold 45%) ✅
+
 ### [2026-04-12] CI guard rails: pre-commit payload checker + pre-push GUI test runner
 
 __ID:__ TASK-061

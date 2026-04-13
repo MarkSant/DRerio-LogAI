@@ -243,13 +243,21 @@ def test_populate_tree_with_hierarchy(overview_widget):
                         "title": "Day 1",
                         "status": "Complete",
                         "data": "Arena ROI",
-                        "videos": [
+                        "subjects": [
                             {
-                                "id": "video1",
-                                "display_name": "Subject 1",
-                                "status": "Complete",
-                                "data_badges": "✓",
-                                "path": "/path/to/video1.mp4",
+                                "id": "subj1",
+                                "label": "🐟 Sujeito subj1",
+                                "status": "",
+                                "data": "",
+                                "videos": [
+                                    {
+                                        "id": "video1",
+                                        "display_name": "Subject 1",
+                                        "status": "Complete",
+                                        "data_badges": "✓",
+                                        "path": "/path/to/video1.mp4",
+                                    }
+                                ],
                             }
                         ],
                     }
@@ -269,9 +277,13 @@ def test_populate_tree_with_hierarchy(overview_widget):
     group_children = overview_widget.project_overview_tree.get_children(root_children[0])
     assert len(group_children) == 1  # One day
 
-    # Verify day has children (videos)
+    # Verify day has children (subjects)
     day_children = overview_widget.project_overview_tree.get_children(group_children[0])
-    assert len(day_children) == 1  # One video
+    assert len(day_children) == 1  # One subject
+
+    # Verify subject has children (videos)
+    subject_children = overview_widget.project_overview_tree.get_children(day_children[0])
+    assert len(subject_children) == 1  # One video
 
 
 def test_populate_tree_with_empty_hierarchy(overview_widget):
@@ -374,13 +386,21 @@ def test_update_tree_builds_video_index(overview_widget):
                         "title": "Dia 1",
                         "status": "",
                         "data": "",
-                        "videos": [
+                        "subjects": [
                             {
-                                "id": "V1",
-                                "display_name": "Video 1",
+                                "id": "S1",
+                                "label": "🐟 Sujeito S1",
                                 "status": "",
-                                "data_badges": "",
-                                "path": "/path/video.mp4",
+                                "data": "",
+                                "videos": [
+                                    {
+                                        "id": "V1",
+                                        "display_name": "Video 1",
+                                        "status": "",
+                                        "data_badges": "",
+                                        "path": "/path/video.mp4",
+                                    }
+                                ],
                             }
                         ],
                     }
