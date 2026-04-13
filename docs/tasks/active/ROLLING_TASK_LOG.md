@@ -6,6 +6,34 @@ This document tracks all major agent interventions, technical debt resolutions, 
 
 ## Active Tasks
 
+### [2026-04-12] CI guard rails: pre-commit payload checker + pre-push GUI test runner
+
+__ID:__ TASK-061
+__Agent:__ GitHub Copilot (Claude Opus 4.6)
+__Status:__ Complete ✅
+__Branch:__ main
+__Description:__
+After multiple CI fix cycles where GUI test failures on Ubuntu were invisible
+locally (Windows), two preventive tools were added:
+
+1. __Pre-commit hook__ (`scripts/check_payload_assertions.py`): Regex scanner that
+   detects `assert_called_with(UIEvents.XXX, {dict})` patterns in staged test files.
+   Catches payload migration drift before commit. Whitelists events still using raw
+   dicts (`FRAME_ERROR`, `ZONE_VIDEO_SEARCH_CHANGED`).
+2. __Pre-push hook__ (`scripts/test_gui_changed.ps1`): Runs `pytest -m gui -n0` only
+   on test files changed vs `origin/main` + staged + unstaged. Catches GUI regressions
+   locally before they reach CI.
+
+Both hooks registered in `.pre-commit-config.yaml`.
+
+__Files Changed:__
+
+| File                                  | Change                                       |
+| ------------------------------------- | -------------------------------------------- |
+| `scripts/check_payload_assertions.py` | New: pre-commit dict payload scanner         |
+| `scripts/test_gui_changed.ps1`        | New: pre-push GUI test runner (changed only) |
+| `.pre-commit-config.yaml`             | Register both new hooks                      |
+
 ### [2026-04-09] Sequential multi-aquarium overlay misalignment after auto-detection
 
 __ID:__ TASK-060
