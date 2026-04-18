@@ -123,6 +123,7 @@ class DetectorSetupCoordinator(BaseCoordinator):
         use_openvino: bool = False,
         active_weight_name: str | None = None,
         detector_plugins: dict | None = None,
+        perspective: str | None = None,
     ) -> tuple[bool, str | None]:
         """Initialize the detector instance based on configuration.
 
@@ -137,6 +138,7 @@ class DetectorSetupCoordinator(BaseCoordinator):
             use_openvino: Whether to use OpenVINO backend
             active_weight_name: Name of the active weight to use
             detector_plugins: Dict mapping plugin names to plugin classes
+            perspective: Optional camera perspective ("lateral" or "top_down")
 
         Returns:
             tuple: (success: bool, error_message: str | None)
@@ -179,6 +181,7 @@ class DetectorSetupCoordinator(BaseCoordinator):
                 use_openvino=use_openvino,
                 active_weight_name=active_weight_name,
                 detector_plugins=detector_plugins,
+                perspective=perspective,
             )
 
             if success:

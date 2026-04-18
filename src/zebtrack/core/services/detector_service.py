@@ -10,6 +10,7 @@ updates, and plugin context management operations.
 from __future__ import annotations
 
 import os
+from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
 import structlog
@@ -85,6 +86,7 @@ class DetectorService:
         use_openvino: bool = False,
         active_weight_name: str | None = None,
         detector_plugins: dict | None = None,
+        perspective: str | None = None,
     ) -> tuple[bool, str | None]:
         """
         Initialize the detector instance based on the animal method selection.
@@ -96,6 +98,8 @@ class DetectorService:
             use_openvino: Whether to use OpenVINO plugin
             active_weight_name: Current active weight name for state tracking
             detector_plugins: Dict mapping plugin names to plugin classes
+            perspective: Optional camera perspective ("lateral" or "top_down")
+                for perspective-aware weight selection.
 
         Returns:
             tuple: (success: bool, error_message: str | None)
@@ -106,10 +110,15 @@ class DetectorService:
             "detector_service.initialize.start",
             animal_method=animal_method,
             use_openvino=use_openvino,
+            perspective=perspective,
         )
 
-        # Get weight path based on animal method
-        model_path = self.weight_manager.get_weight_path_by_method(animal_method, "animal")
+        # Get weight path based on animal method (perspective-aware)
+        model_path = self.weight_manager.get_weight_path_by_method(
+            animal_method,
+            "animal",
+            perspective=perspective,
+        )
         log.info(
             "detector_service.model_path_selected",
             animal_method=animal_method,
@@ -951,7 +960,9 @@ class DetectorService:
 
         return None
 
-    def _validate_model_classes(self, plugin_instance: DetectorPlugin, model_path: str) -> None:
+    def _validate_model_classes(
+        self, plugin_instance: DetectorPlugin, model_path: Path | str
+    ) -> None:
         """
         Validate that model has expected classes for ZebTrack-AI.
 

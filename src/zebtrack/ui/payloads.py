@@ -252,6 +252,7 @@ class ProjectManagerReplacedPayload:
 class ProjectProcessVideosPayload:
     video_paths: Sequence[str]
     analysis_config: Mapping[str, Any] | None = None
+    aquarium_filter: Mapping[str, Sequence[int]] | None = None
 
 
 @dataclass(frozen=True)

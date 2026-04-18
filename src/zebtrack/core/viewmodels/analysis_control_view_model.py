@@ -100,7 +100,8 @@ class AnalysisControlViewModel:
 
             if not detector_vm.detector:
                 temp_animal_method = config.get("animal_method")
-                if not detector_vm.setup_detector(temp_animal_method):
+                perspective = config.get("perspective")
+                if not detector_vm.setup_detector(temp_animal_method, perspective=perspective):
                     return
 
         self.ui_event_bus.publish(

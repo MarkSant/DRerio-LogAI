@@ -65,7 +65,11 @@ class HardwareStatusViewModel:
     def detector_initialized(self) -> bool:
         return self.state_manager.get_detector_state().detector_initialized
 
-    def setup_detector(self, temp_animal_method: str | None = None) -> bool:
+    def setup_detector(
+        self,
+        temp_animal_method: str | None = None,
+        perspective: str | None = None,
+    ) -> bool:
         if not self.detector_setup_coordinator:
             return False
 
@@ -73,6 +77,7 @@ class HardwareStatusViewModel:
             animal_method=temp_animal_method,
             use_openvino=self.use_openvino,
             active_weight_name=self.active_weight_name,
+            perspective=perspective,
         )
         return success
 

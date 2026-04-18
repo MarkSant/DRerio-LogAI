@@ -21,8 +21,10 @@ def _bootstrap_manager(temp_dir: str, test_settings=None) -> WeightManager:
 
     mock_settings = Mock()
     mock_settings.yolo_model.path = ""
-    mock_settings.weights.seg_filename = None
-    mock_settings.weights.det_filename = None
+    mock_settings.weights.lateral.seg_filename = None
+    mock_settings.weights.lateral.det_filename = None
+    mock_settings.weights.top_down.seg_filename = None
+    mock_settings.weights.top_down.det_filename = None
     manager = WeightManager(settings_obj=mock_settings, config_dir=temp_dir)
     return manager
 

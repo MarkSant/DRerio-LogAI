@@ -116,8 +116,10 @@ def test_get_weight_path_by_method():
 
         mock_settings = Mock()
         mock_settings.yolo_model.path = None
-        mock_settings.weights.seg_filename = None
-        mock_settings.weights.det_filename = None
+        mock_settings.weights.lateral.seg_filename = None
+        mock_settings.weights.lateral.det_filename = None
+        mock_settings.weights.top_down.seg_filename = None
+        mock_settings.weights.top_down.det_filename = None
 
         wm = WeightManager(settings_obj=mock_settings, config_dir=temp_dir)
 

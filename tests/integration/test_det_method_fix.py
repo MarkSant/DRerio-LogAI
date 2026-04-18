@@ -37,8 +37,10 @@ def test_animal_detection_det_method_issue():
 
         # Mock settings to match the problematic configuration
         mock_settings = MagicMock()
-        mock_settings.weights.seg_filename = seg_file
-        mock_settings.weights.det_filename = det_file
+        mock_settings.weights.lateral.seg_filename = seg_file
+        mock_settings.weights.lateral.det_filename = det_file
+        mock_settings.weights.top_down.seg_filename = ""
+        mock_settings.weights.top_down.det_filename = ""
         mock_settings.yolo_model.path = seg_file  # Legacy config points to seg
 
         # Initialize WeightManager with DI (this is what happens in
@@ -90,8 +92,10 @@ def test_controller_setup_detector_scenario():
         # Mock settings with animal_method = "det" (the failing scenario)
         mock_settings = MagicMock()
         mock_settings.model_selection.animal_method = "det"  # This was the issue!
-        mock_settings.weights.seg_filename = seg_file
-        mock_settings.weights.det_filename = det_file
+        mock_settings.weights.lateral.seg_filename = seg_file
+        mock_settings.weights.lateral.det_filename = det_file
+        mock_settings.weights.top_down.seg_filename = ""
+        mock_settings.weights.top_down.det_filename = ""
         mock_settings.yolo_model.path = seg_file
 
         # Simulate the controller.setup_detector() logic with DI
@@ -123,8 +127,10 @@ def test_backwards_compatibility_maintained():
 
         mock_settings = MagicMock()
         mock_settings.yolo_model.path = old_weight_file
-        mock_settings.weights.seg_filename = "nonexistent_seg.pt"
-        mock_settings.weights.det_filename = "nonexistent_det.pt"
+        mock_settings.weights.lateral.seg_filename = "nonexistent_seg.pt"
+        mock_settings.weights.lateral.det_filename = "nonexistent_det.pt"
+        mock_settings.weights.top_down.seg_filename = ""
+        mock_settings.weights.top_down.det_filename = ""
 
         # Test with DI for backwards compatibility
         wm = WeightManager(config_dir=temp_dir, settings_obj=mock_settings)

@@ -288,7 +288,12 @@ class VideoSelectionMixin:
     # Zone loading
     # ------------------------------------------------------------------
 
-    def _load_zones_for_eligible_videos(self, eligible_videos: list) -> None:
+    def _load_zones_for_eligible_videos(
+        self,
+        eligible_videos: list,
+        *,
+        aquarium_filter: dict[str, list[int]] | None = None,
+    ) -> None:
         """Load zone data from parquet files for eligible videos."""
         zones_updated = False
         from zebtrack.core.project.zone_manager import ZoneManager
@@ -306,6 +311,24 @@ class VideoSelectionMixin:
 
             multi_data = self.project_manager.get_multi_aquarium_zone_data(video_path)
             if multi_data:
+                # Filter to selected aquariums when an aquarium_filter is active.
+                allowed_ids: set[int] | None = None
+                if aquarium_filter:
+                    norm_vp = os.path.normpath(str(video_path))
+                    for fk, fv in aquarium_filter.items():
+                        if os.path.normpath(fk) == norm_vp:
+                            allowed_ids = set(fv)
+                            break
+                if allowed_ids is not None:
+                    from zebtrack.core.detection.detection_types import MultiAquariumZoneData
+
+                    filtered_aquariums = [aq for aq in multi_data.aquariums if aq.id in allowed_ids]
+                    multi_data = MultiAquariumZoneData(
+                        aquariums=filtered_aquariums,
+                        video_width=multi_data.video_width,
+                        video_height=multi_data.video_height,
+                        sequential_processing=multi_data.sequential_processing,
+                    )
                 video_info["zone_data"] = ZoneManager.multi_aquarium_zone_data_to_dict(multi_data)
                 continue
 

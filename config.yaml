@@ -234,12 +234,17 @@ openvino:
   batch_nireq: 4
 
 # -----------------------------------------------------------------------------
-# Weight File Selection
+# Weight File Selection (Perspective-Aware)
 # -----------------------------------------------------------------------------
+# Weights are grouped by camera perspective (lateral vs top-down).
+# The wizard auto-suggests the correct weights based on the selected perspective.
 weights:
-  # Filenames for model weights (must be in project root or accessible path)
-  seg_filename: "best_seg.pt"  # Segmentation model
-  det_filename: "best_oi.pt"   # Detection model
+  lateral:
+    seg_filename: "best_seg_lateral.pt"  # Segmentation model for lateral view
+    det_filename: "best_det_lateral.pt"  # Detection model for lateral view
+  top_down:
+    seg_filename: "best_seg_topdown.pt"  # Segmentation model for top-down view
+    det_filename: "best_det_topdown.pt"  # Detection model for top-down view
 
 # -----------------------------------------------------------------------------
 # ROI Inclusion Rules (Region of Interest Analysis)

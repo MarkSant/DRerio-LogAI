@@ -246,6 +246,17 @@ class ReportTreeBuilder:
         """Insert a subject node and its videos into the tree."""
         from zebtrack.ui.components.validation_manager import ValidationManager
 
+        # When a subject has exactly one multi-subject video entry the subject
+        # grouping node would just duplicate the video node label.  Skip the
+        # intermediate node and insert the video directly under the day parent.
+        if (
+            len(videos) == 1
+            and isinstance(videos[0], dict)
+            and videos[0].get("is_multi_subject_entry")
+        ):
+            self._insert_video_node(tree, parent, videos[0], metadata_store)
+            return
+
         subject_label = ValidationManager.format_subject_label(subject_id)
         subject_node_id = f"{parent}_subject_{subject_id}"
 
@@ -285,12 +296,15 @@ class ReportTreeBuilder:
         multi_subject_index = video.get("multi_subject_index", 0)
         is_multi_subject_entry = video.get("is_multi_subject_entry", False)
         if is_multi_subject_entry:
+            aq_display: int | None = None
             subject_entries = video.get("metadata", {}).get("subject_entries", [])
             if multi_subject_index < len(subject_entries):
-                se = subject_entries[multi_subject_index]
-                aq_display = se.get("aquarium_id")
-                if aq_display is not None:
-                    subject_label += f" — Aq. {int(aq_display) + 1}"
+                raw_aq = subject_entries[multi_subject_index].get("aquarium_id")
+                if raw_aq is not None:
+                    aq_display = int(raw_aq)
+            if aq_display is None:
+                aq_display = multi_subject_index
+            subject_label += f" — Aq. {aq_display + 1}"
 
         col_arena = STATUS_SYMBOLS["arena"] if video.get("has_arena") else ""
         col_rois = STATUS_SYMBOLS["rois"] if video.get("has_rois") else ""
@@ -300,6 +314,19 @@ class ReportTreeBuilder:
         status_label = "Processado" if video.get("has_trajectory") else "Pendente"
         if not video.get("has_arena"):
             status_label = "Sem Arena"
+
+        # For multi-subject entries, each row represents ONE aquarium.
+        # Override video-level indicators with per-aquarium processing state
+        # so partial aquarium processing is reflected correctly.
+        if is_multi_subject_entry:
+            col_traj, col_summary, status_label = self._resolve_per_aquarium_status(
+                video,
+                video_path,
+                multi_subject_index,
+                col_traj,
+                col_summary,
+                status_label,
+            )
 
         if is_multi_subject_entry:
             video_node_id = f"{parent}_video_{video_path}_sub_{multi_subject_index}"
@@ -327,6 +354,22 @@ class ReportTreeBuilder:
             "results_dir": video.get("results_dir"),
         }
 
+        # For multi-subject entries, store the aquarium_id for filtering.
+        if is_multi_subject_entry:
+            subject_entries = video.get("metadata", {}).get("subject_entries", [])
+            aq_id: int | None = None
+            if multi_subject_index < len(subject_entries):
+                se = subject_entries[multi_subject_index]
+                raw = se.get("aquarium_id")
+                if raw is not None:
+                    aq_id = int(raw)
+            # Fallback: use multi_subject_index as aquarium_id.  The hierarchy
+            # expansion in ValidationManager enumerates subject_entries by index,
+            # which naturally maps to aquarium IDs (entry 0 → aq 0, entry 1 → aq 1).
+            if aq_id is None:
+                aq_id = multi_subject_index
+            metadata_store[video_node_id]["aquarium_id"] = aq_id
+
         multi_outputs = video.get("multi_aquarium_outputs")
         if not multi_outputs:
             try:
@@ -338,19 +381,115 @@ class ReportTreeBuilder:
                 log.debug("report_tree_builder.multi_outputs_fallback.suppressed", exc_info=True)
 
         if multi_outputs and isinstance(multi_outputs, dict) and len(multi_outputs) > 0:
-            self._insert_multi_aquarium_nodes(
-                tree,
-                video_node_id,
-                video,
-                multi_outputs,
-                metadata_store,
-                is_multi_subject_entry,
-                multi_subject_index,
-            )
+            if is_multi_subject_entry:
+                # For multi-subject rows, the aquarium info is already in the
+                # video node label so we skip the intermediate aquarium child
+                # and attach report artifacts directly.
+                self._attach_multi_subject_artifacts(
+                    tree,
+                    video_node_id,
+                    video,
+                    multi_outputs,
+                    metadata_store,
+                    multi_subject_index,
+                )
+            else:
+                self._insert_multi_aquarium_nodes(
+                    tree,
+                    video_node_id,
+                    video,
+                    multi_outputs,
+                    metadata_store,
+                    is_multi_subject_entry,
+                    multi_subject_index,
+                )
         else:
             self._insert_single_aquarium_node(
                 tree, video_node_id, video, video_path, metadata_store
             )
+
+    def _attach_multi_subject_artifacts(
+        self,
+        tree: Any,
+        parent: str,
+        video: dict,
+        multi_outputs: dict,
+        metadata_store: dict,
+        multi_subject_index: int,
+    ) -> None:
+        """Attach report artifacts for a multi-subject row directly under the video node.
+
+        Instead of creating an intermediate "Aquário N" child, this resolves
+        the correct aquarium output for this row and inserts file nodes directly.
+        """
+        aq_id = multi_subject_index
+        se_list = video.get("metadata", {}).get("subject_entries", [])
+        if multi_subject_index < len(se_list):
+            raw_aq = se_list[multi_subject_index].get("aquarium_id")
+            if raw_aq is not None:
+                aq_id = int(raw_aq)
+
+        # Normalize output keys to int and find the matching aquarium.
+        for raw_key, raw_output in multi_outputs.items():
+            aq_digits = "".join(ch for ch in str(raw_key) if ch.isdigit())
+            if not aq_digits:
+                continue
+            try:
+                key_int = int(aq_digits)
+            except (ValueError, TypeError):
+                continue
+            if key_int != aq_id:
+                continue
+
+            aq_results_dir = raw_output.get("results_dir")
+            # Store aquarium metadata on the video node itself so context
+            # menus and refresh logic still work.
+            metadata_store[parent]["aquarium_id"] = aq_id
+            metadata_store[parent]["results_dir"] = aq_results_dir
+
+            if aq_results_dir and os.path.exists(aq_results_dir):
+                self.append_artifacts(tree, parent, aq_results_dir, metadata_store)
+            break
+
+    def _resolve_per_aquarium_status(
+        self,
+        video: dict,
+        video_path: Path | str,
+        multi_subject_index: int,
+        col_traj: str,
+        col_summary: str,
+        status_label: str,
+    ) -> tuple[str, str, str]:
+        """Derive per-aquarium trajectory/summary indicators for a multi-subject row."""
+        from zebtrack.ui.gui import STATUS_SYMBOLS
+
+        aq_id = multi_subject_index
+        se_list = video.get("metadata", {}).get("subject_entries", [])
+        if multi_subject_index < len(se_list):
+            raw_aq = se_list[multi_subject_index].get("aquarium_id")
+            if raw_aq is not None:
+                aq_id = int(raw_aq)
+
+        multi_out: dict = video.get("multi_aquarium_outputs") or {}
+        if not multi_out:
+            try:
+                pm = self.project_manager
+                entry = pm.find_video_entry(path=video_path) if pm else None
+                if entry and isinstance(entry, dict):
+                    multi_out = entry.get("multi_aquarium_outputs") or {}
+            except (AttributeError, KeyError, TypeError):
+                pass
+
+        aq_data = multi_out.get(str(aq_id), {})
+        aq_pf = aq_data.get("parquet_files", {})
+        if aq_pf.get("trajectory"):
+            col_traj = STATUS_SYMBOLS["trajectory"]
+            if video.get("has_arena"):
+                status_label = "Processado"
+        if aq_pf.get("summary") or aq_pf.get("summary_excel"):
+            col_summary = STATUS_SYMBOLS["summary"]
+
+        return col_traj, col_summary, status_label
 
     def _insert_multi_aquarium_nodes(
         self,

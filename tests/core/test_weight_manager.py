@@ -22,8 +22,10 @@ def wm_setup(tmp_path):
     # Create a mock settings object with minimal attributes
     mock_settings = Mock()
     mock_settings.yolo_model.path = str(default_weight_path)
-    mock_settings.weights.seg_filename = None
-    mock_settings.weights.det_filename = None
+    mock_settings.weights.lateral.seg_filename = None
+    mock_settings.weights.lateral.det_filename = None
+    mock_settings.weights.top_down.seg_filename = None
+    mock_settings.weights.top_down.det_filename = None
 
     # Instantiate the manager with mock settings and temp config dir
     manager = WeightManager(settings_obj=mock_settings, config_dir=str(config_dir))

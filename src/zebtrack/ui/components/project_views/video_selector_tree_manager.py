@@ -577,8 +577,10 @@ class VideoSelectorTreeManager:
         from zebtrack.ui.event_bus_v2 import UIEvents
 
         selections: list[str] = []
+        aquarium_filter: dict[str, list[int]] | None = None
+
         if selection is not None:
-            selections = self._resolve_processing_reports_video_paths(selection)
+            selections, aquarium_filter = self._resolve_processing_reports_video_paths(selection)
         else:
             selections = self.resolve_processing_reports_video_paths()
 
@@ -603,11 +605,14 @@ class VideoSelectorTreeManager:
             original_count=len(selections),
             unique_count=len(unique_paths),
             unique_paths=unique_paths,
+            aquarium_filter=aquarium_filter,
         )
 
-        self.gui.event_dispatcher.publish_event(
-            UIEvents.PROJECT_PROCESS_VIDEOS, {"video_paths": unique_paths}
-        )
+        payload: dict[str, Any] = {"video_paths": unique_paths}
+        if aquarium_filter:
+            payload["aquarium_filter"] = aquarium_filter
+
+        self.gui.event_dispatcher.publish_event(UIEvents.PROJECT_PROCESS_VIDEOS, payload)
         self.request_overview_refresh()
         self.gui.analysis_view_controller.switch_to_analysis_view()
 
@@ -655,25 +660,66 @@ class VideoSelectorTreeManager:
         log.warning("debug.fallback.project_overview")
         return self._resolve_selection_from_project_overview()
 
-    def _resolve_processing_reports_video_paths(self, selection: tuple[str, ...]) -> list[str]:
-        """Resolve selection item IDs to video paths, handling groups recursively."""
+    def _resolve_processing_reports_video_paths(
+        self, selection: tuple[str, ...]
+    ) -> tuple[list[str], dict[str, list[int]] | None]:
+        """Resolve selection item IDs to video paths, handling groups recursively.
+
+        Returns:
+            A tuple of (video_paths, aquarium_filter). The aquarium_filter is
+            ``None`` when all aquariums should be processed, or a dict mapping
+            video_path → list of selected aquarium_ids when only specific
+            aquariums were chosen.
+        """
         if (
             not hasattr(self.gui, "processing_reports_widget")
             or not self.gui.processing_reports_widget
         ):
-            return []
+            return [], None
 
         tree = self.gui.processing_reports_widget.tree
         if not tree:
-            return []
+            return [], None
+
+        metadata_store: dict = getattr(self.gui, "_processing_reports_tree_metadata", {})
 
         paths: set[str] = set()
+        # Track which aquarium IDs were explicitly selected per video path.
+        aq_selections: dict[str, set[int]] = {}
+        has_aquarium_selection = False
 
         def _collect(item_id: str) -> None:
+            nonlocal has_aquarium_selection
+            # First, check metadata for rich node info (aquarium_id, etc.)
+            meta = metadata_store.get(item_id)
+
+            if meta and meta.get("type") == "aquarium":
+                vp = meta.get("video_path")
+                aq_id = meta.get("aquarium_id")
+                if vp and aq_id is not None:
+                    norm_vp = os.path.normpath(vp)
+                    paths.add(norm_vp)
+                    aq_selections.setdefault(norm_vp, set()).add(int(aq_id))
+                    has_aquarium_selection = True
+                return
+
+            # For video nodes, check if they carry aquarium_id (multi-subject)
+            if meta and meta.get("type") == "video":
+                vp = meta.get("video_path")
+                aq_id = meta.get("aquarium_id")
+                if vp:
+                    norm_vp = os.path.normpath(vp)
+                    paths.add(norm_vp)
+                    if aq_id is not None:
+                        aq_selections.setdefault(norm_vp, set()).add(int(aq_id))
+                        has_aquarium_selection = True
+                return
+
+            # Fallback: try the tree column directly
             try:
                 p = tree.set(item_id, "video_path")
                 if p:
-                    paths.add(p)
+                    paths.add(os.path.normpath(p))
                 else:
                     for child in tree.get_children(item_id):
                         _collect(child)
@@ -686,7 +732,11 @@ class VideoSelectorTreeManager:
         for item in selection:
             _collect(item)
 
-        return list(paths)
+        aquarium_filter: dict[str, list[int]] | None = None
+        if has_aquarium_selection:
+            aquarium_filter = {vp: sorted(ids) for vp, ids in aq_selections.items()}
+
+        return list(paths), aquarium_filter
 
     def _resolve_selection_from_project_overview(self) -> list[str]:
         """Resolve selected video paths from Project Overview tree."""

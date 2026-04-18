@@ -109,6 +109,7 @@ class TestDetectorSetupCoordinatorIntegration(unittest.TestCase):
             use_openvino=False,
             active_weight_name="best.pt",
             detector_plugins=None,
+            perspective=None,
         )
 
 

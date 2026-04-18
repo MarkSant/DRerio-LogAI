@@ -77,6 +77,7 @@ def test_setup_detector_delegates(view_model):
         animal_method="seg",
         use_openvino=True,
         active_weight_name="weights.pt",
+        perspective=None,
     )
 
 

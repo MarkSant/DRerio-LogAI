@@ -101,6 +101,7 @@ class TestSetupDetector(unittest.TestCase):
             use_openvino=False,
             active_weight_name="best.pt",
             detector_plugins=None,
+            perspective=None,
         )
 
     def test_setup_detector_with_default_params(self):

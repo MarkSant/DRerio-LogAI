@@ -191,9 +191,20 @@ class MultiAquariumCoordinator(BaseCoordinator):
             # Resolve model path via weight_manager (same pattern as LiveCalibrationCoordinator)
             detection_method = method if method != "auto" else "det"
             model_path = None
+
+            # Resolve perspective from project config for weight selection
+            perspective: str | None = None
+            project_data = self.project_manager.project_data if self.project_manager else {}
+            if project_data:
+                cal_data = (project_data or {}).get("calibration") or {}
+                ba_data = cal_data.get("behavioral_analysis") or {}
+                perspective = ba_data.get("aquarium_perspective") or None
+
             if self.weight_manager:
                 model_path = self.weight_manager.get_weight_path_by_method(
-                    method=detection_method, task="aquarium"
+                    method=detection_method,
+                    task="aquarium",
+                    perspective=perspective,
                 )
             if not model_path:
                 log.error(

@@ -121,6 +121,16 @@ class WeightManager:
                         migrated = True
                         log.info("weights.migration.type_added", name=name, type=weight_type)
 
+                    # Migrate perspective field
+                    if "perspective" not in details:
+                        details["perspective"] = self._classify_perspective(name)
+                        migrated = True
+                        log.info(
+                            "weights.migration.perspective_added",
+                            name=name,
+                            perspective=details["perspective"],
+                        )
+
                     if "openvino_status" not in details:
                         if details.get("openvino_path"):
                             details["openvino_status"] = OPENVINO_STATUS_READY
@@ -137,6 +147,8 @@ class WeightManager:
                     log.info("weights.migration.completed")
 
                 log.info("weights.config.loaded", path=self.config_path)
+                # Auto-discover any new perspective weight files
+                self.discover_perspective_weights()
             except (OSError, json.JSONDecodeError) as e:
                 log.error("weights.config.load_error", error=str(e))
                 self.weights = {}
@@ -144,24 +156,40 @@ class WeightManager:
         else:
             self._initialize_default_weight()
 
-    def get_weight_path_by_method(self, method: str, task: str) -> str | None:
+    def get_weight_path_by_method(
+        self,
+        method: str,
+        task: str,
+        perspective: str | None = None,
+    ) -> str | None:
         """
         Get the weight path for a specific method and task.
+
+        When *perspective* is given the lookup prefers a weight that matches
+        both perspective and type, falling back to any weight of the requested
+        type when no perspective-specific weight is registered.
 
         Args:
             method: "seg" or "det"
             task: "aquarium" or "animal" (for logging purposes)
+            perspective: Optional "lateral" or "top_down"
 
         Returns:
             Path to the appropriate weight file, or None if not found
         """
-        if method == "seg":
-            name, details = self.get_default_seg_weight()
-        elif method == "det":
-            name, details = self.get_default_det_weight()
-        else:
-            log.error("weights.get_path.invalid_method", method=method, task=task)
-            return None
+        name: str | None = None
+        details: dict | None = None
+
+        if perspective:
+            name, details = self.get_weight_by_perspective_and_type(perspective, method)
+        if details is None:
+            if method == "seg":
+                name, details = self.get_default_seg_weight()
+            elif method == "det":
+                name, details = self.get_default_det_weight()
+            else:
+                log.error("weights.get_path.invalid_method", method=method, task=task)
+                return None
 
         if details:
             path = details.get("path")
@@ -179,22 +207,90 @@ class WeightManager:
 
     def _classify_weight_type(self, filename: str) -> str | None:
         """
-        Classifies weight type based on filename suffix.
+        Classifies weight type based on filename patterns.
+
+        Supports both old and new naming conventions:
+        - Old: ``*_seg.pt``, ``*_oi.pt``
+        - New: ``*_seg_lateral.pt``, ``*_det_topdown.pt``, ``*_seg_topdown.pt``, etc.
 
         Args:
             filename: The weight filename
 
         Returns:
-            "seg" for segmentation models (*_seg.pt), "det" for detection models
-            (*_oi.pt), None if classification can't be determined from suffix.
+            "seg" for segmentation models, "det" for detection models,
+            None if classification can't be determined from suffix.
         """
         filename_lower = filename.lower()
+        # New perspective-aware patterns first (more specific)
+        if "_seg_" in filename_lower or filename_lower.startswith("best_seg"):
+            return "seg"
+        if "_det_" in filename_lower or filename_lower.startswith("best_det"):
+            return "det"
+        # Legacy patterns
         if filename_lower.endswith("_seg.pt"):
             return "seg"
-        elif filename_lower.endswith("_oi.pt"):
+        if filename_lower.endswith("_oi.pt"):
             return "det"
-        else:
-            return None
+        return None
+
+    def _classify_perspective(self, filename: str) -> str | None:
+        """Classify camera perspective from a weight filename.
+
+        Recognizes ``*_lateral.pt`` and ``*_topdown.pt`` patterns.
+
+        Args:
+            filename: The weight filename
+
+        Returns:
+            "lateral", "top_down", or None if perspective can't be determined.
+        """
+        filename_lower = filename.lower()
+        if "_lateral" in filename_lower:
+            return "lateral"
+        if "_topdown" in filename_lower:
+            return "top_down"
+        return None
+
+    def discover_perspective_weights(self) -> int:
+        """Auto-discover perspective weight files in the project root.
+
+        Scans for ``best_*_lateral.pt`` and ``best_*_topdown.pt`` files that
+        are not already registered and adds them to the catalog.
+
+        Returns:
+            Number of newly discovered weights.
+        """
+        project_dir = Path(self.config_dir)
+        discovered = 0
+        for pattern in ("best_*_lateral.pt", "best_*_topdown.pt"):
+            for pt_file in project_dir.glob(pattern):
+                weight_name = pt_file.name
+                if weight_name in self.weights:
+                    continue
+                weight_type = self._classify_weight_type(weight_name) or "seg"
+                perspective = self._classify_perspective(weight_name)
+                self.weights[weight_name] = {
+                    "path": str(pt_file.absolute()),
+                    "is_default": True,
+                    "type": weight_type,
+                    "perspective": perspective,
+                    "is_default_seg": weight_type == "seg",
+                    "is_default_det": weight_type == "det",
+                    "openvino_path": "",
+                    "openvino_hash": "",
+                    "openvino_status": OPENVINO_STATUS_NOT_CONVERTED,
+                    "last_conversion_error": None,
+                }
+                discovered += 1
+                log.info(
+                    "weights.auto_discover.found",
+                    name=weight_name,
+                    type=weight_type,
+                    perspective=perspective,
+                )
+        if discovered:
+            self.save_weights()
+        return discovered
 
     def _initialize_default_weight(self) -> None:
         """Initialize the config with the default weight from settings."""
@@ -209,7 +305,7 @@ class WeightManager:
         self.weights = {}
 
         # Check for both seg and det weights from settings
-        potential_weights: list[tuple[str, str]] = []
+        potential_weights: list[tuple[str, str, str | None]] = []
 
         def _coerce_path(candidate: Any, *, source: str) -> str | None:
             """Convert candidate to filesystem path if possible, otherwise log and skip."""
@@ -229,15 +325,20 @@ class WeightManager:
         # Add weights from the new settings - register them even if files don't
         # exist yet. This allows the weight management system to be configured
         # before files are available.
-        seg_candidate = getattr(getattr(self.settings, "weights", None), "seg_filename", None)
-        seg_path = _coerce_path(seg_candidate, source="seg_filename")
-        if seg_path:
-            potential_weights.append(("seg", seg_path))
-
-        det_candidate = getattr(getattr(self.settings, "weights", None), "det_filename", None)
-        det_path = _coerce_path(det_candidate, source="det_filename")
-        if det_path:
-            potential_weights.append(("det", det_path))
+        weights_settings = getattr(self.settings, "weights", None)
+        if weights_settings is not None:
+            for perspective in ("lateral", "top_down"):
+                pw = getattr(weights_settings, perspective, None)
+                if pw is None:
+                    continue
+                seg_src = f"{perspective}_seg"
+                seg_path = _coerce_path(getattr(pw, "seg_filename", None), source=seg_src)
+                if seg_path:
+                    potential_weights.append(("seg", seg_path, perspective))
+                det_src = f"{perspective}_det"
+                det_path = _coerce_path(getattr(pw, "det_filename", None), source=det_src)
+                if det_path:
+                    potential_weights.append(("det", det_path, perspective))
 
         # Check the legacy yolo_model.path for backward compatibility
         legacy_candidate = getattr(getattr(self.settings, "yolo_model", None), "path", None)
@@ -246,12 +347,14 @@ class WeightManager:
             legacy_name = os.path.basename(legacy_path)
             legacy_type = self._classify_weight_type(legacy_name)
             # Add legacy path if it's not already in potential_weights
-            legacy_already_added = any(filename == legacy_path for _, filename in potential_weights)
+            legacy_already_added = any(
+                filename == legacy_path for _, filename, *_ in potential_weights
+            )
             if not legacy_already_added:
-                potential_weights.append((legacy_type or "seg", legacy_path))
+                potential_weights.append((legacy_type or "seg", legacy_path, None))
 
         weights_found = False
-        for weight_type, filename in potential_weights:
+        for weight_type, filename, perspective in potential_weights:
             # Only register weights if the file actually exists
             if not os.path.exists(filename):
                 log.debug(
@@ -265,11 +368,13 @@ class WeightManager:
             classified_type = self._classify_weight_type(weight_name)
             # Use classified type if available, otherwise use the expected type
             final_type = classified_type or weight_type
+            classified_perspective = self._classify_perspective(weight_name) or perspective
 
             self.weights[weight_name] = {
                 "path": filename,
                 "is_default": True,  # Keep for backward compatibility
                 "type": final_type,
+                "perspective": classified_perspective,
                 "is_default_seg": final_type == "seg",
                 "is_default_det": final_type == "det",
                 "openvino_path": "",
@@ -290,8 +395,10 @@ class WeightManager:
         else:
             log.warning(
                 "weights.config.no_weights_found",
-                seg_filename=self.settings.weights.seg_filename,
-                det_filename=self.settings.weights.det_filename,
+                lateral_seg=self.settings.weights.lateral.seg_filename,
+                lateral_det=self.settings.weights.lateral.det_filename,
+                topdown_seg=self.settings.weights.top_down.seg_filename,
+                topdown_det=self.settings.weights.top_down.det_filename,
                 legacy_path=legacy_path,
             )
 
@@ -351,6 +458,36 @@ class WeightManager:
     def get_default_det_weight(self) -> tuple[str, dict] | tuple[None, None]:
         """Return the name and details of the default detection weight."""
         return self.get_default_weight_by_type("det")
+
+    def get_weight_by_perspective_and_type(
+        self,
+        perspective: str,
+        weight_type: str,
+    ) -> tuple[str, dict] | tuple[None, None]:
+        """Return the best matching weight for a perspective and type.
+
+        Lookup order:
+        1. Exact match on both ``perspective`` and ``weight_type``.
+        2. Fallback to any weight of the requested ``weight_type`` (ignoring perspective).
+        3. ``(None, None)`` if nothing matches.
+
+        Args:
+            perspective: "lateral" or "top_down"
+            weight_type: "seg" or "det"
+
+        Returns:
+            Tuple of (name, details) or (None, None)
+        """
+        fallback: tuple[str, dict] | tuple[None, None] = (None, None)
+        for name, details in self.weights.items():
+            if details.get("type") != weight_type:
+                continue
+            if details.get("perspective") == perspective:
+                return name, details
+            # Keep first type-matching entry as fallback
+            if fallback[0] is None:
+                fallback = (name, details)
+        return fallback
 
     def set_default_weight_by_type(self, name_to_set: str, weight_type: str) -> None:
         """
@@ -506,6 +643,7 @@ class WeightManager:
             "path": str(stored_path),
             "is_default": set_as_default,
             "type": weight_type,
+            "perspective": self._classify_perspective(new_name),
             "is_default_seg": weight_type == "seg" and set_as_default,
             "is_default_det": weight_type == "det" and set_as_default,
             "openvino_path": "",

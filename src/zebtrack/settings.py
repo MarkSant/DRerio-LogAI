@@ -668,8 +668,8 @@ class ModelSelectionSettings(BaseModel):
     )
 
 
-class WeightsSelectionSettings(BaseModel):
-    """Settings for weight file selection by type."""
+class PerspectiveWeights(BaseModel):
+    """Weight filenames for a single camera perspective."""
 
     model_config = ConfigDict(
         str_strip_whitespace=True,
@@ -678,13 +678,52 @@ class WeightsSelectionSettings(BaseModel):
     )
 
     seg_filename: str = Field(
-        "best_seg.pt",
+        "",
         description="Filename for segmentation model weights",
     )
     det_filename: str = Field(
-        "best_oi.pt",
+        "",
         description="Filename for detection model weights",
     )
+
+
+class WeightsSelectionSettings(BaseModel):
+    """Settings for weight file selection by type and perspective."""
+
+    model_config = ConfigDict(
+        str_strip_whitespace=True,
+        validate_assignment=True,
+        extra="forbid",
+    )
+
+    lateral: PerspectiveWeights = Field(
+        default_factory=lambda: PerspectiveWeights(
+            seg_filename="best_seg_lateral.pt",
+            det_filename="best_det_lateral.pt",
+        ),
+        description="Weight files for lateral (side-view) camera perspective",
+    )
+    top_down: PerspectiveWeights = Field(
+        default_factory=lambda: PerspectiveWeights(
+            seg_filename="best_seg_topdown.pt",
+            det_filename="best_det_topdown.pt",
+        ),
+        description="Weight files for top-down camera perspective",
+    )
+
+    def get_filenames_for_perspective(self, perspective: str) -> PerspectiveWeights:
+        """Return the PerspectiveWeights for the given perspective.
+
+        Args:
+            perspective: "lateral" or "top_down"
+
+        Returns:
+            PerspectiveWeights for the specified perspective.
+            Falls back to lateral if perspective is unknown.
+        """
+        if perspective == "top_down":
+            return self.top_down
+        return self.lateral
 
 
 class UIFeatureFlags(BaseModel):

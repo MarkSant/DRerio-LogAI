@@ -17,10 +17,12 @@ def test_initialize_both_seg_and_det_weights():
         with open(det_file, "w") as f:
             f.write("mock det model")
 
-        # Mock settings
+        # Mock settings (perspective-aware nested structure)
         mock_settings = MagicMock()
-        mock_settings.weights.seg_filename = seg_file
-        mock_settings.weights.det_filename = det_file
+        mock_settings.weights.lateral.seg_filename = seg_file
+        mock_settings.weights.lateral.det_filename = det_file
+        mock_settings.weights.top_down.seg_filename = ""
+        mock_settings.weights.top_down.det_filename = ""
         mock_settings.yolo_model.path = seg_file  # Legacy path
 
         wm = WeightManager(config_dir=temp_dir, settings_obj=mock_settings)
@@ -62,10 +64,12 @@ def test_initialize_only_seg_weight():
         with open(seg_file, "w") as f:
             f.write("mock seg model")
 
-        # Mock settings
+        # Mock settings (perspective-aware nested structure)
         mock_settings = MagicMock()
-        mock_settings.weights.seg_filename = seg_file
-        mock_settings.weights.det_filename = det_file  # Points to non-existent file
+        mock_settings.weights.lateral.seg_filename = seg_file
+        mock_settings.weights.lateral.det_filename = det_file  # Points to non-existent file
+        mock_settings.weights.top_down.seg_filename = ""
+        mock_settings.weights.top_down.det_filename = ""
         mock_settings.yolo_model.path = seg_file
 
         wm = WeightManager(config_dir=temp_dir, settings_obj=mock_settings)
@@ -99,10 +103,12 @@ def test_initialize_only_det_weight():
         with open(det_file, "w") as f:
             f.write("mock det model")
 
-        # Mock settings
+        # Mock settings (perspective-aware nested structure)
         mock_settings = MagicMock()
-        mock_settings.weights.seg_filename = seg_file  # Points to non-existent file
-        mock_settings.weights.det_filename = det_file
+        mock_settings.weights.lateral.seg_filename = seg_file  # Points to non-existent file
+        mock_settings.weights.lateral.det_filename = det_file
+        mock_settings.weights.top_down.seg_filename = ""
+        mock_settings.weights.top_down.det_filename = ""
         mock_settings.yolo_model.path = det_file
 
         wm = WeightManager(config_dir=temp_dir, settings_obj=mock_settings)
@@ -133,10 +139,12 @@ def test_initialize_no_weights():
         seg_file = os.path.join(temp_dir, "best_seg.pt")
         det_file = os.path.join(temp_dir, "best_oi.pt")
 
-        # Mock settings
+        # Mock settings (perspective-aware nested structure)
         mock_settings = MagicMock()
-        mock_settings.weights.seg_filename = seg_file
-        mock_settings.weights.det_filename = det_file
+        mock_settings.weights.lateral.seg_filename = seg_file
+        mock_settings.weights.lateral.det_filename = det_file
+        mock_settings.weights.top_down.seg_filename = ""
+        mock_settings.weights.top_down.det_filename = ""
         mock_settings.yolo_model.path = seg_file
 
         wm = WeightManager(config_dir=temp_dir, settings_obj=mock_settings)

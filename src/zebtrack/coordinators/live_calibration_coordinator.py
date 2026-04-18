@@ -440,8 +440,18 @@ class LiveCalibrationCoordinator(BaseCoordinator):
 
         log.info("live_calibration_coordinator.live_calibration.method_selected", method=method)
 
-        # Get model path for aquarium detection
-        model_path = self.weight_manager.get_weight_path_by_method(method=method, task="aquarium")
+        # Resolve perspective from project config for weight selection
+        perspective: str | None = None
+        cal_data = project_data.get("calibration") or {}
+        ba_data = cal_data.get("behavioral_analysis") or {}
+        perspective = ba_data.get("aquarium_perspective") or None
+
+        # Get model path for aquarium detection (perspective-aware)
+        model_path = self.weight_manager.get_weight_path_by_method(
+            method=method,
+            task="aquarium",
+            perspective=perspective,
+        )
         if not model_path:
             log.error(
                 "live_calibration_coordinator.live_calibration.no_aquarium_model", method=method

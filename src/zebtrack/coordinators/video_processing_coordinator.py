@@ -194,7 +194,10 @@ class VideoProcessingCoordinator(
         )
 
         def _handle_project_process_videos(payload: payloads.EventPayload) -> None:
-            self.process_pending_project_videos(_payload_get(payload, "video_paths"))
+            self.process_pending_project_videos(
+                _payload_get(payload, "video_paths"),
+                aquarium_filter=_payload_get(payload, "aquarium_filter"),
+            )
 
         bus.subscribe(UIEvents.PROJECT_PROCESS_VIDEOS, _handle_project_process_videos)
 
@@ -579,10 +582,17 @@ class VideoProcessingCoordinator(
     # ========================================================================
 
     def process_pending_project_videos(  # noqa: C901
-        self, video_paths: list[str] | None = None
+        self,
+        video_paths: list[str] | None = None,
+        *,
+        aquarium_filter: dict[str, list[int]] | None = None,
     ) -> None:
         """Process pending videos already added to the project."""
-        log.info("workflow.project_processing.resume_requested", targeted=len(video_paths or []))
+        log.info(
+            "workflow.project_processing.resume_requested",
+            targeted=len(video_paths or []),
+            aquarium_filter=aquarium_filter,
+        )
 
         validation_result = self.validate_can_start_processing(
             check_project_loaded=True,
@@ -696,10 +706,12 @@ class VideoProcessingCoordinator(
                 )
                 return
 
-        self._load_zones_for_eligible_videos(eligible_videos)
+        self._load_zones_for_eligible_videos(eligible_videos, aquarium_filter=aquarium_filter)
 
         # Explode sequential multi-aquarium tasks
-        final_tasks = self._explode_sequential_tasks(eligible_videos)
+        final_tasks = self._explode_sequential_tasks(
+            eligible_videos, aquarium_filter=aquarium_filter
+        )
 
         self.cancel_event.clear()
         ptc = self._progress_coordinator
@@ -770,7 +782,12 @@ class VideoProcessingCoordinator(
         except Exception as e:  # except Exception justified: post-worker non-critical setup
             log.exception("workflow.project_processing.post_worker_error", error=str(e))
 
-    def _explode_sequential_tasks(self, eligible_videos: list[dict]) -> list[dict]:
+    def _explode_sequential_tasks(
+        self,
+        eligible_videos: list[dict],
+        *,
+        aquarium_filter: dict[str, list[int]] | None = None,
+    ) -> list[dict]:
         """Explode sequential multi-aquarium tasks into individual per-aquarium tasks."""
         final_tasks: list[dict] = []
         for video_info in eligible_videos:
@@ -785,7 +802,24 @@ class VideoProcessingCoordinator(
 
                     multi_data = ZoneManager.multi_aquarium_zone_data_from_dict(zone_data_dict)
                     video_basename = os.path.basename(str(video_info.get("path", "")))
+                    video_path_str = str(video_info.get("path", ""))
                     experiment_id = os.path.splitext(video_basename)[0]
+
+                    # Filter aquariums if the user selected specific ones.
+                    allowed_aq_ids: set[int] | None = None
+                    if aquarium_filter:
+                        norm_vp = os.path.normpath(video_path_str)
+                        for fk, fv in aquarium_filter.items():
+                            if os.path.normpath(fk) == norm_vp:
+                                allowed_aq_ids = set(fv)
+                                break
+
+                    aquariums_to_process = [
+                        aq
+                        for aq in multi_data.aquariums
+                        if allowed_aq_ids is None or aq.id in allowed_aq_ids
+                    ]
+
                     aq_configs = [
                         {
                             "aquarium_id": aq.id,
@@ -793,12 +827,12 @@ class VideoProcessingCoordinator(
                             "subject_id": aq.subject_id,
                             "day": int(aq.day) if aq.day else 1,
                         }
-                        for aq in multi_data.aquariums
+                        for aq in aquariums_to_process
                     ]
                     aq_dirs = self.project_manager.resolve_multi_aquarium_results_directories(
                         experiment_id=experiment_id, aquarium_configs=aq_configs
                     )
-                    for aq in multi_data.aquariums:
+                    for aq in aquariums_to_process:
                         aq_task = video_info.copy()
                         # Preserve source video dimensions for worker scaling logic.
                         aq_zone_data = multi_data.to_zone_data(aq.id)

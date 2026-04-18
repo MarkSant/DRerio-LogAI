@@ -186,6 +186,7 @@ class TestDetectorSetup:
             use_openvino=True,
             active_weight_name="yolo11n",
             detector_plugins=None,
+            perspective=None,
         )
 
     def test_setup_detector_with_plugins(self, detector_setup_coordinator, mock_detector_service):

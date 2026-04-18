@@ -97,6 +97,29 @@ class ModelSelectionStep(WizardStep):
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
+    def _get_active_perspective(self) -> str | None:
+        """Read the camera perspective from upstream wizard data.
+
+        The calibration step stores the perspective under
+        ``wizard_data["calibration"]["behavioral_analysis"]["aquarium_perspective"]``.
+
+        Returns:
+            ``"lateral"`` or ``"top_down"``, or *None* if not set.
+        """
+        calibration = self.wizard_data.get("calibration") or {}
+        ba = calibration.get("behavioral_analysis") or {}
+        raw = ba.get("aquarium_perspective")
+        if raw in ("lateral", "top_down"):
+            return raw
+        # Handle enum-style values (e.g. AquariumPerspective.LATERAL)
+        if raw is not None:
+            raw_str = str(raw).lower()
+            if "lateral" in raw_str:
+                return "lateral"
+            if "top" in raw_str:
+                return "top_down"
+        return None
+
     def _load_weight_catalog(self) -> None:
         """Populate cached segmentation/detection weight name lists."""
         self.seg_weight_names.clear()
@@ -236,6 +259,14 @@ class ModelSelectionStep(WizardStep):
         self.iou_thresh_var.set(f"{iou_threshold:.3f}")
 
     def _default_weight_for_method(self, method_key: str) -> str:
+        perspective = self._get_active_perspective()
+        if perspective:
+            name, _ = self.weight_manager.get_weight_by_perspective_and_type(
+                perspective,
+                method_key,
+            )
+            if name:
+                return name
         if method_key == "seg":
             name, _ = self.weight_manager.get_default_seg_weight()
             return name or (self.seg_weight_names[0] if self.seg_weight_names else "")
@@ -864,6 +895,7 @@ class ModelSelectionStep(WizardStep):
 
     def _refresh_weight_dropdowns(self, role: str | None = None) -> None:
         roles = [role] if role else ["aquarium", "animal"]
+        perspective = self._get_active_perspective()
 
         for current in roles:
             if current == "aquarium":
@@ -880,15 +912,38 @@ class ModelSelectionStep(WizardStep):
 
             method_key = self._method_key_from_label(method_var.get())
             if method_key == "seg":
-                options = self.seg_weight_names
+                raw_options = list(self.seg_weight_names)
             else:
-                options = self.det_weight_names
-            combo.configure(values=options)
+                raw_options = list(self.det_weight_names)
 
-            if options:
+            # Annotate perspective-recommended weights
+            recommended_name: str | None = None
+            if perspective:
+                rec, _ = self.weight_manager.get_weight_by_perspective_and_type(
+                    perspective,
+                    method_key,
+                )
+                recommended_name = rec
+
+            display_options: list[str] = []
+            for opt in raw_options:
+                if opt == recommended_name:
+                    display_options.insert(0, f"{opt}  ⭐ Recomendado")
+                else:
+                    display_options.append(opt)
+
+            combo.configure(values=display_options)
+
+            if display_options:
                 current_weight = weight_var.get()
-                if current_weight not in options:
-                    weight_var.set(options[0])
+                # Check if current value is still valid (strip annotation)
+                valid = any(
+                    current_weight == opt or opt.startswith(current_weight + "  ⭐")
+                    for opt in display_options
+                )
+                if not valid:
+                    # Auto-select the recommended weight (first in list)
+                    weight_var.set(display_options[0])
                 combo.configure(state="readonly")
             else:
                 weight_var.set("")
@@ -1046,6 +1101,14 @@ class ModelSelectionStep(WizardStep):
     # ------------------------------------------------------------------
     # Validation and data extraction
     # ------------------------------------------------------------------
+    @staticmethod
+    def _strip_annotation(value: str) -> str:
+        """Remove the '⭐ Recomendado' suffix from a weight name."""
+        marker = "  ⭐ Recomendado"
+        if value.endswith(marker):
+            return value[: -len(marker)]
+        return value
+
     def validate(self) -> tuple[bool, str]:
         """Validate model selection and detector parameters.
 
@@ -1078,7 +1141,8 @@ class ModelSelectionStep(WizardStep):
                 options = self.seg_weight_names
             else:
                 options = self.det_weight_names
-            if options and weight_var.get() not in options:
+            weight_name = self._strip_annotation(weight_var.get())
+            if options and weight_name not in options:
                 return False, (
                     f"Selecione um peso válido para {role}."
                     " O arquivo precisa corresponder ao método escolhido."
@@ -1101,8 +1165,8 @@ class ModelSelectionStep(WizardStep):
             "use_openvino": bool(self.use_openvino_var.get()),
             "openvino_device": self._normalize_openvino_device(self.openvino_device_var.get()),
             "weight_assignments": {
-                "aquarium": self.aquarium_weight_var.get() or None,
-                "animal": self.animal_weight_var.get() or None,
+                "aquarium": self._strip_annotation(self.aquarium_weight_var.get()) or None,
+                "animal": self._strip_annotation(self.animal_weight_var.get()) or None,
             },
             "detector_parameters": {
                 "confidence_threshold": float(self.confidence_var.get()),
