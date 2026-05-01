@@ -51,7 +51,7 @@ jobs:
 
       - name: Create issue on failure
         if: failure()
-        uses: actions/github-script@v8
+        uses: actions/github-script@v9
         with:
           script: |
             const issue = await github.rest.issues.create({
@@ -113,7 +113,7 @@ jobs:
 
       - name: Create issue on failure
         if: failure()
-        uses: actions/github-script@v8
+        uses: actions/github-script@v9
         with:
           script: |
             const issue = await github.rest.issues.create({
@@ -167,7 +167,7 @@ jobs:
 
       - name: Create issue on failure
         if: failure()
-        uses: actions/github-script@v8
+        uses: actions/github-script@v9
         with:
           script: |
             const issue = await github.rest.issues.create({
