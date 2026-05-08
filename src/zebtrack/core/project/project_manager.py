@@ -641,6 +641,139 @@ class ProjectManager:
 
         return removed, failed
 
+    @_threadsafe
+    def remove_aquarium_scope(
+        self,
+        video_path: Path | str,
+        aquarium_id: int,
+        *,
+        delete_files: bool = True,
+        delete_zone: bool = True,
+    ) -> bool:
+        """Remove one aquarium scope from a multi-aquarium video."""
+        video_path_str = str(Path(video_path) if isinstance(video_path, str) else video_path)
+        video_entry = self.find_video_entry(path=video_path_str)
+        if not video_entry:
+            log.warning(
+                "project_manager.aquarium.remove_video_missing",
+                path=video_path_str,
+                aquarium_id=aquarium_id,
+            )
+            return False
+
+        changed = self.asset_manager.remove_aquarium_subject_data(
+            video_entry,
+            aquarium_id,
+            delete_files,
+        )
+
+        if delete_zone:
+            multi_data = self.get_multi_aquarium_zone_data(video_path_str)
+            if multi_data:
+                original_count = len(multi_data.aquariums)
+                multi_data.aquariums = [
+                    aquarium
+                    for aquarium in multi_data.aquariums
+                    if int(aquarium.id) != int(aquarium_id)
+                ]
+                if len(multi_data.aquariums) != original_count:
+                    changed = True
+                    if multi_data.aquariums:
+                        self.zone_manager.save_multi_aquarium_zone_data(
+                            self.project_data,
+                            video_path_str,
+                            multi_data,
+                            persist_callback=None,
+                        )
+                    else:
+                        self.zone_manager.clear_multi_aquarium_zone_data(
+                            self.project_data,
+                            video_path_str,
+                            persist_callback=None,
+                        )
+
+        if changed:
+            self.invalidate_groups_cache()
+            self.save_project()
+        return changed
+
+    @_threadsafe
+    def clear_aquarium_subject(
+        self,
+        video_path: Path | str,
+        aquarium_id: int,
+        *,
+        delete_analysis_data: bool = True,
+        delete_files: bool = True,
+    ) -> bool:
+        """Clear subject binding from one aquarium while preserving aquarium geometry."""
+        video_path_str = str(Path(video_path) if isinstance(video_path, str) else video_path)
+        video_entry = self.find_video_entry(path=video_path_str)
+        if not video_entry:
+            log.warning(
+                "project_manager.aquarium.clear_subject.video_missing",
+                path=video_path_str,
+                aquarium_id=aquarium_id,
+            )
+            return False
+
+        changed = self.asset_manager.clear_aquarium_subject_binding(
+            video_entry,
+            aquarium_id,
+            delete_analysis_data=delete_analysis_data,
+            delete_files=delete_files,
+        )
+
+        multi_data = self.get_multi_aquarium_zone_data(video_path_str)
+        if multi_data:
+            for aquarium in multi_data.aquariums:
+                if int(aquarium.id) == int(aquarium_id):
+                    if aquarium.subject_id:
+                        aquarium.subject_id = ""
+                        changed = True
+                    break
+            if changed:
+                self.zone_manager.save_multi_aquarium_zone_data(
+                    self.project_data,
+                    video_path_str,
+                    multi_data,
+                    persist_callback=None,
+                )
+
+        if changed:
+            self.invalidate_groups_cache()
+            self.save_project()
+        return changed
+
+    @_threadsafe
+    def reset_analysis_data(
+        self,
+        video_path: Path | str,
+        *,
+        aquarium_id: int | None = None,
+        delete_files: bool = True,
+    ) -> bool:
+        """Reset analysis artifacts while preserving arena/ROIs and aquarium drawings."""
+        video_path_str = str(Path(video_path) if isinstance(video_path, str) else video_path)
+        video_entry = self.find_video_entry(path=video_path_str)
+        if not video_entry:
+            log.warning(
+                "project_manager.analysis_reset.video_missing",
+                path=video_path_str,
+                aquarium_id=aquarium_id,
+            )
+            return False
+
+        changed = self.asset_manager.reset_analysis_data(
+            video_entry,
+            delete_files=delete_files,
+            aquarium_id=aquarium_id,
+        )
+
+        if changed:
+            self.save_project()
+        return changed
+
     def remove_day(
         self,
         group_id: str,

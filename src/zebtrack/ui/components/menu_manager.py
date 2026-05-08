@@ -502,6 +502,8 @@ class MenuManager:
         x: int,
         y: int,
         callbacks: dict[str, Callable[..., Any]],
+        *,
+        asset_availability: dict[str, bool] | None = None,
     ) -> None:
         """Show context menu for processing reports tree items.
 
@@ -520,6 +522,12 @@ class MenuManager:
         has_rois = pm.has_roi_data(video_path)
         has_trajectory = pm.has_trajectory_data(video_path)
         has_summary = pm.has_summary_data(video_path)
+
+        if asset_availability is not None:
+            has_arena = bool(asset_availability.get("arena", has_arena))
+            has_rois = bool(asset_availability.get("rois", has_rois))
+            has_trajectory = bool(asset_availability.get("trajectory", has_trajectory))
+            has_summary = bool(asset_availability.get("summary", has_summary))
 
         # Map column ID to asset type for "Quick Action"
         column_map = {
@@ -588,16 +596,22 @@ class MenuManager:
             menu.add_cascade(label="🗑️ Apagar Item Específico...", menu=delete_menu)
             menu.add_separator()
 
-        # 3. Bulk Actions
-        menu.add_command(
-            label="🧹 Apagar Todos os Dados de Processamento",
-            command=lambda: callbacks["delete_all_processing"](video_path),
-        )
+        delete_choice = callbacks.get("delete_choice")
+        if delete_choice is not None:
+            menu.add_command(
+                label="🗑️ Excluir Vídeo / Dados...",
+                command=lambda: delete_choice(video_path),
+            )
+        else:
+            menu.add_command(
+                label="🧹 Apagar Todos os Dados de Processamento",
+                command=lambda: callbacks["delete_all_processing"](video_path),
+            )
 
-        menu.add_command(
-            label="❌ Remover Vídeo do Projeto",
-            command=lambda: callbacks["delete_video"](video_path),
-        )
+            menu.add_command(
+                label="❌ Remover Vídeo do Projeto",
+                command=lambda: callbacks["delete_video"](video_path),
+            )
 
         menu.post(x, y)
 

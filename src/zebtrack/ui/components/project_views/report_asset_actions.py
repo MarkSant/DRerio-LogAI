@@ -30,6 +30,7 @@ class ReportAssetActions:
         self,
         *,
         project_manager_getter: Any,
+        event_dispatcher: Any | None = None,
         dialog_manager: DialogManager | None = None,
         menu_manager: Any | None = None,
         widget_factory: Any | None = None,
@@ -53,6 +54,7 @@ class ReportAssetActions:
             reports_tree_getter: Callable returning the legacy reports tree widget.
         """
         self._project_manager_getter = project_manager_getter
+        self._event_dispatcher = event_dispatcher
         self._dialog_manager = dialog_manager
         self._menu_manager = menu_manager
         self._widget_factory = widget_factory
@@ -85,31 +87,65 @@ class ReportAssetActions:
         assert self._menu_manager is not None
         self._menu_manager.handle_overview_asset_removal(video_path, asset)
 
-    def delete_all_processing_data(self, video_path: Path | str) -> None:
-        """Delete all processing data (arena, rois, trajectory, summary)."""
-        pm = self.project_manager
-
-        confirm = self.dialog_manager.ask_ok_cancel(
-            "Apagar Dados de Processamento",
-            f"Tem certeza que deseja apagar TODOS os dados de processamento "
-            f"(Arena, ROIs, Trajetória, Relatórios) para:\n\n{os.path.basename(video_path)}?\n\n"
-            f"O vídeo será mantido no projeto.",
+    def choose_video_delete_action(self, video_path: Path | str) -> None:
+        """Ask whether to delete processing data only or remove the video entry."""
+        video_name = os.path.basename(str(video_path)) or str(video_path)
+        delete_mode = self.dialog_manager.choose_processing_reports_delete_mode(
+            video_name,
+            target_kind="vídeo",
         )
-        if not confirm:
+        if delete_mode is None:
             return
+        if delete_mode == "project":
+            self.delete_video_from_project(video_path)
+            return
+        self.reset_analysis_data_for_videos(
+            [str(video_path)],
+            target_label=video_name,
+        )
 
-        assets = ["summary", "trajectory", "rois", "arena"]
+    def _refresh_project_views(self, reason: str) -> None:
+        """Refresh project overview and reports tree after asset changes."""
+        assert self._video_selector_manager is not None
+        self._video_selector_manager.refresh_project_views(reason=reason, append_summary=True)
+
+    def reset_analysis_data_for_videos(
+        self,
+        video_paths: list[str],
+        *,
+        target_label: str,
+    ) -> bool:
+        """Reset analysis artifacts while preserving arena/ROIs and aquarium drawings."""
+        unique_paths = list(dict.fromkeys(str(path) for path in video_paths if path))
+        if not unique_paths:
+            return False
+
+        video_names = [os.path.basename(path) or path for path in unique_paths]
+        confirmed, delete_files = self.dialog_manager.confirm_delete_processing_data(
+            target_label,
+            len(unique_paths),
+            video_names,
+        )
+        if not confirmed:
+            return False
+
+        pm = self.project_manager
         changed = False
 
-        for asset in assets:
-            if pm.remove_asset(video_path, asset, delete_files=True):
+        for video_path in unique_paths:
+            if pm.reset_analysis_data(video_path, delete_files=delete_files):
                 changed = True
 
         if changed:
-            assert self._video_selector_manager is not None
-            self._video_selector_manager.refresh_project_views(
-                reason="Dados de processamento apagados", append_summary=True
-            )
+            self._refresh_project_views("Análises resetadas (desenhos preservados)")
+        return changed
+
+    def delete_all_processing_data(self, video_path: Path | str) -> None:
+        """Delete all processing data (arena, rois, trajectory, summary)."""
+        self.reset_analysis_data_for_videos(
+            [str(video_path)],
+            target_label=os.path.basename(str(video_path)) or str(video_path),
+        )
 
     def delete_video_from_project(self, video_path: Path | str) -> None:
         """Delete video from project."""
@@ -181,6 +217,9 @@ class ReportAssetActions:
         Single click opens file nodes only. Folder/video nodes keep normal
         selection behavior and still require double-click to open.
         """
+        if event is not None and getattr(event, "num", 1) != 1:
+            return
+
         widget = self._processing_reports_widget
         if not widget or not widget.tree:
             return
@@ -203,6 +242,19 @@ class ReportAssetActions:
 
         if metadata.get("type") == "file":
             self._handle_report_file_node(metadata)
+
+    def open_report_file_from_metadata(self, metadata: dict) -> None:
+        """Public wrapper to open a report file from metadata."""
+        self._handle_report_file_node(metadata)
+
+    def open_report_parent_folder_from_metadata(self, metadata: dict) -> None:
+        """Open the parent folder for a report file metadata node."""
+        file_path = metadata.get("file_path") or metadata.get("path")
+        if not file_path:
+            return
+        parent_dir = Path(str(file_path)).parent
+        if parent_dir.exists():
+            self._open_path_in_explorer(parent_dir)
 
     def on_processing_reports_item_double_click(self, event: Any | None = None) -> None:
         """Handle double-click on items in the Processing Reports tree."""

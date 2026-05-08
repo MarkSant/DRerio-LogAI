@@ -1070,6 +1070,106 @@ class AssetManager:
         self._refresh_complete_flag_static(video_entry)
 
     @staticmethod
+    def _resolve_aquarium_entry(
+        video_entry: dict,
+        aquarium_id: int,
+    ) -> tuple[int | str | None, dict | None]:
+        """Resolve normalized aquarium key and data from multi-aquarium outputs."""
+        ma_outputs: dict | None = video_entry.get("multi_aquarium_outputs")
+        if not ma_outputs:
+            return None, None
+
+        if aquarium_id in ma_outputs:
+            return aquarium_id, ma_outputs.get(aquarium_id)
+        key_str = str(aquarium_id)
+        if key_str in ma_outputs:
+            return key_str, ma_outputs.get(key_str)
+        return None, None
+
+    def reset_analysis_data(
+        self,
+        video_entry: dict,
+        *,
+        delete_files: bool,
+        aquarium_id: int | None = None,
+    ) -> bool:
+        """Reset analysis artifacts while preserving arena/ROIs and aquarium drawings."""
+        ma_outputs = video_entry.get("multi_aquarium_outputs") or {}
+        if ma_outputs:
+            if aquarium_id is None:
+                target_keys = list(ma_outputs.keys())
+            else:
+                key, aq_data = self._resolve_aquarium_entry(video_entry, aquarium_id)
+                if key is None or aq_data is None:
+                    return False
+                target_keys = [key]
+
+            changed = False
+            for key in target_keys:
+                aq_data = ma_outputs.get(key)
+                if not isinstance(aq_data, dict):
+                    continue
+                parquet_files = aq_data.get("parquet_files") or {}
+                for field in ("trajectory", "summary", "summary_excel", "report_docx"):
+                    file_path = parquet_files.pop(field, None)
+                    if file_path is not None:
+                        changed = True
+                        if delete_files:
+                            self.delete_file_if_exists(file_path)
+
+            if changed:
+                self._refresh_multi_aquarium_flags(video_entry)
+            return changed
+
+        changed_summary = self.remove_summary_asset(video_entry, delete_files)
+        changed_trajectory = self.remove_trajectory_asset(video_entry, delete_files)
+        return changed_summary or changed_trajectory
+
+    def clear_aquarium_subject_binding(
+        self,
+        video_entry: dict,
+        aquarium_id: int,
+        *,
+        delete_analysis_data: bool,
+        delete_files: bool,
+    ) -> bool:
+        """Clear subject binding for one aquarium while preserving aquarium geometry."""
+        key, aq_data = self._resolve_aquarium_entry(video_entry, aquarium_id)
+        if key is None or aq_data is None:
+            return False
+
+        changed = False
+        if delete_analysis_data:
+            changed = (
+                self.reset_analysis_data(
+                    video_entry,
+                    delete_files=delete_files,
+                    aquarium_id=aquarium_id,
+                )
+                or changed
+            )
+
+        if aq_data.get("subject_id"):
+            aq_data["subject_id"] = ""
+            changed = True
+
+        metadata = video_entry.get("metadata")
+        if isinstance(metadata, dict):
+            subject_entries = metadata.get("subject_entries")
+            if isinstance(subject_entries, list):
+                for entry in subject_entries:
+                    if not isinstance(entry, dict):
+                        continue
+                    raw_aq = entry.get("aquarium_id")
+                    if raw_aq is None:
+                        continue
+                    if int(raw_aq) == int(aquarium_id) and entry.get("subject"):
+                        entry["subject"] = ""
+                        changed = True
+
+        return changed
+
+    @staticmethod
     def _rmtree_safe(path: str | Path, retries: int = 3) -> bool:
         """``shutil.rmtree`` with OneDrive-safe retry and chmod unlock."""
         import shutil

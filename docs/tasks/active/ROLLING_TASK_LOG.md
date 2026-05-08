@@ -6,6 +6,95 @@ This document tracks all major agent interventions, technical debt resolutions, 
 
 ## Active Tasks
 
+### [2026-04-21] Multi-aquarium deletion matrix (aquarium/animal/video/data-reset)
+
+__ID:__ TASK-064
+__Agent:__ GitHub Copilot (GPT-5.4)
+__Status:__ In Progress 🔄
+__Branch:__ main
+__Description:__
+Implement explicit and safe deletion intents for multi-aquarium scenarios so users can:
+
+- remove a single aquarium scope,
+- remove an animal while preserving aquarium geometry,
+- remove a full video scope,
+- wipe only analysis data to restart processing.
+
+### Subtasks (TASK-064)
+
+- [x] Add explicit payload/event contracts for aquarium-scope and analysis-reset actions.
+- [x] Extend Processing/Reports right-click routing to handle aquarium nodes.
+- [ ] Add core atomic operations in ProjectManager/AssetManager for new intents.
+- [x] Wire new intents through MainViewModelRuntime and ProjectLifecycleCoordinator.
+- [x] Add focused regressions for UI intent routing and multi-aquarium core behavior.
+- [ ] Validate with focused tests, fast suite, and Ruff.
+
+### TASK-064 Progress Update (2026-04-22)
+
+- Fixed context-menu availability mismatch for multi-aquarium subject/video rows by resolving
+  asset availability with aquarium-scoped outputs (`trajectory`, `summary`) when
+  `aquarium_id` is present in reports-tree metadata.
+- Fixed right-click behavior on report file nodes (`.docx`, `.xlsx`) by routing to a
+  dedicated file context menu instead of falling through to file-open behavior.
+- Hardened file-open click handler to ignore non-left-click events to prevent accidental
+  opens during context-menu interactions.
+- Added regressions for:
+  - aquarium-scoped context-menu availability override,
+  - file-node right-click routing,
+  - right-click suppression in single-click file-open handler,
+  - menu manager support for explicit availability override.
+
+Validation (focused):
+
+- `poetry run ruff check src/zebtrack/ui/components/project_views/reports_tree_manager.py src/zebtrack/ui/components/menu_manager.py src/zebtrack/ui/components/project_views/report_asset_actions.py tests/ui/components/test_project_view_manager_helpers.py tests/ui/components/test_menu_manager.py` -> passed
+- `poetry run pytest tests/ui/components/test_project_view_manager_helpers.py tests/ui/components/test_menu_manager.py tests/ui/components/test_processing_reports_widget.py -m gui -n0 -q --no-cov` -> 82 passed, 1 skipped
+
+### [2026-04-21] Processing/Reports context menu restoration and delete UX
+
+__ID:__ TASK-063
+__Agent:__ GitHub Copilot (GPT-5.4)
+__Status:__ Complete ✅
+__Branch:__ main
+__Description:__
+Restore the right-click context menu in the Processing/Reports tab, align its
+EventBusV2 payload contract with the menu handler, extend the menu to hierarchy
+nodes, and unify deletion UX so the user can explicitly choose between deleting
+generated data only or removing the project item as well.
+
+### Subtasks (TASK-063)
+
+- [x] Fix the right-click payload contract for `PROCESSING_REPORTS_ITEM_RIGHT_CLICK`.
+- [x] Restore popup menu display for video rows with valid column and cursor data.
+- [x] Support hierarchy nodes (group/day/subject) in the reports tree context menu.
+- [x] Reuse the hierarchy deletion flow and clarify data-only vs remove-from-project.
+- [x] Add focused regression tests for right-click payloads and delete actions.
+- [x] Validate with focused tests, fast tests, and Ruff.
+
+__Files Changed:__
+
+| File | Change |
+| --- | --- |
+| `src/zebtrack/ui/payloads.py` | Extended context-menu payload with optional `column_id` used by the processing/reports tree |
+| `src/zebtrack/ui/event_bus_v2.py` | Mapped `PROCESSING_REPORTS_ITEM_RIGHT_CLICK` to the typed context-menu payload |
+| `src/zebtrack/ui/components/processing_reports.py` | Right-click handler now emits item id, column id, and screen coordinates |
+| `src/zebtrack/ui/components/project_views/reports_tree_manager.py` | Handles typed right-click payloads, opens menu for video rows, and adds hierarchy-node delete menu/dispatch |
+| `src/zebtrack/ui/components/project_views/report_asset_actions.py` | Added delete-choice flow for videos and bulk data cleanup for descendant videos |
+| `src/zebtrack/ui/components/dialog_manager.py` | Added processing/reports deletion choice and data-only confirmation dialogs |
+| `src/zebtrack/ui/components/menu_manager.py` | Video context menu now exposes a single `Excluir Vídeo / Dados...` choice entry |
+| `tests/ui/components/test_processing_reports_widget.py` | Assert right-click payload includes coordinates and column id |
+| `tests/ui/components/test_menu_manager.py` | Updated menu expectations for the new delete-choice entry |
+| `tests/ui/components/test_project_view_manager_helpers.py` | Added regressions for video right-click and hierarchy-node delete flows |
+
+__Validation:__
+
+- `poetry run python scripts/impact_analyzer.py event PROCESSING_REPORTS_ITEM_RIGHT_CLICK`
+- `poetry run python scripts/impact_analyzer.py file src/zebtrack/ui/components/processing_reports.py`
+- `poetry run python scripts/impact_analyzer.py file src/zebtrack/ui/components/project_views/reports_tree_manager.py`
+- `poetry run pytest tests/ui/components/test_processing_reports_widget.py tests/ui/components/test_menu_manager.py tests/ui/components/test_project_view_manager_helpers.py -m gui -n0 -q --no-cov` → 76 passed, 1 skipped
+- `poetry run ruff check src/zebtrack/ui/components/dialog_manager.py src/zebtrack/ui/components/project_views/report_asset_actions.py src/zebtrack/ui/components/project_views/reports_tree_manager.py src/zebtrack/ui/components/menu_manager.py tests/ui/components/test_processing_reports_widget.py tests/ui/components/test_menu_manager.py tests/ui/components/test_project_view_manager_helpers.py` → passed
+- `poetry run pytest -q` → passed
+- `poetry run ruff check .` → passed
+
 ### [2026-04-14] Phase 3C: Subject-Level Tree Hierarchy + Cascade Deletion
 
 __ID:__ TASK-062

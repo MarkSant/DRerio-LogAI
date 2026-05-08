@@ -205,7 +205,7 @@ class ProjectOverviewWidget(BaseWidget):
                 item_id = selection[0]
                 self.emit_event(
                     UIEvents.PROJECT_VIDEO_DOUBLE_CLICK_WIDGET,
-                    {"item_id": item_id},
+                    payloads.ItemIdPayload(item_id=item_id),
                 )
 
     def _on_video_right_click(self, event) -> None:
@@ -217,7 +217,9 @@ class ProjectOverviewWidget(BaseWidget):
                 self.project_overview_tree.selection_set(item_id)
                 self.emit_event(
                     UIEvents.PROJECT_VIDEO_RIGHT_CLICK_WIDGET,
-                    {"item_id": item_id, "x": event.x_root, "y": event.y_root},
+                    payloads.ProjectContextMenuClickPayload(
+                        item_id=item_id, x=event.x_root, y=event.y_root
+                    ),
                 )
 
     # Public API for updating widget state

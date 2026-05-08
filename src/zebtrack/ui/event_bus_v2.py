@@ -58,6 +58,9 @@ class UIEvents(Enum):
     PROJECT_DELETE_GROUP = auto()
     PROJECT_DELETE_DAY = auto()
     PROJECT_DELETE_SUBJECT = auto()
+    PROJECT_DELETE_AQUARIUM = auto()
+    PROJECT_CLEAR_AQUARIUM_SUBJECT = auto()
+    PROJECT_RESET_ANALYSIS_DATA = auto()
     PROJECT_VIDEO_SELECTED = auto()
     PROJECT_SELECTION_CHANGED = auto()
 
@@ -285,6 +288,9 @@ _PAYLOAD_TYPES: dict[UIEvents, type[Any]] = {
     UIEvents.PROJECT_DELETE_GROUP: payloads.ProjectDeleteGroupPayload,
     UIEvents.PROJECT_DELETE_DAY: payloads.ProjectDeleteDayPayload,
     UIEvents.PROJECT_DELETE_SUBJECT: payloads.ProjectDeleteSubjectPayload,
+    UIEvents.PROJECT_DELETE_AQUARIUM: payloads.ProjectDeleteAquariumPayload,
+    UIEvents.PROJECT_CLEAR_AQUARIUM_SUBJECT: payloads.ProjectClearAquariumSubjectPayload,
+    UIEvents.PROJECT_RESET_ANALYSIS_DATA: payloads.ProjectResetAnalysisDataPayload,
     UIEvents.PROJECT_VIDEO_SELECTED: payloads.ProjectVideoSelectedPayload,
     UIEvents.PROJECT_SELECTION_CHANGED: payloads.ProjectSelectionChangedPayload,
     # Video Processing
@@ -427,8 +433,8 @@ _PAYLOAD_TYPES: dict[UIEvents, type[Any]] = {
     UIEvents.CONFIG_ROI_RULE_CHANGED: payloads.ConfigRoiRuleChangedPayload,
     UIEvents.CONFIG_OPEN_CALIBRATION_DIALOG: payloads.EmptyPayload,
     UIEvents.PROJECT_REFRESH_REQUESTED: payloads.ProjectRefreshRequestedPayload,
-    UIEvents.PROJECT_VIDEO_DOUBLE_CLICK_WIDGET: payloads.VideoPathPayload,
-    UIEvents.PROJECT_VIDEO_RIGHT_CLICK_WIDGET: payloads.VideoPathPayload,
+    UIEvents.PROJECT_VIDEO_DOUBLE_CLICK_WIDGET: payloads.ItemIdPayload,
+    UIEvents.PROJECT_VIDEO_RIGHT_CLICK_WIDGET: payloads.ProjectContextMenuClickPayload,
     UIEvents.PROJECT_ITEM_DOUBLE_CLICK: payloads.ItemIdPayload,
     UIEvents.REPORTS_DELETE_UNIFIED: payloads.ReportsDeleteUnifiedPayload,
     UIEvents.CONTROL_PREVIEW_TOGGLED: payloads.ControlPreviewToggledPayload,
@@ -448,7 +454,7 @@ _PAYLOAD_TYPES: dict[UIEvents, type[Any]] = {
     UIEvents.VIDEO_TREE_REFRESH_REQUESTED: payloads.VideoTreeRefreshRequestedPayload,
     UIEvents.VIDEO_HIERARCHY_SNAPSHOT_REQUESTED: payloads.EmptyPayload,
     UIEvents.READINESS_SNAPSHOT_UPDATED: payloads.ReadinessSnapshotUpdatedPayload,
-    UIEvents.PROCESSING_REPORTS_ITEM_RIGHT_CLICK: payloads.ItemIdPayload,
+    UIEvents.PROCESSING_REPORTS_ITEM_RIGHT_CLICK: payloads.ProjectContextMenuClickPayload,
     UIEvents.UI_REQUEST_PROCESS_VIDEOS: payloads.EmptyPayload,
     UIEvents.PROCESSING_STATS_UPDATED: payloads.ProcessingStatsPayload,
     UIEvents.SOCIAL_SUMMARY_UPDATED: payloads.SocialSummaryPayload,

@@ -70,6 +70,9 @@ class MainViewModelRuntime:
         UIEvents.PROJECT_DELETE_GROUP,
         UIEvents.PROJECT_DELETE_DAY,
         UIEvents.PROJECT_DELETE_SUBJECT,
+        UIEvents.PROJECT_DELETE_AQUARIUM,
+        UIEvents.PROJECT_CLEAR_AQUARIUM_SUBJECT,
+        UIEvents.PROJECT_RESET_ANALYSIS_DATA,
         UIEvents.CALIBRATION_COPY_TO_PROJECT,
         UIEvents.CALIBRATION_SAVE_TO_PROJECT,
         UIEvents.PROJECT_GENERATE_SUMMARIES,
@@ -127,6 +130,9 @@ class MainViewModelRuntime:
                 self._handle_zone_event(data)
             case (
                 UIEvents.PROJECT_DELETE_ASSET
+                | UIEvents.PROJECT_DELETE_AQUARIUM
+                | UIEvents.PROJECT_CLEAR_AQUARIUM_SUBJECT
+                | UIEvents.PROJECT_RESET_ANALYSIS_DATA
                 | UIEvents.CALIBRATION_COPY_TO_PROJECT
                 | UIEvents.CALIBRATION_SAVE_TO_PROJECT
                 | UIEvents.PROJECT_GENERATE_SUMMARIES
@@ -228,22 +234,10 @@ class MainViewModelRuntime:
         payload_dict: dict[str, Any],
     ) -> None:
         vm = self._vm
-        if event_name is UIEvents.PROJECT_DELETE_ASSET:
-            if payload_dict:
-                vm.project_vm.handle_delete_project_asset(**payload_dict)
-        elif event_name in (
-            UIEvents.PROJECT_DELETE_GROUP,
-            UIEvents.PROJECT_DELETE_DAY,
-            UIEvents.PROJECT_DELETE_SUBJECT,
-        ):
-            if payload_dict:
-                node_type = {
-                    UIEvents.PROJECT_DELETE_GROUP: "group",
-                    UIEvents.PROJECT_DELETE_DAY: "day",
-                    UIEvents.PROJECT_DELETE_SUBJECT: "subject",
-                }[event_name]
-                vm.project_vm.handle_delete_hierarchy_node(node_type, **payload_dict)
-        elif event_name is UIEvents.CALIBRATION_COPY_TO_PROJECT:
+        if self._handle_project_deletion_events(event_name, payload_dict):
+            return
+
+        if event_name is UIEvents.CALIBRATION_COPY_TO_PROJECT:
             vm.project_vm.handle_calibration_copy_to_project()
         elif event_name is UIEvents.CALIBRATION_SAVE_TO_PROJECT:
             vm.project_vm.handle_calibration_save_to_project()
@@ -263,6 +257,46 @@ class MainViewModelRuntime:
                     video_path = selection[0]
             if video_path:
                 vm.project_vm.on_video_selected(video_path)
+
+    def _handle_project_deletion_events(
+        self,
+        event_name: UIEvents,
+        payload_dict: dict[str, Any],
+    ) -> bool:
+        vm = self._vm
+        if not payload_dict and event_name in {
+            UIEvents.PROJECT_DELETE_ASSET,
+            UIEvents.PROJECT_DELETE_AQUARIUM,
+            UIEvents.PROJECT_CLEAR_AQUARIUM_SUBJECT,
+            UIEvents.PROJECT_RESET_ANALYSIS_DATA,
+            UIEvents.PROJECT_DELETE_GROUP,
+            UIEvents.PROJECT_DELETE_DAY,
+            UIEvents.PROJECT_DELETE_SUBJECT,
+        }:
+            return True
+
+        direct_handlers: dict[UIEvents, Any] = {
+            UIEvents.PROJECT_DELETE_ASSET: vm.project_vm.handle_delete_project_asset,
+            UIEvents.PROJECT_DELETE_AQUARIUM: vm.project_vm.handle_delete_aquarium,
+            UIEvents.PROJECT_CLEAR_AQUARIUM_SUBJECT: vm.project_vm.handle_clear_aquarium_subject,
+            UIEvents.PROJECT_RESET_ANALYSIS_DATA: vm.project_vm.handle_reset_analysis_data,
+        }
+        handler = direct_handlers.get(event_name)
+        if handler is not None:
+            handler(**payload_dict)
+            return True
+
+        hierarchy_map = {
+            UIEvents.PROJECT_DELETE_GROUP: "group",
+            UIEvents.PROJECT_DELETE_DAY: "day",
+            UIEvents.PROJECT_DELETE_SUBJECT: "subject",
+        }
+        node_type = hierarchy_map.get(event_name)
+        if node_type is not None and payload_dict:
+            vm.project_vm.handle_delete_hierarchy_node(node_type, **payload_dict)
+            return True
+
+        return False
 
     def on_project_state_changed(
         self, category: StateCategory, key: str, old: Any, new: Any

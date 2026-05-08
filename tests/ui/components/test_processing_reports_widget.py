@@ -256,6 +256,10 @@ def test_right_click_emits_event(widget):
     call_args = widget.event_bus.publish.call_args
     event_obj = call_args[0][0]  # First positional arg
     assert event_obj.type == UIEvents.PROCESSING_REPORTS_ITEM_RIGHT_CLICK
+    assert event_obj.data.item_id == "video1"
+    assert event_obj.data.column_id == "#1"
+    assert event_obj.data.x == 100
+    assert event_obj.data.y == 200
 
 
 @pytest.mark.gui

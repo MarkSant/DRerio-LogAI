@@ -184,7 +184,8 @@ def test_resolve_unified_strategy_existing_cancel_returns_none(tmp_path):
 
 def test_processing_reports_generate_partial_dispatches_unified_selected_payload():
     _vsm, rtm, gui, pm = _make_manager()
-    pm.get_all_videos.return_value = [{"path": "/videos/v1.mp4", "status": "complete"}]
+    selected_video = {"path": "/videos/v1.mp4", "status": "complete"}
+    pm.get_all_videos.return_value = [selected_video]
 
     mock_widget = Mock()
     mock_widget.get_selection.return_value = ("video_item_1",)
@@ -200,9 +201,198 @@ def test_processing_reports_generate_partial_dispatches_unified_selected_payload
     gui.event_dispatcher.publish_event.assert_called_once_with(
         UIEvents.REPORT_GENERATE,
         payloads.ReportGeneratePayload(
-            videos=[{"path": "/videos/v1.mp4", "status": "complete"}],
+            videos=[selected_video],
             report_type="unified",
             report_scope="selected",
             replace_existing=True,
+        ),
+    )
+
+
+def test_processing_reports_right_click_video_opens_context_menu():
+    _vsm, rtm, gui, _pm = _make_manager()
+    gui.menu_manager = Mock()
+    rtm._tree_metadata["video_item_1"] = {
+        "type": "video",
+        "video_path": "/videos/v1.mp4",
+    }
+
+    rtm._on_processing_reports_right_click(
+        payloads.ProjectContextMenuClickPayload(
+            item_id="video_item_1",
+            column_id="#3",
+            x=120,
+            y=220,
+        )
+    )
+
+    gui.menu_manager.show_processing_reports_context_menu.assert_called_once()
+    call_args = gui.menu_manager.show_processing_reports_context_menu.call_args
+    assert call_args.args[:4] == ("/videos/v1.mp4", "#3", 120, 220)
+    assert "delete_choice" in call_args.args[4]
+
+
+def test_processing_reports_right_click_video_uses_aquarium_asset_availability():
+    _vsm, rtm, gui, pm = _make_manager()
+    gui.menu_manager = Mock()
+    pm.find_video_entry.return_value = {
+        "multi_aquarium_outputs": {
+            "1": {
+                "parquet_files": {
+                    "trajectory": "/videos/v1_aq1_traj.parquet",
+                    "report_docx": "/videos/v1_aq1_report.docx",
+                }
+            }
+        }
+    }
+    pm.has_arena_data.return_value = True
+    pm.has_roi_data.return_value = False
+    pm.has_trajectory_data.return_value = False
+    pm.has_summary_data.return_value = False
+
+    rtm._tree_metadata["video_item_1"] = {
+        "type": "video",
+        "video_path": "/videos/v1.mp4",
+        "aquarium_id": 1,
+    }
+
+    rtm._on_processing_reports_right_click(
+        payloads.ProjectContextMenuClickPayload(
+            item_id="video_item_1",
+            column_id="#3",
+            x=120,
+            y=220,
+        )
+    )
+
+    gui.menu_manager.show_processing_reports_context_menu.assert_called_once()
+    kwargs = gui.menu_manager.show_processing_reports_context_menu.call_args.kwargs
+    assert kwargs["asset_availability"] == {
+        "arena": True,
+        "rois": False,
+        "trajectory": True,
+        "summary": True,
+    }
+
+
+def test_processing_reports_right_click_file_routes_to_file_context_menu():
+    _vsm, rtm, _gui, _pm = _make_manager()
+    rtm._show_report_file_context_menu = Mock()
+    rtm._tree_metadata["file_item_1"] = {
+        "type": "file",
+        "file_path": "/videos/v1_results/report.docx",
+    }
+
+    rtm._on_processing_reports_right_click(
+        payloads.ProjectContextMenuClickPayload(
+            item_id="file_item_1",
+            column_id="#0",
+            x=320,
+            y=420,
+        )
+    )
+
+    rtm._show_report_file_context_menu.assert_called_once_with(
+        {"type": "file", "file_path": "/videos/v1_results/report.docx"},
+        320,
+        420,
+    )
+
+
+def test_processing_reports_item_click_ignores_right_click_events():
+    _vsm, rtm, _gui, _pm = _make_manager()
+    tree = Mock()
+    tree.identify_row.return_value = "file_item_1"
+    rtm._assets._processing_reports_widget = SimpleNamespace(tree=tree)
+    rtm._assets._tree_metadata = {
+        "file_item_1": {"type": "file", "file_path": "/videos/v1_results/report.docx"}
+    }
+    rtm._assets._handle_report_file_node = Mock()
+
+    event = SimpleNamespace(y=12, num=3)
+    rtm._assets.on_processing_reports_item_click(event)
+
+    rtm._assets._handle_report_file_node.assert_not_called()
+
+
+def test_processing_reports_hierarchy_delete_project_publishes_subject_event():
+    _vsm, rtm, gui, _pm = _make_manager()
+    tree = Mock()
+    tree.item.return_value = "🐟 Sujeito C1"
+    gui.processing_reports_widget = SimpleNamespace(tree=tree)
+    gui.dialog_manager.choose_processing_reports_delete_mode.return_value = "project"
+    gui.dialog_manager.confirm_delete_hierarchy_node.return_value = (True, False)
+
+    rtm._collect_descendant_video_paths = Mock(return_value=["/videos/v1.mp4"])
+
+    rtm._handle_hierarchy_delete_action(
+        "subject_node",
+        {"type": "subject", "group_id": "G1", "day_id": "1", "subject_id": "C1"},
+    )
+
+    gui.event_dispatcher.publish_event.assert_called_once_with(
+        UIEvents.PROJECT_DELETE_SUBJECT,
+        payloads.ProjectDeleteSubjectPayload(
+            group_id="G1",
+            day_id="1",
+            subject_id="C1",
+            delete_files=False,
+        ),
+    )
+
+
+def test_processing_reports_hierarchy_delete_data_only_cleans_descendant_videos():
+    _vsm, rtm, gui, _pm = _make_manager()
+    tree = Mock()
+    tree.item.return_value = "📅 Dia 01"
+    gui.processing_reports_widget = SimpleNamespace(tree=tree)
+    gui.dialog_manager.choose_processing_reports_delete_mode.return_value = "data"
+    rtm._collect_descendant_video_paths = Mock(return_value=["/videos/v1.mp4", "/videos/v2.mp4"])
+    rtm._assets.reset_analysis_data_for_videos = Mock()
+
+    rtm._handle_hierarchy_delete_action(
+        "day_node",
+        {"type": "day", "group_id": "G1", "day_id": "1"},
+    )
+
+    rtm._assets.reset_analysis_data_for_videos.assert_called_once_with(
+        ["/videos/v1.mp4", "/videos/v2.mp4"],
+        target_label="Dia 01",
+    )
+
+
+def test_processing_reports_aquarium_delete_scope_publishes_event():
+    _vsm, rtm, gui, _pm = _make_manager()
+    gui.dialog_manager.ask_yes_no.side_effect = [True, False]
+
+    rtm._handle_delete_aquarium_scope(
+        {"type": "aquarium", "video_path": "/videos/v1.mp4", "aquarium_id": 1}
+    )
+
+    gui.event_dispatcher.publish_event.assert_called_once_with(
+        UIEvents.PROJECT_DELETE_AQUARIUM,
+        payloads.ProjectDeleteAquariumPayload(
+            video_path="/videos/v1.mp4",
+            aquarium_id=1,
+            delete_files=False,
+            delete_zone=True,
+        ),
+    )
+
+
+def test_processing_reports_aquarium_reset_analysis_publishes_event():
+    _vsm, rtm, gui, _pm = _make_manager()
+    gui.dialog_manager.ask_yes_no.side_effect = [True, True]
+
+    rtm._handle_reset_aquarium_analysis(
+        {"type": "aquarium", "video_path": "/videos/v1.mp4", "aquarium_id": 0}
+    )
+
+    gui.event_dispatcher.publish_event.assert_called_once_with(
+        UIEvents.PROJECT_RESET_ANALYSIS_DATA,
+        payloads.ProjectResetAnalysisDataPayload(
+            video_path="/videos/v1.mp4",
+            aquarium_id=0,
+            delete_files=True,
         ),
     )

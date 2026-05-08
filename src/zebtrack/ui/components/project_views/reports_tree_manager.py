@@ -12,13 +12,17 @@ video_selector_tree_manager.py) continue to work without changes.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from pathlib import Path
+from tkinter import Menu
+from typing import TYPE_CHECKING, Any, ClassVar
 
 import structlog
 
+from zebtrack.ui import payloads
 from zebtrack.ui.components.project_views.report_asset_actions import ReportAssetActions
 from zebtrack.ui.components.project_views.report_generator_actions import ReportGeneratorActions
 from zebtrack.ui.components.project_views.report_tree_builder import ReportTreeBuilder
+from zebtrack.ui.event_bus_v2 import UIEvents
 
 if TYPE_CHECKING:
     from zebtrack.ui.components.dialog_manager import DialogManager
@@ -36,6 +40,14 @@ class ReportsTreeManager:
 
     Thread-safety: All UI updates must use ``gui.root.after(0, ...)`` pattern.
     """
+
+    _HIERARCHY_NODE_TYPES: ClassVar[frozenset[str]] = frozenset({"group", "day", "subject"})
+    _AQUARIUM_NODE_TYPE: ClassVar[str] = "aquarium"
+    _HIERARCHY_LABELS: ClassVar[dict[str, str]] = {
+        "group": "grupo",
+        "day": "dia",
+        "subject": "sujeito",
+    }
 
     def __init__(
         self,
@@ -86,6 +98,7 @@ class ReportsTreeManager:
 
         self._assets = ReportAssetActions(
             project_manager_getter=pm_getter,
+            event_dispatcher=getattr(gui, "event_dispatcher", None),
             dialog_manager=self._resolve_dialog_manager(),
             menu_manager=getattr(gui, "menu_manager", None),
             widget_factory=getattr(gui, "widget_factory", None),
@@ -145,33 +158,376 @@ class ReportsTreeManager:
     # Right-click context menu
     # ------------------------------------------------------------------
 
-    def _on_processing_reports_right_click(self, data: dict) -> None:
+    def _on_processing_reports_right_click(
+        self, payload: payloads.ProjectContextMenuClickPayload
+    ) -> None:
         """Handle right-click on processing reports tree item."""
-        if not isinstance(data, dict):
+        item_id = payload.item_id
+        if not item_id:
             return
 
-        item_id = data.get("item_id")
-        column_id = data.get("column_id")
-        x = data.get("x")
-        y = data.get("y")
+        column_id = payload.column_id
+        x = payload.x
+        y = payload.y
+        if x is None or y is None:
+            return
 
         metadata = self._tree_metadata.get(item_id)
-        if not metadata or metadata.get("type") != "video":
+        if not metadata:
+            return
+
+        node_type = metadata.get("type")
+        if node_type in self._HIERARCHY_NODE_TYPES:
+            self._show_hierarchy_context_menu(item_id, metadata, x, y)
+            return
+
+        if node_type == self._AQUARIUM_NODE_TYPE:
+            self._show_aquarium_context_menu(metadata, x, y)
+            return
+
+        if node_type == "file":
+            self._show_report_file_context_menu(metadata, x, y)
+            return
+
+        if node_type != "video":
             return
 
         video_path = metadata.get("video_path")
         if not video_path:
             return
 
+        asset_availability = self._resolve_processing_asset_availability(metadata, str(video_path))
+
         callbacks = {
             "delete_asset": self._assets.delete_video_asset,
-            "delete_all_processing": self._assets.delete_all_processing_data,
-            "delete_video": self._assets.delete_video_from_project,
+            "delete_choice": self._assets.choose_video_delete_action,
         }
 
         self.gui.menu_manager.show_processing_reports_context_menu(
-            video_path, column_id, x, y, callbacks
+            video_path,
+            column_id,
+            x,
+            y,
+            callbacks,
+            asset_availability=asset_availability,
         )
+
+    def _show_report_file_context_menu(self, metadata: dict[str, Any], x: int, y: int) -> None:
+        """Show context menu for report files instead of opening on right-click."""
+        menu = Menu(self.gui.root, tearoff=0)
+        menu.add_command(
+            label="📂 Abrir Arquivo",
+            command=lambda: self._assets.open_report_file_from_metadata(metadata),
+        )
+        menu.add_command(
+            label="📁 Abrir Pasta do Arquivo",
+            command=lambda: self._assets.open_report_parent_folder_from_metadata(metadata),
+        )
+        menu.post(x, y)
+
+    def _resolve_processing_asset_availability(
+        self,
+        metadata: dict[str, Any],
+        video_path: Path | str,
+    ) -> dict[str, bool]:
+        """Resolve asset availability for context menu, including aquarium-specific rows."""
+        pm = self.gui.controller.project_manager
+        has_arena = pm.has_arena_data(video_path)
+        has_rois = pm.has_roi_data(video_path)
+        has_trajectory = pm.has_trajectory_data(video_path)
+        has_summary = pm.has_summary_data(video_path)
+
+        aquarium_id = metadata.get("aquarium_id")
+        if aquarium_id is None:
+            return {
+                "arena": bool(has_arena),
+                "rois": bool(has_rois),
+                "trajectory": bool(has_trajectory),
+                "summary": bool(has_summary),
+            }
+
+        entry = pm.find_video_entry(path=video_path)
+        if not isinstance(entry, dict):
+            return {
+                "arena": bool(has_arena),
+                "rois": bool(has_rois),
+                "trajectory": bool(has_trajectory),
+                "summary": bool(has_summary),
+            }
+
+        outputs = entry.get("multi_aquarium_outputs") or {}
+        aq_data = outputs.get(aquarium_id) or outputs.get(str(aquarium_id))
+        parquet_files = aq_data.get("parquet_files") if isinstance(aq_data, dict) else {}
+        parquet_files = parquet_files if isinstance(parquet_files, dict) else {}
+
+        aq_has_trajectory = bool(parquet_files.get("trajectory"))
+        aq_has_summary = bool(
+            parquet_files.get("summary")
+            or parquet_files.get("summary_excel")
+            or parquet_files.get("report_docx")
+        )
+
+        return {
+            "arena": bool(has_arena),
+            "rois": bool(has_rois),
+            "trajectory": aq_has_trajectory,
+            "summary": aq_has_summary,
+        }
+
+    def _show_aquarium_context_menu(self, metadata: dict[str, Any], x: int, y: int) -> None:
+        """Show explicit intent actions for aquarium nodes."""
+        menu = Menu(self.gui.root, tearoff=0)
+
+        menu.add_command(
+            label="🗑️ Apagar Aquário (desenho + dados)...",
+            command=lambda: self._handle_delete_aquarium_scope(metadata),
+        )
+        menu.add_command(
+            label="🐟 Apagar Animal (manter aquário)...",
+            command=lambda: self._handle_clear_aquarium_subject(metadata),
+        )
+        menu.add_command(
+            label="🔄 Reiniciar Análises (manter desenhos)...",
+            command=lambda: self._handle_reset_aquarium_analysis(metadata),
+        )
+
+        menu.post(x, y)
+
+    def _handle_delete_aquarium_scope(self, metadata: dict[str, Any]) -> None:
+        """Delete one aquarium scope including geometry and analysis outputs."""
+        video_path = metadata.get("video_path")
+        aquarium_id = metadata.get("aquarium_id")
+        if not video_path or aquarium_id is None:
+            return
+
+        confirmed = self.dialog_manager.ask_yes_no(
+            "Apagar Aquário",
+            (
+                f"Deseja apagar o aquário {int(aquarium_id) + 1} com seus desenhos "
+                "e dados de análise?"
+            ),
+            icon="warning",
+        )
+        if not confirmed:
+            return
+
+        delete_files = self.dialog_manager.ask_yes_no(
+            "Excluir Arquivos do Disco",
+            (
+                "Deseja também excluir os arquivos gerados desse aquário no disco?\n\n"
+                "Se escolher 'Não', apenas a referência no projeto será removida."
+            ),
+            icon="question",
+        )
+
+        self.gui.event_dispatcher.publish_event(
+            UIEvents.PROJECT_DELETE_AQUARIUM,
+            payloads.ProjectDeleteAquariumPayload(
+                video_path=str(video_path),
+                aquarium_id=int(aquarium_id),
+                delete_files=delete_files,
+                delete_zone=True,
+            ),
+        )
+
+    def _handle_clear_aquarium_subject(self, metadata: dict[str, Any]) -> None:
+        """Clear aquarium subject binding while preserving aquarium geometry."""
+        video_path = metadata.get("video_path")
+        aquarium_id = metadata.get("aquarium_id")
+        if not video_path or aquarium_id is None:
+            return
+
+        confirmed = self.dialog_manager.ask_yes_no(
+            "Apagar Animal",
+            (
+                f"Deseja apagar o animal vinculado ao aquário {int(aquarium_id) + 1} "
+                "mantendo o aquário desenhado?"
+            ),
+            icon="warning",
+        )
+        if not confirmed:
+            return
+
+        delete_analysis_data = self.dialog_manager.ask_yes_no(
+            "Apagar Também Dados de Análise?",
+            (
+                "Deseja também apagar trajetória e relatórios atuais desse aquário?\n\n"
+                "Se escolher 'Não', somente o vínculo do animal será removido."
+            ),
+            icon="question",
+        )
+
+        delete_files = False
+        if delete_analysis_data:
+            delete_files = self.dialog_manager.ask_yes_no(
+                "Excluir Arquivos do Disco",
+                (
+                    "Deseja também excluir os arquivos de análise do disco?\n\n"
+                    "Se escolher 'Não', apenas a referência no projeto será removida."
+                ),
+                icon="question",
+            )
+
+        self.gui.event_dispatcher.publish_event(
+            UIEvents.PROJECT_CLEAR_AQUARIUM_SUBJECT,
+            payloads.ProjectClearAquariumSubjectPayload(
+                video_path=str(video_path),
+                aquarium_id=int(aquarium_id),
+                delete_analysis_data=delete_analysis_data,
+                delete_files=delete_files,
+            ),
+        )
+
+    def _handle_reset_aquarium_analysis(self, metadata: dict[str, Any]) -> None:
+        """Reset only analysis outputs for one aquarium while preserving drawings."""
+        video_path = metadata.get("video_path")
+        aquarium_id = metadata.get("aquarium_id")
+        if not video_path or aquarium_id is None:
+            return
+
+        confirmed = self.dialog_manager.ask_yes_no(
+            "Reiniciar Análises",
+            (
+                f"Deseja apagar apenas trajetória e relatórios do aquário {int(aquarium_id) + 1}, "
+                "mantendo arena e ROIs?"
+            ),
+            icon="warning",
+        )
+        if not confirmed:
+            return
+
+        delete_files = self.dialog_manager.ask_yes_no(
+            "Excluir Arquivos do Disco",
+            (
+                "Deseja também excluir os arquivos de análise no disco?\n\n"
+                "Se escolher 'Não', apenas a referência no projeto será removida."
+            ),
+            icon="question",
+        )
+
+        self.gui.event_dispatcher.publish_event(
+            UIEvents.PROJECT_RESET_ANALYSIS_DATA,
+            payloads.ProjectResetAnalysisDataPayload(
+                video_path=str(video_path),
+                aquarium_id=int(aquarium_id),
+                delete_files=delete_files,
+            ),
+        )
+
+    def _show_hierarchy_context_menu(
+        self,
+        item_id: str,
+        metadata: dict[str, Any],
+        x: int,
+        y: int,
+    ) -> None:
+        """Show context menu for group/day/subject nodes in the reports tree."""
+        node_type = str(metadata.get("type", "item"))
+        label = self._HIERARCHY_LABELS.get(node_type, "item")
+
+        menu = Menu(self.gui.root, tearoff=0)
+        menu.add_command(
+            label=f"🗑️ Excluir {label}…",
+            command=lambda: self._handle_hierarchy_delete_action(item_id, metadata),
+        )
+        menu.post(x, y)
+
+    def _handle_hierarchy_delete_action(self, item_id: str, metadata: dict[str, Any]) -> None:
+        """Ask the user whether to delete generated data or remove the hierarchy node."""
+        node_type = str(metadata.get("type", "item"))
+        display_label = self._get_item_display_label(item_id)
+        delete_mode = self.dialog_manager.choose_processing_reports_delete_mode(
+            display_label,
+            target_kind=self._HIERARCHY_LABELS.get(node_type, "item"),
+        )
+        if delete_mode is None:
+            return
+
+        video_paths = self._collect_descendant_video_paths(item_id)
+        if not video_paths:
+            return
+
+        if delete_mode == "data":
+            self._assets.reset_analysis_data_for_videos(
+                video_paths,
+                target_label=display_label,
+            )
+            return
+
+        video_names = [path.rsplit("\\", 1)[-1].rsplit("/", 1)[-1] for path in video_paths]
+        confirmed, delete_files = self.dialog_manager.confirm_delete_hierarchy_node(
+            node_type,
+            display_label,
+            len(video_names),
+            video_names,
+        )
+        if not confirmed:
+            return
+
+        self._publish_hierarchy_delete(node_type, metadata, delete_files)
+
+    def _publish_hierarchy_delete(
+        self,
+        node_type: str,
+        metadata: dict[str, Any],
+        delete_files: bool,
+    ) -> None:
+        """Publish the correct hierarchy deletion event for the selected node."""
+        if node_type == "group":
+            payload = payloads.ProjectDeleteGroupPayload(
+                group_id=str(metadata["group_id"]),
+                delete_files=delete_files,
+            )
+            event = UIEvents.PROJECT_DELETE_GROUP
+        elif node_type == "day":
+            payload = payloads.ProjectDeleteDayPayload(
+                group_id=str(metadata["group_id"]),
+                day_id=str(metadata["day_id"]),
+                delete_files=delete_files,
+            )
+            event = UIEvents.PROJECT_DELETE_DAY
+        elif node_type == "subject":
+            payload = payloads.ProjectDeleteSubjectPayload(
+                group_id=str(metadata["group_id"]),
+                day_id=str(metadata["day_id"]),
+                subject_id=str(metadata["subject_id"]),
+                delete_files=delete_files,
+            )
+            event = UIEvents.PROJECT_DELETE_SUBJECT
+        else:
+            return
+
+        self.gui.event_dispatcher.publish_event(event, payload)
+
+    def _get_item_display_label(self, item_id: str) -> str:
+        """Return a user-facing label for a tree node without the leading emoji."""
+        tree = getattr(getattr(self.gui, "processing_reports_widget", None), "tree", None)
+        if not tree:
+            return item_id
+
+        raw_text = str(tree.item(item_id, "text") or "").strip()
+        if " " in raw_text:
+            return raw_text.split(" ", 1)[1]
+        return raw_text or item_id
+
+    def _collect_descendant_video_paths(self, item_id: str) -> list[str]:
+        """Collect video paths from all descendant video nodes under a hierarchy item."""
+        tree = getattr(getattr(self.gui, "processing_reports_widget", None), "tree", None)
+        if not tree:
+            return []
+
+        collected: list[str] = []
+
+        def walk(node_id: str) -> None:
+            for child_id in tree.get_children(node_id):
+                child_metadata = self._tree_metadata.get(child_id, {})
+                if child_metadata.get("type") == "video" and child_metadata.get("video_path"):
+                    collected.append(str(child_metadata["video_path"]))
+                else:
+                    walk(child_id)
+
+        walk(item_id)
+        return list(dict.fromkeys(collected))
 
     # ------------------------------------------------------------------
     # Public API — Tree building (delegate to ReportTreeBuilder)
@@ -217,14 +573,14 @@ class ReportsTreeManager:
         self,
         tree: Any,
         parent_id: str,
-        results_dir: str,
+        results_dir: Path | str,
         metadata_store: dict,
     ) -> None:
         """Append report artifacts (docx, xlsx) to tree node."""
         self._tree_builder.append_artifacts(tree, parent_id, results_dir, metadata_store)
 
     def append_report_artifacts(
-        self, tree: Any, parent_id: str, results_dir: str, metadata_store: dict
+        self, tree: Any, parent_id: str, results_dir: Path | str, metadata_store: dict
     ) -> None:
         """Legacy alias for ``append_processing_reports_artifacts``."""
         self._tree_builder.append_artifacts(tree, parent_id, results_dir, metadata_store)
@@ -301,15 +657,15 @@ class ReportsTreeManager:
     # Deletion helpers (delegate to ReportAssetActions)
     # ------------------------------------------------------------------
 
-    def _delete_video_asset(self, video_path: str, asset: str) -> None:
+    def _delete_video_asset(self, video_path: Path | str, asset: str) -> None:
         """Delete specific asset via MenuManager reuse."""
         self._assets.delete_video_asset(video_path, asset)
 
-    def _delete_all_processing_data(self, video_path: str) -> None:
+    def _delete_all_processing_data(self, video_path: Path | str) -> None:
         """Delete all processing data (arena, rois, trajectory, summary)."""
         self._assets.delete_all_processing_data(video_path)
 
-    def _delete_video_from_project(self, video_path: str) -> None:
+    def _delete_video_from_project(self, video_path: Path | str) -> None:
         """Delete video from project."""
         self._assets.delete_video_from_project(video_path)
 
@@ -321,6 +677,6 @@ class ReportsTreeManager:
     # Private utilities (delegate to ReportAssetActions)
     # ------------------------------------------------------------------
 
-    def _open_path_in_explorer(self, path: str) -> None:
+    def _open_path_in_explorer(self, path: Path | str) -> None:
         """Open a file or folder in the system file explorer."""
         self._assets._open_path_in_explorer(path)

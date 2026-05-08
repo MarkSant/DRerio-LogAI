@@ -59,6 +59,14 @@ class ItemIdPayload:
 
 
 @dataclass(frozen=True)
+class ProjectContextMenuClickPayload:
+    item_id: str
+    x: int | None = None
+    y: int | None = None
+    column_id: str | None = None
+
+
+@dataclass(frozen=True)
 class TrackIdPayload:
     track_id: int
 
@@ -289,6 +297,29 @@ class ProjectDeleteSubjectPayload:
     group_id: str
     day_id: str
     subject_id: str
+    delete_files: bool = True
+
+
+@dataclass(frozen=True)
+class ProjectDeleteAquariumPayload:
+    video_path: str
+    aquarium_id: int
+    delete_files: bool = True
+    delete_zone: bool = True
+
+
+@dataclass(frozen=True)
+class ProjectClearAquariumSubjectPayload:
+    video_path: str
+    aquarium_id: int
+    delete_analysis_data: bool = True
+    delete_files: bool = True
+
+
+@dataclass(frozen=True)
+class ProjectResetAnalysisDataPayload:
+    video_path: str
+    aquarium_id: int | None = None
     delete_files: bool = True
 
 

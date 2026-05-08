@@ -87,6 +87,52 @@ class ProjectViewModel:
             )
         return 0, 0
 
+    def handle_delete_aquarium(
+        self,
+        video_path: Path | str,
+        aquarium_id: int,
+        delete_files: bool = True,
+        delete_zone: bool = True,
+    ) -> bool:
+        if self.project_lifecycle_coordinator:
+            return self.project_lifecycle_coordinator.delete_aquarium_scope(
+                video_path,
+                aquarium_id,
+                delete_files=delete_files,
+                delete_zone=delete_zone,
+            )
+        return False
+
+    def handle_clear_aquarium_subject(
+        self,
+        video_path: Path | str,
+        aquarium_id: int,
+        delete_analysis_data: bool = True,
+        delete_files: bool = True,
+    ) -> bool:
+        if self.project_lifecycle_coordinator:
+            return self.project_lifecycle_coordinator.clear_aquarium_subject(
+                video_path,
+                aquarium_id,
+                delete_analysis_data=delete_analysis_data,
+                delete_files=delete_files,
+            )
+        return False
+
+    def handle_reset_analysis_data(
+        self,
+        video_path: Path | str,
+        aquarium_id: int | None = None,
+        delete_files: bool = True,
+    ) -> bool:
+        if self.project_lifecycle_coordinator:
+            return self.project_lifecycle_coordinator.reset_analysis_data(
+                video_path,
+                aquarium_id=aquarium_id,
+                delete_files=delete_files,
+            )
+        return False
+
     def can_remove_project_asset(
         self, video_path: Path | str, asset: str
     ) -> tuple[bool, str | None]:

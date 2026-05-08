@@ -692,6 +692,126 @@ class ProjectLifecycleCoordinator(BaseCoordinator):
 
         return removed, failed
 
+    def delete_aquarium_scope(
+        self,
+        video_path: Path | str,
+        aquarium_id: int,
+        *,
+        delete_files: bool = True,
+        delete_zone: bool = True,
+    ) -> bool:
+        """Delete one aquarium scope from a multi-aquarium video."""
+        video_path = Path(video_path) if isinstance(video_path, str) else video_path
+        try:
+            removed = self.project_manager.remove_aquarium_scope(
+                str(video_path),
+                aquarium_id,
+                delete_files=delete_files,
+                delete_zone=delete_zone,
+            )
+            self.logger.info(
+                "project.aquarium_delete.result",
+                video=str(video_path),
+                aquarium_id=aquarium_id,
+                removed=removed,
+                delete_files=delete_files,
+                delete_zone=delete_zone,
+            )
+            if self.event_bus and removed:
+                self.event_bus.publish(
+                    UIEvents.VIDEO_TREE_REFRESH_REQUESTED,
+                    {"source": "aquarium_delete_scope"},
+                )
+            return removed
+        except Exception as exc:  # pragma: no cover - defensive logging
+            self.logger.error(
+                "project.aquarium_delete.failed",
+                video=str(video_path),
+                aquarium_id=aquarium_id,
+                error=str(exc),
+                exc_info=True,
+            )
+            return False
+
+    def clear_aquarium_subject(
+        self,
+        video_path: Path | str,
+        aquarium_id: int,
+        *,
+        delete_analysis_data: bool = True,
+        delete_files: bool = True,
+    ) -> bool:
+        """Clear subject binding for one aquarium while keeping aquarium geometry."""
+        video_path = Path(video_path) if isinstance(video_path, str) else video_path
+        try:
+            removed = self.project_manager.clear_aquarium_subject(
+                str(video_path),
+                aquarium_id,
+                delete_analysis_data=delete_analysis_data,
+                delete_files=delete_files,
+            )
+            self.logger.info(
+                "project.aquarium_subject_clear.result",
+                video=str(video_path),
+                aquarium_id=aquarium_id,
+                removed=removed,
+                delete_analysis_data=delete_analysis_data,
+                delete_files=delete_files,
+            )
+            if self.event_bus and removed:
+                self.event_bus.publish(
+                    UIEvents.VIDEO_TREE_REFRESH_REQUESTED,
+                    {"source": "aquarium_clear_subject"},
+                )
+            return removed
+        except Exception as exc:  # pragma: no cover - defensive logging
+            self.logger.error(
+                "project.aquarium_subject_clear.failed",
+                video=str(video_path),
+                aquarium_id=aquarium_id,
+                error=str(exc),
+                exc_info=True,
+            )
+            return False
+
+    def reset_analysis_data(
+        self,
+        video_path: Path | str,
+        *,
+        aquarium_id: int | None = None,
+        delete_files: bool = True,
+    ) -> bool:
+        """Reset analysis artifacts while preserving aquarium drawings/zones."""
+        video_path = Path(video_path) if isinstance(video_path, str) else video_path
+        try:
+            removed = self.project_manager.reset_analysis_data(
+                str(video_path),
+                aquarium_id=aquarium_id,
+                delete_files=delete_files,
+            )
+            self.logger.info(
+                "project.analysis_reset.result",
+                video=str(video_path),
+                aquarium_id=aquarium_id,
+                removed=removed,
+                delete_files=delete_files,
+            )
+            if self.event_bus and removed:
+                self.event_bus.publish(
+                    UIEvents.VIDEO_TREE_REFRESH_REQUESTED,
+                    {"source": "analysis_reset"},
+                )
+            return removed
+        except Exception as exc:  # pragma: no cover - defensive logging
+            self.logger.error(
+                "project.analysis_reset.failed",
+                video=str(video_path),
+                aquarium_id=aquarium_id,
+                error=str(exc),
+                exc_info=True,
+            )
+            return False
+
     def register_project_outputs(
         self,
         *,

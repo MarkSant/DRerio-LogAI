@@ -575,8 +575,7 @@ class TestShowProcessingReportsContextMenu:
 
         callbacks = {
             "delete_asset": Mock(),
-            "delete_all_processing": Mock(),
-            "delete_video": Mock(),
+            "delete_choice": Mock(),
         }
 
         created_menus = []
@@ -612,9 +611,8 @@ class TestShowProcessingReportsContextMenu:
                 labels.append(label)
 
         assert "🗑️ Apagar Arena (Selecionado)" in labels
-        assert "🧹 Apagar Todos os Dados de Processamento" in labels
-        assert "❌ Remover Vídeo do Projeto" in labels
         assert "🗑️ Apagar Item Específico..." in labels
+        assert "🗑️ Excluir Vídeo / Dados..." in labels
 
         # Second menu should be the delete submenu
         assert len(created_menus) >= 2
@@ -632,6 +630,66 @@ class TestShowProcessingReportsContextMenu:
 
         assert "🏛️ Apagar Arena" in delete_labels
         assert "📈 Apagar Trajetória" in delete_labels
+
+    def test_show_processing_reports_context_menu_honors_asset_override(
+        self, menu_manager, tkinter_root
+    ) -> None:
+        """Ensure override allows aquarium-scoped trajectory/summary actions."""
+        from tkinter import Menu as TkMenu
+
+        menu_manager.gui.root = tkinter_root
+        menu_manager.gui.controller.project_manager = Mock()
+        pm = menu_manager.gui.controller.project_manager
+        pm.has_arena_data.return_value = True
+        pm.has_roi_data.return_value = False
+        pm.has_trajectory_data.return_value = False
+        pm.has_summary_data.return_value = False
+
+        callbacks = {
+            "delete_asset": Mock(),
+            "delete_choice": Mock(),
+        }
+
+        created_menus = []
+
+        def menu_factory(*args, **kwargs):
+            menu = TkMenu(*args, **kwargs)
+            created_menus.append(menu)
+            return menu
+
+        with (
+            patch("zebtrack.ui.components.menu_manager.Menu", side_effect=menu_factory),
+            patch.object(TkMenu, "post"),
+        ):
+            menu_manager.show_processing_reports_context_menu(
+                "/path/to/video.mp4",
+                "#3",
+                120,
+                200,
+                callbacks,
+                asset_availability={
+                    "arena": True,
+                    "rois": False,
+                    "trajectory": True,
+                    "summary": True,
+                },
+            )
+
+        assert len(created_menus) >= 2
+        delete_menu = created_menus[1]
+        delete_labels = []
+        delete_end_index = delete_menu.index("end")
+        assert delete_end_index is not None
+        for idx in range(delete_end_index + 1):
+            entry_type = delete_menu.type(idx)
+            if entry_type in {"separator", "tearoff"}:
+                continue
+            label = delete_menu.entrycget(idx, "label")
+            if label:
+                delete_labels.append(label)
+
+        assert "📈 Apagar Trajetória" in delete_labels
+        assert "📝 Apagar Relatórios" in delete_labels
 
 
 @pytest.mark.gui

@@ -396,13 +396,19 @@ class ProcessingReportsWidget(BaseWidget):
             return
 
         item_id = self.tree.identify_row(event.y)
+        column_id = self.tree.identify_column(event.x)
 
         if item_id:
             # Ensure item is selected
             self.tree.selection_set(item_id)
             self.emit_event(
                 UIEvents.PROCESSING_REPORTS_ITEM_RIGHT_CLICK,
-                payloads.ItemIdPayload(item_id=item_id),
+                payloads.ProjectContextMenuClickPayload(
+                    item_id=item_id,
+                    x=event.x_root,
+                    y=event.y_root,
+                    column_id=column_id,
+                ),
             )
 
     def _on_generate_trajectories_clicked(self) -> None:

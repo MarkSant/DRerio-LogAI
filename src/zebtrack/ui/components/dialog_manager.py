@@ -197,6 +197,69 @@ class DialogManager:
         """
         return messagebox.askyesnocancel(title, message, icon=icon)
 
+    def choose_processing_reports_delete_mode(
+        self,
+        target_label: str,
+        *,
+        target_kind: str = "item",
+    ) -> Literal["project", "data"] | None:
+        """Ask whether to remove only generated data or the project item too."""
+        choice = self.ask_yes_no_cancel(
+            f"Excluir {target_kind}",
+            (
+                f"Como deseja excluir {target_kind} '{target_label}'?\n\n"
+                "Sim: remover o item do projeto.\n"
+                "Não: apagar apenas arena, ROIs, trajetória e relatórios gerados.\n"
+                "Cancelar: não fazer nenhuma alteração."
+            ),
+            icon="warning",
+        )
+        if choice is None:
+            return None
+        return "project" if choice else "data"
+
+    def confirm_delete_processing_data(
+        self,
+        target_label: str,
+        video_count: int,
+        video_names: list[str],
+    ) -> tuple[bool, bool]:
+        """Confirm deletion of generated processing data for one or more videos."""
+        preview = "\n".join(f"  • {name}" for name in video_names[:5])
+        if video_count > 5:
+            preview += f"\n  … e mais {video_count - 5} vídeo(s)"
+
+        if video_count <= 1:
+            msg = (
+                f"Apagar apenas os dados de processamento de '{target_label}'?\n\n"
+                "Isso removerá Trajetória e Relatórios gerados,\n"
+                "mantendo Arena e ROIs para novo processamento."
+            )
+        else:
+            msg = (
+                f"Apagar apenas os dados de processamento de '{target_label}'?\n\n"
+                f"Isso afetará {video_count} vídeo(s):\n{preview}\n\n"
+                "Serão removidos Trajetória e Relatórios, mantendo Arena/ROIs."
+            )
+
+        confirmed = self.ask_yes_no(
+            "Apagar Dados de Processamento",
+            msg,
+            icon="warning",
+        )
+        if not confirmed:
+            return False, False
+
+        delete_files = self.ask_yes_no(
+            "Excluir Arquivos do Disco",
+            (
+                "Deseja também excluir os arquivos gerados (Parquets, relatórios) do disco?\n\n"
+                "Se escolher 'Não', apenas a referência no projeto será removida."
+            ),
+            icon="question",
+        )
+        return True, delete_files
+
     # =========================================================================
     # Hierarchy Deletion Dialogs
     # =========================================================================

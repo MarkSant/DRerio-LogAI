@@ -67,6 +67,7 @@ if TYPE_CHECKING:
     from zebtrack.core.project.project_manager import ProjectManager
     from zebtrack.core.state_manager import StateManager
     from zebtrack.settings import Settings
+    from zebtrack.ui import payloads
 
 log = structlog.get_logger()
 
@@ -794,20 +795,19 @@ class ApplicationGUI:
         """Handle project refresh request from overview widget."""
         self.video_selector_manager.request_overview_refresh(reason="Atualização manual")
 
-    def _handle_project_video_double_click(self, data: dict) -> None:
+    def _handle_project_video_double_click(self, payload: payloads.ItemIdPayload) -> None:
         """Handle video double-click from overview widget."""
-        item_id = data.get("item_id")
-        if item_id:
-            self.video_selector_manager.handle_project_overview_double_click(item_id)
+        if payload.item_id:
+            self.video_selector_manager.handle_project_overview_double_click(payload.item_id)
 
-    def _handle_project_video_right_click(self, data: dict) -> None:
+    def _handle_project_video_right_click(
+        self, payload: payloads.ProjectContextMenuClickPayload
+    ) -> None:
         """Handle video right-click from overview widget."""
-        # We pass explicit coordinates if available
-        x = data.get("x")
-        y = data.get("y")
-        item_id = data.get("item_id")
-        if x is not None and y is not None and item_id:
-            self.menu_manager.show_project_overview_context_menu(item_id, x, y)
+        if payload.x is not None and payload.y is not None and payload.item_id:
+            self.menu_manager.show_project_overview_context_menu(
+                payload.item_id, payload.x, payload.y
+            )
 
     @property
     def project_overview_tree(self):
