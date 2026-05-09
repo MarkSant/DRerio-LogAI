@@ -394,9 +394,12 @@ class ConfirmationStep(WizardStep):
             lines.append("")
             lines.append("🎯 Configuração de Detecção:")
             if weight_assignments:
+                aquarium_weight = weight_assignments.get("aquarium")
                 animal_weight = weight_assignments.get("animal")
+                if aquarium_weight:
+                    lines.append(f"  • Peso aquário: {aquarium_weight}")
                 if animal_weight:
-                    lines.append(f"  • Peso ativo: {animal_weight}")
+                    lines.append(f"  • Peso animais: {animal_weight}")
             if detector_params:
                 conf = detector_params.get("confidence_threshold")
                 nms = detector_params.get("nms_threshold")

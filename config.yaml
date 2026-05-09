@@ -82,7 +82,8 @@ recorder:
 yolo_model:
   # Path to model weights file (.pt format)
   # This path is used as fallback; actual model selection happens via model_selection section
-  path: 'best_seg.pt'
+  # Path is relative to the project root; weights live under weights.source_dir.
+  path: 'weights/best_seg.pt'
 
   # Confidence threshold: detections below this score are ignored
   # Range: 0.0-1.0. Lower values detect more but may increase false positives
@@ -238,7 +239,13 @@ openvino:
 # -----------------------------------------------------------------------------
 # Weights are grouped by camera perspective (lateral vs top-down).
 # The wizard auto-suggests the correct weights based on the selected perspective.
+# All filenames below are resolved against `source_dir` (default: "weights/").
 weights:
+  # Folder (relative to project root) where the .pt weight files live.
+  # The WeightManager auto-discovers any best_*_lateral.pt / best_*_topdown.pt
+  # placed inside this folder.
+  source_dir: "weights"
+
   lateral:
     seg_filename: "best_seg_lateral.pt"  # Segmentation model for lateral view
     det_filename: "best_det_lateral.pt"  # Detection model for lateral view

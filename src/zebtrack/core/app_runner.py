@@ -43,10 +43,32 @@ def run_app(
         action="store_true",
         help="Reset benchmark cache and local config, then exit.",
     )
+    parser.add_argument(
+        "--reset-weights",
+        action="store_true",
+        help="Delete weights_config.json (registered weights list), then exit.",
+    )
+    parser.add_argument(
+        "--reset-openvino-cache",
+        action="store_true",
+        help="Delete the openvino_model_cache/ folder (converted models), then exit.",
+    )
+    parser.add_argument(
+        "--reset-all",
+        action="store_true",
+        help=(
+            "Factory reset: equivalent to --reset + --reset-weights + "
+            "--reset-openvino-cache. Deletes everything to a clean slate."
+        ),
+    )
     args = parser.parse_args()
 
-    if args.reset:
-        _perform_reset()
+    if args.reset or args.reset_weights or args.reset_openvino_cache or args.reset_all:
+        _perform_reset(
+            benchmark_and_config=args.reset or args.reset_all,
+            weights_registry=args.reset_weights or args.reset_all,
+            openvino_cache=args.reset_openvino_cache or args.reset_all,
+        )
         sys.exit(0)
 
     if configure_logging_fn is None:
@@ -147,21 +169,85 @@ def run_app(
         log.info("application.finished", component="main")
 
 
-def _perform_reset() -> None:
-    """Delete benchmark cache and local config to restore defaults."""
+def _perform_reset(
+    *,
+    benchmark_and_config: bool = True,
+    weights_registry: bool = False,
+    openvino_cache: bool = False,
+) -> None:
+    """Delete cached state to restore defaults.
+
+    Args:
+        benchmark_and_config: When True, deletes the cached benchmark
+            (``openvino_model_cache/system_benchmark.json``) and the local
+            config override (``config.local.yaml``). Matches the legacy
+            ``--reset`` semantics.
+        weights_registry: When True, deletes ``weights_config.json`` so the
+            app rebuilds it from defaults + weights/ on next launch.
+        openvino_cache: When True, removes the entire
+            ``openvino_model_cache/`` folder (all converted OpenVINO models).
+    """
     from pathlib import Path
 
-    targets = [
-        Path("openvino_model_cache") / "system_benchmark.json",
-        Path("config.local.yaml"),
-    ]
-    for path in targets:
+    file_targets: list[Path] = []
+    if benchmark_and_config:
+        file_targets.append(Path("openvino_model_cache") / "system_benchmark.json")
+        file_targets.append(Path("config.local.yaml"))
+    if weights_registry:
+        file_targets.append(Path("weights_config.json"))
+
+    for path in file_targets:
         if path.exists():
             path.unlink()
             print(f"Removed: {path}")
         else:
             print(f"Not found (skip): {path}")
+
+    if openvino_cache:
+        cache_dir = Path("openvino_model_cache")
+        if cache_dir.exists():
+            if _rmtree_with_unlock(cache_dir):
+                print(f"Removed: {cache_dir}/")
+            else:
+                print(
+                    f"Failed to remove {cache_dir}/. "
+                    "Likely a OneDrive sync lock on a .blob file — pause "
+                    "OneDrive sync (right-click tray icon → Pause) and retry, "
+                    "or delete the folder manually from Explorer."
+                )
+        else:
+            print(f"Not found (skip): {cache_dir}/")
+
     print("Reset complete. Restart the application to apply defaults.")
+
+
+def _rmtree_with_unlock(path: Any, retries: int = 3) -> bool:
+    """``shutil.rmtree`` with chmod-unlock + retry for OneDrive locks.
+
+    Mirrors the ``WeightManager._rmtree_with_unlock`` helper. Stand-alone
+    here because the CLI reset runs before any DI container is built.
+    """
+    import shutil
+    import stat
+    import time
+    from pathlib import Path
+
+    def _on_rm_error(func, fpath: Path | str, _exc_info):
+        fpath = Path(fpath) if isinstance(fpath, str) else fpath
+        try:
+            os.chmod(fpath, stat.S_IWRITE)
+            func(fpath)
+        except OSError:
+            pass
+
+    for attempt in range(retries):
+        try:
+            shutil.rmtree(path, onerror=_on_rm_error)
+            return True
+        except OSError:
+            if attempt < retries - 1:
+                time.sleep(0.5)
+    return False
 
 
 def _setup_logging(

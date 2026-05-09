@@ -7,6 +7,7 @@ and handles conversion to OpenVINO format for optimized inference.
 import json
 import os
 import shutil
+import stat
 import time
 from pathlib import Path
 from typing import Any
@@ -27,6 +28,7 @@ from zebtrack.utils import calculate_sha256
 
 WEIGHTS_CONFIG_FILE = "weights_config.json"
 OPENVINO_CACHE_DIR = "openvino_model_cache"
+DEFAULT_WEIGHTS_DIR = "weights"
 
 log = structlog.get_logger()
 
@@ -34,6 +36,30 @@ OPENVINO_STATUS_NOT_CONVERTED = "not_converted"
 OPENVINO_STATUS_CONVERTING = "converting"
 OPENVINO_STATUS_READY = "ready"
 OPENVINO_STATUS_FAILED = "failed"
+
+# Target taxonomy: a weight is intended either to detect/segment the aquarium
+# (background container) or the zebrafish (the animal subject). This is
+# orthogonal to the model `type` (seg vs det), allowing 4 default-slot
+# combinations: det+aquarium, det+zebrafish, seg+aquarium, seg+zebrafish.
+TARGET_AQUARIUM = "aquarium"
+TARGET_ZEBRAFISH = "zebrafish"
+VALID_TARGETS = (TARGET_AQUARIUM, TARGET_ZEBRAFISH)
+VALID_METHODS = ("seg", "det")
+
+
+def _default_target_for_type(weight_type: str) -> str:
+    """Return the default target inferred from a weight's type.
+
+    Convention used by ZebTrack until v3.x: segmentation models track the
+    zebrafish, detection models track the aquarium. Used as the migration
+    fallback when an existing weight has no explicit `target` field.
+    """
+    return TARGET_ZEBRAFISH if weight_type == "seg" else TARGET_AQUARIUM
+
+
+def _default_flag_key(method: str, target: str) -> str:
+    """Build the dict key for a (method, target) default flag."""
+    return f"is_default_{method}_{target}"
 
 
 class OpenVINOExportError(Exception):
@@ -85,18 +111,63 @@ class WeightManager:
     conversion of PyTorch models to OpenVINO format for optimized inference.
     """
 
-    def __init__(self, settings_obj: Settings | None = None, config_dir: Path | str = "."):
+    def __init__(
+        self,
+        settings_obj: Settings | None = None,
+        config_dir: Path | str = ".",
+        weights_dir: Path | str | None = None,
+    ):
         """Initialize WeightManager with settings dependency injection.
 
         Args:
             settings_obj: Settings instance (injected, required for non-test usage)
-            config_dir: Directory for weights configuration file
+            config_dir: Directory for weights configuration file (and OpenVINO cache).
+            weights_dir: Folder where ``.pt`` weight files live. When ``None`` it
+                is resolved from ``settings_obj.weights.source_dir`` (default:
+                ``"weights"``) joined with ``config_dir``. Created if missing.
         """
         self.settings = settings_obj
         self.config_dir = str(config_dir)
         self.config_path = os.path.join(self.config_dir, WEIGHTS_CONFIG_FILE)
+        self.weights_dir = str(self._resolve_weights_dir(weights_dir))
+        # Ensure the weights folder exists so discovery + add_weight can target it.
+        try:
+            os.makedirs(self.weights_dir, exist_ok=True)
+        except OSError as e:
+            log.warning(
+                "weights.dir.create_failed",
+                path=self.weights_dir,
+                error=str(e),
+            )
         self.weights: dict[str, Any] = {}
         self._load_weights()
+
+    def _resolve_weights_dir(self, override: Path | str | None) -> Path:
+        """Resolve the weights folder path.
+
+        Priority: explicit override > settings.weights.source_dir > DEFAULT_WEIGHTS_DIR.
+        Relative paths are anchored at ``config_dir``. Defensive: any
+        non-string/path value (e.g. a Mock from a partially-stubbed test
+        settings) is silently ignored in favour of the default.
+        """
+        if override is not None:
+            try:
+                candidate = Path(os.fspath(override))
+            except TypeError:
+                candidate = Path(DEFAULT_WEIGHTS_DIR)
+        else:
+            source_dir: str | None = None
+            if self.settings is not None:
+                weights_settings = getattr(self.settings, "weights", None)
+                if weights_settings is not None:
+                    raw = getattr(weights_settings, "source_dir", None)
+                    if isinstance(raw, str | os.PathLike):
+                        source_dir = os.fspath(raw)
+            candidate = Path(source_dir or DEFAULT_WEIGHTS_DIR)
+
+        if not candidate.is_absolute():
+            candidate = Path(self.config_dir) / candidate
+        return candidate
 
     def _load_weights(self) -> None:
         """Load the weights configuration from the JSON file."""
@@ -142,6 +213,47 @@ class WeightManager:
                         details["last_conversion_error"] = None
                         migrated = True
 
+                    # Migrate `target` field (aquarium vs zebrafish).
+                    if "target" not in details:
+                        details["target"] = _default_target_for_type(details.get("type", "seg"))
+                        migrated = True
+                        log.info(
+                            "weights.migration.target_added",
+                            name=name,
+                            target=details["target"],
+                        )
+
+                    # Migrate granular default flags (4 method×target slots).
+                    # Promote legacy `is_default_seg` / `is_default_det` flags
+                    # into the corresponding `is_default_<method>_<target>` slot
+                    # using the weight's current target as anchor.
+                    weight_type = details.get("type", "seg")
+                    target = details.get("target", _default_target_for_type(weight_type))
+                    legacy_default = bool(details.get(f"is_default_{weight_type}", False))
+                    new_key = _default_flag_key(weight_type, target)
+                    if new_key not in details:
+                        details[new_key] = legacy_default
+                        migrated = True
+                    # Ensure all 4 slots exist (False unless already set).
+                    for m in VALID_METHODS:
+                        for t in VALID_TARGETS:
+                            slot = _default_flag_key(m, t)
+                            if slot not in details:
+                                details[slot] = False
+                                migrated = True
+
+                    # Relocate stale absolute paths pointing to the project root
+                    # to the new `weights/` folder when the file exists there.
+                    new_path = self._maybe_relocate_path(name, details.get("path", ""))
+                    if new_path is not None and new_path != details.get("path"):
+                        details["path"] = new_path
+                        migrated = True
+                        log.info(
+                            "weights.migration.path_relocated",
+                            name=name,
+                            new_path=new_path,
+                        )
+
                 if migrated:
                     self.save_weights()
                     log.info("weights.migration.completed")
@@ -165,31 +277,58 @@ class WeightManager:
         """
         Get the weight path for a specific method and task.
 
-        When *perspective* is given the lookup prefers a weight that matches
-        both perspective and type, falling back to any weight of the requested
-        type when no perspective-specific weight is registered.
+        Resolution precedence (most specific wins):
+            1. Default flagged for ``(method, target, perspective)`` (perspective-aware)
+            2. Default flagged for ``(method, target)`` regardless of perspective
+            3. Any registered weight of ``(method, target)``
+            4. Any registered weight of ``method`` (legacy / catch-all)
 
         Args:
-            method: "seg" or "det"
-            task: "aquarium" or "animal" (for logging purposes)
-            perspective: Optional "lateral" or "top_down"
+            method: ``"seg"`` or ``"det"``.
+            task: ``"aquarium"`` or ``"animal"`` (alias for ``"zebrafish"``).
+                Used to look up the corresponding ``target``.
+            perspective: Optional ``"lateral"`` or ``"top_down"``.
 
         Returns:
-            Path to the appropriate weight file, or None if not found
+            Path to the appropriate weight file, or ``None`` if not found.
         """
+        if method not in VALID_METHODS:
+            log.error("weights.get_path.invalid_method", method=method, task=task)
+            return None
+        target = self._normalize_target_alias(task)
+
+        # 1. Perspective-aware lookup respecting target (when both provided).
         name: str | None = None
         details: dict | None = None
+        if target and perspective:
+            name, details = self._find_weight(
+                method=method, target=target, perspective=perspective, default_only=True
+            )
+            if details is None:
+                name, details = self._find_weight(
+                    method=method,
+                    target=target,
+                    perspective=perspective,
+                    default_only=False,
+                )
 
-        if perspective:
-            name, details = self.get_weight_by_perspective_and_type(perspective, method)
+        # 2. Default flag for (method, target) without perspective constraint.
+        if details is None and target:
+            name, details = self.get_default_weight_for(method, target)
+
+        # 3. Legacy default for `method` only (back-compat).
         if details is None:
             if method == "seg":
                 name, details = self.get_default_seg_weight()
-            elif method == "det":
-                name, details = self.get_default_det_weight()
             else:
-                log.error("weights.get_path.invalid_method", method=method, task=task)
-                return None
+                name, details = self.get_default_det_weight()
+
+        # 4. Last-resort: any weight of the requested method.
+        if details is None:
+            for weight_name, weight_details in self.weights.items():
+                if weight_details.get("type") == method:
+                    name, details = weight_name, weight_details
+                    break
 
         if details:
             path = details.get("path")
@@ -197,13 +336,55 @@ class WeightManager:
                 "weights.get_path.selected",
                 method=method,
                 task=task,
+                target=target,
                 name=name,
                 path=path,
             )
             return path
-        else:
-            log.warning("weights.get_path.not_found", method=method, task=task)
+        log.warning("weights.get_path.not_found", method=method, task=task, target=target)
+        return None
+
+    @staticmethod
+    def _normalize_target_alias(task: str | None) -> str | None:
+        """Translate legacy ``task`` aliases into canonical target names."""
+        if not task:
             return None
+        task = task.lower().strip()
+        if task in ("animal", "zebrafish", "fish"):
+            return TARGET_ZEBRAFISH
+        if task in ("aquarium", "aquario", "tank"):
+            return TARGET_AQUARIUM
+        return None
+
+    def _find_weight(
+        self,
+        *,
+        method: str,
+        target: str,
+        perspective: str | None,
+        default_only: bool,
+    ) -> tuple[str, dict] | tuple[None, None]:
+        """Locate a weight matching the requested combination.
+
+        Args:
+            method: ``"seg"`` or ``"det"``.
+            target: ``"aquarium"`` or ``"zebrafish"``.
+            perspective: Required perspective (``"lateral"``/``"top_down"``) or ``None``.
+            default_only: When ``True`` only weights flagged as default for the
+                ``(method, target)`` slot are returned.
+        """
+        slot_key = _default_flag_key(method, target)
+        for name, details in self.weights.items():
+            if details.get("type") != method:
+                continue
+            if details.get("target") != target:
+                continue
+            if perspective is not None and details.get("perspective") != perspective:
+                continue
+            if default_only and not details.get(slot_key, False):
+                continue
+            return name, details
+        return None, None
 
     def _classify_weight_type(self, filename: str) -> str | None:
         """
@@ -252,45 +433,90 @@ class WeightManager:
         return None
 
     def discover_perspective_weights(self) -> int:
-        """Auto-discover perspective weight files in the project root.
+        """Auto-discover perspective weight files in the configured weights folder.
 
         Scans for ``best_*_lateral.pt`` and ``best_*_topdown.pt`` files that
-        are not already registered and adds them to the catalog.
+        are not already registered and adds them to the catalog. Falls back
+        to the legacy project-root location when the weights folder is empty,
+        so migrated installs don't lose their pre-existing files.
 
         Returns:
             Number of newly discovered weights.
         """
-        project_dir = Path(self.config_dir)
+        scan_dirs: list[Path] = [Path(self.weights_dir)]
+        # Legacy fallback: also look at config_dir (project root) if it differs
+        # — handles users who haven't yet copied their .pt files into weights/.
+        legacy_root = Path(self.config_dir).resolve()
+        if Path(self.weights_dir).resolve() != legacy_root:
+            scan_dirs.append(legacy_root)
+
         discovered = 0
-        for pattern in ("best_*_lateral.pt", "best_*_topdown.pt"):
-            for pt_file in project_dir.glob(pattern):
-                weight_name = pt_file.name
-                if weight_name in self.weights:
-                    continue
-                weight_type = self._classify_weight_type(weight_name) or "seg"
-                perspective = self._classify_perspective(weight_name)
-                self.weights[weight_name] = {
-                    "path": str(pt_file.absolute()),
-                    "is_default": True,
-                    "type": weight_type,
-                    "perspective": perspective,
-                    "is_default_seg": weight_type == "seg",
-                    "is_default_det": weight_type == "det",
-                    "openvino_path": "",
-                    "openvino_hash": "",
-                    "openvino_status": OPENVINO_STATUS_NOT_CONVERTED,
-                    "last_conversion_error": None,
-                }
-                discovered += 1
-                log.info(
-                    "weights.auto_discover.found",
-                    name=weight_name,
-                    type=weight_type,
-                    perspective=perspective,
-                )
+        for scan_dir in scan_dirs:
+            if not scan_dir.exists():
+                continue
+            for pattern in ("best_*_lateral.pt", "best_*_topdown.pt"):
+                for pt_file in scan_dir.glob(pattern):
+                    weight_name = pt_file.name
+                    if weight_name in self.weights:
+                        continue
+                    weight_type = self._classify_weight_type(weight_name) or "seg"
+                    perspective = self._classify_perspective(weight_name)
+                    target = _default_target_for_type(weight_type)
+                    self.weights[weight_name] = {
+                        "path": str(pt_file.absolute()),
+                        "is_default": True,
+                        "type": weight_type,
+                        "target": target,
+                        "perspective": perspective,
+                        "is_default_seg": weight_type == "seg",
+                        "is_default_det": weight_type == "det",
+                        "is_default_seg_aquarium": False,
+                        "is_default_seg_zebrafish": False,
+                        "is_default_det_aquarium": False,
+                        "is_default_det_zebrafish": False,
+                        "openvino_path": "",
+                        "openvino_hash": "",
+                        "openvino_status": OPENVINO_STATUS_NOT_CONVERTED,
+                        "last_conversion_error": None,
+                    }
+                    discovered += 1
+                    log.info(
+                        "weights.auto_discover.found",
+                        name=weight_name,
+                        type=weight_type,
+                        target=target,
+                        perspective=perspective,
+                        location=str(scan_dir),
+                    )
         if discovered:
             self.save_weights()
         return discovered
+
+    def _maybe_relocate_path(self, weight_name: str, current_path: Path | str) -> str | None:
+        """Return a relocated absolute path if the weight now lives in `weights_dir`.
+
+        When ``current_path`` points to a file that no longer exists (typically
+        because the project was migrated from project-root weights to the
+        ``weights/`` folder) but a same-named file exists inside ``weights_dir``,
+        return the new absolute path. Otherwise return ``None`` (no change).
+        """
+        current_path = Path(current_path) if isinstance(current_path, str) else current_path
+        if not weight_name:
+            return None
+        target = Path(self.weights_dir) / weight_name
+        if not target.exists():
+            return None
+        # If current path already points at the same file, no relocation needed.
+        try:
+            if current_path and current_path.resolve() == target.resolve():
+                return None
+        except OSError:
+            # current path may be malformed — fall through and relocate.
+            pass
+        # Only relocate when the previously-registered file is gone.
+        if current_path and current_path.exists():
+            return None
+        return str(target.absolute())
 
     def _initialize_default_weight(self) -> None:
         """Initialize the config with the default weight from settings."""
@@ -355,28 +581,35 @@ class WeightManager:
 
         weights_found = False
         for weight_type, filename, perspective in potential_weights:
+            resolved_filename = self._resolve_weight_filename(filename)
             # Only register weights if the file actually exists
-            if not os.path.exists(filename):
+            if not os.path.exists(resolved_filename):
                 log.debug(
                     "weights.config.file_not_found",
-                    filename=filename,
+                    filename=resolved_filename,
                     type=weight_type,
                 )
                 continue
 
-            weight_name = os.path.basename(filename)
+            weight_name = os.path.basename(resolved_filename)
             classified_type = self._classify_weight_type(weight_name)
             # Use classified type if available, otherwise use the expected type
             final_type = classified_type or weight_type
             classified_perspective = self._classify_perspective(weight_name) or perspective
+            target = _default_target_for_type(final_type)
 
             self.weights[weight_name] = {
-                "path": filename,
+                "path": str(Path(resolved_filename).absolute()),
                 "is_default": True,  # Keep for backward compatibility
                 "type": final_type,
+                "target": target,
                 "perspective": classified_perspective,
                 "is_default_seg": final_type == "seg",
                 "is_default_det": final_type == "det",
+                "is_default_seg_aquarium": False,
+                "is_default_seg_zebrafish": False,
+                "is_default_det_aquarium": False,
+                "is_default_det_zebrafish": False,
                 "openvino_path": "",
                 "openvino_hash": "",
                 "openvino_status": OPENVINO_STATUS_NOT_CONVERTED,
@@ -387,7 +620,8 @@ class WeightManager:
                 "weights.config.weight_initialized",
                 name=weight_name,
                 type=final_type,
-                path=filename,
+                target=target,
+                path=resolved_filename,
             )
 
         if weights_found:
@@ -401,6 +635,10 @@ class WeightManager:
                 topdown_det=self.settings.weights.top_down.det_filename,
                 legacy_path=legacy_path,
             )
+
+        # Always sweep the weights folder so freshly-dropped .pt files are
+        # registered even when the settings filenames are blank.
+        self.discover_perspective_weights()
 
     def save_weights(self) -> None:
         """Save the current weights configuration to the JSON file."""
@@ -490,12 +728,14 @@ class WeightManager:
         return fallback
 
     def set_default_weight_by_type(self, name_to_set: str, weight_type: str) -> None:
-        """
-        Set a new default weight for a specific type.
+        """Set a new default weight for a specific type (legacy wrapper).
 
-        Args:
-            name_to_set: Weight name to set as default
-            weight_type: "seg" or "det"
+        .. deprecated:: 3.4
+            Prefer :meth:`set_default_weight_for` which lets callers specify
+            both ``method`` and ``target`` independently. This wrapper keeps
+            existing call sites working by inferring the target from the
+            weight's current ``target`` field (falling back to the type
+            convention).
         """
         if name_to_set not in self.weights:
             log.error(
@@ -515,16 +755,8 @@ class WeightManager:
             )
             return
 
-        default_key = f"is_default_{weight_type}"
-
-        # Unset current default for this type
-        for _name, details in self.weights.items():
-            details[default_key] = False
-
-        # Set new default
-        self.weights[name_to_set][default_key] = True
-        self.save_weights()
-        log.info("weights.default_by_type.set", name=name_to_set, type=weight_type)
+        target = weight_details.get("target") or _default_target_for_type(weight_type)
+        self.set_default_weight_for(name_to_set, method=weight_type, target=target)
 
     def set_default_weight(self, name: str) -> bool:
         """Set a new default weight with proper type handling."""
@@ -557,54 +789,80 @@ class WeightManager:
         self.save_weights()
         return True
 
+    def _resolve_weight_filename(self, filename: str) -> str:
+        """Resolve a bare filename to ``weights_dir/<filename>`` when needed.
+
+        When ``filename`` already has a directory component or is absolute,
+        it is returned unchanged. Bare filenames (e.g. ``"best_seg.pt"``)
+        are anchored at :attr:`weights_dir`. This keeps `config.yaml`
+        configuration concise while honouring the configured weights folder.
+        """
+        candidate = Path(filename)
+        if candidate.is_absolute() or candidate.parent != Path("."):
+            return str(candidate)
+        return str(Path(self.weights_dir) / candidate)
+
     def add_weight(
-        self, new_path: Path | str, set_as_default: bool, weight_type: str | None = None
+        self,
+        new_path: Path | str,
+        set_as_default: bool,
+        weight_type: str | None = None,
+        target: str | None = None,
     ) -> None:
         """
         Add a new weight from a given path after performing security checks.
+
+        External ``.pt`` files (outside the project directory) are copied into
+        :attr:`weights_dir` so the registered path remains stable across
+        environments.
 
         Args:
             new_path: The file path to the new .pt weight file.
             set_as_default: If True, this new weight will become the default.
             weight_type: Optional weight type ("seg" or "det"). If None, will be
-                         classified from filename.
+                classified from filename.
+            target: Optional ``"aquarium"``/``"zebrafish"``. When ``None`` it
+                is inferred from ``weight_type`` (seg→zebrafish, det→aquarium).
         """
         new_path = Path(new_path) if isinstance(new_path, str) else new_path
         # --- Security Check: Path Traversal ---
         try:
-            # Resolve both paths to their absolute form to prevent symbolic link
-            # tricks and ensure the file exists.
             project_dir = Path(self.config_dir).resolve()
+            weights_dir = Path(self.weights_dir).resolve()
             # strict=True checks existence
             model_path = new_path.resolve(strict=True)
             stored_path = new_path.absolute()
 
-            # Check if the model path is inside the project directory.
-            # If not, copy it to the project directory.
+            # If the file is outside the project tree, copy it into weights_dir.
             if not model_path.is_relative_to(project_dir):
                 log.info("weights.add.external_file.copying", source=str(model_path))
                 try:
-                    target_path = project_dir / model_path.name
+                    weights_dir.mkdir(parents=True, exist_ok=True)
+                    target_path = weights_dir / model_path.name
                     if target_path.exists():
-                        # Check if it's the same file or a different one
                         if target_path.resolve() == model_path.resolve():
-                            # Same file via symlink or other path - use the existing one
                             model_path = target_path
                             stored_path = target_path.absolute()
-                            log.info("weights.add.external_file.same_file", path=str(target_path))
+                            log.info(
+                                "weights.add.external_file.same_file",
+                                path=str(target_path),
+                            )
                         else:
                             raise ValueError(
                                 f"Um arquivo de peso com o nome '{model_path.name}' já existe "
-                                f"no diretório de configuração.\n\n"
+                                f"no diretório de pesos.\n\n"
                                 f"Arquivo existente: {target_path}\n"
                                 f"Arquivo sendo adicionado: {model_path}\n\n"
                                 f"Por favor, renomeie um dos arquivos antes de adicionar."
                             )
                     else:
                         shutil.copy2(model_path, target_path)
-                        model_path = target_path  # Use the new copied path
+                        model_path = target_path
                         stored_path = target_path.absolute()
-                        log.info("weights.add.external_file.copied", target=str(target_path))
+                        log.info(
+                            "weights.add.external_file.copied",
+                            target=str(target_path),
+                        )
                 except OSError as e:
                     log.error("weights.add.external_file.copy_failed", error=str(e))
                     raise ValueError(f"Falha ao copiar o arquivo de peso externo: {e}") from e
@@ -612,7 +870,6 @@ class WeightManager:
             log.error("weights.add.not_found", path=new_path)
             raise FileNotFoundError(f"O arquivo de modelo não foi encontrado: {new_path}") from None
         except OSError as e:
-            # This can catch issues like invalid path formats or permissions
             log.error("weights.add.invalid_path", path=new_path, error=str(e))
             raise ValueError(f"O caminho do modelo é inválido ou inacessível: {e}") from e
         # --- End Security Check ---
@@ -632,27 +889,51 @@ class WeightManager:
             # For backward compatibility, default to "seg"
             weight_type = "seg"
 
+        # Resolve target (caller-provided or convention-based default).
+        if target is None:
+            target = _default_target_for_type(weight_type)
+        if target not in VALID_TARGETS:
+            log.warning("weights.add.invalid_target_fallback", target=target)
+            target = _default_target_for_type(weight_type)
+
         if set_as_default:
-            # Unset the current default
+            # Unset legacy global default
             _, current_default = self.get_default_weight()
             if current_default:
                 current_default["is_default"] = False
+
+        slot_key = _default_flag_key(weight_type, target)
 
         # Store the safe, resolved path
         self.weights[new_name] = {
             "path": str(stored_path),
             "is_default": set_as_default,
             "type": weight_type,
+            "target": target,
             "perspective": self._classify_perspective(new_name),
             "is_default_seg": weight_type == "seg" and set_as_default,
             "is_default_det": weight_type == "det" and set_as_default,
+            "is_default_seg_aquarium": False,
+            "is_default_seg_zebrafish": False,
+            "is_default_det_aquarium": False,
+            "is_default_det_zebrafish": False,
             "openvino_path": "",
             "openvino_hash": "",
             "openvino_status": OPENVINO_STATUS_NOT_CONVERTED,
             "last_conversion_error": None,
         }
+        if set_as_default:
+            # Promote to the granular default slot too.
+            self.weights[new_name][slot_key] = True
+
         self.save_weights()
-        log.info("weights.add.success", name=new_name, path=str(model_path), type=weight_type)
+        log.info(
+            "weights.add.success",
+            name=new_name,
+            path=str(model_path),
+            type=weight_type,
+            target=target,
+        )
 
     def delete_weight(self, name_to_delete: str) -> None:
         """Delete a weight from the configuration."""
@@ -686,6 +967,284 @@ class WeightManager:
 
         self.save_weights()
         log.info("weights.delete.success", name=name_to_delete)
+
+    # ------------------------------------------------------------------
+    # New API: 4-slot defaults + target reclassification + maintenance
+    # ------------------------------------------------------------------
+
+    def get_default_weight_for(
+        self, method: str, target: str
+    ) -> tuple[str, dict] | tuple[None, None]:
+        """Return the weight flagged as default for a (method, target) slot.
+
+        Args:
+            method: ``"seg"`` or ``"det"``.
+            target: ``"aquarium"`` or ``"zebrafish"``.
+        """
+        if method not in VALID_METHODS or target not in VALID_TARGETS:
+            return None, None
+        slot_key = _default_flag_key(method, target)
+        for name, details in self.weights.items():
+            if details.get(slot_key):
+                return name, details
+        return None, None
+
+    def set_default_weight_for(self, name: str, *, method: str, target: str) -> bool:
+        """Set ``name`` as the default weight for the (method, target) slot.
+
+        The weight's ``type`` must equal ``method`` (a det weight cannot be a
+        segmentation default). If the weight's ``target`` differs from the
+        requested ``target`` it is reclassified — the user is intentionally
+        repurposing it. Other weights' default flag for the same slot is
+        cleared. Legacy ``is_default_<method>`` flag is also kept in sync for
+        backward compatibility with code paths that still read it.
+
+        Returns:
+            True on success, False if the weight is unknown or method invalid.
+        """
+        if method not in VALID_METHODS or target not in VALID_TARGETS:
+            log.error(
+                "weights.set_default_for.invalid_args",
+                name=name,
+                method=method,
+                target=target,
+            )
+            return False
+        if name not in self.weights:
+            log.error("weights.set_default_for.not_found", name=name)
+            return False
+
+        details = self.weights[name]
+        if details.get("type") != method:
+            log.warning(
+                "weights.set_default_for.type_mismatch",
+                name=name,
+                expected=method,
+                actual=details.get("type"),
+            )
+            return False
+
+        # Reclassify target if necessary (explicit user choice).
+        if details.get("target") != target:
+            details["target"] = target
+            log.info(
+                "weights.set_default_for.target_reclassified",
+                name=name,
+                target=target,
+            )
+
+        slot_key = _default_flag_key(method, target)
+        # Clear current default for this slot
+        for other in self.weights.values():
+            other[slot_key] = False
+        details[slot_key] = True
+        # Keep legacy flag in sync so old consumers still resolve a default.
+        legacy_key = f"is_default_{method}"
+        for other in self.weights.values():
+            other[legacy_key] = False
+        details[legacy_key] = True
+
+        self.save_weights()
+        log.info(
+            "weights.set_default_for.success",
+            name=name,
+            method=method,
+            target=target,
+        )
+        return True
+
+    def set_weight_target(self, name: str, target: str) -> bool:
+        """Reclassify the ``target`` of an existing weight.
+
+        Useful for legacy weights or when the user wants to reuse a model
+        across both aquarium and zebrafish workflows.
+        """
+        if target not in VALID_TARGETS:
+            log.error("weights.set_target.invalid", name=name, target=target)
+            return False
+        if name not in self.weights:
+            log.error("weights.set_target.not_found", name=name)
+            return False
+        self.weights[name]["target"] = target
+        self.save_weights()
+        log.info("weights.set_target.success", name=name, target=target)
+        return True
+
+    @staticmethod
+    def _rmtree_with_unlock(path: str | Path, retries: int = 3) -> bool:
+        """``shutil.rmtree`` with chmod-unlock + retry for OneDrive locks.
+
+        Mirrors the pattern in ``asset_manager._rmtree_safe`` and
+        ``report_generator_actions.delete_all_unified_reports``: when a file
+        is read-only or locked by OneDrive sync, ``onerror`` clears the
+        read-only bit and retries the deletion. The whole rmtree is
+        attempted up to ``retries`` times with a short sleep between
+        attempts to ride out transient locks (e.g. antivirus scans).
+
+        Returns ``True`` on success, ``False`` if every attempt failed.
+        Note: open file handles (e.g. an OpenVINO runtime that still has
+        the .xml/.bin mapped into memory) cannot be unlocked this way —
+        the caller must drop the handle first or the user must restart
+        the app.
+        """
+
+        def _on_rm_error(func: Any, fpath: str | Path, _exc_info: Any) -> None:
+            try:
+                os.chmod(fpath, stat.S_IWRITE)
+                func(fpath)
+            except OSError:
+                # Best-effort: caller's outer retry loop may still recover.
+                pass
+
+        for attempt in range(retries):
+            try:
+                shutil.rmtree(path, onerror=_on_rm_error)
+                return True
+            except OSError:
+                if attempt < retries - 1:
+                    time.sleep(0.5)
+        return False
+
+    def clear_openvino_cache(self, name: str | None = None) -> dict[str, Any]:
+        """Remove OpenVINO cache directories and reset their status.
+
+        Uses :meth:`_rmtree_with_unlock` for OneDrive/read-only resilience.
+        Caches are deleted **and** the in-memory + on-disk registry status
+        is reset for every weight processed, even when the directory could
+        not be removed (so the UI doesn't show stale "ready" state).
+
+        Args:
+            name: If provided, only the cache for this weight is removed.
+                When ``None`` (default), all OpenVINO conversions are wiped
+                — including orphaned folders inside ``openvino_model_cache``
+                that don't correspond to any registered weight.
+
+        Returns:
+            Dict with three lists for UI feedback:
+              ``cleared``: weight names whose cache was removed (or already absent)
+              ``locked``:  weight names whose .xml/.bin couldn't be deleted
+                           (typically because the running detector still has
+                           the file open — ask the user to restart the app)
+              ``orphans_locked``: orphan folders that resisted deletion
+        """
+        cleared: list[str] = []
+        locked: list[str] = []
+        orphans_locked: list[str] = []
+
+        targets: list[str]
+        if name is not None:
+            if name not in self.weights:
+                log.warning("weights.clear_cache.not_found", name=name)
+                return {"cleared": [], "locked": [], "orphans_locked": []}
+            targets = [name]
+        else:
+            targets = list(self.weights.keys())
+
+        for weight_name in targets:
+            details = self.weights[weight_name]
+            cache_path = details.get("openvino_path")
+            removed = True
+            if cache_path and os.path.isdir(cache_path):
+                removed = self._rmtree_with_unlock(cache_path)
+                if removed:
+                    log.info(
+                        "weights.clear_cache.removed",
+                        name=weight_name,
+                        path=cache_path,
+                    )
+                else:
+                    locked.append(weight_name)
+                    log.warning(
+                        "weights.clear_cache.locked",
+                        name=weight_name,
+                        path=cache_path,
+                        message=(
+                            "Cache could not be deleted (OneDrive sync lock "
+                            "or open file handle). Restart the app and retry."
+                        ),
+                    )
+            # Reset metadata regardless: keeping a 'ready' status pointing at
+            # a half-deleted folder is worse than reporting 'not_converted'.
+            details["openvino_path"] = ""
+            details["openvino_hash"] = ""
+            details["openvino_status"] = OPENVINO_STATUS_NOT_CONVERTED
+            details["last_conversion_error"] = None
+            for k in ("openvino_int8_path", "openvino_int8_hash", "openvino_int8_status"):
+                if k in details:
+                    details[k] = OPENVINO_STATUS_NOT_CONVERTED if k.endswith("status") else ""
+            if removed:
+                cleared.append(weight_name)
+
+        # When wiping everything, also delete orphan folders not tied to a
+        # registered weight (e.g. conversions of since-deleted weights).
+        if name is None:
+            cache_root = Path(self.config_dir) / OPENVINO_CACHE_DIR
+            if cache_root.exists():
+                for entry in cache_root.iterdir():
+                    if not (entry.is_dir() and entry.name.endswith("_openvino_model")):
+                        continue
+                    if self._rmtree_with_unlock(entry):
+                        log.info("weights.clear_cache.orphan_removed", path=str(entry))
+                    else:
+                        orphans_locked.append(entry.name)
+                        log.warning(
+                            "weights.clear_cache.orphan_locked",
+                            path=str(entry),
+                        )
+
+        self.save_weights()
+        return {
+            "cleared": cleared,
+            "locked": locked,
+            "orphans_locked": orphans_locked,
+        }
+
+    def rescan_source_folder(self) -> int:
+        """Re-run discovery against the configured weights folder.
+
+        Convenience wrapper around :meth:`discover_perspective_weights` that
+        simply reports how many new files were registered. Existing entries
+        are left untouched (use :meth:`reset_registry` for a clean slate).
+        """
+        added = self.discover_perspective_weights()
+        log.info("weights.rescan.completed", added=added, weights_dir=self.weights_dir)
+        return added
+
+    def reset_registry(self) -> int:
+        """Wipe ``weights_config.json`` and rebuild from defaults + discovery.
+
+        Returns:
+            The number of weights present in the registry after the reset.
+        """
+        # Drop in-memory state first to avoid persisting stale entries.
+        self.weights = {}
+        try:
+            if os.path.exists(self.config_path):
+                os.unlink(self.config_path)
+                log.info("weights.reset.registry_removed", path=self.config_path)
+        except OSError as e:
+            log.warning(
+                "weights.reset.registry_remove_failed",
+                path=self.config_path,
+                error=str(e),
+            )
+        # Re-seed from settings and rescan the weights folder.
+        self._initialize_default_weight()
+        self.discover_perspective_weights()
+        return len(self.weights)
+
+    def validate_weight_files(self) -> dict[str, bool]:
+        """Check on-disk presence of every registered weight's ``.pt`` file.
+
+        Returns:
+            Mapping ``{weight_name: file_exists}``. Useful for the UI to mark
+            broken/missing weights without unregistering them automatically.
+        """
+        result: dict[str, bool] = {}
+        for name, details in self.weights.items():
+            path = details.get("path", "")
+            result[name] = bool(path) and os.path.isfile(path)
+        return result
 
     def convert_to_openvino(self, name: str) -> str | None:
         """

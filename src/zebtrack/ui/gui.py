@@ -297,9 +297,12 @@ class ApplicationGUI:
         self.start_single_analysis_btn: ttk.Button | None = None
         self._zone_prompt_history: set[str] = set()
 
-        # Model management state (reflected across welcome + project views)
+        # Model management state (reflected across welcome + project views).
+        # `_active_weight_display_var` actually holds a multi-line summary of
+        # the 4 (method × target) default-weight slots — kept under the legacy
+        # name to minimize ripple across builders/tests.
         self._available_weight_names: list[str] = []
-        self._active_weight_display_var = StringVar(value="Peso ativo: Nenhum peso selecionado.")
+        self._active_weight_display_var = StringVar(value="Modelo: detectando pesos...")
         self._openvino_display_var = StringVar(value="OpenVINO: Desativado.")
         self._gpu_hardware_display_var = StringVar(value="Hardware: Detectando...")
         self._openvino_enabled = False

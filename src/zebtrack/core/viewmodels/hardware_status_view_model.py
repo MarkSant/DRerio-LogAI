@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, ClassVar
 
 import structlog
 
@@ -150,6 +150,57 @@ class HardwareStatusViewModel:
             return self.model_service.get_all_weight_names()
         return []
 
+    # Slot summary used by the main-window status panel and the project tab.
+    # Returns one entry per (method, target) slot. ``scope="project"`` filters
+    # to the two slots actually consumed by runtime processing of the open
+    # project, picked from ``settings.model_selection.{aquarium,animal}_method``.
+    _SLOT_LABELS: ClassVar[dict[tuple[str, str], tuple[str, str, str]]] = {
+        ("det", "aquarium"): ("🐠 Aquário (det)", "det", "aquarium"),
+        ("seg", "aquarium"): ("🐠 Aquário (seg)", "seg", "aquarium"),
+        ("det", "zebrafish"): ("🐟 Animal (det)", "det", "zebrafish"),
+        ("seg", "zebrafish"): ("🐟 Animal (seg)", "seg", "zebrafish"),
+    }
+
+    def get_default_weights_summary(
+        self, *, scope: str = "global"
+    ) -> list[tuple[str, str, str, str | None]]:
+        """Return the (method, target) default-slot summary.
+
+        Each entry is ``(label, method, target, weight_name_or_None)``.
+
+        - ``scope="global"`` lists all 4 slots.
+        - ``scope="project"`` returns only the 2 slots that runtime detection
+          will actually consult, derived from
+          ``settings.model_selection.aquarium_method`` and ``animal_method``.
+          Falls back to the full 4-slot view when settings are unavailable.
+        """
+        wm = self.weight_manager
+        all_slots = list(self._SLOT_LABELS.values())
+
+        if scope == "project":
+            try:
+                model_sel = self.settings.model_selection
+                aquarium_method = getattr(model_sel, "aquarium_method", None)
+                animal_method = getattr(model_sel, "animal_method", None)
+            # except Exception justified: settings may be a mock during tests.
+            except Exception:
+                aquarium_method = None
+                animal_method = None
+            if aquarium_method and animal_method:
+                all_slots = [
+                    self._SLOT_LABELS[(aquarium_method, "aquarium")],
+                    self._SLOT_LABELS[(animal_method, "zebrafish")],
+                ]
+
+        result: list[tuple[str, str, str, str | None]] = []
+        for label, method, target in all_slots:
+            name: str | None = None
+            if wm is not None:
+                got, _ = wm.get_default_weight_for(method, target)
+                name = got
+            result.append((label, method, target, name))
+        return result
+
     def get_openvino_status(self) -> str:
         return self.model_service.get_openvino_status(
             weight_name=self.active_weight_name or "", use_openvino=self.use_openvino
@@ -182,9 +233,6 @@ class HardwareStatusViewModel:
     def delete_weight(self, name: str):
         self.ui_state_controller.delete_weight(name)
 
-    def manage_weights(self):
-        self.ui_state_controller.manage_weights()
-
     def run_model_diagnostic(self, config: dict):
         # Phase 4.9: Redirect to ModelDiagnosticsCoordinator
         if self.model_diagnostics_coordinator:
@@ -202,10 +250,103 @@ class HardwareStatusViewModel:
         if file_path:
             self.ui_state_controller.load_new_weight(filepath=file_path)
 
-    def handle_open_manage_weights(self, root):
-        from zebtrack.ui.dialogs.manage_weights_dialog import ManageWeightsDialog
+    # --- Model Default Slots & Maintenance (4-target architecture) ---
 
-        ManageWeightsDialog(root, self.ui_state_controller)
+    def set_default_weight_for(self, name: str, *, method: str, target: str) -> bool:
+        """Mark ``name`` as default for the (method, target) slot."""
+        if not self.weight_manager:
+            return False
+        return self.weight_manager.set_default_weight_for(name, method=method, target=target)
+
+    def reclassify_weight_target(self, name: str, target: str) -> bool:
+        """Update only the ``target`` field of an existing weight."""
+        if not self.weight_manager:
+            return False
+        return self.weight_manager.set_weight_target(name, target)
+
+    def clear_openvino_cache(self, name: str | None = None) -> dict[str, list[str]]:
+        """Wipe OpenVINO cache for ``name`` (or all weights when ``None``).
+
+        Returns the underlying ``WeightManager.clear_openvino_cache`` report
+        ``{"cleared": [...], "locked": [...], "orphans_locked": [...]}``
+        so the UI can warn about locked files (typically caused by the
+        running detector still holding the .xml/.bin open).
+        """
+        if not self.weight_manager:
+            return {"cleared": [], "locked": [], "orphans_locked": []}
+        report = self.weight_manager.clear_openvino_cache(name)
+        log.info(
+            "hardware_vm.openvino_cache.cleared",
+            name=name,
+            cleared=len(report["cleared"]),
+            locked=len(report["locked"]),
+            orphans_locked=len(report["orphans_locked"]),
+        )
+        return report
+
+    def rescan_weights_folder(self) -> int:
+        """Re-run discovery against the configured weights folder."""
+        if not self.weight_manager:
+            return 0
+        added = self.weight_manager.rescan_source_folder()
+        log.info("hardware_vm.weights.rescan", added=added)
+        return added
+
+    def reset_weights_registry(self) -> int:
+        """Wipe ``weights_config.json`` and rebuild it from defaults."""
+        if not self.weight_manager:
+            return 0
+        count = self.weight_manager.reset_registry()
+        log.info("hardware_vm.weights.registry_reset", count=count)
+        return count
+
+    def validate_weight_files(self) -> dict[str, bool]:
+        """Return ``{name: exists}`` for every registered weight."""
+        if not self.weight_manager:
+            return {}
+        return self.weight_manager.validate_weight_files()
+
+    def force_benchmark(self) -> dict[str, Any] | None:
+        """Re-run the hardware benchmark from scratch (force_rerun=True).
+
+        Runs synchronously on the calling thread — callers that invoke this
+        from the UI should schedule it on a worker thread and re-route the
+        result back via ``root.after(0, ...)``. Returns the benchmark result
+        as a dict for easy display, or ``None`` on failure.
+        """
+        try:
+            from zebtrack.utils.hardware_benchmark import get_or_run_benchmark
+
+            result = get_or_run_benchmark(force_rerun=True, quick_mode=True)
+        # except Exception justified: hardware probing — failures must not crash UI.
+        except Exception as e:
+            log.error("hardware_vm.benchmark.force_failed", error=str(e))
+            return None
+
+        rec = result.recommendation
+        return {
+            "backend": rec.backend if rec else None,
+            "device_live": rec.device_live if rec else None,
+            "device_batch": rec.device_batch if rec else None,
+            "fps_live": getattr(rec, "estimated_fps_live", 0.0) if rec else 0.0,
+            "precision": rec.openvino_precision if rec else None,
+        }
+
+    def convert_weight_to_openvino(self, name: str) -> str | None:
+        """Trigger OpenVINO export for ``name`` synchronously.
+
+        Returns the absolute path to the converted model directory, or
+        ``None`` on failure. Callers from the UI must schedule this on a
+        worker thread to avoid blocking Tk.
+        """
+        if not self.weight_manager:
+            return None
+        try:
+            return self.weight_manager.convert_to_openvino(name)
+        # except Exception justified: PyTorch/OpenVINO export — surface error gracefully.
+        except Exception as e:
+            log.error("hardware_vm.openvino.convert_failed", name=name, error=str(e))
+            return None
 
     # --- Recording / Live Session ---
 

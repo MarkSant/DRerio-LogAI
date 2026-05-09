@@ -6,6 +6,93 @@ This document tracks all major agent interventions, technical debt resolutions, 
 
 ## Active Tasks
 
+### [2026-05-09] Refactor "Peso ativo" + Inline completo de Gerenciar Pesos (4-slot UX alignment)
+
+__ID:__ TASK-065
+__Agent:__ Claude Code (Opus 4.7)
+__Status:__ Completed ✅
+__Branch:__ main
+__Description:__
+Após migração para 4 slots de peso (det/seg × aquarium/zebrafish, commit 595d5e9d),
+o conceito legacy de "Peso ativo" tornou-se enganoso na UI. Plano aprovado:
+
+1. Substituir label única "Peso ativo" no status global por resumo dos 4 slots
+   (ou 2 slots filtrados por settings do projeto quando houver projeto aberto).
+2. Inlinear completamente o conteúdo de `ManageWeightsDialog` (~834 linhas, 11+ botões)
+   dentro da caixa "Configuração do Modelo" do `CalibrationDialog`. Eliminar diálogo
+   e botão "Gerenciar Pesos...".
+3. Mover semanticamente o "Peso ativo" para a caixa "Diagnóstico de Desempenho do Modelo"
+   como "Peso para diagnóstico".
+4. Adicionar `HardwareStatusViewModel.get_default_weights_summary(scope)` para alimentar
+   o resumo project-aware na caixa de status.
+
+### Subtasks (TASK-065)
+
+- [x] Adicionar `get_default_weights_summary(scope)` em `HardwareStatusViewModel`.
+- [x] Refatorar `panel_builder.build_model_status_panel` para resumo multi-linha.
+- [x] Refatorar `tab_builder._build_model_status_section` (versão project-aware).
+- [x] Substituir `_update_active_weight_display` por `refresh_weights_summary(scope)`.
+- [x] Refatorar `_build_global_calibration_ui` em `CalibrationDialog` (5 sub-seções inline).
+- [x] Adicionar combobox "Peso para diagnóstico" na caixa Diagnóstico.
+- [x] Deletar `manage_weights_dialog.py` e `handle_open_manage_weights`.
+- [x] Remover eventos `MODEL_MANAGE_WEIGHTS` + `UI_OPEN_MANAGE_WEIGHTS_DIALOG` e cadeia de plumbing.
+- [x] Atualizar `confirmation_step.py` para mostrar 2 pesos (aquário + animais).
+- [x] Atualizar `test_hardware_status_view_model.py` (3 testes novos para `get_default_weights_summary`).
+- [x] Atualizar `test_ui_state_coordinator.py` para refletir remoção de `manage_weights`.
+- [x] Validar: ruff (clean), pytest fast (2841 passed / 4 skipped), GUI subset (34 passed).
+
+### TASK-065 Result
+
+- __Files modified (8):__ `calibration_dialog.py` (+700 linhas inlined),
+  `weight_hardware_manager.py` (replace single-weight display by 4-slot summary),
+  `hardware_status_view_model.py` (`get_default_weights_summary` added),
+  `panel_builder.py`/`tab_builder.py` (multi-line label, project-aware refresh),
+  `event_bus_v2.py`/`main_view_model_runtime.py`/`ui_state_coordinator.py` (remove dead events),
+  `confirmation_step.py`, `gui.py` (init message), `dialogs/__init__.py`.
+- __Files deleted (1):__ `src/zebtrack/ui/dialogs/manage_weights_dialog.py` (834 linhas).
+- __Tests added/updated (2 files):__ `test_hardware_status_view_model.py`, `test_ui_state_coordinator.py`.
+- __No production code references__ remain to `ManageWeightsDialog`, `MODEL_MANAGE_WEIGHTS`,
+  `UI_OPEN_MANAGE_WEIGHTS_DIALOG`, `handle_open_manage_weights`, `manage_weights_clicked`,
+  or `manage_weights()` on the ViewModel/coordinator.
+- __Behavior changes__ (from user perspective):
+  - Status box global mostra `Modelo (defaults):` com 4 linhas (1 por slot) em vez de "Peso ativo: X".
+  - Status box do projeto mostra `Modelo (em uso neste projeto):` com 2 linhas (slots ativos).
+  - Diálogo "Calibração e Diagnóstico" → caixa "Configuração do Modelo" agora contém:
+    matriz de defaults por slot (4 dropdowns), catálogo de pesos (Treeview com 5 botões),
+    seção OpenVINO (toggle, status, device), seção Manutenção (4 botões de cache/registro),
+    seção Sistema & Hardware (benchmark, abrir pasta).
+  - Botão "Gerenciar Pesos..." removido — todo o conteúdo está inline.
+  - Combobox "Peso para diagnóstico" agora vive na caixa "Diagnóstico de Desempenho do Modelo".
+
+### TASK-065 Hotfix (post-merge boot crash)
+
+- __Symptom:__ `RuntimeError: LazyRef(MainViewModel): cannot access 'hardware_vm' before set() is called`
+  durante a construção da `welcome frame`.
+- __Causa:__ `WeightHardwareManager.refresh_weights_summary` foi chamado de
+  `project_widgets.build_model_status` antes de `LazyRef.set()` resolver o
+  `MainViewModel`. O guard `callable(is_resolved) and not is_resolved()` não
+  funciona porque `LazyRef.is_resolved` é uma __property bool__, não callable.
+- __Fix:__ trocado o guard para `getattr(controller, "is_resolved", True) is False`,
+  envolto em `try/except RuntimeError`. Quando o controller ainda é uma
+  `LazyRef`, agendamos retry via `root.after(50, ...)` em
+  `_defer_summary_refresh`. Aplicado também em `_project_is_open`.
+- __Verificação:__ smoke test direto com `build_container(context)` agora retorna
+  `build_container OK`; suíte focada (120 testes) passa.
+
+### TASK-065 Layout follow-up (horizontal density + scrolling)
+
+- __Symptom:__ Diálogo `CalibrationDialog` empilhava todas as sub-seções em
+  coluna única; conteúdo cortado sem scroll mesmo em alta resolução.
+- __Fix:__ `body()` envolve o conteúdo em um `tk.Canvas` + `Scrollbar` vertical
+  (`_make_scrollable_container`); `_build_global_calibration_ui` reorganizado
+  em 2 colunas (slots+OpenVINO à esquerda, catálogo à direita) e linha inferior
+  em 2 colunas (manutenção à esquerda, sistema à direita). Botões usam
+  `grid` com `sticky="ew"` em vez de `width=N` fixo. Treeview do catálogo com
+  larguras de coluna reduzidas (~440px) para caber na coluna direita.
+- __Verificação:__ ruff clean, suíte rápida (2841 passed), `build_container` OK.
+
+---
+
 ### [2026-04-21] Multi-aquarium deletion matrix (aquarium/animal/video/data-reset)
 
 __ID:__ TASK-064

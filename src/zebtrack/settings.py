@@ -696,6 +696,14 @@ class WeightsSelectionSettings(BaseModel):
         extra="forbid",
     )
 
+    source_dir: str = Field(
+        "weights",
+        description=(
+            "Folder (relative to project root) where the .pt weight files live. "
+            "WeightManager auto-discovers any best_*_lateral.pt / best_*_topdown.pt "
+            "placed inside this folder. Default: 'weights'."
+        ),
+    )
     lateral: PerspectiveWeights = Field(
         default_factory=lambda: PerspectiveWeights(
             seg_filename="best_seg_lateral.pt",

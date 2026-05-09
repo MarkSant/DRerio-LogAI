@@ -156,10 +156,6 @@ class UIStateController:
     # Group A: Weight Management
     # ========================================================================
 
-    def manage_weights(self):
-        """Open the weight management dialog."""
-        self.ui_event_bus.publish(Event(type=UIEvents.UI_OPEN_MANAGE_WEIGHTS_DIALOG))
-
     def add_new_weight(
         self, path: Path | str, set_as_default: bool, weight_type: str | None = None
     ):
