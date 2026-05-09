@@ -723,6 +723,30 @@ class ModelLoadNewWeightPayload:
 
 
 @dataclass(frozen=True)
+class ModelSetDefaultForPayload:
+    """Mark ``name`` as the default weight for a (method, target) slot."""
+
+    name: str
+    method: str  # "seg" | "det"
+    target: str  # "aquarium" | "zebrafish"
+
+
+@dataclass(frozen=True)
+class ModelReclassifyTargetPayload:
+    """Reclassify a weight's target without touching default flags."""
+
+    name: str
+    target: str  # "aquarium" | "zebrafish"
+
+
+@dataclass(frozen=True)
+class ModelClearOpenVinoCachePayload:
+    """Clear OpenVINO conversion cache. ``name=None`` clears everything."""
+
+    name: str | None = None
+
+
+@dataclass(frozen=True)
 class UIUpdateWeightsListPayload:
     weights: Sequence[str]
 
