@@ -142,7 +142,6 @@ def test_ui_state_controller_weight_actions(view_model):
     view_model.load_new_weight(path="p")
     view_model.add_new_weight("p", True, "det")
     view_model.delete_weight("w1")
-    view_model.manage_weights()
 
     ui_state = view_model.ui_state_controller
     ui_state.set_active_weight.assert_called_once_with("w1", "d")
@@ -151,7 +150,8 @@ def test_ui_state_controller_weight_actions(view_model):
     ui_state.load_new_weight.assert_called_once_with(path="p")
     ui_state.add_new_weight.assert_called_once_with("p", True, "det")
     ui_state.delete_weight.assert_called_once_with("w1")
-    ui_state.manage_weights.assert_called_once()
+    # `manage_weights` was removed in TASK-065 (catalog inlined in CalibrationDialog).
+    assert not hasattr(view_model, "manage_weights")
 
 
 def test_run_model_diagnostic_injects_active_weight(view_model):
@@ -204,3 +204,61 @@ def test_toggle_recording_stops_when_recording(view_model):
     view_model.toggle_recording()
 
     view_model.recording_session_coordinator.stop_recording.assert_called_once()
+
+
+# ----------------------------------------------------------------------
+# get_default_weights_summary (TASK-065)
+# ----------------------------------------------------------------------
+
+
+def _summary_lookup(view_model, *, scope: str = "global") -> dict[tuple[str, str], str | None]:
+    return {
+        (method, target): name
+        for _label, method, target, name in view_model.get_default_weights_summary(scope=scope)
+    }
+
+
+def test_get_default_weights_summary_global_returns_all_four_slots(view_model):
+    """Global scope must list every (method x target) slot, even empty ones."""
+    view_model.weight_manager.get_default_weight_for.side_effect = lambda method, target: {
+        ("det", "aquarium"): ("aq_det.pt", {}),
+        ("seg", "aquarium"): (None, None),
+        ("det", "zebrafish"): (None, None),
+        ("seg", "zebrafish"): ("an_seg.pt", {}),
+    }[(method, target)]
+
+    summary = view_model.get_default_weights_summary(scope="global")
+
+    assert len(summary) == 4
+    lookup = _summary_lookup(view_model, scope="global")
+    assert lookup[("det", "aquarium")] == "aq_det.pt"
+    assert lookup[("seg", "zebrafish")] == "an_seg.pt"
+    assert lookup[("seg", "aquarium")] is None
+    assert lookup[("det", "zebrafish")] is None
+
+
+def test_get_default_weights_summary_project_filters_to_two_slots(view_model):
+    """Project scope returns exactly the 2 slots picked by ModelSelectionSettings."""
+    view_model.settings.model_selection.aquarium_method = "seg"
+    view_model.settings.model_selection.animal_method = "det"
+    view_model.weight_manager.get_default_weight_for.side_effect = lambda method, target: {
+        ("seg", "aquarium"): ("aq_seg.pt", {}),
+        ("det", "zebrafish"): ("an_det.pt", {}),
+    }.get((method, target), (None, None))
+
+    summary = view_model.get_default_weights_summary(scope="project")
+
+    assert len(summary) == 2
+    methods_targets = {(method, target) for _label, method, target, _name in summary}
+    assert methods_targets == {("seg", "aquarium"), ("det", "zebrafish")}
+
+
+def test_get_default_weights_summary_project_falls_back_when_settings_missing(view_model):
+    """If model_selection is unreadable, fall back to the full 4-slot view."""
+    # Make attribute access raise to mimic broken settings.
+    view_model.settings.model_selection = SimpleNamespace()
+    view_model.weight_manager.get_default_weight_for.return_value = (None, None)
+
+    summary = view_model.get_default_weights_summary(scope="project")
+
+    assert len(summary) == 4

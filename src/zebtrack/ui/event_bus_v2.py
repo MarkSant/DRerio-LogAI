@@ -78,7 +78,15 @@ class UIEvents(Enum):
     MODEL_DELETE_WEIGHT = auto()
     MODEL_RUN_DIAGNOSTIC = auto()
     MODEL_LOAD_NEW_WEIGHT = auto()
-    MODEL_MANAGE_WEIGHTS = auto()
+    # Granular default-slot management (4 method × target combinations).
+    MODEL_SET_DEFAULT_FOR = auto()
+    MODEL_RECLASSIFY_TARGET = auto()
+    # Maintenance commands triggered from the inline weights catalog.
+    MODEL_CLEAR_OPENVINO_CACHE = auto()
+    MODEL_RESCAN_WEIGHTS = auto()
+    MODEL_RESET_REGISTRY = auto()
+    MODEL_FORCE_BENCHMARK = auto()
+    MODEL_VALIDATE_WEIGHTS = auto()
 
     # ── Detector & Zone Commands ──────────────────────────────────────
     DETECTOR_SETUP = auto()
@@ -191,7 +199,6 @@ class UIEvents(Enum):
     UI_REQUEST_WEIGHT_FILE = auto()
     UI_REQUEST_WEIGHT_TYPE = auto()
     UI_REQUEST_WEIGHT_ACTION = auto()
-    UI_OPEN_MANAGE_WEIGHTS_DIALOG = auto()
 
     # ── Multi-Aquarium UI Events ──────────────────────────────────────
     UI_SHOW_AQUARIUM_COUNT_DIALOG = auto()
@@ -306,7 +313,13 @@ _PAYLOAD_TYPES: dict[UIEvents, type[Any]] = {
     UIEvents.MODEL_DELETE_WEIGHT: payloads.ModelDeleteWeightPayload,
     UIEvents.MODEL_RUN_DIAGNOSTIC: payloads.ModelRunDiagnosticPayload,
     UIEvents.MODEL_LOAD_NEW_WEIGHT: payloads.ModelLoadNewWeightPayload,
-    UIEvents.MODEL_MANAGE_WEIGHTS: payloads.EmptyPayload,
+    UIEvents.MODEL_SET_DEFAULT_FOR: payloads.ModelSetDefaultForPayload,
+    UIEvents.MODEL_RECLASSIFY_TARGET: payloads.ModelReclassifyTargetPayload,
+    UIEvents.MODEL_CLEAR_OPENVINO_CACHE: payloads.ModelClearOpenVinoCachePayload,
+    UIEvents.MODEL_RESCAN_WEIGHTS: payloads.EmptyPayload,
+    UIEvents.MODEL_RESET_REGISTRY: payloads.EmptyPayload,
+    UIEvents.MODEL_FORCE_BENCHMARK: payloads.EmptyPayload,
+    UIEvents.MODEL_VALIDATE_WEIGHTS: payloads.EmptyPayload,
     # Detector & Zone Commands
     UIEvents.DETECTOR_SETUP: payloads.DetectorSetupPayload,
     UIEvents.DETECTOR_SETUP_ZONES: payloads.DetectorSetupZonesPayload,
@@ -411,7 +424,6 @@ _PAYLOAD_TYPES: dict[UIEvents, type[Any]] = {
     UIEvents.UI_REQUEST_WEIGHT_FILE: payloads.UIRequestWeightFilePayload,
     UIEvents.UI_REQUEST_WEIGHT_TYPE: payloads.UIRequestWeightTypePayload,
     UIEvents.UI_REQUEST_WEIGHT_ACTION: payloads.UIRequestWeightActionPayload,
-    UIEvents.UI_OPEN_MANAGE_WEIGHTS_DIALOG: payloads.EmptyPayload,
     # Multi-Aquarium UI Events
     UIEvents.UI_SHOW_AQUARIUM_COUNT_DIALOG: payloads.EmptyPayload,
     UIEvents.UI_SHOW_AQUARIUM_ASSIGNMENT_DIALOG: payloads.ZoneShowAquariumAssignmentDialogPayload,

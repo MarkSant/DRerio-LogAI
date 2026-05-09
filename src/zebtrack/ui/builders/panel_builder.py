@@ -39,9 +39,12 @@ class PanelBuilder:
         model_status_frame = ttk.LabelFrame(parent, text="Estado do Modelo de Detecção", padding=10)
         model_status_frame.pack(fill="x", pady=10, expand=True)
 
+        # ``active_weight`` is a multi-line summary of the 4 default slots —
+        # keep ``justify="left"`` so each line aligns under the slot label.
         ttk.Label(
             model_status_frame,
             textvariable=status_vars["active_weight"],
+            justify="left",
         ).pack(anchor="w")
 
         ttk.Label(

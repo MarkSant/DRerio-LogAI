@@ -11,8 +11,6 @@ from typing import TYPE_CHECKING
 
 import structlog
 
-from zebtrack.ui.event_bus_v2 import UIEvents
-
 if TYPE_CHECKING:
     from tkinter import StringVar
 
@@ -109,20 +107,17 @@ class WeightHardwareManager:
     # ------------------------------------------------------------------
 
     def update_weights_dropdown(self, weights: list[str]) -> None:
-        """Cache available weights so summaries stay consistent."""
+        """Cache available weights and refresh the slot-summary display."""
         self.gui._available_weight_names = list(weights or [])
-        if (
-            self.gui.controller.hardware_vm.active_weight_name
-            and self.gui.controller.hardware_vm.active_weight_name
-            in self.gui._available_weight_names
-        ):
-            self._update_active_weight_display(self.gui.controller.hardware_vm.active_weight_name)
-        elif not self.gui._available_weight_names:
-            self._update_active_weight_display("")
+        self.refresh_weights_summary()
 
     def set_active_weight_in_dropdown(self, weight_name: str | None) -> None:
-        """Update the active weight summary."""
-        self._update_active_weight_display(weight_name or "")
+        """Refresh slot summary; the diagnostic-weight combobox lives elsewhere now."""
+        # ``weight_name`` is now solely the diagnostic-test weight in the
+        # Calibration dialog; the welcome / project status panel reflects the
+        # 4 (or 2) default slots, not a single ``active_weight``.
+        del weight_name
+        self.refresh_weights_summary()
 
     # ------------------------------------------------------------------
     # OpenVINO state
@@ -153,14 +148,32 @@ class WeightHardwareManager:
             self._openvino_display_var.set(summary)
 
     def _get_openvino_device_label(self) -> str:
-        """Return human-readable OpenVINO device target from active settings."""
+        """Return human-readable OpenVINO device target from active settings.
+
+        This may run before ``MainViewModel`` is fully resolved (e.g. when
+        ``ApplicationBootstrapper`` updates the OpenVINO status during DI
+        warm-up). The controller can therefore be a ``LazyRef`` whose
+        ``__getattr__`` raises ``RuntimeError`` for unresolved access —
+        which ``getattr`` with a default does NOT catch. We swallow that
+        case explicitly and return an empty label.
+        """
         controller = getattr(self.gui, "controller", None)
         if not controller:
             return ""
 
-        settings_obj = getattr(controller, "settings", None) or getattr(
-            controller, "settings_obj", None
-        )
+        # Bail out when a LazyRef is still pending (avoids RuntimeError on access).
+        is_resolved = getattr(controller, "is_resolved", None)
+        if callable(is_resolved) and not is_resolved():
+            return ""
+
+        try:
+            settings_obj = getattr(controller, "settings", None) or getattr(
+                controller, "settings_obj", None
+            )
+        except RuntimeError:
+            # Defensive: covers any LazyRef without is_resolved() introspection.
+            return ""
+
         if settings_obj and hasattr(settings_obj, "openvino"):
             raw_device = getattr(settings_obj.openvino, "device", "")
             if isinstance(raw_device, str) and raw_device.strip():
@@ -169,14 +182,93 @@ class WeightHardwareManager:
         return ""
 
     # ------------------------------------------------------------------
-    # Active weight display
+    # Active weight summary (4-slot or 2-slot multi-line label)
     # ------------------------------------------------------------------
 
-    def _update_active_weight_display(self, weight_name: str) -> None:
-        if weight_name:
-            self._active_display_var.set(f"Peso ativo: {weight_name}")
-        else:
-            self._active_display_var.set("Peso ativo: Nenhum peso selecionado.")
+    def refresh_weights_summary(self, *, scope: str | None = None) -> None:
+        """Re-render the multi-line weights summary in the status panel.
+
+        ``scope`` selects which slots to render:
+
+        - ``"global"`` shows all 4 ``(method × target)`` defaults.
+        - ``"project"`` shows only the 2 slots actually consumed by the open
+          project (filtered by ``settings.model_selection.{aquarium,animal}_method``).
+        - ``None`` (default) auto-picks: ``"project"`` when a project is open,
+          otherwise ``"global"``.
+
+        Safe to call before the ``controller`` LazyRef is resolved — silently
+        defers the render and re-tries via ``root.after(0, ...)`` so the
+        welcome panel paints once the wiring is complete.
+        """
+        controller = getattr(self.gui, "controller", None)
+        if controller is None:
+            return
+
+        # Handle LazyRef proxy gracefully: ``is_resolved`` is a bool property,
+        # not a callable. Any direct attribute access would raise RuntimeError
+        # while the underlying MainViewModel is still being constructed.
+        if getattr(controller, "is_resolved", True) is False:
+            self._defer_summary_refresh(scope)
+            return
+
+        try:
+            hardware_vm = getattr(controller, "hardware_vm", None)
+        except RuntimeError:
+            # Defensive: LazyRef variant without ``is_resolved`` introspection.
+            self._defer_summary_refresh(scope)
+            return
+
+        if hardware_vm is None or not hasattr(hardware_vm, "get_default_weights_summary"):
+            return
+
+        if scope is None:
+            scope = "project" if self._project_is_open() else "global"
+
+        try:
+            summary = hardware_vm.get_default_weights_summary(scope=scope)
+        # except Exception justified: status panel must never crash on bad data.
+        except Exception as exc:
+            log.warning("weight_hardware_manager.summary.failed", error=str(exc))
+            self._active_display_var.set("Modelo: erro ao consultar pesos")
+            return
+
+        header = "Modelo (em uso neste projeto):" if scope == "project" else "Modelo (defaults):"
+        if not summary:
+            self._active_display_var.set(f"{header}\n  Nenhum peso configurado.")
+            return
+
+        lines = [header]
+        for label, _method, _target, name in summary:
+            display_name = name if name else "—"
+            lines.append(f"  {label}: {display_name}")
+        self._active_display_var.set("\n".join(lines))
+
+    def _defer_summary_refresh(self, scope: str | None) -> None:
+        """Schedule a retry once the Tk event loop processes pending DI work."""
+        root = getattr(self.gui, "root", None)
+        if root is None or not hasattr(root, "after"):
+            return
+        try:
+            root.after(50, lambda: self.refresh_weights_summary(scope=scope))
+        # except Exception justified: deferred refresh is best-effort.
+        except Exception as exc:
+            log.debug("weight_hardware_manager.defer.failed", error=str(exc))
+
+    def _project_is_open(self) -> bool:
+        controller = getattr(self.gui, "controller", None)
+        if controller is None:
+            return False
+        if getattr(controller, "is_resolved", True) is False:
+            return False
+        try:
+            project_manager = getattr(controller, "project_manager", None)
+            if project_manager is None:
+                return False
+            project_data = getattr(project_manager, "project_data", None) or {}
+            return bool(project_data.get("project_name"))
+        # except Exception justified: probe must not raise during UI refresh.
+        except Exception:
+            return False
 
     # ------------------------------------------------------------------
     # GPU / Hardware display
@@ -216,11 +308,3 @@ class WeightHardwareManager:
             display_text = f"Hardware: {gpu_name}{npu_suffix} (recomendado: {backend_display})"
 
         self._gpu_display_var.set(display_text)
-
-    # ------------------------------------------------------------------
-    # Manage weights event
-    # ------------------------------------------------------------------
-
-    def manage_weights_clicked(self) -> None:
-        """Open the weight management dialog."""
-        self.gui.event_dispatcher.publish_event(UIEvents.MODEL_MANAGE_WEIGHTS)

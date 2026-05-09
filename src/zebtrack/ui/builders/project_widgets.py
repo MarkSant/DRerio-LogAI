@@ -46,6 +46,13 @@ class ProjectWidgetsBuilder:
 
         PanelBuilder.build_model_status_panel(parent, status_vars)
 
+        # Welcome screen = global scope. Trigger an initial render so the
+        # 4-slot summary replaces the "Detectando..." placeholder as soon as
+        # WeightManager has finished bootstrapping.
+        weight_hw = getattr(self.gui, "weight_hardware_manager", None)
+        if weight_hw is not None:
+            weight_hw.refresh_weights_summary(scope="global")
+
     def create_progress_grid_tab(self) -> None:
         """Create the tab for viewing the experimental progress grid."""
         self.gui.progress_grid_frame = ttk.Frame(self.gui.notebook, padding="10")

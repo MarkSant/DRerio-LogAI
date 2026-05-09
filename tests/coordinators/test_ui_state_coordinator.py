@@ -55,12 +55,9 @@ def controller():
     )
 
 
-def test_manage_weights_publishes_event(controller):
-    controller.manage_weights()
-
-    controller.ui_event_bus.publish.assert_called_once_with(
-        Event(type=UIEvents.UI_OPEN_MANAGE_WEIGHTS_DIALOG)
-    )
+def test_manage_weights_method_removed(controller):
+    """``manage_weights`` was removed in TASK-065 — catalog inlined in CalibrationDialog."""
+    assert not hasattr(controller, "manage_weights")
 
 
 def test_add_new_weight_success_updates_ui(controller):

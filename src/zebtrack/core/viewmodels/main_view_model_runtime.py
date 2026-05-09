@@ -58,13 +58,19 @@ class MainViewModelRuntime:
         UIEvents.MODEL_SET_WEIGHT,
         UIEvents.MODEL_RUN_DIAGNOSTIC,
         UIEvents.UI_REQUEST_WEIGHT_FILE,
-        UIEvents.UI_OPEN_MANAGE_WEIGHTS_DIALOG,
         UIEvents.VIDEO_ANALYZE_SINGLE,
         UIEvents.VIDEO_CANCEL_ANALYSIS,
         UIEvents.MODEL_ADD_WEIGHT,
         UIEvents.MODEL_DELETE_WEIGHT,
         UIEvents.MODEL_LOAD_NEW_WEIGHT,
-        UIEvents.MODEL_MANAGE_WEIGHTS,
+        UIEvents.MODEL_SET_DEFAULT_FOR,
+        UIEvents.MODEL_RECLASSIFY_TARGET,
+        UIEvents.MODEL_CLEAR_OPENVINO_CACHE,
+        UIEvents.MODEL_RESCAN_WEIGHTS,
+        UIEvents.MODEL_RESET_REGISTRY,
+        UIEvents.MODEL_FORCE_BENCHMARK,
+        UIEvents.MODEL_VALIDATE_WEIGHTS,
+        UIEvents.MODEL_CONVERT_OPENVINO,
         UIEvents.ZONE_SAVE_MANUAL_ARENA,
         UIEvents.PROJECT_DELETE_ASSET,
         UIEvents.PROJECT_DELETE_GROUP,
@@ -119,9 +125,15 @@ class MainViewModelRuntime:
                 | UIEvents.MODEL_ADD_WEIGHT
                 | UIEvents.MODEL_DELETE_WEIGHT
                 | UIEvents.MODEL_LOAD_NEW_WEIGHT
-                | UIEvents.MODEL_MANAGE_WEIGHTS
                 | UIEvents.UI_REQUEST_WEIGHT_FILE
-                | UIEvents.UI_OPEN_MANAGE_WEIGHTS_DIALOG
+                | UIEvents.MODEL_SET_DEFAULT_FOR
+                | UIEvents.MODEL_RECLASSIFY_TARGET
+                | UIEvents.MODEL_CLEAR_OPENVINO_CACHE
+                | UIEvents.MODEL_RESCAN_WEIGHTS
+                | UIEvents.MODEL_RESET_REGISTRY
+                | UIEvents.MODEL_FORCE_BENCHMARK
+                | UIEvents.MODEL_VALIDATE_WEIGHTS
+                | UIEvents.MODEL_CONVERT_OPENVINO
             ):
                 self._handle_model_event(event_name, data, payload_dict)
             case UIEvents.VIDEO_ANALYZE_SINGLE | UIEvents.VIDEO_CANCEL_ANALYSIS:
@@ -199,16 +211,48 @@ class MainViewModelRuntime:
             vm.hardware_vm.run_model_diagnostic(config)
         elif event_name is UIEvents.UI_REQUEST_WEIGHT_FILE:
             vm.hardware_vm.handle_request_weight_file()
-        elif event_name is UIEvents.UI_OPEN_MANAGE_WEIGHTS_DIALOG:
-            vm.hardware_vm.handle_open_manage_weights(vm.root)
         elif event_name is UIEvents.MODEL_ADD_WEIGHT:
             vm.hardware_vm.add_new_weight(**payload_dict)
         elif event_name is UIEvents.MODEL_DELETE_WEIGHT:
             vm.hardware_vm.delete_weight(**payload_dict)
         elif event_name is UIEvents.MODEL_LOAD_NEW_WEIGHT:
             vm.hardware_vm.load_new_weight(**payload_dict)
-        elif event_name is UIEvents.MODEL_MANAGE_WEIGHTS:
-            vm.hardware_vm.manage_weights()
+        elif event_name is UIEvents.MODEL_SET_DEFAULT_FOR:
+            vm.hardware_vm.set_default_weight_for(
+                payload_dict["name"],
+                method=payload_dict["method"],
+                target=payload_dict["target"],
+            )
+        elif event_name is UIEvents.MODEL_RECLASSIFY_TARGET:
+            vm.hardware_vm.reclassify_weight_target(payload_dict["name"], payload_dict["target"])
+        elif event_name is UIEvents.MODEL_CLEAR_OPENVINO_CACHE:
+            vm.hardware_vm.clear_openvino_cache(payload_dict.get("name"))
+        elif event_name is UIEvents.MODEL_RESCAN_WEIGHTS:
+            vm.hardware_vm.rescan_weights_folder()
+        elif event_name is UIEvents.MODEL_RESET_REGISTRY:
+            vm.hardware_vm.reset_weights_registry()
+        elif event_name is UIEvents.MODEL_VALIDATE_WEIGHTS:
+            vm.hardware_vm.validate_weight_files()
+        elif event_name is UIEvents.MODEL_FORCE_BENCHMARK:
+            # Run on a worker thread so the UI stays responsive.
+            import threading
+
+            threading.Thread(
+                target=vm.hardware_vm.force_benchmark,
+                name="force-benchmark",
+                daemon=True,
+            ).start()
+        elif event_name is UIEvents.MODEL_CONVERT_OPENVINO:
+            name = payload_dict.get("weight_name") or payload_dict.get("name")
+            if name:
+                import threading
+
+                threading.Thread(
+                    target=vm.hardware_vm.convert_weight_to_openvino,
+                    args=(name,),
+                    name=f"openvino-convert-{name}",
+                    daemon=True,
+                ).start()
 
     def _handle_video_event(self, event_name: UIEvents, data: payloads.EventPayload) -> None:
         vm = self._vm

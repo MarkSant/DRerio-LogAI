@@ -225,16 +225,20 @@ class TabBuilder:
         ).pack(side="left", padx=5)
 
     def _build_model_status_section(self, parent):
-        """Build model status section."""
+        """Build model status section (project context — 2-slot summary)."""
         model_status_frame = ttk.LabelFrame(
             parent,
             text="Estado do Modelo de Detecção",
             padding=10,
         )
         model_status_frame.pack(side="left", fill="both", expand=True, padx=(5, 0))
+        # ``_active_weight_display_var`` carries a multi-line slot summary; in
+        # the project tab we filter to the 2 slots actually consumed by this
+        # project (delegated to WeightHardwareManager once the panel exists).
         ttk.Label(
             model_status_frame,
             textvariable=self.gui._active_weight_display_var,
+            justify="left",
         ).pack(anchor="w")
         ttk.Label(
             model_status_frame,
@@ -245,6 +249,12 @@ class TabBuilder:
             textvariable=self.gui._gpu_hardware_display_var,
             foreground="gray",
         ).pack(anchor="w", pady=(4, 0))
+
+        # Trigger the project-scoped refresh so the label switches from the
+        # global 4-slot view to the 2 slots used by this project.
+        weight_hw = getattr(self.gui, "weight_hardware_manager", None)
+        if weight_hw is not None:
+            weight_hw.refresh_weights_summary(scope="project")
 
     def _build_live_project_widgets(self, parent):
         """Build widgets specific to live projects."""

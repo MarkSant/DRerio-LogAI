@@ -14,7 +14,6 @@ from zebtrack.ui.dialogs.diagnostic_progress_dialog import DiagnosticProgressDia
 from zebtrack.ui.dialogs.live_analysis_dialog import LiveAnalysisDialog
 from zebtrack.ui.dialogs.live_config_dialog import LiveConfigDialog
 from zebtrack.ui.dialogs.live_preview_window import LivePreviewWindow
-from zebtrack.ui.dialogs.manage_weights_dialog import ManageWeightsDialog
 from zebtrack.ui.dialogs.missing_metadata_dialog import MissingMetadataDialog
 from zebtrack.ui.dialogs.multi_aquarium_confirm_dialog import MultiAquariumConfirmDialog
 from zebtrack.ui.dialogs.pending_videos_dialog import PendingVideosDialog
@@ -34,7 +33,6 @@ __all__ = [
     "LiveAnalysisDialog",
     "LiveConfigDialog",
     "LivePreviewWindow",
-    "ManageWeightsDialog",
     "MissingMetadataDialog",
     "MultiAquariumConfirmDialog",
     "PendingVideosDialog",
