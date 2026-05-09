@@ -53,6 +53,14 @@ repos:
         pass_filenames: false
         always_run: true
 
+      - id: update-copilot-context
+        name: Update Copilot context map
+        entry: poetry run python scripts/generate_copilot_context.py
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-commit, pre-push]
+
       - id: validate-docs
         name: Validate documentation consistency
         entry: poetry run python scripts/validate_docs.py
@@ -68,18 +76,19 @@ repos:
         pass_filenames: false
         always_run: true
 
-      - id: update-copilot-context
-        name: Update Copilot context map
-        entry: poetry run python scripts/generate_copilot_context.py
-        language: system
-        pass_filenames: false
-        stages: [pre-push]
-
       - id: gui-tests-changed
         name: Run GUI tests on changed test files
         entry: powershell -ExecutionPolicy Bypass -File scripts/test_gui_changed.ps1
         language: system
         pass_filenames: false
+        stages: [pre-push]
+
+      - id: block-push-main
+        name: Block direct pushes to main
+        entry: powershell -NoProfile -ExecutionPolicy Bypass -File scripts/git-block-push-main.ps1
+        language: system
+        pass_filenames: false
+        always_run: true
         stages: [pre-push]
 
 # Global settings

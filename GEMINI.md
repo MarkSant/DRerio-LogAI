@@ -77,9 +77,9 @@ event-driven architecture with dependency injection.
 
 ## Critical Rules
 
-1. **Read `docs/architecture/SYSTEM_INTEGRATION_MAP.md`** before debugging integration issues
+1. **Read `docs/reference/system_integration.md`** before debugging integration issues
 2. **Test everything** with pytest
-3. **Update SYSTEM_INTEGRATION_MAP.md** when modifying events, payloads, or dependencies
+3. **Update docs/reference/system_integration.md** when modifying events, payloads, or dependencies
 4. **Check for infinite event loops** when adding subscriptions to `MainViewModel`
 5. **MultiAquariumZoneData compatibility**: Always check when modifying `ProjectManager`/`ZoneManager`
 6. **Unified Reports (v3.3)**: Use `reports.delete_unified` for cleanup; rely on `group_id`, not `group`
@@ -204,7 +204,7 @@ When working with multi-aquarium features:
 
 - **Planning**:
   1. **MANDATORY**: Run `python scripts/impact_analyzer.py` first
-  2. Check `SYSTEM_INTEGRATION_MAP.md` for contracts
+  2. Check `docs/reference/system_integration.md` for contracts
   3. Consult `.copilot-impact-map.yaml` for dependency graphs
 - **Execution**: Ensure `MultiAquariumZoneData` compatibility
 - **Verification**:
