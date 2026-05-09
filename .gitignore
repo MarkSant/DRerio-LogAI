@@ -45,7 +45,9 @@ Thumbs.db
 # Editor & assistant settings
 .vscode/
 .idea/
-.claude/
+# .claude/ is partially tracked: settings.json + hooks/ are shared,
+# settings.local.json + worktrees/ are local-only (see entries below).
+.claude/worktrees/
 
 # Transient mock/cache data
 MagicMock/
@@ -63,8 +65,9 @@ test_single_animal.py
 test_gui_fixes.py
 GUI_FIXES_SUMMARY.md
 
-# Training outputs
+# Training outputs / model weights (binary, not versioned)
 *.pt
+weights/
 
 # Configuration files
 weights_config.json

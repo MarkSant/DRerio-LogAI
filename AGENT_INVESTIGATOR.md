@@ -27,7 +27,7 @@ Você é um **Agente Investigador Especializado** no repositório ZebTrack-AI. S
 | --- | --- | --- |
 | `.copilot-impact-map.yaml` | Mapa rápido de dependências, eventos, pitfalls | **SEMPRE primeiro** |
 | `docs/architecture/IMPACT_ANALYSIS_PROTOCOL.md` | Protocolo mandatório para mudanças | Antes de qualquer edição |
-| `docs/architecture/SYSTEM_INTEGRATION_MAP.md` | Contratos de eventos, payloads, componentes | Ao investigar eventos/integrações |
+| `docs/reference/system_integration.md` | Contratos de eventos, payloads, componentes | Ao investigar eventos/integrações |
 | `docs/architecture/ARCHITECTURE.md` | Visão geral MVVM-S + Event-Driven v4.0 | Para entender o sistema |
 | `docs/architecture/DEPENDENCY_INJECTION_GUIDE.md` | Padrões de DI, Composition Root | Ao investigar injeção de deps |
 | `.copilot-context.yaml` | Índice de arquivos, decision trees | Para navegação rápida |
@@ -347,7 +347,7 @@ timestamp, frame, track_id, x1, y1, x2, y2, confidence, [x_center_px, y_center_p
 
 | # | Erro | Impacto | Verificação |
 | --- | --- | --- | --- |
-| 1 | Payload de evento faltando keys | Crash de UI ou falha silenciosa | Verifique SYSTEM_INTEGRATION_MAP.md |
+| 1 | Payload de evento faltando keys | Crash de UI ou falha silenciosa | Verifique docs/reference/system_integration.md |
 | 2 | Usar `get_zone_data()` para multi-aquário | Aquário 1 recebe dados do Aquário 0 | Use `get_multi_aquarium_zone_data()` |
 | 3 | Esquecer `root.after()` para UI | Violação de thread safety | Sempre envolva updates de UI |
 | 4 | Não reescalar zonas após dimensões do vídeo | Zonas na posição errada | Chame `Detector.set_zones()` |
@@ -412,7 +412,7 @@ pytest -q
 - [x] pytest -k "keyword" - PASSED
 
 ### Documentação Atualizada
-- [ ] SYSTEM_INTEGRATION_MAP.md (se contratos mudaram)
+- [ ] docs/reference/system_integration.md (se contratos mudaram)
 - [ ] CHANGELOG.md (se feature/fix significativo)
 
 ### Repercussões Antecipadas

@@ -1,9 +1,12 @@
 # ZebTrack-AI Impact Map
-# Quick-lookup map for AI agents to understand component dependencies
-# Last Updated: Mar 1, 2026 (v2.0)
+# Quick-lookup map for AI agents to understand component dependencies.
+# Last Updated: 2026-05-09 (v2.1 — expanded events section, fixed doc refs)
 #
-# Usage: Agents should consult this file BEFORE making changes to understand
-# which components will be affected.
+# Usage: agents should consult this file BEFORE making changes.
+# Companion files:
+#   - CLAUDE.md ............ canonical agent guide
+#   - DOMAIN_GLOSSARY.md ... vocabulary
+#   - TEST_MAP.md .......... source → tests routing
 
 # =============================================================================
 # DOMAIN DEPENDENCY GRAPHS
@@ -18,37 +21,186 @@ domains:
 
     event_bus:
       definition_file: "src/zebtrack/ui/event_bus_v2.py"
-      event_format: "Enum (UIEvents) - sole event bus; v1 removed"
+      event_format: "Enum (UIEvents) — sole event bus; v1 removed"
+      payload_module: "src/zebtrack/ui/payloads.py"
       use_for: "All cross-component communication"
+      naming_convention: "DOMAIN_ACTION_RESULT (UPPER_SNAKE_CASE)"
+      total_events: "~200 (see UIEvents enum); subset documented below"
+
+      # ── Lookup notes ─────────────────────────────────────────────────
+      # When a payload field name differs from what's listed here, check
+      # the dataclass in payloads.py — payload classes mirror event names
+      # (e.g. ZONE_PROCESSING_MODE_CHANGED → ZoneProcessingModeChangedPayload).
+      # When publishers/subscribers are uncertain, grep for `bus.publish(UIEvents.NAME`
+      # and `subscribe(UIEvents.NAME`.
 
       critical_events:
+        # ── Project lifecycle ───────────────────────────────────────────
+        PROJECT_CREATE:
+          handlers: "coordinators/project_lifecycle_coordinator.py"
+          payload: "ProjectCreatePayload (wizard config dict)"
+
+        PROJECT_OPEN:
+          handlers: "coordinators/project_lifecycle_coordinator.py"
+          payload: "{project_path: str}"
+
+        PROJECT_CLOSE:
+          handlers: "coordinators/project_lifecycle_coordinator.py"
+
+        PROJECT_PROCESS_VIDEOS:
+          publishers: ["ui/components/project_views/*"]
+          subscribers: ["coordinators/video_processing_coordinator.py"]
+          payload: "list of video paths to process in batch"
+
+        PROJECT_DELETE_GROUP / PROJECT_DELETE_DAY / PROJECT_DELETE_SUBJECT / PROJECT_DELETE_AQUARIUM:
+          subscribers: ["coordinators/project_lifecycle_coordinator.py"]
+          note: "Cascade deletion in subject hierarchy tree."
+
+        PROJECT_RESET_ANALYSIS_DATA:
+          subscribers: ["coordinators/project_lifecycle_coordinator.py"]
+          note: "Resets parquet outputs for a video without deleting raw video."
+
+        PROJECT_VIDEO_SELECTED:
+          publishers: ["ui/components/project_views/*"]
+          payload: "{video_path: str}"
+
+        # ── Video processing ────────────────────────────────────────────
         VIDEO_ANALYZE_SINGLE:
           publishers: ["ui/dialogs/single_video_config_dialog.py"]
-          subscribers: ["core/main_view_model.py", "coordinators/video_processing_coordinator.py"]
-          payload: ["video_path: str", "config: dict"]
+          subscribers: ["coordinators/video_processing_coordinator.py"]
+          payload: "{video_path: str, config: dict}"
+
+        VIDEO_START_SINGLE_PROCESSING:
+          subscribers: ["coordinators/video_processing_coordinator.py"]
+          note: "Internal: actual start after config validation."
 
         VIDEO_CANCEL_ANALYSIS:
           publishers: ["ui/gui.py"]
-          subscribers: ["core/main_view_model.py -> VideoProcessingCoordinator.cancel_processing()"]
+          subscribers: ["coordinators/video_processing_coordinator.py.cancel_processing()"]
+
+        # ── Multi-aquarium (CRITICAL DOMAIN) ────────────────────────────
+        ZONE_MULTI_AUTO_DETECT:
+          publishers: ["ui/components/zone_controls.py"]
+          subscribers: ["coordinators/multi_aquarium_coordinator.py"]
+          payload: "{video_path, stabilization_frames, expected_count}"
+
+        ZONE_MULTI_AUTO_DETECT_SUCCESS:
+          payload: "{video_path: str, polygons: list}"
+
+        ZONE_MULTI_AUTO_DETECT_FAILED:
+          payload: "{video_path: str, reason: str}"
+
+        ZONE_AQUARIUM_SELECTED:
+          publishers: ["ui/components/zone_controls.py"]
+          subscribers: ["ui/components/event_dispatcher.py -> CanvasManager.update_zone_listbox()"]
+          payload: "{aquarium_id: int}"
+
+        ZONE_MULTI_DETECT_COMPLETED:
+          payload: "{count: int, aquariums: list}"
+
+        ZONE_AQUARIUM_CONFIG_CONFIRMED:
+          payload: "{configs: list[AquariumConfig]}"
+          note: "Aquarium-to-subject assignment finalized."
+
+        ZONE_AQUARIUM_CONFIG_UPDATED:
+          subscribers: ["coordinators/project_lifecycle_coordinator.py._handle_aquarium_config_updated()"]
+          payload: "{aquarium_id, config, video_path}"
+
+        ZONE_AQUARIUM_COUNT_CONFIRMED:
+          payload: "{count: int}"
+
+        ZONE_AQUARIUM_ASSIGNMENT_COMPLETED:
+          payload: "{configs, apply_to_all: bool}"
+
+        ZONE_PROCESSING_MODE_CHANGED:
+          publishers: ["ui/components/zone_controls.py"]
+          subscribers: ["coordinators/multi_aquarium_coordinator.py"]
+          payload: "ZoneProcessingModeChangedPayload(sequential: bool)"
+          note: "Multi-aquarium parallel-vs-sequential toggle. NOT the same as UI_UPDATE_PROCESSING_MODE."
+
+        # ── Reports / analysis ──────────────────────────────────────────
+        PROCESSING_GENERATE_TRAJECTORIES:
+          subscribers: ["coordinators/report_generation_coordinator.py"]
+          note: "Required handler — earlier versions emitted 'no handlers' warnings."
+
+        PROCESSING_EXPORT_SUMMARIES:
+          subscribers: ["coordinators/report_generation_coordinator.py"]
+
+        REPORTS_GENERATE_PARTIAL / REPORTS_GENERATE_UNIFIED:
+          subscribers: ["coordinators/report_generation_coordinator.py"]
+
+        REPORTS_DELETE_UNIFIED:
+          subscribers: ["coordinators/report_generation_coordinator.py"]
+          note: "Includes retry-with-unlock for OneDrive sync locks (v3.3)."
+
+        # ── Calibration ─────────────────────────────────────────────────
+        CALIBRATION_RUN_LIVE / CALIBRATION_COPY_TO_PROJECT / CALIBRATION_SAVE_TO_PROJECT:
+          subscribers: ["coordinators/calibration_coordinator.py"]
+
+        # ── Detector / model / weights ──────────────────────────────────
+        DETECTOR_SETUP / DETECTOR_SETUP_ZONES / DETECTOR_UPDATE_PARAMETERS / DETECTOR_UPDATE_ZONES:
+          subscribers: ["coordinators/detector_setup_coordinator.py"]
+
+        MODEL_SET_WEIGHT / MODEL_ADD_WEIGHT / MODEL_DELETE_WEIGHT / MODEL_RESCAN_WEIGHTS:
+          subscribers: ["coordinators/detector_setup_coordinator.py"]
+
+        MODEL_SET_OPENVINO / MODEL_CONVERT_OPENVINO / MODEL_CLEAR_OPENVINO_CACHE:
+          subscribers: ["coordinators/detector_setup_coordinator.py"]
+
+        # ── Recording / live camera ─────────────────────────────────────
+        RECORDING_START / RECORDING_STOP / RECORDING_TOGGLE / RECORDING_TRIGGER:
+          subscribers: ["coordinators/live_camera_session_coordinator.py", "core/recording/recording_service.py"]
+
+        LIVE_SESSION_STARTED / LIVE_SESSION_STOPPED:
+          publishers: ["coordinators/live_camera_session_coordinator.py"]
+          note: "Internal state markers."
+
+        # ── UI commands (ViewModel → View) ──────────────────────────────
+        UI_UPDATE_PROCESSING_MODE:
+          payload: "UpdateProcessingModePayload(report=ProcessingReport(mode, source))"
+          note: "Tracking algorithm mode (MULTI_TRACK vs SINGLE_SUBJECT). NOT the multi-aquarium toggle — that's ZONE_PROCESSING_MODE_CHANGED."
 
         UI_DISPLAY_FRAME:
           publishers: ["core/video/processing_worker.py"]
-          subscribers: ["ui/event_dispatcher.py -> CanvasManager"]
-          payload: ["frame: np.ndarray", "detections: list (opt)", "info: dict (opt)"]
+          subscribers: ["ui/components/event_dispatcher.py -> CanvasManager"]
+          payload: "{frame: np.ndarray, detections: list (opt), info: dict (opt)}"
           note: "Only for ProcessingWorker. Live Camera uses LivePreviewWindow directly."
 
-        ZONE_MULTI_AUTO_DETECT:
-          publishers: ["ui/widgets/zone_controls.py"]
-          subscribers: ["coordinators/multi_aquarium_coordinator.py"]
-          payload: ["video_path", "stabilization_frames", "expected_count"]
+        UI_UPDATE_LIVE_FRAME:
+          publishers: ["core/recording/live_camera_service.py"]
+          subscribers: ["ui/dialogs/live_preview_window.py"]
 
+        UI_SHOW_ERROR / UI_SHOW_WARNING / UI_SHOW_INFO:
+          subscribers: ["ui/gui.py.show_error/show_warning/show_info"]
+          payload: "MessagePayload(title: str, message: str)"
+
+        UI_REFRESH_PROJECT_VIEWS:
+          subscribers: ["ui/components/project_views/*"]
+
+        UI_NAVIGATE_TO_WELCOME / UI_NAVIGATE_TO_PROJECT_VIEW / UI_NAVIGATE_TO_ANALYSIS_VIEW:
+          subscribers: ["ui/gui.py"]
+
+        UI_UPDATE_ANALYSIS_METADATA:
+          subscribers: ["ui/components/*"]
+
+        UI_UPDATE_PROCESSING_STATS:
+          publishers: ["coordinators/progress_tracking_coordinator.py"]
+          subscribers: ["ui/components/*"]
+          payload: "{total_frames, processed_frames, detected_frames, start_time}"
+
+        # ── Legacy / generic widget events ──────────────────────────────
         ZONES_UPDATED:
-          publishers: ["ui/dialogs/dialog_manager.py", "ui/canvas_manager.py", "ui/gui.py"]
-          subscribers: ["ui/ui_coordinator.py", "ui/canvas_manager.py"]
+          publishers: ["ui/dialogs/dialog_manager.py", "ui/components/canvas/*", "ui/gui.py"]
+          subscribers: ["ui/components/event_dispatcher.py", "ui/components/canvas/*"]
 
         VIDEO_TREE_REFRESH_REQUESTED:
-          publishers: ["ui/dialogs/dialog_manager.py", "ui/widgets/zone_control_builder.py"]
-          subscribers: ["ui/ui_coordinator.py"]
+          publishers: ["ui/dialogs/dialog_manager.py", "ui/components/zone_controls.py"]
+          subscribers: ["ui/components/project_views/*"]
+
+        WIZARD_CREATE_PROJECT:
+          publishers: ["ui/wizard/*"]
+          subscribers: ["coordinators/project_lifecycle_coordinator.py"]
+          payload: "WizardData (Pydantic model in ui/wizard/models.py)"
 
   # ---------------------------------------------------------------------------
   # MULTI-AQUARIUM DOMAIN (CRITICAL)
@@ -151,7 +303,7 @@ domains:
     tab_awareness:
       - component: "CanvasManager"
         behavior: "Overlays only drawn when is_on_analysis_tab=True"
-        location: "ui/canvas_manager.py"
+        location: "ui/components/canvas_manager.py"
 
   # ---------------------------------------------------------------------------
   # PROCESSING DOMAIN
@@ -293,7 +445,7 @@ pitfalls:
   - id: 1
     name: "Missing event payload keys"
     impact: "UI crash or silent failure"
-    check: "Verify payload matches SYSTEM_INTEGRATION_MAP.md"
+    check: "Verify payload matches docs/reference/system_integration.md"
 
   - id: 2
     name: "Using get_zone_data() for multi-aquarium"
@@ -335,8 +487,20 @@ pitfalls:
 # =============================================================================
 
 documentation:
-  impact_protocol: "docs/architecture/IMPACT_ANALYSIS_PROTOCOL.md"
-  system_integration: "docs/architecture/SYSTEM_INTEGRATION_MAP.md"
-  di_guide: "docs/architecture/DEPENDENCY_INJECTION_GUIDE.md"
-  architecture: "docs/architecture/ARCHITECTURE.md"
-  state_management: "docs/architecture/STATE_MANAGEMENT_GUIDE.md"
+  agent_guide: "CLAUDE.md"                                          # canonical
+  contributing: "CONTRIBUTING.md"
+  domain_glossary: "docs/reference/DOMAIN_GLOSSARY.md"
+  test_map: "docs/testing/TEST_MAP.md"
+  system_integration: "docs/reference/system_integration.md"
+  coordinate_systems: "docs/reference/COORDINATE_SYSTEMS.md"
+  known_issues: "docs/reference/KNOWN_ISSUES.md"
+  impact_analysis: "docs/guides/developer/impact_analysis.md"
+  cheatsheet: "docs/guides/developer/CHEATSHEET.md"
+  workflows: "docs/guides/developer/WORKFLOWS.md"
+  debugging: "docs/guides/developer/debugging.md"
+  wizard_dev: "docs/guides/developer/wizard.md"
+  performance_tuning: "docs/guides/developer/performance-tuning.md"
+  vscode_setup: "docs/guides/developer/VSCODE.md"
+  phase_history: "docs/archive/PHASES.md"
+  fixes_2025_12: "docs/archive/fixes/2025-12.md"
+  doc_index: "docs/INDEX.md"

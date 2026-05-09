@@ -1,0 +1,54 @@
+---
+description: ZebTrack-AI core rules. Always loaded — points to the canonical agent guide.
+alwaysApply: true
+---
+
+# ZebTrack-AI — Cursor rules
+
+The canonical agent guide for this project is [`CLAUDE.md`](../../CLAUDE.md).
+Read it before any non-trivial change.
+
+## Universal rules (apply to every code change)
+
+1. **Impact analysis first.** Run `.\scripts\dev.ps1 impact <type> <name>` and
+   consult [`.copilot-impact-map.yaml`](../../.copilot-impact-map.yaml) before
+   editing.
+2. **No placeholders.** Write full, functional code. Never use `...` for
+   existing code.
+3. **DI**: never `from zebtrack import settings` outside the composition root.
+   Inject `settings_obj` everywhere else.
+4. **Multi-aquarium**: use `ProjectManager.get_multi_aquarium_zone_data()` in
+   report-generation contexts. `get_zone_data()` returns aquarium 0 only.
+5. **Threading**: every UI update from a worker thread goes through
+   `root.after(0, ...)`. Worker threads must be `daemon=True`.
+6. **Parquet schema** in `io/recorder.py` is **immutable** — column order is
+   fixed.
+7. **Pre-merge gate**: `.\scripts\dev.ps1 check-all` (Ruff + fast tests) must
+   pass before opening a PR.
+
+## Day-to-day commands
+
+All routine operations go through `scripts/dev.ps1`:
+
+```powershell
+.\scripts\dev.ps1 help              # full command list
+.\scripts\dev.ps1 test-fast         # ~2778 fast tests
+.\scripts\dev.ps1 test-gui          # GUI tests (sequential)
+.\scripts\dev.ps1 lint-fix          # Ruff auto-fix
+.\scripts\dev.ps1 check-all         # lint + tests
+.\scripts\dev.ps1 impact class WeightManager
+```
+
+## Pointers
+
+- Domain vocabulary: [`docs/reference/DOMAIN_GLOSSARY.md`](../../docs/reference/DOMAIN_GLOSSARY.md)
+- Source → tests map: [`docs/testing/TEST_MAP.md`](../../docs/testing/TEST_MAP.md)
+- Event flows & payloads: [`docs/reference/system_integration.md`](../../docs/reference/system_integration.md)
+- Phase / version history: [`docs/archive/PHASES.md`](../../docs/archive/PHASES.md)
+- Refactor plans: [`docs/tasks/active/REFACTOR_GIANTS.md`](../../docs/tasks/active/REFACTOR_GIANTS.md)
+
+## Updating this rule
+
+Keep this file short — under 60 lines. If a rule needs more detail, put it in
+`CLAUDE.md` and link here. Cursor loads `alwaysApply: true` rules into every
+conversation, so size matters.

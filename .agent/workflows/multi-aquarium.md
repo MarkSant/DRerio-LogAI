@@ -8,7 +8,7 @@ description: Checklist for multi-aquarium feature changes
 
 ## Pre-Implementation Checklist
 
-1. Read `docs/architecture/SYSTEM_INTEGRATION_MAP.md`
+1. Read `docs/reference/system_integration.md`
 2. Check if feature touches `ProjectManager` or `ZoneManager`
 3. Identify affected events in EventBus
 
@@ -41,7 +41,7 @@ poetry run pytest -k "multi" -v
 
 ## Documentation
 
-Update `SYSTEM_INTEGRATION_MAP.md` if adding:
+Update `docs/reference/system_integration.md` if adding:
 
 - New events
 - New payload fields
