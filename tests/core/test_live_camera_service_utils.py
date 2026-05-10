@@ -26,6 +26,76 @@ def live_camera_service():
     )
 
 
+def test_resolve_calibration_perspective_returns_top_down(live_camera_service):
+    """When project_data carries calibration.behavioral_analysis.aquarium_perspective,
+    the helper must surface it so live can pick the correct 4-slot default.
+    """
+    pm = Mock()
+    pm.project_data = {"calibration": {"behavioral_analysis": {"aquarium_perspective": "top_down"}}}
+    live_camera_service.project_manager = pm
+
+    assert live_camera_service._resolve_calibration_perspective() == "top_down"
+
+
+def test_resolve_calibration_perspective_returns_lateral(live_camera_service):
+    """Lateral perspective must round-trip unchanged."""
+    pm = Mock()
+    pm.project_data = {"calibration": {"behavioral_analysis": {"aquarium_perspective": "lateral"}}}
+    live_camera_service.project_manager = pm
+
+    assert live_camera_service._resolve_calibration_perspective() == "lateral"
+
+
+def test_resolve_calibration_perspective_returns_none_when_missing(live_camera_service):
+    """Without calibration data the helper returns None (perspective-agnostic
+    fallback path inside WeightManager)."""
+    pm = Mock()
+    pm.project_data = {}
+    live_camera_service.project_manager = pm
+
+    assert live_camera_service._resolve_calibration_perspective() is None
+
+
+def test_resolve_calibration_perspective_returns_none_when_no_project_manager(
+    live_camera_service,
+):
+    """No project loaded → perspective is None and live falls back gracefully."""
+    live_camera_service.project_manager = None
+
+    assert live_camera_service._resolve_calibration_perspective() is None
+
+
+def test_is_session_active_false_when_no_threads(live_camera_service):
+    """Fresh service (no threads spawned) is not active."""
+    live_camera_service.capture_thread = None
+    live_camera_service.processing_thread = None
+    live_camera_service.video_recording_thread = None
+
+    assert live_camera_service.is_session_active() is False
+
+
+def test_is_session_active_true_when_capture_thread_alive(live_camera_service):
+    """Active capture thread → session is active."""
+    alive_thread = Mock()
+    alive_thread.is_alive.return_value = True
+    live_camera_service.capture_thread = alive_thread
+    live_camera_service.processing_thread = None
+    live_camera_service.video_recording_thread = None
+
+    assert live_camera_service.is_session_active() is True
+
+
+def test_is_session_active_false_when_threads_finished(live_camera_service):
+    """Threads exist but already exited → session is not active."""
+    dead_thread = Mock()
+    dead_thread.is_alive.return_value = False
+    live_camera_service.capture_thread = dead_thread
+    live_camera_service.processing_thread = dead_thread
+    live_camera_service.video_recording_thread = dead_thread
+
+    assert live_camera_service.is_session_active() is False
+
+
 def test_cleanup_existing_session_folders_no_base(live_camera_service, tmp_path):
     """Return early when output base does not exist."""
     missing_dir = tmp_path / "missing"

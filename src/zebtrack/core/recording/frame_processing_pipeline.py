@@ -92,6 +92,33 @@ class FrameProcessingMixin:
     # Methods from other mixins
     def _on_session_active(self) -> None: ...
     def _publish_analysis_lag_status(self, lag_seconds: float) -> None: ...
+    def _publish_video_drop_status(self) -> None: ...
+
+    def _post_preview_status(self, message: str, color: str = "white") -> None:
+        """Schedule a preview-window status update on the Tk main thread.
+
+        ``LivePreviewWindow.update_status_text`` writes Tk widget
+        properties, so it must run on the thread that owns the widget
+        (CLAUDE.md: all UI updates from worker threads must use
+        ``root.after(0, ...)``). This helper bounces the call through
+        ``root.after`` when ``self.root`` is available, and falls back
+        to a direct call when no Tk root is present (tests / headless).
+        """
+        preview = getattr(self, "preview_window", None)
+        if preview is None:
+            return
+        root = getattr(self, "root", None)
+        if root is not None and hasattr(root, "after"):
+            try:
+                root.after(0, preview.update_status_text, message, color)
+                return
+            # except Exception justified: ``root.after`` may be unavailable
+            # during shutdown (TclError); fall through to a direct call so
+            # we still log the intent.
+            except Exception:  # pragma: no cover - defensive
+                log.debug("live_camera_service.post_preview_status.after_failed")
+        preview.update_status_text(message, color)
+
     def _check_camera_disconnect(self) -> None: ...
     def _on_camera_reconnected(self) -> None: ...
     def _define_arena_from_detections(self) -> None: ...
@@ -195,6 +222,12 @@ class FrameProcessingMixin:
                             queue_size=self.video_queue.qsize(),
                             note="video_recording_may_have_gaps",
                         )
+                        # Phase 5 / B2: surface video drops to the UI so
+                        # the user notices a slow disk before the recorder
+                        # accumulates a noticeable gap. Throttled so a
+                        # bursty queue.Full does not spam the status bar.
+                        if self._dropped_frames_video % 10 == 1:
+                            self._publish_video_drop_status()
 
                 # PRIORITY 2: ANALYSIS FRAMES
                 is_analysis_frame = (frame_count % self.analysis_interval_frames) == 0
@@ -324,8 +357,13 @@ class FrameProcessingMixin:
                     # Warmup period (skip first 30 frames ~1.5s)
                     if frame_number < 30:
                         if self.preview_window and frame_number % 5 == 0:
-                            self.preview_window.update_status_text(
-                                f"⏳ Estabilizando imagem... ({frame_number}/30)", color="orange"
+                            # Tk widgets must be touched from the main thread —
+                            # marshal status updates through root.after(0,...)
+                            # instead of calling update_status_text directly
+                            # from this worker (Phase 5 / M3).
+                            self._post_preview_status(
+                                f"⏳ Estabilizando imagem... ({frame_number}/30)",
+                                color="orange",
                             )
                         continue
 
@@ -333,13 +371,13 @@ class FrameProcessingMixin:
                     if frame_number % 5 != 0:
                         continue
 
-                    # Update preview status
+                    # Update preview status (Phase 5 / M3 — main-thread bounce)
                     if self.preview_window and frame_number % 5 == 0:
                         status_msg = (
                             f"🔍 Detectando aquário... "
                             f"({self._aquarium_detection_frames}/{self._aquarium_detection_max_frames})"
                         )
-                        self.preview_window.update_status_text(status_msg, color="yellow")
+                        self._post_preview_status(status_msg, color="yellow")
 
                     # Run detection to find aquarium (class_id=0)
                     detector = self.detector_service.detector
@@ -361,6 +399,14 @@ class FrameProcessingMixin:
                     min_aquarium_area = frame_area * min_ratio
 
                     detection_found_in_frame = False
+                    # Phase 5 / M7: lazily produce ONE shared snapshot per
+                    # frame iteration, regardless of how many detections
+                    # we publish events for. The previous code copied the
+                    # frame for every accepted/rejected detection, which
+                    # on multi-aquarium scenes meant N copies per frame.
+                    # Subscribers must treat ``frame_image`` as read-only.
+                    detection_frame_snapshot: np.ndarray | None = None
+
                     for det in detections:
                         if len(det) >= 7:
                             x1, y1, x2, y2, conf, track_id, class_id = det
@@ -388,13 +434,15 @@ class FrameProcessingMixin:
                                         from zebtrack.ui import payloads
                                         from zebtrack.ui.event_bus_v2 import Event, UIEvents
 
+                                        if detection_frame_snapshot is None:
+                                            detection_frame_snapshot = frame.copy()
                                         self.event_bus.publish(
                                             Event(
                                                 type=UIEvents.AQUARIUM_DETECTION_PROGRESS,
                                                 data=payloads.AquariumDetectionProgressPayload(
                                                     frame_number=self._aquarium_detection_frames,
                                                     max_frames=self._aquarium_detection_max_frames,
-                                                    frame_image=frame.copy(),
+                                                    frame_image=detection_frame_snapshot,
                                                     detected_bbox=(
                                                         int(x1),
                                                         int(y1),
@@ -422,13 +470,15 @@ class FrameProcessingMixin:
                                         from zebtrack.ui import payloads
                                         from zebtrack.ui.event_bus_v2 import Event, UIEvents
 
+                                        if detection_frame_snapshot is None:
+                                            detection_frame_snapshot = frame.copy()
                                         self.event_bus.publish(
                                             Event(
                                                 type=UIEvents.AQUARIUM_DETECTION_PROGRESS,
                                                 data=payloads.AquariumDetectionProgressPayload(
                                                     frame_number=self._aquarium_detection_frames,
                                                     max_frames=self._aquarium_detection_max_frames,
-                                                    frame_image=frame.copy(),
+                                                    frame_image=detection_frame_snapshot,
                                                     detected_bbox=(
                                                         int(x1),
                                                         int(y1),
@@ -469,8 +519,10 @@ class FrameProcessingMixin:
                         self._define_arena_from_detections()
                         self._start_recording_after_arena()
 
+                        # Tk widget mutation must run on the main thread
+                        # (Phase 5 / M3).
                         if self.preview_window:
-                            self.preview_window.update_status_text("● Gravando", color="red")
+                            self._post_preview_status("● Gravando", color="red")
 
                     continue
 

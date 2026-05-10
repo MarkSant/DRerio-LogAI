@@ -256,6 +256,16 @@ class YOLOModelSettings(BaseModel):
             "Must be divisible by 32. Default 640 balances speed and accuracy."
         ),
     )
+    device: str | None = Field(
+        None,
+        description=(
+            "Explicit device for Ultralytics inference. Examples: 'cpu', "
+            "'cuda', 'cuda:0', 'mps'. Leave as None to let Ultralytics "
+            "auto-select (CUDA if available, else CPU). When set to 'cpu', "
+            "FP16 (use_half_precision) is silently disabled regardless of "
+            "the use_half_precision flag, since FP16 only benefits GPUs."
+        ),
+    )
 
     @field_validator("inference_size")
     @classmethod
@@ -630,6 +640,29 @@ class OpenVINOSettings(BaseModel):
         description=(
             "Automatically run hardware benchmark on first startup to detect "
             "optimal settings. Results are cached and reused."
+        ),
+    )
+    num_streams: int | None = Field(
+        None,
+        ge=1,
+        le=32,
+        description=(
+            "OpenVINO NUM_STREAMS: number of parallel inference streams. "
+            "Useful for THROUGHPUT mode on multi-core CPUs / discrete GPUs. "
+            "Leave as None to let OpenVINO autotune (recommended default). "
+            "Manually setting too high on a small CPU may degrade live "
+            "latency."
+        ),
+    )
+    num_threads: int | None = Field(
+        None,
+        ge=1,
+        le=64,
+        description=(
+            "OpenVINO INFERENCE_NUM_THREADS: max threads used during "
+            "inference on CPU. Leave as None to inherit from the system "
+            "default (OpenVINO uses all logical cores). Lower it to free "
+            "CPU for capture/recording threads on small machines."
         ),
     )
     batch_nireq: int = Field(

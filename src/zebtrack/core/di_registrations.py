@@ -224,6 +224,7 @@ def build_container(context: ContainerContext) -> punq.Container:
             detector_service=_resolve(container, DetectorService),
             model_override_service=_resolve(container, ModelOverrideService),
             calibration_coordinator=_resolve(container, CalibrationCoordinator),
+            live_camera_service=_resolve(container, LiveCameraService),
         ),
         scope=punq.Scope.singleton,
     )

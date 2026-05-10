@@ -42,6 +42,53 @@ except ImportError:
     )
 
 
+def _resolve_openvino_cache_dir(raw: str | os.PathLike[str] | None) -> str | None:
+    """Resolve and validate the OpenVINO compiled-model cache directory.
+
+    Accepts an absolute path, a path relative to the project root (the
+    repo top-level, two parents above this file), or ``None``. Creates
+    the directory and ensures it is writable. Falls back to
+    ``<tempdir>/zebtrack_openvino_cache`` and logs a warning when the
+    requested location is not writable.
+    """
+    log = structlog.get_logger()
+    if not raw:
+        return None
+    cache_path = Path(raw)
+    if not cache_path.is_absolute():
+        # plugins/openvino_detector.py → src/zebtrack/plugins → src/zebtrack → src → repo root
+        project_root = Path(__file__).resolve().parents[3]
+        cache_path = project_root / cache_path
+    try:
+        cache_path.mkdir(parents=True, exist_ok=True)
+    except OSError as exc:
+        import tempfile
+
+        fallback = Path(tempfile.gettempdir()) / "zebtrack_openvino_cache"
+        log.warning(
+            "openvino.cache_dir.fallback",
+            requested=str(cache_path),
+            fallback=str(fallback),
+            error=str(exc),
+        )
+        fallback.mkdir(parents=True, exist_ok=True)
+        return str(fallback)
+
+    if not os.access(cache_path, os.W_OK):
+        import tempfile
+
+        fallback = Path(tempfile.gettempdir()) / "zebtrack_openvino_cache"
+        log.warning(
+            "openvino.cache_dir.not_writable",
+            requested=str(cache_path),
+            fallback=str(fallback),
+        )
+        fallback.mkdir(parents=True, exist_ok=True)
+        return str(fallback)
+
+    return str(cache_path)
+
+
 def _scale_image(masks: np.ndarray, target_hw: tuple[int, int]) -> np.ndarray:
     """Resize masks (H, W, C) to target (H, W) using bilinear interpolation.
 
@@ -145,7 +192,9 @@ class OpenVINOPlugin(DetectorPlugin):
         device_name = "AUTO"
         performance_hint = "LATENCY"
         precision_hint = None
-        cache_dir = None
+        cache_dir: str | None = None
+        num_streams: int | None = None
+        num_threads: int | None = None
 
         if self._settings is not None and hasattr(self._settings, "openvino"):
             ov_settings = self._settings.openvino
@@ -157,15 +206,22 @@ class OpenVINOPlugin(DetectorPlugin):
                 device_name = ov_settings.device
                 performance_hint = ov_settings.performance_hint_live
 
-            # Enable model cache for faster subsequent loads
+            # Enable model cache for faster subsequent loads. The raw path
+            # may be relative; _resolve_openvino_cache_dir anchors it to
+            # the project root and falls back to a tempdir if the chosen
+            # location is not writable (read-only volume, OneDrive lock, …).
             if ov_settings.enable_model_cache:
-                cache_dir = ov_settings.cache_dir
+                cache_dir = _resolve_openvino_cache_dir(ov_settings.cache_dir)
 
             # Set precision hint if not FP32
             if ov_settings.precision == "FP16":
                 precision_hint = "f16"
             elif ov_settings.precision == "INT8":
                 precision_hint = "i8"
+
+            # Optional CPU/GPU tuning knobs (None → let OpenVINO autotune).
+            num_streams = getattr(ov_settings, "num_streams", None)
+            num_threads = getattr(ov_settings, "num_threads", None)
 
         # Verify requested device is available
         if device_name != "AUTO" and device_name not in available_devices:
@@ -182,16 +238,23 @@ class OpenVINOPlugin(DetectorPlugin):
             target_device=device_name,
             hint=performance_hint,
             cache_enabled=cache_dir is not None,
+            num_streams=num_streams,
+            num_threads=num_threads,
         )
 
         # Build configuration
         config: dict[str, Any] = {"PERFORMANCE_HINT": performance_hint}
         if cache_dir:
-            # Ensure cache directory exists
-            Path(cache_dir).mkdir(parents=True, exist_ok=True)
-            config["CACHE_DIR"] = str(cache_dir)
+            config["CACHE_DIR"] = cache_dir
         if precision_hint and ("GPU" in device_name or device_name == "NPU"):
             config["INFERENCE_PRECISION_HINT"] = precision_hint
+        if num_streams is not None:
+            config["NUM_STREAMS"] = str(num_streams)
+        if num_threads is not None:
+            # OpenVINO uses INFERENCE_NUM_THREADS only on CPU. Setting it on
+            # AUTO/GPU is a no-op or rejected — pass it through anyway and
+            # let the existing fallback handler recover if compilation fails.
+            config["INFERENCE_NUM_THREADS"] = str(num_threads)
 
         # NPU-specific configuration
         if device_name == "NPU":

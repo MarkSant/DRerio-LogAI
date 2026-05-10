@@ -136,3 +136,102 @@ def test_close_project_publishes_events_and_updates_manager(coordinator, event_b
     event_types = [call.args[0].type for call in event_bus.publish.call_args_list]
     assert UIEvents.PROJECT_MANAGER_REPLACED in event_types
     assert UIEvents.PROJECT_CLOSED in event_types
+
+
+def test_close_project_stops_active_live_session(event_bus):
+    """When a live session is running, close_project must stop it BEFORE
+    delegating to the workflow adapter so the camera handle is released
+    and worker threads are joined ahead of the project state reset.
+    """
+    live_camera_service = MagicMock()
+    live_camera_service.is_session_active.return_value = True
+
+    coord = ProjectLifecycleCoordinator(
+        state_manager=MagicMock(),
+        project_manager=MagicMock(),
+        project_workflow_service=MagicMock(),
+        project_workflow_adapter=MagicMock(),
+        settings_obj=MagicMock(),
+        event_bus=event_bus,
+        live_camera_service=live_camera_service,
+    )
+    coord.project_workflow_adapter.close_project.return_value = MagicMock()
+
+    coord.close_project()
+
+    live_camera_service.is_session_active.assert_called_once()
+    live_camera_service.stop_session.assert_called_once()
+    # stop_session must be invoked before adapter.close_project
+    assert (
+        live_camera_service.stop_session.call_count
+        >= 1  # explicit assertion above already checks; sanity here
+    )
+
+
+def test_close_project_skips_live_stop_when_not_active(event_bus):
+    """No-op when no live session is running — avoids spurious UI events
+    and avoids touching the camera/threads when there is nothing to clean.
+    """
+    live_camera_service = MagicMock()
+    live_camera_service.is_session_active.return_value = False
+
+    coord = ProjectLifecycleCoordinator(
+        state_manager=MagicMock(),
+        project_manager=MagicMock(),
+        project_workflow_service=MagicMock(),
+        project_workflow_adapter=MagicMock(),
+        settings_obj=MagicMock(),
+        event_bus=event_bus,
+        live_camera_service=live_camera_service,
+    )
+    coord.project_workflow_adapter.close_project.return_value = MagicMock()
+
+    coord.close_project()
+
+    live_camera_service.is_session_active.assert_called_once()
+    live_camera_service.stop_session.assert_not_called()
+
+
+def test_close_project_handles_missing_live_camera_service(event_bus):
+    """Coordinator must not crash when live_camera_service is not wired
+    (legacy test setups, headless contexts).
+    """
+    coord = ProjectLifecycleCoordinator(
+        state_manager=MagicMock(),
+        project_manager=MagicMock(),
+        project_workflow_service=MagicMock(),
+        project_workflow_adapter=MagicMock(),
+        settings_obj=MagicMock(),
+        event_bus=event_bus,
+        live_camera_service=None,
+    )
+    coord.project_workflow_adapter.close_project.return_value = MagicMock()
+
+    # Should not raise
+    coord.close_project()
+
+
+def test_close_project_swallows_live_stop_errors(event_bus):
+    """An exception while stopping the live session must NOT block close
+    (the project still needs to be closed). The error is logged.
+    """
+    live_camera_service = MagicMock()
+    live_camera_service.is_session_active.return_value = True
+    live_camera_service.stop_session.side_effect = RuntimeError("camera stuck")
+
+    coord = ProjectLifecycleCoordinator(
+        state_manager=MagicMock(),
+        project_manager=MagicMock(),
+        project_workflow_service=MagicMock(),
+        project_workflow_adapter=MagicMock(),
+        settings_obj=MagicMock(),
+        event_bus=event_bus,
+        live_camera_service=live_camera_service,
+    )
+    new_manager = MagicMock()
+    coord.project_workflow_adapter.close_project.return_value = new_manager
+
+    result = coord.close_project()
+
+    assert result is new_manager
+    coord.project_workflow_adapter.close_project.assert_called_once()

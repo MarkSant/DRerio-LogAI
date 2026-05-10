@@ -479,6 +479,8 @@ class ProjectWorkflowService:
         animal_method = context["animal_method"]
         animals_per_aquarium = context["animals_per_aquarium"]
         wizard_metadata = context["wizard_metadata"]
+        initial_slot_weights = context.get("initial_slot_weights") or {}
+        detector_hyperparams = context.get("detector_hyperparams") or {}
 
         is_valid, error_msg = self._validate_project_input(**prepared_kwargs)
         if not is_valid:
@@ -521,6 +523,15 @@ class ProjectWorkflowService:
             }
 
         self._persist_project_data(prepared_kwargs)
+
+        # Persist wizard-derived slot weights and detector hyperparams into
+        # model_overrides BEFORE apply_project_model_overrides runs, so
+        # WeightManager runtime resolution and detector setup pick them up.
+        self._persist_initial_project_overrides(
+            initial_slot_weights,
+            detector_hyperparams,
+        )
+
         self._emit_project_created_event()
 
         self._using_project_overrides = True
@@ -636,6 +647,26 @@ class ProjectWorkflowService:
             if animal_weight:
                 kwargs["active_weight"] = animal_weight
 
+        # Migrate the wizard's legacy 2-key weight_assignments
+        # ({"aquarium": ..., "animal": ...}) into the 4-slot
+        # {method:target -> name} dict consumed by WeightManager. The
+        # aquarium weight had been silently dropped before; the animal
+        # weight survived only via the active_weight fallback in
+        # _resolve_slot_weights_from_overrides.
+        initial_slot_weights = self._build_initial_slot_weights(
+            weight_assignments=weight_assignments,
+            animal_method=animal_method,
+            aquarium_method=kwargs.get("aquarium_method"),
+        )
+
+        # Capture detector hyperparameter overrides emitted by the wizard
+        # (confidence_threshold, nms_threshold). Stored alongside the slot
+        # weights so create_project can persist them into model_overrides
+        # before apply_project_model_overrides runs.
+        detector_hyperparams = self._build_detector_hyperparam_overrides(
+            kwargs.get("detector_parameters")
+        )
+
         model_selection = kwargs.get("model_selection")
         if (
             "openvino_device" not in kwargs
@@ -671,6 +702,8 @@ class ProjectWorkflowService:
             "animal_method": animal_method,
             "animals_per_aquarium": animals_per_aquarium,
             "wizard_metadata": wizard_metadata,
+            "initial_slot_weights": initial_slot_weights,
+            "detector_hyperparams": detector_hyperparams,
         }
 
     def _validate_project_input(self, **kwargs: Any) -> tuple[bool, str | None]:
@@ -711,6 +744,120 @@ class ProjectWorkflowService:
         if animal_method in VALID_METHODS:
             pairs.append((animal_method, TARGET_ZEBRAFISH))
         return pairs
+
+    # Detector hyperparameters that may be persisted as project overrides.
+    # Kept narrow on purpose (Phase 2): conf and NMS thresholds have plugin
+    # setters today and zero pre-compilation impact. imgsz / half_precision
+    # / OpenVINO device/precision require new plugin setters or recompile
+    # logic and are deferred.
+    _DETECTOR_HYPERPARAM_KEYS: tuple[str, ...] = (
+        "confidence_threshold",
+        "nms_threshold",
+    )
+
+    def _build_initial_slot_weights(
+        self,
+        *,
+        weight_assignments: Any,
+        animal_method: str | None,
+        aquarium_method: str | None,
+    ) -> dict[str, str]:
+        """Translate the wizard's legacy weight_assignments into the 4-slot dict.
+
+        The wizard's ModelSelectionStep emits ``{"aquarium": <name>, "animal":
+        <name>}`` together with ``aquarium_method`` and ``animal_method``.
+        The 4-slot WeightManager expects ``"<method>:<target>" -> name`` pairs
+        (e.g. ``"det:zebrafish"``). Returns the migrated dict (possibly empty).
+        """
+        slot_weights: dict[str, str] = {}
+        if not isinstance(weight_assignments, dict):
+            return slot_weights
+
+        animal_name = self._normalize_weight_name(weight_assignments.get("animal"))
+        aquarium_name = self._normalize_weight_name(weight_assignments.get("aquarium"))
+
+        if animal_name and isinstance(animal_method, str) and animal_method in VALID_METHODS:
+            slot_weights[self._slot_key(animal_method, TARGET_ZEBRAFISH)] = animal_name
+
+        if aquarium_name and isinstance(aquarium_method, str) and aquarium_method in VALID_METHODS:
+            slot_weights[self._slot_key(aquarium_method, TARGET_AQUARIUM)] = aquarium_name
+
+        return slot_weights
+
+    def _build_detector_hyperparam_overrides(
+        self,
+        detector_parameters: Any,
+    ) -> dict[str, float]:
+        """Extract per-project detector hyperparameter overrides from wizard data.
+
+        The wizard's detector_parameters dict carries inference-time knobs
+        (confidence/NMS thresholds, etc.). We persist a narrow subset that
+        the active plugins already accept via setters at session start.
+        """
+        overrides: dict[str, float] = {}
+        if not isinstance(detector_parameters, dict):
+            return overrides
+
+        for key in self._DETECTOR_HYPERPARAM_KEYS:
+            raw = detector_parameters.get(key)
+            if raw is None:
+                continue
+            try:
+                value = float(raw)
+            except (TypeError, ValueError):
+                continue
+            # Reject sentinel out-of-range values so a stale wizard payload
+            # cannot poison the override record. 0–1 is the meaningful band
+            # for both confidence and NMS thresholds.
+            if 0.0 <= value <= 1.0:
+                overrides[key] = value
+        return overrides
+
+    def _persist_initial_project_overrides(
+        self,
+        slot_weights: dict[str, str] | None,
+        detector_hyperparams: dict[str, float] | None,
+    ) -> None:
+        """Write wizard-derived slot weights and hyperparams into project_data.
+
+        Called after the project structure is created and before
+        ``apply_project_model_overrides`` runs, so the project's
+        ``model_overrides`` block already contains the wizard's choices when
+        runtime resolution kicks in.
+        """
+        if not slot_weights and not detector_hyperparams:
+            return
+
+        project_data = self.project_manager.project_data
+        if not isinstance(project_data, dict):
+            return
+
+        overrides = project_data.setdefault(
+            "model_overrides",
+            {
+                "active_weight": None,
+                "use_openvino": None,
+                "device": "AUTO",
+                "slot_weights": {},
+            },
+        )
+
+        updated = False
+        if slot_weights:
+            existing = overrides.setdefault("slot_weights", {})
+            for slot_key, name in slot_weights.items():
+                if existing.get(slot_key) != name:
+                    existing[slot_key] = name
+                    updated = True
+
+        if detector_hyperparams:
+            for key, value in detector_hyperparams.items():
+                if overrides.get(key) != value:
+                    overrides[key] = value
+                    updated = True
+
+        if updated and self.project_manager.project_path:
+            self.project_manager.save_project()
 
     def _normalize_slot_weights(self, raw_slot_weights: Any) -> dict[str, str]:
         normalized: dict[str, str] = {}
