@@ -8,6 +8,7 @@ import structlog
 
 from zebtrack.ui import payloads
 from zebtrack.ui.components.base import BaseWidget
+from zebtrack.ui.dialogs.project_video_import_dialog import VideoMetadataDialog
 from zebtrack.ui.event_bus_v2 import EventBusV2, UIEvents
 
 log = structlog.get_logger()
@@ -880,7 +881,7 @@ class ZoneControlsWidget(BaseWidget):
         )
         self._video_context_menu.add_separator()
         self._video_context_menu.add_command(
-            label="🔄 Reconfigurar Sujeitos",
+            label="🔄 Editar Grupo / Dia / Sujeitos",
             command=self._on_reconfigure_subjects_clicked,
         )
         self._context_menu_video_path = None
@@ -1068,11 +1069,7 @@ class ZoneControlsWidget(BaseWidget):
             )
 
     def _on_reconfigure_subjects_clicked(self) -> None:
-        """Handle reconfigure subjects from context menu.
-
-        This opens a dialog to allow users to manually edit subject assignments
-        for multi-subject videos. Emits 'video.reconfigure_subjects' event.
-        """
+        """Handle metadata editing from the video tree context menu."""
         if not hasattr(self, "_context_menu_video_path") or not self._context_menu_video_path:
             return
 
@@ -1094,37 +1091,38 @@ class ZoneControlsWidget(BaseWidget):
             return
 
         metadata = video_entry.get("metadata", {})
-        subject_entries = metadata.get("subject_entries", [])
+        calibration = pm.project_data.get("calibration", {}) if pm.project_data else {}
+        num_aquariums = max(1, int(calibration.get("num_aquariums", 1) or 1))
+        animals_per_aquarium = max(1, int(calibration.get("animals_per_aquarium", 1) or 1))
 
-        if not subject_entries:
-            # Single subject - show simple edit dialog
-            from tkinter import simpledialog
+        dialog = VideoMetadataDialog(
+            self.winfo_toplevel(),
+            video_path=video_path,
+            available_groups=pm.get_available_groups(),
+            initial_metadata=dict(metadata or {}),
+            subject_entry_count=max(1, num_aquariums * animals_per_aquarium),
+        )
+        if not dialog.result:
+            return
 
-            current_subject = metadata.get("subject", "")
-            new_subject = simpledialog.askstring(
-                "Reconfigurar Sujeito",
-                f"ID do sujeito para {video_path.split('/')[-1].split('\\\\')[-1]}:",
-                initialvalue=current_subject or "",
-                parent=self.winfo_toplevel(),
+        if pm.update_video_metadata(video_path, dialog.result):
+            log.info(
+                "zone_controls.reconfigure.success",
+                video=video_path,
+                metadata_keys=list(dialog.result.keys()),
             )
-
-            if new_subject is not None:
-                # Update metadata
-                video_entry["metadata"]["subject"] = new_subject
-                video_entry["subject"] = new_subject
-                pm.save_project()
-                log.info("zone_controls.reconfigure.success", subject=new_subject)
-                self.emit_event(
-                    UIEvents.VIDEO_METADATA_UPDATED,
-                    payloads.VideoMetadataUpdatedPayload(video_path=video_path),
-                )
-        else:
-            # Multi-subject - emit event for external dialog
             self.emit_event(
-                UIEvents.VIDEO_RECONFIGURE_SUBJECTS,
-                payloads.VideoReconfigureSubjectsPayload(
+                UIEvents.VIDEO_METADATA_UPDATED,
+                payloads.VideoMetadataUpdatedPayload(
                     video_path=video_path,
-                    current_entries=subject_entries,
+                    metadata=dialog.result,
+                ),
+            )
+            self.emit_event(
+                UIEvents.PROJECT_VIEWS_REFRESH_REQUESTED,
+                payloads.ProjectViewsRefreshRequestedPayload(
+                    reason="Metadados do vídeo atualizados.",
+                    immediate=True,
                 ),
             )
 

@@ -72,6 +72,8 @@ def test_build_main_controls_tab_pre_recorded(mock_app):
     mock_app._create_project_overview_panel.assert_called_once()
     controls_container = mock_app.main_controls_frame.winfo_children()[0]
     button_texts = [child.cget("text") for child in controls_container.winfo_children()]
+    assert "Adicionar Vídeos/Pastas ao Projeto..." in button_texts
+    assert "Processar Vídeos Pendentes..." in button_texts
     assert "Configuração de Modelos" in button_texts
     assert "Diagnóstico" in button_texts
     # mock_app._request_overview_refresh.assert_called_once() # Removed in Phase 3.2

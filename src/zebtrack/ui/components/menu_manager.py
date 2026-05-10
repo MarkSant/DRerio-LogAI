@@ -17,6 +17,7 @@ import structlog
 from PIL import Image, ImageTk
 
 from zebtrack.ui import payloads
+from zebtrack.ui.dialogs.project_video_import_dialog import VideoMetadataDialog
 from zebtrack.ui.event_bus_v2 import Event, UIEvents
 
 if TYPE_CHECKING:
@@ -208,17 +209,11 @@ class MenuManager:
 
         tree.selection_set(item_id)
 
-        tags = tree.item(item_id, "tags") or ()
-        video_path = None
-        for tag in tags:
-            if tag and not tag.startswith("status_"):
-                video_path = tag
-                break
+        video_path = self._resolve_project_overview_video_path(item_id)
 
         if not video_path:
             return
 
-        # For now, show a simple context menu - can be expanded later
         if self._overview_context_menu:
             self._overview_context_menu.destroy()
 
@@ -228,7 +223,122 @@ class MenuManager:
             label="Carregar vídeo",
             command=lambda: pvm.handle_project_overview_double_click(item_id),
         )
+        self._overview_context_menu.add_command(
+            label="🔄 Editar Grupo / Dia / Sujeitos",
+            command=lambda: self._edit_video_metadata(video_path),
+        )
         self._overview_context_menu.post(x, y)
+
+    def edit_selected_project_overview_video_metadata(self) -> None:
+        """Open metadata editor for the currently selected overview video."""
+        tree = self.gui.project_overview_tree
+        if not tree or not tree.winfo_exists():
+            return
+
+        selection = tree.selection()
+        if not selection:
+            self.dialog_manager.show_info(
+                "Nenhum vídeo selecionado",
+                "Selecione um vídeo do projeto para editar grupo, dia e sujeitos.",
+            )
+            return
+
+        video_path = self._resolve_project_overview_video_path(selection[0])
+        if not video_path:
+            self.dialog_manager.show_info(
+                "Seleção inválida",
+                "Selecione um item de vídeo do projeto para editar seus metadados.",
+            )
+            return
+
+        self._edit_video_metadata(video_path)
+
+    def _resolve_project_overview_video_path(self, item_id: str) -> str | None:
+        """Resolve a video path for a project overview tree item."""
+        tree = self.gui.project_overview_tree
+        if not tree or not tree.winfo_exists():
+            return None
+
+        tags = tree.item(item_id, "tags") or ()
+        for tag in tags:
+            if tag and not tag.startswith("status_"):
+                return str(tag)
+
+        overview_widget = getattr(self.gui, "project_overview_widget", None)
+        iid_to_path = getattr(overview_widget, "_iid_to_path", None)
+        if isinstance(iid_to_path, dict):
+            video_path = iid_to_path.get(item_id)
+            if video_path:
+                return str(video_path)
+
+        return None
+
+    def _edit_video_metadata(self, video_path: Path | str) -> None:
+        """Open the video metadata editor for a project video."""
+        project_manager = getattr(getattr(self.gui, "controller", None), "project_manager", None)
+        if project_manager is None:
+            log.warning("menu_manager.video_metadata.no_project_manager", video=video_path)
+            return
+
+        video_entry = project_manager.find_video_entry(path=video_path)
+        if not video_entry:
+            self.dialog_manager.show_error(
+                "Vídeo não encontrado",
+                "Não foi possível localizar o vídeo selecionado no projeto.",
+            )
+            return
+
+        calibration = project_manager.project_data.get("calibration", {})
+        num_aquariums = max(1, int(calibration.get("num_aquariums", 1) or 1))
+        animals_per_aquarium = max(1, int(calibration.get("animals_per_aquarium", 1) or 1))
+
+        dialog = VideoMetadataDialog(
+            self.gui.root,
+            video_path=video_path,
+            available_groups=project_manager.get_available_groups(),
+            initial_metadata=dict(video_entry.get("metadata") or {}),
+            subject_entry_count=max(1, num_aquariums * animals_per_aquarium),
+        )
+        if not dialog.result:
+            return
+
+        changed = project_manager.update_video_metadata(video_path, dialog.result)
+        if not changed:
+            return
+
+        basename = Path(video_path).name
+        status_message = f"Metadados atualizados • {basename}"
+        self.gui.set_status(status_message)
+
+        if self.gui.event_bus_v2:
+            self.gui.event_bus_v2.publish(
+                Event(
+                    type=UIEvents.VIDEO_METADATA_UPDATED,
+                    data=payloads.VideoMetadataUpdatedPayload(
+                        video_path=video_path,
+                        metadata=dialog.result,
+                    ),
+                    source="MenuManager._edit_video_metadata",
+                )
+            )
+            self.gui.event_bus_v2.publish(
+                Event(
+                    type=UIEvents.PROJECT_VIEWS_REFRESH_REQUESTED,
+                    data=payloads.ProjectViewsRefreshRequestedPayload(
+                        reason=status_message,
+                        append_summary=True,
+                        immediate=True,
+                    ),
+                    source="MenuManager._edit_video_metadata",
+                )
+            )
+            self.gui.event_bus_v2.publish(
+                Event(
+                    type=UIEvents.VIDEO_TREE_REFRESH_REQUESTED,
+                    data=payloads.VideoTreeRefreshRequestedPayload(),
+                    source="MenuManager._edit_video_metadata",
+                )
+            )
 
     def get_overview_badge_font(self) -> tkfont.Font:
         """Get or create the font used for overview badges."""
@@ -537,6 +647,12 @@ class MenuManager:
             "#4": "summary",
         }
         clicked_asset = column_map.get(column_id)
+
+        menu.add_command(
+            label="🔄 Editar Grupo / Dia / Sujeitos",
+            command=lambda: self._edit_video_metadata(str(video_path)),
+        )
+        menu.add_separator()
 
         # 1. Targeted Delete (if clicked specific column and asset exists)
         if clicked_asset:

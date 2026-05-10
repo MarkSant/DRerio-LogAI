@@ -361,6 +361,39 @@ def test_processing_reports_hierarchy_delete_data_only_cleans_descendant_videos(
     )
 
 
+def test_processing_reports_hierarchy_metadata_edit_updates_descendant_videos():
+    _vsm, rtm, gui, pm = _make_manager()
+    gui.root = Mock()
+    gui.event_bus_v2 = Mock()
+    tree = Mock()
+    tree.item.return_value = "🐟 Sujeito C1"
+    gui.processing_reports_widget = SimpleNamespace(tree=tree)
+    pm.get_available_groups.return_value = ["G1", "G2"]
+    pm.update_batch_video_metadata.return_value = 2
+    rtm._collect_descendant_video_paths = Mock(return_value=["/videos/v1.mp4", "/videos/v2.mp4"])
+    rtm.refresh_processing_reports_tab = Mock()
+
+    from unittest.mock import patch
+
+    with patch(
+        "zebtrack.ui.components.project_views.reports_tree_manager.BatchVideoMetadataDialog"
+    ) as mock_dialog:
+        mock_dialog.return_value.result = {"group": "G2", "day": 2, "subject": "C9"}
+
+        rtm._handle_hierarchy_metadata_edit_action(
+            "subject_node",
+            {"type": "subject", "group_id": "G1", "day_id": "1", "subject_id": "C1"},
+        )
+
+    pm.update_batch_video_metadata.assert_called_once_with(
+        ["/videos/v1.mp4", "/videos/v2.mp4"],
+        {"group": "G2", "day": 2, "subject": "C9"},
+    )
+    rtm.refresh_processing_reports_tab.assert_called_once()
+    gui.set_status.assert_called_once()
+    assert gui.event_bus_v2.publish.call_count == 2
+
+
 def test_processing_reports_aquarium_delete_scope_publishes_event():
     _vsm, rtm, gui, _pm = _make_manager()
     gui.dialog_manager.ask_yes_no.side_effect = [True, False]

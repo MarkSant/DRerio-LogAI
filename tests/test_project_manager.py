@@ -568,6 +568,93 @@ class TestProjectManager(unittest.TestCase):
         self.assertTrue(video_entry["has_trajectory"])
         self.assertTrue(video_entry["has_complete_data"])
 
+    def test_update_video_metadata_persists_group_day_and_subject_entries(self):
+        """Existing videos should accept metadata edits without losing stored flags."""
+        pm = ProjectManager(settings_obj=self.settings_obj)
+        pm.project_path = self.test_dir  # type: ignore[assignment]
+        pm.project_data = {"batches": []}
+
+        video_path = os.path.join(self.test_dir, "metadata_edit.mp4")
+        with open(video_path, "wb") as handle:
+            handle.write(b"sample")
+
+        pm.add_video_batch(
+            [
+                {
+                    "path": video_path,
+                    "has_arena": True,
+                    "has_rois": True,
+                    "has_trajectory": False,
+                    "metadata": {"group": "Old", "day": 1, "subject": "S01"},
+                }
+            ],
+            save_project=False,
+        )
+
+        changed = pm.update_video_metadata(
+            video_path,
+            {
+                "group": "Controle",
+                "day": 3,
+                "subject_entries": [
+                    {"group": "Controle", "day": 3, "subject": "S01"},
+                    {"group": "Controle", "day": 3, "subject": "S02"},
+                ],
+            },
+            save_project=False,
+        )
+
+        self.assertTrue(changed)
+        video_entry = pm.find_video_entry(path=video_path)
+        self.assertIsNotNone(video_entry)
+        assert video_entry is not None
+        self.assertEqual(video_entry["metadata"]["group"], "Controle")
+        self.assertEqual(video_entry["metadata"]["day"], 3)
+        self.assertEqual(len(video_entry["metadata"]["subject_entries"]), 2)
+        self.assertNotIn("subject", video_entry["metadata"])
+        self.assertTrue(video_entry["has_arena"])
+        self.assertTrue(video_entry["has_rois"])
+
+    def test_update_batch_video_metadata_updates_all_descendants_once(self):
+        """Batch metadata editing should update every unique video and persist once."""
+        pm = ProjectManager(settings_obj=self.settings_obj)
+        pm.project_path = self.test_dir  # type: ignore[assignment]
+        pm.project_data = {"batches": []}
+
+        video_paths = []
+        for index in range(2):
+            video_path = os.path.join(self.test_dir, f"batch_edit_{index}.mp4")
+            with open(video_path, "wb") as handle:
+                handle.write(b"sample")
+            video_paths.append(video_path)
+
+        pm.add_video_batch(
+            [
+                {
+                    "path": video_paths[0],
+                    "metadata": {"group": "G1", "day": 1, "subject": "A"},
+                },
+                {
+                    "path": video_paths[1],
+                    "metadata": {"group": "G1", "day": 1, "subject": "B"},
+                },
+            ],
+            save_project=False,
+        )
+
+        changed_count = pm.update_batch_video_metadata(
+            [video_paths[0], video_paths[1], video_paths[0]],
+            {"group": "G2", "day": 4},
+        )
+
+        self.assertEqual(changed_count, 2)
+        for video_path in video_paths:
+            video_entry = pm.find_video_entry(path=video_path)
+            self.assertIsNotNone(video_entry)
+            assert video_entry is not None
+            self.assertEqual(video_entry["metadata"]["group"], "G2")
+            self.assertEqual(video_entry["metadata"]["day"], 4)
+
     def test_create_project_with_animals_per_aquarium(self):
         """Test creating a project with animals_per_aquarium field."""
         pm = ProjectManager(settings_obj=self.settings_obj)

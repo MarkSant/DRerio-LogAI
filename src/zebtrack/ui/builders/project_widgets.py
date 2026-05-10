@@ -203,6 +203,12 @@ class ProjectWidgetsBuilder:
 
         ttk.Button(
             self.gui.project_overview_frame,
+            text="Editar Metadata do Vídeo Selecionado...",
+            command=self.gui.menu_manager.edit_selected_project_overview_video_metadata,
+        ).pack(fill="x", padx=5, pady=(0, 5))
+
+        ttk.Button(
+            self.gui.project_overview_frame,
             text="Ir para Processamento e Relatórios \u2192",
             command=self.gui.video_selector_manager.navigate_to_processing_reports_tab,
         ).pack(fill="x", padx=5, pady=(0, 5))

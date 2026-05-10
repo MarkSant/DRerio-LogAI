@@ -1,6 +1,7 @@
 """Tests for ZoneControlsWidget core behaviors."""
 
-from unittest.mock import Mock
+from types import SimpleNamespace
+from unittest.mock import Mock, patch
 
 import pytest
 
@@ -129,3 +130,35 @@ def test_on_video_tree_double_click_emits_event(widget, event_bus):
         UIEvents.ZONE_VIDEO_DOUBLE_CLICK,
         payloads.ZoneVideoDoubleClickPayload(item_id=item_id),
     )
+
+
+@pytest.mark.gui
+def test_reconfigure_subjects_updates_metadata_and_refreshes(widget, event_bus):
+    project_manager = Mock()
+    project_manager.project_data = {"calibration": {"num_aquariums": 1, "animals_per_aquarium": 1}}
+    project_manager.find_video_entry.return_value = {
+        "path": "C:/video.mp4",
+        "metadata": {"group": "Controle", "day": 1, "subject": "S01"},
+    }
+    project_manager.get_available_groups.return_value = ["Controle", "Tratamento"]
+    project_manager.update_video_metadata.return_value = True
+
+    widget.parent = SimpleNamespace(controller=SimpleNamespace(project_manager=project_manager))
+    widget._context_menu_video_path = "C:/video.mp4"
+
+    with patch("zebtrack.ui.components.zone_controls.VideoMetadataDialog") as mock_dialog:
+        mock_dialog.return_value.result = {
+            "group": "Tratamento",
+            "day": 2,
+            "subject": "S02",
+        }
+
+        widget._on_reconfigure_subjects_clicked()
+
+    project_manager.update_video_metadata.assert_called_once_with(
+        "C:/video.mp4",
+        {"group": "Tratamento", "day": 2, "subject": "S02"},
+    )
+    event_types = [call.args[0] for call in event_bus.publish.call_args_list]
+    assert UIEvents.VIDEO_METADATA_UPDATED in event_types
+    assert UIEvents.PROJECT_VIEWS_REFRESH_REQUESTED in event_types

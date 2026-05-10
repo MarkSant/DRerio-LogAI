@@ -199,6 +199,15 @@ class VideoProcessingCoordinator(
                 aquarium_filter=_payload_get(payload, "aquarium_filter"),
             )
 
+        def _handle_project_import_videos(payload: payloads.EventPayload) -> None:
+            candidate_paths = _payload_get(payload, "candidate_paths")
+            process_after_import = bool(_payload_get(payload, "process_after_import", False))
+            self.start_project_import_workflow(
+                candidate_paths=list(candidate_paths) if candidate_paths else None,
+                process_after_import=process_after_import,
+            )
+
+        bus.subscribe(UIEvents.PROJECT_IMPORT_VIDEOS, _handle_project_import_videos)
         bus.subscribe(UIEvents.PROJECT_PROCESS_VIDEOS, _handle_project_process_videos)
 
         # Aquarium detection → multi-aquarium coordinator
@@ -307,7 +316,7 @@ class VideoProcessingCoordinator(
             lambda data: mac.reset_multi_aquarium_state() if mac else None,
         )
 
-        log.info("video_processing_coordinator.register_handlers.complete", count=9)
+        log.info("video_processing_coordinator.register_handlers.complete", count=10)
 
     # ========================================================================
     # Project Processing Workflow
@@ -360,6 +369,17 @@ class VideoProcessingCoordinator(
 
         videos_to_process = dc.handle_mixed_data_scenario(scanned_videos)
         if videos_to_process is None:
+            self.project_manager.add_video_batch(scanned_videos)
+            self._publish_event(
+                UIEvents.UI_SHOW_INFO,
+                payloads.MessagePayload(
+                    title="Vídeos Adicionados",
+                    message=(
+                        f"{len(scanned_videos)} vídeo(s) foram adicionados ao projeto sem "
+                        "reprocessamento."
+                    ),
+                ),
+            )
             return
         if not videos_to_process:
             self._publish_event(
@@ -395,6 +415,172 @@ class VideoProcessingCoordinator(
             ),
         )
         log.info("workflow.project_processing.started", videos_count=len(videos_to_process))
+
+    def start_project_import_workflow(
+        self,
+        candidate_paths: list[str] | None = None,
+        *,
+        process_after_import: bool = False,
+    ) -> None:
+        """Import new videos into the active project with metadata review."""
+        log.info(
+            "workflow.project_import.start",
+            candidate_count=len(candidate_paths or []),
+            process_after_import=process_after_import,
+        )
+
+        view = self.view
+        dc = self.dialog_coordinator
+        if not view:
+            log.error("workflow.project_import.no_view")
+            return
+        if not dc:
+            log.error("workflow.project_import.no_dialog_coordinator")
+            return
+
+        validation_result = self.validate_can_start_processing(
+            check_project_loaded=True,
+            check_zones=False,
+            check_videos_exist=False,
+        )
+        if not dc.handle_validation_error(validation_result):
+            return
+
+        paths = candidate_paths
+        if not paths:
+            paths = view.ask_open_filenames(
+                "Selecione Vídeos ou Pastas para Adicionar ao Projeto",
+                [
+                    ("Todos os arquivos", "*.*"),
+                    ("Arquivos de vídeo", "*.mp4 *.avi *.mov"),
+                    ("Pastas", "*/"),
+                ],
+            )
+        if not paths:
+            return
+
+        scanned_videos = self.project_manager.scan_input_paths(paths)
+        if not scanned_videos:
+            self._publish_event(
+                UIEvents.UI_SHOW_WARNING,
+                payloads.MessagePayload(
+                    title="Nenhum Vídeo Encontrado",
+                    message=(
+                        "Nenhum novo arquivo de vídeo foi encontrado nos caminhos selecionados."
+                    ),
+                ),
+            )
+            return
+
+        existing_paths = {
+            Path(video.get("path", "")).as_posix()
+            for video in (self.project_manager.get_all_videos() or [])
+            if video.get("path")
+        }
+        new_videos = [
+            video
+            for video in scanned_videos
+            if Path(video.get("path", "")).as_posix() not in existing_paths
+        ]
+        skipped_existing = len(scanned_videos) - len(new_videos)
+
+        if not new_videos:
+            self._publish_event(
+                UIEvents.UI_SHOW_INFO,
+                payloads.MessagePayload(
+                    title="Nenhum Vídeo Novo",
+                    message="Todos os vídeos selecionados já estão cadastrados no projeto.",
+                ),
+            )
+            return
+
+        from zebtrack.ui.dialogs.project_video_import_dialog import ProjectVideoImportDialog
+
+        calibration = self.project_manager.project_data.get("calibration", {}) or {}
+        num_aquariums = max(1, int(calibration.get("num_aquariums", 1) or 1))
+        animals_per_aquarium = max(1, int(calibration.get("animals_per_aquarium", 1) or 1))
+        subject_entry_count = max(1, num_aquariums * animals_per_aquarium)
+        default_day, default_group = self.project_manager.get_last_session_details()
+
+        parent = self.root or getattr(view, "root", None)
+        dialog = ProjectVideoImportDialog(
+            parent=parent,
+            scanned_videos=new_videos,
+            available_groups=self.project_manager.get_available_groups(),
+            default_group=default_group,
+            default_day=default_day,
+            default_process_mode="process_pending" if process_after_import else "add_only",
+            subject_entry_count=subject_entry_count,
+        )
+        dialog_result = dialog.result or {}
+        if not dialog_result.get("confirmed"):
+            return
+
+        reviewed_videos = dialog_result.get("videos") or []
+        if not reviewed_videos:
+            self._publish_event(
+                UIEvents.UI_SHOW_INFO,
+                payloads.MessagePayload(
+                    title="Importação Cancelada",
+                    message="Nenhum vídeo foi confirmado para importação.",
+                ),
+            )
+            return
+
+        last_group = dialog_result.get("last_group")
+        last_day = dialog_result.get("last_day")
+        if last_group and last_day is not None:
+            try:
+                self.project_manager.save_last_session_details(int(last_day), str(last_group))
+            except (TypeError, ValueError):
+                log.debug(
+                    "workflow.project_import.last_session_skip",
+                    last_group=last_group,
+                    last_day=last_day,
+                )
+
+        self.project_manager.add_video_batch(reviewed_videos)
+
+        imported_count = len(reviewed_videos)
+        reason = f"{imported_count} vídeo(s) importado(s) para o projeto."
+        if skipped_existing:
+            reason += f" {skipped_existing} já existiam e foram ignorados."
+
+        self._publish_event(
+            UIEvents.PROJECT_VIEWS_REFRESH_REQUESTED,
+            payloads.ProjectViewsRefreshRequestedPayload(reason=reason, immediate=True),
+        )
+
+        process_mode = str(dialog_result.get("process_mode") or "add_only")
+        if process_mode == "add_only":
+            self._publish_event(
+                UIEvents.UI_SHOW_INFO,
+                payloads.MessagePayload(title="Importação Concluída", message=reason),
+            )
+            return
+
+        if process_mode == "reprocess_all":
+            target_paths = [
+                str(video.get("path")) for video in reviewed_videos if video.get("path")
+            ]
+        else:
+            target_paths = [
+                str(video.get("path"))
+                for video in reviewed_videos
+                if video.get("path") and not bool(video.get("has_trajectory"))
+            ]
+
+        if not target_paths:
+            self._publish_event(
+                UIEvents.UI_SHOW_INFO,
+                payloads.MessagePayload(
+                    title="Importação Concluída",
+                    message=reason + " Nenhum vídeo importado precisa de processamento agora.",
+                ),
+            )
+            return
+
+        self.process_pending_project_videos(target_paths)
 
     # ========================================================================
     # Processing Context & Callbacks
