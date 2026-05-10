@@ -77,6 +77,18 @@ class Recorder:
         # (e.g., LiveCameraService capture vs processing threads).
         self._data_lock = threading.Lock()
 
+        # Phase 4 / M4: dedicated flush thread state.
+        # When the recorder is active, a single daemon thread drains
+        # ``detection_data`` to Parquet so the processing thread that
+        # calls write_detection_data never blocks on disk I/O. The
+        # signal event is set when the buffer crosses the row threshold
+        # to wake the loop ahead of the periodic timeout; the stop
+        # event tells the loop to exit (with or without a final drain).
+        self._flush_thread: threading.Thread | None = None
+        self._flush_signal: threading.Event = threading.Event()
+        self._flush_stop: threading.Event = threading.Event()
+        self._flush_drain_on_stop: bool = True
+
         # BUG FIX #3: Use private attributes for protected properties
         self._pixel_per_cm_ratio = None
         self._calibration = None
@@ -297,6 +309,11 @@ class Recorder:
         self.start_time = time.time()
         # Phase 1.2: Clear previous detection cache for new recording
         self._last_detections_by_track.clear()
+
+        # Phase 4 / M4: spawn the dedicated flush thread now so subsequent
+        # write_detection_data calls do not block on Parquet I/O.
+        self._start_flush_thread()
+
         log_context.info("recorder.start.success")
         return True
 
@@ -374,6 +391,92 @@ class Recorder:
             "pause_start_time": self._pause_start_time,
         }
 
+    # ---------------------------------------------------------------
+    # Phase 4 / M4: async Parquet flush thread
+    # ---------------------------------------------------------------
+    def _start_flush_thread(self) -> None:
+        """Spawn the daemon thread that owns Parquet writes.
+
+        Runs once per ``start_recording``. The thread is the sole
+        invoker of ``_flush_detection_data`` while a session is active,
+        so the (non-thread-safe) ``ParquetWriter`` never sees
+        concurrent calls. ``write_detection_data`` only appends to the
+        in-memory buffer and signals this thread.
+        """
+        # Reset state in case the recorder is being re-used.
+        self._flush_signal.clear()
+        self._flush_stop.clear()
+        self._flush_drain_on_stop = True
+
+        thread = threading.Thread(
+            target=self._flush_loop,
+            name=f"recorder-flush-{self.base_name or 'session'}",
+            daemon=True,
+        )
+        self._flush_thread = thread
+        thread.start()
+        log.debug("recorder.flush_thread.started", base_name=self.base_name)
+
+    def _flush_loop(self) -> None:
+        """Drain the detection buffer to Parquet on signal or timeout.
+
+        The loop wakes on either ``_flush_signal`` (set when
+        ``write_detection_data`` crosses the row threshold) or the
+        configured periodic timeout, then calls
+        ``_flush_detection_data`` which itself decides whether the
+        threshold / time-based flush conditions are actually met.
+
+        On stop, performs a single best-effort drain when
+        ``_flush_drain_on_stop`` is True. Force-stop callers
+        (``stop_recording(force_stop=True)``) leave the flag False so
+        no extra I/O happens during the error / cancellation path.
+        """
+        while not self._flush_stop.is_set():
+            self._flush_signal.wait(timeout=self._flush_interval_seconds)
+            self._flush_signal.clear()
+            if self._flush_stop.is_set():
+                break
+            try:
+                self._flush_detection_data()
+            # except Exception justified: long-running worker, never crash recorder
+            except Exception as exc:  # pragma: no cover - defensive
+                log.error("recorder.flush_loop.error", error=str(exc), exc_info=True)
+
+        if self._flush_drain_on_stop:
+            try:
+                self._flush_detection_data(force=True)
+            # except Exception justified: final drain best-effort
+            except Exception as exc:  # pragma: no cover - defensive
+                log.error(
+                    "recorder.flush_loop.final_drain_error",
+                    error=str(exc),
+                    exc_info=True,
+                )
+
+    def _stop_flush_thread(self, drain: bool) -> None:
+        """Signal the flush thread to exit and join it.
+
+        Args:
+            drain: When True, the thread performs one final flush
+                before exiting (normal stop path). When False, it
+                exits without touching disk (force-stop / cancel).
+        """
+        thread = self._flush_thread
+        if thread is None:
+            return
+        self._flush_drain_on_stop = drain
+        self._flush_stop.set()
+        self._flush_signal.set()  # wake the loop if it is in wait()
+        # Worst case the loop is mid-flush — give it generous time. The
+        # buffer cap of 10k rows keeps the per-flush work bounded.
+        thread.join(timeout=10.0)
+        if thread.is_alive():
+            log.warning(
+                "recorder.flush_thread.join_timeout",
+                base_name=self.base_name,
+            )
+        self._flush_thread = None
+
     def stop_recording(self, force_stop: bool = False, reason: str | None = None):
         """
         Stops the recording, releases file handlers, and saves tracking data.
@@ -388,6 +491,12 @@ class Recorder:
         if self.video_writer:
             self.video_writer.release()
             self.video_writer = None
+
+        # Phase 4 / M4: stop the async flush thread BEFORE we close the
+        # Parquet writer. On a normal stop, the thread performs a final
+        # drain; on a force-stop we skip the drain so partial data is
+        # not committed to disk.
+        self._stop_flush_thread(drain=not force_stop)
 
         if not force_stop:
             self._save_detection_data()
@@ -763,7 +872,18 @@ class Recorder:
             buffer_size_after=buf_size,
         )
 
-        self._flush_detection_data()
+        # Phase 4 / M4: signal the dedicated flush thread instead of
+        # blocking on disk I/O here. When the buffer is below the
+        # threshold the loop's periodic timeout still triggers a flush
+        # (driven by ``_should_flush``), so latency is bounded by
+        # ``_flush_interval_seconds`` even if the threshold is never
+        # crossed. Falls back to a synchronous flush when no thread is
+        # running (legacy callers, tests that bypass start_recording).
+        if self._flush_thread is not None and self._flush_thread.is_alive():
+            if buf_size >= self._flush_row_threshold:
+                self._flush_signal.set()
+        else:
+            self._flush_detection_data()
 
     @staticmethod
     def _normalise_track_id(value: Any) -> int | None:

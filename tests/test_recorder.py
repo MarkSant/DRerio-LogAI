@@ -207,6 +207,8 @@ def test_write_detection_data_saves_parquet(recorder_setup):
 
 def test_periodic_flush_triggers_before_stop(recorder_setup):
     """Recorder should flush buffered data to disk automatically."""
+    import time
+
     from zebtrack.core.detection import ZoneData
 
     recorder, output_folder, frame_width, frame_height = recorder_setup
@@ -218,7 +220,11 @@ def test_periodic_flush_triggers_before_stop(recorder_setup):
 
     recorder.write_detection_data(0.5, 10, [(5, 5, 15, 15, 0.9, 42)])
 
-    # Data should have been flushed immediately, leaving the in-memory buffer empty
+    # Phase 4 / M4: flush is now async; poll briefly for the dedicated
+    # flush thread to drain the buffer instead of asserting synchronously.
+    deadline = time.time() + 2.0
+    while time.time() < deadline and recorder.detection_data:
+        time.sleep(0.01)
     assert recorder.detection_data == []
 
     recorder.stop_recording()
