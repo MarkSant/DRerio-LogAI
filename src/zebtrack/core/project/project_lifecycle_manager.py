@@ -667,34 +667,7 @@ class ProjectLifecycleManager:
             migration_applied = True
             migrated_fields.append("external_trigger_mode")
 
-        overrides = loaded_data.get("model_overrides")
-        overrides_updated = False
-        if not isinstance(overrides, dict):
-            overrides = {
-                "active_weight": None,
-                "use_openvino": None,
-                "device": "AUTO",
-                "slot_weights": {},
-            }
-            overrides_updated = True
-        else:
-            if "active_weight" not in overrides:
-                overrides["active_weight"] = None
-                overrides_updated = True
-            if "use_openvino" not in overrides:
-                overrides["use_openvino"] = None
-                overrides_updated = True
-            if "device" not in overrides:
-                overrides["device"] = loaded_data.get("openvino_device", "AUTO")
-                overrides_updated = True
-            if "slot_weights" not in overrides or not isinstance(
-                overrides.get("slot_weights"), dict
-            ):
-                overrides["slot_weights"] = {}
-                overrides_updated = True
-
-        if overrides_updated:
-            loaded_data["model_overrides"] = overrides
+        if _ensure_model_overrides_defaults(loaded_data):
             migration_applied = True
             migrated_fields.append("model_overrides")
 
@@ -710,6 +683,37 @@ class ProjectLifecycleManager:
 # ------------------------------------------------------------------
 # Module-level helper (avoids method bloat)
 # ------------------------------------------------------------------
+
+
+def _ensure_model_overrides_defaults(loaded_data: dict[str, Any]) -> bool:
+    """Normalize legacy ``model_overrides`` records during project migration."""
+    overrides = loaded_data.get("model_overrides")
+    overrides_updated = False
+    if not isinstance(overrides, dict):
+        overrides = {
+            "active_weight": None,
+            "use_openvino": None,
+            "device": "AUTO",
+            "slot_weights": {},
+        }
+        overrides_updated = True
+    else:
+        if "active_weight" not in overrides:
+            overrides["active_weight"] = None
+            overrides_updated = True
+        if "use_openvino" not in overrides:
+            overrides["use_openvino"] = None
+            overrides_updated = True
+        if "device" not in overrides:
+            overrides["device"] = loaded_data.get("openvino_device", "AUTO")
+            overrides_updated = True
+        if "slot_weights" not in overrides or not isinstance(overrides.get("slot_weights"), dict):
+            overrides["slot_weights"] = {}
+            overrides_updated = True
+
+    if overrides_updated:
+        loaded_data["model_overrides"] = overrides
+    return overrides_updated
 
 
 def _apply_wizard_multi_aquarium(

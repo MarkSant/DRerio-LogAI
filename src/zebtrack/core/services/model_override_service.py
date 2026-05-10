@@ -105,7 +105,18 @@ class ModelOverrideService:
         if not getattr(self.project_manager, "project_path", None):
             return False
         overrides = self._ensure_project_overrides_record()
-        return any(value not in (None, "", "inherit") for value in overrides.values())
+        slot_weights = overrides.get("slot_weights")
+        if isinstance(slot_weights, dict) and any(
+            isinstance(value, str) and value.strip() for value in slot_weights.values()
+        ):
+            return True
+
+        for key, value in overrides.items():
+            if key in {"slot_weights", "device"}:
+                continue
+            if value not in (None, "", "inherit"):
+                return True
+        return False
 
     def copy_global_model_settings_to_project(
         self,

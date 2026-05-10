@@ -516,11 +516,21 @@ class TestProjectManager(unittest.TestCase):
         self.assertIn("model_overrides", data)
         self.assertEqual(
             data["model_overrides"],
-            {"active_weight": None, "use_openvino": None, "device": "AUTO"},
+            {
+                "active_weight": None,
+                "use_openvino": None,
+                "device": "AUTO",
+                "slot_weights": {},
+            },
         )
         self.assertEqual(
             pm.project_data["model_overrides"],
-            {"active_weight": None, "use_openvino": None, "device": "AUTO"},
+            {
+                "active_weight": None,
+                "use_openvino": None,
+                "device": "AUTO",
+                "slot_weights": {},
+            },
         )
 
     def test_add_video_batch_persists_metadata(self):
@@ -666,7 +676,12 @@ class TestProjectManager(unittest.TestCase):
         )  # Default value added
         self.assertEqual(
             pm.project_data["model_overrides"],
-            {"active_weight": None, "use_openvino": None, "device": "AUTO"},
+            {
+                "active_weight": None,
+                "use_openvino": None,
+                "device": "AUTO",
+                "slot_weights": {},
+            },
         )
         self.assertIn("tracking", pm.project_data)
         self.assertIn("use_single_subject_tracker", pm.project_data["tracking"])
@@ -724,7 +739,12 @@ class TestProjectManager(unittest.TestCase):
         self.assertIn("file_hash", saved_data)
         self.assertEqual(
             pm.project_data["model_overrides"],
-            {"active_weight": None, "use_openvino": None, "device": "AUTO"},
+            {
+                "active_weight": None,
+                "use_openvino": None,
+                "device": "AUTO",
+                "slot_weights": {},
+            },
         )
 
     def test_load_project(self):

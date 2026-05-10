@@ -64,6 +64,28 @@ def test_apply_project_migrations_sets_tracking_default(project_manager):
     assert migrated_data["analysis_profiles"]
 
 
+def test_apply_project_migrations_initializes_slot_weights(project_manager):
+    loaded = {
+        "calibration": {},
+        "analysis_profiles": [],
+        "tracking": {},
+        "model_overrides": {
+            "active_weight": None,
+            "use_openvino": None,
+            "device": "AUTO",
+        },
+    }
+
+    migrated_data, migrated, fields = project_manager._apply_project_migrations(
+        loaded,
+        structlog.get_logger().bind(test="slot_weights_migration"),
+    )
+
+    assert migrated is True
+    assert "model_overrides" in fields
+    assert migrated_data["model_overrides"]["slot_weights"] == {}
+
+
 def test_load_zones_from_parquet_roundtrip(tmp_path):
     arena_path = tmp_path / "arena.parquet"
     rois_path = tmp_path / "rois.parquet"
