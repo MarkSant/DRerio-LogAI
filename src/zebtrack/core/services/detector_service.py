@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Any, ClassVar, Literal
 
 import structlog
 
@@ -185,6 +185,12 @@ class DetectorService:
             # MELHORIA #2: Validar classes esperadas pelo sistema
             self._validate_model_classes(plugin_instance, model_path)
 
+            # Apply per-project detector hyperparameter overrides (Phase 2 / A1).
+            # Plugins read conf_threshold / nms_threshold at inference time, so
+            # mutating them after construction is safe and avoids touching
+            # global settings.
+            self._apply_project_detector_hyperparams(plugin_instance)
+
             # Create detector instance with decomposed helpers (Phase 4.3)
             base_w = self.settings.camera.desired_width
             base_h = self.settings.camera.desired_height
@@ -246,6 +252,68 @@ class DetectorService:
             log.error("detector_service.initialize.failed", error=str(e), exc_info=True)
             error_msg = f"Falha ao inicializar o detector: {e}"
             return False, error_msg
+
+    # Detector hyperparameter overrides currently honored on the plugin
+    # after instantiation (Phase 2 / A1). Both Ultralytics and OpenVINO
+    # plugins expose these as plain attributes read at inference time.
+    _PROJECT_HYPERPARAM_TO_PLUGIN_ATTR: ClassVar[dict[str, str]] = {
+        "confidence_threshold": "conf_threshold",
+        "nms_threshold": "nms_threshold",
+    }
+
+    def _apply_project_detector_hyperparams(self, plugin_instance: Any) -> None:
+        """Apply per-project hyperparameter overrides to a fresh plugin.
+
+        Reads ``project_data["model_overrides"]`` (only the keys in
+        :pyattr:`_PROJECT_HYPERPARAM_TO_PLUGIN_ATTR`) and sets the matching
+        plugin attribute. Silently skips when no project is loaded, when no
+        overrides are present, or when a value is outside the [0, 1] band
+        — invalid data should never crash detector setup.
+        """
+        if self.project_manager is None:
+            return
+        project_data = getattr(self.project_manager, "project_data", None)
+        if not isinstance(project_data, dict):
+            return
+        overrides = project_data.get("model_overrides")
+        if not isinstance(overrides, dict):
+            return
+
+        for override_key, plugin_attr in self._PROJECT_HYPERPARAM_TO_PLUGIN_ATTR.items():
+            raw = overrides.get(override_key)
+            if raw is None:
+                continue
+            try:
+                value = float(raw)
+            except (TypeError, ValueError):
+                log.warning(
+                    "detector_service.hyperparam_override.invalid_type",
+                    key=override_key,
+                    value=raw,
+                )
+                continue
+            if not 0.0 <= value <= 1.0:
+                log.warning(
+                    "detector_service.hyperparam_override.out_of_range",
+                    key=override_key,
+                    value=value,
+                )
+                continue
+            if not hasattr(plugin_instance, plugin_attr):
+                log.debug(
+                    "detector_service.hyperparam_override.missing_attr",
+                    key=override_key,
+                    plugin_attr=plugin_attr,
+                    plugin=type(plugin_instance).__name__,
+                )
+                continue
+            setattr(plugin_instance, plugin_attr, value)
+            log.info(
+                "detector_service.hyperparam_override.applied",
+                key=override_key,
+                plugin_attr=plugin_attr,
+                value=value,
+            )
 
     def get_params(self) -> dict[str, Any]:
         """Return current detector parameters."""

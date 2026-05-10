@@ -118,7 +118,7 @@ discovered_classes:
   detector_service:
     path: "src/zebtrack/core/services/detector_service.py"
     classes: ["DetectorService"]
-    key_methods: ["__init__", "initialize_detector", "get_params", "get_parameter_definitions", "get_available_configs"]
+    key_methods: ["__init__", "initialize_detector", "_apply_project_detector_hyperparams", "get_params", "get_parameter_definitions"]
   project_manager:
     path: "src/zebtrack/core/project/project_manager.py"
     classes: ["ProjectManager"]
