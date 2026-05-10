@@ -199,11 +199,15 @@ class DetectorService:
                 settings_obj=self.settings,
             )
 
-            # Update detector state in StateManager
+            # Update detector state in StateManager. When the caller does
+            # not pass active_weight_name (e.g. live pipeline that delegates
+            # weight resolution to WeightManager via perspective), fall back
+            # to the resolved weight_name so the state always reflects the
+            # actually-loaded model.
             self.state_manager.update_detector_state(
                 source="detector_service.initialize",
                 detector_initialized=True,
-                active_weight_name=active_weight_name,
+                active_weight_name=active_weight_name or weight_name,
                 use_openvino=use_openvino,
                 detector_plugin_name=plugin_instance.get_name()
                 if hasattr(plugin_instance, "get_name")

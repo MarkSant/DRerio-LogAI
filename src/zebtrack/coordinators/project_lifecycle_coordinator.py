@@ -33,6 +33,7 @@ if TYPE_CHECKING:
     from zebtrack.core.detection.calibration import Calibration
     from zebtrack.core.project.project_manager import ProjectManager
     from zebtrack.core.project.project_workflow_service import ProjectWorkflowService
+    from zebtrack.core.recording.live_camera_service import LiveCameraService
     from zebtrack.core.services.detector_service import DetectorService
     from zebtrack.core.services.model_override_service import ModelOverrideService
     from zebtrack.core.state_manager import StateManager
@@ -77,6 +78,7 @@ class ProjectLifecycleCoordinator(BaseCoordinator):
         detector_service: DetectorService | None = None,
         model_override_service: ModelOverrideService | None = None,
         calibration_coordinator: CalibrationCoordinatorType | None = None,
+        live_camera_service: LiveCameraService | None = None,
     ):
         """Initialize ProjectLifecycleCoordinator with dependency injection.
 
@@ -90,6 +92,9 @@ class ProjectLifecycleCoordinator(BaseCoordinator):
             detector_service: Optional DetectorService for detector setup callbacks
             model_override_service: Optional delegate for model override logic
             calibration_coordinator: Optional delegate for calibration logic
+            live_camera_service: Optional LiveCameraService used to stop a
+                running live session before the project state is reset on
+                close (prevents camera lock and worker-thread leaks).
 
         Note:
             NEVER pass MainViewModel. All dependencies must be explicit.
@@ -100,6 +105,7 @@ class ProjectLifecycleCoordinator(BaseCoordinator):
         self.project_workflow_adapter = project_workflow_adapter
         self.settings = settings_obj
         self.detector_service = detector_service
+        self.live_camera_service = live_camera_service
 
         # Phase 5B delegates
         self._model_override_service = model_override_service
@@ -218,6 +224,29 @@ class ProjectLifecycleCoordinator(BaseCoordinator):
     # Group A: Project Lifecycle (create, open, close)
     # ========================================================================
 
+    def _stop_live_session_if_active(self) -> None:
+        """Stop a running live camera session, if any.
+
+        Called from ``close_project`` so that switching/closing a project
+        while the live pipeline is recording cleanly releases the camera,
+        joins worker threads, and finalizes the recorder before the
+        project state is wiped.
+        """
+        live_service = self.live_camera_service
+        if live_service is None:
+            return
+        is_active_fn = getattr(live_service, "is_session_active", None)
+        if not callable(is_active_fn) or not is_active_fn():
+            return
+        try:
+            live_service.stop_session()
+            self.logger.info("project.close.live_session_stopped")
+        # except Exception justified: cleanup boundary — never block close
+        except Exception as exc:  # pragma: no cover - defensive
+            self.logger.warning(
+                "project.close.live_session_stop_failed", error=str(exc), exc_info=True
+            )
+
     def close_project(
         self,
         *,
@@ -234,6 +263,12 @@ class ProjectLifecycleCoordinator(BaseCoordinator):
         Phase 3: Consolidated from ProjectOrchestrator.close_project
         """
         self.logger.info("project.close.start")
+
+        # Stop any active live camera session BEFORE resetting project
+        # state. Otherwise capture/processing/recording threads keep
+        # holding the camera handle and writing into the about-to-be-
+        # invalidated project folder.
+        self._stop_live_session_if_active()
 
         # Delegate to adapter which handles all UI coordination
         new_project_manager = self.project_workflow_adapter.close_project(

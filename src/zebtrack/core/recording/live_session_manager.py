@@ -103,6 +103,39 @@ class LiveSessionManagerMixin:
         def _clear_queues(self) -> None: ...
         def _on_session_complete(self, output_dir: Path) -> None: ...
 
+    def _resolve_calibration_perspective(self) -> str | None:
+        """Read the configured aquarium perspective from project calibration.
+
+        Returns ``"top_down"`` / ``"lateral"`` when the project has a
+        calibrated perspective, ``None`` when no project is loaded or the
+        calibration block is absent. Used to feed the 4-slot WeightManager
+        so live picks the correct perspective-flagged default weight.
+        """
+        if self.project_manager is None:
+            return None
+        project_data = getattr(self.project_manager, "project_data", None) or {}
+        cal_data = project_data.get("calibration") or {}
+        ba_data = cal_data.get("behavioral_analysis") or {}
+        perspective = ba_data.get("aquarium_perspective")
+        return perspective or None
+
+    def is_session_active(self) -> bool:
+        """Return True if a live session is currently running.
+
+        A session is considered active when at least one of the worker
+        threads (capture / processing / video recording) is still alive.
+        Used by ProjectLifecycleCoordinator.close_project to ensure the
+        live pipeline is shut down (camera released, threads joined)
+        before the project state is reset, preventing camera lock and
+        thread leaks across project switches.
+        """
+        threads = (
+            getattr(self, "capture_thread", None),
+            getattr(self, "processing_thread", None),
+            getattr(self, "video_recording_thread", None),
+        )
+        return any(t is not None and t.is_alive() for t in threads)
+
     def _cleanup_existing_session_folders(
         self,
         output_base: Path,
@@ -289,12 +322,23 @@ class LiveSessionManagerMixin:
 
         # Setup detector if needed
         if not self.detector_service.detector:
+            # Resolve perspective from project calibration so the 4-slot
+            # WeightManager can pick the perspective-flagged default weight
+            # (top_down vs lateral). Without this, live previously fell back
+            # to the perspective-agnostic default regardless of camera angle.
+            perspective = self._resolve_calibration_perspective()
+
+            log.info(
+                "live_camera_service.detector_setup.perspective_resolved",
+                perspective=perspective,
+                animal_method=self.settings.model_selection.animal_method,
+                use_openvino=self.settings.model_selection.use_openvino,
+            )
+
             success, _ = self.detector_service.initialize_detector(
                 animal_method=self.settings.model_selection.animal_method,
                 use_openvino=self.settings.model_selection.use_openvino,
-                active_weight_name=self.settings.weights.det_filename
-                if self.settings.model_selection.animal_method == "det"
-                else self.settings.weights.seg_filename,
+                perspective=perspective,
             )
             if not success:
                 log.error("live_camera_service.detector_setup_failed")
