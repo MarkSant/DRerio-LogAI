@@ -38,6 +38,8 @@ def mock_app(tkinter_root):
 
     # Mock frames that will be created
     app.main_controls_frame = None
+    app.model_configuration_tab_frame = None
+    app.diagnostics_tab_frame = None
     app.external_trigger_notice_label = None
 
     return app
@@ -68,6 +70,10 @@ def test_build_main_controls_tab_pre_recorded(mock_app):
 
     # Verify delegation calls on the GUI object (since GUI is mocked)
     mock_app._create_project_overview_panel.assert_called_once()
+    controls_container = mock_app.main_controls_frame.winfo_children()[0]
+    button_texts = [child.cget("text") for child in controls_container.winfo_children()]
+    assert "Configuração de Modelos" in button_texts
+    assert "Diagnóstico" in button_texts
     # mock_app._request_overview_refresh.assert_called_once() # Removed in Phase 3.2
 
 
@@ -118,3 +124,23 @@ def test_build_zone_tab_sets_up_components(mock_app):
     mock_app.event_dispatcher.subscribe_zone_component_events.assert_called_once()
     assert mock_app.zone_controls is mock_zone_instance
     assert mock_app.video_display is mock_video_instance
+
+
+def test_build_project_model_tabs_adds_notebook_tabs(mock_app):
+    builder = TabBuilder(mock_app)
+
+    with (
+        patch(
+            "zebtrack.ui.components.tab_builder.ProjectModelConfigurationPanel"
+        ) as mock_config_panel,
+        patch("zebtrack.ui.components.tab_builder.ModelDiagnosticsPanel") as mock_diag_panel,
+    ):
+        mock_config_panel.return_value = MagicMock()
+        mock_diag_panel.return_value = MagicMock()
+
+        builder.build_model_configuration_tab()
+        builder.build_diagnostics_tab()
+
+    tab_texts = [mock_app.notebook.tab(tab_id, "text") for tab_id in mock_app.notebook.tabs()]
+    assert "Configuração de Modelos" in tab_texts
+    assert "Diagnóstico" in tab_texts

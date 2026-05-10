@@ -140,6 +140,7 @@ class WeightManager:
                 error=str(e),
             )
         self.weights: dict[str, Any] = {}
+        self._runtime_slot_overrides: dict[tuple[str, str], str] = {}
         self._load_weights()
 
     def _resolve_weights_dir(self, override: Path | str | None) -> Path:
@@ -296,6 +297,20 @@ class WeightManager:
             log.error("weights.get_path.invalid_method", method=method, task=task)
             return None
         target = self._normalize_target_alias(task)
+
+        if target:
+            override_name, override_details = self.get_runtime_slot_override(method, target)
+            if override_details is not None:
+                path = override_details.get("path")
+                log.info(
+                    "weights.get_path.runtime_override",
+                    method=method,
+                    task=task,
+                    target=target,
+                    name=override_name,
+                    path=path,
+                )
+                return path
 
         # 1. Perspective-aware lookup respecting target (when both provided).
         name: str | None = None
@@ -988,6 +1003,71 @@ class WeightManager:
             if details.get(slot_key):
                 return name, details
         return None, None
+
+    def get_runtime_slot_override(
+        self, method: str, target: str
+    ) -> tuple[str, dict] | tuple[None, None]:
+        """Return the temporary runtime override for a (method, target) slot."""
+        if method not in VALID_METHODS or target not in VALID_TARGETS:
+            return None, None
+
+        name = self._runtime_slot_overrides.get((method, target))
+        if not name:
+            return None, None
+
+        details = self.get_weight_details(name)
+        if details is None:
+            log.warning(
+                "weights.runtime_override.missing_weight",
+                method=method,
+                target=target,
+                name=name,
+            )
+            self._runtime_slot_overrides.pop((method, target), None)
+            return None, None
+
+        if details.get("type") != method:
+            log.warning(
+                "weights.runtime_override.type_mismatch",
+                method=method,
+                target=target,
+                name=name,
+                actual=details.get("type"),
+            )
+            return None, None
+
+        return name, details
+
+    def set_runtime_slot_overrides(
+        self, overrides: dict[tuple[str, str], str | None] | None
+    ) -> None:
+        """Apply temporary per-slot overrides used only during runtime.
+
+        These overrides do not touch persisted default flags and are intended
+        for project-scoped model selection while preserving the global catalog.
+        Invalid slot keys or unknown weights are ignored.
+        """
+        self._runtime_slot_overrides.clear()
+        if not overrides:
+            return
+
+        for (method, target), name in overrides.items():
+            if not name or method not in VALID_METHODS or target not in VALID_TARGETS:
+                continue
+            details = self.get_weight_details(name)
+            if details is None or details.get("type") != method:
+                log.warning(
+                    "weights.runtime_override.skipped",
+                    method=method,
+                    target=target,
+                    name=name,
+                )
+                continue
+            self._runtime_slot_overrides[(method, target)] = name
+
+    def clear_runtime_slot_overrides(self) -> None:
+        """Remove all temporary runtime slot overrides."""
+        self._runtime_slot_overrides.clear()
 
     def set_default_weight_for(self, name: str, *, method: str, target: str) -> bool:
         """Set ``name`` as the default weight for the (method, target) slot.

@@ -49,6 +49,8 @@ class ProjectInitializer:
 
         # Create the tabs
         gui.tab_builder.build_main_controls_tab()
+        gui.tab_builder.build_model_configuration_tab()
+        gui.tab_builder.build_diagnostics_tab()
         if gui.controller.project_manager.get_project_type() == "live":
             gui.widget_factory.create_progress_grid_tab()
         gui.tab_builder.build_zone_tab()

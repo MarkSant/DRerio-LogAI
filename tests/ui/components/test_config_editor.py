@@ -242,3 +242,17 @@ def test_set_values_behavioral_analysis_mapping(config_widget):
             "geotaxis_enabled": True,
         }
     )
+
+
+def test_detection_summary_visibility_can_toggle(config_widget):
+    """Test that the global-only detection summary can be hidden in project context."""
+    assert config_widget._detection_summary_frame is not None
+    assert config_widget._detection_summary_frame.winfo_manager() == "pack"
+
+    config_widget.set_detection_summary_visible(False)
+
+    assert config_widget._detection_summary_frame.winfo_manager() == ""
+
+    config_widget.set_detection_summary_visible(True)
+
+    assert config_widget._detection_summary_frame.winfo_manager() == "pack"

@@ -136,10 +136,20 @@ class ModelOverrideService:
             return None
 
         defaults = get_global_defaults()
-        weight = defaults.get("active_weight") or get_active_weight_name()
         use_openvino = bool(defaults.get("use_openvino", False))
+        slot_weights = self.project_workflow_service.get_global_project_slot_weights()
+        if not slot_weights:
+            legacy_weight = defaults.get("active_weight") or get_active_weight_name()
+            legacy_slot = self.project_workflow_service._get_legacy_animal_slot_key({})
+            if legacy_weight and legacy_slot:
+                slot_weights = {legacy_slot: legacy_weight}
 
-        overrides = self._persist_project_model_settings(weight, use_openvino)
+        resolved_weight, resolved_openvino = (
+            self.project_workflow_service.save_project_model_slot_overrides(
+                slot_weights,
+                use_openvino,
+            )
+        )
 
         message = "Configurações globais aplicadas ao projeto."
         self._publish_event(UIEvents.UI_SET_STATUS, payloads.StatusPayload(message=message))
@@ -147,7 +157,7 @@ class ModelOverrideService:
         if refresh_callback:
             refresh_callback(message, True)
 
-        return overrides.get("active_weight"), bool(overrides.get("use_openvino"))
+        return resolved_weight, resolved_openvino
 
     def resolve_project_model_settings(
         self, overrides: dict | None = None
@@ -257,31 +267,36 @@ class ModelOverrideService:
                 get_active_weight_name() or None,
                 get_use_openvino(),
             )
-
-        overrides = self.project_manager.project_data.setdefault(
-            "model_overrides",
-            {"active_weight": None, "use_openvino": None},
+        legacy_slot = self.project_workflow_service._get_legacy_animal_slot_key({})
+        slot_weights = (
+            {legacy_slot: active_weight_override} if legacy_slot and active_weight_override else {}
         )
-        overrides["active_weight"] = active_weight_override or None
-        overrides["use_openvino"] = use_openvino_override
-
-        # Apply overrides (callbacks will be set by caller)
-        resolved_weight, resolved_openvino = self.apply_project_model_overrides(
-            overrides=overrides,
-            active_weight_setter=lambda w: None,  # Will be set by caller
-            use_openvino_setter=lambda v: None,  # Will be set by caller
+        return self.project_workflow_service.save_project_model_slot_overrides(
+            slot_weights,
+            use_openvino_override,
         )
 
-        self.project_manager.project_data["model_overrides"] = overrides
-        self.project_manager.save_project()
-
-        return resolved_weight, resolved_openvino
+    def save_project_model_slot_overrides(
+        self,
+        slot_weights: dict[str, str | None] | None,
+        use_openvino_override: bool | None,
+    ) -> tuple[str | None, bool]:
+        """Save explicit per-slot model overrides for the active project."""
+        return self.project_workflow_service.save_project_model_slot_overrides(
+            slot_weights,
+            use_openvino_override,
+        )
 
     def restore_global_model_defaults(self) -> None:
         """Restore global model defaults after closing a project."""
         detector_state = self.state_manager.get_detector_state()
         self._global_model_defaults["active_weight"] = detector_state.active_weight_name
         self._global_model_defaults["use_openvino"] = detector_state.use_openvino
+        weight_manager = getattr(
+            self.project_workflow_service.model_service, "weight_manager", None
+        )
+        if weight_manager is not None and hasattr(weight_manager, "clear_runtime_slot_overrides"):
+            weight_manager.clear_runtime_slot_overrides()
         self._using_project_overrides = False
         self.logger.info("project.model_defaults.restored")
 
@@ -298,8 +313,9 @@ class ModelOverrideService:
         project_data: dict[str, Any] = self.project_manager.project_data
         overrides = project_data.get("model_overrides")
         if not isinstance(overrides, dict):
-            overrides = {"active_weight": None, "use_openvino": None}
+            overrides = {"active_weight": None, "use_openvino": None, "slot_weights": {}}
             project_data["model_overrides"] = overrides
+        overrides.setdefault("slot_weights", {})
         return overrides
 
     def _persist_project_model_settings(

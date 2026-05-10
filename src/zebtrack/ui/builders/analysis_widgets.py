@@ -151,7 +151,7 @@ class AnalysisWidgetsBuilder:
             self.gui.event_bus.subscribe(UIEvents.CONFIG_ROI_RULE_CHANGED, roi_rule_handler)
 
             def calibration_handler(_: payloads.EmptyPayload) -> None:
-                self.gui._open_global_calibration_window()
+                self.gui._open_global_model_configuration_window()
 
             self.gui.event_bus.subscribe(
                 UIEvents.CONFIG_OPEN_CALIBRATION_DIALOG, calibration_handler
@@ -255,6 +255,8 @@ class AnalysisWidgetsBuilder:
         values["behavioral_analysis"] = behavioral_values
 
         if self.gui.config_editor_widget:
+            show_detection_summary = not bool(self.gui.controller.project_manager.project_path)
+            self.gui.config_editor_widget.set_detection_summary_visible(show_detection_summary)
             self.gui.config_editor_widget.set_values(values)
 
     def on_reset_global_config_form_widget(self) -> None:

@@ -110,7 +110,7 @@ discovered_classes:
   main_viewmodel:
     path: "src/zebtrack/ui/gui.py"
     classes: ["ApplicationGUI"]
-    key_methods: ["__init__", "_post_init", "_extract_setting", "_initialize_theme", "_open_global_calibration_window"]
+    key_methods: ["__init__", "_post_init", "_extract_setting", "_initialize_theme", "_open_global_model_configuration_window"]
   settings:
     path: "src/zebtrack/settings.py"
     classes: ["CameraSettings", "LiveAnalysisSettings", "ArduinoSettings"]

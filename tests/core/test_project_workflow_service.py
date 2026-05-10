@@ -148,11 +148,16 @@ class TestProjectWorkflowServiceModelSettings(unittest.TestCase):
         self.mock_project_manager = Mock()
         self.mock_model_service = Mock()
         self.mock_state_manager = Mock()
+        self.mock_settings = Mock()
+        self.mock_settings.model_selection.aquarium_method = "det"
+        self.mock_settings.model_selection.animal_method = "seg"
+        self.mock_model_service.weight_manager = Mock()
 
         self.service = ProjectWorkflowService(
             project_manager=self.mock_project_manager,
             model_service=self.mock_model_service,
             state_manager=self.mock_state_manager,
+            settings_obj=self.mock_settings,
         )
 
     def test_resolve_project_model_settings_from_overrides(self):
@@ -188,6 +193,46 @@ class TestProjectWorkflowServiceModelSettings(unittest.TestCase):
 
         assert weight == "project_weight.pt"
         assert openvino is True
+
+    def test_resolve_project_model_settings_prefers_active_project_slot_override(self):
+        """Animal-slot overrides must outrank stale legacy snapshots."""
+        self.mock_project_manager.project_data = {
+            "active_weight": "stale_weight.pt",
+            "use_openvino": False,
+            "model_overrides": {
+                "active_weight": None,
+                "use_openvino": None,
+                "slot_weights": {"seg:zebrafish": "project_seg.pt"},
+            },
+        }
+        self.mock_model_service.get_all_weight_names.return_value = ["project_seg.pt", "global.pt"]
+
+        weight, openvino = self.service.resolve_project_model_settings(overrides=None)
+
+        assert weight == "project_seg.pt"
+        assert openvino is False
+
+    def test_resolve_project_model_settings_ignores_stale_snapshot_when_overrides_empty(self):
+        """Empty overrides should inherit globals instead of reusing stale snapshots."""
+        self.mock_project_manager.project_data = {
+            "active_weight": "stale_weight.pt",
+            "use_openvino": True,
+            "model_overrides": {
+                "active_weight": None,
+                "use_openvino": None,
+                "slot_weights": {},
+            },
+        }
+        self.service._global_model_defaults = {
+            "active_weight": "global_weight.pt",
+            "use_openvino": False,
+        }
+        self.mock_model_service.get_all_weight_names.return_value = ["global_weight.pt"]
+
+        weight, openvino = self.service.resolve_project_model_settings(overrides=None)
+
+        assert weight == "global_weight.pt"
+        assert openvino is False
 
     def test_resolve_project_model_settings_fallback_to_global_defaults(self):
         """Test resolution falls back to global defaults."""
@@ -237,6 +282,62 @@ class TestProjectWorkflowServiceModelSettings(unittest.TestCase):
         mock_weight_setter.assert_called_once_with("new_weight.pt")
         mock_openvino_setter.assert_called_once_with(True)
         self.mock_project_manager.save_project.assert_called_once()
+
+    def test_apply_project_model_overrides_sets_runtime_slot_overrides(self):
+        """Project slot overrides must be pushed into WeightManager runtime state."""
+        self.mock_project_manager.project_data = {
+            "active_weight": "stale_weight.pt",
+            "use_openvino": False,
+            "openvino_device": "AUTO",
+            "model_overrides": {
+                "active_weight": None,
+                "use_openvino": None,
+                "device": "AUTO",
+                "slot_weights": {"seg:zebrafish": "project_seg.pt"},
+            },
+        }
+        self.mock_project_manager.project_path = "/path/to/project"
+        self.mock_model_service.get_all_weight_names.return_value = ["project_seg.pt", "global.pt"]
+        self.mock_model_service.is_openvino_ready.return_value = True
+
+        self.service.apply_project_model_overrides(
+            overrides=None,
+            active_weight_setter=Mock(),
+            use_openvino_setter=Mock(),
+        )
+
+        self.mock_model_service.weight_manager.set_runtime_slot_overrides.assert_called_once_with(
+            {("seg", "zebrafish"): "project_seg.pt"}
+        )
+
+    def test_save_project_model_slot_overrides_persists_slot_weights(self):
+        """Saving project slot overrides must keep explicit slot mappings."""
+        self.mock_project_manager.project_data = {
+            "model_overrides": {
+                "active_weight": None,
+                "use_openvino": None,
+                "device": "AUTO",
+                "slot_weights": {},
+            }
+        }
+        self.mock_project_manager.project_path = "/path/to/project"
+        self.mock_model_service.get_all_weight_names.return_value = ["project_seg.pt"]
+        self.mock_model_service.is_openvino_ready.return_value = True
+
+        weight, openvino = self.service.save_project_model_slot_overrides(
+            {"seg:zebrafish": "project_seg.pt"},
+            True,
+        )
+
+        assert weight == "project_seg.pt"
+        assert openvino is True
+        assert self.mock_project_manager.project_data["model_overrides"]["slot_weights"] == {
+            "seg:zebrafish": "project_seg.pt"
+        }
+        assert (
+            self.mock_project_manager.project_data["model_overrides"]["active_weight"]
+            == "project_seg.pt"
+        )
 
     def test_apply_project_model_overrides_without_project(self):
         """Test applying overrides returns globals when no project."""

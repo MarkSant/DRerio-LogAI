@@ -160,6 +160,10 @@ class ApplicationGUI:
         self.notebook: ttk.Notebook | None = None
         self.welcome_frame: ttk.Frame | None = None
         self.main_controls_frame: ttk.Frame | None = None
+        self.model_configuration_tab_frame: ttk.Frame | None = None
+        self.diagnostics_tab_frame: ttk.Frame | None = None
+        self.project_model_configuration_panel: Any | None = None
+        self.project_diagnostics_panel: Any | None = None
         self.zone_tab_frame: ttk.Frame | None = None
         self.analysis_tab_frame: ttk.Frame | None = None
         self.analysis_metadata_var: Any | None = None
@@ -530,9 +534,29 @@ class ApplicationGUI:
             # Ensure any partial changes don't break standard widgets if possible
             # Standard Tkinter doesn't need explicit cleanup usually
 
+    def _open_global_model_configuration_window(self):
+        with self.controller.global_calibration_session():
+            CalibrationDialog(self.root, self.controller, show_diagnostics=False)
+
+    def _open_global_model_diagnostics_window(self):
+        from zebtrack.ui.dialogs.model_diagnostics_dialog import ModelDiagnosticsDialog
+
+        ModelDiagnosticsDialog(self.root, self.controller)
+
     def _open_global_calibration_window(self):
         with self.controller.global_calibration_session():
             CalibrationDialog(self.root, self.controller)
+
+    def show_project_model_configuration_tab(self) -> bool:
+        panel = getattr(self, "project_model_configuration_panel", None)
+        if panel is not None and hasattr(panel, "refresh_from_project"):
+            panel.refresh_from_project()
+
+        if not self.notebook or not self.model_configuration_tab_frame:
+            return False
+
+        self.notebook.select(self.model_configuration_tab_frame)
+        return True
 
     def _open_project_calibration_window(self):
         if not getattr(self.controller.project_manager, "project_path", None):
@@ -540,6 +564,9 @@ class ApplicationGUI:
                 "Nenhum Projeto",
                 "Abra um projeto antes de ajustar a calibração específica.",
             )
+            return
+
+        if self.show_project_model_configuration_tab():
             return
 
         with self.controller.project_calibration_session():

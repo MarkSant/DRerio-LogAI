@@ -109,6 +109,7 @@ def mock_gui(tkinter_root, mock_validation_manager, mock_controller):
     gui.update_openvino_checkbox = Mock()
     gui.set_active_weight_in_dropdown = Mock()
     gui.update_openvino_status_display = Mock()
+    gui.show_project_model_configuration_tab = Mock(return_value=True)
     gui.weight_hardware_manager = Mock()
     gui.roi_template_manager = Mock()
     gui.roi_template_manager.refresh_templates = Mock()
@@ -464,27 +465,11 @@ class TestCalibrationDialogs:
         mock_warning.assert_called_once()
         mock_calibration_dialog.assert_not_called()
 
-    @patch("zebtrack.ui.dialogs.calibration_dialog.CalibrationDialog")
-    def test_open_project_calibration_window_success(
-        self, mock_calibration_dialog, dialog_manager, mock_controller, mock_gui
-    ):
-        """Test opening project calibration window successfully."""
-        mock_context = Mock()
-        mock_context.__enter__ = Mock(return_value=None)
-        mock_context.__exit__ = Mock(return_value=False)
-        mock_controller.project_calibration_session.return_value = mock_context
-
+    def test_open_project_calibration_window_success(self, dialog_manager, mock_gui):
+        """Test redirecting project calibration to the dedicated notebook tab."""
         dialog_manager.open_project_calibration_window()
 
-        mock_controller.project_calibration_session.assert_called_once()
-        mock_calibration_dialog.assert_called_once_with(mock_gui.root, mock_controller)
-        mock_gui.weight_hardware_manager.update_openvino_checkbox.assert_called_once_with(False)
-        mock_gui.weight_hardware_manager.set_active_weight_in_dropdown.assert_called_once_with(
-            "test_weight"
-        )
-        mock_gui.weight_hardware_manager.update_openvino_status_display.assert_called_once_with(
-            "disabled"
-        )
+        mock_gui.show_project_model_configuration_tab.assert_called_once_with()
 
 
 @pytest.mark.gui
@@ -1380,10 +1365,10 @@ class TestEdgeCases:
         assert "Porta COM5" in message
 
     @patch("zebtrack.ui.dialogs.calibration_dialog.CalibrationDialog")
-    def test_open_project_calibration_updates_ui_elements(
+    def test_open_project_calibration_falls_back_to_dialog_when_tab_unavailable(
         self, mock_calibration_dialog, dialog_manager, mock_controller, mock_gui
     ):
-        """Test that open_project_calibration_window updates all UI elements."""
+        """Test legacy fallback when the project tabs are not available yet."""
         mock_context = Mock()
         mock_context.__enter__ = Mock(return_value=None)
         mock_context.__exit__ = Mock(return_value=False)
@@ -1391,9 +1376,13 @@ class TestEdgeCases:
         mock_controller.hardware_vm.use_openvino = True
         mock_controller.hardware_vm.active_weight_name = "custom_weight"
         mock_controller.hardware_vm.get_openvino_status.return_value = "enabled"
+        mock_gui.show_project_model_configuration_tab.return_value = False
 
         dialog_manager.open_project_calibration_window()
 
+        mock_gui.show_project_model_configuration_tab.assert_called_once_with()
+        mock_controller.project_calibration_session.assert_called_once()
+        mock_calibration_dialog.assert_called_once_with(mock_gui.root, mock_controller)
         mock_gui.weight_hardware_manager.update_openvino_checkbox.assert_called_once_with(True)
         mock_gui.weight_hardware_manager.set_active_weight_in_dropdown.assert_called_once_with(
             "custom_weight"

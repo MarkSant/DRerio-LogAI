@@ -412,6 +412,7 @@ class ProjectLifecycleManager:
                 "active_weight": None,
                 "use_openvino": None,
                 "device": (openvino_device or "AUTO").upper(),
+                "slot_weights": {},
             },
             "use_timed_recording": use_timed_recording,
             "recording_duration_s": recording_duration_s,
@@ -669,7 +670,12 @@ class ProjectLifecycleManager:
         overrides = loaded_data.get("model_overrides")
         overrides_updated = False
         if not isinstance(overrides, dict):
-            overrides = {"active_weight": None, "use_openvino": None, "device": "AUTO"}
+            overrides = {
+                "active_weight": None,
+                "use_openvino": None,
+                "device": "AUTO",
+                "slot_weights": {},
+            }
             overrides_updated = True
         else:
             if "active_weight" not in overrides:
@@ -680,6 +686,11 @@ class ProjectLifecycleManager:
                 overrides_updated = True
             if "device" not in overrides:
                 overrides["device"] = loaded_data.get("openvino_device", "AUTO")
+                overrides_updated = True
+            if "slot_weights" not in overrides or not isinstance(
+                overrides.get("slot_weights"), dict
+            ):
+                overrides["slot_weights"] = {}
                 overrides_updated = True
 
         if overrides_updated:

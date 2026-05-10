@@ -27,7 +27,8 @@ class ProjectWidgetsBuilder:
     def build_project_actions(self, parent) -> None:
         """Create the project actions controls in the welcome frame."""
         commands = {
-            "calibration": self.gui._open_global_calibration_window,
+            "model_configuration": self.gui._open_global_model_configuration_window,
+            "diagnostics": self.gui._open_global_model_diagnostics_window,
             "single_analysis": self.gui.single_video_workflow.on_analyze_single_video_clicked,
             "live_camera": lambda: self.gui.controller.hardware_vm.start_live_camera_analysis(),
             "create_project": self.gui.project_initializer.create_project_workflow,

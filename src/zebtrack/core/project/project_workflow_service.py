@@ -24,6 +24,7 @@ from typing import TYPE_CHECKING, Any
 import structlog
 
 from zebtrack.core.exceptions import ProjectInvalidError
+from zebtrack.core.services.weight_manager import TARGET_AQUARIUM, TARGET_ZEBRAFISH, VALID_METHODS
 
 if TYPE_CHECKING:
     from zebtrack.core.project.project_manager import ProjectManager
@@ -50,6 +51,8 @@ class ProjectWorkflowService:
     - Import wizard data (parquets, ROIs, etc.)
     - Display post-creation guidance
     """
+
+    _SLOT_SEPARATOR = ":"
 
     def __init__(
         self,
@@ -219,6 +222,7 @@ class ProjectWorkflowService:
         """
         project_data = getattr(self.project_manager, "project_data", {}) or {}
         base_overrides = project_data.get("model_overrides") or {}
+        legacy_project_data_fallback = not isinstance(project_data.get("model_overrides"), dict)
 
         if overrides is not None:
             merged_overrides = base_overrides.copy()
@@ -226,29 +230,26 @@ class ProjectWorkflowService:
         else:
             merged_overrides = base_overrides
 
-        # Parse weight override
-        weight_override = merged_overrides.get("active_weight")
-        if isinstance(weight_override, str):
-            weight_override = weight_override.strip() or None
+        merged_slot_weights = self._resolve_slot_weights_from_overrides(merged_overrides)
+        legacy_animal_slot = self._get_legacy_animal_slot_key(merged_slot_weights)
+
+        weight_override = (
+            merged_slot_weights.get(legacy_animal_slot) if legacy_animal_slot else None
+        )
+        if not weight_override:
+            weight_override = self._normalize_weight_name(merged_overrides.get("active_weight"))
 
         # Parse OpenVINO override
-        openvino_override = merged_overrides.get("use_openvino")
-        if isinstance(openvino_override, str):
-            lowered = openvino_override.strip().lower()
-            if lowered in {"", "inherit", "auto"}:
-                openvino_override = None
-            else:
-                openvino_override = lowered in {"true", "1", "yes", "on"}
+        openvino_override = self._normalize_openvino_override(merged_overrides.get("use_openvino"))
 
         # Resolve weight with fallback chain
         resolved_weight = weight_override
-        if not resolved_weight:
+        if not resolved_weight and legacy_project_data_fallback:
             resolved_weight = project_data.get("active_weight") or None
         if not resolved_weight:
             resolved_weight = self._global_model_defaults.get("active_weight")
         if not resolved_weight:
-            default_weight, _ = self.model_service.get_default_weight()
-            resolved_weight = default_weight
+            resolved_weight = self._get_default_weight_name()
 
         # Validate weight exists
         available_weights = set(self.model_service.get_all_weight_names())
@@ -263,12 +264,12 @@ class ProjectWorkflowService:
             if fallback_weight and fallback_weight in available_weights:
                 resolved_weight = fallback_weight
             else:
-                default_weight, _ = self.model_service.get_default_weight()
+                default_weight = self._get_default_weight_name()
                 resolved_weight = default_weight if default_weight else None
 
         # Resolve OpenVINO
         if openvino_override is None:
-            if project_data.get("use_openvino") is not None:
+            if legacy_project_data_fallback and project_data.get("use_openvino") is not None:
                 resolved_openvino = bool(project_data.get("use_openvino"))
             else:
                 resolved_openvino = bool(self._global_model_defaults.get("use_openvino", False))
@@ -341,13 +342,34 @@ class ProjectWorkflowService:
             tuple: (resolved_weight_name, resolved_use_openvino)
         """
         if not getattr(self.project_manager, "project_data", None):
+            self._set_runtime_slot_overrides({})
             # No project loaded, return current global defaults
             return (
                 self._global_model_defaults.get("active_weight"),
                 bool(self._global_model_defaults.get("use_openvino", False)),
             )
 
-        resolved_weight, resolved_openvino = self.resolve_project_model_settings(overrides)
+        project_data = self.project_manager.project_data
+        had_model_overrides = isinstance(project_data.get("model_overrides"), dict)
+        model_overrides = project_data.setdefault(
+            "model_overrides",
+            {"active_weight": None, "use_openvino": None, "device": "AUTO", "slot_weights": {}},
+        )
+
+        merged_overrides = dict(model_overrides)
+        if not had_model_overrides:
+            merged_overrides["active_weight"] = project_data.get("active_weight")
+            merged_overrides["use_openvino"] = project_data.get("use_openvino")
+        if overrides is not None:
+            merged_overrides.update(overrides)
+        merged_slot_weights = self._resolve_slot_weights_from_overrides(merged_overrides)
+        explicit_slot_weights = self._normalize_slot_weights(merged_overrides.get("slot_weights"))
+        explicit_active_weight = self._normalize_weight_name(merged_overrides.get("active_weight"))
+        explicit_openvino = self._normalize_openvino_override(merged_overrides.get("use_openvino"))
+
+        self._set_runtime_slot_overrides(merged_slot_weights)
+
+        resolved_weight, resolved_openvino = self.resolve_project_model_settings(merged_overrides)
         resolved_device = self._resolve_openvino_device(overrides)
 
         self._using_project_overrides = True
@@ -361,30 +383,29 @@ class ProjectWorkflowService:
 
         # Update project data
         updated = False
-        if self.project_manager.project_data.get("active_weight") != resolved_weight:
-            self.project_manager.project_data["active_weight"] = resolved_weight
+        if project_data.get("active_weight") != resolved_weight:
+            project_data["active_weight"] = resolved_weight
             updated = True
 
-        if self.project_manager.project_data.get("use_openvino") != resolved_openvino:
-            self.project_manager.project_data["use_openvino"] = resolved_openvino
+        if project_data.get("use_openvino") != resolved_openvino:
+            project_data["use_openvino"] = resolved_openvino
             updated = True
 
-        model_overrides = self.project_manager.project_data.setdefault(
-            "model_overrides",
-            {"active_weight": None, "use_openvino": None, "device": "AUTO"},
-        )
-        if model_overrides.get("active_weight") != resolved_weight:
-            model_overrides["active_weight"] = resolved_weight
+        if model_overrides.get("active_weight") != explicit_active_weight:
+            model_overrides["active_weight"] = explicit_active_weight
             updated = True
-        if model_overrides.get("use_openvino") != resolved_openvino:
-            model_overrides["use_openvino"] = resolved_openvino
+        if model_overrides.get("use_openvino") != explicit_openvino:
+            model_overrides["use_openvino"] = explicit_openvino
+            updated = True
+        if model_overrides.get("slot_weights") != explicit_slot_weights:
+            model_overrides["slot_weights"] = explicit_slot_weights
             updated = True
         if model_overrides.get("device") != resolved_device:
             model_overrides["device"] = resolved_device
             updated = True
 
-        if self.project_manager.project_data.get("openvino_device") != resolved_device:
-            self.project_manager.project_data["openvino_device"] = resolved_device
+        if project_data.get("openvino_device") != resolved_device:
+            project_data["openvino_device"] = resolved_device
             updated = True
 
         if self.settings and hasattr(self.settings, "openvino"):
@@ -403,6 +424,47 @@ class ProjectWorkflowService:
             )
 
         return resolved_weight, resolved_openvino
+
+    def get_global_project_slot_weights(self) -> dict[str, str]:
+        """Return current global defaults for the slots consumed by the active project."""
+        weight_manager = getattr(self.model_service, "weight_manager", None)
+        if weight_manager is None or not hasattr(weight_manager, "get_default_weight_for"):
+            return {}
+
+        slot_weights: dict[str, str] = {}
+        for method, target in self._get_project_slot_pairs():
+            name, _details = weight_manager.get_default_weight_for(method, target)
+            if name:
+                slot_weights[self._slot_key(method, target)] = name
+        return slot_weights
+
+    def save_project_model_slot_overrides(
+        self,
+        slot_weights: dict[str, str | None] | None,
+        use_openvino_override: bool | None,
+    ) -> tuple[str | None, bool]:
+        """Persist explicit slot overrides for the active project."""
+        if not getattr(self.project_manager, "project_path", None):
+            return self.resolve_project_model_settings(), bool(use_openvino_override)
+
+        overrides = self.project_manager.project_data.setdefault(
+            "model_overrides",
+            {"active_weight": None, "use_openvino": None, "device": "AUTO", "slot_weights": {}},
+        )
+        normalized_slot_weights = self._normalize_slot_weights(slot_weights)
+        legacy_animal_slot = self._get_legacy_animal_slot_key(normalized_slot_weights)
+
+        overrides["slot_weights"] = normalized_slot_weights
+        overrides["active_weight"] = (
+            normalized_slot_weights.get(legacy_animal_slot) if legacy_animal_slot else None
+        )
+        overrides["use_openvino"] = use_openvino_override
+
+        return self.apply_project_model_overrides(
+            overrides=overrides,
+            active_weight_setter=lambda _weight: None,
+            use_openvino_setter=lambda _enabled: None,
+        )
 
     # === Project Creation Orchestration ===
 
@@ -633,6 +695,108 @@ class ProjectWorkflowService:
                 kwargs["openvino_device"] = str(self.settings.openvino.device or "AUTO").upper()
             else:
                 kwargs["openvino_device"] = "AUTO"
+
+    @classmethod
+    def _slot_key(cls, method: str, target: str) -> str:
+        return f"{method}{cls._SLOT_SEPARATOR}{target}"
+
+    def _get_project_slot_pairs(self) -> list[tuple[str, str]]:
+        model_selection = getattr(self.settings, "model_selection", None)
+        aquarium_method = getattr(model_selection, "aquarium_method", None)
+        animal_method = getattr(model_selection, "animal_method", None)
+
+        pairs: list[tuple[str, str]] = []
+        if aquarium_method in VALID_METHODS:
+            pairs.append((aquarium_method, TARGET_AQUARIUM))
+        if animal_method in VALID_METHODS:
+            pairs.append((animal_method, TARGET_ZEBRAFISH))
+        return pairs
+
+    def _normalize_slot_weights(self, raw_slot_weights: Any) -> dict[str, str]:
+        normalized: dict[str, str] = {}
+        if not isinstance(raw_slot_weights, dict):
+            return normalized
+
+        for raw_key, raw_name in raw_slot_weights.items():
+            if isinstance(raw_key, tuple) and len(raw_key) == 2:
+                method, target = raw_key
+            elif isinstance(raw_key, str) and self._SLOT_SEPARATOR in raw_key:
+                method, target = raw_key.split(self._SLOT_SEPARATOR, 1)
+            else:
+                continue
+
+            if not isinstance(method, str) or not isinstance(target, str):
+                continue
+
+            method = method.strip().lower()
+            target = target.strip().lower()
+            name = self._normalize_weight_name(raw_name)
+            if (
+                not name
+                or method not in VALID_METHODS
+                or target not in {TARGET_AQUARIUM, TARGET_ZEBRAFISH}
+            ):
+                continue
+            normalized[self._slot_key(method, target)] = name
+
+        return normalized
+
+    @staticmethod
+    def _normalize_weight_name(raw_name: Any) -> str | None:
+        if not isinstance(raw_name, str):
+            return None
+        name = raw_name.strip()
+        return name or None
+
+    @staticmethod
+    def _normalize_openvino_override(raw_value: Any) -> bool | None:
+        if isinstance(raw_value, str):
+            lowered = raw_value.strip().lower()
+            if lowered in {"", "inherit", "auto"}:
+                return None
+            return lowered in {"true", "1", "yes", "on"}
+        if raw_value is None:
+            return None
+        return bool(raw_value)
+
+    def _get_legacy_animal_slot_key(self, slot_weights: dict[str, str] | None = None) -> str | None:
+        for method, target in self._get_project_slot_pairs():
+            if target == TARGET_ZEBRAFISH:
+                return self._slot_key(method, target)
+
+        if slot_weights:
+            for slot_key in slot_weights:
+                if slot_key.endswith(f"{self._SLOT_SEPARATOR}{TARGET_ZEBRAFISH}"):
+                    return slot_key
+        return None
+
+    def _resolve_slot_weights_from_overrides(
+        self, merged_overrides: dict[str, Any]
+    ) -> dict[str, str]:
+        slot_weights = self._normalize_slot_weights(merged_overrides.get("slot_weights"))
+        legacy_weight = self._normalize_weight_name(merged_overrides.get("active_weight"))
+        legacy_slot = self._get_legacy_animal_slot_key(slot_weights)
+        if legacy_weight and legacy_slot and legacy_slot not in slot_weights:
+            slot_weights[legacy_slot] = legacy_weight
+        return slot_weights
+
+    def _set_runtime_slot_overrides(self, slot_weights: dict[str, str]) -> None:
+        weight_manager = getattr(self.model_service, "weight_manager", None)
+        if weight_manager is None or not hasattr(weight_manager, "set_runtime_slot_overrides"):
+            return
+
+        runtime_overrides: dict[tuple[str, str], str] = {}
+        for slot_key, name in slot_weights.items():
+            method, target = slot_key.split(self._SLOT_SEPARATOR, 1)
+            runtime_overrides[(method, target)] = name
+        weight_manager.set_runtime_slot_overrides(runtime_overrides)
+
+    def _get_default_weight_name(self) -> str | None:
+        default_weight = self.model_service.get_default_weight()
+        if isinstance(default_weight, tuple) and default_weight:
+            candidate = default_weight[0]
+            return candidate if isinstance(candidate, str) else None
+        return None
 
     def _create_project_structure(self, filtered_kwargs: dict[str, Any]) -> tuple[bool, str | None]:
         try:

@@ -150,6 +150,30 @@ class HardwareStatusViewModel:
             return self.model_service.get_all_weight_names()
         return []
 
+    def get_weight_details(self, weight_name: str) -> dict[str, Any] | None:
+        """Return metadata for a registered weight, if available."""
+        if self.model_service:
+            return self.model_service.get_weight_details(weight_name)
+        return None
+
+    def get_weight_names_for_slot(self, method: str, target: str) -> list[str]:
+        """Return candidate weights for a specific (method, target) slot.
+
+        Exact `(method, target)` matches are preferred. If none exist, fall back
+        to any weight of the requested method so the UI never becomes empty when
+        a weight still needs reclassification.
+        """
+        exact_matches: list[str] = []
+        fallback_matches: list[str] = []
+        for weight_name in self.get_all_weight_names():
+            details = self.get_weight_details(weight_name) or {}
+            if details.get("type") != method:
+                continue
+            fallback_matches.append(weight_name)
+            if details.get("target") == target:
+                exact_matches.append(weight_name)
+        return exact_matches or fallback_matches
+
     # Slot summary used by the main-window status panel and the project tab.
     # Returns one entry per (method, target) slot. ``scope="project"`` filters
     # to the two slots actually consumed by runtime processing of the open

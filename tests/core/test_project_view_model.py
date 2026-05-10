@@ -116,6 +116,15 @@ def test_save_project_model_overrides_passes_callbacks(view_model):
     assert get_use_openvino() is True
 
 
+def test_save_project_model_slot_overrides_delegates(view_model):
+    view_model.save_project_model_slot_overrides({"seg:zebrafish": "weights.pt"}, True)
+
+    view_model.project_lifecycle_coordinator.save_project_model_slot_overrides.assert_called_once_with(
+        {"seg:zebrafish": "weights.pt"},
+        True,
+    )
+
+
 def test_has_project_override_settings(view_model):
     view_model.project_lifecycle_coordinator.has_project_override_settings.return_value = True
 

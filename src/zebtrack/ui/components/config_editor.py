@@ -65,6 +65,7 @@ class ConfigEditorWidget(BaseWidget):
         self._roi_rule_widgets: list[ttk.Widget] = []
 
         self.behavioral_config_widget: BehavioralConfigWidget | None = None
+        self._detection_summary_frame: ttk.LabelFrame | None = None
 
         super().__init__(parent, event_bus=event_bus, **kwargs)
 
@@ -422,6 +423,7 @@ class ConfigEditorWidget(BaseWidget):
             padding=10,
         )
         det_frame.pack(fill="x", pady=6)
+        self._detection_summary_frame = det_frame
 
         # Summary labels (updated via update_detection_summary)
         self._detection_labels: dict[str, ttk.Label] = {}
@@ -452,6 +454,20 @@ class ConfigEditorWidget(BaseWidget):
             font=("TkDefaultFont", 8),
             foreground="#555555",
         ).grid(row=len(params) + 1, column=0, columnspan=2, sticky="w", pady=(2, 0))
+
+    def set_detection_summary_visible(self, visible: bool) -> None:
+        """Show the global-only detection summary section when appropriate."""
+        if self._detection_summary_frame is None:
+            return
+
+        manager = self._detection_summary_frame.winfo_manager()
+        if visible:
+            if not manager:
+                self._detection_summary_frame.pack(fill="x", pady=6)
+            return
+
+        if manager == "pack":
+            self._detection_summary_frame.pack_forget()
 
     def update_detection_summary(self, settings_dict: dict[str, Any]) -> None:
         """Update the detection summary labels from a settings dictionary."""

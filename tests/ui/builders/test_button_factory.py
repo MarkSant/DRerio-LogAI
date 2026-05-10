@@ -12,7 +12,8 @@ from zebtrack.ui.builders.button_factory import ButtonFactory
 @pytest.mark.gui
 def test_create_project_action_buttons(tkinter_root):
     commands: dict[str, Mock] = {
-        "calibration": Mock(),
+        "model_configuration": Mock(),
+        "diagnostics": Mock(),
         "single_analysis": Mock(),
         "live_camera": Mock(),
         "create_project": Mock(),
@@ -24,9 +25,10 @@ def test_create_project_action_buttons(tkinter_root):
     )
 
     buttons = frame.winfo_children()
-    assert len(buttons) == 5
+    assert len(buttons) == 6
     texts = [btn.cget("text") for btn in buttons]
-    assert "Calibração Global (Pesos e Diagnóstico)..." in texts
+    assert "Configuração Global de Modelos..." in texts
+    assert "Diagnóstico Global..." in texts
     assert "Analisar Vídeo Único" in texts
     assert "Analisar Câmera ao Vivo" in texts
     assert "Criar Novo Projeto" in texts
@@ -35,7 +37,8 @@ def test_create_project_action_buttons(tkinter_root):
     for btn in buttons:
         cast(Any, btn).invoke()
 
-    commands["calibration"].assert_called_once()
+    commands["model_configuration"].assert_called_once()
+    commands["diagnostics"].assert_called_once()
     commands["single_analysis"].assert_called_once()
     commands["live_camera"].assert_called_once()
     commands["create_project"].assert_called_once()

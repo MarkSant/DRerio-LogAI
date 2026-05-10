@@ -196,6 +196,71 @@ def test_get_weight_path_by_method_uses_target(wm):
     assert p_aquarium and p_aquarium.endswith("best_det_lateral.pt")
 
 
+def test_runtime_slot_override_takes_precedence_over_global_default(wm):
+    """Project/runtime overrides must win without mutating persisted defaults."""
+    wm.set_default_weight_for("best_det_lateral.pt", method="det", target=TARGET_AQUARIUM)
+
+    extra_weight = Path(wm.weights_dir) / "project_det_aquarium.pt"
+    extra_weight.write_bytes(b"FAKE")
+    wm.weights["project_det_aquarium.pt"] = {
+        "path": str(extra_weight),
+        "type": "det",
+        "target": TARGET_AQUARIUM,
+        "perspective": "lateral",
+        "is_default": False,
+        "is_default_seg": False,
+        "is_default_det": False,
+        "is_default_seg_aquarium": False,
+        "is_default_seg_zebrafish": False,
+        "is_default_det_aquarium": False,
+        "is_default_det_zebrafish": False,
+        "openvino_path": "",
+        "openvino_hash": "",
+        "openvino_status": OPENVINO_STATUS_NOT_CONVERTED,
+        "last_conversion_error": None,
+    }
+
+    wm.set_runtime_slot_overrides({("det", TARGET_AQUARIUM): "project_det_aquarium.pt"})
+
+    runtime_path = wm.get_weight_path_by_method("det", "aquarium", "lateral")
+    persisted_default, _ = wm.get_default_weight_for("det", TARGET_AQUARIUM)
+
+    assert runtime_path and runtime_path.endswith("project_det_aquarium.pt")
+    assert persisted_default == "best_det_lateral.pt"
+
+
+def test_clear_runtime_slot_overrides_restores_global_default(wm):
+    """Clearing runtime overrides must restore normal default-slot resolution."""
+    wm.set_default_weight_for("best_det_lateral.pt", method="det", target=TARGET_AQUARIUM)
+
+    extra_weight = Path(wm.weights_dir) / "project_det_aquarium.pt"
+    extra_weight.write_bytes(b"FAKE")
+    wm.weights["project_det_aquarium.pt"] = {
+        "path": str(extra_weight),
+        "type": "det",
+        "target": TARGET_AQUARIUM,
+        "perspective": "lateral",
+        "is_default": False,
+        "is_default_seg": False,
+        "is_default_det": False,
+        "is_default_seg_aquarium": False,
+        "is_default_seg_zebrafish": False,
+        "is_default_det_aquarium": False,
+        "is_default_det_zebrafish": False,
+        "openvino_path": "",
+        "openvino_hash": "",
+        "openvino_status": OPENVINO_STATUS_NOT_CONVERTED,
+        "last_conversion_error": None,
+    }
+
+    wm.set_runtime_slot_overrides({("det", TARGET_AQUARIUM): "project_det_aquarium.pt"})
+    wm.clear_runtime_slot_overrides()
+
+    restored_path = wm.get_weight_path_by_method("det", "aquarium", "lateral")
+
+    assert restored_path and restored_path.endswith("best_det_lateral.pt")
+
+
 # ---------------------------------------------------------------------------
 # Maintenance API
 # ---------------------------------------------------------------------------

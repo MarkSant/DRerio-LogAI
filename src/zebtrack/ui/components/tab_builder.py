@@ -5,6 +5,10 @@ import structlog
 
 from zebtrack.ui import payloads
 from zebtrack.ui.components.arduino_dashboard import ArduinoDashboardWidget
+from zebtrack.ui.components.model_diagnostics_panel import ModelDiagnosticsPanel
+from zebtrack.ui.components.project_model_configuration_panel import (
+    ProjectModelConfigurationPanel,
+)
 from zebtrack.ui.components.video_display import VideoDisplayWidget
 from zebtrack.ui.components.zone_controls import ZoneControlsWidget
 from zebtrack.ui.event_bus_v2 import Event, UIEvents
@@ -44,6 +48,8 @@ class TabBuilder:
             self._add_recording_buttons(controls_container)
         elif project_type == "pre-recorded":
             self._add_processing_buttons(controls_container)
+
+        self._add_project_model_navigation_buttons(controls_container)
 
         # Botão fechar (sempre presente)
         Button(
@@ -179,6 +185,38 @@ class TabBuilder:
         main_pane.after(100, _set_initial_sash)
         main_pane.after(200, _set_initial_sash)
 
+    def build_model_configuration_tab(self) -> None:
+        """Create the project-only model configuration tab."""
+        if self.gui.notebook is None:
+            return
+
+        self.gui.model_configuration_tab_frame = ttk.Frame(self.gui.notebook, padding="10")
+        self.gui.notebook.add(
+            self.gui.model_configuration_tab_frame,
+            text="Configuração de Modelos",
+        )
+        panel = ProjectModelConfigurationPanel(
+            self.gui.model_configuration_tab_frame,
+            self.gui.controller,
+        )
+        panel.pack(fill="both", expand=True)
+        self.gui.project_model_configuration_panel = panel
+
+    def build_diagnostics_tab(self) -> None:
+        """Create the project-only diagnostics tab."""
+        if self.gui.notebook is None:
+            return
+
+        self.gui.diagnostics_tab_frame = ttk.Frame(self.gui.notebook, padding="10")
+        self.gui.notebook.add(self.gui.diagnostics_tab_frame, text="Diagnóstico")
+        panel = ModelDiagnosticsPanel(
+            self.gui.diagnostics_tab_frame,
+            self.gui.controller,
+            scope="project",
+        )
+        panel.pack(fill="both", expand=True)
+        self.gui.project_diagnostics_panel = panel
+
     def build_processing_reports_tab(self) -> None:
         """Create the processing reports tab. Delegates to WidgetFactory."""
         return self.gui.widget_factory.create_processing_reports_tab()
@@ -190,6 +228,26 @@ class TabBuilder:
     def build_configuration_tab(self) -> None:
         """Create the configuration tab. Delegates to WidgetFactory."""
         return self.gui.widget_factory.create_configuration_tab_widget()
+
+    def _add_project_model_navigation_buttons(self, parent) -> None:
+        ttk.Button(
+            parent,
+            text="Configuração de Modelos",
+            command=self._select_model_configuration_tab,
+        ).pack(side="left", padx=5)
+        ttk.Button(
+            parent,
+            text="Diagnóstico",
+            command=self._select_diagnostics_tab,
+        ).pack(side="left", padx=5)
+
+    def _select_model_configuration_tab(self) -> None:
+        if self.gui.notebook and getattr(self.gui, "model_configuration_tab_frame", None):
+            self.gui.notebook.select(self.gui.model_configuration_tab_frame)
+
+    def _select_diagnostics_tab(self) -> None:
+        if self.gui.notebook and getattr(self.gui, "diagnostics_tab_frame", None):
+            self.gui.notebook.select(self.gui.diagnostics_tab_frame)
 
     def _add_recording_buttons(self, parent):
         """Add recording buttons for live projects."""

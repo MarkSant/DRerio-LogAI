@@ -416,7 +416,7 @@ class DialogManager:
             CalibrationDialog(self.gui.root, self.gui.controller)
 
     def open_project_calibration_window(self) -> None:
-        """Open the project-specific calibration dialog.
+        """Open the project-specific model configuration workflow.
 
         Shows warning if no project is loaded.
         """
@@ -425,6 +425,9 @@ class DialogManager:
                 "Nenhum Projeto",
                 "Abra um projeto antes de ajustar a calibração específica.",
             )
+            return
+
+        if self.gui.show_project_model_configuration_tab():
             return
 
         from zebtrack.ui.dialogs.calibration_dialog import CalibrationDialog

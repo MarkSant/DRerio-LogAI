@@ -205,7 +205,11 @@ class MainViewModelRuntime:
         if event_name is UIEvents.MODEL_SET_OPENVINO:
             vm.hardware_vm.set_openvino_usage(**payload_dict)
         elif event_name is UIEvents.MODEL_SET_WEIGHT:
-            vm.hardware_vm.set_active_weight(**payload_dict)
+            selected_weight = payload_dict.get("name") or payload_dict.get("weight_name")
+            vm.hardware_vm.set_active_weight(
+                selected_weight,
+                dialog=payload_dict.get("dialog"),
+            )
         elif event_name is UIEvents.MODEL_RUN_DIAGNOSTIC:
             config = _payload_get(data, "config", {}) or {}
             vm.hardware_vm.run_model_diagnostic(config)

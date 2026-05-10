@@ -943,6 +943,19 @@ class ProjectLifecycleCoordinator(BaseCoordinator):
         # Fallback: no delegate, return current values
         return get_active_weight_name() or None, get_use_openvino()
 
+    def save_project_model_slot_overrides(
+        self,
+        slot_weights: dict[str, str | None] | None,
+        use_openvino_override: bool | None,
+    ) -> tuple[str | None, bool]:
+        """Save explicit per-slot model overrides for the active project."""
+        if self._model_override_service:
+            return self._model_override_service.save_project_model_slot_overrides(
+                slot_weights,
+                use_openvino_override,
+            )
+        return None, bool(use_openvino_override)
+
     # ========================================================================
     # Group D: Calibration Management (delegated to CalibrationCoordinator)
     # ========================================================================

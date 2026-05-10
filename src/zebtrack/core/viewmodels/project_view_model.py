@@ -179,6 +179,19 @@ class ProjectViewModel:
             get_use_openvino,
         )
 
+    def save_project_model_slot_overrides(
+        self,
+        slot_weights: dict[str, str | None] | None,
+        use_openvino: bool | None,
+    ) -> None:
+        """Save per-slot model settings as project overrides."""
+        if not self.project_lifecycle_coordinator:
+            return
+        self.project_lifecycle_coordinator.save_project_model_slot_overrides(
+            slot_weights,
+            use_openvino,
+        )
+
     def has_project_override_settings(self) -> bool:
         if self.project_lifecycle_coordinator:
             return self.project_lifecycle_coordinator.has_project_override_settings()

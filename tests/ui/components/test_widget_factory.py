@@ -78,7 +78,8 @@ def test_build_track_options(factory):
 
 def test_build_project_actions_calls_button_factory(monkeypatch):
     gui = SimpleNamespace(
-        _open_global_calibration_window=Mock(),
+        _open_global_model_configuration_window=Mock(),
+        _open_global_model_diagnostics_window=Mock(),
         single_video_workflow=SimpleNamespace(on_analyze_single_video_clicked=Mock()),
         project_initializer=SimpleNamespace(
             create_project_workflow=Mock(),
@@ -99,7 +100,8 @@ def test_build_project_actions_calls_button_factory(monkeypatch):
     create_buttons.assert_called_once()
     commands = create_buttons.call_args.args[1]
     assert set(commands) == {
-        "calibration",
+        "model_configuration",
+        "diagnostics",
         "single_analysis",
         "live_camera",
         "create_project",
