@@ -50,6 +50,9 @@ class UltralyticsDetectorPlugin(DetectorPlugin):
             # OPTIMIZATION: Read inference performance settings
             self._use_half = getattr(settings_obj.yolo_model, "use_half_precision", True)
             self._imgsz = getattr(settings_obj.yolo_model, "inference_size", 640)
+            # Phase 3 / M2: optional explicit device override.
+            # None → Ultralytics auto-select (CUDA if available, else CPU).
+            self._device = getattr(settings_obj.yolo_model, "device", None)
         else:
             # Fallback defaults when settings not injected
             self.conf_threshold = 0.25
@@ -58,18 +61,22 @@ class UltralyticsDetectorPlugin(DetectorPlugin):
             self.match_threshold = 0.95  # Higher default for stable tracking (avoid ID jumps)
             self._use_half = True
             self._imgsz = 640
+            self._device = None
 
-        # OPTIMIZATION: Enable half precision only if CUDA is available
-        # FP16 provides ~2x speedup on modern NVIDIA GPUs with minimal accuracy loss
-        self._half_enabled = self._use_half and is_cuda_available()
-        if self._half_enabled:
-            log.info("ultralytics.half_precision.enabled", device="cuda")
-        else:
-            log.info(
-                "ultralytics.half_precision.disabled",
-                use_half_setting=self._use_half,
-                cuda_available=is_cuda_available(),
-            )
+        # FP16 only benefits real GPUs. Disable when:
+        #   • the user explicitly forced device="cpu" (or any non-CUDA value), or
+        #   • CUDA is not available at runtime (auto-detection).
+        # This prevents Ultralytics from emitting half-precision warnings on
+        # CPU paths and avoids confusing logs on Apple Silicon (mps).
+        cuda_implied = self._device is None or "cuda" in self._device.lower()
+        self._half_enabled = self._use_half and cuda_implied and is_cuda_available()
+        log.info(
+            "ultralytics.half_precision.resolved",
+            enabled=self._half_enabled,
+            use_half_setting=self._use_half,
+            device=self._device,
+            cuda_available=is_cuda_available(),
+        )
 
         # ByteTrack buffer size
         self.track_buffer = 60
@@ -91,16 +98,22 @@ class UltralyticsDetectorPlugin(DetectorPlugin):
             h, w = self._imgsz, self._imgsz
             dummy_frame = np.zeros((h, w, 3), dtype=np.uint8)
             t0 = time.perf_counter()
-            self.model.predict(
-                dummy_frame,
-                verbose=False,
-                conf=self.conf_threshold,
-                iou=self.nms_threshold,
-                half=self._half_enabled,
-                imgsz=self._imgsz,
-            )
+            predict_kwargs: dict[str, Any] = {
+                "verbose": False,
+                "conf": self.conf_threshold,
+                "iou": self.nms_threshold,
+                "half": self._half_enabled,
+                "imgsz": self._imgsz,
+            }
+            if self._device is not None:
+                predict_kwargs["device"] = self._device
+            self.model.predict(dummy_frame, **predict_kwargs)
             elapsed_ms = (time.perf_counter() - t0) * 1000
-            log.info("ultralytics.warmup.complete", elapsed_ms=round(elapsed_ms, 1))
+            log.info(
+                "ultralytics.warmup.complete",
+                elapsed_ms=round(elapsed_ms, 1),
+                device=self._device,
+            )
         except Exception as e:  # except Exception justified: warm-up is best-effort
             log.warning("ultralytics.warmup.failed", error=str(e))
 
@@ -134,17 +147,21 @@ class UltralyticsDetectorPlugin(DetectorPlugin):
             iou_threshold=self.nms_threshold,
             imgsz=self._imgsz,
             half_enabled=self._half_enabled,
+            device=self._device,
         )
 
-        results = self.model.predict(
-            frame,
-            verbose=False,
-            conf=conf,
-            iou=self.nms_threshold,
-            classes=None,
-            half=self._half_enabled,
-            imgsz=self._imgsz,
-        )
+        predict_kwargs: dict[str, Any] = {
+            "verbose": False,
+            "conf": conf,
+            "iou": self.nms_threshold,
+            "classes": None,
+            "half": self._half_enabled,
+            "imgsz": self._imgsz,
+        }
+        if self._device is not None:
+            predict_kwargs["device"] = self._device
+
+        results = self.model.predict(frame, **predict_kwargs)
 
         predictions: list[tuple[int, int, int, int, float, int | None, int]] = []
         if results and results[0].boxes is not None:
@@ -204,7 +221,10 @@ class UltralyticsDetectorPlugin(DetectorPlugin):
         """
         conf = conf_threshold if conf_threshold is not None else self.conf_threshold
 
-        results = self.model.predict(frame, conf=conf, verbose=False)
+        seg_kwargs: dict[str, Any] = {"conf": conf, "verbose": False}
+        if self._device is not None:
+            seg_kwargs["device"] = self._device
+        results = self.model.predict(frame, **seg_kwargs)
         formatted_results = []
 
         if results and results[0]:
@@ -323,15 +343,18 @@ class UltralyticsDetectorPlugin(DetectorPlugin):
 
         conf = conf_threshold if conf_threshold is not None else self.conf_threshold
 
-        results = self.model.predict(
-            frames,
-            verbose=False,
-            conf=conf,
-            iou=self.nms_threshold,
-            classes=None,
-            half=self._half_enabled,
-            imgsz=self._imgsz,
-        )
+        batch_kwargs: dict[str, Any] = {
+            "verbose": False,
+            "conf": conf,
+            "iou": self.nms_threshold,
+            "classes": None,
+            "half": self._half_enabled,
+            "imgsz": self._imgsz,
+        }
+        if self._device is not None:
+            batch_kwargs["device"] = self._device
+
+        results = self.model.predict(frames, **batch_kwargs)
 
         all_detections: list[list[tuple[int, int, int, int, float, int | None, int]]] = []
         for result in results:
