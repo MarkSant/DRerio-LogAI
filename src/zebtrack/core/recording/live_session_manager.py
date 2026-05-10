@@ -516,18 +516,33 @@ class LiveSessionManagerMixin:
         self._clear_queues()
         log.info("live_camera_service.queues_cleared_before_exit")
 
-        # Signal threads to exit
+        # Signal threads to exit (Phase 5 / M5: bounded total join budget).
+        # Sequential 5s-per-thread joins could keep the UI blocked for up
+        # to 15s if every thread stalls. Since exit_event is broadcast in
+        # one shot, all three threads start exiting in parallel — we just
+        # need to make sure the cumulative wait is capped.
         self.exit_event.set()
 
-        # Wait for threads to finish
-        if self.capture_thread and self.capture_thread.is_alive():
-            self.capture_thread.join(timeout=5.0)
-
-        if self.processing_thread and self.processing_thread.is_alive():
-            self.processing_thread.join(timeout=5.0)
-
-        if self.video_recording_thread and self.video_recording_thread.is_alive():
-            self.video_recording_thread.join(timeout=5.0)
+        threads_to_join: list[tuple[str, threading.Thread | None]] = [
+            ("capture_thread", self.capture_thread),
+            ("processing_thread", self.processing_thread),
+            ("video_recording_thread", self.video_recording_thread),
+        ]
+        deadline = time.time() + 5.0
+        for name, thread in threads_to_join:
+            if thread is None or not thread.is_alive():
+                continue
+            remaining = max(0.0, deadline - time.time())
+            if remaining <= 0:
+                log.warning(
+                    "live_camera_service.thread_join_skipped_timeout",
+                    thread=name,
+                )
+                continue
+            thread.join(timeout=remaining)
+            if thread.is_alive():
+                log.warning("live_camera_service.thread_join_timeout", thread=name)
+        if self.video_recording_thread is not None:
             log.info(
                 "live_camera_service.video_recording_thread_stopped",
                 frames_written=self._video_frames_written,
@@ -570,8 +585,10 @@ class LiveSessionManagerMixin:
             is_processing=False,
         )
 
-        # Clear queues
-        self._clear_queues()
+        # Phase 5 / M6: removed the second _clear_queues() call here. The
+        # earlier call (just before exit_event.set) already drained the
+        # queues, and the producers/consumers have since been joined, so
+        # there is nothing new for this re-clear to remove.
 
         # Restore button state
         if self.event_bus:
@@ -659,6 +676,34 @@ class LiveSessionManagerMixin:
                 Event(type=UIEvents.UI_SET_STATUS, data=StatusPayload(message=status_msg)),
             )
             self.root.after(1000, self._update_session_countdown, duration_s)
+
+    def _publish_video_drop_status(self) -> None:
+        """Surface accumulated video-frame drops to the UI status bar.
+
+        Capture only logs at ERROR when ``video_queue.put`` fails. The
+        operator therefore had no visible signal that frames were being
+        lost until they opened the log file. This helper is invoked by
+        the capture loop on a throttled cadence (every Nth drop) so the
+        status bar reflects the current drop count without spamming on
+        bursty backpressure.
+        """
+        if not self.event_bus:
+            return
+
+        from zebtrack.ui.event_bus_v2 import Event, UIEvents
+        from zebtrack.ui.payloads import StatusPayload
+
+        message = (
+            f"⚠️ Vídeo: {self._dropped_frames_video} frame(s) descartado(s) — "
+            "verifique o disco / OneDrive (gravação pode ter falhas)"
+        )
+        log.warning(
+            "live_camera_service.video_drop_status",
+            dropped_frames_video=self._dropped_frames_video,
+        )
+        self.event_bus.publish(
+            Event(type=UIEvents.UI_SET_STATUS, data=StatusPayload(message=message)),
+        )
 
     def _publish_analysis_lag_status(self, lag_seconds: float) -> None:
         """Publish analysis lag status to UI.
