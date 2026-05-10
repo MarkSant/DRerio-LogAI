@@ -160,6 +160,7 @@ class ApplicationGUI:
         self.notebook: ttk.Notebook | None = None
         self.welcome_frame: ttk.Frame | None = None
         self.main_controls_frame: ttk.Frame | None = None
+        self.status_frame: ttk.Frame | None = None
         self.model_configuration_tab_frame: ttk.Frame | None = None
         self.diagnostics_tab_frame: ttk.Frame | None = None
         self.project_model_configuration_panel: Any | None = None

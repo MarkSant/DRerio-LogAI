@@ -9,7 +9,9 @@ Related: SPRINT_10_PROCESSING_REFACTORING_ANALYSIS.md - Phase 2: Helper Extracti
 
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 import structlog
@@ -75,10 +77,60 @@ class VideoClassificationService:
         """Initialize VideoClassificationService."""
         log.info("video_classification_service.initialized")
 
+    @staticmethod
+    def _resolve_effective_flags(
+        info: dict,
+        norm_path: Path | str | None,
+        aquarium_filter: dict[str, list[int]] | None,
+    ) -> dict[str, bool]:
+        """Resolve selection-aware flags without mutating persisted video state."""
+        flags = {
+            "has_arena": bool(info.get("has_arena")),
+            "has_rois": bool(info.get("has_rois")),
+            "has_trajectory": bool(info.get("has_trajectory")),
+            "has_complete_data": bool(info.get("has_complete_data")),
+        }
+
+        if not norm_path or not aquarium_filter:
+            return flags
+
+        selected_ids: list[int] | None = None
+        for raw_path, aquarium_ids in aquarium_filter.items():
+            if os.path.normpath(raw_path).lower() == os.path.normpath(norm_path).lower():
+                selected_ids = [int(aquarium_id) for aquarium_id in aquarium_ids]
+                break
+
+        aquarium_flags = info.get("aquarium_flags") or {}
+        if not selected_ids or not aquarium_flags:
+            return flags
+
+        selected_flags = [
+            aquarium_flags[aq_id] for aq_id in selected_ids if aq_id in aquarium_flags
+        ]
+        if not selected_flags:
+            return {
+                "has_arena": False,
+                "has_rois": False,
+                "has_trajectory": False,
+                "has_complete_data": False,
+            }
+
+        has_arena = any(bool(flag.get("has_arena")) for flag in selected_flags)
+        has_rois = any(bool(flag.get("has_rois")) for flag in selected_flags)
+        has_trajectory = any(bool(flag.get("has_trajectory")) for flag in selected_flags)
+
+        return {
+            "has_arena": has_arena,
+            "has_rois": has_rois,
+            "has_trajectory": has_trajectory,
+            "has_complete_data": bool(has_arena and has_rois and has_trajectory),
+        }
+
     def classify_videos(
         self,
         candidate_entries: list[dict],
         info_by_norm: dict[str, dict],
+        aquarium_filter: dict[str, list[int]] | None = None,
     ) -> VideoClassificationResult:
         """
         Classify candidate video entries into processing categories.
@@ -151,7 +203,7 @@ class VideoClassificationService:
                 )
                 continue
 
-            # Update video entry with latest data flags
+            # Update video entry with latest aggregate data flags.
             for key in ("has_arena", "has_rois", "has_trajectory", "has_complete_data"):
                 new_value = info.get(key, False)
                 if video.get(key) != new_value:
@@ -164,6 +216,20 @@ class VideoClassificationService:
                 if key in info:
                     video[key] = info[key]
 
+            classified_video = dict(video)
+            for key in (
+                "parquet_files",
+                "has_data",
+                "multi_aquarium_outputs",
+                "aquarium_flags",
+                "is_multi_aquarium",
+            ):
+                if key in info:
+                    classified_video[key] = info[key]
+
+            effective_flags = self._resolve_effective_flags(info, norm_path, aquarium_filter)
+            classified_video.update(effective_flags)
+
             # Debug: log parquet_files being copied
             pf = info.get("parquet_files", {})
             log.debug(
@@ -175,17 +241,16 @@ class VideoClassificationService:
                 rois_path=pf.get("rois"),
             )
 
-            # Classify into appropriate bucket
-            # IMPORTANT: Use `video` (which contains metadata) not `info` (which only has flags)
-            if info.get("has_arena"):
-                if info.get("has_trajectory"):
-                    result.ready_with_trajectory.append(video)
-                elif info.get("has_rois"):
-                    result.ready_with_zones.append(video)
+            # Classify into appropriate bucket for this selection.
+            if effective_flags["has_arena"]:
+                if effective_flags["has_trajectory"]:
+                    result.ready_with_trajectory.append(classified_video)
+                elif effective_flags["has_rois"]:
+                    result.ready_with_zones.append(classified_video)
                 else:
-                    result.arena_only.append(video)
+                    result.arena_only.append(classified_video)
             else:
-                result.without_arena.append(video)
+                result.without_arena.append(classified_video)
 
         log.info(
             "video_classification_service.classify_videos.complete",

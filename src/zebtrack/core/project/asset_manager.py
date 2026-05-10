@@ -628,24 +628,67 @@ class AssetManager:
             ValueError: If asset type is unknown
         """
         parquet_files = video_entry.get("parquet_files") or {}
+        multi_outputs = video_entry.get("multi_aquarium_outputs") or {}
 
         if asset == "arena":
             return bool(video_entry.get("has_arena") or parquet_files.get("arena"))
         if asset == "rois":
             return bool(video_entry.get("has_rois") or parquet_files.get("rois"))
         if asset == "trajectory":
-            return bool(video_entry.get("has_trajectory") or parquet_files.get("trajectory"))
+            return bool(
+                video_entry.get("has_trajectory")
+                or parquet_files.get("trajectory")
+                or any(
+                    (aq.get("parquet_files") or {}).get("trajectory")
+                    for aq in multi_outputs.values()
+                )
+            )
         if asset == "summary":
             return bool(
                 video_entry.get("has_summary")
                 or parquet_files.get("summary")
                 or parquet_files.get("summary_excel")
                 or parquet_files.get("report_docx")
+                or any(
+                    (aq.get("parquet_files") or {}).get("summary")
+                    or (aq.get("parquet_files") or {}).get("summary_excel")
+                    or (aq.get("parquet_files") or {}).get("report_docx")
+                    for aq in multi_outputs.values()
+                )
             )
         if asset == "video":
             return bool(video_entry.get("path"))
 
         raise ValueError(f"Asset type '{asset}' desconhecido.")
+
+    @staticmethod
+    def video_has_asset_for_aquarium(
+        video_entry: dict | None,
+        aquarium_id: int,
+        asset: Literal["trajectory", "summary"],
+    ) -> bool:
+        """Check if a specific aquarium exposes the requested analysis asset."""
+        if not video_entry:
+            return False
+
+        multi_outputs = video_entry.get("multi_aquarium_outputs") or {}
+        if not multi_outputs:
+            return AssetManager.video_has_asset(video_entry, asset)
+
+        aq_data = multi_outputs.get(aquarium_id) or multi_outputs.get(str(aquarium_id)) or {}
+        parquet_files = aq_data.get("parquet_files") if isinstance(aq_data, dict) else {}
+        parquet_files = parquet_files if isinstance(parquet_files, dict) else {}
+
+        if asset == "trajectory":
+            return bool(parquet_files.get("trajectory"))
+        if asset == "summary":
+            return bool(
+                parquet_files.get("summary")
+                or parquet_files.get("summary_excel")
+                or parquet_files.get("report_docx")
+            )
+
+        raise ValueError(f"Asset type '{asset}' desconhecido para aquário.")
 
     def can_remove_asset(self, video_entry: dict, asset: AssetType) -> tuple[bool, str | None]:
         """Check if an asset can be removed (dependency validation).

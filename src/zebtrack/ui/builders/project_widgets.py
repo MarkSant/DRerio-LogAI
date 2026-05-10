@@ -216,6 +216,12 @@ class ProjectWidgetsBuilder:
 
         self.gui.analysis_view_controller.reset_analysis_widgets()
 
+        if self.gui.status_frame:
+            self.gui.status_frame.destroy()
+            self.gui.status_frame = None
+
+        self.gui.status_var.set("")
+
         self.gui.root.update_idletasks()
 
         reset_geometry_if_not_maximized(self.gui.root)

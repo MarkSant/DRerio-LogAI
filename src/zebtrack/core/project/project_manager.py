@@ -264,6 +264,62 @@ class ProjectManager:
         """Check if summary data exists for the given video."""
         return self._has_asset(video_path, "summary")
 
+    def get_aquarium_asset_flags(
+        self,
+        video_path: Path | str | None,
+        aquarium_id: int,
+    ) -> dict[str, bool]:
+        """Return arena/ROI/trajectory/summary availability for one aquarium."""
+        empty_flags = {
+            "has_arena": False,
+            "has_rois": False,
+            "has_trajectory": False,
+            "has_summary": False,
+            "has_complete_data": False,
+        }
+        if video_path is None:
+            return empty_flags
+
+        video_entry = self.find_video_entry(path=video_path)
+        multi_data = self.get_multi_aquarium_zone_data(video_path)
+        aquarium = multi_data.get_aquarium(aquarium_id) if multi_data else None
+
+        has_arena = bool(aquarium and aquarium.polygon and len(aquarium.polygon) >= 3)
+        has_rois = bool(aquarium and aquarium.roi_polygons)
+
+        if aquarium is None and not self.is_multi_aquarium_video(video_path):
+            has_arena = self.has_arena_data(video_path)
+            has_rois = self.has_roi_data(video_path)
+
+        has_trajectory = AssetManager.video_has_asset_for_aquarium(
+            video_entry, aquarium_id, "trajectory"
+        )
+        has_summary = AssetManager.video_has_asset_for_aquarium(video_entry, aquarium_id, "summary")
+
+        return {
+            "has_arena": has_arena,
+            "has_rois": has_rois,
+            "has_trajectory": has_trajectory,
+            "has_summary": has_summary,
+            "has_complete_data": bool(has_arena and has_rois and has_trajectory),
+        }
+
+    def has_trajectory_data_for_aquarium(
+        self,
+        video_path: Path | str | None,
+        aquarium_id: int,
+    ) -> bool:
+        """Check if trajectory data exists for the requested aquarium."""
+        return self.get_aquarium_asset_flags(video_path, aquarium_id)["has_trajectory"]
+
+    def has_summary_data_for_aquarium(
+        self,
+        video_path: Path | str | None,
+        aquarium_id: int,
+    ) -> bool:
+        """Check if summary data exists for the requested aquarium."""
+        return self.get_aquarium_asset_flags(video_path, aquarium_id)["has_summary"]
+
     def save_zone_data(
         self,
         zone_data: ZoneData,

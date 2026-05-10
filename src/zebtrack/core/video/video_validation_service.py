@@ -75,6 +75,21 @@ class VideoValidationService:
         """Initialize VideoValidationService."""
         log.info("video_validation_service.initialized")
 
+    @staticmethod
+    def _normalize_aquarium_key(raw_key: object) -> int | None:
+        """Normalize stored aquarium keys to integers when possible."""
+        if isinstance(raw_key, int):
+            return raw_key
+
+        digits = "".join(ch for ch in str(raw_key) if ch.isdigit())
+        if not digits:
+            return None
+
+        try:
+            return int(digits)
+        except ValueError:
+            return None
+
     def scan_and_validate_paths(  # noqa: C901
         self,
         candidate_paths: list[str],
@@ -104,23 +119,17 @@ class VideoValidationService:
                 if not video_entry:
                     continue
 
+                aquarium_flags: dict[int, dict[str, bool]] = {}
+
                 # Multi-Aquarium Data Checks
                 try:
                     multi_zone_data = project_manager.get_multi_aquarium_zone_data(path)
                     if multi_zone_data and multi_zone_data.aquariums:
-                        has_multi_arena = False
-                        has_multi_rois = False
                         for aq in multi_zone_data.aquariums:
-                            if aq.polygon and len(aq.polygon) >= 3:
-                                has_multi_arena = True
-                            if aq.roi_polygons:
-                                has_multi_rois = True
-
-                        if has_multi_arena:
-                            info["has_arena"] = True
-                            info["is_multi_aquarium"] = True
-                        if has_multi_rois:
-                            info["has_rois"] = True
+                            aquarium_flags[int(aq.id)] = project_manager.get_aquarium_asset_flags(
+                                path, int(aq.id)
+                            )
+                        info["is_multi_aquarium"] = True
                 # except Exception justified: multi-aquarium zone scan — must not prevent validation
                 except Exception:
                     log.warning(
@@ -131,17 +140,36 @@ class VideoValidationService:
                 # Trajectory Data (Multi)
                 multi_outputs = video_entry.get("multi_aquarium_outputs", {})
                 if multi_outputs:
-                    for out in multi_outputs.values():
-                        if out.get("parquet_files", {}).get("trajectory"):
-                            info["has_trajectory"] = True
-                            info["is_multi_aquarium"] = True
-                            break
+                    info["is_multi_aquarium"] = True
+                    info["multi_aquarium_outputs"] = multi_outputs
+                    for raw_key in multi_outputs:
+                        aq_id = self._normalize_aquarium_key(raw_key)
+                        if aq_id is None or aq_id in aquarium_flags:
+                            continue
+                        aquarium_flags[aq_id] = project_manager.get_aquarium_asset_flags(
+                            path, aq_id
+                        )
+
+                if aquarium_flags:
+                    info["aquarium_flags"] = aquarium_flags
+                    info["has_arena"] = any(flags["has_arena"] for flags in aquarium_flags.values())
+                    info["has_rois"] = any(flags["has_rois"] for flags in aquarium_flags.values())
+                    info["has_trajectory"] = any(
+                        flags["has_trajectory"] for flags in aquarium_flags.values()
+                    )
+                    info["has_complete_data"] = any(
+                        flags["has_complete_data"] for flags in aquarium_flags.values()
+                    )
 
                 # Standard Flags Fallback
                 if not info.get("has_arena") and video_entry.get("has_arena"):
                     info["has_arena"] = True
                 if not info.get("has_rois") and video_entry.get("has_rois"):
                     info["has_rois"] = True
+                if not info.get("has_trajectory") and video_entry.get("has_trajectory"):
+                    info["has_trajectory"] = True
+                if not info.get("has_complete_data") and video_entry.get("has_complete_data"):
+                    info["has_complete_data"] = True
 
         # Create normalized path lookup
         info_by_norm: dict[str, dict] = {}

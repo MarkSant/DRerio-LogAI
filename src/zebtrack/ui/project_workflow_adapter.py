@@ -105,14 +105,21 @@ class ProjectWorkflowAdapter:
         self.state_manager.update_project_state(
             source="project_workflow_adapter.close_project",
             project_path=None,
-            project_data={},
+            project_name=None,
+            experiment_id=None,
+            project_type=None,
+            video_file=None,
+            is_loaded=False,
+            project_data=None,
+            metadata=None,
             active_zone_video=None,
+            last_zone_source_video=None,
         )
 
         # Navigate to welcome screen
         from zebtrack.ui.event_bus_v2 import UIEvents
 
-        self._publish_event(UIEvents.NAVIGATE_TO_WELCOME)
+        self._publish_event(UIEvents.UI_NAVIGATE_TO_WELCOME)
 
         log.info("project_workflow_adapter.close_project.complete")
 

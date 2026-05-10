@@ -635,7 +635,9 @@ class VideoProcessingCoordinator(
         self._handle_missing_files_warning(scan_result)
 
         classification_result = self.video_classification_service.classify_videos(
-            selection_result.candidate_entries, scan_result.info_by_norm
+            selection_result.candidate_entries,
+            scan_result.info_by_norm,
+            aquarium_filter=aquarium_filter,
         )
         ready_with_trajectory = classification_result.ready_with_trajectory
         ready_with_zones = classification_result.ready_with_zones

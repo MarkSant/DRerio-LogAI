@@ -300,9 +300,25 @@ class ModelOverrideService:
 
     def restore_global_model_defaults(self) -> None:
         """Restore global model defaults after closing a project."""
-        detector_state = self.state_manager.get_detector_state()
-        self._global_model_defaults["active_weight"] = detector_state.active_weight_name
-        self._global_model_defaults["use_openvino"] = detector_state.use_openvino
+        defaults = dict(getattr(self.project_workflow_service, "_global_model_defaults", {}) or {})
+        if not defaults:
+            defaults = dict(self._global_model_defaults)
+
+        active_weight = defaults.get("active_weight")
+        use_openvino = bool(defaults.get("use_openvino", False))
+
+        self.project_workflow_service.set_global_model_defaults(active_weight, use_openvino)
+        self._global_model_defaults = {
+            "active_weight": active_weight,
+            "use_openvino": use_openvino,
+        }
+
+        self.state_manager.update_detector_state(
+            source="model_override_service.restore_global_model_defaults",
+            active_weight_name=active_weight,
+            use_openvino=use_openvino,
+        )
+
         weight_manager = getattr(
             self.project_workflow_service.model_service, "weight_manager", None
         )
