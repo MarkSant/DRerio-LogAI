@@ -414,6 +414,48 @@ class TestIsMultiAquariumVideo:
         assert result is False
 
 
+class TestPerAquariumAssetFlags:
+    """Tests for aquarium-scoped trajectory and summary helpers."""
+
+    def test_has_trajectory_data_for_aquarium_is_granular(self, project_setup):
+        project_manager, _, video_path, _ = project_setup
+
+        outputs = {
+            0: {
+                "results_dir": "/path/aq0",
+                "parquet_files": {"trajectory": "/path/aq0/trajectory.parquet"},
+            },
+            1: {
+                "results_dir": "/path/aq1",
+                "parquet_files": {},
+            },
+        }
+        project_manager.register_multi_aquarium_outputs(video_path, outputs)
+
+        assert project_manager.has_trajectory_data(video_path) is True
+        assert project_manager.has_trajectory_data_for_aquarium(video_path, 0) is True
+        assert project_manager.has_trajectory_data_for_aquarium(video_path, 1) is False
+
+    def test_has_summary_data_for_aquarium_is_granular(self, project_setup):
+        project_manager, _, video_path, _ = project_setup
+
+        outputs = {
+            0: {
+                "results_dir": "/path/aq0",
+                "parquet_files": {"summary_excel": "/path/aq0/summary.xlsx"},
+            },
+            1: {
+                "results_dir": "/path/aq1",
+                "parquet_files": {},
+            },
+        }
+        project_manager.register_multi_aquarium_outputs(video_path, outputs)
+
+        assert project_manager.has_summary_data(video_path) is True
+        assert project_manager.has_summary_data_for_aquarium(video_path, 0) is True
+        assert project_manager.has_summary_data_for_aquarium(video_path, 1) is False
+
+
 class TestIntegrationMultiAquariumWorkflow:
     """Integration tests for complete multi-aquarium workflow."""
 

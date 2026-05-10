@@ -43,6 +43,7 @@ class DummyView:
 
     def __init__(self):
         self.file_dialog_response: list[str] | None = None
+        self.root = None
 
     def ask_open_filenames(self, title, filetypes):
         return self.file_dialog_response
@@ -198,3 +199,136 @@ def test_workflow_processes_videos(coordinator_setup):
     info_events = [evt for evt in event_bus.events if evt[0] == UIEvents.UI_SHOW_INFO]
     assert len(info_events) == 1
     assert "Sucesso" in info_events[0][1].title
+
+
+def test_workflow_adds_existing_data_without_reprocessing(coordinator_setup):
+    """Legacy add/process workflow should still allow add-only when reprocessing is declined."""
+    coordinator, view, dialog_coordinator, pm, event_bus = coordinator_setup
+
+    validation_result = MagicMock()
+    validation_result.is_valid = True
+    coordinator.validate_can_start_processing = MagicMock(return_value=validation_result)
+    dialog_coordinator.handle_validation_error.return_value = True
+    dialog_coordinator.validate_zones_with_ui.return_value = True
+
+    scanned = [{"path": "/some/video.mp4", "has_data": True, "has_trajectory": True}]
+    view.file_dialog_response = ["/some/video.mp4"]
+    pm.scan_input_paths.return_value = scanned
+    dialog_coordinator.handle_mixed_data_scenario.return_value = None
+
+    coordinator.start_project_processing_workflow()
+
+    pm.add_video_batch.assert_called_once_with(scanned)
+    info_events = [evt for evt in event_bus.events if evt[0] == UIEvents.UI_SHOW_INFO]
+    assert len(info_events) == 1
+    assert "Vídeos Adicionados" in info_events[0][1].title
+
+
+def test_import_workflow_adds_videos_without_processing(coordinator_setup):
+    """Import workflow should persist reviewed videos without starting processing."""
+    coordinator, view, dialog_coordinator, pm, event_bus = coordinator_setup
+
+    validation_result = MagicMock()
+    validation_result.is_valid = True
+    coordinator.validate_can_start_processing = MagicMock(return_value=validation_result)
+    dialog_coordinator.handle_validation_error.return_value = True
+
+    scanned = [{"path": "/some/video.mp4", "has_arena": False, "has_rois": False}]
+    reviewed = [
+        {
+            "path": "/some/video.mp4",
+            "has_arena": False,
+            "has_rois": False,
+            "has_trajectory": False,
+            "metadata": {"group": "Controle", "day": 2, "subject": "S01"},
+            "group": "Controle",
+            "day": 2,
+            "subject": "S01",
+        }
+    ]
+
+    view.file_dialog_response = ["/some/video.mp4"]
+    pm.scan_input_paths.return_value = scanned
+    pm.get_all_videos.return_value = []
+    pm.get_available_groups.return_value = ["Controle"]
+    pm.get_last_session_details.return_value = (1, "Controle")
+    pm.project_data = {"calibration": {"num_aquariums": 1, "animals_per_aquarium": 1}}
+
+    coordinator.process_pending_project_videos = MagicMock()
+
+    with patch(
+        "zebtrack.ui.dialogs.project_video_import_dialog.ProjectVideoImportDialog"
+    ) as mock_dialog:
+        mock_dialog.return_value.result = {
+            "confirmed": True,
+            "videos": reviewed,
+            "process_mode": "add_only",
+            "last_group": "Controle",
+            "last_day": 2,
+        }
+
+        coordinator.start_project_import_workflow()
+
+    pm.add_video_batch.assert_called_once_with(reviewed)
+    coordinator.process_pending_project_videos.assert_not_called()
+    refresh_events = [
+        evt for evt in event_bus.events if evt[0] == UIEvents.PROJECT_VIEWS_REFRESH_REQUESTED
+    ]
+    assert len(refresh_events) == 1
+
+
+def test_import_workflow_processes_only_pending_after_import(coordinator_setup):
+    """Import workflow should process only imported videos without trajectory in pending mode."""
+    coordinator, view, dialog_coordinator, pm, _event_bus = coordinator_setup
+
+    validation_result = MagicMock()
+    validation_result.is_valid = True
+    coordinator.validate_can_start_processing = MagicMock(return_value=validation_result)
+    dialog_coordinator.handle_validation_error.return_value = True
+
+    scanned = [
+        {"path": "/some/video1.mp4", "has_trajectory": False},
+        {"path": "/some/video2.mp4", "has_trajectory": True},
+    ]
+    reviewed = [
+        {
+            "path": "/some/video1.mp4",
+            "has_trajectory": False,
+            "metadata": {"group": "Controle", "day": 1, "subject": "S01"},
+            "group": "Controle",
+            "day": 1,
+            "subject": "S01",
+        },
+        {
+            "path": "/some/video2.mp4",
+            "has_trajectory": True,
+            "metadata": {"group": "Controle", "day": 1, "subject": "S02"},
+            "group": "Controle",
+            "day": 1,
+            "subject": "S02",
+        },
+    ]
+
+    view.file_dialog_response = ["/some/video1.mp4", "/some/video2.mp4"]
+    pm.scan_input_paths.return_value = scanned
+    pm.get_all_videos.return_value = []
+    pm.get_available_groups.return_value = ["Controle"]
+    pm.get_last_session_details.return_value = (1, "Controle")
+    pm.project_data = {"calibration": {"num_aquariums": 1, "animals_per_aquarium": 1}}
+
+    coordinator.process_pending_project_videos = MagicMock()
+
+    with patch(
+        "zebtrack.ui.dialogs.project_video_import_dialog.ProjectVideoImportDialog"
+    ) as mock_dialog:
+        mock_dialog.return_value.result = {
+            "confirmed": True,
+            "videos": reviewed,
+            "process_mode": "process_pending",
+            "last_group": "Controle",
+            "last_day": 1,
+        }
+
+        coordinator.start_project_import_workflow()
+
+    coordinator.process_pending_project_videos.assert_called_once_with(["/some/video1.mp4"])

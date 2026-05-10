@@ -7,6 +7,7 @@ from unittest.mock import Mock, patch
 import pytest
 
 from zebtrack.ui.components.menu_manager import MenuManager
+from zebtrack.ui.event_bus_v2 import UIEvents
 
 
 @pytest.fixture(autouse=True)
@@ -48,6 +49,7 @@ def mock_gui(tkinter_root, mock_controller):
     gui.canvas_manager = Mock()
     gui.project_view_manager = Mock()
     gui.event_dispatcher = Mock()
+    gui.event_bus_v2 = Mock()
     gui.set_status = Mock()
     gui.refresh_project_views = Mock()
     gui.publish_event = Mock()
@@ -218,6 +220,23 @@ class TestProjectOverviewContextMenu:
             menu_manager.show_project_overview_context_menu(item_id, 100, 100)
             mock_post.assert_called_once_with(100, 100)
 
+    def test_show_project_overview_context_menu_uses_iid_mapping(self, menu_manager, tkinter_root):
+        """Project overview should resolve video paths from widget iid mapping."""
+        from tkinter import ttk
+
+        tree = ttk.Treeview(tkinter_root)
+        menu_manager.gui.project_overview_tree = tree
+
+        item_id = tree.insert("", "end", text="Video", tags=("status_pending",))
+        menu_manager.gui.project_overview_widget = SimpleNamespace(
+            _iid_to_path={item_id: "/path/to/video.mp4"}
+        )
+
+        with patch.object(Menu, "post") as mock_post:
+            menu_manager.show_project_overview_context_menu(item_id, 100, 100)
+
+        mock_post.assert_called_once_with(100, 100)
+
     def test_show_project_overview_context_menu_selects_item(self, menu_manager, tkinter_root):
         """Test that item is selected before showing menu."""
         from tkinter import ttk
@@ -244,6 +263,83 @@ class TestProjectOverviewContextMenu:
         # Should return without creating menu
         menu_manager.show_project_overview_context_menu(item_id, 100, 100)
         assert menu_manager._overview_context_menu is None
+
+    def test_edit_project_overview_video_metadata_updates_project_and_refreshes(self, menu_manager):
+        """Metadata editing should persist changes and refresh project views."""
+        menu_manager.gui.event_bus_v2 = Mock()
+        menu_manager.gui.event_bus_v2.publish = Mock()
+        menu_manager.gui.controller.project_manager = Mock()
+        project_manager = menu_manager.gui.controller.project_manager
+        project_manager.project_data = {
+            "calibration": {"num_aquariums": 1, "animals_per_aquarium": 2}
+        }
+        project_manager.find_video_entry.return_value = {
+            "metadata": {"group": "Controle", "day": 1, "subject": "S01"}
+        }
+        project_manager.get_available_groups.return_value = ["Controle", "Tratamento"]
+        project_manager.update_video_metadata.return_value = True
+
+        with patch("zebtrack.ui.components.menu_manager.VideoMetadataDialog") as mock_dialog:
+            mock_dialog.return_value.result = {
+                "group": "Tratamento",
+                "day": 2,
+                "subject_entries": [
+                    {"group": "Tratamento", "day": 2, "subject": "S01"},
+                    {"group": "Tratamento", "day": 2, "subject": "S02"},
+                ],
+            }
+
+            menu_manager._edit_video_metadata("/path/to/video.mp4")
+
+        project_manager.update_video_metadata.assert_called_once_with(
+            "/path/to/video.mp4",
+            {
+                "group": "Tratamento",
+                "day": 2,
+                "subject_entries": [
+                    {"group": "Tratamento", "day": 2, "subject": "S01"},
+                    {"group": "Tratamento", "day": 2, "subject": "S02"},
+                ],
+            },
+        )
+        event_types = [
+            call.args[0].type for call in menu_manager.gui.event_bus_v2.publish.call_args_list
+        ]
+        assert UIEvents.VIDEO_METADATA_UPDATED in event_types
+        assert UIEvents.PROJECT_VIEWS_REFRESH_REQUESTED in event_types
+        assert UIEvents.VIDEO_TREE_REFRESH_REQUESTED in event_types
+
+    def test_edit_selected_project_overview_video_metadata_uses_selected_item(
+        self, menu_manager, tkinter_root
+    ):
+        """Dedicated overview action should resolve the selected video path."""
+        from tkinter import ttk
+
+        tree = ttk.Treeview(tkinter_root)
+        menu_manager.gui.project_overview_tree = tree
+        item_id = tree.insert("", "end", text="Video", tags=("status_pending",))
+        tree.selection_set(item_id)
+        menu_manager.gui.project_overview_widget = SimpleNamespace(
+            _iid_to_path={item_id: "/path/to/video.mp4"}
+        )
+
+        with patch.object(menu_manager, "_edit_video_metadata") as mock_edit:
+            menu_manager.edit_selected_project_overview_video_metadata()
+
+        mock_edit.assert_called_once_with("/path/to/video.mp4")
+
+    def test_edit_selected_project_overview_video_metadata_requires_video_selection(
+        self, menu_manager, tkinter_root
+    ):
+        """Dedicated overview action should guide the user when nothing is selected."""
+        from tkinter import ttk
+
+        tree = ttk.Treeview(tkinter_root)
+        menu_manager.gui.project_overview_tree = tree
+
+        menu_manager.edit_selected_project_overview_video_metadata()
+
+        menu_manager.gui.dialog_manager.show_info.assert_called_once()
 
 
 @pytest.mark.gui
@@ -611,6 +707,7 @@ class TestShowProcessingReportsContextMenu:
                 labels.append(label)
 
         assert "🗑️ Apagar Arena (Selecionado)" in labels
+        assert "🔄 Editar Grupo / Dia / Sujeitos" in labels
         assert "🗑️ Apagar Item Específico..." in labels
         assert "🗑️ Excluir Vídeo / Dados..." in labels
 

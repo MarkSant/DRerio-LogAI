@@ -63,3 +63,37 @@ def test_has_project_override_settings_detects_explicit_openvino_override() -> N
     )
 
     assert service.has_project_override_settings() is True
+
+
+def test_restore_global_model_defaults_reapplies_saved_runtime_defaults() -> None:
+    project_manager = Mock()
+    project_manager.project_path = "/tmp/project"
+    project_manager.project_data = {"model_overrides": {"slot_weights": {}}}
+
+    state_manager = Mock()
+    workflow_service = Mock()
+    workflow_service._global_model_defaults = {
+        "active_weight": "global.pt",
+        "use_openvino": True,
+    }
+    workflow_service.model_service = SimpleNamespace(weight_manager=Mock())
+
+    service = ModelOverrideService(
+        state_manager=cast(Any, state_manager),
+        project_manager=cast(Any, project_manager),
+        project_workflow_service=cast(Any, workflow_service),
+        settings_obj=cast(Any, SimpleNamespace()),
+        event_bus=None,
+    )
+    service._using_project_overrides = True
+
+    service.restore_global_model_defaults()
+
+    workflow_service.set_global_model_defaults.assert_called_once_with("global.pt", True)
+    state_manager.update_detector_state.assert_called_once_with(
+        source="model_override_service.restore_global_model_defaults",
+        active_weight_name="global.pt",
+        use_openvino=True,
+    )
+    workflow_service.model_service.weight_manager.clear_runtime_slot_overrides.assert_called_once()
+    assert service.are_project_overrides_active() is False

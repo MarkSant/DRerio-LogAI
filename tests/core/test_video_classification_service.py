@@ -95,3 +95,43 @@ def test_classify_videos_missing_info(monkeypatch):
 
     assert result.ready_with_trajectory == []
     assert result.without_arena == []
+
+
+def test_classify_videos_honors_aquarium_filter(monkeypatch):
+    service = VideoClassificationService()
+
+    monkeypatch.setattr(_NORMALIZE_ATTR, _normalize)
+
+    video = {"path": "VIDEO.MP4", "has_trajectory": True}
+    info_by_norm = {
+        "video.mp4": {
+            "has_arena": True,
+            "has_rois": True,
+            "has_trajectory": True,
+            "aquarium_flags": {
+                0: {
+                    "has_arena": True,
+                    "has_rois": True,
+                    "has_trajectory": True,
+                    "has_complete_data": True,
+                },
+                1: {
+                    "has_arena": True,
+                    "has_rois": True,
+                    "has_trajectory": False,
+                    "has_complete_data": False,
+                },
+            },
+        }
+    }
+
+    result = service.classify_videos(
+        [video],
+        info_by_norm,
+        aquarium_filter={"video.mp4": [1]},
+    )
+
+    assert result.ready_with_trajectory == []
+    assert [entry["path"] for entry in result.ready_with_zones] == ["VIDEO.MP4"]
+    assert result.ready_with_zones[0]["has_trajectory"] is False
+    assert video["has_trajectory"] is True

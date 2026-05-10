@@ -51,6 +51,7 @@ class UIEvents(Enum):
     PROJECT_CLOSE = auto()
     PROJECT_CLOSED = auto()
     PROJECT_MANAGER_REPLACED = auto()
+    PROJECT_IMPORT_VIDEOS = auto()
     PROJECT_PROCESS_VIDEOS = auto()
     PROJECT_GENERATE_SUMMARIES = auto()
     PROJECT_APPLY_SETTINGS = auto()
@@ -288,6 +289,7 @@ _PAYLOAD_TYPES: dict[UIEvents, type[Any]] = {
     UIEvents.PROJECT_CLOSE: payloads.EmptyPayload,
     UIEvents.PROJECT_CLOSED: payloads.EmptyPayload,
     UIEvents.PROJECT_MANAGER_REPLACED: payloads.ProjectManagerReplacedPayload,
+    UIEvents.PROJECT_IMPORT_VIDEOS: payloads.ProjectImportVideosPayload,
     UIEvents.PROJECT_PROCESS_VIDEOS: payloads.ProjectProcessVideosPayload,
     UIEvents.PROJECT_GENERATE_SUMMARIES: payloads.ProjectGenerateSummariesPayload,
     UIEvents.PROJECT_APPLY_SETTINGS: payloads.ProjectApplySettingsPayload,

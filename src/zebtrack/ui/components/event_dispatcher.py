@@ -202,6 +202,7 @@ class EventDispatcher:
         def _navigate_welcome(d: payloads.EventPayload) -> None:
             gui.widget_factory.create_welcome_frame()
 
+        event_bus.subscribe(UIEvents.NAVIGATE_TO_WELCOME, _navigate_welcome)
         event_bus.subscribe(UIEvents.UI_NAVIGATE_TO_WELCOME, _navigate_welcome)
 
         def _navigate_project_view(d: payloads.EventPayload) -> None:

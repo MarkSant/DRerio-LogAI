@@ -39,6 +39,10 @@ class ProjectInitializer:
         gui = self.gui
         if gui.welcome_frame:
             gui.welcome_frame.destroy()
+            gui.welcome_frame = None
+        if gui.status_frame:
+            gui.status_frame.destroy()
+            gui.status_frame = None
         reset_geometry_if_not_maximized(gui.root)
 
         gui.notebook = ttk.Notebook(gui.root, style="Zebtrack.TNotebook")
@@ -73,9 +77,9 @@ class ProjectInitializer:
             f"Projeto: {gui.controller.project_manager.get_project_name()} ({project_type_display})"
         )
         gui.status_var.set(status_text)
-        status_frame = Frame(gui.root)
-        status_frame.pack(pady=5, fill="x", padx=10, side="bottom")
-        Label(status_frame, textvariable=gui.status_var).pack()
+        gui.status_frame = Frame(gui.root)
+        gui.status_frame.pack(pady=5, fill="x", padx=10, side="bottom")
+        Label(gui.status_frame, textvariable=gui.status_var).pack()
 
         # Ensure analysis UI starts hidden
         gui.hide_progress_bar()

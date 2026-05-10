@@ -257,6 +257,12 @@ class ProjectManagerReplacedPayload:
 
 
 @dataclass(frozen=True)
+class ProjectImportVideosPayload:
+    candidate_paths: Sequence[str] | None = None
+    process_after_import: bool = False
+
+
+@dataclass(frozen=True)
 class ProjectProcessVideosPayload:
     video_paths: Sequence[str]
     analysis_config: Mapping[str, Any] | None = None

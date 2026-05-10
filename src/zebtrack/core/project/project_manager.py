@@ -264,6 +264,62 @@ class ProjectManager:
         """Check if summary data exists for the given video."""
         return self._has_asset(video_path, "summary")
 
+    def get_aquarium_asset_flags(
+        self,
+        video_path: Path | str | None,
+        aquarium_id: int,
+    ) -> dict[str, bool]:
+        """Return arena/ROI/trajectory/summary availability for one aquarium."""
+        empty_flags = {
+            "has_arena": False,
+            "has_rois": False,
+            "has_trajectory": False,
+            "has_summary": False,
+            "has_complete_data": False,
+        }
+        if video_path is None:
+            return empty_flags
+
+        video_entry = self.find_video_entry(path=video_path)
+        multi_data = self.get_multi_aquarium_zone_data(video_path)
+        aquarium = multi_data.get_aquarium(aquarium_id) if multi_data else None
+
+        has_arena = bool(aquarium and aquarium.polygon and len(aquarium.polygon) >= 3)
+        has_rois = bool(aquarium and aquarium.roi_polygons)
+
+        if aquarium is None and not self.is_multi_aquarium_video(video_path):
+            has_arena = self.has_arena_data(video_path)
+            has_rois = self.has_roi_data(video_path)
+
+        has_trajectory = AssetManager.video_has_asset_for_aquarium(
+            video_entry, aquarium_id, "trajectory"
+        )
+        has_summary = AssetManager.video_has_asset_for_aquarium(video_entry, aquarium_id, "summary")
+
+        return {
+            "has_arena": has_arena,
+            "has_rois": has_rois,
+            "has_trajectory": has_trajectory,
+            "has_summary": has_summary,
+            "has_complete_data": bool(has_arena and has_rois and has_trajectory),
+        }
+
+    def has_trajectory_data_for_aquarium(
+        self,
+        video_path: Path | str | None,
+        aquarium_id: int,
+    ) -> bool:
+        """Check if trajectory data exists for the requested aquarium."""
+        return self.get_aquarium_asset_flags(video_path, aquarium_id)["has_trajectory"]
+
+    def has_summary_data_for_aquarium(
+        self,
+        video_path: Path | str | None,
+        aquarium_id: int,
+    ) -> bool:
+        """Check if summary data exists for the requested aquarium."""
+        return self.get_aquarium_asset_flags(video_path, aquarium_id)["has_summary"]
+
     def save_zone_data(
         self,
         zone_data: ZoneData,
@@ -498,6 +554,240 @@ class ProjectManager:
         if changed and self.project_path:
             self.save_project()
         return changed
+
+    @staticmethod
+    def _metadata_set_value(metadata: dict[str, Any], key: str, value: Any) -> bool:
+        if metadata.get(key) == value:
+            return False
+        metadata[key] = value
+        return True
+
+    @staticmethod
+    def _metadata_remove_value(metadata: dict[str, Any], key: str) -> bool:
+        if key not in metadata:
+            return False
+        metadata.pop(key, None)
+        return True
+
+    @staticmethod
+    def _parse_positive_day(raw_day: Any) -> int | None:
+        try:
+            day = int(raw_day)
+        except (TypeError, ValueError):
+            return None
+        return day if day > 0 else None
+
+    @classmethod
+    def _normalize_subject_entries(cls, entries: Any) -> list[dict[str, Any]]:
+        normalized_entries: list[dict[str, Any]] = []
+        for index, entry in enumerate(entries or []):
+            if not isinstance(entry, dict):
+                continue
+            normalized_entries.append(
+                {
+                    "group": str(entry.get("group") or "").strip(),
+                    "day": cls._parse_positive_day(entry.get("day")),
+                    "subject": str(entry.get("subject") or "").strip(),
+                    "aquarium_id": entry.get("aquarium_id", index),
+                }
+            )
+        return normalized_entries
+
+    def _apply_video_group_metadata(
+        self,
+        video_entry: dict[str, Any],
+        metadata: dict[str, Any],
+        metadata_updates: dict[str, Any],
+    ) -> bool:
+        if "group" not in metadata_updates:
+            return False
+        group = str(metadata_updates.get("group") or "").strip()
+        if group:
+            changed = self._metadata_set_value(metadata, "group", group)
+            changed |= self._metadata_set_value(metadata, "group_id", group)
+            video_entry["group"] = group
+            return changed
+
+        changed = self._metadata_remove_value(metadata, "group")
+        changed |= self._metadata_remove_value(metadata, "group_id")
+        video_entry.pop("group", None)
+        return changed
+
+    def _apply_video_day_metadata(
+        self,
+        video_entry: dict[str, Any],
+        metadata: dict[str, Any],
+        metadata_updates: dict[str, Any],
+    ) -> bool:
+        if "day" not in metadata_updates:
+            return False
+        day = self._parse_positive_day(metadata_updates.get("day"))
+        if day is not None:
+            changed = self._metadata_set_value(metadata, "day", day)
+            video_entry["day"] = day
+            return changed
+
+        changed = self._metadata_remove_value(metadata, "day")
+        video_entry.pop("day", None)
+        return changed
+
+    def _apply_video_subject_entries_metadata(
+        self,
+        video_entry: dict[str, Any],
+        metadata: dict[str, Any],
+        metadata_updates: dict[str, Any],
+    ) -> bool:
+        if "subject_entries" not in metadata_updates:
+            return False
+        entries = self._normalize_subject_entries(metadata_updates.get("subject_entries"))
+        if entries:
+            changed = self._metadata_set_value(metadata, "subject_entries", entries)
+            is_multi_subject = len(entries) > 1
+            changed |= self._metadata_set_value(metadata, "is_multi_subject", is_multi_subject)
+            video_entry["subject_entries"] = entries
+            video_entry["is_multi_subject"] = is_multi_subject
+            return changed
+
+        changed = self._metadata_remove_value(metadata, "subject_entries")
+        changed |= self._metadata_remove_value(metadata, "is_multi_subject")
+        video_entry.pop("subject_entries", None)
+        video_entry.pop("is_multi_subject", None)
+        return changed
+
+    def _apply_video_subject_metadata(
+        self,
+        video_entry: dict[str, Any],
+        metadata: dict[str, Any],
+        metadata_updates: dict[str, Any],
+    ) -> bool:
+        if "subject" not in metadata_updates and not metadata.get("subject_entries"):
+            return False
+
+        subject_entries = metadata.get("subject_entries") or []
+        if subject_entries:
+            subject_value = (
+                str(subject_entries[0].get("subject") or "").strip()
+                if len(subject_entries) == 1
+                else ""
+            )
+        else:
+            subject_value = str(metadata_updates.get("subject") or "").strip()
+
+        if subject_value:
+            changed = self._metadata_set_value(metadata, "subject", subject_value)
+            video_entry["subject"] = subject_value
+            return changed
+
+        changed = self._metadata_remove_value(metadata, "subject")
+        video_entry.pop("subject", None)
+        return changed
+
+    @staticmethod
+    def _filter_video_metadata(metadata: dict[str, Any]) -> dict[str, Any]:
+        return {
+            key: value
+            for key, value in metadata.items()
+            if value is not None
+            and (value != "" or isinstance(value, int | float | bool | list | dict))
+        }
+
+    def update_video_metadata(
+        self,
+        video_path: Path | str,
+        metadata_updates: dict[str, Any],
+        *,
+        save_project: bool = True,
+    ) -> bool:
+        """Update persisted metadata for a project video.
+
+        Normalizes the metadata contract used across import, hierarchy display,
+        and output registration so existing videos can be edited safely.
+        """
+        video_path = Path(video_path) if isinstance(video_path, str) else video_path
+        video_entry = self.find_video_entry(path=video_path.as_posix())
+        if not video_entry:
+            log.warning("project_manager.metadata.video_missing", path=video_path.as_posix())
+            return False
+
+        metadata = dict(video_entry.get("metadata") or {})
+        changed = self._apply_video_group_metadata(video_entry, metadata, metadata_updates)
+        changed |= self._apply_video_day_metadata(video_entry, metadata, metadata_updates)
+        changed |= self._apply_video_subject_entries_metadata(
+            video_entry, metadata, metadata_updates
+        )
+        changed |= self._apply_video_subject_metadata(video_entry, metadata, metadata_updates)
+
+        filtered_metadata = self._filter_video_metadata(metadata)
+        if filtered_metadata != video_entry.get("metadata"):
+            video_entry["metadata"] = filtered_metadata
+            changed = True
+
+        if not changed:
+            return False
+
+        self.invalidate_groups_cache()
+
+        group = filtered_metadata.get("group")
+        day = filtered_metadata.get("day")
+        if save_project and self.project_path:
+            if group and day is not None:
+                try:
+                    MetadataManager.save_last_session_details(
+                        int(day),
+                        str(group),
+                        project_data=self.project_data,
+                        project_path=self.project_path,
+                        save_project_fn=self.save_project,
+                    )
+                    return True
+                except (TypeError, ValueError):
+                    log.debug(
+                        "project_manager.metadata.last_session_skip",
+                        group=group,
+                        day=day,
+                    )
+            self.save_project()
+
+        return True
+
+    def update_batch_video_metadata(
+        self,
+        video_paths: Sequence[Path | str],
+        metadata_updates: dict[str, Any],
+    ) -> int:
+        """Apply the same metadata update to multiple project videos."""
+        unique_paths: list[Path] = []
+        seen_paths: set[str] = set()
+        for video_path in video_paths:
+            normalized_path = Path(video_path) if isinstance(video_path, str) else video_path
+            posix_path = normalized_path.as_posix()
+            if posix_path in seen_paths:
+                continue
+            seen_paths.add(posix_path)
+            unique_paths.append(normalized_path)
+
+        changed_count = 0
+        for video_path in unique_paths:
+            if self.update_video_metadata(video_path, metadata_updates, save_project=False):
+                changed_count += 1
+
+        if not changed_count or not self.project_path:
+            return changed_count
+
+        group = metadata_updates.get("group")
+        day = self._parse_positive_day(metadata_updates.get("day"))
+        if group and day is not None:
+            MetadataManager.save_last_session_details(
+                day,
+                str(group),
+                project_data=self.project_data,
+                project_path=self.project_path,
+                save_project_fn=self.save_project,
+            )
+        else:
+            self.save_project()
+
+        return changed_count
 
     def reset_all_video_statuses(self, to_status: str = "pending") -> bool:
         """Reset every video status. Delegates to VideoManager."""

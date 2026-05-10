@@ -60,8 +60,16 @@ class TestProjectWorkflowAdapter:
         mock_dependencies["state_manager"].update_project_state.assert_called_once()
         mock_dependencies["ui_event_bus"].publish.assert_called_once()
         event = mock_dependencies["ui_event_bus"].publish.call_args[0][0]
-        assert event.type == UIEvents.NAVIGATE_TO_WELCOME
+        assert event.type == UIEvents.UI_NAVIGATE_TO_WELCOME
         assert result is not None  # Returns new ProjectManager instance
+
+        call_kwargs = mock_dependencies["state_manager"].update_project_state.call_args.kwargs
+        assert call_kwargs["project_path"] is None
+        assert call_kwargs["project_name"] is None
+        assert call_kwargs["project_type"] is None
+        assert call_kwargs["is_loaded"] is False
+        assert call_kwargs["project_data"] is None
+        assert call_kwargs["metadata"] is None
 
     def test_create_project_workflow_success(self, adapter, mock_dependencies):
         """Test successful project creation workflow."""

@@ -189,7 +189,13 @@ class StateSynchronizer:
             # Project loaded - update window title or status
         else:
             log.debug("gui.project_state.closed")
-            # Project closed - show welcome screen
+            if getattr(self.gui, "status_frame", None):
+                try:
+                    if self.gui.status_frame.winfo_exists():
+                        self.gui.status_frame.destroy()
+                except tk.TclError:
+                    log.debug("state_sync.status_frame_destroy.suppressed", exc_info=True)
+                self.gui.status_frame = None
 
     # ========================================================================
     # Reset Methods - Analysis Widgets
@@ -283,6 +289,13 @@ class StateSynchronizer:
                     log.debug("state_sync.overview_refresh_cancel.suppressed", exc_info=True)
                 self.gui._overview_refresh_job = None
             self.gui.project_overview_frame = None
+        if getattr(self.gui, "status_frame", None):
+            try:
+                if self.gui.status_frame.winfo_exists():
+                    self.gui.status_frame.destroy()
+            except tk.TclError:
+                log.debug("state_sync.status_frame_destroy.suppressed", exc_info=True)
+            self.gui.status_frame = None
 
     def update_status(self, message: str) -> None:
         """Update the status bar message in the GUI.

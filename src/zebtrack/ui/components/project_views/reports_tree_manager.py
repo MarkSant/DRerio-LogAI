@@ -22,7 +22,8 @@ from zebtrack.ui import payloads
 from zebtrack.ui.components.project_views.report_asset_actions import ReportAssetActions
 from zebtrack.ui.components.project_views.report_generator_actions import ReportGeneratorActions
 from zebtrack.ui.components.project_views.report_tree_builder import ReportTreeBuilder
-from zebtrack.ui.event_bus_v2 import UIEvents
+from zebtrack.ui.dialogs.project_video_import_dialog import BatchVideoMetadataDialog
+from zebtrack.ui.event_bus_v2 import Event, UIEvents
 
 if TYPE_CHECKING:
     from zebtrack.ui.components.dialog_manager import DialogManager
@@ -427,10 +428,82 @@ class ReportsTreeManager:
 
         menu = Menu(self.gui.root, tearoff=0)
         menu.add_command(
+            label=f"🔄 Editar metadata do {label}…",
+            command=lambda: self._handle_hierarchy_metadata_edit_action(item_id, metadata),
+        )
+        menu.add_separator()
+        menu.add_command(
             label=f"🗑️ Excluir {label}…",
             command=lambda: self._handle_hierarchy_delete_action(item_id, metadata),
         )
         menu.post(x, y)
+
+    def _handle_hierarchy_metadata_edit_action(
+        self,
+        item_id: str,
+        metadata: dict[str, Any],
+    ) -> None:
+        """Apply batch metadata updates to all descendant videos under a hierarchy node."""
+        project_manager = self.gui.controller.project_manager
+        video_paths = self._collect_descendant_video_paths(item_id)
+        if not video_paths:
+            return
+
+        node_type = str(metadata.get("type", "item"))
+        label = self._get_item_display_label(item_id)
+        initial_values = self._build_hierarchy_metadata_defaults(metadata)
+        dialog = BatchVideoMetadataDialog(
+            self.gui.root,
+            target_label=label,
+            target_kind=self._HIERARCHY_LABELS.get(node_type, "item"),
+            affected_count=len(video_paths),
+            available_groups=project_manager.get_available_groups(),
+            initial_values=initial_values,
+            allow_subject=node_type == "subject",
+        )
+        if not dialog.result:
+            return
+
+        changed_count = project_manager.update_batch_video_metadata(video_paths, dialog.result)
+        if not changed_count:
+            return
+
+        status_message = f"Metadados atualizados em {changed_count} vídeo(s) • {label}"
+        self.gui.set_status(status_message)
+        self.refresh_processing_reports_tab()
+
+        event_bus_v2 = getattr(self.gui, "event_bus_v2", None) or self.event_bus_v2
+        if event_bus_v2:
+            event_bus_v2.publish(
+                Event(
+                    type=UIEvents.PROJECT_VIEWS_REFRESH_REQUESTED,
+                    data=payloads.ProjectViewsRefreshRequestedPayload(
+                        reason=status_message,
+                        append_summary=True,
+                        immediate=True,
+                    ),
+                    source="ReportsTreeManager._handle_hierarchy_metadata_edit_action",
+                )
+            )
+            event_bus_v2.publish(
+                Event(
+                    type=UIEvents.VIDEO_TREE_REFRESH_REQUESTED,
+                    data=payloads.VideoTreeRefreshRequestedPayload(),
+                    source="ReportsTreeManager._handle_hierarchy_metadata_edit_action",
+                )
+            )
+
+    @staticmethod
+    def _build_hierarchy_metadata_defaults(metadata: dict[str, Any]) -> dict[str, Any]:
+        """Build default batch-edit values from a hierarchy node."""
+        defaults: dict[str, Any] = {}
+        if metadata.get("group_id") is not None:
+            defaults["group"] = str(metadata["group_id"])
+        if metadata.get("day_id") is not None:
+            defaults["day"] = metadata["day_id"]
+        if metadata.get("type") == "subject" and metadata.get("subject_id") is not None:
+            defaults["subject"] = str(metadata["subject_id"])
+        return defaults
 
     def _handle_hierarchy_delete_action(self, item_id: str, metadata: dict[str, Any]) -> None:
         """Ask the user whether to delete generated data or remove the hierarchy node."""

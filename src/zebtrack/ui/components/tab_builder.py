@@ -276,9 +276,19 @@ class TabBuilder:
         """Add processing buttons for pre-recorded projects."""
         ttk.Button(
             parent,
-            text="Adicionar e Processar Novos Vídeos/Pastas...",
+            text="Adicionar Vídeos/Pastas ao Projeto...",
             command=lambda: self.gui.event_dispatcher.publish_event(
-                UIEvents.PROJECT_PROCESS_VIDEOS, {}
+                UIEvents.PROJECT_IMPORT_VIDEOS,
+                payloads.ProjectImportVideosPayload(),
+            ),
+        ).pack(side="left", padx=5)
+
+        ttk.Button(
+            parent,
+            text="Processar Vídeos Pendentes...",
+            command=lambda: self.gui.event_dispatcher.publish_event(
+                UIEvents.PROJECT_PROCESS_VIDEOS,
+                payloads.ProjectProcessVideosPayload(video_paths=()),
             ),
         ).pack(side="left", padx=5)
 
