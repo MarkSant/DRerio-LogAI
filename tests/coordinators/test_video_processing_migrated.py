@@ -44,9 +44,11 @@ class DummyView:
     def __init__(self):
         self.file_dialog_response: list[str] | None = None
         self.root = None
+        self.dialog_manager = MagicMock()
+        self.dialog_manager.ask_open_filenames.side_effect = self._ask_open_filenames
 
-    def ask_open_filenames(self, title, filetypes):
-        return self.file_dialog_response
+    def _ask_open_filenames(self, title, filetypes):
+        return tuple(self.file_dialog_response or ())
 
 
 @pytest.fixture()
@@ -332,3 +334,21 @@ def test_import_workflow_processes_only_pending_after_import(coordinator_setup):
         coordinator.start_project_import_workflow()
 
     coordinator.process_pending_project_videos.assert_called_once_with(["/some/video1.mp4"])
+
+
+def test_import_workflow_uses_dialog_manager_when_view_has_no_file_picker(coordinator_setup):
+    """ApplicationGUI-backed imports should read file selections via dialog manager."""
+    coordinator, view, dialog_coordinator, pm, _event_bus = coordinator_setup
+
+    validation_result = MagicMock()
+    validation_result.is_valid = True
+    coordinator.validate_can_start_processing = MagicMock(return_value=validation_result)
+    dialog_coordinator.handle_validation_error.return_value = True
+
+    view.file_dialog_response = ["/some/video.mp4"]
+    pm.scan_input_paths.return_value = []
+
+    coordinator.start_project_import_workflow()
+
+    view.dialog_manager.ask_open_filenames.assert_called_once()
+    pm.scan_input_paths.assert_called_once_with(("/some/video.mp4",))
