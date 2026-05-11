@@ -68,6 +68,28 @@ def _payload_get(payload: payloads.EventPayload | dict[str, Any], key: str, defa
     return getattr(payload, key, default)
 
 
+def _ask_open_filenames_from_view(
+    view: Any,
+    title: str,
+    filetypes: list[tuple[str, str]],
+) -> tuple[str, ...]:
+    """Resolve file selection through the active GUI abstraction."""
+    if view and hasattr(view, "ask_open_filenames"):
+        result = view.ask_open_filenames(title, filetypes)
+        return tuple(result or ())
+
+    dialog_manager = getattr(view, "dialog_manager", None) if view else None
+    if dialog_manager and hasattr(dialog_manager, "ask_open_filenames"):
+        result = dialog_manager.ask_open_filenames(title, filetypes)
+        return tuple(result or ())
+
+    log.error(
+        "workflow.file_dialog.unavailable",
+        view_type=type(view).__name__ if view is not None else None,
+    )
+    return ()
+
+
 class VideoProcessingCoordinator(
     BaseCoordinator, VideoSelectionMixin, SingleVideoMixin, VideoCompletionMixin
 ):
@@ -343,7 +365,8 @@ class VideoProcessingCoordinator(
         if not dc.validate_zones_with_ui():
             return
 
-        paths = view.ask_open_filenames(
+        paths = _ask_open_filenames_from_view(
+            view,
             "Selecione Vídeos ou Pastas para Adicionar ao Projeto",
             [
                 ("Todos os arquivos", "*.*"),
@@ -448,7 +471,8 @@ class VideoProcessingCoordinator(
 
         paths = candidate_paths
         if not paths:
-            paths = view.ask_open_filenames(
+            paths = _ask_open_filenames_from_view(
+                view,
                 "Selecione Vídeos ou Pastas para Adicionar ao Projeto",
                 [
                     ("Todos os arquivos", "*.*"),
