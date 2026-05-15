@@ -799,8 +799,38 @@ class ApplicationGUI:
             )
             return None
 
-        dialog = StartRecordingDialog(self.root, pm)
-        return dialog.result
+        # Inject a fresh-detection camera provider so the "Trocar..." button can
+        # offer the current device list (cache disabled to avoid stale ordering).
+        from zebtrack.core.services.wizard_service import WizardService
+
+        def _camera_provider():
+            return WizardService.detect_available_cameras(use_cache=False)
+
+        dialog = StartRecordingDialog(self.root, pm, camera_provider=_camera_provider)
+        result = dialog.result
+
+        # If the user opted to persist the override, update project_data BEFORE
+        # the caller starts the session (so the resolver in the coordinator sees
+        # the new values on the next session too).
+        if (
+            result
+            and result.get("persist_camera")
+            and result.get("camera_index_override") is not None
+        ):
+            try:
+                pm.project_data["camera_index"] = int(result["camera_index_override"])
+                pm.project_data["camera_friendly_name"] = (
+                    result.get("camera_friendly_name_override") or ""
+                )
+                if hasattr(pm, "save_project"):
+                    pm.save_project()
+            except (OSError, AttributeError, ValueError) as exc:
+                self.dialog_manager.show_warning(
+                    "Falha ao salvar câmera",
+                    f"Não foi possível salvar a câmera como padrão do projeto:\n{exc}",
+                )
+
+        return result
 
     @public_api
     def ask_missing_metadata(self, experiment_id):

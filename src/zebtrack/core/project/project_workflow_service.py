@@ -173,6 +173,7 @@ class ProjectWorkflowService:
             "analysis_interval_frames",
             "display_interval_frames",
             "camera_index",
+            "camera_friendly_name",
             "use_arduino",
             "arduino_port",
             "external_trigger_mode",

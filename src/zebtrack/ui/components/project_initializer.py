@@ -214,14 +214,41 @@ class ProjectInitializer:
                     f"{gui.controller.settings.arduino.port}. Executando em modo offline.",
                 )
         try:
+            from zebtrack.core.services.wizard_service import WizardService
             from zebtrack.io.camera import Camera
 
-            # Use camera_index from project_data (saved by wizard)
-            camera_index = pm.project_data.get("camera_index", 0)
+            # Use camera_index/friendly_name from project_data (saved by wizard).
+            # Resolve via friendly name to recover from DirectShow reordering.
+            saved_index = pm.project_data.get("camera_index", 0)
+            saved_name = pm.project_data.get("camera_friendly_name", "") or ""
+            camera_index, status = WizardService.resolve_camera_index(saved_index, saved_name)
+
+            if status == "MISSING":
+                log.warning(
+                    "project_initializer.live_camera_setup.missing",
+                    saved_index=saved_index,
+                    saved_name=saved_name,
+                )
+                gui.dialog_manager.show_warning(
+                    "Câmera não encontrada",
+                    (
+                        f"A câmera salva no projeto ('{saved_name}') não foi detectada.\n"
+                        f"Tentando o índice salvo ({saved_index}) como fallback. "
+                        f"Use 'Trocar câmera' ao iniciar uma gravação para escolher outra."
+                    ),
+                )
+            elif status == "SHIFTED":
+                log.info(
+                    "project_initializer.live_camera_setup.shifted",
+                    saved_index=saved_index,
+                    actual_index=camera_index,
+                    friendly_name=saved_name,
+                )
 
             log.info(
                 "project_initializer.live_camera_setup",
                 camera_index=camera_index,
+                friendly_name=saved_name,
                 project_name=pm.get_project_name(),
             )
 

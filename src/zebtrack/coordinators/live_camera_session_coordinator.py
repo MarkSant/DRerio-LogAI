@@ -781,6 +781,9 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
         group: str,
         subject: str,
         duration_s: float | None = None,
+        *,
+        camera_index_override: int | None = None,
+        camera_friendly_name_override: str | None = None,
     ) -> bool:
         """Start a live recording session for a Live project.
 
@@ -792,6 +795,10 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
             group: Group identifier
             subject: Subject/animal identifier
             duration_s: Optional duration override (uses project default if None)
+            camera_index_override: If provided, skip the friendly-name resolver
+                and use this index for THIS session only (no persistence).
+            camera_friendly_name_override: Friendly name paired with the override
+                (only logged for traceability).
 
         Returns:
             True if session started successfully, False otherwise
@@ -805,7 +812,54 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
 
         # Extract project configuration
         project_data = self.project_manager.project_data
-        camera_index = project_data.get("camera_index", 0)
+        saved_camera_index = project_data.get("camera_index", 0)
+        saved_camera_name = project_data.get("camera_friendly_name", "") or ""
+
+        # Resolve camera by friendly name unless the caller already overrode it
+        if camera_index_override is not None:
+            camera_index = int(camera_index_override)
+            log.info(
+                "live_camera_session_coordinator.camera.override",
+                index=camera_index,
+                friendly_name=camera_friendly_name_override or "",
+            )
+        else:
+            from zebtrack.core.services.wizard_service import WizardService
+
+            resolved_index, status = WizardService.resolve_camera_index(
+                saved_camera_index, saved_camera_name
+            )
+            if status == "MISSING":
+                log.error(
+                    "live_camera_session_coordinator.camera.missing",
+                    saved_index=saved_camera_index,
+                    saved_name=saved_camera_name,
+                )
+                self.event_bus.publish(
+                    Event(
+                        type=UIEvents.UI_SHOW_ERROR,
+                        data=payloads.MessagePayload(
+                            title="Câmera não encontrada",
+                            message=(
+                                f"A câmera salva no projeto ('{saved_camera_name}') "
+                                f"não foi detectada.\n\n"
+                                f"Conecte o dispositivo correto ou use 'Trocar câmera' "
+                                f"no diálogo de gravação para escolher outra."
+                            ),
+                        ),
+                        source="LiveCameraSessionCoordinator.start_live_project_session",
+                    )
+                )
+                return False
+
+            if status == "SHIFTED":
+                log.info(
+                    "live_camera_session_coordinator.camera.resolved.shifted",
+                    saved_index=saved_camera_index,
+                    actual_index=resolved_index,
+                    friendly_name=saved_camera_name,
+                )
+            camera_index = resolved_index
 
         # Duration: use parameter, project default, or fallback
         if duration_s is None:

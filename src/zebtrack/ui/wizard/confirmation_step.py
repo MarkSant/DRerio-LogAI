@@ -355,7 +355,11 @@ class ConfirmationStep(WizardStep):
         lines.append("")
         lines.append("📹 Hardware:")
         camera_index = self.wizard_data.get("camera_index", 0)
-        lines.append(f"  • Câmera: Índice {camera_index}")
+        camera_friendly_name = self.wizard_data.get("camera_friendly_name", "")
+        if camera_friendly_name:
+            lines.append(f"  • Câmera: {camera_friendly_name} (índice {camera_index})")
+        else:
+            lines.append(f"  • Câmera: Índice {camera_index}")
 
         if self.wizard_data.get("use_arduino"):
             arduino_port = self.wizard_data.get("arduino_port", "N/A")

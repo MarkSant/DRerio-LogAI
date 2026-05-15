@@ -75,6 +75,14 @@ class CameraConnectionMixin:
 
             log.info("live_camera_service.setting_up_camera", camera_index=camera_index)
 
+            # Release the project-level preview camera (opened in
+            # ProjectInitializer.initialize_live_components) BEFORE opening the
+            # session camera. Otherwise we'd hold two device handles at once —
+            # and with per-session camera overrides, two physically different
+            # cameras would be powered on simultaneously (LEDs lit, USB
+            # bandwidth contention, possible CAP_DSHOW open failure).
+            self._release_preview_camera_if_any()
+
             # Create temporary settings with desired camera index and force 720p resolution
             temp_settings = self.settings.model_copy(deep=True)
             log.info(
@@ -171,6 +179,32 @@ class CameraConnectionMixin:
                 exc_info=True,
             )
             return False
+
+    def _release_preview_camera_if_any(self) -> None:
+        """Release the project-level preview camera held by hardware_vm.
+
+        ProjectInitializer opens a Camera at project load and stores it on
+        ``hardware_vm.camera`` to drive the canvas preview before recording
+        starts. That handle would otherwise stay open during the entire
+        session, leaving its physical device powered on (and, with per-session
+        camera overrides, leaving a *different* device than the one being
+        recorded also powered on).
+        """
+        controller = getattr(self, "controller", None)
+        hardware_vm = getattr(controller, "hardware_vm", None) if controller else None
+        preview_camera = getattr(hardware_vm, "camera", None) if hardware_vm else None
+        if preview_camera is None:
+            return
+        try:
+            preview_camera.release()
+            log.info("live_camera_service.preview_camera.released")
+        # except Exception justified: best-effort cleanup of legacy preview camera
+        except Exception as e:
+            log.warning("live_camera_service.preview_camera.release_failed", error=str(e))
+        finally:
+            hardware_vm.camera = None
+            if getattr(hardware_vm, "active_frame_source", None) is preview_camera:
+                hardware_vm.active_frame_source = None
 
     def _create_preview_window(self, camera_index: int, duration_s: float) -> None:
         """Create the live preview window."""

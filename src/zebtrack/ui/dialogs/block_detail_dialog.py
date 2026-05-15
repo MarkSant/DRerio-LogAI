@@ -80,9 +80,14 @@ class BlockDetailDialog(Toplevel):
 
         # Window config
         self.title(f"Sessões: Dia {self.day_num} - {group}")
-        self.geometry("700x600")
+        self.geometry("700x640")
         self.transient(parent)
         self.grab_set()
+
+        # Per-block camera override (None = use project default).
+        self._camera_index_override: int | None = None
+        self._camera_friendly_name_override: str | None = None
+        self._camera_label: Label | None = None
 
         self.build_ui()
 
@@ -142,6 +147,30 @@ class BlockDetailDialog(Toplevel):
         # Populate subjects
         for subject in subjects:
             self.create_subject_row(subject_container, subject)
+
+        # Camera section: shows project default + optional override for this block.
+        camera_frame = Frame(self)
+        camera_frame.pack(fill="x", padx=20, pady=(0, 10))
+
+        Label(
+            camera_frame,
+            text="📷 Câmera:",
+            font=("Segoe UI", 10, "bold"),
+        ).pack(side="left")
+
+        self._camera_label = Label(
+            camera_frame,
+            text=self._format_current_camera(),
+            font=("Segoe UI", 10),
+            anchor="w",
+        )
+        self._camera_label.pack(side="left", padx=(5, 10))
+
+        Button(
+            camera_frame,
+            text="Trocar...",
+            command=self._open_camera_chooser,
+        ).pack(side="left")
 
         # Actions frame
         action_frame = Frame(self)
@@ -345,6 +374,130 @@ class BlockDetailDialog(Toplevel):
                 command=lambda: self.start_session(subject),
             ).pack(side="right", padx=5, pady=10)
 
+    def _format_current_camera(self) -> str:
+        """Render the camera label: override (if set) or project default."""
+        if self._camera_index_override is not None:
+            name = self._camera_friendly_name_override or ""
+            suffix = f" — {name}" if name else ""
+            return f"[Sessão] Índice {self._camera_index_override}{suffix}"
+
+        project_data = (
+            self.project_manager.project_data
+            if hasattr(self.project_manager, "project_data")
+            else {}
+        )
+        saved_index = project_data.get("camera_index", 0)
+        saved_name = project_data.get("camera_friendly_name", "") or ""
+        if saved_name:
+            return f"{saved_name} (índice {saved_index})"
+        return f"Índice {saved_index}"
+
+    def _open_camera_chooser(self) -> None:
+        """Modal sub-dialog: detect + pick a camera (and optionally persist)."""
+        # Local imports keep dialog cold-import light.
+        from tkinter import BooleanVar, Checkbutton, StringVar
+
+        from zebtrack.core.services.wizard_service import WizardService
+
+        try:
+            cameras = WizardService.detect_available_cameras(use_cache=False)
+        # except Exception justified: camera enumeration is hardware I/O
+        except Exception as exc:
+            messagebox.showerror(
+                "Falha na detecção",
+                f"Não foi possível detectar câmeras:\n\n{exc}",
+                parent=self,
+            )
+            return
+
+        if not cameras:
+            messagebox.showwarning(
+                "Nenhuma câmera",
+                "Nenhuma câmera foi detectada no sistema.",
+                parent=self,
+            )
+            return
+
+        chooser = Toplevel(self)
+        chooser.title("Trocar câmera para esta sessão")
+        chooser.transient(self)
+        chooser.grab_set()
+
+        Label(chooser, text="Selecione a câmera:").grid(
+            row=0, column=0, sticky="w", padx=10, pady=(10, 0)
+        )
+
+        descriptions = [c.get("description", f"Câmera {c['index']}") for c in cameras]
+        index_map = {desc: int(cameras[i]["index"]) for i, desc in enumerate(descriptions)}
+        name_map = {
+            desc: cameras[i].get("friendly_name", "") for i, desc in enumerate(descriptions)
+        }
+
+        selection_var = StringVar(value=descriptions[0])
+        combo = ttk.Combobox(
+            chooser,
+            values=descriptions,
+            textvariable=selection_var,
+            state="readonly",
+            width=60,
+        )
+        combo.grid(row=1, column=0, columnspan=2, sticky="ew", padx=10, pady=5)
+
+        persist_var = BooleanVar(value=False)
+        Checkbutton(
+            chooser,
+            text="Salvar como câmera padrão deste projeto",
+            variable=persist_var,
+        ).grid(row=2, column=0, columnspan=2, sticky="w", padx=10, pady=5)
+
+        confirmed = {"ok": False}
+
+        def _on_ok() -> None:
+            confirmed["ok"] = True
+            chooser.destroy()
+
+        def _on_cancel() -> None:
+            chooser.destroy()
+
+        button_row = Frame(chooser)
+        button_row.grid(row=3, column=0, columnspan=2, pady=(5, 10))
+        Button(button_row, text="OK", command=_on_ok, width=10).pack(side="left", padx=5)
+        Button(button_row, text="Cancelar", command=_on_cancel, width=10).pack(side="left", padx=5)
+
+        chooser.wait_window()
+
+        if not confirmed["ok"]:
+            return
+
+        chosen = selection_var.get()
+        new_index = index_map.get(chosen, 0)
+        new_name = name_map.get(chosen, "")
+
+        if persist_var.get():
+            try:
+                self.project_manager.project_data["camera_index"] = int(new_index)
+                self.project_manager.project_data["camera_friendly_name"] = new_name
+                if hasattr(self.project_manager, "save_project"):
+                    self.project_manager.save_project()
+                # Persisted: clear any previous override so the label shows the new default.
+                self._camera_index_override = None
+                self._camera_friendly_name_override = None
+            except (OSError, AttributeError, ValueError) as exc:
+                messagebox.showwarning(
+                    "Falha ao salvar câmera",
+                    f"Não foi possível salvar a câmera como padrão:\n{exc}",
+                    parent=self,
+                )
+                # Fall back to per-session override on save failure.
+                self._camera_index_override = int(new_index)
+                self._camera_friendly_name_override = new_name
+        else:
+            self._camera_index_override = int(new_index)
+            self._camera_friendly_name_override = new_name
+
+        if self._camera_label is not None:
+            self._camera_label.config(text=self._format_current_camera())
+
     def start_session(self, subject: str):
         """Start live session for subject.
 
@@ -352,11 +505,19 @@ class BlockDetailDialog(Toplevel):
             subject: Subject ID to start session for
         """
         log.info(
-            "block_detail.start_session", day=self.day_num, group=self.group_name, subject=subject
+            "block_detail.start_session",
+            day=self.day_num,
+            group=self.group_name,
+            subject=subject,
+            camera_override=self._camera_index_override,
         )
 
         # v2.3.1: Actually start the session using session_coordinator
         try:
+            # Snapshot the override before destroying (instance attrs survive, but be explicit).
+            override_index = self._camera_index_override
+            override_name = self._camera_friendly_name_override
+
             # Close dialog first so it doesn't block
             self.destroy()
 
@@ -365,6 +526,8 @@ class BlockDetailDialog(Toplevel):
                 day=self.day_num,
                 group=str(self.group_name),
                 subject=subject,
+                camera_index_override=override_index,
+                camera_friendly_name_override=override_name,
             )
 
             if not success:

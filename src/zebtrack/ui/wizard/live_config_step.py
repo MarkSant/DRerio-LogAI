@@ -84,6 +84,8 @@ class LiveConfigStep(WizardStep):
         # UI state
         self.camera_selection_var = StringVar(value="")  # Stores camera display name
         self.camera_index_map: dict[str, int] = {}  # Maps display name -> camera index
+        # Parallel map: display name -> DirectShow friendly name (empty when unavailable)
+        self.camera_friendly_name_map: dict[str, str] = {}
         self.use_arduino_var = BooleanVar(value=False)
         self.arduino_port_var = StringVar(value="")
         self.external_trigger_mode_var = BooleanVar(value=False)
@@ -750,11 +752,13 @@ class LiveConfigStep(WizardStep):
             # Build display list with camera names and map to indices
             camera_list = []
             self.camera_index_map.clear()
+            self.camera_friendly_name_map.clear()
 
             for cam in cameras:
                 description = cam.get("description", f"Câmera {cam['index']}")
                 camera_list.append(description)
                 self.camera_index_map[description] = cam["index"]
+                self.camera_friendly_name_map[description] = cam.get("friendly_name", "")
 
             # Update combobox
             self.camera_combo["values"] = camera_list
@@ -770,6 +774,7 @@ class LiveConfigStep(WizardStep):
         else:
             self.camera_combo["values"] = []
             self.camera_index_map.clear()
+            self.camera_friendly_name_map.clear()
             self.camera_status_label.config(
                 text="✗ Nenhuma câmera detectada",
                 fg="red",
@@ -951,6 +956,7 @@ class LiveConfigStep(WizardStep):
         Returns:
             dict: Live configuration with keys:
                 - camera_index (int)
+                - camera_friendly_name (str)
                 - use_arduino (bool)
                 - arduino_port (str | None)
                 - external_trigger_mode (bool)
@@ -962,6 +968,7 @@ class LiveConfigStep(WizardStep):
         # Get camera index from selected camera name
         selected_camera = self.camera_selection_var.get()
         camera_index = self.camera_index_map.get(selected_camera, 0)
+        camera_friendly_name = self.camera_friendly_name_map.get(selected_camera, "")
 
         arduino_port = None
         if self.use_arduino_var.get():
@@ -972,6 +979,7 @@ class LiveConfigStep(WizardStep):
 
         return {
             "camera_index": camera_index,
+            "camera_friendly_name": camera_friendly_name,
             "use_arduino": self.use_arduino_var.get(),
             "arduino_port": arduino_port,
             "external_trigger_mode": self.external_trigger_mode_var.get(),
@@ -1009,7 +1017,18 @@ class LiveConfigStep(WizardStep):
         self._on_countdown_toggle()
 
     def _restore_camera(self, data: dict):
-        """Restore camera selection."""
+        """Restore camera selection.
+
+        Prefer matching by friendly_name (DirectShow ordering may have shifted
+        since the data was saved). Fall back to index match for legacy data.
+        """
+        saved_name = data.get("camera_friendly_name") or ""
+        if saved_name:
+            for display_name, friendly in self.camera_friendly_name_map.items():
+                if friendly == saved_name:
+                    self.camera_selection_var.set(display_name)
+                    return
+
         if "camera_index" in data:
             camera_idx = data["camera_index"]
             for display_name, idx in self.camera_index_map.items():

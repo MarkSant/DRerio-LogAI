@@ -385,10 +385,18 @@ class HardwareStatusViewModel:
         group: str,
         subject: str,
         duration_s: float | None = None,
+        *,
+        camera_index_override: int | None = None,
+        camera_friendly_name_override: str | None = None,
     ) -> Any:
         if self.live_camera_session_coordinator:
             return self.live_camera_session_coordinator.start_live_project_session(
-                day=day, group=group, subject=subject, duration_s=duration_s
+                day=day,
+                group=group,
+                subject=subject,
+                duration_s=duration_s,
+                camera_index_override=camera_index_override,
+                camera_friendly_name_override=camera_friendly_name_override,
             )
         return None
 

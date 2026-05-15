@@ -414,6 +414,152 @@ def test_live_camera_session_start_stop_happy_path(test_settings):
 
 
 @pytest.mark.integration
+def test_live_project_session_resolves_camera_by_friendly_name(monkeypatch, test_settings):
+    """When DirectShow ordering shifts, start_live_project_session should silently
+    re-resolve the index via the saved friendly_name."""
+    state_manager = StateManager()
+    event_bus = EventBusV2()
+
+    live_camera_service = MagicMock()
+    live_camera_service.start_session.return_value = True
+
+    pm = MagicMock()
+    pm.get_project_type.return_value = "live"
+    pm.get_project_name.return_value = "test_project"
+    pm.project_data = {
+        "camera_index": 1,
+        "camera_friendly_name": "USB2.0 HD UVC WebCam",
+        "recording_duration_s": 60.0,
+        "analysis_interval_frames": 1,
+        "display_interval_frames": 1,
+        "animals_per_aquarium": 1,
+    }
+
+    calibration = MagicMock()
+    calibration.ensure_zones_before_recording.return_value = True
+
+    coordinator = LiveCameraSessionCoordinator(
+        state_manager=state_manager,
+        live_camera_service=live_camera_service,
+        project_manager=pm,
+        detector_service=MagicMock(),
+        settings_obj=test_settings,
+        live_calibration_coordinator=calibration,
+        event_bus=event_bus,
+    )
+
+    # Camera reordered: USB now at index 0 (was 1 when saved).
+    from zebtrack.core.services.wizard_service import WizardService
+
+    monkeypatch.setattr(
+        WizardService,
+        "resolve_camera_index",
+        classmethod(lambda cls, idx, name: (0, "SHIFTED")),
+    )
+
+    assert coordinator.start_live_project_session(day=1, group="Controle", subject="1")
+    live_camera_service.start_session.assert_called_once()
+    assert live_camera_service.start_session.call_args.kwargs["camera_index"] == 0
+
+
+@pytest.mark.integration
+def test_live_project_session_aborts_when_camera_missing(monkeypatch, test_settings):
+    """Missing camera must surface a UI error and NOT silently fall back."""
+    event_bus = EventBusV2()
+
+    live_camera_service = MagicMock()
+
+    pm = MagicMock()
+    pm.get_project_type.return_value = "live"
+    pm.get_project_name.return_value = "test_project"
+    pm.project_data = {
+        "camera_index": 1,
+        "camera_friendly_name": "Disconnected Cam",
+        "recording_duration_s": 60.0,
+        "analysis_interval_frames": 1,
+        "display_interval_frames": 1,
+        "animals_per_aquarium": 1,
+    }
+
+    coordinator = LiveCameraSessionCoordinator(
+        state_manager=StateManager(),
+        live_camera_service=live_camera_service,
+        project_manager=pm,
+        detector_service=MagicMock(),
+        settings_obj=test_settings,
+        live_calibration_coordinator=MagicMock(),
+        event_bus=event_bus,
+    )
+
+    errors: list = []
+    event_bus.subscribe(UIEvents.UI_SHOW_ERROR, lambda data: errors.append(data))
+
+    from zebtrack.core.services.wizard_service import WizardService
+
+    monkeypatch.setattr(
+        WizardService,
+        "resolve_camera_index",
+        classmethod(lambda cls, idx, name: (idx, "MISSING")),
+    )
+
+    assert coordinator.start_live_project_session(day=1, group="Controle", subject="1") is False
+    live_camera_service.start_session.assert_not_called()
+    assert errors, "An UI_SHOW_ERROR event should be published when camera is missing"
+
+
+@pytest.mark.integration
+def test_live_project_session_override_skips_resolver(monkeypatch, test_settings):
+    """When the caller passes camera_index_override, the resolver is bypassed."""
+    live_camera_service = MagicMock()
+    live_camera_service.start_session.return_value = True
+
+    pm = MagicMock()
+    pm.get_project_type.return_value = "live"
+    pm.get_project_name.return_value = "test_project"
+    pm.project_data = {
+        "camera_index": 1,
+        "camera_friendly_name": "Some Cam",
+        "recording_duration_s": 60.0,
+        "analysis_interval_frames": 1,
+        "display_interval_frames": 1,
+        "animals_per_aquarium": 1,
+    }
+
+    calibration = MagicMock()
+    calibration.ensure_zones_before_recording.return_value = True
+
+    coordinator = LiveCameraSessionCoordinator(
+        state_manager=StateManager(),
+        live_camera_service=live_camera_service,
+        project_manager=pm,
+        detector_service=MagicMock(),
+        settings_obj=test_settings,
+        live_calibration_coordinator=calibration,
+        event_bus=EventBusV2(),
+    )
+
+    from zebtrack.core.services.wizard_service import WizardService
+
+    called = {"n": 0}
+
+    def _spy(cls, idx, name):
+        called["n"] += 1
+        return (idx, "MATCH")
+
+    monkeypatch.setattr(WizardService, "resolve_camera_index", classmethod(_spy))
+
+    assert coordinator.start_live_project_session(
+        day=1,
+        group="Controle",
+        subject="1",
+        camera_index_override=3,
+        camera_friendly_name_override="Override Cam",
+    )
+    assert called["n"] == 0, "Resolver must be bypassed when override is provided"
+    assert live_camera_service.start_session.call_args.kwargs["camera_index"] == 3
+
+
+@pytest.mark.integration
 def test_live_camera_session_invalid_camera_index_raises(test_settings):
     coordinator = LiveCameraSessionCoordinator(
         state_manager=StateManager(),
