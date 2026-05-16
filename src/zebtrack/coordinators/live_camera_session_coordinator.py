@@ -626,6 +626,31 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
             if success and self.live_batch_coordinator and self._active_wizard_data:
                 self._register_batch_session()
 
+            # Mirror pre-recorded completion flow: trigger project-views and
+            # video-tree refresh so the "Controle Principal", "Progresso do
+            # Experimento", "Configuração de Zonas" and "Processamento e
+            # Relatórios" tabs reflect the newly recorded session immediately.
+            # Without these, the working trees only update on manual reload.
+            if success and self.event_bus is not None:
+                self.event_bus.publish(
+                    Event(
+                        type=UIEvents.PROJECT_VIEWS_REFRESH_REQUESTED,
+                        data=payloads.ProjectViewsRefreshRequestedPayload(
+                            reason="live_session_completed",
+                            immediate=True,
+                        ),
+                        source="LiveCameraSessionCoordinator.stop_live_session",
+                    )
+                )
+                self.event_bus.publish(
+                    Event(
+                        type=UIEvents.VIDEO_TREE_REFRESH_REQUESTED,
+                        data=payloads.VideoTreeRefreshRequestedPayload(),
+                        source="LiveCameraSessionCoordinator.stop_live_session",
+                    )
+                )
+                log.info("live_camera_session_coordinator.stop_live_session.refresh_published")
+
             log.info(
                 "live_camera_session_coordinator.stop_live_session.success",
                 success=success,
