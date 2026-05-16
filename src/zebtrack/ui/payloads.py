@@ -924,6 +924,20 @@ class LiveRecordingCancelledPayload:
 
 
 @dataclass(frozen=True)
+class LivePolygonSourceChangedPayload:
+    """Published whenever ``LiveCalibrationCoordinator._last_polygon_source`` mutates.
+
+    ``source`` is ``"auto"`` after PreviewPolygonDialog approves an auto-detected
+    polygon, ``"manual"`` when the user falls back to manual drawing (or drags a
+    vertex before approval), and ``None`` after the session is consumed/cleared.
+    The Zone tab ``ZoneContextPanel`` subscribes to keep its provenance badge
+    in sync without polling.
+    """
+
+    source: str | None = None
+
+
+@dataclass(frozen=True)
 class UIUpdateLiveFramePayload:
     frame: Any
     detections: Sequence[Any] | None = None

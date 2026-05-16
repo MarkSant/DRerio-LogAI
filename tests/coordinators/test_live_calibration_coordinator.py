@@ -15,6 +15,7 @@ manually adjusted by the user before approval.
 from __future__ import annotations
 
 from types import SimpleNamespace
+from typing import cast
 from unittest.mock import MagicMock, patch
 
 import numpy as np
@@ -326,3 +327,116 @@ def test_run_live_calibration_persists_auto_source_from_dialog():
 def test_run_live_calibration_defaults_to_auto_when_dialog_omits_source():
     """Legacy dialogs without ``source`` default to 'auto' (back-compat)."""
     assert _run_live_calibration_with_dialog_source(None) == "auto"
+
+
+# ---------------------------------------------------------------------------
+# Etapa 4 — LIVE_POLYGON_SOURCE_CHANGED event publishing
+# ---------------------------------------------------------------------------
+
+
+def _last_polygon_source_event_sources(event_bus_mock: MagicMock) -> list[str | None]:
+    """Extract the ``source`` field from every LIVE_POLYGON_SOURCE_CHANGED publish."""
+    from zebtrack.ui.event_bus_v2 import UIEvents
+
+    sources: list[str | None] = []
+    for call in event_bus_mock.publish.call_args_list:
+        event = call.args[0]
+        if getattr(event, "type", None) is UIEvents.LIVE_POLYGON_SOURCE_CHANGED:
+            sources.append(getattr(event.data, "source", "__missing__"))
+    return sources
+
+
+def test_set_last_polygon_source_publishes_event_with_value():
+    """Setting the polygon source must publish LIVE_POLYGON_SOURCE_CHANGED(source=...)."""
+    coordinator = _make_coordinator()
+    bus = cast(MagicMock, coordinator.event_bus)
+    bus.reset_mock()
+
+    coordinator._set_last_polygon_source("auto")
+
+    assert coordinator.last_polygon_source == "auto"
+    sources = _last_polygon_source_event_sources(bus)
+    assert sources == ["auto"], f"expected one auto-event, got {sources}"
+
+
+def test_clear_last_polygon_source_publishes_none():
+    """clear_last_polygon_source must publish source=None for badge reset."""
+    coordinator = _make_coordinator()
+    bus = cast(MagicMock, coordinator.event_bus)
+    bus.reset_mock()
+
+    coordinator.clear_last_polygon_source()
+
+    assert coordinator.last_polygon_source is None
+    sources = _last_polygon_source_event_sources(bus)
+    assert sources == [None]
+
+
+def test_run_live_calibration_publishes_polygon_source_event():
+    """The full run_live_calibration flow must emit the event when persisting."""
+    from zebtrack.ui.event_bus_v2 import UIEvents
+
+    coordinator = _make_calibration_coordinator_with_camera()
+    bus = cast(MagicMock, coordinator.event_bus)
+    bus.reset_mock()
+
+    fake_frame = np.zeros((480, 640, 3), dtype=np.uint8)
+    fake_camera = MagicMock()
+    fake_camera.is_open = True
+    fake_camera.get_frame.return_value = (True, fake_frame)
+    fake_polygon = [[100, 100], [200, 100], [200, 200], [100, 200]]
+    fake_dialog_instance = MagicMock()
+    fake_dialog_instance.show.return_value = {
+        "approved": True,
+        "polygon": fake_polygon,
+        "frame": None,
+        "source": "manual",
+    }
+
+    with (
+        patch.object(
+            LiveCalibrationCoordinator,
+            "_detect_polygon_on_burst",
+            return_value=[fake_polygon],
+        ),
+        patch(
+            "zebtrack.coordinators.live_calibration_coordinator.AquariumDetector"
+        ) as fake_detector_cls,
+        patch(
+            "zebtrack.coordinators.live_calibration_coordinator.Camera",
+            return_value=fake_camera,
+        ),
+        patch(
+            "zebtrack.coordinators.live_calibration_coordinator.cv2.imwrite",
+            return_value=True,
+        ),
+        patch(
+            "zebtrack.ui.dialogs.preview_polygon_dialog.PreviewPolygonDialog",
+            return_value=fake_dialog_instance,
+        ),
+        patch(
+            "zebtrack.coordinators.live_calibration_coordinator.time.sleep",
+            return_value=None,
+        ),
+    ):
+        fake_detector_cls.return_value = MagicMock()
+        assert coordinator.run_live_calibration(stabilization_frames=4, show_preview=True)
+
+    events = [
+        call.args[0]
+        for call in bus.publish.call_args_list
+        if getattr(call.args[0], "type", None) is UIEvents.LIVE_POLYGON_SOURCE_CHANGED
+    ]
+    assert events, "LIVE_POLYGON_SOURCE_CHANGED must be emitted at least once"
+    assert events[-1].data.source == "manual"
+
+
+def test_set_last_polygon_source_swallows_publish_failures():
+    """A bus that raises must not propagate — calibration must keep running."""
+    coordinator = _make_coordinator()
+    bus = cast(MagicMock, coordinator.event_bus)
+    bus.publish.side_effect = RuntimeError("bus is on fire")
+
+    # Must not raise
+    coordinator._set_last_polygon_source("auto")
+    assert coordinator.last_polygon_source == "auto"

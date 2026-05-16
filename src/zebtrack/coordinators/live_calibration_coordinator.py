@@ -136,9 +136,34 @@ class LiveCalibrationCoordinator(BaseCoordinator):
         """Source of the most recently confirmed polygon ("auto" / "manual" / None)."""
         return self._last_polygon_source
 
+    def _set_last_polygon_source(self, source: str | None) -> None:
+        """Update ``_last_polygon_source`` and publish ``LIVE_POLYGON_SOURCE_CHANGED``.
+
+        Centralised so the Zone tab context panel can mirror the value without
+        polling. Publishes unconditionally (including no-op transitions) so the
+        UI can re-render after a project reload that resets internal state.
+        """
+        self._last_polygon_source = source
+        if self.event_bus is None:
+            return
+        try:
+            self.event_bus.publish(
+                Event(
+                    type=UIEvents.LIVE_POLYGON_SOURCE_CHANGED,
+                    data=payloads.LivePolygonSourceChangedPayload(source=source),
+                    source="LiveCalibrationCoordinator._set_last_polygon_source",
+                )
+            )
+        # except Exception justified: event bus must never break calibration flow.
+        except Exception as exc:
+            log.warning(
+                "live_calibration_coordinator.polygon_source.publish_failed",
+                error=str(exc),
+            )
+
     def clear_last_polygon_source(self) -> None:
         """Reset the polygon-source tag (e.g. after a session is registered)."""
-        self._last_polygon_source = None
+        self._set_last_polygon_source(None)
 
     # =============================================================================
     # ZONE VALIDATION
@@ -267,7 +292,7 @@ class LiveCalibrationCoordinator(BaseCoordinator):
             # 3b. MANUAL DRAWING (or fallback from auto) → tag as manual
             if method == "manual":
                 log.info("live_calibration_coordinator.zones.manual_mode")
-                self._last_polygon_source = "manual"
+                self._set_last_polygon_source("manual")
 
                 # Capture reference frame
                 if not self._capture_reference_frame_for_zones():
@@ -657,7 +682,7 @@ class LiveCalibrationCoordinator(BaseCoordinator):
                         # (LiveCameraSessionCoordinator publishes it on
                         # LIVE_RECORDING_PENDING). "manual" iff the user
                         # dragged at least one vertex in the dialog.
-                        self._last_polygon_source = result.get("source", "auto")
+                        self._set_last_polygon_source(result.get("source", "auto"))
 
                 if not approved:
                     log.info("live_calibration_coordinator.live_calibration.user_rejected")
