@@ -66,6 +66,19 @@ class BlockDetailDialog(Toplevel):
             else set()
         )
 
+        # Cache project polygon status for the header indicator + per-subject
+        # "reused" badge. Read once at dialog init so per-row rendering doesn't
+        # re-walk the zone data structures.
+        try:
+            zone_data = (
+                project_manager.get_zone_data()
+                if hasattr(project_manager, "get_zone_data")
+                else None
+            )
+            self._project_has_polygon = bool(zone_data and getattr(zone_data, "polygon", None))
+        except Exception:
+            self._project_has_polygon = False
+
         # v2.3.1: Debug log for session detection
         log.info(
             "block_detail.init",
@@ -73,6 +86,7 @@ class BlockDetailDialog(Toplevel):
             group=self.group_name,
             subjects_per_group=self.subjects_per_group,
             completed_sessions=list(self.completed_sessions),
+            project_has_polygon=self._project_has_polygon,
             project_path=str(project_manager.project_path)
             if project_manager.project_path
             else None,
@@ -118,6 +132,24 @@ class BlockDetailDialog(Toplevel):
             bg="#f8f9fa",
             fg="#555",
         ).pack(side="left", padx=10, pady=20)
+
+        # Project-level polygon indicator: shows whether the project already has
+        # an arena polygon defined (which gets reused across subjects in live
+        # projects). Helps users know whether the first session of the block
+        # will trigger zone calibration or jump straight to recording.
+        polygon_text = (
+            "🏟️ Polígono do projeto: ✅ Definido"
+            if self._project_has_polygon
+            else "🏟️ Polígono do projeto: ⚠️ Não definido"
+        )
+        polygon_color = "#0a7" if self._project_has_polygon else "#a23"
+        Label(
+            header,
+            text=polygon_text,
+            font=("Segoe UI", 10),
+            bg="#f8f9fa",
+            fg=polygon_color,
+        ).pack(side="right", padx=20, pady=20)
 
         # Subject list
         list_frame = Frame(self)
@@ -222,6 +254,14 @@ class BlockDetailDialog(Toplevel):
     def _find_session_folder(self, subject: str) -> Path | None:
         """Find the session folder for a specific day/group/subject.
 
+        Lookup strategy (first match wins):
+        1. ``project_data["batches"][*]["videos"][*].results_dir`` — preferred
+           path that handles both legacy flat layouts and the new
+           ``Grupo_X/Dia_Y/Sujeito_Z/live_{ts}/`` hierarchy uniformly.
+        2. Legacy filesystem scan for ``day{N}_{group}_{subject}_*`` and
+           ``D{N}_G{group}_S{subject}`` folders at the project root (used by
+           older recordings made before the hierarchical layout was adopted).
+
         Args:
             subject: Subject ID (e.g., "1", "2")
 
@@ -233,13 +273,16 @@ class BlockDetailDialog(Toplevel):
 
         project_path = Path(self.project_manager.project_path)
 
-        # Pattern 1: New format - day{day}_{group}_{subject}_{timestamp}
-        # Example: "day1_Controle_1_20260103_142530"
+        # Strategy 1 — read results_dir registered in project_data.
+        results_dir = self._results_dir_for_subject(subject)
+        if results_dir is not None:
+            return results_dir
+
+        # Strategy 2 — legacy filesystem scan at project root (pre-hierarchical
+        # recordings whose results_dir was never stamped on the video entry).
         pattern_new = re.compile(
             rf"^day{self.day_num}_{re.escape(self.group_name)}_{subject}_\d{{8}}_\d{{6}}$"
         )
-
-        # Pattern 2: Legacy format - D{day}_G{group}_S{subject}
         pattern_legacy = re.compile(rf"^D{self.day_num}_G{re.escape(self.group_name)}_S{subject}$")
 
         for item in project_path.iterdir():
@@ -248,6 +291,62 @@ class BlockDetailDialog(Toplevel):
             if pattern_new.match(item.name) or pattern_legacy.match(item.name):
                 return item
 
+        return None
+
+    def _results_dir_for_subject(self, subject: str) -> Path | None:
+        """Return the registered ``results_dir`` for the (day, group, subject) entry."""
+        project_data = (
+            self.project_manager.project_data
+            if hasattr(self.project_manager, "project_data")
+            else {}
+        )
+        target_day = f"Dia_{self.day_num}"
+        for batch in project_data.get("batches", []):
+            for video in batch.get("videos", []):
+                metadata = video.get("metadata") or {}
+                meta_day = str(metadata.get("day", "")).strip()
+                if meta_day and meta_day not in (target_day, str(self.day_num)):
+                    continue
+                if str(metadata.get("group", "")).strip() != str(self.group_name).strip():
+                    continue
+                if str(metadata.get("subject", "")).strip() != str(subject).strip():
+                    continue
+                results_dir = video.get("results_dir")
+                if results_dir:
+                    candidate = Path(results_dir)
+                    if candidate.exists() and candidate.is_dir():
+                        return candidate
+        return None
+
+    def _get_polygon_source_for_subject(self, subject: str) -> str | None:
+        """Return the polygon source ("auto" / "manual" / None) recorded for a subject.
+
+        Scans the project's videos for an entry whose metadata matches the
+        block's (group, day, subject) tuple. Returns the ``polygon_source``
+        field stamped by ``OutputRegistrationManager.register_processing_outputs``
+        after the live recording completes, or ``None`` for sessions recorded
+        before the field existed.
+        """
+        project_data = (
+            self.project_manager.project_data
+            if hasattr(self.project_manager, "project_data")
+            else {}
+        )
+        target_day = f"Dia_{self.day_num}"
+        for batch in project_data.get("batches", []):
+            for video in batch.get("videos", []):
+                metadata = video.get("metadata") or {}
+                # Day field uses both "Dia_N" and bare int formats across the codebase
+                meta_day = str(metadata.get("day", "")).strip()
+                if meta_day and meta_day not in (target_day, str(self.day_num)):
+                    continue
+                if str(metadata.get("group", "")).strip() != str(self.group_name).strip():
+                    continue
+                if str(metadata.get("subject", "")).strip() != str(subject).strip():
+                    continue
+                source = metadata.get("polygon_source")
+                if source:
+                    return str(source)
         return None
 
     def _get_session_files_status(self, folder: Path) -> dict[str, bool]:
@@ -349,6 +448,37 @@ class BlockDetailDialog(Toplevel):
             fg="#666",
             bg="white",
         ).pack(anchor="w")
+
+        # Polygon-source badge: shows whether the polygon used for this
+        # subject was auto-detected or manually drawn. For completed sessions
+        # we read the value stamped by ``register_processing_outputs``; for
+        # pending subjects we hint that the project polygon will be reused.
+        if is_completed:
+            polygon_source = self._get_polygon_source_for_subject(subject)
+            if polygon_source == "auto":
+                Label(
+                    info_frame,
+                    text="🏟️ Auto-detectado",
+                    font=("Segoe UI", 8, "bold"),
+                    fg="#0a7",
+                    bg="white",
+                ).pack(anchor="w")
+            elif polygon_source == "manual":
+                Label(
+                    info_frame,
+                    text="✏️ Desenhado manualmente",
+                    font=("Segoe UI", 8, "bold"),
+                    fg="#666",
+                    bg="white",
+                ).pack(anchor="w")
+        elif self._project_has_polygon:
+            Label(
+                info_frame,
+                text="🏟️ Polígono do projeto pronto (será reutilizado)",
+                font=("Segoe UI", 8),
+                fg="#0a7",
+                bg="white",
+            ).pack(anchor="w")
 
         # v2.3.1: Show folder name if exists
         if session_folder:

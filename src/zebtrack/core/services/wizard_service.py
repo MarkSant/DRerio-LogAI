@@ -177,7 +177,9 @@ class WizardService:
         return deduped
 
     @classmethod
-    def detect_available_cameras(cls, use_cache: bool = True) -> list[dict[str, Any]]:
+    def detect_available_cameras(  # noqa: C901
+        cls, use_cache: bool = True
+    ) -> list[dict[str, Any]]:
         """
         Detect available cameras with early stopping optimization and caching.
 
@@ -235,7 +237,17 @@ class WizardService:
                     if cap.isOpened():
                         # CRITICAL: Verify camera can actually capture frames with timeout
                         # Some cameras report isOpened=True but never return frames (ghost cameras)
-                        test_result: dict[str, Any] = {"success": False, "frame": None}
+                        # Also discard a warm-up burst before deciding on black-frame rejection:
+                        # USB webcams with autoexposure often deliver dark/garbage frames for the
+                        # first several reads, which used to be misclassified as "black frame" and
+                        # caused them to be silently dropped from the picker (see logs analysis,
+                        # 2026-05-16).
+                        warmup_frames = 10
+                        test_result: dict[str, Any] = {
+                            "success": False,
+                            "frame": None,
+                            "frames_read": 0,
+                        }
                         result_lock = threading.Lock()
                         read_event = threading.Event()
 
@@ -245,12 +257,22 @@ class WizardService:
                             camera_index=i,
                             lock=result_lock,
                             event=read_event,
+                            warmup=warmup_frames,
                         ):
                             try:
-                                ret, frame = capture.read()
+                                last_ret = False
+                                last_frame = None
+                                # Read warmup+1 frames; the final one is what we validate.
+                                # Each individual read still benefits from the outer 2s timeout.
+                                for _ in range(warmup + 1):
+                                    ret, frame = capture.read()
+                                    if ret and frame is not None:
+                                        last_ret = True
+                                        last_frame = frame
                                 with lock:
-                                    result["success"] = ret
-                                    result["frame"] = frame
+                                    result["success"] = last_ret
+                                    result["frame"] = last_frame
+                                    result["frames_read"] = warmup + 1
                             # except Exception justified: cv2 camera probe - hardware I/O
                             except Exception as e:
                                 log.warning(
@@ -263,10 +285,17 @@ class WizardService:
                             finally:
                                 event.set()
 
-                        log.debug("wizard_service.testing_camera_capture", index=i)
+                        log.debug(
+                            "wizard_service.testing_camera_capture",
+                            index=i,
+                            warmup_frames=warmup_frames,
+                        )
                         read_thread = threading.Thread(target=try_read, daemon=True)
                         read_thread.start()
-                        read_event.wait(timeout=2.0)  # Wait for completion signal
+                        # Allow up to 3s for the whole warm-up burst (was 2s for a single read).
+                        # 10 warm-up frames at ~30 FPS take ~330ms; we keep ample slack so slow
+                        # cameras (or cameras still negotiating with DirectShow) don't time out.
+                        read_event.wait(timeout=3.0)
 
                         with result_lock:
                             if not test_result["success"] or test_result["frame"] is None:

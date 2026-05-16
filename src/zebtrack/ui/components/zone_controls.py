@@ -82,6 +82,11 @@ class ZoneControlsWidget(BaseWidget):
         self.parent = parent
         self.apply_to_all_var = tk.BooleanVar(value=True)
 
+        # Pending-session banner (live recording handshake).
+        self.pending_session_frame: ttk.Frame | None = None
+        self.pending_session_label: ttk.Label | None = None
+        self._pending_session_payload: payloads.LiveRecordingPendingPayload | None = None
+
         # Widget references
         self.draw_roi_button: ttk.Button | None = None
         self.toggle_view_btn: ttk.Button | None = None
@@ -151,9 +156,18 @@ class ZoneControlsWidget(BaseWidget):
         # Note: Order matters for the side panel, but external parents are handled independently.
 
         # 1. Top of Viz Frame (if parent provided) OR Top of Left Panel
+        self._build_pending_session_banner()
         self._build_drawing_actions()
         self._build_aquarium_selector()  # Multi-aquarium support
         self._build_interactive_buttons()
+
+        # Subscribe to live-recording handshake events so the banner reflects
+        # the current session state. ``BaseWidget.bind_callback`` guards against
+        # a missing event_bus.
+        self.bind_callback(UIEvents.LIVE_RECORDING_PENDING, self._on_live_recording_pending)
+        self.bind_callback(UIEvents.LIVE_SESSION_STARTED, self._on_live_recording_done)
+        self.bind_callback(UIEvents.LIVE_SESSION_STOPPED, self._on_live_recording_done)
+        self.bind_callback(UIEvents.LIVE_RECORDING_CANCELLED, self._on_live_recording_done)
 
         # 2. Left Panel Components (Always in zone_controls_frame)
         self._build_zone_list()
@@ -164,6 +178,131 @@ class ZoneControlsWidget(BaseWidget):
         self._build_template_section()
 
         # Removed unwanted section: self._build_single_analysis_options()
+
+    def _build_pending_session_banner(self) -> None:
+        """Build the "Sessão pendente" banner shown above the drawing actions.
+
+        Initially hidden. When ``LIVE_RECORDING_PENDING`` is published by
+        ``LiveCameraSessionCoordinator``, the banner is unhidden, populated with
+        the subject/group/day, and offers "▶️ Iniciar Gravação" / "✖ Cancelar
+        Sessão" buttons. Both buttons publish back to the event bus and the
+        coordinator drives the actual resume/cancel logic.
+        """
+        parent = (
+            self.drawing_actions_parent if self.drawing_actions_parent else self.zone_controls_frame
+        )
+
+        # Use a plain frame with a colored background so it stands out as a
+        # call-to-action without diverging too much from the existing style.
+        self.pending_session_frame = ttk.Frame(parent, padding=8)
+        # Not packed yet — packed on first LIVE_RECORDING_PENDING.
+
+        self.pending_session_label = ttk.Label(
+            self.pending_session_frame,
+            text="",
+            font=("Segoe UI", 10, "bold"),
+            foreground="#7a4d00",
+            wraplength=540,
+            justify="left",
+        )
+        self.pending_session_label.pack(side="top", fill="x", pady=(0, 6))
+
+        button_row = ttk.Frame(self.pending_session_frame)
+        button_row.pack(side="top", fill="x")
+
+        ttk.Button(
+            button_row,
+            text="▶️ Iniciar Gravação",
+            command=self._on_start_pending_recording_clicked,
+            style="Accent.TButton",
+        ).pack(side="left", padx=(0, 6))
+
+        ttk.Button(
+            button_row,
+            text="✖ Cancelar Sessão",
+            command=self._on_cancel_pending_recording_clicked,
+        ).pack(side="left")
+
+    def _show_pending_session_banner(self, payload: payloads.LiveRecordingPendingPayload) -> None:
+        """Show the banner and populate it with the subject/group/day."""
+        if self.pending_session_frame is None or self.pending_session_label is None:
+            return
+        self._pending_session_payload = payload
+
+        subject = payload.subject_id or "—"
+        group = payload.group or "—"
+        day = payload.day or "—"
+        source_text = (
+            "Polígono auto-detectado"
+            if payload.polygon_source == "auto"
+            else "Polígono desenhado manualmente"
+        )
+        self.pending_session_label.config(
+            text=(
+                f"⏳ Sessão pendente: Animal {subject} / Grupo {group} / {day}.\n"
+                f"{source_text} — clique em ▶️ Iniciar Gravação quando estiver pronto."
+            )
+        )
+
+        # Pack at the top of the side panel / drawing area.
+        try:
+            self.pending_session_frame.pack(fill="x", padx=5, pady=(5, 0))
+        except tk.TclError:
+            # Parent destroyed mid-event — nothing to do.
+            log.debug("zone_controls.pending_banner.show.suppressed", exc_info=True)
+
+    def _hide_pending_session_banner(self) -> None:
+        """Hide the banner (called on resume/cancel/session-started)."""
+        self._pending_session_payload = None
+        if self.pending_session_frame is None:
+            return
+        try:
+            self.pending_session_frame.pack_forget()
+        except tk.TclError:
+            log.debug("zone_controls.pending_banner.hide.suppressed", exc_info=True)
+
+    def _on_live_recording_pending(
+        self, payload: payloads.LiveRecordingPendingPayload | None = None
+    ) -> None:
+        """Handle LIVE_RECORDING_PENDING — schedule banner show on the Tk thread."""
+        if payload is None:
+            return
+        root = self.winfo_toplevel()
+        if root is not None:
+            root.after(0, lambda p=payload: self._show_pending_session_banner(p))
+        else:
+            self._show_pending_session_banner(payload)
+
+    def _on_live_recording_done(self, payload: Any = None) -> None:
+        """Handle LIVE_SESSION_STARTED / STOPPED / LIVE_RECORDING_CANCELLED."""
+        root = self.winfo_toplevel()
+        if root is not None:
+            root.after(0, self._hide_pending_session_banner)
+        else:
+            self._hide_pending_session_banner()
+
+    def _on_start_pending_recording_clicked(self) -> None:
+        """Publish LIVE_RECORDING_RESUME_REQUESTED for the active pending session."""
+        experiment_id = (
+            self._pending_session_payload.experiment_id if self._pending_session_payload else None
+        )
+        self.emit_event(
+            UIEvents.LIVE_RECORDING_RESUME_REQUESTED,
+            payloads.LiveRecordingResumeRequestedPayload(experiment_id=experiment_id),
+        )
+
+    def _on_cancel_pending_recording_clicked(self) -> None:
+        """Publish LIVE_RECORDING_CANCELLED for the active pending session."""
+        experiment_id = (
+            self._pending_session_payload.experiment_id if self._pending_session_payload else None
+        )
+        self.emit_event(
+            UIEvents.LIVE_RECORDING_CANCELLED,
+            payloads.LiveRecordingCancelledPayload(experiment_id=experiment_id),
+        )
+        # Optimistically hide locally — the coordinator's own publish round-trip
+        # will arrive shortly and is idempotent.
+        self._hide_pending_session_banner()
 
     def _build_drawing_actions(self) -> None:
         """Build the drawing actions section."""

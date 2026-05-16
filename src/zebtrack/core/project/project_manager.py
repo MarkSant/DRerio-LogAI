@@ -1182,6 +1182,7 @@ class ProjectManager:
         group: str | None = None,
         day: str | None = None,
         subject_id: str | None = None,
+        polygon_source: str | None = None,
     ) -> bool:
         """Update project metadata with analysis artifacts."""
         return self.output_registration_manager.register_processing_outputs(
@@ -1200,6 +1201,7 @@ class ProjectManager:
             group=group,
             day=day,
             subject_id=subject_id,
+            polygon_source=polygon_source,
         )
 
     # =========================================================================

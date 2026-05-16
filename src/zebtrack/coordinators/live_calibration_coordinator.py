@@ -115,8 +115,27 @@ class LiveCalibrationCoordinator(BaseCoordinator):
         self.camera: Camera | None = None
         self._pending_zone_confirmation = False
         self._session_count = 0
+        # Source of the polygon for the pending session: "auto" (PreviewPolygonDialog
+        # approved an auto-detected polygon) or "manual" (user drew it / fell back to
+        # manual mode). Read by LiveCameraSessionCoordinator when publishing
+        # LIVE_RECORDING_PENDING so the UI / completion metadata can show provenance.
+        self._last_polygon_source: str | None = None
+
+        # Detector cached during run_live_calibration so the PreviewPolygonDialog
+        # retry callback can re-run inference without reloading model weights.
+        self._calibration_detector: AquariumDetector | None = None
+        self._calibration_initial_confidence: float = 0.05
 
         log.info("live_calibration_coordinator.initialized")
+
+    @property
+    def last_polygon_source(self) -> str | None:
+        """Source of the most recently confirmed polygon ("auto" / "manual" / None)."""
+        return self._last_polygon_source
+
+    def clear_last_polygon_source(self) -> None:
+        """Reset the polygon-source tag (e.g. after a session is registered)."""
+        self._last_polygon_source = None
 
     # =============================================================================
     # ZONE VALIDATION
@@ -195,7 +214,8 @@ class LiveCalibrationCoordinator(BaseCoordinator):
                 success = self.run_live_calibration(stabilization_frames=30, show_preview=True)
 
                 if success:
-                    # Detection successful and approved
+                    # Detection successful and approved → tag pending polygon as "auto"
+                    self._last_polygon_source = "auto"
                     # Navigate to zone tab to allow adjustments/ROIs
                     if self.event_bus:
                         self.event_bus.publish(
@@ -240,9 +260,10 @@ class LiveCalibrationCoordinator(BaseCoordinator):
                     # Fallback to manual
                     method = "manual"
 
-            # 3b. MANUAL DRAWING (or fallback from auto)
+            # 3b. MANUAL DRAWING (or fallback from auto) → tag as manual
             if method == "manual":
                 log.info("live_calibration_coordinator.zones.manual_mode")
+                self._last_polygon_source = "manual"
 
                 # Capture reference frame
                 if not self._capture_reference_frame_for_zones():
@@ -460,39 +481,25 @@ class LiveCalibrationCoordinator(BaseCoordinator):
 
         detector = AquariumDetector(model_path=model_path, mode=method)
 
+        # Resolve initial confidence from settings (DI) — same value seeds the
+        # PreviewPolygonDialog slider so the user can adjust + retry live.
         try:
-            # Process frames directly (AquariumDetector.detect_aquariums expects video_path)
-            # So we'll process frames manually here
-            good_polygons = []
-            frame_height, frame_width = frames[0].shape[:2] if frames else (0, 0)
+            initial_confidence = float(
+                getattr(self.settings.yolo_model, "confidence_threshold", 0.05) or 0.05
+            )
+        except AttributeError:
+            initial_confidence = 0.05
 
-            for _, frame in enumerate(frames):
-                # Detect aquarium (class 0) with low confidence threshold
-                results = detector.model.predict(frame, verbose=False, classes=[0], conf=0.05)
+        # Cache references for retry callback (re-captures + re-detects with new conf).
+        self._calibration_detector = detector
+        self._calibration_initial_confidence = initial_confidence
 
-                if results and results[0].boxes and len(results[0].boxes) > 0:
-                    # Get the largest detection box
-                    boxes = results[0].boxes.xyxy.cpu().numpy()  # type: ignore[union-attr]
-                    areas = [(x2 - x1) * (y2 - y1) for x1, y1, x2, y2 in boxes]
-                    max_idx = areas.index(max(areas)) if areas else 0
-                    x1, y1, x2, y2 = boxes[max_idx]
-
-                    # Check area ratio
-                    box_area = (x2 - x1) * (y2 - y1)
-                    frame_area = frame_width * frame_height
-                    area_ratio = box_area / frame_area if frame_area > 0 else 0
-
-                    if 0.1 <= area_ratio <= 0.98:
-                        # Convert box to polygon (rectangle corners)
-                        polygon = [
-                            [int(x1), int(y1)],
-                            [int(x2), int(y1)],
-                            [int(x2), int(y2)],
-                            [int(x1), int(y2)],
-                        ]
-                        good_polygons.append(polygon)
-
-            detected_polygons = good_polygons[:1] if good_polygons else []
+        try:
+            detected_polygons = self._detect_polygon_on_burst(
+                detector=detector,
+                frames=frames,
+                confidence=initial_confidence,
+            )
 
         except Exception as e:  # except Exception justified: ML inference heterogeneous errors
             log.error(
@@ -623,14 +630,21 @@ class LiveCalibrationCoordinator(BaseCoordinator):
                     polygon=[
                         [float(p[0]), float(p[1])] for p in polygon
                     ],  # Convert to float for dialog
+                    initial_confidence=initial_confidence,
+                    on_retry=self._retry_aquarium_detection,
                 )
 
                 result = dialog.show()
                 if result:
                     approved = result.get("approved", False)
                     if approved:
-                        # Use polygon from dialog (in case user wants adjustments in future)
+                        # Use polygon (and possibly frame) returned by dialog —
+                        # may differ from the original if user adjusted the slider
+                        # and retried before approving.
                         polygon = result.get("polygon", polygon)
+                        retried_frame = result.get("frame")
+                        if retried_frame is not None:
+                            frames[-1] = retried_frame
 
                 if not approved:
                     log.info("live_calibration_coordinator.live_calibration.user_rejected")
@@ -839,6 +853,137 @@ class LiveCalibrationCoordinator(BaseCoordinator):
         log.info(
             "live_calibration_coordinator.session_count.incremented", count=self._session_count
         )
+
+    def _detect_polygon_on_burst(
+        self,
+        *,
+        detector: AquariumDetector,
+        frames: list[Any],
+        confidence: float,
+    ) -> list[Any]:
+        """Run aquarium detection over a captured frame burst.
+
+        Returns a one-element list (compatible with the existing call sites)
+        containing the largest valid polygon, or ``[]`` if none meet the
+        area-ratio + confidence gates.
+
+        Args:
+            detector: Already-initialized ``AquariumDetector``.
+            frames: Captured frames from the live camera.
+            confidence: YOLO ``conf`` value to use for this pass.
+        """
+        if not frames:
+            return []
+
+        good_polygons: list[list[list[int]]] = []
+        frame_height, frame_width = frames[0].shape[:2]
+        clamped_conf = max(0.01, min(0.95, float(confidence)))
+
+        for frame in frames:
+            try:
+                results = detector.model.predict(
+                    frame, verbose=False, classes=[0], conf=clamped_conf
+                )
+            # except Exception justified: Ultralytics predict can raise heterogeneous
+            # errors when model/weights/CUDA state is inconsistent — log and try next frame.
+            except Exception as exc:
+                log.warning(
+                    "live_calibration_coordinator.burst_detect.predict_failed",
+                    error=str(exc),
+                )
+                continue
+
+            if not results or not results[0].boxes or len(results[0].boxes) == 0:
+                continue
+
+            boxes = results[0].boxes.xyxy.cpu().numpy()
+            areas = [(x2 - x1) * (y2 - y1) for x1, y1, x2, y2 in boxes]
+            if not areas:
+                continue
+
+            max_idx = areas.index(max(areas))
+            x1, y1, x2, y2 = boxes[max_idx]
+            box_area = (x2 - x1) * (y2 - y1)
+            frame_area = frame_width * frame_height
+            area_ratio = (box_area / frame_area) if frame_area > 0 else 0
+
+            if 0.1 <= area_ratio <= 0.98:
+                good_polygons.append(
+                    [
+                        [int(x1), int(y1)],
+                        [int(x2), int(y1)],
+                        [int(x2), int(y2)],
+                        [int(x1), int(y2)],
+                    ]
+                )
+
+        log.info(
+            "live_calibration_coordinator.burst_detect.summary",
+            confidence=clamped_conf,
+            frames_analyzed=len(frames),
+            polygons_found=len(good_polygons),
+        )
+
+        return good_polygons[:1] if good_polygons else []
+
+    def _retry_aquarium_detection(self, confidence: float) -> tuple[Any, list[list[float]]] | None:
+        """Retry aquarium auto-detection with a user-chosen confidence threshold.
+
+        Invoked by the PreviewPolygonDialog "🔁 Tentar novamente" button. Captures
+        a small frame burst from the live camera and runs detection again with the
+        supplied confidence. Pure compute — must NOT touch UI; the dialog owns
+        rendering.
+
+        Returns:
+            ``(frame, polygon)`` if detection succeeds, otherwise ``None``.
+        """
+        if self.camera is None or self._calibration_detector is None:
+            log.warning(
+                "live_calibration_coordinator.retry.no_camera_or_detector",
+                has_camera=self.camera is not None,
+                has_detector=self._calibration_detector is not None,
+            )
+            return None
+
+        import time as _time
+
+        frames: list[Any] = []
+        for _ in range(5):
+            try:
+                ret, frame = self.camera.get_frame()
+            except (OSError, RuntimeError) as exc:
+                log.warning(
+                    "live_calibration_coordinator.retry.frame_capture_error",
+                    error=str(exc),
+                )
+                return None
+            if ret and frame is not None:
+                frames.append(frame)
+            _time.sleep(0.05)
+
+        if not frames:
+            log.warning("live_calibration_coordinator.retry.no_frames")
+            return None
+
+        detected = self._detect_polygon_on_burst(
+            detector=self._calibration_detector,
+            frames=frames,
+            confidence=confidence,
+        )
+        if not detected:
+            log.info(
+                "live_calibration_coordinator.retry.no_polygon",
+                confidence=confidence,
+            )
+            return None
+
+        polygon = [[float(p[0]), float(p[1])] for p in detected[0]]
+        log.info(
+            "live_calibration_coordinator.retry.success",
+            confidence=confidence,
+            polygon_points=len(polygon),
+        )
+        return (frames[-1], polygon)
 
     def _wait_for_zone_confirmation(self) -> bool:
         """Wait for user to conclude zone definition."""

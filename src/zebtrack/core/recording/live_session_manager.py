@@ -200,6 +200,8 @@ class LiveSessionManagerMixin:
         animals_per_aquarium: int = 1,
         analysis_config: dict | None = None,
         use_external_preview: bool = False,
+        session_folder_name: Path | str | None = None,
+        zones_validated: bool = False,
     ) -> bool:
         """Start a live camera analysis session.
 
@@ -296,19 +298,27 @@ class LiveSessionManagerMixin:
             self._actual_width = self.camera.actual_width
             self._actual_height = self.camera.actual_height
 
-        # Create output directory
+        # Create output directory.
+        # When the coordinator passes ``session_folder_name`` (live project
+        # sessions anchored inside Grupo_X/Dia_Y/Sujeito_Z/), we use it
+        # verbatim. Otherwise we fall back to the legacy
+        # ``{experiment_id}_{timestamp}`` pattern under
+        # ``live_analysis_sessions/``.
         if output_base_dir:
             output_base = Path(output_base_dir)
         else:
             output_base = Path("live_analysis_sessions")
 
-        output_base.mkdir(exist_ok=True)
-
-        # v2.3.2: Cleanup existing session folders for same experiment_id
-        self._cleanup_existing_session_folders(output_base, experiment_id)
+        output_base.mkdir(parents=True, exist_ok=True)
 
         timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-        folder_name = f"{experiment_id}_{timestamp}"
+        if session_folder_name:
+            folder_name = str(session_folder_name)
+        else:
+            # v2.3.2: Cleanup existing session folders for same experiment_id
+            # (only meaningful for the legacy flat layout)
+            self._cleanup_existing_session_folders(output_base, experiment_id)
+            folder_name = f"{experiment_id}_{timestamp}"
         self._current_base_name = folder_name
         output_dir = output_base / folder_name
         output_dir.mkdir(parents=True, exist_ok=True)
@@ -355,7 +365,27 @@ class LiveSessionManagerMixin:
             has_project=bool(self.project_manager.project_path) if self.project_manager else False,
         )
 
-        if not zone_data or not zone_data.polygon:
+        # When the caller (typically LiveCameraSessionCoordinator) explicitly
+        # promises that zones were validated through the calibration UI, never
+        # fall back to the legacy in-service auto-detection phase. This avoids
+        # double detection — the coordinator already ran ``run_live_calibration``
+        # (auto) or got a manual polygon from the canvas before reaching here.
+        # Without ``zones_validated``, we still honor the legacy behavior so
+        # tests and ad-hoc callers that skip ``ensure_zones_before_recording``
+        # keep their previous semantics.
+        skip_detection_phase = bool(zones_validated)
+        if skip_detection_phase and (not zone_data or not zone_data.polygon):
+            # Defensive: caller promised zones were validated but nothing is
+            # in project_data. Refuse to proceed so we don't enter the
+            # predefined-arena branch with an empty ZoneData.
+            log.error(
+                "live_camera_service.zones_validated_but_missing",
+                has_zone_data=zone_data is not None,
+                has_polygon=bool(zone_data and zone_data.polygon),
+            )
+            return False
+
+        if not skip_detection_phase and (not zone_data or not zone_data.polygon):
             self._aquarium_detection_phase = True
             self._aquarium_detection_frames = 0
             self._detected_aquarium_bboxes = []

@@ -2,11 +2,16 @@
 
 This dialog displays a preview of the auto-detected aquarium polygon
 overlaid on a camera frame, allowing user to approve or reject the detection.
+
+The dialog also exposes a confidence threshold slider and a "Retry" button.
+When ``on_retry`` is supplied the user can run a fresh auto-detection from
+the live camera with a different threshold without closing the dialog.
 """
 
 from __future__ import annotations
 
 import tkinter as tk
+from collections.abc import Callable
 from tkinter import ttk
 from typing import TYPE_CHECKING, Any
 
@@ -18,28 +23,61 @@ if TYPE_CHECKING:
     from tkinter import Misc
 
 
+RetryResult = tuple[np.ndarray, list[list[float]]] | None
+RetryCallback = Callable[[float], RetryResult]
+
+
 class PreviewPolygonDialog:
     """Dialog for previewing and approving auto-detected aquarium polygon.
 
-    Shows camera frame with detected polygon overlay. User can approve
-    to use the polygon or reject to manually draw.
+    Shows camera frame with detected polygon overlay. User can:
+    - Approve the detection,
+    - Adjust the confidence threshold via a slider and retry detection live,
+    - Reject (fall back to manual drawing).
 
     Returns:
-        dict with 'approved' (bool) and 'polygon' (list) keys
+        dict with ``approved`` (bool), ``polygon`` (list), ``confidence``
+        (float — last slider value) and ``frame`` (np.ndarray | None — latest
+        frame used during retry, or None when no retry was triggered).
     """
 
-    def __init__(self, parent: Misc, frame: np.ndarray, polygon: list[list[float]]):
+    def __init__(
+        self,
+        parent: Misc,
+        frame: np.ndarray,
+        polygon: list[list[float]],
+        *,
+        initial_confidence: float = 0.05,
+        confidence_min: float = 0.01,
+        confidence_max: float = 0.95,
+        on_retry: RetryCallback | None = None,
+    ):
         """Initialize the preview polygon dialog.
 
         Args:
-            parent: Parent Tkinter widget (typically root window)
-            frame: Camera frame (numpy array) to display
-            polygon: Detected polygon vertices [[x1, y1], [x2, y2], ...]
+            parent: Parent Tkinter widget (typically root window).
+            frame: Camera frame (numpy array) to display.
+            polygon: Detected polygon vertices ``[[x1, y1], ...]``.
+            initial_confidence: Initial slider value (typically the project
+                default ``settings.yolo_model.confidence_threshold``).
+            confidence_min/confidence_max: Slider bounds. Clamped to ``[0.01, 0.95]``.
+            on_retry: Optional callback invoked when the user clicks "Tentar
+                novamente". Receives the slider's current confidence and returns
+                ``(frame, polygon)`` on success or ``None`` on failure.
         """
         self.parent = parent
         self.frame = frame
         self.polygon = polygon
         self.result: dict[str, Any] | None = None
+
+        # Clamp slider bounds to the AquariumDetector's accepted range so the
+        # downstream call never receives values outside [0.01, 0.95].
+        self._conf_min = max(0.01, min(0.95, float(confidence_min)))
+        self._conf_max = max(self._conf_min, min(0.95, float(confidence_max)))
+        clamped_initial = max(self._conf_min, min(self._conf_max, float(initial_confidence)))
+
+        self._on_retry = on_retry
+        self._retried_frame: np.ndarray | None = None
 
         # Create dialog window
         self.dialog = tk.Toplevel(parent)
@@ -47,6 +85,16 @@ class PreviewPolygonDialog:
         self.dialog.resizable(False, False)
         self.dialog.transient(parent)  # type: ignore[call-overload]
         self.dialog.grab_set()
+
+        # Tk variables (must exist before _create_widgets builds the slider).
+        self._conf_var = tk.DoubleVar(value=clamped_initial)
+        self._conf_text_var = tk.StringVar(value=f"{clamped_initial:.2f}")
+        self._status_var = tk.StringVar(value="")
+
+        # UI references populated by _create_widgets
+        self.photo: ImageTk.PhotoImage | None = None
+        self._canvas: tk.Canvas | None = None
+        self._retry_button: ttk.Button | None = None
 
         # Build UI
         self._create_widgets()
@@ -65,11 +113,9 @@ class PreviewPolygonDialog:
 
     def _create_widgets(self):
         """Create dialog widgets."""
-        # Main container
         main_frame = ttk.Frame(self.dialog, padding=20)
         main_frame.pack(fill=tk.BOTH, expand=True)
 
-        # Title
         title_label = ttk.Label(
             main_frame, text="Aquário Detectado - Confirmar?", font=("Segoe UI", 12, "bold")
         )
@@ -96,7 +142,11 @@ class PreviewPolygonDialog:
             text="Deseja usar este polígono ou ajustar manualmente?",
             font=("Segoe UI", 9),
         )
-        question_label.pack(pady=(5, 15))
+        question_label.pack(pady=(5, 10))
+
+        # Confidence threshold panel (only shown when retry is supported).
+        if self._on_retry is not None:
+            self._create_confidence_panel(main_frame)
 
         # Buttons
         button_frame = ttk.Frame(main_frame)
@@ -116,85 +166,163 @@ class PreviewPolygonDialog:
         self.dialog.bind("<Return>", lambda e: self._on_approve())
         self.dialog.bind("<Escape>", lambda e: self._on_reject())
 
+    def _create_confidence_panel(self, parent: ttk.Frame) -> None:
+        """Build the confidence threshold slider + retry button + status."""
+        panel = ttk.LabelFrame(parent, text="Limiar de confiança da auto-detecção", padding=10)
+        panel.pack(fill=tk.X, pady=(0, 10))
+
+        slider_row = ttk.Frame(panel)
+        slider_row.pack(fill=tk.X)
+
+        ttk.Label(slider_row, text=f"{self._conf_min:.2f}").pack(side=tk.LEFT)
+
+        scale = ttk.Scale(
+            slider_row,
+            from_=self._conf_min,
+            to=self._conf_max,
+            orient="horizontal",
+            variable=self._conf_var,
+            command=self._on_slider_changed,
+        )
+        scale.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=8)
+
+        ttk.Label(slider_row, text=f"{self._conf_max:.2f}").pack(side=tk.LEFT)
+
+        value_label = ttk.Label(
+            panel,
+            textvariable=self._conf_text_var,
+            font=("Segoe UI", 10, "bold"),
+        )
+        value_label.pack(pady=(4, 0))
+
+        self._retry_button = ttk.Button(
+            panel,
+            text="🔁 Tentar novamente com este limiar",
+            command=self._on_retry_click,
+        )
+        self._retry_button.pack(pady=(6, 2))
+
+        status_label = ttk.Label(
+            panel,
+            textvariable=self._status_var,
+            font=("Segoe UI", 9, "italic"),
+            foreground="#555",
+        )
+        status_label.pack(pady=(2, 0))
+
+    def _on_slider_changed(self, raw_value: str) -> None:
+        """Mirror the slider value into a numeric label (no detection trigger)."""
+        try:
+            value = float(raw_value)
+        except (TypeError, ValueError):
+            return
+        self._conf_text_var.set(f"{value:.2f}")
+
+    def _on_retry_click(self) -> None:
+        """Re-run aquarium auto-detection with the slider's confidence value."""
+        if self._on_retry is None:
+            return
+
+        confidence = float(self._conf_var.get())
+        self._status_var.set("Detectando…")
+        if self._retry_button is not None:
+            self._retry_button.state(["disabled"])
+        self.dialog.update_idletasks()
+
+        try:
+            outcome = self._on_retry(confidence)
+        # except Exception justified: callback may invoke ML inference; we
+        # must not let it crash the dialog.
+        except Exception as exc:
+            outcome = None
+            self._status_var.set(f"Falha na detecção: {exc!s}")
+        else:
+            if outcome is None:
+                self._status_var.set(
+                    "Nenhum aquário encontrado — ajuste o limiar e tente novamente."
+                )
+            else:
+                new_frame, new_polygon = outcome
+                self.frame = new_frame
+                self._retried_frame = new_frame
+                self.polygon = new_polygon
+                self._refresh_canvas()
+                self._status_var.set(f"Aquário re-detectado com limiar {confidence:.2f}")
+
+        if self._retry_button is not None:
+            self._retry_button.state(["!disabled"])
+
     def _create_preview_canvas(self, parent_frame: ttk.Frame):
-        """Create canvas with frame and polygon preview.
+        """Create canvas with frame and polygon preview."""
+        canvas_frame = ttk.Frame(parent_frame, relief=tk.SUNKEN, borderwidth=2)
+        canvas_frame.pack(pady=(0, 10))
 
-        Args:
-            parent_frame: Parent frame to add canvas to
-        """
-        # Draw polygon on frame
+        # Initial draw — sizes the canvas to the frame.
+        pil_image = self._build_preview_image()
+        self.photo = ImageTk.PhotoImage(pil_image)
+
+        canvas = tk.Canvas(
+            canvas_frame,
+            width=pil_image.width,
+            height=pil_image.height,
+            highlightthickness=0,
+        )
+        canvas.pack()
+        canvas.create_image(0, 0, anchor=tk.NW, image=self.photo, tags=("preview_image",))
+        self._canvas = canvas
+
+    def _build_preview_image(self) -> Image.Image:
+        """Render the current frame + polygon into a sized PIL image."""
         preview_frame = self._draw_polygon_on_frame()
-
-        # Convert to PIL Image
         preview_frame_rgb = cv2.cvtColor(preview_frame, cv2.COLOR_BGR2RGB)
         pil_image = Image.fromarray(preview_frame_rgb)
 
-        # Resize if too large (max 800x600)
         max_width, max_height = 800, 600
         width, height = pil_image.size
-
         if width > max_width or height > max_height:
             ratio = min(max_width / width, max_height / height)
             new_width = int(width * ratio)
             new_height = int(height * ratio)
             pil_image = pil_image.resize((new_width, new_height), Image.LANCZOS)  # type: ignore[attr-defined]
+        return pil_image
 
-        # Convert to PhotoImage
+    def _refresh_canvas(self) -> None:
+        """Replace the canvas image after a successful retry."""
+        if self._canvas is None:
+            return
+        pil_image = self._build_preview_image()
+        # Keep a reference to prevent GC.
         self.photo = ImageTk.PhotoImage(pil_image)
-
-        # Create canvas
-        canvas_frame = ttk.Frame(parent_frame, relief=tk.SUNKEN, borderwidth=2)
-        canvas_frame.pack(pady=(0, 10))
-
-        canvas = tk.Canvas(
-            canvas_frame, width=pil_image.width, height=pil_image.height, highlightthickness=0
-        )
-        canvas.pack()
-
-        # Display image
-        canvas.create_image(0, 0, anchor=tk.NW, image=self.photo)
+        self._canvas.config(width=pil_image.width, height=pil_image.height)
+        self._canvas.delete("preview_image")
+        self._canvas.create_image(0, 0, anchor=tk.NW, image=self.photo, tags=("preview_image",))
 
     def _draw_polygon_on_frame(self) -> np.ndarray:
-        """Draw polygon overlay on frame.
-
-        Returns:
-            Frame with polygon drawn
-        """
-        # Make copy of frame
+        """Draw polygon overlay on frame."""
         frame_copy = self.frame.copy()
-
-        # Convert polygon to integer coordinates
         polygon_np = np.array(self.polygon, dtype=np.int32)
 
-        # Draw polygon outline (thick green line)
         cv2.polylines(
             frame_copy,
             [polygon_np],
             isClosed=True,
-            color=(0, 255, 0),  # Green in BGR
+            color=(0, 255, 0),
             thickness=3,
         )
 
-        # Draw semi-transparent fill
         overlay = frame_copy.copy()
-        cv2.fillPoly(
-            overlay,
-            [polygon_np],
-            color=(0, 255, 0),  # Green
-        )
+        cv2.fillPoly(overlay, [polygon_np], color=(0, 255, 0))
         cv2.addWeighted(overlay, 0.2, frame_copy, 0.8, 0, frame_copy)
 
-        # Draw vertices (small circles)
         for point in polygon_np:
             cv2.circle(
                 frame_copy,
                 tuple(point),
                 radius=5,
-                color=(0, 255, 255),  # Yellow in BGR
-                thickness=-1,  # Filled
+                color=(0, 255, 255),
+                thickness=-1,
             )
 
-        # Add label
         cv2.putText(
             frame_copy,
             "Aquario Detectado",
@@ -210,20 +338,25 @@ class PreviewPolygonDialog:
 
     def _on_approve(self):
         """Handle approve button click."""
-        self.result = {"approved": True, "polygon": self.polygon}
+        self.result = {
+            "approved": True,
+            "polygon": self.polygon,
+            "confidence": float(self._conf_var.get()),
+            "frame": self._retried_frame,
+        }
         self.dialog.destroy()
 
     def _on_reject(self):
         """Handle reject button click."""
-        self.result = {"approved": False, "polygon": None}
+        self.result = {
+            "approved": False,
+            "polygon": None,
+            "confidence": float(self._conf_var.get()),
+            "frame": None,
+        }
         self.dialog.destroy()
 
     def show(self) -> dict[str, Any] | None:
-        """Show the dialog and wait for user response.
-
-        Returns:
-            dict with 'approved' (bool) and 'polygon' (list or None) keys,
-            or None if dialog closed without action
-        """
+        """Show the dialog and wait for user response."""
         self.dialog.wait_window()
         return self.result
