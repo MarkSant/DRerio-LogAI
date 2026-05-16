@@ -138,6 +138,13 @@ class LiveConfigData(BaseModel):
     external_trigger_mode: bool = Field(
         default=False, description="Wait for external trigger signal from Arduino"
     )
+    preserve_real_aquarium_shape: bool = Field(
+        default=False,
+        description=(
+            "Keep the segmentation mask polygon (N vertices) instead of collapsing "
+            "to a 4-corner bounding box during live aquarium auto-detection."
+        ),
+    )
 
     @field_validator("external_trigger_mode")
     @classmethod

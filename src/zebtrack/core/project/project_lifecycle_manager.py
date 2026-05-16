@@ -325,6 +325,7 @@ class ProjectLifecycleManager:
         use_arduino: bool = False,
         arduino_port: str = "",
         external_trigger_mode: bool = False,
+        preserve_real_aquarium_shape: bool = False,
         experiment_days: int | None = None,
         subjects_per_group: int | None = None,
         num_groups: int | None = None,
@@ -433,6 +434,7 @@ class ProjectLifecycleManager:
             "use_arduino": safe_use_arduino,
             "arduino_port": safe_arduino_port,
             "external_trigger_mode": safe_external_trigger,
+            "preserve_real_aquarium_shape": bool(preserve_real_aquarium_shape),
             "tracking": {
                 "use_single_subject_tracker": tracker_pref,
             },
@@ -650,6 +652,11 @@ class ProjectLifecycleManager:
             loaded_data["camera_friendly_name"] = ""
             migration_applied = True
             migrated_fields.append("camera_friendly_name")
+
+        if "preserve_real_aquarium_shape" not in loaded_data:
+            loaded_data["preserve_real_aquarium_shape"] = False
+            migration_applied = True
+            migrated_fields.append("preserve_real_aquarium_shape")
 
         if "openvino_device" not in loaded_data or loaded_data["openvino_device"] is None:
             loaded_data["openvino_device"] = "AUTO"

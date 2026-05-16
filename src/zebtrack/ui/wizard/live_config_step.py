@@ -96,6 +96,8 @@ class LiveConfigStep(WizardStep):
         # Processing intervals
         self.analysis_interval_var = IntVar(value=10)
         self.display_interval_var = IntVar(value=10)
+        # Aquarium shape preservation (segmentation models only)
+        self.preserve_real_aquarium_shape_var = BooleanVar(value=False)
 
         # Available cameras and Arduino ports (populated on show)
         self.available_cameras: list[dict[str, Any]] = []
@@ -393,6 +395,26 @@ class LiveConfigStep(WizardStep):
                 "Valores maiores: interface mais fluida, menos detalhes visuais.\n"
                 "Valores menores: mais detalhes visuais, possível lentidão.\n\n"
                 "Padrão: 10 frames (recomendado para maioria dos casos)"
+            ),
+        )
+
+        # Preserve real aquarium shape (segmentation only)
+        preserve_shape_cb = Checkbutton(
+            advanced_frame,
+            text="Preservar formato real do aquário (segmentação)",
+            variable=self.preserve_real_aquarium_shape_var,
+        )
+        preserve_shape_cb.pack(anchor="w", pady=(8, 4))
+        ToolTip(
+            preserve_shape_cb,
+            (
+                "Preservar formato real do aquário\n\n"
+                "Quando habilitado, mantém o polígono real (N vértices) detectado "
+                "pela máscara de segmentação YOLO, em vez de reduzir o aquário a "
+                "um retângulo de 4 cantos.\n\n"
+                "Recomendado para aquários circulares, hexagonais ou de formato "
+                "irregular. Requer um modelo de segmentação (seg) — para modelos "
+                "de detecção (det) esta opção é ignorada."
             ),
         )
 
@@ -867,6 +889,9 @@ class LiveConfigStep(WizardStep):
                 - recording_duration_s (float)
                 - use_countdown (bool)
                 - countdown_duration_s (int)
+                - analysis_interval_frames (int)
+                - display_interval_frames (int)
+                - preserve_real_aquarium_shape (bool)
         """
         # Get camera index from selected camera name
         selected_camera = self.camera_selection_var.get()
@@ -892,6 +917,7 @@ class LiveConfigStep(WizardStep):
             "countdown_duration_s": self.countdown_duration_var.get(),
             "analysis_interval_frames": self.analysis_interval_var.get(),
             "display_interval_frames": self.display_interval_var.get(),
+            "preserve_real_aquarium_shape": self.preserve_real_aquarium_shape_var.get(),
             # v2.2.0: Include selected mode for coordinator integration
             "selected_live_mode": self.wizard_data.get("selected_live_mode"),
         }
@@ -975,6 +1001,9 @@ class LiveConfigStep(WizardStep):
 
         if "display_interval_frames" in data:
             self.display_interval_var.set(data["display_interval_frames"])
+
+        if "preserve_real_aquarium_shape" in data:
+            self.preserve_real_aquarium_shape_var.set(bool(data["preserve_real_aquarium_shape"]))
 
     def _restore_batch_metadata(self, data: dict):
         """Restore experimental design metadata."""

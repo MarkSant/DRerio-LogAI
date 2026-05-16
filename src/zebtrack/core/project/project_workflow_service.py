@@ -177,6 +177,7 @@ class ProjectWorkflowService:
             "use_arduino",
             "arduino_port",
             "external_trigger_mode",
+            "preserve_real_aquarium_shape",
             "use_single_subject_tracker",
             # Live project params
             "experiment_days",

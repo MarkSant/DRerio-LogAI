@@ -125,6 +125,9 @@ class LiveCalibrationCoordinator(BaseCoordinator):
         # retry callback can re-run inference without reloading model weights.
         self._calibration_detector: AquariumDetector | None = None
         self._calibration_initial_confidence: float = 0.05
+        # Cached at run_live_calibration time so the retry callback uses the
+        # same project flag without re-reading project_data.
+        self._calibration_preserve_real_shape: bool = False
 
         log.info("live_calibration_coordinator.initialized")
 
@@ -493,12 +496,15 @@ class LiveCalibrationCoordinator(BaseCoordinator):
         # Cache references for retry callback (re-captures + re-detects with new conf).
         self._calibration_detector = detector
         self._calibration_initial_confidence = initial_confidence
+        preserve_real_shape = bool(project_data.get("preserve_real_aquarium_shape", False))
+        self._calibration_preserve_real_shape = preserve_real_shape
 
         try:
             detected_polygons = self._detect_polygon_on_burst(
                 detector=detector,
                 frames=frames,
                 confidence=initial_confidence,
+                preserve_real_shape=preserve_real_shape,
             )
 
         except Exception as e:  # except Exception justified: ML inference heterogeneous errors
@@ -860,6 +866,7 @@ class LiveCalibrationCoordinator(BaseCoordinator):
         detector: AquariumDetector,
         frames: list[Any],
         confidence: float,
+        preserve_real_shape: bool = False,
     ) -> list[Any]:
         """Run aquarium detection over a captured frame burst.
 
@@ -867,10 +874,17 @@ class LiveCalibrationCoordinator(BaseCoordinator):
         containing the largest valid polygon, or ``[]`` if none meet the
         area-ratio + confidence gates.
 
+        When the underlying YOLO model is a segmentation model (``task == "segment"``)
+        AND ``preserve_real_shape`` is True, the mask polygon (N vertices) is kept;
+        otherwise a 4-corner bounding box approximation is returned. This matches
+        the contract of the pre-recorded pipeline for non-rectangular aquariums.
+
         Args:
             detector: Already-initialized ``AquariumDetector``.
             frames: Captured frames from the live camera.
             confidence: YOLO ``conf`` value to use for this pass.
+            preserve_real_shape: When True and the model is a segmentation model,
+                return the multi-vertex mask polygon instead of a 4-corner bbox.
         """
         if not frames:
             return []
@@ -878,6 +892,8 @@ class LiveCalibrationCoordinator(BaseCoordinator):
         good_polygons: list[list[list[int]]] = []
         frame_height, frame_width = frames[0].shape[:2]
         clamped_conf = max(0.01, min(0.95, float(confidence)))
+        is_seg_model = getattr(getattr(detector, "model", None), "task", "") == "segment"
+        use_masks = preserve_real_shape and is_seg_model
 
         for frame in frames:
             try:
@@ -907,21 +923,42 @@ class LiveCalibrationCoordinator(BaseCoordinator):
             frame_area = frame_width * frame_height
             area_ratio = (box_area / frame_area) if frame_area > 0 else 0
 
-            if 0.1 <= area_ratio <= 0.98:
-                good_polygons.append(
-                    [
-                        [int(x1), int(y1)],
-                        [int(x2), int(y1)],
-                        [int(x2), int(y2)],
-                        [int(x1), int(y2)],
-                    ]
-                )
+            if not (0.1 <= area_ratio <= 0.98):
+                continue
+
+            polygon_pts: list[list[int]] | None = None
+
+            if use_masks:
+                masks = getattr(results[0], "masks", None)
+                mask_xy = getattr(masks, "xy", None) if masks is not None else None
+                if mask_xy is not None and len(mask_xy) > max_idx:
+                    raw_polygon = mask_xy[max_idx]
+                    if raw_polygon is not None and len(raw_polygon) >= 3:
+                        polygon_pts = [[int(p[0]), int(p[1])] for p in raw_polygon]
+
+                if polygon_pts is None:
+                    log.warning(
+                        "live_calibration_coordinator.burst_detect.mask_unavailable_fallback",
+                        message="Segmentation requested but mask missing; using bbox fallback.",
+                    )
+
+            if polygon_pts is None:
+                polygon_pts = [
+                    [int(x1), int(y1)],
+                    [int(x2), int(y1)],
+                    [int(x2), int(y2)],
+                    [int(x1), int(y2)],
+                ]
+
+            good_polygons.append(polygon_pts)
 
         log.info(
             "live_calibration_coordinator.burst_detect.summary",
             confidence=clamped_conf,
             frames_analyzed=len(frames),
             polygons_found=len(good_polygons),
+            preserve_real_shape=preserve_real_shape,
+            used_segmentation_masks=use_masks,
         )
 
         return good_polygons[:1] if good_polygons else []
@@ -969,6 +1006,7 @@ class LiveCalibrationCoordinator(BaseCoordinator):
             detector=self._calibration_detector,
             frames=frames,
             confidence=confidence,
+            preserve_real_shape=self._calibration_preserve_real_shape,
         )
         if not detected:
             log.info(
