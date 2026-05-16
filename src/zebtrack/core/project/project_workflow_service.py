@@ -969,10 +969,6 @@ class ProjectWorkflowService:
 
         live_defaults = {
             "selected_live_mode": kwargs.get("selected_live_mode"),
-            "experimental_group": kwargs.get("experimental_group"),
-            "experiment_day": kwargs.get("experiment_day"),
-            "subject_id": kwargs.get("subject_id"),
-            "is_batch_last_session": kwargs.get("is_batch_last_session"),
         }
         live_defaults = {k: v for k, v in live_defaults.items() if v is not None}
         if live_defaults:

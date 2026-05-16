@@ -97,12 +97,6 @@ class LiveConfigStep(WizardStep):
         self.analysis_interval_var = IntVar(value=10)
         self.display_interval_var = IntVar(value=10)
 
-        # Experimental design metadata (v2.3.0)
-        self.experimental_group_var = StringVar(value="")  # "Controle", "Tratado", etc.
-        self.experiment_day_var = StringVar(value="")  # "Dia_1", "Dia_2", etc.
-        self.subject_id_var = StringVar(value="")  # "Peixe_01", "Peixe_02", etc.
-        self.is_batch_last_session_var = BooleanVar(value=False)  # Mark as final session
-
         # Available cameras and Arduino ports (populated on show)
         self.available_cameras: list[dict[str, Any]] = []
         self.available_ports: list[dict[str, Any]] = []
@@ -416,97 +410,6 @@ class LiveConfigStep(WizardStep):
                 "• Análise: 10 frames\n"
                 "• Exibição: 10 frames\n\n"
                 "Estes valores oferecem bom equilíbrio entre desempenho e precisão."
-            ),
-        )
-
-        # === Experimental Design Section (v2.3.0) ===
-        experiment_frame = LabelFrame(
-            self,
-            text="🧪 Design Experimental (Opcional)",
-            padx=15,
-            pady=10,
-            font=("Segoe UI", 10, "bold"),
-        )
-        experiment_frame.pack(fill="x", pady=(15, 0))
-
-        # Group field
-        group_row = Frame(experiment_frame)
-        group_row.pack(fill="x", pady=5)
-        Label(
-            group_row,
-            text="Grupo Experimental:",
-            width=30,
-            anchor="w",
-        ).pack(side="left")
-        group_combo = ttk.Combobox(
-            group_row,
-            textvariable=self.experimental_group_var,
-            values=["Controle", "Tratado", "CBD_10mg", "CBD_20mg", "Outro"],
-            width=25,
-        )
-        group_combo.pack(side="left", padx=(5, 0))
-        ToolTip(
-            group_combo,
-            "Grupo experimental desta sessão (ex: Controle, Tratado, CBD_10mg).",
-        )
-
-        # Day field
-        day_row = Frame(experiment_frame)
-        day_row.pack(fill="x", pady=5)
-        Label(
-            day_row,
-            text="Dia do Experimento:",
-            width=30,
-            anchor="w",
-        ).pack(side="left")
-        day_combo = ttk.Combobox(
-            day_row,
-            textvariable=self.experiment_day_var,
-            values=[f"Dia_{i}" for i in range(1, 15)],
-            width=25,
-        )
-        day_combo.pack(side="left", padx=(5, 0))
-        ToolTip(
-            day_combo,
-            "Dia do experimento (ex: Dia_1, Dia_2, ..., Dia_14).",
-        )
-
-        # Subject ID field
-        subject_row = Frame(experiment_frame)
-        subject_row.pack(fill="x", pady=5)
-        Label(
-            subject_row,
-            text="ID do Sujeito (Cobaia):",
-            width=30,
-            anchor="w",
-        ).pack(side="left")
-        subject_entry = Entry(
-            subject_row,
-            textvariable=self.subject_id_var,
-            width=27,
-        )
-        subject_entry.pack(side="left", padx=(5, 0))
-        ToolTip(
-            subject_entry,
-            "ID único do sujeito experimental (ex: Peixe_01, Animal_A).",
-        )
-
-        # Batch completion checkbox
-        batch_check = Checkbutton(
-            experiment_frame,
-            text="✅ Marcar como última sessão deste lote (gera relatório unificado)",
-            variable=self.is_batch_last_session_var,
-        )
-        batch_check.pack(anchor="w", pady=(10, 5))
-        ToolTip(
-            batch_check,
-            (
-                "Marque esta opção se esta é a última sessão do lote experimental.\n\n"
-                "Ao marcar, o sistema irá:\n"
-                "• Consolidar todas as sessões deste grupo/dia\n"
-                "• Gerar um relatório unificado em Excel\n"
-                "• Incluir estatísticas agregadas e comparações\n\n"
-                "Deixe desmarcado se ainda há mais sessões neste lote."
             ),
         )
 
@@ -991,11 +894,6 @@ class LiveConfigStep(WizardStep):
             "display_interval_frames": self.display_interval_var.get(),
             # v2.2.0: Include selected mode for coordinator integration
             "selected_live_mode": self.wizard_data.get("selected_live_mode"),
-            # v2.3.0: Experimental design metadata for batch tracking
-            "experimental_group": self.experimental_group_var.get() or None,
-            "experiment_day": self.experiment_day_var.get() or None,
-            "subject_id": self.subject_id_var.get() or None,
-            "is_batch_last_session": self.is_batch_last_session_var.get(),
         }
 
     def set_data(self, data: dict):
