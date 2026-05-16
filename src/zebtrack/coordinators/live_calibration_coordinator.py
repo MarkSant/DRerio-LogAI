@@ -217,8 +217,9 @@ class LiveCalibrationCoordinator(BaseCoordinator):
                 success = self.run_live_calibration(stabilization_frames=30, show_preview=True)
 
                 if success:
-                    # Detection successful and approved → tag pending polygon as "auto"
-                    self._last_polygon_source = "auto"
+                    # Polygon source ("auto" vs "manual") is recorded inside
+                    # ``run_live_calibration`` based on whether the user dragged
+                    # a vertex in the PreviewPolygonDialog. No override here.
                     # Navigate to zone tab to allow adjustments/ROIs
                     if self.event_bus:
                         self.event_bus.publish(
@@ -646,11 +647,17 @@ class LiveCalibrationCoordinator(BaseCoordinator):
                     if approved:
                         # Use polygon (and possibly frame) returned by dialog —
                         # may differ from the original if user adjusted the slider
-                        # and retried before approving.
+                        # and retried, OR dragged individual vertices before
+                        # approving.
                         polygon = result.get("polygon", polygon)
                         retried_frame = result.get("frame")
                         if retried_frame is not None:
                             frames[-1] = retried_frame
+                        # Persist polygon provenance for downstream consumers
+                        # (LiveCameraSessionCoordinator publishes it on
+                        # LIVE_RECORDING_PENDING). "manual" iff the user
+                        # dragged at least one vertex in the dialog.
+                        self._last_polygon_source = result.get("source", "auto")
 
                 if not approved:
                     log.info("live_calibration_coordinator.live_calibration.user_rejected")

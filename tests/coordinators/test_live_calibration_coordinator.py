@@ -4,12 +4,18 @@ Covers Etapa 2 (Issue #2): the ``_detect_polygon_on_burst`` helper must
 preserve the real aquarium shape (N-vertex mask polygon) when the underlying
 YOLO model is a segmentation model AND the ``preserve_real_shape`` flag is
 set. Otherwise the historical 4-corner bbox fallback is kept.
+
+Etapa 3 (Issue #3): ``run_live_calibration`` must read the ``source`` field
+returned by ``PreviewPolygonDialog`` and persist it on
+``_last_polygon_source`` so downstream consumers (the live recording
+session coordinator) know whether the polygon was auto-detected or
+manually adjusted by the user before approval.
 """
 
 from __future__ import annotations
 
 from types import SimpleNamespace
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import numpy as np
 import pytest
@@ -219,3 +225,104 @@ def test_detect_polygon_on_burst_rejects_polygon_outside_area_gates(sample_frame
     )
 
     assert polygons == []
+
+
+# ---------------------------------------------------------------------------
+# Etapa 3 — polygon source persistence (auto vs manual)
+# ---------------------------------------------------------------------------
+
+
+def _make_calibration_coordinator_with_camera() -> LiveCalibrationCoordinator:
+    """Build a coordinator wired with mocks that satisfy run_live_calibration."""
+    state_manager = MagicMock()
+    project_manager = MagicMock()
+    project_manager.project_data = {}
+    project_manager.project_path = "/tmp/zebtrack_project"
+    weight_manager = MagicMock()
+    weight_manager.get_weight_path_by_method.return_value = "fake_weights.pt"
+
+    settings_obj = MagicMock()
+    settings_obj.camera = SimpleNamespace(index=0)
+    settings_obj.yolo_model = SimpleNamespace(confidence_threshold=0.05)
+    settings_obj.model_selection = SimpleNamespace(aquarium_method="det")
+
+    coordinator = LiveCalibrationCoordinator(
+        state_manager=state_manager,
+        project_manager=project_manager,
+        detector_service=MagicMock(),
+        weight_manager=weight_manager,
+        settings_obj=settings_obj,
+        event_bus=MagicMock(),
+        root=MagicMock(),
+        view=None,
+    )
+    return coordinator
+
+
+def _run_live_calibration_with_dialog_source(dialog_source: str | None) -> str | None:
+    """Drive ``run_live_calibration`` with a stubbed PreviewPolygonDialog."""
+    coordinator = _make_calibration_coordinator_with_camera()
+
+    # Stub the camera so we get N frames out of it.
+    fake_frame = np.zeros((480, 640, 3), dtype=np.uint8)
+    fake_camera = MagicMock()
+    fake_camera.is_open = True
+    fake_camera.get_frame.return_value = (True, fake_frame)
+
+    # Stub _detect_polygon_on_burst to return a deterministic polygon (skips
+    # the entire YOLO predict path, including model.predict).
+    fake_polygon = [[100, 100], [200, 100], [200, 200], [100, 200]]
+
+    dialog_result: dict = {"approved": True, "polygon": fake_polygon, "frame": None}
+    if dialog_source is not None:
+        dialog_result["source"] = dialog_source
+
+    fake_dialog_instance = MagicMock()
+    fake_dialog_instance.show.return_value = dialog_result
+
+    with (
+        patch.object(
+            LiveCalibrationCoordinator,
+            "_detect_polygon_on_burst",
+            return_value=[fake_polygon],
+        ),
+        patch(
+            "zebtrack.coordinators.live_calibration_coordinator.AquariumDetector"
+        ) as fake_detector_cls,
+        patch(
+            "zebtrack.coordinators.live_calibration_coordinator.Camera",
+            return_value=fake_camera,
+        ),
+        patch(
+            "zebtrack.coordinators.live_calibration_coordinator.cv2.imwrite",
+            return_value=True,
+        ),
+        patch(
+            "zebtrack.ui.dialogs.preview_polygon_dialog.PreviewPolygonDialog",
+            return_value=fake_dialog_instance,
+        ),
+        patch(
+            "zebtrack.coordinators.live_calibration_coordinator.time.sleep",
+            return_value=None,
+        ),
+    ):
+        fake_detector_cls.return_value = MagicMock()
+        success = coordinator.run_live_calibration(stabilization_frames=4, show_preview=True)
+
+    assert success is True, "calibration should succeed when dialog approves"
+    return coordinator.last_polygon_source
+
+
+def test_run_live_calibration_persists_manual_source_from_dialog():
+    """Dialog reporting source='manual' must set last_polygon_source='manual'."""
+    assert _run_live_calibration_with_dialog_source("manual") == "manual"
+
+
+def test_run_live_calibration_persists_auto_source_from_dialog():
+    """Dialog reporting source='auto' must set last_polygon_source='auto'."""
+    assert _run_live_calibration_with_dialog_source("auto") == "auto"
+
+
+def test_run_live_calibration_defaults_to_auto_when_dialog_omits_source():
+    """Legacy dialogs without ``source`` default to 'auto' (back-compat)."""
+    assert _run_live_calibration_with_dialog_source(None) == "auto"

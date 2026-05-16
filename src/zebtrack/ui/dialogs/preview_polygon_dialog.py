@@ -6,6 +6,12 @@ overlaid on a camera frame, allowing user to approve or reject the detection.
 The dialog also exposes a confidence threshold slider and a "Retry" button.
 When ``on_retry`` is supplied the user can run a fresh auto-detection from
 the live camera with a different threshold without closing the dialog.
+
+The polygon vertices are interactive: the user can drag any vertex on the
+canvas to adjust the shape manually. Once any vertex is moved, the dialog
+flips the header badge from "Auto-detectado" to "Editado manualmente" and
+the approval result reports ``source = "manual"`` so downstream consumers
+can record the provenance of the polygon.
 """
 
 from __future__ import annotations
@@ -25,6 +31,16 @@ if TYPE_CHECKING:
 
 RetryResult = tuple[np.ndarray, list[list[float]]] | None
 RetryCallback = Callable[[float], RetryResult]
+
+# Pick radius (canvas pixels) for selecting a vertex with the mouse. Matches
+# the visible vertex marker drawn by ``_draw_polygon_on_frame`` (radius 5 px
+# on the native frame) with extra slack to make picking comfortable.
+_VERTEX_PICK_RADIUS_PX = 14
+
+_BADGE_AUTO_TEXT = "✓ Auto-detectado"
+_BADGE_MANUAL_TEXT = "✎ Editado manualmente"
+_BADGE_AUTO_BG = "#2ecc71"
+_BADGE_MANUAL_BG = "#e67e22"
 
 
 class PreviewPolygonDialog:
@@ -79,6 +95,17 @@ class PreviewPolygonDialog:
         self._on_retry = on_retry
         self._retried_frame: np.ndarray | None = None
 
+        # Manual-edit tracking. Flips to True the first time the user drags a
+        # vertex; reset to False when a successful retry replaces the polygon.
+        self._edited: bool = False
+        self._dragging_vertex_idx: int | None = None
+        # Uniform scale factor applied by ``_build_preview_image`` when the
+        # native frame exceeds the 800x600 preview budget. Mouse coordinates
+        # arrive in canvas (post-scale) space and must be divided by this to
+        # mutate ``self.polygon`` (stored in native frame coords).
+        self._scale: float = 1.0
+        self._vertex_pick_radius_px: int = _VERTEX_PICK_RADIUS_PX
+
         # Create dialog window
         self.dialog = tk.Toplevel(parent)
         self.dialog.title("Aquário Detectado - Confirmar?")
@@ -90,11 +117,13 @@ class PreviewPolygonDialog:
         self._conf_var = tk.DoubleVar(value=clamped_initial)
         self._conf_text_var = tk.StringVar(value=f"{clamped_initial:.2f}")
         self._status_var = tk.StringVar(value="")
+        self._badge_var = tk.StringVar(value=_BADGE_AUTO_TEXT)
 
         # UI references populated by _create_widgets
         self.photo: ImageTk.PhotoImage | None = None
         self._canvas: tk.Canvas | None = None
         self._retry_button: ttk.Button | None = None
+        self._badge_label: tk.Label | None = None
 
         # Build UI
         self._create_widgets()
@@ -119,7 +148,20 @@ class PreviewPolygonDialog:
         title_label = ttk.Label(
             main_frame, text="Aquário Detectado - Confirmar?", font=("Segoe UI", 12, "bold")
         )
-        title_label.pack(pady=(0, 10))
+        title_label.pack(pady=(0, 6))
+
+        # Provenance badge — green "auto" by default, flips to orange "manual"
+        # the first time the user drags a vertex.
+        self._badge_label = tk.Label(
+            main_frame,
+            textvariable=self._badge_var,
+            font=("Segoe UI", 9, "bold"),
+            bg=_BADGE_AUTO_BG,
+            fg="white",
+            padx=10,
+            pady=3,
+        )
+        self._badge_label.pack(pady=(0, 8))
 
         # Preview canvas
         self._create_preview_canvas(main_frame)
@@ -246,6 +288,10 @@ class PreviewPolygonDialog:
                 self.frame = new_frame
                 self._retried_frame = new_frame
                 self.polygon = new_polygon
+                # Successful retry replaces the polygon with a fresh model
+                # output → clear any prior manual-edit flag and reset badge.
+                self._edited = False
+                self._set_badge_auto()
                 self._refresh_canvas()
                 self._status_var.set(f"Aquário re-detectado com limiar {confidence:.2f}")
 
@@ -266,9 +312,16 @@ class PreviewPolygonDialog:
             width=pil_image.width,
             height=pil_image.height,
             highlightthickness=0,
+            cursor="crosshair",
         )
         canvas.pack()
         canvas.create_image(0, 0, anchor=tk.NW, image=self.photo, tags=("preview_image",))
+
+        # Vertex drag handlers — let the user nudge individual polygon vertices.
+        canvas.bind("<Button-1>", self._on_canvas_press)
+        canvas.bind("<B1-Motion>", self._on_canvas_drag)
+        canvas.bind("<ButtonRelease-1>", self._on_canvas_release)
+
         self._canvas = canvas
 
     def _build_preview_image(self) -> Image.Image:
@@ -284,6 +337,9 @@ class PreviewPolygonDialog:
             new_width = int(width * ratio)
             new_height = int(height * ratio)
             pil_image = pil_image.resize((new_width, new_height), Image.LANCZOS)  # type: ignore[attr-defined]
+            self._scale = ratio
+        else:
+            self._scale = 1.0
         return pil_image
 
     def _refresh_canvas(self) -> None:
@@ -343,6 +399,8 @@ class PreviewPolygonDialog:
             "polygon": self.polygon,
             "confidence": float(self._conf_var.get()),
             "frame": self._retried_frame,
+            "source": "manual" if self._edited else "auto",
+            "edited": self._edited,
         }
         self.dialog.destroy()
 
@@ -353,8 +411,85 @@ class PreviewPolygonDialog:
             "polygon": None,
             "confidence": float(self._conf_var.get()),
             "frame": None,
+            # Rejection routes the user to manual drawing — tag accordingly.
+            "source": "manual",
+            "edited": self._edited,
         }
         self.dialog.destroy()
+
+    # ------------------------------------------------------------------
+    # Vertex drag / badge helpers
+    # ------------------------------------------------------------------
+
+    def _on_canvas_press(self, event: Any) -> None:
+        """Pick the polygon vertex nearest the click, if within pick radius."""
+        idx = self._find_nearest_vertex(event.x, event.y)
+        self._dragging_vertex_idx = idx
+
+    def _on_canvas_drag(self, event: Any) -> None:
+        """Move the currently-picked vertex to the cursor (native-frame coords)."""
+        idx = self._dragging_vertex_idx
+        if idx is None or not self.polygon or not 0 <= idx < len(self.polygon):
+            return
+        img_x, img_y = self._canvas_to_image_coords(event.x, event.y)
+        self.polygon[idx] = [float(img_x), float(img_y)]
+        self._mark_edited()
+        self._refresh_canvas()
+
+    def _on_canvas_release(self, _event: Any) -> None:
+        """Drop the picked vertex (drag ends)."""
+        self._dragging_vertex_idx = None
+
+    def _find_nearest_vertex(self, canvas_x: float, canvas_y: float) -> int | None:
+        """Return the index of the polygon vertex within pick radius, or None."""
+        if not self.polygon:
+            return None
+        pick_radius = self._vertex_pick_radius_px
+        best_idx: int | None = None
+        best_dist_sq = float(pick_radius) ** 2
+        for i, point in enumerate(self.polygon):
+            cx, cy = self._image_to_canvas_coords(point[0], point[1])
+            dist_sq = (cx - canvas_x) ** 2 + (cy - canvas_y) ** 2
+            if dist_sq <= best_dist_sq:
+                best_dist_sq = dist_sq
+                best_idx = i
+        return best_idx
+
+    def _canvas_to_image_coords(self, canvas_x: float, canvas_y: float) -> tuple[float, float]:
+        """Convert canvas (post-scale) coords to native frame coords."""
+        scale = self._scale if self._scale else 1.0
+        return (canvas_x / scale, canvas_y / scale)
+
+    def _image_to_canvas_coords(self, image_x: float, image_y: float) -> tuple[float, float]:
+        """Convert native frame coords to canvas (post-scale) coords."""
+        scale = self._scale if self._scale else 1.0
+        return (image_x * scale, image_y * scale)
+
+    def _mark_edited(self) -> None:
+        """Flip provenance to manual on the first vertex drag of this attempt."""
+        if self._edited:
+            return
+        self._edited = True
+        self._set_badge_manual()
+
+    def _set_badge_auto(self) -> None:
+        """Show the green ✓ Auto-detectado badge."""
+        self._badge_var.set(_BADGE_AUTO_TEXT)
+        if self._badge_label is not None:
+            try:
+                self._badge_label.config(bg=_BADGE_AUTO_BG)
+            except tk.TclError:
+                # Badge label was destroyed (e.g. during dialog teardown).
+                pass
+
+    def _set_badge_manual(self) -> None:
+        """Show the orange ✎ Editado manualmente badge."""
+        self._badge_var.set(_BADGE_MANUAL_TEXT)
+        if self._badge_label is not None:
+            try:
+                self._badge_label.config(bg=_BADGE_MANUAL_BG)
+            except tk.TclError:
+                pass
 
     def show(self) -> dict[str, Any] | None:
         """Show the dialog and wait for user response."""
