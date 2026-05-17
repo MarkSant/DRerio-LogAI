@@ -647,7 +647,13 @@ class FrameProcessingMixin:
                         )
 
                     if self.root and not self._preview_window_destroyed:
-                        self.root.after(0, self.preview_window.update_frame, frame, detections)
+                        self.root.after(
+                            0,
+                            self.preview_window.update_frame,
+                            frame,
+                            detections,
+                            self._video_frames_written,
+                        )
 
                 # Integrated Canvas: Emit event for main UI when NOT using external preview
                 if (

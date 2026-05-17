@@ -70,7 +70,26 @@ class LivePreviewWindow:
     def start_timer(self):
         """Start the session timer."""
         self.start_time = time.time()
+        if hasattr(self, "start_time_label"):
+            self.start_time_label.config(text=f"Início: {self._format_clock(self.start_time)}")
         log.info("live_preview.timer_started")
+
+    @staticmethod
+    def _format_clock(ts: float) -> str:
+        """Format an epoch timestamp as HH:MM:SS local time."""
+        return time.strftime("%H:%M:%S", time.localtime(ts))
+
+    @staticmethod
+    def _format_eta(seconds: float) -> str:
+        """Render a remaining-time count as ``Xm Ys`` (or ``Xs`` when <60s)."""
+        seconds = max(0, int(seconds))
+        if seconds < 60:
+            return f"{seconds}s"
+        minutes, secs = divmod(seconds, 60)
+        if minutes < 60:
+            return f"{minutes}m {secs:02d}s"
+        hours, minutes = divmod(minutes, 60)
+        return f"{hours}h {minutes:02d}m {secs:02d}s"
 
     def _create_ui(self):
         """Create the UI components."""
@@ -153,6 +172,38 @@ class LivePreviewWindow:
         self.fps_label = ttk.Label(stats_grid, text="0.0")
         self.fps_label.grid(row=2, column=1, sticky=tk.W, padx=5, pady=2)
 
+        ttk.Label(stats_grid, text="Frames gravados:").grid(
+            row=3, column=0, sticky=tk.W, padx=5, pady=2
+        )
+        self.recorded_frames_label = ttk.Label(stats_grid, text="0")
+        self.recorded_frames_label.grid(row=3, column=1, sticky=tk.W, padx=5, pady=2)
+
+        ttk.Label(stats_grid, text="Início:").grid(row=0, column=2, sticky=tk.W, padx=15, pady=2)
+        self.start_time_label = ttk.Label(stats_grid, text="--:--:--")
+        self.start_time_label.grid(row=0, column=3, sticky=tk.W, padx=5, pady=2)
+
+        ttk.Label(stats_grid, text="Fim:").grid(row=1, column=2, sticky=tk.W, padx=15, pady=2)
+        self.stop_time_label = ttk.Label(stats_grid, text="--:--:--")
+        self.stop_time_label.grid(row=1, column=3, sticky=tk.W, padx=5, pady=2)
+
+        ttk.Label(stats_grid, text="ETA:").grid(row=2, column=2, sticky=tk.W, padx=15, pady=2)
+        self.eta_label = ttk.Label(stats_grid, text="--")
+        self.eta_label.grid(row=2, column=3, sticky=tk.W, padx=5, pady=2)
+
+        # Progress bar (determinate when duration is set; indeterminate otherwise)
+        progress_frame = ttk.Frame(stats_frame)
+        progress_frame.pack(fill=tk.X, pady=(8, 0))
+        progress_mode = "determinate" if self.duration_s > 0 else "indeterminate"
+        self.progress_bar = ttk.Progressbar(
+            progress_frame,
+            length=300,
+            mode=progress_mode,
+            maximum=100.0,
+        )
+        self.progress_bar.pack(fill=tk.X)
+        if progress_mode == "indeterminate":
+            self.progress_bar.start(80)
+
         # Control buttons
         button_frame = ttk.Frame(main_frame)
         button_frame.pack(fill=tk.X)
@@ -193,13 +244,31 @@ class LivePreviewWindow:
                 text=f"Tempo: {elapsed:.1f}s / {self.duration_s:.1f}s (Restante: {remaining:.1f}s)"
             )
 
+            self._update_progress(elapsed, remaining)
+
             # Check if time has expired
-            if remaining <= 0:
+            if self.duration_s > 0 and remaining <= 0:
                 self._auto_stop()
                 return  # Don't schedule another update
 
         # Schedule next update
         self.window.after(100, self._update_timer)
+
+    def _update_progress(self, elapsed: float, remaining: float) -> None:
+        """Refresh the determinate progress bar + ETA label.
+
+        When ``duration_s`` is non-positive, the bar stays in indeterminate
+        mode (started in ``_create_ui``) and ETA shows ``--``.
+        """
+        if not hasattr(self, "progress_bar"):
+            return
+        if self.duration_s > 0:
+            percent = max(0.0, min(100.0, (elapsed / self.duration_s) * 100.0))
+            self.progress_bar.config(value=percent)
+            if hasattr(self, "eta_label"):
+                self.eta_label.config(text=self._format_eta(remaining))
+        elif hasattr(self, "eta_label"):
+            self.eta_label.config(text="--")
 
     def _auto_stop(self):
         """Handle automatic stop when time expires."""
@@ -209,6 +278,7 @@ class LivePreviewWindow:
         elapsed = time.time() - self.start_time if self.start_time is not None else 0.0
         log.info("live_preview.auto_stop", elapsed=elapsed)
         self.is_stopped = True
+        self._freeze_stop_time()
 
         self.status_label.config(text="● Tempo Expirado", foreground="orange")
         self.stop_button.config(state=tk.DISABLED)
@@ -224,6 +294,7 @@ class LivePreviewWindow:
         elapsed = time.time() - self.start_time if self.start_time is not None else 0.0
         log.info("live_preview.manual_stop", elapsed=elapsed)
         self.is_stopped = True
+        self._freeze_stop_time()
 
         self.status_label.config(text="● Parado", foreground="gray")
         self.stop_button.config(state=tk.DISABLED)
@@ -231,22 +302,49 @@ class LivePreviewWindow:
         if self.on_stop_callback:
             self.on_stop_callback()
 
+    def _freeze_stop_time(self) -> None:
+        """Record the stop clock and halt animations that don't make sense post-stop."""
+        if hasattr(self, "stop_time_label"):
+            self.stop_time_label.config(text=self._format_clock(time.time()))
+        if hasattr(self, "progress_bar"):
+            # ``stop()`` is a no-op on determinate bars; safe on both modes.
+            try:
+                self.progress_bar.stop()
+            # except Exception justified: defensive — Progressbar.stop can raise
+            # TclError during shutdown when the widget is being torn down.
+            except Exception:  # pragma: no cover - defensive
+                log.debug("live_preview.progress_stop_failed")
+        if hasattr(self, "eta_label"):
+            self.eta_label.config(text="--")
+
     def _on_window_close(self):
         """Handle window close event."""
         if not self.is_stopped:
             self._on_stop_clicked()
         self.window.destroy()
 
-    def update_frame(self, frame: np.ndarray, detections: list | None = None):
+    def update_frame(
+        self,
+        frame: np.ndarray,
+        detections: list | None = None,
+        recorded_count: int | None = None,
+    ):
         """
         Update the display with a new frame.
 
         Args:
             frame: BGR image frame from OpenCV
             detections: List of detection results (optional)
+            recorded_count: Number of frames flushed to the on-disk MP4 by the
+                Recorder so far (optional). When provided, refreshes the
+                "Frames gravados" label so the operator can distinguish the
+                display rate (FPS shown above) from the persistence rate.
         """
         if self.is_stopped:
             return
+
+        if recorded_count is not None and hasattr(self, "recorded_frames_label"):
+            self.recorded_frames_label.config(text=str(int(recorded_count)))
 
         try:
             import cv2
