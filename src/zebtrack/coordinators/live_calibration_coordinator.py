@@ -288,12 +288,24 @@ class LiveCalibrationCoordinator(BaseCoordinator):
                     # Polygon source ("auto" vs "manual") is recorded inside
                     # ``run_live_calibration`` based on whether the user dragged
                     # a vertex in the PreviewPolygonDialog. No override here.
-                    # Navigate to zone tab to allow adjustments/ROIs
+                    # Navigate to zone tab to allow adjustments/ROIs.
                     if self.event_bus:
                         self.event_bus.publish(
                             Event(
                                 type=UIEvents.UI_SELECT_TAB,
                                 data=payloads.UISelectTabPayload(tab_name="zone_tab"),
+                            )
+                        )
+                        # Refresh the zone tab so the auto-detected polygon and
+                        # toolbar (ROIs / Concluir) materialise. Mirrors the
+                        # manual flow below — without this event the canvas
+                        # renders the reference frame but never replays the
+                        # zone collection ``save_zone_data`` just persisted,
+                        # leaving the user looking at a blank polygon.
+                        self.event_bus.publish(
+                            Event(
+                                type=UIEvents.UI_UPDATE_ZONE_LIST,
+                                data=payloads.EmptyPayload(),
                             )
                         )
                         self.event_bus.publish(

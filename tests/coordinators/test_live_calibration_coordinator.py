@@ -692,3 +692,55 @@ def test_release_calibration_camera_swallows_release_exceptions():
     coordinator._release_calibration_camera(reason="test")
     assert coordinator.camera is None
     flaky_camera._stopped.set.assert_called()
+
+
+# ---------------------------------------------------------------------------
+# Bug fix — auto-detect approval must refresh the zone tab so the polygon
+# renders and the ROI/Concluir buttons enable.
+# ---------------------------------------------------------------------------
+
+
+def test_ensure_zones_auto_success_publishes_zone_list_update(monkeypatch):
+    """After auto-detect succeeds inside ``ensure_zones_before_recording``,
+    the auto branch must publish ``UI_UPDATE_ZONE_LIST`` so the zone tab
+    redraws the polygon and the listbox/button refresh fires. Without this,
+    the canvas only shows the reference frame and the ROI/Concluir buttons
+    stay disabled."""
+    from zebtrack.ui.event_bus_v2 import UIEvents
+
+    coordinator = _make_coordinator()
+    bus = cast(MagicMock, coordinator.event_bus)
+    bus.reset_mock()
+
+    # Force the "no recordings yet, no zones yet" branch so we land in the
+    # ZoneCalibrationDialog path with method=auto.
+    coordinator.project_manager.project_path = "/tmp/zebtrack"
+    coordinator.project_manager.get_project_type.return_value = "live"
+    coordinator.project_manager.get_zone_data.return_value = None
+    monkeypatch.setattr(coordinator, "_has_recorded_before", lambda: False)
+
+    # Stub the modal calibration dialog to return method=auto so we exercise
+    # the auto branch in ensure_zones_before_recording.
+    fake_calib_dialog = MagicMock()
+    fake_calib_dialog.show.return_value = {"method": "auto"}
+    monkeypatch.setattr(
+        "zebtrack.ui.dialogs.zone_calibration_dialog.ZoneCalibrationDialog",
+        MagicMock(return_value=fake_calib_dialog),
+    )
+
+    # Stub run_live_calibration to return True without touching real hardware.
+    monkeypatch.setattr(coordinator, "run_live_calibration", lambda **kwargs: True)
+    # Short-circuit the post-success wait so the test doesn't block.
+    monkeypatch.setattr(coordinator, "_wait_for_zone_confirmation", lambda: False)
+
+    # Need a root for the dialog flow to proceed.
+    coordinator.root = MagicMock()
+
+    coordinator.ensure_zones_before_recording()
+
+    published_types = [getattr(call.args[0], "type", None) for call in bus.publish.call_args_list]
+    assert UIEvents.UI_SELECT_TAB in published_types, "must navigate to zone tab"
+    assert UIEvents.UI_UPDATE_ZONE_LIST in published_types, (
+        "auto-detect approval must trigger zone-list refresh so the polygon "
+        "renders and the ROI/Concluir buttons enable"
+    )

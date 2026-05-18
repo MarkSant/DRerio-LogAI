@@ -661,11 +661,31 @@ class BlockDetailDialog(Toplevel):
             )
 
             if not success:
-                messagebox.showerror(
-                    "Erro",
-                    f"Falha ao iniciar sessão para Animal {subject}\n"
-                    f"Dia {self.day_num} - {self.group_name}",
+                # ``start_live_project_session`` returns False in two distinct
+                # situations: a genuine failure (camera missing, bad project
+                # type) AND the legitimate "deferred awaiting zone confirmation"
+                # case after the auto-detect flow approves a polygon. In the
+                # deferred case the user has been routed to the zone tab and
+                # the LIVE_RECORDING_PENDING banner offers "▶️ Iniciar Gravação"
+                # — surfacing an error popup here would be a lie. Probe the
+                # calibration coordinator's pending flag to differentiate.
+                cal_coord = getattr(self.session_coordinator, "live_calibration_coordinator", None)
+                deferred = bool(
+                    cal_coord is not None and getattr(cal_coord, "pending_zone_confirmation", False)
                 )
+                if deferred:
+                    log.info(
+                        "block_detail.start_session.deferred_for_zones",
+                        subject=subject,
+                        day=self.day_num,
+                        group=self.group_name,
+                    )
+                else:
+                    messagebox.showerror(
+                        "Erro",
+                        f"Falha ao iniciar sessão para Animal {subject}\n"
+                        f"Dia {self.day_num} - {self.group_name}",
+                    )
         except Exception as e:
             log.error("block_detail.start_session.failed", error=str(e), exc_info=True)
             messagebox.showerror("Erro", f"Erro ao iniciar sessão: {e!s}")
