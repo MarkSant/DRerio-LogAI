@@ -517,3 +517,178 @@ def test_run_live_calibration_publishes_display_video_frame_on_success():
     last_payload = display_events[-1].data
     assert isinstance(last_payload, VideoPathPayload)
     assert last_payload.video_path.endswith("live_camera_reference_frame.png")
+
+
+# ---------------------------------------------------------------------------
+# Bug fix — camera leak on cancellation + cancel-vs-failure distinction
+# ---------------------------------------------------------------------------
+
+
+def _run_live_calibration_with_dialog_result(dialog_result: dict | None):
+    """Drive run_live_calibration end-to-end with a stubbed dialog return value.
+
+    Returns ``(coordinator, success, fake_camera)`` so individual tests can
+    assert on coordinator state, the bool return, and whether the camera was
+    released (``self.camera`` set to None + ``_stopped.set()`` called).
+    """
+    coordinator = _make_calibration_coordinator_with_camera()
+
+    fake_frame = np.zeros((480, 640, 3), dtype=np.uint8)
+    fake_camera = MagicMock()
+    fake_camera.is_open = True
+    fake_camera.get_frame.return_value = (True, fake_frame)
+    # Track shutdown signal calls — the helper must always call this BEFORE release.
+    stopped_event = MagicMock()
+    stopped_event.set = MagicMock()
+    fake_camera._stopped = stopped_event
+
+    fake_polygon = [[100, 100], [200, 100], [200, 200], [100, 200]]
+
+    fake_dialog_instance = MagicMock()
+    fake_dialog_instance.show.return_value = dialog_result
+
+    with (
+        patch.object(
+            LiveCalibrationCoordinator,
+            "_detect_polygon_on_burst",
+            return_value=[fake_polygon],
+        ),
+        patch(
+            "zebtrack.coordinators.live_calibration_coordinator.AquariumDetector"
+        ) as fake_detector_cls,
+        patch(
+            "zebtrack.coordinators.live_calibration_coordinator.Camera",
+            return_value=fake_camera,
+        ),
+        patch(
+            "zebtrack.coordinators.live_calibration_coordinator.cv2.imwrite",
+            return_value=True,
+        ),
+        patch(
+            "zebtrack.ui.dialogs.preview_polygon_dialog.PreviewPolygonDialog",
+            return_value=fake_dialog_instance,
+        ),
+        patch(
+            "zebtrack.coordinators.live_calibration_coordinator.time.sleep",
+            return_value=None,
+        ),
+    ):
+        fake_detector_cls.return_value = MagicMock()
+        success = coordinator.run_live_calibration(stabilization_frames=4, show_preview=True)
+
+    return coordinator, success, fake_camera
+
+
+def test_run_live_calibration_releases_camera_when_dialog_rejected():
+    """Bug: closing/cancelling the preview dialog left ``self.camera`` alive,
+    so the Camera background thread kept spamming frame_read.failed and
+    disconnected warnings until app shutdown. The fix releases the camera in
+    the user-rejected branch via ``_release_calibration_camera``.
+    """
+    coordinator, success, fake_camera = _run_live_calibration_with_dialog_result(
+        {"approved": False}
+    )
+
+    assert success is False
+    assert coordinator.camera is None, "rejected dialog must drop self.camera"
+    # Shutdown signal must fire BEFORE release so the background thread does
+    # not race to reconnect against a torn-down device.
+    fake_camera._stopped.set.assert_called()
+    fake_camera.release.assert_called()
+
+
+def test_run_live_calibration_releases_camera_when_dialog_closed_via_X():
+    """Closing the preview window via the X button returns ``None`` (no
+    ``approved`` key set). Must hit the same release path as explicit cancel.
+    """
+    coordinator, success, fake_camera = _run_live_calibration_with_dialog_result(None)
+
+    assert success is False
+    assert coordinator.camera is None
+    fake_camera._stopped.set.assert_called()
+    fake_camera.release.assert_called()
+
+
+def test_run_live_calibration_marks_cancellation_flag_on_reject():
+    """``_last_calibration_cancelled`` must be True after a rejected dialog so
+    the caller can distinguish "user cancelled" from "detection failed"."""
+    coordinator, success, _ = _run_live_calibration_with_dialog_result({"approved": False})
+
+    assert success is False
+    assert coordinator._last_calibration_cancelled is True
+
+
+def test_run_live_calibration_clears_cancellation_flag_on_success():
+    """The flag must reset between runs so a prior cancel doesn't poison the
+    next attempt."""
+    # First run: cancel
+    coordinator, _, _ = _run_live_calibration_with_dialog_result({"approved": False})
+    assert coordinator._last_calibration_cancelled is True
+
+    # Second run: approved → flag must reset to False
+    fake_frame = np.zeros((480, 640, 3), dtype=np.uint8)
+    fake_camera = MagicMock()
+    fake_camera.is_open = True
+    fake_camera.get_frame.return_value = (True, fake_frame)
+    fake_camera._stopped = MagicMock()
+    fake_polygon = [[100, 100], [200, 100], [200, 200], [100, 200]]
+    fake_dialog = MagicMock()
+    fake_dialog.show.return_value = {
+        "approved": True,
+        "polygon": fake_polygon,
+        "frame": None,
+        "source": "auto",
+    }
+
+    with (
+        patch.object(
+            LiveCalibrationCoordinator,
+            "_detect_polygon_on_burst",
+            return_value=[fake_polygon],
+        ),
+        patch("zebtrack.coordinators.live_calibration_coordinator.AquariumDetector"),
+        patch(
+            "zebtrack.coordinators.live_calibration_coordinator.Camera",
+            return_value=fake_camera,
+        ),
+        patch(
+            "zebtrack.coordinators.live_calibration_coordinator.cv2.imwrite",
+            return_value=True,
+        ),
+        patch(
+            "zebtrack.ui.dialogs.preview_polygon_dialog.PreviewPolygonDialog",
+            return_value=fake_dialog,
+        ),
+        patch(
+            "zebtrack.coordinators.live_calibration_coordinator.time.sleep",
+            return_value=None,
+        ),
+    ):
+        success = coordinator.run_live_calibration(stabilization_frames=4, show_preview=True)
+
+    assert success is True
+    assert coordinator._last_calibration_cancelled is False
+
+
+def test_release_calibration_camera_is_idempotent_on_none():
+    """Calling the helper with no camera attached must be a no-op (no AttributeError)."""
+    coordinator = _make_coordinator()
+    coordinator.camera = None
+    # Must not raise
+    coordinator._release_calibration_camera(reason="test")
+    assert coordinator.camera is None
+
+
+def test_release_calibration_camera_swallows_release_exceptions():
+    """If the device handle is already gone, release_fn() can raise — the
+    helper must swallow it so calibration shutdown stays robust."""
+    coordinator = _make_coordinator()
+    flaky_camera = MagicMock()
+    flaky_camera._stopped = MagicMock()
+    flaky_camera.release.side_effect = RuntimeError("device already released")
+    coordinator.camera = flaky_camera
+
+    # Must not raise
+    coordinator._release_calibration_camera(reason="test")
+    assert coordinator.camera is None
+    flaky_camera._stopped.set.assert_called()

@@ -129,7 +129,50 @@ class LiveCalibrationCoordinator(BaseCoordinator):
         # same project flag without re-reading project_data.
         self._calibration_preserve_real_shape: bool = False
 
+        # Tristate-ish exit reason from the most recent ``run_live_calibration``
+        # call. ``True`` means the user explicitly cancelled (closed or rejected
+        # the preview dialog) — distinct from a genuine detection failure.
+        # ``attempt_zone_calibration`` reads this to decide whether to fall
+        # through to manual drawing (genuine failure) or abort cleanly (cancel).
+        self._last_calibration_cancelled: bool = False
+
         log.info("live_calibration_coordinator.initialized")
+
+    def _release_calibration_camera(self, reason: str) -> None:
+        """Tear down ``self.camera`` and signal its background thread to stop.
+
+        Centralises the "stop background thread + release + drop reference"
+        sequence so every early-return path in ``run_live_calibration`` (and
+        the retry callback) releases the camera consistently. Without this,
+        a rejected preview dialog leaves the Camera instance alive and its
+        capture thread spams ``camera.frame_read.failed`` /
+        ``camera.disconnected`` warnings indefinitely.
+
+        Args:
+            reason: Short tag appended to the log event for triage.
+        """
+        camera = self.camera
+        if camera is None:
+            return
+        # Signal shutdown BEFORE release so the background thread does not
+        # try to reconnect after the device handle is gone.
+        stopped_event = getattr(camera, "_stopped", None)
+        if stopped_event is not None and hasattr(stopped_event, "set"):
+            try:
+                stopped_event.set()
+            # except Exception justified: defensive — release must not throw.
+            except Exception:  # pragma: no cover
+                log.debug("live_calibration_coordinator.camera.stop_signal_failed")
+        release_fn = getattr(camera, "release", None)
+        if callable(release_fn):
+            try:
+                release_fn()
+            # except Exception justified: hardware/OS may already have torn
+            # the device down — log and continue rather than propagating.
+            except Exception:  # pragma: no cover
+                log.debug("live_calibration_coordinator.camera.release_failed")
+        self.camera = None
+        log.info("live_calibration_coordinator.camera_released", reason=reason)
 
     @property
     def last_polygon_source(self) -> str | None:
@@ -269,8 +312,18 @@ class LiveCalibrationCoordinator(BaseCoordinator):
 
                     # Wait for user confirmation
                     return self._wait_for_zone_confirmation()
+                elif self._last_calibration_cancelled:
+                    # User explicitly closed/rejected the preview dialog — do
+                    # NOT fall through to manual mode and do NOT navigate to
+                    # the zone tab. Abort cleanly so the wizard step stays
+                    # where it was. The camera was already released by
+                    # ``run_live_calibration``.
+                    log.info("live_calibration_coordinator.zones.user_cancelled_auto_detect")
+                    return False
                 else:
-                    # Detection failed
+                    # Detection failed for non-cancellation reasons (camera
+                    # init failure, no polygon detected, model exception…).
+                    # Inform the user and fall through to manual drawing.
                     if self.event_bus:
                         self.event_bus.publish(
                             Event(
@@ -416,6 +469,10 @@ class LiveCalibrationCoordinator(BaseCoordinator):
         import time  # For delays between camera operations
 
         log.info("live_calibration_coordinator.live_calibration.start")
+        # Reset the cancellation flag so a previous cancel doesn't leak into
+        # this run's interpretation. The flag is only set to True on the
+        # user-rejected path below.
+        self._last_calibration_cancelled = False
 
         # Initialize camera if necessary
         if not self.camera or not hasattr(self.camera, "is_open") or not self.camera.is_open:
@@ -472,6 +529,7 @@ class LiveCalibrationCoordinator(BaseCoordinator):
                 "live_calibration_coordinator.live_calibration.insufficient_frames",
                 captured=len(frames),
             )
+            self._release_calibration_camera(reason="insufficient_frames")
             return False
 
         # Auto-detect aquarium using configured model
@@ -506,6 +564,7 @@ class LiveCalibrationCoordinator(BaseCoordinator):
             log.error(
                 "live_calibration_coordinator.live_calibration.no_aquarium_model", method=method
             )
+            self._release_calibration_camera(reason="no_aquarium_model")
             return False
 
         detector = AquariumDetector(model_path=model_path, mode=method)
@@ -540,16 +599,7 @@ class LiveCalibrationCoordinator(BaseCoordinator):
                 exc_info=True,
             )
 
-            # Release camera on exception too
-            if self.camera:
-                if hasattr(self.camera, "_stopped"):
-                    self.camera._stopped.set()
-                if hasattr(self.camera, "release"):
-                    self.camera.release()
-                self.camera = None
-                log.info(
-                    "live_calibration_coordinator.live_calibration.camera_released_on_exception"
-                )
+            self._release_calibration_camera(reason="detection_exception")
 
             # Fallback: Save and display the last captured frame for manual drawing
             if frames:
@@ -590,14 +640,7 @@ class LiveCalibrationCoordinator(BaseCoordinator):
         if not detected_polygons or len(detected_polygons) == 0:
             log.warning("live_calibration_coordinator.live_calibration.no_polygon_detected")
 
-            # Release camera when no polygon detected
-            if self.camera:
-                if hasattr(self.camera, "_stopped"):
-                    self.camera._stopped.set()
-                if hasattr(self.camera, "release"):
-                    self.camera.release()
-                self.camera = None
-                log.info("live_calibration_coordinator.live_calibration.camera_released_no_polygon")
+            self._release_calibration_camera(reason="no_polygon_detected")
 
             # Fallback: Save and display the last captured frame for manual drawing
             if frames:
@@ -686,6 +729,11 @@ class LiveCalibrationCoordinator(BaseCoordinator):
 
                 if not approved:
                     log.info("live_calibration_coordinator.live_calibration.user_rejected")
+                    # Distinguish explicit cancellation from genuine detection
+                    # failure so the caller doesn't fall through to manual
+                    # drawing mode against the user's intent.
+                    self._last_calibration_cancelled = True
+                    self._release_calibration_camera(reason="user_rejected")
                     return False
         else:
             # No preview requested, auto-approve
@@ -739,15 +787,8 @@ class LiveCalibrationCoordinator(BaseCoordinator):
                 reference_frame=reference_frame_path,
             )
 
-            # Release camera so LiveCameraService can use it
-            # IMPORTANT: Must signal shutdown BEFORE release to prevent reconnection attempts
-            if self.camera:
-                if hasattr(self.camera, "_stopped"):
-                    self.camera._stopped.set()  # Stop the background thread first
-                if hasattr(self.camera, "release"):
-                    self.camera.release()
-                self.camera = None
-                log.info("live_calibration_coordinator.live_calibration.camera_released")
+            # Release camera so LiveCameraService can use it.
+            self._release_calibration_camera(reason="approved")
 
             # CRITICAL: Allow hardware to fully release camera before LiveCameraService reopens it
             # Without this delay, warmup fails (frames_successful=0) and exposure is incorrect
@@ -755,15 +796,11 @@ class LiveCalibrationCoordinator(BaseCoordinator):
 
             return True
 
-        # Release camera on failure too
-        if self.camera:
-            if hasattr(self.camera, "_stopped"):
-                self.camera._stopped.set()  # Stop the background thread first
-            if hasattr(self.camera, "release"):
-                self.camera.release()
-            self.camera = None
-            log.info("live_calibration_coordinator.live_calibration.camera_released_on_failure")
-
+        # Defensive: every non-approved code path above already releases the
+        # camera and returns early. If control somehow reaches here (e.g.
+        # ``approved`` flipped via future refactor), still release so the
+        # background thread doesn't leak.
+        self._release_calibration_camera(reason="unexpected_fallthrough")
         return False
 
     # =============================================================================
