@@ -269,18 +269,67 @@ class ProjectInitializer:
             temp_settings = gui.controller.settings.model_copy(deep=True)
             temp_settings.camera.index = camera_index
 
-            # Initialize camera with modified settings
-            gui.controller.hardware_vm.camera = Camera(settings_obj=temp_settings)
+            # Open the camera briefly to read its native resolution for
+            # detector scaling, then release immediately. The device handle
+            # is NOT kept around because nothing reads frames from it before
+            # the user actually starts a recording — at which point
+            # ``LiveCameraService.start_session`` opens its own Camera with
+            # the per-session index. Keeping the preview handle alive used to
+            # leave the physical device powered on (LED-on) for the full
+            # project session and conflicted with the calibration camera
+            # during auto-detect, spamming the log with frame_read.failed
+            # and reconnect.attempt warnings.
+            preview_camera = Camera(settings_obj=temp_settings)
+            try:
+                gui.controller.hardware_vm.detector.update_scaling(
+                    preview_camera.actual_width,
+                    preview_camera.actual_height,
+                )
+            finally:
+                try:
+                    preview_camera.release()
+                    log.info(
+                        "project_initializer.live_camera_setup.preview_released",
+                        camera_index=camera_index,
+                    )
+                # except Exception justified: best-effort release; if the
+                # device is in a weird state we still want init to succeed.
+                except Exception as release_err:
+                    log.warning(
+                        "project_initializer.live_camera_setup.preview_release_failed",
+                        error=str(release_err),
+                    )
 
-            gui.controller.hardware_vm.active_frame_source = gui.controller.hardware_vm.camera
-            gui.controller.hardware_vm.detector.update_scaling(
-                gui.controller.hardware_vm.camera.actual_width,
-                gui.controller.hardware_vm.camera.actual_height,
-            )
+            # Clear the legacy references so downstream consumers (e.g.
+            # ``CameraConnectionHandler._release_preview_camera_if_any``)
+            # see an already-clean state instead of dangling-released handles.
+            gui.controller.hardware_vm.camera = None
+            gui.controller.hardware_vm.active_frame_source = None
         except OSError as e:
             gui.dialog_manager.show_error("Erro na Câmera", str(e))
             gui.widget_factory.create_welcome_frame()
             return
+
+        # Mirror the pre-recorded path: publish VIDEO_TREE_REFRESH_REQUESTED
+        # so the zone tab's "Selecionar Vídeo para Desenho" tree populates
+        # with any sessions that have already been recorded in this project
+        # (group/day/subject hierarchy). For brand-new live projects with no
+        # recordings yet the tree will still be empty — that's expected
+        # because the tree is fed by ``ProjectManager.get_all_videos`` which
+        # only returns registered recordings. The pending session banner
+        # above the canvas covers the "which subject am I configuring now"
+        # use case via the LIVE_RECORDING_PENDING payload.
+        if gui.event_bus:
+            from zebtrack.ui import payloads
+            from zebtrack.ui.event_bus_v2 import Event, UIEvents
+
+            gui.event_bus.publish(
+                Event(
+                    type=UIEvents.VIDEO_TREE_REFRESH_REQUESTED,
+                    data=payloads.VideoTreeRefreshRequestedPayload(filter_text=None),
+                    source="ProjectInitializer.initialize_live",
+                )
+            )
 
     def initialize_prerecorded_components(self, pm: Any) -> None:
         """Initialize components for Pre-recorded project type."""
