@@ -440,3 +440,80 @@ def test_set_last_polygon_source_swallows_publish_failures():
     # Must not raise
     coordinator._set_last_polygon_source("auto")
     assert coordinator.last_polygon_source == "auto"
+
+
+# ---------------------------------------------------------------------------
+# Bug fix — UI_DISPLAY_VIDEO_FRAME after approved auto-detection
+# ---------------------------------------------------------------------------
+
+
+def test_run_live_calibration_publishes_display_video_frame_on_success():
+    """After the user approves the detected polygon, the zone tab must receive
+    the captured reference frame via ``UI_DISPLAY_VIDEO_FRAME``. Without this,
+    the canvas paints the polygon over a blank white background instead of
+    over the actual camera image.
+    """
+    from zebtrack.ui.event_bus_v2 import UIEvents
+    from zebtrack.ui.payloads import VideoPathPayload
+
+    coordinator = _make_calibration_coordinator_with_camera()
+    bus = cast(MagicMock, coordinator.event_bus)
+    bus.reset_mock()
+
+    fake_frame = np.zeros((480, 640, 3), dtype=np.uint8)
+    fake_camera = MagicMock()
+    fake_camera.is_open = True
+    fake_camera.get_frame.return_value = (True, fake_frame)
+    fake_polygon = [[100, 100], [200, 100], [200, 200], [100, 200]]
+    fake_dialog_instance = MagicMock()
+    fake_dialog_instance.show.return_value = {
+        "approved": True,
+        "polygon": fake_polygon,
+        "frame": None,
+        "source": "auto",
+    }
+
+    with (
+        patch.object(
+            LiveCalibrationCoordinator,
+            "_detect_polygon_on_burst",
+            return_value=[fake_polygon],
+        ),
+        patch(
+            "zebtrack.coordinators.live_calibration_coordinator.AquariumDetector"
+        ) as fake_detector_cls,
+        patch(
+            "zebtrack.coordinators.live_calibration_coordinator.Camera",
+            return_value=fake_camera,
+        ),
+        patch(
+            "zebtrack.coordinators.live_calibration_coordinator.cv2.imwrite",
+            return_value=True,
+        ),
+        patch(
+            "zebtrack.ui.dialogs.preview_polygon_dialog.PreviewPolygonDialog",
+            return_value=fake_dialog_instance,
+        ),
+        patch(
+            "zebtrack.coordinators.live_calibration_coordinator.time.sleep",
+            return_value=None,
+        ),
+    ):
+        fake_detector_cls.return_value = MagicMock()
+        assert coordinator.run_live_calibration(stabilization_frames=4, show_preview=True)
+
+    display_events = [
+        call.args[0]
+        for call in bus.publish.call_args_list
+        if getattr(call.args[0], "type", None) is UIEvents.UI_DISPLAY_VIDEO_FRAME
+    ]
+    assert display_events, (
+        "approved auto-detect must publish UI_DISPLAY_VIDEO_FRAME so the zone "
+        "tab paints the polygon over the camera frame instead of a white canvas"
+    )
+
+    # The payload must carry the reference frame path so display_roi_video_frame
+    # can load it via Image.open.
+    last_payload = display_events[-1].data
+    assert isinstance(last_payload, VideoPathPayload)
+    assert last_payload.video_path.endswith("live_camera_reference_frame.png")

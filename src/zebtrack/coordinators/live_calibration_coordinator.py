@@ -721,6 +721,18 @@ class LiveCalibrationCoordinator(BaseCoordinator):
             )
             cv2.imwrite(reference_frame_path, frames[-1])
 
+            # Push the just-saved frame into the zone tab's canvas. Without
+            # this event the polygon renders on a blank/white background
+            # because no UI_DISPLAY_VIDEO_FRAME ever fires in the auto-detect
+            # path (the manual path emits it from _capture_reference_frame_for_zones).
+            if self.event_bus:
+                self.event_bus.publish(
+                    Event(
+                        type=UIEvents.UI_DISPLAY_VIDEO_FRAME,
+                        data=VideoPathPayload(video_path=reference_frame_path),
+                    )
+                )
+
             log.info(
                 "live_calibration_coordinator.live_calibration.success",
                 polygon_points=len(polygon),

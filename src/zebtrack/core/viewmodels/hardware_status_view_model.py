@@ -220,8 +220,16 @@ class HardwareStatusViewModel:
         for label, method, target in all_slots:
             name: str | None = None
             if wm is not None:
-                got, _ = wm.get_default_weight_for(method, target)
-                name = got
+                # Runtime overrides win over the global ``is_default_*`` flag —
+                # projects (including those created via the wizard) push their
+                # chosen weights into the override map at load time, so the
+                # status panel must surface those, not the catalog defaults.
+                if hasattr(wm, "get_runtime_slot_override"):
+                    got, _ = wm.get_runtime_slot_override(method, target)
+                    name = got
+                if not name:
+                    got, _ = wm.get_default_weight_for(method, target)
+                    name = got
             result.append((label, method, target, name))
         return result
 

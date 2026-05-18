@@ -18,6 +18,10 @@ def view_model():
     detector_setup_coordinator = Mock()
     model_diagnostics_coordinator = Mock()
     weight_manager = Mock()
+    # Default: no runtime overrides — `get_default_weights_summary` consults
+    # this *before* `get_default_weight_for` so the unconfigured Mock would
+    # otherwise return a non-iterable child and break unpacking.
+    weight_manager.get_runtime_slot_override.return_value = (None, None)
     # Phase 4.7: Replaced session_coordinator with 3 focused coordinators
     recording_session_coordinator = Mock()
     live_camera_session_coordinator = Mock()
@@ -262,3 +266,46 @@ def test_get_default_weights_summary_project_falls_back_when_settings_missing(vi
     summary = view_model.get_default_weights_summary(scope="project")
 
     assert len(summary) == 4
+
+
+def test_get_default_weights_summary_prefers_runtime_override(view_model):
+    """Project-scoped weights set via runtime overrides (e.g. from the wizard)
+    must win over the global ``is_default_*`` flag. Without this, the main
+    control panel keeps showing the catalog's lateral defaults even after the
+    user picks top-down models in the wizard.
+    """
+    view_model.settings.model_selection.aquarium_method = "seg"
+    view_model.settings.model_selection.animal_method = "seg"
+
+    # Global defaults point at lateral weights.
+    view_model.weight_manager.get_default_weight_for.side_effect = lambda method, target: {
+        ("seg", "aquarium"): ("lateral_aq.pt", {}),
+        ("seg", "zebrafish"): ("lateral_an.pt", {}),
+    }.get((method, target), (None, None))
+
+    # Project-scoped override resolves to top-down weights.
+    view_model.weight_manager.get_runtime_slot_override.side_effect = lambda method, target: {
+        ("seg", "aquarium"): ("topdown_aq.pt", {"path": "/w/topdown_aq.pt"}),
+        ("seg", "zebrafish"): ("topdown_an.pt", {"path": "/w/topdown_an.pt"}),
+    }.get((method, target), (None, None))
+
+    summary = view_model.get_default_weights_summary(scope="project")
+
+    lookup = {(method, target): name for _label, method, target, name in summary}
+    assert lookup[("seg", "aquarium")] == "topdown_aq.pt"
+    assert lookup[("seg", "zebrafish")] == "topdown_an.pt"
+
+
+def test_get_default_weights_summary_falls_back_to_global_default_without_override(view_model):
+    """When no runtime override exists for a slot, fall back to the catalog default."""
+    view_model.weight_manager.get_runtime_slot_override.return_value = (None, None)
+    view_model.weight_manager.get_default_weight_for.side_effect = lambda method, target: (
+        f"{method}_{target}_default.pt",
+        {},
+    )
+
+    summary = view_model.get_default_weights_summary(scope="global")
+    lookup = {(method, target): name for _label, method, target, name in summary}
+
+    assert lookup[("det", "aquarium")] == "det_aquarium_default.pt"
+    assert lookup[("seg", "zebrafish")] == "seg_zebrafish_default.pt"

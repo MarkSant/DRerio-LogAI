@@ -100,15 +100,26 @@ class ModelSelectionStep(WizardStep):
     def _get_active_perspective(self) -> str | None:
         """Read the camera perspective from upstream wizard data.
 
-        The calibration step stores the perspective under
-        ``wizard_data["calibration"]["behavioral_analysis"]["aquarium_perspective"]``.
+        The calibration step's ``get_data()`` returns ``behavioral_analysis``
+        at the top level, and the wizard merges step data into ``wizard_data``
+        with ``dict.update`` (see ``WizardDialog._on_next``). So the canonical
+        location is ``wizard_data["behavioral_analysis"]["aquarium_perspective"]``.
+
+        We also accept the nested ``wizard_data["calibration"]
+        ["behavioral_analysis"]`` form as a fallback because templates/imports
+        sometimes shovel a project-data-shaped dict in via ``set_data``.
 
         Returns:
             ``"lateral"`` or ``"top_down"``, or *None* if not set.
         """
-        calibration = self.wizard_data.get("calibration") or {}
-        ba = calibration.get("behavioral_analysis") or {}
+        ba = self.wizard_data.get("behavioral_analysis") or {}
         raw = ba.get("aquarium_perspective")
+        if raw is None:
+            # Fallback: project-data-style nested layout
+            calibration = self.wizard_data.get("calibration") or {}
+            ba_nested = calibration.get("behavioral_analysis") or {}
+            raw = ba_nested.get("aquarium_perspective")
+
         if raw in ("lateral", "top_down"):
             return raw
         # Handle enum-style values (e.g. AquariumPerspective.LATERAL)
