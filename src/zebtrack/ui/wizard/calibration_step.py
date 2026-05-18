@@ -64,7 +64,10 @@ class CalibrationStep(WizardStep):
         self.animals_per_aquarium_var = IntVar(value=1)
         self.aquarium_width_var = DoubleVar(value=10.0)
         self.aquarium_height_var = DoubleVar(value=10.0)
-        # Processing intervals
+        # Processing intervals — now consolidated here for ALL project types
+        # (live and pre-recorded). Initial value is the pre-recorded default
+        # (5); ``on_show`` upgrades it to 10 for live projects on first visit
+        # when ``wizard_data`` doesn't already carry a saved value.
         self.analysis_interval_var = IntVar(value=5)
         self.display_interval_var = IntVar(value=5)
         self.template_info_var = StringVar(value="")
@@ -241,72 +244,54 @@ class CalibrationStep(WizardStep):
             ),
         )
 
-        # Advanced processing settings
-        if not self._is_live_project():
-            advanced_frame = LabelFrame(
-                left_panel,
-                text="⚙️ Configurações Avançadas",
-                padx=10,
-                pady=8,
-            )
-            advanced_frame.pack(fill="x", pady=(0, 8))
+        # Advanced processing settings (shown for both live and pre-recorded
+        # projects so the intervals live in a single place in the wizard).
+        advanced_frame = LabelFrame(
+            left_panel,
+            text="⚙️ Configurações Avançadas",
+            padx=10,
+            pady=8,
+        )
+        advanced_frame.pack(fill="x", pady=(0, 8))
 
-            # Analysis interval
-            analysis_row = Frame(advanced_frame)
-            analysis_row.pack(fill="x", pady=3)
+        # Analysis interval
+        analysis_row = Frame(advanced_frame)
+        analysis_row.pack(fill="x", pady=3)
 
-            Label(analysis_row, text="Intervalo de Análise (frames):", width=30, anchor="w").pack(
-                side="left"
-            )
-            analysis_entry = Entry(analysis_row, textvariable=self.analysis_interval_var, width=10)
-            analysis_entry.pack(side="left", padx=(5, 0))
-            ToolTip(
-                analysis_entry,
-                (
-                    "🎬 Intervalo de Análise\n\n"
-                    "Processa 1 frame a cada N frames originais.\n\n"
-                    "• N=1: Analisa todos os frames (máxima precisão, mais lento)\n"
-                    "• N=10: Analisa 1 frame e pula 9 (mais rápido, ideal para vídeos longos)\n\n"
-                    "💡 Dica: Use 5 ou 10 para um bom equilíbrio entre velocidade e precisão."
-                ),
-            )
+        Label(analysis_row, text="Intervalo de Análise (frames):", width=30, anchor="w").pack(
+            side="left"
+        )
+        analysis_entry = Entry(analysis_row, textvariable=self.analysis_interval_var, width=10)
+        analysis_entry.pack(side="left", padx=(5, 0))
+        ToolTip(
+            analysis_entry,
+            (
+                "🎬 Intervalo de Análise\n\n"
+                "Processa 1 frame a cada N frames originais.\n\n"
+                "• N=1: Analisa todos os frames (máxima precisão, mais lento)\n"
+                "• N=10: Analisa 1 frame e pula 9 (mais rápido, ideal para vídeos longos)\n\n"
+                "💡 Dica: Use 5 ou 10 para um bom equilíbrio entre velocidade e precisão."
+            ),
+        )
 
-            # Display interval
-            display_row = Frame(advanced_frame)
-            display_row.pack(fill="x", pady=3)
+        # Display interval
+        display_row = Frame(advanced_frame)
+        display_row.pack(fill="x", pady=3)
 
-            Label(display_row, text="Intervalo de Exibição (frames):", width=30, anchor="w").pack(
-                side="left"
-            )
-            display_entry = Entry(display_row, textvariable=self.display_interval_var, width=10)
-            display_entry.pack(side="left", padx=(5, 0))
-            ToolTip(
-                display_entry,
-                (
-                    "🖥️ Intervalo de Exibição\n\n"
-                    "Atualiza a imagem na tela a cada N frames processados.\n\n"
-                    "• Valores altos (ex: 30) tornam a interface mais fluida "
-                    "durante o processamento em lote."
-                ),
-            )
-        else:
-            live_notice_frame = LabelFrame(
-                left_panel,
-                text="⚙️ Configurações Avançadas",
-                padx=10,
-                pady=8,
-            )
-            live_notice_frame.pack(fill="x", pady=(0, 8))
-            Label(
-                live_notice_frame,
-                text=(
-                    "Para projetos AO VIVO, os intervalos de análise e exibição são definidos "
-                    "na etapa de configuração da câmera."
-                ),
-                fg="gray",
-                wraplength=380,
-                justify="left",
-            ).pack(anchor="w")
+        Label(display_row, text="Intervalo de Exibição (frames):", width=30, anchor="w").pack(
+            side="left"
+        )
+        display_entry = Entry(display_row, textvariable=self.display_interval_var, width=10)
+        display_entry.pack(side="left", padx=(5, 0))
+        ToolTip(
+            display_entry,
+            (
+                "🖥️ Intervalo de Exibição\n\n"
+                "Atualiza a imagem na tela a cada N frames processados.\n\n"
+                "• Valores altos (ex: 30) tornam a interface mais fluida "
+                "durante o processamento em lote."
+            ),
+        )
 
         # RIGHT COLUMN: Behavioral analysis configuration (full height)
         behavioral_frame = LabelFrame(
@@ -402,11 +387,9 @@ class CalibrationStep(WizardStep):
             "animals_per_aquarium": self.animals_per_aquarium_var.get(),
             "aquarium_width_cm": self.aquarium_width_var.get(),
             "aquarium_height_cm": self.aquarium_height_var.get(),
+            "analysis_interval_frames": self.analysis_interval_var.get(),
+            "display_interval_frames": self.display_interval_var.get(),
         }
-
-        if not self._is_live_project():
-            data["analysis_interval_frames"] = self.analysis_interval_var.get()
-            data["display_interval_frames"] = self.display_interval_var.get()
 
         # Add behavioral analysis configuration
         if self.behavioral_config_widget:
@@ -461,11 +444,15 @@ class CalibrationStep(WizardStep):
         if "aquarium_height_cm" in self.wizard_data:
             self.aquarium_height_var.set(self.wizard_data["aquarium_height_cm"])
 
-        if "analysis_interval_frames" in self.wizard_data:
-            self.analysis_interval_var.set(self.wizard_data["analysis_interval_frames"])
-
-        if "display_interval_frames" in self.wizard_data:
-            self.display_interval_var.set(self.wizard_data["display_interval_frames"])
+        # Pick the right interval default once project_type is known. Live
+        # projects get 10/10 (lighter real-time load); pre-recorded keeps the
+        # 5/5 default. Persisted wizard_data values always win so back/forward
+        # navigation preserves user edits.
+        live_default = 10 if self._is_live_project() else 5
+        self.analysis_interval_var.set(
+            self.wizard_data.get("analysis_interval_frames", live_default)
+        )
+        self.display_interval_var.set(self.wizard_data.get("display_interval_frames", live_default))
 
         # Auto-detect number of aquariums from video count
         video_count = self.wizard_data.get("video_count", 0)

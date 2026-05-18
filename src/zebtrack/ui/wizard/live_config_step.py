@@ -93,10 +93,10 @@ class LiveConfigStep(WizardStep):
         self.recording_duration_var = DoubleVar(value=300.0)  # 5 minutes default
         self.use_countdown_var = BooleanVar(value=True)
         self.countdown_duration_var = IntVar(value=10)
-        # Processing intervals
-        self.analysis_interval_var = IntVar(value=10)
-        self.display_interval_var = IntVar(value=10)
-        # Aquarium shape preservation (segmentation models only)
+        # Aquarium shape preservation (segmentation models only).
+        # NOTE: Analysis/display intervals previously lived here too — they
+        # now belong to the Calibration step so projects share the same
+        # configuration surface as pre-recorded projects.
         self.preserve_real_aquarium_shape_var = BooleanVar(value=False)
 
         # Available cameras and Arduino ports (populated on show)
@@ -331,7 +331,10 @@ class LiveConfigStep(WizardStep):
             "Duração da contagem regressiva em segundos.",
         )
 
-        # Advanced processing settings
+        # Advanced processing settings — only the segmentation-shape toggle
+        # remains here; analysis/display intervals moved to the Calibration
+        # step so live projects share the configuration surface with the
+        # pre-recorded flow.
         advanced_frame = LabelFrame(
             self,
             text="⚙️ Configurações Avançadas de Processamento",
@@ -340,71 +343,13 @@ class LiveConfigStep(WizardStep):
         )
         advanced_frame.pack(fill="x", pady=(15, 0))
 
-        # Analysis interval
-        analysis_row = Frame(advanced_frame)
-        analysis_row.pack(fill="x", pady=5)
-
-        Label(
-            analysis_row,
-            text="Intervalo de Análise (frames):",
-            width=30,
-            anchor="w",
-        ).pack(side="left")
-        analysis_spinbox = Spinbox(
-            analysis_row,
-            from_=1,
-            to=100,
-            textvariable=self.analysis_interval_var,
-            width=10,
-        )
-        analysis_spinbox.pack(side="left", padx=(5, 0))
-        ToolTip(
-            analysis_spinbox,
-            (
-                "Intervalo de Análise (frames)\n\n"
-                "Quantos frames aguardar entre detecções.\n"
-                "Valores maiores: processamento mais rápido, menos precisão.\n"
-                "Valores menores: processamento mais lento, mais precisão.\n\n"
-                "Padrão: 10 frames (recomendado para maioria dos casos)"
-            ),
-        )
-
-        # Display interval
-        display_row = Frame(advanced_frame)
-        display_row.pack(fill="x", pady=5)
-
-        Label(
-            display_row,
-            text="Intervalo de Exibição (frames):",
-            width=30,
-            anchor="w",
-        ).pack(side="left")
-        display_spinbox = Spinbox(
-            display_row,
-            from_=1,
-            to=100,
-            textvariable=self.display_interval_var,
-            width=10,
-        )
-        display_spinbox.pack(side="left", padx=(5, 0))
-        ToolTip(
-            display_spinbox,
-            (
-                "Intervalo de Exibição (frames)\n\n"
-                "Quantos frames aguardar entre atualizações visuais da interface.\n"
-                "Valores maiores: interface mais fluida, menos detalhes visuais.\n"
-                "Valores menores: mais detalhes visuais, possível lentidão.\n\n"
-                "Padrão: 10 frames (recomendado para maioria dos casos)"
-            ),
-        )
-
         # Preserve real aquarium shape (segmentation only)
         preserve_shape_cb = Checkbutton(
             advanced_frame,
             text="Preservar formato real do aquário (segmentação)",
             variable=self.preserve_real_aquarium_shape_var,
         )
-        preserve_shape_cb.pack(anchor="w", pady=(8, 4))
+        preserve_shape_cb.pack(anchor="w", pady=(4, 4))
         ToolTip(
             preserve_shape_cb,
             (
@@ -415,23 +360,6 @@ class LiveConfigStep(WizardStep):
                 "Recomendado para aquários circulares, hexagonais ou de formato "
                 "irregular. Requer um modelo de segmentação (seg) — para modelos "
                 "de detecção (det) esta opção é ignorada."
-            ),
-        )
-
-        # Restore defaults button
-        restore_btn = Button(
-            advanced_frame,
-            text="🔄 Restaurar Padrões (10, 10)",
-            command=self._restore_default_intervals,
-        )
-        restore_btn.pack(fill="x", pady=(10, 0))
-        ToolTip(
-            restore_btn,
-            (
-                "Restaura os intervalos para os valores padrão recomendados:\n"
-                "• Análise: 10 frames\n"
-                "• Exibição: 10 frames\n\n"
-                "Estes valores oferecem bom equilíbrio entre desempenho e precisão."
             ),
         )
 
@@ -486,11 +414,6 @@ class LiveConfigStep(WizardStep):
             self.template_info_var.set("")
             if self.template_info_label and self.template_info_label.winfo_ismapped():
                 self.template_info_label.pack_forget()
-
-    def _restore_default_intervals(self):
-        """Restore processing intervals to default values."""
-        self.analysis_interval_var.set(10)
-        self.display_interval_var.set(10)
 
     def _detect_hardware_capability(self) -> None:
         """Detect hardware capability for multi-aquarium processing.
@@ -889,9 +812,11 @@ class LiveConfigStep(WizardStep):
                 - recording_duration_s (float)
                 - use_countdown (bool)
                 - countdown_duration_s (int)
-                - analysis_interval_frames (int)
-                - display_interval_frames (int)
                 - preserve_real_aquarium_shape (bool)
+
+        Note: ``analysis_interval_frames`` and ``display_interval_frames``
+        are owned by the Calibration step (the next step in the live flow)
+        so live and pre-recorded projects share the same surface.
         """
         # Get camera index from selected camera name
         selected_camera = self.camera_selection_var.get()
@@ -915,8 +840,6 @@ class LiveConfigStep(WizardStep):
             "recording_duration_s": self.recording_duration_var.get(),
             "use_countdown": self.use_countdown_var.get(),
             "countdown_duration_s": self.countdown_duration_var.get(),
-            "analysis_interval_frames": self.analysis_interval_var.get(),
-            "display_interval_frames": self.display_interval_var.get(),
             "preserve_real_aquarium_shape": self.preserve_real_aquarium_shape_var.get(),
             # v2.2.0: Include selected mode for coordinator integration
             "selected_live_mode": self.wizard_data.get("selected_live_mode"),
@@ -995,13 +918,12 @@ class LiveConfigStep(WizardStep):
             self.countdown_duration_var.set(data["countdown_duration_s"])
 
     def _restore_advanced_settings(self, data: dict):
-        """Restore advanced processing intervals."""
-        if "analysis_interval_frames" in data:
-            self.analysis_interval_var.set(data["analysis_interval_frames"])
+        """Restore live-specific advanced toggles.
 
-        if "display_interval_frames" in data:
-            self.display_interval_var.set(data["display_interval_frames"])
-
+        ``analysis_interval_frames`` / ``display_interval_frames`` are no
+        longer owned by this step (see CalibrationStep); they are silently
+        ignored here for back-navigation from legacy data shapes.
+        """
         if "preserve_real_aquarium_shape" in data:
             self.preserve_real_aquarium_shape_var.set(bool(data["preserve_real_aquarium_shape"]))
 

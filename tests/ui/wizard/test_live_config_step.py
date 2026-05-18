@@ -66,3 +66,49 @@ class TestLiveConfigStep:
                 f"LiveConfigStep should not own {attr!r}; the field was removed "
                 "when the redundant experimental design box was dropped."
             )
+
+    def test_step_does_not_define_processing_interval_vars(self):
+        """Intervals moved to CalibrationStep to mirror the pre-recorded flow."""
+        wizard_data: dict[str, Any] = {}
+        step = LiveConfigStep(self.root, wizard_data)
+        step.build_ui()
+
+        for attr in ("analysis_interval_var", "display_interval_var"):
+            assert not hasattr(step, attr), (
+                f"LiveConfigStep should not own {attr!r}; intervals are now "
+                "collected by CalibrationStep so live and pre-recorded "
+                "projects share the same configuration surface."
+            )
+
+    def test_get_data_omits_processing_intervals(self):
+        """``get_data`` must not emit interval keys — that's CalibrationStep's job now."""
+        wizard_data: dict[str, Any] = {}
+        step = LiveConfigStep(self.root, wizard_data)
+        step.build_ui()
+
+        data = step.get_data()
+
+        for legacy_key in ("analysis_interval_frames", "display_interval_frames"):
+            assert legacy_key not in data, (
+                f"{legacy_key!r} leaked into LiveConfigStep.get_data(); intervals "
+                "now belong to CalibrationStep."
+            )
+
+    def test_restore_advanced_settings_tolerates_legacy_interval_keys(self):
+        """Loading a legacy project_data dict that still carries the interval keys
+        must not crash this step — they are silently ignored (CalibrationStep
+        will pick them up via its own set_data/on_show)."""
+        wizard_data: dict[str, Any] = {}
+        step = LiveConfigStep(self.root, wizard_data)
+        step.build_ui()
+
+        # Must not raise even though the keys are no longer mapped to vars.
+        step._restore_advanced_settings(
+            {
+                "analysis_interval_frames": 25,
+                "display_interval_frames": 30,
+                "preserve_real_aquarium_shape": True,
+            }
+        )
+
+        assert step.preserve_real_aquarium_shape_var.get() is True
