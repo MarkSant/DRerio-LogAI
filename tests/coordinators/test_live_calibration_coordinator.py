@@ -700,6 +700,79 @@ def test_release_calibration_camera_swallows_release_exceptions():
 # ---------------------------------------------------------------------------
 
 
+def test_run_live_calibration_saves_zones_under_reference_frame_key():
+    """The polygon must be saved under the ``reference_frame_path`` key
+    (not only under "live_camera") so the active-video machinery —
+    triggered by UI_DISPLAY_VIDEO_FRAME → display_roi_video_frame →
+    set_active_zone_video(reference_frame_path) — finds matching zones
+    and does NOT reset ``project_data["detection_zones"]`` to empty.
+
+    The original symptom: the canvas showed the reference frame but no
+    polygon, and the ROI/Concluir buttons stayed disabled because the
+    global zone_data had been silently cleared by set_active_zone_video.
+    """
+    coordinator = _make_calibration_coordinator_with_camera()
+
+    fake_frame = np.zeros((480, 640, 3), dtype=np.uint8)
+    fake_camera = MagicMock()
+    fake_camera.is_open = True
+    fake_camera.get_frame.return_value = (True, fake_frame)
+    fake_camera._stopped = MagicMock()
+    fake_polygon = [[100, 100], [200, 100], [200, 200], [100, 200]]
+    fake_dialog = MagicMock()
+    fake_dialog.show.return_value = {
+        "approved": True,
+        "polygon": fake_polygon,
+        "frame": None,
+        "source": "auto",
+    }
+
+    with (
+        patch.object(
+            LiveCalibrationCoordinator,
+            "_detect_polygon_on_burst",
+            return_value=[fake_polygon],
+        ),
+        patch("zebtrack.coordinators.live_calibration_coordinator.AquariumDetector"),
+        patch(
+            "zebtrack.coordinators.live_calibration_coordinator.Camera",
+            return_value=fake_camera,
+        ),
+        patch(
+            "zebtrack.coordinators.live_calibration_coordinator.cv2.imwrite",
+            return_value=True,
+        ),
+        patch(
+            "zebtrack.ui.dialogs.preview_polygon_dialog.PreviewPolygonDialog",
+            return_value=fake_dialog,
+        ),
+        patch(
+            "zebtrack.coordinators.live_calibration_coordinator.time.sleep",
+            return_value=None,
+        ),
+    ):
+        assert coordinator.run_live_calibration(stabilization_frames=4, show_preview=True)
+
+    save_calls = coordinator.project_manager.save_zone_data.call_args_list
+    saved_keys = []
+    for call in save_calls:
+        # save_zone_data(zone_data, video_path) — positional.
+        if len(call.args) >= 2:
+            saved_keys.append(call.args[1])
+        elif "video_path" in call.kwargs:
+            saved_keys.append(call.kwargs["video_path"])
+
+    # The reference frame path must be among the keys so set_active_zone_video
+    # finds the persisted polygon and preserves the global ``detection_zones``.
+    assert any(
+        isinstance(k, str) and k.endswith("live_camera_reference_frame.png") for k in saved_keys
+    ), f"reference frame key missing from save_zone_data calls: {saved_keys}"
+    # Legacy "live_camera" key must also be preserved for back-compat consumers.
+    assert "live_camera" in saved_keys, (
+        f'legacy "live_camera" key missing from save_zone_data calls: {saved_keys}'
+    )
+
+
 def test_ensure_zones_auto_success_publishes_zone_list_update(monkeypatch):
     """After auto-detect succeeds inside ``ensure_zones_before_recording``,
     the auto branch must publish ``UI_UPDATE_ZONE_LIST`` so the zone tab

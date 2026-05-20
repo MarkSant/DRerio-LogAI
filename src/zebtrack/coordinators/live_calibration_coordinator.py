@@ -771,15 +771,28 @@ class LiveCalibrationCoordinator(BaseCoordinator):
                 metadata=metadata,
             )
 
-            video_path = "live_camera"
-            # Use ProjectManager to save zone data generically
-            self.project_manager.save_zone_data(zone_data, video_path)
-
-            # Save reference frame
+            # Save reference frame to disk so the Zone tab canvas can load it.
             reference_frame_path = os.path.join(
                 str(self.project_manager.project_path or ""), "live_camera_reference_frame.png"
             )
             cv2.imwrite(reference_frame_path, frames[-1])
+
+            # Save zones under TWO keys so the active-video machinery and the
+            # canonical "live_camera" lookup both find them:
+            #
+            #   - ``reference_frame_path``: this is what ``display_roi_video_frame``
+            #     passes to ``set_active_zone_video`` when handling
+            #     UI_DISPLAY_VIDEO_FRAME below. Without a matching ``zones_by_video``
+            #     entry, ``set_active_zone_video`` falls into its else branch and
+            #     RESETS ``project_data["detection_zones"]`` to an empty ZoneData
+            #     (it assumes the new video has no zones). That overwrite was
+            #     silently erasing the polygon we just persisted, leaving the
+            #     canvas with the background image but no overlay.
+            #   - ``"live_camera"``: legacy/canonical key. Saving here second so
+            #     ``project_data["detection_zones"]`` ends up holding the same
+            #     polygon (save_zone_data also writes the global).
+            self.project_manager.save_zone_data(zone_data, reference_frame_path)
+            self.project_manager.save_zone_data(zone_data, "live_camera")
 
             # Push the just-saved frame into the zone tab's canvas. Without
             # this event the polygon renders on a blank/white background
