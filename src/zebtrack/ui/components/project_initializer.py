@@ -253,9 +253,10 @@ class ProjectInitializer:
                 gui.dialog_manager.show_warning(
                     "Câmera não encontrada",
                     (
-                        f"A câmera salva no projeto ('{saved_name}') não foi detectada.\n"
-                        f"Tentando o índice salvo ({saved_index}) como fallback. "
-                        f"Use 'Trocar câmera' ao iniciar uma gravação para escolher outra."
+                        f"A câmera salva no projeto ('{saved_name}') não foi detectada.\n\n"
+                        f"As gravações irão falhar até você selecionar outra câmera. "
+                        f"Use 'Trocar câmera...' no bloco do animal antes de iniciar a "
+                        f"sessão para escolher um dispositivo conectado."
                     ),
                 )
             elif status == "SHIFTED":

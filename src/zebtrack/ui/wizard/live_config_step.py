@@ -856,7 +856,12 @@ class LiveConfigStep(WizardStep):
         self._restore_arduino(data)
         self._restore_recording_settings(data)
         self._restore_advanced_settings(data)
-        self._restore_batch_metadata(data)
+        # Note: batch metadata (experimental_group / experiment_day / subject_id
+        # / is_batch_last_session) used to be restored here, but those Tk vars
+        # were removed when the redundant experimental-design block was
+        # dropped from this step (the values now come from the project batch
+        # grid in Step 2). Loading legacy project data with those keys is
+        # safe — they're simply ignored.
 
         # Update UI state
         self._on_arduino_toggle()
@@ -926,17 +931,3 @@ class LiveConfigStep(WizardStep):
         """
         if "preserve_real_aquarium_shape" in data:
             self.preserve_real_aquarium_shape_var.set(bool(data["preserve_real_aquarium_shape"]))
-
-    def _restore_batch_metadata(self, data: dict):
-        """Restore experimental design metadata."""
-        if "experimental_group" in data:
-            self.experimental_group_var.set(data["experimental_group"] or "")
-
-        if "experiment_day" in data:
-            self.experiment_day_var.set(data["experiment_day"] or "")
-
-        if "subject_id" in data:
-            self.subject_id_var.set(data["subject_id"] or "")
-
-        if "is_batch_last_session" in data:
-            self.is_batch_last_session_var.set(data["is_batch_last_session"])

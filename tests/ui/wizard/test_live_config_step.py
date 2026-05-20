@@ -112,3 +112,43 @@ class TestLiveConfigStep:
         )
 
         assert step.preserve_real_aquarium_shape_var.get() is True
+
+    def test_set_data_does_not_crash_on_legacy_batch_metadata(self):
+        """Copilot review: ``set_data()`` used to call
+        ``_restore_batch_metadata`` which touched ``experimental_group_var``
+        et al — but those Tk vars were removed when the redundant
+        experimental-design block was dropped. Back-navigation or loading
+        legacy project data containing those keys would raise AttributeError.
+
+        Fix: ``_restore_batch_metadata`` removed and its call site dropped.
+        This test guards the regression by feeding all four legacy keys
+        into set_data — it must complete without exception."""
+        wizard_data: dict[str, Any] = {}
+        step = LiveConfigStep(self.root, wizard_data)
+        step.build_ui()
+
+        # Must not raise.
+        step.set_data(
+            {
+                "camera_index": 0,
+                "use_arduino": False,
+                "use_timed_recording": True,
+                "recording_duration_s": 300.0,
+                "use_countdown": True,
+                "countdown_duration_s": 10,
+                # Legacy batch metadata that used to populate removed vars:
+                "experimental_group": "Controle",
+                "experiment_day": "Dia_1",
+                "subject_id": "1",
+                "is_batch_last_session": False,
+            }
+        )
+
+        # And the step still must not own the removed vars.
+        for attr in (
+            "experimental_group_var",
+            "experiment_day_var",
+            "subject_id_var",
+            "is_batch_last_session_var",
+        ):
+            assert not hasattr(step, attr)

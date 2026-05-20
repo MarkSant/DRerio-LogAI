@@ -75,12 +75,17 @@ class CameraConnectionMixin:
 
             log.info("live_camera_service.setting_up_camera", camera_index=camera_index)
 
-            # Release the project-level preview camera (opened in
-            # ProjectInitializer.initialize_live_components) BEFORE opening the
-            # session camera. Otherwise we'd hold two device handles at once —
-            # and with per-session camera overrides, two physically different
-            # cameras would be powered on simultaneously (LEDs lit, USB
-            # bandwidth contention, possible CAP_DSHOW open failure).
+            # Defensive cleanup: release any Camera handle currently parked on
+            # ``hardware_vm.camera`` BEFORE opening the session camera. Since
+            # Etapa 10b ``ProjectInitializer.initialize_live_components`` no
+            # longer opens a Camera at project init — but other code paths
+            # (legacy preview features, future contributions) might still
+            # leave a handle attached. If so, we'd hold two device handles at
+            # once and with per-session camera overrides could even power on
+            # two physically different cameras simultaneously (LEDs lit, USB
+            # bandwidth contention, possible CAP_DSHOW open failure). The
+            # helper is a no-op when ``hardware_vm.camera`` is None, which is
+            # the normal path today.
             self._release_preview_camera_if_any()
 
             # Create temporary settings with desired camera index and force 720p resolution
@@ -181,14 +186,17 @@ class CameraConnectionMixin:
             return False
 
     def _release_preview_camera_if_any(self) -> None:
-        """Release the project-level preview camera held by hardware_vm.
+        """Release any Camera handle currently parked on ``hardware_vm.camera``.
 
-        ProjectInitializer opens a Camera at project load and stores it on
-        ``hardware_vm.camera`` to drive the canvas preview before recording
-        starts. That handle would otherwise stay open during the entire
-        session, leaving its physical device powered on (and, with per-session
-        camera overrides, leaving a *different* device than the one being
-        recorded also powered on).
+        Since Etapa 10b ``ProjectInitializer.initialize_live_components`` no
+        longer opens a Camera at project load (the previous behaviour kept a
+        handle alive purely to feed a now-deleted ``detector.update_scaling``
+        API), so on the normal path ``hardware_vm.camera`` is None and this
+        helper is a no-op. It remains as defensive cleanup in case some
+        other code path (legacy preview features, future contributions)
+        leaves a handle attached — if so, releasing it here before opening
+        the session camera prevents double-device-power-on and CAP_DSHOW
+        conflicts.
         """
         controller = getattr(self, "controller", None)
         hardware_vm = getattr(controller, "hardware_vm", None) if controller else None

@@ -560,11 +560,20 @@ class LiveCalibrationCoordinator(BaseCoordinator):
 
         log.info("live_calibration_coordinator.live_calibration.method_selected", method=method)
 
-        # Resolve perspective from project config for weight selection
+        # Resolve perspective from project config for weight selection.
+        # The wizard persists behavioral data under ``project_data["behavioral_config"]``
+        # via ``ProjectWorkflowService._persist_project_data`` — that's the
+        # canonical location. The nested ``calibration.behavioral_analysis``
+        # layout is only used by some legacy project files / templates and
+        # is kept as a fallback so older saved projects still resolve their
+        # perspective correctly here.
         perspective: str | None = None
-        cal_data = project_data.get("calibration") or {}
-        ba_data = cal_data.get("behavioral_analysis") or {}
-        perspective = ba_data.get("aquarium_perspective") or None
+        bc_data = project_data.get("behavioral_config") or {}
+        perspective = bc_data.get("aquarium_perspective") or None
+        if perspective is None:
+            cal_data = project_data.get("calibration") or {}
+            ba_data = cal_data.get("behavioral_analysis") or {}
+            perspective = ba_data.get("aquarium_perspective") or None
 
         # Get model path for aquarium detection (perspective-aware)
         model_path = self.weight_manager.get_weight_path_by_method(

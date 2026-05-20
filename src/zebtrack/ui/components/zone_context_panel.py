@@ -258,10 +258,17 @@ class ZoneContextPanel:
         if "model_selection" in project_data:
             method = project_data["model_selection"].get("aquarium_method", method)
         perspective: str | None = None
+        # Canonical key set by ``ProjectWorkflowService._persist_project_data``
+        # — read that first. Fall back to the nested ``calibration
+        # .behavioral_analysis`` layout used by some legacy project files /
+        # templates so older saved projects still surface the right model.
         try:
-            cal = project_data.get("calibration") or {}
-            ba = cal.get("behavioral_analysis") or {}
-            perspective = ba.get("aquarium_perspective") or None
+            bc = project_data.get("behavioral_config") or {}
+            perspective = bc.get("aquarium_perspective") or None
+            if perspective is None:
+                cal = project_data.get("calibration") or {}
+                ba = cal.get("behavioral_analysis") or {}
+                perspective = ba.get("aquarium_perspective") or None
         except AttributeError:
             perspective = None
         try:

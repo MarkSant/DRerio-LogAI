@@ -273,3 +273,79 @@ def test_refresh_from_project_without_weight_manager_returns_dash_caption():
     panel.refresh_from_project()
 
     cast(MagicMock, panel._model_label).config.assert_called_with(text="Modelo do aquário: —")
+
+
+# ---------------------------------------------------------------------------
+# Perspective lookup — Copilot PR review comment #2
+# ---------------------------------------------------------------------------
+
+
+def test_model_caption_reads_perspective_from_behavioral_config():
+    """``ProjectWorkflowService._persist_project_data`` stores behavioral data
+    under ``project_data["behavioral_config"]`` (NOT under
+    ``calibration.behavioral_analysis``). The model caption resolver must
+    read from there so it picks the right perspective-specific weight."""
+    project_manager = MagicMock()
+    project_manager.get_project_type.return_value = "live"
+    project_manager.project_data = {
+        "model_selection": {"aquarium_method": "seg"},
+        "behavioral_config": {"aquarium_perspective": "top_down"},
+    }
+    project_manager.get_zone_data.return_value = None
+
+    weight_manager = MagicMock()
+    weight_manager.get_weight_path_by_method.return_value = "/w/top_down_seg.pt"
+
+    panel = _bare_panel(project_manager=project_manager, weight_manager=weight_manager)
+    panel.refresh_from_project()
+
+    weight_manager.get_weight_path_by_method.assert_called_with(
+        method="seg", task="aquarium", perspective="top_down"
+    )
+
+
+def test_model_caption_falls_back_to_nested_calibration_layout():
+    """Legacy projects keep the perspective under
+    ``calibration.behavioral_analysis.aquarium_perspective``. The fallback
+    must still surface that value when ``behavioral_config`` is absent."""
+    project_manager = MagicMock()
+    project_manager.get_project_type.return_value = "live"
+    project_manager.project_data = {
+        "model_selection": {"aquarium_method": "det"},
+        "calibration": {"behavioral_analysis": {"aquarium_perspective": "lateral"}},
+    }
+    project_manager.get_zone_data.return_value = None
+
+    weight_manager = MagicMock()
+    weight_manager.get_weight_path_by_method.return_value = "/w/lateral_det.pt"
+
+    panel = _bare_panel(project_manager=project_manager, weight_manager=weight_manager)
+    panel.refresh_from_project()
+
+    weight_manager.get_weight_path_by_method.assert_called_with(
+        method="det", task="aquarium", perspective="lateral"
+    )
+
+
+def test_model_caption_behavioral_config_wins_over_nested_layout():
+    """When both forms exist (e.g. migration leftover) the canonical
+    ``behavioral_config`` location takes precedence over the legacy nested
+    one — newer data wins."""
+    project_manager = MagicMock()
+    project_manager.get_project_type.return_value = "live"
+    project_manager.project_data = {
+        "model_selection": {"aquarium_method": "seg"},
+        "behavioral_config": {"aquarium_perspective": "top_down"},
+        "calibration": {"behavioral_analysis": {"aquarium_perspective": "lateral"}},
+    }
+    project_manager.get_zone_data.return_value = None
+
+    weight_manager = MagicMock()
+    weight_manager.get_weight_path_by_method.return_value = "/w/top_down_seg.pt"
+
+    panel = _bare_panel(project_manager=project_manager, weight_manager=weight_manager)
+    panel.refresh_from_project()
+
+    weight_manager.get_weight_path_by_method.assert_called_with(
+        method="seg", task="aquarium", perspective="top_down"
+    )

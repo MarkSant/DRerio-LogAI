@@ -700,6 +700,86 @@ def test_release_calibration_camera_swallows_release_exceptions():
 # ---------------------------------------------------------------------------
 
 
+def test_run_live_calibration_resolves_perspective_from_behavioral_config(monkeypatch):
+    """``ProjectWorkflowService._persist_project_data`` stores the wizard's
+    behavioral_analysis under ``project_data["behavioral_config"]``. Without
+    this fix, ``run_live_calibration`` was reading
+    ``project_data["calibration"]["behavioral_analysis"]`` (legacy nested
+    layout) and missing the perspective for new projects — picking the
+    wrong perspective-specific weight."""
+    coordinator = _make_coordinator()
+    coordinator.project_manager.project_data = {
+        "model_selection": {"aquarium_method": "seg"},
+        "behavioral_config": {"aquarium_perspective": "top_down"},
+    }
+    coordinator.project_manager.project_path = "/tmp"
+    coordinator.weight_manager.get_weight_path_by_method.return_value = None
+
+    # Stop the function early: we only care that get_weight_path_by_method
+    # is called with the right perspective. Returning None makes
+    # run_live_calibration bail at the no_aquarium_model branch.
+    fake_camera = MagicMock()
+    fake_camera.is_open = True
+    fake_camera.get_frame.return_value = (True, np.zeros((480, 640, 3), dtype=np.uint8))
+    fake_camera._stopped = MagicMock()
+
+    with (
+        patch(
+            "zebtrack.coordinators.live_calibration_coordinator.Camera",
+            return_value=fake_camera,
+        ),
+        patch(
+            "zebtrack.coordinators.live_calibration_coordinator.time.sleep",
+            return_value=None,
+        ),
+    ):
+        coordinator.settings = MagicMock()
+        coordinator.settings.camera = SimpleNamespace(index=0)
+        coordinator.settings.yolo_model = SimpleNamespace(confidence_threshold=0.05)
+        coordinator.run_live_calibration(stabilization_frames=4, show_preview=False)
+
+    coordinator.weight_manager.get_weight_path_by_method.assert_called_once_with(
+        method="seg", task="aquarium", perspective="top_down"
+    )
+
+
+def test_run_live_calibration_falls_back_to_nested_perspective(monkeypatch):
+    """Legacy projects store perspective under
+    ``calibration.behavioral_analysis.aquarium_perspective``. The fallback
+    keeps them working after the behavioral_config migration."""
+    coordinator = _make_coordinator()
+    coordinator.project_manager.project_data = {
+        "model_selection": {"aquarium_method": "det"},
+        "calibration": {"behavioral_analysis": {"aquarium_perspective": "lateral"}},
+    }
+    coordinator.project_manager.project_path = "/tmp"
+    coordinator.weight_manager.get_weight_path_by_method.return_value = None
+
+    fake_camera = MagicMock()
+    fake_camera.is_open = True
+    fake_camera.get_frame.return_value = (True, np.zeros((480, 640, 3), dtype=np.uint8))
+    fake_camera._stopped = MagicMock()
+
+    with (
+        patch(
+            "zebtrack.coordinators.live_calibration_coordinator.Camera",
+            return_value=fake_camera,
+        ),
+        patch(
+            "zebtrack.coordinators.live_calibration_coordinator.time.sleep",
+            return_value=None,
+        ),
+    ):
+        coordinator.settings = MagicMock()
+        coordinator.settings.camera = SimpleNamespace(index=0)
+        coordinator.settings.yolo_model = SimpleNamespace(confidence_threshold=0.05)
+        coordinator.run_live_calibration(stabilization_frames=4, show_preview=False)
+
+    coordinator.weight_manager.get_weight_path_by_method.assert_called_once_with(
+        method="det", task="aquarium", perspective="lateral"
+    )
+
+
 def test_run_live_calibration_saves_zones_under_reference_frame_key():
     """The polygon must be saved under the ``reference_frame_path`` key
     (not only under "live_camera") so the active-video machinery —
