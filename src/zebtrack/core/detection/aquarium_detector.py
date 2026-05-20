@@ -29,6 +29,18 @@ from zebtrack.io.video_source import VideoFileSource
 log = structlog.get_logger()
 
 
+def _clamp_confidence(value: float | None, *, default: float) -> float:
+    """Clamp a confidence value to ``[0.01, 0.95]``.
+
+    Centralized so all entry points (``detect_aquariums``, callers in
+    ``LiveCalibrationCoordinator``) share the same bounds. ``None`` resolves
+    to the supplied default.
+    """
+    if value is None:
+        value = default
+    return max(0.01, min(0.95, float(value)))
+
+
 class AquariumDetector:
     """Detects aquariums in a video using a YOLO segmentation model."""
 
@@ -183,6 +195,8 @@ class AquariumDetector:
         frame_index: int,
         min_area_ratio: float = 0.1,
         max_area_ratio: float = 0.98,
+        confidence_threshold: float = 0.05,
+        fallback_confidence: float = 0.01,
     ) -> np.ndarray | None:
         """
         Process segmentation results to extract a valid aquarium polygon.
@@ -258,7 +272,7 @@ class AquariumDetector:
                 conf_info = "sem_box"
                 if confidences:
                     max_conf = max(confidences)
-                    conf_valid = max_conf > 0.05  # Low but present threshold
+                    conf_valid = max_conf > confidence_threshold
                     conf_info = f"{max_conf:.3f}"
 
                 if area_valid and conf_valid:
@@ -285,7 +299,7 @@ class AquariumDetector:
                         frame=frame_index,
                         area_ratio=area_ratio,
                         confidence=conf_info,
-                        threshold=0.05,
+                        threshold=confidence_threshold,
                     )
             else:
                 log.warning(
@@ -296,8 +310,12 @@ class AquariumDetector:
                 )
         else:
             # If didn't find aquarium, try alternative strategy
-            log.info("aquarium_detector.trying_fallback", frame=frame_index)
-            results_all = self.model.predict(frame, verbose=False, conf=0.01)
+            log.info(
+                "aquarium_detector.trying_fallback",
+                frame=frame_index,
+                fallback_conf=fallback_confidence,
+            )
+            results_all = self.model.predict(frame, verbose=False, conf=fallback_confidence)
 
             if results_all and results_all[0].masks and results_all[0].masks.xy:
                 all_polygons = results_all[0].masks.xy
@@ -440,6 +458,8 @@ class AquariumDetector:
         stabilization_frames: int = 10,
         min_area_ratio: float = 0.1,
         max_area_ratio: float = 0.98,
+        confidence_threshold: float | None = None,
+        fallback_confidence: float | None = None,
     ) -> list[np.ndarray]:
         """
         Analyzes initial frames of a video to find the most stable aquarium polygon.
@@ -453,18 +473,26 @@ class AquariumDetector:
             stabilization_frames: The number of initial frames to analyze.
             min_area_ratio: Minimum area ratio relative to frame size.
             max_area_ratio: Maximum area ratio relative to frame size.
-            frame_skip: Frames to skip between analysis attempts (default 5).
+            confidence_threshold: YOLO prediction + validation confidence.
+                ``None`` falls back to the historical 0.05. Clamped to ``[0.01, 0.95]``.
+            fallback_confidence: Low-confidence retry used inside
+                ``_process_segmentation_results`` when the primary pass produces
+                no usable mask. ``None`` falls back to 0.01.
 
         Returns:
             A list containing the single most stable polygon, or an empty list if
             no stable polygon could be found.
         """
         video_path = str(Path(video_path) if isinstance(video_path, str) else video_path)
+        conf = _clamp_confidence(confidence_threshold, default=0.05)
+        fallback_conf = _clamp_confidence(fallback_confidence, default=0.01)
         log.info(
             "aquarium_detector.detect.start",
             video_path=video_path,
             mode=self.mode,
             min_ratio=min_area_ratio,
+            confidence_threshold=conf,
+            fallback_confidence=fallback_conf,
         )
         source = None
         try:
@@ -495,8 +523,8 @@ class AquariumDetector:
                 if frame is None:
                     continue
 
-                # Detect aquarium (class 0) with optimized threshold
-                results = self.model.predict(frame, verbose=False, classes=[0], conf=0.05)
+                # Detect aquarium (class 0) using configured threshold
+                results = self.model.predict(frame, verbose=False, classes=[0], conf=conf)
 
                 # Debug detailed results
                 log.info(
@@ -513,7 +541,13 @@ class AquariumDetector:
                 if self.mode == "seg":
                     # Segmentation mode - use existing logic
                     polygon = self._process_segmentation_results(
-                        frame, results, i, min_area_ratio, max_area_ratio
+                        frame,
+                        results,
+                        i,
+                        min_area_ratio,
+                        max_area_ratio,
+                        confidence_threshold=conf,
+                        fallback_confidence=fallback_conf,
                     )
                 elif self.mode == "det":
                     # Detection mode - extract polygon from bounding boxes
@@ -549,6 +583,7 @@ class AquariumDetector:
         stabilization_frames: int = 10,
         min_area_ratio: float = 0.1,
         max_area_ratio: float = 0.98,
+        confidence_threshold: float | None = None,
     ) -> list[np.ndarray]:
         """Detect multiple aquariums in a video.
 
@@ -574,10 +609,12 @@ class AquariumDetector:
             raise ValueError("Apenas 2 aquários são suportados")
 
         video_path_str = str(Path(video_path) if isinstance(video_path, str) else video_path)
+        conf = _clamp_confidence(confidence_threshold, default=0.05)
         log.info(
             "aquarium_detector.detect_multiple.start",
             video_path=video_path_str,
             expected_count=expected_count,
+            confidence_threshold=conf,
         )
 
         # Try YOLO-based detection first
@@ -612,8 +649,8 @@ class AquariumDetector:
                 self._last_source_width = int(frame.shape[1])
                 self._last_source_height = int(frame.shape[0])
 
-                # Detect all aquariums (class 0) with lower threshold
-                results = self.model.predict(frame, verbose=False, classes=[0], conf=0.05)
+                # Detect all aquariums (class 0) using configured threshold
+                results = self.model.predict(frame, verbose=False, classes=[0], conf=conf)
 
                 if results and results[0].boxes:
                     # Get all detections for this frame
@@ -621,8 +658,8 @@ class AquariumDetector:
                     frame_polygons = []
 
                     for _j, box in enumerate(boxes):
-                        conf = float(box.conf)
-                        if conf < 0.05:
+                        box_conf = float(box.conf)
+                        if box_conf < conf:
                             continue
 
                         xyxy_data = box.xyxy[0]

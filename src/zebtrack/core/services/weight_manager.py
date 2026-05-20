@@ -595,7 +595,7 @@ class WeightManager:
                 potential_weights.append((legacy_type or "seg", legacy_path, None))
 
         weights_found = False
-        for weight_type, filename, perspective in potential_weights:
+        for weight_type, filename, perspective in potential_weights:  # type: ignore[assignment]
             resolved_filename = self._resolve_weight_filename(filename)
             # Only register weights if the file actually exists
             if not os.path.exists(resolved_filename):

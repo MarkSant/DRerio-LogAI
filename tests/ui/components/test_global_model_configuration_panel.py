@@ -20,8 +20,8 @@ def global_config_controller():
 def test_global_model_configuration_panel_refresh_callback_runs(global_config_controller):
     panel = GlobalModelConfigurationPanel.__new__(GlobalModelConfigurationPanel)
     panel._refresh_weight_choices = Mock()
-    panel._populate_weights_treeview = Mock()
-    panel._populate_slot_comboboxes = Mock()
+    panel._populate_weights_treeview = Mock()  # type: ignore[method-assign]
+    panel._populate_slot_comboboxes = Mock()  # type: ignore[method-assign]
     panel.controller = global_config_controller
 
     panel._refresh_weights_catalog()

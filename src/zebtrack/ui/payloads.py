@@ -887,6 +887,57 @@ class LiveSessionStoppedPayload:
 
 
 @dataclass(frozen=True)
+class LiveRecordingPendingPayload:
+    """Published when a live session has been requested but is waiting on zone confirmation.
+
+    The UI uses this to display the "Iniciar Gravação" banner/button in the zone tab.
+    ``polygon_source`` is "auto" or "manual" (default "manual" when the user opted
+    to draw it themselves).
+    """
+
+    experiment_id: str
+    group: str | None = None
+    day: str | None = None
+    subject_id: str | None = None
+    polygon_source: str = "manual"
+
+
+@dataclass(frozen=True)
+class LiveRecordingResumeRequestedPayload:
+    """Published by the zone-tab "Iniciar Gravação" button.
+
+    The active ``LiveCameraSessionCoordinator`` listens and resumes the
+    pending session with ``zones_validated=True``.
+    """
+
+    experiment_id: str | None = None
+
+
+@dataclass(frozen=True)
+class LiveRecordingCancelledPayload:
+    """Published by the zone-tab "Cancelar Sessão" button.
+
+    Clears any pending live session context held by the coordinator.
+    """
+
+    experiment_id: str | None = None
+
+
+@dataclass(frozen=True)
+class LivePolygonSourceChangedPayload:
+    """Published whenever ``LiveCalibrationCoordinator._last_polygon_source`` mutates.
+
+    ``source`` is ``"auto"`` after PreviewPolygonDialog approves an auto-detected
+    polygon, ``"manual"`` when the user falls back to manual drawing (or drags a
+    vertex before approval), and ``None`` after the session is consumed/cleared.
+    The Zone tab ``ZoneContextPanel`` subscribes to keep its provenance badge
+    in sync without polling.
+    """
+
+    source: str | None = None
+
+
+@dataclass(frozen=True)
 class UIUpdateLiveFramePayload:
     frame: Any
     detections: Sequence[Any] | None = None

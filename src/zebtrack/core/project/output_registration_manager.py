@@ -334,6 +334,7 @@ class OutputRegistrationManager:
         group: str | None = None,
         day: str | None = None,
         subject_id: str | None = None,
+        polygon_source: str | None = None,
     ) -> bool:
         """Update project metadata with freshly generated analysis artifacts.
 
@@ -388,6 +389,9 @@ class OutputRegistrationManager:
             metadata["day"] = day
         if subject_id and not metadata.get("subject"):
             metadata["subject"] = subject_id
+        if polygon_source:
+            # Always overwrite — the source reflects the most recent recording.
+            metadata["polygon_source"] = polygon_source
 
         # Update flags, parquet mapping and persist as needed using helpers
         self._update_entry_zone_flags(video_entry, video_path_str, get_zone_data_fn)
@@ -424,10 +428,11 @@ class OutputRegistrationManager:
     @staticmethod
     def _update_entry_zone_flags(
         video_entry: dict,
-        video_path: str,
+        video_path: Path | str,
         get_zone_data_fn: Callable[..., Any],
     ) -> None:
         """Update has_arena/has_rois flags from zone data when missing."""
+        video_path = str(video_path) if isinstance(video_path, Path) else video_path
         zone_data = get_zone_data_fn(video_path, fallback_to_global=False)
         if not zone_data:
             return

@@ -70,6 +70,11 @@ class TestModelSelectionStep:
                 "yolov8n.pt",
                 "/weights/yolov8n.pt",
             )
+            # No perspective metadata in the default catalog — return
+            # (None, None) so callers fall through to the type-based default.
+            # Individual tests override this when they need perspective-aware
+            # behaviour.
+            mock_instance.get_weight_by_perspective_and_type.return_value = (None, None)
 
             mock_wm.return_value = mock_instance
             yield mock_instance
@@ -389,3 +394,76 @@ class TestModelSelectionStep:
         is_valid, _ = step.validate()
 
         assert is_valid == expected_valid
+
+    # ------------------------------------------------------------------
+    # _get_active_perspective — bug fix for top-down recommendation flow
+    # ------------------------------------------------------------------
+
+    def test_get_active_perspective_reads_flat_behavioral_analysis(self, mock_weight_manager):
+        """Wizard merges step data flat into wizard_data, so behavioral_analysis
+        lives at the top level — not nested under a 'calibration' key.
+        """
+        wizard_data: dict[str, Any] = {
+            "behavioral_analysis": {"aquarium_perspective": "top_down"},
+        }
+        step = ModelSelectionStep(self.root, wizard_data, settings_obj=None)
+
+        assert step._get_active_perspective() == "top_down"
+
+    def test_get_active_perspective_falls_back_to_nested_layout(self, mock_weight_manager):
+        """When wizard_data was hydrated from project_data, the nested
+        calibration/behavioral_analysis form is still honored."""
+        wizard_data: dict[str, Any] = {
+            "calibration": {
+                "behavioral_analysis": {"aquarium_perspective": "lateral"},
+            },
+        }
+        step = ModelSelectionStep(self.root, wizard_data, settings_obj=None)
+
+        assert step._get_active_perspective() == "lateral"
+
+    def test_get_active_perspective_returns_none_when_unset(self, mock_weight_manager):
+        wizard_data: dict[str, Any] = {}
+        step = ModelSelectionStep(self.root, wizard_data, settings_obj=None)
+        assert step._get_active_perspective() is None
+
+    def test_get_active_perspective_normalizes_enum_style_value(self, mock_weight_manager):
+        wizard_data: dict[str, Any] = {
+            "behavioral_analysis": {"aquarium_perspective": "AquariumPerspective.TOP_DOWN"},
+        }
+        step = ModelSelectionStep(self.root, wizard_data, settings_obj=None)
+        assert step._get_active_perspective() == "top_down"
+
+    def test_top_down_perspective_drives_recommended_weight(self, mock_weight_manager):
+        """When perspective=top_down is set in wizard_data, the dropdown
+        recommendation must use the top-down weight, not the lateral one."""
+        # Catalog: two seg weights, one tagged top_down and one lateral.
+        mock_weight_manager.get_all_weights.return_value = [
+            "yolov8n-seg-top.pt",
+            "yolov8n-seg-side.pt",
+        ]
+
+        def weight_details(name):
+            if name == "yolov8n-seg-top.pt":
+                return {"type": "seg", "perspective": "top_down", "path": "/w/top.pt"}
+            return {"type": "seg", "perspective": "lateral", "path": "/w/side.pt"}
+
+        mock_weight_manager.get_weight_details.side_effect = weight_details
+
+        def by_perspective(perspective, weight_type):
+            for name in mock_weight_manager.get_all_weights.return_value:
+                details = weight_details(name)
+                if details["type"] == weight_type and details["perspective"] == perspective:
+                    return name, details
+            return None, None
+
+        mock_weight_manager.get_weight_by_perspective_and_type.side_effect = by_perspective
+
+        wizard_data: dict[str, Any] = {
+            "behavioral_analysis": {"aquarium_perspective": "top_down"},
+        }
+        step = ModelSelectionStep(self.root, wizard_data, settings_obj=None)
+
+        # Without the fix this returns the lateral default because the
+        # perspective lookup silently fails.
+        assert step._default_weight_for_method("seg") == "yolov8n-seg-top.pt"

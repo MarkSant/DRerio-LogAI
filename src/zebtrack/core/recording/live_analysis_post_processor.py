@@ -231,10 +231,14 @@ class LiveAnalysisPostProcessorMixin:
                 # Generate Reports
                 ctx = ReporterContext.from_analysis(analysis_result)
 
-                excel_path = output_dir / f"4_RelatorioSumario_{self._experiment_id}.xlsx"
+                # Align live filenames with the pre-recorded convention
+                # (``report_generation_coordinator.py:859`` writes
+                # ``4_Relatorio_{exp}.xlsx`` / ``.docx``) so the Reports tree
+                # and downstream tooling can treat both flows uniformly.
+                excel_path = output_dir / f"4_Relatorio_{self._experiment_id}.xlsx"
                 ExcelReporter(ctx).export_summary(str(excel_path))
 
-                word_path = output_dir / f"5_RelatorioIndividual_{self._experiment_id}.docx"
+                word_path = output_dir / f"4_Relatorio_{self._experiment_id}.docx"
                 WordReporter(ctx).export_individual_report(str(word_path))
 
                 log.info(
@@ -255,6 +259,7 @@ class LiveAnalysisPostProcessorMixin:
                         group=self._analysis_params.get("group"),
                         day=self._analysis_params.get("day"),
                         subject_id=self._analysis_params.get("subject_id"),
+                        polygon_source=self._analysis_params.get("polygon_source"),
                     )
 
                     if self.event_bus:

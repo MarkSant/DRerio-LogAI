@@ -547,6 +547,14 @@ class DetectionZonesSettings(BaseModel):
             "a valid aquarium. Default 0.98 (98%) to avoid full-frame false positives."
         ),
     )
+    preserve_real_aquarium_shape: bool = Field(
+        False,
+        description=(
+            "When True and using a segmentation aquarium model, keep the actual mask polygon "
+            "(N vertices) instead of collapsing to a 4-corner bounding box. Required for "
+            "non-rectangular aquariums (circular, hexagonal, irregular)."
+        ),
+    )
 
 
 class ReproducibilitySettings(BaseModel):

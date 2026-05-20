@@ -75,6 +75,19 @@ class CameraConnectionMixin:
 
             log.info("live_camera_service.setting_up_camera", camera_index=camera_index)
 
+            # Defensive cleanup: release any Camera handle currently parked on
+            # ``hardware_vm.camera`` BEFORE opening the session camera. Since
+            # Etapa 10b ``ProjectInitializer.initialize_live_components`` no
+            # longer opens a Camera at project init — but other code paths
+            # (legacy preview features, future contributions) might still
+            # leave a handle attached. If so, we'd hold two device handles at
+            # once and with per-session camera overrides could even power on
+            # two physically different cameras simultaneously (LEDs lit, USB
+            # bandwidth contention, possible CAP_DSHOW open failure). The
+            # helper is a no-op when ``hardware_vm.camera`` is None, which is
+            # the normal path today.
+            self._release_preview_camera_if_any()
+
             # Create temporary settings with desired camera index and force 720p resolution
             temp_settings = self.settings.model_copy(deep=True)
             log.info(
@@ -171,6 +184,35 @@ class CameraConnectionMixin:
                 exc_info=True,
             )
             return False
+
+    def _release_preview_camera_if_any(self) -> None:
+        """Release any Camera handle currently parked on ``hardware_vm.camera``.
+
+        Since Etapa 10b ``ProjectInitializer.initialize_live_components`` no
+        longer opens a Camera at project load (the previous behaviour kept a
+        handle alive purely to feed a now-deleted ``detector.update_scaling``
+        API), so on the normal path ``hardware_vm.camera`` is None and this
+        helper is a no-op. It remains as defensive cleanup in case some
+        other code path (legacy preview features, future contributions)
+        leaves a handle attached — if so, releasing it here before opening
+        the session camera prevents double-device-power-on and CAP_DSHOW
+        conflicts.
+        """
+        controller = getattr(self, "controller", None)
+        hardware_vm = getattr(controller, "hardware_vm", None) if controller else None
+        preview_camera = getattr(hardware_vm, "camera", None) if hardware_vm else None
+        if preview_camera is None:
+            return
+        try:
+            preview_camera.release()
+            log.info("live_camera_service.preview_camera.released")
+        # except Exception justified: best-effort cleanup of legacy preview camera
+        except Exception as e:
+            log.warning("live_camera_service.preview_camera.release_failed", error=str(e))
+        finally:
+            hardware_vm.camera = None  # type: ignore[union-attr]
+            if getattr(hardware_vm, "active_frame_source", None) is preview_camera:
+                hardware_vm.active_frame_source = None  # type: ignore[union-attr]
 
     def _create_preview_window(self, camera_index: int, duration_s: float) -> None:
         """Create the live preview window."""

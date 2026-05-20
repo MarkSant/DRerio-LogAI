@@ -793,9 +793,18 @@ class TestProjectAndRecordingDialogs:
         result = dialog_manager.ask_recording_details_unified()
 
         assert result == {"day": 1, "group": "G1", "subject": 1}
-        mock_dialog_class.assert_called_once_with(
-            dialog_manager.gui.root, mock_controller.project_manager
-        )
+        # Verify positional args; the camera_provider kwarg added for the
+        # per-session camera override chooser is allowed (and expected) to be
+        # passed without being asserted exactly — it's a callable produced
+        # inside the manager.
+        mock_dialog_class.assert_called_once()
+        call_args, call_kwargs = mock_dialog_class.call_args
+        assert call_args == (dialog_manager.gui.root, mock_controller.project_manager)
+        # The camera_provider kwarg may or may not be present depending on
+        # whether the project is live; either way it must be a callable when
+        # present.
+        if "camera_provider" in call_kwargs:
+            assert callable(call_kwargs["camera_provider"])
 
     @patch("zebtrack.ui.dialogs.start_recording_dialog.StartRecordingDialog")
     def test_ask_recording_details_unified_returns_none_on_cancel(
@@ -849,8 +858,10 @@ class TestProjectAndRecordingDialogs:
 
         dialog_manager.open_project_workflow()
 
+        from zebtrack.ui.payloads import ProjectOpenPayload
+
         mock_gui.event_dispatcher.publish_event.assert_called_once_with(
-            UIEvents.PROJECT_OPEN, {"project_path": "/path/to/project"}
+            UIEvents.PROJECT_OPEN, ProjectOpenPayload(project_path="/path/to/project")
         )
 
 

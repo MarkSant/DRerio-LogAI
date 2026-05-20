@@ -240,3 +240,49 @@ def test_on_camera_reconnected_resumes_and_publishes(live_camera_service, monkey
     assert live_camera_service._disconnect_gaps[-1] == (10.0, 15.0)
     live_camera_service.recorder.resume_recording.assert_called_once()
     live_camera_service.event_bus.publish.assert_called_once()
+
+
+def test_release_preview_camera_releases_hardware_vm_camera(live_camera_service):
+    """At session start the project-level preview Camera (held by hardware_vm)
+    must be released, otherwise its physical device stays powered on alongside
+    the session camera — which is exactly what users observe with per-session
+    overrides (two cameras lit at once)."""
+    preview_camera = Mock()
+    hardware_vm = Mock()
+    hardware_vm.camera = preview_camera
+    hardware_vm.active_frame_source = preview_camera
+    controller = Mock()
+    controller.hardware_vm = hardware_vm
+    live_camera_service.controller = controller
+
+    live_camera_service._release_preview_camera_if_any()
+
+    preview_camera.release.assert_called_once()
+    assert hardware_vm.camera is None
+    assert hardware_vm.active_frame_source is None
+
+
+def test_release_preview_camera_no_hardware_vm_is_noop(live_camera_service):
+    """When there is no controller / hardware_vm (tests, headless), the helper
+    must silently no-op — never crash the session start path."""
+    live_camera_service.controller = None
+    # Must not raise.
+    live_camera_service._release_preview_camera_if_any()
+
+
+def test_release_preview_camera_swallows_release_exception(live_camera_service):
+    """A failure inside Camera.release must not abort the session — log and
+    proceed (the device will be reclaimed when the process exits anyway)."""
+    preview_camera = Mock()
+    preview_camera.release.side_effect = RuntimeError("cv2 hiccup")
+    hardware_vm = Mock()
+    hardware_vm.camera = preview_camera
+    hardware_vm.active_frame_source = preview_camera
+    controller = Mock()
+    controller.hardware_vm = hardware_vm
+    live_camera_service.controller = controller
+
+    live_camera_service._release_preview_camera_if_any()
+
+    preview_camera.release.assert_called_once()
+    assert hardware_vm.camera is None

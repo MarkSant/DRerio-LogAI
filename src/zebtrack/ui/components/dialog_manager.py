@@ -779,10 +779,34 @@ class DialogManager:
             )
             return None
 
+        from zebtrack.core.services.wizard_service import WizardService
         from zebtrack.ui.dialogs.start_recording_dialog import StartRecordingDialog
 
-        dialog = StartRecordingDialog(self.gui.root, pm)
-        return dialog.result
+        def _camera_provider():
+            return WizardService.detect_available_cameras(use_cache=False)
+
+        dialog = StartRecordingDialog(self.gui.root, pm, camera_provider=_camera_provider)
+        result = dialog.result
+
+        if (
+            result
+            and result.get("persist_camera")
+            and result.get("camera_index_override") is not None
+        ):
+            try:
+                pm.project_data["camera_index"] = int(result["camera_index_override"])
+                pm.project_data["camera_friendly_name"] = (
+                    result.get("camera_friendly_name_override") or ""
+                )
+                if hasattr(pm, "save_project"):
+                    pm.save_project()
+            except (OSError, AttributeError, ValueError) as exc:
+                self.show_warning(
+                    "Falha ao salvar câmera",
+                    f"Não foi possível salvar a câmera como padrão do projeto:\n{exc}",
+                )
+
+        return result
 
     def ask_missing_metadata(self, experiment_id: str) -> dict[str, Any] | None:
         """Show a dialog to get missing metadata from the user.
@@ -805,10 +829,13 @@ class DialogManager:
             return
 
         from zebtrack.ui.event_bus_v2 import UIEvents
+        from zebtrack.ui.payloads import ProjectOpenPayload
 
+        # Use the typed payload (raw dicts trip the check-payload-assertions
+        # pre-commit hook and are inconsistent with the rest of the event bus).
         self.gui.event_dispatcher.publish_event(
             UIEvents.PROJECT_OPEN,
-            {"project_path": project_path},
+            ProjectOpenPayload(project_path=project_path),
         )
 
     def handle_grid_cell_click(self, day: int, group_name: str) -> None:
@@ -845,6 +872,9 @@ class DialogManager:
                 project_type = pm.get_project_type()
 
                 if project_type == "live":
+                    # Legacy v2.x path: no per-session camera override UI here;
+                    # the resolver in start_live_project_session will still recover
+                    # from DirectShow reordering via friendly_name.
                     success = self.gui.controller.hardware_vm.start_live_project_session(
                         day=day,
                         group=group_name,

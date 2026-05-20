@@ -454,6 +454,42 @@ class TestAquariumDetectorExtraction:
 
         assert polygon is None
 
+    @pytest.mark.skipif(not ULTRALYTICS_AVAILABLE, reason="Ultralytics not available")
+    def test_process_segmentation_returns_multi_vertex_polygon(self, detector, sample_frame):
+        """Polígono real (N vértices, ex: hexágono/círculo) é preservado.
+
+        Garantia para Etapa 2: aquários não-retangulares mantêm o formato real
+        — _process_segmentation_results devolve todos os vértices da máscara,
+        não um retângulo de 4 cantos.
+        """
+        detector.mode = "seg"
+
+        # 12-vértice (aproxima circular) com bbox ~50% do frame
+        angles = np.linspace(0.0, 2.0 * np.pi, 12, endpoint=False)
+        circular_mask = np.stack(
+            [320 + 200 * np.cos(angles), 240 + 150 * np.sin(angles)],
+            axis=1,
+        ).astype(np.float32)
+
+        mock_box = MagicMock()
+        mock_box.conf = 0.85
+        mock_box.cls = 0
+
+        mock_results = [MagicMock()]
+        mock_results[0].masks = MagicMock()
+        mock_results[0].masks.xy = [circular_mask]
+        mock_results[0].boxes = [mock_box]
+
+        polygon = detector._process_segmentation_results(sample_frame, mock_results, 0)
+
+        assert polygon is not None
+        assert isinstance(polygon, np.ndarray)
+        assert polygon.shape == (12, 2), (
+            f"expected (12, 2) multi-vertex polygon, got {polygon.shape}"
+        )
+        # dtype must be int32 (downstream cv2 contour/fillPoly contract)
+        assert polygon.dtype == np.int32
+
 
 # ============================================================================
 # CLASSE 4: TESTES DE DETECÇÃO EM FRAMES ÚNICOS

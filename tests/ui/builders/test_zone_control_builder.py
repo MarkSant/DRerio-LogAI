@@ -30,11 +30,17 @@ class TestZoneControlBuilder:
         gui.video_selector_tree = None
         return gui
 
+    @patch("zebtrack.ui.components.zone_context_panel.ZoneContextPanel")
     @patch("zebtrack.ui.builders.zone_control_builder.create_scrollbar")
     @patch("zebtrack.ui.builders.zone_control_builder.ttk")
     @patch("zebtrack.ui.builders.zone_control_builder.StringVar")
     def test_create_zone_control_widgets(
-        self, mock_stringvar, mock_ttk, mock_create_scrollbar, mock_gui
+        self,
+        mock_stringvar,
+        mock_ttk,
+        mock_create_scrollbar,
+        mock_zone_context_panel,
+        mock_gui,
     ):
         """Test creating all zone control widgets."""
         # Setup mocks
@@ -61,6 +67,11 @@ class TestZoneControlBuilder:
         mock_create_scrollbar.return_value = mock_scrollbar
 
         mock_stringvar.return_value = Mock()
+
+        # Panel.build() must return a mock frame supporting .pack(...)
+        panel_instance = Mock()
+        panel_instance.build.return_value = Mock()
+        mock_zone_context_panel.return_value = panel_instance
 
         builder = ZoneControlBuilder(mock_gui)
         builder.create_zone_control_widgets()

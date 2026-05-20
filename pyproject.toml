@@ -21,8 +21,15 @@ ultralytics = ">=8.3.179,<8.4.0"
 pyyaml = "^6.0.2"
 pydantic = "^2.11.7"
 structlog = "^25.4.0"
-Pillow = ">=12.1.1"
-urllib3 = ">=2.6.3"
+# Pillow >=12.2.0 fixes CVE-2026-40192/42308/42309/42310/42311 (pip-audit CI gate).
+Pillow = ">=12.2.0"
+# urllib3 >=2.7.0 fixes PYSEC-2026-141/142 (pip-audit CI gate).
+urllib3 = ">=2.7.0"
+# Transitive bumps to clear pip-audit CI gate:
+# idna >=3.15 fixes CVE-2026-45409 (pulled in via requests / pip-audit chain).
+idna = ">=3.15"
+# lxml >=6.1.0 fixes PYSEC-2026-87 (pulled in via docxtpl / docxcompose chain).
+lxml = ">=6.1.0"
 pyarrow = "^23.0.0"
 pandas = "^2.3.1"
 scipy = "^1.16.1"
@@ -41,6 +48,9 @@ tomli = "^2.0.1"
 setuptools = "<81"
 plotly = "^6.0.0"
 punq = "^0.7.0"
+# DirectShow camera friendly names on Windows (used by WizardService.detect_available_cameras
+# to show "USB2.0 HD UVC WebCam" instead of just resolution). Windows-only by design.
+pygrabber = {version = "^0.2", markers = "sys_platform == 'win32'"}
 
 [tool.poetry.scripts]
 zebtrack = "zebtrack.__main__:main"
@@ -171,6 +181,10 @@ module = [
     "pytest_timeout.*",
     "serial.*",
     "torch.*",
+    # pygrabber is a Windows-only dep (DirectShow friendly-name lookup),
+    # gated by ``sys_platform == 'win32'`` in poetry.lock — on the Linux
+    # CI runner it's not installed and mypy can't resolve the import.
+    "pygrabber.*",
     "yaml",
     "psutil",
     "hypothesis"

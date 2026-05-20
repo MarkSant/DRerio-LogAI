@@ -211,6 +211,15 @@ class UIEvents(Enum):
     UI_UPDATE_LIVE_FRAME = auto()
     LIVE_SESSION_STARTED = auto()  # Internal: coordinator after live session starts
     LIVE_SESSION_STOPPED = auto()  # Internal: coordinator after live session ends
+    # Pending-session handshake (zone tab "Iniciar Gravação" button).
+    LIVE_RECORDING_PENDING = auto()
+    LIVE_RECORDING_RESUME_REQUESTED = auto()
+    LIVE_RECORDING_CANCELLED = auto()
+    # Published whenever LiveCalibrationCoordinator mutates ``_last_polygon_source``
+    # (set after PreviewPolygonDialog approval, cleared after the session is
+    # consumed, or tagged "manual" when the user falls back to drawing). The
+    # Zone tab context panel subscribes so the badge stays in sync without polling.
+    LIVE_POLYGON_SOURCE_CHANGED = auto()
 
     # ── Widget Internal Events (formerly raw strings) ─────────────────
     BEHAVIORAL_CONFIG_PERSPECTIVE_CHANGED = auto()
@@ -435,6 +444,10 @@ _PAYLOAD_TYPES: dict[UIEvents, type[Any]] = {
     UIEvents.UI_UPDATE_LIVE_FRAME: payloads.UIUpdateLiveFramePayload,
     UIEvents.LIVE_SESSION_STARTED: payloads.LiveSessionStartedPayload,
     UIEvents.LIVE_SESSION_STOPPED: payloads.LiveSessionStoppedPayload,
+    UIEvents.LIVE_RECORDING_PENDING: payloads.LiveRecordingPendingPayload,
+    UIEvents.LIVE_RECORDING_RESUME_REQUESTED: payloads.LiveRecordingResumeRequestedPayload,
+    UIEvents.LIVE_RECORDING_CANCELLED: payloads.LiveRecordingCancelledPayload,
+    UIEvents.LIVE_POLYGON_SOURCE_CHANGED: payloads.LivePolygonSourceChangedPayload,
     # Widget Internal Events
     UIEvents.BEHAVIORAL_CONFIG_PERSPECTIVE_CHANGED: (
         payloads.BehavioralConfigPerspectiveChangedPayload

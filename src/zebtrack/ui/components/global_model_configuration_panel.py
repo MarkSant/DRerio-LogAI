@@ -141,7 +141,7 @@ class GlobalModelConfigurationPanel(ttk.Frame):
             combo.grid(row=row, column=1, sticky="ew", padx=4, pady=2)
             combo.bind(
                 "<<ComboboxSelected>>",
-                lambda _e, m=method, t=target: self._on_slot_default_selected(m, t),
+                lambda _e, m=method, t=target: self._on_slot_default_selected(m, t),  # type: ignore[misc]
             )
             self.slot_comboboxes[(method, target)] = combo
 

@@ -173,9 +173,11 @@ class ProjectWorkflowService:
             "analysis_interval_frames",
             "display_interval_frames",
             "camera_index",
+            "camera_friendly_name",
             "use_arduino",
             "arduino_port",
             "external_trigger_mode",
+            "preserve_real_aquarium_shape",
             "use_single_subject_tracker",
             # Live project params
             "experiment_days",
@@ -445,7 +447,7 @@ class ProjectWorkflowService:
     ) -> tuple[str | None, bool]:
         """Persist explicit slot overrides for the active project."""
         if not getattr(self.project_manager, "project_path", None):
-            return self.resolve_project_model_settings(), bool(use_openvino_override)
+            return self.resolve_project_model_settings(), bool(use_openvino_override)  # type: ignore[return-value]
 
         overrides = self.project_manager.project_data.setdefault(
             "model_overrides",
@@ -968,10 +970,6 @@ class ProjectWorkflowService:
 
         live_defaults = {
             "selected_live_mode": kwargs.get("selected_live_mode"),
-            "experimental_group": kwargs.get("experimental_group"),
-            "experiment_day": kwargs.get("experiment_day"),
-            "subject_id": kwargs.get("subject_id"),
-            "is_batch_last_session": kwargs.get("is_batch_last_session"),
         }
         live_defaults = {k: v for k, v in live_defaults.items() if v is not None}
         if live_defaults:

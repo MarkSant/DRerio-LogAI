@@ -115,8 +115,98 @@ class LiveCalibrationCoordinator(BaseCoordinator):
         self.camera: Camera | None = None
         self._pending_zone_confirmation = False
         self._session_count = 0
+        # Source of the polygon for the pending session: "auto" (PreviewPolygonDialog
+        # approved an auto-detected polygon) or "manual" (user drew it / fell back to
+        # manual mode). Read by LiveCameraSessionCoordinator when publishing
+        # LIVE_RECORDING_PENDING so the UI / completion metadata can show provenance.
+        self._last_polygon_source: str | None = None
+
+        # Detector cached during run_live_calibration so the PreviewPolygonDialog
+        # retry callback can re-run inference without reloading model weights.
+        self._calibration_detector: AquariumDetector | None = None
+        self._calibration_initial_confidence: float = 0.05
+        # Cached at run_live_calibration time so the retry callback uses the
+        # same project flag without re-reading project_data.
+        self._calibration_preserve_real_shape: bool = False
+
+        # Tristate-ish exit reason from the most recent ``run_live_calibration``
+        # call. ``True`` means the user explicitly cancelled (closed or rejected
+        # the preview dialog) — distinct from a genuine detection failure.
+        # ``attempt_zone_calibration`` reads this to decide whether to fall
+        # through to manual drawing (genuine failure) or abort cleanly (cancel).
+        self._last_calibration_cancelled: bool = False
 
         log.info("live_calibration_coordinator.initialized")
+
+    def _release_calibration_camera(self, reason: str) -> None:
+        """Tear down ``self.camera`` and signal its background thread to stop.
+
+        Centralises the "stop background thread + release + drop reference"
+        sequence so every early-return path in ``run_live_calibration`` (and
+        the retry callback) releases the camera consistently. Without this,
+        a rejected preview dialog leaves the Camera instance alive and its
+        capture thread spams ``camera.frame_read.failed`` /
+        ``camera.disconnected`` warnings indefinitely.
+
+        Args:
+            reason: Short tag appended to the log event for triage.
+        """
+        camera = self.camera
+        if camera is None:
+            return
+        # Signal shutdown BEFORE release so the background thread does not
+        # try to reconnect after the device handle is gone.
+        stopped_event = getattr(camera, "_stopped", None)
+        if stopped_event is not None and hasattr(stopped_event, "set"):
+            try:
+                stopped_event.set()
+            # except Exception justified: defensive — release must not throw.
+            except Exception:  # pragma: no cover
+                log.debug("live_calibration_coordinator.camera.stop_signal_failed")
+        release_fn = getattr(camera, "release", None)
+        if callable(release_fn):
+            try:
+                release_fn()
+            # except Exception justified: hardware/OS may already have torn
+            # the device down — log and continue rather than propagating.
+            except Exception:  # pragma: no cover
+                log.debug("live_calibration_coordinator.camera.release_failed")
+        self.camera = None
+        log.info("live_calibration_coordinator.camera_released", reason=reason)
+
+    @property
+    def last_polygon_source(self) -> str | None:
+        """Source of the most recently confirmed polygon ("auto" / "manual" / None)."""
+        return self._last_polygon_source
+
+    def _set_last_polygon_source(self, source: str | None) -> None:
+        """Update ``_last_polygon_source`` and publish ``LIVE_POLYGON_SOURCE_CHANGED``.
+
+        Centralised so the Zone tab context panel can mirror the value without
+        polling. Publishes unconditionally (including no-op transitions) so the
+        UI can re-render after a project reload that resets internal state.
+        """
+        self._last_polygon_source = source
+        if self.event_bus is None:
+            return
+        try:
+            self.event_bus.publish(
+                Event(
+                    type=UIEvents.LIVE_POLYGON_SOURCE_CHANGED,
+                    data=payloads.LivePolygonSourceChangedPayload(source=source),
+                    source="LiveCalibrationCoordinator._set_last_polygon_source",
+                )
+            )
+        # except Exception justified: event bus must never break calibration flow.
+        except Exception as exc:
+            log.warning(
+                "live_calibration_coordinator.polygon_source.publish_failed",
+                error=str(exc),
+            )
+
+    def clear_last_polygon_source(self) -> None:
+        """Reset the polygon-source tag (e.g. after a session is registered)."""
+        self._set_last_polygon_source(None)
 
     # =============================================================================
     # ZONE VALIDATION
@@ -195,13 +285,27 @@ class LiveCalibrationCoordinator(BaseCoordinator):
                 success = self.run_live_calibration(stabilization_frames=30, show_preview=True)
 
                 if success:
-                    # Detection successful and approved
-                    # Navigate to zone tab to allow adjustments/ROIs
+                    # Polygon source ("auto" vs "manual") is recorded inside
+                    # ``run_live_calibration`` based on whether the user dragged
+                    # a vertex in the PreviewPolygonDialog. No override here.
+                    # Navigate to zone tab to allow adjustments/ROIs.
                     if self.event_bus:
                         self.event_bus.publish(
                             Event(
                                 type=UIEvents.UI_SELECT_TAB,
                                 data=payloads.UISelectTabPayload(tab_name="zone_tab"),
+                            )
+                        )
+                        # Refresh the zone tab so the auto-detected polygon and
+                        # toolbar (ROIs / Concluir) materialise. Mirrors the
+                        # manual flow below — without this event the canvas
+                        # renders the reference frame but never replays the
+                        # zone collection ``save_zone_data`` just persisted,
+                        # leaving the user looking at a blank polygon.
+                        self.event_bus.publish(
+                            Event(
+                                type=UIEvents.UI_UPDATE_ZONE_LIST,
+                                data=payloads.EmptyPayload(),
                             )
                         )
                         self.event_bus.publish(
@@ -220,8 +324,18 @@ class LiveCalibrationCoordinator(BaseCoordinator):
 
                     # Wait for user confirmation
                     return self._wait_for_zone_confirmation()
+                elif self._last_calibration_cancelled:
+                    # User explicitly closed/rejected the preview dialog — do
+                    # NOT fall through to manual mode and do NOT navigate to
+                    # the zone tab. Abort cleanly so the wizard step stays
+                    # where it was. The camera was already released by
+                    # ``run_live_calibration``.
+                    log.info("live_calibration_coordinator.zones.user_cancelled_auto_detect")
+                    return False
                 else:
-                    # Detection failed
+                    # Detection failed for non-cancellation reasons (camera
+                    # init failure, no polygon detected, model exception…).
+                    # Inform the user and fall through to manual drawing.
                     if self.event_bus:
                         self.event_bus.publish(
                             Event(
@@ -240,9 +354,10 @@ class LiveCalibrationCoordinator(BaseCoordinator):
                     # Fallback to manual
                     method = "manual"
 
-            # 3b. MANUAL DRAWING (or fallback from auto)
+            # 3b. MANUAL DRAWING (or fallback from auto) → tag as manual
             if method == "manual":
                 log.info("live_calibration_coordinator.zones.manual_mode")
+                self._set_last_polygon_source("manual")
 
                 # Capture reference frame
                 if not self._capture_reference_frame_for_zones():
@@ -366,6 +481,10 @@ class LiveCalibrationCoordinator(BaseCoordinator):
         import time  # For delays between camera operations
 
         log.info("live_calibration_coordinator.live_calibration.start")
+        # Reset the cancellation flag so a previous cancel doesn't leak into
+        # this run's interpretation. The flag is only set to True on the
+        # user-rejected path below.
+        self._last_calibration_cancelled = False
 
         # Initialize camera if necessary
         if not self.camera or not hasattr(self.camera, "is_open") or not self.camera.is_open:
@@ -422,6 +541,7 @@ class LiveCalibrationCoordinator(BaseCoordinator):
                 "live_calibration_coordinator.live_calibration.insufficient_frames",
                 captured=len(frames),
             )
+            self._release_calibration_camera(reason="insufficient_frames")
             return False
 
         # Auto-detect aquarium using configured model
@@ -440,11 +560,20 @@ class LiveCalibrationCoordinator(BaseCoordinator):
 
         log.info("live_calibration_coordinator.live_calibration.method_selected", method=method)
 
-        # Resolve perspective from project config for weight selection
+        # Resolve perspective from project config for weight selection.
+        # The wizard persists behavioral data under ``project_data["behavioral_config"]``
+        # via ``ProjectWorkflowService._persist_project_data`` — that's the
+        # canonical location. The nested ``calibration.behavioral_analysis``
+        # layout is only used by some legacy project files / templates and
+        # is kept as a fallback so older saved projects still resolve their
+        # perspective correctly here.
         perspective: str | None = None
-        cal_data = project_data.get("calibration") or {}
-        ba_data = cal_data.get("behavioral_analysis") or {}
-        perspective = ba_data.get("aquarium_perspective") or None
+        bc_data = project_data.get("behavioral_config") or {}
+        perspective = bc_data.get("aquarium_perspective") or None
+        if perspective is None:
+            cal_data = project_data.get("calibration") or {}
+            ba_data = cal_data.get("behavioral_analysis") or {}
+            perspective = ba_data.get("aquarium_perspective") or None
 
         # Get model path for aquarium detection (perspective-aware)
         model_path = self.weight_manager.get_weight_path_by_method(
@@ -456,43 +585,33 @@ class LiveCalibrationCoordinator(BaseCoordinator):
             log.error(
                 "live_calibration_coordinator.live_calibration.no_aquarium_model", method=method
             )
+            self._release_calibration_camera(reason="no_aquarium_model")
             return False
 
         detector = AquariumDetector(model_path=model_path, mode=method)
 
+        # Resolve initial confidence from settings (DI) — same value seeds the
+        # PreviewPolygonDialog slider so the user can adjust + retry live.
         try:
-            # Process frames directly (AquariumDetector.detect_aquariums expects video_path)
-            # So we'll process frames manually here
-            good_polygons = []
-            frame_height, frame_width = frames[0].shape[:2] if frames else (0, 0)
+            initial_confidence = float(
+                getattr(self.settings.yolo_model, "confidence_threshold", 0.05) or 0.05
+            )
+        except AttributeError:
+            initial_confidence = 0.05
 
-            for _, frame in enumerate(frames):
-                # Detect aquarium (class 0) with low confidence threshold
-                results = detector.model.predict(frame, verbose=False, classes=[0], conf=0.05)
+        # Cache references for retry callback (re-captures + re-detects with new conf).
+        self._calibration_detector = detector
+        self._calibration_initial_confidence = initial_confidence
+        preserve_real_shape = bool(project_data.get("preserve_real_aquarium_shape", False))
+        self._calibration_preserve_real_shape = preserve_real_shape
 
-                if results and results[0].boxes and len(results[0].boxes) > 0:
-                    # Get the largest detection box
-                    boxes = results[0].boxes.xyxy.cpu().numpy()  # type: ignore[union-attr]
-                    areas = [(x2 - x1) * (y2 - y1) for x1, y1, x2, y2 in boxes]
-                    max_idx = areas.index(max(areas)) if areas else 0
-                    x1, y1, x2, y2 = boxes[max_idx]
-
-                    # Check area ratio
-                    box_area = (x2 - x1) * (y2 - y1)
-                    frame_area = frame_width * frame_height
-                    area_ratio = box_area / frame_area if frame_area > 0 else 0
-
-                    if 0.1 <= area_ratio <= 0.98:
-                        # Convert box to polygon (rectangle corners)
-                        polygon = [
-                            [int(x1), int(y1)],
-                            [int(x2), int(y1)],
-                            [int(x2), int(y2)],
-                            [int(x1), int(y2)],
-                        ]
-                        good_polygons.append(polygon)
-
-            detected_polygons = good_polygons[:1] if good_polygons else []
+        try:
+            detected_polygons = self._detect_polygon_on_burst(
+                detector=detector,
+                frames=frames,
+                confidence=initial_confidence,
+                preserve_real_shape=preserve_real_shape,
+            )
 
         except Exception as e:  # except Exception justified: ML inference heterogeneous errors
             log.error(
@@ -501,16 +620,7 @@ class LiveCalibrationCoordinator(BaseCoordinator):
                 exc_info=True,
             )
 
-            # Release camera on exception too
-            if self.camera:
-                if hasattr(self.camera, "_stopped"):
-                    self.camera._stopped.set()
-                if hasattr(self.camera, "release"):
-                    self.camera.release()
-                self.camera = None
-                log.info(
-                    "live_calibration_coordinator.live_calibration.camera_released_on_exception"
-                )
+            self._release_calibration_camera(reason="detection_exception")
 
             # Fallback: Save and display the last captured frame for manual drawing
             if frames:
@@ -551,14 +661,7 @@ class LiveCalibrationCoordinator(BaseCoordinator):
         if not detected_polygons or len(detected_polygons) == 0:
             log.warning("live_calibration_coordinator.live_calibration.no_polygon_detected")
 
-            # Release camera when no polygon detected
-            if self.camera:
-                if hasattr(self.camera, "_stopped"):
-                    self.camera._stopped.set()
-                if hasattr(self.camera, "release"):
-                    self.camera.release()
-                self.camera = None
-                log.info("live_calibration_coordinator.live_calibration.camera_released_no_polygon")
+            self._release_calibration_camera(reason="no_polygon_detected")
 
             # Fallback: Save and display the last captured frame for manual drawing
             if frames:
@@ -623,17 +726,35 @@ class LiveCalibrationCoordinator(BaseCoordinator):
                     polygon=[
                         [float(p[0]), float(p[1])] for p in polygon
                     ],  # Convert to float for dialog
+                    initial_confidence=initial_confidence,
+                    on_retry=self._retry_aquarium_detection,
                 )
 
                 result = dialog.show()
                 if result:
                     approved = result.get("approved", False)
                     if approved:
-                        # Use polygon from dialog (in case user wants adjustments in future)
+                        # Use polygon (and possibly frame) returned by dialog —
+                        # may differ from the original if user adjusted the slider
+                        # and retried, OR dragged individual vertices before
+                        # approving.
                         polygon = result.get("polygon", polygon)
+                        retried_frame = result.get("frame")
+                        if retried_frame is not None:
+                            frames[-1] = retried_frame
+                        # Persist polygon provenance for downstream consumers
+                        # (LiveCameraSessionCoordinator publishes it on
+                        # LIVE_RECORDING_PENDING). "manual" iff the user
+                        # dragged at least one vertex in the dialog.
+                        self._set_last_polygon_source(result.get("source", "auto"))
 
                 if not approved:
                     log.info("live_calibration_coordinator.live_calibration.user_rejected")
+                    # Distinguish explicit cancellation from genuine detection
+                    # failure so the caller doesn't fall through to manual
+                    # drawing mode against the user's intent.
+                    self._last_calibration_cancelled = True
+                    self._release_calibration_camera(reason="user_rejected")
                     return False
         else:
             # No preview requested, auto-approve
@@ -659,15 +780,40 @@ class LiveCalibrationCoordinator(BaseCoordinator):
                 metadata=metadata,
             )
 
-            video_path = "live_camera"
-            # Use ProjectManager to save zone data generically
-            self.project_manager.save_zone_data(zone_data, video_path)
-
-            # Save reference frame
+            # Save reference frame to disk so the Zone tab canvas can load it.
             reference_frame_path = os.path.join(
                 str(self.project_manager.project_path or ""), "live_camera_reference_frame.png"
             )
             cv2.imwrite(reference_frame_path, frames[-1])
+
+            # Save zones under TWO keys so the active-video machinery and the
+            # canonical "live_camera" lookup both find them:
+            #
+            #   - ``reference_frame_path``: this is what ``display_roi_video_frame``
+            #     passes to ``set_active_zone_video`` when handling
+            #     UI_DISPLAY_VIDEO_FRAME below. Without a matching ``zones_by_video``
+            #     entry, ``set_active_zone_video`` falls into its else branch and
+            #     RESETS ``project_data["detection_zones"]`` to an empty ZoneData
+            #     (it assumes the new video has no zones). That overwrite was
+            #     silently erasing the polygon we just persisted, leaving the
+            #     canvas with the background image but no overlay.
+            #   - ``"live_camera"``: legacy/canonical key. Saving here second so
+            #     ``project_data["detection_zones"]`` ends up holding the same
+            #     polygon (save_zone_data also writes the global).
+            self.project_manager.save_zone_data(zone_data, reference_frame_path)
+            self.project_manager.save_zone_data(zone_data, "live_camera")
+
+            # Push the just-saved frame into the zone tab's canvas. Without
+            # this event the polygon renders on a blank/white background
+            # because no UI_DISPLAY_VIDEO_FRAME ever fires in the auto-detect
+            # path (the manual path emits it from _capture_reference_frame_for_zones).
+            if self.event_bus:
+                self.event_bus.publish(
+                    Event(
+                        type=UIEvents.UI_DISPLAY_VIDEO_FRAME,
+                        data=VideoPathPayload(video_path=reference_frame_path),
+                    )
+                )
 
             log.info(
                 "live_calibration_coordinator.live_calibration.success",
@@ -675,15 +821,8 @@ class LiveCalibrationCoordinator(BaseCoordinator):
                 reference_frame=reference_frame_path,
             )
 
-            # Release camera so LiveCameraService can use it
-            # IMPORTANT: Must signal shutdown BEFORE release to prevent reconnection attempts
-            if self.camera:
-                if hasattr(self.camera, "_stopped"):
-                    self.camera._stopped.set()  # Stop the background thread first
-                if hasattr(self.camera, "release"):
-                    self.camera.release()
-                self.camera = None
-                log.info("live_calibration_coordinator.live_calibration.camera_released")
+            # Release camera so LiveCameraService can use it.
+            self._release_calibration_camera(reason="approved")
 
             # CRITICAL: Allow hardware to fully release camera before LiveCameraService reopens it
             # Without this delay, warmup fails (frames_successful=0) and exposure is incorrect
@@ -691,15 +830,11 @@ class LiveCalibrationCoordinator(BaseCoordinator):
 
             return True
 
-        # Release camera on failure too
-        if self.camera:
-            if hasattr(self.camera, "_stopped"):
-                self.camera._stopped.set()  # Stop the background thread first
-            if hasattr(self.camera, "release"):
-                self.camera.release()
-            self.camera = None
-            log.info("live_calibration_coordinator.live_calibration.camera_released_on_failure")
-
+        # Defensive: every non-approved code path above already releases the
+        # camera and returns early. If control somehow reaches here (e.g.
+        # ``approved`` flipped via future refactor), still release so the
+        # background thread doesn't leak.
+        self._release_calibration_camera(reason="unexpected_fallthrough")
         return False
 
     # =============================================================================
@@ -839,6 +974,169 @@ class LiveCalibrationCoordinator(BaseCoordinator):
         log.info(
             "live_calibration_coordinator.session_count.incremented", count=self._session_count
         )
+
+    def _detect_polygon_on_burst(
+        self,
+        *,
+        detector: AquariumDetector,
+        frames: list[Any],
+        confidence: float,
+        preserve_real_shape: bool = False,
+    ) -> list[Any]:
+        """Run aquarium detection over a captured frame burst.
+
+        Returns a one-element list (compatible with the existing call sites)
+        containing the largest valid polygon, or ``[]`` if none meet the
+        area-ratio + confidence gates.
+
+        When the underlying YOLO model is a segmentation model (``task == "segment"``)
+        AND ``preserve_real_shape`` is True, the mask polygon (N vertices) is kept;
+        otherwise a 4-corner bounding box approximation is returned. This matches
+        the contract of the pre-recorded pipeline for non-rectangular aquariums.
+
+        Args:
+            detector: Already-initialized ``AquariumDetector``.
+            frames: Captured frames from the live camera.
+            confidence: YOLO ``conf`` value to use for this pass.
+            preserve_real_shape: When True and the model is a segmentation model,
+                return the multi-vertex mask polygon instead of a 4-corner bbox.
+        """
+        if not frames:
+            return []
+
+        good_polygons: list[list[list[int]]] = []
+        frame_height, frame_width = frames[0].shape[:2]
+        clamped_conf = max(0.01, min(0.95, float(confidence)))
+        is_seg_model = getattr(getattr(detector, "model", None), "task", "") == "segment"
+        use_masks = preserve_real_shape and is_seg_model
+
+        for frame in frames:
+            try:
+                results = detector.model.predict(
+                    frame, verbose=False, classes=[0], conf=clamped_conf
+                )
+            # except Exception justified: Ultralytics predict can raise heterogeneous
+            # errors when model/weights/CUDA state is inconsistent — log and try next frame.
+            except Exception as exc:
+                log.warning(
+                    "live_calibration_coordinator.burst_detect.predict_failed",
+                    error=str(exc),
+                )
+                continue
+
+            if not results or not results[0].boxes or len(results[0].boxes) == 0:
+                continue
+
+            boxes = results[0].boxes.xyxy.cpu().numpy()  # type: ignore[union-attr]
+            areas = [(x2 - x1) * (y2 - y1) for x1, y1, x2, y2 in boxes]
+            if not areas:
+                continue
+
+            max_idx = areas.index(max(areas))
+            x1, y1, x2, y2 = boxes[max_idx]
+            box_area = (x2 - x1) * (y2 - y1)
+            frame_area = frame_width * frame_height
+            area_ratio = (box_area / frame_area) if frame_area > 0 else 0
+
+            if not (0.1 <= area_ratio <= 0.98):
+                continue
+
+            polygon_pts: list[list[int]] | None = None
+
+            if use_masks:
+                masks = getattr(results[0], "masks", None)
+                mask_xy = getattr(masks, "xy", None) if masks is not None else None
+                if mask_xy is not None and len(mask_xy) > max_idx:
+                    raw_polygon = mask_xy[max_idx]
+                    if raw_polygon is not None and len(raw_polygon) >= 3:
+                        polygon_pts = [[int(p[0]), int(p[1])] for p in raw_polygon]
+
+                if polygon_pts is None:
+                    log.warning(
+                        "live_calibration_coordinator.burst_detect.mask_unavailable_fallback",
+                        message="Segmentation requested but mask missing; using bbox fallback.",
+                    )
+
+            if polygon_pts is None:
+                polygon_pts = [
+                    [int(x1), int(y1)],
+                    [int(x2), int(y1)],
+                    [int(x2), int(y2)],
+                    [int(x1), int(y2)],
+                ]
+
+            good_polygons.append(polygon_pts)
+
+        log.info(
+            "live_calibration_coordinator.burst_detect.summary",
+            confidence=clamped_conf,
+            frames_analyzed=len(frames),
+            polygons_found=len(good_polygons),
+            preserve_real_shape=preserve_real_shape,
+            used_segmentation_masks=use_masks,
+        )
+
+        return good_polygons[:1] if good_polygons else []
+
+    def _retry_aquarium_detection(self, confidence: float) -> tuple[Any, list[list[float]]] | None:
+        """Retry aquarium auto-detection with a user-chosen confidence threshold.
+
+        Invoked by the PreviewPolygonDialog "🔁 Tentar novamente" button. Captures
+        a small frame burst from the live camera and runs detection again with the
+        supplied confidence. Pure compute — must NOT touch UI; the dialog owns
+        rendering.
+
+        Returns:
+            ``(frame, polygon)`` if detection succeeds, otherwise ``None``.
+        """
+        if self.camera is None or self._calibration_detector is None:
+            log.warning(
+                "live_calibration_coordinator.retry.no_camera_or_detector",
+                has_camera=self.camera is not None,
+                has_detector=self._calibration_detector is not None,
+            )
+            return None
+
+        import time as _time
+
+        frames: list[Any] = []
+        for _ in range(5):
+            try:
+                ret, frame = self.camera.get_frame()
+            except (OSError, RuntimeError) as exc:
+                log.warning(
+                    "live_calibration_coordinator.retry.frame_capture_error",
+                    error=str(exc),
+                )
+                return None
+            if ret and frame is not None:
+                frames.append(frame)
+            _time.sleep(0.05)
+
+        if not frames:
+            log.warning("live_calibration_coordinator.retry.no_frames")
+            return None
+
+        detected = self._detect_polygon_on_burst(
+            detector=self._calibration_detector,
+            frames=frames,
+            confidence=confidence,
+            preserve_real_shape=self._calibration_preserve_real_shape,
+        )
+        if not detected:
+            log.info(
+                "live_calibration_coordinator.retry.no_polygon",
+                confidence=confidence,
+            )
+            return None
+
+        polygon = [[float(p[0]), float(p[1])] for p in detected[0]]
+        log.info(
+            "live_calibration_coordinator.retry.success",
+            confidence=confidence,
+            polygon_points=len(polygon),
+        )
+        return (frames[-1], polygon)
 
     def _wait_for_zone_confirmation(self) -> bool:
         """Wait for user to conclude zone definition."""

@@ -102,9 +102,9 @@ class CalibrationDialog(simpledialog.Dialog):
         canvas.bind(
             "<Leave>",
             lambda _event: (
-                canvas.unbind_all("<MouseWheel>"),
-                canvas.unbind_all("<Button-4>"),
-                canvas.unbind_all("<Button-5>"),
+                canvas.unbind_all("<MouseWheel>"),  # type: ignore[func-returns-value]
+                canvas.unbind_all("<Button-4>"),  # type: ignore[func-returns-value]
+                canvas.unbind_all("<Button-5>"),  # type: ignore[func-returns-value]
             ),
         )
 

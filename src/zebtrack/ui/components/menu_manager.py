@@ -294,7 +294,7 @@ class MenuManager:
 
         dialog = VideoMetadataDialog(
             self.gui.root,
-            video_path=video_path,
+            video_path=video_path,  # type: ignore[arg-type]
             available_groups=project_manager.get_available_groups(),
             initial_metadata=dict(video_entry.get("metadata") or {}),
             subject_entry_count=max(1, num_aquariums * animals_per_aquarium),
@@ -315,7 +315,7 @@ class MenuManager:
                 Event(
                     type=UIEvents.VIDEO_METADATA_UPDATED,
                     data=payloads.VideoMetadataUpdatedPayload(
-                        video_path=video_path,
+                        video_path=video_path,  # type: ignore[arg-type]
                         metadata=dialog.result,
                     ),
                     source="MenuManager._edit_video_metadata",

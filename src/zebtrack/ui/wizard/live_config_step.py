@@ -84,6 +84,8 @@ class LiveConfigStep(WizardStep):
         # UI state
         self.camera_selection_var = StringVar(value="")  # Stores camera display name
         self.camera_index_map: dict[str, int] = {}  # Maps display name -> camera index
+        # Parallel map: display name -> DirectShow friendly name (empty when unavailable)
+        self.camera_friendly_name_map: dict[str, str] = {}
         self.use_arduino_var = BooleanVar(value=False)
         self.arduino_port_var = StringVar(value="")
         self.external_trigger_mode_var = BooleanVar(value=False)
@@ -91,15 +93,11 @@ class LiveConfigStep(WizardStep):
         self.recording_duration_var = DoubleVar(value=300.0)  # 5 minutes default
         self.use_countdown_var = BooleanVar(value=True)
         self.countdown_duration_var = IntVar(value=10)
-        # Processing intervals
-        self.analysis_interval_var = IntVar(value=10)
-        self.display_interval_var = IntVar(value=10)
-
-        # Experimental design metadata (v2.3.0)
-        self.experimental_group_var = StringVar(value="")  # "Controle", "Tratado", etc.
-        self.experiment_day_var = StringVar(value="")  # "Dia_1", "Dia_2", etc.
-        self.subject_id_var = StringVar(value="")  # "Peixe_01", "Peixe_02", etc.
-        self.is_batch_last_session_var = BooleanVar(value=False)  # Mark as final session
+        # Aquarium shape preservation (segmentation models only).
+        # NOTE: Analysis/display intervals previously lived here too — they
+        # now belong to the Calibration step so projects share the same
+        # configuration surface as pre-recorded projects.
+        self.preserve_real_aquarium_shape_var = BooleanVar(value=False)
 
         # Available cameras and Arduino ports (populated on show)
         self.available_cameras: list[dict[str, Any]] = []
@@ -333,7 +331,10 @@ class LiveConfigStep(WizardStep):
             "Duração da contagem regressiva em segundos.",
         )
 
-        # Advanced processing settings
+        # Advanced processing settings — only the segmentation-shape toggle
+        # remains here; analysis/display intervals moved to the Calibration
+        # step so live projects share the configuration surface with the
+        # pre-recorded flow.
         advanced_frame = LabelFrame(
             self,
             text="⚙️ Configurações Avançadas de Processamento",
@@ -342,169 +343,23 @@ class LiveConfigStep(WizardStep):
         )
         advanced_frame.pack(fill="x", pady=(15, 0))
 
-        # Analysis interval
-        analysis_row = Frame(advanced_frame)
-        analysis_row.pack(fill="x", pady=5)
-
-        Label(
-            analysis_row,
-            text="Intervalo de Análise (frames):",
-            width=30,
-            anchor="w",
-        ).pack(side="left")
-        analysis_spinbox = Spinbox(
-            analysis_row,
-            from_=1,
-            to=100,
-            textvariable=self.analysis_interval_var,
-            width=10,
-        )
-        analysis_spinbox.pack(side="left", padx=(5, 0))
-        ToolTip(
-            analysis_spinbox,
-            (
-                "Intervalo de Análise (frames)\n\n"
-                "Quantos frames aguardar entre detecções.\n"
-                "Valores maiores: processamento mais rápido, menos precisão.\n"
-                "Valores menores: processamento mais lento, mais precisão.\n\n"
-                "Padrão: 10 frames (recomendado para maioria dos casos)"
-            ),
-        )
-
-        # Display interval
-        display_row = Frame(advanced_frame)
-        display_row.pack(fill="x", pady=5)
-
-        Label(
-            display_row,
-            text="Intervalo de Exibição (frames):",
-            width=30,
-            anchor="w",
-        ).pack(side="left")
-        display_spinbox = Spinbox(
-            display_row,
-            from_=1,
-            to=100,
-            textvariable=self.display_interval_var,
-            width=10,
-        )
-        display_spinbox.pack(side="left", padx=(5, 0))
-        ToolTip(
-            display_spinbox,
-            (
-                "Intervalo de Exibição (frames)\n\n"
-                "Quantos frames aguardar entre atualizações visuais da interface.\n"
-                "Valores maiores: interface mais fluida, menos detalhes visuais.\n"
-                "Valores menores: mais detalhes visuais, possível lentidão.\n\n"
-                "Padrão: 10 frames (recomendado para maioria dos casos)"
-            ),
-        )
-
-        # Restore defaults button
-        restore_btn = Button(
+        # Preserve real aquarium shape (segmentation only)
+        preserve_shape_cb = Checkbutton(
             advanced_frame,
-            text="🔄 Restaurar Padrões (10, 10)",
-            command=self._restore_default_intervals,
+            text="Preservar formato real do aquário (segmentação)",
+            variable=self.preserve_real_aquarium_shape_var,
         )
-        restore_btn.pack(fill="x", pady=(10, 0))
+        preserve_shape_cb.pack(anchor="w", pady=(4, 4))
         ToolTip(
-            restore_btn,
+            preserve_shape_cb,
             (
-                "Restaura os intervalos para os valores padrão recomendados:\n"
-                "• Análise: 10 frames\n"
-                "• Exibição: 10 frames\n\n"
-                "Estes valores oferecem bom equilíbrio entre desempenho e precisão."
-            ),
-        )
-
-        # === Experimental Design Section (v2.3.0) ===
-        experiment_frame = LabelFrame(
-            self,
-            text="🧪 Design Experimental (Opcional)",
-            padx=15,
-            pady=10,
-            font=("Segoe UI", 10, "bold"),
-        )
-        experiment_frame.pack(fill="x", pady=(15, 0))
-
-        # Group field
-        group_row = Frame(experiment_frame)
-        group_row.pack(fill="x", pady=5)
-        Label(
-            group_row,
-            text="Grupo Experimental:",
-            width=30,
-            anchor="w",
-        ).pack(side="left")
-        group_combo = ttk.Combobox(
-            group_row,
-            textvariable=self.experimental_group_var,
-            values=["Controle", "Tratado", "CBD_10mg", "CBD_20mg", "Outro"],
-            width=25,
-        )
-        group_combo.pack(side="left", padx=(5, 0))
-        ToolTip(
-            group_combo,
-            "Grupo experimental desta sessão (ex: Controle, Tratado, CBD_10mg).",
-        )
-
-        # Day field
-        day_row = Frame(experiment_frame)
-        day_row.pack(fill="x", pady=5)
-        Label(
-            day_row,
-            text="Dia do Experimento:",
-            width=30,
-            anchor="w",
-        ).pack(side="left")
-        day_combo = ttk.Combobox(
-            day_row,
-            textvariable=self.experiment_day_var,
-            values=[f"Dia_{i}" for i in range(1, 15)],
-            width=25,
-        )
-        day_combo.pack(side="left", padx=(5, 0))
-        ToolTip(
-            day_combo,
-            "Dia do experimento (ex: Dia_1, Dia_2, ..., Dia_14).",
-        )
-
-        # Subject ID field
-        subject_row = Frame(experiment_frame)
-        subject_row.pack(fill="x", pady=5)
-        Label(
-            subject_row,
-            text="ID do Sujeito (Cobaia):",
-            width=30,
-            anchor="w",
-        ).pack(side="left")
-        subject_entry = Entry(
-            subject_row,
-            textvariable=self.subject_id_var,
-            width=27,
-        )
-        subject_entry.pack(side="left", padx=(5, 0))
-        ToolTip(
-            subject_entry,
-            "ID único do sujeito experimental (ex: Peixe_01, Animal_A).",
-        )
-
-        # Batch completion checkbox
-        batch_check = Checkbutton(
-            experiment_frame,
-            text="✅ Marcar como última sessão deste lote (gera relatório unificado)",
-            variable=self.is_batch_last_session_var,
-        )
-        batch_check.pack(anchor="w", pady=(10, 5))
-        ToolTip(
-            batch_check,
-            (
-                "Marque esta opção se esta é a última sessão do lote experimental.\n\n"
-                "Ao marcar, o sistema irá:\n"
-                "• Consolidar todas as sessões deste grupo/dia\n"
-                "• Gerar um relatório unificado em Excel\n"
-                "• Incluir estatísticas agregadas e comparações\n\n"
-                "Deixe desmarcado se ainda há mais sessões neste lote."
+                "Preservar formato real do aquário\n\n"
+                "Quando habilitado, mantém o polígono real (N vértices) detectado "
+                "pela máscara de segmentação YOLO, em vez de reduzir o aquário a "
+                "um retângulo de 4 cantos.\n\n"
+                "Recomendado para aquários circulares, hexagonais ou de formato "
+                "irregular. Requer um modelo de segmentação (seg) — para modelos "
+                "de detecção (det) esta opção é ignorada."
             ),
         )
 
@@ -559,11 +414,6 @@ class LiveConfigStep(WizardStep):
             self.template_info_var.set("")
             if self.template_info_label and self.template_info_label.winfo_ismapped():
                 self.template_info_label.pack_forget()
-
-    def _restore_default_intervals(self):
-        """Restore processing intervals to default values."""
-        self.analysis_interval_var.set(10)
-        self.display_interval_var.set(10)
 
     def _detect_hardware_capability(self) -> None:
         """Detect hardware capability for multi-aquarium processing.
@@ -750,11 +600,13 @@ class LiveConfigStep(WizardStep):
             # Build display list with camera names and map to indices
             camera_list = []
             self.camera_index_map.clear()
+            self.camera_friendly_name_map.clear()
 
             for cam in cameras:
                 description = cam.get("description", f"Câmera {cam['index']}")
                 camera_list.append(description)
                 self.camera_index_map[description] = cam["index"]
+                self.camera_friendly_name_map[description] = cam.get("friendly_name", "")
 
             # Update combobox
             self.camera_combo["values"] = camera_list
@@ -770,6 +622,7 @@ class LiveConfigStep(WizardStep):
         else:
             self.camera_combo["values"] = []
             self.camera_index_map.clear()
+            self.camera_friendly_name_map.clear()
             self.camera_status_label.config(
                 text="✗ Nenhuma câmera detectada",
                 fg="red",
@@ -951,6 +804,7 @@ class LiveConfigStep(WizardStep):
         Returns:
             dict: Live configuration with keys:
                 - camera_index (int)
+                - camera_friendly_name (str)
                 - use_arduino (bool)
                 - arduino_port (str | None)
                 - external_trigger_mode (bool)
@@ -958,10 +812,16 @@ class LiveConfigStep(WizardStep):
                 - recording_duration_s (float)
                 - use_countdown (bool)
                 - countdown_duration_s (int)
+                - preserve_real_aquarium_shape (bool)
+
+        Note: ``analysis_interval_frames`` and ``display_interval_frames``
+        are owned by the Calibration step (the next step in the live flow)
+        so live and pre-recorded projects share the same surface.
         """
         # Get camera index from selected camera name
         selected_camera = self.camera_selection_var.get()
         camera_index = self.camera_index_map.get(selected_camera, 0)
+        camera_friendly_name = self.camera_friendly_name_map.get(selected_camera, "")
 
         arduino_port = None
         if self.use_arduino_var.get():
@@ -972,6 +832,7 @@ class LiveConfigStep(WizardStep):
 
         return {
             "camera_index": camera_index,
+            "camera_friendly_name": camera_friendly_name,
             "use_arduino": self.use_arduino_var.get(),
             "arduino_port": arduino_port,
             "external_trigger_mode": self.external_trigger_mode_var.get(),
@@ -979,15 +840,9 @@ class LiveConfigStep(WizardStep):
             "recording_duration_s": self.recording_duration_var.get(),
             "use_countdown": self.use_countdown_var.get(),
             "countdown_duration_s": self.countdown_duration_var.get(),
-            "analysis_interval_frames": self.analysis_interval_var.get(),
-            "display_interval_frames": self.display_interval_var.get(),
+            "preserve_real_aquarium_shape": self.preserve_real_aquarium_shape_var.get(),
             # v2.2.0: Include selected mode for coordinator integration
             "selected_live_mode": self.wizard_data.get("selected_live_mode"),
-            # v2.3.0: Experimental design metadata for batch tracking
-            "experimental_group": self.experimental_group_var.get() or None,
-            "experiment_day": self.experiment_day_var.get() or None,
-            "subject_id": self.subject_id_var.get() or None,
-            "is_batch_last_session": self.is_batch_last_session_var.get(),
         }
 
     def set_data(self, data: dict):
@@ -1001,7 +856,12 @@ class LiveConfigStep(WizardStep):
         self._restore_arduino(data)
         self._restore_recording_settings(data)
         self._restore_advanced_settings(data)
-        self._restore_batch_metadata(data)
+        # Note: batch metadata (experimental_group / experiment_day / subject_id
+        # / is_batch_last_session) used to be restored here, but those Tk vars
+        # were removed when the redundant experimental-design block was
+        # dropped from this step (the values now come from the project batch
+        # grid in Step 2). Loading legacy project data with those keys is
+        # safe — they're simply ignored.
 
         # Update UI state
         self._on_arduino_toggle()
@@ -1009,7 +869,18 @@ class LiveConfigStep(WizardStep):
         self._on_countdown_toggle()
 
     def _restore_camera(self, data: dict):
-        """Restore camera selection."""
+        """Restore camera selection.
+
+        Prefer matching by friendly_name (DirectShow ordering may have shifted
+        since the data was saved). Fall back to index match for legacy data.
+        """
+        saved_name = data.get("camera_friendly_name") or ""
+        if saved_name:
+            for display_name, friendly in self.camera_friendly_name_map.items():
+                if friendly == saved_name:
+                    self.camera_selection_var.set(display_name)
+                    return
+
         if "camera_index" in data:
             camera_idx = data["camera_index"]
             for display_name, idx in self.camera_index_map.items():
@@ -1052,23 +923,11 @@ class LiveConfigStep(WizardStep):
             self.countdown_duration_var.set(data["countdown_duration_s"])
 
     def _restore_advanced_settings(self, data: dict):
-        """Restore advanced processing intervals."""
-        if "analysis_interval_frames" in data:
-            self.analysis_interval_var.set(data["analysis_interval_frames"])
+        """Restore live-specific advanced toggles.
 
-        if "display_interval_frames" in data:
-            self.display_interval_var.set(data["display_interval_frames"])
-
-    def _restore_batch_metadata(self, data: dict):
-        """Restore experimental design metadata."""
-        if "experimental_group" in data:
-            self.experimental_group_var.set(data["experimental_group"] or "")
-
-        if "experiment_day" in data:
-            self.experiment_day_var.set(data["experiment_day"] or "")
-
-        if "subject_id" in data:
-            self.subject_id_var.set(data["subject_id"] or "")
-
-        if "is_batch_last_session" in data:
-            self.is_batch_last_session_var.set(data["is_batch_last_session"])
+        ``analysis_interval_frames`` / ``display_interval_frames`` are no
+        longer owned by this step (see CalibrationStep); they are silently
+        ignored here for back-navigation from legacy data shapes.
+        """
+        if "preserve_real_aquarium_shape" in data:
+            self.preserve_real_aquarium_shape_var.set(bool(data["preserve_real_aquarium_shape"]))

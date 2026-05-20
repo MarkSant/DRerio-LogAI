@@ -13,7 +13,7 @@ import sys
 import threading
 from collections.abc import Generator
 from contextlib import contextmanager
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal
 
 import cv2
 import numpy as np
@@ -140,14 +140,56 @@ class WizardService:
         cls._hw_cache.clear()
         log.debug("wizard_service.cache_cleared")
 
+    @staticmethod
+    def _get_dshow_friendly_names() -> list[str]:
+        """Return DirectShow input device names in enumeration order (Windows only).
+
+        The position of each name in this list matches the index that OpenCV's
+        ``cv2.VideoCapture(i, cv2.CAP_DSHOW)`` will open, because both rely on
+        the same DirectShow moniker enumeration.
+
+        Returns an empty list on non-Windows platforms or if pygrabber is not
+        installed (graceful degradation — caller falls back to resolution-only
+        descriptions).
+        """
+        if sys.platform != "win32":
+            return []
+        try:
+            from pygrabber.dshow_graph import FilterGraph
+        except ImportError:
+            log.debug("wizard_service.pygrabber_not_available")
+            return []
+
+        try:
+            names = FilterGraph().get_input_devices()
+        # except Exception justified: COM/DirectShow enumeration is hardware-dependent
+        except Exception as e:
+            log.warning("wizard_service.dshow_friendly_names.failed", error=str(e))
+            return []
+
+        # Dedupe identical names (e.g. two webcams of the same model) by appending (#N).
+        seen: dict[str, int] = {}
+        deduped: list[str] = []
+        for name in names:
+            count = seen.get(name, 0) + 1
+            seen[name] = count
+            deduped.append(name if count == 1 else f"{name} (#{count})")
+        return deduped
+
     @classmethod
-    def detect_available_cameras(cls, use_cache: bool = True) -> list[dict[str, Any]]:
+    def detect_available_cameras(  # noqa: C901
+        cls, use_cache: bool = True
+    ) -> list[dict[str, Any]]:
         """
         Detect available cameras with early stopping optimization and caching.
 
         Uses DirectShow backend on Windows for better reliability.
         Stops detection after 3 consecutive failures to improve performance.
         Caches results for 30 seconds to avoid repeated detection calls.
+
+        On Windows, friendly device names are obtained via pygrabber's DirectShow
+        enumeration (position-correlated with the OpenCV index). On other platforms
+        or when pygrabber is unavailable, descriptions fall back to resolution-only.
 
         Args:
             use_cache: If True, return cached results if available and valid.
@@ -161,6 +203,7 @@ class WizardService:
                     "width": int,
                     "height": int,
                     "fps": float,
+                    "friendly_name": str,  # may be "" when pygrabber unavailable
                     "description": str,
                 },
                 ...
@@ -178,9 +221,9 @@ class WizardService:
         consecutive_failures = 0
         max_consecutive_failures = 3
 
-        # NOTE: Windows PnP camera name mapping disabled due to unreliable index
-        # correlation between DirectShow and PnP device enumeration.
-        # Using resolution-based descriptions instead.
+        # Friendly DirectShow names (Windows + pygrabber). Position == cv2 DSHOW index.
+        # Falls back to [] on other platforms or if pygrabber is unavailable.
+        friendly_names = cls._get_dshow_friendly_names()
 
         with cls.suppress_opencv_logs():
             for i in range(6):  # Scan indices 0-5 instead of 0-9
@@ -194,7 +237,17 @@ class WizardService:
                     if cap.isOpened():
                         # CRITICAL: Verify camera can actually capture frames with timeout
                         # Some cameras report isOpened=True but never return frames (ghost cameras)
-                        test_result: dict[str, Any] = {"success": False, "frame": None}
+                        # Also discard a warm-up burst before deciding on black-frame rejection:
+                        # USB webcams with autoexposure often deliver dark/garbage frames for the
+                        # first several reads, which used to be misclassified as "black frame" and
+                        # caused them to be silently dropped from the picker (see logs analysis,
+                        # 2026-05-16).
+                        warmup_frames = 10
+                        test_result: dict[str, Any] = {
+                            "success": False,
+                            "frame": None,
+                            "frames_read": 0,
+                        }
                         result_lock = threading.Lock()
                         read_event = threading.Event()
 
@@ -204,12 +257,22 @@ class WizardService:
                             camera_index=i,
                             lock=result_lock,
                             event=read_event,
+                            warmup=warmup_frames,
                         ):
                             try:
-                                ret, frame = capture.read()
+                                last_ret = False
+                                last_frame = None
+                                # Read warmup+1 frames; the final one is what we validate.
+                                # Each individual read still benefits from the outer 2s timeout.
+                                for _ in range(warmup + 1):
+                                    ret, frame = capture.read()
+                                    if ret and frame is not None:
+                                        last_ret = True
+                                        last_frame = frame
                                 with lock:
-                                    result["success"] = ret
-                                    result["frame"] = frame
+                                    result["success"] = last_ret
+                                    result["frame"] = last_frame
+                                    result["frames_read"] = warmup + 1
                             # except Exception justified: cv2 camera probe - hardware I/O
                             except Exception as e:
                                 log.warning(
@@ -222,10 +285,17 @@ class WizardService:
                             finally:
                                 event.set()
 
-                        log.debug("wizard_service.testing_camera_capture", index=i)
+                        log.debug(
+                            "wizard_service.testing_camera_capture",
+                            index=i,
+                            warmup_frames=warmup_frames,
+                        )
                         read_thread = threading.Thread(target=try_read, daemon=True)
                         read_thread.start()
-                        read_event.wait(timeout=2.0)  # Wait for completion signal
+                        # Allow up to 3s for the whole warm-up burst (was 2s for a single read).
+                        # 10 warm-up frames at ~30 FPS take ~330ms; we keep ample slack so slow
+                        # cameras (or cameras still negotiating with DirectShow) don't time out.
+                        read_event.wait(timeout=3.0)
 
                         with result_lock:
                             if not test_result["success"] or test_result["frame"] is None:
@@ -282,10 +352,6 @@ class WizardService:
                         height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
                         fps = cap.get(cv2.CAP_PROP_FPS)
 
-                        # Generate descriptive name based on resolution
-                        # Add camera counter to differentiate cameras with same resolution
-                        camera_count = len(cameras) + 1  # 1-based counter
-
                         if width >= 1920 and height >= 1080:
                             resolution_desc = "Full HD (1920x1080)"
                         elif width >= 1280 and height >= 720:
@@ -295,7 +361,16 @@ class WizardService:
                         else:
                             resolution_desc = f"{width}x{height}"
 
-                        description = f"Câmera #{camera_count} [índice {i}] - {resolution_desc}"
+                        # Friendly name comes from DirectShow enumeration (Windows + pygrabber).
+                        # Position in friendly_names matches the DSHOW index `i`.
+                        friendly_name = friendly_names[i] if i < len(friendly_names) else ""
+
+                        if friendly_name:
+                            description = f"{friendly_name} [índice {i}] - {resolution_desc}"
+                        else:
+                            # Fallback: numbered description (non-Windows or pygrabber missing)
+                            camera_count = len(cameras) + 1
+                            description = f"Câmera #{camera_count} [índice {i}] - {resolution_desc}"
 
                         cameras.append(
                             {
@@ -303,6 +378,7 @@ class WizardService:
                                 "width": width,
                                 "height": height,
                                 "fps": float(fps),
+                                "friendly_name": friendly_name,
                                 "description": str(description),
                             }
                         )
@@ -337,6 +413,57 @@ class WizardService:
             cls._hw_cache.invalidate("cameras")
 
         return cameras
+
+    @classmethod
+    def resolve_camera_index(
+        cls, saved_index: int, saved_name: str
+    ) -> tuple[int, Literal["MATCH", "SHIFTED", "MISSING"]]:
+        """Resolve a saved camera index against the current DirectShow enumeration.
+
+        Uses the lightweight pygrabber enumeration only — it reads DirectShow
+        device monikers without ever opening (and therefore activating) any
+        camera. This is critical: the heavier ``detect_available_cameras``
+        probe opens ``cv2.VideoCapture`` for every index 0–5, which on some
+        drivers leaves the camera LED on or busy for a moment. Calling that
+        probe at every session start would unnecessarily wake up every
+        connected device.
+
+        DirectShow's index ordering can shift between sessions (USB replug,
+        suspend/resume, virtual cameras toggling). The friendly-name lookup
+        recovers the current index without touching the hardware.
+
+        Args:
+            saved_index: Camera index originally chosen in the wizard.
+            saved_name: Friendly DirectShow name saved at wizard time. Empty
+                string for legacy projects (predates this feature).
+
+        Returns:
+            ``(index_to_use, status)`` where status is:
+            - ``"MATCH"``: friendly name matched and index is unchanged
+              (or no saved name / no enumeration available — we trust the
+              saved index for compatibility).
+            - ``"SHIFTED"``: friendly name matched at a *different* index
+              (transparent recovery — caller should log).
+            - ``"MISSING"``: friendly name not found in the current enumeration
+              (caller should prompt the user; do NOT silently fall back to
+              ``saved_index``, which may now point to the wrong device).
+        """
+        if not saved_name:
+            # Legacy project (no friendly_name persisted). Trust the saved index.
+            return (saved_index, "MATCH")
+
+        friendly_names = cls._get_dshow_friendly_names()
+        if not friendly_names:
+            # Non-Windows or pygrabber unavailable: nothing to verify against,
+            # trust the saved index. Avoids opening cameras just to enumerate.
+            return (saved_index, "MATCH")
+
+        for i, name in enumerate(friendly_names):
+            if name == saved_name:
+                status: Literal["MATCH", "SHIFTED"] = "MATCH" if i == saved_index else "SHIFTED"
+                return (i, status)
+
+        return (saved_index, "MISSING")
 
     @classmethod
     def detect_arduino_ports(

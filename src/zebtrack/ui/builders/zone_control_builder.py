@@ -5,11 +5,15 @@ Extracted from WidgetFactory to separate concern of zone control construction.
 """
 
 from tkinter import StringVar, ttk
+from typing import TYPE_CHECKING
 
 import structlog
 
 from zebtrack.ui import payloads
 from zebtrack.ui.window_utils import create_scrollbar
+
+if TYPE_CHECKING:
+    from zebtrack.ui.components.zone_context_panel import ZoneContextPanel
 
 log = structlog.get_logger()
 
@@ -29,6 +33,9 @@ class ZoneControlBuilder:
         """
         self.gui = gui
         self.event_bus_v2 = event_bus_v2
+        # Etapa 4 — Zone tab context panel (built on demand by
+        # create_zone_control_widgets so headless unit tests don't pay for it).
+        self.zone_context_panel: ZoneContextPanel | None = None
 
     def _on_roi_rule_change(self, event=None) -> None:
         """Toggle visibility of ROI parameter frames based on the selected rule.
@@ -180,6 +187,25 @@ class ZoneControlBuilder:
         """
         # Call zone summary cards creation (delegated separately)
         self.gui.widget_factory.create_zone_summary_cards_section()
+
+        # --- Calibration Context Panel (Etapa 4) ---------------------------
+        # Compact summary of: active source · aquarium model · polygon
+        # provenance badge ("auto" / "manual" / "Não definido"). Listens for
+        # LIVE_POLYGON_SOURCE_CHANGED so the badge updates the moment the
+        # live calibration flow tags the polygon.
+        # Local import: zebtrack.ui.components.__init__ pulls WidgetFactory,
+        # which pulls ZoneWidgetsBuilder, which pulls back into this module —
+        # so eager import at the top would deadlock the loader.
+        from zebtrack.ui.components.zone_context_panel import ZoneContextPanel
+
+        self.zone_context_panel = ZoneContextPanel(
+            event_bus=self.event_bus_v2,
+            project_manager=getattr(self.gui, "project_manager", None),
+            weight_manager=getattr(getattr(self.gui, "controller", None), "weight_manager", None),
+            root=getattr(self.gui, "root", None),
+        )
+        context_frame = self.zone_context_panel.build(self.gui.zone_controls_frame)
+        context_frame.pack(fill="x", pady=(0, 5))
 
         # --- Drawing Actions ---
         actions_frame = ttk.LabelFrame(

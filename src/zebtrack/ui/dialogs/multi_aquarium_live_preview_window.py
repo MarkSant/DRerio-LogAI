@@ -76,6 +76,11 @@ class MultiAquariumLivePreviewWindow:
         # Status labels
         self.timer_label: ttk.Label | None = None
         self.status_label: ttk.Label | None = None
+        self.start_time_label: ttk.Label | None = None
+        self.stop_time_label: ttk.Label | None = None
+        self.eta_label: ttk.Label | None = None
+        self.recorded_frames_label: ttk.Label | None = None
+        self.progress_bar: ttk.Progressbar | None = None
 
         # Create UI
         self._create_ui()
@@ -93,7 +98,35 @@ class MultiAquariumLivePreviewWindow:
     def start_timer(self) -> None:
         """Start the session timer."""
         self.start_time = time.time()
+        if self.start_time_label is not None:
+            self.start_time_label.config(text=f"Início: {self._format_clock(self.start_time)}")
         log.info("multi_aquarium_preview.timer_started")
+
+    @staticmethod
+    def _format_clock(ts: float) -> str:
+        """Format an epoch timestamp as HH:MM:SS local time."""
+        return time.strftime("%H:%M:%S", time.localtime(ts))
+
+    @staticmethod
+    def _format_eta(seconds: float) -> str:
+        """Render a remaining-time count as ``Xm Ys`` (or ``Xs`` when <60s)."""
+        seconds = max(0, int(seconds))
+        if seconds < 60:
+            return f"{seconds}s"
+        minutes, secs = divmod(seconds, 60)
+        if minutes < 60:
+            return f"{minutes}m {secs:02d}s"
+        hours, minutes = divmod(minutes, 60)
+        return f"{hours}h {minutes:02d}m {secs:02d}s"
+
+    def update_recorded_count(self, recorded_count: int) -> None:
+        """Update the on-disk frame counter displayed in the footer.
+
+        Threading: must be called on the Tk main thread. Workers should
+        marshal via ``root.after(0, window.update_recorded_count, n)``.
+        """
+        if self.recorded_frames_label is not None:
+            self.recorded_frames_label.config(text=f"Frames gravados: {int(recorded_count)}")
 
     def _create_ui(self) -> None:
         """Create the UI components."""
@@ -169,6 +202,36 @@ class MultiAquariumLivePreviewWindow:
             grid_frame.columnconfigure(c, weight=1)
         for r in range((self.num_aquariums + cols - 1) // cols):
             grid_frame.rowconfigure(r, weight=1)
+
+        # Session footer: clock labels + recorded frames + progress bar
+        footer_frame = ttk.LabelFrame(main_frame, text="Sessão", padding=8)
+        footer_frame.pack(fill=tk.X, pady=(0, 8))
+
+        clocks_row = ttk.Frame(footer_frame)
+        clocks_row.pack(fill=tk.X)
+
+        self.start_time_label = ttk.Label(clocks_row, text="Início: --:--:--")
+        self.start_time_label.pack(side=tk.LEFT, padx=(0, 15))
+
+        self.stop_time_label = ttk.Label(clocks_row, text="Fim: --:--:--")
+        self.stop_time_label.pack(side=tk.LEFT, padx=(0, 15))
+
+        self.eta_label = ttk.Label(clocks_row, text="ETA: --")
+        self.eta_label.pack(side=tk.LEFT, padx=(0, 15))
+
+        self.recorded_frames_label = ttk.Label(clocks_row, text="Frames gravados: 0")
+        self.recorded_frames_label.pack(side=tk.LEFT)
+
+        progress_mode = "determinate" if self.duration_s > 0 else "indeterminate"
+        self.progress_bar = ttk.Progressbar(
+            footer_frame,
+            length=300,
+            mode=progress_mode,  # type: ignore[arg-type]
+            maximum=100.0,
+        )
+        self.progress_bar.pack(fill=tk.X, pady=(6, 0))
+        if progress_mode == "indeterminate":
+            self.progress_bar.start(80)
 
         # Control panel at bottom
         control_frame = ttk.Frame(main_frame)
@@ -265,14 +328,28 @@ class MultiAquariumLivePreviewWindow:
                     )
                 )
 
+            self._update_progress(elapsed, remaining)
+
             # Auto-stop if time expired
-            if remaining <= 0 and self.on_stop_callback:
+            if self.duration_s > 0 and remaining <= 0 and self.on_stop_callback:
                 log.info("multi_aquarium_preview.time_expired")
                 self._on_stop_clicked()
                 return
 
         # Schedule next update
         self.window.after(1000, self._update_timer)
+
+    def _update_progress(self, elapsed: float, remaining: float) -> None:
+        """Refresh determinate progress bar + ETA label."""
+        if self.progress_bar is None:
+            return
+        if self.duration_s > 0:
+            percent = max(0.0, min(100.0, (elapsed / self.duration_s) * 100.0))
+            self.progress_bar.config(value=percent)
+            if self.eta_label is not None:
+                self.eta_label.config(text=f"ETA: {self._format_eta(remaining)}")
+        elif self.eta_label is not None:
+            self.eta_label.config(text="ETA: --")
 
     def _on_stop_clicked(self) -> None:
         """Handle stop button click."""
@@ -284,11 +361,26 @@ class MultiAquariumLivePreviewWindow:
             self.stop_button.config(state=tk.DISABLED)
         if self.status_label:
             self.status_label.config(text="Status: Parando...", foreground="orange")
+        self._freeze_stop_time()
 
         log.info("multi_aquarium_preview.stop_clicked")
 
         if self.on_stop_callback:
             self.on_stop_callback()
+
+    def _freeze_stop_time(self) -> None:
+        """Record stop clock + halt indeterminate progress animation."""
+        if self.stop_time_label is not None:
+            self.stop_time_label.config(text=f"Fim: {self._format_clock(time.time())}")
+        if self.progress_bar is not None:
+            try:
+                self.progress_bar.stop()
+            # except Exception justified: Progressbar.stop can raise TclError
+            # during teardown — defensive only.
+            except Exception:  # pragma: no cover - defensive
+                log.debug("multi_aquarium_preview.progress_stop_failed")
+        if self.eta_label is not None:
+            self.eta_label.config(text="ETA: --")
 
     def _on_window_close(self) -> None:
         """Handle window close event."""

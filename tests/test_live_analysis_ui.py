@@ -807,3 +807,186 @@ class TestLivePreviewWindow:
 
         # Verify stopped
         assert window.is_stopped is True
+
+    # ------------------------------------------------------------------
+    # Recording progress widgets (Etapa 5)
+    # ------------------------------------------------------------------
+
+    def test_start_timer_renders_clock_in_HHMMSS(self, tkinter_root):
+        """Calling start_timer() should populate start_time_label with HH:MM:SS."""
+        window = LivePreviewWindow(
+            parent=tkinter_root,
+            camera_index=0,
+            duration_s=300.0,
+        )
+        tkinter_root.update_idletasks()
+
+        assert window.start_time_label.cget("text") == "--:--:--"
+
+        window.start_timer()
+        tkinter_root.update_idletasks()
+
+        text = window.start_time_label.cget("text")
+        assert text.startswith("Início:")
+        # The clock part is the suffix after "Início: " — should match HH:MM:SS
+        clock = text.replace("Início:", "").strip()
+        assert len(clock.split(":")) == 3
+        h, m, s = clock.split(":")
+        assert h.isdigit() and m.isdigit() and s.isdigit()
+
+        window.destroy()
+
+    def test_update_frame_with_recorded_count_writes_recorded_label(self, tkinter_root):
+        """recorded_count kwarg flows into the 'Frames gravados' label."""
+        window = LivePreviewWindow(
+            parent=tkinter_root,
+            camera_index=0,
+            duration_s=300.0,
+        )
+        tkinter_root.update_idletasks()
+
+        assert window.recorded_frames_label.cget("text") == "0"
+
+        frame = np.zeros((480, 640, 3), dtype=np.uint8)
+        window.update_frame(frame, detections=None, recorded_count=42)
+        tkinter_root.update_idletasks()
+
+        assert window.recorded_frames_label.cget("text") == "42"
+
+        window.update_frame(frame, detections=None, recorded_count=137)
+        tkinter_root.update_idletasks()
+        assert window.recorded_frames_label.cget("text") == "137"
+
+        window.destroy()
+
+    def test_update_frame_without_recorded_count_leaves_label_untouched(self, tkinter_root):
+        """Backward compatibility: legacy callers that omit recorded_count don't reset it."""
+        window = LivePreviewWindow(
+            parent=tkinter_root,
+            camera_index=0,
+            duration_s=300.0,
+        )
+        tkinter_root.update_idletasks()
+
+        frame = np.zeros((480, 640, 3), dtype=np.uint8)
+        window.update_frame(frame, detections=None, recorded_count=99)
+        tkinter_root.update_idletasks()
+        assert window.recorded_frames_label.cget("text") == "99"
+
+        # Subsequent call without the kwarg must not reset to 0.
+        window.update_frame(frame, detections=None)
+        tkinter_root.update_idletasks()
+        assert window.recorded_frames_label.cget("text") == "99"
+
+        window.destroy()
+
+    def test_progress_bar_set_to_indeterminate_when_no_duration_configured(self, tkinter_root):
+        """duration_s <= 0 should configure the progress bar in indeterminate mode."""
+        window = LivePreviewWindow(
+            parent=tkinter_root,
+            camera_index=0,
+            duration_s=0.0,
+        )
+        tkinter_root.update_idletasks()
+
+        assert str(window.progress_bar.cget("mode")) == "indeterminate"
+        # ETA should remain "--" because we cannot compute it.
+        window.start_timer()
+        window._update_timer()
+        tkinter_root.update_idletasks()
+        assert window.eta_label.cget("text") == "--"
+
+        window.destroy()
+
+    def test_progress_bar_percent_matches_elapsed_over_duration(self, tkinter_root):
+        """_update_progress writes (elapsed / duration) * 100 to the bar."""
+        window = LivePreviewWindow(
+            parent=tkinter_root,
+            camera_index=0,
+            duration_s=10.0,
+        )
+        tkinter_root.update_idletasks()
+
+        assert str(window.progress_bar.cget("mode")) == "determinate"
+
+        window._update_progress(elapsed=2.5, remaining=7.5)
+        tkinter_root.update_idletasks()
+        assert window.progress_bar.cget("value") == pytest.approx(25.0)
+
+        window._update_progress(elapsed=9.0, remaining=1.0)
+        tkinter_root.update_idletasks()
+        assert window.progress_bar.cget("value") == pytest.approx(90.0)
+
+        window.destroy()
+
+    def test_eta_label_shows_remaining_in_humanised_format(self, tkinter_root):
+        """ETA label uses 'Xs', 'Xm Ys', or 'Xh Ym Zs' depending on magnitude."""
+        window = LivePreviewWindow(
+            parent=tkinter_root,
+            camera_index=0,
+            duration_s=3700.0,
+        )
+        tkinter_root.update_idletasks()
+
+        window._update_progress(elapsed=0.0, remaining=45.0)
+        assert window.eta_label.cget("text") == "45s"
+
+        window._update_progress(elapsed=0.0, remaining=125.0)
+        assert window.eta_label.cget("text") == "2m 05s"
+
+        window._update_progress(elapsed=0.0, remaining=3661.0)
+        assert window.eta_label.cget("text") == "1h 01m 01s"
+
+        window.destroy()
+
+    def test_stop_clicked_freezes_stop_time_label(self, tkinter_root):
+        """Manual stop should record the wall-clock time into stop_time_label."""
+        window = LivePreviewWindow(
+            parent=tkinter_root,
+            camera_index=0,
+            duration_s=300.0,
+        )
+        tkinter_root.update_idletasks()
+
+        assert window.stop_time_label.cget("text") == "--:--:--"
+
+        window._on_stop_clicked()
+        tkinter_root.update_idletasks()
+
+        text = window.stop_time_label.cget("text")
+        # After stop, the label should hold an HH:MM:SS clock (no prefix here).
+        assert text != "--:--:--"
+        assert len(text.split(":")) == 3
+
+        # Subsequent updates while stopped must not mutate the frozen value.
+        frozen = text
+        window._on_stop_clicked()  # idempotent
+        tkinter_root.update_idletasks()
+        assert window.stop_time_label.cget("text") == frozen
+
+        window.destroy()
+
+    def test_auto_stop_also_freezes_stop_time_label(self, tkinter_root):
+        """Expiry-driven stop should write stop_time_label exactly like the manual path."""
+        window = LivePreviewWindow(
+            parent=tkinter_root,
+            camera_index=0,
+            duration_s=300.0,
+        )
+        tkinter_root.update_idletasks()
+
+        window.start_time = time.time() - 1000.0  # force "expired"
+        window._update_timer()  # triggers _auto_stop branch
+        tkinter_root.update_idletasks()
+
+        assert window.is_stopped is True
+        assert window.stop_time_label.cget("text") != "--:--:--"
+
+        window.destroy()
+
+    def test_format_eta_helper_handles_negative_and_zero(self):
+        """_format_eta clamps negatives to 0 and renders 0 → '0s'."""
+        assert LivePreviewWindow._format_eta(0) == "0s"
+        assert LivePreviewWindow._format_eta(-5) == "0s"
+        assert LivePreviewWindow._format_eta(59) == "59s"
+        assert LivePreviewWindow._format_eta(60) == "1m 00s"

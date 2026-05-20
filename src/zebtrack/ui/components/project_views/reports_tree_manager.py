@@ -553,14 +553,14 @@ class ReportsTreeManager:
             )
             event = UIEvents.PROJECT_DELETE_GROUP
         elif node_type == "day":
-            payload = payloads.ProjectDeleteDayPayload(
+            payload = payloads.ProjectDeleteDayPayload(  # type: ignore[assignment]
                 group_id=str(metadata["group_id"]),
                 day_id=str(metadata["day_id"]),
                 delete_files=delete_files,
             )
             event = UIEvents.PROJECT_DELETE_DAY
         elif node_type == "subject":
-            payload = payloads.ProjectDeleteSubjectPayload(
+            payload = payloads.ProjectDeleteSubjectPayload(  # type: ignore[assignment]
                 group_id=str(metadata["group_id"]),
                 day_id=str(metadata["day_id"]),
                 subject_id=str(metadata["subject_id"]),

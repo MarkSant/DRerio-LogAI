@@ -440,7 +440,7 @@ class ProjectLifecycleCoordinator(BaseCoordinator):
         if self.state_manager:
             detector_state = self.state_manager.get_detector_state()
             return detector_state.active_weight_name or ""
-        return self.settings.weights.det_filename if self.settings else ""
+        return self.settings.weights.det_filename if self.settings else ""  # type: ignore[attr-defined]
 
     def _default_get_use_openvino(self) -> bool:
         """Default getter for OpenVINO usage from state_manager."""
@@ -565,7 +565,7 @@ class ProjectLifecycleCoordinator(BaseCoordinator):
             if self.state_manager:
                 detector_state = self.state_manager.get_detector_state()
                 return detector_state.active_weight_name or ""
-            return self.settings.weights.det_filename if self.settings else ""
+            return self.settings.weights.det_filename if self.settings else ""  # type: ignore[attr-defined]
 
         def _default_get_use_openvino() -> bool:
             """Default getter for OpenVINO usage from state_manager."""

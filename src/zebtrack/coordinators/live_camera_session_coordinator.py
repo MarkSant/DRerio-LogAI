@@ -124,10 +124,209 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
         self._active_live_session_id: str | None = None
         self._active_wizard_data: dict | None = None
 
+        # Pending session state — populated when ensure_zones_before_recording()
+        # defers (user must finish the polygon in the zone tab). The zone-tab
+        # "▶️ Iniciar Gravação" button publishes LIVE_RECORDING_RESUME_REQUESTED
+        # which triggers _on_resume_requested → resumes the stored call with
+        # zones_validated=True.
+        self._pending_live_context: dict[str, Any] | None = None
+        self._pending_live_kind: str | None = None  # "project" or "config"
+
+        # Subscribe to resume / cancel buttons published by the zone tab UI.
+        if self.event_bus is not None:
+            self.event_bus.subscribe(
+                UIEvents.LIVE_RECORDING_RESUME_REQUESTED,
+                self._on_resume_requested,  # type: ignore[arg-type]
+            )
+            self.event_bus.subscribe(UIEvents.LIVE_RECORDING_CANCELLED, self._on_resume_cancelled)  # type: ignore[arg-type]
+
         log.info(
             "live_camera_session_coordinator.initialized",
             has_live_camera_service=live_camera_service is not None,
         )
+
+    # =============================================================================
+    # PENDING-SESSION HANDSHAKE (zone-tab "Iniciar Gravação" button)
+    # =============================================================================
+
+    def _publish_pending(self, ctx: dict[str, Any]) -> None:
+        """Publish LIVE_RECORDING_PENDING for the supplied context.
+
+        Reads ``last_polygon_source`` from the calibration coordinator so the
+        downstream UI / completion metadata reflects whether the polygon was
+        auto-detected or drawn manually.
+        """
+        if self.event_bus is None:
+            return
+        source = "manual"
+        try:
+            calib_source = self.live_calibration_coordinator.last_polygon_source
+            if calib_source:
+                source = calib_source
+        except AttributeError:
+            pass
+
+        self.event_bus.publish(
+            Event(
+                type=UIEvents.LIVE_RECORDING_PENDING,
+                data=payloads.LiveRecordingPendingPayload(
+                    experiment_id=str(ctx.get("experiment_id", "")),
+                    group=ctx.get("group"),
+                    day=ctx.get("day"),
+                    subject_id=ctx.get("subject"),
+                    polygon_source=source,
+                ),
+                source="LiveCameraSessionCoordinator._publish_pending",
+            )
+        )
+
+    def _on_resume_requested(
+        self, payload: payloads.LiveRecordingResumeRequestedPayload | None = None
+    ) -> None:
+        """Resume a deferred live session after the user finishes the polygon."""
+        if self._pending_live_context is None or self._pending_live_kind is None:
+            log.info("live_camera_session_coordinator.resume.no_pending_context")
+            return
+
+        # Clear the calibration-coordinator pending flag so future calls bypass
+        # the dialog gate and proceed directly to recording.
+        try:
+            self.live_calibration_coordinator.pending_zone_confirmation = False
+        except AttributeError:
+            pass
+
+        ctx = self._pending_live_context
+        kind = self._pending_live_kind
+        self._pending_live_context = None
+        self._pending_live_kind = None
+
+        log.info(
+            "live_camera_session_coordinator.resume.replaying",
+            kind=kind,
+            experiment_id=ctx.get("experiment_id"),
+        )
+
+        # Use root.after(0, ...) so we yield the Tk thread before re-entering
+        # the recording start flow (which itself may dispatch UI events).
+        def _replay() -> None:
+            try:
+                if kind == "project":
+                    self.start_live_project_session(
+                        day=ctx["day_int"],
+                        group=ctx["group"],
+                        subject=ctx["subject"],
+                        duration_s=ctx.get("duration_s"),
+                        camera_index_override=ctx.get("camera_index_override"),
+                        camera_friendly_name_override=ctx.get("camera_friendly_name_override"),
+                        zones_validated=True,
+                    )
+                elif kind == "config":
+                    self.start_session_from_config(
+                        config=ctx["config"],
+                        zones_validated=True,
+                    )
+            # except Exception justified: replay invokes coordinator + service
+            # subsystems with heterogeneous failure modes; log and surface to UI.
+            except Exception as exc:
+                log.error(
+                    "live_camera_session_coordinator.resume.failed",
+                    error=str(exc),
+                    exc_info=True,
+                )
+                if self.event_bus is not None:
+                    self.event_bus.publish(
+                        Event(
+                            type=UIEvents.UI_SHOW_ERROR,
+                            data=payloads.MessagePayload(
+                                title="Erro ao retomar gravação",
+                                message=f"Falha ao iniciar a gravação: {exc!s}",
+                            ),
+                        )
+                    )
+
+        if self.root is not None:
+            self.root.after(0, _replay)
+        else:
+            _replay()
+
+    def _resolve_session_paths(
+        self,
+        *,
+        experiment_id: str | None = None,
+        group: str | None = None,
+        day: str | None = None,
+        subject: str | None = None,
+        override: Path | str | None = None,
+    ) -> tuple[Path | str | None, str | None]:
+        """Resolve ``(output_base_dir, session_folder_name)`` for a live session.
+
+        Three regimes:
+
+        1. **Explicit override**: caller pre-computed the base dir → return it
+           as-is, no folder-name override (session manager applies its legacy
+           ``{experiment_id}_{timestamp}`` pattern).
+        2. **Project + full metadata** (group / day / subject all present):
+           use ``project_manager.resolve_results_directory`` to land inside
+           ``<project>/Grupo_X/Dia_Y/Sujeito_Z/`` so live results sit beside
+           pre-recorded results for the same subject. Folder name becomes
+           ``live_{timestamp}`` to avoid colliding with pre-recorded files.
+        3. **Project only** (missing metadata): fall back to
+           ``<project>/live_analysis_sessions/`` with the legacy pattern so
+           the folder still sits inside the project (resolving the CWD bug)
+           without inventing a hierarchy that doesn't make sense yet.
+        4. **No project**: return ``(None, None)``; ``LiveSessionManager``
+           uses its CWD-relative default.
+        """
+        if override is not None:
+            return override, None
+
+        project_path = getattr(self.project_manager, "project_path", None)
+        if not project_path:
+            return None, None
+
+        # Hierarchical layout — requires all three fields so the resolver
+        # doesn't fall back to "Grupo_Sem_Grupo/Dia_Indefinido/..." which
+        # would be confusing.
+        if group and day and subject and experiment_id:
+            try:
+                hierarchical = self.project_manager.resolve_results_directory(
+                    experiment_id,
+                    metadata={
+                        "group": group,
+                        "day": day,
+                        "subject_id": subject,
+                    },
+                )
+                timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+                return Path(hierarchical), f"live_{timestamp}"
+            # except Exception justified: metadata resolution touches user data
+            # and may raise on malformed entries; fall back to legacy layout.
+            except Exception as exc:
+                log.warning(
+                    "live_camera_session_coordinator.resolve_session_paths.hierarchical_failed",
+                    experiment_id=experiment_id,
+                    error=str(exc),
+                )
+
+        return Path(project_path) / "live_analysis_sessions", None
+
+    def _on_resume_cancelled(
+        self, payload: payloads.LiveRecordingCancelledPayload | None = None
+    ) -> None:
+        """Discard the pending live session (user clicked "Cancelar Sessão")."""
+        if self._pending_live_context is None:
+            return
+        log.info(
+            "live_camera_session_coordinator.resume.cancelled",
+            experiment_id=self._pending_live_context.get("experiment_id"),
+        )
+        self._pending_live_context = None
+        self._pending_live_kind = None
+        try:
+            self.live_calibration_coordinator.pending_zone_confirmation = False
+            self.live_calibration_coordinator.clear_last_polygon_source()
+        except AttributeError:
+            pass
 
     def validate_dependencies(self) -> bool:
         """Validate that required dependencies are present.
@@ -257,6 +456,13 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
                 }
 
             # Delegate to LiveCameraService
+            resolved_base, session_folder = self._resolve_session_paths(
+                experiment_id=experiment_id,
+                group=(wizard_data or {}).get("experimental_group"),
+                day=(wizard_data or {}).get("experiment_day"),
+                subject=(wizard_data or {}).get("subject_id"),
+                override=output_base_dir,
+            )
             success = self.live_camera_service.start_session(
                 camera_index=camera_index,
                 duration_s=duration_s,
@@ -264,10 +470,12 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
                 analysis_interval_frames=analysis_interval_frames,
                 display_interval_frames=display_interval_frames,
                 record_video=record_video,
-                output_base_dir=output_base_dir,
+                output_base_dir=resolved_base,
+                session_folder_name=session_folder,
                 animals_per_aquarium=animals_per_aquarium,
                 use_external_preview=False,  # Use integrated canvas in Analysis tab
                 analysis_config=analysis_config,
+                zones_validated=True,
             )
 
             if not success:
@@ -418,6 +626,31 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
             # v2.3.0: Register session for batch tracking
             if success and self.live_batch_coordinator and self._active_wizard_data:
                 self._register_batch_session()
+
+            # Mirror pre-recorded completion flow: trigger project-views and
+            # video-tree refresh so the "Controle Principal", "Progresso do
+            # Experimento", "Configuração de Zonas" and "Processamento e
+            # Relatórios" tabs reflect the newly recorded session immediately.
+            # Without these, the working trees only update on manual reload.
+            if success and self.event_bus is not None:
+                self.event_bus.publish(
+                    Event(
+                        type=UIEvents.PROJECT_VIEWS_REFRESH_REQUESTED,
+                        data=payloads.ProjectViewsRefreshRequestedPayload(
+                            reason="live_session_completed",
+                            immediate=True,
+                        ),
+                        source="LiveCameraSessionCoordinator.stop_live_session",
+                    )
+                )
+                self.event_bus.publish(
+                    Event(
+                        type=UIEvents.VIDEO_TREE_REFRESH_REQUESTED,
+                        data=payloads.VideoTreeRefreshRequestedPayload(),
+                        source="LiveCameraSessionCoordinator.stop_live_session",
+                    )
+                )
+                log.info("live_camera_session_coordinator.stop_live_session.refresh_published")
 
             log.info(
                 "live_camera_session_coordinator.stop_live_session.success",
@@ -614,7 +847,7 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
         # Delegate to unified start method
         self.start_session_from_config(config)
 
-    def start_session_from_config(self, config: dict) -> bool:
+    def start_session_from_config(self, config: dict, *, zones_validated: bool = False) -> bool:
         """Start live camera analysis with full configuration from SingleVideoConfigDialog.
 
         This method extracts all parameters from the config dictionary and delegates
@@ -722,16 +955,52 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
                 mode=selected_mode,
             )
 
-        # v2.3.0: Build analysis_config with batch metadata for video registration
+        # Ad-hoc flow (LiveAnalysisDialog) — gate through the same zone-validation
+        # handshake as the live project flow so the user always gets a chance to
+        # review/adjust the polygon before recording begins. When deferred, the
+        # zone tab's "▶️ Iniciar Gravação" button replays this call with
+        # ``zones_validated=True``.
+        if not zones_validated:
+            zones_ready = self.live_calibration_coordinator.ensure_zones_before_recording()
+            if not zones_ready:
+                if self.live_calibration_coordinator.pending_zone_confirmation:
+                    pending_ctx = {
+                        "experiment_id": experiment_id,
+                        "config": config,
+                        "group": config.get("experimental_group"),
+                        "day": config.get("experiment_day"),
+                        "subject": config.get("subject_id"),
+                    }
+                    self._pending_live_context = pending_ctx
+                    self._pending_live_kind = "config"
+                    self._publish_pending(pending_ctx)
+                    log.info(
+                        "live_camera_session_coordinator.start_from_config.deferred",
+                        experiment_id=experiment_id,
+                    )
+                else:
+                    log.info("live_camera_session_coordinator.start_from_config.zones_not_ready")
+                return False
+
+        # v2.3.0: Build analysis_config with batch metadata for video registration.
+        polygon_source = self.live_calibration_coordinator.last_polygon_source or "manual"
         analysis_config = {
             "group": config.get("experimental_group"),
             "day": config.get("experiment_day"),
             "subject_id": config.get("subject_id"),
             "camera_index": camera_index,
+            "polygon_source": polygon_source,
         }
 
-        # Delegate to LiveCameraService
-        # FIX: Use integrated canvas preview (no external window)
+        # Delegate to LiveCameraService.
+        # When metadata (group/day/subject) is set, results land inside the
+        # project's Grupo/Dia/Sujeito hierarchy alongside pre-recorded videos.
+        resolved_base, session_folder = self._resolve_session_paths(
+            experiment_id=experiment_id,
+            group=config.get("experimental_group"),
+            day=config.get("experiment_day"),
+            subject=config.get("subject_id"),
+        )
         success = self.live_camera_service.start_session(
             camera_index=camera_index,
             duration_s=duration_s,
@@ -739,10 +1008,16 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
             analysis_interval_frames=analysis_interval_frames,
             display_interval_frames=display_interval_frames,
             record_video=record_video,
+            output_base_dir=resolved_base,
+            session_folder_name=session_folder,
             animals_per_aquarium=animals_per_aquarium,
             use_external_preview=False,  # Use canvas in Analysis tab
             analysis_config=analysis_config,
+            zones_validated=True,
         )
+
+        if success:
+            self.live_calibration_coordinator.clear_last_polygon_source()
 
         # UI feedback
         if success and self.event_bus:
@@ -781,6 +1056,10 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
         group: str,
         subject: str,
         duration_s: float | None = None,
+        *,
+        camera_index_override: int | None = None,
+        camera_friendly_name_override: str | None = None,
+        zones_validated: bool = False,
     ) -> bool:
         """Start a live recording session for a Live project.
 
@@ -792,6 +1071,10 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
             group: Group identifier
             subject: Subject/animal identifier
             duration_s: Optional duration override (uses project default if None)
+            camera_index_override: If provided, skip the friendly-name resolver
+                and use this index for THIS session only (no persistence).
+            camera_friendly_name_override: Friendly name paired with the override
+                (only logged for traceability).
 
         Returns:
             True if session started successfully, False otherwise
@@ -805,7 +1088,54 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
 
         # Extract project configuration
         project_data = self.project_manager.project_data
-        camera_index = project_data.get("camera_index", 0)
+        saved_camera_index = project_data.get("camera_index", 0)
+        saved_camera_name = project_data.get("camera_friendly_name", "") or ""
+
+        # Resolve camera by friendly name unless the caller already overrode it
+        if camera_index_override is not None:
+            camera_index = int(camera_index_override)
+            log.info(
+                "live_camera_session_coordinator.camera.override",
+                index=camera_index,
+                friendly_name=camera_friendly_name_override or "",
+            )
+        else:
+            from zebtrack.core.services.wizard_service import WizardService
+
+            resolved_index, status = WizardService.resolve_camera_index(
+                saved_camera_index, saved_camera_name
+            )
+            if status == "MISSING":
+                log.error(
+                    "live_camera_session_coordinator.camera.missing",
+                    saved_index=saved_camera_index,
+                    saved_name=saved_camera_name,
+                )
+                self.event_bus.publish(  # type: ignore[union-attr]
+                    Event(
+                        type=UIEvents.UI_SHOW_ERROR,
+                        data=payloads.MessagePayload(
+                            title="Câmera não encontrada",
+                            message=(
+                                f"A câmera salva no projeto ('{saved_camera_name}') "
+                                f"não foi detectada.\n\n"
+                                f"Conecte o dispositivo correto ou use 'Trocar câmera' "
+                                f"no diálogo de gravação para escolher outra."
+                            ),
+                        ),
+                        source="LiveCameraSessionCoordinator.start_live_project_session",
+                    )
+                )
+                return False
+
+            if status == "SHIFTED":
+                log.info(
+                    "live_camera_session_coordinator.camera.resolved.shifted",
+                    saved_index=saved_camera_index,
+                    actual_index=resolved_index,
+                    friendly_name=saved_camera_name,
+                )
+            camera_index = resolved_index
 
         # Duration: use parameter, project default, or fallback
         if duration_s is None:
@@ -826,10 +1156,38 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
             duration_s=duration_s,
         )
 
-        # v2.3.1: Ensure zones are defined before recording
-        if not self.live_calibration_coordinator.ensure_zones_before_recording():
-            log.info("live_camera_session_coordinator.live_project_session.zones_not_ready")
-            return False
+        # v2.3.1: Ensure zones are defined before recording.
+        # When the calibration coordinator defers (auto-detect approved or user
+        # chose manual mode) ``ensure_zones_before_recording`` returns False and
+        # sets pending_zone_confirmation=True. In that case we stash the call
+        # context and publish LIVE_RECORDING_PENDING so the zone tab can show
+        # the "▶️ Iniciar Gravação" button. The button publishes
+        # LIVE_RECORDING_RESUME_REQUESTED which lands in _on_resume_requested
+        # and replays this method with zones_validated=True.
+        if not zones_validated:
+            zones_ready = self.live_calibration_coordinator.ensure_zones_before_recording()
+            if not zones_ready:
+                if self.live_calibration_coordinator.pending_zone_confirmation:
+                    pending_ctx = {
+                        "experiment_id": experiment_id,
+                        "day": f"Dia_{day}",
+                        "day_int": day,
+                        "group": group,
+                        "subject": subject,
+                        "duration_s": duration_s,
+                        "camera_index_override": camera_index_override,
+                        "camera_friendly_name_override": camera_friendly_name_override,
+                    }
+                    self._pending_live_context = pending_ctx
+                    self._pending_live_kind = "project"
+                    self._publish_pending(pending_ctx)
+                    log.info(
+                        "live_camera_session_coordinator.live_project_session.deferred",
+                        experiment_id=experiment_id,
+                    )
+                else:
+                    log.info("live_camera_session_coordinator.live_project_session.zones_not_ready")
+                return False
 
         # v2.3.1: Increment session count to track recordings for zone reuse dialog
         self.live_calibration_coordinator.increment_session_count()
@@ -847,15 +1205,29 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
         # Extract animals_per_aquarium from project data
         animals_per_aquarium = project_data.get("animals_per_aquarium", 1)
 
-        # v2.3.0: Build analysis_config with batch metadata for video registration
+        # v2.3.0: Build analysis_config with batch metadata for video registration.
+        # ``polygon_source`` is read from the calibration coordinator (auto vs
+        # manual) so register_processing_outputs can stamp the session with the
+        # provenance shown later in BlockDetailDialog.
+        polygon_source = self.live_calibration_coordinator.last_polygon_source or "manual"
         analysis_config = {
             "group": group,
             "day": f"Dia_{day}",
             "subject_id": subject,
             "camera_index": camera_index,
+            "polygon_source": polygon_source,
         }
 
-        # Delegate to LiveCameraService (unified system)
+        # Delegate to LiveCameraService (unified system).
+        # Live project sessions always have full metadata, so the resolver
+        # routes them into <project>/Grupo_X/Dia_Y/Sujeito_Z/live_{timestamp}/
+        # alongside the pre-recorded artifacts for the same subject.
+        resolved_base, session_folder = self._resolve_session_paths(
+            experiment_id=experiment_id,
+            group=group,
+            day=f"Dia_{day}",
+            subject=subject,
+        )
         success = self.live_camera_service.start_session(
             camera_index=camera_index,
             duration_s=duration_s,
@@ -863,10 +1235,18 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
             analysis_interval_frames=analysis_interval_frames,
             display_interval_frames=display_interval_frames,
             record_video=True,  # Projects always record
+            output_base_dir=resolved_base,
+            session_folder_name=session_folder,
             animals_per_aquarium=animals_per_aquarium,
             use_external_preview=False,  # Use integrated canvas in Analysis tab
             analysis_config=analysis_config,
+            zones_validated=True,
         )
+
+        if success:
+            # Polygon-source has been consumed for this session — reset so the next
+            # session doesn't accidentally inherit a stale tag.
+            self.live_calibration_coordinator.clear_last_polygon_source()
 
         return success
 

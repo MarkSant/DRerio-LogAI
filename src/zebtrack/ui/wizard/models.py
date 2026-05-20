@@ -115,6 +115,14 @@ class LiveConfigData(BaseModel):
     """Live configuration step data with validation."""
 
     camera_index: int = Field(ge=0, le=10, description="Camera device index")
+    camera_friendly_name: str = Field(
+        default="",
+        description=(
+            "DirectShow friendly name of the chosen camera. Used at recording time to "
+            "re-resolve the index if DirectShow ordering shifts (USB replug, etc.). "
+            "Empty when pygrabber is unavailable or for legacy projects."
+        ),
+    )
     use_arduino: bool = Field(default=False, description="Enable Arduino integration")
     arduino_port: str | None = Field(default=None, description="Arduino serial port")
     use_timed_recording: bool = Field(
@@ -129,6 +137,13 @@ class LiveConfigData(BaseModel):
     )
     external_trigger_mode: bool = Field(
         default=False, description="Wait for external trigger signal from Arduino"
+    )
+    preserve_real_aquarium_shape: bool = Field(
+        default=False,
+        description=(
+            "Keep the segmentation mask polygon (N vertices) instead of collapsing "
+            "to a 4-corner bounding box during live aquarium auto-detection."
+        ),
     )
 
     @field_validator("external_trigger_mode")

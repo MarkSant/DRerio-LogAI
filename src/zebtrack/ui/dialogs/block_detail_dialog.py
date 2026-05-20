@@ -66,6 +66,19 @@ class BlockDetailDialog(Toplevel):
             else set()
         )
 
+        # Cache project polygon status for the header indicator + per-subject
+        # "reused" badge. Read once at dialog init so per-row rendering doesn't
+        # re-walk the zone data structures.
+        try:
+            zone_data = (
+                project_manager.get_zone_data()
+                if hasattr(project_manager, "get_zone_data")
+                else None
+            )
+            self._project_has_polygon = bool(zone_data and getattr(zone_data, "polygon", None))
+        except Exception:
+            self._project_has_polygon = False
+
         # v2.3.1: Debug log for session detection
         log.info(
             "block_detail.init",
@@ -73,6 +86,7 @@ class BlockDetailDialog(Toplevel):
             group=self.group_name,
             subjects_per_group=self.subjects_per_group,
             completed_sessions=list(self.completed_sessions),
+            project_has_polygon=self._project_has_polygon,
             project_path=str(project_manager.project_path)
             if project_manager.project_path
             else None,
@@ -80,9 +94,14 @@ class BlockDetailDialog(Toplevel):
 
         # Window config
         self.title(f"Sessões: Dia {self.day_num} - {group}")
-        self.geometry("700x600")
+        self.geometry("700x640")
         self.transient(parent)
         self.grab_set()
+
+        # Per-block camera override (None = use project default).
+        self._camera_index_override: int | None = None
+        self._camera_friendly_name_override: str | None = None
+        self._camera_label: Label | None = None
 
         self.build_ui()
 
@@ -114,6 +133,24 @@ class BlockDetailDialog(Toplevel):
             fg="#555",
         ).pack(side="left", padx=10, pady=20)
 
+        # Project-level polygon indicator: shows whether the project already has
+        # an arena polygon defined (which gets reused across subjects in live
+        # projects). Helps users know whether the first session of the block
+        # will trigger zone calibration or jump straight to recording.
+        polygon_text = (
+            "🏟️ Polígono do projeto: ✅ Definido"
+            if self._project_has_polygon
+            else "🏟️ Polígono do projeto: ⚠️ Não definido"
+        )
+        polygon_color = "#0a7" if self._project_has_polygon else "#a23"
+        Label(
+            header,
+            text=polygon_text,
+            font=("Segoe UI", 10),
+            bg="#f8f9fa",
+            fg=polygon_color,
+        ).pack(side="right", padx=20, pady=20)
+
         # Subject list
         list_frame = Frame(self)
         list_frame.pack(fill="both", expand=True, padx=20, pady=10)
@@ -142,6 +179,30 @@ class BlockDetailDialog(Toplevel):
         # Populate subjects
         for subject in subjects:
             self.create_subject_row(subject_container, subject)
+
+        # Camera section: shows project default + optional override for this block.
+        camera_frame = Frame(self)
+        camera_frame.pack(fill="x", padx=20, pady=(0, 10))
+
+        Label(
+            camera_frame,
+            text="📷 Câmera:",
+            font=("Segoe UI", 10, "bold"),
+        ).pack(side="left")
+
+        self._camera_label = Label(
+            camera_frame,
+            text=self._format_current_camera(),
+            font=("Segoe UI", 10),
+            anchor="w",
+        )
+        self._camera_label.pack(side="left", padx=(5, 10))
+
+        Button(
+            camera_frame,
+            text="Trocar...",
+            command=self._open_camera_chooser,
+        ).pack(side="left")
 
         # Actions frame
         action_frame = Frame(self)
@@ -193,6 +254,14 @@ class BlockDetailDialog(Toplevel):
     def _find_session_folder(self, subject: str) -> Path | None:
         """Find the session folder for a specific day/group/subject.
 
+        Lookup strategy (first match wins):
+        1. ``project_data["batches"][*]["videos"][*].results_dir`` — preferred
+           path that handles both legacy flat layouts and the new
+           ``Grupo_X/Dia_Y/Sujeito_Z/live_{ts}/`` hierarchy uniformly.
+        2. Legacy filesystem scan for ``day{N}_{group}_{subject}_*`` and
+           ``D{N}_G{group}_S{subject}`` folders at the project root (used by
+           older recordings made before the hierarchical layout was adopted).
+
         Args:
             subject: Subject ID (e.g., "1", "2")
 
@@ -204,13 +273,16 @@ class BlockDetailDialog(Toplevel):
 
         project_path = Path(self.project_manager.project_path)
 
-        # Pattern 1: New format - day{day}_{group}_{subject}_{timestamp}
-        # Example: "day1_Controle_1_20260103_142530"
+        # Strategy 1 — read results_dir registered in project_data.
+        results_dir = self._results_dir_for_subject(subject)
+        if results_dir is not None:
+            return results_dir
+
+        # Strategy 2 — legacy filesystem scan at project root (pre-hierarchical
+        # recordings whose results_dir was never stamped on the video entry).
         pattern_new = re.compile(
             rf"^day{self.day_num}_{re.escape(self.group_name)}_{subject}_\d{{8}}_\d{{6}}$"
         )
-
-        # Pattern 2: Legacy format - D{day}_G{group}_S{subject}
         pattern_legacy = re.compile(rf"^D{self.day_num}_G{re.escape(self.group_name)}_S{subject}$")
 
         for item in project_path.iterdir():
@@ -219,6 +291,62 @@ class BlockDetailDialog(Toplevel):
             if pattern_new.match(item.name) or pattern_legacy.match(item.name):
                 return item
 
+        return None
+
+    def _results_dir_for_subject(self, subject: str) -> Path | None:
+        """Return the registered ``results_dir`` for the (day, group, subject) entry."""
+        project_data = (
+            self.project_manager.project_data
+            if hasattr(self.project_manager, "project_data")
+            else {}
+        )
+        target_day = f"Dia_{self.day_num}"
+        for batch in project_data.get("batches", []):
+            for video in batch.get("videos", []):
+                metadata = video.get("metadata") or {}
+                meta_day = str(metadata.get("day", "")).strip()
+                if meta_day and meta_day not in (target_day, str(self.day_num)):
+                    continue
+                if str(metadata.get("group", "")).strip() != str(self.group_name).strip():
+                    continue
+                if str(metadata.get("subject", "")).strip() != str(subject).strip():
+                    continue
+                results_dir = video.get("results_dir")
+                if results_dir:
+                    candidate = Path(results_dir)
+                    if candidate.exists() and candidate.is_dir():
+                        return candidate
+        return None
+
+    def _get_polygon_source_for_subject(self, subject: str) -> str | None:
+        """Return the polygon source ("auto" / "manual" / None) recorded for a subject.
+
+        Scans the project's videos for an entry whose metadata matches the
+        block's (group, day, subject) tuple. Returns the ``polygon_source``
+        field stamped by ``OutputRegistrationManager.register_processing_outputs``
+        after the live recording completes, or ``None`` for sessions recorded
+        before the field existed.
+        """
+        project_data = (
+            self.project_manager.project_data
+            if hasattr(self.project_manager, "project_data")
+            else {}
+        )
+        target_day = f"Dia_{self.day_num}"
+        for batch in project_data.get("batches", []):
+            for video in batch.get("videos", []):
+                metadata = video.get("metadata") or {}
+                # Day field uses both "Dia_N" and bare int formats across the codebase
+                meta_day = str(metadata.get("day", "")).strip()
+                if meta_day and meta_day not in (target_day, str(self.day_num)):
+                    continue
+                if str(metadata.get("group", "")).strip() != str(self.group_name).strip():
+                    continue
+                if str(metadata.get("subject", "")).strip() != str(subject).strip():
+                    continue
+                source = metadata.get("polygon_source")
+                if source:
+                    return str(source)
         return None
 
     def _get_session_files_status(self, folder: Path) -> dict[str, bool]:
@@ -321,6 +449,37 @@ class BlockDetailDialog(Toplevel):
             bg="white",
         ).pack(anchor="w")
 
+        # Polygon-source badge: shows whether the polygon used for this
+        # subject was auto-detected or manually drawn. For completed sessions
+        # we read the value stamped by ``register_processing_outputs``; for
+        # pending subjects we hint that the project polygon will be reused.
+        if is_completed:
+            polygon_source = self._get_polygon_source_for_subject(subject)
+            if polygon_source == "auto":
+                Label(
+                    info_frame,
+                    text="🏟️ Auto-detectado",
+                    font=("Segoe UI", 8, "bold"),
+                    fg="#0a7",
+                    bg="white",
+                ).pack(anchor="w")
+            elif polygon_source == "manual":
+                Label(
+                    info_frame,
+                    text="✏️ Desenhado manualmente",
+                    font=("Segoe UI", 8, "bold"),
+                    fg="#666",
+                    bg="white",
+                ).pack(anchor="w")
+        elif self._project_has_polygon:
+            Label(
+                info_frame,
+                text="🏟️ Polígono do projeto pronto (será reutilizado)",
+                font=("Segoe UI", 8),
+                fg="#0a7",
+                bg="white",
+            ).pack(anchor="w")
+
         # v2.3.1: Show folder name if exists
         if session_folder:
             Label(
@@ -345,6 +504,130 @@ class BlockDetailDialog(Toplevel):
                 command=lambda: self.start_session(subject),
             ).pack(side="right", padx=5, pady=10)
 
+    def _format_current_camera(self) -> str:
+        """Render the camera label: override (if set) or project default."""
+        if self._camera_index_override is not None:
+            name = self._camera_friendly_name_override or ""
+            suffix = f" — {name}" if name else ""
+            return f"[Sessão] Índice {self._camera_index_override}{suffix}"
+
+        project_data = (
+            self.project_manager.project_data
+            if hasattr(self.project_manager, "project_data")
+            else {}
+        )
+        saved_index = project_data.get("camera_index", 0)
+        saved_name = project_data.get("camera_friendly_name", "") or ""
+        if saved_name:
+            return f"{saved_name} (índice {saved_index})"
+        return f"Índice {saved_index}"
+
+    def _open_camera_chooser(self) -> None:
+        """Modal sub-dialog: detect + pick a camera (and optionally persist)."""
+        # Local imports keep dialog cold-import light.
+        from tkinter import BooleanVar, Checkbutton, StringVar
+
+        from zebtrack.core.services.wizard_service import WizardService
+
+        try:
+            cameras = WizardService.detect_available_cameras(use_cache=False)
+        # except Exception justified: camera enumeration is hardware I/O
+        except Exception as exc:
+            messagebox.showerror(
+                "Falha na detecção",
+                f"Não foi possível detectar câmeras:\n\n{exc}",
+                parent=self,
+            )
+            return
+
+        if not cameras:
+            messagebox.showwarning(
+                "Nenhuma câmera",
+                "Nenhuma câmera foi detectada no sistema.",
+                parent=self,
+            )
+            return
+
+        chooser = Toplevel(self)
+        chooser.title("Trocar câmera para esta sessão")
+        chooser.transient(self)
+        chooser.grab_set()
+
+        Label(chooser, text="Selecione a câmera:").grid(
+            row=0, column=0, sticky="w", padx=10, pady=(10, 0)
+        )
+
+        descriptions = [c.get("description", f"Câmera {c['index']}") for c in cameras]
+        index_map = {desc: int(cameras[i]["index"]) for i, desc in enumerate(descriptions)}
+        name_map = {
+            desc: cameras[i].get("friendly_name", "") for i, desc in enumerate(descriptions)
+        }
+
+        selection_var = StringVar(value=descriptions[0])
+        combo = ttk.Combobox(
+            chooser,
+            values=descriptions,
+            textvariable=selection_var,
+            state="readonly",
+            width=60,
+        )
+        combo.grid(row=1, column=0, columnspan=2, sticky="ew", padx=10, pady=5)
+
+        persist_var = BooleanVar(value=False)
+        Checkbutton(
+            chooser,
+            text="Salvar como câmera padrão deste projeto",
+            variable=persist_var,
+        ).grid(row=2, column=0, columnspan=2, sticky="w", padx=10, pady=5)
+
+        confirmed = {"ok": False}
+
+        def _on_ok() -> None:
+            confirmed["ok"] = True
+            chooser.destroy()
+
+        def _on_cancel() -> None:
+            chooser.destroy()
+
+        button_row = Frame(chooser)
+        button_row.grid(row=3, column=0, columnspan=2, pady=(5, 10))
+        Button(button_row, text="OK", command=_on_ok, width=10).pack(side="left", padx=5)
+        Button(button_row, text="Cancelar", command=_on_cancel, width=10).pack(side="left", padx=5)
+
+        chooser.wait_window()
+
+        if not confirmed["ok"]:
+            return
+
+        chosen = selection_var.get()
+        new_index = index_map.get(chosen, 0)
+        new_name = name_map.get(chosen, "")
+
+        if persist_var.get():
+            try:
+                self.project_manager.project_data["camera_index"] = int(new_index)
+                self.project_manager.project_data["camera_friendly_name"] = new_name
+                if hasattr(self.project_manager, "save_project"):
+                    self.project_manager.save_project()
+                # Persisted: clear any previous override so the label shows the new default.
+                self._camera_index_override = None
+                self._camera_friendly_name_override = None
+            except (OSError, AttributeError, ValueError) as exc:
+                messagebox.showwarning(
+                    "Falha ao salvar câmera",
+                    f"Não foi possível salvar a câmera como padrão:\n{exc}",
+                    parent=self,
+                )
+                # Fall back to per-session override on save failure.
+                self._camera_index_override = int(new_index)
+                self._camera_friendly_name_override = new_name
+        else:
+            self._camera_index_override = int(new_index)
+            self._camera_friendly_name_override = new_name
+
+        if self._camera_label is not None:
+            self._camera_label.config(text=self._format_current_camera())
+
     def start_session(self, subject: str):
         """Start live session for subject.
 
@@ -352,11 +635,19 @@ class BlockDetailDialog(Toplevel):
             subject: Subject ID to start session for
         """
         log.info(
-            "block_detail.start_session", day=self.day_num, group=self.group_name, subject=subject
+            "block_detail.start_session",
+            day=self.day_num,
+            group=self.group_name,
+            subject=subject,
+            camera_override=self._camera_index_override,
         )
 
         # v2.3.1: Actually start the session using session_coordinator
         try:
+            # Snapshot the override before destroying (instance attrs survive, but be explicit).
+            override_index = self._camera_index_override
+            override_name = self._camera_friendly_name_override
+
             # Close dialog first so it doesn't block
             self.destroy()
 
@@ -365,14 +656,36 @@ class BlockDetailDialog(Toplevel):
                 day=self.day_num,
                 group=str(self.group_name),
                 subject=subject,
+                camera_index_override=override_index,
+                camera_friendly_name_override=override_name,
             )
 
             if not success:
-                messagebox.showerror(
-                    "Erro",
-                    f"Falha ao iniciar sessão para Animal {subject}\n"
-                    f"Dia {self.day_num} - {self.group_name}",
+                # ``start_live_project_session`` returns False in two distinct
+                # situations: a genuine failure (camera missing, bad project
+                # type) AND the legitimate "deferred awaiting zone confirmation"
+                # case after the auto-detect flow approves a polygon. In the
+                # deferred case the user has been routed to the zone tab and
+                # the LIVE_RECORDING_PENDING banner offers "▶️ Iniciar Gravação"
+                # — surfacing an error popup here would be a lie. Probe the
+                # calibration coordinator's pending flag to differentiate.
+                cal_coord = getattr(self.session_coordinator, "live_calibration_coordinator", None)
+                deferred = bool(
+                    cal_coord is not None and getattr(cal_coord, "pending_zone_confirmation", False)
                 )
+                if deferred:
+                    log.info(
+                        "block_detail.start_session.deferred_for_zones",
+                        subject=subject,
+                        day=self.day_num,
+                        group=self.group_name,
+                    )
+                else:
+                    messagebox.showerror(
+                        "Erro",
+                        f"Falha ao iniciar sessão para Animal {subject}\n"
+                        f"Dia {self.day_num} - {self.group_name}",
+                    )
         except Exception as e:
             log.error("block_detail.start_session.failed", error=str(e), exc_info=True)
             messagebox.showerror("Erro", f"Erro ao iniciar sessão: {e!s}")

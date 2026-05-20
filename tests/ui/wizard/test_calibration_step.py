@@ -302,3 +302,76 @@ class TestCalibrationStep:
         is_valid, _ = step.validate()
 
         assert is_valid == expected_valid
+
+    # ------------------------------------------------------------------
+    # Intervals consolidated here (moved out of LiveConfigStep)
+    # ------------------------------------------------------------------
+
+    def test_get_data_includes_intervals_for_pre_recorded_project(self):
+        """Pre-recorded projects must emit intervals from CalibrationStep."""
+        wizard_data: dict[str, Any] = {}  # no project_type → defaults to pre-recorded
+        step = CalibrationStep(self.root, wizard_data)
+        step.build_ui()
+        step.analysis_interval_var.set(7)
+        step.display_interval_var.set(12)
+
+        data = step.get_data()
+
+        assert data["analysis_interval_frames"] == 7
+        assert data["display_interval_frames"] == 12
+
+    def test_get_data_includes_intervals_for_live_project(self):
+        """Live projects must also emit intervals from CalibrationStep now —
+        previously the keys were skipped because the live wizard collected
+        them in a different step."""
+        from zebtrack.ui.wizard.enums import ProjectType
+
+        wizard_data: dict[str, Any] = {"project_type": ProjectType.LIVE.value}
+        step = CalibrationStep(self.root, wizard_data)
+        step.build_ui()
+        step.analysis_interval_var.set(20)
+        step.display_interval_var.set(30)
+
+        data = step.get_data()
+
+        assert data["analysis_interval_frames"] == 20
+        assert data["display_interval_frames"] == 30
+
+    def test_on_show_picks_live_default_10_when_no_wizard_value(self):
+        """A fresh live wizard run lands on 10/10 (was the LiveConfigStep
+        default before consolidation, preserved here)."""
+        from zebtrack.ui.wizard.enums import ProjectType
+
+        wizard_data: dict[str, Any] = {"project_type": ProjectType.LIVE.value}
+        step = CalibrationStep(self.root, wizard_data)
+        step.build_ui()
+        step.on_show()
+
+        assert step.analysis_interval_var.get() == 10
+        assert step.display_interval_var.get() == 10
+
+    def test_on_show_keeps_pre_recorded_default_5(self):
+        wizard_data: dict[str, Any] = {}  # default project type = pre-recorded
+        step = CalibrationStep(self.root, wizard_data)
+        step.build_ui()
+        step.on_show()
+
+        assert step.analysis_interval_var.get() == 5
+        assert step.display_interval_var.get() == 5
+
+    def test_on_show_persisted_intervals_override_live_default(self):
+        """Back-navigation: if the user already picked 17, on_show must respect
+        that even on a live project (it would otherwise reset to 10)."""
+        from zebtrack.ui.wizard.enums import ProjectType
+
+        wizard_data: dict[str, Any] = {
+            "project_type": ProjectType.LIVE.value,
+            "analysis_interval_frames": 17,
+            "display_interval_frames": 23,
+        }
+        step = CalibrationStep(self.root, wizard_data)
+        step.build_ui()
+        step.on_show()
+
+        assert step.analysis_interval_var.get() == 17
+        assert step.display_interval_var.get() == 23

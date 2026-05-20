@@ -77,8 +77,8 @@ class ProjectInitializer:
             f"Projeto: {gui.controller.project_manager.get_project_name()} ({project_type_display})"
         )
         gui.status_var.set(status_text)
-        gui.status_frame = Frame(gui.root)
-        gui.status_frame.pack(pady=5, fill="x", padx=10, side="bottom")
+        gui.status_frame = Frame(gui.root)  # type: ignore[assignment]
+        gui.status_frame.pack(pady=5, fill="x", padx=10, side="bottom")  # type: ignore[union-attr]
         Label(gui.status_frame, textvariable=gui.status_var).pack()
 
         # Ensure analysis UI starts hidden
@@ -136,9 +136,18 @@ class ProjectInitializer:
         elif project_type == "pre-recorded":
             self.initialize_prerecorded_components(pm)
 
-        if project_type == "live":
-            # Auto-calibration for Live projects when no zones are defined
-            gui.root.after(1000, gui.validation_manager.check_live_project_calibration)
+        # Note: live projects no longer auto-prompt for arena calibration at
+        # project-open time. The previous behaviour scheduled
+        # ``validation_manager.check_live_project_calibration`` 1 second after
+        # the project loaded, which (a) implied the project had a single
+        # global arena (wrong — each recording can have its own aquarium
+        # position/shape) and (b) blocked the user with a yes/no prompt
+        # before they'd had a chance to even look at the new project. The
+        # correct calibration trigger is ``LiveCalibrationCoordinator
+        # .ensure_zones_before_recording``, which fires per-session when the
+        # user clicks "Iniciar Sessão" on a specific subject in the batch
+        # grid. The ``check_live_project_calibration`` method is preserved
+        # for explicit invocation but no longer scheduled automatically.
 
     # ------------------------------------------------------------------
     # Settings restoration
@@ -205,42 +214,116 @@ class ProjectInitializer:
         # Initial rendering of the progress grid
         gui.root.after(100, gui.widget_factory.render_progress_grid)
 
-        # Only attempt to connect if a port is configured from the dialog
-        if gui.controller.settings and gui.controller.settings.arduino.port:
-            if not gui.controller.hardware_vm.arduino.connect():
+        # Only attempt to connect if the user opted-in to Arduino in the wizard
+        # AND the hardware ViewModel actually has an ArduinoManager attached.
+        # ``settings.arduino.port`` comes from config.yaml defaults and is
+        # truthy even when the user disabled Arduino at project creation time,
+        # which previously caused ``hardware_vm.arduino`` to be None here and
+        # the ``.connect()`` call to crash.
+        use_arduino = bool(pm.project_data.get("use_arduino", False))
+        arduino_manager = getattr(gui.controller.hardware_vm, "arduino", None)
+        port_configured = bool(gui.controller.settings and gui.controller.settings.arduino.port)
+        if use_arduino and arduino_manager is not None and port_configured:
+            if not arduino_manager.connect():
                 gui.dialog_manager.show_warning(
                     "Aviso do Arduino",
                     f"Não foi possível conectar ao Arduino na porta "
                     f"{gui.controller.settings.arduino.port}. Executando em modo offline.",
                 )
+        elif use_arduino and arduino_manager is None:
+            log.warning(
+                "project_initializer.arduino_enabled_but_no_manager",
+                port=gui.controller.settings.arduino.port if gui.controller.settings else None,
+            )
         try:
-            from zebtrack.io.camera import Camera
+            from zebtrack.core.services.wizard_service import WizardService
 
-            # Use camera_index from project_data (saved by wizard)
-            camera_index = pm.project_data.get("camera_index", 0)
+            # Use camera_index/friendly_name from project_data (saved by wizard).
+            # Resolve via friendly name to recover from DirectShow reordering.
+            saved_index = pm.project_data.get("camera_index", 0)
+            saved_name = pm.project_data.get("camera_friendly_name", "") or ""
+            camera_index, status = WizardService.resolve_camera_index(saved_index, saved_name)
+
+            if status == "MISSING":
+                log.warning(
+                    "project_initializer.live_camera_setup.missing",
+                    saved_index=saved_index,
+                    saved_name=saved_name,
+                )
+                gui.dialog_manager.show_warning(
+                    "Câmera não encontrada",
+                    (
+                        f"A câmera salva no projeto ('{saved_name}') não foi detectada.\n\n"
+                        f"As gravações irão falhar até você selecionar outra câmera. "
+                        f"Use 'Trocar câmera...' no bloco do animal antes de iniciar a "
+                        f"sessão para escolher um dispositivo conectado."
+                    ),
+                )
+            elif status == "SHIFTED":
+                log.info(
+                    "project_initializer.live_camera_setup.shifted",
+                    saved_index=saved_index,
+                    actual_index=camera_index,
+                    friendly_name=saved_name,
+                )
 
             log.info(
                 "project_initializer.live_camera_setup",
                 camera_index=camera_index,
+                friendly_name=saved_name,
                 project_name=pm.get_project_name(),
             )
 
-            # Create temporary settings with correct camera index
-            temp_settings = gui.controller.settings.model_copy(deep=True)
-            temp_settings.camera.index = camera_index
-
-            # Initialize camera with modified settings
-            gui.controller.hardware_vm.camera = Camera(settings_obj=temp_settings)
-
-            gui.controller.hardware_vm.active_frame_source = gui.controller.hardware_vm.camera
-            gui.controller.hardware_vm.detector.update_scaling(
-                gui.controller.hardware_vm.camera.actual_width,
-                gui.controller.hardware_vm.camera.actual_height,
-            )
+            # Historical note: this block used to open a Camera, feed its
+            # ``actual_width``/``actual_height`` into a now-deleted
+            # ``detector.update_scaling(w, h)`` API, and stash the handle on
+            # ``hardware_vm.camera`` for an old preview feature. All three
+            # parts are vestigial in the current architecture:
+            #
+            #  - ``Detector.update_scaling(w, h)`` was renamed to
+            #    ``set_zones(zones, w, h)`` and the right place to call it is
+            #    when zones are actually defined (auto-detect / manual draw),
+            #    not at project init when zones are still empty.
+            #  - Nothing reads frames from ``hardware_vm.camera`` before the
+            #    user hits record — ``LiveCameraService.start_session`` opens
+            #    its own Camera with the per-session index. Keeping a handle
+            #    open here left the physical device powered on (LED-on) and
+            #    conflicted with the calibration camera during auto-detect.
+            #  - ``WizardService.resolve_camera_index`` above already verifies
+            #    the saved device is present (status="MISSING" surfaces a
+            #    user-visible warning), so we don't need to probe the device
+            #    by opening it.
+            #
+            # Net effect: do nothing here. The bookkeeping below just keeps
+            # the legacy attributes in a known-clean state for downstream
+            # consumers (e.g. ``_release_preview_camera_if_any``).
+            gui.controller.hardware_vm.camera = None
+            gui.controller.hardware_vm.active_frame_source = None
         except OSError as e:
             gui.dialog_manager.show_error("Erro na Câmera", str(e))
             gui.widget_factory.create_welcome_frame()
             return
+
+        # Mirror the pre-recorded path: publish VIDEO_TREE_REFRESH_REQUESTED
+        # so the zone tab's "Selecionar Vídeo para Desenho" tree populates
+        # with any sessions that have already been recorded in this project
+        # (group/day/subject hierarchy). For brand-new live projects with no
+        # recordings yet the tree will still be empty — that's expected
+        # because the tree is fed by ``ProjectManager.get_all_videos`` which
+        # only returns registered recordings. The pending session banner
+        # above the canvas covers the "which subject am I configuring now"
+        # use case via the LIVE_RECORDING_PENDING payload.
+        if gui.event_bus:
+            from zebtrack.ui import payloads
+            from zebtrack.ui.event_bus_v2 import Event, UIEvents
+
+            gui.event_bus.publish(
+                Event(
+                    type=UIEvents.VIDEO_TREE_REFRESH_REQUESTED,
+                    data=payloads.VideoTreeRefreshRequestedPayload(filter_text=None),
+                    source="ProjectInitializer.initialize_live",
+                )
+            )
 
     def initialize_prerecorded_components(self, pm: Any) -> None:
         """Initialize components for Pre-recorded project type."""

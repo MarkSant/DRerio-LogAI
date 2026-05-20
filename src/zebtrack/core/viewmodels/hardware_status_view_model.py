@@ -220,8 +220,16 @@ class HardwareStatusViewModel:
         for label, method, target in all_slots:
             name: str | None = None
             if wm is not None:
-                got, _ = wm.get_default_weight_for(method, target)
-                name = got
+                # Runtime overrides win over the global ``is_default_*`` flag —
+                # projects (including those created via the wizard) push their
+                # chosen weights into the override map at load time, so the
+                # status panel must surface those, not the catalog defaults.
+                if hasattr(wm, "get_runtime_slot_override"):
+                    got, _ = wm.get_runtime_slot_override(method, target)
+                    name = got
+                if not name:
+                    got, _ = wm.get_default_weight_for(method, target)
+                    name = got
             result.append((label, method, target, name))
         return result
 
@@ -385,10 +393,18 @@ class HardwareStatusViewModel:
         group: str,
         subject: str,
         duration_s: float | None = None,
+        *,
+        camera_index_override: int | None = None,
+        camera_friendly_name_override: str | None = None,
     ) -> Any:
         if self.live_camera_session_coordinator:
             return self.live_camera_session_coordinator.start_live_project_session(
-                day=day, group=group, subject=subject, duration_s=duration_s
+                day=day,
+                group=group,
+                subject=subject,
+                duration_s=duration_s,
+                camera_index_override=camera_index_override,
+                camera_friendly_name_override=camera_friendly_name_override,
             )
         return None
 

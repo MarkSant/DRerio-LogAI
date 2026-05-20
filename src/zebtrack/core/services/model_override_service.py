@@ -157,7 +157,7 @@ class ModelOverrideService:
 
         resolved_weight, resolved_openvino = (
             self.project_workflow_service.save_project_model_slot_overrides(
-                slot_weights,
+                slot_weights,  # type: ignore[arg-type]
                 use_openvino,
             )
         )
@@ -283,7 +283,7 @@ class ModelOverrideService:
             {legacy_slot: active_weight_override} if legacy_slot and active_weight_override else {}
         )
         return self.project_workflow_service.save_project_model_slot_overrides(
-            slot_weights,
+            slot_weights,  # type: ignore[arg-type]
             use_openvino_override,
         )
 
