@@ -228,7 +228,6 @@ class ProjectInitializer:
             )
         try:
             from zebtrack.core.services.wizard_service import WizardService
-            from zebtrack.io.camera import Camera
 
             # Use camera_index/friendly_name from project_data (saved by wizard).
             # Resolve via friendly name to recover from DirectShow reordering.
@@ -265,44 +264,29 @@ class ProjectInitializer:
                 project_name=pm.get_project_name(),
             )
 
-            # Create temporary settings with correct camera index
-            temp_settings = gui.controller.settings.model_copy(deep=True)
-            temp_settings.camera.index = camera_index
-
-            # Open the camera briefly to read its native resolution for
-            # detector scaling, then release immediately. The device handle
-            # is NOT kept around because nothing reads frames from it before
-            # the user actually starts a recording — at which point
-            # ``LiveCameraService.start_session`` opens its own Camera with
-            # the per-session index. Keeping the preview handle alive used to
-            # leave the physical device powered on (LED-on) for the full
-            # project session and conflicted with the calibration camera
-            # during auto-detect, spamming the log with frame_read.failed
-            # and reconnect.attempt warnings.
-            preview_camera = Camera(settings_obj=temp_settings)
-            try:
-                gui.controller.hardware_vm.detector.update_scaling(
-                    preview_camera.actual_width,
-                    preview_camera.actual_height,
-                )
-            finally:
-                try:
-                    preview_camera.release()
-                    log.info(
-                        "project_initializer.live_camera_setup.preview_released",
-                        camera_index=camera_index,
-                    )
-                # except Exception justified: best-effort release; if the
-                # device is in a weird state we still want init to succeed.
-                except Exception as release_err:
-                    log.warning(
-                        "project_initializer.live_camera_setup.preview_release_failed",
-                        error=str(release_err),
-                    )
-
-            # Clear the legacy references so downstream consumers (e.g.
-            # ``CameraConnectionHandler._release_preview_camera_if_any``)
-            # see an already-clean state instead of dangling-released handles.
+            # Historical note: this block used to open a Camera, feed its
+            # ``actual_width``/``actual_height`` into a now-deleted
+            # ``detector.update_scaling(w, h)`` API, and stash the handle on
+            # ``hardware_vm.camera`` for an old preview feature. All three
+            # parts are vestigial in the current architecture:
+            #
+            #  - ``Detector.update_scaling(w, h)`` was renamed to
+            #    ``set_zones(zones, w, h)`` and the right place to call it is
+            #    when zones are actually defined (auto-detect / manual draw),
+            #    not at project init when zones are still empty.
+            #  - Nothing reads frames from ``hardware_vm.camera`` before the
+            #    user hits record — ``LiveCameraService.start_session`` opens
+            #    its own Camera with the per-session index. Keeping a handle
+            #    open here left the physical device powered on (LED-on) and
+            #    conflicted with the calibration camera during auto-detect.
+            #  - ``WizardService.resolve_camera_index`` above already verifies
+            #    the saved device is present (status="MISSING" surfaces a
+            #    user-visible warning), so we don't need to probe the device
+            #    by opening it.
+            #
+            # Net effect: do nothing here. The bookkeeping below just keeps
+            # the legacy attributes in a known-clean state for downstream
+            # consumers (e.g. ``_release_preview_camera_if_any``).
             gui.controller.hardware_vm.camera = None
             gui.controller.hardware_vm.active_frame_source = None
         except OSError as e:

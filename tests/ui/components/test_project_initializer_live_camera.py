@@ -3,6 +3,14 @@
 Focused on the bug where the project-load Camera handle stayed alive for
 the entire session, leaving the physical device powered on (LED-on) and
 conflicting with the calibration camera during auto-detect.
+
+Etapa 10b clarification: the project-init flow no longer opens a Camera
+at all. The previous version opened one solely to call a now-deleted
+``detector.update_scaling(w, h)`` API; that method was renamed to
+``set_zones(zones, w, h)`` long ago and is invoked at zone-definition
+time (auto-detect / manual draw), not at project init. So the tests
+verify the *absence* of any Camera() instantiation here, and the
+preservation of the legacy hardware_vm.camera = None bookkeeping.
 """
 
 from __future__ import annotations
@@ -52,24 +60,16 @@ def _make_pm(camera_index: int = 0, friendly_name: str = "") -> Any:
     return pm
 
 
-def test_initialize_live_components_releases_camera_immediately():
-    """The camera opened to read its native resolution must be released
-    before the method returns. Otherwise the device LED stays on for the
-    whole project session and conflicts with the calibration camera during
-    auto-detect."""
+def test_initialize_live_components_does_not_open_camera():
+    """The device must NOT be opened at project-init time. Opening it here
+    used to (a) leave the LED on for the whole project session and
+    (b) conflict with the calibration camera during auto-detect."""
     gui = _make_gui_stub()
     pm = _make_pm()
     initializer = ProjectInitializer(gui)
 
-    fake_camera = MagicMock()
-    fake_camera.actual_width = 1920
-    fake_camera.actual_height = 1080
-
     with (
-        patch(
-            "zebtrack.io.camera.Camera",
-            return_value=fake_camera,
-        ) as camera_cls,
+        patch("zebtrack.io.camera.Camera") as camera_cls,
         patch(
             "zebtrack.core.services.wizard_service.WizardService.resolve_camera_index",
             return_value=(0, "OK"),
@@ -77,8 +77,24 @@ def test_initialize_live_components_releases_camera_immediately():
     ):
         initializer.initialize_live_components(pm)
 
-    camera_cls.assert_called_once()
-    fake_camera.release.assert_called_once()
+    camera_cls.assert_not_called()
+
+
+def test_initialize_live_components_does_not_call_deleted_update_scaling():
+    """``detector.update_scaling(w, h)`` was a real-world AttributeError —
+    the method was renamed to ``set_zones``. Calling it crashed brand-new
+    live-project creation. Verify the call is gone."""
+    gui = _make_gui_stub()
+    pm = _make_pm()
+    initializer = ProjectInitializer(gui)
+
+    with patch(
+        "zebtrack.core.services.wizard_service.WizardService.resolve_camera_index",
+        return_value=(0, "OK"),
+    ):
+        initializer.initialize_live_components(pm)
+
+    cast(MagicMock, gui.controller.hardware_vm.detector.update_scaling).assert_not_called()
 
 
 def test_initialize_live_components_clears_hardware_vm_references():
@@ -86,127 +102,39 @@ def test_initialize_live_components_clears_hardware_vm_references():
     None so downstream consumers (e.g. ``_release_preview_camera_if_any``)
     don't try to release a stale handle."""
     gui = _make_gui_stub()
+    # Seed legacy non-None values to confirm they get cleared.
+    gui.controller.hardware_vm.camera = MagicMock()
+    gui.controller.hardware_vm.active_frame_source = MagicMock()
     pm = _make_pm()
     initializer = ProjectInitializer(gui)
 
-    fake_camera = MagicMock()
-    fake_camera.actual_width = 640
-    fake_camera.actual_height = 480
-
-    with (
-        patch("zebtrack.io.camera.Camera", return_value=fake_camera),
-        patch(
-            "zebtrack.core.services.wizard_service.WizardService.resolve_camera_index",
-            return_value=(0, "OK"),
-        ),
+    with patch(
+        "zebtrack.core.services.wizard_service.WizardService.resolve_camera_index",
+        return_value=(0, "OK"),
     ):
         initializer.initialize_live_components(pm)
 
     assert gui.controller.hardware_vm.camera is None
     assert gui.controller.hardware_vm.active_frame_source is None
-
-
-def test_initialize_live_components_updates_detector_scaling_with_actual_dims():
-    """The whole point of opening the camera is to feed actual_width/height
-    into ``detector.update_scaling`` — verify those dims flow through."""
-    gui = _make_gui_stub()
-    pm = _make_pm()
-    initializer = ProjectInitializer(gui)
-
-    fake_camera = MagicMock()
-    fake_camera.actual_width = 1280
-    fake_camera.actual_height = 720
-
-    with (
-        patch("zebtrack.io.camera.Camera", return_value=fake_camera),
-        patch(
-            "zebtrack.core.services.wizard_service.WizardService.resolve_camera_index",
-            return_value=(0, "OK"),
-        ),
-    ):
-        initializer.initialize_live_components(pm)
-
-    gui.controller.hardware_vm.detector.update_scaling.assert_called_once_with(1280, 720)
-
-
-def test_initialize_live_components_releases_even_if_update_scaling_raises():
-    """If detector.update_scaling raises, the camera must still be released
-    (no leaked LED-on handle)."""
-    gui = _make_gui_stub()
-    pm = _make_pm()
-    initializer = ProjectInitializer(gui)
-
-    gui.controller.hardware_vm.detector.update_scaling.side_effect = RuntimeError("scaling failed")
-
-    fake_camera = MagicMock()
-    fake_camera.actual_width = 640
-    fake_camera.actual_height = 480
-
-    with (
-        patch("zebtrack.io.camera.Camera", return_value=fake_camera),
-        patch(
-            "zebtrack.core.services.wizard_service.WizardService.resolve_camera_index",
-            return_value=(0, "OK"),
-        ),
-    ):
-        try:
-            initializer.initialize_live_components(pm)
-        except RuntimeError:
-            pass
-
-    fake_camera.release.assert_called_once()
-
-
-def test_initialize_live_components_swallows_release_failure():
-    """If the underlying ``release()`` raises (e.g. driver hiccup) the init
-    must still complete and clear ``hardware_vm.camera``."""
-    gui = _make_gui_stub()
-    pm = _make_pm()
-    initializer = ProjectInitializer(gui)
-
-    fake_camera = MagicMock()
-    fake_camera.actual_width = 640
-    fake_camera.actual_height = 480
-    fake_camera.release.side_effect = RuntimeError("driver hiccup")
-
-    with (
-        patch("zebtrack.io.camera.Camera", return_value=fake_camera),
-        patch(
-            "zebtrack.core.services.wizard_service.WizardService.resolve_camera_index",
-            return_value=(0, "OK"),
-        ),
-    ):
-        initializer.initialize_live_components(pm)
-
-    assert gui.controller.hardware_vm.camera is None
-    assert gui.controller.hardware_vm.active_frame_source is None
-    fake_camera.release.assert_called_once()
 
 
 def test_initialize_live_components_shows_warning_when_camera_missing():
     """``MISSING`` status from the resolver must surface a user-visible warning
-    before continuing to open the fallback index."""
+    even though we no longer open the device to verify it."""
     gui = _make_gui_stub()
     pm = _make_pm(camera_index=2, friendly_name="GhostCam")
     initializer = ProjectInitializer(gui)
 
-    fake_camera = MagicMock()
-    fake_camera.actual_width = 640
-    fake_camera.actual_height = 480
-
-    with (
-        patch("zebtrack.io.camera.Camera", return_value=fake_camera),
-        patch(
-            "zebtrack.core.services.wizard_service.WizardService.resolve_camera_index",
-            return_value=(2, "MISSING"),
-        ),
+    with patch(
+        "zebtrack.core.services.wizard_service.WizardService.resolve_camera_index",
+        return_value=(2, "MISSING"),
     ):
         initializer.initialize_live_components(pm)
 
     cast(MagicMock, gui.dialog_manager.show_warning).assert_called_once()
-    # Camera was still opened (fallback) and released cleanly.
-    fake_camera.release.assert_called_once()
+    # Even on MISSING the bookkeeping must be clean.
     assert gui.controller.hardware_vm.camera is None
+    assert gui.controller.hardware_vm.active_frame_source is None
 
 
 def test_initialize_live_components_publishes_video_tree_refresh():
@@ -220,16 +148,9 @@ def test_initialize_live_components_publishes_video_tree_refresh():
     pm = _make_pm()
     initializer = ProjectInitializer(gui)
 
-    fake_camera = MagicMock()
-    fake_camera.actual_width = 640
-    fake_camera.actual_height = 480
-
-    with (
-        patch("zebtrack.io.camera.Camera", return_value=fake_camera),
-        patch(
-            "zebtrack.core.services.wizard_service.WizardService.resolve_camera_index",
-            return_value=(0, "OK"),
-        ),
+    with patch(
+        "zebtrack.core.services.wizard_service.WizardService.resolve_camera_index",
+        return_value=(0, "OK"),
     ):
         initializer.initialize_live_components(pm)
 
@@ -241,3 +162,22 @@ def test_initialize_live_components_publishes_video_tree_refresh():
         "live-project init must publish VIDEO_TREE_REFRESH_REQUESTED so the "
         "Zone tab's video selector tree populates"
     )
+
+
+def test_initialize_live_components_skips_arduino_when_disabled():
+    """Project opts out of Arduino → arduino_manager.connect() must NOT fire.
+    Guards against regression of the prior crash where the connect call ran
+    even when use_arduino=False (Etapa 6 polish)."""
+    gui = _make_gui_stub()
+    arduino_manager = MagicMock()
+    gui.controller.hardware_vm.arduino = arduino_manager
+    pm = _make_pm()  # use_arduino=False by default
+    initializer = ProjectInitializer(gui)
+
+    with patch(
+        "zebtrack.core.services.wizard_service.WizardService.resolve_camera_index",
+        return_value=(0, "OK"),
+    ):
+        initializer.initialize_live_components(pm)
+
+    arduino_manager.connect.assert_not_called()
