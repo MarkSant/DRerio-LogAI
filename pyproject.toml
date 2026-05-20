@@ -181,6 +181,10 @@ module = [
     "pytest_timeout.*",
     "serial.*",
     "torch.*",
+    # pygrabber is a Windows-only dep (DirectShow friendly-name lookup),
+    # gated by ``sys_platform == 'win32'`` in poetry.lock — on the Linux
+    # CI runner it's not installed and mypy can't resolve the import.
+    "pygrabber.*",
     "yaml",
     "psutil",
     "hypothesis"
