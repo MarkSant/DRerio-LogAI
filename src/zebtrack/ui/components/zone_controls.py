@@ -164,7 +164,7 @@ class ZoneControlsWidget(BaseWidget):
         # Subscribe to live-recording handshake events so the banner reflects
         # the current session state. ``BaseWidget.bind_callback`` guards against
         # a missing event_bus.
-        self.bind_callback(UIEvents.LIVE_RECORDING_PENDING, self._on_live_recording_pending)
+        self.bind_callback(UIEvents.LIVE_RECORDING_PENDING, self._on_live_recording_pending)  # type: ignore[arg-type]
         self.bind_callback(UIEvents.LIVE_SESSION_STARTED, self._on_live_recording_done)
         self.bind_callback(UIEvents.LIVE_SESSION_STOPPED, self._on_live_recording_done)
         self.bind_callback(UIEvents.LIVE_RECORDING_CANCELLED, self._on_live_recording_done)
@@ -269,7 +269,7 @@ class ZoneControlsWidget(BaseWidget):
             return
         root = self.winfo_toplevel()
         if root is not None:
-            root.after(0, lambda p=payload: self._show_pending_session_banner(p))
+            root.after(0, lambda p=payload: self._show_pending_session_banner(p))  # type: ignore[misc]
         else:
             self._show_pending_session_banner(payload)
 
@@ -1066,8 +1066,8 @@ class ZoneControlsWidget(BaseWidget):
         node_type, tag_tuple = node_info
         label = self._HIERARCHY_LABEL_MAP.get(node_type, node_type)
         # Derive display name from the tree item text
-        item_id = self.video_selector_tree.selection()[0]
-        item_text = self.video_selector_tree.item(item_id, "text")
+        item_id = self.video_selector_tree.selection()[0]  # type: ignore[union-attr]
+        item_text = self.video_selector_tree.item(item_id, "text")  # type: ignore[union-attr]
 
         menu = Menu(self.video_selector_tree, tearoff=0, font=("TkDefaultFont", 9))
         menu.add_command(
@@ -1084,7 +1084,7 @@ class ZoneControlsWidget(BaseWidget):
     ) -> None:
         """Handle hierarchy node deletion via confirmation + event emission."""
         # Collect affected videos
-        videos = self._collect_descendant_videos(self.video_selector_tree.selection()[0])
+        videos = self._collect_descendant_videos(self.video_selector_tree.selection()[0])  # type: ignore[union-attr]
         video_names = [v.rsplit("\\", 1)[-1].rsplit("/", 1)[-1] for v in videos]
 
         if not video_names:
@@ -1126,7 +1126,7 @@ class ZoneControlsWidget(BaseWidget):
         result: list[str] = []
 
         def _walk(node: str) -> None:
-            for child in tree.get_children(node):
+            for child in tree.get_children(node):  # type: ignore[union-attr]
                 path = self._get_video_path_from_item(child)
                 if path:
                     result.append(path)

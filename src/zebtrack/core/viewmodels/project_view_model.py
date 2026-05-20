@@ -204,7 +204,7 @@ class ProjectViewModel:
 
         def get_global_defaults() -> dict:
             return {
-                "active_weight": self.settings.weights.det_filename if self.settings else None,
+                "active_weight": self.settings.weights.det_filename if self.settings else None,  # type: ignore[attr-defined]
                 "use_openvino": self.settings.model_selection.use_openvino
                 if self.settings
                 else False,

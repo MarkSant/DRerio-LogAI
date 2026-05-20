@@ -155,7 +155,7 @@ def test_close_project_stops_active_live_session(event_bus):
         event_bus=event_bus,
         live_camera_service=live_camera_service,
     )
-    coord.project_workflow_adapter.close_project.return_value = MagicMock()
+    coord.project_workflow_adapter.close_project.return_value = MagicMock()  # type: ignore[attr-defined]
 
     coord.close_project()
 
@@ -184,7 +184,7 @@ def test_close_project_skips_live_stop_when_not_active(event_bus):
         event_bus=event_bus,
         live_camera_service=live_camera_service,
     )
-    coord.project_workflow_adapter.close_project.return_value = MagicMock()
+    coord.project_workflow_adapter.close_project.return_value = MagicMock()  # type: ignore[attr-defined]
 
     coord.close_project()
 
@@ -205,7 +205,7 @@ def test_close_project_handles_missing_live_camera_service(event_bus):
         event_bus=event_bus,
         live_camera_service=None,
     )
-    coord.project_workflow_adapter.close_project.return_value = MagicMock()
+    coord.project_workflow_adapter.close_project.return_value = MagicMock()  # type: ignore[attr-defined]
 
     # Should not raise
     coord.close_project()
@@ -229,9 +229,9 @@ def test_close_project_swallows_live_stop_errors(event_bus):
         live_camera_service=live_camera_service,
     )
     new_manager = MagicMock()
-    coord.project_workflow_adapter.close_project.return_value = new_manager
+    coord.project_workflow_adapter.close_project.return_value = new_manager  # type: ignore[attr-defined]
 
     result = coord.close_project()
 
     assert result is new_manager
-    coord.project_workflow_adapter.close_project.assert_called_once()
+    coord.project_workflow_adapter.close_project.assert_called_once()  # type: ignore[attr-defined]

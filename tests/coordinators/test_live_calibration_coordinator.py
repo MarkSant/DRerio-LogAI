@@ -713,7 +713,7 @@ def test_run_live_calibration_resolves_perspective_from_behavioral_config(monkey
         "behavioral_config": {"aquarium_perspective": "top_down"},
     }
     coordinator.project_manager.project_path = "/tmp"
-    coordinator.weight_manager.get_weight_path_by_method.return_value = None
+    coordinator.weight_manager.get_weight_path_by_method.return_value = None  # type: ignore[attr-defined]
 
     # Stop the function early: we only care that get_weight_path_by_method
     # is called with the right perspective. Returning None makes
@@ -738,7 +738,7 @@ def test_run_live_calibration_resolves_perspective_from_behavioral_config(monkey
         coordinator.settings.yolo_model = SimpleNamespace(confidence_threshold=0.05)
         coordinator.run_live_calibration(stabilization_frames=4, show_preview=False)
 
-    coordinator.weight_manager.get_weight_path_by_method.assert_called_once_with(
+    coordinator.weight_manager.get_weight_path_by_method.assert_called_once_with(  # type: ignore[attr-defined]
         method="seg", task="aquarium", perspective="top_down"
     )
 
@@ -753,7 +753,7 @@ def test_run_live_calibration_falls_back_to_nested_perspective(monkeypatch):
         "calibration": {"behavioral_analysis": {"aquarium_perspective": "lateral"}},
     }
     coordinator.project_manager.project_path = "/tmp"
-    coordinator.weight_manager.get_weight_path_by_method.return_value = None
+    coordinator.weight_manager.get_weight_path_by_method.return_value = None  # type: ignore[attr-defined]
 
     fake_camera = MagicMock()
     fake_camera.is_open = True
@@ -775,7 +775,7 @@ def test_run_live_calibration_falls_back_to_nested_perspective(monkeypatch):
         coordinator.settings.yolo_model = SimpleNamespace(confidence_threshold=0.05)
         coordinator.run_live_calibration(stabilization_frames=4, show_preview=False)
 
-    coordinator.weight_manager.get_weight_path_by_method.assert_called_once_with(
+    coordinator.weight_manager.get_weight_path_by_method.assert_called_once_with(  # type: ignore[attr-defined]
         method="det", task="aquarium", perspective="lateral"
     )
 
@@ -833,7 +833,7 @@ def test_run_live_calibration_saves_zones_under_reference_frame_key():
     ):
         assert coordinator.run_live_calibration(stabilization_frames=4, show_preview=True)
 
-    save_calls = coordinator.project_manager.save_zone_data.call_args_list
+    save_calls = coordinator.project_manager.save_zone_data.call_args_list  # type: ignore[attr-defined]
     saved_keys = []
     for call in save_calls:
         # save_zone_data(zone_data, video_path) — positional.
@@ -868,8 +868,8 @@ def test_ensure_zones_auto_success_publishes_zone_list_update(monkeypatch):
     # Force the "no recordings yet, no zones yet" branch so we land in the
     # ZoneCalibrationDialog path with method=auto.
     coordinator.project_manager.project_path = "/tmp/zebtrack"
-    coordinator.project_manager.get_project_type.return_value = "live"
-    coordinator.project_manager.get_zone_data.return_value = None
+    coordinator.project_manager.get_project_type.return_value = "live"  # type: ignore[attr-defined]
+    coordinator.project_manager.get_zone_data.return_value = None  # type: ignore[attr-defined]
     monkeypatch.setattr(coordinator, "_has_recorded_before", lambda: False)
 
     # Stub the modal calibration dialog to return method=auto so we exercise

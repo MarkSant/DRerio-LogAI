@@ -210,9 +210,9 @@ class CameraConnectionMixin:
         except Exception as e:
             log.warning("live_camera_service.preview_camera.release_failed", error=str(e))
         finally:
-            hardware_vm.camera = None
+            hardware_vm.camera = None  # type: ignore[union-attr]
             if getattr(hardware_vm, "active_frame_source", None) is preview_camera:
-                hardware_vm.active_frame_source = None
+                hardware_vm.active_frame_source = None  # type: ignore[union-attr]
 
     def _create_preview_window(self, camera_index: int, duration_s: float) -> None:
         """Create the live preview window."""

@@ -1027,7 +1027,7 @@ class LiveCalibrationCoordinator(BaseCoordinator):
             if not results or not results[0].boxes or len(results[0].boxes) == 0:
                 continue
 
-            boxes = results[0].boxes.xyxy.cpu().numpy()
+            boxes = results[0].boxes.xyxy.cpu().numpy()  # type: ignore[union-attr]
             areas = [(x2 - x1) * (y2 - y1) for x1, y1, x2, y2 in boxes]
             if not areas:
                 continue

@@ -104,7 +104,7 @@ class VideoFrameManager:
             self.gui.roi_template_manager.refresh_templates()
 
             # Check if file is an image or video
-            lower_path = video_path.lower()
+            lower_path = video_path.lower()  # type: ignore[union-attr]
             if lower_path.endswith((".png", ".jpg", ".jpeg", ".bmp", ".tiff")):
                 # It's an image - Use robust loading for Windows paths (unicode support)
                 try:
@@ -394,7 +394,7 @@ class VideoFrameManager:
             self.gui.controller.project_manager.set_active_zone_video(video_path)
 
             # Check if file is an image or video
-            lower_path = video_path.lower()
+            lower_path = video_path.lower()  # type: ignore[union-attr]
             if lower_path.endswith((".png", ".jpg", ".jpeg", ".bmp", ".tiff")):
                 # Handle image files (e.g., live camera reference frame)
                 try:

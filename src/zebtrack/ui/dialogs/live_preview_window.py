@@ -197,7 +197,7 @@ class LivePreviewWindow:
         self.progress_bar = ttk.Progressbar(
             progress_frame,
             length=300,
-            mode=progress_mode,
+            mode=progress_mode,  # type: ignore[arg-type]
             maximum=100.0,
         )
         self.progress_bar.pack(fill=tk.X)

@@ -110,13 +110,13 @@ def test_target_field_migrated_from_legacy_registry(project):
     wm = WeightManager(settings_obj=settings, config_dir=str(root))
 
     details = wm.get_weight_details("best_seg_lateral.pt")
-    assert details["target"] == TARGET_ZEBRAFISH
+    assert details["target"] == TARGET_ZEBRAFISH  # type: ignore[index]
     # Legacy is_default_seg promoted to slot for current target
-    assert details["is_default_seg_zebrafish"] is True
+    assert details["is_default_seg_zebrafish"] is True  # type: ignore[index]
     # Other 3 slots default to False
-    assert details["is_default_seg_aquarium"] is False
-    assert details["is_default_det_aquarium"] is False
-    assert details["is_default_det_zebrafish"] is False
+    assert details["is_default_seg_aquarium"] is False  # type: ignore[index]
+    assert details["is_default_det_aquarium"] is False  # type: ignore[index]
+    assert details["is_default_det_zebrafish"] is False  # type: ignore[index]
 
 
 def test_path_relocation_from_project_root(project):
@@ -145,7 +145,7 @@ def test_path_relocation_from_project_root(project):
     settings = _make_settings(str(weights_dir))
     wm = WeightManager(settings_obj=settings, config_dir=str(root))
 
-    new_path = wm.get_weight_details("best_det_lateral.pt")["path"]
+    new_path = wm.get_weight_details("best_det_lateral.pt")["path"]  # type: ignore[index]
     assert Path(new_path).resolve() == actual.resolve()
 
 

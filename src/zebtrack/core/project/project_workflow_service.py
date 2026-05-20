@@ -447,7 +447,7 @@ class ProjectWorkflowService:
     ) -> tuple[str | None, bool]:
         """Persist explicit slot overrides for the active project."""
         if not getattr(self.project_manager, "project_path", None):
-            return self.resolve_project_model_settings(), bool(use_openvino_override)
+            return self.resolve_project_model_settings(), bool(use_openvino_override)  # type: ignore[return-value]
 
         overrides = self.project_manager.project_data.setdefault(
             "model_overrides",

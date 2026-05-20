@@ -104,7 +104,7 @@ def test_publish_video_drop_status_emits_status_event(
 def test_publish_video_drop_status_silent_without_event_bus(
     live_camera_service: LiveCameraService,
 ) -> None:
-    live_camera_service.event_bus = None
+    live_camera_service.event_bus = None  # type: ignore[assignment]
     live_camera_service._dropped_frames_video = 3
 
     # Must not raise.
@@ -138,7 +138,7 @@ def test_stop_session_bounded_total_join_budget(
     live_camera_service.recorder = None
     live_camera_service.camera = None
     live_camera_service.preview_window = None
-    live_camera_service.event_bus = None
+    live_camera_service.event_bus = None  # type: ignore[assignment]
     live_camera_service.root = None
     live_camera_service.timer_id = None
 

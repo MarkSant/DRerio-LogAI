@@ -1453,7 +1453,7 @@ class ProjectManager:
         """Retrieve metadata for an experiment. Delegates to MetadataManager."""
         return MetadataManager.get_metadata_for_experiment(
             experiment_id,
-            video_path,
+            video_path,  # type: ignore[arg-type]
             metadata_df=self.metadata,
             project_data=self.project_data,
             find_video_entry_fn=self.find_video_entry,

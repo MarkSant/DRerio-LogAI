@@ -77,8 +77,8 @@ class ProjectInitializer:
             f"Projeto: {gui.controller.project_manager.get_project_name()} ({project_type_display})"
         )
         gui.status_var.set(status_text)
-        gui.status_frame = Frame(gui.root)
-        gui.status_frame.pack(pady=5, fill="x", padx=10, side="bottom")
+        gui.status_frame = Frame(gui.root)  # type: ignore[assignment]
+        gui.status_frame.pack(pady=5, fill="x", padx=10, side="bottom")  # type: ignore[union-attr]
         Label(gui.status_frame, textvariable=gui.status_var).pack()
 
         # Ensure analysis UI starts hidden

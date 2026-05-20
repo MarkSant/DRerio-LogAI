@@ -377,7 +377,7 @@ class VideoProcessingCoordinator(
         if not paths:
             return
 
-        scanned_videos = self.project_manager.scan_input_paths(paths)
+        scanned_videos = self.project_manager.scan_input_paths(paths)  # type: ignore[arg-type]
         if not scanned_videos:
             self._publish_event(
                 UIEvents.UI_SHOW_WARNING,
@@ -471,7 +471,7 @@ class VideoProcessingCoordinator(
 
         paths = candidate_paths
         if not paths:
-            paths = _ask_open_filenames_from_view(
+            paths = _ask_open_filenames_from_view(  # type: ignore[assignment]
                 view,
                 "Selecione Vídeos ou Pastas para Adicionar ao Projeto",
                 [

@@ -86,7 +86,7 @@ def test_apply_hyperparams_handles_invalid_type(detector_service: DetectorServic
 
 def test_apply_hyperparams_no_project_data(detector_service: DetectorService) -> None:
     """When no project loaded, helper must be a no-op (no AttributeError)."""
-    detector_service.project_manager.project_data = None
+    detector_service.project_manager.project_data = None  # type: ignore[assignment]
     plugin = FakePlugin()
 
     detector_service._apply_project_detector_hyperparams(plugin)  # should not raise

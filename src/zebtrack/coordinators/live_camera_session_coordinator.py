@@ -135,9 +135,10 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
         # Subscribe to resume / cancel buttons published by the zone tab UI.
         if self.event_bus is not None:
             self.event_bus.subscribe(
-                UIEvents.LIVE_RECORDING_RESUME_REQUESTED, self._on_resume_requested
+                UIEvents.LIVE_RECORDING_RESUME_REQUESTED,
+                self._on_resume_requested,  # type: ignore[arg-type]
             )
-            self.event_bus.subscribe(UIEvents.LIVE_RECORDING_CANCELLED, self._on_resume_cancelled)
+            self.event_bus.subscribe(UIEvents.LIVE_RECORDING_CANCELLED, self._on_resume_cancelled)  # type: ignore[arg-type]
 
         log.info(
             "live_camera_session_coordinator.initialized",
@@ -1110,7 +1111,7 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
                     saved_index=saved_camera_index,
                     saved_name=saved_camera_name,
                 )
-                self.event_bus.publish(
+                self.event_bus.publish(  # type: ignore[union-attr]
                     Event(
                         type=UIEvents.UI_SHOW_ERROR,
                         data=payloads.MessagePayload(
