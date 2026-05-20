@@ -136,9 +136,18 @@ class ProjectInitializer:
         elif project_type == "pre-recorded":
             self.initialize_prerecorded_components(pm)
 
-        if project_type == "live":
-            # Auto-calibration for Live projects when no zones are defined
-            gui.root.after(1000, gui.validation_manager.check_live_project_calibration)
+        # Note: live projects no longer auto-prompt for arena calibration at
+        # project-open time. The previous behaviour scheduled
+        # ``validation_manager.check_live_project_calibration`` 1 second after
+        # the project loaded, which (a) implied the project had a single
+        # global arena (wrong — each recording can have its own aquarium
+        # position/shape) and (b) blocked the user with a yes/no prompt
+        # before they'd had a chance to even look at the new project. The
+        # correct calibration trigger is ``LiveCalibrationCoordinator
+        # .ensure_zones_before_recording``, which fires per-session when the
+        # user clicks "Iniciar Sessão" on a specific subject in the batch
+        # grid. The ``check_live_project_calibration`` method is preserved
+        # for explicit invocation but no longer scheduled automatically.
 
     # ------------------------------------------------------------------
     # Settings restoration

@@ -181,3 +181,56 @@ def test_initialize_live_components_skips_arduino_when_disabled():
         initializer.initialize_live_components(pm)
 
     arduino_manager.connect.assert_not_called()
+
+
+def test_load_project_view_does_not_auto_prompt_arena_calibration_for_live():
+    """Live projects with no arena defined must NOT trigger the
+    "configurar calibração agora?" auto-prompt at project-open time.
+    Calibration belongs to the per-session flow (``ensure_zones_before_recording``
+    fires when the user clicks "Iniciar Sessão"). The previous auto-prompt
+    implied a single global arena exists for the whole project, contradicting
+    the live workflow where each recording can have its own aquarium setup.
+
+    Implementation note: ``load_project_view`` touches a wide GUI surface
+    (notebook, tab_builder, analysis_display_widget, …). Mocking all of it
+    is brittle, so this test patches ``initialize_live_components`` and
+    ``initialize_prerecorded_components`` to no-ops and then drives the
+    final stretch of ``load_project_view`` by hand to verify that no
+    ``check_live_project_calibration`` scheduling happens for live projects.
+    """
+    gui = MagicMock()
+    pm = MagicMock()
+    pm.get_project_type.return_value = "live"
+    pm.get_project_name.return_value = "TestLive"
+    pm.project_data = {
+        "camera_index": 0,
+        "camera_friendly_name": "",
+        "use_arduino": False,
+    }
+    gui.controller.project_manager = pm
+
+    # Reset any auto-instantiated child mocks so we can assert call_args cleanly.
+    gui.root.after.reset_mock()
+    gui.validation_manager.check_live_project_calibration.reset_mock()
+
+    initializer = ProjectInitializer(gui)
+
+    with (
+        patch.object(initializer, "initialize_live_components"),
+        patch.object(initializer, "initialize_prerecorded_components"),
+        patch.object(initializer, "create_main_control_frame"),
+        patch.object(initializer, "update_window_title"),
+        patch.object(initializer, "restore_persisted_project_settings"),
+    ):
+        initializer.load_project_view()
+
+    # No ``root.after`` call should have ``check_live_project_calibration``
+    # as its scheduled callback. (Other delayed work via ``root.after`` is
+    # fine — we only forbid that specific scheduling.)
+    for call in gui.root.after.call_args_list:
+        cb = call.args[1] if len(call.args) >= 2 else None
+        assert cb is not gui.validation_manager.check_live_project_calibration, (
+            "Live-project load must not schedule the arena calibration "
+            "auto-prompt; calibration is per-session, not per-project"
+        )
+    gui.validation_manager.check_live_project_calibration.assert_not_called()
