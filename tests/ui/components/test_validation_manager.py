@@ -207,7 +207,12 @@ class TestPrepareOverviewHierarchyForWidget:
         assert group["id"] == "G1"
         assert group["display"] == "G1"
         assert len(group["days"]) == 1
-        assert len(group["days"][0]["videos"]) == 1
+        # New hierarchy shape: days now nest subjects, which nest videos
+        # (was flat day["videos"] in the previous schema). The single video
+        # should land under day[0] → subject[0] → videos[0].
+        day = group["days"][0]
+        assert len(day["subjects"]) == 1
+        assert len(day["subjects"][0]["videos"]) == 1
 
     def test_prepare_overview_hierarchy_multiple_groups(self, validation_manager):
         """Test hierarchy with multiple groups."""

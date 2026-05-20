@@ -829,10 +829,13 @@ class DialogManager:
             return
 
         from zebtrack.ui.event_bus_v2 import UIEvents
+        from zebtrack.ui.payloads import ProjectOpenPayload
 
+        # Use the typed payload (raw dicts trip the check-payload-assertions
+        # pre-commit hook and are inconsistent with the rest of the event bus).
         self.gui.event_dispatcher.publish_event(
             UIEvents.PROJECT_OPEN,
-            {"project_path": project_path},
+            ProjectOpenPayload(project_path=project_path),
         )
 
     def handle_grid_cell_click(self, day: int, group_name: str) -> None:
