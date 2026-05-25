@@ -457,6 +457,7 @@ class ZoneEditor:
                 # Fallback
                 self.canvas_manager.setup_interactive_polygon(polygon_points)
 
+            self.canvas_manager.current_editing_zone = "arena"
             self.gui.current_editing_zone = "arena"
             self.gui.set_status(
                 "Editando arena: arraste para mover · clique-triplo apaga · "
@@ -492,6 +493,7 @@ class ZoneEditor:
                     # Fallback
                     self.canvas_manager.setup_interactive_polygon(polygon_points)
 
+                self.canvas_manager.current_editing_zone = ("roi", roi_index, roi_name)
                 self.gui.current_editing_zone = ("roi", roi_index, roi_name)
                 self.gui.set_status(
                     f"Editando ROI '{roi_name}': arraste para mover · clique-triplo apaga · "
@@ -509,10 +511,14 @@ class ZoneEditor:
 
     def save_arena(self) -> None:
         """Save the edited polygon."""
+        current_editing_zone = self.canvas_manager.current_editing_zone or getattr(
+            self.gui, "current_editing_zone", None
+        )
+
         # Check for multi-aquarium mode first
         zone_controls = getattr(self.gui, "zone_controls", None)
         if (
-            self.canvas_manager.current_editing_zone == "arena"
+            current_editing_zone == "arena"
             and zone_controls
             and zone_controls.aquarium_count_var.get() == 2
         ):
@@ -586,7 +592,7 @@ class ZoneEditor:
                         )
                     return
 
-        if self.canvas_manager.current_editing_zone == "arena":
+        if current_editing_zone == "arena":
             # Save main arena (Single Aquarium)
             self.gui.event_dispatcher.publish_event(
                 UIEvents.ZONE_SAVE_MANUAL_ARENA,
@@ -608,12 +614,9 @@ class ZoneEditor:
                     )
                 )
 
-        elif (
-            isinstance(self.canvas_manager.current_editing_zone, tuple)
-            and self.canvas_manager.current_editing_zone[0] == "roi"
-        ):
+        elif isinstance(current_editing_zone, tuple) and current_editing_zone[0] == "roi":
             # Save ROI
-            _, roi_index, roi_name = self.canvas_manager.current_editing_zone
+            _, roi_index, roi_name = current_editing_zone
             zone_data = self.zone_context_service.get_zone_data_for_active_context()
 
             # Update the ROI polygon
@@ -675,14 +678,14 @@ class ZoneEditor:
 
     def discard_arena(self) -> None:
         """Discard the interactive polygon."""
+        current_editing_zone = self.canvas_manager.current_editing_zone or getattr(
+            self.gui, "current_editing_zone", None
+        )
         self.clear_interactive_polygon()
-        if self.canvas_manager.current_editing_zone == "arena":
+        if current_editing_zone == "arena":
             self.gui.set_status("Edição da arena descartada.")
-        elif (
-            isinstance(self.canvas_manager.current_editing_zone, tuple)
-            and self.canvas_manager.current_editing_zone[0] == "roi"
-        ):
-            _, _, roi_name = self.canvas_manager.current_editing_zone
+        elif isinstance(current_editing_zone, tuple) and current_editing_zone[0] == "roi":
+            _, _, roi_name = current_editing_zone
             self.gui.set_status(f"Edição da ROI '{roi_name}' descartada.")
         else:
             self.gui.set_status("Edição descartada.")
@@ -704,6 +707,7 @@ class ZoneEditor:
         self.gui.interactive_polygon_item = None
         self.gui.polygon_handles = []
         self.gui.edited_polygon_points = []
+        self.gui.current_editing_zone = None
         self.canvas_manager.dragged_handle_index = None
         self.canvas_manager.drag_offset = (0, 0)
         self.canvas_manager.current_editing_zone = None

@@ -17,15 +17,15 @@ import structlog
 from zebtrack.settings import Settings
 from zebtrack.utils import calculate_sha256
 
-yolo_cls: Any | None
+YOLO: Any | None
 
 try:
     from ultralytics import YOLO as _YOLO
 
-    yolo_cls = _YOLO
+    YOLO = _YOLO
     ULTRALYTICS_AVAILABLE = True
 except ImportError:
-    yolo_cls = None
+    YOLO = None
     ULTRALYTICS_AVAILABLE = False
 
 WEIGHTS_CONFIG_FILE = "weights_config.json"
@@ -1378,8 +1378,8 @@ class WeightManager:
         self.save_weights()
 
         try:
-            assert yolo_cls is not None  # Satisfy type checkers after availability guard
-            model = yolo_cls(pt_path)
+            assert YOLO is not None  # Satisfy type checkers after availability guard
+            model = YOLO(pt_path)
             # The 'half=True' argument enables FP16 quantization.
             # The export will create a directory named e.g., 'yolov8n_openvino_model'.
             temp_export_path = model.export(format="openvino", half=True)
@@ -1540,8 +1540,8 @@ class WeightManager:
         self.save_weights()
 
         try:
-            assert yolo_cls is not None
-            model = yolo_cls(pt_path)
+            assert YOLO is not None
+            model = YOLO(pt_path)
             # int8=True enables INT8 quantization via NNCF with default calibration
             temp_export_path = model.export(format="openvino", int8=True)
 

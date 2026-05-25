@@ -313,6 +313,29 @@ class UnifiedReportMixin:
             dir=str(unified_dir),
         )
 
+    @staticmethod
+    def _close_excel_writer_safely(writer: Any) -> None:
+        """Close Excel writer and low-level handles, even after close failures.
+
+        In failure paths (for example, ``to_excel`` raising before workbook setup
+        is complete), ``writer.close()`` may raise and leave file handles open.
+        This helper guarantees handles are closed to avoid ResourceWarning.
+        """
+        try:
+            writer.close()
+        except Exception:
+            log.debug("workflow.unified_report.excel_writer_close_failed", exc_info=True)
+
+        handles = getattr(writer, "_handles", None)
+        if handles is not None:
+            try:
+                handles.close()
+            except Exception:
+                log.debug(
+                    "workflow.unified_report.excel_writer_handles_close_failed",
+                    exc_info=True,
+                )
+
     # ------------------------------------------------------------------
     # Export
     # ------------------------------------------------------------------
@@ -359,6 +382,7 @@ class UnifiedReportMixin:
 
         # 2. Export Excel (with descriptive statistics sheet)
         excel_path = unified_dir / f"{scope_prefix}_summary_{run_id}.xlsx"
+        writer = None
         try:
             from zebtrack.analysis.data_transformer import DataTransformer
 
@@ -366,10 +390,10 @@ class UnifiedReportMixin:
 
             desc_stats_df = self._generate_descriptive_stats(final_df)
 
-            with pd.ExcelWriter(excel_path, engine="openpyxl") as writer:
-                display_df.to_excel(writer, sheet_name="Data", index=False)
-                if desc_stats_df is not None and not desc_stats_df.empty:
-                    desc_stats_df.to_excel(writer, sheet_name="Descriptive Stats")
+            writer = pd.ExcelWriter(excel_path, engine="openpyxl")
+            display_df.to_excel(writer, sheet_name="Data", index=False)
+            if desc_stats_df is not None and not desc_stats_df.empty:
+                desc_stats_df.to_excel(writer, sheet_name="Descriptive Stats")
 
             exported_artifacts.append(excel_path.name)
             exported_paths["excel"] = str(excel_path)
@@ -381,6 +405,9 @@ class UnifiedReportMixin:
                 error=str(e),
                 exc_info=True,
             )
+        finally:
+            if writer is not None:
+                self._close_excel_writer_safely(writer)
 
         # 2b. Export CSV (same display-friendly columns as Excel)
         csv_path = unified_dir / f"{scope_prefix}_summary_{run_id}.csv"

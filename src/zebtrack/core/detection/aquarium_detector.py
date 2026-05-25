@@ -18,15 +18,15 @@ from shapely.geometry import Polygon
 
 from zebtrack.io.video_source import VideoFileSource
 
-yolo_cls: Any | None
+YOLO: Any | None
 
 try:
     from ultralytics import YOLO as _YOLO
 
-    yolo_cls = _YOLO
+    YOLO = _YOLO
     ULTRALYTICS_AVAILABLE = True
 except ImportError:
-    yolo_cls = None
+    YOLO = None
     ULTRALYTICS_AVAILABLE = False
 
 log = structlog.get_logger()
@@ -65,9 +65,9 @@ class AquariumDetector:
         if mode not in ["seg", "det"]:
             raise ValueError(f"Invalid mode '{mode}'. Must be 'seg' or 'det'.")
 
-        assert yolo_cls is not None
+        assert YOLO is not None
         try:
-            self.model = yolo_cls(model_path)
+            self.model = YOLO(model_path)
             log.info("aquarium_detector.init.success", model_path=model_path, mode=mode)
         # except Exception justified: Ultralytics YOLO model initialization can raise
         # heterogeneous exceptions (path/weights/config issues); log and re-raise.

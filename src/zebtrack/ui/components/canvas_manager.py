@@ -85,7 +85,7 @@ class CanvasManager:
         self.drag_offset = (0, 0)
         self.drag_start_mouse = (0, 0)
         self.drag_start_handle = (0, 0)
-        self.current_editing_zone = None
+        self.current_editing_zone: str | tuple[str, int, str] | None = None
 
         # Multi-vertex selection state (issues 1 & 2). Indices reference
         # gui.edited_polygon_points. Populated via Shift/Ctrl+click on handles,
@@ -480,7 +480,8 @@ class CanvasManager:
 
     def display_roi_video_frame(self, video_path: Path | str | None):
         """Load first frame of video and display on canvas. Delegates to video_frame."""
-        self.video_frame.display_roi_video_frame(video_path)
+        # Preserve previous invalid-path behavior while satisfying strict typing.
+        self.video_frame.display_roi_video_frame(video_path if video_path is not None else "")
 
     def update_video_frame(self, frame: np.ndarray, detections: list | None = None) -> None:
         """Update canvas with a raw video frame. Delegates to video_frame."""

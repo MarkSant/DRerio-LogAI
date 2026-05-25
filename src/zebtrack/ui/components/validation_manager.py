@@ -1156,7 +1156,123 @@ class ValidationManager:
                     normalized,
                 )
 
+        self._add_live_planned_session_placeholders(
+            hierarchy=hierarchy,
+            all_videos=all_videos,
+            normalized_search=normalized,
+        )
+
         return hierarchy
+
+    @staticmethod
+    def _normalize_subject_session_key(value: Any) -> str:
+        """Normalize subject values for planned-vs-recorded key matching."""
+        if value in (None, "", "None"):
+            return ""
+
+        text = str(value).strip()
+        if not text:
+            return ""
+
+        if text.isdigit():
+            return str(int(text))
+
+        return text.lower()
+
+    def _add_live_planned_session_placeholders(
+        self,
+        *,
+        hierarchy: dict[str, dict],
+        all_videos: list[dict],
+        normalized_search: str,
+    ) -> None:
+        """Inject planned live sessions into hierarchy before first recordings.
+
+        For live projects, the grid has a designed schedule (groups x days x
+        subjects). The video tree previously showed only recorded videos,
+        leaving users with an empty hierarchy before first capture.
+        """
+        controller = getattr(self.gui, "controller", None)
+        pm = getattr(controller, "project_manager", None) if controller else None
+        if pm is None or pm.get_project_type() != "live":
+            return
+
+        project_data = pm.project_data or {}
+        groups_raw = project_data.get("groups") or []
+        groups: list[str] = [str(g).strip() for g in groups_raw if str(g).strip()]
+        if not groups:
+            return
+
+        try:
+            total_days = int(project_data.get("experiment_days") or 0)
+            subjects_per_group = int(project_data.get("subjects_per_group") or 0)
+        except (TypeError, ValueError):
+            return
+
+        if total_days <= 0 or subjects_per_group <= 0:
+            return
+
+        recorded_keys: set[tuple[str, str, str]] = set()
+        for video in all_videos:
+            metadata = video.get("metadata") or {}
+            group_value = metadata.get("group") or video.get("group")
+            day_value = metadata.get("day") or video.get("day")
+            subject_value = (
+                metadata.get("subject") or metadata.get("subject_id") or video.get("subject")
+            )
+
+            if group_value in (None, "") or day_value in (None, ""):
+                continue
+
+            group_key = str(group_value).strip()
+            day_key = self._normalize_day_id(day_value)
+            subject_key = self._normalize_subject_session_key(subject_value)
+            recorded_keys.add((group_key, day_key, subject_key))
+
+        for day_num in range(1, total_days + 1):
+            day_id = f"Dia_{day_num}"
+            day_label = f"Dia {day_num:02d}"
+
+            for group_name in groups:
+                for subject_num in range(1, subjects_per_group + 1):
+                    subject_label = self.format_subject_label(subject_num)
+                    subject_key = self._normalize_subject_session_key(subject_label)
+
+                    if (group_name, day_id, subject_key) in recorded_keys:
+                        continue
+
+                    safe_group = re.sub(r"[^\w-]+", "_", group_name).strip("_") or "grupo"
+                    placeholder_id = f"planned_{safe_group}_day{day_num:02d}_subject{subject_label}"
+                    placeholder_metadata = {
+                        "group": group_name,
+                        "group_display_name": group_name,
+                        "day": day_id,
+                        "day_label": day_label,
+                        "subject": subject_label,
+                        "subject_id": subject_label,
+                        "is_planned_session": True,
+                    }
+                    placeholder_video = {
+                        "path": placeholder_id,
+                        "filename": "Sessão planejada",
+                        "metadata": placeholder_metadata,
+                        "status": "planejado",
+                        "has_arena": False,
+                        "has_rois": False,
+                        "has_trajectory": False,
+                        "has_complete_data": False,
+                        "has_summary": False,
+                    }
+
+                    self._add_video_entry_to_hierarchy(
+                        hierarchy,
+                        placeholder_video,
+                        placeholder_metadata,
+                        normalized_search,
+                        subject_override=subject_label,
+                        group_override=group_name,
+                        day_override=day_id,
+                    )
 
     def _add_video_entry_to_hierarchy(
         self,
@@ -1194,7 +1310,7 @@ class ValidationManager:
 
         day_display = metadata.get("day_label") or self._format_day_display(raw_day)
         subject_id = subject_override or metadata.get("subject")
-        filename = os.path.basename(video.get("path", ""))
+        filename = str(video.get("filename") or os.path.basename(video.get("path", "")))
         status_label = video.get("status", "")
 
         searchable_values = (

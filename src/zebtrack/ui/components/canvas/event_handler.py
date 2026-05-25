@@ -7,6 +7,7 @@ polygon editing, and navigation.
 
 from __future__ import annotations
 
+from functools import partial
 from typing import TYPE_CHECKING
 
 import structlog
@@ -392,7 +393,7 @@ class CanvasEventHandler:
         if handle_index is not None:
             menu.add_command(
                 label="🗑 Apagar este vértice",
-                command=lambda i=handle_index: zone_editor.delete_vertices({i}),
+                command=partial(zone_editor.delete_vertices, {handle_index}),
             )
             menu.add_separator()
 

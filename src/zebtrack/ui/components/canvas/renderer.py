@@ -418,6 +418,17 @@ class CanvasRenderer:
 
         canvas.delete("interactive_polygon", "handle", "edit_clamp_indicator", "ghost_polygon")
 
+        # While editing, hide the persisted version of the active zone to avoid
+        # visual overlap between old saved vertices and the interactive polygon.
+        active_zone = getattr(self.manager, "current_editing_zone", None) or getattr(
+            self.gui, "current_editing_zone", None
+        )
+        if active_zone == "arena":
+            canvas.delete("main_polygon")
+        elif isinstance(active_zone, tuple) and active_zone[0] == "roi":
+            roi_index = active_zone[1]
+            canvas.delete(f"roi_{roi_index}", f"roi_label_{roi_index}", f"roi_label_bg_{roi_index}")
+
         # Draw ghost polygon of the other aquarium (visual reference)
         ghost_polygon = self.manager.get_other_aquarium_polygon()
         if ghost_polygon:

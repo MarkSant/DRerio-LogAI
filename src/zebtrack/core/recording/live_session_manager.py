@@ -202,6 +202,8 @@ class LiveSessionManagerMixin:
         use_external_preview: bool = False,
         session_folder_name: Path | str | None = None,
         zones_validated: bool = False,
+        use_countdown: bool = False,
+        countdown_duration_s: int = 0,
     ) -> bool:
         """Start a live camera analysis session.
 
@@ -216,6 +218,8 @@ class LiveSessionManagerMixin:
             animals_per_aquarium: Number of animals per aquarium (affects tracking mode)
             analysis_config: Configuration for behavioral analysis (thresholds, ROIs, etc.)
             use_external_preview: Whether to use external preview window
+            use_countdown: Whether to show countdown before recording starts
+            countdown_duration_s: Countdown duration in seconds
 
         Returns:
             True if session started successfully, False otherwise
@@ -229,6 +233,8 @@ class LiveSessionManagerMixin:
             display_interval=display_interval_frames,
             animals_per_aquarium=animals_per_aquarium,
             has_analysis_config=analysis_config is not None,
+            use_countdown=use_countdown,
+            countdown_duration_s=countdown_duration_s,
         )
 
         # Store configuration
@@ -446,6 +452,40 @@ class LiveSessionManagerMixin:
                     single_subject_mode=use_single_subject,
                     animals_per_aquarium=self._animals_per_aquarium,
                 )
+
+        # Run countdown after warmup/setup and before capture starts.
+        if use_countdown and countdown_duration_s > 0:
+            countdown_seconds = int(countdown_duration_s)
+            if self.preview_window:
+                self.preview_window.update_status_text(
+                    f"⏳ Iniciando em {countdown_seconds}s...",
+                    color="yellow",
+                )
+
+            if self.root and self.recording_service:
+                countdown_done = threading.Event()
+
+                def _on_countdown_complete() -> None:
+                    countdown_done.set()
+
+                self.recording_service._run_countdown(countdown_seconds, _on_countdown_complete)
+
+                while not countdown_done.is_set():
+                    if self.exit_event.is_set():
+                        log.warning("live_camera_service.countdown.aborted")
+                        return False
+                    try:
+                        self.root.update_idletasks()
+                        self.root.update()
+                    except tk.TclError as exc:
+                        log.warning(
+                            "live_camera_service.countdown.root_update_failed",
+                            error=str(exc),
+                        )
+                        break
+                    time.sleep(0.05)
+            else:
+                time.sleep(countdown_seconds)
 
         # Show thread startup status
         if self.preview_window:

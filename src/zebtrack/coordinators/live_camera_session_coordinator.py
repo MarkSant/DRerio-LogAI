@@ -328,6 +328,85 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
         except AttributeError:
             pass
 
+    @staticmethod
+    def _format_day_label_for_metadata(day_value: Any) -> str | None:
+        """Build a stable ``day_label`` string from raw day metadata."""
+        if day_value in (None, "", "None"):
+            return None
+
+        text = str(day_value).strip()
+        if not text:
+            return None
+
+        lower_text = text.lower()
+        if lower_text.startswith("dia_"):
+            text = text[4:]
+        elif lower_text.startswith("dia "):
+            text = text[4:]
+
+        text = text.strip()
+        if not text:
+            return None
+
+        return f"Dia {text}"
+
+    def _publish_live_analysis_metadata(
+        self,
+        *,
+        experiment_id: str,
+        camera_index: int,
+        group: Any = None,
+        day: Any = None,
+        subject: Any = None,
+    ) -> None:
+        """Publish analysis metadata for live sessions.
+
+        Preference order:
+        1. Active video entry metadata (when available)
+        2. Session metadata passed by the live start flow
+        """
+        if self.event_bus is None:
+            return
+
+        metadata: dict[str, Any] = {}
+
+        active_video = self.project_manager.get_active_zone_video()
+        if active_video:
+            active_entry = self.project_manager.find_video_entry(path=active_video)
+            if active_entry:
+                metadata.update(dict(active_entry.get("metadata") or {}))
+                for key in ("group", "group_display_name", "day", "subject"):
+                    value = active_entry.get(key)
+                    if value not in (None, "") and key not in metadata:
+                        metadata[key] = value
+
+        if metadata.get("group") in (None, "") and group not in (None, ""):
+            metadata["group"] = group
+            metadata.setdefault("group_display_name", str(group))
+
+        if metadata.get("day") in (None, "") and day not in (None, ""):
+            metadata["day"] = day
+
+        if metadata.get("subject") in (None, "") and subject not in (None, ""):
+            metadata["subject"] = subject
+            metadata.setdefault("subject_id", subject)
+
+        if metadata.get("day_label") in (None, ""):
+            day_label = self._format_day_label_for_metadata(metadata.get("day"))
+            if day_label:
+                metadata["day_label"] = day_label
+
+        metadata.setdefault("experiment_id", experiment_id)
+        metadata.setdefault("camera_index", camera_index)
+
+        self.event_bus.publish(
+            Event(
+                type=UIEvents.UI_UPDATE_ANALYSIS_METADATA,
+                data=payloads.AnalysisMetadataPayload(metadata=metadata),
+                source="LiveCameraSessionCoordinator._publish_live_analysis_metadata",
+            )
+        )
+
     def validate_dependencies(self) -> bool:
         """Validate that required dependencies are present.
 
@@ -444,6 +523,8 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
 
             # Extract animals_per_aquarium from wizard_data if available
             animals_per_aquarium = wizard_data.get("animals_per_aquarium", 1) if wizard_data else 1
+            use_countdown = bool((wizard_data or {}).get("use_countdown", False))
+            countdown_duration_s = int((wizard_data or {}).get("countdown_duration_s", 0) or 0)
 
             # v2.3.1: Build analysis_config with batch metadata for video registration
             analysis_config = None
@@ -476,6 +557,8 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
                 use_external_preview=False,  # Use integrated canvas in Analysis tab
                 analysis_config=analysis_config,
                 zones_validated=True,
+                use_countdown=use_countdown,
+                countdown_duration_s=countdown_duration_s,
             )
 
             if not success:
@@ -515,6 +598,14 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
             log.info(
                 "live_camera_session_coordinator.start_live_session.success",
                 experiment_id=experiment_id,
+            )
+
+            self._publish_live_analysis_metadata(
+                experiment_id=experiment_id,
+                camera_index=camera_index,
+                group=(wizard_data or {}).get("experimental_group"),
+                day=(wizard_data or {}).get("experiment_day"),
+                subject=(wizard_data or {}).get("subject_id"),
             )
 
             return True
@@ -884,6 +975,8 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
 
         # Video recording (optional)
         record_video = config.get("record_video", True)
+        use_countdown = bool(config.get("use_countdown", False))
+        countdown_duration_s = int(config.get("countdown_duration_s", 0) or 0)
 
         # FIX: Update settings with dialog configuration BEFORE starting session
         animal_method = config.get("animal_method")
@@ -930,6 +1023,8 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
             record_video=record_video,
             animal_method=animal_method,
             use_openvino=use_openvino,
+            use_countdown=use_countdown,
+            countdown_duration_s=countdown_duration_s,
         )
 
         # Check existing zones
@@ -1014,10 +1109,19 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
             use_external_preview=False,  # Use canvas in Analysis tab
             analysis_config=analysis_config,
             zones_validated=True,
+            use_countdown=use_countdown,
+            countdown_duration_s=countdown_duration_s,
         )
 
         if success:
             self.live_calibration_coordinator.clear_last_polygon_source()
+            self._publish_live_analysis_metadata(
+                experiment_id=experiment_id,
+                camera_index=camera_index,
+                group=config.get("experimental_group"),
+                day=config.get("experiment_day"),
+                subject=config.get("subject_id"),
+            )
 
         # UI feedback
         if success and self.event_bus:
@@ -1144,6 +1248,8 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
         # Intervals
         analysis_interval_frames = project_data.get("analysis_interval_frames", 1)
         display_interval_frames = project_data.get("display_interval_frames", 1)
+        use_countdown = bool(project_data.get("use_countdown", False))
+        countdown_duration_s = int(project_data.get("countdown_duration_s", 0) or 0)
 
         # Experiment ID for this session
         experiment_id = f"day{day}_{group}_{subject}"
@@ -1154,6 +1260,8 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
             experiment_id=experiment_id,
             camera_index=camera_index,
             duration_s=duration_s,
+            use_countdown=use_countdown,
+            countdown_duration_s=countdown_duration_s,
         )
 
         # v2.3.1: Ensure zones are defined before recording.
@@ -1241,12 +1349,21 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
             use_external_preview=False,  # Use integrated canvas in Analysis tab
             analysis_config=analysis_config,
             zones_validated=True,
+            use_countdown=use_countdown,
+            countdown_duration_s=countdown_duration_s,
         )
 
         if success:
             # Polygon-source has been consumed for this session — reset so the next
             # session doesn't accidentally inherit a stale tag.
             self.live_calibration_coordinator.clear_last_polygon_source()
+            self._publish_live_analysis_metadata(
+                experiment_id=experiment_id,
+                camera_index=camera_index,
+                group=group,
+                day=f"Dia_{day}",
+                subject=subject,
+            )
 
         return success
 
