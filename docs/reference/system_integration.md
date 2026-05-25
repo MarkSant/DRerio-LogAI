@@ -170,6 +170,17 @@ This section defines the contract for `EventBus` messages. Agents **MUST** adher
 | `ZONE_FINISH_DRAWING` | -                  | `ZoneControls` | `EventDispatcher` → `CanvasManager.finish_current_polygon()`  |
 | `ZONE_CONCLUDE_VIDEO` | -                  | `ZoneControls` | `EventDispatcher` → `ZoneControlBuilder._on_conclude_video()` |
 
+> **`ZONE_CONCLUDE_VIDEO` (atualizado):** além de salvar o projeto e commitar uma edição
+> interativa em andamento (apenas quando há edição ativa), `_on_conclude_video` publica
+> `LIVE_RECORDING_RESUME_REQUESTED`. Assim, no fluxo de câmera ao vivo, clicar em "✅ Concluir"
+> retoma a sessão pendente (paridade com o banner "▶️ Iniciar Gravação"). É um no-op seguro
+> fora de projetos live (sem contexto pendente em `LiveCameraSessionCoordinator`).
+>
+> **Overlay live (correção):** durante a sessão ao vivo, `FrameProcessingMixin._processing_loop`
+> chama `detector.draw_overlay(frame, [])` (apenas zonas). As caixas de detecção são desenhadas
+> uma única vez pelo consumidor do frame — `VideoFrameManager.update_video_frame` (canvas
+> integrado) ou `LivePreviewWindow.update_frame` (janela externa) — evitando bbox duplicado.
+
 ### 3.4. Multi-Aquarium Events (Dec 2025)
 
 | Event (Events class)                   | Payload Keys                                            | Publishers                                 | Subscribers                                                     |

@@ -102,9 +102,23 @@ class CanvasEventHandler:
         self.gui.video_display.canvas.bind("<B1-Motion>", self.on_handle_drag_global)
         self.gui.video_display.canvas.bind("<ButtonRelease-1>", self.on_handle_release_global)
 
+        # Stop the canvas-level <ButtonPress-1> binding (rubber-band start) from
+        # also firing when the press landed on a handle.
+        return "break"
+
     def on_handle_drag(self, event):
-        """Update polygon point and redraw."""
+        """Update polygon point and redraw.
+
+        When the dragged vertex is part of a multi-selection (>1 vertices), the
+        whole selection is translated together by the same delta (issue 2).
+        """
         if self.gui._dragged_handle_index is None:
+            return
+
+        idx = self.gui._dragged_handle_index
+        selected = getattr(self.manager, "selected_vertex_indices", set()) or set()
+        if idx in selected and len(selected) > 1:
+            self._drag_selected_group(event, idx, selected)
             return
 
         canvas_x = float(event.x) + self.gui._drag_offset[0]
@@ -162,6 +176,269 @@ class CanvasEventHandler:
         """Execute common release logic."""
         self.gui._dragged_handle_index = None
         self.gui._drag_offset = (0, 0)
+
+    # =========================================================================
+    # Multi-vertex selection / editing (interactive polygon editing)
+    # Issues 1 & 2: triple-click delete, rubber-band select, Shift/Ctrl add/remove,
+    # context menu (select all / none / delete), Delete key, move selection together.
+    # =========================================================================
+
+    # Tk modifier bitmasks on event.state.
+    _SHIFT_MASK = 0x0001
+    _CTRL_MASK = 0x0004
+
+    def _editing_canvas(self):
+        """Return the live editing canvas, or None if unavailable."""
+        try:
+            canvas = self.gui.video_display.canvas
+        except AttributeError:
+            return None
+        if canvas is None:
+            return None
+        try:
+            if not canvas.winfo_exists():
+                return None
+        except Exception:
+            return None
+        return canvas
+
+    def bind_editing_events(self):
+        """Bind canvas-level events used during interactive vertex editing.
+
+        Per-handle bindings (press/drag/triple/shift/ctrl) are attached by
+        ``CanvasRenderer.draw_interactive_polygon``. Here we bind the canvas
+        itself for rubber-band selection (press on empty area), the context
+        menu and the Delete key. The handle ``<ButtonPress-1>`` binding returns
+        ``"break"``, so the canvas ``<ButtonPress-1>`` only fires on empty area.
+        """
+        canvas = self._editing_canvas()
+        if canvas is None:
+            return
+        canvas.bind("<ButtonPress-1>", self.on_editor_canvas_press)
+        canvas.bind("<Button-3>", self.on_editor_context_menu)
+        canvas.bind("<Delete>", self.on_editor_delete_key)
+        canvas.bind("<BackSpace>", self.on_editor_delete_key)
+        canvas.focus_set()
+
+    def unbind_editing_events(self):
+        """Detach all canvas-level editing bindings (safe if never bound)."""
+        canvas = self._editing_canvas()
+        if canvas is None:
+            return
+        for seq in (
+            "<ButtonPress-1>",
+            "<Button-3>",
+            "<Delete>",
+            "<BackSpace>",
+            "<B1-Motion>",
+            "<ButtonRelease-1>",
+        ):
+            try:
+                canvas.unbind(seq)
+            except Exception:
+                log.debug("event_handler.unbind_editing.suppressed", sequence=seq)
+        self.manager._rubber_band_start = None
+        self.manager._rubber_band_item = None
+
+    def _drag_selected_group(self, event, idx, selected):
+        """Translate every selected vertex by the dragged vertex's delta."""
+        canvas_x = float(event.x) + self.gui._drag_offset[0]
+        canvas_y = float(event.y) + self.gui._drag_offset[1]
+
+        canvas_width = self.gui.video_display.canvas.winfo_width() or 800
+        canvas_height = self.gui.video_display.canvas.winfo_height() or 600
+        canvas_x = max(0, min(canvas_x, canvas_width))
+        canvas_y = max(0, min(canvas_y, canvas_height))
+
+        new_video = self.manager._canvas_to_video(canvas_x, canvas_y)
+        points = self.gui.edited_polygon_points
+        if not 0 <= idx < len(points):
+            return
+        old_x, old_y = points[idx][0], points[idx][1]
+        dx = new_video[0] - old_x
+        dy = new_video[1] - old_y
+        if dx == 0 and dy == 0:
+            return
+
+        for i in selected:
+            if 0 <= i < len(points):
+                px, py = points[i][0], points[i][1]
+                points[i] = [px + dx, py + dy]
+
+        self.manager.renderer.draw_interactive_polygon()
+
+    # --- Per-handle modifier / triple-click handlers --------------------------
+
+    def on_handle_triple_click(self, event, handle_index):
+        """Triple-click a vertex to delete it (issue 1)."""
+        # A press already set _dragged_handle_index — clear it so no stray drag.
+        self.gui._dragged_handle_index = None
+        self.manager.zone_editor.delete_vertices({handle_index})
+        return "break"
+
+    def on_handle_shift_click(self, event, handle_index):
+        """Shift+click adds a vertex to the current selection (issue 1)."""
+        self.gui._dragged_handle_index = None
+        self.manager.zone_editor.toggle_vertex_selection(handle_index, selected=True)
+        return "break"
+
+    def on_handle_ctrl_click(self, event, handle_index):
+        """Ctrl+click removes a vertex from the current selection (issue 1)."""
+        self.gui._dragged_handle_index = None
+        self.manager.zone_editor.toggle_vertex_selection(handle_index, selected=False)
+        return "break"
+
+    # --- Rubber-band selection (press/drag on empty canvas area) --------------
+
+    def on_editor_canvas_press(self, event):
+        """Begin a rubber-band selection on empty canvas area (issue 1 & 2)."""
+        # Defensive: ignore if a handle press is already in progress.
+        if self.gui._dragged_handle_index is not None:
+            return
+        canvas = self._editing_canvas()
+        if canvas is None:
+            return
+
+        # Selection mode from modifiers held at press time.
+        if event.state & self._CTRL_MASK:
+            self.manager._rubber_band_mode = "remove"
+        elif event.state & self._SHIFT_MASK:
+            self.manager._rubber_band_mode = "add"
+        else:
+            self.manager._rubber_band_mode = "replace"
+
+        self.manager._rubber_band_start = (float(event.x), float(event.y))
+        canvas.delete("rubber_band")
+        self.manager._rubber_band_item = canvas.create_rectangle(
+            event.x,
+            event.y,
+            event.x,
+            event.y,
+            outline="#1E90FF",
+            dash=(4, 2),
+            width=1,
+            tags="rubber_band",
+        )
+        # Bind motion/release for THIS gesture (symmetric with on_handle_press).
+        canvas.bind("<B1-Motion>", self.on_rubber_band_drag)
+        canvas.bind("<ButtonRelease-1>", self.on_rubber_band_release)
+
+    def on_rubber_band_drag(self, event):
+        """Resize the rubber-band rectangle as the mouse moves."""
+        start = self.manager._rubber_band_start
+        canvas = self._editing_canvas()
+        if start is None or canvas is None or self.manager._rubber_band_item is None:
+            return
+        canvas.coords(self.manager._rubber_band_item, start[0], start[1], event.x, event.y)
+
+    def on_rubber_band_release(self, event):
+        """Finalise the rubber-band selection and update the selection set."""
+        canvas = self._editing_canvas()
+        start = self.manager._rubber_band_start
+        if canvas is not None:
+            canvas.delete("rubber_band")
+            try:
+                canvas.unbind("<B1-Motion>")
+                canvas.unbind("<ButtonRelease-1>")
+            except Exception:
+                log.debug("event_handler.rubber_band.unbind_suppressed")
+
+        self.manager._rubber_band_item = None
+        if start is None:
+            return
+        self.manager._rubber_band_start = None
+
+        x1, x2 = sorted((start[0], float(event.x)))
+        y1, y2 = sorted((start[1], float(event.y)))
+
+        # Tiny rectangle = an empty click → clear selection (in replace mode).
+        mode = getattr(self.manager, "_rubber_band_mode", "replace")
+        if (x2 - x1) < 3 and (y2 - y1) < 3:
+            if mode == "replace":
+                self.manager.zone_editor.select_no_vertices()
+            return
+
+        inside: set[int] = set()
+        for i, point in enumerate(self.gui.edited_polygon_points):
+            cx, cy = self.manager._video_to_canvas(point[0], point[1])
+            if x1 <= cx <= x2 and y1 <= cy <= y2:
+                inside.add(i)
+
+        current = set(self.manager.selected_vertex_indices)
+        if mode == "add":
+            current |= inside
+        elif mode == "remove":
+            current -= inside
+        else:  # replace
+            current = inside
+        self.manager.selected_vertex_indices = current
+        self.manager.renderer.draw_interactive_polygon()
+        self.gui.set_status(f"{len(current)} vértice(s) selecionado(s).")
+
+    # --- Context menu & Delete key -------------------------------------------
+
+    def on_editor_context_menu(self, event):
+        """Right-click context menu: select all / none / delete (issues 1 & 2)."""
+        import tkinter as tk
+
+        canvas = self._editing_canvas()
+        if canvas is None:
+            return
+
+        zone_editor = self.manager.zone_editor
+        menu = tk.Menu(canvas, tearoff=0, font=("TkDefaultFont", 9))
+
+        handle_index = self._handle_index_under_cursor(canvas)
+        if handle_index is not None:
+            menu.add_command(
+                label="🗑 Apagar este vértice",
+                command=lambda i=handle_index: zone_editor.delete_vertices({i}),
+            )
+            menu.add_separator()
+
+        has_selection = bool(self.manager.selected_vertex_indices)
+        menu.add_command(
+            label="🗑 Apagar selecionados (Del)",
+            command=zone_editor.delete_vertices,
+            state="normal" if has_selection else "disabled",
+        )
+        menu.add_separator()
+        menu.add_command(label="Selecionar todos", command=zone_editor.select_all_vertices)
+        menu.add_command(label="Selecionar nenhum", command=zone_editor.select_no_vertices)
+
+        self.manager._vertex_context_menu = menu
+        try:
+            menu.tk_popup(event.x_root, event.y_root)
+        finally:
+            menu.grab_release()
+        return "break"
+
+    def on_editor_delete_key(self, event):
+        """Delete key removes the currently selected vertices (issue 1)."""
+        self.manager.zone_editor.delete_vertices()
+        return "break"
+
+    def _handle_index_under_cursor(self, canvas) -> int | None:
+        """Return the polygon vertex index under the cursor, or None.
+
+        Handles are tagged ``("handle", f"handle-{i}")`` by the renderer.
+        """
+        try:
+            items = canvas.find_withtag("current")
+        except Exception:
+            return None
+        for item in items:
+            try:
+                tags = canvas.gettags(item)
+            except Exception:
+                continue
+            for tag in tags:
+                if isinstance(tag, str) and tag.startswith("handle-"):
+                    try:
+                        return int(tag.split("-", 1)[1])
+                    except ValueError:
+                        continue
+        return None
 
     def on_canvas_click(self, event):
         """Handle single clicks during polygon drawing."""

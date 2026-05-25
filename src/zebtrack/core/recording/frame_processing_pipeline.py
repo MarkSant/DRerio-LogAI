@@ -620,14 +620,23 @@ class FrameProcessingMixin:
                 else:
                     detections = self.get_last_detections()
 
-                # Draw overlay when displaying
+                # Draw overlay when displaying.
+                # IMPORTANT: draw ZONES ONLY here (empty detections list). The
+                # detection bounding boxes are drawn exactly once by the frame
+                # consumer — integrated canvas (VideoFrameManager.update_video_frame
+                # → _draw_detection_overlay_on_frame) or the external
+                # LivePreviewWindow.update_frame. Passing ``detections`` here would
+                # burn a SECOND box onto the frame (different color/label), so each
+                # animal showed two overlapping bboxes. This mirrors the pre-recorded
+                # path (processing_worker.py calls draw_overlay(frame, [])).
                 detector = self.detector_service.detector
                 if detector and should_display:
-                    detector.draw_overlay(frame, detections)
+                    detector.draw_overlay(frame, [])
                     log.debug(
                         "live_camera_service.overlay_drawn",
                         frame_number=frame_number,
                         num_boxes=len(detections),
+                        zones_only=True,
                         is_cached=not should_analyze,
                     )
 

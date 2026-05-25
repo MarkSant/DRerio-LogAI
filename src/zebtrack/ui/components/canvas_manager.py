@@ -28,6 +28,8 @@ import structlog
 from zebtrack.ui.components.canvas.event_handler import CanvasEventHandler
 
 if TYPE_CHECKING:
+    from pathlib import Path
+
     from zebtrack.core.services.zone_context_service import ZoneContextService
 from zebtrack.ui import payloads as payloads
 from zebtrack.ui.components.canvas.multi_aquarium_overlay import MultiAquariumOverlayManager
@@ -84,6 +86,18 @@ class CanvasManager:
         self.drag_start_mouse = (0, 0)
         self.drag_start_handle = (0, 0)
         self.current_editing_zone = None
+
+        # Multi-vertex selection state (issues 1 & 2). Indices reference
+        # gui.edited_polygon_points. Populated via Shift/Ctrl+click on handles,
+        # rubber-band selection or the canvas context menu; consumed by
+        # delete_vertices() and the move-in-group logic in on_handle_drag.
+        self.selected_vertex_indices: set[int] = set()
+        self._rubber_band_start: tuple[float, float] | None = None
+        self._rubber_band_item: int | None = None
+        self._rubber_band_mode: str = "replace"  # replace | add | remove
+        self._vertex_context_menu = None
+        # Last known canvas position of a group-drag, in canvas coords.
+        self._group_drag_last: tuple[float, float] | None = None
 
         # Visualization settings
         self.show_geotaxis_zones = False
@@ -226,8 +240,15 @@ class CanvasManager:
         # Populate gui.edited_polygon_points
         self.gui.edited_polygon_points = polygon_list
 
+        # Fresh edit session — clear any leftover vertex selection.
+        self.selected_vertex_indices = set()
+
         # Draw the interactive polygon with handles
         self.renderer.draw_interactive_polygon()
+
+        # Bind canvas-level editing events (rubber-band selection, context menu,
+        # Delete key). Per-handle bindings are (re)attached by draw_interactive_polygon.
+        self.event_handler.bind_editing_events()
 
         # Force a redraw after a short delay to ensure handles appear even if
         # conflicting events (like Treeview focus) clear the canvas or interfere
@@ -457,7 +478,7 @@ class CanvasManager:
 
     # --- VideoFrameManager ---
 
-    def display_roi_video_frame(self, video_path):
+    def display_roi_video_frame(self, video_path: Path | str | None):
         """Load first frame of video and display on canvas. Delegates to video_frame."""
         self.video_frame.display_roi_video_frame(video_path)
 
@@ -465,7 +486,9 @@ class CanvasManager:
         """Update canvas with a raw video frame. Delegates to video_frame."""
         self.video_frame.update_video_frame(frame, detections)
 
-    def load_video_frame_to_canvas(self, video_path=None, frame_number: int = 0):
+    def load_video_frame_to_canvas(
+        self, video_path: Path | str | None = None, frame_number: int = 0
+    ):
         """Load a video frame to the canvas. Delegates to video_frame."""
         return self.video_frame.load_video_frame_to_canvas(video_path, frame_number)
 
@@ -580,15 +603,15 @@ class CanvasManager:
         """Convert BGR tuple to Portuguese color name. Delegates to zone_editor."""
         return self.zone_editor._get_color_name_from_bgr(bgr)
 
-    def copy_zones_from_video(self, video_path: str | None) -> None:
+    def copy_zones_from_video(self, video_path: Path | str | None) -> None:
         """Copy zones from video to clipboard. Delegates to zone_editor."""
         self.zone_editor.copy_zones_from_video(video_path)
 
-    def paste_zones_to_video(self, video_path: str | None) -> None:
+    def paste_zones_to_video(self, video_path: Path | str | None) -> None:
         """Paste zones from clipboard to video. Delegates to zone_editor."""
         self.zone_editor.paste_zones_to_video(video_path)
 
-    def delete_zones_from_video(self, video_path: str | None) -> None:
+    def delete_zones_from_video(self, video_path: Path | str | None) -> None:
         """Delete all zones from video. Delegates to zone_editor."""
         self.zone_editor.delete_zones_from_video(video_path)
 

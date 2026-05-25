@@ -158,16 +158,42 @@ class ZoneControlBuilder:
 
         self._refresh_video_tree_dual_mode()
 
-        # 2. Emit zone saved event to resume pending recording (if any)
         from zebtrack.ui.event_bus_v2 import Event, UIEvents
 
         if hasattr(self.gui, "event_bus") and self.gui.event_bus:
-            self.gui.event_bus.publish(
-                Event(type=UIEvents.ZONE_SAVE_ARENA, data=payloads.EmptyPayload())
+            # 2. Commit an in-progress interactive edit, but ONLY when one is
+            # actually active. ZONE_SAVE_ARENA → CanvasManager.save_arena() falls
+            # back to save_manual_arena(edited_polygon_points) when no zone is
+            # being edited; in the live auto-detect flow edited_polygon_points is
+            # empty, so emitting it unconditionally would overwrite the freshly
+            # detected polygon with an empty one. Gate on the same flag save_arena
+            # itself reads (CanvasManager.current_editing_zone).
+            canvas_manager = getattr(self.gui, "canvas_manager", None)
+            editing_active = bool(
+                getattr(canvas_manager, "current_editing_zone", None)
+                or getattr(self.gui, "current_editing_zone", None)
             )
-            log.info("zone_control_builder.conclude_video.zone_saved_event_emitted")
+            has_edited_points = bool(getattr(self.gui, "edited_polygon_points", None))
+            if editing_active and has_edited_points:
+                self.gui.event_bus.publish(
+                    Event(type=UIEvents.ZONE_SAVE_ARENA, data=payloads.EmptyPayload())
+                )
+                log.info("zone_control_builder.conclude_video.zone_saved_event_emitted")
 
-        # 3. Optional: Feedback
+            # 3. Resume any pending live-recording session. This mirrors the
+            # zone-tab "▶️ Iniciar Gravação" banner button: the user clicking
+            # "✅ Concluir" should also start the deferred live recording.
+            # LiveCameraSessionCoordinator._on_resume_requested is a safe no-op
+            # when there is no pending session (e.g. pre-recorded projects).
+            self.gui.event_bus.publish(
+                Event(
+                    type=UIEvents.LIVE_RECORDING_RESUME_REQUESTED,
+                    data=payloads.LiveRecordingResumeRequestedPayload(experiment_id=None),
+                )
+            )
+            log.info("zone_control_builder.conclude_video.live_resume_requested")
+
+        # 4. Optional: Feedback
         if hasattr(self.gui, "set_status"):
             self.gui.set_status("Edição concluída. Dados salvos e indicadores atualizados.")
 

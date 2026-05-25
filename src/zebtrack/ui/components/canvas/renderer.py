@@ -459,10 +459,13 @@ class CanvasRenderer:
             tags="interactive_polygon",
         )
 
+        selected_indices = getattr(self.manager, "selected_vertex_indices", None) or set()
+
         self.gui.polygon_handles = []
         for i, canvas_point in enumerate(canvas_points):
             x, y = canvas_point[0], canvas_point[1]
 
+            is_selected = i in selected_indices
             is_on_boundary = False
             if (
                 isinstance(self.gui.current_editing_zone, tuple)
@@ -480,16 +483,28 @@ class CanvasRenderer:
                     result = cv2.pointPolygonTest(arena_array, (x, y), True)
                     is_on_boundary = abs(result) < 1.0
 
-            handle_fill = "orange" if is_on_boundary else "darkgoldenrod"
-            handle_outline = "red" if is_on_boundary else "#DAA520"
+            if is_selected:
+                # Selected vertices stand out (issue 1 & 2): red fill, white ring.
+                handle_fill = "#FF3030"
+                handle_outline = "white"
+                half = 6
+            elif is_on_boundary:
+                handle_fill = "orange"
+                handle_outline = "red"
+                half = 4
+            else:
+                handle_fill = "darkgoldenrod"
+                handle_outline = "#DAA520"
+                half = 4
 
             handle = canvas.create_rectangle(
-                x - 4,
-                y - 4,
-                x + 4,
-                y + 4,
+                x - half,
+                y - half,
+                x + half,
+                y + half,
                 fill=handle_fill,
                 outline=handle_outline,
+                width=2 if is_selected else 1,
                 tags=("handle", f"handle-{i}"),
             )
             self.gui.polygon_handles.append(handle)
@@ -513,6 +528,22 @@ class CanvasRenderer:
             )
             canvas.tag_bind(handle, "<B1-Motion>", handler.on_handle_drag)
             canvas.tag_bind(handle, "<ButtonRelease-1>", handler.on_handle_release)
+            # Multi-vertex selection / deletion gestures (issues 1 & 2).
+            canvas.tag_bind(
+                handle,
+                "<Triple-Button-1>",
+                lambda e, i=i, h=handler: h.on_handle_triple_click(e, i),
+            )
+            canvas.tag_bind(
+                handle,
+                "<Shift-ButtonPress-1>",
+                lambda e, i=i, h=handler: h.on_handle_shift_click(e, i),
+            )
+            canvas.tag_bind(
+                handle,
+                "<Control-ButtonPress-1>",
+                lambda e, i=i, h=handler: h.on_handle_ctrl_click(e, i),
+            )
 
     def redraw_polygon_in_progress(self):
         """Redraw the polygon vertices and edges after undo/redo."""
