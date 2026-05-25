@@ -546,6 +546,11 @@ class ReportsTreeManager:
         delete_files: bool,
     ) -> None:
         """Publish the correct hierarchy deletion event for the selected node."""
+        payload: (
+            payloads.ProjectDeleteGroupPayload
+            | payloads.ProjectDeleteDayPayload
+            | payloads.ProjectDeleteSubjectPayload
+        )
         if node_type == "group":
             payload = payloads.ProjectDeleteGroupPayload(
                 group_id=str(metadata["group_id"]),
@@ -553,14 +558,14 @@ class ReportsTreeManager:
             )
             event = UIEvents.PROJECT_DELETE_GROUP
         elif node_type == "day":
-            payload = payloads.ProjectDeleteDayPayload(  # type: ignore[assignment]
+            payload = payloads.ProjectDeleteDayPayload(
                 group_id=str(metadata["group_id"]),
                 day_id=str(metadata["day_id"]),
                 delete_files=delete_files,
             )
             event = UIEvents.PROJECT_DELETE_DAY
         elif node_type == "subject":
-            payload = payloads.ProjectDeleteSubjectPayload(  # type: ignore[assignment]
+            payload = payloads.ProjectDeleteSubjectPayload(
                 group_id=str(metadata["group_id"]),
                 day_id=str(metadata["day_id"]),
                 subject_id=str(metadata["subject_id"]),

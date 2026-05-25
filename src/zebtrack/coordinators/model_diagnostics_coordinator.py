@@ -23,12 +23,14 @@ from zebtrack.plugins import DETECTOR_PLUGINS
 from zebtrack.ui.event_bus_v2 import Event, EventBusV2, UIEvents
 from zebtrack.ui.payloads import MessagePayload, StatusPayload
 
-try:
-    from ultralytics import YOLO
+YOLO: Any | None = None
 
+try:
+    from ultralytics import YOLO as _YOLO
+
+    YOLO = _YOLO
     ULTRALYTICS_AVAILABLE = True
 except ImportError:
-    YOLO = None  # type: ignore[misc,assignment]
     ULTRALYTICS_AVAILABLE = False
 
 if TYPE_CHECKING:

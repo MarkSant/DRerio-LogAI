@@ -14,6 +14,8 @@ from tkinter import (
 class CenterPeripheryDialog(simpledialog.Dialog):
     """Dialog for center-periphery analysis settings."""
 
+    result: dict[str, str | float] | None
+
     def body(self, master):
         """Create dialog body with center/periphery configuration options.
 
@@ -52,4 +54,4 @@ class CenterPeripheryDialog(simpledialog.Dialog):
                 "value": float(self.value.get()),
             }
         except (ValueError, TypeError):
-            self.result = None  # type: ignore[assignment]
+            self.result = None

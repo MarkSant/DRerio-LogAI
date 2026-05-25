@@ -72,22 +72,22 @@ def _ask_open_filenames_from_view(
     view: Any,
     title: str,
     filetypes: list[tuple[str, str]],
-) -> tuple[str, ...]:
+) -> list[str]:
     """Resolve file selection through the active GUI abstraction."""
     if view and hasattr(view, "ask_open_filenames"):
         result = view.ask_open_filenames(title, filetypes)
-        return tuple(result or ())
+        return list(result or ())
 
     dialog_manager = getattr(view, "dialog_manager", None) if view else None
     if dialog_manager and hasattr(dialog_manager, "ask_open_filenames"):
         result = dialog_manager.ask_open_filenames(title, filetypes)
-        return tuple(result or ())
+        return list(result or ())
 
     log.error(
         "workflow.file_dialog.unavailable",
         view_type=type(view).__name__ if view is not None else None,
     )
-    return ()
+    return []
 
 
 class VideoProcessingCoordinator(
@@ -377,7 +377,7 @@ class VideoProcessingCoordinator(
         if not paths:
             return
 
-        scanned_videos = self.project_manager.scan_input_paths(paths)  # type: ignore[arg-type]
+        scanned_videos = self.project_manager.scan_input_paths(paths)
         if not scanned_videos:
             self._publish_event(
                 UIEvents.UI_SHOW_WARNING,
@@ -471,7 +471,7 @@ class VideoProcessingCoordinator(
 
         paths = candidate_paths
         if not paths:
-            paths = _ask_open_filenames_from_view(  # type: ignore[assignment]
+            paths = _ask_open_filenames_from_view(
                 view,
                 "Selecione Vídeos ou Pastas para Adicionar ao Projeto",
                 [

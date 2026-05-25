@@ -52,7 +52,9 @@ class SingleVideoWorkflow:
         """ZoneContextService instance (injected or resolved from gui)."""
         if self._zone_context_service is not None:
             return self._zone_context_service
-        return getattr(self.gui, "_zone_context_service", None)  # type: ignore[return-value]
+        zone_context_service = getattr(self.gui, "_zone_context_service", None)
+        assert zone_context_service is not None, "ZoneContextService must be available"
+        return zone_context_service
 
     # ------------------------------------------------------------------
     # Entry point

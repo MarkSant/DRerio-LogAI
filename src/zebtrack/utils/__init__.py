@@ -7,19 +7,22 @@ import math
 import random
 from collections.abc import Iterable, Sequence
 from pathlib import Path
+from typing import Any
 
-# No typing imports needed
 import numpy as np
 import structlog
 
 from zebtrack.utils.validation import validate_calibration
 
-try:  # pragma: no cover - optional dependency
-    import torch
+torch: Any | None
 
+try:  # pragma: no cover - optional dependency
+    import torch as _torch
+
+    torch = _torch
     TORCH_AVAILABLE = True
 except ImportError:  # pragma: no cover - graceful degradation
-    torch = None  # type: ignore[assignment]
+    torch = None
     TORCH_AVAILABLE = False
 
 log = structlog.get_logger()

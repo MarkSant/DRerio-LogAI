@@ -81,7 +81,9 @@ class ReportGeneratorActions:
     @property
     def dialog_manager(self) -> DialogManager:
         """Return the DialogManager."""
-        return self._dialog_manager  # type: ignore[return-value]
+        dialog_manager = self._dialog_manager
+        assert dialog_manager is not None, "DialogManager must be available"
+        return dialog_manager
 
     # ------------------------------------------------------------------
     # Public API — Generation commands

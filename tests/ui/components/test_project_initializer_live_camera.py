@@ -234,3 +234,25 @@ def test_load_project_view_does_not_auto_prompt_arena_calibration_for_live():
             "auto-prompt; calibration is per-session, not per-project"
         )
     gui.validation_manager.check_live_project_calibration.assert_not_called()
+
+
+def test_restore_persisted_project_settings_parses_string_false_preview_flag():
+    """Persisted preview flags may come back as strings from older project data.
+
+    "False" must restore to False instead of following Python truthiness for
+    non-empty strings.
+    """
+    gui = MagicMock()
+    gui.show_preview_var = MagicMock()
+    gui.processing_interval_var = MagicMock()
+    gui.analysis_interval_var = MagicMock()
+    gui.display_interval_var = MagicMock()
+
+    pm = MagicMock()
+    pm.project_data = {"last_show_preview": "False"}
+
+    initializer = ProjectInitializer(gui)
+
+    initializer.restore_persisted_project_settings(pm)
+
+    gui.show_preview_var.set.assert_called_once_with(False)

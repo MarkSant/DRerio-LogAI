@@ -20,7 +20,7 @@ from __future__ import annotations
 
 from pathlib import Path
 from tkinter import ttk
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 import structlog
 
@@ -171,7 +171,7 @@ class ZoneContextPanel:
                 self._model_label.config(text=self._format_model_line(model_caption))
 
         if polygon_source is not _SENTINEL_DEFAULT:
-            self._polygon_source = polygon_source  # type: ignore[assignment]
+            self._polygon_source = cast(str | None, polygon_source)
             if self._badge_label is not None:
                 badge_text, fg, bg = _badge_visuals(self._polygon_source)
                 self._badge_label.config(text=badge_text, foreground=fg, background=bg)

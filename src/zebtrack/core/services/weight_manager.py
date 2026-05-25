@@ -15,16 +15,18 @@ from typing import Any
 import structlog
 
 from zebtrack.settings import Settings
+from zebtrack.utils import calculate_sha256
+
+yolo_cls: Any | None
 
 try:
-    from ultralytics import YOLO
+    from ultralytics import YOLO as _YOLO
 
+    yolo_cls = _YOLO
     ULTRALYTICS_AVAILABLE = True
 except ImportError:
-    YOLO = None  # type: ignore[misc,assignment]
+    yolo_cls = None
     ULTRALYTICS_AVAILABLE = False
-
-from zebtrack.utils import calculate_sha256
 
 WEIGHTS_CONFIG_FILE = "weights_config.json"
 OPENVINO_CACHE_DIR = "openvino_model_cache"
@@ -595,7 +597,7 @@ class WeightManager:
                 potential_weights.append((legacy_type or "seg", legacy_path, None))
 
         weights_found = False
-        for weight_type, filename, perspective in potential_weights:  # type: ignore[assignment]
+        for weight_type, filename, configured_perspective in potential_weights:
             resolved_filename = self._resolve_weight_filename(filename)
             # Only register weights if the file actually exists
             if not os.path.exists(resolved_filename):
@@ -610,7 +612,9 @@ class WeightManager:
             classified_type = self._classify_weight_type(weight_name)
             # Use classified type if available, otherwise use the expected type
             final_type = classified_type or weight_type
-            classified_perspective = self._classify_perspective(weight_name) or perspective
+            classified_perspective = (
+                self._classify_perspective(weight_name) or configured_perspective
+            )
             target = _default_target_for_type(final_type)
 
             self.weights[weight_name] = {
@@ -1374,8 +1378,8 @@ class WeightManager:
         self.save_weights()
 
         try:
-            assert YOLO is not None  # Satisfy type checkers after availability guard
-            model = YOLO(pt_path)
+            assert yolo_cls is not None  # Satisfy type checkers after availability guard
+            model = yolo_cls(pt_path)
             # The 'half=True' argument enables FP16 quantization.
             # The export will create a directory named e.g., 'yolov8n_openvino_model'.
             temp_export_path = model.export(format="openvino", half=True)
@@ -1536,8 +1540,8 @@ class WeightManager:
         self.save_weights()
 
         try:
-            assert YOLO is not None
-            model = YOLO(pt_path)
+            assert yolo_cls is not None
+            model = yolo_cls(pt_path)
             # int8=True enables INT8 quantization via NNCF with default calibration
             temp_export_path = model.export(format="openvino", int8=True)
 

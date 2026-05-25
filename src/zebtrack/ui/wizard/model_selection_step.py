@@ -184,17 +184,14 @@ class ModelSelectionStep(WizardStep):
 
         # Get defaults from settings or use hardcoded defaults
         if self.settings and hasattr(self.settings, "model_selection"):
-            defaults = self.settings.model_selection
+            aquarium_method_default = self.settings.model_selection.aquarium_method
+            animal_method_default = self.settings.model_selection.animal_method
         else:
-            # Fallback defaults when settings not available
-            class _Defaults:
-                aquarium_method = "seg"
-                animal_method = "seg"
+            aquarium_method_default = "seg"
+            animal_method_default = "seg"
 
-            defaults = _Defaults()  # type: ignore[assignment]
-
-        aquarium_method = selection.get("aquarium_method", defaults.aquarium_method)
-        animal_method = selection.get("animal_method", defaults.animal_method)
+        aquarium_method = selection.get("aquarium_method", aquarium_method_default)
+        animal_method = selection.get("animal_method", animal_method_default)
         use_openvino = selection.get("use_openvino")
         if use_openvino is None:
             # Auto-detect hardware and recommend backend if not explicitly set

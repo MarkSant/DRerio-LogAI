@@ -13,6 +13,7 @@ from zebtrack.plugins.base import DetectorPlugin
 from zebtrack.utils import IntegrityError, calculate_sha256
 
 ov: Any | None
+torch: Any | None = None
 
 try:
     import openvino as ov
@@ -23,11 +24,11 @@ except ImportError:
     OPENVINO_AVAILABLE = False
 
 try:
-    import torch
+    import torch as _torch
 
+    torch = _torch
     TORCH_AVAILABLE = True
 except ImportError:
-    torch = None  # type: ignore[assignment]  # conditional import fallback
     TORCH_AVAILABLE = False
 
 # Compatible with ultralytics >=8.3 and >=8.4 (API moves between versions)

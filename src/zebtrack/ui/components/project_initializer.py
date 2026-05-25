@@ -7,7 +7,7 @@ live/pre-recorded component setup, and new/open project dialogs.
 
 from __future__ import annotations
 
-from tkinter import Frame, Label, TclError, ttk
+from tkinter import Label, TclError, ttk
 from typing import TYPE_CHECKING, Any
 
 import structlog
@@ -77,9 +77,10 @@ class ProjectInitializer:
             f"Projeto: {gui.controller.project_manager.get_project_name()} ({project_type_display})"
         )
         gui.status_var.set(status_text)
-        gui.status_frame = Frame(gui.root)  # type: ignore[assignment]
-        gui.status_frame.pack(pady=5, fill="x", padx=10, side="bottom")  # type: ignore[union-attr]
-        Label(gui.status_frame, textvariable=gui.status_var).pack()
+        status_frame = ttk.Frame(gui.root)
+        gui.status_frame = status_frame
+        status_frame.pack(pady=5, fill="x", padx=10, side="bottom")
+        Label(status_frame, textvariable=gui.status_var).pack()
 
         # Ensure analysis UI starts hidden
         gui.hide_progress_bar()
@@ -168,9 +169,23 @@ class ProjectInitializer:
                 )
         if pm.project_data.get("last_show_preview") is not None:
             try:
-                gui.show_preview_var.set(
-                    bool(pm.project_data["last_show_preview"])  # type: ignore[arg-type]
-                )
+                preview_value = pm.project_data["last_show_preview"]
+                if isinstance(preview_value, str):
+                    normalized_preview = preview_value.strip().lower() in {
+                        "1",
+                        "true",
+                        "yes",
+                        "on",
+                    }
+                elif isinstance(preview_value, bool):
+                    normalized_preview = preview_value
+                elif isinstance(preview_value, int | float):
+                    normalized_preview = bool(preview_value)
+                else:
+                    raise TypeError(
+                        f"Unsupported persisted preview value: {type(preview_value).__name__}"
+                    )
+                gui.show_preview_var.set(normalized_preview)
             except (ValueError, TypeError):
                 log.debug("project_initializer.restore_show_preview.suppressed", exc_info=True)
 

@@ -19,7 +19,7 @@ import copy
 import re
 from collections.abc import Callable
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal, cast
 
 import structlog
 
@@ -34,6 +34,9 @@ if TYPE_CHECKING:
     from zebtrack.settings import Settings
 
 log = structlog.get_logger()
+
+OpenVINODevice = Literal["AUTO", "CPU", "GPU", "NPU"]
+_VALID_OPENVINO_DEVICES = ("AUTO", "CPU", "GPU", "NPU")
 
 
 class ProjectWorkflowService:
@@ -297,7 +300,7 @@ class ProjectWorkflowService:
 
         return resolved_weight, resolved_openvino
 
-    def _resolve_openvino_device(self, overrides: dict | None = None) -> str:
+    def _resolve_openvino_device(self, overrides: dict | None = None) -> OpenVINODevice:
         """Resolve OpenVINO target device from overrides/project/settings."""
         project_data = getattr(self.project_manager, "project_data", {}) or {}
         base_overrides = project_data.get("model_overrides") or {}
@@ -308,19 +311,21 @@ class ProjectWorkflowService:
         device_override = merged_overrides.get("device")
         if isinstance(device_override, str):
             candidate = device_override.strip().upper()
-            if candidate:
-                return candidate
+            if candidate in _VALID_OPENVINO_DEVICES:
+                return cast(OpenVINODevice, candidate)
 
         project_device = project_data.get("openvino_device")
         if isinstance(project_device, str):
             candidate = project_device.strip().upper()
-            if candidate:
-                return candidate
+            if candidate in _VALID_OPENVINO_DEVICES:
+                return cast(OpenVINODevice, candidate)
 
         if self.settings and hasattr(self.settings, "openvino"):
             configured = getattr(self.settings.openvino, "device", "AUTO")
-            if isinstance(configured, str) and configured.strip():
-                return configured.strip().upper()
+            if isinstance(configured, str):
+                candidate = configured.strip().upper()
+                if candidate in _VALID_OPENVINO_DEVICES:
+                    return cast(OpenVINODevice, candidate)
 
         return "AUTO"
 
@@ -411,9 +416,9 @@ class ProjectWorkflowService:
             updated = True
 
         if self.settings and hasattr(self.settings, "openvino"):
-            self.settings.openvino.device = resolved_device  # type: ignore[assignment]
+            self.settings.openvino.device = resolved_device
             if hasattr(self.settings.openvino, "device_batch"):
-                self.settings.openvino.device_batch = resolved_device  # type: ignore[assignment]
+                self.settings.openvino.device_batch = resolved_device
 
         # Save project if updated
         if updated and getattr(self.project_manager, "project_path", None):
@@ -447,7 +452,11 @@ class ProjectWorkflowService:
     ) -> tuple[str | None, bool]:
         """Persist explicit slot overrides for the active project."""
         if not getattr(self.project_manager, "project_path", None):
-            return self.resolve_project_model_settings(), bool(use_openvino_override)  # type: ignore[return-value]
+            resolved_weight, resolved_openvino = self.resolve_project_model_settings()
+            effective_openvino = (
+                resolved_openvino if use_openvino_override is None else bool(use_openvino_override)
+            )
+            return resolved_weight, effective_openvino
 
         overrides = self.project_manager.project_data.setdefault(
             "model_overrides",

@@ -351,4 +351,4 @@ def test_import_workflow_uses_dialog_manager_when_view_has_no_file_picker(coordi
     coordinator.start_project_import_workflow()
 
     view.dialog_manager.ask_open_filenames.assert_called_once()
-    pm.scan_input_paths.assert_called_once_with(("/some/video.mp4",))
+    pm.scan_input_paths.assert_called_once_with(["/some/video.mp4"])
