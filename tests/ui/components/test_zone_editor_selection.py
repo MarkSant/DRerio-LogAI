@@ -1,6 +1,7 @@
 """Tests for ZoneEditor multi-vertex selection / deletion (issues 1 & 2)."""
 
 from types import SimpleNamespace
+from typing import Any, cast
 from unittest.mock import Mock
 
 from zebtrack.ui.components.canvas.zone_editor import ZoneEditor
@@ -20,7 +21,7 @@ def _make_editor(points):
         dragged_handle_index=None,
     )
     dialog_manager = Mock()
-    editor = ZoneEditor(canvas_manager, dialog_manager=dialog_manager)
+    editor = ZoneEditor(cast(Any, canvas_manager), dialog_manager=dialog_manager)
     return editor, canvas_manager, gui, dialog_manager
 
 
