@@ -685,31 +685,63 @@ class LiveSessionManagerMixin:
             ("processing_thread", self.processing_thread),
             ("video_recording_thread", self.video_recording_thread),
         ]
-        deadline = time.time() + 5.0
-        for name, thread in threads_to_join:
-            if thread is None or not thread.is_alive():
-                continue
-            remaining = max(0.0, deadline - time.time())
-            if remaining <= 0:
-                log.warning(
-                    "live_camera_service.thread_join_skipped_timeout",
-                    thread=name,
+
+        # Audit Erro 3 round 6 (2026-05-25): the round 5 fix reordered the
+        # shutdown sequence but kept a 5 s GLOBAL join deadline that would
+        # ``continue`` past hung threads and march on to
+        # ``recorder.stop_recording()`` while a worker could still write —
+        # the very race the round 5 reorder was meant to eliminate.
+        #
+        # New strategy: spin in 0.1 s ticks while ANY thread is alive, up to
+        # ``MAX_JOIN_WAIT_S`` (5 s — matches the existing UI-budget assertion
+        # in test_stop_session_bounded_total_join_budget). If we hit the
+        # ceiling, we still proceed but PROMOTE the recorder shutdown to
+        # ``force_stop=True``, and the recorder now holds ``_writer_lock``
+        # around BOTH the ``write_video_frame`` and the release, so any
+        # still-alive worker either finishes its write atomically or sees a
+        # nulled writer on next iteration — no FFmpeg assertion crash.
+        MAX_JOIN_WAIT_S = 5.0
+        TICK_S = 0.1
+        wait_start = time.time()
+        while any(t is not None and t.is_alive() for _, t in threads_to_join):
+            if time.time() - wait_start > MAX_JOIN_WAIT_S:
+                still_alive = [n for n, t in threads_to_join if t is not None and t.is_alive()]
+                log.error(
+                    "live_camera_service.thread_join_hang",
+                    threads_still_alive=still_alive,
+                    waited_s=MAX_JOIN_WAIT_S,
                 )
-                continue
-            thread.join(timeout=remaining)
-            if thread.is_alive():
-                log.warning("live_camera_service.thread_join_timeout", thread=name)
+                # Promote graceful stop to force_stop so the recorder
+                # nullifies ``video_writer`` before calling release().
+                cancelled_session = True
+                break
+            time.sleep(TICK_S)
+        else:
+            for name, thread in threads_to_join:
+                if thread is not None:
+                    thread.join(timeout=0.5)
+                    if thread.is_alive():
+                        log.warning(
+                            "live_camera_service.thread_join_residual_alive",
+                            thread=name,
+                        )
         if self.video_recording_thread is not None:
             log.info(
                 "live_camera_service.video_recording_thread_stopped",
                 frames_written=self._video_frames_written,
             )
 
-        # NOW it's safe to close writers — no thread is writing anymore.
+        # NOW it's safe to close writers — no thread is writing anymore
+        # (or we've promoted to force_stop above if a thread hung).
         if self.recorder:
             try:
                 if cancelled_session:
-                    self.recorder.stop_recording(force_stop=True, reason="user_cancelled")
+                    reason = (
+                        "thread_hang"
+                        if any(t is not None and t.is_alive() for _, t in threads_to_join)
+                        else "user_cancelled"
+                    )
+                    self.recorder.stop_recording(force_stop=True, reason=reason)
                 else:
                     self.recorder.stop_recording()
                 log.info(

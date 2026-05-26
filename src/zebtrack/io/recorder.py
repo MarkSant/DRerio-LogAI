@@ -77,6 +77,19 @@ class Recorder:
         # (e.g., LiveCameraService capture vs processing threads).
         self._data_lock = threading.Lock()
 
+        # Audit Erro 3 round 6 (2026-05-25): writer-release lock. Without
+        # this, ``write_video_frame`` could pass the ``self.video_writer``
+        # truthiness check, then have the main thread call
+        # ``stop_recording`` (which sets writer to None and releases the
+        # underlying FFmpeg context) BEFORE the worker reached the actual
+        # ``self.video_writer.write(frame)`` call. The result was the
+        # ``Assertion next_dts <= 0x7fffffff failed at libavformat/movenc.c:1082``
+        # crash that killed the program right after the 30 s timer expired.
+        # Holding this lock around BOTH the writer use and the release
+        # guarantees the worker either completes its write or sees the
+        # writer already nulled.
+        self._writer_lock = threading.Lock()
+
         # Phase 4 / M4: dedicated flush thread state.
         # When the recorder is active, a single daemon thread drains
         # ``detection_data`` to Parquet so the processing thread that
@@ -488,9 +501,17 @@ class Recorder:
         if not self.is_recording:
             return
 
-        if self.video_writer:
-            self.video_writer.release()
-            self.video_writer = None
+        # Audit Erro 3 round 6 (2026-05-25): take ``_writer_lock`` before
+        # releasing the writer. ``write_video_frame`` (called from the live
+        # video_recording_thread) holds this same lock around its
+        # ``self.video_writer.write(frame)`` call, so the release is now
+        # mutually exclusive with the worker's write. Nulling the
+        # attribute inside the critical section makes the worker's next
+        # iteration see ``video_writer is None`` and skip cleanly.
+        with self._writer_lock:
+            if self.video_writer:
+                self.video_writer.release()
+                self.video_writer = None
 
         # Phase 4 / M4: stop the async flush thread BEFORE we close the
         # Parquet writer. On a normal stop, the thread performs a final
@@ -772,8 +793,13 @@ class Recorder:
         if self._is_paused:
             return
 
-        if self.is_recording and self.video_writer:
-            self.video_writer.write(frame)
+        # Audit Erro 3 round 6 (2026-05-25): hold ``_writer_lock`` across
+        # BOTH the truthiness check and the actual ``.write(frame)`` so the
+        # main thread cannot release the writer between them. The lock is
+        # also acquired in ``stop_recording`` before nulling the writer.
+        with self._writer_lock:
+            if self.is_recording and self.video_writer:
+                self.video_writer.write(frame)
 
     def write_detection_data(self, timestamp, frame_number, detections):
         """Appends detection data to an in-memory list."""

@@ -362,25 +362,55 @@ class LiveCalibrationCoordinator(BaseCoordinator):
                         # so the user can refine drag/snap vertices without
                         # having to right-click → "Editar polígono". Mirrors
                         # the manual edit flow in zone_editor.py:447-466.
+                        #
+                        # Audit Erro 9 round 6 (2026-05-25): defer the
+                        # POLYGON_EDIT_REQUESTED publish by ~150 ms via
+                        # ``root.after`` so the UI_REDRAW_ZONES event above
+                        # finishes its render cycle FIRST. Without this gap,
+                        # ``setup_interactive_polygon`` could land on a canvas
+                        # that hasn't received its background frame yet,
+                        # leaving the user with draggable vertices floating on
+                        # a blank canvas (item B9). The deferral is short
+                        # enough that the user perceives no lag but long
+                        # enough for Tk to flush a redraw.
                         try:
                             zone_data = self.project_manager.get_zone_data()
                             polygon = (zone_data.polygon if zone_data else None) or []
                             if polygon:
                                 import numpy as np
 
-                                self.event_bus.publish(
-                                    Event(
-                                        type=UIEvents.POLYGON_EDIT_REQUESTED,
-                                        data=payloads.PolygonEditRequestedPayload(
-                                            polygon=np.array(polygon)
-                                        ),
-                                        source="LiveCalibrationCoordinator.auto_detect.success",
+                                _event = Event(
+                                    type=UIEvents.POLYGON_EDIT_REQUESTED,
+                                    data=payloads.PolygonEditRequestedPayload(
+                                        polygon=np.array(polygon)
+                                    ),
+                                    source="LiveCalibrationCoordinator.auto_detect.success",
+                                )
+
+                                def _publish_polygon_edit(event=_event):
+                                    self.event_bus.publish(event)
+                                    log.info(
+                                        "live_calibration_coordinator.auto_edit_mode.triggered_deferred",
                                     )
+
+                                root = getattr(self, "root", None) or getattr(
+                                    getattr(self, "view", None), "root", None
                                 )
-                                log.info(
-                                    "live_calibration_coordinator.auto_edit_mode.triggered",
-                                    polygon_vertices=len(polygon),
-                                )
+                                if root is not None and hasattr(root, "after"):
+                                    root.after(150, _publish_polygon_edit)
+                                    log.info(
+                                        "live_calibration_coordinator.auto_edit_mode.scheduled",
+                                        delay_ms=150,
+                                        polygon_vertices=len(polygon),
+                                    )
+                                else:
+                                    # Fallback: publish synchronously when no
+                                    # Tk root is wired (tests / headless).
+                                    self.event_bus.publish(_event)
+                                    log.info(
+                                        "live_calibration_coordinator.auto_edit_mode.triggered",
+                                        polygon_vertices=len(polygon),
+                                    )
                         except Exception:
                             log.debug(
                                 "live_calibration_coordinator.auto_edit_mode.failed",

@@ -458,6 +458,12 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
         but without the cross-coordinator import. Reads
         ``animals_per_aquarium`` from project_data → calibration →
         single_animal_per_aquarium flag, returning the mode.
+
+        Audit Erro 2 round 6 (2026-05-25): logs which key resolved the
+        mode (or which were checked when no value was found) so the next
+        runtime can pinpoint why the label still shows "multi-animais"
+        with 1 animal/aquarium. Also accepts the multi-aquarium
+        ``animals_per_aquarium_list`` (used by wizard wide-multi flow).
         """
         from zebtrack.core.video.processing_mode import ProcessingMode
 
@@ -478,11 +484,25 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
         # 1. Explicit flag at top level
         flag = project_data.get("single_animal_per_aquarium")
         if flag is not None:
-            return ProcessingMode.SINGLE_SUBJECT if bool(flag) else ProcessingMode.MULTI_TRACK
+            mode = ProcessingMode.SINGLE_SUBJECT if bool(flag) else ProcessingMode.MULTI_TRACK
+            log.info(
+                "live_camera.processing_mode.resolved",
+                source="single_animal_per_aquarium",
+                value=flag,
+                mode=str(mode),
+            )
+            return mode
 
         # 2. Top-level animals_per_aquarium
-        mode = _to_mode_from_count(project_data.get("animals_per_aquarium"))
+        top_animals = project_data.get("animals_per_aquarium")
+        mode = _to_mode_from_count(top_animals)
         if mode is not None:
+            log.info(
+                "live_camera.processing_mode.resolved",
+                source="top.animals_per_aquarium",
+                value=top_animals,
+                mode=str(mode),
+            )
             return mode
 
         # 3. tracking.use_single_subject_tracker (wizard)
@@ -490,19 +510,75 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
         if isinstance(tracking, dict):
             tracker_pref = tracking.get("use_single_subject_tracker")
             if tracker_pref is not None:
-                return (
+                mode = (
                     ProcessingMode.SINGLE_SUBJECT
                     if bool(tracker_pref)
                     else ProcessingMode.MULTI_TRACK
                 )
+                log.info(
+                    "live_camera.processing_mode.resolved",
+                    source="tracking.use_single_subject_tracker",
+                    value=tracker_pref,
+                    mode=str(mode),
+                )
+                return mode
 
         # 4. calibration.animals_per_aquarium (wizard)
         calibration = project_data.get("calibration")
+        calib_value = None
         if isinstance(calibration, dict):
-            mode = _to_mode_from_count(calibration.get("animals_per_aquarium"))
+            calib_value = calibration.get("animals_per_aquarium")
+            mode = _to_mode_from_count(calib_value)
             if mode is not None:
+                log.info(
+                    "live_camera.processing_mode.resolved",
+                    source="calibration.animals_per_aquarium",
+                    value=calib_value,
+                    mode=str(mode),
+                )
                 return mode
 
+        # 5. multi-aquarium list (e.g. [1, 1, 2]) — single-subject iff all
+        # entries are 1. Reading either the calibration sub-dict or the
+        # _wizard_metadata depending on what survived the wizard adapter.
+        list_values = None
+        if isinstance(calibration, dict):
+            list_values = calibration.get("animals_per_aquarium_list")
+        if list_values is None:
+            wizard_meta = project_data.get("_wizard_metadata")
+            if isinstance(wizard_meta, dict):
+                list_values = wizard_meta.get("animals_per_aquarium_list")
+        if isinstance(list_values, list) and list_values:
+            try:
+                max_animals = max(int(v) for v in list_values)
+                mode = (
+                    ProcessingMode.SINGLE_SUBJECT
+                    if max_animals <= 1
+                    else ProcessingMode.MULTI_TRACK
+                )
+                log.info(
+                    "live_camera.processing_mode.resolved",
+                    source="animals_per_aquarium_list",
+                    value=list_values,
+                    max_animals=max_animals,
+                    mode=str(mode),
+                )
+                return mode
+            except (TypeError, ValueError):
+                pass
+
+        log.warning(
+            "live_camera.processing_mode.keys_checked_no_match",
+            keys_present={
+                "single_animal_per_aquarium": flag,
+                "top.animals_per_aquarium": top_animals,
+                "tracking.use_single_subject_tracker": tracking.get("use_single_subject_tracker")
+                if isinstance(tracking, dict)
+                else None,
+                "calibration.animals_per_aquarium": calib_value,
+                "animals_per_aquarium_list": list_values,
+            },
+        )
         return None
 
     def validate_dependencies(self) -> bool:
@@ -812,8 +888,14 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
                     else False,
                 )
 
-            # v2.3.0: Register session for batch tracking
-            if success and self.live_batch_coordinator and self._active_wizard_data:
+            # v2.3.0: Register session for batch tracking.
+            # Audit round 6 (2026-05-25): drop the ``live_batch_coordinator``
+            # guard — ``_register_batch_session`` now handles both the
+            # coordinator-wired path AND the direct-write fallback. Gating
+            # the call here previously meant projects without the coordinator
+            # NEVER persisted the recording to ``project_data["batches"]``,
+            # leaving the listbox + Progresso stuck on "Sessão planejada".
+            if success and self._active_wizard_data:
                 self._register_batch_session()
 
             # Mirror pre-recorded completion flow: trigger project-views and
@@ -909,8 +991,16 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
 
         Internal method called after session stops successfully.
         Extracts batch metadata from wizard_data and registers with coordinator.
+
+        Audit Erro 2/3 round 6 (2026-05-25): also persists the session into
+        ``project_data["batches"]`` via a direct path when
+        ``live_batch_coordinator`` is not wired — the listbox and Progresso
+        grid both read from ``get_all_videos`` which only sees batches that
+        live in ``project_data``. Skipping the coordinator path used to leave
+        the listbox stuck on "Sessão planejada" forever even though the
+        parquets were on disk.
         """
-        if not self.live_batch_coordinator or not self._active_wizard_data:
+        if not self._active_wizard_data:
             return
 
         try:
@@ -945,24 +1035,44 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
                 "camera_index": self._active_wizard_data.get("camera_index"),
             }
 
-            batch_id = self.live_batch_coordinator.register_session(
-                experiment_id=self._active_live_session_id or "unknown",
-                video_path=video_path,
-                metadata=metadata,
-            )
+            if self.live_batch_coordinator:
+                batch_id = self.live_batch_coordinator.register_session(
+                    experiment_id=self._active_live_session_id or "unknown",
+                    video_path=video_path,
+                    metadata=metadata,
+                )
 
-            log.info(
-                "live_camera_session_coordinator.batch_session_registered",
-                batch_id=batch_id,
-                group=group,
-                day=day,
-                subject_id=subject_id,
-            )
+                log.info(
+                    "live_camera_session_coordinator.batch_session_registered",
+                    batch_id=batch_id,
+                    group=group,
+                    day=day,
+                    subject_id=subject_id,
+                )
 
-            # Check if user marked as last session
-            if self._active_wizard_data.get("is_batch_last_session"):
-                log.info("live_camera_session_coordinator.batch_marked_complete", batch_id=batch_id)
-                self.live_batch_coordinator.mark_batch_complete(batch_id)
+                # Check if user marked as last session
+                if self._active_wizard_data.get("is_batch_last_session"):
+                    log.info(
+                        "live_camera_session_coordinator.batch_marked_complete",
+                        batch_id=batch_id,
+                    )
+                    self.live_batch_coordinator.mark_batch_complete(batch_id)
+            else:
+                # Fallback: no batch coordinator wired — persist directly to
+                # ``project_data["batches"]`` so the Progresso/listbox still
+                # update. This is the same write the coordinator would do via
+                # ``LiveBatchCoordinator._persist_session_to_project_data``.
+                self._persist_session_to_project_data_fallback(
+                    experiment_id=self._active_live_session_id or "unknown",
+                    video_path=video_path,
+                    metadata=metadata,
+                )
+                log.info(
+                    "live_camera_session_coordinator.batch_session_registered_fallback",
+                    group=group,
+                    day=day,
+                    subject_id=subject_id,
+                )
 
         except Exception as e:  # except Exception justified: non-critical fallback
             log.error(
@@ -973,6 +1083,121 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
         finally:
             # Clear wizard data after processing
             self._active_wizard_data = None
+
+    def _persist_session_to_project_data_fallback(
+        self,
+        *,
+        experiment_id: str,
+        video_path: Path,
+        metadata: dict,
+    ) -> None:
+        """Fallback writer for project_data["batches"] when no batch coord is wired.
+
+        Mirrors ``LiveBatchCoordinator._persist_session_to_project_data`` so
+        the listbox/Progresso receive the same canonical entry regardless of
+        wiring. Skips cancelled sessions.
+        """
+        pm = getattr(self, "project_manager", None) or getattr(
+            getattr(self, "controller", None), "project_manager", None
+        )
+        if pm is None or pm.project_data is None:
+            log.debug("live_camera_session_coordinator.persist_fallback.no_pm")
+            return
+
+        results_dir = video_path.parent if video_path else None
+        if results_dir and (results_dir / ".cancelled").exists():
+            log.info(
+                "live_camera_session_coordinator.persist_fallback.skipped_cancelled",
+                experiment_id=experiment_id,
+            )
+            return
+
+        video_path_str = video_path.as_posix() if isinstance(video_path, Path) else str(video_path)
+
+        normalized_metadata = {
+            "group": metadata.get("group"),
+            "group_display_name": metadata.get("group"),
+            "day": metadata.get("day"),
+            "subject": metadata.get("subject_id"),
+            "subject_id": metadata.get("subject_id"),
+            "experiment_id": experiment_id,
+            "timestamp": metadata.get("timestamp"),
+            "is_live_session": True,
+        }
+        normalized_metadata = {
+            k: v
+            for k, v in normalized_metadata.items()
+            if v is not None and (v != "" or isinstance(v, bool | int | float))
+        }
+
+        has_arena = has_rois = has_trajectory = False
+        if results_dir and results_dir.exists():
+            has_arena = bool(list(results_dir.glob("1_ProcessingArea_*.parquet")))
+            has_rois = bool(list(results_dir.glob("2_AreasOfInterest_*.parquet")))
+            has_trajectory = bool(list(results_dir.glob("3_CoordMovimento_*.parquet")))
+
+        video_entry: dict = {
+            "path": video_path_str,
+            "status": "processed" if has_trajectory else "recorded",
+            "has_arena": has_arena,
+            "has_rois": has_rois,
+            "has_trajectory": has_trajectory,
+            "has_complete_data": has_arena and has_rois and has_trajectory,
+            "has_summary": bool(results_dir and list(results_dir.glob("*_summary.xlsx")))
+            if results_dir and results_dir.exists()
+            else False,
+            "zones_finalized": True,
+            "metadata": normalized_metadata,
+            "filename": (
+                video_path.name if isinstance(video_path, Path) else Path(video_path_str).name
+            ),
+        }
+
+        # Idempotent insert.
+        for batch in pm.project_data.get("batches", []):
+            for entry in batch.get("videos", []):
+                if entry.get("path") == video_path_str:
+                    entry.update(
+                        {
+                            "status": video_entry["status"],
+                            "has_arena": entry.get("has_arena") or video_entry["has_arena"],
+                            "has_rois": entry.get("has_rois") or video_entry["has_rois"],
+                            "has_trajectory": entry.get("has_trajectory")
+                            or video_entry["has_trajectory"],
+                            "has_summary": entry.get("has_summary") or video_entry["has_summary"],
+                        }
+                    )
+                    entry["has_complete_data"] = bool(
+                        entry.get("has_arena")
+                        and entry.get("has_rois")
+                        and entry.get("has_trajectory")
+                    )
+                    entry.setdefault("metadata", {}).update(normalized_metadata)
+                    try:
+                        pm.save_project()
+                    # except Exception justified: persistence best-effort.
+                    except Exception:
+                        log.warning(
+                            "live_camera_session_coordinator.persist_fallback.save_failed",
+                            exc_info=True,
+                        )
+                    return
+
+        pm.project_data.setdefault("batches", []).append(
+            {
+                "timestamp": datetime.datetime.now().isoformat(),
+                "source": "live_camera",
+                "videos": [video_entry],
+            }
+        )
+        try:
+            pm.save_project()
+        # except Exception justified: persistence best-effort.
+        except Exception:
+            log.warning(
+                "live_camera_session_coordinator.persist_fallback.save_failed",
+                exc_info=True,
+            )
 
     def _find_video_in_live_session(self) -> Path | None:
         """Find video file in current live session output directory.

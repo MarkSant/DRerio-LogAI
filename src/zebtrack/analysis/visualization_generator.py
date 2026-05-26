@@ -631,6 +631,18 @@ class VisualizationGenerator:
             x, y, bins=50, range=[[min_x, max_x], [min_y, max_y]]
         )
         heatmap = gaussian_filter(heatmap.T, sigma=2)
+        # Audit Erro 3 round 6 (2026-05-25): the background frame produced
+        # by ``_draw_background_frame`` is rendered with ``imshow`` using the
+        # default ``origin='upper'`` (first array row at the TOP of the
+        # extent), while the heatmap below uses ``origin='lower'`` (first
+        # array row at the BOTTOM). Without compensating, the same arena
+        # appears flipped vertically between the frame and the heatmap, so
+        # the trajectory density never lines up with the drawn polygon —
+        # this is the "heatmap with flipped background" the user reported
+        # in item B3. Inverting the heatmap rows after the histogram makes
+        # both layers share the same Y direction in the final composition.
+        if video_path:
+            heatmap = heatmap[::-1, :]
         extent: tuple[float, float, float, float] = (
             float(xedges[0]),
             float(xedges[-1]),

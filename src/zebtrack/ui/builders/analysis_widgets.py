@@ -54,6 +54,23 @@ class AnalysisWidgetsBuilder:
 
         self.gui.notebook.add(self.gui.analysis_display_widget, text="Análise de Vídeo")
 
+        # Audit Erro 2 round 6 (2026-05-25): drain any payloads that fired
+        # BEFORE this widget existed (e.g. live session metadata/stats
+        # published at session start while the tab was still being built).
+        # Without this drain, the labels stuck on "--" forever.
+        event_dispatcher = getattr(self.gui, "event_dispatcher", None)
+        if event_dispatcher is not None and hasattr(event_dispatcher, "drain_pending_to_widget"):
+            try:
+                event_dispatcher.drain_pending_to_widget()
+            # except Exception justified: drain is best-effort.
+            except Exception:
+                import structlog
+
+                structlog.get_logger().debug(
+                    "analysis_widgets.drain_pending_failed",
+                    exc_info=True,
+                )
+
         if self.gui.event_bus_v2:
 
             def track_handler(data):

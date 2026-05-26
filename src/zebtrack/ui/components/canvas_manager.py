@@ -180,6 +180,23 @@ class CanvasManager:
         )
         self.update_zone_listbox(zone_data)
 
+        # Audit Erro 1 round 6 (2026-05-25): refresh the canvas overlay too,
+        # not just the listbox. Without this, after the user clicks "Concluir"
+        # the saved polygon never re-renders on the frame shown in the Análise
+        # tab — a non-live frame keeps showing the previous (auto-detected)
+        # polygon (item A1). Calling ``redraw_zones`` re-reads zone_data from
+        # the canonical project_data so the new shape lands on screen.
+        try:
+            self.redraw_zones_from_project_data(zone_data)
+            log.debug("canvas_manager.zones_updated.canvas_redrawn")
+        # except Exception justified: never let UI redraw kill the bus.
+        except Exception as exc:
+            log.warning(
+                "canvas_manager.zones_updated.redraw_failed",
+                error=str(exc),
+                exc_info=True,
+            )
+
     def _on_polygon_edit_requested(self, data: payloads.EventPayload):
         """Handle POLYGON_EDIT_REQUESTED event.
 
