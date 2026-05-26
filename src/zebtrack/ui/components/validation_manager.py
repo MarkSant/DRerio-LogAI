@@ -1241,15 +1241,23 @@ class ValidationManager:
             recorded_count=len(recorded_keys),
             videos_in_batches=len(all_videos),
         )
-        if log.isEnabledFor("debug") if hasattr(log, "isEnabledFor") else True:
-            keys_sample = sorted(recorded_keys)[:20]
-            log.debug(
-                "validation_manager.planned_placeholders.recorded_keys",
-                recorded_count=len(recorded_keys),
-                sample_size=len(keys_sample),
-                truncated=len(recorded_keys) > len(keys_sample),
-                recorded_keys=keys_sample,
-            )
+        # Audit Erro 3 round 6 (2026-05-25): pre-existing crash from round 3 —
+        # ``structlog.stdlib.BoundLogger.isEnabledFor`` forwards to the std-lib
+        # logging level cache which keys on numeric levels (logging.DEBUG=10),
+        # not the lowercase string "debug". Passing "debug" raised KeyError
+        # then TypeError on the cache fallback, killing tab construction
+        # whenever a live project was loaded — only 3 of 8 tabs ended up
+        # rendering. ``log.debug`` is cheap (structlog's filter handles it
+        # downstream), so just call it unconditionally; the keys_sample
+        # truncation we already do bounds the payload at 20 entries.
+        keys_sample = sorted(recorded_keys)[:20]
+        log.debug(
+            "validation_manager.planned_placeholders.recorded_keys",
+            recorded_count=len(recorded_keys),
+            sample_size=len(keys_sample),
+            truncated=len(recorded_keys) > len(keys_sample),
+            recorded_keys=keys_sample,
+        )
 
         for day_num in range(1, total_days + 1):
             day_id = f"Dia_{day_num}"
