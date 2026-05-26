@@ -1229,17 +1229,27 @@ class ValidationManager:
             subject_key = self._normalize_subject_session_key(subject_value)
             recorded_keys.add((group_key, day_key, subject_key))
 
-        # Audit Erro 3 round 3 (2026-05-25): diagnostic log — if the listbox
-        # still shows "Sessão planejada" after a successful recording, this
-        # tells us which keys were observed in registered videos vs which
-        # placeholder keys are being generated. Use to compare against the
-        # planner-side keys built in the loop below.
+        # Audit Erro 3 round 3 (2026-05-25): diagnostic logging — if the
+        # listbox still shows "Sessão planejada" after a successful recording,
+        # compare the recorded keys against the placeholder keys built in
+        # the loop below. Copilot review (PR #388, comment 3300599886) asked
+        # this not bloat logs on every rebuild: emit counts at INFO and the
+        # full list at DEBUG only, capped at 20 sample entries so a project
+        # with hundreds of sessions doesn't serialize the world.
         log.info(
-            "validation_manager.planned_placeholders.recorded_keys",
+            "validation_manager.planned_placeholders.summary",
             recorded_count=len(recorded_keys),
-            recorded_keys=sorted(recorded_keys),
             videos_in_batches=len(all_videos),
         )
+        if log.isEnabledFor("debug") if hasattr(log, "isEnabledFor") else True:
+            keys_sample = sorted(recorded_keys)[:20]
+            log.debug(
+                "validation_manager.planned_placeholders.recorded_keys",
+                recorded_count=len(recorded_keys),
+                sample_size=len(keys_sample),
+                truncated=len(recorded_keys) > len(keys_sample),
+                recorded_keys=keys_sample,
+            )
 
         for day_num in range(1, total_days + 1):
             day_id = f"Dia_{day_num}"

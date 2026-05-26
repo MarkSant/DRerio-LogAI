@@ -295,8 +295,18 @@ class RecordingService:
             return
 
         countdown_window = Toplevel(self.root)
-        countdown_window.overrideredirect(True)  # Remove title bar
-        countdown_window.attributes("-topmost", True)
+        # Copilot review (PR #388, comment 3300599900): overrideredirect and
+        # -topmost are not honoured on every WM (some Linux tiling WMs raise
+        # TclError, others silently ignore). Wrap so a hostile WM does not
+        # abort the entire recording start — fall back to a normal Toplevel.
+        try:
+            countdown_window.overrideredirect(True)
+        except tk.TclError:
+            log.debug("recording_service.countdown_overrideredirect_unsupported", exc_info=True)
+        try:
+            countdown_window.attributes("-topmost", True)
+        except tk.TclError:
+            log.debug("recording_service.countdown_topmost_unsupported", exc_info=True)
         countdown_label = Label(
             countdown_window, font=("Helvetica", 150, "bold"), bg="black", fg="white"
         )

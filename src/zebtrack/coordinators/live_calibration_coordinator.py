@@ -233,7 +233,7 @@ class LiveCalibrationCoordinator(BaseCoordinator):
         # === LIVE PROJECT ZONE FLOW ===
 
         zone_data = self.project_manager.get_zone_data()
-        has_zones = zone_data and zone_data.polygon
+        has_zones: bool = bool(zone_data and zone_data.polygon)
 
         # 1. If zones exist and this is not first recording, ask if want to reuse
         if has_zones and self._has_recorded_before():
@@ -1149,7 +1149,11 @@ class LiveCalibrationCoordinator(BaseCoordinator):
                 # Approximation collapsed to <3 points — keep the raw shape.
                 return [[int(p[0]), int(p[1])] for p in raw_polygon]
 
-            simplified = [[int(pt[0][0]), int(pt[0][1])] for pt in approx]
+            # ``approx`` from cv2.approxPolyDP has shape (N, 1, 2); each ``pt``
+            # is a (1, 2) ndarray. Use explicit indexing flattened via .ravel()
+            # so mypy can resolve the dtype without complaining that ``pt[0]``
+            # is already a scalar.
+            simplified = [[int(pt.ravel()[0]), int(pt.ravel()[1])] for pt in approx]
             log.info(
                 "live_calibration_coordinator.polygon_simplified",
                 raw_vertices=len(raw_polygon),

@@ -361,54 +361,68 @@ class EventDispatcher:
             event_name=str(UIEvents.UI_UPDATE_ANALYSIS_METADATA),
         )
 
-        def _on_analysis_metadata_sync(d) -> None:
-            """Backup synchronous handler — runs in the publisher's thread.
+        def _on_analysis_metadata_backup(d) -> None:
+            """Backup handler scheduled on the UI thread via ``root.after(0, ...)``.
 
-            Tkinter StringVar.set() is safe from non-UI threads on Windows
-            (just not safe to call into widget tree). Setting StringVars
-            triggers automatic propagation to bound labels via Tk's
-            variable trace, so the metadata DOES show up even from worker
-            thread.
+            Round 5 originally invoked Tkinter ``StringVar.set`` from the
+            publisher thread as a "safety net" — Copilot review (PR #388,
+            comment 3300599873) correctly flagged that this violates the
+            project rule "worker → UI must go through root.after(0, ...)"
+            and can intermittently crash/hang Tk. The backup is now also
+            UI-thread-scheduled; if the original async dispatch silently
+            fails (e.g. controller attr missing during a tab switch), this
+            second one still runs through the Tk event loop and updates the
+            StringVars from the main thread.
             """
-            try:
-                payload_metadata = _payload_get(d, "metadata") or {}
-                log.info(
-                    "event_dispatcher.analysis_metadata.sync_backup_invoked",
-                    has_data=bool(payload_metadata),
-                    keys=list(payload_metadata.keys())
-                    if isinstance(payload_metadata, dict)
-                    else None,
-                )
-                widget = getattr(self.gui, "analysis_display_widget", None)
-                if widget is None:
-                    log.warning("event_dispatcher.analysis_metadata.sync_widget_missing")
-                    return
-                group = payload_metadata.get("group") or "Sem Grupo"
-                day = payload_metadata.get("day") or payload_metadata.get("day_label") or "Sem Dia"
-                subject = (
-                    payload_metadata.get("subject")
-                    or payload_metadata.get("subject_id")
-                    or "Não informado"
-                )
-                if hasattr(widget, "set_metadata"):
-                    widget.set_metadata(
-                        group=str(group),
-                        day=str(day),
-                        subject=str(subject),
+
+            def _apply(payload=d) -> None:
+                try:
+                    payload_metadata = _payload_get(payload, "metadata") or {}
+                    log.info(
+                        "event_dispatcher.analysis_metadata.backup_invoked",
+                        has_data=bool(payload_metadata),
+                        keys=list(payload_metadata.keys())
+                        if isinstance(payload_metadata, dict)
+                        else None,
                     )
-                profile = payload_metadata.get("profile") or "default"
-                if hasattr(widget, "set_profile"):
-                    widget.set_profile(str(profile))
-            except Exception as exc:
-                log.error(
-                    "event_dispatcher.analysis_metadata.sync_backup_failed",
-                    error=str(exc),
-                    exc_info=True,
-                )
+                    widget = getattr(self.gui, "analysis_display_widget", None)
+                    if widget is None:
+                        log.warning("event_dispatcher.analysis_metadata.backup_widget_missing")
+                        return
+                    group = payload_metadata.get("group") or "Sem Grupo"
+                    day = (
+                        payload_metadata.get("day")
+                        or payload_metadata.get("day_label")
+                        or "Sem Dia"
+                    )
+                    subject = (
+                        payload_metadata.get("subject")
+                        or payload_metadata.get("subject_id")
+                        or "Não informado"
+                    )
+                    if hasattr(widget, "set_metadata"):
+                        widget.set_metadata(
+                            group=str(group),
+                            day=str(day),
+                            subject=str(subject),
+                        )
+                    profile = payload_metadata.get("profile") or "default"
+                    if hasattr(widget, "set_profile"):
+                        widget.set_profile(str(profile))
+                # except Exception justified: backup must surface failure to
+                # logs rather than abort the publish.
+                except Exception as exc:
+                    log.error(
+                        "event_dispatcher.analysis_metadata.backup_failed",
+                        error=str(exc),
+                        exc_info=True,
+                    )
+
+            self._run_on_ui_thread(_apply)
 
         event_bus.subscribe(
             UIEvents.UI_UPDATE_ANALYSIS_METADATA,
-            _on_analysis_metadata_sync,
+            _on_analysis_metadata_backup,
         )
         event_bus.subscribe(
             UIEvents.UI_UPDATE_SOCIAL_SUMMARY,
