@@ -474,11 +474,135 @@ class VisualizationGenerator:
         ax.set_aspect("equal", adjustable="box")
         return fig
 
-    def generate_heatmap(self, ax: Axes | None = None) -> Figure:
+    def _draw_background_frame(
+        self,
+        ax: Axes,
+        video_path: Path | str | None,
+        calibration,
+    ) -> None:
+        """Render the first frame of ``video_path`` beneath ``ax`` content.
+
+        Audit Erro 3 round 4 (2026-05-25): factored from
+        ``generate_roi_reference_plot`` so multiple plots can share the
+        same video-frame compositing logic. No-op when ``video_path`` is
+        falsy / missing / unreadable (logged via ``roi_reference.background_skipped``
+        for traceability).
+        """
+        if not video_path:
+            log.info("roi_reference.background_skipped", reason="video_path_is_empty")
+            return
+        if not Path(video_path).exists():
+            log.warning(
+                "roi_reference.background_skipped",
+                reason="video_path_does_not_exist",
+                video_path=str(video_path),
+            )
+            return
+
+        cap = None
+        try:
+            suffix = str(video_path).lower()
+            if suffix.endswith((".png", ".jpg", ".jpeg", ".bmp", ".tif", ".tiff")):
+                frame = cv2.imdecode(np.fromfile(str(video_path), dtype=np.uint8), cv2.IMREAD_COLOR)
+            else:
+                backends_to_try = [cv2.CAP_ANY]
+                if hasattr(cv2, "CAP_FFMPEG"):
+                    backends_to_try = [cv2.CAP_FFMPEG, cv2.CAP_ANY]
+                frame = None
+                for backend in backends_to_try:
+                    cap = cv2.VideoCapture(str(video_path), backend)
+                    if cap.isOpened():
+                        ret, frame = cap.read()
+                        cap.release()
+                        cap = None
+                        if ret and frame is not None:
+                            break
+                        frame = None
+
+            if frame is None:
+                log.warning(
+                    "roi_reference.background_skipped",
+                    reason="video_capture_returned_no_frame",
+                    video_path=str(video_path),
+                )
+                return
+
+            if calibration and hasattr(calibration, "warp_frame"):
+                warped = calibration.warp_frame(frame)
+                if warped is None:
+                    log.warning(
+                        "roi_reference.background_skipped",
+                        reason="calibration_warp_returned_none",
+                        video_path=str(video_path),
+                    )
+                    return
+                frame = warped
+
+            px_per_cm_x = getattr(self.b_analyzer, "_pixelcm_x", 1.0) or 1.0
+            px_per_cm_y = getattr(self.b_analyzer, "_pixelcm_y", 1.0) or 1.0
+            video_height_px = getattr(self.b_analyzer, "_video_height_px", 0) or 0
+
+            crop_x_offset = 0
+            crop_y_offset = 0
+            is_image_file = suffix.endswith((".png", ".jpg", ".jpeg", ".bmp", ".tif", ".tiff"))
+            if self.frame_crop_box and not is_image_file:
+                x_crop, y_crop, w_crop, h_crop = self.frame_crop_box
+                x_crop = max(0, int(x_crop))
+                y_crop = max(0, int(y_crop))
+                w_crop = max(1, int(w_crop))
+                h_crop = max(1, int(h_crop))
+                x2 = min(frame.shape[1], x_crop + w_crop)
+                y2 = min(frame.shape[0], y_crop + h_crop)
+                frame = frame[y_crop:y2, x_crop:x2]
+                crop_x_offset = x_crop
+                crop_y_offset = y_crop
+
+            frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            frame_rgb = cv2.flip(frame_rgb, 0)
+
+            frame_height_px = frame.shape[0]
+            frame_width_px = frame.shape[1]
+
+            x_left_cm = crop_x_offset / px_per_cm_x
+            x_right_cm = (crop_x_offset + frame_width_px) / px_per_cm_x
+            y_bottom_orig_px = crop_y_offset + frame_height_px
+            y_bottom_cm = (video_height_px - y_bottom_orig_px) / px_per_cm_y
+            if y_bottom_cm < 0:
+                y_bottom_cm = 0
+            y_top_cm = y_bottom_cm + (frame_height_px / px_per_cm_y)
+
+            ax.imshow(
+                frame_rgb,
+                extent=(x_left_cm, x_right_cm, y_bottom_cm, y_top_cm),
+                aspect="equal",
+                zorder=0,
+            )
+        except Exception as e:
+            log.warning(
+                "roi_reference.background_failed",
+                video_path=str(video_path),
+                error=str(e),
+            )
+        finally:
+            if cap:
+                cap.release()
+
+    def generate_heatmap(
+        self,
+        ax: Axes | None = None,
+        video_path: Path | str | None = None,
+        calibration=None,
+    ) -> Figure:
         """Generate occupancy heatmap.
 
         Args:
             ax: Matplotlib Axes to plot on (optional, creates new if None)
+            video_path: Path to source video; if provided, the first frame
+                is rendered beneath the heatmap as semi-transparent context
+                (audit Erro 3 round 4, 2026-05-25 — user requested visual
+                context for the density overlay).
+            calibration: Calibration with optional ``warp_frame`` method to
+                undo perspective distortion before compositing.
 
         Returns:
             matplotlib.figure.Figure: Generated figure
@@ -498,6 +622,11 @@ class VisualizationGenerator:
         ax = ax or fig.add_subplot(111)
         ax.clear()
 
+        # Audit Erro 3 round 4 (2026-05-25): draw the video frame beneath
+        # the heatmap so the user sees WHERE the density falls in the real
+        # aquarium. Heatmap uses alpha to stay legible above the frame.
+        self._draw_background_frame(ax, video_path, calibration)
+
         heatmap, xedges, yedges = np.histogram2d(
             x, y, bins=50, range=[[min_x, max_x], [min_y, max_y]]
         )
@@ -513,6 +642,7 @@ class VisualizationGenerator:
             cmap="hot",
             origin="lower",
             extent=extent,
+            alpha=0.6 if video_path else 1.0,
         )
 
         # Draw Geotaxis Zones
@@ -586,6 +716,22 @@ class VisualizationGenerator:
         # ==================================================================
         # NEW: Add video background if video_path is provided
         # ==================================================================
+        # Audit Erro 6 follow-up (2026-05-25): the silent-skip when
+        # ``video_path`` is missing or absent on disk was hiding the most
+        # common failure mode for live recordings. Log explicitly so the
+        # user (and future debugging sessions) can tell whether the path
+        # was None, didn't exist, or failed to load.
+        if not video_path:
+            log.info(
+                "roi_reference.background_skipped",
+                reason="video_path_is_empty",
+            )
+        elif not Path(video_path).exists():
+            log.warning(
+                "roi_reference.background_skipped",
+                reason="video_path_does_not_exist",
+                video_path=str(video_path),
+            )
         if video_path and Path(video_path).exists():
             cap = None
             frame = None
@@ -620,12 +766,24 @@ class VisualizationGenerator:
                                     cap.release()
                                     cap = None
 
+                if frame is None:
+                    log.warning(
+                        "roi_reference.background_skipped",
+                        reason="video_capture_returned_no_frame",
+                        video_path=str(video_path),
+                    )
                 if frame is not None:
                     # Apply warp if calibration is available
                     if calibration and hasattr(calibration, "warp_frame"):
-                        frame = calibration.warp_frame(frame)
-                    if frame is None:
-                        return fig
+                        warped = calibration.warp_frame(frame)
+                        if warped is None:
+                            log.warning(
+                                "roi_reference.background_skipped",
+                                reason="calibration_warp_returned_none",
+                                video_path=str(video_path),
+                            )
+                            return fig
+                        frame = warped
                     frame = cast(np.ndarray, frame)
 
                     # Track crop offset for extent calculation

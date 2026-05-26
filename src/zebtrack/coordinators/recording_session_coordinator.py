@@ -390,6 +390,21 @@ class RecordingSessionCoordinator(BaseCoordinator):
                 duration=None,
             )
 
+            # Invalidate the VideoManager scan cache so the next refresh
+            # picks up the newly written 1_ProcessingArea_*.parquet for the
+            # just-stopped recording. Without this, has_arena stays False for
+            # up to TTL (30 s) and "Controle Principal" shows trajectory ✓
+            # but arena ✗ — audit Erro 3 (2026-05-25).
+            try:
+                from zebtrack.core.project.video_manager import VideoManager
+
+                VideoManager.clear_scan_cache()
+            except Exception:
+                log.debug(
+                    "recording_session_coordinator.scan_cache_invalidate.failed",
+                    exc_info=True,
+                )
+
             # Publish events
             self._publish_event(UIEvents.RECORDING_STOPPED, payloads.EmptyPayload())
             if self.event_bus:

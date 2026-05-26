@@ -691,6 +691,30 @@ class FrameProcessingMixin:
                             ),
                         ),
                     )
+
+                    # Audit Erro 7b follow-up (2026-05-25): publish progress
+                    # stats so the "Análise de Vídeo" tab labels (Total/
+                    # Processados/Detectados/Tempo) reflect the live session
+                    # instead of staying at "-". Live recording has no fixed
+                    # ``total_frames``, so we publish the running count and
+                    # ``start_time`` — the StateSynchronizer formats elapsed
+                    # from there. Throttled to display frames (we're already
+                    # inside the should_display branch).
+                    if detections:
+                        self._live_detected_frames = getattr(self, "_live_detected_frames", 0) + 1
+                    live_stats: dict[str, Any] = {
+                        "processed_frames": int(frame_number),
+                        "detected_frames": int(getattr(self, "_live_detected_frames", 0)),
+                    }
+                    if self.recorder and self.recorder.start_time:
+                        live_stats["start_time"] = self.recorder.start_time
+                    self.event_bus.publish(
+                        Event(
+                            type=UIEvents.UI_UPDATE_PROCESSING_STATS,
+                            data=payloads.ProcessingStatsWrapperPayload(stats=live_stats),
+                            source="frame_processing_pipeline.live_progress",
+                        )
+                    )
                 elif (
                     should_display
                     and not self._use_external_preview

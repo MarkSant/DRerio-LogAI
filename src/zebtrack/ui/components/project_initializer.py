@@ -51,15 +51,18 @@ class ProjectInitializer:
         # Bind tab change event to hide analysis overlay when switching tabs
         gui.notebook.bind("<<NotebookTabChanged>>", gui.zone_edit_guard.on_tab_changed)
 
-        # Create the tabs
+        # Create the tabs in the user-facing workflow order:
+        # 1) Controle Principal → 2) Progresso (live) → 3) Processamento e Relatório →
+        # 4) Configuração de Zonas → 5) Análise de Vídeo →
+        # 6) Config. Modelo IA → 7) Diagnóstico Modelo IA → 8) Config. Avançadas
         gui.tab_builder.build_main_controls_tab()
-        gui.tab_builder.build_model_configuration_tab()
-        gui.tab_builder.build_diagnostics_tab()
         if gui.controller.project_manager.get_project_type() == "live":
             gui.widget_factory.create_progress_grid_tab()
-        gui.tab_builder.build_zone_tab()
         gui.tab_builder.build_processing_reports_tab()  # New unified tab
+        gui.tab_builder.build_zone_tab()
         gui.tab_builder.build_analysis_tab()
+        gui.tab_builder.build_model_configuration_tab()
+        gui.tab_builder.build_diagnostics_tab()
         gui.tab_builder.build_configuration_tab()
 
         gui._last_selected_tab_id = gui.notebook.select()

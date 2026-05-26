@@ -393,8 +393,17 @@ class OutputRegistrationManager:
             # Always overwrite — the source reflects the most recent recording.
             metadata["polygon_source"] = polygon_source
 
-        # Update flags, parquet mapping and persist as needed using helpers
-        self._update_entry_zone_flags(video_entry, video_path_str, get_zone_data_fn)
+        # Update flags, parquet mapping and persist as needed using helpers.
+        # Pass results_dir so the disk-fallback can pick up the arena/ROI
+        # parquet files written by the live recorder under
+        # ``live_analysis_sessions/<session>/`` even when in-memory zones are
+        # keyed by the reference-frame path rather than the recorded MP4 path.
+        self._update_entry_zone_flags(
+            video_entry,
+            video_path_str,
+            get_zone_data_fn,
+            results_dir=results_dir,
+        )
         if results_dir:
             video_entry["results_dir"] = Path(results_dir).as_posix()
 
@@ -430,18 +439,56 @@ class OutputRegistrationManager:
         video_entry: dict,
         video_path: Path | str,
         get_zone_data_fn: Callable[..., Any],
+        results_dir: Path | str | None = None,
     ) -> None:
-        """Update has_arena/has_rois flags from zone data when missing."""
+        """Update has_arena/has_rois flags from zone data when missing.
+
+        For live recordings, ``get_zone_data(video_path)`` returns nothing
+        because the zones were saved under the ``live_camera_reference_frame.png``
+        key, not under the freshly-recorded MP4 path. As a fallback, scan
+        ``results_dir`` for the ``1_ProcessingArea_*.parquet`` /
+        ``2_AreasOfInterest_*.parquet`` files the recorder writes — audit
+        Erro 3 follow-up (2026-05-25). Without this, "Controle Principal"
+        keeps showing 🧭 trajectory but no 🏟 arena even after a successful
+        live recording.
+        """
         video_path = str(video_path) if isinstance(video_path, Path) else video_path
         zone_data = get_zone_data_fn(video_path, fallback_to_global=False)
-        if not zone_data:
-            return
-        if zone_data.polygon and not video_entry.get("has_arena"):
-            video_entry["has_arena"] = True
-            log.info("project.outputs.arena_flag_updated", video=video_path)
-        if zone_data.roi_polygons and not video_entry.get("has_rois"):
-            video_entry["has_rois"] = True
-            log.info("project.outputs.rois_flag_updated", video=video_path)
+        if zone_data:
+            if zone_data.polygon and not video_entry.get("has_arena"):
+                video_entry["has_arena"] = True
+                log.info("project.outputs.arena_flag_updated", video=video_path)
+            if zone_data.roi_polygons and not video_entry.get("has_rois"):
+                video_entry["has_rois"] = True
+                log.info("project.outputs.rois_flag_updated", video=video_path)
+
+        # Disk-based fallback for live recordings (and any case where the
+        # zone_data lookup misses but the parquet was already written).
+        if results_dir and not (video_entry.get("has_arena") and video_entry.get("has_rois")):
+            results_path = Path(results_dir)
+            if results_path.exists():
+                if not video_entry.get("has_arena"):
+                    arena_hits = list(results_path.glob("1_ProcessingArea_*.parquet"))
+                    if arena_hits:
+                        video_entry["has_arena"] = True
+                        video_entry.setdefault("parquet_files", {})["arena"] = arena_hits[
+                            0
+                        ].as_posix()
+                        log.info(
+                            "project.outputs.arena_flag_from_disk",
+                            video=video_path,
+                            arena_parquet=arena_hits[0].as_posix(),
+                        )
+                if not video_entry.get("has_rois"):
+                    roi_hits = list(results_path.glob("2_AreasOfInterest_*.parquet"))
+                    if roi_hits:
+                        video_entry["has_rois"] = True
+                        video_entry.setdefault("parquet_files", {})["rois"] = roi_hits[0].as_posix()
+                        log.info(
+                            "project.outputs.rois_flag_from_disk",
+                            video=video_path,
+                            rois_parquet=roi_hits[0].as_posix(),
+                        )
 
     @staticmethod
     def _update_parquet_files_and_status(

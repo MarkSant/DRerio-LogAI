@@ -1229,6 +1229,18 @@ class ValidationManager:
             subject_key = self._normalize_subject_session_key(subject_value)
             recorded_keys.add((group_key, day_key, subject_key))
 
+        # Audit Erro 3 round 3 (2026-05-25): diagnostic log — if the listbox
+        # still shows "Sessão planejada" after a successful recording, this
+        # tells us which keys were observed in registered videos vs which
+        # placeholder keys are being generated. Use to compare against the
+        # planner-side keys built in the loop below.
+        log.info(
+            "validation_manager.planned_placeholders.recorded_keys",
+            recorded_count=len(recorded_keys),
+            recorded_keys=sorted(recorded_keys),
+            videos_in_batches=len(all_videos),
+        )
+
         for day_num in range(1, total_days + 1):
             day_id = f"Dia_{day_num}"
             day_label = f"Dia {day_num:02d}"

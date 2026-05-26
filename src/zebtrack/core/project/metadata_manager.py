@@ -92,7 +92,7 @@ class MetadataManager:
     @staticmethod
     def get_metadata_for_experiment(
         experiment_id: str | None,
-        video_path: str | None = None,
+        video_path: Path | str | None = None,
         *,
         metadata_df: Any | None,
         project_data: dict[str, Any],
@@ -312,36 +312,168 @@ class MetadataManager:
         # Pattern 1: New format - day{day}_{group}_{subject}_{timestamp}
         pattern_new = re.compile(r"^day(\d+)_(.+)_(\d+)_\d{8}_\d{6}$")
 
+        # Pattern 1b: Without trailing timestamp (older live recorder output)
+        pattern_new_no_ts = re.compile(r"^day(\d+)_(.+)_(\d+)$")
+
         # Pattern 2: Legacy format - D{day}_G{group}_S{subject}
         pattern_legacy = re.compile(r"^D(\d+)_G(.+)_S(\d+)$")
 
+        def _match_and_add(entry_name: str) -> None:
+            """Try every pattern against ``entry_name`` (directory basename);
+            add to ``completed`` if matched. Parameter is just a name string,
+            not a path — the project-wide path-consistency hook would flag
+            ``folder_name`` here even though no filesystem access happens."""
+            for pattern in (pattern_new, pattern_new_no_ts):
+                m = pattern.match(entry_name)
+                if m:
+                    try:
+                        completed.add((int(m.group(1)), m.group(2), m.group(3)))
+                    except (ValueError, IndexError):
+                        log.debug(
+                            "project.scan.new_format_parse_error",
+                            name=entry_name,
+                            exc_info=True,
+                        )
+                    return
+            legacy_m = pattern_legacy.match(entry_name)
+            if legacy_m:
+                try:
+                    completed.add(
+                        (int(legacy_m.group(1)), legacy_m.group(2), str(legacy_m.group(3)))
+                    )
+                except (ValueError, IndexError):
+                    log.warning("project.scan.invalid_folder_name", name=entry_name)
+
+        # Scan project root for session folders.
         for item in os.scandir(project_path):
-            if not item.is_dir():
-                continue
+            if item.is_dir():
+                _match_and_add(item.name)
 
-            match = pattern_new.match(item.name)
-            if match:
-                try:
-                    day = int(match.group(1))
-                    group_name = match.group(2)
-                    subject_id = match.group(3)
-                    completed.add((day, group_name, subject_id))
-                    continue
-                except (ValueError, IndexError):
-                    log.debug("project.scan.new_format_parse_error", name=item.name, exc_info=True)
+        # Audit Erro 2 follow-up (2026-05-25): also scan the legacy live
+        # recorder output directory. ``LiveSessionManager`` writes new live
+        # sessions under ``<project>/live_analysis_sessions/<folder>/`` when
+        # the caller does not specify a hierarchical ``output_base_dir``, so
+        # the session folders never appear at the project root and the
+        # Progresso grid stays stuck on "pending" forever.
+        live_dir = Path(project_path) / "live_analysis_sessions"
+        if live_dir.exists() and live_dir.is_dir():
+            for item in os.scandir(live_dir):
+                if item.is_dir():
+                    _match_and_add(item.name)
 
-            match = pattern_legacy.match(item.name)
-            if match:
-                try:
-                    day = int(match.group(1))
-                    group_name = match.group(2)
-                    subject_id = str(match.group(3))
-                    completed.add((day, group_name, subject_id))
-                except (ValueError, IndexError):
-                    log.warning("project.scan.invalid_folder_name", name=item.name)
-                    continue
+        # Audit Erro 2 follow-up round 3 (2026-05-25): the modern live flow
+        # uses a hierarchical layout — ``<project>/Grupo_X/Dia_Y/Sujeito_Z/
+        # live_<ts>/`` — where the leaf folder name carries no metadata. We
+        # must extract day/group/subject from the path SEGMENTS instead.
+        # Without this, the Progresso grid never recognises hierarchical
+        # sessions as completed even after clicking "Atualizar Grade".
+        MetadataManager._scan_hierarchical_live_sessions(Path(project_path), completed)
 
         return completed
+
+    @staticmethod
+    def _scan_hierarchical_live_sessions(
+        project_root: Path, completed: set[tuple[int, str, str]]
+    ) -> None:
+        """Add completed sessions from ``Grupo_X/Dia_Y/Sujeito_Z/<session>/``.
+
+        Extracted from ``get_completed_sessions`` to keep cyclomatic
+        complexity below the project ruff threshold. Mutates ``completed``
+        in place.
+        """
+        group_re = re.compile(r"^Grupo_(.+)$")
+        day_re = re.compile(r"^Dia_0*(\d+)$")
+        subject_re = re.compile(r"^Sujeito_0*(\d+)$")
+        try:
+            group_entries = list(os.scandir(project_root))
+        except OSError:
+            log.debug(
+                "project.scan.hierarchical_root_scan_failed",
+                project_path=str(project_root),
+                exc_info=True,
+            )
+            return
+        for group_entry in group_entries:
+            if not group_entry.is_dir():
+                continue
+            group_match = group_re.match(group_entry.name)
+            if not group_match:
+                continue
+            MetadataManager._scan_hierarchical_group(
+                Path(group_entry.path), group_match.group(1), day_re, subject_re, completed
+            )
+
+    @staticmethod
+    def _scan_hierarchical_group(
+        group_dir: Path,
+        group_name: str,
+        day_re: re.Pattern[str],
+        subject_re: re.Pattern[str],
+        completed: set[tuple[int, str, str]],
+    ) -> None:
+        try:
+            day_entries = list(os.scandir(group_dir))
+        except OSError:
+            return
+        for day_entry in day_entries:
+            if not day_entry.is_dir():
+                continue
+            day_match = day_re.match(day_entry.name)
+            if not day_match:
+                continue
+            try:
+                day_num = int(day_match.group(1))
+            except ValueError:
+                continue
+            MetadataManager._scan_hierarchical_day(
+                Path(day_entry.path), day_num, group_name, subject_re, completed
+            )
+
+    @staticmethod
+    def _scan_hierarchical_day(
+        day_dir: Path,
+        day_num: int,
+        group_name: str,
+        subject_re: re.Pattern[str],
+        completed: set[tuple[int, str, str]],
+    ) -> None:
+        try:
+            subject_entries = list(os.scandir(day_dir))
+        except OSError:
+            return
+        for subject_entry in subject_entries:
+            if not subject_entry.is_dir():
+                continue
+            subject_match = subject_re.match(subject_entry.name)
+            if not subject_match:
+                continue
+            if MetadataManager._subject_dir_has_session(Path(subject_entry.path)):
+                completed.add((day_num, group_name, subject_match.group(1)))
+
+    @staticmethod
+    def _subject_dir_has_session(subject_dir: Path) -> bool:
+        """A subject folder counts as completed iff at least one nested
+        session folder contains a trajectory or arena parquet AND is not
+        marked as cancelled (``.cancelled`` marker file — audit Erro 1
+        round 4, 2026-05-25)."""
+        try:
+            for session_entry in os.scandir(subject_dir):
+                if not session_entry.is_dir():
+                    continue
+                session_path = Path(session_entry.path)
+                if (session_path / ".cancelled").exists():
+                    continue
+                if any(session_path.glob("3_CoordMovimento_*.parquet")):
+                    return True
+                if any(session_path.glob("1_ProcessingArea_*.parquet")):
+                    return True
+        except OSError:
+            log.debug(
+                "project.scan.hierarchical_session_scan_failed",
+                subject_dir=str(subject_dir),
+                exc_info=True,
+            )
+        return False
 
     @staticmethod
     def save_last_session_details(

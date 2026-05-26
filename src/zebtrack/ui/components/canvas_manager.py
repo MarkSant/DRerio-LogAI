@@ -190,6 +190,20 @@ class CanvasManager:
         polygon = _payload_get(data, "polygon")
         if polygon is not None:
             self.setup_interactive_polygon(polygon)
+            # Audit Erro 1 round 5 (2026-05-25): mark arena as the active
+            # editing zone so ``_on_conclude_video`` recognises the edit and
+            # publishes ZONE_SAVE_ARENA. Without this flag, even after the
+            # user drags vertices the conclude flow keeps the polygon flagged
+            # as "not editing" and silently keeps the original auto-detected
+            # shape on the recording / Analysis tab.
+            self.current_editing_zone = "arena"
+            if self.gui is not None:
+                self.gui.current_editing_zone = "arena"
+            log.info(
+                "canvas_manager.polygon_edit.current_zone_marked",
+                zone="arena",
+                vertices=len(polygon) if hasattr(polygon, "__len__") else None,
+            )
 
     def _on_live_frame_update(self, data: payloads.EventPayload):
         """Handle UI_UPDATE_LIVE_FRAME event from LiveCameraService.

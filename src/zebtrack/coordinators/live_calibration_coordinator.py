@@ -212,7 +212,7 @@ class LiveCalibrationCoordinator(BaseCoordinator):
     # ZONE VALIDATION
     # =============================================================================
 
-    def ensure_zones_before_recording(self) -> bool:
+    def ensure_zones_before_recording(self) -> bool:  # noqa: C901
         """Ensure project zones are defined before starting recording.
 
         New implementation uses ZoneCalibrationDialog and ZoneReuseDialog
@@ -255,7 +255,43 @@ class LiveCalibrationCoordinator(BaseCoordinator):
             if result and result.get("reuse"):
                 log.info("live_calibration_coordinator.zones.reused")
                 return True
-            # If not reusing, continue to redefinition flow
+
+            # Audit Erro 7 round 4 (2026-05-25): when user picks "Redefinir"
+            # in ZoneReuseDialog we must actively wipe the existing zones
+            # so the branch below (which depends on ``has_zones``) opens
+            # ZoneCalibrationDialog → triggers a fresh autodetection. The
+            # previous code just commented "continue to redefinition flow"
+            # but never cleared ``has_zones``, so the condition stayed False
+            # and the function fell through to ``return None`` (cancel).
+            if result is not None and not result.get("reuse"):
+                log.info("live_calibration_coordinator.zones.redefining")
+                # Clear in-memory zones so the next condition opens the
+                # calibration dialog. Use the active zone video key so the
+                # zones_by_video entry is wiped along with the global
+                # detection_zones (preserved by clear_zone_data_for_video).
+                try:
+                    active_video = self.project_manager.get_active_zone_video()
+                    if active_video:
+                        self.project_manager.clear_zone_data_for_video(active_video, persist=True)
+                    # Also clear the global so has_zones below evaluates False.
+                    pd = self.project_manager.project_data
+                    if isinstance(pd, dict):
+                        pd["detection_zones"] = {
+                            "polygon": [],
+                            "roi_polygons": [],
+                            "roi_names": [],
+                            "roi_colors": [],
+                            "metadata": {},
+                        }
+                # except Exception justified: defensive — clearing must not
+                # cancel the redefinition path.
+                except Exception:
+                    log.warning(
+                        "live_calibration_coordinator.zones.redefine_clear_failed",
+                        exc_info=True,
+                    )
+                # Recompute the gate so the calibration-dialog branch below runs.
+                has_zones = False
 
         # 2. Ask user how to define zones (auto vs manual)
         if not has_zones or (has_zones and not self._has_recorded_before()):
@@ -308,6 +344,48 @@ class LiveCalibrationCoordinator(BaseCoordinator):
                                 data=payloads.EmptyPayload(),
                             )
                         )
+                        # Audit Erro 7 round 4 (2026-05-25): UI_UPDATE_ZONE_LIST
+                        # only refreshes the SIDEBAR listbox; the polygon
+                        # overlay over the reference frame needs an explicit
+                        # UI_REDRAW_ZONES so ``renderer.redraw_zones`` runs.
+                        # Without this the user sees the new frame WITHOUT the
+                        # auto-detected polygon and assumes detection failed.
+                        self.event_bus.publish(
+                            Event(
+                                type=UIEvents.UI_REDRAW_ZONES,
+                                data=payloads.ZonesUpdatedPayload(zone_data=None),
+                            )
+                        )
+
+                        # Audit Erro 9 round 4 (2026-05-25): immediately enter
+                        # polygon vertex-edit mode on the auto-detected arena
+                        # so the user can refine drag/snap vertices without
+                        # having to right-click → "Editar polígono". Mirrors
+                        # the manual edit flow in zone_editor.py:447-466.
+                        try:
+                            zone_data = self.project_manager.get_zone_data()
+                            polygon = (zone_data.polygon if zone_data else None) or []
+                            if polygon:
+                                import numpy as np
+
+                                self.event_bus.publish(
+                                    Event(
+                                        type=UIEvents.POLYGON_EDIT_REQUESTED,
+                                        data=payloads.PolygonEditRequestedPayload(
+                                            polygon=np.array(polygon)
+                                        ),
+                                        source="LiveCalibrationCoordinator.auto_detect.success",
+                                    )
+                                )
+                                log.info(
+                                    "live_calibration_coordinator.auto_edit_mode.triggered",
+                                    polygon_vertices=len(polygon),
+                                )
+                        except Exception:
+                            log.debug(
+                                "live_calibration_coordinator.auto_edit_mode.failed",
+                                exc_info=True,
+                            )
                         self.event_bus.publish(
                             Event(
                                 type=UIEvents.UI_SHOW_INFO,
@@ -486,6 +564,37 @@ class LiveCalibrationCoordinator(BaseCoordinator):
         # user-rejected path below.
         self._last_calibration_cancelled = False
 
+        # Audit Erro 4 (2026-05-25): wipe any polygon that a previous live
+        # session persisted under the static ``live_camera_reference_frame.png``
+        # key in ``zones_by_video``, UNLESS the user explicitly opted into
+        # template reuse for the next autodetections. Without this, a
+        # concluded polygon from a past video would render on the canvas the
+        # moment we publish UI_DISPLAY_VIDEO_FRAME for the new burst's
+        # reference frame, giving the impression that detection "remembered"
+        # the old shape.
+        try:
+            pre_run_project_data = self.project_manager.project_data or {}
+            template_present = bool(
+                (pre_run_project_data.get("arena_template") or {}).get("polygon")
+            )
+            if not template_present:
+                ref_key = os.path.join(
+                    str(self.project_manager.project_path or ""),
+                    "live_camera_reference_frame.png",
+                )
+                zones_map = pre_run_project_data.get("zones_by_video", {})
+                if ref_key in zones_map:
+                    del zones_map[ref_key]
+                    log.info(
+                        "live_calibration_coordinator.stale_polygon.cleared",
+                        ref_key=ref_key,
+                    )
+        except Exception:
+            log.debug(
+                "live_calibration_coordinator.stale_polygon.clear_failed",
+                exc_info=True,
+            )
+
         # Initialize camera if necessary
         if not self.camera or not hasattr(self.camera, "is_open") or not self.camera.is_open:
             try:
@@ -605,58 +714,71 @@ class LiveCalibrationCoordinator(BaseCoordinator):
         preserve_real_shape = bool(project_data.get("preserve_real_aquarium_shape", False))
         self._calibration_preserve_real_shape = preserve_real_shape
 
-        try:
-            detected_polygons = self._detect_polygon_on_burst(
-                detector=detector,
-                frames=frames,
-                confidence=initial_confidence,
-                preserve_real_shape=preserve_real_shape,
+        # Audit Erro 4 (2026-05-25): if the user previously opted into
+        # "Reaproveitar este polígono em próximas autodetecções", reuse the
+        # saved template polygon as the detection output. The user still
+        # sees the preview dialog and can fine-tune it for this video.
+        template = project_data.get("arena_template") or {}
+        template_polygon = template.get("polygon") if isinstance(template, dict) else None
+        if template_polygon:
+            log.info(
+                "live_calibration_coordinator.live_calibration.template_reused",
+                points=len(template_polygon),
             )
+            detected_polygons = [[list(point) for point in template_polygon]]
+        else:
+            try:
+                detected_polygons = self._detect_polygon_on_burst(
+                    detector=detector,
+                    frames=frames,
+                    confidence=initial_confidence,
+                    preserve_real_shape=preserve_real_shape,
+                )
 
-        except Exception as e:  # except Exception justified: ML inference heterogeneous errors
-            log.error(
-                "live_calibration_coordinator.live_calibration.detection_failed",
-                error=str(e),
-                exc_info=True,
-            )
+            except Exception as e:  # except Exception justified: ML inference heterogeneous errors
+                log.error(
+                    "live_calibration_coordinator.live_calibration.detection_failed",
+                    error=str(e),
+                    exc_info=True,
+                )
 
-            self._release_calibration_camera(reason="detection_exception")
+                self._release_calibration_camera(reason="detection_exception")
 
-            # Fallback: Save and display the last captured frame for manual drawing
-            if frames:
-                try:
-                    reference_path = os.path.join(
-                        str(self.project_manager.project_path or ""),
-                        "live_camera_reference_frame.png",
-                    )
-                    cv2.imwrite(reference_path, frames[-1])
-
-                    if self.event_bus:
-                        self.event_bus.publish(
-                            Event(
-                                type=UIEvents.UI_DISPLAY_VIDEO_FRAME,
-                                data=VideoPathPayload(video_path=reference_path),
-                            )
+                # Fallback: Save and display the last captured frame for manual drawing
+                if frames:
+                    try:
+                        reference_path = os.path.join(
+                            str(self.project_manager.project_path or ""),
+                            "live_camera_reference_frame.png",
                         )
-                        self.event_bus.publish(
-                            Event(
-                                type=UIEvents.UI_SHOW_WARNING,
-                                data=payloads.MessagePayload(
-                                    title="Erro na Detecção",
-                                    message=(
-                                        f"Erro durante a detecção automática: {e!s}\n\n"
-                                        "A imagem capturada foi carregada para desenho manual."
+                        cv2.imwrite(reference_path, frames[-1])
+
+                        if self.event_bus:
+                            self.event_bus.publish(
+                                Event(
+                                    type=UIEvents.UI_DISPLAY_VIDEO_FRAME,
+                                    data=VideoPathPayload(video_path=reference_path),
+                                )
+                            )
+                            self.event_bus.publish(
+                                Event(
+                                    type=UIEvents.UI_SHOW_WARNING,
+                                    data=payloads.MessagePayload(
+                                        title="Erro na Detecção",
+                                        message=(
+                                            f"Erro durante a detecção automática: {e!s}\n\n"
+                                            "A imagem capturada foi carregada para desenho manual."
+                                        ),
                                     ),
-                                ),
+                                )
                             )
+                    except OSError as fallback_err:
+                        log.error(
+                            "live_calibration_coordinator.live_calibration.fallback_failed",
+                            error=str(fallback_err),
                         )
-                except OSError as fallback_err:
-                    log.error(
-                        "live_calibration_coordinator.live_calibration.fallback_failed",
-                        error=str(fallback_err),
-                    )
 
-            return False
+                return False
 
         if not detected_polygons or len(detected_polygons) == 0:
             log.warning("live_calibration_coordinator.live_calibration.no_polygon_detected")
@@ -786,22 +908,22 @@ class LiveCalibrationCoordinator(BaseCoordinator):
             )
             cv2.imwrite(reference_frame_path, frames[-1])
 
-            # Save zones under TWO keys so the active-video machinery and the
-            # canonical "live_camera" lookup both find them:
+            # IN-MEMORY ONLY (persist=False) — audit Erro 4 (2026-05-25).
             #
-            #   - ``reference_frame_path``: this is what ``display_roi_video_frame``
-            #     passes to ``set_active_zone_video`` when handling
-            #     UI_DISPLAY_VIDEO_FRAME below. Without a matching ``zones_by_video``
-            #     entry, ``set_active_zone_video`` falls into its else branch and
-            #     RESETS ``project_data["detection_zones"]`` to an empty ZoneData
-            #     (it assumes the new video has no zones). That overwrite was
-            #     silently erasing the polygon we just persisted, leaving the
-            #     canvas with the background image but no overlay.
-            #   - ``"live_camera"``: legacy/canonical key. Saving here second so
-            #     ``project_data["detection_zones"]`` ends up holding the same
-            #     polygon (save_zone_data also writes the global).
-            self.project_manager.save_zone_data(zone_data, reference_frame_path)
-            self.project_manager.save_zone_data(zone_data, "live_camera")
+            # Previously this call used the default persist=True AND a second
+            # save_zone_data(..., "live_camera") wrote the polygon to a legacy
+            # template key. Both calls hit save_project(), so the polygon was
+            # persisted to disk *before* the user had any chance to confirm or
+            # discard. Reopening the project then showed the ghost polygon on
+            # the zone canvas even though nothing had been concluded.
+            #
+            # The new model: auto-detect populates project_data["detection_zones"]
+            # and zones_by_video[reference_frame_path] **in memory** so the
+            # canvas and the in-progress recording can use the polygon, but
+            # persistence to project.json is deferred to the user's "Concluir
+            # Edição do Vídeo" click (which calls save_project()). Cancelling
+            # without Concluir leaves nothing on disk.
+            self.project_manager.save_zone_data(zone_data, reference_frame_path, persist=False)
 
             # Push the just-saved frame into the zone tab's canvas. Without
             # this event the polygon renders on a blank/white background
@@ -975,6 +1097,74 @@ class LiveCalibrationCoordinator(BaseCoordinator):
             "live_calibration_coordinator.session_count.incremented", count=self._session_count
         )
 
+    def _simplify_polygon(self, raw_polygon: Any) -> list[list[int]]:
+        """Reduce the vertex count of a segmentation mask polygon.
+
+        Audit Erro 8 round 4 (2026-05-25): YOLO segmentation masks return
+        the raw contour from cv2.findContours, which carries one vertex
+        per pixel along the boundary (often 200+ points). Apply
+        Douglas-Peucker (``cv2.approxPolyDP``) so downstream consumers
+        — the editable polygon canvas, the ArenaROI parquet, the
+        recorder's draw_overlay — work with a clean ~6-12 vertex polygon
+        that matches what the pre-recorded auto-detect pipeline produces.
+
+        Args:
+            raw_polygon: ndarray-like with shape (N, 2); pixel coords.
+
+        Returns:
+            Simplified polygon as a list of [x, y] integer pairs.
+        """
+        import numpy as np
+
+        try:
+            contour = np.asarray(raw_polygon, dtype=np.float32).reshape(-1, 1, 2)
+            perimeter = float(cv2.arcLength(contour, closed=True))
+            if perimeter <= 0:
+                return [[int(p[0]), int(p[1])] for p in raw_polygon]
+
+            # Read epsilon factor from settings, fall back to a sensible
+            # 0.5% of the perimeter (preserves rectangular aquarium corners
+            # while collapsing pixel-jitter along straight edges).
+            epsilon_factor = 0.005
+            try:
+                epsilon_factor = float(
+                    getattr(
+                        self.settings.yolo_model,
+                        "aquarium_polygon_epsilon",
+                        epsilon_factor,
+                    )
+                )
+            # except Exception justified: settings access may fail in tests
+            # with stripped configs — fall back to default.
+            except Exception:
+                log.debug(
+                    "live_calibration_coordinator.epsilon_settings_fallback",
+                    exc_info=True,
+                )
+
+            epsilon = max(1.0, epsilon_factor * perimeter)
+            approx = cv2.approxPolyDP(contour, epsilon, closed=True)
+
+            if approx is None or len(approx) < 3:
+                # Approximation collapsed to <3 points — keep the raw shape.
+                return [[int(p[0]), int(p[1])] for p in raw_polygon]
+
+            simplified = [[int(pt[0][0]), int(pt[0][1])] for pt in approx]
+            log.info(
+                "live_calibration_coordinator.polygon_simplified",
+                raw_vertices=len(raw_polygon),
+                simplified_vertices=len(simplified),
+                epsilon_factor=epsilon_factor,
+                perimeter_px=round(perimeter, 1),
+            )
+            return simplified
+        except Exception:
+            log.warning(
+                "live_calibration_coordinator.polygon_simplify_failed",
+                exc_info=True,
+            )
+            return [[int(p[0]), int(p[1])] for p in raw_polygon]
+
     def _detect_polygon_on_burst(
         self,
         *,
@@ -1049,7 +1239,15 @@ class LiveCalibrationCoordinator(BaseCoordinator):
                 if mask_xy is not None and len(mask_xy) > max_idx:
                     raw_polygon = mask_xy[max_idx]
                     if raw_polygon is not None and len(raw_polygon) >= 3:
-                        polygon_pts = [[int(p[0]), int(p[1])] for p in raw_polygon]
+                        # Audit Erro 8 round 4 (2026-05-25): apply
+                        # Douglas-Peucker (cv2.approxPolyDP) to the raw mask
+                        # contour so the aquarium outline doesn't carry the
+                        # 200+ vertices YOLO returns. Default epsilon is
+                        # 0.5% of the perimeter — preserves corners while
+                        # collapsing micro-jitter on the borders. Tunable
+                        # via ``settings.yolo_model.aquarium_polygon_epsilon``
+                        # (per-project override possible).
+                        polygon_pts = self._simplify_polygon(raw_polygon)
 
                 if polygon_pts is None:
                     log.warning(

@@ -296,11 +296,119 @@ class EventDispatcher:
                 **_payload_get(d, "stats", {})
             ),
         )
+
+        # Audit Erro 2 round 4 (2026-05-25): wrap with diagnostics. The
+        # publish from live_camera_session_coordinator was reaching the
+        # event bus (publisher log confirms data), but the widget never
+        # received it. We log at THREE points so the next run pinpoints
+        # where the chain breaks: (1) subscriber lambda invoked,
+        # (2) UI-thread callback dispatched, (3) controller method actually
+        # called. If only (1) appears, the after(0,...) wrapper is failing.
+        # If (1)+(2) appear but not (3), the controller reference is stale.
+        def _on_analysis_metadata(d) -> None:
+            try:
+                payload_metadata = _payload_get(d, "metadata")
+                log.info(
+                    "event_dispatcher.analysis_metadata.received_in_subscriber",
+                    has_gui=self.gui is not None,
+                    has_controller=bool(getattr(self.gui, "analysis_view_controller", None)),
+                    metadata_keys=list(payload_metadata.keys())
+                    if isinstance(payload_metadata, dict)
+                    else None,
+                )
+            # except Exception justified: telemetry must never raise into bus.
+            except Exception:
+                log.debug(
+                    "event_dispatcher.analysis_metadata.diag_log_failed",
+                    exc_info=True,
+                )
+
+            def _dispatch(payload=d) -> None:
+                try:
+                    log.info(
+                        "event_dispatcher.analysis_metadata.ui_thread_dispatched",
+                    )
+                    controller = getattr(self.gui, "analysis_view_controller", None)
+                    if controller is None:
+                        log.warning(
+                            "event_dispatcher.analysis_metadata.controller_missing",
+                        )
+                        return
+                    controller.update_analysis_metadata(metadata=_payload_get(payload, "metadata"))
+                # except Exception justified: surface UI failures explicitly
+                # rather than silently dropping into the Tk callback eater.
+                except Exception as exc:
+                    log.error(
+                        "event_dispatcher.analysis_metadata.dispatch_failed",
+                        error=str(exc),
+                        exc_info=True,
+                    )
+
+            self._run_on_ui_thread(_dispatch)
+
         event_bus.subscribe(
             UIEvents.UI_UPDATE_ANALYSIS_METADATA,
-            lambda d: gui.analysis_view_controller.update_analysis_metadata(
-                metadata=_payload_get(d, "metadata")
-            ),
+            _on_analysis_metadata,
+        )
+        # Audit Erro 2 round 5 (2026-05-25): the diagnostic logs round 4
+        # added didn't appear in user logs — confirm subscription was
+        # actually registered. Also register a SECOND, sync-direct handler
+        # as a redundant safety net: if the async one is silently dropping,
+        # this one still updates the StringVars.
+        log.info(
+            "event_dispatcher.subscribed_to_analysis_metadata",
+            event_bus_id=id(event_bus),
+            event_name=str(UIEvents.UI_UPDATE_ANALYSIS_METADATA),
+        )
+
+        def _on_analysis_metadata_sync(d) -> None:
+            """Backup synchronous handler — runs in the publisher's thread.
+
+            Tkinter StringVar.set() is safe from non-UI threads on Windows
+            (just not safe to call into widget tree). Setting StringVars
+            triggers automatic propagation to bound labels via Tk's
+            variable trace, so the metadata DOES show up even from worker
+            thread.
+            """
+            try:
+                payload_metadata = _payload_get(d, "metadata") or {}
+                log.info(
+                    "event_dispatcher.analysis_metadata.sync_backup_invoked",
+                    has_data=bool(payload_metadata),
+                    keys=list(payload_metadata.keys())
+                    if isinstance(payload_metadata, dict)
+                    else None,
+                )
+                widget = getattr(self.gui, "analysis_display_widget", None)
+                if widget is None:
+                    log.warning("event_dispatcher.analysis_metadata.sync_widget_missing")
+                    return
+                group = payload_metadata.get("group") or "Sem Grupo"
+                day = payload_metadata.get("day") or payload_metadata.get("day_label") or "Sem Dia"
+                subject = (
+                    payload_metadata.get("subject")
+                    or payload_metadata.get("subject_id")
+                    or "Não informado"
+                )
+                if hasattr(widget, "set_metadata"):
+                    widget.set_metadata(
+                        group=str(group),
+                        day=str(day),
+                        subject=str(subject),
+                    )
+                profile = payload_metadata.get("profile") or "default"
+                if hasattr(widget, "set_profile"):
+                    widget.set_profile(str(profile))
+            except Exception as exc:
+                log.error(
+                    "event_dispatcher.analysis_metadata.sync_backup_failed",
+                    error=str(exc),
+                    exc_info=True,
+                )
+
+        event_bus.subscribe(
+            UIEvents.UI_UPDATE_ANALYSIS_METADATA,
+            _on_analysis_metadata_sync,
         )
         event_bus.subscribe(
             UIEvents.UI_UPDATE_SOCIAL_SUMMARY,

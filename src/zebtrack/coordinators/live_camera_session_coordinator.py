@@ -399,6 +399,14 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
         metadata.setdefault("experiment_id", experiment_id)
         metadata.setdefault("camera_index", camera_index)
 
+        log.info(
+            "live_camera_session_coordinator.publish_analysis_metadata",
+            experiment_id=experiment_id,
+            metadata_keys=list(metadata.keys()),
+            group=metadata.get("group"),
+            day=metadata.get("day"),
+            subject=metadata.get("subject"),
+        )
         self.event_bus.publish(
             Event(
                 type=UIEvents.UI_UPDATE_ANALYSIS_METADATA,
@@ -406,6 +414,96 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
                 source="LiveCameraSessionCoordinator._publish_live_analysis_metadata",
             )
         )
+
+        # Audit Erro 5 round 4 (2026-05-25): publish the processing mode so
+        # the "Modo de rastreamento" label reflects the project config
+        # (single-subject for 1 animal/aquarium vs multi-track for 2+).
+        # Without this, the label defaults to MULTI_TRACK regardless of
+        # what the wizard recorded under ``animals_per_aquarium``. We pick
+        # the mode based on the same rules ``_resolve_single_animal_mode``
+        # uses in MultiAquariumCoordinator, kept local here to avoid the
+        # cross-coordinator dependency.
+        try:
+            from zebtrack.core.video.processing_mode import ProcessingReport
+
+            mode = self._resolve_live_processing_mode()
+            if mode is not None:
+                self.event_bus.publish(
+                    Event(
+                        type=UIEvents.UI_UPDATE_PROCESSING_MODE,
+                        data=payloads.UpdateProcessingModePayload(
+                            report=ProcessingReport(
+                                mode=mode,
+                                source="LiveCameraSessionCoordinator.publish_metadata",
+                            )
+                        ),
+                        source="LiveCameraSessionCoordinator._publish_live_analysis_metadata",
+                    )
+                )
+                log.info(
+                    "live_camera_session_coordinator.publish_processing_mode",
+                    mode=mode.name,
+                )
+        # except Exception justified: telemetry must not block recording.
+        except Exception:
+            log.debug(
+                "live_camera_session_coordinator.publish_processing_mode.failed",
+                exc_info=True,
+            )
+
+    def _resolve_live_processing_mode(self):
+        """Determine SINGLE_SUBJECT vs MULTI_TRACK from project data.
+
+        Mirrors ``MultiAquariumCoordinator._resolve_single_animal_mode``
+        but without the cross-coordinator import. Reads
+        ``animals_per_aquarium`` from project_data → calibration →
+        single_animal_per_aquarium flag, returning the mode.
+        """
+        from zebtrack.core.video.processing_mode import ProcessingMode
+
+        project_data = getattr(self.project_manager, "project_data", {}) or {}
+
+        def _to_mode_from_count(value: object):
+            if value in (None, ""):
+                return None
+            try:
+                return (
+                    ProcessingMode.SINGLE_SUBJECT
+                    if int(str(value)) <= 1
+                    else ProcessingMode.MULTI_TRACK
+                )
+            except (TypeError, ValueError):
+                return None
+
+        # 1. Explicit flag at top level
+        flag = project_data.get("single_animal_per_aquarium")
+        if flag is not None:
+            return ProcessingMode.SINGLE_SUBJECT if bool(flag) else ProcessingMode.MULTI_TRACK
+
+        # 2. Top-level animals_per_aquarium
+        mode = _to_mode_from_count(project_data.get("animals_per_aquarium"))
+        if mode is not None:
+            return mode
+
+        # 3. tracking.use_single_subject_tracker (wizard)
+        tracking = project_data.get("tracking")
+        if isinstance(tracking, dict):
+            tracker_pref = tracking.get("use_single_subject_tracker")
+            if tracker_pref is not None:
+                return (
+                    ProcessingMode.SINGLE_SUBJECT
+                    if bool(tracker_pref)
+                    else ProcessingMode.MULTI_TRACK
+                )
+
+        # 4. calibration.animals_per_aquarium (wizard)
+        calibration = project_data.get("calibration")
+        if isinstance(calibration, dict):
+            mode = _to_mode_from_count(calibration.get("animals_per_aquarium"))
+            if mode is not None:
+                return mode
+
+        return None
 
     def validate_dependencies(self) -> bool:
         """Validate that required dependencies are present.
@@ -723,6 +821,22 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
             # Experimento", "Configuração de Zonas" and "Processamento e
             # Relatórios" tabs reflect the newly recorded session immediately.
             # Without these, the working trees only update on manual reload.
+            if success:
+                # Invalidate the VideoManager scan cache so the next refresh
+                # picks up the newly written 1_ProcessingArea_*.parquet for the
+                # just-recorded video. Without this, has_arena stays False for
+                # up to TTL (30 s) and "Controle Principal" shows trajectory ✓
+                # but arena ✗ — audit Erro 3 (2026-05-25).
+                try:
+                    from zebtrack.core.project.video_manager import VideoManager
+
+                    VideoManager.clear_scan_cache()
+                except Exception:
+                    log.debug(
+                        "live_camera_session_coordinator.scan_cache_invalidate.failed",
+                        exc_info=True,
+                    )
+
             if success and self.event_bus is not None:
                 self.event_bus.publish(
                     Event(

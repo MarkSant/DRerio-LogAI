@@ -193,7 +193,7 @@ class TabBuilder:
         self.gui.model_configuration_tab_frame = ttk.Frame(self.gui.notebook, padding="10")
         self.gui.notebook.add(
             self.gui.model_configuration_tab_frame,
-            text="Configuração de Modelos",
+            text="Config. Modelo IA",
         )
         panel = ProjectModelConfigurationPanel(
             self.gui.model_configuration_tab_frame,
@@ -208,7 +208,7 @@ class TabBuilder:
             return
 
         self.gui.diagnostics_tab_frame = ttk.Frame(self.gui.notebook, padding="10")
-        self.gui.notebook.add(self.gui.diagnostics_tab_frame, text="Diagnóstico")
+        self.gui.notebook.add(self.gui.diagnostics_tab_frame, text="Diagnóstico Modelo IA")
         panel = ModelDiagnosticsPanel(
             self.gui.diagnostics_tab_frame,
             self.gui.controller,
@@ -232,12 +232,12 @@ class TabBuilder:
     def _add_project_model_navigation_buttons(self, parent) -> None:
         ttk.Button(
             parent,
-            text="Configuração de Modelos",
+            text="Config. Modelo IA",
             command=self._select_model_configuration_tab,
         ).pack(side="left", padx=5)
         ttk.Button(
             parent,
-            text="Diagnóstico",
+            text="Diagnóstico Modelo IA",
             command=self._select_diagnostics_tab,
         ).pack(side="left", padx=5)
 

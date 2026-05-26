@@ -69,6 +69,34 @@ class ProjectWidgetsBuilder:
         )
         refresh_button.pack(side="bottom", pady=10)
 
+        # Auto-refresh the progress grid whenever a live recording stops or
+        # the project tree is refreshed, so the cell turns green/yellow
+        # without requiring the user to click "Atualizar Grade" or reopen the
+        # day/group dialog — audit Erro 2 (2026-05-25). Worker threads publish
+        # these events, so dispatch through ``root.after(0, ...)``.
+        event_bus = getattr(self.gui, "event_bus", None) or getattr(self.gui, "event_bus_v2", None)
+        if event_bus is not None:
+
+            def _schedule_refresh(_data=None) -> None:
+                root = getattr(self.gui, "root", None)
+                if root is None:
+                    self.render_progress_grid()
+                    return
+                try:
+                    root.after(0, self.render_progress_grid)
+                except tk.TclError:
+                    log.debug(
+                        "project_widgets.progress_grid.refresh_schedule_suppressed",
+                        exc_info=True,
+                    )
+
+            event_bus.subscribe(UIEvents.RECORDING_STOPPED, _schedule_refresh)
+            event_bus.subscribe(UIEvents.PROJECT_VIEWS_REFRESH_REQUESTED, _schedule_refresh)
+            handlers = getattr(self.gui, "_event_bus_handlers", None)
+            if isinstance(handlers, dict):
+                handlers["progress_grid.recording_stopped"] = _schedule_refresh
+                handlers["progress_grid.project_views_refresh"] = _schedule_refresh
+
         self.render_progress_grid()
 
     def render_progress_grid(self) -> None:
@@ -250,11 +278,13 @@ class ProjectWidgetsBuilder:
 
         self.gui.notebook.bind("<<NotebookTabChanged>>", self.gui.zone_edit_guard.on_tab_changed)
 
+        # Mantém a mesma ordem usada por ProjectInitializer.create_main_control_frame:
+        # Controle Principal → Progresso (live) → Processamento → Zonas → Análise → Avançadas
         self.gui.tab_builder.build_main_controls_tab()
         if self.gui.controller.project_manager.get_project_type() == "live":
             self.create_progress_grid_tab()
-        self.gui.tab_builder.build_zone_tab()
         self.analysis.create_processing_reports_tab()
+        self.gui.tab_builder.build_zone_tab()
         self.analysis.create_analysis_tab_widget()
         self.analysis.create_configuration_tab_widget()
 

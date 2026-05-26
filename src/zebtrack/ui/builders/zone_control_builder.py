@@ -4,7 +4,8 @@ Zone Control Builder for creating zone configuration and drawing widgets.
 Extracted from WidgetFactory to separate concern of zone control construction.
 """
 
-from tkinter import StringVar, ttk
+from datetime import datetime
+from tkinter import BooleanVar, StringVar, ttk
 from typing import TYPE_CHECKING
 
 import structlog
@@ -36,6 +37,29 @@ class ZoneControlBuilder:
         # Etapa 4 — Zone tab context panel (built on demand by
         # create_zone_control_widgets so headless unit tests don't pay for it).
         self.zone_context_panel: ZoneContextPanel | None = None
+        # Audit Erro 4 (2026-05-25): opt-in flag that the user toggles before
+        # Concluir to ask ZebTrack to reuse the current polygon as a template
+        # in the next auto-detection runs. Lazily created in
+        # ``_ensure_reuse_template_var`` because BooleanVar() requires a
+        # default Tk root (headless unit tests instantiate the builder
+        # without a real Tk).
+        self._reuse_arena_template_var: BooleanVar | None = None
+
+    def _ensure_reuse_template_var(self) -> BooleanVar:
+        """Lazily create the reuse-template BooleanVar.
+
+        Returns the existing instance or constructs one bound to the GUI
+        root window (which exists by the time the widget tree is built).
+        """
+        if self._reuse_arena_template_var is None:
+            master = getattr(self.gui, "root", None)
+            self._reuse_arena_template_var = BooleanVar(master=master, value=False)
+        return self._reuse_arena_template_var
+
+    @property
+    def reuse_arena_template_var(self) -> BooleanVar | None:
+        """Public accessor — returns ``None`` until the widget is built."""
+        return self._reuse_arena_template_var
 
     def _on_roi_rule_change(self, event=None) -> None:
         """Toggle visibility of ROI parameter frames based on the selected rule.
@@ -136,11 +160,65 @@ class ZoneControlBuilder:
         else:
             log.warning("zone_control_builder.refresh_tree.no_event_bus")
 
+    def _apply_arena_template_choice(self) -> None:
+        """Persist or drop the arena template based on the user's checkbox.
+
+        Audit Erro 4 (2026-05-25): the "Reaproveitar este polígono em
+        próximas autodetecções" checkbox is the explicit opt-in gate. When
+        checked at Concluir time, copy the currently active arena polygon
+        into ``project_data["arena_template"]`` so the next call to
+        ``live_calibration_coordinator.run_live_calibration`` can seed the
+        preview with it instead of running detection from scratch. When
+        unchecked, drop any pre-existing template so it doesn't leak into
+        the next video.
+        """
+        controller = getattr(self.gui, "controller", None)
+        if controller is None or controller.project_manager is None:
+            return
+
+        pm = controller.project_manager
+        project_data = getattr(pm, "project_data", None)
+        if not isinstance(project_data, dict):
+            return
+
+        # The lazy var may still be None if the user opened/closed the project
+        # without the zone controls ever being built (defensive fallback).
+        reuse_var = self._reuse_arena_template_var
+        reuse = bool(reuse_var.get()) if reuse_var is not None else False
+
+        if not reuse:
+            if project_data.pop("arena_template", None) is not None:
+                log.info("zone_control_builder.arena_template.discarded")
+            return
+
+        # Pull the latest confirmed polygon from the active zone data.
+        try:
+            zone_data = pm.get_zone_data()
+        except Exception:
+            log.debug("zone_control_builder.arena_template.load_failed", exc_info=True)
+            return
+
+        polygon = list(getattr(zone_data, "polygon", []) or [])
+        if not polygon:
+            log.info("zone_control_builder.arena_template.skip_empty_polygon")
+            project_data.pop("arena_template", None)
+            return
+
+        project_data["arena_template"] = {
+            "polygon": [list(point) for point in polygon],
+            "created_at": datetime.now().isoformat(),
+        }
+        log.info(
+            "zone_control_builder.arena_template.saved",
+            points=len(polygon),
+        )
+
     def _on_conclude_video(self):
         """Handle 'Concluir Edição do Vídeo' button click."""
         # 1. Save Project (Persist flags and data)
         if hasattr(self.gui, "controller") and self.gui.controller.project_manager:
             try:
+                self._apply_arena_template_choice()
                 self.gui.controller.project_manager.save_project()
             except Exception as e:
                 # In Single Video Mode, project might not be created yet.
@@ -336,6 +414,27 @@ class ZoneControlBuilder:
             command=self._on_conclude_video,
             style="Accent.TButton",
         ).pack(fill="x", pady=2)
+
+        # Audit Erro 4 (2026-05-25): seed the existing template flag from
+        # project_data so the checkbox reflects what was previously confirmed
+        # (a project re-open should keep the user's last choice).
+        try:
+            initial_reuse = bool(
+                getattr(self.gui, "controller", None)
+                and self.gui.controller.project_manager.project_data.get("arena_template", {}).get(
+                    "polygon"
+                )
+            )
+        except (AttributeError, KeyError, TypeError):
+            initial_reuse = False
+        reuse_var = self._ensure_reuse_template_var()
+        reuse_var.set(initial_reuse)
+
+        ttk.Checkbutton(
+            actions_frame,
+            text="Reaproveitar este polígono em próximas autodetecções",
+            variable=reuse_var,
+        ).pack(fill="x", pady=(2, 4))
 
         template_frame = ttk.LabelFrame(
             self.gui.zone_controls_frame,
