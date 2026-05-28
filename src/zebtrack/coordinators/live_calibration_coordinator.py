@@ -376,7 +376,12 @@ class LiveCalibrationCoordinator(BaseCoordinator):
                         try:
                             zone_data = self.project_manager.get_zone_data()
                             polygon = (zone_data.polygon if zone_data else None) or []
-                            if polygon:
+                            # Bind event_bus to a local so the deferred
+                            # closure has a non-None reference (mypy cannot
+                            # narrow ``self.event_bus`` inside a nested
+                            # function — CI lint fix, PR #388).
+                            bus = self.event_bus
+                            if polygon and bus is not None:
                                 import numpy as np
 
                                 _event = Event(
@@ -387,8 +392,8 @@ class LiveCalibrationCoordinator(BaseCoordinator):
                                     source="LiveCalibrationCoordinator.auto_detect.success",
                                 )
 
-                                def _publish_polygon_edit(event=_event):
-                                    self.event_bus.publish(event)
+                                def _publish_polygon_edit(event=_event, _bus=bus):
+                                    _bus.publish(event)
                                     log.info(
                                         "live_calibration_coordinator.auto_edit_mode.triggered_deferred",
                                     )
@@ -406,7 +411,7 @@ class LiveCalibrationCoordinator(BaseCoordinator):
                                 else:
                                     # Fallback: publish synchronously when no
                                     # Tk root is wired (tests / headless).
-                                    self.event_bus.publish(_event)
+                                    bus.publish(_event)
                                     log.info(
                                         "live_calibration_coordinator.auto_edit_mode.triggered",
                                         polygon_vertices=len(polygon),
