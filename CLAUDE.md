@@ -77,8 +77,8 @@ poetry run pre-commit run --all-files
 
 ### Composition Root
 
-- DI wiring: `core/application_bootstrapper.py` (~509 lines) + `core/dependency_container.py` (~205 lines).
-- `__main__.py` (~789 lines): entry at `main()` line 25; delegates to `ApplicationBootstrapper`.
+- DI wiring: `core/application_bootstrapper.py` + `core/dependency_container.py`; coordinator/service registrations live in `core/di_registrations.py`.
+- `__main__.py`: thin entry point — `main()` delegates to `ApplicationBootstrapper`.
 - `DependencyContainer` holds all coordinator and service references; `LazyRef[T]` solves circular DI.
 - **Never use global settings**: always `load_settings()` then inject `settings_obj`.
 
@@ -88,11 +88,11 @@ poetry run pre-commit run --all-files
 | ---------------- | ------------------------------------------------------------------------------------------------ | -------------------------------- |
 | **Model**        | `core/state_manager.py`, `core/project/project_manager.py`, `core/services/detector_service.py`  | State, project data, detection   |
 | **View**         | `ui/gui.py`, `ui/wizard/*.py`, `ui/dialogs/` (~25 files)                                          | Tkinter UI                       |
-| **ViewModel**    | `core/main_view_model.py` (~873 lines)                                                            | Orchestrator                     |
-| **Coordinators** | `coordinators/` (23 files)                                                                        | Decomposed cross-cutting logic   |
+| **ViewModel**    | `core/main_view_model.py`                                                                          | Orchestrator                     |
+| **Coordinators** | `coordinators/` (~24 files)                                                                       | Decomposed cross-cutting logic   |
 | **Services**     | `core/services/wizard_service.py`, `core/video/video_processing_service.py`, `core/recording/*`   | Business logic                   |
 | **I/O**          | `io/{recorder,video_source,camera,live_stream_source,recorder_factory}.py`                       | Persistence, frame sources       |
-| **Analysis**     | `analysis/{behavior,roi}.py`, `analysis/reporters/` (7 files)                                     | Behavioral metrics, reports      |
+| **Analysis**     | `analysis/{behavior,roi}.py`, `analysis/reporters/` (~8 files)                                    | Behavioral metrics, reports      |
 
 ### Data Flow
 
@@ -190,9 +190,10 @@ Pattern: `domain.action.result`.
 
 ### Entry Points & Core
 
-- `src/zebtrack/__main__.py` — entry; `main()` at line 25.
+- `src/zebtrack/__main__.py` — thin entry point; `main()` delegates to `ApplicationBootstrapper`.
 - `core/application_bootstrapper.py` — DI composition root.
 - `core/dependency_container.py` — coordinator/service refs; `LazyRef[T]` for circular DI.
+- `core/di_registrations.py` — where coordinators/services are registered into the container.
 - `core/main_view_model.py` — application orchestrator.
 - `core/state_manager.py` — centralized observable state.
 - `core/project/project_service.py`, `core/services/wizard_service.py` — service layer.
@@ -269,6 +270,26 @@ Tuning details: [`docs/guides/developer/performance-tuning.md`](docs/guides/deve
 - **setuptools**: pinned <81 (docxcompose dependency).
 - **EventBus**: `EventBusV2` is the sole event bus; `UIEvents` enum in `ui/event_bus_v2.py` (~200 events).
 - **Markdown**: follow `.markdownlint.json`; ATX headings, `-` for unordered lists, language tag on every code fence.
+
+---
+
+## Plugin & Skill Invocation Map
+
+When a task matches a row, prefer the listed skill/plugin over ad-hoc work.
+
+| Trigger                                                      | Use                                  |
+| ------------------------------------------------------------ | ------------------------------------ |
+| Review a PR or diff for bugs/quality                         | `pr-review-toolkit:review-pr` (project default — its `silent-failure-hunter`, `type-design-analyzer`, `pr-test-analyzer` subagents match this repo's error-handling, mypy, and coverage concerns) |
+| Quick correctness pass on the current local diff             | built-in `/code-review` (lighter, single-pass, confidence-filtered) |
+| Security-sensitive change                                    | built-in `/security-review`          |
+| Analyze tracking output (Parquet/metrics), stats, plots      | `data` plugin (`statistical-analysis`, `explore-data`, `create-viz`) |
+| Inspect/debug generated `.docx` report or `.xlsx` summary    | `docx` / `xlsx` skills               |
+| Work with PDFs (papers, forms)                               | `pdf-viewer`                         |
+| Commit / push / open PR                                      | `commit-commands`                    |
+| Build a new feature from scratch                             | `feature-dev`                        |
+| Audit or improve this CLAUDE.md                              | `claude-md-management:claude-md-improver` |
+
+Connector plugins (Slack, Linear, Notion, Jira, BigQuery, Datadog, Enterprise Search, etc.) are not relevant to this repo — invoke only when explicitly named.
 
 ---
 
