@@ -386,7 +386,10 @@ class VideoFrameManager:
             return False
 
         if not video_path or not os.path.exists(os.fspath(video_path)):
-            log.error("gui.load_frame.no_video")
+            # Audit Erro 10 (2026-05-25): demoted from error to debug.
+            # This is a legitimate case (e.g., user double-clicked a "Sessão
+            # planejada" placeholder which has no real path) — not a fault.
+            log.debug("gui.load_frame.no_video", path=str(video_path) if video_path else None)
             self.gui.controller.project_manager.set_active_zone_video(None)
             return False
 

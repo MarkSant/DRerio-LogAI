@@ -74,8 +74,8 @@ def test_build_main_controls_tab_pre_recorded(mock_app):
     button_texts = [child.cget("text") for child in controls_container.winfo_children()]
     assert "Adicionar Vídeos/Pastas ao Projeto..." in button_texts
     assert "Processar Vídeos Pendentes..." in button_texts
-    assert "Configuração de Modelos" in button_texts
-    assert "Diagnóstico" in button_texts
+    assert "Config. Modelo IA" in button_texts
+    assert "Diagnóstico Modelo IA" in button_texts
     # mock_app._request_overview_refresh.assert_called_once() # Removed in Phase 3.2
 
 
@@ -144,5 +144,5 @@ def test_build_project_model_tabs_adds_notebook_tabs(mock_app):
         builder.build_diagnostics_tab()
 
     tab_texts = [mock_app.notebook.tab(tab_id, "text") for tab_id in mock_app.notebook.tabs()]
-    assert "Configuração de Modelos" in tab_texts
-    assert "Diagnóstico" in tab_texts
+    assert "Config. Modelo IA" in tab_texts
+    assert "Diagnóstico Modelo IA" in tab_texts

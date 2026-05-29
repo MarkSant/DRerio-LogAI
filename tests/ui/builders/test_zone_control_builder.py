@@ -2,11 +2,57 @@
 Tests for ZoneControlBuilder.
 """
 
+from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
 import pytest
 
 from zebtrack.ui.builders.zone_control_builder import ZoneControlBuilder
+from zebtrack.ui.event_bus_v2 import UIEvents
+
+
+def _conclude_gui(*, editing_zone, edited_points):
+    """Minimal gui stub for _on_conclude_video tests."""
+    controller = SimpleNamespace(project_manager=Mock())
+    return SimpleNamespace(
+        controller=controller,
+        _zones_dirty=True,
+        event_bus=Mock(),
+        canvas_manager=SimpleNamespace(current_editing_zone=editing_zone),
+        edited_polygon_points=list(edited_points),
+        set_status=Mock(),
+        current_editing_zone=editing_zone,
+    )
+
+
+def _published_types(gui):
+    return [call.args[0].type for call in gui.event_bus.publish.call_args_list]
+
+
+def test_conclude_video_requests_live_resume_without_active_edit():
+    """Issue 3: clicking Concluir resumes a pending live session and does NOT
+    re-save an empty arena when no interactive edit is active."""
+    gui = _conclude_gui(editing_zone=None, edited_points=[])
+    builder = ZoneControlBuilder(gui, event_bus_v2=Mock())
+
+    builder._on_conclude_video()
+
+    types = _published_types(gui)
+    assert UIEvents.LIVE_RECORDING_RESUME_REQUESTED in types
+    assert UIEvents.ZONE_SAVE_ARENA not in types
+    assert gui._zones_dirty is False
+
+
+def test_conclude_video_saves_arena_when_editing_active():
+    """When an interactive edit is in progress, Concluir also commits it."""
+    gui = _conclude_gui(editing_zone="arena", edited_points=[[0, 0], [1, 1], [2, 2]])
+    builder = ZoneControlBuilder(gui, event_bus_v2=Mock())
+
+    builder._on_conclude_video()
+
+    types = _published_types(gui)
+    assert UIEvents.ZONE_SAVE_ARENA in types
+    assert UIEvents.LIVE_RECORDING_RESUME_REQUESTED in types
 
 
 class TestZoneControlBuilder:

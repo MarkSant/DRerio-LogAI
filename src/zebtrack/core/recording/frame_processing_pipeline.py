@@ -620,14 +620,23 @@ class FrameProcessingMixin:
                 else:
                     detections = self.get_last_detections()
 
-                # Draw overlay when displaying
+                # Draw overlay when displaying.
+                # IMPORTANT: draw ZONES ONLY here (empty detections list). The
+                # detection bounding boxes are drawn exactly once by the frame
+                # consumer — integrated canvas (VideoFrameManager.update_video_frame
+                # → _draw_detection_overlay_on_frame) or the external
+                # LivePreviewWindow.update_frame. Passing ``detections`` here would
+                # burn a SECOND box onto the frame (different color/label), so each
+                # animal showed two overlapping bboxes. This mirrors the pre-recorded
+                # path (processing_worker.py calls draw_overlay(frame, [])).
                 detector = self.detector_service.detector
                 if detector and should_display:
-                    detector.draw_overlay(frame, detections)
+                    detector.draw_overlay(frame, [])
                     log.debug(
                         "live_camera_service.overlay_drawn",
                         frame_number=frame_number,
                         num_boxes=len(detections),
+                        zones_only=True,
                         is_cached=not should_analyze,
                     )
 
@@ -681,6 +690,30 @@ class FrameProcessingMixin:
                                 fps=self._actual_fps,
                             ),
                         ),
+                    )
+
+                    # Audit Erro 7b follow-up (2026-05-25): publish progress
+                    # stats so the "Análise de Vídeo" tab labels (Total/
+                    # Processados/Detectados/Tempo) reflect the live session
+                    # instead of staying at "-". Live recording has no fixed
+                    # ``total_frames``, so we publish the running count and
+                    # ``start_time`` — the StateSynchronizer formats elapsed
+                    # from there. Throttled to display frames (we're already
+                    # inside the should_display branch).
+                    if detections:
+                        self._live_detected_frames = getattr(self, "_live_detected_frames", 0) + 1
+                    live_stats: dict[str, Any] = {
+                        "processed_frames": int(frame_number),
+                        "detected_frames": int(getattr(self, "_live_detected_frames", 0)),
+                    }
+                    if self.recorder and self.recorder.start_time:
+                        live_stats["start_time"] = self.recorder.start_time
+                    self.event_bus.publish(
+                        Event(
+                            type=UIEvents.UI_UPDATE_PROCESSING_STATS,
+                            data=payloads.ProcessingStatsWrapperPayload(stats=live_stats),
+                            source="frame_processing_pipeline.live_progress",
+                        )
                     )
                 elif (
                     should_display

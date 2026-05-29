@@ -76,6 +76,14 @@ repos:
         pass_filenames: false
         always_run: true
 
+      - id: mypy
+        name: mypy (type check, matches CI 'mypy .')
+        entry: poetry run mypy .
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-push]
+
       - id: gui-tests-changed
         name: Run GUI tests on changed test files
         entry: powershell -ExecutionPolicy Bypass -File scripts/test_gui_changed.ps1

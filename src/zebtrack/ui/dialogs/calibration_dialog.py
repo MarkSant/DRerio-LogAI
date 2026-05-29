@@ -194,8 +194,8 @@ class CalibrationDialog(simpledialog.Dialog):
 
         configuration_tab = ttk.Frame(notebook, padding=10)
         diagnostics_tab = ttk.Frame(notebook, padding=10)
-        notebook.add(configuration_tab, text="Configuração de Modelos")
-        notebook.add(diagnostics_tab, text="Diagnóstico")
+        notebook.add(configuration_tab, text="Config. Modelo IA")
+        notebook.add(diagnostics_tab, text="Diagnóstico Modelo IA")
 
         ProjectModelConfigurationPanel(configuration_tab, self.controller).pack(
             fill="both", expand=True

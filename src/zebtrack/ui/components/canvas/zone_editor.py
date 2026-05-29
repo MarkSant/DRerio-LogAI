@@ -457,8 +457,13 @@ class ZoneEditor:
                 # Fallback
                 self.canvas_manager.setup_interactive_polygon(polygon_points)
 
+            self.canvas_manager.current_editing_zone = "arena"
             self.gui.current_editing_zone = "arena"
-            self.gui.set_status("Editando vértices da arena principal. Arraste os pontos amarelos.")
+            self.gui.set_status(
+                "Editando arena: arraste para mover · clique-triplo apaga · "
+                "arraste um retângulo ou Shift/Ctrl+clique para selecionar · "
+                "Del / botão direito para apagar a seleção."
+            )
 
             # Explicitly show buttons
             if hasattr(self.gui, "zone_controls") and self.gui.zone_controls:
@@ -488,9 +493,12 @@ class ZoneEditor:
                     # Fallback
                     self.canvas_manager.setup_interactive_polygon(polygon_points)
 
+                self.canvas_manager.current_editing_zone = ("roi", roi_index, roi_name)
                 self.gui.current_editing_zone = ("roi", roi_index, roi_name)
                 self.gui.set_status(
-                    f"Editando vértices da ROI '{roi_name}'. Arraste os pontos amarelos."
+                    f"Editando ROI '{roi_name}': arraste para mover · clique-triplo apaga · "
+                    "arraste um retângulo ou Shift/Ctrl+clique para selecionar · "
+                    "Del / botão direito para apagar a seleção."
                 )
 
                 # Explicitly show buttons
@@ -503,10 +511,14 @@ class ZoneEditor:
 
     def save_arena(self) -> None:
         """Save the edited polygon."""
+        current_editing_zone = self.canvas_manager.current_editing_zone or getattr(
+            self.gui, "current_editing_zone", None
+        )
+
         # Check for multi-aquarium mode first
         zone_controls = getattr(self.gui, "zone_controls", None)
         if (
-            self.canvas_manager.current_editing_zone == "arena"
+            current_editing_zone == "arena"
             and zone_controls
             and zone_controls.aquarium_count_var.get() == 2
         ):
@@ -580,7 +592,7 @@ class ZoneEditor:
                         )
                     return
 
-        if self.canvas_manager.current_editing_zone == "arena":
+        if current_editing_zone == "arena":
             # Save main arena (Single Aquarium)
             self.gui.event_dispatcher.publish_event(
                 UIEvents.ZONE_SAVE_MANUAL_ARENA,
@@ -602,12 +614,9 @@ class ZoneEditor:
                     )
                 )
 
-        elif (
-            isinstance(self.canvas_manager.current_editing_zone, tuple)
-            and self.canvas_manager.current_editing_zone[0] == "roi"
-        ):
+        elif isinstance(current_editing_zone, tuple) and current_editing_zone[0] == "roi":
             # Save ROI
-            _, roi_index, roi_name = self.canvas_manager.current_editing_zone
+            _, roi_index, roi_name = current_editing_zone
             zone_data = self.zone_context_service.get_zone_data_for_active_context()
 
             # Update the ROI polygon
@@ -669,14 +678,14 @@ class ZoneEditor:
 
     def discard_arena(self) -> None:
         """Discard the interactive polygon."""
+        current_editing_zone = self.canvas_manager.current_editing_zone or getattr(
+            self.gui, "current_editing_zone", None
+        )
         self.clear_interactive_polygon()
-        if self.canvas_manager.current_editing_zone == "arena":
+        if current_editing_zone == "arena":
             self.gui.set_status("Edição da arena descartada.")
-        elif (
-            isinstance(self.canvas_manager.current_editing_zone, tuple)
-            and self.canvas_manager.current_editing_zone[0] == "roi"
-        ):
-            _, _, roi_name = self.canvas_manager.current_editing_zone
+        elif isinstance(current_editing_zone, tuple) and current_editing_zone[0] == "roi":
+            _, _, roi_name = current_editing_zone
             self.gui.set_status(f"Edição da ROI '{roi_name}' descartada.")
         else:
             self.gui.set_status("Edição descartada.")
@@ -685,9 +694,12 @@ class ZoneEditor:
 
     def clear_interactive_polygon(self) -> None:
         """Clear all interactive elements."""
+        # Detach canvas-level editing bindings (rubber-band / context menu / Delete).
+        self.canvas_manager.event_handler.unbind_editing_events()
+
         canvas = self.canvas_manager._get_canvas()
         if canvas:
-            canvas.delete("interactive_polygon", "handle", "suggested_polygon")
+            canvas.delete("interactive_polygon", "handle", "suggested_polygon", "rubber_band")
 
         if hasattr(self.gui, "zone_controls") and self.gui.zone_controls:
             self.gui.zone_controls.hide_interactive_buttons()
@@ -695,9 +707,80 @@ class ZoneEditor:
         self.gui.interactive_polygon_item = None
         self.gui.polygon_handles = []
         self.gui.edited_polygon_points = []
+        self.gui.current_editing_zone = None
         self.canvas_manager.dragged_handle_index = None
         self.canvas_manager.drag_offset = (0, 0)
         self.canvas_manager.current_editing_zone = None
+
+        # Reset multi-vertex selection state.
+        self.canvas_manager.selected_vertex_indices = set()
+        self.canvas_manager._rubber_band_start = None
+        self.canvas_manager._rubber_band_item = None
+        self.canvas_manager._group_drag_last = None
+
+    # -------------------------------------------------------------------------
+    # Multi-vertex selection / deletion (interactive editing)
+    # -------------------------------------------------------------------------
+
+    # A polygon needs at least 3 vertices to remain a valid area.
+    MIN_POLYGON_VERTICES: typing.ClassVar[int] = 3
+
+    def select_all_vertices(self) -> None:
+        """Select every vertex of the polygon currently being edited."""
+        count = len(self.gui.edited_polygon_points)
+        self.canvas_manager.selected_vertex_indices = set(range(count))
+        self.canvas_manager.renderer.draw_interactive_polygon()
+        self.gui.set_status(f"{count} vértice(s) selecionado(s).")
+
+    def select_no_vertices(self) -> None:
+        """Clear the current vertex selection."""
+        self.canvas_manager.selected_vertex_indices = set()
+        self.canvas_manager.renderer.draw_interactive_polygon()
+        self.gui.set_status("Seleção de vértices limpa.")
+
+    def toggle_vertex_selection(self, index: int, *, selected: bool) -> None:
+        """Add (selected=True) or remove (selected=False) a vertex from the selection."""
+        sel = self.canvas_manager.selected_vertex_indices
+        if selected:
+            sel.add(index)
+        else:
+            sel.discard(index)
+        self.canvas_manager.renderer.draw_interactive_polygon()
+
+    def delete_vertices(self, indices: set[int] | None = None) -> None:
+        """Delete the given vertex indices (defaults to the current selection).
+
+        Refuses to drop the polygon below ``MIN_POLYGON_VERTICES``. Mutates
+        ``gui.edited_polygon_points`` in place; persistence still happens when the
+        user clicks "✅ Salvar Edição" (``ZONE_SAVE_ARENA`` → :meth:`save_arena`).
+        """
+        if indices is None:
+            indices = set(self.canvas_manager.selected_vertex_indices)
+
+        points = self.gui.edited_polygon_points
+        valid = {i for i in indices if 0 <= i < len(points)}
+        if not valid:
+            return
+
+        remaining = len(points) - len(valid)
+        if remaining < self.MIN_POLYGON_VERTICES:
+            self.dialog_manager.show_warning(
+                "Não é possível apagar",
+                "Um polígono precisa de pelo menos "
+                f"{self.MIN_POLYGON_VERTICES} vértices. "
+                f"Restariam apenas {remaining}.",
+            )
+            return
+
+        # Remove from highest index down so earlier indices stay valid.
+        for i in sorted(valid, reverse=True):
+            del points[i]
+
+        self.canvas_manager.selected_vertex_indices = set()
+        self.canvas_manager.dragged_handle_index = None
+        self.canvas_manager.renderer.draw_interactive_polygon()
+        self.gui.set_status(f"{len(valid)} vértice(s) apagado(s). Clique em 'Salvar Edição'.")
+        log.info("zone_editor.delete_vertices", count=len(valid), remaining=len(points))
 
     def update_roi_button_state(self) -> None:
         """Enable ROI button if arena exists."""

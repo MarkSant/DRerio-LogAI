@@ -54,6 +54,23 @@ class AnalysisWidgetsBuilder:
 
         self.gui.notebook.add(self.gui.analysis_display_widget, text="Análise de Vídeo")
 
+        # Audit Erro 2 round 6 (2026-05-25): drain any payloads that fired
+        # BEFORE this widget existed (e.g. live session metadata/stats
+        # published at session start while the tab was still being built).
+        # Without this drain, the labels stuck on "--" forever.
+        event_dispatcher = getattr(self.gui, "event_dispatcher", None)
+        if event_dispatcher is not None and hasattr(event_dispatcher, "drain_pending_to_widget"):
+            try:
+                event_dispatcher.drain_pending_to_widget()
+            # except Exception justified: drain is best-effort.
+            except Exception:
+                import structlog
+
+                structlog.get_logger().debug(
+                    "analysis_widgets.drain_pending_failed",
+                    exc_info=True,
+                )
+
         if self.gui.event_bus_v2:
 
             def track_handler(data):
@@ -65,11 +82,60 @@ class AnalysisWidgetsBuilder:
                     payloads.VideoCancelAnalysisPayload(),
                 )
 
+            def video_selected_handler(data) -> None:
+                """Refresh analysis-tab metadata (group/day/subject/profile)
+                when the user selects a different video in the project tree.
+
+                Without this, switching videos in the tree leaves the analysis
+                tab showing metadata from the last *processed* video instead
+                of the currently selected one (audit Erro 7b — 2026-05-25).
+                """
+                video_path = getattr(data, "video_path", None)
+                if not video_path:
+                    return
+                pm = self.gui.controller.project_manager
+                entry = (
+                    getattr(data, "video_entry", None) or pm.find_video_entry(path=video_path) or {}
+                )
+                metadata: dict[str, Any] = dict(entry.get("metadata") or {})
+                # Promote top-level fields onto the metadata dict so
+                # ValidationManager.resolve_* helpers find them.
+                for key in ("group", "group_display_name", "day", "subject"):
+                    value = entry.get(key)
+                    if value not in (None, "") and key not in metadata:
+                        metadata[key] = value
+
+                controller = getattr(self.gui, "analysis_view_controller", None)
+                if controller is None:
+                    return
+                # Update metadata strings (group/day/subject).
+                controller.update_analysis_metadata(metadata=metadata)
+                # Profile follows the project-level setting; reapply so a
+                # previous video's profile label doesn't linger.
+                project_data = pm.project_data or {}
+                profile_name = (
+                    metadata.get("profile")
+                    or project_data.get("analysis_profile")
+                    or project_data.get("active_profile")
+                    or "default"
+                )
+                try:
+                    controller.update_analysis_profile(str(profile_name))
+                except (AttributeError, tk.TclError):
+                    log.debug(
+                        "analysis_widgets.video_selected.profile_update_suppressed",
+                        exc_info=True,
+                    )
+
             self.gui.event_bus_v2.subscribe(UIEvents.ANALYSIS_TRACK_SELECTED, track_handler)
             self.gui.event_bus_v2.subscribe(UIEvents.ANALYSIS_CANCEL_REQUESTED, cancel_handler)
+            self.gui.event_bus_v2.subscribe(UIEvents.PROJECT_VIDEO_SELECTED, video_selected_handler)
 
             self.gui._event_bus_handlers["analysis.track_selected"] = track_handler
             self.gui._event_bus_handlers["analysis.cancel_requested"] = cancel_handler
+            self.gui._event_bus_handlers["analysis.video_selected_metadata"] = (
+                video_selected_handler
+            )
 
     def create_processing_reports_tab(self) -> None:
         """Create the unified Processing and Reports tab."""
@@ -103,11 +169,8 @@ class AnalysisWidgetsBuilder:
         self.gui.processing_reports_widget.pack(fill="both", expand=True)
 
         if self.gui.processing_reports_widget.tree:
-            self.gui.processing_reports_widget.tree.bind(
-                "<ButtonRelease-1>",
-                self.gui.reports_tree_manager.on_processing_reports_item_click,
-                add="+",
-            )
+            # Abrir relatórios/pastas apenas com duplo-clique — clique simples
+            # deve só selecionar o item (Erro 7a do audit de 2026-05-25).
             self.gui.processing_reports_widget.tree.bind(
                 "<Double-Button-1>",
                 self.gui.reports_tree_manager.on_processing_reports_item_double_click,

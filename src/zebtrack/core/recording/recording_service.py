@@ -14,6 +14,7 @@ Responsibilities:
 
 from __future__ import annotations
 
+import tkinter as tk
 from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
@@ -294,7 +295,18 @@ class RecordingService:
             return
 
         countdown_window = Toplevel(self.root)
-        countdown_window.overrideredirect(True)  # Remove title bar
+        # Copilot review (PR #388, comment 3300599900): overrideredirect and
+        # -topmost are not honoured on every WM (some Linux tiling WMs raise
+        # TclError, others silently ignore). Wrap so a hostile WM does not
+        # abort the entire recording start — fall back to a normal Toplevel.
+        try:
+            countdown_window.overrideredirect(True)
+        except tk.TclError:
+            log.debug("recording_service.countdown_overrideredirect_unsupported", exc_info=True)
+        try:
+            countdown_window.attributes("-topmost", True)
+        except tk.TclError:
+            log.debug("recording_service.countdown_topmost_unsupported", exc_info=True)
         countdown_label = Label(
             countdown_window, font=("Helvetica", 150, "bold"), bg="black", fg="white"
         )
@@ -306,16 +318,39 @@ class RecordingService:
         pos_y = (self.root.winfo_screenheight() // 2) - (win_h // 2)
         countdown_window.geometry(f"{win_w}x{win_h}+{pos_x}+{pos_y}")
 
-        def update_timer(seconds_left):
-            if seconds_left > 0:
-                countdown_label.config(text=str(seconds_left))
+        callback_executed = False
+
+        def finish_countdown() -> None:
+            nonlocal callback_executed
+            if callback_executed:
+                return
+            callback_executed = True
+
+            if countdown_window.winfo_exists():
+                countdown_window.destroy()
+
+            callback()
+
+        def update_timer(seconds_left: int) -> None:
+            if not countdown_window.winfo_exists():
+                return
+
+            if seconds_left <= 0:
+                finish_countdown()
+                return
+
+            countdown_label.config(text=str(seconds_left))
+
             if self.root:
                 self.root.after(1000, lambda: update_timer(seconds_left - 1))
             else:
-                countdown_window.destroy()
-                callback()
+                finish_countdown()
 
-        update_timer(duration_s)
+        try:
+            update_timer(int(duration_s))
+        except tk.TclError as exc:
+            log.warning("recording_service.countdown_failed", error=str(exc))
+            callback()
 
     def _resolve_box_number(self, day: int, group: str, cobaia: str) -> int | None:
         """

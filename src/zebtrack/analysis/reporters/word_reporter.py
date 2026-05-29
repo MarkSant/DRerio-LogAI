@@ -291,7 +291,16 @@ class WordReporter:
                 ),
                 _("Trajectory"),
             ),
-            (self._ctx.viz_generator.generate_heatmap, _("Heatmap")),
+            (
+                # Audit Erro 3 round 4 (2026-05-25): pass video_path so the
+                # heatmap shows the first frame underneath as visual context.
+                lambda ax: self._ctx.viz_generator.generate_heatmap(
+                    ax,
+                    video_path=self._ctx.video_path,
+                    calibration=self._ctx.calibration,
+                ),
+                _("Heatmap"),
+            ),
             (self._ctx.viz_generator.generate_position_vs_time_plot, _("Position vs. Time")),
             (
                 self._ctx.viz_generator.generate_cumulative_distance_plot,

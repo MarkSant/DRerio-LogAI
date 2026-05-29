@@ -28,6 +28,8 @@ import structlog
 from zebtrack.ui.components.canvas.event_handler import CanvasEventHandler
 
 if TYPE_CHECKING:
+    from pathlib import Path
+
     from zebtrack.core.services.zone_context_service import ZoneContextService
 from zebtrack.ui import payloads as payloads
 from zebtrack.ui.components.canvas.multi_aquarium_overlay import MultiAquariumOverlayManager
@@ -83,7 +85,19 @@ class CanvasManager:
         self.drag_offset = (0, 0)
         self.drag_start_mouse = (0, 0)
         self.drag_start_handle = (0, 0)
-        self.current_editing_zone = None
+        self.current_editing_zone: str | tuple[str, int, str] | None = None
+
+        # Multi-vertex selection state (issues 1 & 2). Indices reference
+        # gui.edited_polygon_points. Populated via Shift/Ctrl+click on handles,
+        # rubber-band selection or the canvas context menu; consumed by
+        # delete_vertices() and the move-in-group logic in on_handle_drag.
+        self.selected_vertex_indices: set[int] = set()
+        self._rubber_band_start: tuple[float, float] | None = None
+        self._rubber_band_item: int | None = None
+        self._rubber_band_mode: str = "replace"  # replace | add | remove
+        self._vertex_context_menu = None
+        # Last known canvas position of a group-drag, in canvas coords.
+        self._group_drag_last: tuple[float, float] | None = None
 
         # Visualization settings
         self.show_geotaxis_zones = False
@@ -166,6 +180,23 @@ class CanvasManager:
         )
         self.update_zone_listbox(zone_data)
 
+        # Audit Erro 1 round 6 (2026-05-25): refresh the canvas overlay too,
+        # not just the listbox. Without this, after the user clicks "Concluir"
+        # the saved polygon never re-renders on the frame shown in the Análise
+        # tab — a non-live frame keeps showing the previous (auto-detected)
+        # polygon (item A1). Calling ``redraw_zones`` re-reads zone_data from
+        # the canonical project_data so the new shape lands on screen.
+        try:
+            self.redraw_zones_from_project_data(zone_data)
+            log.debug("canvas_manager.zones_updated.canvas_redrawn")
+        # except Exception justified: never let UI redraw kill the bus.
+        except Exception as exc:
+            log.warning(
+                "canvas_manager.zones_updated.redraw_failed",
+                error=str(exc),
+                exc_info=True,
+            )
+
     def _on_polygon_edit_requested(self, data: payloads.EventPayload):
         """Handle POLYGON_EDIT_REQUESTED event.
 
@@ -176,6 +207,20 @@ class CanvasManager:
         polygon = _payload_get(data, "polygon")
         if polygon is not None:
             self.setup_interactive_polygon(polygon)
+            # Audit Erro 1 round 5 (2026-05-25): mark arena as the active
+            # editing zone so ``_on_conclude_video`` recognises the edit and
+            # publishes ZONE_SAVE_ARENA. Without this flag, even after the
+            # user drags vertices the conclude flow keeps the polygon flagged
+            # as "not editing" and silently keeps the original auto-detected
+            # shape on the recording / Analysis tab.
+            self.current_editing_zone = "arena"
+            if self.gui is not None:
+                self.gui.current_editing_zone = "arena"
+            log.info(
+                "canvas_manager.polygon_edit.current_zone_marked",
+                zone="arena",
+                vertices=len(polygon) if hasattr(polygon, "__len__") else None,
+            )
 
     def _on_live_frame_update(self, data: payloads.EventPayload):
         """Handle UI_UPDATE_LIVE_FRAME event from LiveCameraService.
@@ -226,8 +271,15 @@ class CanvasManager:
         # Populate gui.edited_polygon_points
         self.gui.edited_polygon_points = polygon_list
 
+        # Fresh edit session — clear any leftover vertex selection.
+        self.selected_vertex_indices = set()
+
         # Draw the interactive polygon with handles
         self.renderer.draw_interactive_polygon()
+
+        # Bind canvas-level editing events (rubber-band selection, context menu,
+        # Delete key). Per-handle bindings are (re)attached by draw_interactive_polygon.
+        self.event_handler.bind_editing_events()
 
         # Force a redraw after a short delay to ensure handles appear even if
         # conflicting events (like Treeview focus) clear the canvas or interfere
@@ -457,15 +509,18 @@ class CanvasManager:
 
     # --- VideoFrameManager ---
 
-    def display_roi_video_frame(self, video_path):
+    def display_roi_video_frame(self, video_path: Path | str | None):
         """Load first frame of video and display on canvas. Delegates to video_frame."""
-        self.video_frame.display_roi_video_frame(video_path)
+        # Preserve previous invalid-path behavior while satisfying strict typing.
+        self.video_frame.display_roi_video_frame(video_path if video_path is not None else "")
 
     def update_video_frame(self, frame: np.ndarray, detections: list | None = None) -> None:
         """Update canvas with a raw video frame. Delegates to video_frame."""
         self.video_frame.update_video_frame(frame, detections)
 
-    def load_video_frame_to_canvas(self, video_path=None, frame_number: int = 0):
+    def load_video_frame_to_canvas(
+        self, video_path: Path | str | None = None, frame_number: int = 0
+    ):
         """Load a video frame to the canvas. Delegates to video_frame."""
         return self.video_frame.load_video_frame_to_canvas(video_path, frame_number)
 
@@ -580,15 +635,15 @@ class CanvasManager:
         """Convert BGR tuple to Portuguese color name. Delegates to zone_editor."""
         return self.zone_editor._get_color_name_from_bgr(bgr)
 
-    def copy_zones_from_video(self, video_path: str | None) -> None:
+    def copy_zones_from_video(self, video_path: Path | str | None) -> None:
         """Copy zones from video to clipboard. Delegates to zone_editor."""
         self.zone_editor.copy_zones_from_video(video_path)
 
-    def paste_zones_to_video(self, video_path: str | None) -> None:
+    def paste_zones_to_video(self, video_path: Path | str | None) -> None:
         """Paste zones from clipboard to video. Delegates to zone_editor."""
         self.zone_editor.paste_zones_to_video(video_path)
 
-    def delete_zones_from_video(self, video_path: str | None) -> None:
+    def delete_zones_from_video(self, video_path: Path | str | None) -> None:
         """Delete all zones from video. Delegates to zone_editor."""
         self.zone_editor.delete_zones_from_video(video_path)
 

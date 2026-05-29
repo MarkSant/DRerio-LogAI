@@ -154,6 +154,30 @@ class LiveBatchCoordinator:
         batch.completed_sessions.append(experiment_id)
         batch.session_paths.append(video_path)
 
+        # Audit Erro 2/3 round 6 (2026-05-25): persist the live session into
+        # ``project_data["batches"]`` so that downstream consumers (Progresso
+        # do Experimento, listbox "Selecionar Vídeo para Desenho", any view
+        # that calls ``ProjectManager.get_all_videos``) actually SEE the
+        # recorded session. Previously this coordinator only mutated the
+        # in-memory ``_active_batches`` dict, so the canonical project data
+        # never knew the recording existed and every grupo×dia×sujeito kept
+        # showing "Sessão planejada" forever (Audit Erro 4 / item B4).
+        try:
+            self._persist_session_to_project_data(
+                experiment_id=experiment_id,
+                video_path=video_path,
+                metadata=metadata,
+            )
+        # except Exception justified: persistence failure must not break
+        # in-memory batch tracking — log and continue.
+        except Exception as exc:
+            self.logger.error(
+                "live_batch.persist_to_project_data.failed",
+                error=str(exc),
+                experiment_id=experiment_id,
+                exc_info=True,
+            )
+
         self.logger.info(
             "live_batch.session_registered",
             batch_id=batch.batch_id,
@@ -162,6 +186,151 @@ class LiveBatchCoordinator:
         )
 
         return batch.batch_id
+
+    def _persist_session_to_project_data(
+        self,
+        *,
+        experiment_id: str,
+        video_path: Path,
+        metadata: dict,
+    ) -> None:
+        """Append the recorded live session to ``project_data["batches"]``.
+
+        Mirrors the shape produced by ``VideoManager.add_video_batch`` for
+        pre-recorded videos so that ``VideoManager.get_all_videos`` (the
+        sole source for the Progresso grid and the Zonas listbox) returns
+        a uniform record regardless of whether the session was pre-recorded
+        or captured live. Skips the operation when the session was
+        cancelled (``.cancelled`` marker in the output directory).
+        """
+        if not self.project_manager:
+            self.logger.debug("live_batch.persist.no_project_manager")
+            return
+
+        project_data = self.project_manager.project_data
+        if project_data is None:
+            self.logger.debug("live_batch.persist.no_project_data")
+            return
+
+        results_dir = video_path.parent if video_path else None
+        if results_dir and (results_dir / ".cancelled").exists():
+            self.logger.info(
+                "live_batch.persist.skipped_cancelled",
+                experiment_id=experiment_id,
+                results_dir=str(results_dir),
+            )
+            return
+
+        # Build canonical video_entry. Disk flags are populated from the
+        # session folder by reusing OutputRegistrationManager logic.
+        video_path_str = video_path.as_posix() if isinstance(video_path, Path) else str(video_path)
+
+        normalized_metadata = {
+            "group": metadata.get("group"),
+            "group_display_name": metadata.get("group"),
+            "day": metadata.get("day"),
+            "subject": metadata.get("subject_id"),
+            "subject_id": metadata.get("subject_id"),
+            "experiment_id": experiment_id,
+            "timestamp": metadata.get("timestamp"),
+            "is_live_session": True,
+        }
+        # Drop empties to keep the JSON compact (but preserve booleans).
+        normalized_metadata = {
+            k: v
+            for k, v in normalized_metadata.items()
+            if v is not None and (v != "" or isinstance(v, bool | int | float))
+        }
+
+        # Probe the session folder for parquet outputs to set the flags.
+        has_arena = has_rois = has_trajectory = False
+        if results_dir and results_dir.exists():
+            has_arena = bool(list(results_dir.glob("1_ProcessingArea_*.parquet")))
+            has_rois = bool(list(results_dir.glob("2_AreasOfInterest_*.parquet")))
+            has_trajectory = bool(list(results_dir.glob("3_CoordMovimento_*.parquet")))
+
+        video_entry: dict = {
+            "path": video_path_str,
+            "status": "processed" if has_trajectory else "recorded",
+            "has_arena": has_arena,
+            "has_rois": has_rois,
+            "has_trajectory": has_trajectory,
+            "has_complete_data": has_arena and has_rois and has_trajectory,
+            "has_summary": bool(results_dir and list(results_dir.glob("*_summary.xlsx")))
+            if results_dir and results_dir.exists()
+            else False,
+            "zones_finalized": True,
+            "metadata": normalized_metadata,
+            "filename": (
+                video_path.name if isinstance(video_path, Path) else Path(video_path_str).name
+            ),
+        }
+
+        # Try to find an existing entry for this video path (idempotent).
+        existing = None
+        for batch in project_data.get("batches", []):
+            for entry in batch.get("videos", []):
+                if entry.get("path") == video_path_str:
+                    existing = entry
+                    break
+            if existing:
+                break
+
+        if existing:
+            # Merge: keep older bool=True, update from current scan.
+            existing.update(
+                {
+                    "status": video_entry["status"],
+                    "has_arena": existing.get("has_arena") or video_entry["has_arena"],
+                    "has_rois": existing.get("has_rois") or video_entry["has_rois"],
+                    "has_trajectory": existing.get("has_trajectory")
+                    or video_entry["has_trajectory"],
+                    "has_summary": existing.get("has_summary") or video_entry["has_summary"],
+                    "zones_finalized": True,
+                }
+            )
+            existing["has_complete_data"] = bool(
+                existing.get("has_arena")
+                and existing.get("has_rois")
+                and existing.get("has_trajectory")
+            )
+            existing.setdefault("metadata", {}).update(normalized_metadata)
+            self.logger.info(
+                "live_batch.persist.entry_updated",
+                experiment_id=experiment_id,
+                path=video_path_str,
+            )
+        else:
+            new_batch: dict = {
+                "timestamp": datetime.now().isoformat(),
+                "source": "live_camera",
+                "videos": [video_entry],
+            }
+            project_data.setdefault("batches", []).append(new_batch)
+            self.logger.info(
+                "live_batch.persist.entry_added",
+                experiment_id=experiment_id,
+                path=video_path_str,
+                has_arena=has_arena,
+                has_trajectory=has_trajectory,
+            )
+
+        # Persist to disk so the next ``get_all_videos`` call sees it.
+        try:
+            self.project_manager.save_project()
+            self.logger.info(
+                "live_batch.persist.project_saved",
+                experiment_id=experiment_id,
+            )
+        # except Exception justified: best-effort persistence; the in-memory
+        # mutation is still visible to consumers that read project_data
+        # directly within the same session.
+        except Exception as exc:
+            self.logger.warning(
+                "live_batch.persist.save_failed",
+                error=str(exc),
+                experiment_id=experiment_id,
+            )
 
     def mark_batch_complete(self, batch_id: str) -> bool:
         """Mark batch as complete and trigger unified report generation.

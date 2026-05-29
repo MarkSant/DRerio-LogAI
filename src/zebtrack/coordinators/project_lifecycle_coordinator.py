@@ -476,6 +476,22 @@ class ProjectLifecycleCoordinator(BaseCoordinator):
                 ),
             )
 
+    def _apply_detector_zones_from_active_video(self) -> None:
+        """Apply project zones to detector using the active video context."""
+        if not self.detector_service or not self.detector_service.detector:
+            self.logger.debug("project.zones.setup.detector_not_ready")
+            return
+
+        active_video = self.project_manager.get_active_zone_video()
+        zone_data = self.project_manager.get_zone_data(video_path=active_video)
+        self.detector_service.configure_zones(zones_data=zone_data)
+
+    def _default_setup_zones_from_project(self) -> None:
+        """Default zone setup callback used during open-project workflow."""
+        self._setup_zones_from_project(
+            setup_detector_zones_callback=self._apply_detector_zones_from_active_video
+        )
+
     def open_project(
         self,
         project_path: Path | str,
@@ -525,6 +541,11 @@ class ProjectLifecycleCoordinator(BaseCoordinator):
                     )
                     if not success:
                         self.logger.error("project.open.detector_setup_failed", error=error)
+                    else:
+                        # Re-apply zones after detector initialization so detector
+                        # receives project geometry even when the first open-project
+                        # zone hook ran before detector creation.
+                        self._default_setup_zones_from_project()
                     return success
                 # except Exception justified: ML inference heterogeneous errors
                 except Exception as e:
@@ -582,7 +603,7 @@ class ProjectLifecycleCoordinator(BaseCoordinator):
             set_openvino_usage_callback=set_openvino_usage_callback or _default_set_openvino_usage,
             update_openvino_status_callback=update_openvino_status_callback
             or _default_update_openvino_status,
-            setup_zones_callback=setup_zones_callback or (lambda: self._setup_zones_from_project()),
+            setup_zones_callback=setup_zones_callback or self._default_setup_zones_from_project,
             restore_detector_callback=restore_detector_callback or _default_restore_detector,
             get_active_weight_name=get_active_weight_name or _default_get_active_weight_name,
             get_use_openvino=get_use_openvino or _default_get_use_openvino,

@@ -7,15 +7,15 @@ import numpy as np
 from zebtrack.plugins.base import DetectorPlugin
 from zebtrack.utils.hardware_detection import is_cuda_available
 
-yolo_cls: Any | None
+YOLO: Any | None
 
 try:
     from ultralytics import YOLO as _YOLO
 
-    yolo_cls = _YOLO
+    YOLO = _YOLO
     ULTRALYTICS_AVAILABLE = True
 except ImportError:
-    yolo_cls = None
+    YOLO = None
     ULTRALYTICS_AVAILABLE = False
 
 
@@ -33,8 +33,8 @@ class UltralyticsDetectorPlugin(DetectorPlugin):
         model_path = str(Path(model_path) if isinstance(model_path, str) else model_path)
         if not ULTRALYTICS_AVAILABLE:
             raise ImportError("Ultralytics is not available. Please install ultralytics package.")
-        assert yolo_cls is not None
-        self.model = yolo_cls(model_path)
+        assert YOLO is not None
+        self.model = YOLO(model_path)
 
         # Extract class names directly from the model (Bug Fix #1)
         self.class_names = dict(self.model.names)  # {0: 'aqua', 1: 'zebrafish', ...}

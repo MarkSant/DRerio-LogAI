@@ -77,6 +77,16 @@ class EventDispatcher:
             # Fallback/Unknown - treat as raw event bus reference
             self.event_bus = cast(EventBusV2, context)
 
+        # Audit Erro 2 round 6 (2026-05-25): pending payload queues. If the
+        # analysis_display_widget is not yet built when an event arrives
+        # (e.g. the tab was constructed lazily or the user navigated away),
+        # we stash the LAST payload so we can re-apply it as soon as the
+        # widget becomes available. Single-slot per event type so we never
+        # apply stale data.
+        self._pending_analysis_metadata: Any | None = None
+        self._pending_processing_stats: dict[str, Any] | None = None
+        self._pending_processing_mode: Any | None = None
+
     def _require_gui(self) -> "ApplicationGUI":
         if self.gui is None:
             raise RuntimeError("EventDispatcher requires ApplicationGUI context for UI events.")
@@ -188,8 +198,14 @@ class EventDispatcher:
             lambda data: self._handle_setup_interactive_polygon(_payload_get(data, "polygon")),
         )
 
-    def subscribe_to_ui_events(self) -> None:
-        """Subscribe to UI-related events."""
+    def subscribe_to_ui_events(self) -> None:  # noqa: C901
+        """Subscribe to UI-related events.
+
+        Cyclomatic complexity (~22) sits just above the project's strict
+        threshold of 20 because this is the central UI event wiring table —
+        breaking it apart would scatter related subscriptions and make the
+        bus surface harder to audit. Suppressed deliberately.
+        """
         if not self.gui or not self.event_bus:
             return
 
@@ -290,18 +306,160 @@ class EventDispatcher:
         )
 
         # Analysis Updates
+        # Audit Erro 2 round 6 (2026-05-25): stash the LAST stats payload so
+        # ``drain_pending_to_widget`` can replay it once the analysis tab is
+        # finally rendered. Without this, frames published before the tab
+        # was built were dropped silently and the labels stuck on "-".
+        def _on_processing_stats(d) -> None:
+            stats = _payload_get(d, "stats", {}) or {}
+            self._pending_processing_stats = dict(stats) if isinstance(stats, dict) else None
+            widget = getattr(self.gui, "analysis_display_widget", None)
+            if widget is None:
+                log.debug(
+                    "event_dispatcher.processing_stats.queued_widget_missing",
+                    has_stats=bool(stats),
+                )
+                return
+            gui.state_synchronizer.update_processing_stats(**stats)
+
         event_bus.subscribe(
             UIEvents.UI_UPDATE_PROCESSING_STATS,
-            lambda d: gui.state_synchronizer.update_processing_stats(
-                **_payload_get(d, "stats", {})
-            ),
+            _on_processing_stats,
         )
+
+        # Audit Erro 2 round 4 (2026-05-25): wrap with diagnostics. The
+        # publish from live_camera_session_coordinator was reaching the
+        # event bus (publisher log confirms data), but the widget never
+        # received it. We log at THREE points so the next run pinpoints
+        # where the chain breaks: (1) subscriber lambda invoked,
+        # (2) UI-thread callback dispatched, (3) controller method actually
+        # called. If only (1) appears, the after(0,...) wrapper is failing.
+        # If (1)+(2) appear but not (3), the controller reference is stale.
+        def _on_analysis_metadata(d) -> None:
+            try:
+                payload_metadata = _payload_get(d, "metadata")
+                log.info(
+                    "event_dispatcher.analysis_metadata.received_in_subscriber",
+                    has_gui=self.gui is not None,
+                    has_controller=bool(getattr(self.gui, "analysis_view_controller", None)),
+                    metadata_keys=list(payload_metadata.keys())
+                    if isinstance(payload_metadata, dict)
+                    else None,
+                )
+            # except Exception justified: telemetry must never raise into bus.
+            except Exception:
+                log.debug(
+                    "event_dispatcher.analysis_metadata.diag_log_failed",
+                    exc_info=True,
+                )
+
+            # Audit Erro 2 round 6 (2026-05-25): stash the LAST metadata
+            # payload so ``drain_pending_to_widget`` can replay it once the
+            # widget is finally rendered.
+            self._pending_analysis_metadata = d
+
+            def _dispatch(payload=d) -> None:
+                try:
+                    log.info(
+                        "event_dispatcher.analysis_metadata.ui_thread_dispatched",
+                    )
+                    controller = getattr(self.gui, "analysis_view_controller", None)
+                    if controller is None:
+                        log.warning(
+                            "event_dispatcher.analysis_metadata.controller_missing",
+                        )
+                        return
+                    controller.update_analysis_metadata(metadata=_payload_get(payload, "metadata"))
+                # except Exception justified: surface UI failures explicitly
+                # rather than silently dropping into the Tk callback eater.
+                except Exception as exc:
+                    log.error(
+                        "event_dispatcher.analysis_metadata.dispatch_failed",
+                        error=str(exc),
+                        exc_info=True,
+                    )
+
+            self._run_on_ui_thread(_dispatch)
+
         event_bus.subscribe(
             UIEvents.UI_UPDATE_ANALYSIS_METADATA,
-            lambda d: gui.analysis_view_controller.update_analysis_metadata(
-                metadata=_payload_get(d, "metadata")
-            ),
+            _on_analysis_metadata,
         )
+        # Audit Erro 2 round 5 (2026-05-25): the diagnostic logs round 4
+        # added didn't appear in user logs — confirm subscription was
+        # actually registered. Also register a SECOND, sync-direct handler
+        # as a redundant safety net: if the async one is silently dropping,
+        # this one still updates the StringVars.
+        log.info(
+            "event_dispatcher.subscribed_to_analysis_metadata",
+            event_bus_id=id(event_bus),
+            event_name=str(UIEvents.UI_UPDATE_ANALYSIS_METADATA),
+        )
+
+        def _on_analysis_metadata_backup(d) -> None:
+            """Backup handler scheduled on the UI thread via ``root.after(0, ...)``.
+
+            Round 5 originally invoked Tkinter ``StringVar.set`` from the
+            publisher thread as a "safety net" — Copilot review (PR #388,
+            comment 3300599873) correctly flagged that this violates the
+            project rule "worker → UI must go through root.after(0, ...)"
+            and can intermittently crash/hang Tk. The backup is now also
+            UI-thread-scheduled; if the original async dispatch silently
+            fails (e.g. controller attr missing during a tab switch), this
+            second one still runs through the Tk event loop and updates the
+            StringVars from the main thread.
+            """
+
+            def _apply(payload=d) -> None:
+                try:
+                    payload_metadata = _payload_get(payload, "metadata") or {}
+                    log.info(
+                        "event_dispatcher.analysis_metadata.backup_invoked",
+                        has_data=bool(payload_metadata),
+                        keys=list(payload_metadata.keys())
+                        if isinstance(payload_metadata, dict)
+                        else None,
+                    )
+                    widget = getattr(self.gui, "analysis_display_widget", None)
+                    if widget is None:
+                        log.warning("event_dispatcher.analysis_metadata.backup_widget_missing")
+                        return
+                    group = payload_metadata.get("group") or "Sem Grupo"
+                    day = (
+                        payload_metadata.get("day")
+                        or payload_metadata.get("day_label")
+                        or "Sem Dia"
+                    )
+                    subject = (
+                        payload_metadata.get("subject")
+                        or payload_metadata.get("subject_id")
+                        or "Não informado"
+                    )
+                    if hasattr(widget, "set_metadata"):
+                        widget.set_metadata(
+                            group=str(group),
+                            day=str(day),
+                            subject=str(subject),
+                        )
+                    profile = payload_metadata.get("profile") or "default"
+                    if hasattr(widget, "set_profile"):
+                        widget.set_profile(str(profile))
+                # except Exception justified: backup must surface failure to
+                # logs rather than abort the publish.
+                except Exception as exc:
+                    log.error(
+                        "event_dispatcher.analysis_metadata.backup_failed",
+                        error=str(exc),
+                        exc_info=True,
+                    )
+
+            self._run_on_ui_thread(_apply)
+
+        event_bus.subscribe(
+            UIEvents.UI_UPDATE_ANALYSIS_METADATA,
+            _on_analysis_metadata_backup,
+        )
+
         event_bus.subscribe(
             UIEvents.UI_UPDATE_SOCIAL_SUMMARY,
             lambda d: gui.state_synchronizer.update_social_summary(**_payload_to_dict(d)),
@@ -451,13 +609,101 @@ class EventDispatcher:
         """Handle UI_UPDATE_PROCESSING_MODE event.
 
         Expected payload: {"report": ProcessingReport}
+
+        Audit Erro 2 round 6 (2026-05-25): stash the last payload so
+        ``drain_pending_to_widget`` can re-apply it after the tab is built.
         """
+        # Stash before any guard so the drain path always has the latest.
+        self._pending_processing_mode = data
+
         if not self.gui:
             return
 
         gui = self._require_gui()
+        if getattr(gui, "analysis_display_widget", None) is None:
+            log.debug("event_dispatcher.processing_mode.queued_widget_missing")
+            return
         report = _payload_get(data, "report")
         gui.state_synchronizer.update_processing_mode(report)
+
+    def drain_pending_to_widget(self) -> None:
+        """Re-apply the last stashed analysis-tab payloads.
+
+        Audit Erro 2 round 6 (2026-05-25): the live session publishes
+        metadata + stats + tracking-mode events at session start, but the
+        ``analysis_display_widget`` may not exist yet (lazy tab build, or
+        the user navigated away). Without replay, the labels stuck on
+        "Grupo: --" / "Modo de rastreamento: --" / "Frames: -" forever.
+        Call this from ``ApplicationGUI`` (or wherever the widget is set)
+        right after the widget reference becomes available.
+        """
+        if self.gui is None:
+            return
+        widget = getattr(self.gui, "analysis_display_widget", None)
+        if widget is None:
+            return
+
+        state_sync = getattr(self.gui, "state_synchronizer", None)
+        controller = getattr(self.gui, "analysis_view_controller", None)
+
+        # 1) Metadata: prefer the controller path, fall back to the widget
+        # directly (same logic the regular subscriber uses).
+        if self._pending_analysis_metadata is not None:
+            payload = self._pending_analysis_metadata
+            metadata = _payload_get(payload, "metadata") or {}
+            try:
+                if controller is not None:
+                    controller.update_analysis_metadata(metadata=metadata)
+                elif hasattr(widget, "set_metadata") and isinstance(metadata, dict):
+                    widget.set_metadata(
+                        group=str(metadata.get("group") or "Sem Grupo"),
+                        day=str(metadata.get("day") or metadata.get("day_label") or "Sem Dia"),
+                        subject=str(
+                            metadata.get("subject") or metadata.get("subject_id") or "Não informado"
+                        ),
+                    )
+                log.info(
+                    "event_dispatcher.drain.analysis_metadata_applied",
+                    via="controller" if controller else "widget_set_metadata",
+                )
+            # except Exception justified: drain best-effort.
+            except Exception as exc:
+                log.error(
+                    "event_dispatcher.drain.analysis_metadata_failed",
+                    error=str(exc),
+                    exc_info=True,
+                )
+
+        # 2) Processing stats: replay through state_synchronizer.
+        if self._pending_processing_stats is not None and state_sync is not None:
+            try:
+                state_sync.update_processing_stats(**self._pending_processing_stats)
+                log.info(
+                    "event_dispatcher.drain.processing_stats_applied",
+                    keys=list(self._pending_processing_stats.keys()),
+                )
+            # except Exception justified: drain best-effort.
+            except Exception as exc:
+                log.error(
+                    "event_dispatcher.drain.processing_stats_failed",
+                    error=str(exc),
+                    exc_info=True,
+                )
+
+        # 3) Tracking mode: replay through state_synchronizer.
+        if self._pending_processing_mode is not None and state_sync is not None:
+            try:
+                report = _payload_get(self._pending_processing_mode, "report")
+                if hasattr(state_sync, "update_processing_mode"):
+                    state_sync.update_processing_mode(report)
+                log.info("event_dispatcher.drain.processing_mode_applied")
+            # except Exception justified: drain best-effort.
+            except Exception as exc:
+                log.error(
+                    "event_dispatcher.drain.processing_mode_failed",
+                    error=str(exc),
+                    exc_info=True,
+                )
 
     def _handle_setup_interactive_polygon(self, polygon_data) -> None:
         """Handle legacy interactive polygon requests from the event bus."""

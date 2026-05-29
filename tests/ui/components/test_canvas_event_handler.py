@@ -215,3 +215,70 @@ def test_handle_canvas_motion_shows_snap_indicator_without_points():
 
     handler.gui.video_display.canvas.create_oval.assert_called_once()
     handler.gui.video_display.canvas.create_line.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# Multi-vertex selection / editing (issues 1 & 2)
+# ---------------------------------------------------------------------------
+
+
+def test_on_handle_triple_click_deletes_vertex():
+    handler = _make_handler()
+    handler.manager.zone_editor = Mock()
+    handler.gui._dragged_handle_index = 2
+
+    result = handler.on_handle_triple_click(SimpleNamespace(x=1, y=2), 2)
+
+    handler.manager.zone_editor.delete_vertices.assert_called_once_with({2})
+    assert handler.gui._dragged_handle_index is None
+    assert result == "break"
+
+
+def test_on_handle_shift_click_adds_to_selection():
+    handler = _make_handler()
+    handler.manager.zone_editor = Mock()
+
+    handler.on_handle_shift_click(SimpleNamespace(x=1, y=2), 3)
+
+    handler.manager.zone_editor.toggle_vertex_selection.assert_called_once_with(3, selected=True)
+
+
+def test_on_handle_ctrl_click_removes_from_selection():
+    handler = _make_handler()
+    handler.manager.zone_editor = Mock()
+
+    handler.on_handle_ctrl_click(SimpleNamespace(x=1, y=2), 1)
+
+    handler.manager.zone_editor.toggle_vertex_selection.assert_called_once_with(1, selected=False)
+
+
+def test_on_handle_drag_group_translates_all_selected():
+    handler = _make_handler()
+    handler.manager.selected_vertex_indices = {0, 1}
+    handler.gui._dragged_handle_index = 0
+    handler.gui._drag_offset = (0.0, 0.0)
+    handler.gui.edited_polygon_points = [[0, 0], [10, 10]]
+    handler.manager._canvas_to_video.side_effect = lambda x, y: (x, y)
+
+    handler.on_handle_drag(SimpleNamespace(x=5, y=5))
+
+    # Dragged vertex 0 moves to (5,5) → delta (5,5) applied to both vertices.
+    assert handler.gui.edited_polygon_points == [[5, 5], [15, 15]]
+    handler.manager.renderer.draw_interactive_polygon.assert_called_once()
+
+
+def test_on_rubber_band_release_selects_vertices_inside_rect():
+    handler = _make_handler()
+    handler.manager.zone_editor = Mock()
+    handler.manager.selected_vertex_indices = set()
+    handler.manager._rubber_band_start = (0.0, 0.0)
+    handler.manager._rubber_band_item = 1
+    handler.manager._rubber_band_mode = "replace"
+    handler.manager._video_to_canvas.side_effect = lambda x, y: (x, y)
+    handler.gui.edited_polygon_points = [[5, 5], [50, 50], [200, 200]]
+
+    handler.on_rubber_band_release(SimpleNamespace(x=100, y=100))
+
+    # (5,5) and (50,50) are inside the 0..100 box; (200,200) is not.
+    assert handler.manager.selected_vertex_indices == {0, 1}
+    handler.manager.renderer.draw_interactive_polygon.assert_called_once()

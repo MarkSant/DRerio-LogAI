@@ -7,6 +7,7 @@ Provides the ``LiveSessionManagerMixin`` mixed into ``LiveCameraService``.
 from __future__ import annotations
 
 import datetime
+import os
 import shutil
 import threading
 import time
@@ -202,6 +203,8 @@ class LiveSessionManagerMixin:
         use_external_preview: bool = False,
         session_folder_name: Path | str | None = None,
         zones_validated: bool = False,
+        use_countdown: bool = False,
+        countdown_duration_s: int = 0,
     ) -> bool:
         """Start a live camera analysis session.
 
@@ -216,6 +219,8 @@ class LiveSessionManagerMixin:
             animals_per_aquarium: Number of animals per aquarium (affects tracking mode)
             analysis_config: Configuration for behavioral analysis (thresholds, ROIs, etc.)
             use_external_preview: Whether to use external preview window
+            use_countdown: Whether to show countdown before recording starts
+            countdown_duration_s: Countdown duration in seconds
 
         Returns:
             True if session started successfully, False otherwise
@@ -229,6 +234,8 @@ class LiveSessionManagerMixin:
             display_interval=display_interval_frames,
             animals_per_aquarium=animals_per_aquarium,
             has_analysis_config=analysis_config is not None,
+            use_countdown=use_countdown,
+            countdown_duration_s=countdown_duration_s,
         )
 
         # Store configuration
@@ -447,6 +454,40 @@ class LiveSessionManagerMixin:
                     animals_per_aquarium=self._animals_per_aquarium,
                 )
 
+        # Run countdown after warmup/setup and before capture starts.
+        if use_countdown and countdown_duration_s > 0:
+            countdown_seconds = int(countdown_duration_s)
+            if self.preview_window:
+                self.preview_window.update_status_text(
+                    f"⏳ Iniciando em {countdown_seconds}s...",
+                    color="yellow",
+                )
+
+            if self.root and self.recording_service:
+                countdown_done = threading.Event()
+
+                def _on_countdown_complete() -> None:
+                    countdown_done.set()
+
+                self.recording_service._run_countdown(countdown_seconds, _on_countdown_complete)
+
+                while not countdown_done.is_set():
+                    if self.exit_event.is_set():
+                        log.warning("live_camera_service.countdown.aborted")
+                        return False
+                    try:
+                        self.root.update_idletasks()
+                        self.root.update()
+                    except tk.TclError as exc:
+                        log.warning(
+                            "live_camera_service.countdown.root_update_failed",
+                            error=str(exc),
+                        )
+                        break
+                    time.sleep(0.05)
+            else:
+                time.sleep(countdown_seconds)
+
         # Show thread startup status
         if self.preview_window:
             self.preview_window.update_status_text("⏳ Iniciando captura...", color="orange")
@@ -473,13 +514,24 @@ class LiveSessionManagerMixin:
                 recorder_zones = zone_data if zone_data else ZoneData()
 
                 try:
+                    # Audit Erro 6 follow-up (2026-05-25): base_name MUST be
+                    # ``self._current_base_name`` (= the folder_name resolved
+                    # above), not a freshly-built ``{experiment_id}_{timestamp}``.
+                    # The folder uses ``session_folder_name`` from the
+                    # coordinator (e.g. "live_<ts1>") while the recorder
+                    # previously built a different name using a later
+                    # timestamp ("day1_Controle_2_<ts2>"), so the MP4 ended up
+                    # named after a string the post-processor never looked
+                    # for (it expects ``{_current_base_name}.mp4``). The
+                    # report's frame-extraction silently skipped because the
+                    # file didn't exist at the searched path.
                     recorder_started = self.recorder.start_recording(
                         output_folder=str(output_dir),
                         frame_width=self.camera.actual_width if self.camera else 640,
                         frame_height=self.camera.actual_height if self.camera else 480,
                         zones=recorder_zones,
                         is_video_file=False,
-                        base_name=f"{experiment_id}_{timestamp}",
+                        base_name=self._current_base_name,
                     )
 
                     if not recorder_started:
@@ -490,7 +542,7 @@ class LiveSessionManagerMixin:
                     log.info(
                         "live_camera_service.recorder_started",
                         output_dir=str(output_dir),
-                        base_name=f"{experiment_id}_{timestamp}",
+                        base_name=self._current_base_name,
                     )
 
                 # except Exception justified: recording subsystem boundary
@@ -521,9 +573,87 @@ class LiveSessionManagerMixin:
         log.info("live_camera_service.session_started", output_dir=str(output_dir))
         return True
 
+    def _detect_and_mark_cancellation(self) -> bool:
+        """Audit Erro 1 round 4 (2026-05-25): detect early user stop.
+
+        Returns True if the session was cancelled (elapsed < 50% of planned
+        duration). Writes a ``.cancelled`` marker in ``current_output_dir``
+        AND wipes the polygon that ``_on_conclude_video`` had persisted —
+        otherwise reopening the project shows a ghost polygon and the
+        Progresso grid counts the partial session as complete.
+        """
+        try:
+            if (
+                self.recorder is None
+                or self.current_output_dir is None
+                or self._session_duration_s <= 0
+                or not self.recorder.start_time
+            ):
+                return False
+            elapsed_s = max(0.0, time.time() - self.recorder.start_time)
+            threshold_s = max(5.0, self._session_duration_s * 0.5)
+            if elapsed_s >= threshold_s:
+                return False
+        except Exception:
+            log.debug("live_camera_service.cancel_detection_failed", exc_info=True)
+            return False
+
+        # Marker file
+        try:
+            (self.current_output_dir / ".cancelled").write_text(
+                f"elapsed={elapsed_s:.1f}s\nplanned={self._session_duration_s:.1f}s\n",
+                encoding="utf-8",
+            )
+            log.info(
+                "live_camera_service.session_marked_cancelled",
+                elapsed_s=elapsed_s,
+                planned_s=self._session_duration_s,
+                output_dir=str(self.current_output_dir),
+            )
+        except OSError as exc:
+            log.warning(
+                "live_camera_service.cancelled_marker_write_failed",
+                error=str(exc),
+            )
+
+        # Polygon cleanup so the ghost doesn't appear on next project open.
+        try:
+            if self.project_manager and self.project_manager.project_path:
+                ref_key = os.path.join(
+                    str(self.project_manager.project_path),
+                    "live_camera_reference_frame.png",
+                )
+                project_data = self.project_manager.project_data or {}
+                zones_map = project_data.get("zones_by_video", {})
+                if ref_key in zones_map:
+                    del zones_map[ref_key]
+                project_data["detection_zones"] = {
+                    "polygon": [],
+                    "roi_polygons": [],
+                    "roi_names": [],
+                    "roi_colors": [],
+                    "metadata": {},
+                }
+                self.project_manager.save_project()
+                log.info(
+                    "live_camera_service.cancelled_session_zones_cleared",
+                    ref_key=ref_key,
+                )
+        except Exception:
+            log.warning(
+                "live_camera_service.cancelled_session_zones_clear_failed",
+                exc_info=True,
+            )
+
+        return True
+
     def stop_session(self) -> bool:
         """Stop the current live camera analysis session."""
         log.info("live_camera_service.stop_session")
+
+        # Audit Erro 1 round 4 (2026-05-25): detect user cancellation and
+        # mark the session with .cancelled marker + clear ghost polygon.
+        cancelled_session = self._detect_and_mark_cancellation()
 
         # Cancel timer if it exists
         if hasattr(self, "timer_id") and self.timer_id and self.root:
@@ -533,50 +663,94 @@ class LiveSessionManagerMixin:
             except tk.TclError as e:
                 log.warning("live_camera_service.timer_cancel_error", error=str(e))
 
-        # Stop recorder directly (not via RecordingService)
-        if self.recorder:
-            try:
-                self.recorder.stop_recording()
-                log.info("live_camera_service.recorder_stopped")
-            # except Exception justified: graceful shutdown
-            except Exception as e:
-                log.warning("live_camera_service.recorder_stop_error", error=str(e))
-
-        # Clear queues BEFORE setting exit_event
-        self._clear_queues()
-        log.info("live_camera_service.queues_cleared_before_exit")
-
-        # Signal threads to exit (Phase 5 / M5: bounded total join budget).
-        # Sequential 5s-per-thread joins could keep the UI blocked for up
-        # to 15s if every thread stalls. Since exit_event is broadcast in
-        # one shot, all three threads start exiting in parallel — we just
-        # need to make sure the cumulative wait is capped.
+        # Audit Erro 3 round 5 (2026-05-25): RACE CONDITION FIX.
+        # Previously the order was: stop_recording → clear_queues → exit_event.set → join.
+        # That left a window between writer release and worker shutdown where the
+        # processing/video thread could still call ``video_writer.write(frame)`` or
+        # ``recorder.write_detection_data`` on a closed writer, triggering the
+        # ``Assertion next_dts <= 0x7fffffff failed at libavformat/movenc.c:1082``
+        # crash that killed the program right after the 30s timer expired.
+        #
+        # Correct order:
+        #   (1) exit_event.set()  — tell workers to stop NEW iterations
+        #   (2) clear_queues()    — unblock any worker stuck on queue.get
+        #   (3) join threads      — wait for workers to actually exit
+        #   (4) recorder.stop_recording() — NOW safe to close writers
         self.exit_event.set()
+        self._clear_queues()
+        log.info("live_camera_service.queues_cleared_before_join")
 
         threads_to_join: list[tuple[str, threading.Thread | None]] = [
             ("capture_thread", self.capture_thread),
             ("processing_thread", self.processing_thread),
             ("video_recording_thread", self.video_recording_thread),
         ]
-        deadline = time.time() + 5.0
-        for name, thread in threads_to_join:
-            if thread is None or not thread.is_alive():
-                continue
-            remaining = max(0.0, deadline - time.time())
-            if remaining <= 0:
-                log.warning(
-                    "live_camera_service.thread_join_skipped_timeout",
-                    thread=name,
+
+        # Audit Erro 3 round 6 (2026-05-25): the round 5 fix reordered the
+        # shutdown sequence but kept a 5 s GLOBAL join deadline that would
+        # ``continue`` past hung threads and march on to
+        # ``recorder.stop_recording()`` while a worker could still write —
+        # the very race the round 5 reorder was meant to eliminate.
+        #
+        # New strategy: spin in 0.1 s ticks while ANY thread is alive, up to
+        # ``MAX_JOIN_WAIT_S`` (5 s — matches the existing UI-budget assertion
+        # in test_stop_session_bounded_total_join_budget). If we hit the
+        # ceiling, we still proceed but PROMOTE the recorder shutdown to
+        # ``force_stop=True``, and the recorder now holds ``_writer_lock``
+        # around BOTH the ``write_video_frame`` and the release, so any
+        # still-alive worker either finishes its write atomically or sees a
+        # nulled writer on next iteration — no FFmpeg assertion crash.
+        MAX_JOIN_WAIT_S = 5.0
+        TICK_S = 0.1
+        wait_start = time.time()
+        while any(t is not None and t.is_alive() for _, t in threads_to_join):
+            if time.time() - wait_start > MAX_JOIN_WAIT_S:
+                still_alive = [n for n, t in threads_to_join if t is not None and t.is_alive()]
+                log.error(
+                    "live_camera_service.thread_join_hang",
+                    threads_still_alive=still_alive,
+                    waited_s=MAX_JOIN_WAIT_S,
                 )
-                continue
-            thread.join(timeout=remaining)
-            if thread.is_alive():
-                log.warning("live_camera_service.thread_join_timeout", thread=name)
+                # Promote graceful stop to force_stop so the recorder
+                # nullifies ``video_writer`` before calling release().
+                cancelled_session = True
+                break
+            time.sleep(TICK_S)
+        else:
+            for name, thread in threads_to_join:
+                if thread is not None:
+                    thread.join(timeout=0.5)
+                    if thread.is_alive():
+                        log.warning(
+                            "live_camera_service.thread_join_residual_alive",
+                            thread=name,
+                        )
         if self.video_recording_thread is not None:
             log.info(
                 "live_camera_service.video_recording_thread_stopped",
                 frames_written=self._video_frames_written,
             )
+
+        # NOW it's safe to close writers — no thread is writing anymore
+        # (or we've promoted to force_stop above if a thread hung).
+        if self.recorder:
+            try:
+                if cancelled_session:
+                    reason = (
+                        "thread_hang"
+                        if any(t is not None and t.is_alive() for _, t in threads_to_join)
+                        else "user_cancelled"
+                    )
+                    self.recorder.stop_recording(force_stop=True, reason=reason)
+                else:
+                    self.recorder.stop_recording()
+                log.info(
+                    "live_camera_service.recorder_stopped",
+                    cancelled=cancelled_session,
+                )
+            # except Exception justified: graceful shutdown
+            except Exception as e:
+                log.warning("live_camera_service.recorder_stop_error", error=str(e))
 
         # Close preview window
         if self.preview_window:

@@ -955,9 +955,22 @@ class BlockDetailDialog(Toplevel):
 
     def mark_batch_complete(self):
         """Mark batch as complete and trigger unified report."""
+        # Audit Erro 6 (2026-05-25): make the scope explicit so the user
+        # knows exactly which sessions are being consolidated. A "lote" here
+        # is all sessions of THIS group on THIS day (one row of the grid),
+        # not the whole project.
         result = messagebox.askyesno(
-            "Confirmar",
-            "Marcar este lote como completo?\n\nIsso irá gerar o relatório unificado final.",
+            "Confirmar — Marcar lote como completo",
+            (
+                f"Marcar o lote do Grupo '{self.group_name}' no Dia {self.day_num} "
+                "como completo?\n\n"
+                "Escopo: TODAS as sessões já gravadas deste grupo neste dia serão "
+                "consolidadas em um relatório unificado (Excel + Word).\n\n"
+                "Esta ação NÃO afeta outros grupos, outros dias, nem encerra o projeto "
+                "como um todo. Você poderá continuar gravando novos sujeitos em outros "
+                "dias/grupos normalmente.\n\n"
+                "Deseja continuar?"
+            ),
         )
 
         if result:
@@ -966,7 +979,14 @@ class BlockDetailDialog(Toplevel):
 
             try:
                 self.live_batch_coordinator.mark_batch_complete(batch_id)
-                messagebox.showinfo("Sucesso", "Lote marcado como completo!\nGerando relatório...")
+                messagebox.showinfo(
+                    "Sucesso",
+                    (
+                        f"Lote '{self.group_name} / Dia {self.day_num}' marcado como "
+                        "completo.\n\nO relatório unificado consolidado destas sessões "
+                        "está sendo gerado em segundo plano."
+                    ),
+                )
                 self.destroy()
             except Exception as e:
                 log.error("block_detail.mark_batch_complete_failed", error=str(e))

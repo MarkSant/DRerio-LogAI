@@ -91,6 +91,20 @@ class LiveAnalysisPostProcessorMixin:
 
         log.info("live_camera_service.session_complete", output_dir=str(output_dir))
 
+        # Audit Erro 1 round 4 (2026-05-25): if the session was cancelled
+        # (user stopped before the planned duration completed), skip the
+        # whole post-processing pipeline. Without this, partial recordings
+        # generate trajectory + reports + get registered as completed,
+        # making the Progresso grid lie about cancelled sessions.
+        cancelled_marker = output_dir / ".cancelled"
+        if cancelled_marker.exists():
+            log.info(
+                "live_camera_service.session_cancelled_skip_post_analysis",
+                output_dir=str(output_dir),
+            )
+            self.stop_session()
+            return
+
         # Stop threads and cleanup
         self.stop_session()
 

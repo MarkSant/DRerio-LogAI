@@ -237,6 +237,24 @@ class YOLOModelSettings(BaseModel):
         description=("Non-Maximum Suppression threshold for filtering overlapping bounding boxes."),
     )
 
+    # Audit Erro 8 round 4 (2026-05-25): Douglas-Peucker epsilon for the
+    # live aquarium auto-detection. Raw YOLO segmentation masks return one
+    # vertex per boundary pixel (often 200+); applying approxPolyDP with
+    # ``epsilon = aquarium_polygon_epsilon * perimeter`` collapses pixel
+    # jitter while preserving corners. 0.005 = 0.5% of the perimeter is a
+    # good default for rectangular/octagonal aquariums (~6-12 vertices).
+    # Increase toward 0.01-0.02 for more aggressive simplification.
+    aquarium_polygon_epsilon: float = Field(
+        0.005,
+        ge=0.0,
+        le=0.1,
+        description=(
+            "Polygon simplification factor (Douglas-Peucker epsilon as fraction "
+            "of contour perimeter) applied to YOLO segmentation masks during "
+            "live aquarium auto-detection. 0.0 disables simplification."
+        ),
+    )
+
     # OPTIMIZATION: Inference performance settings
     use_half_precision: bool = Field(
         True,

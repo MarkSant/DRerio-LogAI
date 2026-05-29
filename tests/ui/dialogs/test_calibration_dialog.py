@@ -45,8 +45,8 @@ def test_build_project_tools_ui_creates_split_tabs() -> None:
         dialog._build_project_tools_ui(parent)
 
     mock_label.assert_called_once()
-    assert notebook.add.call_args_list[0].kwargs["text"] == "Configuração de Modelos"
-    assert notebook.add.call_args_list[1].kwargs["text"] == "Diagnóstico"
+    assert notebook.add.call_args_list[0].kwargs["text"] == "Config. Modelo IA"
+    assert notebook.add.call_args_list[1].kwargs["text"] == "Diagnóstico Modelo IA"
     mock_config.assert_called_once_with(ANY, dialog.controller)
     mock_diag.assert_called_once_with(ANY, dialog.controller, scope="project")
 

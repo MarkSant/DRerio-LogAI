@@ -15,7 +15,7 @@ manually adjusted by the user before approval.
 from __future__ import annotations
 
 from types import SimpleNamespace
-from typing import cast
+from typing import Any, cast
 from unittest.mock import MagicMock, patch
 
 import numpy as np
@@ -781,8 +781,8 @@ def test_run_live_calibration_falls_back_to_nested_perspective(monkeypatch):
 
 
 def test_run_live_calibration_saves_zones_under_reference_frame_key():
-    """The polygon must be saved under the ``reference_frame_path`` key
-    (not only under "live_camera") so the active-video machinery —
+    """The polygon must be saved (in memory only, ``persist=False``) under
+    the ``reference_frame_path`` key so the active-video machinery —
     triggered by UI_DISPLAY_VIDEO_FRAME → display_roi_video_frame →
     set_active_zone_video(reference_frame_path) — finds matching zones
     and does NOT reset ``project_data["detection_zones"]`` to empty.
@@ -790,6 +790,12 @@ def test_run_live_calibration_saves_zones_under_reference_frame_key():
     The original symptom: the canvas showed the reference frame but no
     polygon, and the ROI/Concluir buttons stayed disabled because the
     global zone_data had been silently cleared by set_active_zone_video.
+
+    Audit Erro 4 (2026-05-25): the legacy ``"live_camera"`` template key
+    is no longer written here — it would persist across sessions and
+    show a ghost polygon on reopen. The user opts into reuse via the
+    zone-tab checkbox at Concluir time; see
+    ``zone_control_builder._apply_arena_template_choice``.
     """
     coordinator = _make_calibration_coordinator_with_camera()
 
@@ -834,22 +840,34 @@ def test_run_live_calibration_saves_zones_under_reference_frame_key():
         assert coordinator.run_live_calibration(stabilization_frames=4, show_preview=True)
 
     save_calls = coordinator.project_manager.save_zone_data.call_args_list  # type: ignore[attr-defined]
-    saved_keys = []
+    saved_keys: list[Any] = []
+    persist_flags: list[bool] = []
     for call in save_calls:
-        # save_zone_data(zone_data, video_path) — positional.
+        # save_zone_data(zone_data, video_path[, persist=...]) — positional first two.
         if len(call.args) >= 2:
             saved_keys.append(call.args[1])
         elif "video_path" in call.kwargs:
             saved_keys.append(call.kwargs["video_path"])
+        # ``persist`` is keyword-only on ProjectManager.save_zone_data.
+        if "persist" in call.kwargs:
+            persist_flags.append(bool(call.kwargs["persist"]))
+        else:
+            persist_flags.append(True)  # default
 
     # The reference frame path must be among the keys so set_active_zone_video
-    # finds the persisted polygon and preserves the global ``detection_zones``.
+    # finds the in-memory polygon and preserves the global ``detection_zones``.
     assert any(
         isinstance(k, str) and k.endswith("live_camera_reference_frame.png") for k in saved_keys
     ), f"reference frame key missing from save_zone_data calls: {saved_keys}"
-    # Legacy "live_camera" key must also be preserved for back-compat consumers.
-    assert "live_camera" in saved_keys, (
-        f'legacy "live_camera" key missing from save_zone_data calls: {saved_keys}'
+    # Legacy "live_camera" key MUST NOT be written by auto-detect anymore —
+    # it is the source of the ghost-polygon bug fixed in audit Erro 4.
+    assert "live_camera" not in saved_keys, (
+        f'unexpected legacy "live_camera" save during auto-detect: {saved_keys}'
+    )
+    # All auto-detect saves must be ``persist=False`` (in-memory only) so a
+    # cancelled session does not leak the polygon to project.json.
+    assert all(not p for p in persist_flags), (
+        f"auto-detect must use persist=False; got persist flags: {persist_flags}"
     )
 
 
