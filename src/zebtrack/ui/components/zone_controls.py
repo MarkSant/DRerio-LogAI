@@ -1324,6 +1324,15 @@ class ZoneControlsWidget(BaseWidget):
     def _on_finish_drawing_clicked(self) -> None:
         """Handle finish drawing button click - completes polygon without double-click."""
         self.emit_event(UIEvents.ZONE_FINISH_DRAWING, payloads.EmptyPayload())
+        # Feedback visível: o botão fica esmaecido e indica que o desenho foi
+        # finalizado. O botão "Concluir" segue disponível para o caso de o
+        # usuário ainda querer ajustar antes de concluir. O botão volta ao
+        # normal quando uma nova edição começa (show_interactive_buttons).
+        if getattr(self, "finish_drawing_btn", None):
+            try:
+                self.finish_drawing_btn.config(state="disabled", text="✓ Desenho Finalizado")
+            except tk.TclError:
+                log.debug("zone_controls.finish_drawing.feedback_suppressed", exc_info=True)
 
     def _on_roi_rule_changed(self, event) -> None:
         """Handle ROI rule change."""
@@ -1407,6 +1416,13 @@ class ZoneControlsWidget(BaseWidget):
 
     def show_interactive_buttons(self) -> None:
         """Show the interactive editing buttons."""
+        # Reinicia o botão "Finalizar Desenho" para uma nova sessão de edição
+        # (ele é esmaecido após o clique como sinal de conclusão).
+        if getattr(self, "finish_drawing_btn", None):
+            try:
+                self.finish_drawing_btn.config(state="normal", text="✓ Finalizar Desenho")
+            except tk.TclError:
+                log.debug("zone_controls.finish_drawing.reset_suppressed", exc_info=True)
         if self.interactive_buttons_frame:
             try:
                 if self.interactive_buttons_frame.master == self.roi_inclusion_frame.master:

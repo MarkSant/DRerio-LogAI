@@ -274,7 +274,9 @@ class TestCanvasAccessAndEvents:
 
         canvas_manager._on_polygon_edit_requested({"polygon": polygon})
 
-        canvas_manager.setup_interactive_polygon.assert_called_once_with(polygon)
+        canvas_manager.setup_interactive_polygon.assert_called_once_with(
+            polygon, preselect_all=False
+        )
 
     def test_on_polygon_edit_requested_preselect_all(self, canvas_manager):
         """``preselect_all=True`` (fluxo Reutilizar) seleciona todos os vértices.

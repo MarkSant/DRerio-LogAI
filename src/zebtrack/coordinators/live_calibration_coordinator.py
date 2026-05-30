@@ -264,7 +264,49 @@ class LiveCalibrationCoordinator(BaseCoordinator):
                 if not self._capture_reference_frame_for_zones():
                     log.warning("live_calibration_coordinator.zones.reuse_reference_frame_failed")
 
+                guidance_title = "Ajustar Polígono"
+                guidance_msg = (
+                    "Polígono reutilizado. Ao fechar este aviso, a aba de "
+                    "Configuração de Zonas será aberta com TODOS os vértices já "
+                    "SELECIONADOS (em vermelho).\n\n"
+                    "Para mover o polígono INTEIRO de uma vez, clique e ARRASTE "
+                    "sobre a área ou sobre qualquer linha do polígono (ou sobre "
+                    "um dos vértices em vermelho). Todo o polígono se move junto.\n\n"
+                    "Se a seleção sumir, arraste o mouse formando um retângulo "
+                    "sobre toda a área do polígono para selecionar todos os "
+                    "vértices de novo.\n\n"
+                    "Depois clique em 'Salvar Edição' e em 'Iniciar Gravação' "
+                    "quando estiver pronto."
+                )
+
+                # Aviso BLOQUEANTE primeiro: ao clicar OK, a aba é então
+                # revelada já com o polígono e os vértices pré-selecionados
+                # (vermelho). Usa o dialog_manager (modal, síncrono) quando
+                # disponível; caso contrário cai no evento assíncrono.
+                shown_blocking = False
+                dialog_manager = getattr(getattr(self, "view", None), "dialog_manager", None)
+                if dialog_manager is not None and hasattr(dialog_manager, "show_info"):
+                    try:
+                        dialog_manager.show_info(guidance_title, guidance_msg)
+                        shown_blocking = True
+                    # except Exception justified: o aviso não pode quebrar o fluxo.
+                    except Exception:
+                        log.debug(
+                            "live_calibration_coordinator.reuse_guidance.blocking_failed",
+                            exc_info=True,
+                        )
+
                 if self.event_bus:
+                    if not shown_blocking:
+                        self.event_bus.publish(
+                            Event(
+                                type=UIEvents.UI_SHOW_INFO,
+                                data=payloads.MessagePayload(
+                                    title=guidance_title, message=guidance_msg
+                                ),
+                            )
+                        )
+
                     self.event_bus.publish(
                         Event(
                             type=UIEvents.UI_SELECT_TAB,
@@ -288,7 +330,7 @@ class LiveCalibrationCoordinator(BaseCoordinator):
                     # motivo das linhas do fluxo auto: deixar o frame de
                     # referência terminar de renderizar antes de
                     # ``setup_interactive_polygon``). ``preselect_all=True``
-                    # faz todos os vértices surgirem já selecionados.
+                    # faz todos os vértices surgirem já selecionados (vermelho).
                     try:
                         polygon = (zone_data.polygon if zone_data else None) or []
                         bus = self.event_bus
@@ -324,28 +366,6 @@ class LiveCalibrationCoordinator(BaseCoordinator):
                             "live_calibration_coordinator.reuse_edit_mode.failed",
                             exc_info=True,
                         )
-
-                    self.event_bus.publish(
-                        Event(
-                            type=UIEvents.UI_SHOW_INFO,
-                            data=payloads.MessagePayload(
-                                title="Ajustar Polígono",
-                                message=(
-                                    "Polígono reutilizado. Todos os vértices já aparecem "
-                                    "SELECIONADOS (destacados).\n\n"
-                                    "Para mover o polígono INTEIRO de uma vez, clique e "
-                                    "ARRASTE sobre a área ou sobre qualquer linha do "
-                                    "polígono (ou sobre um dos vértices destacados). Todo "
-                                    "o polígono se move junto.\n\n"
-                                    "Se a seleção sumir, arraste o mouse formando um "
-                                    "retângulo sobre toda a área do polígono para "
-                                    "selecionar todos os vértices de novo.\n\n"
-                                    "Depois clique em 'Salvar Edição' e em "
-                                    "'Iniciar Gravação' quando estiver pronto."
-                                ),
-                            ),
-                        )
-                    )
 
                 # Defere o início da sessão até o usuário confirmar na aba de
                 # zonas. Seta pending_zone_confirmation=True → block_detail trata

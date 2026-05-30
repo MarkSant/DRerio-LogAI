@@ -355,11 +355,16 @@ class UICoordinator:
         """
         self._events_handled += 1
         polygon = _payload_get(data, "polygon")
+        preselect = bool(_payload_get(data, "preselect_all"))
 
         try:
             canvas_manager = self.canvas_manager
             if canvas_manager is not None and polygon is not None:
-                self._safe_ui_call(lambda: canvas_manager.setup_interactive_polygon(polygon))
+                self._safe_ui_call(
+                    lambda: canvas_manager.setup_interactive_polygon(
+                        polygon, preselect_all=preselect
+                    )
+                )
                 log.debug("ui_coordinator.polygon_edit.setup_completed")
 
         except Exception as e:  # except Exception justified: event-bus fault-isolation boundary
