@@ -159,8 +159,39 @@ class StateSynchronizer:
             if self.gui.process_video_btn:
                 self.gui.process_video_btn.config(state="normal")
             # Switch back from analysis view mode
-            if hasattr(self.gui, "analysis_view_controller"):
+            if hasattr(self.gui, "analysis_view_controller") and not self._is_live_session_active():
                 self.gui.analysis_view_controller.stop_analysis_view_mode()
+
+    def _is_live_session_active(self) -> bool:
+        """Return whether processing still belongs to an active live session."""
+        sm = self._state_manager
+        if sm is None:
+            try:
+                sm = self.gui.controller.state_manager
+            except (AttributeError, RuntimeError):
+                sm = None
+
+        if sm is not None:
+            get_processing_state = getattr(sm, "get_processing_state", None)
+            if callable(get_processing_state):
+                try:
+                    processing_state = get_processing_state()
+                except Exception:
+                    processing_state = None
+                if processing_state is not None:
+                    return bool(getattr(processing_state, "is_live_session_active", False))
+
+        live_camera_session_coordinator = getattr(
+            getattr(self.gui, "controller", None), "live_camera_session_coordinator", None
+        )
+        is_active_fn = getattr(live_camera_session_coordinator, "is_live_session_active", None)
+        if callable(is_active_fn):
+            try:
+                return bool(is_active_fn())
+            except Exception:
+                return False
+
+        return False
 
     def _update_detector_ui(self, detector_initialized: bool) -> None:
         """Update UI elements based on detector state."""

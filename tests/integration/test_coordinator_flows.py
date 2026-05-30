@@ -621,6 +621,73 @@ def test_live_project_session_override_skips_resolver(monkeypatch, test_settings
 
 
 @pytest.mark.integration
+def test_live_project_session_publishes_metadata_and_countdown_status(monkeypatch, test_settings):
+    event_bus = EventBusV2()
+
+    live_camera_service = MagicMock()
+    live_camera_service.start_session.return_value = True
+
+    pm = MagicMock()
+    pm.get_project_type.return_value = "live"
+    pm.get_project_name.return_value = "test_project"
+    pm.get_active_zone_video.return_value = None
+    pm.resolve_analysis_profile.return_value = {"name": "project_live_profile"}
+    pm.project_data = {
+        "camera_index": 0,
+        "camera_friendly_name": "USB Camera",
+        "recording_duration_s": 60.0,
+        "analysis_interval_frames": 10,
+        "display_interval_frames": 10,
+        "animals_per_aquarium": 1,
+        "use_countdown": True,
+        "countdown_duration_s": 5,
+    }
+
+    calibration = MagicMock()
+    calibration.ensure_zones_before_recording.return_value = True
+
+    coordinator = LiveCameraSessionCoordinator(
+        state_manager=StateManager(),
+        live_camera_service=live_camera_service,
+        project_manager=pm,
+        detector_service=MagicMock(),
+        settings_obj=test_settings,
+        live_calibration_coordinator=calibration,
+        event_bus=event_bus,
+    )
+
+    metadata_events: list[payloads.AnalysisMetadataPayload] = []
+    task_events: list[payloads.AnalysisTaskStatusPayload] = []
+    event_bus.subscribe(
+        UIEvents.UI_UPDATE_ANALYSIS_METADATA,
+        lambda data: metadata_events.append(cast(payloads.AnalysisMetadataPayload, data)),
+    )
+    event_bus.subscribe(
+        UIEvents.UI_UPDATE_ANALYSIS_TASK_STATUS,
+        lambda data: task_events.append(cast(payloads.AnalysisTaskStatusPayload, data)),
+    )
+
+    from zebtrack.core.services.wizard_service import WizardService
+
+    monkeypatch.setattr(
+        WizardService,
+        "resolve_camera_index",
+        classmethod(lambda cls, idx, name: (0, "MATCH")),
+    )
+
+    assert coordinator.start_live_project_session(day=1, group="Controle", subject="1")
+
+    assert metadata_events
+    assert task_events
+    assert metadata_events[0].metadata["group"] == "Controle"
+    assert metadata_events[0].metadata["day"] == "Dia_1"
+    assert metadata_events[0].metadata["subject"] == "1"
+    assert metadata_events[0].metadata["profile"] == "project_live_profile"
+    assert task_events[0].step == "Contagem regressiva para iniciar a análise ao vivo."
+    assert task_events[-1].step == "Análise ao vivo em andamento."
+
+
+@pytest.mark.integration
 def test_live_camera_session_invalid_camera_index_raises(test_settings):
     coordinator = LiveCameraSessionCoordinator(
         state_manager=StateManager(),

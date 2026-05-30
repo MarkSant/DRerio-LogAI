@@ -239,6 +239,22 @@ def test_update_processing_ui_toggles_buttons_and_view_mode():
     analysis_view_controller.stop_analysis_view_mode.assert_called_once()
 
 
+def test_update_processing_ui_preserves_analysis_view_for_live_session_stop():
+    analysis_view_controller = Mock()
+    state_manager = Mock()
+    state_manager.get_processing_state.return_value = SimpleNamespace(is_live_session_active=True)
+    gui = SimpleNamespace(
+        process_video_btn=Mock(),
+        analysis_view_controller=analysis_view_controller,
+    )
+    synchronizer = StateSynchronizer(gui, state_manager=state_manager)
+
+    synchronizer._update_processing_ui(False)
+
+    gui.process_video_btn.config.assert_called_once_with(state="normal")
+    analysis_view_controller.stop_analysis_view_mode.assert_not_called()
+
+
 def test_update_arduino_ui_delegates_to_dashboard():
     dashboard = Mock()
     gui = SimpleNamespace(arduino_dashboard_widget=dashboard)

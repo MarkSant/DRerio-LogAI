@@ -1595,6 +1595,29 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
             "polygon_source": polygon_source,
         }
 
+        prestart_step = (
+            "Contagem regressiva para iniciar a análise ao vivo."
+            if use_countdown and countdown_duration_s > 0
+            else "Iniciando análise ao vivo."
+        )
+        self._publish_live_analysis_metadata(
+            experiment_id=experiment_id,
+            camera_index=camera_index,
+            group=config.get("experimental_group"),
+            day=config.get("experiment_day"),
+            subject=config.get("subject_id"),
+        )
+        self._publish_live_task_status(
+            experiment_id=experiment_id,
+            step=prestart_step,
+        )
+        self._set_live_analysis_ui_state(
+            status_text=prestart_step,
+            experiment_id=experiment_id,
+            task_step=prestart_step,
+            show_progress=True,
+        )
+
         # Delegate to LiveCameraService.
         # When metadata (group/day/subject) is set, results land inside the
         # project's Grupo/Dia/Sujeito hierarchy alongside pre-recorded videos.
@@ -1629,6 +1652,17 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
                 group=config.get("experimental_group"),
                 day=config.get("experiment_day"),
                 subject=config.get("subject_id"),
+            )
+            running_step = "Análise ao vivo em andamento."
+            self._publish_live_task_status(
+                experiment_id=experiment_id,
+                step=running_step,
+            )
+            self._set_live_analysis_ui_state(
+                status_text=running_step,
+                experiment_id=experiment_id,
+                task_step=running_step,
+                show_progress=True,
             )
 
         # UI feedback
@@ -1834,6 +1868,29 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
             "polygon_source": polygon_source,
         }
 
+        prestart_step = (
+            "Contagem regressiva para iniciar a análise ao vivo."
+            if use_countdown and countdown_duration_s > 0
+            else "Iniciando análise ao vivo."
+        )
+        self._publish_live_analysis_metadata(
+            experiment_id=experiment_id,
+            camera_index=camera_index,
+            group=group,
+            day=f"Dia_{day}",
+            subject=subject,
+        )
+        self._publish_live_task_status(
+            experiment_id=experiment_id,
+            step=prestart_step,
+        )
+        self._set_live_analysis_ui_state(
+            status_text=prestart_step,
+            experiment_id=experiment_id,
+            task_step=prestart_step,
+            show_progress=True,
+        )
+
         # Delegate to LiveCameraService (unified system).
         # Live project sessions always have full metadata, so the resolver
         # routes them into <project>/Grupo_X/Dia_Y/Sujeito_Z/live_{timestamp}/
@@ -1871,6 +1928,17 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
                 group=group,
                 day=f"Dia_{day}",
                 subject=subject,
+            )
+            running_step = "Análise ao vivo em andamento."
+            self._publish_live_task_status(
+                experiment_id=experiment_id,
+                step=running_step,
+            )
+            self._set_live_analysis_ui_state(
+                status_text=running_step,
+                experiment_id=experiment_id,
+                task_step=running_step,
+                show_progress=True,
             )
 
         return success
