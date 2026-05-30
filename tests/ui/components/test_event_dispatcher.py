@@ -429,3 +429,37 @@ class TestZoneComponentEventHandlers:
 
         # Assert
         mock_gui.controller.update_detector_parameters.assert_called_once_with(params)
+
+
+class TestFinishDrawingRouting:
+    """O 'Finalizar Desenho' deve comitar a edição interativa (não reverter)."""
+
+    def test_interactive_edit_detected_when_editing_and_points(self):
+        gui = SimpleNamespace(
+            canvas_manager=SimpleNamespace(current_editing_zone="arena"),
+            edited_polygon_points=[[0, 0], [1, 1], [2, 2]],
+        )
+        assert EventDispatcher._finish_drawing_is_interactive_edit(gui) is True
+
+    def test_not_edit_when_no_editing_zone(self):
+        gui = SimpleNamespace(
+            canvas_manager=SimpleNamespace(current_editing_zone=None),
+            current_editing_zone=None,
+            edited_polygon_points=[[0, 0], [1, 1], [2, 2]],
+        )
+        assert EventDispatcher._finish_drawing_is_interactive_edit(gui) is False
+
+    def test_not_edit_when_no_points(self):
+        gui = SimpleNamespace(
+            canvas_manager=SimpleNamespace(current_editing_zone="arena"),
+            edited_polygon_points=[],
+        )
+        assert EventDispatcher._finish_drawing_is_interactive_edit(gui) is False
+
+    def test_editing_flag_on_gui_also_counts(self):
+        gui = SimpleNamespace(
+            canvas_manager=SimpleNamespace(current_editing_zone=None),
+            current_editing_zone="arena",
+            edited_polygon_points=[[0, 0], [1, 1], [2, 2]],
+        )
+        assert EventDispatcher._finish_drawing_is_interactive_edit(gui) is True

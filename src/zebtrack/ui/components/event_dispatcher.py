@@ -92,6 +92,22 @@ class EventDispatcher:
             raise RuntimeError("EventDispatcher requires ApplicationGUI context for UI events.")
         return self.gui
 
+    @staticmethod
+    def _finish_drawing_is_interactive_edit(gui: Any) -> bool:
+        """True when "Finalizar Desenho" should commit an interactive edit.
+
+        An interactive edit is active when an editing zone is set (arena/ROI)
+        AND there are edited polygon points. In that case the finish action must
+        save the edited points (``save_arena``) instead of re-completing a fresh
+        drawing (``on_canvas_double_click``), which would revert the polygon.
+        """
+        cm = getattr(gui, "canvas_manager", None)
+        editing = bool(
+            getattr(cm, "current_editing_zone", None) or getattr(gui, "current_editing_zone", None)
+        )
+        has_edited_points = bool(getattr(gui, "edited_polygon_points", None))
+        return editing and has_edited_points
+
     def _run_on_ui_thread(self, callback: Callable[[], None]) -> None:
         """Schedule callback on Tk main thread when possible.
 
@@ -847,11 +863,22 @@ class EventDispatcher:
         )
 
         def _handle_finish_drawing(d):
-            gui.canvas_manager.event_handler.on_canvas_double_click(None)
-            # Sinal visual de que o desenho foi finalizado (o usuário pediu um
-            # retorno explícito além do polígono fechar no canvas).
-            if hasattr(gui, "set_status"):
-                gui.set_status("✓ Desenho finalizado. Clique em 'Salvar Edição' para confirmar.")
+            # Em modo de EDIÇÃO interativa (ex.: polígono reutilizado e movido),
+            # "Finalizar Desenho" deve COMITAR a edição — salvar os vértices na
+            # nova posição (mesmo caminho de "Salvar Edição"). Usar
+            # on_canvas_double_click aqui reverteria o polígono ao estado salvo
+            # (ele opera sobre o desenho-em-andamento, não sobre
+            # edited_polygon_points), descartando o arraste do usuário.
+            if EventDispatcher._finish_drawing_is_interactive_edit(gui):
+                gui.canvas_manager.save_arena()
+                if hasattr(gui, "set_status"):
+                    gui.set_status("✓ Desenho finalizado e edição salva na nova posição.")
+            else:
+                gui.canvas_manager.event_handler.on_canvas_double_click(None)
+                if hasattr(gui, "set_status"):
+                    gui.set_status(
+                        "✓ Desenho finalizado. Clique em 'Salvar Edição' para confirmar."
+                    )
 
         event_bus.subscribe(UIEvents.ZONE_FINISH_DRAWING, _handle_finish_drawing)
         event_bus.subscribe(
