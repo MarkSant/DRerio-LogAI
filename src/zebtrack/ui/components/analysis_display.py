@@ -16,8 +16,15 @@ from zebtrack.ui import payloads
 # Local imports
 from zebtrack.ui.components.base import BaseWidget
 from zebtrack.ui.event_bus_v2 import EventBusV2, UIEvents
+from zebtrack.ui.wizard.tooltip import ToolTip
 
 log = structlog.get_logger()
+
+ANALYSIS_PROFILE_TOOLTIP = (
+    "Mostra a configuração de análise aplicada a esta sessão. "
+    "Quando nenhuma regra específica combina com grupo, dia ou indivíduo, "
+    "o projeto usa o perfil padrão."
+)
 
 
 class AnalysisDisplayWidget(BaseWidget):
@@ -60,7 +67,7 @@ class AnalysisDisplayWidget(BaseWidget):
         self.group_var = StringVar(value="Grupo: --")
         self.day_var = StringVar(value="Dia: --")
         self.subject_var = StringVar(value="Indivíduo: --")
-        self.profile_var = StringVar(value="Perfil de análise: default")
+        self.profile_var = StringVar(value="Configuração de análise: default")
         self.tracking_mode_var = StringVar(value="Modo de rastreamento: --")
         self.social_summary_var = StringVar(value="Interações sociais: não aplicável no momento.")
         self.track_selector_var = StringVar(value="Todos")
@@ -131,6 +138,7 @@ class AnalysisDisplayWidget(BaseWidget):
 
         self.profile_label = ttk.Label(info_frame, textvariable=self.profile_var)
         self.profile_label.grid(row=1, column=3, sticky="w")
+        ToolTip(self.profile_label, ANALYSIS_PROFILE_TOOLTIP)
 
         # Tracking mode (third row)
         self.tracking_mode_label = ttk.Label(info_frame, textvariable=self.tracking_mode_var)
@@ -268,7 +276,7 @@ class AnalysisDisplayWidget(BaseWidget):
         self.day_var.set(f"Dia: {day}")
         self.subject_var.set(f"Indivíduo: {subject}")
         if profile:
-            self.profile_var.set(f"Perfil de análise: {profile}")
+            self.profile_var.set(f"Configuração de análise: {profile}")
 
     def set_tracking_mode(self, mode: str) -> None:
         """Update the tracking mode display."""
@@ -276,7 +284,7 @@ class AnalysisDisplayWidget(BaseWidget):
 
     def set_profile(self, profile: str) -> None:
         """Update the analysis profile display."""
-        self.profile_var.set(f"Perfil de análise: {profile}")
+        self.profile_var.set(f"Configuração de análise: {profile}")
 
     def set_social_summary(self, summary: str) -> None:
         """Update the social proximity summary text."""

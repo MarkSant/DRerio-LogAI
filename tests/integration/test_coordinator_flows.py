@@ -414,6 +414,67 @@ def test_live_camera_session_start_stop_happy_path(test_settings):
 
 
 @pytest.mark.integration
+def test_live_session_publishes_metadata_profile_and_live_task_status(test_settings):
+    state_manager = StateManager()
+    event_bus = EventBusV2()
+
+    live_camera_service = MagicMock()
+    live_camera_service.start_session.return_value = True
+
+    pm = MagicMock()
+    pm.get_active_zone_video.return_value = None
+    pm.project_data = {"analysis_profile": "project_default"}
+    pm.resolve_analysis_profile.return_value = {"name": "live_profile"}
+
+    calibration = MagicMock()
+
+    coordinator = LiveCameraSessionCoordinator(
+        state_manager=state_manager,
+        live_camera_service=live_camera_service,
+        project_manager=pm,
+        detector_service=MagicMock(),
+        settings_obj=test_settings,
+        live_calibration_coordinator=calibration,
+        event_bus=event_bus,
+    )
+
+    metadata_events: list[payloads.AnalysisMetadataPayload] = []
+    task_events: list[payloads.AnalysisTaskStatusPayload] = []
+    event_bus.subscribe(
+        UIEvents.UI_UPDATE_ANALYSIS_METADATA,
+        lambda data: metadata_events.append(data),
+    )
+    event_bus.subscribe(
+        UIEvents.UI_UPDATE_ANALYSIS_TASK_STATUS,
+        lambda data: task_events.append(data),
+    )
+
+    assert coordinator.start_live_session(
+        camera_index=0,
+        duration_s=1.0,
+        experiment_id="live_exp_01",
+        wizard_data={
+            "experimental_group": "Controle",
+            "experiment_day": "Dia_1",
+            "subject_id": "S1",
+            "use_countdown": True,
+            "countdown_duration_s": 5,
+        },
+    )
+
+    assert metadata_events
+    assert task_events
+    assert metadata_events[-1].metadata["group"] == "Controle"
+    assert metadata_events[-1].metadata["day"] == "Dia_1"
+    assert metadata_events[-1].metadata["subject"] == "S1"
+    assert metadata_events[-1].metadata["profile"] == "live_profile"
+    assert any(
+        event.step == "Contagem regressiva para iniciar a análise ao vivo." for event in task_events
+    )
+    assert task_events[-1].step == "Análise ao vivo em andamento."
+
+
+@pytest.mark.integration
 def test_live_project_session_resolves_camera_by_friendly_name(monkeypatch, test_settings):
     """When DirectShow ordering shifts, start_live_project_session should silently
     re-resolve the index via the saved friendly_name."""

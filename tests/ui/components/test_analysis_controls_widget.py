@@ -34,7 +34,7 @@ def test_set_tracking_profile_social(widget):
     widget.set_social_summary("Summary")
 
     assert widget.tracking_mode_var.get() == "Modo de rastreamento: Single"
-    assert widget.analysis_profile_var.get() == "Perfil de análise: ProfileA"
+    assert widget.analysis_profile_var.get() == "Configuração de análise: ProfileA"
     assert widget.social_summary_var.get() == "Summary"
 
 

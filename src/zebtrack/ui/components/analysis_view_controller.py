@@ -259,6 +259,20 @@ class AnalysisViewController:
             self._analysis_status_var.set(status_text)
         self.gui.update_idletasks()
 
+    def set_analysis_status(self, status_text: str) -> None:
+        """Set the main analysis status without touching progress values."""
+        if self._analysis_display:
+            self._analysis_display.set_status(status_text)
+        self._analysis_status_var.set(status_text)
+
+    def _set_analysis_profile_text(self, profile_name: str) -> None:
+        """Apply the active analysis profile label consistently."""
+        text = (profile_name or "default").strip() or "default"
+        label = f"Configuração de análise: {text}"
+        self._analysis_profile_var.set(label)
+        if self._analysis_display:
+            self._analysis_display.set_profile(text)
+
     def update_analysis_metadata(self, *, metadata: dict | None) -> None:
         """Update the metadata display for the currently processed video."""
         metadata = metadata or {}
@@ -283,11 +297,15 @@ class AnalysisViewController:
             subject_display,
         )
 
+        profile_name = metadata.get("profile")
+        if profile_name not in (None, "", "None"):
+            self._set_analysis_profile_text(str(profile_name))
+
     def update_analysis_task_status(
         self,
         *,
-        index: int,
-        total: int,
+        index: int | None = None,
+        total: int | None = None,
         experiment_id: str | None = None,
         step: str | None = None,
     ) -> None:
@@ -301,8 +319,7 @@ class AnalysisViewController:
 
     def update_analysis_profile(self, profile_name: str) -> None:
         """Update the label describing the active analysis profile."""
-        text = (profile_name or "default").strip() or "default"
-        self._analysis_profile_var.set(f"Perfil de análise: {text}")
+        self._set_analysis_profile_text(profile_name)
         self.reset_analysis_controls()
 
     # ------------------------------------------------------------------

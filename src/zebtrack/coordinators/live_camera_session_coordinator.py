@@ -45,6 +45,8 @@ if TYPE_CHECKING:
 
 log = structlog.get_logger()
 
+LIVE_PROFILE_TOOLTIP_FALLBACK = "default"
+
 
 # =============================================================================
 # EXCEPTIONS
@@ -119,6 +121,10 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
         # UI components (temporary - being phased out)
         self.root = root
         self.view = view
+
+        # Last published UI context for live-session completion restore.
+        self._last_live_analysis_metadata: dict[str, Any] = {}
+        self._last_live_experiment_id: str | None = None
 
         # Session state
         self._active_live_session_id: str | None = None
@@ -350,6 +356,106 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
 
         return f"Dia {text}"
 
+    def _resolve_live_analysis_profile_name(self, metadata: dict[str, Any]) -> str:
+        """Resolve the profile label that should be shown for a live session."""
+        profile_name = None
+
+        try:
+            resolved = self.project_manager.resolve_analysis_profile(metadata)
+            if isinstance(resolved, dict):
+                candidate = resolved.get("name")
+                if candidate not in (None, ""):
+                    text = str(candidate).strip()
+                    if text:
+                        profile_name = text
+        except Exception:
+            log.debug(
+                "live_camera_session_coordinator.resolve_analysis_profile.failed",
+                exc_info=True,
+            )
+
+        project_data = getattr(self.project_manager, "project_data", {}) or {}
+        if not isinstance(project_data, dict):
+            project_data = {}
+
+        fallback = (
+            project_data.get("analysis_profile")
+            or project_data.get("active_profile")
+            or LIVE_PROFILE_TOOLTIP_FALLBACK
+        )
+        fallback_text = str(fallback).strip() or LIVE_PROFILE_TOOLTIP_FALLBACK
+        return profile_name or fallback_text
+
+    def _publish_live_task_status(
+        self,
+        *,
+        experiment_id: str | None = None,
+        step: str | None = None,
+        progress_fraction: float | None = None,
+    ) -> None:
+        """Publish live-session task text through the shared analysis task channel."""
+        if self.event_bus is None:
+            return
+
+        self.event_bus.publish(
+            Event(
+                type=UIEvents.UI_UPDATE_ANALYSIS_TASK_STATUS,
+                data=payloads.AnalysisTaskStatusPayload(
+                    experiment_id=experiment_id,
+                    step=step,
+                    progress_fraction=progress_fraction,
+                ),
+                source="LiveCameraSessionCoordinator._publish_live_task_status",
+            )
+        )
+
+    def _set_live_analysis_ui_state(
+        self,
+        *,
+        status_text: str,
+        experiment_id: str | None = None,
+        task_step: str | None = None,
+        switch_to_analysis: bool = False,
+        show_progress: bool = False,
+        disable_cancel: bool = False,
+        restore_metadata: bool = False,
+    ) -> None:
+        """Apply live-session UI state on the Tk thread using legacy view refs."""
+        controller = getattr(self.view, "analysis_view_controller", None) if self.view else None
+        widget = getattr(self.view, "analysis_display_widget", None) if self.view else None
+
+        if controller is None and widget is None:
+            return
+
+        def _apply() -> None:
+            if controller is not None:
+                if switch_to_analysis:
+                    controller.switch_to_analysis_view()
+                controller.set_analysis_status(status_text)
+                if task_step is not None:
+                    controller.update_analysis_task_status(
+                        index=None,
+                        total=None,
+                        experiment_id=experiment_id,
+                        step=task_step,
+                    )
+                if restore_metadata and self._last_live_analysis_metadata:
+                    controller.update_analysis_metadata(metadata=self._last_live_analysis_metadata)
+
+            if widget is not None:
+                if show_progress:
+                    widget.show_progress()
+                if disable_cancel:
+                    widget.disable_cancel_button()
+
+        if self.root is not None:
+            if restore_metadata:
+                self.root.after(0, lambda: self.root.after(0, _apply))
+            else:
+                self.root.after(0, _apply)
+        else:
+            _apply()
+
     def _publish_live_analysis_metadata(
         self,
         *,
@@ -396,8 +502,21 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
             if day_label:
                 metadata["day_label"] = day_label
 
+        profile_name = metadata.get("profile")
+        if profile_name in (None, "", "None"):
+            metadata["profile"] = self._resolve_live_analysis_profile_name(metadata)
+        else:
+            normalized_profile = str(profile_name).strip()
+            metadata["profile"] = (
+                normalized_profile
+                if normalized_profile
+                else self._resolve_live_analysis_profile_name(metadata)
+            )
+
         metadata.setdefault("experiment_id", experiment_id)
         metadata.setdefault("camera_index", camera_index)
+        self._last_live_analysis_metadata = dict(metadata)
+        self._last_live_experiment_id = experiment_id
 
         log.info(
             "live_camera_session_coordinator.publish_analysis_metadata",
@@ -710,6 +829,29 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
                     "camera_index": camera_index,
                 }
 
+            prestart_step = (
+                "Contagem regressiva para iniciar a análise ao vivo."
+                if use_countdown and countdown_duration_s > 0
+                else "Iniciando análise ao vivo."
+            )
+            self._publish_live_analysis_metadata(
+                experiment_id=experiment_id,
+                camera_index=camera_index,
+                group=(wizard_data or {}).get("experimental_group"),
+                day=(wizard_data or {}).get("experiment_day"),
+                subject=(wizard_data or {}).get("subject_id"),
+            )
+            self._publish_live_task_status(
+                experiment_id=experiment_id,
+                step=prestart_step,
+            )
+            self._set_live_analysis_ui_state(
+                status_text=prestart_step,
+                experiment_id=experiment_id,
+                task_step=prestart_step,
+                show_progress=True,
+            )
+
             # Delegate to LiveCameraService
             resolved_base, session_folder = self._resolve_session_paths(
                 experiment_id=experiment_id,
@@ -781,6 +923,17 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
                 day=(wizard_data or {}).get("experiment_day"),
                 subject=(wizard_data or {}).get("subject_id"),
             )
+            running_step = "Análise ao vivo em andamento."
+            self._publish_live_task_status(
+                experiment_id=experiment_id,
+                step=running_step,
+            )
+            self._set_live_analysis_ui_state(
+                status_text=running_step,
+                experiment_id=experiment_id,
+                task_step=running_step,
+                show_progress=True,
+            )
 
             return True
 
@@ -844,6 +997,22 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
 
             # Publish event
             self._publish_event(UIEvents.LIVE_SESSION_STOPPED, payloads.EmptyPayload())
+
+            completion_step = "Sessão ao vivo concluída."
+            self._publish_live_task_status(
+                experiment_id=self._last_live_experiment_id,
+                step=completion_step,
+                progress_fraction=1.0,
+            )
+            self._set_live_analysis_ui_state(
+                status_text="Análise concluída.",
+                experiment_id=self._last_live_experiment_id,
+                task_step=completion_step,
+                switch_to_analysis=True,
+                show_progress=True,
+                disable_cancel=True,
+                restore_metadata=True,
+            )
 
             # v2.3.1: Re-enable start recording button after session ends
             if self.event_bus:

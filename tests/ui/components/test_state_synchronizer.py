@@ -56,6 +56,33 @@ def test_update_processing_stats_updates_percent():
     assert kwargs["total_frames"] == 100
 
 
+def test_update_analysis_task_status_formats_batch_progress():
+    analysis_display_widget = Mock()
+    analysis_display_widget.task_var = Mock()
+    gui = SimpleNamespace(analysis_display_widget=analysis_display_widget)
+    synchronizer = StateSynchronizer(gui)
+
+    synchronizer.update_analysis_task_status(index=1, total=5, experiment_id="EXP-02", step="")
+
+    analysis_display_widget.task_var.set.assert_called_once_with("Vídeo 2 de 5 — EXP-02")
+
+
+def test_update_analysis_task_status_allows_live_task_only_message():
+    analysis_display_widget = Mock()
+    analysis_display_widget.task_var = Mock()
+    gui = SimpleNamespace(analysis_display_widget=analysis_display_widget)
+    synchronizer = StateSynchronizer(gui)
+
+    synchronizer.update_analysis_task_status(
+        experiment_id="LIVE-EXP-01",
+        step="Contagem regressiva em andamento",
+    )
+
+    analysis_display_widget.task_var.set.assert_called_once_with(
+        "LIVE-EXP-01 • Contagem regressiva em andamento"
+    )
+
+
 def test_update_social_summary_formats_and_updates_tracks():
     gui = _make_gui()
     synchronizer = StateSynchronizer(gui)

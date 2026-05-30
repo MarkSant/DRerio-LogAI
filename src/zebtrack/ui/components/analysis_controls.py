@@ -8,8 +8,15 @@ from PIL import Image, ImageTk
 from zebtrack.ui import payloads
 from zebtrack.ui.components.base import BaseWidget
 from zebtrack.ui.event_bus_v2 import EventBusV2, UIEvents
+from zebtrack.ui.wizard.tooltip import ToolTip
 
 log = structlog.get_logger()
+
+ANALYSIS_PROFILE_TOOLTIP = (
+    "Mostra a configuração de análise aplicada a esta sessão. "
+    "Quando nenhuma regra específica combina com grupo, dia ou indivíduo, "
+    "o projeto usa o perfil padrão."
+)
 
 
 class AnalysisControlsWidget(BaseWidget):
@@ -45,7 +52,7 @@ class AnalysisControlsWidget(BaseWidget):
         self.analysis_subject_var = StringVar(value="Indivíduo: --")
         self.analysis_task_var = StringVar(value="Tarefa: --")
         self.tracking_mode_var = StringVar(value="Modo de rastreamento: Multi-indivíduos")
-        self.analysis_profile_var = StringVar(value="Perfil de análise: default")
+        self.analysis_profile_var = StringVar(value="Configuração de análise: default")
         self.track_selector_var = StringVar(value="Todos")
         self.social_summary_var = StringVar(value="Interações sociais: aguardando dados.")
 
@@ -106,6 +113,7 @@ class AnalysisControlsWidget(BaseWidget):
 
         self.analysis_profile_label = ttk.Label(info_frame, textvariable=self.analysis_profile_var)
         self.analysis_profile_label.grid(row=1, column=3, sticky="w")
+        ToolTip(self.analysis_profile_label, ANALYSIS_PROFILE_TOOLTIP)
 
         # Tracking mode (third row)
         self.tracking_mode_label = ttk.Label(info_frame, textvariable=self.tracking_mode_var)
@@ -185,7 +193,7 @@ class AnalysisControlsWidget(BaseWidget):
 
     def set_profile(self, profile: str) -> None:
         """Update the analysis profile display."""
-        self.analysis_profile_var.set(f"Perfil de análise: {profile}")
+        self.analysis_profile_var.set(f"Configuração de análise: {profile}")
 
     def set_social_summary(self, summary: str) -> None:
         """Update the social proximity summary text."""

@@ -761,15 +761,17 @@ class StateSynchronizer:
         if task_var is None:
             return
 
-        total_videos = max(int(total) if total is not None else 0, 1)
-        current_index = max(int(index) if index is not None else 0, 0) + 1
+        parts: list[str] = []
 
-        parts: list[str] = [f"Vídeo {current_index} de {total_videos}"]
+        if index is not None or total is not None:
+            total_videos = max(int(total) if total is not None else 0, 1)
+            current_index = max(int(index) if index is not None else 0, 0) + 1
+            parts.append(f"Vídeo {current_index} de {total_videos}")
 
         if experiment_id:
             exp_text = str(experiment_id).strip()
             if exp_text:
-                parts.append(f"— {exp_text}")
+                parts.append(exp_text if not parts else f"— {exp_text}")
 
         if step:
             step_text = str(step).strip()
