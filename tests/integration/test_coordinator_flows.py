@@ -442,11 +442,11 @@ def test_live_session_publishes_metadata_profile_and_live_task_status(test_setti
     task_events: list[payloads.AnalysisTaskStatusPayload] = []
     event_bus.subscribe(
         UIEvents.UI_UPDATE_ANALYSIS_METADATA,
-        lambda data: metadata_events.append(data),
+        lambda data: metadata_events.append(cast(payloads.AnalysisMetadataPayload, data)),
     )
     event_bus.subscribe(
         UIEvents.UI_UPDATE_ANALYSIS_TASK_STATUS,
-        lambda data: task_events.append(data),
+        lambda data: task_events.append(cast(payloads.AnalysisTaskStatusPayload, data)),
     )
 
     assert coordinator.start_live_session(
