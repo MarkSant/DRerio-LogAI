@@ -97,12 +97,27 @@ class ZoneReuseDialog:
         button_frame = ttk.Frame(main_frame)
         button_frame.pack(side=tk.BOTTOM, pady=(15, 0))
 
+        # Estilo dedicado com padding vertical: sem isto, no tema ttk de algumas
+        # máquinas (Windows) o texto dos botões fica clipado na altura da letra.
+        style = ttk.Style(self.dialog)
+        style.configure("ZoneReuse.TButton", padding=(12, 8), font=("Segoe UI", 10))
+
         redefine_btn = ttk.Button(
-            button_frame, text="Redefinir", command=self._on_redefine, width=15
+            button_frame,
+            text="Redefinir",
+            command=self._on_redefine,
+            width=15,
+            style="ZoneReuse.TButton",
         )
         redefine_btn.pack(side=tk.LEFT, padx=5)
 
-        reuse_btn = ttk.Button(button_frame, text="Reutilizar", command=self._on_reuse, width=15)
+        reuse_btn = ttk.Button(
+            button_frame,
+            text="Reutilizar",
+            command=self._on_reuse,
+            width=15,
+            style="ZoneReuse.TButton",
+        )
         reuse_btn.pack(side=tk.LEFT, padx=5)
 
         # Bind keys

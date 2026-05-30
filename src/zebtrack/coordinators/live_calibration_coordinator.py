@@ -254,7 +254,97 @@ class LiveCalibrationCoordinator(BaseCoordinator):
 
             if result and result.get("reuse"):
                 log.info("live_calibration_coordinator.zones.reused")
-                return True
+                # Em vez de iniciar a sessão imediatamente, abrir a aba de
+                # zonas com o polígono reutilizado pré-selecionado para que o
+                # usuário possa arrastá-lo inteiro e corrigir flutuações da
+                # nova posição da câmera. A gravação só começa quando ele
+                # clicar em "Iniciar Gravação" (replay com zones_validated=True).
+                # Espelha o fluxo de auto-detecção (sucesso) abaixo, mas sem
+                # re-detectar — apenas captura um frame de referência fresco.
+                if not self._capture_reference_frame_for_zones():
+                    log.warning("live_calibration_coordinator.zones.reuse_reference_frame_failed")
+
+                if self.event_bus:
+                    self.event_bus.publish(
+                        Event(
+                            type=UIEvents.UI_SELECT_TAB,
+                            data=payloads.UISelectTabPayload(tab_name="zone_tab"),
+                        )
+                    )
+                    self.event_bus.publish(
+                        Event(
+                            type=UIEvents.UI_UPDATE_ZONE_LIST,
+                            data=payloads.EmptyPayload(),
+                        )
+                    )
+                    self.event_bus.publish(
+                        Event(
+                            type=UIEvents.UI_REDRAW_ZONES,
+                            data=payloads.ZonesUpdatedPayload(zone_data=None),
+                        )
+                    )
+
+                    # Deferir a entrada em modo de edição por ~150 ms (mesmo
+                    # motivo das linhas do fluxo auto: deixar o frame de
+                    # referência terminar de renderizar antes de
+                    # ``setup_interactive_polygon``). ``preselect_all=True``
+                    # faz todos os vértices surgirem já selecionados.
+                    try:
+                        polygon = (zone_data.polygon if zone_data else None) or []
+                        bus = self.event_bus
+                        if polygon and bus is not None:
+                            import numpy as np
+
+                            _event = Event(
+                                type=UIEvents.POLYGON_EDIT_REQUESTED,
+                                data=payloads.PolygonEditRequestedPayload(
+                                    polygon=np.array(polygon),
+                                    preselect_all=True,
+                                ),
+                                source="LiveCalibrationCoordinator.reuse_zones",
+                            )
+
+                            def _publish_reuse_edit(event=_event, _bus=bus):
+                                _bus.publish(event)
+                                log.info(
+                                    "live_calibration_coordinator.reuse_edit_mode.triggered",
+                                )
+
+                            root = getattr(self, "root", None) or getattr(
+                                getattr(self, "view", None), "root", None
+                            )
+                            if root is not None and hasattr(root, "after"):
+                                root.after(150, _publish_reuse_edit)
+                            else:
+                                bus.publish(_event)
+                    # except Exception justified: edit-mode setup must never
+                    # break the reuse flow; user can still adjust manually.
+                    except Exception:
+                        log.debug(
+                            "live_calibration_coordinator.reuse_edit_mode.failed",
+                            exc_info=True,
+                        )
+
+                    self.event_bus.publish(
+                        Event(
+                            type=UIEvents.UI_SHOW_INFO,
+                            data=payloads.MessagePayload(
+                                title="Ajustar Polígono",
+                                message=(
+                                    "Polígono reutilizado. Todos os vértices já estão "
+                                    "selecionados.\n\n"
+                                    "Arraste o polígono para corrigir a posição na nova "
+                                    "imagem e clique em 'Iniciar Gravação' quando estiver "
+                                    "pronto."
+                                ),
+                            ),
+                        )
+                    )
+
+                # Defere o início da sessão até o usuário confirmar na aba de
+                # zonas. Seta pending_zone_confirmation=True → block_detail trata
+                # success=False como deferred (sem messagebox de erro).
+                return self._wait_for_zone_confirmation()
 
             # Audit Erro 7 round 4 (2026-05-25): when user picks "Redefinir"
             # in ZoneReuseDialog we must actively wipe the existing zones
@@ -1118,8 +1208,30 @@ class LiveCalibrationCoordinator(BaseCoordinator):
     # =============================================================================
 
     def _has_recorded_before(self) -> bool:
-        """Check if any recording has been made in this session."""
-        return self._session_count > 0
+        """True if a recording already exists for this project.
+
+        Considera duas fontes:
+
+        1. ``_session_count`` — gravações feitas NESTA execução do app.
+        2. Vídeos já registrados no projeto em disco — para que, ao
+           **reabrir** um projeto que já possui gravações (e portanto um
+           polígono persistido), o app ofereça o diálogo de **Reutilizar**
+           em vez de rodar a auto-detecção novamente. Sem isto, o
+           ``_session_count`` (zerado a cada reabertura) fazia o app "esquecer"
+           o polígono pré-existente.
+        """
+        if self._session_count > 0:
+            return True
+        try:
+            return bool(self.project_manager.get_all_videos())
+        # except Exception justified: a leitura do projeto não pode quebrar a
+        # decisão do fluxo de zonas; na dúvida, comporta-se como "nunca gravou".
+        except Exception:
+            log.debug(
+                "live_calibration_coordinator.has_recorded_before.project_probe_failed",
+                exc_info=True,
+            )
+            return False
 
     def increment_session_count(self) -> None:
         """Increment the session recording counter.

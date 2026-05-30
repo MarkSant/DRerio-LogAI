@@ -207,6 +207,16 @@ class CanvasManager:
         polygon = _payload_get(data, "polygon")
         if polygon is not None:
             self.setup_interactive_polygon(polygon)
+            # Pré-seleção de todos os vértices (fluxo "Reutilizar polígono"):
+            # ``setup_interactive_polygon`` limpa a seleção, então re-selecionamos
+            # tudo aqui para o usuário poder arrastar o polígono inteiro de uma
+            # vez e corrigir flutuações da nova posição da câmera. Mesma lógica de
+            # ``zone_editor.select_all_vertices``.
+            if _payload_get(data, "preselect_all"):
+                count = len(self.gui.edited_polygon_points)
+                self.selected_vertex_indices = set(range(count))
+                self.renderer.draw_interactive_polygon()
+                log.info("canvas_manager.polygon_edit.preselect_all", vertices=count)
             # Audit Erro 1 round 5 (2026-05-25): mark arena as the active
             # editing zone so ``_on_conclude_video`` recognises the edit and
             # publishes ZONE_SAVE_ARENA. Without this flag, even after the
