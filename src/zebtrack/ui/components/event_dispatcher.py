@@ -845,10 +845,15 @@ class EventDispatcher:
         event_bus.subscribe(
             UIEvents.ZONE_DISCARD_ARENA, lambda d: gui.canvas_manager.discard_arena()
         )
-        event_bus.subscribe(
-            UIEvents.ZONE_FINISH_DRAWING,
-            lambda d: gui.canvas_manager.event_handler.on_canvas_double_click(None),
-        )
+
+        def _handle_finish_drawing(d):
+            gui.canvas_manager.event_handler.on_canvas_double_click(None)
+            # Sinal visual de que o desenho foi finalizado (o usuário pediu um
+            # retorno explícito além do polígono fechar no canvas).
+            if hasattr(gui, "set_status"):
+                gui.set_status("✓ Desenho finalizado. Clique em 'Salvar Edição' para confirmar.")
+
+        event_bus.subscribe(UIEvents.ZONE_FINISH_DRAWING, _handle_finish_drawing)
         event_bus.subscribe(
             UIEvents.ZONE_CONCLUDE_VIDEO,
             lambda d: gui.zone_control_builder._on_conclude_video(),

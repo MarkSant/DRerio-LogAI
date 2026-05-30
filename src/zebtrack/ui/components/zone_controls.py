@@ -281,6 +281,15 @@ class ZoneControlsWidget(BaseWidget):
         else:
             self._hide_pending_session_banner()
 
+    def has_pending_live_session(self) -> bool:
+        """True if a live recording is deferred awaiting zone confirmation.
+
+        Set when ``LIVE_RECORDING_PENDING`` fires (banner shown) and cleared on
+        resume/cancel/session-started. Used by the "Concluir" flow to decide
+        whether to prompt the user to start the recording countdown.
+        """
+        return self._pending_session_payload is not None
+
     def _on_start_pending_recording_clicked(self) -> None:
         """Publish LIVE_RECORDING_RESUME_REQUESTED for the active pending session."""
         experiment_id = (

@@ -258,18 +258,51 @@ class ZoneControlBuilder:
                 )
                 log.info("zone_control_builder.conclude_video.zone_saved_event_emitted")
 
-            # 3. Resume any pending live-recording session. This mirrors the
-            # zone-tab "▶️ Iniciar Gravação" banner button: the user clicking
-            # "✅ Concluir" should also start the deferred live recording.
-            # LiveCameraSessionCoordinator._on_resume_requested is a safe no-op
-            # when there is no pending session (e.g. pre-recorded projects).
-            self.gui.event_bus.publish(
-                Event(
-                    type=UIEvents.LIVE_RECORDING_RESUME_REQUESTED,
-                    data=payloads.LiveRecordingResumeRequestedPayload(experiment_id=None),
+            # 3. Resume any pending live-recording session.
+            # When a live recording is deferred (LIVE_RECORDING_PENDING banner
+            # visible), "✅ Concluir" must ask the user whether to start the
+            # countdown now, then switch to the recording/analysis view and
+            # resume. For pre-recorded projects (no pending session) we keep the
+            # legacy behaviour: publish a resume that is a safe no-op.
+            zone_controls = getattr(self.gui, "zone_controls", None)
+            has_pending = bool(zone_controls and zone_controls.has_pending_live_session())
+
+            if has_pending:
+                from tkinter import messagebox
+
+                start_now = messagebox.askyesno(
+                    "Iniciar Gravação",
+                    "Zonas concluídas.\n\nIniciar a contagem regressiva para a gravação agora?",
                 )
-            )
-            log.info("zone_control_builder.conclude_video.live_resume_requested")
+                if start_now:
+                    # Switch to the recording/analysis view, then resume → the
+                    # countdown and recording start there.
+                    self.gui.event_bus.publish(
+                        Event(
+                            type=UIEvents.UI_NAVIGATE_TO_ANALYSIS_VIEW,
+                            data=payloads.EmptyPayload(),
+                        )
+                    )
+                    self.gui.event_bus.publish(
+                        Event(
+                            type=UIEvents.LIVE_RECORDING_RESUME_REQUESTED,
+                            data=payloads.LiveRecordingResumeRequestedPayload(experiment_id=None),
+                        )
+                    )
+                    log.info("zone_control_builder.conclude_video.live_resume_confirmed")
+                else:
+                    # User declined — keep the pending banner so they can start
+                    # later via "▶️ Iniciar Gravação".
+                    log.info("zone_control_builder.conclude_video.live_resume_declined")
+            else:
+                # No pending live session: safe no-op resume (pre-recorded).
+                self.gui.event_bus.publish(
+                    Event(
+                        type=UIEvents.LIVE_RECORDING_RESUME_REQUESTED,
+                        data=payloads.LiveRecordingResumeRequestedPayload(experiment_id=None),
+                    )
+                )
+                log.info("zone_control_builder.conclude_video.live_resume_requested")
 
         # 4. Optional: Feedback
         if hasattr(self.gui, "set_status"):
