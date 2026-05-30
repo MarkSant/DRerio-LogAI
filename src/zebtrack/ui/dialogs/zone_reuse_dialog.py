@@ -43,23 +43,27 @@ class ZoneReuseDialog:
         # Create dialog window
         self.dialog = tk.Toplevel(parent)
         self.dialog.title("Reutilizar Zonas Existentes?")
-        self.dialog.geometry("500x350")
-        self.dialog.resizable(False, False)
         self.dialog.transient(parent.winfo_toplevel())
         self.dialog.grab_set()
 
-        # Center dialog
-        self._center_dialog()
-
-        # Build UI
+        # Build UI first, THEN size the window to fit its content. A fixed
+        # 500x350 geometry clipped the bottom buttons (their text was cut off
+        # vertically) whenever title + message + info frame + buttons exceeded
+        # 350 px under the app's ttkbootstrap theme. Sizing to the requested
+        # size guarantees every widget — buttons included — is fully visible.
         self._create_widgets()
+        self._size_and_center_dialog()
 
-    def _center_dialog(self):
-        """Center the dialog on screen."""
+    def _size_and_center_dialog(self):
+        """Size the dialog to fit its content and center it on screen."""
         self.dialog.update_idletasks()
-        x = (self.dialog.winfo_screenwidth() // 2) - (500 // 2)
-        y = (self.dialog.winfo_screenheight() // 2) - (350 // 2)
-        self.dialog.geometry(f"+{x}+{y}")
+        width = max(500, self.dialog.winfo_reqwidth())
+        height = self.dialog.winfo_reqheight()
+        x = (self.dialog.winfo_screenwidth() // 2) - (width // 2)
+        y = (self.dialog.winfo_screenheight() // 2) - (height // 2)
+        self.dialog.geometry(f"{width}x{height}+{x}+{y}")
+        # Lock the auto-computed size (no manual resize needed).
+        self.dialog.resizable(False, False)
 
     def _create_widgets(self):
         """Create dialog widgets."""
@@ -93,31 +97,18 @@ class ZoneReuseDialog:
         # Zone details
         self._create_zone_info(info_frame)
 
-        # Buttons
+        # Buttons. The dialog auto-sizes to its content (see
+        # _size_and_center_dialog), so the buttons are never clipped by a
+        # too-short window. Keep plain ttk.Buttons for theme consistency.
         button_frame = ttk.Frame(main_frame)
         button_frame.pack(side=tk.BOTTOM, pady=(15, 0))
 
-        # Estilo dedicado com padding vertical: sem isto, no tema ttk de algumas
-        # máquinas (Windows) o texto dos botões fica clipado na altura da letra.
-        style = ttk.Style(self.dialog)
-        style.configure("ZoneReuse.TButton", padding=(12, 8), font=("Segoe UI", 10))
-
         redefine_btn = ttk.Button(
-            button_frame,
-            text="Redefinir",
-            command=self._on_redefine,
-            width=15,
-            style="ZoneReuse.TButton",
+            button_frame, text="Redefinir", command=self._on_redefine, width=15
         )
         redefine_btn.pack(side=tk.LEFT, padx=5)
 
-        reuse_btn = ttk.Button(
-            button_frame,
-            text="Reutilizar",
-            command=self._on_reuse,
-            width=15,
-            style="ZoneReuse.TButton",
-        )
+        reuse_btn = ttk.Button(button_frame, text="Reutilizar", command=self._on_reuse, width=15)
         reuse_btn.pack(side=tk.LEFT, padx=5)
 
         # Bind keys

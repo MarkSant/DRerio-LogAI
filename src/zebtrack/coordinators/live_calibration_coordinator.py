@@ -331,11 +331,17 @@ class LiveCalibrationCoordinator(BaseCoordinator):
                             data=payloads.MessagePayload(
                                 title="Ajustar Polígono",
                                 message=(
-                                    "Polígono reutilizado. Todos os vértices já estão "
-                                    "selecionados.\n\n"
-                                    "Arraste o polígono para corrigir a posição na nova "
-                                    "imagem e clique em 'Iniciar Gravação' quando estiver "
-                                    "pronto."
+                                    "Polígono reutilizado. Todos os vértices já aparecem "
+                                    "SELECIONADOS (destacados).\n\n"
+                                    "Para mover o polígono INTEIRO de uma vez:\n"
+                                    "1. Clique e ARRASTE sobre um dos vértices destacados "
+                                    "(não sobre as linhas entre eles).\n"
+                                    "2. Todo o polígono se move junto.\n\n"
+                                    "Se a seleção sumir, arraste o mouse formando um "
+                                    "retângulo sobre toda a área do polígono para "
+                                    "selecionar todos os vértices de novo.\n\n"
+                                    "Depois clique em 'Salvar Edição' e em "
+                                    "'Iniciar Gravação' quando estiver pronto."
                                 ),
                             ),
                         )
