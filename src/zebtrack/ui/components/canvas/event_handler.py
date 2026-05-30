@@ -188,6 +188,10 @@ class CanvasEventHandler:
     _SHIFT_MASK = 0x0001
     _CTRL_MASK = 0x0004
 
+    # Distância (px no canvas) para considerar um clique "sobre" uma aresta do
+    # polígono ao arrastá-lo pelo corpo/linhas.
+    _BODY_DRAG_EDGE_TOLERANCE = 8.0
+
     def _editing_canvas(self):
         """Return the live editing canvas, or None if unavailable."""
         try:
@@ -240,6 +244,8 @@ class CanvasEventHandler:
                 log.debug("event_handler.unbind_editing.suppressed", sequence=seq)
         self.manager._rubber_band_start = None
         self.manager._rubber_band_item = None
+        self.manager._body_drag_last = None
+        self.manager._body_drag_selected = set()
 
     def _drag_selected_group(self, event, idx, selected):
         """Translate every selected vertex by the dragged vertex's delta."""
@@ -268,6 +274,92 @@ class CanvasEventHandler:
 
         self.manager.renderer.draw_interactive_polygon()
 
+    # --- Drag the whole polygon by its body/edges (não só por um vértice) -----
+
+    def _press_on_polygon_body(self, event) -> bool:
+        """True if the press lands inside the polygon or close to one of its edges.
+
+        Lets the user grab the whole polygon by its area/lines instead of having
+        to click exactly on a vertex handle.
+        """
+        points = getattr(self.gui, "edited_polygon_points", None)
+        if not points or len(points) < 3:
+            return False
+        canvas_pts = [self.manager._video_to_canvas(p[0], p[1]) for p in points]
+        px, py = float(event.x), float(event.y)
+
+        # Inside test (ray casting).
+        inside = False
+        n = len(canvas_pts)
+        j = n - 1
+        for i in range(n):
+            xi, yi = canvas_pts[i]
+            xj, yj = canvas_pts[j]
+            if (yi > py) != (yj > py) and px < (xj - xi) * (py - yi) / (yj - yi + 1e-12) + xi:
+                inside = not inside
+            j = i
+        if inside:
+            return True
+
+        # Near-edge test (clique sobre uma das linhas que unem os vértices).
+        for i in range(n):
+            x1, y1 = canvas_pts[i]
+            x2, y2 = canvas_pts[(i + 1) % n]
+            res = GeometryService._point_to_segment_distance(px, py, x1, y1, x2, y2)
+            if res and res["distance"] <= self._BODY_DRAG_EDGE_TOLERANCE:
+                return True
+        return False
+
+    def _begin_polygon_body_drag(self, event, selected) -> None:
+        """Start translating ``selected`` vertices together via a body/edge grab."""
+        self.manager._body_drag_last = (float(event.x), float(event.y))
+        self.manager._body_drag_selected = set(selected)
+        canvas = self._editing_canvas()
+        if canvas is None:
+            return
+        canvas.bind("<B1-Motion>", self.on_polygon_body_drag)
+        canvas.bind("<ButtonRelease-1>", self.on_polygon_body_release)
+
+    def on_polygon_body_drag(self, event) -> None:
+        """Translate the selected vertices by the mouse delta (whole-polygon move)."""
+        last = getattr(self.manager, "_body_drag_last", None)
+        selected = getattr(self.manager, "_body_drag_selected", None)
+        if last is None or not selected:
+            return
+
+        canvas_width = self.gui.video_display.canvas.winfo_width() or 800
+        canvas_height = self.gui.video_display.canvas.winfo_height() or 600
+        cur_x = max(0, min(float(event.x), canvas_width))
+        cur_y = max(0, min(float(event.y), canvas_height))
+
+        last_video = self.manager._canvas_to_video(last[0], last[1])
+        cur_video = self.manager._canvas_to_video(cur_x, cur_y)
+        dx = cur_video[0] - last_video[0]
+        dy = cur_video[1] - last_video[1]
+        if dx == 0 and dy == 0:
+            return
+
+        points = self.gui.edited_polygon_points
+        for i in selected:
+            if 0 <= i < len(points):
+                px, py = points[i][0], points[i][1]
+                points[i] = [px + dx, py + dy]
+
+        self.manager._body_drag_last = (cur_x, cur_y)
+        self.manager.renderer.draw_interactive_polygon()
+
+    def on_polygon_body_release(self, event) -> None:
+        """Finish a body/edge drag and detach the per-gesture bindings."""
+        canvas = self._editing_canvas()
+        if canvas is not None:
+            try:
+                canvas.unbind("<B1-Motion>")
+                canvas.unbind("<ButtonRelease-1>")
+            except Exception:
+                log.debug("event_handler.body_drag.unbind_suppressed")
+        self.manager._body_drag_last = None
+        self.manager._body_drag_selected = set()
+
     # --- Per-handle modifier / triple-click handlers --------------------------
 
     def on_handle_triple_click(self, event, handle_index):
@@ -292,12 +384,25 @@ class CanvasEventHandler:
     # --- Rubber-band selection (press/drag on empty canvas area) --------------
 
     def on_editor_canvas_press(self, event):
-        """Begin a rubber-band selection on empty canvas area (issue 1 & 2)."""
+        """Begin a rubber-band selection on empty canvas area (issue 1 & 2).
+
+        Atalho de usabilidade: com vários vértices selecionados e sem
+        modificadores, um clique SOBRE o corpo/linhas do polígono inicia o
+        arraste do polígono inteiro (em vez de uma rubber-band), atendendo à
+        intuição de "agarrar" o polígono pela área/linhas em vez de exigir o
+        clique exato sobre um vértice.
+        """
         # Defensive: ignore if a handle press is already in progress.
         if self.gui._dragged_handle_index is not None:
             return
         canvas = self._editing_canvas()
         if canvas is None:
+            return
+
+        no_modifier = not (event.state & (self._SHIFT_MASK | self._CTRL_MASK))
+        selected = getattr(self.manager, "selected_vertex_indices", set()) or set()
+        if no_modifier and len(selected) > 1 and self._press_on_polygon_body(event):
+            self._begin_polygon_body_drag(event, selected)
             return
 
         # Selection mode from modifiers held at press time.
