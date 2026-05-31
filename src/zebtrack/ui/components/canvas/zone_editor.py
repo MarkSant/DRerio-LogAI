@@ -515,6 +515,14 @@ class ZoneEditor:
             self.gui, "current_editing_zone", None
         )
 
+        # Diagnóstico (temporário): confirmar entrada, contexto de edição e
+        # quantos vértices editados existem no momento do "Salvar Edição".
+        log.info(
+            "zone_editor.save_arena.enter",
+            current_editing_zone=str(current_editing_zone),
+            edited_points=len(getattr(self.gui, "edited_polygon_points", []) or []),
+        )
+
         # Check for multi-aquarium mode first
         zone_controls = getattr(self.gui, "zone_controls", None)
         if (
@@ -594,9 +602,16 @@ class ZoneEditor:
 
         if current_editing_zone == "arena":
             # Save main arena (Single Aquarium)
-            self.gui.event_dispatcher.publish_event(
+            published = self.gui.event_dispatcher.publish_event(
                 UIEvents.ZONE_SAVE_MANUAL_ARENA,
                 {"polygon_points": self.gui.edited_polygon_points},
+            )
+            # Diagnóstico (temporário): confirmar que o evento de persistência
+            # foi publicado (publish_event retorna False se falhar a validação).
+            log.info(
+                "zone_editor.save_arena.arena_branch.published",
+                published=published,
+                points=len(self.gui.edited_polygon_points or []),
             )
             status_message = "Arena principal salva com sucesso."
             self.gui.set_status(status_message)

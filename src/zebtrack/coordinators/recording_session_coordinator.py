@@ -744,12 +744,27 @@ class RecordingSessionCoordinator(BaseCoordinator):
         if not self.live_calibration_coordinator.pending_zone_confirmation:
             return
 
+        # Só retoma (e só reseta a flag COMPARTILHADA) quando ESTE coordinator
+        # realmente possui uma gravação pendente. Sem ``_pending_recording_context``,
+        # a sessão pendente pertence ao ``LiveCameraSessionCoordinator`` (fluxo
+        # live, retomado por ``LIVE_RECORDING_RESUME_REQUESTED`` do botão
+        # "Iniciar Gravação"/"Concluir"). Nesse caso, clicar "Salvar Edição"
+        # (que publica ZONE_SAVE_ARENA/ZONE_SAVE_MANUAL_ARENA) NÃO pode ser
+        # tratado como confirmação de zonas: resetar a flag aqui corrompia o
+        # handshake live, disparava o caminho de gravação errado e fazia a
+        # auto-detecção reaparecer por cima da edição do usuário.
+        if not self._pending_recording_context:
+            log.debug(
+                "recording_session_coordinator.zone_saved.ignored_no_local_context",
+            )
+            return
+
         log.info("recording_session_coordinator.zone_saved.resuming_recording")
 
         # Reset flag
         self.live_calibration_coordinator.pending_zone_confirmation = False
 
-        # Resume recording if context is available
+        # Resume recording (context is guaranteed present at this point).
         if self._pending_recording_context:
             context = self._pending_recording_context
 
