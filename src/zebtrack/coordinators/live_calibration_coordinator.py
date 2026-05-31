@@ -233,6 +233,24 @@ class LiveCalibrationCoordinator(BaseCoordinator):
         # === LIVE PROJECT ZONE FLOW ===
 
         zone_data = self.project_manager.get_zone_data()
+        # Reabertura: as zonas do live ficam armazenadas sob a chave do
+        # reference-frame em ``zones_by_video``, enquanto o ``detection_zones``
+        # global pode estar vazio e nenhum ``active_zone_video`` definido (ele é
+        # apenas em-memória, não persiste). Nesse caso ``get_zone_data()``
+        # retorna vazio e o app "esquece" o polígono — deixando de oferecer a
+        # reutilização e voltando a auto-detectar. Restaura o active a partir do
+        # último vídeo com zonas para que o diálogo de Reutilizar apareça e para
+        # que a sessão/edição passem a usar a MESMA chave de zonas.
+        if not (zone_data and zone_data.polygon):
+            last_zone_video = self.project_manager.get_last_zone_video()
+            if last_zone_video:
+                self.project_manager.set_active_zone_video(last_zone_video)
+                zone_data = self.project_manager.get_zone_data()
+                log.info(
+                    "live_calibration_coordinator.zones.restored_active_from_last",
+                    video=last_zone_video,
+                    has_polygon=bool(zone_data and zone_data.polygon),
+                )
         has_zones: bool = bool(zone_data and zone_data.polygon)
 
         # 1. If zones exist and this is not first recording, ask if want to reuse
@@ -263,6 +281,32 @@ class LiveCalibrationCoordinator(BaseCoordinator):
                 # re-detectar — apenas captura um frame de referência fresco.
                 if not self._capture_reference_frame_for_zones():
                     log.warning("live_calibration_coordinator.zones.reuse_reference_frame_failed")
+
+                # Fixa a chave de zonas ativa no reference-frame ANTES da
+                # edição. Sem isto, "Salvar Edição"/"Finalizar Desenho" gravam
+                # com ``video_path=None`` na chave ativa corrente (que pode não
+                # ser o reference-frame, pois o ``UI_DISPLAY_VIDEO_FRAME`` só o
+                # define de forma assíncrona). A consequência é a edição ir só
+                # para o ``detection_zones`` global, enquanto a sessão ao vivo lê
+                # a chave do reference-frame com o polígono auto-detectado —
+                # ignorando o ajuste do usuário na gravação e nos relatórios.
+                # Definir o active de forma síncrona aqui garante que edição e
+                # sessão usem a MESMA chave. (set_active é seguro: para o PNG do
+                # reference-frame o sync de parquet é no-op.)
+                try:
+                    if self.project_manager.project_path:
+                        ref_frame_path = os.path.join(
+                            str(self.project_manager.project_path),
+                            "live_camera_reference_frame.png",
+                        )
+                        self.project_manager.set_active_zone_video(ref_frame_path)
+                # except Exception justified: definir o active não pode quebrar
+                # o fluxo de reutilização.
+                except Exception:
+                    log.debug(
+                        "live_calibration_coordinator.reuse.set_active_failed",
+                        exc_info=True,
+                    )
 
                 guidance_title = "Ajustar Polígono"
                 guidance_msg = (

@@ -950,6 +950,39 @@ def test_has_recorded_before_true_when_session_count_positive():
     assert coordinator._has_recorded_before() is True
 
 
+def test_ensure_zones_restores_active_zone_video_on_reopen(monkeypatch):
+    """Ao reabrir, as zonas do live vivem sob a chave do reference-frame e o
+    ``active_zone_video`` (em-memória) é None, então ``get_zone_data()`` vem
+    vazio. O coordinator deve restaurar o active a partir do último vídeo com
+    zonas para que ``has_zones`` fique True e o diálogo de Reutilizar apareça
+    (em vez de re-rodar a auto-detecção)."""
+    coordinator = _make_coordinator()
+    coordinator.project_manager.project_path = "/tmp/zebtrack"  # type: ignore[attr-defined]
+    coordinator.project_manager.get_project_type.return_value = "live"  # type: ignore[attr-defined]
+
+    empty = SimpleNamespace(polygon=[])
+    full = SimpleNamespace(polygon=[[1, 1], [2, 2], [3, 3]])
+    # 1ª leitura (reopen) vazia → restaura → 2ª leitura preenchida.
+    coordinator.project_manager.get_zone_data.side_effect = [empty, full, full, full]  # type: ignore[attr-defined]
+    coordinator.project_manager.get_last_zone_video.return_value = "ref.png"  # type: ignore[attr-defined]
+    monkeypatch.setattr(coordinator, "_has_recorded_before", lambda: True)
+    coordinator.root = MagicMock()
+
+    # Diálogo de reutilização fechado (None) → fluxo encerra sem auto-detectar.
+    fake_dialog = MagicMock()
+    fake_dialog.show.return_value = None
+    with patch(
+        "zebtrack.ui.dialogs.zone_reuse_dialog.ZoneReuseDialog",
+        MagicMock(return_value=fake_dialog),
+    ):
+        coordinator.ensure_zones_before_recording()
+
+    # Restaurou o active a partir do último vídeo com zonas.
+    coordinator.project_manager.set_active_zone_video.assert_called_once_with("ref.png")  # type: ignore[attr-defined]
+    # O diálogo de Reutilizar foi exibido (has_zones ficou True).
+    fake_dialog.show.assert_called_once()
+
+
 def test_ensure_zones_reuse_opens_zone_tab_and_defers(monkeypatch):
     """Ao escolher "Reutilizar", em vez de iniciar a sessão imediatamente, o
     coordinator deve abrir a aba de zonas, agendar a edição do polígono com
