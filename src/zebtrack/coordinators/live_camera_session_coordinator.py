@@ -1256,7 +1256,9 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
 
             if self.live_batch_coordinator:
                 batch_id = self.live_batch_coordinator.register_session(
-                    experiment_id=self._active_live_session_id or "unknown",
+                    experiment_id=self._active_live_session_id
+                    or self._last_live_experiment_id
+                    or "unknown",
                     video_path=video_path,
                     metadata=metadata,
                 )
@@ -1282,7 +1284,9 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
                 # update. This is the same write the coordinator would do via
                 # ``LiveBatchCoordinator._persist_session_to_project_data``.
                 self._persist_session_to_project_data_fallback(
-                    experiment_id=self._active_live_session_id or "unknown",
+                    experiment_id=self._active_live_session_id
+                    or self._last_live_experiment_id
+                    or "unknown",
                     video_path=video_path,
                     metadata=metadata,
                 )
@@ -1635,6 +1639,18 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
                     log.info("live_camera_session_coordinator.start_from_config.zones_not_ready")
                 return False
 
+        # Mark the session active now that the zone gate has cleared and the
+        # recording is about to start. Mirrors start_live_session so stop/cancel
+        # and the UI live-context guards see a live session. Reverted on failure.
+        self._active_live_session_id = experiment_id
+        self._update_state(
+            StateCategory.PROCESSING,
+            is_live_session_active=True,
+            camera_index=camera_index,
+            experiment_id=experiment_id,
+            duration_s=duration_s,
+        )
+
         # v2.3.0: Build analysis_config with batch metadata for video registration.
         polygon_source = self.live_calibration_coordinator.last_polygon_source or "manual"
         analysis_config = {
@@ -1693,6 +1709,15 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
             use_countdown=use_countdown,
             countdown_duration_s=countdown_duration_s,
         )
+
+        if not success:
+            # Service failed to start — revert the active-session flag so a later
+            # stop/cancel doesn't think a phantom session is running.
+            self._active_live_session_id = None
+            self._update_state(
+                StateCategory.PROCESSING,
+                is_live_session_active=False,
+            )
 
         if success:
             self.live_calibration_coordinator.clear_last_polygon_source()
@@ -1892,6 +1917,20 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
         # v2.3.1: Increment session count to track recordings for zone reuse dialog
         self.live_calibration_coordinator.increment_session_count()
 
+        # Mark the session active now that the zone gate has cleared and the
+        # recording is about to start. Without this, stop/cancel later hits the
+        # ``no_active_session`` guard (start_live_session sets this, but this
+        # project entrypoint never did) and the UI live-context guards reset the
+        # analysis-tab metadata to defaults. Reverted below if the service fails.
+        self._active_live_session_id = experiment_id
+        self._update_state(
+            StateCategory.PROCESSING,
+            is_live_session_active=True,
+            camera_index=camera_index,
+            experiment_id=experiment_id,
+            duration_s=duration_s,
+        )
+
         # v2.3.0: Store batch metadata for LiveBatchCoordinator registration
         self._active_wizard_data = {
             "experimental_group": group,
@@ -1967,6 +2006,15 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
             use_countdown=use_countdown,
             countdown_duration_s=countdown_duration_s,
         )
+
+        if not success:
+            # Service failed to start — revert the active-session flag so a later
+            # stop/cancel doesn't think a phantom session is running.
+            self._active_live_session_id = None
+            self._update_state(
+                StateCategory.PROCESSING,
+                is_live_session_active=False,
+            )
 
         if success:
             # Polygon-source has been consumed for this session — reset so the next
