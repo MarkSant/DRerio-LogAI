@@ -621,7 +621,35 @@ class MultiAquariumCoordinator(BaseCoordinator):
         if not polygon_list:
             return False
 
-        zone_data = self.project_manager.get_zone_data()
+        # Projetos LIVE: salvar na chave canônica do reference-frame, e não no
+        # ``active_zone_video`` (em-memória), que oscila durante o fluxo —
+        # ``display_roi_video_frame`` o seta para None ao tentar exibir um
+        # placeholder de sessão planejada. Se o save fosse com ``video_path=None``
+        # e o active não fosse o reference-frame, o edit iria APENAS para o
+        # ``detection_zones`` global, deixando ``zones_by_video[ref]`` com a
+        # auto-detecção original; um ``set_active_zone_video(ref)`` posterior
+        # (redraw/refresh pós-save) copia essa original por cima do
+        # ``detection_zones``, revertendo a edição na aba, na gravação e nos
+        # relatórios. Gravar explicitamente na chave do reference-frame garante
+        # que ``zones_by_video[ref]`` e ``detection_zones`` recebam a edição.
+        target_video: str | None = None
+        try:
+            if self.project_manager.get_project_type() == "live":
+                target_video = (
+                    self.project_manager.get_last_zone_video()
+                    or self.project_manager.get_active_zone_video()
+                )
+        # except Exception justified: a resolução da chave não pode quebrar o save;
+        # na dúvida, cai no comportamento anterior (target=active via None).
+        except Exception:
+            log.debug("processing_coordinator.save_arena.target_resolve_failed", exc_info=True)
+            target_video = None
+
+        zone_data = (
+            self.project_manager.get_zone_data(video_path=target_video)
+            if target_video
+            else self.project_manager.get_zone_data()
+        )
         if zone_data is None:
             from zebtrack.core.detection import ZoneData
 
@@ -629,9 +657,13 @@ class MultiAquariumCoordinator(BaseCoordinator):
         else:
             zone_data.polygon = polygon_list
 
-        self.project_manager.save_zone_data(zone_data)
+        self.project_manager.save_zone_data(zone_data, target_video)
         self._publish_processing_mode(source="save_manual_arena")
-        log.info("processing_coordinator.save_arena.success", points=len(polygon_list))
+        log.info(
+            "processing_coordinator.save_arena.success",
+            points=len(polygon_list),
+            target_video=target_video,
+        )
         return True
 
     def add_roi_polygon(
