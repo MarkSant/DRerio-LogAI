@@ -60,6 +60,8 @@ class TestAnalysisDisplayWidget:
         # Verify widget references are created
         assert widget.status_label is not None
         assert widget.task_label is not None
+        assert widget.profile_help_label is not None
+        assert widget.profile_help_label.cget("text") == "ⓘ"
         assert widget.track_selector_widget is not None
         assert widget.progress_bar is not None
         assert widget.video_label is not None

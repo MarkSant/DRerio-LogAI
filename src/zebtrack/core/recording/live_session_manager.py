@@ -83,6 +83,7 @@ class LiveSessionManagerMixin:
     _session_start_time: float | None
     _video_frames_written: int
     _multi_aq_detector: MultiAquariumDetector | None
+    on_session_stopped: Any
 
     # Properties and methods from other mixins / facade
     camera: Camera | None
@@ -655,7 +656,7 @@ class LiveSessionManagerMixin:
 
         return True
 
-    def stop_session(self) -> bool:
+    def stop_session(self) -> bool:  # noqa: C901
         """Stop the current live camera analysis session."""
         log.info("live_camera_service.stop_session")
 
@@ -824,6 +825,17 @@ class LiveSessionManagerMixin:
             log.info("live_camera_service.buttons_restored_after_session_end")
 
         log.info("live_camera_service.session_stopped")
+
+        callback = getattr(self, "on_session_stopped", None)
+        if callable(callback):
+            try:
+                callback(bool(cancelled_session))
+            except Exception:
+                log.debug(
+                    "live_camera_service.session_stopped_callback.failed",
+                    exc_info=True,
+                )
+
         return True
 
     def _on_session_active(self) -> None:

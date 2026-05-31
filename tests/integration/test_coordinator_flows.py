@@ -688,6 +688,108 @@ def test_live_project_session_publishes_metadata_and_countdown_status(monkeypatc
 
 
 @pytest.mark.integration
+def test_publish_live_analysis_metadata_applies_directly_to_view(test_settings):
+    controller = MagicMock()
+    widget = MagicMock()
+    view = SimpleNamespace(
+        analysis_view_controller=controller,
+        analysis_display_widget=widget,
+    )
+
+    project_manager = MagicMock()
+    project_manager.get_active_zone_video.return_value = None
+    project_manager.resolve_analysis_profile.return_value = {}
+    project_manager.project_data = {}
+
+    coordinator = LiveCameraSessionCoordinator(
+        state_manager=StateManager(),
+        live_camera_service=MagicMock(),
+        project_manager=project_manager,
+        detector_service=MagicMock(),
+        settings_obj=test_settings,
+        live_calibration_coordinator=MagicMock(),
+        event_bus=EventBusV2(),
+        view=view,
+    )
+
+    coordinator._publish_live_analysis_metadata(
+        experiment_id="day1_Tratamento 1_1",
+        camera_index=0,
+        group="Tratamento 1",
+        day="Dia_1",
+        subject="1",
+    )
+
+    controller.update_analysis_metadata.assert_called_once()
+    metadata = controller.update_analysis_metadata.call_args.kwargs["metadata"]
+    assert metadata["group"] == "Tratamento 1"
+    assert metadata["day"] == "Dia_1"
+    assert metadata["subject"] == "1"
+    assert metadata["profile"] == "padrão do projeto (default)"
+    widget.set_metadata.assert_called_once_with(
+        group="Tratamento 1",
+        day="Dia 1",
+        subject="1",
+        profile="padrão do projeto (default)",
+    )
+
+
+@pytest.mark.integration
+def test_service_stop_callback_finalizes_live_analysis_view(test_settings):
+    controller = MagicMock()
+    widget = MagicMock()
+    canvas_manager = MagicMock()
+    view = SimpleNamespace(
+        analysis_view_controller=controller,
+        analysis_display_widget=widget,
+        hide_progress_bar=MagicMock(),
+        canvas_manager=canvas_manager,
+    )
+    event_bus = EventBusV2()
+
+    stop_events: list[payloads.EventPayload] = []
+    event_bus.subscribe(UIEvents.LIVE_SESSION_STOPPED, lambda data: stop_events.append(data))
+
+    coordinator = LiveCameraSessionCoordinator(
+        state_manager=StateManager(),
+        live_camera_service=MagicMock(),
+        project_manager=MagicMock(),
+        detector_service=MagicMock(),
+        settings_obj=test_settings,
+        live_calibration_coordinator=MagicMock(),
+        event_bus=event_bus,
+        view=view,
+    )
+    coordinator._active_live_session_id = "live_exp_01"
+    coordinator._last_live_experiment_id = "live_exp_01"
+    coordinator._last_live_analysis_metadata = {
+        "group": "Tratamento 1",
+        "day": "Dia_1",
+        "subject": "1",
+        "profile": "padrão do projeto (default)",
+    }
+
+    coordinator._on_live_service_session_stopped(cancelled=False)
+
+    controller.set_analysis_status.assert_called_once_with("Análise concluída.")
+    controller.update_analysis_task_status.assert_called_once_with(
+        index=None,
+        total=None,
+        experiment_id="live_exp_01",
+        step="Sessão ao vivo concluída.",
+    )
+    widget.set_metadata.assert_called_once_with(
+        group="Tratamento 1",
+        day="Dia_1",
+        subject="1",
+        profile="padrão do projeto (default)",
+    )
+    view.hide_progress_bar.assert_called_once()
+    canvas_manager.unsubscribe_from_live_frames.assert_called_once()
+    assert stop_events
+
+
+@pytest.mark.integration
 def test_live_camera_session_invalid_camera_index_raises(test_settings):
     coordinator = LiveCameraSessionCoordinator(
         state_manager=StateManager(),

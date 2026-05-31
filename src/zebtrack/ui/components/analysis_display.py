@@ -16,14 +16,15 @@ from zebtrack.ui import payloads
 # Local imports
 from zebtrack.ui.components.base import BaseWidget
 from zebtrack.ui.event_bus_v2 import EventBusV2, UIEvents
-from zebtrack.ui.wizard.tooltip import ToolTip
+from zebtrack.ui.wizard.tooltip import ToolTip, create_help_label
 
 log = structlog.get_logger()
 
 ANALYSIS_PROFILE_TOOLTIP = (
     "Mostra a configuração de análise aplicada a esta sessão. "
     "Quando nenhuma regra específica combina com grupo, dia ou indivíduo, "
-    "o projeto usa o perfil padrão."
+    "o projeto usa o perfil padrão. Quando aparecer 'padrão do projeto (default)', "
+    "isso significa exatamente esse fallback."
 )
 
 
@@ -85,6 +86,7 @@ class AnalysisDisplayWidget(BaseWidget):
         self.day_label: ttk.Label | None = None
         self.subject_label: ttk.Label | None = None
         self.profile_label: ttk.Label | None = None
+        self.profile_help_label: Label | None = None
         self.tracking_mode_label: ttk.Label | None = None
         self.track_selector_widget: ttk.Combobox | None = None
         self.progress_frame: ttk.Frame | None = None
@@ -136,8 +138,13 @@ class AnalysisDisplayWidget(BaseWidget):
         self.subject_label = ttk.Label(info_frame, textvariable=self.subject_var)
         self.subject_label.grid(row=1, column=2, sticky="w", padx=(0, 12))
 
-        self.profile_label = ttk.Label(info_frame, textvariable=self.profile_var)
-        self.profile_label.grid(row=1, column=3, sticky="w")
+        profile_frame = ttk.Frame(info_frame)
+        profile_frame.grid(row=1, column=3, sticky="w")
+
+        self.profile_label = ttk.Label(profile_frame, textvariable=self.profile_var)
+        self.profile_label.pack(side="left")
+        self.profile_help_label = create_help_label(profile_frame, ANALYSIS_PROFILE_TOOLTIP)
+        self.profile_help_label.pack(side="left", padx=(4, 0))
         ToolTip(self.profile_label, ANALYSIS_PROFILE_TOOLTIP)
 
         # Tracking mode (third row)

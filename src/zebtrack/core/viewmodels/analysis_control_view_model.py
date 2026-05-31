@@ -172,7 +172,7 @@ class AnalysisControlViewModel:
             )
             try:
                 if self.live_camera_session_coordinator:
-                    self.live_camera_session_coordinator.live_camera_service.stop_session()
+                    self.live_camera_session_coordinator.stop_live_session()
                 log.info("cancel_current_analysis.live_session_stopped")
             # except Exception justified: live camera stop — hardware + thread cleanup boundary
             except Exception as e:

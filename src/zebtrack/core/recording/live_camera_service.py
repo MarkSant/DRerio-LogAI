@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import queue
 import threading
+from collections.abc import Callable
 from pathlib import Path
 from types import TracebackType
 from typing import TYPE_CHECKING, Any, Literal
@@ -216,6 +217,7 @@ class LiveCameraService(
 
         # Live Camera v2.2.0: User action tracking
         self._user_disconnect_action: str | None = None  # wait | resume | stop
+        self.on_session_stopped: Callable[[bool], None] | None = None
 
         # Subscribe to user action events
         if self.event_bus:
