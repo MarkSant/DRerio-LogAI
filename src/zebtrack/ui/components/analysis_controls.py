@@ -45,16 +45,29 @@ class AnalysisControlsWidget(BaseWidget):
             **kwargs: Additional arguments passed to BaseWidget
         """
         # State variables
-        self.analysis_status_var = StringVar(value="Nenhuma análise em andamento.")
-        self.analysis_metadata_var = StringVar(value="")
-        self.analysis_group_var = StringVar(value="Grupo: --")
-        self.analysis_day_var = StringVar(value="Dia: --")
-        self.analysis_subject_var = StringVar(value="Indivíduo: --")
-        self.analysis_task_var = StringVar(value="Tarefa: --")
-        self.tracking_mode_var = StringVar(value="Modo de rastreamento: Multi-indivíduos")
-        self.analysis_profile_var = StringVar(value="Configuração de análise: default")
-        self.track_selector_var = StringVar(value="Todos")
-        self.social_summary_var = StringVar(value="Interações sociais: aguardando dados.")
+        stringvar_master = parent
+        self.analysis_status_var = StringVar(
+            master=stringvar_master,
+            value="Nenhuma análise em andamento.",
+        )
+        self.analysis_metadata_var = StringVar(master=stringvar_master, value="")
+        self.analysis_group_var = StringVar(master=stringvar_master, value="Grupo: --")
+        self.analysis_day_var = StringVar(master=stringvar_master, value="Dia: --")
+        self.analysis_subject_var = StringVar(master=stringvar_master, value="Indivíduo: --")
+        self.analysis_task_var = StringVar(master=stringvar_master, value="Tarefa: --")
+        self.tracking_mode_var = StringVar(
+            master=stringvar_master,
+            value="Modo de rastreamento: Multi-indivíduos",
+        )
+        self.analysis_profile_var = StringVar(
+            master=stringvar_master,
+            value="Configuração de análise: default",
+        )
+        self.track_selector_var = StringVar(master=stringvar_master, value="Todos")
+        self.social_summary_var = StringVar(
+            master=stringvar_master,
+            value="Interações sociais: aguardando dados.",
+        )
 
         # Widget references
         self.analysis_status_label: ttk.Label | None = None

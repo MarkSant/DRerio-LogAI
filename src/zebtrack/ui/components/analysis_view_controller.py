@@ -38,6 +38,7 @@ class AnalysisViewController:
 
     def __init__(self, gui: Any) -> None:
         self.gui = gui
+        self._last_live_analysis_metadata: dict[str, Any] = {}
 
     # ------------------------------------------------------------------
     # Convenience accessors (reduce ``self.gui.`` noise)
@@ -307,9 +308,46 @@ class AnalysisViewController:
         if self._analysis_display:
             self._analysis_display.set_profile(text)
 
+    @staticmethod
+    def _has_meaningful_analysis_metadata(metadata: dict[str, Any]) -> bool:
+        """Return True when at least one metadata field has a usable value."""
+        for key in (
+            "group",
+            "group_display_name",
+            "day",
+            "day_label",
+            "subject",
+            "subject_id",
+            "profile",
+            "experiment_id",
+            "camera_index",
+        ):
+            if metadata.get(key) not in (None, "", "None"):
+                return True
+        return False
+
+    def _prepare_analysis_metadata(self, metadata: dict | None) -> dict[str, Any]:
+        """Preserve live metadata when subsequent live payloads are partial."""
+        candidate = dict(metadata or {})
+        if self._is_live_session_active():
+            merged = dict(self._last_live_analysis_metadata)
+            for key, value in candidate.items():
+                if value not in (None, "", "None"):
+                    merged[key] = value
+            if self._has_meaningful_analysis_metadata(merged):
+                self._last_live_analysis_metadata = dict(merged)
+                return merged
+            return candidate
+
+        if self._has_meaningful_analysis_metadata(candidate):
+            self._last_live_analysis_metadata = dict(candidate)
+        else:
+            self._last_live_analysis_metadata = {}
+        return candidate
+
     def update_analysis_metadata(self, *, metadata: dict | None) -> None:
         """Update the metadata display for the currently processed video."""
-        metadata = metadata or {}
+        metadata = self._prepare_analysis_metadata(metadata)
         log.info(
             "analysis_view_controller.update_analysis_metadata.received",
             metadata_keys=list(metadata.keys()),

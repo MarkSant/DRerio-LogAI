@@ -236,6 +236,75 @@ class TestGuiHandlers:
 class TestGuiSubscriptions:
     """Testes para subscriptions com GUI."""
 
+    def test_analysis_metadata_handlers_preserve_live_metadata_and_prefer_controller(self):
+        event_bus = MagicMock()
+        root = MagicMock()
+        root.after.side_effect = lambda _delay, callback: callback()
+
+        analysis_view_controller = MagicMock()
+        analysis_display_widget = MagicMock()
+        live_camera_session_coordinator = MagicMock()
+        live_camera_session_coordinator.is_live_session_active.return_value = True
+
+        gui = SimpleNamespace(
+            event_bus=event_bus,
+            root=root,
+            widget_factory=MagicMock(),
+            dialog_manager=MagicMock(),
+            status_var=MagicMock(),
+            notebook=MagicMock(),
+            state_synchronizer=MagicMock(),
+            video_selector_manager=MagicMock(),
+            project_view_manager=MagicMock(),
+            canvas_manager=MagicMock(),
+            zone_controls=MagicMock(),
+            menu_manager=MagicMock(),
+            zone_control_builder=MagicMock(),
+            analysis_view_controller=analysis_view_controller,
+            analysis_display_widget=analysis_display_widget,
+            weight_hardware_manager=MagicMock(),
+            arduino_dashboard_widget=None,
+            single_video_workflow=MagicMock(),
+            setup_zone_definition_for_single_video=MagicMock(),
+            external_trigger_notice_var=MagicMock(),
+            update_button_state=MagicMock(),
+            controller=SimpleNamespace(
+                state_manager=MagicMock(
+                    get_processing_state=MagicMock(
+                        return_value=SimpleNamespace(is_live_session_active=True)
+                    )
+                ),
+                live_camera_session_coordinator=live_camera_session_coordinator,
+            ),
+        )
+
+        dispatcher = EventDispatcher(cast(Any, gui))
+        dispatcher.subscribe_to_ui_events()
+
+        handlers = [
+            args[1]
+            for args, _kwargs in event_bus.subscribe.call_args_list
+            if args and args[0] == UIEvents.UI_UPDATE_ANALYSIS_METADATA
+        ]
+
+        assert len(handlers) == 2
+
+        for handler in handlers:
+            handler({"metadata": {"group": "Controle", "day": "Dia 2", "subject": "02"}})
+        for handler in handlers:
+            handler({"metadata": {"profile": "custom"}})
+
+        assert dispatcher._pending_analysis_metadata == {
+            "metadata": {
+                "group": "Controle",
+                "day": "Dia 2",
+                "subject": "02",
+                "profile": "custom",
+            }
+        }
+        analysis_display_widget.set_metadata.assert_not_called()
+        assert analysis_view_controller.update_analysis_metadata.call_count == 4
+
     def test_project_view_navigation_uses_load_project_view(self):
         """UI_NAVIGATE_TO_PROJECT_VIEW must route through full load_project_view path."""
         event_bus = MagicMock()

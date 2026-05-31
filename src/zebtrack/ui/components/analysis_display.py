@@ -63,15 +63,25 @@ class AnalysisDisplayWidget(BaseWidget):
             **kwargs: Additional arguments passed to BaseWidget
         """
         # State variables for display
-        self.status_var = StringVar(value="Nenhuma análise em andamento.")
-        self.task_var = StringVar(value="Nenhuma tarefa em andamento.")
-        self.group_var = StringVar(value="Grupo: --")
-        self.day_var = StringVar(value="Dia: --")
-        self.subject_var = StringVar(value="Indivíduo: --")
-        self.profile_var = StringVar(value="Configuração de análise: default")
-        self.tracking_mode_var = StringVar(value="Modo de rastreamento: --")
-        self.social_summary_var = StringVar(value="Interações sociais: não aplicável no momento.")
-        self.track_selector_var = StringVar(value="Todos")
+        stringvar_master = parent
+        self.status_var = StringVar(master=stringvar_master, value="Nenhuma análise em andamento.")
+        self.task_var = StringVar(master=stringvar_master, value="Nenhuma tarefa em andamento.")
+        self.group_var = StringVar(master=stringvar_master, value="Grupo: --")
+        self.day_var = StringVar(master=stringvar_master, value="Dia: --")
+        self.subject_var = StringVar(master=stringvar_master, value="Indivíduo: --")
+        self.profile_var = StringVar(
+            master=stringvar_master,
+            value="Configuração de análise: default",
+        )
+        self.tracking_mode_var = StringVar(
+            master=stringvar_master,
+            value="Modo de rastreamento: --",
+        )
+        self.social_summary_var = StringVar(
+            master=stringvar_master,
+            value="Interações sociais: não aplicável no momento.",
+        )
+        self.track_selector_var = StringVar(master=stringvar_master, value="Todos")
 
         # Progress statistics
         self.progress_labels: dict[str, StringVar] = {}
@@ -217,7 +227,7 @@ class AnalysisDisplayWidget(BaseWidget):
             pad_x = (0, 12) if col < 2 else (0, 0)
             cell.grid(row=row, column=col, padx=pad_x, sticky="w")
             ttk.Label(cell, text=label_text).pack(anchor="w")
-            var = StringVar(value="-")
+            var = StringVar(master=self, value="-")
             ttk.Label(cell, textvariable=var, font=("Arial", 9, "bold")).pack(anchor="w")
             self.progress_labels[key] = var
 

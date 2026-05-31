@@ -1,5 +1,5 @@
 from types import SimpleNamespace
-from unittest.mock import Mock
+from unittest.mock import Mock, call
 
 import pytest
 
@@ -85,3 +85,54 @@ def test_start_analysis_view_mode_preserves_metadata_when_coordinator_reports_li
     gui.analysis_task_var.set.assert_not_called()
     gui.state_synchronizer._set_analysis_metadata_defaults.assert_not_called()
     gui.controller.live_camera_session_coordinator.is_live_session_active.assert_called_once()
+
+
+@pytest.mark.gui
+def test_update_analysis_metadata_preserves_last_live_values_on_partial_payload():
+    gui = _make_gui(is_live_session_active=True)
+    gui.validation_manager.resolve_group_display.side_effect = (
+        lambda metadata: metadata.get("group") or "Sem Grupo"
+    )
+    gui.validation_manager.resolve_day_display.side_effect = (
+        lambda metadata: metadata.get("day") or "Sem Dia"
+    )
+    gui.validation_manager.resolve_subject_display.side_effect = (
+        lambda metadata: metadata.get("subject") or metadata.get("subject_id") or "Não informado"
+    )
+    controller = AnalysisViewController(gui)
+
+    controller.update_analysis_metadata(
+        metadata={"group": "Controle", "day": "Dia 2", "subject": "02", "profile": "base"}
+    )
+    controller.update_analysis_metadata(metadata={"profile": "custom"})
+
+    assert gui.state_synchronizer._apply_analysis_metadata_strings.call_args_list == [
+        call("Controle", "Dia 2", "02"),
+        call("Controle", "Dia 2", "02"),
+    ]
+    gui.analysis_profile_var.set.assert_called_with("Configuração de análise: custom")
+
+
+@pytest.mark.gui
+def test_update_analysis_metadata_keeps_non_live_empty_payload_as_defaults():
+    gui = _make_gui(is_live_session_active=False)
+    gui.validation_manager.resolve_group_display.side_effect = (
+        lambda metadata: metadata.get("group") or "Sem Grupo"
+    )
+    gui.validation_manager.resolve_day_display.side_effect = (
+        lambda metadata: metadata.get("day") or "Sem Dia"
+    )
+    gui.validation_manager.resolve_subject_display.side_effect = (
+        lambda metadata: metadata.get("subject") or metadata.get("subject_id") or "Não informado"
+    )
+    controller = AnalysisViewController(gui)
+
+    controller.update_analysis_metadata(
+        metadata={"group": "Controle", "day": "Dia 2", "subject": "02", "profile": "base"}
+    )
+    controller.update_analysis_metadata(metadata={})
+
+    assert gui.state_synchronizer._apply_analysis_metadata_strings.call_args_list == [
+        call("Controle", "Dia 2", "02"),
+        call("Sem Grupo", "Sem Dia", "Não informado"),
+    ]

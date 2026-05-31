@@ -86,6 +86,7 @@ class EventDispatcher:
         self._pending_analysis_metadata: Any | None = None
         self._pending_processing_stats: dict[str, Any] | None = None
         self._pending_processing_mode: Any | None = None
+        self._last_analysis_metadata: dict[str, Any] = {}
 
     def _require_gui(self) -> "ApplicationGUI":
         if self.gui is None:
@@ -122,6 +123,74 @@ class EventDispatcher:
             except Exception:
                 self.log.debug("event_dispatcher.ui_after_fallback", exc_info=True)
         callback()
+
+    @staticmethod
+    def _has_meaningful_analysis_metadata(metadata: dict[str, Any]) -> bool:
+        """Return True when payload has at least one usable metadata field."""
+        for key in (
+            "group",
+            "group_display_name",
+            "day",
+            "day_label",
+            "subject",
+            "subject_id",
+            "profile",
+            "experiment_id",
+            "camera_index",
+        ):
+            if metadata.get(key) not in (None, "", "None"):
+                return True
+        return False
+
+    def _is_live_metadata_context(self) -> bool:
+        """Return True while metadata events belong to a live-session flow."""
+        gui = self._require_gui()
+        controller = getattr(gui, "controller", None)
+
+        state_manager = getattr(controller, "state_manager", None)
+        get_processing_state = getattr(state_manager, "get_processing_state", None)
+        if callable(get_processing_state):
+            try:
+                processing_state = get_processing_state()
+            except Exception:
+                processing_state = None
+            if processing_state is not None and bool(
+                getattr(processing_state, "is_live_session_active", False)
+            ):
+                return True
+
+        live_coordinator = getattr(controller, "live_camera_session_coordinator", None)
+        if getattr(live_coordinator, "_pending_live_context", None):
+            return True
+
+        is_active_fn = getattr(live_coordinator, "is_live_session_active", None)
+        if callable(is_active_fn):
+            try:
+                return bool(is_active_fn())
+            except Exception:
+                return False
+
+        return False
+
+    def _normalize_analysis_metadata(self, metadata: Any) -> dict[str, Any]:
+        """Merge partial live metadata updates with the last valid live payload."""
+        candidate = dict(metadata) if isinstance(metadata, dict) else {}
+
+        if self._is_live_metadata_context():
+            merged = dict(self._last_analysis_metadata)
+            for key, value in candidate.items():
+                if value not in (None, "", "None"):
+                    merged[key] = value
+            if self._has_meaningful_analysis_metadata(merged):
+                self._last_analysis_metadata = dict(merged)
+                return merged
+            return candidate
+
+        if self._has_meaningful_analysis_metadata(candidate):
+            self._last_analysis_metadata = dict(candidate)
+        else:
+            self._last_analysis_metadata = {}
+        return candidate
 
     # --- Core Dispatching Methods (Used by MainViewModel) ---
 
@@ -352,15 +421,14 @@ class EventDispatcher:
         # called. If only (1) appears, the after(0,...) wrapper is failing.
         # If (1)+(2) appear but not (3), the controller reference is stale.
         def _on_analysis_metadata(d) -> None:
+            payload_metadata = self._normalize_analysis_metadata(_payload_get(d, "metadata"))
+            normalized_payload = {"metadata": payload_metadata}
             try:
-                payload_metadata = _payload_get(d, "metadata")
                 log.info(
                     "event_dispatcher.analysis_metadata.received_in_subscriber",
                     has_gui=self.gui is not None,
                     has_controller=bool(getattr(self.gui, "analysis_view_controller", None)),
-                    metadata_keys=list(payload_metadata.keys())
-                    if isinstance(payload_metadata, dict)
-                    else None,
+                    metadata_keys=list(payload_metadata.keys()),
                 )
             # except Exception justified: telemetry must never raise into bus.
             except Exception:
@@ -372,9 +440,9 @@ class EventDispatcher:
             # Audit Erro 2 round 6 (2026-05-25): stash the LAST metadata
             # payload so ``drain_pending_to_widget`` can replay it once the
             # widget is finally rendered.
-            self._pending_analysis_metadata = d
+            self._pending_analysis_metadata = normalized_payload
 
-            def _dispatch(payload=d) -> None:
+            def _dispatch(payload=normalized_payload) -> None:
                 try:
                     log.info(
                         "event_dispatcher.analysis_metadata.ui_thread_dispatched",
@@ -436,6 +504,11 @@ class EventDispatcher:
                         if isinstance(payload_metadata, dict)
                         else None,
                     )
+                    controller = getattr(self.gui, "analysis_view_controller", None)
+                    if controller is not None:
+                        controller.update_analysis_metadata(metadata=payload_metadata)
+                        return
+
                     widget = getattr(self.gui, "analysis_display_widget", None)
                     if widget is None:
                         log.warning("event_dispatcher.analysis_metadata.backup_widget_missing")
