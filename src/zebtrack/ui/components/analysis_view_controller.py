@@ -185,15 +185,29 @@ class AnalysisViewController:
         controller = getattr(self.gui, "controller", None)
         state_manager = getattr(controller, "state_manager", None)
         get_processing_state = getattr(state_manager, "get_processing_state", None)
-        if not callable(get_processing_state):
-            return False
+        state_flag = False
+        if callable(get_processing_state):
+            try:
+                processing_state = get_processing_state()
+            except Exception:
+                processing_state = None
+            if processing_state is not None:
+                state_flag = bool(getattr(processing_state, "is_live_session_active", False))
 
-        try:
-            processing_state = get_processing_state()
-        except Exception:
-            return False
+        if state_flag:
+            return True
 
-        return bool(getattr(processing_state, "is_live_session_active", False))
+        live_camera_session_coordinator = getattr(
+            controller, "live_camera_session_coordinator", None
+        )
+        is_active_fn = getattr(live_camera_session_coordinator, "is_live_session_active", None)
+        if callable(is_active_fn):
+            try:
+                return bool(is_active_fn())
+            except Exception:
+                return False
+
+        return False
 
     def stop_analysis_view_mode(self) -> None:
         """Stop analysis — disable toggle and return to zones view."""
