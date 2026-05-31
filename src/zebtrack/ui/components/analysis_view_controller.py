@@ -145,14 +145,19 @@ class AnalysisViewController:
         """Start analysis — immediately switch to analysis view and enable toggle."""
         log.info("analysis_view_controller.start.called")
         self.gui.analysis_active = True
-        msg = "Preparando análise..."
-        self._analysis_status_var.set(msg)
-        if self._analysis_display:
-            self._analysis_display.set_status(msg)
+        is_live_session_active = self._is_live_session_active()
+        if is_live_session_active:
+            log.info("analysis_view_controller.start.preserve_live_context")
+        else:
+            msg = "Preparando análise..."
+            self._analysis_status_var.set(msg)
+            if self._analysis_display:
+                self._analysis_display.set_status(msg)
 
-        if self._analysis_task_var is not None:
-            self._analysis_task_var.set("Preparando fila de análise...")
-        self._state_synchronizer._set_analysis_metadata_defaults()
+            if self._analysis_task_var is not None:
+                self._analysis_task_var.set("Preparando fila de análise...")
+            self._state_synchronizer._set_analysis_metadata_defaults()
+
         self.reset_analysis_controls()
         self.gui.show_progress_bar()
         if self._analysis_display:
@@ -174,6 +179,21 @@ class AnalysisViewController:
             if self._analysis_display.track_selector_widget:
                 state = "disabled" if mode is ProcessingMode.SINGLE_SUBJECT else "readonly"
                 self._analysis_display.track_selector_widget.configure(state=state)
+
+    def _is_live_session_active(self) -> bool:
+        """Return True when the current processing state belongs to a live session."""
+        controller = getattr(self.gui, "controller", None)
+        state_manager = getattr(controller, "state_manager", None)
+        get_processing_state = getattr(state_manager, "get_processing_state", None)
+        if not callable(get_processing_state):
+            return False
+
+        try:
+            processing_state = get_processing_state()
+        except Exception:
+            return False
+
+        return bool(getattr(processing_state, "is_live_session_active", False))
 
     def stop_analysis_view_mode(self) -> None:
         """Stop analysis — disable toggle and return to zones view."""
