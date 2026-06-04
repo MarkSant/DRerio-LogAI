@@ -601,16 +601,24 @@ class ZoneEditor:
                     return
 
         if current_editing_zone == "arena":
-            # Save main arena (Single Aquarium)
-            published = self.gui.event_dispatcher.publish_event(
-                UIEvents.ZONE_SAVE_MANUAL_ARENA,
-                {"polygon_points": self.gui.edited_polygon_points},
+            # Persistir DIRETAMENTE a arena editada (Single Aquarium).
+            #
+            # ANTES publicava UIEvents.ZONE_SAVE_MANUAL_ARENA com
+            # {"polygon_points": ...}, MAS esse evento está registrado como
+            # ``EmptyPayload`` em event_bus_v2 e ``_coerce_payload`` DESCARTA o
+            # dict (retorna EmptyPayload()) — então o handler de persistência
+            # (``MainViewModelRuntime._handle_zone_event`` → ``save_manual_arena``)
+            # recebia ``polygon_points=None`` e a edição NUNCA era salva (a
+            # auto-detecção reaparecia). As demais ramificações (ROI/fallback)
+            # já persistem por chamada direta; o arena agora faz o mesmo.
+            analysis_vm = getattr(getattr(self.gui, "controller", None), "analysis_vm", None)
+            saved = bool(
+                analysis_vm is not None
+                and analysis_vm.save_manual_arena(self.gui.edited_polygon_points)
             )
-            # Diagnóstico (temporário): confirmar que o evento de persistência
-            # foi publicado (publish_event retorna False se falhar a validação).
             log.info(
-                "zone_editor.save_arena.arena_branch.published",
-                published=published,
+                "zone_editor.save_arena.arena_persisted",
+                saved=saved,
                 points=len(self.gui.edited_polygon_points or []),
             )
             status_message = "Arena principal salva com sucesso."

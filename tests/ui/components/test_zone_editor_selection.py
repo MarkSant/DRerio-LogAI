@@ -77,3 +77,29 @@ def test_delete_vertices_ignores_out_of_range_indices():
     editor, _cm, gui, _dm = _make_editor([[0, 0], [1, 0], [1, 1], [0, 1]])
     editor.delete_vertices({99})
     assert gui.edited_polygon_points == [[0, 0], [1, 0], [1, 1], [0, 1]]
+
+
+def test_save_arena_arena_branch_persists_directly():
+    """O ramo 'arena' do save_arena deve PERSISTIR direto via
+    analysis_vm.save_manual_arena (com os vértices editados), e NÃO publicar
+    ZONE_SAVE_MANUAL_ARENA — esse evento é EmptyPayload e o bus descarta o
+    polygon_points, fazendo a edição nunca salvar (auto-detecção reaparecia)."""
+    editor, cm, gui, _dm = _make_editor([[10, 10], [20, 10], [20, 20], [10, 20]])
+    cm.current_editing_zone = "arena"
+    gui.current_editing_zone = "arena"
+    gui.zone_controls = SimpleNamespace(aquarium_count_var=SimpleNamespace(get=lambda: 1))
+    save_mock = Mock(return_value=True)
+    gui.controller = SimpleNamespace(analysis_vm=SimpleNamespace(save_manual_arena=save_mock))
+    gui.root = SimpleNamespace(after=Mock())
+    cm.event_bus_v2 = None
+    cm.redraw_zones_from_project_data = Mock()
+    cm.multi_aquarium = SimpleNamespace(_check_prompt_second_aquarium=Mock())
+    editor.update_roi_button_state = Mock()  # type: ignore[method-assign]
+    editor.clear_interactive_polygon = Mock()  # type: ignore[method-assign]
+    # event_dispatcher NÃO deve ser usado para persistir o arena.
+    gui.event_dispatcher = SimpleNamespace(publish_event=Mock())
+
+    editor.save_arena()
+
+    save_mock.assert_called_once_with([[10, 10], [20, 10], [20, 20], [10, 20]])
+    gui.event_dispatcher.publish_event.assert_not_called()
