@@ -843,6 +843,33 @@ class VideoSelectorTreeManager:
         if not self.gui.project_overview_tree:
             return
 
+        overview_widget = getattr(self.gui, "project_overview_widget", None)
+        report_path = None
+        report_map = getattr(overview_widget, "_iid_to_report_path", None)
+        if isinstance(report_map, dict):
+            report_path = report_map.get(item_id)
+
+        if report_path:
+            if not os.path.exists(report_path):
+                self.dialog_manager.show_warning(
+                    "Arquivo não encontrado",
+                    f"O relatório selecionado não foi localizado:\n{report_path}",
+                )
+                return
+
+            try:
+                from zebtrack.utils.os_opener import open_path
+
+                open_path(report_path)
+                self.gui.set_status(f"Relatório aberto: {os.path.basename(report_path)}")
+            except OSError as e:
+                log.error("gui.open_partial_report.failed", error=str(e), path=report_path)
+                self.dialog_manager.show_error(
+                    "Erro ao Abrir",
+                    f"Não foi possível abrir o relatório selecionado.\n{e}",
+                )
+            return
+
         tags = self.gui.project_overview_tree.item(item_id, "tags") or ()
         if not tags:
             return

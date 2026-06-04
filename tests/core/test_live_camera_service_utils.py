@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+from types import SimpleNamespace
 from unittest.mock import Mock
 
 import pytest
 
+from zebtrack.core.detection import ZoneData
 from zebtrack.core.recording import camera_connection_handler as camera_conn_module
 from zebtrack.core.recording.live_camera_service import LiveCameraService
 
@@ -63,6 +65,76 @@ def test_resolve_calibration_perspective_returns_none_when_no_project_manager(
     live_camera_service.project_manager = None
 
     assert live_camera_service._resolve_calibration_perspective() is None
+
+
+def test_resolve_live_multi_aquarium_zone_data_falls_back_to_reference_frame(
+    live_camera_service, tmp_path, multi_aquarium_zone_data
+):
+    project_manager = Mock()
+    project_manager.project_path = tmp_path
+    project_manager.get_multi_aquarium_zone_data.side_effect = [None, multi_aquarium_zone_data]
+    live_camera_service.project_manager = project_manager
+
+    video_path = tmp_path / "session" / "live_recording.mp4"
+    result = live_camera_service._resolve_live_multi_aquarium_zone_data(video_path)
+
+    assert result is multi_aquarium_zone_data
+    assert project_manager.get_multi_aquarium_zone_data.call_args_list[0].args[0] == video_path
+    assert project_manager.get_multi_aquarium_zone_data.call_args_list[1].args[0] == (
+        tmp_path / "live_camera_reference_frame.png"
+    )
+
+
+def test_collect_multi_aquarium_trajectory_outputs_detects_subfolders(
+    live_camera_service,
+    tmp_path,
+):
+    output_dir = tmp_path / "live_session"
+    aq0_dir = output_dir / "aquarium_1"
+    aq1_dir = output_dir / "aquarium_2"
+    aq0_dir.mkdir(parents=True)
+    aq1_dir.mkdir()
+    aq0_path = aq0_dir / "3_CoordMovimento_exp_aquarium_1.parquet"
+    aq1_path = aq1_dir / "3_CoordMovimento_exp_aquarium_2.parquet"
+    aq0_path.touch()
+    aq1_path.touch()
+
+    outputs = live_camera_service._collect_multi_aquarium_trajectory_outputs(output_dir)
+
+    assert outputs[0]["results_dir"] == aq0_dir
+    assert outputs[0]["trajectory_path"] == aq0_path
+    assert outputs[1]["results_dir"] == aq1_dir
+    assert outputs[1]["trajectory_path"] == aq1_path
+
+
+def test_start_recording_after_arena_uses_multi_aquarium_zone_data(
+    live_camera_service, tmp_path, multi_aquarium_zone_data
+):
+    output_dir = tmp_path / "live_session"
+    output_dir.mkdir()
+
+    project_manager = Mock()
+    project_manager.project_path = tmp_path
+    project_manager.get_multi_aquarium_zone_data.side_effect = [None, multi_aquarium_zone_data]
+    project_manager.get_zone_data.return_value = ZoneData()
+
+    recorder = Mock()
+    recorder.start_recording_multi_aquarium.return_value = True
+    recorder.start_recording.return_value = True
+
+    live_camera_service.project_manager = project_manager
+    live_camera_service.recorder = recorder
+    live_camera_service.current_output_dir = output_dir
+    live_camera_service._session_duration_s = 0
+    live_camera_service._experiment_id = "live_exp"
+    live_camera_service.is_capturing_for_video = True
+    live_camera_service.camera = SimpleNamespace(actual_width=1280, actual_height=720)
+    live_camera_service.preview_window = None
+
+    live_camera_service._start_recording_after_arena()
+
+    recorder.start_recording_multi_aquarium.assert_called_once()
+    recorder.start_recording.assert_not_called()
 
 
 def test_start_session_clears_stale_exit_event(live_camera_service, monkeypatch):

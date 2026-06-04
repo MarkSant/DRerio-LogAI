@@ -20,6 +20,7 @@ from pydantic import ValidationError
 
 from zebtrack.core.detection import ZoneData
 from zebtrack.settings import Settings
+from zebtrack.utils.report_files import find_block_partial_report_files
 
 if TYPE_CHECKING:
     from zebtrack.ui.components.dialog_manager import DialogManager
@@ -342,6 +343,32 @@ class ValidationManager:
                         }
                     )
 
+                partial_reports = []
+                project_path = getattr(self.gui.controller.project_manager, "project_path", None)
+                if project_path:
+                    group_candidates = {
+                        str(group_id).strip(),
+                        str(group_data["display"]).strip(),
+                    }
+                    partial_report_files = find_block_partial_report_files(
+                        project_path,
+                        day_id=day_id,
+                        group_candidates=group_candidates,
+                    )
+                    partial_reports = [
+                        {
+                            "id": f"partial_{group_id}_{day_id}_{index}",
+                            "label": (
+                                f"📊 {file_path.name}"
+                                if file_path.suffix.lower() == ".xlsx"
+                                else f"📝 {file_path.name}"
+                            ),
+                            "file_name": file_path.name,
+                            "file_path": str(file_path),
+                        }
+                        for index, file_path in enumerate(partial_report_files)
+                    ]
+
                 # Add day to list
                 days_list.append(
                     {
@@ -350,6 +377,7 @@ class ValidationManager:
                         "status": day_status,
                         "data": day_data,
                         "subjects": subjects_list,
+                        "partial_reports": partial_reports,
                     }
                 )
 

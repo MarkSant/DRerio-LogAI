@@ -3,6 +3,8 @@
 from datetime import datetime
 from unittest.mock import MagicMock
 
+from pandas import DataFrame
+
 from zebtrack.coordinators.live_batch_coordinator import LiveBatchCoordinator
 from zebtrack.coordinators.live_camera_session_coordinator import LiveCameraSessionCoordinator
 
@@ -248,3 +250,65 @@ def test_multi_aquarium_batch_registration(test_settings, tmp_path):
 
     assert batch_coord._active_batches[batch_key_0].session_count == 1
     assert batch_coord._active_batches[batch_key_1].session_count == 1
+
+
+def test_register_session_detects_relatorio_excel_as_summary(test_settings, tmp_path):
+    project_manager = MagicMock()
+    project_manager.project_data = {"batches": []}
+
+    batch_coord = LiveBatchCoordinator(
+        project_manager=project_manager,
+        analysis_service=MagicMock(),
+        state_manager=MagicMock(),
+        settings_obj=test_settings,
+    )
+
+    (tmp_path / "4_Relatorio_live_exp.xlsx").touch()
+
+    batch_coord.register_session(
+        experiment_id="live_exp",
+        video_path=tmp_path / "live_exp.mp4",
+        metadata={"group": "Controle", "day": "Dia_1", "subject_id": "Peixe_01"},
+    )
+
+    entry = project_manager.project_data["batches"][0]["videos"][0]
+    assert entry["has_summary"] is True
+
+
+def test_generate_unified_report_uses_parquet_files_summary_excel(test_settings, tmp_path):
+    project_manager = MagicMock()
+    project_manager.project_root = tmp_path
+    project_manager.find_video_entry.return_value = {
+        "parquet_files": {"summary_excel": (tmp_path / "4_Relatorio_live_exp.xlsx").as_posix()}
+    }
+
+    analysis_service = MagicMock()
+    batch_coord = LiveBatchCoordinator(
+        project_manager=project_manager,
+        analysis_service=analysis_service,
+        state_manager=MagicMock(),
+        settings_obj=test_settings,
+    )
+
+    summary_path = tmp_path / "4_Relatorio_live_exp.xlsx"
+    DataFrame({"metric": [1.0]}).to_excel(summary_path, index=False)
+
+    batch = batch_coord._active_batches.setdefault(
+        "Controle_Dia_1_Peixe_01",
+        batch_coord._active_batches.get("Controle_Dia_1_Peixe_01")
+        or __import__(
+            "zebtrack.coordinators.live_batch_coordinator",
+            fromlist=["BatchMetadata"],
+        ).BatchMetadata(
+            batch_id="batch_1",
+            group="Controle",
+            day="Dia_1",
+            subject_id="Peixe_01",
+            session_count=1,
+            session_paths=[tmp_path / "live_exp.mp4"],
+        ),
+    )
+
+    assert batch_coord._generate_unified_report(batch) is True
+    analysis_service.aggregate_session_summaries.assert_called_once()
+    assert analysis_service.aggregate_session_summaries.call_args[0][0] == [summary_path]

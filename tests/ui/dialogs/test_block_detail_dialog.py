@@ -14,6 +14,8 @@ from types import SimpleNamespace
 from typing import Any, cast
 from unittest.mock import MagicMock, patch
 
+import pandas as pd
+
 from zebtrack.ui.dialogs.block_detail_dialog import BlockDetailDialog
 
 
@@ -44,6 +46,17 @@ def _build_dialog(
     dialog.session_coordinator = session_coordinator
 
     return cast(BlockDetailDialog, dialog), session_coordinator
+
+
+def _build_partial_report_dialog(tmp_path) -> BlockDetailDialog:
+    dialog = cast(Any, BlockDetailDialog.__new__(BlockDetailDialog))
+    dialog.day_num = 1
+    dialog.group_name = "Controle"
+    dialog.subjects_per_group = 1
+    dialog.completed_sessions = {(1, "Controle", "1")}
+    dialog.project_manager = SimpleNamespace(project_path=str(tmp_path))
+    dialog._find_session_folder = MagicMock(return_value=tmp_path / "session_1")
+    return cast(BlockDetailDialog, dialog)
 
 
 def test_start_session_does_not_show_error_when_deferred_for_zones():
@@ -99,3 +112,43 @@ def test_start_session_handles_missing_live_calibration_coordinator():
         dialog.start_session("1")
 
     mock_error.assert_called_once()
+
+
+def test_get_session_files_status_detects_relatorio_excel(tmp_path):
+    dialog = _build_partial_report_dialog(tmp_path)
+    session_folder = tmp_path / "session_1"
+    session_folder.mkdir()
+    (session_folder / "4_Relatorio_live_exp.xlsx").touch()
+
+    status = dialog._get_session_files_status(session_folder)
+
+    assert status["summary"] is True
+
+
+def test_generate_partial_report_accepts_relatorio_excel(tmp_path):
+    dialog = _build_partial_report_dialog(tmp_path)
+    session_folder = tmp_path / "session_1"
+    session_folder.mkdir()
+    pd.DataFrame({"total_distance_cm": [10.0]}).to_excel(
+        session_folder / "4_Relatorio_live_exp.xlsx",
+        index=False,
+    )
+    dialog.session_coordinator = SimpleNamespace(event_bus=None)
+    dialog.live_batch_coordinator = SimpleNamespace(event_bus=None)
+
+    with (
+        patch("zebtrack.ui.dialogs.block_detail_dialog.messagebox.showwarning") as mock_warning,
+        patch("zebtrack.ui.dialogs.block_detail_dialog.messagebox.showinfo") as mock_info,
+        patch("zebtrack.ui.dialogs.block_detail_dialog.messagebox.showerror") as mock_error,
+        patch(
+            "zebtrack.ui.dialogs.block_detail_dialog.messagebox.askyesno",
+            side_effect=[False, False],
+        ),
+    ):
+        dialog.generate_partial_report()
+
+    mock_warning.assert_not_called()
+    mock_error.assert_not_called()
+    mock_info.assert_called_once()
+    assert (tmp_path / "partial_reports" / "PartialReport_Dia1_Controle.xlsx").exists()
+    assert (tmp_path / "partial_reports" / "PartialReport_Dia1_Controle.docx").exists()

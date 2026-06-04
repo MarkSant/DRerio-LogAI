@@ -75,6 +75,253 @@ class LiveAnalysisPostProcessorMixin:
     def stop_session(self) -> bool: ...  # type: ignore[empty-body]
     def _setup_session_timer(self, duration_s: float, output_dir: Path) -> None: ...
 
+    def _resolve_live_session_video_path(self, output_dir: Path) -> Path:
+        """Resolve the canonical video path for the current live session."""
+        for extension in (".mp4", ".avi", ".mkv"):
+            candidates = sorted(output_dir.glob(f"*{extension}"))
+            if candidates:
+                return candidates[0]
+        return output_dir / "live_recording.mp4"
+
+    def _resolve_live_reference_frame_path(self) -> Path | None:
+        """Resolve the temporary live reference frame used by the zone editor."""
+        if not self.project_manager:
+            return None
+
+        project_path = getattr(self.project_manager, "project_path", None)
+        if not project_path:
+            return None
+
+        return Path(project_path) / "live_camera_reference_frame.png"
+
+    def _resolve_live_multi_aquarium_zone_data(self, video_path: Path) -> Any | None:
+        """Resolve multi-aquarium zone data for a live session.
+
+        Live sessions often keep the active zones under the temporary
+        ``live_camera_reference_frame.png`` key instead of the recorded video path.
+        """
+        if not self.project_manager:
+            return None
+
+        multi_zone_data = self.project_manager.get_multi_aquarium_zone_data(video_path)
+        if multi_zone_data:
+            return multi_zone_data
+
+        reference_frame_path = self._resolve_live_reference_frame_path()
+        if reference_frame_path is None:
+            return None
+
+        return self.project_manager.get_multi_aquarium_zone_data(reference_frame_path)
+
+    def _collect_multi_aquarium_trajectory_outputs(
+        self, output_dir: Path
+    ) -> dict[int, dict[str, Path]]:
+        """Collect per-aquarium trajectory outputs written by the live recorder."""
+        outputs: dict[int, dict[str, Path]] = {}
+        if not output_dir.exists():
+            return outputs
+
+        for item in sorted(output_dir.iterdir()):
+            if not item.is_dir() or not item.name.startswith("aquarium_"):
+                continue
+
+            aq_suffix = item.name.removeprefix("aquarium_")
+            if not aq_suffix.isdigit():
+                continue
+
+            trajectory_candidates = sorted(item.glob("3_CoordMovimento_*.parquet"))
+            if not trajectory_candidates:
+                continue
+
+            aq_id = int(aq_suffix) - 1
+            outputs[aq_id] = {
+                "results_dir": item,
+                "trajectory_path": trajectory_candidates[0],
+            }
+
+        return outputs
+
+    def _publish_project_views_refresh(self, reason: str) -> None:
+        """Publish a project-views refresh after live output changes."""
+        if not self.event_bus:
+            return
+
+        from zebtrack.ui import payloads
+        from zebtrack.ui.event_bus_v2 import Event, UIEvents
+
+        self.event_bus.publish(
+            Event(
+                type=UIEvents.UI_REFRESH_PROJECT_VIEWS,
+                data=payloads.ProjectViewsRefreshRequestedPayload(reason=reason),
+            )
+        )
+
+    def _run_multi_aquarium_post_analysis(
+        self,
+        *,
+        output_dir: Path,
+        video_path: Path,
+        analysis_service: Any,
+        params: dict[str, Any],
+        pixelcm_x: float,
+        pixelcm_y: float,
+        video_height: int,
+        fps: float,
+        trajectory_outputs: dict[int, dict[str, Path]],
+    ) -> dict[str, int] | None:
+        """Run post-analysis for live sessions recorded in multi-aquarium mode."""
+        from zebtrack.analysis.reporters import export_multi_aquarium_reports
+
+        multi_zone_data = self._resolve_live_multi_aquarium_zone_data(video_path)
+
+        outputs_by_aquarium: dict[int, dict[str, Any]] = {}
+        for aq_id, output in trajectory_outputs.items():
+            entry: dict[str, Any] = {
+                "results_dir": str(output["results_dir"]),
+                "parquet_files": {"trajectory": str(output["trajectory_path"])},
+            }
+            if multi_zone_data is not None:
+                aquarium = multi_zone_data.get_aquarium(aq_id)
+                if aquarium is not None:
+                    entry.update(
+                        {
+                            "group": aquarium.group,
+                            "subject_id": aquarium.subject_id,
+                            "day": aquarium.day,
+                        }
+                    )
+            outputs_by_aquarium[aq_id] = entry
+
+        analysis_params = self._analysis_params or {}
+        if self.project_manager.project_path:
+            self.project_manager.register_processing_outputs(
+                video_path=str(video_path),
+                results_dir=str(output_dir),
+                experiment_id=self._experiment_id,
+                group=analysis_params.get("group"),
+                day=analysis_params.get("day"),
+                subject_id=analysis_params.get("subject_id"),
+                polygon_source=analysis_params.get("polygon_source"),
+            )
+
+        if multi_zone_data is None:
+            log.warning(
+                "live_camera_service.multi_aquarium_zone_data_missing",
+                output_dir=str(output_dir),
+                video_path=str(video_path),
+            )
+            if self.project_manager.project_path and outputs_by_aquarium:
+                self.project_manager.register_multi_aquarium_outputs(
+                    video_path=str(video_path),
+                    outputs_by_aquarium=outputs_by_aquarium,
+                )
+                self._publish_project_views_refresh("Live multi-aquarium outputs registered")
+            return None
+
+        aquarium_data_map: dict[int, tuple[pd.DataFrame, Any]] = {}
+        total_frames = 0
+        total_detections = 0
+        total_tracks = 0
+
+        for aq_id, output in trajectory_outputs.items():
+            aquarium = multi_zone_data.get_aquarium(aq_id)
+            if aquarium is None:
+                log.warning(
+                    "live_camera_service.multi_aquarium_missing_config",
+                    aquarium_id=aq_id,
+                    video_path=str(video_path),
+                )
+                continue
+
+            df = pd.read_parquet(output["trajectory_path"])
+            if df.empty:
+                continue
+
+            aquarium_data_map[aq_id] = (df, aquarium)
+            total_frames += int(df["frame"].nunique())
+            total_detections += len(df)
+            total_tracks += int(df["track_id"].nunique()) if "track_id" in df.columns else 0
+
+        if not aquarium_data_map:
+            if self.project_manager.project_path and outputs_by_aquarium:
+                self.project_manager.register_multi_aquarium_outputs(
+                    video_path=str(video_path),
+                    outputs_by_aquarium=outputs_by_aquarium,
+                )
+                self._publish_project_views_refresh("Live multi-aquarium outputs registered")
+            return None
+
+        metadata = {
+            "experiment_id": self._experiment_id,
+            "date": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "camera_index": analysis_params.get("camera_index", "N/A"),
+            "num_aquariums": len(multi_zone_data.aquariums),
+            "animals_per_aquarium": self._animals_per_aquarium,
+        }
+
+        results_by_aquarium = analysis_service.run_multi_aquarium_analysis(
+            aquarium_data_map=aquarium_data_map,
+            fps=fps,
+            pixelcm_x=pixelcm_x,
+            pixelcm_y=pixelcm_y,
+            video_height_px=video_height,
+            metadata=metadata,
+            freezing_vel_threshold=params["freezing_vel_threshold"],
+            freezing_min_duration=params["freezing_min_duration"],
+            smoothing_window_length=params["smoothing_window_length"],
+            smoothing_polyorder=params["smoothing_polyorder"],
+            behavioral_config=params["behavioral_config"],
+        )
+
+        report_paths = export_multi_aquarium_reports(
+            results_by_aquarium=results_by_aquarium,
+            output_dirs_by_aquarium={
+                aq_id: output["results_dir"] for aq_id, output in trajectory_outputs.items()
+            },
+            base_name=self._experiment_id,
+            aquarium_configs=multi_zone_data.aquariums,
+            settings_obj=self.settings,
+        )
+
+        if not report_paths:
+            if self.project_manager.project_path and outputs_by_aquarium:
+                self.project_manager.register_multi_aquarium_outputs(
+                    video_path=str(video_path),
+                    outputs_by_aquarium=outputs_by_aquarium,
+                )
+                self._publish_project_views_refresh("Live multi-aquarium outputs registered")
+            return None
+
+        for aq_id, report_info in report_paths.items():
+            parquet_files = outputs_by_aquarium.setdefault(aq_id, {}).setdefault(
+                "parquet_files", {}
+            )
+            summary_path = report_info.get("summary_path")
+            report_path = report_info.get("report_path")
+            if summary_path:
+                parquet_files["summary_excel"] = summary_path
+            if report_path:
+                parquet_files["report_docx"] = report_path
+
+        if self.project_manager.project_path and outputs_by_aquarium:
+            self.project_manager.register_multi_aquarium_outputs(
+                video_path=str(video_path),
+                outputs_by_aquarium=outputs_by_aquarium,
+            )
+            self._publish_project_views_refresh("Live multi-aquarium analysis complete")
+
+        log.info(
+            "live_camera_service.multi_aquarium_reports_generated",
+            aquarium_count=len(report_paths),
+            output_dir=str(output_dir),
+        )
+
+        return {
+            "frames": total_frames,
+            "detections": total_detections,
+            "tracks": total_tracks,
+        }
+
     def _on_session_complete(self, output_dir: Path) -> None:  # noqa: C901
         """Handle session completion and trigger post-processing analysis.
 
@@ -181,6 +428,44 @@ class LiveAnalysisPostProcessorMixin:
                 pixelcm_x = calib_data.get("pixelcm_x", 1.0)
                 pixelcm_y = calib_data.get("pixelcm_y", 1.0)
                 video_height = self._actual_height
+                fps = self._actual_fps
+                video_path = self._resolve_live_session_video_path(output_dir)
+
+                multi_trajectory_outputs = self._collect_multi_aquarium_trajectory_outputs(
+                    output_dir
+                )
+                if multi_trajectory_outputs:
+                    stats = self._run_multi_aquarium_post_analysis(
+                        output_dir=output_dir,
+                        video_path=video_path,
+                        analysis_service=analysis_service,
+                        params=params,
+                        pixelcm_x=pixelcm_x,
+                        pixelcm_y=pixelcm_y,
+                        video_height=video_height,
+                        fps=fps,
+                        trajectory_outputs=multi_trajectory_outputs,
+                    )
+                    if self.root:
+                        if stats is not None:
+                            self.root.after(
+                                0,
+                                self._show_completion_message,
+                                output_dir,
+                                True,
+                                stats,
+                                None,
+                            )
+                        else:
+                            self.root.after(
+                                0,
+                                self._show_completion_message,
+                                output_dir,
+                                False,
+                                None,
+                                "error",
+                            )
+                    return
 
                 zone_data = self.project_manager.get_zone_data()
                 arena_polygon = zone_data.polygon or []
@@ -207,14 +492,10 @@ class LiveAnalysisPostProcessorMixin:
                         roi_colors[name] = color
 
                 # Run full analysis
-                fps = self._actual_fps
-                video_filename = f"{self._current_base_name}.mp4"
-                video_path = output_dir / video_filename
-
                 metadata = {
                     "experiment_id": self._experiment_id,
                     "date": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                    "camera_index": self._analysis_params.get("camera_index", "N/A"),
+                    "camera_index": (self._analysis_params or {}).get("camera_index", "N/A"),
                     "num_aquariums": 1,
                     "animals_per_aquarium": self._animals_per_aquarium,
                 }
@@ -276,18 +557,7 @@ class LiveAnalysisPostProcessorMixin:
                         polygon_source=self._analysis_params.get("polygon_source"),
                     )
 
-                    if self.event_bus:
-                        from zebtrack.ui import payloads
-                        from zebtrack.ui.event_bus_v2 import Event, UIEvents
-
-                        self.event_bus.publish(
-                            Event(
-                                type=UIEvents.UI_REFRESH_PROJECT_VIEWS,
-                                data=payloads.ProjectViewsRefreshRequestedPayload(
-                                    reason="Live analysis complete"
-                                ),
-                            )
-                        )
+                    self._publish_project_views_refresh("Live analysis complete")
 
                 # Finalize
                 total_frames = df["frame"].nunique()
@@ -377,10 +647,23 @@ class LiveAnalysisPostProcessorMixin:
 
         Ensures we only record animal detections, not the aquarium detection phase.
         """
-        from zebtrack.core.detection import ZoneData
-        from zebtrack.core.project.zone_manager import MultiAquariumZoneData
+        from zebtrack.core.detection import MultiAquariumZoneData, ZoneData
 
-        zone_data = self.project_manager.get_zone_data() if self.project_manager else ZoneData()
+        video_path = (
+            self._resolve_live_session_video_path(self.current_output_dir)
+            if self.current_output_dir
+            else None
+        )
+        multi_zone_data = (
+            self._resolve_live_multi_aquarium_zone_data(video_path)
+            if video_path is not None
+            else None
+        )
+        zone_data = (
+            multi_zone_data
+            if multi_zone_data is not None
+            else (self.project_manager.get_zone_data() if self.project_manager else ZoneData())
+        )
 
         is_multi_aquarium = isinstance(zone_data, MultiAquariumZoneData)
 

@@ -24,6 +24,8 @@ from typing import TYPE_CHECKING
 
 import structlog
 
+from zebtrack.utils.report_files import find_summary_excel_file, has_summary_excel_output
+
 if TYPE_CHECKING:
     from zebtrack.analysis.analysis_service import AnalysisService
     from zebtrack.core.project.project_manager import ProjectManager
@@ -103,6 +105,20 @@ class LiveBatchCoordinator:
 
         self._active_batches: dict[str, BatchMetadata] = {}
         self.logger = logger.bind(domain="live_batch_coordinator")
+
+    @staticmethod
+    def _resolve_summary_excel_path(video_entry: dict) -> Path | None:
+        """Resolve the registered or on-disk Excel summary/report for a video entry."""
+        summary_path = video_entry.get("summary_excel")
+        if summary_path:
+            return Path(summary_path)
+
+        parquet_files = video_entry.get("parquet_files") or {}
+        summary_path = parquet_files.get("summary_excel")
+        if summary_path:
+            return Path(summary_path)
+
+        return find_summary_excel_file(video_entry.get("results_dir"))
 
     def register_session(
         self,
@@ -248,6 +264,7 @@ class LiveBatchCoordinator:
             has_arena = bool(list(results_dir.glob("1_ProcessingArea_*.parquet")))
             has_rois = bool(list(results_dir.glob("2_AreasOfInterest_*.parquet")))
             has_trajectory = bool(list(results_dir.glob("3_CoordMovimento_*.parquet")))
+        has_summary = has_summary_excel_output(results_dir) if results_dir else False
 
         video_entry: dict = {
             "path": video_path_str,
@@ -256,9 +273,7 @@ class LiveBatchCoordinator:
             "has_rois": has_rois,
             "has_trajectory": has_trajectory,
             "has_complete_data": has_arena and has_rois and has_trajectory,
-            "has_summary": bool(results_dir and list(results_dir.glob("*_summary.xlsx")))
-            if results_dir and results_dir.exists()
-            else False,
+            "has_summary": has_summary,
             "zones_finalized": True,
             "metadata": normalized_metadata,
             "filename": (
@@ -500,16 +515,15 @@ class LiveBatchCoordinator:
                     )
                     continue
 
-                # Check if has analysis results
-                if "summary_excel" not in video_entry:
+                summary_path = self._resolve_summary_excel_path(video_entry)
+                if summary_path is None:
                     self.logger.warning(
                         "live_batch.unified_report.no_analysis",
                         video_path=video_path,
                     )
                     continue
 
-                summary_path = video_entry["summary_excel"]
-                all_summaries.append(Path(summary_path))
+                all_summaries.append(summary_path)
 
             if not all_summaries:
                 self.logger.error(

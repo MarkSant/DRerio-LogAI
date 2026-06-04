@@ -121,11 +121,29 @@ class FrameProcessingMixin:
 
     def _check_camera_disconnect(self) -> None: ...
     def _on_camera_reconnected(self) -> None: ...
-    def _define_arena_from_detections(self) -> None: ...
-    def _start_recording_after_arena(self) -> None: ...
-    def _run_multi_aquarium_detection(  # type: ignore[empty-body]
+    def _define_arena_from_detections(self) -> None:
+        """Delegate to the next mixin implementation in the MRO."""
+        super_method = getattr(super(), "_define_arena_from_detections", None)
+        if super_method is None:
+            raise NotImplementedError("_define_arena_from_detections is not implemented")
+        super_method()
+
+    def _start_recording_after_arena(self) -> None:
+        """Delegate to the next mixin implementation in the MRO."""
+        super_method = getattr(super(), "_start_recording_after_arena", None)
+        if super_method is None:
+            raise NotImplementedError("_start_recording_after_arena is not implemented")
+        super_method()
+
+    def _run_multi_aquarium_detection(
         self, frame: np.ndarray, frame_number: int, zone_data: Any
-    ) -> list: ...
+    ) -> list:
+        """Delegate to the next mixin implementation in the MRO."""
+        super_method = getattr(super(), "_run_multi_aquarium_detection", None)
+        if super_method is None:
+            raise NotImplementedError("_run_multi_aquarium_detection is not implemented")
+        return super_method(frame, frame_number, zone_data)
+
     def get_last_detections(self) -> list: ...  # type: ignore[empty-body]
     def set_last_detections(self, detections: list) -> None: ...
 

@@ -22,12 +22,16 @@ class FakeTree:
 
 
 class _PMStub:
-    def __init__(self, canonical_entry):
+    def __init__(self, canonical_entry, project_path=None):
         self._canonical_entry = canonical_entry
+        self.project_path = project_path
 
     def find_video_entry(self, path):
         # The real ProjectManager accepts Path|str, we just echo canonical.
         return self._canonical_entry
+
+    def resolve_results_directory(self, experiment_id, video_path=None, metadata=None):
+        return ""
 
 
 class _ControllerStub:
@@ -182,3 +186,57 @@ def test_reports_tree_normalizes_mixed_aquarium_keys(monkeypatch):
         (isinstance(meta, dict) and meta.get("type") == "aquarium" and meta.get("aquarium_id") == 0)
         for meta in metadata_store.values()
     )
+
+
+def test_reports_tree_adds_partial_report_files_under_day_node(monkeypatch, tmp_path):
+    stub_gui_mod = types.SimpleNamespace(
+        STATUS_SYMBOLS={
+            "arena": "A",
+            "rois": "R",
+            "trajectory": "T",
+            "summary": "S",
+        }
+    )
+    monkeypatch.setitem(sys.modules, "zebtrack.ui.gui", stub_gui_mod)
+
+    reports_dir = tmp_path / "partial_reports"
+    reports_dir.mkdir()
+    (reports_dir / "PartialReport_Dia1_Grupo 1.xlsx").write_text("excel")
+    (reports_dir / "PartialReport_Dia1_Grupo 1.docx").write_text("word")
+
+    hierarchy = {
+        "G1": {
+            "display": "Grupo 1",
+            "days": {
+                1: {
+                    "S1": [
+                        {
+                            "path": "C:/tmp/video.mp4",
+                            "metadata": {"subject": "S1", "day": 1},
+                            "has_arena": True,
+                            "has_rois": True,
+                            "has_trajectory": True,
+                            "has_summary": True,
+                        }
+                    ]
+                },
+            },
+        }
+    }
+
+    pm = _PMStub(canonical_entry=None, project_path=tmp_path)
+    gui = _GUIStub(controller=_ControllerStub(project_manager=pm))
+    builder = _make_pvm_stub(gui)
+
+    tree = FakeTree()
+    metadata_store: dict[str, object] = {}
+
+    builder.populate_from_hierarchy(tree, hierarchy, "", metadata_store)
+
+    partial_node = next(
+        iid for iid, data in tree.inserted.items() if data["text"] == "🧾 Relatórios Parciais"
+    )
+    child_texts = [tree.inserted[child_id]["text"] for child_id in tree.children[partial_node]]
+
+    assert "📊 PartialReport_Dia1_Grupo 1.xlsx" in child_texts
+    assert "📝 PartialReport_Dia1_Grupo 1.docx" in child_texts
