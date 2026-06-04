@@ -103,3 +103,34 @@ def test_save_arena_arena_branch_persists_directly():
 
     save_mock.assert_called_once_with([[10, 10], [20, 10], [20, 20], [10, 20]])
     gui.event_dispatcher.publish_event.assert_not_called()
+
+
+def test_save_arena_arena_branch_failure_keeps_polygon_and_reports_error():
+    """Quando ``save_manual_arena`` falha, o ramo 'arena' NÃO deve reportar
+    sucesso nem cair no tail compartilhado (que limpa o polígono e descartaria
+    a edição). Deve avisar o erro e abortar, preservando a edição p/ retry."""
+    editor, cm, gui, _dm = _make_editor([[10, 10], [20, 10], [20, 20], [10, 20]])
+    cm.current_editing_zone = "arena"
+    gui.current_editing_zone = "arena"
+    gui.zone_controls = SimpleNamespace(aquarium_count_var=SimpleNamespace(get=lambda: 1))
+    save_mock = Mock(return_value=False)  # persistência falha
+    gui.controller = SimpleNamespace(analysis_vm=SimpleNamespace(save_manual_arena=save_mock))
+    gui.root = SimpleNamespace(after=Mock())
+    cm.event_bus_v2 = None
+    cm.redraw_zones_from_project_data = Mock()
+    cm.multi_aquarium = SimpleNamespace(_check_prompt_second_aquarium=Mock())
+    editor.update_roi_button_state = Mock()  # type: ignore[method-assign]
+    editor.clear_interactive_polygon = Mock()  # type: ignore[method-assign]
+
+    editor.save_arena()
+
+    save_mock.assert_called_once_with([[10, 10], [20, 10], [20, 20], [10, 20]])
+    # Edição preservada: o tail compartilhado NÃO roda.
+    editor.clear_interactive_polygon.assert_not_called()
+    cm.redraw_zones_from_project_data.assert_not_called()
+    gui.root.after.assert_not_called()
+    cm.multi_aquarium._check_prompt_second_aquarium.assert_not_called()
+    # Feedback reflete falha, não sucesso.
+    status_msg = gui.set_status.call_args[0][0]
+    assert "sucesso" not in status_msg.lower()
+    assert "falha" in status_msg.lower()

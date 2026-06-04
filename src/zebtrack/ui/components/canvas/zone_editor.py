@@ -614,7 +614,15 @@ class ZoneEditor:
                 points=len(self.gui.edited_polygon_points or []),
             )
             if not saved:
+                # Persistência falhou (analysis_vm ausente ou save retornou
+                # False): NÃO limpar o polígono interativo — isso descartaria a
+                # edição do usuário no tail compartilhado — e NÃO reportar
+                # sucesso. Avisa o erro e aborta para permitir nova tentativa.
                 log.warning("zone_editor.save_arena.arena_persist_failed")
+                self.gui.set_status(
+                    "Falha ao salvar a arena principal. A edição foi mantida; tente novamente."
+                )
+                return
             status_message = "Arena principal salva com sucesso."
             self.gui.set_status(status_message)
             self.update_roi_button_state()
