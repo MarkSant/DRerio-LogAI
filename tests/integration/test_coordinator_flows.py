@@ -957,6 +957,10 @@ def test_service_stop_callback_finalizes_live_analysis_view(test_settings):
         profile="padrão do projeto (default)",
     )
     view.hide_progress_bar.assert_called_once()
+    # Finalization must hide the progress bar, never re-show it. Re-showing it
+    # (show_progress=True) raced with hide_progress_bar via the restore_metadata
+    # double-``after`` and left the bar visible in the final state.
+    widget.show_progress.assert_not_called()
     canvas_manager.unsubscribe_from_live_frames.assert_called_once()
     assert stop_events
 

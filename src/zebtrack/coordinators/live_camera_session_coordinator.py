@@ -455,7 +455,7 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
             experiment_id=experiment_id,
             task_step=completion_step,
             switch_to_analysis=True,
-            show_progress=True,
+            show_progress=False,
             disable_cancel=True,
             restore_metadata=True,
         )
