@@ -915,3 +915,128 @@ def test_ensure_zones_auto_success_publishes_zone_list_update(monkeypatch):
         "auto-detect approval must trigger zone-list refresh so the polygon "
         "renders and the ROI/Concluir buttons enable"
     )
+
+
+def test_has_recorded_before_true_when_project_has_videos():
+    """Ao reabrir um projeto com gravações registradas em disco,
+    ``_has_recorded_before`` deve retornar True mesmo com ``_session_count==0``
+    (zerado a cada reabertura). Sem isto, o app "esquecia" o polígono
+    pré-existente e reoferecia auto-detecção em vez do diálogo de reutilização.
+    """
+    coordinator = _make_coordinator()
+    coordinator._session_count = 0
+    coordinator.project_manager.get_all_videos.return_value = [{"path": "v.mp4"}]  # type: ignore[attr-defined]
+
+    assert coordinator._has_recorded_before() is True
+
+
+def test_has_recorded_before_false_when_no_videos_and_no_session():
+    """Projeto novo (sem gravações, sem sessões nesta execução) → False."""
+    coordinator = _make_coordinator()
+    coordinator._session_count = 0
+    coordinator.project_manager.get_all_videos.return_value = []  # type: ignore[attr-defined]
+
+    assert coordinator._has_recorded_before() is False
+
+
+def test_has_recorded_before_true_when_session_count_positive():
+    """Gravação feita nesta execução → True (sem nem consultar o projeto)."""
+    coordinator = _make_coordinator()
+    coordinator._session_count = 2
+    coordinator.project_manager.get_all_videos.side_effect = AssertionError(  # type: ignore[attr-defined]
+        "não deve consultar o projeto quando já há sessões nesta execução"
+    )
+
+    assert coordinator._has_recorded_before() is True
+
+
+def test_ensure_zones_restores_active_zone_video_on_reopen(monkeypatch):
+    """Ao reabrir, as zonas do live vivem sob a chave do reference-frame e o
+    ``active_zone_video`` (em-memória) é None, então ``get_zone_data()`` vem
+    vazio. O coordinator deve restaurar o active a partir do último vídeo com
+    zonas para que ``has_zones`` fique True e o diálogo de Reutilizar apareça
+    (em vez de re-rodar a auto-detecção)."""
+    coordinator = _make_coordinator()
+    coordinator.project_manager.project_path = "/tmp/zebtrack"  # type: ignore[attr-defined]
+    coordinator.project_manager.get_project_type.return_value = "live"  # type: ignore[attr-defined]
+
+    empty = SimpleNamespace(polygon=[])
+    full = SimpleNamespace(polygon=[[1, 1], [2, 2], [3, 3]])
+    # 1ª leitura (reopen) vazia → restaura → 2ª leitura preenchida.
+    coordinator.project_manager.get_zone_data.side_effect = [empty, full, full, full]  # type: ignore[attr-defined]
+    coordinator.project_manager.get_last_zone_video.return_value = "ref.png"  # type: ignore[attr-defined]
+    monkeypatch.setattr(coordinator, "_has_recorded_before", lambda: True)
+    coordinator.root = MagicMock()
+
+    # Diálogo de reutilização fechado (None) → fluxo encerra sem auto-detectar.
+    fake_dialog = MagicMock()
+    fake_dialog.show.return_value = None
+    with patch(
+        "zebtrack.ui.dialogs.zone_reuse_dialog.ZoneReuseDialog",
+        MagicMock(return_value=fake_dialog),
+    ):
+        coordinator.ensure_zones_before_recording()
+
+    # Restaurou o active a partir do último vídeo com zonas.
+    coordinator.project_manager.set_active_zone_video.assert_called_once_with("ref.png")  # type: ignore[attr-defined]
+    # O diálogo de Reutilizar foi exibido (has_zones ficou True).
+    fake_dialog.show.assert_called_once()
+
+
+def test_ensure_zones_reuse_opens_zone_tab_and_defers(monkeypatch):
+    """Ao escolher "Reutilizar", em vez de iniciar a sessão imediatamente, o
+    coordinator deve abrir a aba de zonas, agendar a edição do polígono com
+    todos os vértices pré-selecionados e DEFERIR o início (retornar False com
+    ``pending_zone_confirmation=True``). Isso evita o erro silencioso
+    "Falha ao iniciar sessão" e permite ajustar a posição do polígono na nova
+    imagem antes de gravar.
+    """
+    from zebtrack.ui.event_bus_v2 import UIEvents
+
+    coordinator = _make_coordinator()
+    bus = cast(MagicMock, coordinator.event_bus)
+
+    coordinator.project_manager.project_path = "/tmp/zebtrack"
+    coordinator.project_manager.get_project_type.return_value = "live"  # type: ignore[attr-defined]
+    zone_data = SimpleNamespace(polygon=[[10, 10], [20, 10], [20, 20], [10, 20]])
+    coordinator.project_manager.get_zone_data.return_value = zone_data  # type: ignore[attr-defined]
+
+    # Já gravou antes → dispara o diálogo de reutilização.
+    monkeypatch.setattr(coordinator, "_has_recorded_before", lambda: True)
+    # Não tocar hardware na captura do frame de referência.
+    monkeypatch.setattr(coordinator, "_capture_reference_frame_for_zones", lambda: True)
+
+    # Root com ``after`` real-mockado para agendar a edição deferida.
+    coordinator.root = MagicMock()
+
+    fake_dialog = MagicMock()
+    fake_dialog.show.return_value = {"reuse": True}
+
+    bus.reset_mock()
+    with patch(
+        "zebtrack.ui.dialogs.zone_reuse_dialog.ZoneReuseDialog",
+        MagicMock(return_value=fake_dialog),
+    ):
+        result = coordinator.ensure_zones_before_recording()
+
+    # Deferido: NÃO inicia a sessão agora.
+    assert result is False, "reuse deve deferir (não iniciar a sessão imediatamente)"
+    assert coordinator.pending_zone_confirmation is True
+
+    published_types = [getattr(call.args[0], "type", None) for call in bus.publish.call_args_list]
+    assert UIEvents.UI_SELECT_TAB in published_types, "reuse deve abrir a aba de zonas"
+    # Edição do polígono é agendada via root.after (deferida ~150 ms).
+    assert coordinator.root.after.called, "deve agendar POLYGON_EDIT_REQUESTED deferido"
+
+    # O evento agendado carrega preselect_all=True.
+    scheduled = coordinator.root.after.call_args
+    deferred_fn = scheduled.args[1]
+    bus.reset_mock()
+    deferred_fn()
+    edit_calls = [
+        call.args[0]
+        for call in bus.publish.call_args_list
+        if getattr(call.args[0], "type", None) == UIEvents.POLYGON_EDIT_REQUESTED
+    ]
+    assert edit_calls, "edição deferida deve publicar POLYGON_EDIT_REQUESTED"
+    assert edit_calls[0].data.preselect_all is True

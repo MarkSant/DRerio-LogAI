@@ -206,7 +206,14 @@ class CanvasManager:
         """
         polygon = _payload_get(data, "polygon")
         if polygon is not None:
-            self.setup_interactive_polygon(polygon)
+            # Pré-seleção de todos os vértices (fluxo "Reutilizar polígono"):
+            # passamos ``preselect_all`` para ``setup_interactive_polygon`` para
+            # que a seleção faça parte do próprio setup. Isso evita que um
+            # segundo handler do mesmo evento (ui_coordinator também chama
+            # ``setup_interactive_polygon``) limpe a seleção, deixando os
+            # vértices em amarelo (não-selecionados) em vez de vermelho.
+            preselect = bool(_payload_get(data, "preselect_all"))
+            self.setup_interactive_polygon(polygon, preselect_all=preselect)
             # Audit Erro 1 round 5 (2026-05-25): mark arena as the active
             # editing zone so ``_on_conclude_video`` recognises the edit and
             # publishes ZONE_SAVE_ARENA. Without this flag, even after the
@@ -256,11 +263,20 @@ class CanvasManager:
 
     # ========== Core Methods (Remain on Facade) ==========
 
-    def setup_interactive_polygon(self, polygon: np.ndarray | list) -> None:
+    def setup_interactive_polygon(
+        self, polygon: np.ndarray | list, preselect_all: bool = False
+    ) -> None:
         """Set up interactive polygon editing.
 
         Args:
             polygon: Polygon points as numpy array or list of lists
+            preselect_all: When True, start with ALL vertices selected
+                (rendered in red) so the user can immediately drag the whole
+                polygon. Used by the "Reutilizar polígono" flow. Setting the
+                selection here — rather than after the call — keeps it stable
+                even when a second handler of POLYGON_EDIT_REQUESTED re-runs
+                this method (otherwise the selection would be cleared and the
+                vertices would render as unselected/gold).
         """
         # Convert numpy array to list of lists if needed
         if isinstance(polygon, np.ndarray):
@@ -271,8 +287,16 @@ class CanvasManager:
         # Populate gui.edited_polygon_points
         self.gui.edited_polygon_points = polygon_list
 
-        # Fresh edit session — clear any leftover vertex selection.
-        self.selected_vertex_indices = set()
+        # Fresh edit session — clear any leftover vertex selection, unless the
+        # caller asked to pre-select every vertex.
+        if preselect_all:
+            self.selected_vertex_indices = set(range(len(polygon_list)))
+            log.info(
+                "canvas_manager.setup_interactive_polygon.preselect_all",
+                vertices=len(polygon_list),
+            )
+        else:
+            self.selected_vertex_indices = set()
 
         # Draw the interactive polygon with handles
         self.renderer.draw_interactive_polygon()

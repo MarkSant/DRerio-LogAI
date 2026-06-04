@@ -55,6 +55,41 @@ def test_conclude_video_saves_arena_when_editing_active():
     assert UIEvents.LIVE_RECORDING_RESUME_REQUESTED in types
 
 
+def _conclude_gui_with_pending(pending: bool):
+    """gui stub whose zone_controls reports a pending live session."""
+    gui = _conclude_gui(editing_zone=None, edited_points=[])
+    gui.zone_controls = SimpleNamespace(has_pending_live_session=lambda: pending)
+    return gui
+
+
+def test_conclude_video_pending_live_confirm_navigates_and_resumes():
+    """Com sessão pendente, Concluir pergunta e — ao confirmar — navega para a
+    aba de análise/gravação e retoma a gravação (inicia a contagem regressiva).
+    """
+    gui = _conclude_gui_with_pending(True)
+    builder = ZoneControlBuilder(gui, event_bus_v2=Mock())
+
+    with patch("tkinter.messagebox.askyesno", return_value=True):
+        builder._on_conclude_video()
+
+    types = _published_types(gui)
+    assert UIEvents.UI_NAVIGATE_TO_ANALYSIS_VIEW in types
+    assert UIEvents.LIVE_RECORDING_RESUME_REQUESTED in types
+
+
+def test_conclude_video_pending_live_decline_does_not_resume():
+    """Recusar o pop-up mantém a sessão pendente e NÃO retoma a gravação."""
+    gui = _conclude_gui_with_pending(True)
+    builder = ZoneControlBuilder(gui, event_bus_v2=Mock())
+
+    with patch("tkinter.messagebox.askyesno", return_value=False):
+        builder._on_conclude_video()
+
+    types = _published_types(gui)
+    assert UIEvents.LIVE_RECORDING_RESUME_REQUESTED not in types
+    assert UIEvents.UI_NAVIGATE_TO_ANALYSIS_VIEW not in types
+
+
 class TestZoneControlBuilder:
     """Tests for ZoneControlBuilder methods."""
 

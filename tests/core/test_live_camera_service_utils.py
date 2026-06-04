@@ -65,6 +65,37 @@ def test_resolve_calibration_perspective_returns_none_when_no_project_manager(
     assert live_camera_service._resolve_calibration_perspective() is None
 
 
+def test_start_session_clears_stale_exit_event(live_camera_service, monkeypatch):
+    """``start_session`` deve limpar o ``exit_event`` logo no início.
+
+    Regressão: na 2ª sessão em diante o ``exit_event`` ainda estava setado
+    pelo ``__exit__``/``stop_session`` da sessão anterior. O loop de countdown
+    detectava ``exit_event.is_set()`` e abortava imediatamente
+    (``countdown.aborted``), fazendo a gravação falhar silenciosamente e o
+    ``block_detail_dialog`` exibir "Falha ao iniciar sessão". O ``clear()`` em
+    ``_start_threads`` rodava tarde demais (após o countdown).
+    """
+    svc = live_camera_service
+    # Simula o estado deixado por uma sessão anterior.
+    svc.exit_event.set()
+    assert svc.exit_event.is_set()
+
+    # Curto-circuito logo após o bloco que limpa o exit_event: a câmera "falha"
+    # ao abrir, então start_session retorna False sem tocar hardware/threads.
+    monkeypatch.setattr(svc, "_setup_camera", lambda *a, **k: False)
+
+    result = svc.start_session(
+        camera_index=0,
+        duration_s=1.0,
+        experiment_id="exp",
+        use_countdown=True,
+        countdown_duration_s=3,
+    )
+
+    assert result is False, "deve sair no setup de câmera mockado"
+    assert not svc.exit_event.is_set(), "start_session deve limpar o exit_event antes do countdown"
+
+
 def test_is_session_active_false_when_no_threads(live_camera_service):
     """Fresh service (no threads spawned) is not active."""
     live_camera_service.capture_thread = None

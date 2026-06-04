@@ -92,6 +92,24 @@ class EventDispatcher:
             raise RuntimeError("EventDispatcher requires ApplicationGUI context for UI events.")
         return self.gui
 
+    @staticmethod
+    def _finish_drawing_is_interactive_edit(gui: Any) -> bool:
+        """True when "Finalizar Desenho" is acting on an interactive edit.
+
+        An interactive edit is active when an editing zone is set (arena/ROI)
+        AND there are edited polygon points. In that case "Finalizar Desenho"
+        must be a benign no-op (the polygon is already complete) instead of
+        running ``on_canvas_double_click``, which operates on the in-progress
+        drawing and would revert the user's vertex adjustments. The actual
+        commit is done by "Salvar Edição" / "Concluir".
+        """
+        cm = getattr(gui, "canvas_manager", None)
+        editing = bool(
+            getattr(cm, "current_editing_zone", None) or getattr(gui, "current_editing_zone", None)
+        )
+        has_edited_points = bool(getattr(gui, "edited_polygon_points", None))
+        return editing and has_edited_points
+
     def _run_on_ui_thread(self, callback: Callable[[], None]) -> None:
         """Schedule callback on Tk main thread when possible.
 
@@ -845,10 +863,26 @@ class EventDispatcher:
         event_bus.subscribe(
             UIEvents.ZONE_DISCARD_ARENA, lambda d: gui.canvas_manager.discard_arena()
         )
-        event_bus.subscribe(
-            UIEvents.ZONE_FINISH_DRAWING,
-            lambda d: gui.canvas_manager.event_handler.on_canvas_double_click(None),
-        )
+
+        def _handle_finish_drawing(d):
+            # Em modo de EDIÇÃO interativa (ex.: polígono auto-detectado ou
+            # reutilizado com vértices ajustados), o polígono já está completo.
+            # "Finalizar Desenho" NÃO deve salvar nem encerrar a edição: salvar
+            # aqui (save_arena) removia a barra de botões — impedindo "Salvar
+            # Edição" — e redesenhava revertendo o polígono à auto-detecção; e
+            # on_canvas_double_click reverteria o polígono (opera sobre o
+            # desenho-em-andamento, não sobre edited_polygon_points). Mantém a
+            # edição e a barra intactas e orienta o usuário a usar "Salvar
+            # Edição" (o commit real). "Concluir" também salva a edição ativa.
+            if EventDispatcher._finish_drawing_is_interactive_edit(gui):
+                if hasattr(gui, "set_status"):
+                    gui.set_status("Posição ajustada. Clique em 'Salvar Edição' para confirmar.")
+                return
+            gui.canvas_manager.event_handler.on_canvas_double_click(None)
+            if hasattr(gui, "set_status"):
+                gui.set_status("✓ Desenho finalizado. Clique em 'Salvar Edição' para confirmar.")
+
+        event_bus.subscribe(UIEvents.ZONE_FINISH_DRAWING, _handle_finish_drawing)
         event_bus.subscribe(
             UIEvents.ZONE_CONCLUDE_VIDEO,
             lambda d: gui.zone_control_builder._on_conclude_video(),

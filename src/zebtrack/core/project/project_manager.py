@@ -1478,8 +1478,29 @@ class ProjectManager:
         return MetadataManager._normalize_detector_thresholds(detector_config)
 
     def get_completed_sessions(self) -> set[tuple[int, str, str]]:
-        """Scan project for completed session folders. Delegates to MetadataManager."""
-        return MetadataManager.get_completed_sessions(self.project_path)
+        """Scan project for completed session folders. Delegates to MetadataManager.
+
+        Canonicaliza o nome do grupo de volta ao nome do projeto: a pasta de
+        resultados sanitiza o grupo (espaços/caracteres especiais viram ``_``),
+        então um grupo como ``"Tratamento 1"`` é gravado como
+        ``Grupo_Tratamento_1`` e o scan devolve ``"Tratamento_1"``. Sem este
+        mapeamento, a grade "Progresso do Experimento" e o diálogo de bloco —
+        que comparam contra os nomes de grupo do projeto — nunca reconhecem
+        como concluídas as sessões de grupos com espaço/caractere especial.
+        """
+        raw = MetadataManager.get_completed_sessions(self.project_path)
+        groups = (self.project_data or {}).get("groups") or []
+        if not groups:
+            return raw
+
+        from zebtrack.core.project.output_registration_manager import (
+            OutputRegistrationManager,
+        )
+
+        sanitize = OutputRegistrationManager._sanitize_path_component
+        # Mapa: nome-de-pasta-sanitizado -> nome canônico do projeto.
+        canonical = {sanitize(g, fallback=str(g)): g for g in groups}
+        return {(d, canonical.get(g, g), s) for (d, g, s) in raw}
 
     def save_last_session_details(self, day: int, group: str) -> None:
         """Save last selected day and group. Delegates to MetadataManager."""

@@ -347,6 +347,43 @@ class TestZoneArenaManagement:
         assert hasattr(coordinator, "save_manual_arena")
         assert callable(coordinator.save_manual_arena)
 
+    def test_save_manual_arena_live_saves_to_reference_frame_key(
+        self, coordinator, mock_project_manager
+    ):
+        """Live: o save da arena deve mirar a chave canônica do reference-frame
+        (``get_last_zone_video``), não o ``active_zone_video`` que oscila — senão
+        o edit iria só para ``detection_zones`` e seria revertido por um
+        ``set_active_zone_video(ref)`` posterior."""
+        mock_project_manager.get_project_type.return_value = "live"
+        mock_project_manager.get_last_zone_video.return_value = "ref.png"
+        mock_project_manager.get_active_zone_video.return_value = None
+        mock_project_manager.get_zone_data.return_value = ZoneData(
+            polygon=[[0, 0], [1, 0], [1, 1]], roi_polygons=[], roi_names=[], roi_colors=[]
+        )
+
+        edited = [[10, 10], [20, 10], [20, 20], [10, 20]]
+        assert coordinator.save_manual_arena(edited) is True
+
+        mock_project_manager.save_zone_data.assert_called_once()
+        saved_zone_data, target = mock_project_manager.save_zone_data.call_args.args[:2]
+        assert target == "ref.png"
+        assert saved_zone_data.polygon == edited
+
+    def test_save_manual_arena_non_live_targets_active(self, coordinator, mock_project_manager):
+        """Pré-gravado: comportamento preservado — save com ``video_path=None``
+        (usa o ``active_zone_video`` do vídeo selecionado)."""
+        mock_project_manager.get_project_type.return_value = "prerecorded"
+        mock_project_manager.get_zone_data.return_value = ZoneData(
+            polygon=[[0, 0], [1, 0], [1, 1]], roi_polygons=[], roi_names=[], roi_colors=[]
+        )
+
+        edited = [[5, 5], [6, 5], [6, 6]]
+        assert coordinator.save_manual_arena(edited) is True
+
+        saved_zone_data, target = mock_project_manager.save_zone_data.call_args.args[:2]
+        assert target is None
+        assert saved_zone_data.polygon == edited
+
 
 # =============================================================================
 # PROCESSING MODE TESTS

@@ -282,3 +282,79 @@ def test_on_rubber_band_release_selects_vertices_inside_rect():
     # (5,5) and (50,50) are inside the 0..100 box; (200,200) is not.
     assert handler.manager.selected_vertex_indices == {0, 1}
     handler.manager.renderer.draw_interactive_polygon.assert_called_once()
+
+
+# --- Arraste do polígono inteiro pelo corpo/linhas ---------------------------
+
+
+def _square_handler():
+    """Handler com um polígono quadrado e transform identidade (canvas==vídeo)."""
+    handler = _make_handler()
+    handler.manager._video_to_canvas.side_effect = lambda x, y: (x, y)
+    handler.manager._canvas_to_video.side_effect = lambda x, y: (x, y)
+    handler.gui.edited_polygon_points = [[0, 0], [100, 0], [100, 100], [0, 100]]
+    handler.gui._dragged_handle_index = None
+    return handler
+
+
+def test_press_on_polygon_body_inside_true():
+    handler = _square_handler()
+    assert handler._press_on_polygon_body(SimpleNamespace(x=50, y=50)) is True
+
+
+def test_press_on_polygon_body_near_edge_true():
+    handler = _square_handler()
+    # 3 px acima da aresta superior (y=0) — dentro da tolerância de 8 px.
+    assert handler._press_on_polygon_body(SimpleNamespace(x=50, y=-3)) is True
+
+
+def test_press_on_polygon_body_outside_false():
+    handler = _square_handler()
+    assert handler._press_on_polygon_body(SimpleNamespace(x=500, y=500)) is False
+
+
+def test_editor_canvas_press_starts_body_drag_when_selected_and_inside():
+    handler = _square_handler()
+    handler.manager.selected_vertex_indices = {0, 1, 2, 3}
+
+    handler.on_editor_canvas_press(SimpleNamespace(x=50, y=50, state=0))
+
+    assert handler.manager._body_drag_last == (50.0, 50.0)
+    assert handler.manager._body_drag_selected == {0, 1, 2, 3}
+    # Não deve iniciar rubber-band (nenhum retângulo de seleção criado).
+    handler.gui.video_display.canvas.create_rectangle.assert_not_called()
+
+
+def test_editor_canvas_press_outside_polygon_does_not_body_drag():
+    handler = _square_handler()
+    handler.manager.selected_vertex_indices = {0, 1, 2, 3}
+
+    handler.on_editor_canvas_press(SimpleNamespace(x=500, y=500, state=0))
+
+    # Sem body-drag; cai no caminho de rubber-band.
+    assert getattr(handler.manager, "_body_drag_last", None) is None
+    handler.gui.video_display.canvas.create_rectangle.assert_called_once()
+
+
+def test_editor_canvas_press_with_modifier_skips_body_drag():
+    handler = _square_handler()
+    handler.manager.selected_vertex_indices = {0, 1, 2, 3}
+
+    # Shift pressionado (state & 0x0001) → mantém rubber-band para add à seleção.
+    handler.on_editor_canvas_press(SimpleNamespace(x=50, y=50, state=0x0001))
+
+    assert getattr(handler.manager, "_body_drag_last", None) is None
+    handler.gui.video_display.canvas.create_rectangle.assert_called_once()
+
+
+def test_polygon_body_drag_translates_selected_vertices():
+    handler = _square_handler()
+    handler.manager._body_drag_last = (50.0, 50.0)
+    handler.manager._body_drag_selected = {0, 1}
+
+    handler.on_polygon_body_drag(SimpleNamespace(x=60, y=70))
+
+    # Delta (10, 20) aplicado só aos vértices selecionados 0 e 1.
+    assert handler.gui.edited_polygon_points == [[10, 20], [110, 20], [100, 100], [0, 100]]
+    assert handler.manager._body_drag_last == (60.0, 70.0)
+    handler.manager.renderer.draw_interactive_polygon.assert_called_once()

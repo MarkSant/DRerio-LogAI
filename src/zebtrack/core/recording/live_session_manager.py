@@ -238,6 +238,14 @@ class LiveSessionManagerMixin:
             countdown_duration_s=countdown_duration_s,
         )
 
+        # Limpa o exit_event de uma sessão anterior. Sem isto, da 2ª sessão em
+        # diante o countdown abaixo aborta imediatamente (o evento continua
+        # setado pelo __exit__/stop_session da sessão anterior) e a gravação
+        # falha silenciosamente — só um warning ``countdown.aborted``, sem erro
+        # no terminal. O ``clear()`` em ``_start_threads`` roda tarde demais
+        # (após o countdown), por isso limpamos aqui também.
+        self.exit_event.clear()
+
         # Store configuration
         self.analysis_interval_frames = analysis_interval_frames
         self.display_interval_frames = display_interval_frames

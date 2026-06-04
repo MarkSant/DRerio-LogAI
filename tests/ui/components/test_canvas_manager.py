@@ -274,7 +274,32 @@ class TestCanvasAccessAndEvents:
 
         canvas_manager._on_polygon_edit_requested({"polygon": polygon})
 
-        canvas_manager.setup_interactive_polygon.assert_called_once_with(polygon)
+        canvas_manager.setup_interactive_polygon.assert_called_once_with(
+            polygon, preselect_all=False
+        )
+
+    def test_on_polygon_edit_requested_preselect_all(self, canvas_manager):
+        """``preselect_all=True`` (fluxo Reutilizar) seleciona todos os vértices.
+
+        ``setup_interactive_polygon`` limpa a seleção; o handler deve então
+        re-selecionar todos os vértices para o usuário arrastar o polígono
+        inteiro de uma vez.
+        """
+        canvas_manager.renderer.draw_interactive_polygon = Mock()
+        polygon = np.array([[0, 0], [10, 0], [10, 10]])
+
+        canvas_manager._on_polygon_edit_requested({"polygon": polygon, "preselect_all": True})
+
+        assert canvas_manager.selected_vertex_indices == {0, 1, 2}
+
+    def test_on_polygon_edit_requested_no_preselect_keeps_empty(self, canvas_manager):
+        """Sem a flag, a seleção permanece vazia (comportamento padrão)."""
+        canvas_manager.renderer.draw_interactive_polygon = Mock()
+        polygon = np.array([[0, 0], [10, 0], [10, 10]])
+
+        canvas_manager._on_polygon_edit_requested({"polygon": polygon})
+
+        assert canvas_manager.selected_vertex_indices == set()
 
     def test_on_live_frame_update_invalid_data(self, canvas_manager):
         """Ignore non-dict payloads for live frames."""

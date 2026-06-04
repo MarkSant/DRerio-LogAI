@@ -144,3 +144,37 @@ def test_copy_zone_parquet_files_updates_project_entry(scan_input_paths, project
     )
     assert (hierarchical_dir / "1_ProcessingArea_target.parquet").exists()
     assert (hierarchical_dir / "2_AreasOfInterest_target.parquet").exists()
+
+
+def test_get_completed_sessions_canonicalizes_group_names(project_manager):
+    """Grupos com espaço/caractere especial ("Tratamento 1") viram pasta
+    sanitizada ("Grupo_Tratamento_1"); o scan devolve "Tratamento_1". O
+    ProjectManager deve mapear de volta ao nome do projeto para que a grade de
+    progresso e o diálogo de bloco reconheçam a sessão como concluída.
+    """
+    project_manager.project_data["groups"] = ["Controle", "Tratamento 1"]
+
+    raw = {
+        (1, "Controle", "1"),
+        (1, "Tratamento_1", "2"),
+    }
+    with patch(
+        "zebtrack.core.project.metadata_manager.MetadataManager.get_completed_sessions",
+        return_value=raw,
+    ):
+        result = project_manager.get_completed_sessions()
+
+    assert (1, "Tratamento 1", "2") in result
+    assert (1, "Controle", "1") in result
+    assert (1, "Tratamento_1", "2") not in result
+
+
+def test_get_completed_sessions_without_groups_returns_raw(project_manager):
+    """Sem grupos definidos, retorna o resultado do scan inalterado."""
+    project_manager.project_data.pop("groups", None)
+    raw = {(1, "Qualquer", "1")}
+    with patch(
+        "zebtrack.core.project.metadata_manager.MetadataManager.get_completed_sessions",
+        return_value=raw,
+    ):
+        assert project_manager.get_completed_sessions() == raw

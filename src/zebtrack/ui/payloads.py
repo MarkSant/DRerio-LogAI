@@ -449,6 +449,7 @@ class ZonesUpdatedPayload:
 @dataclass(frozen=True)
 class PolygonEditRequestedPayload:
     polygon: Any
+    preselect_all: bool = False
 
 
 @dataclass(frozen=True)
