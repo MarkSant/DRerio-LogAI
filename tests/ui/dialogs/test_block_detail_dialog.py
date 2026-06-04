@@ -133,8 +133,8 @@ def test_generate_partial_report_accepts_relatorio_excel(tmp_path):
         session_folder / "4_Relatorio_live_exp.xlsx",
         index=False,
     )
-    dialog.session_coordinator = SimpleNamespace(event_bus=None)
-    dialog.live_batch_coordinator = SimpleNamespace(event_bus=None)
+    dialog.session_coordinator = cast(Any, SimpleNamespace(event_bus=None))
+    dialog.live_batch_coordinator = cast(Any, SimpleNamespace(event_bus=None))
 
     with (
         patch("zebtrack.ui.dialogs.block_detail_dialog.messagebox.showwarning") as mock_warning,

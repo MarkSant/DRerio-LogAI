@@ -917,7 +917,7 @@ class BlockDetailDialog(Toplevel):
                         row_data[column_name]
                     )
 
-        document.save(path)
+        document.save(str(path))
 
     def _write_partial_report_outputs(
         self,
