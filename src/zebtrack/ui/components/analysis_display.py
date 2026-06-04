@@ -16,8 +16,16 @@ from zebtrack.ui import payloads
 # Local imports
 from zebtrack.ui.components.base import BaseWidget
 from zebtrack.ui.event_bus_v2 import EventBusV2, UIEvents
+from zebtrack.ui.wizard.tooltip import ToolTip, create_help_label
 
 log = structlog.get_logger()
+
+ANALYSIS_PROFILE_TOOLTIP = (
+    "Mostra a configuração de análise aplicada a esta sessão. "
+    "Quando nenhuma regra específica combina com grupo, dia ou indivíduo, "
+    "o projeto usa o perfil padrão. Quando aparecer 'padrão do projeto (default)', "
+    "isso significa exatamente esse fallback."
+)
 
 
 class AnalysisDisplayWidget(BaseWidget):
@@ -55,15 +63,25 @@ class AnalysisDisplayWidget(BaseWidget):
             **kwargs: Additional arguments passed to BaseWidget
         """
         # State variables for display
-        self.status_var = StringVar(value="Nenhuma análise em andamento.")
-        self.task_var = StringVar(value="Nenhuma tarefa em andamento.")
-        self.group_var = StringVar(value="Grupo: --")
-        self.day_var = StringVar(value="Dia: --")
-        self.subject_var = StringVar(value="Indivíduo: --")
-        self.profile_var = StringVar(value="Perfil de análise: default")
-        self.tracking_mode_var = StringVar(value="Modo de rastreamento: --")
-        self.social_summary_var = StringVar(value="Interações sociais: não aplicável no momento.")
-        self.track_selector_var = StringVar(value="Todos")
+        stringvar_master = parent
+        self.status_var = StringVar(master=stringvar_master, value="Nenhuma análise em andamento.")
+        self.task_var = StringVar(master=stringvar_master, value="Nenhuma tarefa em andamento.")
+        self.group_var = StringVar(master=stringvar_master, value="Grupo: --")
+        self.day_var = StringVar(master=stringvar_master, value="Dia: --")
+        self.subject_var = StringVar(master=stringvar_master, value="Indivíduo: --")
+        self.profile_var = StringVar(
+            master=stringvar_master,
+            value="Configuração de análise: default",
+        )
+        self.tracking_mode_var = StringVar(
+            master=stringvar_master,
+            value="Modo de rastreamento: --",
+        )
+        self.social_summary_var = StringVar(
+            master=stringvar_master,
+            value="Interações sociais: não aplicável no momento.",
+        )
+        self.track_selector_var = StringVar(master=stringvar_master, value="Todos")
 
         # Progress statistics
         self.progress_labels: dict[str, StringVar] = {}
@@ -78,6 +96,7 @@ class AnalysisDisplayWidget(BaseWidget):
         self.day_label: ttk.Label | None = None
         self.subject_label: ttk.Label | None = None
         self.profile_label: ttk.Label | None = None
+        self.profile_help_label: Label | None = None
         self.tracking_mode_label: ttk.Label | None = None
         self.track_selector_widget: ttk.Combobox | None = None
         self.progress_frame: ttk.Frame | None = None
@@ -129,8 +148,14 @@ class AnalysisDisplayWidget(BaseWidget):
         self.subject_label = ttk.Label(info_frame, textvariable=self.subject_var)
         self.subject_label.grid(row=1, column=2, sticky="w", padx=(0, 12))
 
-        self.profile_label = ttk.Label(info_frame, textvariable=self.profile_var)
-        self.profile_label.grid(row=1, column=3, sticky="w")
+        profile_frame = ttk.Frame(info_frame)
+        profile_frame.grid(row=1, column=3, sticky="w")
+
+        self.profile_label = ttk.Label(profile_frame, textvariable=self.profile_var)
+        self.profile_label.pack(side="left")
+        self.profile_help_label = create_help_label(profile_frame, ANALYSIS_PROFILE_TOOLTIP)
+        self.profile_help_label.pack(side="left", padx=(4, 0))
+        ToolTip(self.profile_label, ANALYSIS_PROFILE_TOOLTIP)
 
         # Tracking mode (third row)
         self.tracking_mode_label = ttk.Label(info_frame, textvariable=self.tracking_mode_var)
@@ -202,7 +227,7 @@ class AnalysisDisplayWidget(BaseWidget):
             pad_x = (0, 12) if col < 2 else (0, 0)
             cell.grid(row=row, column=col, padx=pad_x, sticky="w")
             ttk.Label(cell, text=label_text).pack(anchor="w")
-            var = StringVar(value="-")
+            var = StringVar(master=self, value="-")
             ttk.Label(cell, textvariable=var, font=("Arial", 9, "bold")).pack(anchor="w")
             self.progress_labels[key] = var
 
@@ -268,7 +293,7 @@ class AnalysisDisplayWidget(BaseWidget):
         self.day_var.set(f"Dia: {day}")
         self.subject_var.set(f"Indivíduo: {subject}")
         if profile:
-            self.profile_var.set(f"Perfil de análise: {profile}")
+            self.profile_var.set(f"Configuração de análise: {profile}")
 
     def set_tracking_mode(self, mode: str) -> None:
         """Update the tracking mode display."""
@@ -276,7 +301,7 @@ class AnalysisDisplayWidget(BaseWidget):
 
     def set_profile(self, profile: str) -> None:
         """Update the analysis profile display."""
-        self.profile_var.set(f"Perfil de análise: {profile}")
+        self.profile_var.set(f"Configuração de análise: {profile}")
 
     def set_social_summary(self, summary: str) -> None:
         """Update the social proximity summary text."""

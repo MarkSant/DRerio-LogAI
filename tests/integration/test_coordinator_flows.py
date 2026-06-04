@@ -414,6 +414,67 @@ def test_live_camera_session_start_stop_happy_path(test_settings):
 
 
 @pytest.mark.integration
+def test_live_session_publishes_metadata_profile_and_live_task_status(test_settings):
+    state_manager = StateManager()
+    event_bus = EventBusV2()
+
+    live_camera_service = MagicMock()
+    live_camera_service.start_session.return_value = True
+
+    pm = MagicMock()
+    pm.get_active_zone_video.return_value = None
+    pm.project_data = {"analysis_profile": "project_default"}
+    pm.resolve_analysis_profile.return_value = {"name": "live_profile"}
+
+    calibration = MagicMock()
+
+    coordinator = LiveCameraSessionCoordinator(
+        state_manager=state_manager,
+        live_camera_service=live_camera_service,
+        project_manager=pm,
+        detector_service=MagicMock(),
+        settings_obj=test_settings,
+        live_calibration_coordinator=calibration,
+        event_bus=event_bus,
+    )
+
+    metadata_events: list[payloads.AnalysisMetadataPayload] = []
+    task_events: list[payloads.AnalysisTaskStatusPayload] = []
+    event_bus.subscribe(
+        UIEvents.UI_UPDATE_ANALYSIS_METADATA,
+        lambda data: metadata_events.append(cast(payloads.AnalysisMetadataPayload, data)),
+    )
+    event_bus.subscribe(
+        UIEvents.UI_UPDATE_ANALYSIS_TASK_STATUS,
+        lambda data: task_events.append(cast(payloads.AnalysisTaskStatusPayload, data)),
+    )
+
+    assert coordinator.start_live_session(
+        camera_index=0,
+        duration_s=1.0,
+        experiment_id="live_exp_01",
+        wizard_data={
+            "experimental_group": "Controle",
+            "experiment_day": "Dia_1",
+            "subject_id": "S1",
+            "use_countdown": True,
+            "countdown_duration_s": 5,
+        },
+    )
+
+    assert metadata_events
+    assert task_events
+    assert metadata_events[-1].metadata["group"] == "Controle"
+    assert metadata_events[-1].metadata["day"] == "Dia_1"
+    assert metadata_events[-1].metadata["subject"] == "S1"
+    assert metadata_events[-1].metadata["profile"] == "live_profile"
+    assert any(
+        event.step == "Contagem regressiva para iniciar a análise ao vivo." for event in task_events
+    )
+    assert task_events[-1].step == "Análise ao vivo em andamento."
+
+
+@pytest.mark.integration
 def test_live_project_session_resolves_camera_by_friendly_name(monkeypatch, test_settings):
     """When DirectShow ordering shifts, start_live_project_session should silently
     re-resolve the index via the saved friendly_name."""
@@ -557,6 +618,351 @@ def test_live_project_session_override_skips_resolver(monkeypatch, test_settings
     )
     assert called["n"] == 0, "Resolver must be bypassed when override is provided"
     assert live_camera_service.start_session.call_args.kwargs["camera_index"] == 3
+
+
+def _make_live_project_coordinator(
+    settings_obj, *, start_return: bool = True, stop_return: bool = True, zones_ready: bool = True
+):
+    """Build a LiveCameraSessionCoordinator wired for live-project session tests.
+
+    Mirrors the fixtures used by the camera-resolution tests above so the
+    active-session regression tests share the same minimal mock surface.
+    """
+    state_manager = StateManager()
+    event_bus = EventBusV2()
+
+    live_camera_service = MagicMock()
+    live_camera_service.start_session.return_value = start_return
+    live_camera_service.stop_session.return_value = stop_return
+
+    pm = MagicMock()
+    pm.get_project_type.return_value = "live"
+    pm.get_project_name.return_value = "test_project"
+    pm.project_path = None
+    pm.project_data = {
+        "camera_index": 0,
+        "camera_friendly_name": "",
+        "recording_duration_s": 30.0,
+        "analysis_interval_frames": 1,
+        "display_interval_frames": 1,
+        "animals_per_aquarium": 1,
+    }
+
+    calibration = MagicMock()
+    calibration.ensure_zones_before_recording.return_value = zones_ready
+    calibration.pending_zone_confirmation = not zones_ready
+
+    coordinator = LiveCameraSessionCoordinator(
+        state_manager=state_manager,
+        live_camera_service=live_camera_service,
+        project_manager=pm,
+        detector_service=MagicMock(),
+        settings_obj=settings_obj,
+        live_calibration_coordinator=calibration,
+        event_bus=event_bus,
+    )
+    return coordinator, state_manager, live_camera_service
+
+
+@pytest.mark.integration
+def test_start_live_project_session_marks_session_active(test_settings):
+    """start_live_project_session must mark the session active so stop/cancel
+    and the UI live-context guards behave correctly (Erro 1/2/4 root cause)."""
+    coordinator, state_manager, live_camera_service = _make_live_project_coordinator(test_settings)
+
+    assert coordinator.start_live_project_session(day=2, group="Tratamento 1", subject="1")
+    live_camera_service.start_session.assert_called_once()
+    assert coordinator.is_live_session_active() is True
+    assert state_manager.get_processing_state().is_live_session_active is True
+
+
+@pytest.mark.integration
+def test_stop_after_start_live_project_session_stops_service(test_settings):
+    """Core Erro 1/2 regression: cancelling after start_live_project_session must
+    actually stop the service (no ``no_active_session``) and clear the flag."""
+    coordinator, state_manager, live_camera_service = _make_live_project_coordinator(test_settings)
+
+    assert coordinator.start_live_project_session(day=2, group="Tratamento 1", subject="1")
+    assert coordinator.is_live_session_active() is True
+
+    assert coordinator.stop_live_session() is True
+    live_camera_service.stop_session.assert_called_once()
+    assert coordinator.is_live_session_active() is False
+    assert state_manager.get_processing_state().is_live_session_active is False
+
+
+@pytest.mark.integration
+def test_deferred_project_session_keeps_session_inactive(test_settings):
+    """When zones are not ready (deferred), the session must NOT be marked active."""
+    coordinator, state_manager, live_camera_service = _make_live_project_coordinator(
+        test_settings, zones_ready=False
+    )
+
+    assert coordinator.start_live_project_session(day=2, group="Tratamento 1", subject="1") is False
+    live_camera_service.start_session.assert_not_called()
+    assert coordinator.is_live_session_active() is False
+    assert state_manager.get_processing_state().is_live_session_active is False
+
+
+@pytest.mark.integration
+def test_start_live_project_session_service_failure_reverts_flag(test_settings):
+    """If the service fails to start, the active-session flag must be reverted."""
+    coordinator, state_manager, live_camera_service = _make_live_project_coordinator(
+        test_settings, start_return=False
+    )
+
+    assert coordinator.start_live_project_session(day=2, group="Tratamento 1", subject="1") is False
+    live_camera_service.start_session.assert_called_once()
+    assert coordinator.is_live_session_active() is False
+    assert state_manager.get_processing_state().is_live_session_active is False
+
+
+@pytest.mark.integration
+def test_start_session_from_config_marks_and_stops_session(test_settings):
+    """start_session_from_config must mark the session active and allow a clean stop."""
+    state_manager = StateManager()
+    event_bus = EventBusV2()
+
+    live_camera_service = MagicMock()
+    live_camera_service.start_session.return_value = True
+    live_camera_service.stop_session.return_value = True
+
+    calibration = MagicMock()
+    calibration.ensure_zones_before_recording.return_value = True
+
+    pm = MagicMock()
+    pm.project_path = None
+
+    coordinator = LiveCameraSessionCoordinator(
+        state_manager=state_manager,
+        live_camera_service=live_camera_service,
+        project_manager=pm,
+        detector_service=MagicMock(),
+        settings_obj=test_settings,
+        live_calibration_coordinator=calibration,
+        event_bus=event_bus,
+    )
+
+    config = {
+        "camera_index": 0,
+        "duration_s": 30.0,
+        "experiment_id": "camera_0",
+        "analysis_interval_frames": 1,
+        "display_interval_frames": 1,
+        "record_video": True,
+    }
+
+    assert coordinator.start_session_from_config(config, zones_validated=True) is True
+    assert coordinator.is_live_session_active() is True
+    assert state_manager.get_processing_state().is_live_session_active is True
+
+    assert coordinator.stop_live_session() is True
+    live_camera_service.stop_session.assert_called_once()
+    assert coordinator.is_live_session_active() is False
+    assert state_manager.get_processing_state().is_live_session_active is False
+
+
+@pytest.mark.integration
+def test_batch_registration_uses_last_experiment_id_after_finalize(test_settings):
+    """``_finalize_live_session_ui`` clears ``_active_live_session_id`` before
+    ``_register_batch_session`` runs, so the batch entry must fall back to
+    ``_last_live_experiment_id`` instead of the placeholder ``"unknown"``."""
+    coordinator, _state_manager, _service = _make_live_project_coordinator(test_settings)
+    batch_coordinator = MagicMock()
+    coordinator.live_batch_coordinator = batch_coordinator
+
+    # Simulate the post-finalize state: active id cleared, last id preserved.
+    coordinator._active_live_session_id = None
+    coordinator._last_live_experiment_id = "day2_Tratamento 1_1"
+    coordinator._active_wizard_data = {
+        "experimental_group": "Tratamento 1",
+        "experiment_day": "Dia_2",
+        "subject_id": "1",
+        "recording_duration_s": 30.0,
+        "camera_index": 0,
+    }
+    coordinator._find_video_in_live_session = lambda: Path("live/live_recording.mp4")
+
+    coordinator._register_batch_session()
+
+    batch_coordinator.register_session.assert_called_once()
+    assert (
+        batch_coordinator.register_session.call_args.kwargs["experiment_id"]
+        == "day2_Tratamento 1_1"
+    )
+
+
+@pytest.mark.integration
+def test_live_project_session_publishes_metadata_and_countdown_status(monkeypatch, test_settings):
+    event_bus = EventBusV2()
+
+    live_camera_service = MagicMock()
+    live_camera_service.start_session.return_value = True
+
+    pm = MagicMock()
+    pm.get_project_type.return_value = "live"
+    pm.get_project_name.return_value = "test_project"
+    pm.get_active_zone_video.return_value = None
+    pm.resolve_analysis_profile.return_value = {"name": "project_live_profile"}
+    pm.project_data = {
+        "camera_index": 0,
+        "camera_friendly_name": "USB Camera",
+        "recording_duration_s": 60.0,
+        "analysis_interval_frames": 10,
+        "display_interval_frames": 10,
+        "animals_per_aquarium": 1,
+        "use_countdown": True,
+        "countdown_duration_s": 5,
+    }
+
+    calibration = MagicMock()
+    calibration.ensure_zones_before_recording.return_value = True
+
+    coordinator = LiveCameraSessionCoordinator(
+        state_manager=StateManager(),
+        live_camera_service=live_camera_service,
+        project_manager=pm,
+        detector_service=MagicMock(),
+        settings_obj=test_settings,
+        live_calibration_coordinator=calibration,
+        event_bus=event_bus,
+    )
+
+    metadata_events: list[payloads.AnalysisMetadataPayload] = []
+    task_events: list[payloads.AnalysisTaskStatusPayload] = []
+    event_bus.subscribe(
+        UIEvents.UI_UPDATE_ANALYSIS_METADATA,
+        lambda data: metadata_events.append(cast(payloads.AnalysisMetadataPayload, data)),
+    )
+    event_bus.subscribe(
+        UIEvents.UI_UPDATE_ANALYSIS_TASK_STATUS,
+        lambda data: task_events.append(cast(payloads.AnalysisTaskStatusPayload, data)),
+    )
+
+    from zebtrack.core.services.wizard_service import WizardService
+
+    monkeypatch.setattr(
+        WizardService,
+        "resolve_camera_index",
+        classmethod(lambda cls, idx, name: (0, "MATCH")),
+    )
+
+    assert coordinator.start_live_project_session(day=1, group="Controle", subject="1")
+
+    assert metadata_events
+    assert task_events
+    assert metadata_events[0].metadata["group"] == "Controle"
+    assert metadata_events[0].metadata["day"] == "Dia_1"
+    assert metadata_events[0].metadata["subject"] == "1"
+    assert metadata_events[0].metadata["profile"] == "project_live_profile"
+    assert task_events[0].step == "Contagem regressiva para iniciar a análise ao vivo."
+    assert task_events[-1].step == "Análise ao vivo em andamento."
+
+
+@pytest.mark.integration
+def test_publish_live_analysis_metadata_applies_directly_to_view(test_settings):
+    controller = MagicMock()
+    widget = MagicMock()
+    view = SimpleNamespace(
+        analysis_view_controller=controller,
+        analysis_display_widget=widget,
+    )
+
+    project_manager = MagicMock()
+    project_manager.get_active_zone_video.return_value = None
+    project_manager.resolve_analysis_profile.return_value = {}
+    project_manager.project_data = {}
+
+    coordinator = LiveCameraSessionCoordinator(
+        state_manager=StateManager(),
+        live_camera_service=MagicMock(),
+        project_manager=project_manager,
+        detector_service=MagicMock(),
+        settings_obj=test_settings,
+        live_calibration_coordinator=MagicMock(),
+        event_bus=EventBusV2(),
+        view=view,
+    )
+
+    coordinator._publish_live_analysis_metadata(
+        experiment_id="day1_Tratamento 1_1",
+        camera_index=0,
+        group="Tratamento 1",
+        day="Dia_1",
+        subject="1",
+    )
+
+    controller.update_analysis_metadata.assert_called_once()
+    metadata = controller.update_analysis_metadata.call_args.kwargs["metadata"]
+    assert metadata["group"] == "Tratamento 1"
+    assert metadata["day"] == "Dia_1"
+    assert metadata["subject"] == "1"
+    assert metadata["profile"] == "padrão do projeto (default)"
+    widget.set_metadata.assert_called_once_with(
+        group="Tratamento 1",
+        day="Dia 1",
+        subject="1",
+        profile="padrão do projeto (default)",
+    )
+
+
+@pytest.mark.integration
+def test_service_stop_callback_finalizes_live_analysis_view(test_settings):
+    controller = MagicMock()
+    widget = MagicMock()
+    canvas_manager = MagicMock()
+    view = SimpleNamespace(
+        analysis_view_controller=controller,
+        analysis_display_widget=widget,
+        hide_progress_bar=MagicMock(),
+        canvas_manager=canvas_manager,
+    )
+    event_bus = EventBusV2()
+
+    stop_events: list[payloads.EventPayload] = []
+    event_bus.subscribe(UIEvents.LIVE_SESSION_STOPPED, lambda data: stop_events.append(data))
+
+    coordinator = LiveCameraSessionCoordinator(
+        state_manager=StateManager(),
+        live_camera_service=MagicMock(),
+        project_manager=MagicMock(),
+        detector_service=MagicMock(),
+        settings_obj=test_settings,
+        live_calibration_coordinator=MagicMock(),
+        event_bus=event_bus,
+        view=view,
+    )
+    coordinator._active_live_session_id = "live_exp_01"
+    coordinator._last_live_experiment_id = "live_exp_01"
+    coordinator._last_live_analysis_metadata = {
+        "group": "Tratamento 1",
+        "day": "Dia_1",
+        "subject": "1",
+        "profile": "padrão do projeto (default)",
+    }
+
+    coordinator._on_live_service_session_stopped(cancelled=False)
+
+    controller.set_analysis_status.assert_called_once_with("Análise concluída.")
+    controller.update_analysis_task_status.assert_called_once_with(
+        index=None,
+        total=None,
+        experiment_id="live_exp_01",
+        step="Sessão ao vivo concluída.",
+    )
+    widget.set_metadata.assert_called_once_with(
+        group="Tratamento 1",
+        day="Dia_1",
+        subject="1",
+        profile="padrão do projeto (default)",
+    )
+    view.hide_progress_bar.assert_called_once()
+    # Finalization must hide the progress bar, never re-show it. Re-showing it
+    # (show_progress=True) raced with hide_progress_bar via the restore_metadata
+    # double-``after`` and left the bar visible in the final state.
+    widget.show_progress.assert_not_called()
+    canvas_manager.unsubscribe_from_live_frames.assert_called_once()
+    assert stop_events
 
 
 @pytest.mark.integration

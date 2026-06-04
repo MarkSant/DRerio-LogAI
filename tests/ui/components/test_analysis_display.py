@@ -53,13 +53,15 @@ class TestAnalysisDisplayWidget:
         assert widget.group_var.get() == "Grupo: --"
         assert widget.day_var.get() == "Dia: --"
         assert widget.subject_var.get() == "Indivíduo: --"
-        assert widget.profile_var.get() == "Perfil de análise: default"
+        assert widget.profile_var.get() == "Configuração de análise: default"
         assert widget.tracking_mode_var.get() == "Modo de rastreamento: --"
         assert widget.track_selector_var.get() == "Todos"
 
         # Verify widget references are created
         assert widget.status_label is not None
         assert widget.task_label is not None
+        assert widget.profile_help_label is not None
+        assert widget.profile_help_label.cget("text") == "ⓘ"
         assert widget.track_selector_widget is not None
         assert widget.progress_bar is not None
         assert widget.video_label is not None
@@ -111,7 +113,7 @@ class TestAnalysisDisplayWidget:
         assert widget.group_var.get() == "Grupo: Grupo A"
         assert widget.day_var.get() == "Dia: Dia 1"
         assert widget.subject_var.get() == "Indivíduo: Peixe 1"
-        assert widget.profile_var.get() == "Perfil de análise: custom_profile"
+        assert widget.profile_var.get() == "Configuração de análise: custom_profile"
 
     def test_set_metadata_without_profile(self, widget):
         """Test set_metadata works without profile parameter."""
@@ -121,7 +123,7 @@ class TestAnalysisDisplayWidget:
         assert widget.day_var.get() == "Dia: Dia 2"
         assert widget.subject_var.get() == "Indivíduo: Peixe 2"
         # Profile should not change
-        assert "Perfil de análise:" in widget.profile_var.get()
+        assert "Configuração de análise:" in widget.profile_var.get()
 
     def test_set_tracking_mode(self, widget):
         """Test set_tracking_mode updates tracking mode label."""
@@ -131,7 +133,7 @@ class TestAnalysisDisplayWidget:
     def test_set_profile(self, widget):
         """Test set_profile updates profile label."""
         widget.set_profile("advanced")
-        assert widget.profile_var.get() == "Perfil de análise: advanced"
+        assert widget.profile_var.get() == "Configuração de análise: advanced"
 
     def test_set_social_summary(self, widget):
         """Test set_social_summary updates social summary text."""
@@ -268,7 +270,7 @@ class TestAnalysisDisplayWidget:
         assert widget.day_var.get() == "Dia: --"
         assert widget.subject_var.get() == "Indivíduo: --"
         assert widget.tracking_mode_var.get() == "Modo de rastreamento: --"
-        assert widget.profile_var.get() == "Perfil de análise: default"
+        assert widget.profile_var.get() == "Configuração de análise: default"
         assert widget.track_selector_var.get() == "Todos"
         assert not widget.progress_frame.winfo_ismapped()
         assert str(widget.cancel_btn["state"]) == "disabled"

@@ -38,6 +38,7 @@ class AnalysisViewController:
 
     def __init__(self, gui: Any) -> None:
         self.gui = gui
+        self._last_live_analysis_metadata: dict[str, Any] = {}
 
     # ------------------------------------------------------------------
     # Convenience accessors (reduce ``self.gui.`` noise)
@@ -145,14 +146,19 @@ class AnalysisViewController:
         """Start analysis — immediately switch to analysis view and enable toggle."""
         log.info("analysis_view_controller.start.called")
         self.gui.analysis_active = True
-        msg = "Preparando análise..."
-        self._analysis_status_var.set(msg)
-        if self._analysis_display:
-            self._analysis_display.set_status(msg)
+        is_live_session_active = self._is_live_session_active()
+        if is_live_session_active:
+            log.info("analysis_view_controller.start.preserve_live_context")
+        else:
+            msg = "Preparando análise..."
+            self._analysis_status_var.set(msg)
+            if self._analysis_display:
+                self._analysis_display.set_status(msg)
 
-        if self._analysis_task_var is not None:
-            self._analysis_task_var.set("Preparando fila de análise...")
-        self._state_synchronizer._set_analysis_metadata_defaults()
+            if self._analysis_task_var is not None:
+                self._analysis_task_var.set("Preparando fila de análise...")
+            self._state_synchronizer._set_analysis_metadata_defaults()
+
         self.reset_analysis_controls()
         self.gui.show_progress_bar()
         if self._analysis_display:
@@ -174,6 +180,35 @@ class AnalysisViewController:
             if self._analysis_display.track_selector_widget:
                 state = "disabled" if mode is ProcessingMode.SINGLE_SUBJECT else "readonly"
                 self._analysis_display.track_selector_widget.configure(state=state)
+
+    def _is_live_session_active(self) -> bool:
+        """Return True when the current processing state belongs to a live session."""
+        controller = getattr(self.gui, "controller", None)
+        state_manager = getattr(controller, "state_manager", None)
+        get_processing_state = getattr(state_manager, "get_processing_state", None)
+        state_flag = False
+        if callable(get_processing_state):
+            try:
+                processing_state = get_processing_state()
+            except Exception:
+                processing_state = None
+            if processing_state is not None:
+                state_flag = bool(getattr(processing_state, "is_live_session_active", False))
+
+        if state_flag:
+            return True
+
+        live_camera_session_coordinator = getattr(
+            controller, "live_camera_session_coordinator", None
+        )
+        is_active_fn = getattr(live_camera_session_coordinator, "is_live_session_active", None)
+        if callable(is_active_fn):
+            try:
+                return bool(is_active_fn())
+            except Exception:
+                return False
+
+        return False
 
     def stop_analysis_view_mode(self) -> None:
         """Stop analysis — disable toggle and return to zones view."""
@@ -259,9 +294,60 @@ class AnalysisViewController:
             self._analysis_status_var.set(status_text)
         self.gui.update_idletasks()
 
+    def set_analysis_status(self, status_text: str) -> None:
+        """Set the main analysis status without touching progress values."""
+        if self._analysis_display:
+            self._analysis_display.set_status(status_text)
+        self._analysis_status_var.set(status_text)
+
+    def _set_analysis_profile_text(self, profile_name: str) -> None:
+        """Apply the active analysis profile label consistently."""
+        text = (profile_name or "default").strip() or "default"
+        label = f"Configuração de análise: {text}"
+        self._analysis_profile_var.set(label)
+        if self._analysis_display:
+            self._analysis_display.set_profile(text)
+
+    @staticmethod
+    def _has_meaningful_analysis_metadata(metadata: dict[str, Any]) -> bool:
+        """Return True when at least one metadata field has a usable value."""
+        for key in (
+            "group",
+            "group_display_name",
+            "day",
+            "day_label",
+            "subject",
+            "subject_id",
+            "profile",
+            "experiment_id",
+            "camera_index",
+        ):
+            if metadata.get(key) not in (None, "", "None"):
+                return True
+        return False
+
+    def _prepare_analysis_metadata(self, metadata: dict | None) -> dict[str, Any]:
+        """Preserve live metadata when subsequent live payloads are partial."""
+        candidate = dict(metadata or {})
+        if self._is_live_session_active():
+            merged = dict(self._last_live_analysis_metadata)
+            for key, value in candidate.items():
+                if value not in (None, "", "None"):
+                    merged[key] = value
+            if self._has_meaningful_analysis_metadata(merged):
+                self._last_live_analysis_metadata = dict(merged)
+                return merged
+            return candidate
+
+        if self._has_meaningful_analysis_metadata(candidate):
+            self._last_live_analysis_metadata = dict(candidate)
+        else:
+            self._last_live_analysis_metadata = {}
+        return candidate
+
     def update_analysis_metadata(self, *, metadata: dict | None) -> None:
         """Update the metadata display for the currently processed video."""
-        metadata = metadata or {}
+        metadata = self._prepare_analysis_metadata(metadata)
         log.info(
             "analysis_view_controller.update_analysis_metadata.received",
             metadata_keys=list(metadata.keys()),
@@ -283,11 +369,15 @@ class AnalysisViewController:
             subject_display,
         )
 
+        profile_name = metadata.get("profile")
+        if profile_name not in (None, "", "None"):
+            self._set_analysis_profile_text(str(profile_name))
+
     def update_analysis_task_status(
         self,
         *,
-        index: int,
-        total: int,
+        index: int | None = None,
+        total: int | None = None,
         experiment_id: str | None = None,
         step: str | None = None,
     ) -> None:
@@ -301,8 +391,7 @@ class AnalysisViewController:
 
     def update_analysis_profile(self, profile_name: str) -> None:
         """Update the label describing the active analysis profile."""
-        text = (profile_name or "default").strip() or "default"
-        self._analysis_profile_var.set(f"Perfil de análise: {text}")
+        self._set_analysis_profile_text(profile_name)
         self.reset_analysis_controls()
 
     # ------------------------------------------------------------------
