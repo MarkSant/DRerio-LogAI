@@ -272,13 +272,6 @@ class MainViewModelRuntime:
 
     def _handle_zone_event(self, data: payloads.EventPayload) -> None:
         polygon_points = _payload_get(data, "polygon_points")
-        # Diagnóstico (temporário): confirmar que o handler de persistência
-        # recebeu o evento e os pontos editados.
-        log.info(
-            "main_view_model.handle_zone_event",
-            has_points=polygon_points is not None,
-            points=len(polygon_points) if polygon_points else 0,
-        )
         if polygon_points is not None:
             self._vm.analysis_vm.save_manual_arena(polygon_points)
 

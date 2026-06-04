@@ -515,14 +515,6 @@ class ZoneEditor:
             self.gui, "current_editing_zone", None
         )
 
-        # Diagnóstico (temporário): confirmar entrada, contexto de edição e
-        # quantos vértices editados existem no momento do "Salvar Edição".
-        log.info(
-            "zone_editor.save_arena.enter",
-            current_editing_zone=str(current_editing_zone),
-            edited_points=len(getattr(self.gui, "edited_polygon_points", []) or []),
-        )
-
         # Check for multi-aquarium mode first
         zone_controls = getattr(self.gui, "zone_controls", None)
         if (
@@ -621,6 +613,8 @@ class ZoneEditor:
                 saved=saved,
                 points=len(self.gui.edited_polygon_points or []),
             )
+            if not saved:
+                log.warning("zone_editor.save_arena.arena_persist_failed")
             status_message = "Arena principal salva com sucesso."
             self.gui.set_status(status_message)
             self.update_roi_button_state()
