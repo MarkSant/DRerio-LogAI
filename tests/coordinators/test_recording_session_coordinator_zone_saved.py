@@ -11,6 +11,7 @@ coordinator owns a pending recording (``_pending_recording_context``).
 from __future__ import annotations
 
 from types import SimpleNamespace
+from typing import Any, cast
 from unittest.mock import MagicMock
 
 import pytest
@@ -18,21 +19,21 @@ import pytest
 from zebtrack.coordinators.recording_session_coordinator import RecordingSessionCoordinator
 
 
-def _make_coordinator() -> RecordingSessionCoordinator:
+def _make_coordinator() -> Any:
     coord = RecordingSessionCoordinator(
         state_manager=MagicMock(),
         recording_service=MagicMock(),
         live_camera_service=MagicMock(),
         project_manager=MagicMock(),
         settings_obj=MagicMock(),
-        live_calibration_coordinator=SimpleNamespace(pending_zone_confirmation=True),
+        live_calibration_coordinator=cast(Any, SimpleNamespace(pending_zone_confirmation=True)),
         event_bus=MagicMock(),
         arduino_manager=None,
         root=None,
         view=None,
     )
     coord.start_recording = MagicMock()  # type: ignore[method-assign]
-    return coord
+    return cast(Any, coord)
 
 
 def test_zone_saved_ignored_when_no_local_context_live_flow():
