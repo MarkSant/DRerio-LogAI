@@ -46,6 +46,7 @@ class ProjectOverviewWidget(BaseWidget):
 
         # Reverse mapping: treeview iid → video_path
         self._iid_to_path: dict[str, str] = {}
+        self._iid_to_report_path: dict[str, str] = {}
 
         super().__init__(parent, event_bus=event_bus, **kwargs)
 
@@ -326,6 +327,14 @@ class ProjectOverviewWidget(BaseWidget):
                                                 }
                                             ]
                                         }
+                                    ],
+                                    'partial_reports': [
+                                        {
+                                            'id': str,
+                                            'label': str,
+                                            'file_name': str,
+                                            'file_path': str,
+                                        }
                                     ]
                                 }
                             ]
@@ -339,6 +348,7 @@ class ProjectOverviewWidget(BaseWidget):
 
         # Reset reverse mapping
         self._iid_to_path = {}
+        self._iid_to_report_path = {}
 
         # Store video index reference (for context menus, etc.)
         self._video_index = video_index
@@ -389,4 +399,27 @@ class ProjectOverviewWidget(BaseWidget):
                             parent=subject_id,
                             text=video["display_name"],
                             values=(video["status"], video["data_badges"]),
+                        )
+
+                partial_reports = day.get("partial_reports", [])
+                if partial_reports:
+                    partial_node_id = f"partial_reports_{group['id']}_{day['id']}"
+                    self.add_tree_item(
+                        item_id=partial_node_id,
+                        parent=day_id,
+                        text="🧾 Relatórios Parciais",
+                        values=("", ""),
+                    )
+
+                    for report in partial_reports:
+                        report_id = report["id"]
+                        report_path = report.get("file_path", "")
+                        if report_path:
+                            self._iid_to_report_path[report_id] = report_path
+
+                        self.add_tree_item(
+                            item_id=report_id,
+                            parent=partial_node_id,
+                            text=report.get("label", report.get("file_name", "Relatório Parcial")),
+                            values=("", report.get("file_name", "")),
                         )

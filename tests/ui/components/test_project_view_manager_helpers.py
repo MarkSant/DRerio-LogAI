@@ -2,7 +2,7 @@
 
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 import pytest
 
@@ -359,6 +359,52 @@ def test_processing_reports_hierarchy_delete_data_only_cleans_descendant_videos(
         ["/videos/v1.mp4", "/videos/v2.mp4"],
         target_label="Dia 01",
     )
+
+
+def test_processing_reports_refresh_uses_late_video_selector_manager():
+    _vsm, rtm, gui, _pm = _make_manager()
+    gui.video_selector_manager = Mock()
+
+    rtm._assets._refresh_project_views("refresh")
+
+    gui.video_selector_manager.refresh_project_views.assert_called_once_with(
+        reason="refresh",
+        append_summary=True,
+    )
+
+
+def test_processing_reports_refresh_falls_back_to_refresh_event():
+    _vsm, rtm, gui, _pm = _make_manager()
+
+    rtm._assets._refresh_project_views("refresh")
+
+    gui.event_dispatcher.publish_event.assert_called_once_with(
+        UIEvents.PROJECT_VIEWS_REFRESH_REQUESTED,
+        payloads.ProjectViewsRefreshRequestedPayload(
+            reason="refresh",
+            append_summary=True,
+            immediate=True,
+        ),
+    )
+
+
+def test_project_overview_double_click_opens_partial_report_file(tmp_path):
+    vsm, _rtm, gui, _pm = _make_manager()
+    report_path = tmp_path / "PartialReport_Dia1_Controle.xlsx"
+    report_path.write_text("x")
+
+    gui.project_overview_tree = Mock()
+    gui.project_overview_tree.item.return_value = ()
+    gui.project_overview_widget = SimpleNamespace(
+        _iid_to_report_path={"partial_item": str(report_path)}
+    )
+    gui.canvas_manager = Mock()
+
+    with patch("zebtrack.utils.os_opener.open_path") as mock_open_path:
+        vsm.handle_project_overview_double_click("partial_item")
+
+    mock_open_path.assert_called_once_with(str(report_path))
+    gui.canvas_manager.load_video_frame_to_canvas.assert_not_called()
 
 
 def test_processing_reports_hierarchy_metadata_edit_updates_descendant_videos():

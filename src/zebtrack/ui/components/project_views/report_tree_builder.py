@@ -13,6 +13,8 @@ from typing import TYPE_CHECKING, Any
 
 import structlog
 
+from zebtrack.utils.report_files import find_block_partial_report_files
+
 if TYPE_CHECKING:
     from zebtrack.core.project.project_manager import ProjectManager
     from zebtrack.ui.components.validation_manager import ValidationManager
@@ -185,7 +187,13 @@ class ReportTreeBuilder:
         days = group_data.get("days", {})
         for day_id, subjects_dict in sorted(days.items(), key=lambda x: str(x[0])):
             self._insert_day_node(
-                tree, group_node_id, day_id, subjects_dict, group_id, metadata_store
+                tree,
+                group_node_id,
+                day_id,
+                subjects_dict,
+                group_id,
+                group_name,
+                metadata_store,
             )
 
     def _insert_day_node(
@@ -195,6 +203,7 @@ class ReportTreeBuilder:
         day_id: str | int,
         subjects_dict: dict,
         group_id: str | int,
+        group_name: str,
         metadata_store: dict,
     ) -> None:
         """Insert a day node and its subjects into the tree."""
@@ -232,6 +241,82 @@ class ReportTreeBuilder:
             self._insert_subject_node(
                 tree, day_node_id, subject_id, videos, group_id, day_id, metadata_store
             )
+
+        self._insert_partial_report_nodes(
+            tree,
+            day_node_id,
+            group_candidates={str(group_id).strip(), str(group_name).strip()},
+            day_id=day_id,
+            metadata_store=metadata_store,
+        )
+
+    def _insert_partial_report_nodes(
+        self,
+        tree: Any,
+        parent: str,
+        *,
+        group_candidates: set[str],
+        day_id: str | int,
+        metadata_store: dict,
+    ) -> None:
+        """Attach block-level partial reports under a day node when they exist."""
+        pm = self.project_manager
+        project_path = getattr(pm, "project_path", None)
+        if not project_path:
+            return
+
+        partial_files = find_block_partial_report_files(
+            project_path,
+            day_id=day_id,
+            group_candidates=group_candidates,
+        )
+
+        if not partial_files:
+            return
+
+        reports_dir = Path(project_path) / "partial_reports"
+
+        partial_node_id = f"{parent}_partial_reports"
+        tree.insert(
+            parent,
+            "end",
+            iid=partial_node_id,
+            text="🧾 Relatórios Parciais",
+            values=("", "", "", "", "", ""),
+            open=True,
+        )
+
+        metadata_store[partial_node_id] = {
+            "type": "partial_reports",
+            "results_dir": str(reports_dir),
+            "day_id": day_id,
+        }
+
+        ordered_files = sorted(
+            partial_files,
+            key=lambda path: (path.suffix.lower() != ".xlsx", path.name.lower()),
+        )
+        for file_path in ordered_files:
+            if self._widget_factory is not None:
+                item_id = self._widget_factory.build_processing_report_artifact_id(
+                    partial_node_id,
+                    str(file_path),
+                )
+            else:
+                item_id = f"{partial_node_id}_{file_path.name}"
+
+            icon = "📊" if file_path.suffix.lower() == ".xlsx" else "📝"
+            tree.insert(
+                partial_node_id,
+                "end",
+                iid=item_id,
+                text=f"{icon} {file_path.name}",
+                values=("", "", "", "", "", ""),
+            )
+            metadata_store[item_id] = {
+                "type": "file",
+                "file_path": str(file_path),
+            }
 
     def _insert_subject_node(
         self,

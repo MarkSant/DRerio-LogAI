@@ -13,6 +13,9 @@ from typing import TYPE_CHECKING, Any
 
 import structlog
 
+from zebtrack.ui import payloads
+from zebtrack.ui.event_bus_v2 import UIEvents
+
 if TYPE_CHECKING:
     from zebtrack.ui.components.dialog_manager import DialogManager
 
@@ -66,6 +69,13 @@ class ReportAssetActions:
         )
         self._reports_tree_getter = reports_tree_getter
 
+    def _get_video_selector_manager(self) -> Any | None:
+        """Resolve the current video selector manager lazily."""
+        manager = self._video_selector_manager
+        if callable(manager):
+            return manager()
+        return manager
+
     @property
     def project_manager(self) -> Any:
         """Return the current ProjectManager (supports hot-swap)."""
@@ -108,8 +118,20 @@ class ReportAssetActions:
 
     def _refresh_project_views(self, reason: str) -> None:
         """Refresh project overview and reports tree after asset changes."""
-        assert self._video_selector_manager is not None
-        self._video_selector_manager.refresh_project_views(reason=reason, append_summary=True)
+        video_selector_manager = self._get_video_selector_manager()
+        if video_selector_manager is not None:
+            video_selector_manager.refresh_project_views(reason=reason, append_summary=True)
+            return
+
+        if self._event_dispatcher is not None:
+            self._event_dispatcher.publish_event(
+                UIEvents.PROJECT_VIEWS_REFRESH_REQUESTED,
+                payloads.ProjectViewsRefreshRequestedPayload(
+                    reason=reason,
+                    append_summary=True,
+                    immediate=True,
+                ),
+            )
 
     def reset_analysis_data_for_videos(
         self,

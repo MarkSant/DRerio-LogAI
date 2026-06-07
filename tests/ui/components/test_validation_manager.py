@@ -321,6 +321,33 @@ class TestPrepareOverviewHierarchyForWidget:
         for symbol in STATUS_SYMBOLS.values():
             assert symbol in group["data_summary"]
 
+    def test_prepare_overview_hierarchy_includes_partial_reports(
+        self, validation_manager, mock_controller, tmp_path
+    ):
+        """Day nodes should expose generated partial reports for the same block."""
+        partial_reports_dir = tmp_path / "partial_reports"
+        partial_reports_dir.mkdir()
+        (partial_reports_dir / "PartialReport_Dia1_Controle.xlsx").write_text("excel")
+        (partial_reports_dir / "PartialReport_Dia1_Controle.docx").write_text("word")
+        mock_controller.project_manager.project_path = tmp_path
+
+        videos = [
+            {
+                "path": "/path/to/video1.mp4",
+                "filename": "video1.mp4",
+                "metadata": {"group": "Controle", "day": 1, "subject": 1},
+                "status": "complete",
+            }
+        ]
+
+        result = validation_manager.prepare_overview_hierarchy_for_widget(videos)
+
+        day = result["groups"][0]["days"][0]
+        partial_reports = day["partial_reports"]
+        assert len(partial_reports) == 2
+        assert partial_reports[0]["file_name"] == "PartialReport_Dia1_Controle.xlsx"
+        assert partial_reports[1]["file_name"] == "PartialReport_Dia1_Controle.docx"
+
 
 @pytest.mark.gui
 class TestCheckLiveProjectCalibration:

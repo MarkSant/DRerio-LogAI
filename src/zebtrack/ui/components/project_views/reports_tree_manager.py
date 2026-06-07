@@ -103,7 +103,7 @@ class ReportsTreeManager:
             dialog_manager=self._resolve_dialog_manager(),
             menu_manager=getattr(gui, "menu_manager", None),
             widget_factory=getattr(gui, "widget_factory", None),
-            video_selector_manager=getattr(gui, "video_selector_manager", None),
+            video_selector_manager=(lambda: getattr(self.gui, "video_selector_manager", None)),
             processing_reports_widget=widget_getter(),
             tree_metadata=self._tree_metadata,
             report_tree_metadata=self._report_tree_metadata,

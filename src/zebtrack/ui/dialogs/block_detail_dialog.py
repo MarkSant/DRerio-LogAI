@@ -15,6 +15,8 @@ from typing import TYPE_CHECKING
 
 import structlog
 
+from zebtrack.utils.report_files import find_summary_excel_file, has_summary_excel_output
+
 if TYPE_CHECKING:
     from zebtrack.coordinators.live_batch_coordinator import LiveBatchCoordinator
     from zebtrack.coordinators.live_camera_session_coordinator import LiveCameraSessionCoordinator
@@ -251,6 +253,35 @@ class BlockDetailDialog(Toplevel):
             command=self.mark_batch_complete,
         ).pack(side="right", padx=5)
 
+    def _publish_project_views_refresh(self, reason: str) -> None:
+        """Publish a project-views refresh if an event bus is available."""
+        event_bus = getattr(self.session_coordinator, "event_bus", None)
+        if event_bus is None:
+            event_bus = getattr(self.live_batch_coordinator, "event_bus", None)
+        if event_bus is None:
+            return
+
+        from zebtrack.ui import payloads
+        from zebtrack.ui.event_bus_v2 import Event, UIEvents
+
+        event_bus.publish(
+            Event(
+                type=UIEvents.PROJECT_VIEWS_REFRESH_REQUESTED,
+                data=payloads.ProjectViewsRefreshRequestedPayload(
+                    reason=reason,
+                    append_summary=True,
+                    immediate=True,
+                ),
+            )
+        )
+
+    @staticmethod
+    def _open_generated_report_file(path: Path) -> None:
+        """Open a generated report file using the platform opener."""
+        from zebtrack.utils.os_opener import open_path
+
+        open_path(path)
+
     def _find_session_folder(self, subject: str) -> Path | None:
         """Find the session folder for a specific day/group/subject.
 
@@ -379,8 +410,8 @@ class BlockDetailDialog(Toplevel):
                 status["arena"] = True
             elif "areasofinterest" in name or "zonasroi" in name or "zonas" in name:
                 status["rois"] = True
-            elif "resumo" in name or "summary" in name:
-                status["summary"] = True
+
+        status["summary"] = has_summary_excel_output(folder)
 
         return status
 
@@ -734,11 +765,282 @@ class BlockDetailDialog(Toplevel):
                 f"Falha ao abrir pasta de resultados:\n{e!s}",
             )
 
+    def _get_completed_subjects_for_partial_report(self) -> list[str]:
+        subjects = [str(i + 1) for i in range(self.subjects_per_group)]
+        return [
+            subject
+            for subject in subjects
+            if (self.day_num, self.group_name, subject) in self.completed_sessions
+        ]
+
+    def _collect_partial_report_summary_files(
+        self, completed_subjects: list[str]
+    ) -> list[tuple[str, Path]]:
+        summary_files = []
+        for subject in completed_subjects:
+            session_folder = self._find_session_folder(subject)
+            if not session_folder or not session_folder.exists():
+                continue
+
+            summary_file = find_summary_excel_file(session_folder)
+            if summary_file is not None:
+                summary_files.append((subject, summary_file))
+
+        return summary_files
+
+    def _build_partial_report_dataset(self, summary_files: list[tuple[str, Path]]):
+        import warnings
+
+        import pandas as pd
+
+        all_data = []
+        parsed_summary_files = []
+        for subject, summary_path in summary_files:
+            try:
+                df = pd.read_excel(summary_path)
+                df["animal"] = subject
+                df["dia"] = self.day_num
+                df["grupo"] = self.group_name
+                df["source_file"] = summary_path.name
+                all_data.append(df)
+                parsed_summary_files.append((subject, summary_path))
+            except Exception as e:
+                log.warning(
+                    "block_detail.partial_report.read_failed",
+                    summary_path=str(summary_path),
+                    error=str(e),
+                )
+
+        if not all_data:
+            raise ValueError("Nenhum dado válido encontrado nos arquivos de resumo")
+
+        non_empty_dfs = [df for df in all_data if not df.empty]
+        if not non_empty_dfs:
+            raise ValueError("Nenhum dado válido encontrado (todos os arquivos estavam vazios)")
+
+        with warnings.catch_warnings():
+            warnings.filterwarnings(
+                "ignore",
+                category=FutureWarning,
+                message=".*concatenation with empty or all-NA entries.*",
+            )
+            unified_df = pd.concat(non_empty_dfs, ignore_index=True)
+
+        return all_data, unified_df, parsed_summary_files
+
+    @staticmethod
+    def _get_partial_report_stats_columns(unified_df) -> list[str]:
+        import pandas as pd
+
+        return [
+            col
+            for col in unified_df.columns
+            if col != "analysis_timestamp"
+            and any(keyword in col.lower() for keyword in ["distance", "speed", "time", "entries"])
+            and pd.api.types.is_numeric_dtype(unified_df[col])
+        ]
+
+    @staticmethod
+    def _format_partial_report_cell_value(value) -> str:
+        import pandas as pd
+
+        if pd.isna(value):
+            return "-"
+        if isinstance(value, int):
+            return str(value)
+        if isinstance(value, float):
+            return str(int(value)) if value.is_integer() else f"{value:.2f}"
+        return str(value)
+
+    @staticmethod
+    def _build_partial_report_output_paths(
+        reports_dir: Path, base_output_name: str
+    ) -> tuple[str, Path, str, Path]:
+        excel_output_name = f"{base_output_name}.xlsx"
+        word_output_name = f"{base_output_name}.docx"
+        return (
+            excel_output_name,
+            reports_dir / excel_output_name,
+            word_output_name,
+            reports_dir / word_output_name,
+        )
+
+    def _write_partial_report_excel(self, path: Path, all_data, unified_df) -> None:
+        import pandas as pd
+
+        with pd.ExcelWriter(path, engine="openpyxl") as writer:
+            unified_df.to_excel(writer, sheet_name="Dados Consolidados", index=False)
+
+            stats_cols = self._get_partial_report_stats_columns(unified_df)
+            if len(all_data) > 1 and stats_cols:
+                summary_stats = unified_df.groupby("animal")[stats_cols].mean()
+                summary_stats.to_excel(writer, sheet_name="Resumo por Animal")
+
+    def _write_partial_report_word(
+        self,
+        path: Path,
+        excel_name: str,
+        parsed_summary_files: list[tuple[str, Path]],
+        all_data,
+        unified_df,
+    ) -> None:
+        from docx import Document
+
+        document = Document()
+        document.add_heading(
+            f"Relatório Parcial - Dia {self.day_num} - {self.group_name}",
+            level=1,
+        )
+        document.add_paragraph(f"Gerado em: {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}")
+        document.add_paragraph(f"Sessões agregadas: {len(all_data)}")
+        document.add_paragraph(f"Planilha consolidada: {excel_name}")
+
+        document.add_heading("Sessões incluídas", level=2)
+        session_table = document.add_table(rows=1, cols=2)
+        session_table.style = "Table Grid"
+        session_table.rows[0].cells[0].text = "Animal"
+        session_table.rows[0].cells[1].text = "Arquivo-fonte"
+
+        for subject, summary_path in parsed_summary_files:
+            row_cells = session_table.add_row().cells
+            row_cells[0].text = str(subject)
+            row_cells[1].text = summary_path.name
+
+        stats_cols = self._get_partial_report_stats_columns(unified_df)
+        if stats_cols:
+            summary_stats = unified_df.groupby("animal")[stats_cols].mean().reset_index()
+            document.add_heading("Resumo por Animal", level=2)
+            summary_table = document.add_table(rows=1, cols=len(summary_stats.columns))
+            summary_table.style = "Table Grid"
+            header_cells = summary_table.rows[0].cells
+            for idx, column_name in enumerate(summary_stats.columns):
+                header_cells[idx].text = str(column_name)
+
+            for _, row_data in summary_stats.iterrows():
+                row_cells = summary_table.add_row().cells
+                for idx, column_name in enumerate(summary_stats.columns):
+                    row_cells[idx].text = self._format_partial_report_cell_value(
+                        row_data[column_name]
+                    )
+
+        document.save(str(path))
+
+    def _write_partial_report_outputs(
+        self,
+        reports_dir: Path,
+        parsed_summary_files: list[tuple[str, Path]],
+        all_data,
+        unified_df,
+    ) -> tuple[str, Path, str, Path, bool]:
+        base_output_name = f"PartialReport_Dia{self.day_num}_{self.group_name}"
+        (
+            excel_output_name,
+            excel_output_path,
+            word_output_name,
+            word_output_path,
+        ) = self._build_partial_report_output_paths(reports_dir, base_output_name)
+
+        write_fallback_used = False
+        try:
+            self._write_partial_report_excel(excel_output_path, all_data, unified_df)
+            self._write_partial_report_word(
+                word_output_path,
+                excel_output_name,
+                parsed_summary_files,
+                all_data,
+                unified_df,
+            )
+        except PermissionError:
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            fallback_output_name = f"{base_output_name}_{timestamp}"
+            (
+                excel_output_name,
+                excel_output_path,
+                word_output_name,
+                word_output_path,
+            ) = self._build_partial_report_output_paths(reports_dir, fallback_output_name)
+            self._write_partial_report_excel(excel_output_path, all_data, unified_df)
+            self._write_partial_report_word(
+                word_output_path,
+                excel_output_name,
+                parsed_summary_files,
+                all_data,
+                unified_df,
+            )
+            write_fallback_used = True
+
+        return (
+            excel_output_name,
+            excel_output_path,
+            word_output_name,
+            word_output_path,
+            write_fallback_used,
+        )
+
+    def _notify_partial_report_success(
+        self,
+        excel_output_name: str,
+        word_output_name: str,
+        session_count: int,
+        write_fallback_used: bool,
+    ) -> None:
+        if write_fallback_used:
+            messagebox.showwarning(
+                "Arquivo em uso",
+                "O arquivo padrão estava bloqueado por outro programa/serviço "
+                "de sincronização.\n"
+                "Os relatórios foram salvos com novos nomes:\n"
+                f"{excel_output_name}\n{word_output_name}",
+            )
+
+        messagebox.showinfo(
+            "Relatórios Gerados",
+            f"Relatórios parciais gerados com sucesso!\n\n"
+            f"📊 Excel: {excel_output_name}\n"
+            f"📝 Word: {word_output_name}\n"
+            f"🐟 {session_count} sessões agregadas",
+        )
+
+    def _prompt_open_partial_report_files(
+        self,
+        excel_output_path: Path,
+        excel_output_name: str,
+        word_output_path: Path,
+        word_output_name: str,
+    ) -> None:
+        if messagebox.askyesno(
+            "Abrir Relatório Parcial",
+            f"Deseja abrir a planilha parcial em Excel?\n\n📊 {excel_output_name}",
+        ):
+            try:
+                self._open_generated_report_file(excel_output_path)
+            except Exception as e:
+                log.warning("block_detail.partial_report.open_failed", error=str(e))
+                messagebox.showwarning(
+                    "Aviso",
+                    "O relatório Excel foi gerado, mas não foi possível abri-lo:\n"
+                    f"{excel_output_path}",
+                )
+
+        if messagebox.askyesno(
+            "Abrir Relatório Parcial",
+            f"Deseja abrir o relatório parcial em Word?\n\n📝 {word_output_name}",
+        ):
+            try:
+                self._open_generated_report_file(word_output_path)
+            except Exception as e:
+                log.warning("block_detail.partial_report.open_failed", error=str(e))
+                messagebox.showwarning(
+                    "Aviso",
+                    "O relatório Word foi gerado, mas não foi possível abri-lo:\n"
+                    f"{word_output_path}",
+                )
+
     def generate_partial_report(self):
         """Generate partial report for completed sessions in this block.
 
         Collects all summary Excel files from completed sessions and aggregates
-        them into a single Excel file for the day/group block.
+        them into Excel and Word outputs for the day/group block.
         """
         log.info(
             "block_detail.generate_partial_report",
@@ -746,11 +1048,7 @@ class BlockDetailDialog(Toplevel):
             group=self.group_name,
         )
 
-        # Collect completed session folders for this block
-        subjects = [str(i + 1) for i in range(self.subjects_per_group)]
-        completed_in_block = [
-            s for s in subjects if (self.day_num, self.group_name, s) in self.completed_sessions
-        ]
+        completed_in_block = self._get_completed_subjects_for_partial_report()
 
         if not completed_in_block:
             messagebox.showwarning(
@@ -759,21 +1057,7 @@ class BlockDetailDialog(Toplevel):
             )
             return
 
-        # Find summary files in each session folder
-        import pandas as pd
-
-        summary_files = []
-        for subject in completed_in_block:
-            session_folder = self._find_session_folder(subject)
-            if not session_folder or not session_folder.exists():
-                continue
-
-            # Look for summary Excel files
-            for file in session_folder.iterdir():
-                name = file.name.lower()
-                if (file.suffix in [".xlsx", ".xls"]) and ("resumo" in name or "summary" in name):
-                    summary_files.append((subject, file))
-                    break
+        summary_files = self._collect_partial_report_summary_files(completed_in_block)
 
         if not summary_files:
             messagebox.showwarning(
@@ -785,114 +1069,48 @@ class BlockDetailDialog(Toplevel):
             return
 
         try:
-            # Create output directory and file
-            project_path = Path(self.project_manager.project_path)
-            reports_dir = project_path / "partial_reports"
+            reports_dir = Path(self.project_manager.project_path) / "partial_reports"
             reports_dir.mkdir(parents=True, exist_ok=True)
 
-            output_filename = f"PartialReport_Dia{self.day_num}_{self.group_name}.xlsx"
-            output_path = reports_dir / output_filename
-
-            # Aggregate summaries
-            all_data = []
-            for subject, summary_path in summary_files:
-                try:
-                    df = pd.read_excel(summary_path)
-                    df["animal"] = subject
-                    df["dia"] = self.day_num
-                    df["grupo"] = self.group_name
-                    df["source_file"] = summary_path.name
-                    all_data.append(df)
-                except Exception as e:
-                    log.warning(
-                        "block_detail.partial_report.read_failed",
-                        summary_path=str(summary_path),
-                        error=str(e),
-                    )
-
-            if not all_data:
-                raise ValueError("Nenhum dado válido encontrado nos arquivos de resumo")
-
-            # Concatenate all data
-            non_empty_dfs = [df for df in all_data if not df.empty]
-            if not non_empty_dfs:
-                raise ValueError("Nenhum dado válido encontrado (todos os arquivos estavam vazios)")
-
-            import warnings
-
-            with warnings.catch_warnings():
-                warnings.filterwarnings(
-                    "ignore",
-                    category=FutureWarning,
-                    message=".*concatenation with empty or all-NA entries.*",
-                )
-                unified_df = pd.concat(non_empty_dfs, ignore_index=True)
-
-            def _write_partial_report_excel(path: Path) -> None:
-                with pd.ExcelWriter(path, engine="openpyxl") as writer:
-                    # Sheet 1: All sessions combined
-                    unified_df.to_excel(writer, sheet_name="Dados Consolidados", index=False)
-
-                    # Sheet 2: Summary by animal
-                    if len(all_data) > 1 and "total_distance_cm" in unified_df.columns:
-                        # Create summary stats
-                        stats_cols = [
-                            col
-                            for col in unified_df.columns
-                            if any(
-                                kw in col.lower() for kw in ["distance", "speed", "time", "entries"]
-                            )
-                        ]
-                        if stats_cols:
-                            summary_stats = unified_df.groupby("animal")[stats_cols].mean()
-                            summary_stats.to_excel(writer, sheet_name="Resumo por Animal")
-
-            write_fallback_used = False
-            try:
-                _write_partial_report_excel(output_path)
-            except PermissionError:
-                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                output_filename = (
-                    f"PartialReport_Dia{self.day_num}_{self.group_name}_{timestamp}.xlsx"
-                )
-                output_path = reports_dir / output_filename
-                _write_partial_report_excel(output_path)
-                write_fallback_used = True
+            all_data, unified_df, parsed_summary_files = self._build_partial_report_dataset(
+                summary_files
+            )
+            (
+                excel_output_name,
+                excel_output_path,
+                word_output_name,
+                word_output_path,
+                write_fallback_used,
+            ) = self._write_partial_report_outputs(
+                reports_dir,
+                parsed_summary_files,
+                all_data,
+                unified_df,
+            )
 
             log.info(
                 "block_detail.partial_report.success",
-                output=str(output_path),
+                excel_output=str(excel_output_path),
+                word_output=str(word_output_path),
                 session_count=len(all_data),
             )
 
-            if write_fallback_used:
-                messagebox.showwarning(
-                    "Arquivo em uso",
-                    "O arquivo padrão estava bloqueado por outro programa/serviço "
-                    "de sincronização.\n"
-                    f"O relatório foi salvo com novo nome:\n{output_filename}",
-                )
-
-            # Show success and offer to open
-            result = messagebox.askyesno(
-                "Relatório Gerado",
-                f"Relatório parcial gerado com sucesso!\n\n"
-                f"📄 {output_filename}\n"
-                f"📊 {len(all_data)} sessões agregadas\n\n"
-                f"Deseja abrir o arquivo?",
+            self._publish_project_views_refresh(
+                f"Relatórios parciais atualizados: Dia {self.day_num} - {self.group_name}"
             )
 
-            if result:
-                try:
-                    from zebtrack.utils.os_opener import open_path
-
-                    open_path(output_path)
-                except Exception as e:
-                    log.warning("block_detail.partial_report.open_failed", error=str(e))
-                    messagebox.showwarning(
-                        "Aviso",
-                        f"O arquivo foi gerado, mas não foi possível abri-lo:\n{output_path}",
-                    )
+            self._notify_partial_report_success(
+                excel_output_name,
+                word_output_name,
+                len(all_data),
+                write_fallback_used,
+            )
+            self._prompt_open_partial_report_files(
+                excel_output_path,
+                excel_output_name,
+                word_output_path,
+                word_output_name,
+            )
 
         except Exception as e:
             log.error("block_detail.generate_partial_report.failed", error=str(e), exc_info=True)

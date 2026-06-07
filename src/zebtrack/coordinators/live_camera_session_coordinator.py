@@ -32,6 +32,7 @@ from zebtrack.coordinators.base_coordinator import (
 from zebtrack.core.state_manager import StateCategory
 from zebtrack.ui import payloads
 from zebtrack.ui.event_bus_v2 import Event, UIEvents
+from zebtrack.utils.report_files import has_summary_excel_output
 
 if TYPE_CHECKING:
     from zebtrack.coordinators.live_batch_coordinator import LiveBatchCoordinator
@@ -1358,6 +1359,7 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
             has_arena = bool(list(results_dir.glob("1_ProcessingArea_*.parquet")))
             has_rois = bool(list(results_dir.glob("2_AreasOfInterest_*.parquet")))
             has_trajectory = bool(list(results_dir.glob("3_CoordMovimento_*.parquet")))
+        has_summary = has_summary_excel_output(results_dir) if results_dir else False
 
         video_entry: dict = {
             "path": video_path_str,
@@ -1366,9 +1368,7 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
             "has_rois": has_rois,
             "has_trajectory": has_trajectory,
             "has_complete_data": has_arena and has_rois and has_trajectory,
-            "has_summary": bool(results_dir and list(results_dir.glob("*_summary.xlsx")))
-            if results_dir and results_dir.exists()
-            else False,
+            "has_summary": has_summary,
             "zones_finalized": True,
             "metadata": normalized_metadata,
             "filename": (

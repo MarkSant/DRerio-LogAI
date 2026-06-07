@@ -286,6 +286,62 @@ def test_populate_tree_with_hierarchy(overview_widget):
     assert len(subject_children) == 1  # One video
 
 
+def test_populate_tree_with_hierarchy_adds_partial_report_nodes(overview_widget):
+    """Day nodes should render block-level partial report children when present."""
+    hierarchy_data = {
+        "groups": [
+            {
+                "id": "G1",
+                "display": "Controle",
+                "status_summary": "",
+                "data_summary": "",
+                "days": [
+                    {
+                        "id": "Dia_1",
+                        "title": "Dia 1",
+                        "status": "",
+                        "data": "",
+                        "subjects": [],
+                        "partial_reports": [
+                            {
+                                "id": "partial_G1_Dia_1_0",
+                                "label": "📊 PartialReport_Dia1_Controle.xlsx",
+                                "file_name": "PartialReport_Dia1_Controle.xlsx",
+                                "file_path": "/tmp/PartialReport_Dia1_Controle.xlsx",
+                            },
+                            {
+                                "id": "partial_G1_Dia_1_1",
+                                "label": "📝 PartialReport_Dia1_Controle.docx",
+                                "file_name": "PartialReport_Dia1_Controle.docx",
+                                "file_path": "/tmp/PartialReport_Dia1_Controle.docx",
+                            },
+                        ],
+                    }
+                ],
+            }
+        ]
+    }
+
+    overview_widget.populate_tree_with_hierarchy(hierarchy_data, video_index={})
+
+    root_children = overview_widget.project_overview_tree.get_children()
+    group_children = overview_widget.project_overview_tree.get_children(root_children[0])
+    day_children = overview_widget.project_overview_tree.get_children(group_children[0])
+    partial_root_id = day_children[0]
+
+    assert overview_widget.project_overview_tree.item(partial_root_id, "text") == (
+        "🧾 Relatórios Parciais"
+    )
+    partial_children = overview_widget.project_overview_tree.get_children(partial_root_id)
+    assert len(partial_children) == 2
+    assert overview_widget.project_overview_tree.item(partial_children[0], "text") == (
+        "📊 PartialReport_Dia1_Controle.xlsx"
+    )
+    assert overview_widget._iid_to_report_path[partial_children[0]] == (
+        "/tmp/PartialReport_Dia1_Controle.xlsx"
+    )
+
+
 def test_populate_tree_with_empty_hierarchy(overview_widget):
     """Test populate_tree_with_hierarchy with empty data."""
     hierarchy_data: dict[str, object] = {"groups": []}
