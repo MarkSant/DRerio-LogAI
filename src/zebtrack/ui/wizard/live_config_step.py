@@ -105,6 +105,10 @@ class LiveConfigStep(WizardStep):
         self.arduino_port_map: dict[str, str] = {}  # Maps display name -> port device
         self.template_info_var = StringVar(value="")
         self.template_info_label: Label | None = None
+        # One-shot guard: when a template is loaded we auto-detect the host
+        # hardware once and reconcile the saved camera/Arduino against it (see
+        # on_show). Subsequent shows must not clobber the user's edits.
+        self._hw_restored_from_template = False
 
         # Hardware capability (v2.2.0)
         self.hardware_report: HardwareCapabilityReport | None = None
@@ -395,6 +399,11 @@ class LiveConfigStep(WizardStep):
     def on_show(self) -> None:
         """Execute actions when step becomes visible."""
         self._update_template_banner()
+
+        # First show after a template load: repopulate the UI from wizard_data
+        # and reconcile the saved camera/Arduino against the host hardware.
+        self._restore_from_template_once()
+
         # Update UI state based on checkboxes
         self._on_arduino_toggle()
         self._on_timed_toggle()
@@ -402,6 +411,44 @@ class LiveConfigStep(WizardStep):
 
         # v2.2.0: Detect hardware capability
         self._detect_hardware_capability()
+
+    def _restore_from_template_once(self) -> None:
+        """Repopulate the live-config UI from a loaded template (one-shot).
+
+        When the wizard is seeded from a template, the saved live-capture
+        settings live in ``wizard_data`` but the widgets still show defaults
+        (this step has no per-field persistence of its own). We detect the
+        host hardware once so the camera/Arduino combo maps are populated, then
+        replay ``set_data`` — whose ``_restore_camera``/``_restore_arduino``
+        degrade gracefully when the saved device is absent on this machine.
+
+        Runs only once and only when there is saved hardware to reconcile, so
+        the normal flow (manual detection via the buttons) is untouched.
+        """
+        if self._hw_restored_from_template:
+            return
+
+        # Only when seeded from a template (DiscoveryStep stamps this). In the
+        # normal flow the widget keeps its own var state across back/forward, so
+        # we must not force detection or emit "unavailable" warnings there.
+        if not self.wizard_data.get("template_metadata"):
+            return
+
+        has_saved_hw = any(
+            key in self.wizard_data
+            for key in ("camera_friendly_name", "camera_index", "arduino_port", "use_arduino")
+        )
+        if not has_saved_hw:
+            return
+
+        # Populate the available-hardware maps before restoring (cached in
+        # WizardService, so this is cheap and happens at most once).
+        self._detect_cameras()
+        if self.wizard_data.get("use_arduino"):
+            self._detect_arduino_ports()
+
+        self.set_data(self.wizard_data)
+        self._hw_restored_from_template = True
 
     def _update_template_banner(self):
         banner_text = format_template_banner(self.wizard_data.get("template_metadata"))
@@ -869,10 +916,15 @@ class LiveConfigStep(WizardStep):
         self._on_countdown_toggle()
 
     def _restore_camera(self, data: dict):
-        """Restore camera selection.
+        """Restore camera selection with host-hardware reconciliation.
 
         Prefer matching by friendly_name (DirectShow ordering may have shifted
         since the data was saved). Fall back to index match for legacy data.
+
+        When the saved camera is absent on this machine (e.g. a template made
+        on another computer), degrade gracefully: select the first available
+        camera and warn, instead of silently letting ``get_data`` fall back to
+        index 0.
         """
         saved_name = data.get("camera_friendly_name") or ""
         if saved_name:
@@ -881,15 +933,31 @@ class LiveConfigStep(WizardStep):
                     self.camera_selection_var.set(display_name)
                     return
 
+        had_saved_camera = bool(saved_name) or "camera_index" in data
         if "camera_index" in data:
             camera_idx = data["camera_index"]
             for display_name, idx in self.camera_index_map.items():
                 if idx == camera_idx:
                     self.camera_selection_var.set(display_name)
-                    break
+                    return
+
+        # Saved camera not found on this machine: fall back + warn.
+        if had_saved_camera and self.camera_index_map:
+            fallback = next(iter(self.camera_index_map))
+            self.camera_selection_var.set(fallback)
+            self.camera_status_label.config(
+                text=f"⚠ Câmera do template indisponível — selecionada '{fallback}'. Confira.",
+                fg="red",
+            )
+            log.warning(
+                "live_config.camera_reconcile.fallback",
+                saved_name=saved_name,
+                saved_index=data.get("camera_index"),
+                fallback=fallback,
+            )
 
     def _restore_arduino(self, data: dict):
-        """Restore Arduino settings."""
+        """Restore Arduino settings with host-hardware reconciliation."""
         if "use_arduino" in data:
             self.use_arduino_var.set(data["use_arduino"])
 
@@ -905,8 +973,19 @@ class LiveConfigStep(WizardStep):
                 self.arduino_port_var.set(display)
                 return
 
-        # Fallback: set the raw device
-        self.arduino_port_var.set(port_device)
+        # Saved port absent on this machine: clear it and warn instead of
+        # carrying a phantom device. validate_live_config blocks advancing with
+        # Arduino enabled and no port, so the user must pick a real one or
+        # disable Arduino.
+        self.arduino_port_var.set("")
+        self.arduino_status_label.config(
+            text=(
+                f"⚠ Porta do template ({port_device}) indisponível — "
+                "selecione outra ou desative o Arduino."
+            ),
+            fg="red",
+        )
+        log.warning("live_config.arduino_reconcile.port_unavailable", saved_port=port_device)
 
     def _restore_recording_settings(self, data: dict):
         """Restore recording configuration."""

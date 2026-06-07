@@ -50,6 +50,53 @@ class TestWizardFoundation:
         # Should have step_id set
         assert step.step_id == WizardStepID.DISCOVERY
 
+    def test_dynamic_wrapping_keeps_text_visible_and_columns_equal(self):
+        """Long texts wrap to the canvas width; the 3 columns wrap equally.
+
+        Regression 1: the 3rd column ("Arquivos Parquet Existentes") had its
+        text cut off when narrower than the single-line label.
+        Regression 2: with single-line text the widest column (Q1) stayed wider
+        than the others, so only some columns wrapped — the layout looked odd.
+        Now every wrappable label gets a finite wraplength driven by the canvas
+        width: the three columns share an identical third-of-width wraplength,
+        and the full-width glossary wraps to the whole width.
+        """
+        wizard_data: dict[str, Any] = {}
+        step = DiscoveryStep(self.root, wizard_data)
+        step.build_ui()
+
+        canvas_width = 900
+        step._apply_dynamic_wrapping(canvas_width)
+
+        def _wraplengths(frame):
+            return [
+                int(child.cget("wraplength"))
+                for child in frame.winfo_children()
+                if child.winfo_class() in ("Radiobutton", "Label")
+            ]
+
+        # All three question columns wrap to the SAME (equal) width.
+        column_wraplengths = (
+            _wraplengths(step.q1_frame) + _wraplengths(step.q2_frame) + _wraplengths(step.q3_frame)
+        )
+        assert column_wraplengths, "no wrappable labels found in the question columns"
+        unique = set(column_wraplengths)
+        assert len(unique) == 1, f"columns must wrap equally, got {unique}"
+        column_target = unique.pop()
+        # ~ a third of the width, and well under the full width (so it wraps).
+        assert 0 < column_target < canvas_width // 2
+
+        # The glossary wraps to (about) the full width, not a third.
+        glossary_wraplengths = _wraplengths(step.glossary_frame)
+        assert glossary_wraplengths, "glossary text label not found"
+        assert all(wl > column_target for wl in glossary_wraplengths)
+
+        # Everything is left-justified for clean multi-line text.
+        for frame in (step.q1_frame, step.q2_frame, step.q3_frame, step.glossary_frame):
+            for child in frame.winfo_children():
+                if child.winfo_class() in ("Radiobutton", "Label"):
+                    assert str(child.cget("justify")) == "left"
+
     def test_discovery_step_default_data_is_experimental(self):
         """Discovery step defaults to experimental project type."""
         wizard_data: dict[str, Any] = {}

@@ -61,6 +61,10 @@ class DiscoveryStep(WizardStep):
         self.template_manager = TemplateManager()
         self.template_info_var = StringVar(value="")
         self.template_info_label: Label | None = None
+        # Last canvas width we reflowed text for. Wrapping is driven solely by
+        # the canvas width (a single source of truth), so it cannot feedback-loop
+        # the way per-widget <Configure> handlers can.
+        self._last_wrap_width: int = -1
 
     def build_ui(self):
         """Build discovery step UI."""
@@ -68,7 +72,9 @@ class DiscoveryStep(WizardStep):
 
         self.scroll_canvas = Canvas(self, highlightthickness=0, bg=background_color, borderwidth=0)
         self.scrollbar = create_scrollbar(self, orient="vertical", command=self.scroll_canvas.yview)
-        self.scroll_canvas.configure(yscrollcommand=self.scrollbar.set)
+        # Auto-hide the scrollbar when the content already fits the viewport, so
+        # it doesn't show needlessly on tall windows.
+        self.scroll_canvas.configure(yscrollcommand=self._set_scroll)
 
         self.scroll_canvas.pack(side="left", fill="both", expand=True)
         self.scrollbar.pack(side="right", fill="y")
@@ -125,7 +131,11 @@ class DiscoveryStep(WizardStep):
         )
         self.template_info_label.pack_forget()
 
-        # Create horizontal layout container for questions (3 columns)
+        # Create horizontal layout container for questions (3 columns).
+        # The three columns expand equally; their label texts wrap to a third
+        # of the canvas width (driven by _on_canvas_configure), which both keeps
+        # every label visible AND equalizes the columns — with single-line text
+        # the widest column (Q1) used to stay wider than the others.
         questions_container = Frame(self.content_container, bg=background_color)
         questions_container.pack(fill="both", expand=True, pady=(0, 5))
 
@@ -293,12 +303,13 @@ class DiscoveryStep(WizardStep):
         )
 
         # Glossary / Help text explaining technical terms
-        glossary_frame = LabelFrame(
+        self.glossary_frame = LabelFrame(
             self.content_container,
             text="O que significam esses termos?",
             padx=15,
             pady=10,
         )
+        glossary_frame = self.glossary_frame
         glossary_frame.pack(fill="x", pady=(15, 0))
 
         glossary_text = Label(
@@ -326,8 +337,65 @@ class DiscoveryStep(WizardStep):
         self.after(0, self._initialize_scroll_area)
         self._update_template_banner()
 
+    def _set_scroll(self, first, last):
+        """yscrollcommand that hides the scrollbar when content fits.
+
+        When the whole content is visible (``first == 0`` and ``last == 1``) the
+        vertical scrollbar is unnecessary, so we unmap it; otherwise we re-map it
+        and forward the position. Keeps the scrollbar off tall windows where it
+        would just be visual noise.
+        """
+        first_f, last_f = float(first), float(last)
+        if first_f <= 0.0 and last_f >= 1.0:
+            if self.scrollbar.winfo_manager():
+                self.scrollbar.pack_forget()
+        elif not self.scrollbar.winfo_manager():
+            self.scrollbar.pack(side="right", fill="y")
+        self.scrollbar.set(first, last)
+
     def _on_canvas_configure(self, event):
         self.scroll_canvas.itemconfig(self._canvas_window, width=event.width)
+        self._apply_dynamic_wrapping(event.width)
+
+    def _apply_dynamic_wrapping(self, width: int):
+        """Reflow long label texts to the current canvas width.
+
+        Long single-line radio/label texts get clipped when the dialog is
+        narrower than the text. We set each label's ``wraplength`` so the text
+        wraps onto more lines and stays fully visible at any dialog size.
+
+        Wrapping is driven by the canvas width (one source of truth), not each
+        widget's own ``<Configure>``: the three question columns wrap to a third
+        of the width (which also equalizes their widths — single-line text used
+        to leave the widest column, Q1, larger than the others), and the
+        full-width glossary wraps to the whole width. Because changing a label's
+        wraplength never changes the canvas width, this cannot feedback-loop.
+        """
+        # The canvas <Configure> can fire mid-build, before the columns/glossary
+        # exist. glossary_frame is the last one created, so its presence means
+        # all the target frames are ready.
+        if not hasattr(self, "glossary_frame"):
+            return
+        if width <= 1 or width == self._last_wrap_width:
+            return
+        self._last_wrap_width = width
+
+        # Each column gets a third of the width, minus per-column overhead so
+        # the three columns + their paddings never overflow the canvas: the
+        # LabelFrame padx (~20), the radio indicator (~22), inter-column padding
+        # and the container padx. Be generous here — clipping is worse than a
+        # slightly earlier wrap.
+        column_target = max(width // 3 - 56, 80)
+        for frame in (self.q1_frame, self.q2_frame, self.q3_frame):
+            for child in frame.winfo_children():
+                if isinstance(child, Radiobutton | Label):
+                    child.configure(wraplength=column_target, justify="left")
+
+        # The glossary spans the full content width.
+        glossary_target = max(width - 60, 80)
+        for child in self.glossary_frame.winfo_children():
+            if isinstance(child, Radiobutton | Label):
+                child.configure(wraplength=glossary_target, justify="left")
 
     def _bind_mousewheel(self, _event=None):
         self.scroll_canvas.bind_all("<MouseWheel>", self._on_mousewheel)
@@ -565,6 +633,26 @@ class DiscoveryStep(WizardStep):
             "wizard_schema_version": template.get("wizard_schema_version"),
             "has_folder_structure": template.get("has_folder_structure"),
             "folder_meaning": template.get("folder_meaning"),
+            # Experimental design (Step 2 — live projects)
+            "experiment_days": template.get("experiment_days"),
+            "num_groups": template.get("num_groups"),
+            "subjects_per_group": template.get("subjects_per_group"),
+            "group_names": template.get("group_names"),
+            # Live capture configuration (Step 3). Camera/Arduino are
+            # reconciled against host hardware when LiveConfigStep is shown.
+            "camera_index": template.get("camera_index"),
+            "camera_friendly_name": template.get("camera_friendly_name"),
+            "use_arduino": template.get("use_arduino"),
+            "arduino_port": template.get("arduino_port"),
+            "external_trigger_mode": template.get("external_trigger_mode"),
+            "use_timed_recording": template.get("use_timed_recording"),
+            "recording_duration_s": template.get("recording_duration_s"),
+            "use_countdown": template.get("use_countdown"),
+            "countdown_duration_s": template.get("countdown_duration_s"),
+            "preserve_real_aquarium_shape": template.get("preserve_real_aquarium_shape"),
+            "selected_live_mode": template.get("selected_live_mode"),
+            # Behavioral analysis configuration (Step 4)
+            "behavioral_analysis": template.get("behavioral_analysis"),
         }
 
         for key, value in mappings.items():
