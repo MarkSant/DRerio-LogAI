@@ -15,6 +15,7 @@ from typing import Any, cast
 from unittest.mock import MagicMock, patch
 
 import pandas as pd
+from docx import Document
 
 from zebtrack.ui.dialogs.block_detail_dialog import BlockDetailDialog
 
@@ -152,3 +153,52 @@ def test_generate_partial_report_accepts_relatorio_excel(tmp_path):
     mock_info.assert_called_once()
     assert (tmp_path / "partial_reports" / "PartialReport_Dia1_Controle.xlsx").exists()
     assert (tmp_path / "partial_reports" / "PartialReport_Dia1_Controle.docx").exists()
+
+
+def test_get_partial_report_stats_columns_ignores_non_numeric_time_fields(tmp_path):
+    dialog = _build_partial_report_dialog(tmp_path)
+    df = pd.DataFrame(
+        {
+            "analysis_timestamp": ["2026-06-07 10:00:00"],
+            "total_time_seconds": [12.5],
+            "total_roi_entries": [3],
+            "time_label": ["baseline"],
+            "animal": ["1"],
+        }
+    )
+
+    stats_cols = dialog._get_partial_report_stats_columns(df)
+
+    assert stats_cols == ["total_time_seconds", "total_roi_entries"]
+
+
+def test_write_partial_report_word_lists_only_successfully_parsed_sessions(tmp_path):
+    dialog = _build_partial_report_dialog(tmp_path)
+    session_folder = tmp_path / "session_1"
+    session_folder.mkdir()
+
+    valid_summary = session_folder / "4_Relatorio_live_exp.xlsx"
+    invalid_summary = session_folder / "4_Relatorio_corrompido.xlsx"
+
+    pd.DataFrame({"total_distance_cm": [10.0]}).to_excel(valid_summary, index=False)
+    invalid_summary.write_text("not an excel file", encoding="utf-8")
+
+    all_data, unified_df, parsed_summary_files = dialog._build_partial_report_dataset(
+        [("1", valid_summary), ("2", invalid_summary)]
+    )
+
+    output_path = tmp_path / "partial.docx"
+    dialog._write_partial_report_word(
+        output_path,
+        "partial.xlsx",
+        parsed_summary_files,
+        all_data,
+        unified_df,
+    )
+
+    document = Document(output_path)
+    session_rows = document.tables[0].rows
+
+    assert len(session_rows) == 2
+    assert session_rows[1].cells[0].text == "1"
+    assert session_rows[1].cells[1].text == valid_summary.name

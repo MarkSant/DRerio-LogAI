@@ -160,12 +160,13 @@ def test_cancel_current_analysis_no_active_processing(view_model):
 def test_cancel_current_analysis_stops_live_session(view_model):
     """Stops live session and requests cancel."""
     view_model.live_camera_session_coordinator.live_camera_service.camera = object()
+    view_model.live_camera_session_coordinator.stop_live_session.return_value = True
 
     with patch("zebtrack.core.viewmodels.analysis_control_view_model.threading.Thread") as tmock:
         view_model.cancel_current_analysis()
 
     assert view_model.cancel_event.is_set() is True
-    view_model.live_camera_session_coordinator.live_camera_service.stop_session.assert_called_once()
+    view_model.live_camera_session_coordinator.stop_live_session.assert_called_once()
     view_model.processing_coordinator.cancel_processing.assert_called_once()
     view_model.state_manager.update_processing_state.assert_called_once()
     view_model.ui_event_bus.publish.assert_called_once_with(

@@ -336,7 +336,6 @@ class ProjectOverviewWidget(BaseWidget):
                                             'file_path': str,
                                         }
                                     ]
-                                        }
                                 }
                             ]
                         }

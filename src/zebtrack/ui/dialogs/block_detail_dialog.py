@@ -794,6 +794,7 @@ class BlockDetailDialog(Toplevel):
         import pandas as pd
 
         all_data = []
+        parsed_summary_files = []
         for subject, summary_path in summary_files:
             try:
                 df = pd.read_excel(summary_path)
@@ -802,6 +803,7 @@ class BlockDetailDialog(Toplevel):
                 df["grupo"] = self.group_name
                 df["source_file"] = summary_path.name
                 all_data.append(df)
+                parsed_summary_files.append((subject, summary_path))
             except Exception as e:
                 log.warning(
                     "block_detail.partial_report.read_failed",
@@ -824,14 +826,18 @@ class BlockDetailDialog(Toplevel):
             )
             unified_df = pd.concat(non_empty_dfs, ignore_index=True)
 
-        return all_data, unified_df
+        return all_data, unified_df, parsed_summary_files
 
     @staticmethod
     def _get_partial_report_stats_columns(unified_df) -> list[str]:
+        import pandas as pd
+
         return [
             col
             for col in unified_df.columns
-            if any(keyword in col.lower() for keyword in ["distance", "speed", "time", "entries"])
+            if col != "analysis_timestamp"
+            and any(keyword in col.lower() for keyword in ["distance", "speed", "time", "entries"])
+            and pd.api.types.is_numeric_dtype(unified_df[col])
         ]
 
     @staticmethod
@@ -874,7 +880,7 @@ class BlockDetailDialog(Toplevel):
         self,
         path: Path,
         excel_name: str,
-        summary_files: list[tuple[str, Path]],
+        parsed_summary_files: list[tuple[str, Path]],
         all_data,
         unified_df,
     ) -> None:
@@ -895,7 +901,7 @@ class BlockDetailDialog(Toplevel):
         session_table.rows[0].cells[0].text = "Animal"
         session_table.rows[0].cells[1].text = "Arquivo-fonte"
 
-        for subject, summary_path in summary_files:
+        for subject, summary_path in parsed_summary_files:
             row_cells = session_table.add_row().cells
             row_cells[0].text = str(subject)
             row_cells[1].text = summary_path.name
@@ -922,7 +928,7 @@ class BlockDetailDialog(Toplevel):
     def _write_partial_report_outputs(
         self,
         reports_dir: Path,
-        summary_files: list[tuple[str, Path]],
+        parsed_summary_files: list[tuple[str, Path]],
         all_data,
         unified_df,
     ) -> tuple[str, Path, str, Path, bool]:
@@ -940,7 +946,7 @@ class BlockDetailDialog(Toplevel):
             self._write_partial_report_word(
                 word_output_path,
                 excel_output_name,
-                summary_files,
+                parsed_summary_files,
                 all_data,
                 unified_df,
             )
@@ -957,7 +963,7 @@ class BlockDetailDialog(Toplevel):
             self._write_partial_report_word(
                 word_output_path,
                 excel_output_name,
-                summary_files,
+                parsed_summary_files,
                 all_data,
                 unified_df,
             )
@@ -1066,7 +1072,9 @@ class BlockDetailDialog(Toplevel):
             reports_dir = Path(self.project_manager.project_path) / "partial_reports"
             reports_dir.mkdir(parents=True, exist_ok=True)
 
-            all_data, unified_df = self._build_partial_report_dataset(summary_files)
+            all_data, unified_df, parsed_summary_files = self._build_partial_report_dataset(
+                summary_files
+            )
             (
                 excel_output_name,
                 excel_output_path,
@@ -1075,7 +1083,7 @@ class BlockDetailDialog(Toplevel):
                 write_fallback_used,
             ) = self._write_partial_report_outputs(
                 reports_dir,
-                summary_files,
+                parsed_summary_files,
                 all_data,
                 unified_df,
             )
