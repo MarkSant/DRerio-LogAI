@@ -563,18 +563,33 @@ class VisualizationGenerator:
             frame_height_px = frame.shape[0]
             frame_width_px = frame.shape[1]
 
+            # Extent must mirror EXACTLY the proven logic in
+            # ``generate_trajectory_plot`` / ``generate_roi_reference_plot`` so the
+            # frame aligns with arena/ROIs/density. The coordinate transform is
+            #   y_cm = (video_height_px - y_px) / px_per_cm_y
+            # so the top edge (orig y_px = crop_y_offset) must be transformed the
+            # same way — NOT obtained by adding the frame height to the (possibly
+            # clamped) bottom, which stretched the lower portion of the frame when
+            # ``y_bottom_cm`` was clamped to 0.
             x_left_cm = crop_x_offset / px_per_cm_x
             x_right_cm = (crop_x_offset + frame_width_px) / px_per_cm_x
             y_bottom_orig_px = crop_y_offset + frame_height_px
             y_bottom_cm = (video_height_px - y_bottom_orig_px) / px_per_cm_y
             if y_bottom_cm < 0:
-                y_bottom_cm = 0
-            y_top_cm = y_bottom_cm + (frame_height_px / px_per_cm_y)
+                y_bottom_cm = 0.0
+            y_top_orig_px = crop_y_offset
+            y_top_cm = (video_height_px - y_top_orig_px) / px_per_cm_y
 
+            # The frame is flipped vertically above (cv2.flip), so it must be
+            # drawn with ``origin="lower"`` like the trajectory/ROI plots. Using
+            # the default ``origin="upper"`` here previously inverted the frame
+            # relative to the density and forced the heatmap-row flip workaround
+            # in ``generate_heatmap`` (removed alongside this fix).
             ax.imshow(
                 frame_rgb,
                 extent=(x_left_cm, x_right_cm, y_bottom_cm, y_top_cm),
-                aspect="equal",
+                origin="lower",
+                aspect="auto",
                 zorder=0,
             )
         except Exception as e:
@@ -631,18 +646,13 @@ class VisualizationGenerator:
             x, y, bins=50, range=[[min_x, max_x], [min_y, max_y]]
         )
         heatmap = gaussian_filter(heatmap.T, sigma=2)
-        # Audit Erro 3 round 6 (2026-05-25): the background frame produced
-        # by ``_draw_background_frame`` is rendered with ``imshow`` using the
-        # default ``origin='upper'`` (first array row at the TOP of the
-        # extent), while the heatmap below uses ``origin='lower'`` (first
-        # array row at the BOTTOM). Without compensating, the same arena
-        # appears flipped vertically between the frame and the heatmap, so
-        # the trajectory density never lines up with the drawn polygon —
-        # this is the "heatmap with flipped background" the user reported
-        # in item B3. Inverting the heatmap rows after the histogram makes
-        # both layers share the same Y direction in the final composition.
-        if video_path:
-            heatmap = heatmap[::-1, :]
+        # The background frame and the heatmap are both drawn with
+        # ``origin="lower"`` and Cartesian-cm extents, so they share the same Y
+        # direction and need no compensation. (Historical note: a previous
+        # ``heatmap[::-1, :]`` row-flip existed to counter the frame being drawn
+        # with the default ``origin="upper"``; that was the real bug and is now
+        # fixed in ``_draw_background_frame``, so the flip was removed to avoid a
+        # double inversion / vertical distortion of the background frame.)
         extent: tuple[float, float, float, float] = (
             float(xedges[0]),
             float(xedges[-1]),
