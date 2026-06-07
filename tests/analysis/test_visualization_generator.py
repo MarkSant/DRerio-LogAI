@@ -288,6 +288,134 @@ def test_generate_heatmap_with_custom_axes(generator):
     plt.close(fig)
 
 
+def _background_frame_call(spy_imshow):
+    """Return the (args, kwargs) of the imshow call that drew the video frame.
+
+    The background frame is drawn by ``_draw_background_frame`` with
+    ``zorder=0`` and no ``cmap``; the heatmap layer is drawn with
+    ``cmap="hot"``. This lets tests target the frame layer unambiguously.
+    """
+    for call in spy_imshow.call_args_list:
+        _, kwargs = call
+        if kwargs.get("zorder") == 0 and "cmap" not in kwargs:
+            return call
+    raise AssertionError("background-frame imshow call not found")
+
+
+def _heatmap_data_call(spy_imshow):
+    """Return the (args, kwargs) of the imshow call that drew the density layer."""
+    for call in spy_imshow.call_args_list:
+        _, kwargs = call
+        if kwargs.get("cmap") == "hot":
+            return call
+    raise AssertionError("heatmap-data imshow call not found")
+
+
+@patch("pathlib.Path.exists")
+@patch("cv2.VideoCapture")
+def test_generate_heatmap_background_frame_extent_and_origin(
+    mock_video_capture, mock_exists, generator
+):
+    """Heatmap background frame must use the same extent/origin as trajectory.
+
+    Regression guard for the partial-distortion bug: ``_draw_background_frame``
+    previously used an additive ``y_top`` formula, the default
+    ``origin="upper"`` and ``aspect="equal"``, which stretched the lower part of
+    the frame and forced a heatmap row-flip workaround.
+    """
+    mock_exists.return_value = True
+
+    mock_cap = Mock()
+    mock_cap.isOpened.return_value = True
+    frame = np.zeros((120, 80, 3), dtype=np.uint8)
+    mock_cap.read.return_value = (True, frame)
+    mock_video_capture.return_value = mock_cap
+
+    # Same crop box as the trajectory test so the expected extent is identical.
+    generator.frame_crop_box = (10, 20, 30, 40)
+
+    fig, ax = plt.subplots(figsize=(6, 6))
+    with patch.object(ax, "imshow", wraps=ax.imshow) as spy_imshow:
+        generator.generate_heatmap(ax=ax, video_path="/fake/video.mp4")
+
+    _, kwargs = _background_frame_call(spy_imshow)
+    # Identical to test_generate_trajectory_plot_applies_frame_crop:
+    # x_left=1.0, x_right=4.0, y_bottom=4.0, y_top=8.0
+    assert kwargs.get("extent") == (1.0, 4.0, 4.0, 8.0)
+    assert kwargs.get("origin") == "lower"
+
+    plt.close(fig)
+
+
+@patch("pathlib.Path.exists")
+@patch("cv2.VideoCapture")
+def test_heatmap_and_trajectory_background_extent_consistent(
+    mock_video_capture, mock_exists, generator
+):
+    """The frame extent must be identical between heatmap and trajectory plots."""
+    mock_exists.return_value = True
+
+    mock_cap = Mock()
+    mock_cap.isOpened.return_value = True
+    frame = np.zeros((120, 80, 3), dtype=np.uint8)
+    mock_cap.read.return_value = (True, frame)
+    mock_video_capture.return_value = mock_cap
+
+    generator.frame_crop_box = (10, 20, 30, 40)
+
+    fig_t, ax_t = plt.subplots(figsize=(6, 6))
+    with patch.object(ax_t, "imshow", wraps=ax_t.imshow) as spy_t:
+        generator.generate_trajectory_plot(ax=ax_t, video_path="/fake/video.mp4")
+    _, kwargs_t = spy_t.call_args  # trajectory draws the frame in a single imshow
+    extent_traj = kwargs_t.get("extent")
+    plt.close(fig_t)
+
+    fig_h, ax_h = plt.subplots(figsize=(6, 6))
+    with patch.object(ax_h, "imshow", wraps=ax_h.imshow) as spy_h:
+        generator.generate_heatmap(ax=ax_h, video_path="/fake/video.mp4")
+    _, kwargs_h = _background_frame_call(spy_h)
+    extent_heat = kwargs_h.get("extent")
+    plt.close(fig_h)
+
+    assert extent_heat == extent_traj
+
+
+@patch("pathlib.Path.exists")
+@patch("cv2.VideoCapture")
+def test_generate_heatmap_density_not_flipped_by_video_background(
+    mock_video_capture, mock_exists, generator
+):
+    """The density layer must be orientation-stable regardless of video_path.
+
+    Guards the removal of the ``heatmap[::-1, :]`` round-6 workaround: the
+    occupancy array is computed identically with or without a background frame,
+    so both renders must pass the same data to imshow (no extra inversion).
+    """
+    mock_exists.return_value = True
+
+    mock_cap = Mock()
+    mock_cap.isOpened.return_value = True
+    frame = np.zeros((100, 100, 3), dtype=np.uint8)
+    mock_cap.read.return_value = (True, frame)
+    mock_video_capture.return_value = mock_cap
+
+    fig_no, ax_no = plt.subplots(figsize=(6, 6))
+    with patch.object(ax_no, "imshow", wraps=ax_no.imshow) as spy_no:
+        generator.generate_heatmap(ax=ax_no)
+    args_no, _ = _heatmap_data_call(spy_no)
+    density_no = np.asarray(args_no[0]).copy()
+    plt.close(fig_no)
+
+    fig_yes, ax_yes = plt.subplots(figsize=(6, 6))
+    with patch.object(ax_yes, "imshow", wraps=ax_yes.imshow) as spy_yes:
+        generator.generate_heatmap(ax=ax_yes, video_path="/fake/video.mp4")
+    args_yes, _ = _heatmap_data_call(spy_yes)
+    density_yes = np.asarray(args_yes[0]).copy()
+    plt.close(fig_yes)
+
+    assert np.array_equal(density_no, density_yes)
+
+
 # ============================================================================
 # Tests for generate_roi_reference_plot
 # ============================================================================

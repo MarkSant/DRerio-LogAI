@@ -125,6 +125,20 @@ Analysis of preference for the tank margins.
 | `thigmotaxis_time_near_wall_pct` | Percentage of time near wall |
 | `thigmotaxis_avg_wall_distance_cm` | Mean distance to nearest boundary |
 
+> **Arbitrary polygon geometry (any number of sides).** The distance to the wall
+> is computed as the exact Euclidean distance from each trajectory point to the
+> *nearest edge* of the arena polygon, via Shapely
+> (`shapely.distance(point, arena_polygon.boundary)` in
+> `analysis/behavior.py::get_thigmotaxis_timeseries`). This is **geometry-agnostic**:
+> it is correct for arenas with any number of vertices (≥3), convex or concave —
+> not only 4-corner rectangles. Aquariums automatically segmented as 6-, 8- or
+> more-sided polygons are measured against their true outline. The center vs.
+> periphery split is likewise geometric: the center zone is the polygon inset by
+> `buffer(-distance)` (or scaled by `sqrt(area_ratio)` around its centroid in
+> `analysis/roi.py::analyze_center_vs_periphery`), so the periphery follows the
+> real shape of the wall. **The thigmotaxis plot in the Word report is therefore
+> reliable for non-rectangular, many-sided aquariums.**
+
 ### 2.3. ROI-Specific Metrics
 
 For each user-defined ROI (named polygon), the following per-ROI columns are generated:
@@ -169,6 +183,17 @@ For lateral-view aquariums (`aquarium_perspective: lateral`), geotaxis analysis 
 | `geotaxis_zone_{i}_pct` | Percentage of time in vertical zone *i* (0-indexed internally, 1-indexed in display) |
 | `geotaxis_avg_bottom_distance_cm` | Mean distance from tank bottom |
 | `geotaxis_time_near_bottom_pct` | % of time within threshold of bottom |
+
+> **Caveat — bottom defined by the bounding box, not the polygon edge.** Unlike
+> thigmotaxis (which uses the full polygon outline), the geotaxis "distance to
+> bottom" is measured against the *minimum Y of the arena polygon's bounding box*
+> (`arena_polygon_cm.bounds[1]` in `analysis/behavior.py::get_geotaxis_timeseries`).
+> This is accurate for lateral-view tanks whose floor is approximately horizontal
+> (the common case). For strongly irregular or tilted polygons it measures the
+> distance to the bounding-box floor rather than to the true bottom edge, so the
+> absolute bottom-distance value may be slightly biased even though the relative
+> vertical-zone occupancy stays consistent. This is intentional for the supported
+> lateral-tank use case.
 
 ## 4. Derived Statistics (Social)
 

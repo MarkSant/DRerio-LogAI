@@ -393,6 +393,13 @@ Onde $\omega_i = \arctan2(\vec{v}_i \times \vec{v}_{i-1},\; \vec{v}_i \cdot \vec
 
 Para cada ROI definida pelo usuário, métricas adicionais são geradas: tempo, entradas, saídas, latência, distância e velocidade dentro da ROI.
 
+> **Aquários poligonais (N lados) / Polygonal arenas.** A distância à parede
+> (tigmotaxia) é a distância euclidiana exata até a aresta mais próxima do
+> polígono do aquário, válida para qualquer número de lados (≥3), convexo ou
+> côncavo — não só retângulos. Logo, o gráfico de tigmotaxia do relatório é
+> confiável para aquários de 8+ lados. Detalhes (e a ressalva da geotaxia, que
+> usa o piso da _bounding-box_): [docs/reference/metrics.md](docs/reference/metrics.md).
+>
 > **Referência completa**: [docs/reference/metrics.md](docs/reference/metrics.md) — [Full reference with all column names and formulas]
 
 #### Metadados de Sessão / Session Metadata
