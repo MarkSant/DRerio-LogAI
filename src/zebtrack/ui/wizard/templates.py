@@ -14,7 +14,7 @@ import structlog
 log = structlog.get_logger()
 
 
-TEMPLATE_SCHEMA_VERSION = 2
+TEMPLATE_SCHEMA_VERSION = 3
 
 
 class TemplateManager:
@@ -31,6 +31,14 @@ class TemplateManager:
     - Parquet import scope and regex patterns
     - Model selection preferences (methods, weights, OpenVINO)
     - Detector thresholds (confidence/NMS/ByteTrack)
+    - Live capture settings (camera, Arduino, timed recording, countdown)
+    - Behavioral analysis configuration
+
+    Schema v3 added the live-capture block (camera/Arduino/recording/countdown)
+    and ``behavioral_analysis``. The saved camera/Arduino selection is
+    reconciled against the host hardware on load (see ``LiveConfigStep``); a
+    saved device that is absent degrades gracefully instead of being applied
+    blindly.
     """
 
     def __init__(self, templates_dir: Path | None = None):
@@ -102,6 +110,22 @@ class TemplateManager:
                 "num_groups": wizard_data.get("num_groups"),
                 "subjects_per_group": wizard_data.get("subjects_per_group"),
                 "group_names": deepcopy(wizard_data.get("group_names")),
+                # Live capture configuration (LiveConfig step). Camera/Arduino
+                # are reconciled against host hardware on load (graceful
+                # fallback when the saved device is absent).
+                "camera_index": wizard_data.get("camera_index"),
+                "camera_friendly_name": wizard_data.get("camera_friendly_name"),
+                "use_arduino": wizard_data.get("use_arduino"),
+                "arduino_port": wizard_data.get("arduino_port"),
+                "external_trigger_mode": wizard_data.get("external_trigger_mode"),
+                "use_timed_recording": wizard_data.get("use_timed_recording"),
+                "recording_duration_s": wizard_data.get("recording_duration_s"),
+                "use_countdown": wizard_data.get("use_countdown"),
+                "countdown_duration_s": wizard_data.get("countdown_duration_s"),
+                "preserve_real_aquarium_shape": wizard_data.get("preserve_real_aquarium_shape"),
+                "selected_live_mode": wizard_data.get("selected_live_mode"),
+                # Behavioral analysis configuration (Calibration step)
+                "behavioral_analysis": deepcopy(wizard_data.get("behavioral_analysis")),
                 # Folder organization fields
                 "has_folder_structure": wizard_data.get("has_folder_structure"),
                 "folder_meaning": wizard_data.get("folder_meaning"),

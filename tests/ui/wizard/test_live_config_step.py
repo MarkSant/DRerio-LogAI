@@ -9,6 +9,7 @@ from typing import Any
 
 import pytest
 
+from zebtrack.core.services.wizard_service import WizardService
 from zebtrack.ui.wizard.enums import WizardStepID
 from zebtrack.ui.wizard.live_config_step import LiveConfigStep
 
@@ -152,3 +153,120 @@ class TestLiveConfigStep:
             "is_batch_last_session_var",
         ):
             assert not hasattr(step, attr)
+
+
+@pytest.mark.gui
+class TestLiveConfigTemplateReconcile:
+    """Hardware reconciliation when a template seeds the live-config step.
+
+    A template may carry a camera/Arduino chosen on another machine. On load we
+    auto-detect the host hardware once and reconcile: present devices are
+    selected, absent ones degrade gracefully (fallback + warning) instead of
+    being applied blindly.
+    """
+
+    @pytest.fixture(autouse=True)
+    def setup(self, wizard_dependencies):
+        self.root = wizard_dependencies["root"]
+
+    @staticmethod
+    def _one_camera():
+        return [{"index": 0, "description": "USB Cam", "friendly_name": "USB Cam Real"}]
+
+    def test_template_camera_unavailable_falls_back_and_warns(self, monkeypatch):
+        monkeypatch.setattr(
+            WizardService, "detect_available_cameras", lambda *a, **k: self._one_camera()
+        )
+        wizard_data: dict[str, Any] = {
+            "template_metadata": {"name": "T"},
+            "camera_friendly_name": "Camera Que Nao Existe",
+            "camera_index": 9,
+        }
+        step = LiveConfigStep(self.root, wizard_data)
+        step.build_ui()
+
+        step.on_show()
+
+        # Saved camera absent → fall back to the only available one + warn.
+        assert step.camera_selection_var.get() == "USB Cam"
+        assert "indispon" in step.camera_status_label.cget("text").lower()
+
+    def test_template_camera_available_is_selected_without_warning(self, monkeypatch):
+        monkeypatch.setattr(
+            WizardService, "detect_available_cameras", lambda *a, **k: self._one_camera()
+        )
+        wizard_data: dict[str, Any] = {
+            "template_metadata": {"name": "T"},
+            "camera_friendly_name": "USB Cam Real",
+            "camera_index": 0,
+        }
+        step = LiveConfigStep(self.root, wizard_data)
+        step.build_ui()
+
+        step.on_show()
+
+        assert step.camera_selection_var.get() == "USB Cam"
+        assert "indispon" not in step.camera_status_label.cget("text").lower()
+
+    def test_template_arduino_port_unavailable_is_cleared_and_blocks_validation(self, monkeypatch):
+        monkeypatch.setattr(WizardService, "detect_available_cameras", lambda *a, **k: [])
+        monkeypatch.setattr(
+            WizardService,
+            "detect_arduino_ports",
+            lambda *a, **k: [{"display_name": "COM3 - Arduino", "device": "COM3"}],
+        )
+        wizard_data: dict[str, Any] = {
+            "template_metadata": {"name": "T"},
+            "use_arduino": True,
+            "arduino_port": "COM99",  # absent on this machine
+        }
+        step = LiveConfigStep(self.root, wizard_data)
+        step.build_ui()
+
+        step.on_show()
+
+        # Phantom port cleared + warned, not silently carried.
+        assert step.arduino_port_var.get() == ""
+        assert "indispon" in step.arduino_status_label.cget("text").lower()
+
+        # End-to-end safety: validation blocks advancing (Arduino on, no port).
+        is_valid, _msg = WizardService.validate_live_config(step.get_data())
+        assert is_valid is False
+
+    def test_template_arduino_port_available_is_selected(self, monkeypatch):
+        monkeypatch.setattr(WizardService, "detect_available_cameras", lambda *a, **k: [])
+        monkeypatch.setattr(
+            WizardService,
+            "detect_arduino_ports",
+            lambda *a, **k: [{"display_name": "COM3 - Arduino", "device": "COM3"}],
+        )
+        wizard_data: dict[str, Any] = {
+            "template_metadata": {"name": "T"},
+            "use_arduino": True,
+            "arduino_port": "COM3",
+        }
+        step = LiveConfigStep(self.root, wizard_data)
+        step.build_ui()
+
+        step.on_show()
+
+        assert step.arduino_port_var.get() == "COM3 - Arduino"
+        assert "indispon" not in step.arduino_status_label.cget("text").lower()
+
+    def test_no_template_metadata_skips_reconciliation(self, monkeypatch):
+        """Normal flow (no template): must not force detection or warn."""
+        calls = {"camera": 0}
+
+        def _spy(*_a, **_k):
+            calls["camera"] += 1
+            return self._one_camera()
+
+        monkeypatch.setattr(WizardService, "detect_available_cameras", _spy)
+        wizard_data: dict[str, Any] = {"camera_index": 0}  # no template_metadata
+        step = LiveConfigStep(self.root, wizard_data)
+        step.build_ui()
+
+        step.on_show()
+
+        assert calls["camera"] == 0
+        assert step.camera_selection_var.get() == ""

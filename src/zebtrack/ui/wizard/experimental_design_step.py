@@ -440,6 +440,22 @@ class ExperimentalDesignStep(WizardStep):
             "group_names": [var.get().strip() for var in self.group_name_vars[:num_groups]],
         }
 
+    def on_show(self) -> None:
+        """Repopulate the UI from wizard_data when the step becomes visible.
+
+        Mirrors CalibrationStep.on_show: the shared ``wizard_data`` holds the
+        latest committed values (including those seeded from a loaded template),
+        so replaying ``set_data`` keeps the widgets in sync. Idempotent — re-runs
+        on every show without clobbering user edits, since wizard_data already
+        reflects them.
+        """
+        super().on_show()
+        if any(
+            key in self.wizard_data
+            for key in ("experiment_days", "num_groups", "subjects_per_group", "group_names")
+        ):
+            self.set_data(self.wizard_data)
+
     def set_data(self, data: dict):
         """Restore UI from data (for back navigation)."""
         if "experiment_days" in data:
