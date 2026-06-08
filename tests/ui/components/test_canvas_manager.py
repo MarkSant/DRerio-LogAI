@@ -145,6 +145,56 @@ class TestCanvasManagerInitialization:
 
 
 @pytest.mark.gui
+class TestCanvasManagerLiveFrameSubscription:
+    """Tests for the live-frame subscribe/unsubscribe lifecycle (Bug 2).
+
+    The canvas só se inscrevia em UI_UPDATE_LIVE_FRAME no __init__ e era
+    desinscrito a cada stop; sem re-inscrever no start, da 2ª sessão em diante o
+    preview ao vivo congelava.
+    """
+
+    @staticmethod
+    def _live_frame_handlers(bus):
+        return bus._subscribers.get(UIEvents.UI_UPDATE_LIVE_FRAME, [])
+
+    def test_subscribes_on_init(self, mock_gui):
+        from zebtrack.ui.event_bus_v2 import EventBusV2
+
+        bus = EventBusV2()
+        manager = CanvasManager(mock_gui, bus)
+
+        assert manager._on_live_frame_update in self._live_frame_handlers(bus)
+
+    def test_resubscribe_after_unsubscribe(self, mock_gui):
+        from zebtrack.ui.event_bus_v2 import EventBusV2
+
+        bus = EventBusV2()
+        manager = CanvasManager(mock_gui, bus)
+
+        # Stop da 1ª sessão remove o handler.
+        manager.unsubscribe_from_live_frames()
+        assert manager._on_live_frame_update not in self._live_frame_handlers(bus)
+
+        # Bug 2 fix: o start da 2ª sessão re-inscreve.
+        manager.subscribe_to_live_frames()
+        assert manager._on_live_frame_update in self._live_frame_handlers(bus)
+
+    def test_subscribe_is_idempotent(self, mock_gui):
+        from zebtrack.ui.event_bus_v2 import EventBusV2
+
+        bus = EventBusV2()
+        manager = CanvasManager(mock_gui, bus)
+
+        # Já inscrito no __init__; chamadas repetidas não devem duplicar o
+        # handler (senão o frame seria desenhado várias vezes por evento).
+        manager.subscribe_to_live_frames()
+        manager.subscribe_to_live_frames()
+
+        handlers = self._live_frame_handlers(bus)
+        assert handlers.count(manager._on_live_frame_update) == 1
+
+
+@pytest.mark.gui
 class TestCoordinateTransformation:
     """Tests for coordinate transformation methods."""
 

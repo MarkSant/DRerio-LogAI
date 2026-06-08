@@ -258,6 +258,10 @@ class LiveSessionManagerMixin:
         self._preview_window_destroyed = False
         self._dropped_frames_processing = 0
         self._dropped_frames_video = 0
+        # Reinicia o contador de frames detectados para que a contagem da aba
+        # "Análise" comece do zero a cada nova gravação live (não acumule sobre
+        # a sessão anterior).
+        self._live_detected_frames = 0
         self._analysis_params = analysis_config or {}
         self._use_external_preview = use_external_preview
 
@@ -582,48 +586,66 @@ class LiveSessionManagerMixin:
         log.info("live_camera_service.session_started", output_dir=str(output_dir))
         return True
 
-    def _detect_and_mark_cancellation(self) -> bool:
+    def _detect_and_mark_cancellation(self, *, force: bool = False) -> bool:
         """Audit Erro 1 round 4 (2026-05-25): detect early user stop.
 
-        Returns True if the session was cancelled (elapsed < 50% of planned
-        duration). Writes a ``.cancelled`` marker in ``current_output_dir``
-        AND wipes the polygon that ``_on_conclude_video`` had persisted —
-        otherwise reopening the project shows a ghost polygon and the
-        Progresso grid counts the partial session as complete.
-        """
-        try:
-            if (
-                self.recorder is None
-                or self.current_output_dir is None
-                or self._session_duration_s <= 0
-                or not self.recorder.start_time
-            ):
-                return False
-            elapsed_s = max(0.0, time.time() - self.recorder.start_time)
-            threshold_s = max(5.0, self._session_duration_s * 0.5)
-            if elapsed_s >= threshold_s:
-                return False
-        except Exception:
-            log.debug("live_camera_service.cancel_detection_failed", exc_info=True)
-            return False
+        Returns True if the session is treated as cancelled. Writes a
+        ``.cancelled`` marker in ``current_output_dir`` AND wipes the polygon
+        that ``_on_conclude_video`` had persisted — otherwise reopening the
+        project shows a ghost polygon and the Progresso grid counts the partial
+        session as complete.
 
-        # Marker file
-        try:
-            (self.current_output_dir / ".cancelled").write_text(
-                f"elapsed={elapsed_s:.1f}s\nplanned={self._session_duration_s:.1f}s\n",
-                encoding="utf-8",
-            )
-            log.info(
-                "live_camera_service.session_marked_cancelled",
-                elapsed_s=elapsed_s,
-                planned_s=self._session_duration_s,
-                output_dir=str(self.current_output_dir),
-            )
-        except OSError as exc:
-            log.warning(
-                "live_camera_service.cancelled_marker_write_failed",
-                error=str(exc),
-            )
+        ``force=True`` (cancelamento manual explícito pelo botão "Cancelar")
+        marca a sessão como cancelada INDEPENDENTEMENTE do tempo decorrido. A
+        heurística dos 50% (``elapsed < 50%`` da duração planejada) só se aplica
+        à detecção automática de stop precoce (``force=False``); um cancelamento
+        manual sempre descarta, mesmo perto do fim da gravação.
+        """
+        elapsed_s = 0.0
+        if force:
+            try:
+                if self.recorder is not None and self.recorder.start_time:
+                    elapsed_s = max(0.0, time.time() - self.recorder.start_time)
+            except Exception:
+                elapsed_s = 0.0
+        else:
+            try:
+                if (
+                    self.recorder is None
+                    or self.current_output_dir is None
+                    or self._session_duration_s <= 0
+                    or not self.recorder.start_time
+                ):
+                    return False
+                elapsed_s = max(0.0, time.time() - self.recorder.start_time)
+                threshold_s = max(5.0, self._session_duration_s * 0.5)
+                if elapsed_s >= threshold_s:
+                    return False
+            except Exception:
+                log.debug("live_camera_service.cancel_detection_failed", exc_info=True)
+                return False
+
+        # Marker file (best-effort — no cancelamento manual a pasta é apagada
+        # logo em seguida; mantido como defesa extra para o LiveBatchCoordinator).
+        if self.current_output_dir is not None:
+            try:
+                (self.current_output_dir / ".cancelled").write_text(
+                    f"elapsed={elapsed_s:.1f}s\nplanned={self._session_duration_s:.1f}s\n"
+                    f"forced={force}\n",
+                    encoding="utf-8",
+                )
+                log.info(
+                    "live_camera_service.session_marked_cancelled",
+                    elapsed_s=elapsed_s,
+                    planned_s=self._session_duration_s,
+                    forced=force,
+                    output_dir=str(self.current_output_dir),
+                )
+            except OSError as exc:
+                log.warning(
+                    "live_camera_service.cancelled_marker_write_failed",
+                    error=str(exc),
+                )
 
         # Polygon cleanup so the ghost doesn't appear on next project open.
         try:
@@ -656,13 +678,24 @@ class LiveSessionManagerMixin:
 
         return True
 
-    def stop_session(self) -> bool:  # noqa: C901
-        """Stop the current live camera analysis session."""
-        log.info("live_camera_service.stop_session")
+    def stop_session(self, *, cancelled: bool = False) -> bool:  # noqa: C901
+        """Stop the current live camera analysis session.
+
+        Args:
+            cancelled: ``True`` quando o usuário cancelou explicitamente (botão
+                "Cancelar"). Nesse caso a sessão é SEMPRE descartada — a pasta
+                ``live_<timestamp>`` é apagada do disco e o lote não é
+                registrado no projeto — independentemente de quão avançada
+                estava (sem a heurística dos 50%). ``False`` (default) preserva
+                o comportamento anterior: conclusão normal por timer mantém os
+                dados; stop precoce automático ainda usa a heurística dos 50%.
+        """
+        log.info("live_camera_service.stop_session", cancelled=cancelled)
 
         # Audit Erro 1 round 4 (2026-05-25): detect user cancellation and
         # mark the session with .cancelled marker + clear ghost polygon.
-        cancelled_session = self._detect_and_mark_cancellation()
+        # ``force=cancelled`` garante que o cancelamento manual descarte sempre.
+        cancelled_session = self._detect_and_mark_cancellation(force=cancelled)
 
         # Cancel timer if it exists
         if hasattr(self, "timer_id") and self.timer_id and self.root:
@@ -760,6 +793,29 @@ class LiveSessionManagerMixin:
             # except Exception justified: graceful shutdown
             except Exception as e:
                 log.warning("live_camera_service.recorder_stop_error", error=str(e))
+
+        # Cancelamento manual explícito: descarta a sessão por completo. Apaga a
+        # subpasta ``live_<timestamp>`` recém-criada para não deixar MP4/parquet
+        # parciais nem pasta fantasma no projeto. Só ocorre quando o usuário
+        # clica "Cancelar" (``cancelled=True``); o stop automático precoce
+        # mantém os arquivos (apenas não registra o lote). O recorder já foi
+        # encerrado acima, então nenhuma thread está mais escrevendo na pasta.
+        if cancelled and self.current_output_dir is not None:
+            discarded_dir = self.current_output_dir
+            try:
+                shutil.rmtree(discarded_dir, ignore_errors=True)
+                log.info(
+                    "live_camera_service.cancelled_session_dir_removed",
+                    output_dir=str(discarded_dir),
+                )
+            # except Exception justified: limpeza best-effort, nunca aborta o stop
+            except Exception:
+                log.warning(
+                    "live_camera_service.cancelled_session_dir_remove_failed",
+                    output_dir=str(discarded_dir),
+                    exc_info=True,
+                )
+            self.current_output_dir = None
 
         # Close preview window
         if self.preview_window:

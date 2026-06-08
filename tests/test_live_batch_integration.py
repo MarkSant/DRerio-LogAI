@@ -124,17 +124,57 @@ def test_session_coordinator_batch_registration(test_settings, tmp_path):
     session_coord._active_live_session_id = "test_session_001"
     session_coord._active_wizard_data = wizard_data
 
-    # Mock stop_session to return success
-    mock_live_camera_service.stop_session.return_value = True
+    # Normal completion (timer/service auto-stop) flows through the service
+    # callback with cancelled=False and SHOULD register the batch. Manual cancel
+    # goes through stop_live_session (cancelled=True) and is covered separately.
+    session_coord._on_live_service_session_stopped(cancelled=False)
 
-    # Stop session (should trigger batch registration)
-    success = session_coord.stop_live_session()
-
-    assert success
     # Verify batch was registered - batch key format: {group}_{day}_{subject_id}
     batch_key = "Tratado_Dia_2_Peixe_05"
     assert batch_key in batch_coord._active_batches
     assert batch_coord._active_batches[batch_key].session_count == 1
+
+
+def test_cancelled_session_not_registered(test_settings, tmp_path):
+    """Manual cancel must NOT register a batch and must ask the service to
+    discard the session (``stop_session(cancelled=True)``)."""
+    mock_live_camera_service = MagicMock()
+    mock_live_camera_service.current_output_dir = tmp_path
+    mock_live_camera_service.stop_session.return_value = True
+    mock_project_manager = MagicMock()
+
+    batch_coord = LiveBatchCoordinator(
+        project_manager=mock_project_manager,
+        analysis_service=MagicMock(),
+        state_manager=MagicMock(),
+        settings_obj=test_settings,
+    )
+    session_coord = LiveCameraSessionCoordinator(
+        state_manager=MagicMock(),
+        live_camera_service=mock_live_camera_service,
+        project_manager=mock_project_manager,
+        detector_service=MagicMock(),
+        settings_obj=test_settings,
+        live_calibration_coordinator=MagicMock(),
+        live_batch_coordinator=batch_coord,
+    )
+
+    session_coord._active_live_session_id = "test_session_cancel"
+    session_coord._active_wizard_data = {
+        "experimental_group": "Tratado",
+        "experiment_day": "Dia_2",
+        "subject_id": "Peixe_05",
+        "recording_duration_s": 300.0,
+        "camera_index": 0,
+    }
+
+    success = session_coord.stop_live_session()
+
+    assert success
+    # Cancel must NOT register any batch in the project.
+    assert batch_coord._active_batches == {}
+    # And the service must be told to discard the partial session.
+    mock_live_camera_service.stop_session.assert_called_once_with(cancelled=True)
 
 
 def test_batch_metadata_incomplete_skips_registration(test_settings, tmp_path):

@@ -582,7 +582,7 @@ class OutputRegistrationManager:
 
         for config in aquarium_configs:
             aq_id = config.get("aquarium_id", 0)
-            group = config.get("group", "Sem_Grupo")
+            group = config.get("group", "")
             subject_id = config.get("subject_id", "")
             day = config.get("day", 1)
 
@@ -592,7 +592,25 @@ class OutputRegistrationManager:
 
             results_dir = Path(project_path) / group_component / day_component / subject_component
 
-            results_dir.mkdir(parents=True, exist_ok=True)
+            # Não cria a pasta ANSIOSAMENTE quando o grupo está ausente/vazio.
+            # Antes, um grupo vazio caía no fallback ``Grupo_Sem_Grupo`` e o
+            # ``mkdir`` deixava uma pasta fantasma na raiz do projeto mesmo
+            # quando nenhum dado era escrito (ex.: sessão live cujo aquário
+            # auto-detectado não carrega o grupo). Quando o grupo existe, a
+            # pasta é criada como antes; quando falta, o diretório é deixado
+            # para ser criado sob demanda pelos escritores (recorder/reporters
+            # fazem mkdir do próprio destino) — assim só existe se houver dados.
+            group_missing = group is None or str(group).strip() == ""
+            if group_missing:
+                log.warning(
+                    "project.multi_aquarium.group_missing_dir_deferred",
+                    aquarium_id=aq_id,
+                    path=str(results_dir),
+                    experiment=experiment_id,
+                )
+            else:
+                results_dir.mkdir(parents=True, exist_ok=True)
+
             result[aq_id] = results_dir
 
             log.info(
@@ -600,6 +618,7 @@ class OutputRegistrationManager:
                 aquarium_id=aq_id,
                 path=str(results_dir),
                 experiment=experiment_id,
+                created=not group_missing,
             )
 
         return result

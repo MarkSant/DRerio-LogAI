@@ -187,6 +187,11 @@ class LiveCameraService(
         self._last_captured_frame: int = 0  # Last frame number captured
         self._analysis_lag_warning_threshold: int = 30  # Show warning if >1s behind
         self._video_frames_written: int = 0  # Counter for video frames written
+        # Frames com pelo menos uma detecção na sessão live. Antes era criado
+        # implicitamente via getattr() no _processing_loop e NUNCA zerado entre
+        # sessões — fazendo a 2ª gravação somar sobre a 1ª. Inicializado aqui e
+        # zerado em start_session para reiniciar a cada sessão.
+        self._live_detected_frames: int = 0  # Counter for frames with detections
 
         # Active session state (protected by self._lock)
         self._camera: Camera | None = None

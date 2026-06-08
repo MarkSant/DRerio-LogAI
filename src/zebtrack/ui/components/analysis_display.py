@@ -371,6 +371,21 @@ class AnalysisDisplayWidget(BaseWidget):
         if eta is not None:
             self.progress_labels["eta"].set(eta)
 
+    def reset_progress_stats(self) -> None:
+        """Zera apenas os contadores de progresso para uma nova sessão.
+
+        Reinicia Total/Processados/Detectados para ``0`` e %/Tempo/ETA para
+        ``-``, sem mexer em status, metadados (Grupo/Dia/Indivíduo) ou no
+        vídeo. Usado por ``start_live_session`` para que as contagens reiniciem
+        do zero a cada gravação live em vez de exibir os números finais da
+        sessão anterior.
+        """
+        for var in self.progress_labels.values():
+            var.set("-")
+        for key in ("total", "processed", "detected"):
+            if key in self.progress_labels:
+                self.progress_labels[key].set("0")
+
     def enable_cancel_button(self) -> None:
         """Enable the cancel button."""
         if self.cancel_btn:

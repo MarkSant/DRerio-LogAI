@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import time
 from types import SimpleNamespace
 from unittest.mock import Mock
 
@@ -166,6 +167,97 @@ def test_start_session_clears_stale_exit_event(live_camera_service, monkeypatch)
 
     assert result is False, "deve sair no setup de câmera mockado"
     assert not svc.exit_event.is_set(), "start_session deve limpar o exit_event antes do countdown"
+
+
+def test_start_session_resets_live_detected_frames(live_camera_service, monkeypatch):
+    """``start_session`` zera ``_live_detected_frames`` para a nova sessão.
+
+    Regressão: o contador de frames detectados era um atributo de instância
+    nunca reiniciado, então a 2ª gravação live somava sobre a contagem da 1ª na
+    aba "Análise". O reset ocorre antes do setup de câmera, então mockamos
+    ``_setup_camera`` para retornar False e sair cedo sem tocar hardware.
+    """
+    svc = live_camera_service
+    # Simula contagem deixada por uma sessão anterior.
+    svc._live_detected_frames = 42
+
+    monkeypatch.setattr(svc, "_setup_camera", lambda *a, **k: False)
+
+    result = svc.start_session(camera_index=0, duration_s=1.0, experiment_id="exp")
+
+    assert result is False, "deve sair no setup de câmera mockado"
+    assert svc._live_detected_frames == 0, "start_session deve zerar o contador de detectados"
+
+
+def test_detect_and_mark_cancellation_force_overrides_50pct(live_camera_service, tmp_path):
+    """``force=True`` marca como cancelado mesmo após 50% da duração.
+
+    A heurística dos 50% só vale para o stop automático precoce; o cancelamento
+    manual (``force=True``) sempre descarta.
+    """
+    svc = live_camera_service
+    svc.current_output_dir = tmp_path
+    svc._session_duration_s = 100.0
+    # Decorrido 99s de 100s planejados → muito além do limiar de 50%.
+    svc.recorder = Mock()
+    svc.recorder.start_time = time.time() - 99.0
+
+    # Sem force: passou de 50% → NÃO é tratado como cancelado.
+    assert svc._detect_and_mark_cancellation(force=False) is False
+    # Com force: descarta mesmo assim.
+    assert svc._detect_and_mark_cancellation(force=True) is True
+
+
+def test_stop_session_cancelled_deletes_output_dir(live_camera_service, tmp_path):
+    """``stop_session(cancelled=True)`` apaga a subpasta da sessão do disco.
+
+    Regressão: cancelar uma gravação perto do fim deixava MP4/parquet parciais
+    e registrava a sessão como concluída. Agora o cancelamento manual descarta
+    tudo.
+    """
+    svc = live_camera_service
+    session_dir = tmp_path / "live_20260607_180447"
+    session_dir.mkdir()
+    (session_dir / "partial.mp4").write_bytes(b"x")
+    svc.current_output_dir = session_dir
+
+    # Sem threads ativas e recorder mockado: stop_session percorre o caminho
+    # completo sem hardware real.
+    svc.capture_thread = None
+    svc.processing_thread = None
+    svc.video_recording_thread = None
+    svc.camera = None
+    svc.preview_window = None
+    svc.recorder = Mock()
+
+    result = svc.stop_session(cancelled=True)
+
+    assert result is True
+    assert not session_dir.exists(), "a pasta da sessão cancelada deve ser apagada"
+    assert svc.current_output_dir is None
+
+
+def test_stop_session_not_cancelled_keeps_output_dir(live_camera_service, tmp_path):
+    """Stop normal (``cancelled=False``) NÃO apaga a pasta da sessão."""
+    svc = live_camera_service
+    session_dir = tmp_path / "live_20260607_181000"
+    session_dir.mkdir()
+    (session_dir / "trajectory.parquet").write_bytes(b"x")
+    svc.current_output_dir = session_dir
+    svc._session_duration_s = 0.0  # evita a heurística de stop precoce
+
+    svc.capture_thread = None
+    svc.processing_thread = None
+    svc.video_recording_thread = None
+    svc.camera = None
+    svc.preview_window = None
+    svc.recorder = Mock()
+    svc.recorder.start_time = time.time()
+
+    result = svc.stop_session(cancelled=False)
+
+    assert result is True
+    assert session_dir.exists(), "stop normal deve preservar os arquivos da sessão"
 
 
 def test_is_session_active_false_when_no_threads(live_camera_service):

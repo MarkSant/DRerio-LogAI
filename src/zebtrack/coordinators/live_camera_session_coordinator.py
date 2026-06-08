@@ -424,6 +424,38 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
         else:
             _apply()
 
+    def _reset_live_progress_display(self) -> None:
+        """Zera os contadores de progresso da aba Análise para uma nova sessão.
+
+        Sem isto, ao iniciar a 2ª gravação live os rótulos Total/Processados/
+        Detectados/Tempo continuam mostrando os números finais da 1ª sessão até
+        a primeira atualização de stats da nova sessão.
+        """
+        widget = getattr(self.view, "analysis_display_widget", None) if self.view else None
+        if widget is None or not hasattr(widget, "reset_progress_stats"):
+            return
+        if self.root is not None:
+            self.root.after(0, widget.reset_progress_stats)
+        else:
+            widget.reset_progress_stats()
+
+    def _resubscribe_canvas_live_frames(self) -> None:
+        """Re-inscreve o canvas em UI_UPDATE_LIVE_FRAME para a nova sessão.
+
+        A inscrição é idempotente (ver ``CanvasManager.subscribe_to_live_frames``)
+        e é necessária porque ``_finalize_live_session_ui`` desinscreve o canvas
+        a cada stop; sem re-inscrever no start, o preview ao vivo para de
+        atualizar a partir da 2ª sessão.
+        """
+        if (
+            hasattr(self, "view")
+            and self.view
+            and hasattr(self.view, "canvas_manager")
+            and hasattr(self.view.canvas_manager, "subscribe_to_live_frames")
+        ):
+            self.view.canvas_manager.subscribe_to_live_frames()
+            log.info("live_camera_session_coordinator.start_live_session.canvas_resubscribed")
+
     def _finalize_live_session_ui(
         self,
         *,
@@ -500,7 +532,11 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
                 else False,
             )
 
-        if service_success and self._active_wizard_data:
+        # Só registra o lote em uma conclusão real. Em cancelamento manual
+        # (``cancelled=True``) a sessão é descartada: a pasta já foi apagada por
+        # ``stop_session(cancelled=True)`` e nada deve aparecer como tendo
+        # arena/trajetória/relatório no projeto.
+        if service_success and not cancelled and self._active_wizard_data:
             self._register_batch_session()
 
         if service_success:
@@ -981,6 +1017,16 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
             self._active_live_session_id = experiment_id
             self._active_wizard_data = wizard_data or {}
 
+            # Prepara a aba "Análise" para a nova sessão:
+            #  (1) zera os contadores exibidos (Total/Processados/Detectados/
+            #      Tempo) para não acumular sobre a sessão anterior; e
+            #  (2) RE-INSCREVE o canvas em UI_UPDATE_LIVE_FRAME — a inscrição
+            #      original só ocorre no __init__ do CanvasManager e é removida
+            #      a cada stop, então sem isto o preview congela da 2ª sessão em
+            #      diante.
+            self._reset_live_progress_display()
+            self._resubscribe_canvas_live_frames()
+
             # Extract animals_per_aquarium from wizard_data if available
             animals_per_aquarium = wizard_data.get("animals_per_aquarium", 1) if wizard_data else 1
             use_countdown = bool((wizard_data or {}).get("use_countdown", False))
@@ -1153,9 +1199,11 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
 
             # Delegate to service. Manual cancel/stop should not double-run the
             # service callback, so suppress it for this path and finalize here.
+            # ``cancelled=True``: este é o caminho do botão "Cancelar" — a sessão
+            # é sempre descartada (pasta apagada, lote não registrado).
             self._suppress_service_stop_callback = True
             try:
-                service_result = self.live_camera_service.stop_session()
+                service_result = self.live_camera_service.stop_session(cancelled=True)
             finally:
                 self._suppress_service_stop_callback = False
 
