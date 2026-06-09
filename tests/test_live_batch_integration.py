@@ -177,6 +177,36 @@ def test_cancelled_session_not_registered(test_settings, tmp_path):
     mock_live_camera_service.stop_session.assert_called_once_with(cancelled=True)
 
 
+def test_activate_live_analysis_view_re_enables_rendering(test_settings):
+    """``_activate_live_analysis_view`` religa ``analysis_active`` e reabre a aba.
+
+    Regressão: a pós-análise do 1º vídeo concluído chama
+    ``stop_analysis_view_mode`` (analysis_active=False + aba de zonas); a 2ª
+    gravação recebia os frames mas ``update_video_frame`` não desenhava porque a
+    flag continuava False.
+    """
+    session_coord = LiveCameraSessionCoordinator(
+        state_manager=MagicMock(),
+        live_camera_service=MagicMock(),
+        project_manager=MagicMock(),
+        detector_service=MagicMock(),
+        settings_obj=test_settings,
+        live_calibration_coordinator=MagicMock(),
+        live_batch_coordinator=MagicMock(),
+    )
+
+    # Simula o estado deixado pela pós-análise do vídeo anterior.
+    fake_view = MagicMock()
+    fake_view.analysis_active = False
+    session_coord.view = fake_view
+    session_coord.root = None  # _apply roda de forma síncrona
+
+    session_coord._activate_live_analysis_view()
+
+    assert fake_view.analysis_active is True
+    fake_view.analysis_view_controller.switch_to_analysis_view.assert_called_once()
+
+
 def test_batch_metadata_incomplete_skips_registration(test_settings, tmp_path):
     """Test that incomplete batch metadata skips registration gracefully."""
     # Setup mocks

@@ -456,6 +456,41 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
             self.view.canvas_manager.subscribe_to_live_frames()
             log.info("live_camera_session_coordinator.start_live_session.canvas_resubscribed")
 
+    def _activate_live_analysis_view(self) -> None:
+        """Garante que o modo de análise está ativo para renderizar o preview.
+
+        ``VideoFrameManager.update_video_frame`` só desenha o frame ao vivo
+        quando ``gui.analysis_active`` é True. A pós-análise do vídeo anterior
+        concluído com sucesso chama ``stop_analysis_view_mode`` — que desliga
+        ``analysis_active`` e volta para a aba de zonas — então cada nova sessão
+        precisa religar a flag e reabrir a aba de análise. Sem isto, a 2ª
+        gravação recebe os frames (canvas re-inscrito) mas não os exibe.
+        """
+        view = getattr(self, "view", None)
+        if view is None:
+            return
+        controller = getattr(view, "analysis_view_controller", None)
+
+        def _apply() -> None:
+            try:
+                view.analysis_active = True
+                if controller is not None and hasattr(controller, "switch_to_analysis_view"):
+                    controller.switch_to_analysis_view()
+                log.info(
+                    "live_camera_session_coordinator.start_live_session.analysis_view_activated"
+                )
+            # except Exception justified: never let UI activation abort the start
+            except Exception:
+                log.debug(
+                    "live_camera_session_coordinator.activate_analysis_view.failed",
+                    exc_info=True,
+                )
+
+        if self.root is not None:
+            self.root.after(0, _apply)
+        else:
+            _apply()
+
     def _finalize_live_session_ui(
         self,
         *,
@@ -1019,13 +1054,21 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
 
             # Prepara a aba "Análise" para a nova sessão:
             #  (1) zera os contadores exibidos (Total/Processados/Detectados/
-            #      Tempo) para não acumular sobre a sessão anterior; e
+            #      Tempo) para não acumular sobre a sessão anterior;
             #  (2) RE-INSCREVE o canvas em UI_UPDATE_LIVE_FRAME — a inscrição
             #      original só ocorre no __init__ do CanvasManager e é removida
             #      a cada stop, então sem isto o preview congela da 2ª sessão em
-            #      diante.
+            #      diante; e
+            #  (3) RE-ATIVA o modo de análise (gui.analysis_active=True + aba de
+            #      análise) — a pós-análise do vídeo anterior concluído com
+            #      sucesso chama stop_analysis_view_mode (desliga a flag e volta
+            #      à aba de zonas). update_video_frame só desenha com
+            #      analysis_active=True, então sem isto a nova gravação recebe os
+            #      frames mas não os exibe (a contagem, que não usa essa flag,
+            #      atualiza normalmente).
             self._reset_live_progress_display()
             self._resubscribe_canvas_live_frames()
+            self._activate_live_analysis_view()
 
             # Extract animals_per_aquarium from wizard_data if available
             animals_per_aquarium = wizard_data.get("animals_per_aquarium", 1) if wizard_data else 1
