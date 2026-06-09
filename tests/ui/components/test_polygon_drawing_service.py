@@ -4,7 +4,39 @@ from zebtrack.ui.components.polygon_drawing_service import (
     ArenaCompletionStrategy,
     PolygonDrawingService,
     ROICompletionStrategy,
+    _is_multi_aquarium_context,
 )
+
+
+def _make_gui_zc(count_var, settings_num_aquariums):
+    """Build (gui, zone_controls) stubs for the multi-aquarium guard."""
+    gui = MagicMock()
+    gui.controller.settings.analysis_config.num_aquariums = settings_num_aquariums
+    zone_controls = MagicMock()
+    zone_controls.aquarium_count_var.get.return_value = count_var
+    return gui, zone_controls
+
+
+def test_multi_aquarium_context_requires_both_sources():
+    """Var de UI em 2 mas settings em 1 (estado vazado) → single."""
+    gui, zc = _make_gui_zc(count_var=2, settings_num_aquariums=1)
+    assert _is_multi_aquarium_context(gui, zc) is False
+
+
+def test_multi_aquarium_context_true_when_both_agree():
+    """Var de UI e settings ambos em 2 → multi (caso legítimo)."""
+    gui, zc = _make_gui_zc(count_var=2, settings_num_aquariums=2)
+    assert _is_multi_aquarium_context(gui, zc) is True
+
+
+def test_multi_aquarium_context_false_when_var_single():
+    """Var de UI em 1 → single, independentemente de settings."""
+    gui, zc = _make_gui_zc(count_var=1, settings_num_aquariums=2)
+    assert _is_multi_aquarium_context(gui, zc) is False
+
+
+def test_multi_aquarium_context_false_without_zone_controls():
+    assert _is_multi_aquarium_context(MagicMock(), None) is False
 
 
 def test_arena_completion_strategy():

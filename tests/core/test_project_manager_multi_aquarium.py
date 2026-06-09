@@ -158,6 +158,40 @@ class TestResolveMultiAquariumResultsDirectories:
         assert "Grupo_Sem_Grupo" in path_str
         assert "Dia_01" in path_str
 
+    def test_missing_group_does_not_create_phantom_dir(self, project_manager):
+        """Missing/empty/whitespace group resolves the path but must NOT create
+        a phantom ``Grupo_Sem_Grupo`` folder eagerly (regression: live sessions
+        without a propagated group left empty Grupo_Sem_Grupo dirs in the
+        project root). The directory is deferred to the real data writers."""
+        configs = [
+            {"aquarium_id": 0},  # group key missing
+            {"aquarium_id": 1, "group": ""},  # empty group
+            {"aquarium_id": 2, "group": "   "},  # whitespace-only group
+        ]
+
+        result = project_manager.resolve_multi_aquarium_results_directories(
+            experiment_id="video1",
+            aquarium_configs=configs,
+        )
+
+        for aq_id in (0, 1, 2):
+            assert "Grupo_Sem_Grupo" in str(result[aq_id])
+            assert not result[aq_id].exists(), (
+                f"aquarium {aq_id}: phantom Grupo_Sem_Grupo dir was created eagerly"
+            )
+
+    def test_real_group_still_creates_dir(self, project_manager):
+        """A real (non-empty) group still creates the directory eagerly."""
+        result = project_manager.resolve_multi_aquarium_results_directories(
+            experiment_id="video1",
+            aquarium_configs=[
+                {"aquarium_id": 0, "group": "Control", "subject_id": "S01", "day": 1}
+            ],
+        )
+
+        assert result[0].exists()
+        assert "Grupo_Control" in str(result[0])
+
     def test_returns_empty_when_no_project_path(self, project_manager):
         """Test returns empty dict when no project path is set."""
         project_manager.project_path = None

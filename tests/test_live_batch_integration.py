@@ -124,17 +124,173 @@ def test_session_coordinator_batch_registration(test_settings, tmp_path):
     session_coord._active_live_session_id = "test_session_001"
     session_coord._active_wizard_data = wizard_data
 
-    # Mock stop_session to return success
-    mock_live_camera_service.stop_session.return_value = True
+    # Normal completion (timer/service auto-stop) flows through the service
+    # callback with cancelled=False and SHOULD register the batch. Manual cancel
+    # goes through stop_live_session (cancelled=True) and is covered separately.
+    session_coord._on_live_service_session_stopped(cancelled=False)
 
-    # Stop session (should trigger batch registration)
-    success = session_coord.stop_live_session()
-
-    assert success
     # Verify batch was registered - batch key format: {group}_{day}_{subject_id}
     batch_key = "Tratado_Dia_2_Peixe_05"
     assert batch_key in batch_coord._active_batches
     assert batch_coord._active_batches[batch_key].session_count == 1
+
+
+def test_cancelled_session_not_registered(test_settings, tmp_path):
+    """Manual cancel must NOT register a batch and must ask the service to
+    discard the session (``stop_session(cancelled=True)``)."""
+    mock_live_camera_service = MagicMock()
+    mock_live_camera_service.current_output_dir = tmp_path
+    mock_live_camera_service.stop_session.return_value = True
+    mock_project_manager = MagicMock()
+
+    batch_coord = LiveBatchCoordinator(
+        project_manager=mock_project_manager,
+        analysis_service=MagicMock(),
+        state_manager=MagicMock(),
+        settings_obj=test_settings,
+    )
+    session_coord = LiveCameraSessionCoordinator(
+        state_manager=MagicMock(),
+        live_camera_service=mock_live_camera_service,
+        project_manager=mock_project_manager,
+        detector_service=MagicMock(),
+        settings_obj=test_settings,
+        live_calibration_coordinator=MagicMock(),
+        live_batch_coordinator=batch_coord,
+    )
+
+    session_coord._active_live_session_id = "test_session_cancel"
+    session_coord._active_wizard_data = {
+        "experimental_group": "Tratado",
+        "experiment_day": "Dia_2",
+        "subject_id": "Peixe_05",
+        "recording_duration_s": 300.0,
+        "camera_index": 0,
+    }
+
+    success = session_coord.stop_live_session()
+
+    assert success
+    # Cancel must NOT register any batch in the project.
+    assert batch_coord._active_batches == {}
+    # And the service must be told to discard the partial session.
+    mock_live_camera_service.stop_session.assert_called_once_with(cancelled=True)
+
+
+def _make_session_coordinator(test_settings, **overrides):
+    """Build a LiveCameraSessionCoordinator with fully mocked dependencies."""
+    kwargs = {
+        "state_manager": MagicMock(),
+        "live_camera_service": MagicMock(),
+        "project_manager": MagicMock(),
+        "detector_service": MagicMock(),
+        "settings_obj": test_settings,
+        "live_calibration_coordinator": MagicMock(),
+        "live_batch_coordinator": MagicMock(),
+    }
+    kwargs.update(overrides)
+    return LiveCameraSessionCoordinator(**kwargs)
+
+
+def test_prepare_analysis_tab_calls_all_three_helpers(test_settings):
+    """O helper unificado executa as três preparações da aba Análise."""
+    coord = _make_session_coordinator(test_settings)
+    coord._reset_live_progress_display = MagicMock()
+    coord._resubscribe_canvas_live_frames = MagicMock()
+    coord._activate_live_analysis_view = MagicMock()
+
+    coord._prepare_analysis_tab_for_live_session()
+
+    coord._reset_live_progress_display.assert_called_once()
+    coord._resubscribe_canvas_live_frames.assert_called_once()
+    coord._activate_live_analysis_view.assert_called_once()
+
+
+def test_start_live_project_session_prepares_analysis_tab(test_settings):
+    """Regressão: o fluxo do grid de projeto ao vivo NÃO passava pela preparação
+    da aba Análise (só start_live_session passava), então a 2ª gravação ficava
+    com o preview congelado (canvas sem re-inscrição, analysis_active=False)."""
+    coord = _make_session_coordinator(test_settings)
+    coord.project_manager.get_project_type.return_value = "live"
+    coord.project_manager.project_data = {
+        "recording_duration_s": 30.0,
+        "analysis_interval_frames": 1,
+        "display_interval_frames": 1,
+    }
+    coord.live_camera_service.start_session.return_value = True
+
+    coord._prepare_analysis_tab_for_live_session = MagicMock()
+    coord._resolve_session_paths = MagicMock(return_value=(None, None))
+    coord._publish_live_analysis_metadata = MagicMock()
+    coord._publish_live_task_status = MagicMock()
+    coord._set_live_analysis_ui_state = MagicMock()
+
+    success = coord.start_live_project_session(
+        day=1,
+        group="Controle",
+        subject="1",
+        camera_index_override=0,
+        zones_validated=True,
+    )
+
+    assert success
+    coord._prepare_analysis_tab_for_live_session.assert_called_once()
+
+
+def test_start_session_from_config_prepares_analysis_tab(test_settings):
+    """O fluxo ad-hoc (SingleVideoConfigDialog) também deve preparar a aba Análise."""
+    coord = _make_session_coordinator(test_settings)
+    coord.live_camera_service.start_session.return_value = True
+
+    coord._prepare_analysis_tab_for_live_session = MagicMock()
+    coord._resolve_session_paths = MagicMock(return_value=(None, None))
+    coord._publish_live_analysis_metadata = MagicMock()
+    coord._publish_live_task_status = MagicMock()
+    coord._set_live_analysis_ui_state = MagicMock()
+
+    config = {
+        "camera_index": 0,
+        "duration_s": 30.0,
+        "experiment_id": "adhoc_test",
+        "analysis_interval_frames": 1,
+        "display_interval_frames": 1,
+        "record_video": True,
+        "animals_per_aquarium": 1,
+    }
+    success = coord.start_session_from_config(config, zones_validated=True)
+
+    assert success
+    coord._prepare_analysis_tab_for_live_session.assert_called_once()
+
+
+def test_activate_live_analysis_view_re_enables_rendering(test_settings):
+    """``_activate_live_analysis_view`` religa ``analysis_active`` e reabre a aba.
+
+    Regressão: a pós-análise do 1º vídeo concluído chama
+    ``stop_analysis_view_mode`` (analysis_active=False + aba de zonas); a 2ª
+    gravação recebia os frames mas ``update_video_frame`` não desenhava porque a
+    flag continuava False.
+    """
+    session_coord = LiveCameraSessionCoordinator(
+        state_manager=MagicMock(),
+        live_camera_service=MagicMock(),
+        project_manager=MagicMock(),
+        detector_service=MagicMock(),
+        settings_obj=test_settings,
+        live_calibration_coordinator=MagicMock(),
+        live_batch_coordinator=MagicMock(),
+    )
+
+    # Simula o estado deixado pela pós-análise do vídeo anterior.
+    fake_view = MagicMock()
+    fake_view.analysis_active = False
+    session_coord.view = fake_view
+    session_coord.root = None  # _apply roda de forma síncrona
+
+    session_coord._activate_live_analysis_view()
+
+    assert fake_view.analysis_active is True
+    fake_view.analysis_view_controller.switch_to_analysis_view.assert_called_once()
 
 
 def test_batch_metadata_incomplete_skips_registration(test_settings, tmp_path):

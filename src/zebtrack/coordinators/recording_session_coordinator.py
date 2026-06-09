@@ -24,6 +24,7 @@ from typing import TYPE_CHECKING, Any
 
 import structlog
 
+from zebtrack.coordinators import live_session_ui_prep
 from zebtrack.coordinators.base_coordinator import (
     BaseCoordinator,
     CoordinatorError,
@@ -642,6 +643,15 @@ class RecordingSessionCoordinator(BaseCoordinator):
                 "subject_id": context.get("cobaia"),
                 "camera_index": camera_index,
             }
+
+            # Prepara a aba "Análise" (zera contadores, re-inscreve o canvas e
+            # religa o modo de análise) ANTES de iniciar a sessão — mesmo
+            # tratamento dos 3 entrypoints do LiveCameraSessionCoordinator.
+            # Este despacho usa o canvas integrado (use_external_preview=False),
+            # então sem a preparação a 2ª gravação recebia os frames mas o
+            # preview ficava congelado (canvas desinscrito no stop anterior e
+            # analysis_active desligado pela pós-análise).
+            live_session_ui_prep.prepare_analysis_tab_for_live_session(self.view, self.root)
 
             # Delegate to LiveCameraService
             success = self.live_camera_service.start_session(

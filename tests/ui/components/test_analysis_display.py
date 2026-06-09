@@ -211,6 +211,34 @@ class TestAnalysisDisplayWidget:
         # Other values should remain at default "-"
         assert widget.progress_labels["total"].get() == "-"
 
+    def test_reset_progress_stats_zeroes_labels_and_bar(self, widget):
+        """Regressão: ao preparar nova sessão live, a BARRA também deve zerar.
+
+        O stop da sessão anterior publica ``progress_fraction=1.0`` (barra
+        cheia); sem o reset, a 2ª gravação começava com a barra em 100% mesmo
+        com as estatísticas zeradas.
+        """
+        widget.update_progress_stats(
+            total_frames=1000,
+            processed_frames=500,
+            detected_frames=480,
+            percent="50%",
+            elapsed="00:02:30",
+            eta="00:02:30",
+        )
+        widget.update_progress(1.0)
+        assert widget.progress_bar["value"] == 100.0
+
+        widget.reset_progress_stats()
+
+        assert widget.progress_bar["value"] == 0.0
+        assert widget.progress_labels["total"].get() == "0"
+        assert widget.progress_labels["processed"].get() == "0"
+        assert widget.progress_labels["detected"].get() == "0"
+        assert widget.progress_labels["percent"].get() == "-"
+        assert widget.progress_labels["elapsed"].get() == "-"
+        assert widget.progress_labels["eta"].get() == "-"
+
     def test_enable_cancel_button(self, widget):
         """Test enable_cancel_button enables the cancel button."""
         widget.enable_cancel_button()

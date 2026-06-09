@@ -24,6 +24,7 @@ from typing import TYPE_CHECKING, Any
 
 import structlog
 
+from zebtrack.coordinators import live_session_ui_prep
 from zebtrack.coordinators.base_coordinator import (
     BaseCoordinator,
     CoordinatorError,
@@ -424,6 +425,37 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
         else:
             _apply()
 
+    def _prepare_analysis_tab_for_live_session(self) -> None:
+        """Prepara a aba "Análise" para QUALQUER nova sessão ao vivo.
+
+        Deve ser chamado por TODOS os pontos de entrada que iniciam sessão
+        (``start_live_session``, ``start_live_session_from_config`` e
+        ``start_live_project_session`` — este último é o fluxo do grid de
+        projetos ao vivo). A correção original ficava só em
+        ``start_live_session``, então o fluxo de projeto continuava com o
+        preview congelado na 2ª gravação (canvas sem re-inscrição e
+        ``analysis_active`` desligado pela pós-análise do vídeo anterior).
+
+        A lógica vive em ``live_session_ui_prep`` (compartilhada com
+        ``RecordingSessionCoordinator``, que despacha gravações temporizadas
+        de projeto live para o mesmo canvas integrado).
+        """
+        self._reset_live_progress_display()
+        self._resubscribe_canvas_live_frames()
+        self._activate_live_analysis_view()
+
+    def _reset_live_progress_display(self) -> None:
+        """Zera os contadores de progresso da aba Análise (ver live_session_ui_prep)."""
+        live_session_ui_prep.reset_live_progress_display(self.view, self.root)
+
+    def _resubscribe_canvas_live_frames(self) -> None:
+        """Re-inscreve o canvas em UI_UPDATE_LIVE_FRAME (ver live_session_ui_prep)."""
+        live_session_ui_prep.resubscribe_canvas_live_frames(getattr(self, "view", None))
+
+    def _activate_live_analysis_view(self) -> None:
+        """Religa ``gui.analysis_active`` e reabre a aba (ver live_session_ui_prep)."""
+        live_session_ui_prep.activate_live_analysis_view(getattr(self, "view", None), self.root)
+
     def _finalize_live_session_ui(
         self,
         *,
@@ -500,7 +532,11 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
                 else False,
             )
 
-        if service_success and self._active_wizard_data:
+        # Só registra o lote em uma conclusão real. Em cancelamento manual
+        # (``cancelled=True``) a sessão é descartada: a pasta já foi apagada por
+        # ``stop_session(cancelled=True)`` e nada deve aparecer como tendo
+        # arena/trajetória/relatório no projeto.
+        if service_success and not cancelled and self._active_wizard_data:
             self._register_batch_session()
 
         if service_success:
@@ -981,6 +1017,10 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
             self._active_live_session_id = experiment_id
             self._active_wizard_data = wizard_data or {}
 
+            # Prepara a aba "Análise" (zera contadores, re-inscreve o canvas e
+            # religa o modo de análise) — ver _prepare_analysis_tab_for_live_session.
+            self._prepare_analysis_tab_for_live_session()
+
             # Extract animals_per_aquarium from wizard_data if available
             animals_per_aquarium = wizard_data.get("animals_per_aquarium", 1) if wizard_data else 1
             use_countdown = bool((wizard_data or {}).get("use_countdown", False))
@@ -1153,9 +1193,11 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
 
             # Delegate to service. Manual cancel/stop should not double-run the
             # service callback, so suppress it for this path and finalize here.
+            # ``cancelled=True``: este é o caminho do botão "Cancelar" — a sessão
+            # é sempre descartada (pasta apagada, lote não registrado).
             self._suppress_service_stop_callback = True
             try:
-                service_result = self.live_camera_service.stop_session()
+                service_result = self.live_camera_service.stop_session(cancelled=True)
             finally:
                 self._suppress_service_stop_callback = False
 
@@ -1651,6 +1693,10 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
             duration_s=duration_s,
         )
 
+        # Prepara a aba "Análise" (zera contadores, re-inscreve o canvas e
+        # religa o modo de análise) — ver _prepare_analysis_tab_for_live_session.
+        self._prepare_analysis_tab_for_live_session()
+
         # v2.3.0: Build analysis_config with batch metadata for video registration.
         polygon_source = self.live_calibration_coordinator.last_polygon_source or "manual"
         analysis_config = {
@@ -1930,6 +1976,12 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
             experiment_id=experiment_id,
             duration_s=duration_s,
         )
+
+        # Prepara a aba "Análise" (zera contadores, re-inscreve o canvas e
+        # religa o modo de análise). Este entrypoint NÃO passa por
+        # start_live_session, então sem esta chamada a 2ª gravação do grid
+        # recebia os frames mas o preview ficava congelado.
+        self._prepare_analysis_tab_for_live_session()
 
         # v2.3.0: Store batch metadata for LiveBatchCoordinator registration
         self._active_wizard_data = {

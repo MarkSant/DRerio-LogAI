@@ -163,10 +163,8 @@ class CanvasManager:
         )
 
         # Subscribe to live frame updates via EventBusV2
-        if self.event_bus_v2:
-            self.event_bus_v2.subscribe(UIEvents.UI_UPDATE_LIVE_FRAME, self._on_live_frame_update)
-            # Note: _live_session_active remains False until a live session actually starts
-            log.debug("canvas_manager.subscribed_to_live_frame_updates")
+        # Note: _live_session_active remains False until a live session starts.
+        self.subscribe_to_live_frames()
 
     def _on_zones_updated(self, data: payloads.EventPayload):
         """Handle ZONES_UPDATED event.
@@ -241,6 +239,25 @@ class CanvasManager:
         if frame is not None:
             # We are already on the main thread here via EventDispatcher polling
             self.update_video_frame(frame, detections)
+
+    def subscribe_to_live_frames(self):
+        """(Re)subscribe to live frame updates for the current session.
+
+        Idempotente: ``EventBusV2.subscribe`` já ignora handlers duplicados, de
+        modo que chamar isto repetidamente mantém exatamente um handler ativo. A
+        inscrição original só acontecia no ``__init__`` e era removida a cada
+        ``unsubscribe_from_live_frames`` (no stop da sessão). Sem re-inscrever ao
+        iniciar uma nova sessão, da 2ª gravação em diante o preview ao vivo
+        congelava (o frame publicado não tinha mais ouvinte) e o stop seguinte
+        logava ``unsubscribe_failed reason=handler_not_found``. Chamado por
+        ``_setup_event_subscriptions`` e por
+        ``LiveCameraSessionCoordinator.start_live_session``.
+        """
+        if not self.event_bus_v2:
+            return
+
+        self.event_bus_v2.subscribe(UIEvents.UI_UPDATE_LIVE_FRAME, self._on_live_frame_update)
+        log.debug("canvas_manager.subscribed_to_live_frame_updates")
 
     def unsubscribe_from_live_frames(self):
         """Unsubscribe from live frame updates to stop receiving events."""

@@ -57,6 +57,7 @@ class FrameProcessingMixin:
     analysis_interval_frames: int
     display_interval_frames: int
     _video_frames_written: int
+    _live_detected_frames: int
     _analysis_lag_frames: int
     _last_analyzed_frame: int
     _last_captured_frame: int
@@ -719,10 +720,10 @@ class FrameProcessingMixin:
                     # from there. Throttled to display frames (we're already
                     # inside the should_display branch).
                     if detections:
-                        self._live_detected_frames = getattr(self, "_live_detected_frames", 0) + 1
+                        self._live_detected_frames += 1
                     live_stats: dict[str, Any] = {
                         "processed_frames": int(frame_number),
-                        "detected_frames": int(getattr(self, "_live_detected_frames", 0)),
+                        "detected_frames": int(self._live_detected_frames),
                     }
                     if self.recorder and self.recorder.start_time:
                         live_stats["start_time"] = self.recorder.start_time
