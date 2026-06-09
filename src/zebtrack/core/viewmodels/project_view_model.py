@@ -197,14 +197,14 @@ class ProjectViewModel:
             return self.project_lifecycle_coordinator.has_project_override_settings()
         return False
 
-    def handle_calibration_copy_to_project(self):
-        """Copy global model settings to project overrides."""
-        if not self.project_lifecycle_coordinator:
-            return
+    def _build_global_model_defaults_callbacks(self):
+        """Build the (get_global_defaults, get_active_weight_name) callback pair."""
 
         def get_global_defaults() -> dict:
             return {
-                "active_weight": self.settings.weights.det_filename if self.settings else None,  # type: ignore[attr-defined]
+                "active_weight": (
+                    self.settings.get_default_det_filename() if self.settings else None
+                ),
                 "use_openvino": self.settings.model_selection.use_openvino
                 if self.settings
                 else False,
@@ -217,7 +217,36 @@ class ProjectViewModel:
                 )
             return None
 
-        self.project_lifecycle_coordinator.copy_global_model_settings_to_project(
+        return get_global_defaults, get_active_weight_name
+
+    def handle_calibration_copy_to_project(self) -> tuple[str | None, bool] | None:
+        """Copy global model settings to project overrides.
+
+        Returns:
+            Tupla (active_weight, use_openvino) aplicada, ou None em falha —
+            permite à UI dar feedback honesto em vez de sucesso incondicional.
+        """
+        if not self.project_lifecycle_coordinator:
+            return None
+
+        get_global_defaults, get_active_weight_name = self._build_global_model_defaults_callbacks()
+
+        return self.project_lifecycle_coordinator.copy_global_model_settings_to_project(
+            get_global_defaults=get_global_defaults,
+            get_active_weight_name=get_active_weight_name,
+        )
+
+    def handle_calibration_copy_to_project_path(
+        self, target_dir: Path | str
+    ) -> tuple[str | None, bool] | None:
+        """Copy global model settings into the project located at ``target_dir``."""
+        if not self.project_lifecycle_coordinator:
+            return None
+
+        get_global_defaults, get_active_weight_name = self._build_global_model_defaults_callbacks()
+
+        return self.project_lifecycle_coordinator.copy_global_model_settings_to_project_path(
+            target_dir,
             get_global_defaults=get_global_defaults,
             get_active_weight_name=get_active_weight_name,
         )

@@ -176,12 +176,24 @@ class ProcessingWorker:
             animal_method = getattr(ms, "animal_method", "det")
             if use_ov:
                 resolved_model_type = "openvino"
-            # Resolve the correct weight filename based on method
-            if hasattr(settings, "weights"):
-                if animal_method == "det":
-                    resolved_model_path = getattr(settings.weights, "det_filename", "")
-                else:
-                    resolved_model_path = getattr(settings.weights, "seg_filename", "")
+            # Resolve the correct weight filename based on method. Weights are
+            # nested per perspective (weights.lateral / weights.top_down), so
+            # the filename must be resolved via get_filenames_for_perspective.
+            if hasattr(settings, "weights") and hasattr(
+                settings.weights, "get_filenames_for_perspective"
+            ):
+                perspective = getattr(
+                    getattr(settings, "behavioral_analysis", None),
+                    "aquarium_perspective",
+                    "lateral",
+                )
+                pw = settings.weights.get_filenames_for_perspective(perspective)
+                weight_filename = pw.det_filename if animal_method == "det" else pw.seg_filename
+                if weight_filename:
+                    source_dir = getattr(settings.weights, "source_dir", "weights") or "weights"
+                    candidate = os.path.join(source_dir, weight_filename)
+                    if os.path.exists(candidate):
+                        resolved_model_path = candidate
             if not resolved_model_path:
                 resolved_model_path = getattr(settings.yolo_model, "path", "")
             # For OpenVINO, resolve to the cached model directory
