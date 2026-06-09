@@ -177,6 +177,92 @@ def test_cancelled_session_not_registered(test_settings, tmp_path):
     mock_live_camera_service.stop_session.assert_called_once_with(cancelled=True)
 
 
+def _make_session_coordinator(test_settings, **overrides):
+    """Build a LiveCameraSessionCoordinator with fully mocked dependencies."""
+    kwargs = {
+        "state_manager": MagicMock(),
+        "live_camera_service": MagicMock(),
+        "project_manager": MagicMock(),
+        "detector_service": MagicMock(),
+        "settings_obj": test_settings,
+        "live_calibration_coordinator": MagicMock(),
+        "live_batch_coordinator": MagicMock(),
+    }
+    kwargs.update(overrides)
+    return LiveCameraSessionCoordinator(**kwargs)
+
+
+def test_prepare_analysis_tab_calls_all_three_helpers(test_settings):
+    """O helper unificado executa as três preparações da aba Análise."""
+    coord = _make_session_coordinator(test_settings)
+    coord._reset_live_progress_display = MagicMock()
+    coord._resubscribe_canvas_live_frames = MagicMock()
+    coord._activate_live_analysis_view = MagicMock()
+
+    coord._prepare_analysis_tab_for_live_session()
+
+    coord._reset_live_progress_display.assert_called_once()
+    coord._resubscribe_canvas_live_frames.assert_called_once()
+    coord._activate_live_analysis_view.assert_called_once()
+
+
+def test_start_live_project_session_prepares_analysis_tab(test_settings):
+    """Regressão: o fluxo do grid de projeto ao vivo NÃO passava pela preparação
+    da aba Análise (só start_live_session passava), então a 2ª gravação ficava
+    com o preview congelado (canvas sem re-inscrição, analysis_active=False)."""
+    coord = _make_session_coordinator(test_settings)
+    coord.project_manager.get_project_type.return_value = "live"
+    coord.project_manager.project_data = {
+        "recording_duration_s": 30.0,
+        "analysis_interval_frames": 1,
+        "display_interval_frames": 1,
+    }
+    coord.live_camera_service.start_session.return_value = True
+
+    coord._prepare_analysis_tab_for_live_session = MagicMock()
+    coord._resolve_session_paths = MagicMock(return_value=(None, None))
+    coord._publish_live_analysis_metadata = MagicMock()
+    coord._publish_live_task_status = MagicMock()
+    coord._set_live_analysis_ui_state = MagicMock()
+
+    success = coord.start_live_project_session(
+        day=1,
+        group="Controle",
+        subject="1",
+        camera_index_override=0,
+        zones_validated=True,
+    )
+
+    assert success
+    coord._prepare_analysis_tab_for_live_session.assert_called_once()
+
+
+def test_start_session_from_config_prepares_analysis_tab(test_settings):
+    """O fluxo ad-hoc (SingleVideoConfigDialog) também deve preparar a aba Análise."""
+    coord = _make_session_coordinator(test_settings)
+    coord.live_camera_service.start_session.return_value = True
+
+    coord._prepare_analysis_tab_for_live_session = MagicMock()
+    coord._resolve_session_paths = MagicMock(return_value=(None, None))
+    coord._publish_live_analysis_metadata = MagicMock()
+    coord._publish_live_task_status = MagicMock()
+    coord._set_live_analysis_ui_state = MagicMock()
+
+    config = {
+        "camera_index": 0,
+        "duration_s": 30.0,
+        "experiment_id": "adhoc_test",
+        "analysis_interval_frames": 1,
+        "display_interval_frames": 1,
+        "record_video": True,
+        "animals_per_aquarium": 1,
+    }
+    success = coord.start_session_from_config(config, zones_validated=True)
+
+    assert success
+    coord._prepare_analysis_tab_for_live_session.assert_called_once()
+
+
 def test_activate_live_analysis_view_re_enables_rendering(test_settings):
     """``_activate_live_analysis_view`` religa ``analysis_active`` e reabre a aba.
 

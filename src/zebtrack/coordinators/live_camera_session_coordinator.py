@@ -424,6 +424,26 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
         else:
             _apply()
 
+    def _prepare_analysis_tab_for_live_session(self) -> None:
+        """Prepara a aba "Análise" para QUALQUER nova sessão ao vivo.
+
+        Deve ser chamado por TODOS os pontos de entrada que iniciam sessão
+        (``start_live_session``, ``start_live_session_from_config`` e
+        ``start_live_project_session`` — este último é o fluxo do grid de
+        projetos ao vivo). A correção original ficava só em
+        ``start_live_session``, então o fluxo de projeto continuava com o
+        preview congelado na 2ª gravação (canvas sem re-inscrição e
+        ``analysis_active`` desligado pela pós-análise do vídeo anterior).
+
+        Faz três coisas:
+          1. zera os contadores exibidos (Total/Processados/Detectados/Tempo);
+          2. re-inscreve o canvas em UI_UPDATE_LIVE_FRAME;
+          3. religa ``gui.analysis_active`` e reabre a aba de análise.
+        """
+        self._reset_live_progress_display()
+        self._resubscribe_canvas_live_frames()
+        self._activate_live_analysis_view()
+
     def _reset_live_progress_display(self) -> None:
         """Zera os contadores de progresso da aba Análise para uma nova sessão.
 
@@ -1052,23 +1072,9 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
             self._active_live_session_id = experiment_id
             self._active_wizard_data = wizard_data or {}
 
-            # Prepara a aba "Análise" para a nova sessão:
-            #  (1) zera os contadores exibidos (Total/Processados/Detectados/
-            #      Tempo) para não acumular sobre a sessão anterior;
-            #  (2) RE-INSCREVE o canvas em UI_UPDATE_LIVE_FRAME — a inscrição
-            #      original só ocorre no __init__ do CanvasManager e é removida
-            #      a cada stop, então sem isto o preview congela da 2ª sessão em
-            #      diante; e
-            #  (3) RE-ATIVA o modo de análise (gui.analysis_active=True + aba de
-            #      análise) — a pós-análise do vídeo anterior concluído com
-            #      sucesso chama stop_analysis_view_mode (desliga a flag e volta
-            #      à aba de zonas). update_video_frame só desenha com
-            #      analysis_active=True, então sem isto a nova gravação recebe os
-            #      frames mas não os exibe (a contagem, que não usa essa flag,
-            #      atualiza normalmente).
-            self._reset_live_progress_display()
-            self._resubscribe_canvas_live_frames()
-            self._activate_live_analysis_view()
+            # Prepara a aba "Análise" (zera contadores, re-inscreve o canvas e
+            # religa o modo de análise) — ver _prepare_analysis_tab_for_live_session.
+            self._prepare_analysis_tab_for_live_session()
 
             # Extract animals_per_aquarium from wizard_data if available
             animals_per_aquarium = wizard_data.get("animals_per_aquarium", 1) if wizard_data else 1
@@ -1742,6 +1748,10 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
             duration_s=duration_s,
         )
 
+        # Prepara a aba "Análise" (zera contadores, re-inscreve o canvas e
+        # religa o modo de análise) — ver _prepare_analysis_tab_for_live_session.
+        self._prepare_analysis_tab_for_live_session()
+
         # v2.3.0: Build analysis_config with batch metadata for video registration.
         polygon_source = self.live_calibration_coordinator.last_polygon_source or "manual"
         analysis_config = {
@@ -2021,6 +2031,12 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
             experiment_id=experiment_id,
             duration_s=duration_s,
         )
+
+        # Prepara a aba "Análise" (zera contadores, re-inscreve o canvas e
+        # religa o modo de análise). Este entrypoint NÃO passa por
+        # start_live_session, então sem esta chamada a 2ª gravação do grid
+        # recebia os frames mas o preview ficava congelado.
+        self._prepare_analysis_tab_for_live_session()
 
         # v2.3.0: Store batch metadata for LiveBatchCoordinator registration
         self._active_wizard_data = {
