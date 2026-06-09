@@ -1,8 +1,35 @@
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from zebtrack.ui.gui import ApplicationGUI
+
+
+def _is_multi_aquarium_context(gui: "ApplicationGUI", zone_controls: Any) -> bool:
+    """True só quando DUAS fontes concordam que o contexto tem 2 aquários.
+
+    Defense-in-depth contra estado de UI vazado entre projetos: além da var de
+    UI ``zone_controls.aquarium_count_var == 2``, exige
+    ``settings.analysis_config.num_aquariums >= 2``. As duas são setadas JUNTAS
+    no fluxo pré-gravado por-vídeo (``_single_video_mixin``) e ressincronizadas
+    ao carregar o projeto (``ProjectInitializer._sync_aquarium_count_from_project``),
+    então a guarda NÃO quebra o multi-aquário legítimo (ambas = 2) e barra uma
+    var de UI vazada num projeto de 1 aquário (settings = 1 → single).
+    """
+    if zone_controls is None:
+        return False
+    try:
+        if zone_controls.aquarium_count_var.get() != 2:
+            return False
+    except Exception:
+        return False
+
+    settings = getattr(getattr(gui, "controller", None), "settings", None)
+    analysis_config = getattr(settings, "analysis_config", None)
+    try:
+        return int(getattr(analysis_config, "num_aquariums", 1)) >= 2
+    except (TypeError, ValueError):
+        return False
 
 
 class PolygonCompletionStrategy(ABC):
@@ -28,9 +55,12 @@ class ArenaCompletionStrategy(PolygonCompletionStrategy):
         return True, None
 
     def complete(self, video_points: list, gui: "ApplicationGUI") -> bool:
-        # Check if in multi-aquarium mode
+        # Check if in multi-aquarium mode. Exige concordância da var de UI E do
+        # settings.num_aquariums (defense-in-depth) para não tratar um projeto de
+        # 1 aquário como multi por causa de estado de UI vazado de um teste
+        # anterior.
         zone_controls = getattr(gui, "zone_controls", None)
-        is_multi_aquarium = zone_controls and zone_controls.aquarium_count_var.get() == 2
+        is_multi_aquarium = _is_multi_aquarium_context(gui, zone_controls)
 
         if is_multi_aquarium:
             success = self._complete_multi_aquarium(video_points, gui, zone_controls)

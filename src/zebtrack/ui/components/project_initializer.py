@@ -134,6 +134,14 @@ class ProjectInitializer:
 
         self.create_main_control_frame()
 
+        # Sincroniza a contagem de aquários (var de UI + settings) com o projeto
+        # recém-carregado. Sem isto, o estado multi-aquário de um teste anterior
+        # (ex.: vídeo pré-gravado com 2 aquários) VAZAVA para um novo projeto de
+        # 1 aquário, fazendo o save da arena entrar no caminho multi-aquário e
+        # disparar os prompts de "segundo aquário"/"sequencial". Roda DEPOIS de
+        # create_main_control_frame (onde zone_controls é criado).
+        self._sync_aquarium_count_from_project(pm)
+
         project_type = pm.get_project_type()
         if project_type == "live":
             self.initialize_live_components(pm)
@@ -220,6 +228,53 @@ class ProjectInitializer:
                         "project_initializer.num_aquariums_sync_failed",
                         error=str(e),
                     )
+
+    def _sync_aquarium_count_from_project(self, pm: Any) -> None:
+        """Reset a contagem de aquários da UI para o projeto recém-carregado.
+
+        Vale para TODOS os tipos de projeto (criar e abrir). Lê o número de
+        aquários canônico do projeto (``calibration.num_aquariums``, default 1) e
+        ressincroniza tanto a var de UI (``zone_controls.aquarium_count_var`` via
+        ``set_aquarium_count`` — que também mostra/esconde o seletor e zera o
+        aquário ativo) quanto o cache ``settings.analysis_config.num_aquariums``.
+
+        Isto evita o vazamento do estado multi-aquário entre projetos: sem o
+        reset, um teste pré-gravado de 2 aquários deixava ``aquarium_count_var``
+        em 2 e o save da arena de um novo projeto de 1 aquário ia para o caminho
+        multi-aquário.
+        """
+        gui = self.gui
+
+        num_aquariums = 1
+        try:
+            calibration = pm.project_data.get("calibration", {})
+            if isinstance(calibration, dict):
+                num_aquariums = int(calibration.get("num_aquariums", 1))
+        except (AttributeError, TypeError, ValueError):
+            log.debug("project_initializer.aquarium_count.parse_skipped", exc_info=True)
+            num_aquariums = 1
+
+        if num_aquariums < 1:
+            num_aquariums = 1
+
+        zone_controls = getattr(gui, "zone_controls", None)
+        if zone_controls is not None and hasattr(zone_controls, "set_aquarium_count"):
+            try:
+                zone_controls.set_aquarium_count(num_aquariums)
+            except Exception:
+                log.debug("project_initializer.aquarium_count.set_skipped", exc_info=True)
+
+        if gui.settings and hasattr(gui.settings, "analysis_config"):
+            try:
+                gui.settings.analysis_config.num_aquariums = num_aquariums
+            except (ValueError, TypeError):
+                log.debug("project_initializer.aquarium_count.settings_skipped", exc_info=True)
+
+        log.info(
+            "project_initializer.aquarium_count_synced",
+            num_aquariums=num_aquariums,
+            project_type=pm.get_project_type() if hasattr(pm, "get_project_type") else None,
+        )
 
     # ------------------------------------------------------------------
     # Live / Pre-recorded component setup
