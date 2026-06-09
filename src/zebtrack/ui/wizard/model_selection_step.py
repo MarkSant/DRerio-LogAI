@@ -193,6 +193,19 @@ class ModelSelectionStep(WizardStep):
         aquarium_method = selection.get("aquarium_method", aquarium_method_default)
         animal_method = selection.get("animal_method", animal_method_default)
         use_openvino = selection.get("use_openvino")
+        if (
+            use_openvino is None
+            and self.settings
+            and hasattr(self.settings, "model_selection")
+            and self.settings.model_selection.use_openvino
+        ):
+            # Herdar a configuração global persistida antes do auto-detect,
+            # para que projetos novos nasçam coerentes com o padrão global.
+            use_openvino = True
+            log.info(
+                "wizard.model_selection.openvino_from_global_settings",
+                use_openvino=True,
+            )
         if use_openvino is None:
             # Auto-detect hardware and recommend backend if not explicitly set
             recommended = recommend_backend()
