@@ -802,7 +802,9 @@ class LiveSessionManagerMixin:
         # encerrado acima, então nenhuma thread está mais escrevendo na pasta.
         if cancelled and self.current_output_dir is not None:
             discarded_dir = self.current_output_dir
+            try:
                 shutil.rmtree(discarded_dir)
+                log.info(
                     "live_camera_service.cancelled_session_dir_removed",
                     output_dir=str(discarded_dir),
                 )

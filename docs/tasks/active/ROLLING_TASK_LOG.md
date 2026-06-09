@@ -6,6 +6,51 @@ This document tracks all major agent interventions, technical debt resolutions, 
 
 ## Active Tasks
 
+### [2026-06-09] Sexteto de bugs em projetos live (zonas, lote, contadores, OpenVINO, settings globais)
+
+__ID:__ TASK-067
+__Agent:__ Claude Code (Fable 5)
+__Status:__ In Progress 🔄
+__Branch:__ fix/live-project-bug-sextet
+__Description:__
+Sessão de uso real reportou 6 bugs interligados de severidade alta. Causas-raiz
+confirmadas por investigação + impact_analyzer (plano aprovado pelo usuário):
+(1) zonas do frame de referência live caem em `Grupo_Sem_Grupo/Dia_Indefinido/
+Sujeito_Indefinido` → nova pasta `Zonas_Referencia/` na raiz; (2) reuso de zonas
+falha — `scan_input_paths` ignora PNG e `copy_zone_parquet_files` retorna cedo;
+vídeo gravado já tem parquets próprios que ninguém consulta; (3) "Marcar Lote
+Como Completo" monta `batch_id` com `*` literal que nunca casa com IDs reais
+(`batch_{ts}_{hash}`), ignora retorno False e mostra sucesso fake; quadrado do
+grid não fica verde; (4) contadores da aba Processamentos zerados — sessões live
+ficam `recorded`/`processed`, nunca `complete`, e `recorded` nem é contado;
+(5) bootstrapper ignora `settings.model_selection.use_openvino` (só auto-detect)
+e wizard idem no prefill; (6) `settings.weights.det_filename` não existe
+(AttributeError silenciado com type: ignore em 4 pontos) + "Copiar globais para
+o projeto" não pergunta o alvo e mostra sucesso incondicional.
+
+### Subtasks (TASK-067)
+
+- [ ] Bug 6a: trocar 4 acessos `weights.det_filename` por
+      `get_filenames_for_perspective(...)` (project_view_model,
+      project_lifecycle_coordinator ×2, processing_worker); remover type: ignore.
+- [ ] Bug 5: bootstrapper honra `model_selection.use_openvino` quando modelo
+      convertido; wizard prefill lê settings antes do auto-detect.
+- [ ] Bug 6b: dialog "projeto atual ou outra pasta" no CalibrationDialog +
+      `ModelOverrideService.copy_global_model_settings_to_project_path` +
+      feedback honesto (sem showinfo incondicional).
+- [ ] Bug 1: `resolve_results_directory` → `Zonas_Referencia/` para o
+      reference frame (constantes módulo).
+- [ ] Bug 2: `pm.import_zone_data_from_video_parquets` (auto-import no
+      offer_zone_reuse) + `copy_zone_parquet_files` sem return antecipado e com
+      diretórios-candidatos (parent, resolver, legacy Grupo_Sem_Grupo).
+- [ ] Bug 3: `mark_batch_complete` do dialog gera relatório parcial em thread
+      daemon + `LiveBatchCoordinator.mark_block_complete(group, day)` persiste
+      `batch_reports`; grid verde via `get_batch_reports()`.
+- [ ] Bug 4: `get_project_status_counts` deriva status por flags; rótulo
+      "recorded"; refresh pós-análise live.
+- [ ] Testes novos por bug + suíte rápida + GUI subset + ruff + mypy + pre-commit.
+- [ ] Docs: CHANGELOG, system_integration.md, KNOWN_ISSUES.
+
 ### [2026-06-09] Preparação da aba Análise no 4º call site live (RecordingSessionCoordinator)
 
 __ID:__ TASK-066
