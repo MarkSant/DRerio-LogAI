@@ -127,6 +127,7 @@ class CalibrationCoordinator(BaseCoordinator):
             "scope": scope,
             "project_loaded": project_loaded,
             "project_name": project_name,
+            "project_path": str(project_path) if project_path else None,
             "overrides_active": overrides_active,
             "inheriting_globals": inheriting_globals,
             "is_single_video_mode": is_single_video_mode,

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import tkinter as tk
-from tkinter import StringVar, messagebox, simpledialog, ttk
+from tkinter import StringVar, filedialog, messagebox, simpledialog, ttk
 from typing import Any
 
 import structlog
@@ -16,7 +16,6 @@ from zebtrack.ui.components.model_diagnostics_panel import ModelDiagnosticsPanel
 from zebtrack.ui.components.project_model_configuration_panel import (
     ProjectModelConfigurationPanel,
 )
-from zebtrack.ui.event_bus_v2 import Event, UIEvents
 from zebtrack.ui.icon_utils import set_window_icon
 from zebtrack.ui.window_utils import schedule_maximize
 
@@ -257,23 +256,104 @@ class CalibrationDialog(simpledialog.Dialog):
         if self.calibration_section is not None:
             self._build_calibration_section()
 
+    def _ask_copy_target(self, project_name: str) -> str | None:
+        """Pergunta a qual projeto aplicar os padrões globais.
+
+        Returns:
+            "current" para o projeto aberto, "other" para escolher outra
+            pasta de projeto, None se cancelado.
+        """
+        result: dict[str, str | None] = {"choice": None}
+
+        win = tk.Toplevel(self)
+        win.title("Aplicar padrões globais")
+        win.transient(self)
+        win.resizable(False, False)
+
+        ttk.Label(
+            win,
+            text=(
+                "Aplicar os padrões globais de modelo a qual projeto?\n\n"
+                f"Projeto aberto: {project_name}"
+            ),
+            justify="left",
+            wraplength=440,
+            padding=12,
+        ).pack(fill="x")
+
+        btn_row = ttk.Frame(win, padding=(12, 0, 12, 12))
+        btn_row.pack(fill="x")
+
+        def _choose(choice: str | None) -> None:
+            result["choice"] = choice
+            win.destroy()
+
+        ttk.Button(
+            btn_row,
+            text=f"Projeto atual ({project_name})",
+            command=lambda: _choose("current"),
+        ).pack(side="left", padx=(0, 6))
+        ttk.Button(
+            btn_row,
+            text="Escolher outra pasta…",
+            command=lambda: _choose("other"),
+        ).pack(side="left", padx=(0, 6))
+        ttk.Button(btn_row, text="Cancelar", command=lambda: _choose(None)).pack(side="right")
+
+        win.protocol("WM_DELETE_WINDOW", lambda: _choose(None))
+        win.grab_set()
+        win.wait_window()
+        return result["choice"]
+
     def _on_scope_primary_action(self) -> None:
         if not self.scope_info.get("project_loaded"):
             return
         if self.scope_info.get("scope") != "global":
             return
 
-        from zebtrack.ui.payloads import CalibrationCopyToProjectPayload
-
         project_name = self.scope_info.get("project_name") or "projeto"
-        self.controller.ui_event_bus.publish(
-            Event(
-                type=UIEvents.CALIBRATION_COPY_TO_PROJECT,
-                data=CalibrationCopyToProjectPayload(),
+        choice = self._ask_copy_target(project_name)
+        if choice is None:
+            return
+
+        if choice == "current":
+            result = self.controller.project_vm.handle_calibration_copy_to_project()
+            if result is not None:
+                messagebox.showinfo(
+                    "Projeto atualizado",
+                    f"Os padrões globais foram copiados para o projeto {project_name}.",
+                    parent=self,
+                )
+            else:
+                messagebox.showerror(
+                    "Falha ao copiar",
+                    "Não foi possível aplicar os padrões globais ao projeto. "
+                    "Verifique o log para detalhes.",
+                    parent=self,
+                )
+        else:
+            initial_dir = self.scope_info.get("project_path") or None
+            target = filedialog.askdirectory(
+                title="Selecione a pasta do projeto de destino",
+                initialdir=initial_dir,
+                parent=self,
             )
-        )
-        messagebox.showinfo(
-            "Projeto atualizado",
-            f"Os padrões globais foram copiados para o projeto {project_name}.",
-        )
+            if not target:
+                return
+            result = self.controller.project_vm.handle_calibration_copy_to_project_path(target)
+            if result is not None:
+                messagebox.showinfo(
+                    "Projeto atualizado",
+                    f"Os padrões globais foram copiados para o projeto em:\n{target}",
+                    parent=self,
+                )
+            else:
+                messagebox.showerror(
+                    "Falha ao copiar",
+                    "Não foi possível aplicar os padrões globais ao projeto "
+                    "selecionado.\nVerifique se a pasta contém um projeto "
+                    "ZebTrack válido (project_config.json).",
+                    parent=self,
+                )
+
         self._refresh_scope_context()
