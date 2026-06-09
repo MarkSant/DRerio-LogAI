@@ -947,7 +947,7 @@ class LiveSessionManagerMixin:
 
         if self.event_bus and remaining > 0:
             from zebtrack.ui.event_bus_v2 import Event, UIEvents
-            from zebtrack.ui.payloads import StatusPayload
+            from zebtrack.ui.payloads import AnalysisTaskStatusPayload, StatusPayload
 
             status_msg = (
                 f"● Gravando: {elapsed:.1f}s / {duration_s:.1f}s (Restante: {remaining:.1f}s)"
@@ -955,6 +955,26 @@ class LiveSessionManagerMixin:
             self.event_bus.publish(
                 Event(type=UIEvents.UI_SET_STATUS, data=StatusPayload(message=status_msg)),
             )
+
+            # Alimenta a barra de progresso da aba "Análise" com a fração de
+            # tempo decorrido. Sem isto a barra ficava parada em 0% durante toda
+            # a gravação live (nada publicava progress_fraction intermediário —
+            # só o finalize publica 1.0; antes do reset por sessão ela apenas
+            # exibia os 100% herdados da sessão anterior, mascarando o problema).
+            # O ``step`` replica o texto do countdown para a linha de tarefa.
+            fraction = min(1.0, elapsed / duration_s) if duration_s > 0 else 0.0
+            self.event_bus.publish(
+                Event(
+                    type=UIEvents.UI_UPDATE_ANALYSIS_TASK_STATUS,
+                    data=AnalysisTaskStatusPayload(
+                        experiment_id=self._experiment_id,
+                        step=f"Gravando: {elapsed:.0f}s / {duration_s:.0f}s",
+                        progress_fraction=fraction,
+                    ),
+                    source="live_session_manager.session_countdown",
+                ),
+            )
+
             self.root.after(1000, self._update_session_countdown, duration_s)
 
     def _publish_video_drop_status(self) -> None:
