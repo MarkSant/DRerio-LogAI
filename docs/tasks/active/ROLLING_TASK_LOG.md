@@ -6,6 +6,40 @@ This document tracks all major agent interventions, technical debt resolutions, 
 
 ## Active Tasks
 
+### [2026-06-09] Preparação da aba Análise no 4º call site live (RecordingSessionCoordinator)
+
+__ID:__ TASK-066
+__Agent:__ Claude Code (Fable 5)
+__Status:__ Completed ✅
+__Branch:__ fix/live-sequential-recording-cancel-bugs
+__Description:__
+O commit de91d9d6 corrigiu o preview congelado em gravações ao vivo subsequentes
+chamando `_prepare_analysis_tab_for_live_session()` nos 3 entrypoints do
+`LiveCameraSessionCoordinator`. O 4º call site que despacha para
+`LiveCameraService.start_session(..., use_external_preview=False)` —
+`RecordingSessionCoordinator._schedule_recording` (gravação temporizada de
+projeto live, alcançável via botão "Iniciar Gravação" da aba do projeto +
+retomada por confirmação de zonas em `_on_zone_saved`, que promove
+`is_live_analysis=True`) — não executava a preparação e teria o mesmo sintoma.
+
+### Subtasks (TASK-066)
+
+- [x] Rastrear alcançabilidade: RECORDING_START (tab_builder, projeto live) →
+      hardware_vm → RecordingSessionCoordinator.start_recording → `_on_zone_saved`
+      → `_schedule_recording` branch live. Fluxo VIVO, não é código morto.
+- [x] Extrair lógica para `coordinators/live_session_ui_prep.py` (funções livres
+      `prepare_analysis_tab_for_live_session(view, root)` + 3 helpers) — evita
+      ciclo de DI (RecordingSessionCoordinator é construído antes de
+      LiveCameraSessionCoordinator em `di_registrations`).
+- [x] `LiveCameraSessionCoordinator`: métodos privados viram wrappers finos
+      (preserva testes que os mockam em `test_live_batch_integration.py`).
+- [x] `RecordingSessionCoordinator._schedule_recording`: chamar o prep antes de
+      `start_session` no branch live.
+- [x] Testes novos: `tests/coordinators/test_recording_session_coordinator_live_prep.py`
+      (ordem prep→start_session, não-prep no caminho "dumb recording", helpers
+      compartilhados, headless, root.after).
+- [x] Validar: ruff clean, `mypy .` clean, pytest fast suite verde.
+
 ### [2026-05-09] Refactor "Peso ativo" + Inline completo de Gerenciar Pesos (4-slot UX alignment)
 
 __ID:__ TASK-065

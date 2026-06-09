@@ -24,6 +24,7 @@ from typing import TYPE_CHECKING, Any
 
 import structlog
 
+from zebtrack.coordinators import live_session_ui_prep
 from zebtrack.coordinators.base_coordinator import (
     BaseCoordinator,
     CoordinatorError,
@@ -435,81 +436,25 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
         preview congelado na 2ª gravação (canvas sem re-inscrição e
         ``analysis_active`` desligado pela pós-análise do vídeo anterior).
 
-        Faz três coisas:
-          1. zera os contadores exibidos (Total/Processados/Detectados/Tempo);
-          2. re-inscreve o canvas em UI_UPDATE_LIVE_FRAME;
-          3. religa ``gui.analysis_active`` e reabre a aba de análise.
+        A lógica vive em ``live_session_ui_prep`` (compartilhada com
+        ``RecordingSessionCoordinator``, que despacha gravações temporizadas
+        de projeto live para o mesmo canvas integrado).
         """
         self._reset_live_progress_display()
         self._resubscribe_canvas_live_frames()
         self._activate_live_analysis_view()
 
     def _reset_live_progress_display(self) -> None:
-        """Zera os contadores de progresso da aba Análise para uma nova sessão.
-
-        Sem isto, ao iniciar a 2ª gravação live os rótulos Total/Processados/
-        Detectados/Tempo continuam mostrando os números finais da 1ª sessão até
-        a primeira atualização de stats da nova sessão.
-        """
-        widget = getattr(self.view, "analysis_display_widget", None) if self.view else None
-        if widget is None or not hasattr(widget, "reset_progress_stats"):
-            return
-        if self.root is not None:
-            self.root.after(0, widget.reset_progress_stats)
-        else:
-            widget.reset_progress_stats()
+        """Zera os contadores de progresso da aba Análise (ver live_session_ui_prep)."""
+        live_session_ui_prep.reset_live_progress_display(self.view, self.root)
 
     def _resubscribe_canvas_live_frames(self) -> None:
-        """Re-inscreve o canvas em UI_UPDATE_LIVE_FRAME para a nova sessão.
-
-        A inscrição é idempotente (ver ``CanvasManager.subscribe_to_live_frames``)
-        e é necessária porque ``_finalize_live_session_ui`` desinscreve o canvas
-        a cada stop; sem re-inscrever no start, o preview ao vivo para de
-        atualizar a partir da 2ª sessão.
-        """
-        if (
-            hasattr(self, "view")
-            and self.view
-            and hasattr(self.view, "canvas_manager")
-            and hasattr(self.view.canvas_manager, "subscribe_to_live_frames")
-        ):
-            self.view.canvas_manager.subscribe_to_live_frames()
-            log.info("live_camera_session_coordinator.start_live_session.canvas_resubscribed")
+        """Re-inscreve o canvas em UI_UPDATE_LIVE_FRAME (ver live_session_ui_prep)."""
+        live_session_ui_prep.resubscribe_canvas_live_frames(getattr(self, "view", None))
 
     def _activate_live_analysis_view(self) -> None:
-        """Garante que o modo de análise está ativo para renderizar o preview.
-
-        ``VideoFrameManager.update_video_frame`` só desenha o frame ao vivo
-        quando ``gui.analysis_active`` é True. A pós-análise do vídeo anterior
-        concluído com sucesso chama ``stop_analysis_view_mode`` — que desliga
-        ``analysis_active`` e volta para a aba de zonas — então cada nova sessão
-        precisa religar a flag e reabrir a aba de análise. Sem isto, a 2ª
-        gravação recebe os frames (canvas re-inscrito) mas não os exibe.
-        """
-        view = getattr(self, "view", None)
-        if view is None:
-            return
-        controller = getattr(view, "analysis_view_controller", None)
-
-        def _apply() -> None:
-            try:
-                view.analysis_active = True
-                if controller is not None and hasattr(controller, "switch_to_analysis_view"):
-                    controller.switch_to_analysis_view()
-                log.info(
-                    "live_camera_session_coordinator.start_live_session.analysis_view_activated"
-                )
-            # except Exception justified: never let UI activation abort the start
-            except Exception:
-                log.debug(
-                    "live_camera_session_coordinator.activate_analysis_view.failed",
-                    exc_info=True,
-                )
-
-        if self.root is not None:
-            self.root.after(0, _apply)
-        else:
-            _apply()
+        """Religa ``gui.analysis_active`` e reabre a aba (ver live_session_ui_prep)."""
+        live_session_ui_prep.activate_live_analysis_view(getattr(self, "view", None), self.root)
 
     def _finalize_live_session_ui(
         self,
