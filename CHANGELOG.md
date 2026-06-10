@@ -9,6 +9,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### 🐛 Bug Fixes (June 2026) — follow-ups do sexteto (validação em projeto real)
+
+- **Cores do grid do Progresso**: o ttkbootstrap sobrescrevia o `background=`
+  passado no construtor dos botões com a cor do tema — verde/amarelo/cinza
+  nunca chegavam à tela. A cor agora é aplicada via `configure()` pós-criação
+  (inclusive o verde de lote completo).
+- **Contadores da aba Processamentos (semântica live)**: em projetos live o
+  Total agora é o desenho experimental (dias × grupos × sujeitos); Pendentes =
+  Total − Com Dados; "Com Dados" é cumulativo (inclui Concluídos). Ex.: 6
+  sessões gravadas com relatórios de 12 planejadas → Total 12, Pendentes 6,
+  Com Dados 6, Concluídos 6.
+- **"Copiar globais para o projeto" não persistia**:
+  `save_project_model_slot_overrides` mutava `project_data` em memória e o
+  save condicional do `apply` não enxergava as mutações feitas antes da
+  comparação (mesmo dict) — fechar o app descartava os overrides. O método
+  agora salva o projeto explicitamente.
+
 ### 🐛 Bug Fixes (June 2026) — sexteto de bugs em projetos live
 
 - **Zonas do frame de referência** agora vão para `<projeto>/Zonas_Referencia/`

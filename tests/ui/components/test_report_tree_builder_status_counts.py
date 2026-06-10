@@ -1,9 +1,11 @@
 """Testes de get_project_status_counts (bug 4 — contadores zerados).
 
-Sessões live são persistidas com status "recorded"/"processed" e nunca
-chegam a "complete"; os cards derivam agora o status efetivo dos dados:
-Pendentes = sem dados; Com Dados = trajetória sem relatório; Concluídos =
-com sumário/relatório. "failed"/"complete" explícitos são preservados.
+Semântica dos cards (derivada dos dados em disco, não do status cru):
+- Concluídos = com sumário/relatório (ou status explícito "complete").
+- Com Dados = com trajetória/dados — CUMULATIVO (inclui concluídos), para
+  que "Pendentes = Total - Com Dados" feche.
+- Pendentes = unidades planejadas sem dados; em projetos live o total é o
+  desenho experimental (dias x grupos x sujeitos), não só as gravadas.
 """
 
 from __future__ import annotations
@@ -14,9 +16,20 @@ from zebtrack.ui.components.project_views.report_tree_builder import ReportTreeB
 class _FakeProjectManager:
     """ProjectManager mínimo: flags por vídeo vindas do próprio dict."""
 
-    def __init__(self, videos: list[dict]) -> None:
+    def __init__(
+        self,
+        videos: list[dict],
+        *,
+        project_type: str = "prerecorded",
+        project_data: dict | None = None,
+    ) -> None:
         self._videos = videos
         self._by_path = {v["path"]: v for v in videos}
+        self._project_type = project_type
+        self.project_data = project_data or {}
+
+    def get_project_type(self) -> str:
+        return self._project_type
 
     def get_all_videos(self) -> list[dict]:
         return self._videos
@@ -37,36 +50,36 @@ class _FakeProjectManager:
         return self._flag(path, "has_summary")
 
 
-def _builder(videos: list[dict]) -> ReportTreeBuilder:
-    pm = _FakeProjectManager(videos)
+def _builder(videos: list[dict], **pm_kwargs) -> ReportTreeBuilder:
+    pm = _FakeProjectManager(videos, **pm_kwargs)
     return ReportTreeBuilder(project_manager_getter=lambda: pm)
 
 
-def test_live_recorded_video_with_reports_counts_as_complete():
-    """Sessão live com sumário: status cru "recorded" vira Concluído."""
-    videos = [
-        {
-            "path": "p/s1.mp4",
-            "status": "recorded",
-            "has_arena": True,
-            "has_rois": True,
-            "has_trajectory": True,
-            "has_summary": True,
-        }
-    ]
+_DONE: dict = {
+    "status": "recorded",
+    "has_arena": True,
+    "has_rois": True,
+    "has_trajectory": True,
+    "has_summary": True,
+}
+
+
+def test_live_recorded_video_with_reports_counts_complete_and_processed():
+    """Sessão live com sumário conta como Concluído E Com Dados (cumulativo)."""
+    videos: list[dict] = [{"path": "p/s1.mp4", **_DONE}]
 
     counts = _builder(videos).get_project_status_counts()
 
     assert counts["total"] == 1
     assert counts["complete"] == 1
+    assert counts["processed"] == 1
     assert counts["pending"] == 0
-    assert counts["processed"] == 0
     assert counts["summary"] == 1
 
 
 def test_recorded_without_any_data_counts_as_pending():
     """ "recorded" sem dados não some mais da contagem: vira Pendente."""
-    videos = [{"path": "p/s2.mp4", "status": "recorded"}]
+    videos: list[dict] = [{"path": "p/s2.mp4", "status": "recorded"}]
 
     counts = _builder(videos).get_project_status_counts()
 
@@ -75,24 +88,18 @@ def test_recorded_without_any_data_counts_as_pending():
     assert counts["processed"] == 0
 
 
-def test_trajectory_without_summary_counts_as_processed():
-    videos = [
-        {
-            "path": "p/s3.mp4",
-            "status": "recorded",
-            "has_trajectory": True,
-        }
-    ]
+def test_trajectory_without_summary_counts_as_processed_only():
+    videos: list[dict] = [{"path": "p/s3.mp4", "status": "recorded", "has_trajectory": True}]
 
     counts = _builder(videos).get_project_status_counts()
 
     assert counts["processed"] == 1
-    assert counts["pending"] == 0
     assert counts["complete"] == 0
+    assert counts["pending"] == 0
 
 
 def test_explicit_failed_and_complete_are_preserved():
-    """Status explícitos vencem a derivação por flags."""
+    """Status explícitos vencem a derivação por flags; falha não conta em dados."""
     videos: list[dict] = [
         {"path": "p/f.mp4", "status": "failed", "has_summary": True},
         {"path": "p/c.mp4", "status": "complete"},
@@ -102,11 +109,12 @@ def test_explicit_failed_and_complete_are_preserved():
 
     assert counts["failed"] == 1
     assert counts["complete"] == 1
+    assert counts["processed"] == 1  # complete explícito conta como com dados
     assert counts["pending"] == 0
 
 
 def test_processing_status_kept_when_no_data_yet():
-    videos = [{"path": "p/w.mp4", "status": "processing"}]
+    videos: list[dict] = [{"path": "p/w.mp4", "status": "processing"}]
 
     counts = _builder(videos).get_project_status_counts()
 
@@ -114,22 +122,45 @@ def test_processing_status_kept_when_no_data_yet():
     assert counts["pending"] == 0
 
 
-def test_mixed_project_matches_user_expectation():
-    """Cenário do relato: N gravados com relatórios + 1 pendente.
+def test_live_project_pending_uses_experimental_design():
+    """Cenário real (Live_T7): 6 gravadas com relatórios de 12 planejadas.
 
-    Esperado: Total=3, Concluídos=2, Pendentes=1 (total menos com dados),
-    nada zerado indevidamente.
+    Total = 3 dias x 2 grupos x 2 sujeitos = 12; Pendentes = 12 - 6 = 6
+    ("total menos os com dados"); Com Dados = 6; Concluídos = 6.
     """
-    done: dict = {
-        "status": "recorded",
-        "has_arena": True,
-        "has_rois": True,
-        "has_trajectory": True,
-        "has_summary": True,
-    }
+    videos: list[dict] = [{"path": f"p/s{i}.mp4", **_DONE} for i in range(6)]
+
+    counts = _builder(
+        videos,
+        project_type="live",
+        project_data={
+            "experiment_days": 3,
+            "groups": ["Controle", "Tratamento 1"],
+            "subjects_per_group": 2,
+        },
+    ).get_project_status_counts()
+
+    assert counts["total"] == 12
+    assert counts["processed"] == 6
+    assert counts["complete"] == 6
+    assert counts["pending"] == 6
+    assert counts["failed"] == 0
+
+
+def test_live_project_without_design_falls_back_to_video_count():
+    videos: list[dict] = [{"path": "p/a.mp4", **_DONE}]
+
+    counts = _builder(videos, project_type="live", project_data={}).get_project_status_counts()
+
+    assert counts["total"] == 1
+    assert counts["pending"] == 0
+
+
+def test_prerecorded_mixed_project():
+    """Pré-gravado: total = vídeos registrados; pendente = sem dados."""
     videos: list[dict] = [
-        {"path": "p/a.mp4", **done},
-        {"path": "p/b.mp4", **done},
+        {"path": "p/a.mp4", **_DONE},
+        {"path": "p/b.mp4", **_DONE},
         {"path": "p/c.mp4", "status": "pending"},
     ]
 
@@ -137,5 +168,6 @@ def test_mixed_project_matches_user_expectation():
 
     assert counts["total"] == 3
     assert counts["complete"] == 2
+    assert counts["processed"] == 2
     assert counts["pending"] == 1
     assert counts["failed"] == 0

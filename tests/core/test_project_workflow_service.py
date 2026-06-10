@@ -338,6 +338,12 @@ class TestProjectWorkflowServiceModelSettings(unittest.TestCase):
             self.mock_project_manager.project_data["model_overrides"]["active_weight"]
             == "project_seg.pt"
         )
+        # Persistência garantida: apply_project_model_overrides só salva
+        # quando detecta diff nos espelhos-raiz; as mutações de slot_weights
+        # acontecem ANTES da comparação (mesmo dict) e passavam despercebidas
+        # — era assim que "Copiar globais para o projeto" se perdia ao fechar
+        # o app. Pode haver um segundo save vindo do apply (inócuo).
+        assert self.mock_project_manager.save_project.call_count >= 1
 
     def test_apply_project_model_overrides_without_project(self):
         """Test applying overrides returns globals when no project."""

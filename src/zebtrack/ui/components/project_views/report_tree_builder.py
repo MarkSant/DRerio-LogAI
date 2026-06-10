@@ -735,12 +735,35 @@ class ReportTreeBuilder:
     # ------------------------------------------------------------------
 
     def get_project_status_counts(self) -> dict[str, int]:
-        """Calculate status counts for the project."""
+        """Calculate status counts for the project.
+
+        Semântica dos cards (derivada dos dados em disco, não do status cru —
+        sessões live ficam "recorded"/"processed" e nunca viram "complete"):
+
+        - ``complete`` (Concluídos): com sumário/relatório, ou status
+          explícito ``complete``.
+        - ``processed`` (Com Dados): com trajetória/dados — CUMULATIVO
+          (inclui os concluídos), para que "Pendentes = Total − Com Dados"
+          feche como o usuário espera.
+        - ``pending`` (Pendentes): unidades planejadas ainda sem dados. Em
+          projetos live o total é o desenho experimental (dias × grupos ×
+          sujeitos por grupo), não apenas as sessões já gravadas.
+        """
         pm = self.project_manager
         all_videos = pm.get_all_videos()
 
+        total = len(all_videos)
+        get_project_type = getattr(pm, "get_project_type", None)
+        if callable(get_project_type) and get_project_type() == "live":
+            project_data = getattr(pm, "project_data", {}) or {}
+            days = project_data.get("experiment_days") or 0
+            groups = project_data.get("groups") or []
+            subjects = project_data.get("subjects_per_group") or 0
+            planned = days * len(groups) * subjects
+            total = max(total, planned)
+
         counts: dict[str, int] = {
-            "total": len(all_videos),
+            "total": total,
             "pending": 0,
             "processing": 0,
             "processed": 0,
@@ -752,6 +775,7 @@ class ReportTreeBuilder:
             "summary": 0,
         }
 
+        beyond_pending = 0
         for video in all_videos:
             path = video.get("path")
             has_trajectory = bool(path and pm.has_trajectory_data(path))
@@ -767,19 +791,24 @@ class ReportTreeBuilder:
                 if has_summary:
                     counts["summary"] += 1
 
-            status = video.get("status", "pending")
-            # Deriva o status efetivo pelos dados existentes: sessões live são
-            # persistidas como "recorded"/"processed" e nunca chegam a
-            # "complete", o que zerava os cards Pendentes/Concluídos (só Total
-            # e Com Dados populavam). Pendentes = sem dados; Com Dados =
-            # trajetória sem relatório; Concluídos = com sumário/relatório.
-            if status not in ("failed", "complete"):
-                if has_summary:
-                    status = "complete"
-                elif has_trajectory:
-                    status = "processed"
-                elif status != "processing":
-                    status = "pending"
-            counts[status] += 1
+            raw_status = video.get("status", "pending")
+            is_complete = has_summary or raw_status == "complete"
+            has_data = has_trajectory or is_complete or raw_status == "processed"
+
+            if raw_status == "failed":
+                counts["failed"] += 1
+                beyond_pending += 1
+                continue
+
+            if is_complete:
+                counts["complete"] += 1
+            if has_data:
+                counts["processed"] += 1
+                beyond_pending += 1
+            elif raw_status == "processing":
+                counts["processing"] += 1
+                beyond_pending += 1
+
+        counts["pending"] = max(0, total - beyond_pending)
 
         return counts

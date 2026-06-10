@@ -174,12 +174,22 @@ class ProjectWidgetsBuilder:
                     cell_btn = Button(
                         self.gui.grid_container,
                         text=status_text,
-                        background=color,
                         width=15,
                         height=3,
                         command=partial(
                             self.gui.dialog_manager.handle_grid_cell_click, day, group_name
                         ),
+                    )
+                    # A cor DEVE ser aplicada via configure() pós-criação: o
+                    # ttkbootstrap intercepta widgets tk legados no construtor
+                    # e sobrescreve o background= com a cor do tema (litera
+                    # primary #4582ec) — por isso o grid nunca exibia
+                    # verde/amarelo/cinza no app real.
+                    cell_btn.configure(
+                        background=color,
+                        activebackground=color,
+                        foreground="#1a1a1a",
+                        activeforeground="#1a1a1a",
                     )
                     cell_btn.grid(row=i + 1, column=j + 1, padx=2, pady=2, sticky="nsew")
 
