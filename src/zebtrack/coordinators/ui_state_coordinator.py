@@ -358,6 +358,21 @@ class UIStateController:
                     active_weight=self.main_view_model.active_weight_name,
                     use_openvino=self.main_view_model.use_openvino,
                 )
+                # Persiste a escolha global em config.local.yaml para que ela
+                # sobreviva ao reinício (o bootstrapper honra esse valor na
+                # auto-configuração de hardware).
+                settings_obj = getattr(self.main_view_model, "settings_obj", None)
+                if settings_obj is not None and hasattr(settings_obj, "model_selection"):
+                    settings_obj.model_selection.use_openvino = bool(use_openvino)
+                    from zebtrack.settings import save_settings
+
+                    try:
+                        save_settings(settings_obj)
+                    except (OSError, ValueError) as exc:
+                        logger.error(
+                            "controller.openvino_usage.persist_failed",
+                            error=str(exc),
+                        )
 
     def convert_active_weight_to_openvino(self, dialog):
         """

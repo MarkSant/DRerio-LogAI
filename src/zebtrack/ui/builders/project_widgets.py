@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import tkinter as tk
 from tkinter import Frame, Label, ttk
 
@@ -127,6 +128,7 @@ class ProjectWidgetsBuilder:
                 return
 
             completed_sessions = pm.get_completed_sessions()
+            completed_blocks = self._get_completed_blocks(pm)
 
             ttk.Label(
                 self.gui.grid_container, text="Dia/Grupo", font=("Helvetica", 10, "bold")
@@ -156,7 +158,11 @@ class ProjectWidgetsBuilder:
 
                     status_text = f"{completed_count}/{subjects_per_group}"
 
-                    if completed_count == 0:
+                    # Lote marcado como completo manualmente vence a contagem:
+                    # verde mesmo com menos sujeitos que o planejado.
+                    if (group_name, day) in completed_blocks:
+                        color = "#90EE90"
+                    elif completed_count == 0:
                         color = "#E0E0E0"
                     elif completed_count < subjects_per_group:
                         color = "#FFFACD"
@@ -168,12 +174,22 @@ class ProjectWidgetsBuilder:
                     cell_btn = Button(
                         self.gui.grid_container,
                         text=status_text,
-                        background=color,
                         width=15,
                         height=3,
                         command=partial(
                             self.gui.dialog_manager.handle_grid_cell_click, day, group_name
                         ),
+                    )
+                    # A cor DEVE ser aplicada via configure() pós-criação: o
+                    # ttkbootstrap intercepta widgets tk legados no construtor
+                    # e sobrescreve o background= com a cor do tema (litera
+                    # primary #4582ec) — por isso o grid nunca exibia
+                    # verde/amarelo/cinza no app real.
+                    cell_btn.configure(
+                        background=color,
+                        activebackground=color,
+                        foreground="#1a1a1a",
+                        activeforeground="#1a1a1a",
                     )
                     cell_btn.grid(row=i + 1, column=j + 1, padx=2, pady=2, sticky="nsew")
 
@@ -189,6 +205,34 @@ class ProjectWidgetsBuilder:
                 ).pack(pady=20)
             except tk.TclError:
                 log.debug("widget_factory.error_label.double_fault", exc_info=True)
+
+    @staticmethod
+    def _get_completed_blocks(pm) -> set[tuple[str, int]]:
+        """Lotes (grupo, dia) marcados como completos em ``batch_reports``.
+
+        Persistidos por ``LiveBatchCoordinator.mark_block_complete``; o dia é
+        normalizado por dígitos para casar "1", "Dia 1" e "Dia_1".
+        """
+        completed: set[tuple[str, int]] = set()
+        get_reports = getattr(pm, "get_batch_reports", None)
+        if not callable(get_reports):
+            return completed
+        try:
+            reports = get_reports() or {}
+        # except Exception justified: leitura defensiva de project_data — a
+        # grade deve renderizar mesmo com registros de lote malformados.
+        except Exception:
+            log.debug("widget_factory.batch_reports.read_failed", exc_info=True)
+            return completed
+
+        for info in reports.values():
+            if not isinstance(info, dict):
+                continue
+            group = info.get("group")
+            day_match = re.search(r"\d+", str(info.get("day") or ""))
+            if group and day_match:
+                completed.add((str(group), int(day_match.group(0))))
+        return completed
 
     def create_project_overview_panel(self, parent: ttk.Frame) -> None:
         """Create the project overview panel using ProjectOverviewWidget."""

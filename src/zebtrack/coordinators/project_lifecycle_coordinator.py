@@ -440,7 +440,7 @@ class ProjectLifecycleCoordinator(BaseCoordinator):
         if self.state_manager:
             detector_state = self.state_manager.get_detector_state()
             return detector_state.active_weight_name or ""
-        return self.settings.weights.det_filename if self.settings else ""  # type: ignore[attr-defined]
+        return self.settings.get_default_det_filename() if self.settings else ""
 
     def _default_get_use_openvino(self) -> bool:
         """Default getter for OpenVINO usage from state_manager."""
@@ -586,7 +586,7 @@ class ProjectLifecycleCoordinator(BaseCoordinator):
             if self.state_manager:
                 detector_state = self.state_manager.get_detector_state()
                 return detector_state.active_weight_name or ""
-            return self.settings.weights.det_filename if self.settings else ""  # type: ignore[attr-defined]
+            return self.settings.get_default_det_filename() if self.settings else ""
 
         def _default_get_use_openvino() -> bool:
             """Default getter for OpenVINO usage from state_manager."""
@@ -937,6 +937,19 @@ class ProjectLifecycleCoordinator(BaseCoordinator):
         if self._model_override_service:
             return self._model_override_service.copy_global_model_settings_to_project(
                 get_global_defaults, get_active_weight_name, refresh_callback
+            )
+        return None
+
+    def copy_global_model_settings_to_project_path(
+        self,
+        target_dir: Path | str,
+        get_global_defaults: Callable[[], dict],
+        get_active_weight_name: Callable[[], str | None],
+    ) -> tuple[str | None, bool] | None:
+        """Copy global model settings into the project located at ``target_dir``."""
+        if self._model_override_service:
+            return self._model_override_service.copy_global_model_settings_to_project_path(
+                target_dir, get_global_defaults, get_active_weight_name
             )
         return None
 

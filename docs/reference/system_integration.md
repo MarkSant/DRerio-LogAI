@@ -377,6 +377,54 @@ Understanding who holds what references prevents "AttributeError" and circular d
 
 **Reference:** See `docs/decisions/ADR-004-live-camera-divergence.md` for full decision record.
 
+### 5.4. Live Zones, Batch Completion & Status Counts (June 2026)
+
+Cross-component contracts introduced by the live-project bug-sextet fix
+(branch `fix/live-project-bug-sextet`):
+
+- **Reference-frame zones folder:** zone parquets drawn over
+  `live_camera_reference_frame.png` are written to
+  `<project>/Zonas_Referencia/` (constants `LIVE_REFERENCE_FRAME_FILENAME` /
+  `REFERENCE_ZONES_DIRNAME` in `core/project/output_registration_manager.py`).
+  `resolve_results_directory` special-cases the reference frame BEFORE the
+  hierarchical group/day/subject resolution. Legacy projects that stored these
+  parquets under `Grupo_Sem_Grupo/Dia_Indefinido/Sujeito_Indefinido/` are
+  still readable (fallback in `ParquetIOManager._resolve_source_zone_parquets`).
+- **Zone reuse lookup chain** (`ParquetIOManager.copy_zone_parquet_files`):
+  scan → registered `parquet_files` on the video entry → candidate dirs
+  (source parent, resolver dir, legacy path). An empty scan no longer
+  short-circuits (PNG sources return empty scans by design). The copy never
+  re-creates the `Grupo_Sem_Grupo` hierarchy for targets without group
+  metadata.
+- **Self-import of zone parquets:**
+  `ProjectManager.import_zone_data_from_video_parquets(video_path)` loads
+  arena/ROIs from the video's OWN session folder into the zone registry;
+  `DialogManager.offer_zone_reuse` calls it before offering reuse from another
+  video (live recordings always have their own parquets).
+- **Batch completion:** `LiveBatchCoordinator.mark_block_complete(group, day,
+  *, unified_excel, session_count)` matches in-memory batches by normalized
+  (group, day) — NOT by batch_id — and always persists into
+  `project_data["batch_reports"]`, publishing `BATCH_ANALYSIS_COMPLETED`.
+  `BlockDetailDialog.mark_batch_complete` runs the partial-report generator in
+  a daemon thread and marshals UI feedback via `master.after(0, ...)`.
+  The Progress grid (`ProjectWidgetsBuilder.render_progress_grid`) paints a
+  cell green when its (group, day) appears in `pm.get_batch_reports()`,
+  regardless of session count.
+- **Status counts:** `ReportTreeBuilder.get_project_status_counts` derives the
+  effective status from data flags (summary → `complete`, trajectory →
+  `processed`, none → `pending`); explicit `failed`/`complete` are preserved.
+  Live sessions persist raw statuses `recorded`/`processed` — do not add raw
+  statuses to the cards without updating the derivation.
+- **Global model defaults:** the bootstrapper honours
+  `settings.model_selection.use_openvino` (converted model required); the
+  global OpenVINO toggle persists via `save_settings()` to
+  `config.local.yaml`; `Settings.get_default_det_filename()` is the canonical
+  perspective-aware detection-weight resolver (there is NO flat
+  `weights.det_filename`). `ModelOverrideService.
+  copy_global_model_settings_to_project_path(target_dir, ...)` writes
+  overrides into another project's `project_config.json` via `ProjectService`
+  (integrity hash preserved) without switching the open project.
+
 ---
 
 ## 6. Common Pitfalls for Agents

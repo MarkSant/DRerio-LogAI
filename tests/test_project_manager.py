@@ -190,26 +190,20 @@ class TestProjectManager(unittest.TestCase):
         expected_parent_arena = os.path.join(target_parent, "1_ProcessingArea_target.parquet")
         expected_parent_rois = os.path.join(target_parent, "2_AreasOfInterest_target.parquet")
         hierarchical_dir = pm.resolve_results_directory("target", video_path=target_video)
-        expected_results_arena = os.path.join(
-            str(hierarchical_dir), "1_ProcessingArea_target.parquet"
-        )
-        expected_results_rois = os.path.join(
-            str(hierarchical_dir), "2_AreasOfInterest_target.parquet"
-        )
 
         # Files should be duplicated to the parent directory
         self.assertTrue(os.path.exists(expected_parent_arena))
         self.assertTrue(os.path.exists(expected_parent_rois))
-        # And also to the hierarchical project results directory
-        self.assertTrue(os.path.exists(expected_results_arena))
-        self.assertTrue(os.path.exists(expected_results_rois))
+        # Alvo SEM metadados de grupo: a copia nao deve recriar a hierarquia
+        # fantasma Grupo_Sem_Grupo/... (bug-sexteto live, junho 2026). O dir
+        # hierarquico resolvido cai no fallback sem grupo e fica intocado.
+        self.assertIn("Grupo_Sem_Grupo", str(hierarchical_dir))
+        self.assertFalse(os.path.exists(str(hierarchical_dir)))
 
         self.assertIn("arena", copied)
         self.assertIn("rois", copied)
-        self.assertEqual(
-            os.path.normpath(copied["arena"]), os.path.normpath(expected_results_arena)
-        )
-        self.assertEqual(os.path.normpath(copied["rois"]), os.path.normpath(expected_results_rois))
+        self.assertEqual(os.path.normpath(copied["arena"]), os.path.normpath(expected_parent_arena))
+        self.assertEqual(os.path.normpath(copied["rois"]), os.path.normpath(expected_parent_rois))
 
         target_entry = pm.find_video_entry(path=target_video)
         self.assertIsNotNone(target_entry)
@@ -217,11 +211,11 @@ class TestProjectManager(unittest.TestCase):
         parquet_map = target_entry.get("parquet_files", {})
         self.assertEqual(
             os.path.normpath(parquet_map.get("arena", "")),
-            os.path.normpath(expected_results_arena),
+            os.path.normpath(expected_parent_arena),
         )
         self.assertEqual(
             os.path.normpath(parquet_map.get("rois", "")),
-            os.path.normpath(expected_results_rois),
+            os.path.normpath(expected_parent_rois),
         )
 
     def test_zone_data_lookup_normalizes_video_paths(self):

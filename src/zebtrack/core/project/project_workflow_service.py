@@ -471,6 +471,20 @@ class ProjectWorkflowService:
         )
         overrides["use_openvino"] = use_openvino_override
 
+        # Persiste imediatamente: este caminho atende o painel "Configuração
+        # de Modelos do Projeto" e o "Copiar globais para o projeto". Sem o
+        # save, os overrides só viviam em project_data em memória e se
+        # perdiam ao fechar o app sem outro save_project no meio.
+        # except Exception justified: persistência best-effort — a aplicação
+        # em runtime (abaixo) continua válida mesmo se o disco falhar.
+        try:
+            self.project_manager.save_project()
+        except Exception:
+            log.warning(
+                "project_workflow_service.slot_overrides.save_failed",
+                exc_info=True,
+            )
+
         return self.apply_project_model_overrides(
             overrides=overrides,
             active_weight_setter=lambda _weight: None,

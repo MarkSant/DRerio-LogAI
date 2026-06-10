@@ -122,6 +122,12 @@ jobs:
           # Re-evaluate when torch publishes a patched release within our
           # ``torch >=2.8.0,<3.0.0`` constraint and drop the corresponding
           # ``--ignore-vuln`` lines as they get addressed upstream.
+          #
+          # CVE-2025-3000: torch.jit.script memory corruption (CVSS 5.3,
+          # MEDIUM, local-only segfault, no upstream fix in 2.x). ZebTrack
+          # runs torch only for YOLO/OpenVINO inference and does not define
+          # scripted classes with list attributes, so the attack surface is
+          # not reachable here.
           poetry run pip-audit --strict -r /tmp/requirements.txt \
             --ignore-vuln PYSEC-2025-210 \
             --ignore-vuln PYSEC-2025-197 \
@@ -133,7 +139,8 @@ jobs:
             --ignore-vuln PYSEC-2025-191 \
             --ignore-vuln PYSEC-2025-190 \
             --ignore-vuln PYSEC-2025-189 \
-            --ignore-vuln PYSEC-2026-139
+            --ignore-vuln PYSEC-2026-139 \
+            --ignore-vuln CVE-2025-3000
 
       - name: Run bandit
         run: |

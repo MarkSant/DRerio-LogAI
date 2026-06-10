@@ -966,6 +966,10 @@ class TestConfirmationDialogs:
         mock_gui.controller.project_manager.clone_zone_data_from_video.return_value = {}
         mock_gui.controller.project_manager.save_zone_data.return_value = None
         mock_gui.controller.project_manager.copy_zone_parquet_files.return_value = []
+        # Sem parquets próprios: o fluxo deve seguir para o prompt de reuso.
+        mock_gui.controller.project_manager.import_zone_data_from_video_parquets.return_value = (
+            False
+        )
         mock_gui._zone_prompt_history = set()
 
         with patch.object(dialog_manager, "show_warning") as mock_warning:
@@ -987,6 +991,34 @@ class TestConfirmationDialogs:
         assert UIEvents.PROJECT_VIEWS_REFRESH_REQUESTED in event_types
 
     @patch("zebtrack.ui.components.dialog_manager.messagebox")
+    def test_offer_zone_reuse_self_import_skips_prompt(
+        self, mock_messagebox, dialog_manager, mock_gui, mock_event_bus
+    ):
+        """Vídeo com parquets próprios: importa silenciosamente, sem prompt.
+
+        Gravações live já têm 1_ProcessingArea_*/2_AreasOfInterest_* na pasta
+        da sessão; o double-click deve carregá-los direto (bug-sexteto live).
+        """
+        pm = mock_gui.controller.project_manager
+        pm.has_zone_data.return_value = False
+        pm.has_zone_data.side_effect = None
+        pm.import_zone_data_from_video_parquets.return_value = True
+        mock_gui._zone_prompt_history = set()
+
+        dialog_manager.offer_zone_reuse("video1.mp4")
+
+        pm.import_zone_data_from_video_parquets.assert_called_once_with("video1.mp4")
+        pm.save_project.assert_called_once()
+        mock_messagebox.askyesno.assert_not_called()
+        pm.get_last_zone_video.assert_not_called()
+
+        # Publica o trio de refresh para a UI refletir as zonas carregadas.
+        event_types = [call[0][0].type for call in mock_event_bus.publish.call_args_list]
+        assert UIEvents.ZONES_UPDATED in event_types
+        assert UIEvents.VIDEO_TREE_REFRESH_REQUESTED in event_types
+        assert UIEvents.PROJECT_VIEWS_REFRESH_REQUESTED in event_types
+
+    @patch("zebtrack.ui.components.dialog_manager.messagebox")
     def test_offer_zone_reuse_declined(
         self, mock_messagebox, dialog_manager, mock_gui, mock_event_bus
     ):
@@ -1003,6 +1035,10 @@ class TestConfirmationDialogs:
 
         mock_gui.controller.project_manager.has_zone_data.side_effect = has_zone_data_side_effect
         mock_gui.controller.project_manager.get_last_zone_video.return_value = "video2.mp4"
+        # Sem parquets próprios: o fluxo deve seguir para o prompt de reuso.
+        mock_gui.controller.project_manager.import_zone_data_from_video_parquets.return_value = (
+            False
+        )
         mock_gui._zone_prompt_history = set()
 
         dialog_manager.offer_zone_reuse("video1.mp4")

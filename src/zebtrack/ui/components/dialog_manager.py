@@ -1126,6 +1126,58 @@ class DialogManager:
         if pm.has_zone_data(video_path):
             return
 
+        # O próprio vídeo pode já ter os parquets de zona na pasta da sessão
+        # (gravações live salvam 1_ProcessingArea_*/2_AreasOfInterest_* junto
+        # do MP4, mas o registro de zonas fica sob a chave do frame de
+        # referência). Importa silenciosamente em vez de oferecer reuso.
+        try:
+            imported = pm.import_zone_data_from_video_parquets(video_path)
+        # except Exception justified: leitura de parquet de usuário pode
+        # falhar por corrupção; cai no fluxo de reuso normal.
+        except Exception:
+            log.warning(
+                "dialog_manager.zone_self_import.failed",
+                video=str(video_path),
+                exc_info=True,
+            )
+            imported = False
+
+        if imported:
+            pm.save_project()
+            status_message = (
+                f'Zonas carregadas dos arquivos do vídeo "{os.path.basename(video_path)}".'
+            )
+            self.gui.set_status(status_message)
+            if self.event_bus_v2:
+                from zebtrack.ui import payloads
+                from zebtrack.ui.event_bus_v2 import Event, UIEvents
+
+                self.event_bus_v2.publish(
+                    Event(
+                        type=UIEvents.ZONES_UPDATED,
+                        data=payloads.ZonesUpdatedPayload(zone_data=None),
+                        source="DialogManager.offer_zone_reuse.self_import",
+                    )
+                )
+                self.event_bus_v2.publish(
+                    Event(
+                        type=UIEvents.VIDEO_TREE_REFRESH_REQUESTED,
+                        data=payloads.VideoTreeRefreshRequestedPayload(filter_text=None),
+                        source="DialogManager.offer_zone_reuse.self_import",
+                    )
+                )
+                self.event_bus_v2.publish(
+                    Event(
+                        type=UIEvents.PROJECT_VIEWS_REFRESH_REQUESTED,
+                        data=payloads.ProjectViewsRefreshRequestedPayload(
+                            reason=status_message,
+                            append_summary=True,
+                        ),
+                        source="DialogManager.offer_zone_reuse.self_import",
+                    )
+                )
+            return
+
         last_video_with_zones = pm.get_last_zone_video(exclude=video_path)
         if not last_video_with_zones or not pm.has_zone_data(last_video_with_zones):
             return

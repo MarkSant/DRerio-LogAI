@@ -1121,6 +1121,17 @@ class Settings(BaseModel):
 
         return self
 
+    def get_default_det_filename(self) -> str:
+        """Return the detection weight filename for the configured perspective.
+
+        Weights are nested per perspective (``weights.lateral`` /
+        ``weights.top_down``), so there is no flat ``weights.det_filename``.
+        This resolves the correct one via
+        ``behavioral_analysis.aquarium_perspective``.
+        """
+        perspective = self.behavioral_analysis.aquarium_perspective
+        return self.weights.get_filenames_for_perspective(perspective).det_filename
+
 
 def _deep_merge_dicts(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]:
     """Recursively merge two dictionaries, with override taking precedence.

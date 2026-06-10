@@ -17,6 +17,7 @@ Date: January 2026
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
@@ -400,6 +401,92 @@ class LiveBatchCoordinator:
             self.logger.error("live_batch.complete.failed", batch_id=batch_id)
 
         return success
+
+    @staticmethod
+    def _normalize_day_key(day_value: object) -> str:
+        """Extrai os dígitos do dia para comparação ("Dia 1", "Dia_1", 1 → "1")."""
+        text = str(day_value or "")
+        match = re.search(r"\d+", text)
+        if match:
+            return match.group(0).lstrip("0") or "0"
+        return text.strip().lower()
+
+    def mark_block_complete(
+        self,
+        group: str,
+        day: int | str,
+        *,
+        unified_excel: Path | str,
+        session_count: int,
+    ) -> bool:
+        """Marca o lote (grupo+dia) como completo e persiste em batch_reports.
+
+        Diferente de ``mark_batch_complete(batch_id)``, não depende do
+        dicionário em memória ``_active_batches`` (perdido ao reiniciar o
+        app): casa lotes ativos por (group, day) quando existem e SEMPRE
+        persiste a completude em ``project_data["batch_reports"]`` — fonte
+        que o grid do Progresso do Experimento usa para pintar o quadrado
+        de verde.
+
+        Args:
+            group: Nome do grupo experimental do lote.
+            day: Dia do lote (int ou rótulo como "Dia 1").
+            unified_excel: Caminho do relatório consolidado já gerado.
+            session_count: Quantidade de sessões agregadas no relatório.
+
+        Returns:
+            True quando a completude foi registrada no projeto.
+        """
+        day_str = str(day)
+        day_key = self._normalize_day_key(day_str)
+        batch_id: str | None = None
+
+        for batch in self._active_batches.values():
+            if (batch.group or "") == group and self._normalize_day_key(batch.day) == day_key:
+                batch.is_complete = True
+                batch.completed_at = datetime.now()
+                batch_id = batch.batch_id
+                break
+
+        if batch_id is None:
+            timestamp_str = datetime.now().strftime("%Y%m%d_%H%M%S")
+            batch_id = f"manual_{group}_Dia{day_key}_{timestamp_str}"
+
+        registered = bool(
+            self.project_manager.register_batch_outputs(
+                batch_id=batch_id,
+                unified_excel=str(unified_excel),
+                session_count=session_count,
+                group=group,
+                day=day_str,
+            )
+        )
+
+        if registered and self.event_bus:
+            from zebtrack.ui import payloads
+            from zebtrack.ui.event_bus_v2 import Event, UIEvents
+
+            self.event_bus.publish(
+                Event(
+                    type=UIEvents.BATCH_ANALYSIS_COMPLETED,
+                    data=payloads.LiveBatchCompletedPayload(
+                        batch_id=batch_id,
+                        session_count=session_count,
+                        group=group,
+                        day=day_str,
+                        subject_id=None,
+                    ),
+                )
+            )
+
+        self.logger.info(
+            "live_batch.block_complete",
+            group=group,
+            day=day_str,
+            batch_id=batch_id,
+            registered=registered,
+        )
+        return registered
 
     def get_active_batches(self) -> list[BatchMetadata]:
         """Get list of all active (incomplete) batches.

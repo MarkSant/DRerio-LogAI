@@ -29,9 +29,16 @@ def view_model():
     batch_configuration_service = Mock()
     batch_configuration_service.apply_settings.return_value = ["ok"]
 
+    # Espelha o shape real de Settings: pesos aninhados por perspectiva e o
+    # helper get_default_det_filename (não existe weights.det_filename plano).
     settings_obj = SimpleNamespace(
-        weights=SimpleNamespace(det_filename="default.pt"),
+        weights=SimpleNamespace(
+            lateral=SimpleNamespace(det_filename="default.pt", seg_filename="seg.pt"),
+            top_down=SimpleNamespace(det_filename="default_td.pt", seg_filename="seg_td.pt"),
+        ),
         model_selection=SimpleNamespace(use_openvino=False),
+        behavioral_analysis=SimpleNamespace(aquarium_perspective="lateral"),
+        get_default_det_filename=lambda: "default.pt",
     )
 
     dependencies = SimpleNamespace(
@@ -132,14 +139,40 @@ def test_has_project_override_settings(view_model):
 
 
 def test_handle_calibration_copy_to_project(view_model):
-    view_model.handle_calibration_copy_to_project()
+    view_model.project_lifecycle_coordinator.copy_global_model_settings_to_project.return_value = (
+        "default.pt",
+        False,
+    )
+
+    result = view_model.handle_calibration_copy_to_project()
 
     args = view_model.project_lifecycle_coordinator.copy_global_model_settings_to_project.call_args
     get_global_defaults = args.kwargs["get_global_defaults"]
     get_active_weight_name = args.kwargs["get_active_weight_name"]
 
+    assert result == ("default.pt", False)
     assert get_global_defaults() == {"active_weight": "default.pt", "use_openvino": False}
     assert get_active_weight_name() == "weights.pt"
+
+
+def test_handle_calibration_copy_to_project_path(view_model):
+    coordinator = view_model.project_lifecycle_coordinator
+    coordinator.copy_global_model_settings_to_project_path.return_value = ("default.pt", True)
+
+    result = view_model.handle_calibration_copy_to_project_path("C:/projetos/alvo")
+
+    assert result == ("default.pt", True)
+    args = coordinator.copy_global_model_settings_to_project_path.call_args
+    assert args.args[0] == "C:/projetos/alvo"
+    get_global_defaults = args.kwargs["get_global_defaults"]
+    assert get_global_defaults() == {"active_weight": "default.pt", "use_openvino": False}
+
+
+def test_handle_calibration_copy_to_project_returns_none_without_coordinator(view_model):
+    view_model.project_lifecycle_coordinator = None
+
+    assert view_model.handle_calibration_copy_to_project() is None
+    assert view_model.handle_calibration_copy_to_project_path("C:/qualquer") is None
 
 
 def test_handle_calibration_save_to_project(view_model):

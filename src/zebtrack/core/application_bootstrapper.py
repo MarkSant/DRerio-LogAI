@@ -259,21 +259,37 @@ class ApplicationBootstrapper:
         hardware_summary = get_hardware_summary()
         recommended_backend = recommend_backend()
 
-        # Auto-configure use_openvino based on hardware detection
-        use_openvino = False
-        if recommended_backend == "openvino":
-            # Check if OpenVINO model is already converted
-            default_weight_details = None
-            if active_weight_name:
-                default_weight_details = self.deps.weight_manager.get_weight_details(
-                    active_weight_name
+        # A configuração global persistida (model_selection.use_openvino) tem
+        # prioridade sobre a recomendação de hardware; o auto-detect só decide
+        # quando ela está desativada. Nos dois casos, OpenVINO exige modelo
+        # já convertido.
+        configured_openvino = bool(
+            getattr(getattr(self.settings, "model_selection", None), "use_openvino", False)
+        )
+
+        default_weight_details = None
+        if active_weight_name:
+            default_weight_details = self.deps.weight_manager.get_weight_details(active_weight_name)
+
+        openvino_converted = False
+        if default_weight_details:
+            ov_path = default_weight_details.get("openvino_path")
+            openvino_converted = self._is_valid_openvino_directory(ov_path)
+
+        if configured_openvino:
+            if openvino_converted:
+                use_openvino = True
+                log.info(
+                    "bootstrapper.hardware.openvino_from_settings",
+                    reason="Global settings enable OpenVINO and model is converted",
                 )
-
-            openvino_converted = False
-            if default_weight_details:
-                ov_path = default_weight_details.get("openvino_path")
-                openvino_converted = self._is_valid_openvino_directory(ov_path)
-
+            else:
+                use_openvino = False
+                log.warning(
+                    "bootstrapper.hardware.openvino_configured_but_not_converted",
+                    reason="Global settings enable OpenVINO but model is not converted",
+                )
+        elif recommended_backend == "openvino":
             if openvino_converted:
                 use_openvino = True
                 log.info(

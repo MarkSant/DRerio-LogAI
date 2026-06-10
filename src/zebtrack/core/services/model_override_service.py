@@ -9,6 +9,7 @@ Single Responsibility: Model override state and persistence.
 from __future__ import annotations
 
 from collections.abc import Callable
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import structlog
@@ -169,6 +170,120 @@ class ModelOverrideService:
             refresh_callback(message, True)
 
         return resolved_weight, resolved_openvino
+
+    def copy_global_model_settings_to_project_path(
+        self,
+        target_dir: Path | str,
+        get_global_defaults: Callable[[], dict],
+        get_active_weight_name: Callable[[], str | None],
+    ) -> tuple[str | None, bool] | None:
+        """Copy global model settings into another project's config file.
+
+        Grava os padrões globais como overrides no ``project_config.json``
+        do projeto-alvo SEM abri-lo nem tocar o estado da aplicação. Quando
+        o alvo é o próprio projeto aberto, delega ao fluxo em memória.
+        A mensageria de erro fica a cargo do chamador (UI); aqui apenas
+        logamos e retornamos ``None`` em caso de falha.
+
+        Args:
+            target_dir: Diretório do projeto-alvo.
+            get_global_defaults: Callback com os defaults globais.
+            get_active_weight_name: Callback com o peso ativo (fallback legacy).
+
+        Returns:
+            Tupla (active_weight, use_openvino) gravada, ou None em falha.
+        """
+        from zebtrack.core.project.project_lifecycle_manager import CONFIG_FILE_NAME
+
+        target = Path(target_dir)
+        current_path = getattr(self.project_manager, "project_path", None)
+        if current_path and Path(current_path).resolve() == target.resolve():
+            return self.copy_global_model_settings_to_project(
+                get_global_defaults, get_active_weight_name
+            )
+
+        config_path = target / CONFIG_FILE_NAME
+        if not config_path.exists():
+            self.logger.warning(
+                "project.copy_globals_to_path.invalid_target",
+                target=str(target),
+                reason="config_file_missing",
+            )
+            return None
+
+        defaults = get_global_defaults()
+        use_openvino = bool(defaults.get("use_openvino", False))
+        slot_weights = self.project_workflow_service.get_global_project_slot_weights()
+        if not slot_weights:
+            legacy_weight = defaults.get("active_weight") or get_active_weight_name()
+            legacy_slot = self.project_workflow_service._get_legacy_animal_slot_key({})
+            if legacy_weight and legacy_slot:
+                slot_weights = {legacy_slot: legacy_weight}
+
+        project_service = getattr(self.project_manager, "project_service", None)
+        if project_service is None:
+            self.logger.warning("project.copy_globals_to_path.no_project_service")
+            return None
+
+        try:
+            target_data = project_service.load_project_config(target)
+        # except Exception justified: leitura de projeto externo — pode falhar
+        # por corrupção, hash de integridade ou permissão; reportamos via None.
+        except Exception as exc:
+            self.logger.error(
+                "project.copy_globals_to_path.load_failed",
+                target=str(target),
+                error=str(exc),
+            )
+            return None
+
+        normalized_slot_weights = self.project_workflow_service._normalize_slot_weights(
+            slot_weights
+        )
+        legacy_animal_slot = self.project_workflow_service._get_legacy_animal_slot_key(
+            normalized_slot_weights
+        )
+        resolved_weight = (
+            normalized_slot_weights.get(legacy_animal_slot) if legacy_animal_slot else None
+        )
+
+        overrides = target_data.setdefault(
+            "model_overrides",
+            {"active_weight": None, "use_openvino": None, "device": "AUTO", "slot_weights": {}},
+        )
+        overrides["slot_weights"] = normalized_slot_weights
+        overrides["active_weight"] = resolved_weight
+        overrides["use_openvino"] = use_openvino
+        # Espelhos legacy no nível raiz (mesma forma de _persist_project_model_settings).
+        target_data["active_weight"] = resolved_weight
+        target_data["use_openvino"] = use_openvino
+
+        try:
+            project_service.save_project_config(target, target_data)
+        # except Exception justified: escrita de projeto externo — I/O heterogêneo.
+        except Exception as exc:
+            self.logger.error(
+                "project.copy_globals_to_path.save_failed",
+                target=str(target),
+                error=str(exc),
+            )
+            return None
+
+        from zebtrack.ui.event_bus_v2 import UIEvents
+
+        self.logger.info(
+            "project.copy_globals_to_path.success",
+            target=str(target),
+            active_weight=resolved_weight,
+            use_openvino=use_openvino,
+        )
+        self._publish_event(
+            UIEvents.UI_SET_STATUS,
+            payloads.StatusPayload(
+                message=f"Configurações globais aplicadas ao projeto em {target}."
+            ),
+        )
+        return resolved_weight, use_openvino
 
     def resolve_project_model_settings(
         self, overrides: dict | None = None
