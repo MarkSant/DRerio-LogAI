@@ -8,6 +8,7 @@ Version: 2.3.1
 from __future__ import annotations
 
 import re
+import threading
 from datetime import datetime
 from pathlib import Path
 from tkinter import Button, Canvas, Frame, Label, Toplevel, messagebox, simpledialog, ttk
@@ -1172,7 +1173,17 @@ class BlockDetailDialog(Toplevel):
             messagebox.showerror("Erro", f"Falha ao salvar nota:\n{e!s}")
 
     def mark_batch_complete(self):
-        """Mark batch as complete and trigger unified report."""
+        """Mark batch as complete and generate the block partial report.
+
+        Reusa o mesmo gerador do botão "Gerar Relatório Parcial" (Excel +
+        Word em ``partial_reports/``), rodando em thread de fundo para
+        honrar a promessa de "segundo plano", e persiste a completude do
+        lote via ``LiveBatchCoordinator.mark_block_complete`` — o que pinta
+        o quadrado do grid de verde e sobrevive ao reinício do app. O
+        caminho antigo montava um ``batch_id`` com ``*`` literal que nunca
+        casava com os IDs reais e ignorava o retorno, mostrando sucesso sem
+        gerar nada.
+        """
         # Audit Erro 6 (2026-05-25): make the scope explicit so the user
         # knows exactly which sessions are being consolidated. A "lote" here
         # is all sessions of THIS group on THIS day (one row of the grid),
@@ -1183,29 +1194,137 @@ class BlockDetailDialog(Toplevel):
                 f"Marcar o lote do Grupo '{self.group_name}' no Dia {self.day_num} "
                 "como completo?\n\n"
                 "Escopo: TODAS as sessões já gravadas deste grupo neste dia serão "
-                "consolidadas em um relatório unificado (Excel + Word).\n\n"
+                "consolidadas no relatório parcial do bloco (Excel + Word) e o "
+                "quadrado correspondente na grade do Progresso ficará verde.\n\n"
                 "Esta ação NÃO afeta outros grupos, outros dias, nem encerra o projeto "
                 "como um todo. Você poderá continuar gravando novos sujeitos em outros "
                 "dias/grupos normalmente.\n\n"
                 "Deseja continuar?"
             ),
         )
+        if not result:
+            return
 
-        if result:
-            # v2.3.1: Use day_num in batch_id
-            batch_id = f"{self.group_name}_Dia_{self.day_num}_*"
+        # Pré-checagens rápidas na thread da UI — feedback honesto quando não
+        # há sessões ou resumos (mesmos textos do "Gerar Relatório Parcial").
+        completed_in_block = self._get_completed_subjects_for_partial_report()
+        if not completed_in_block:
+            messagebox.showwarning(
+                "Sem Sessões",
+                f"Nenhuma sessão concluída encontrada para\nDia {self.day_num} - {self.group_name}",
+            )
+            return
 
+        summary_files = self._collect_partial_report_summary_files(completed_in_block)
+        if not summary_files:
+            messagebox.showwarning(
+                "Sem Relatórios",
+                f"Nenhum arquivo de resumo encontrado nas sessões de\n"
+                f"Dia {self.day_num} - {self.group_name}\n\n"
+                f"Execute a análise das sessões primeiro.",
+            )
+            return
+
+        master = self.master  # root Tk — sobrevive ao destroy deste Toplevel
+        day_num = self.day_num
+        group_name = self.group_name
+
+        def _worker() -> None:
             try:
-                self.live_batch_coordinator.mark_batch_complete(batch_id)
-                messagebox.showinfo(
-                    "Sucesso",
-                    (
-                        f"Lote '{self.group_name} / Dia {self.day_num}' marcado como "
-                        "completo.\n\nO relatório unificado consolidado destas sessões "
-                        "está sendo gerado em segundo plano."
-                    ),
+                all_data, unified_df, parsed_summary_files = self._build_partial_report_dataset(
+                    summary_files
                 )
-                self.destroy()
+                reports_dir = Path(self.project_manager.project_path) / "partial_reports"
+                reports_dir.mkdir(parents=True, exist_ok=True)
+                (
+                    excel_output_name,
+                    excel_output_path,
+                    word_output_name,
+                    _word_output_path,
+                    write_fallback_used,
+                ) = self._write_partial_report_outputs(
+                    reports_dir,
+                    parsed_summary_files,
+                    all_data,
+                    unified_df,
+                )
+
+                persisted = self.live_batch_coordinator.mark_block_complete(
+                    group_name,
+                    day_num,
+                    unified_excel=excel_output_path,
+                    session_count=len(all_data),
+                )
+
+                log.info(
+                    "block_detail.mark_batch_complete.success",
+                    day=day_num,
+                    group=group_name,
+                    excel_output=str(excel_output_path),
+                    session_count=len(all_data),
+                    persisted=persisted,
+                )
+
+                def _on_done() -> None:
+                    # _publish_project_views_refresh só publica eventos via
+                    # coordinators (não toca Tk), seguro após o destroy.
+                    self._publish_project_views_refresh(
+                        f"Lote concluído: Dia {day_num} - {group_name}"
+                    )
+                    message = (
+                        f"Lote 'Dia {day_num} - {group_name}' marcado como completo.\n\n"
+                        f"📊 Excel: {excel_output_name}\n"
+                        f"📝 Word: {word_output_name}\n"
+                        f"🐟 {len(all_data)} sessões agregadas\n\n"
+                        f"Relatórios em: {reports_dir}"
+                    )
+                    if write_fallback_used:
+                        message += (
+                            "\n\n⚠️ O arquivo padrão estava em uso; os relatórios "
+                            "foram salvos com sufixo de data/hora."
+                        )
+                    if not persisted:
+                        message += (
+                            "\n\n⚠️ Não foi possível registrar a completude no "
+                            "projeto; verifique o log."
+                        )
+                    messagebox.showinfo("Lote Completo", message, parent=master)
+
+                master.after(0, _on_done)
+            # except Exception justified: pipeline pandas/docx em thread de
+            # fundo — qualquer falha deve virar feedback honesto na UI.
             except Exception as e:
-                log.error("block_detail.mark_batch_complete_failed", error=str(e))
-                messagebox.showerror("Erro", f"Falha ao marcar lote: {e!s}")
+                # O Python apaga ``e`` ao sair do except; a closure roda
+                # depois (via after), então captura o texto agora.
+                error_text = str(e)
+                log.error(
+                    "block_detail.mark_batch_complete.worker_failed",
+                    day=day_num,
+                    group=group_name,
+                    error=error_text,
+                    exc_info=True,
+                )
+
+                def _on_error() -> None:
+                    messagebox.showerror(
+                        "Erro — Lote não concluído",
+                        (
+                            f"Falha ao gerar o relatório do lote "
+                            f"'Dia {day_num} - {group_name}':\n{error_text}\n\n"
+                            "O lote NÃO foi marcado como completo."
+                        ),
+                        parent=master,
+                    )
+
+                master.after(0, _on_error)
+
+        threading.Thread(target=_worker, name="MarkBatchComplete", daemon=True).start()
+        messagebox.showinfo(
+            "Lote em processamento",
+            (
+                f"Lote 'Dia {self.day_num} - {self.group_name}': o relatório "
+                "consolidado (Excel + Word) está sendo gerado em segundo plano.\n\n"
+                "Você será avisado quando terminar."
+            ),
+        )
+        self.destroy()

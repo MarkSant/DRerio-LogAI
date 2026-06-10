@@ -468,3 +468,93 @@ def test_generate_unified_report_uses_parquet_files_summary_excel(test_settings,
     assert batch_coord._generate_unified_report(batch) is True
     analysis_service.aggregate_session_summaries.assert_called_once()
     assert analysis_service.aggregate_session_summaries.call_args[0][0] == [summary_path]
+
+
+# ---------------------------------------------------------------------------
+# mark_block_complete (lote por grupo+dia, sem depender de _active_batches)
+# ---------------------------------------------------------------------------
+
+
+def _make_coordinator(test_settings, event_bus=None):
+    project_manager = MagicMock()
+    project_manager.register_batch_outputs.return_value = True
+    coordinator = LiveBatchCoordinator(
+        project_manager=project_manager,
+        analysis_service=MagicMock(),
+        state_manager=MagicMock(),
+        settings_obj=test_settings,
+        event_bus=event_bus,
+    )
+    return coordinator, project_manager
+
+
+def test_mark_block_complete_matches_active_batch_by_group_day(test_settings, tmp_path):
+    """Lote em memória com day "Dia_1" casa com chamada day=1 (normalização)."""
+    coordinator, project_manager = _make_coordinator(test_settings)
+    coordinator.register_session(
+        experiment_id="exp_1",
+        video_path=tmp_path / "v.mp4",
+        metadata={"group": "Controle", "day": "Dia_1", "subject_id": "S1"},
+    )
+    existing_id = next(iter(coordinator._active_batches.values())).batch_id
+
+    ok = coordinator.mark_block_complete(
+        "Controle", 1, unified_excel=tmp_path / "rel.xlsx", session_count=1
+    )
+
+    assert ok is True
+    batch = next(iter(coordinator._active_batches.values()))
+    assert batch.is_complete is True
+    kwargs = project_manager.register_batch_outputs.call_args.kwargs
+    assert kwargs["batch_id"] == existing_id
+    assert kwargs["group"] == "Controle"
+    assert kwargs["day"] == "1"
+    assert kwargs["session_count"] == 1
+
+
+def test_mark_block_complete_without_active_batch_persists_manual_id(test_settings, tmp_path):
+    """Pós-reinício (_active_batches vazio): persiste com batch_id manual."""
+    coordinator, project_manager = _make_coordinator(test_settings)
+
+    ok = coordinator.mark_block_complete(
+        "G01", "Dia 2", unified_excel=tmp_path / "rel.xlsx", session_count=3
+    )
+
+    assert ok is True
+    kwargs = project_manager.register_batch_outputs.call_args.kwargs
+    assert kwargs["batch_id"].startswith("manual_G01_Dia2_")
+    assert kwargs["day"] == "Dia 2"
+    assert kwargs["session_count"] == 3
+
+
+def test_mark_block_complete_returns_false_when_persist_fails(test_settings, tmp_path):
+    coordinator, project_manager = _make_coordinator(test_settings)
+    project_manager.register_batch_outputs.return_value = False
+
+    ok = coordinator.mark_block_complete(
+        "G01", 1, unified_excel=tmp_path / "rel.xlsx", session_count=1
+    )
+
+    assert ok is False
+
+
+def test_mark_block_complete_publishes_batch_completed_event(test_settings, tmp_path):
+    event_bus = MagicMock()
+    coordinator, _project_manager = _make_coordinator(test_settings, event_bus=event_bus)
+
+    coordinator.mark_block_complete("G01", 1, unified_excel=tmp_path / "rel.xlsx", session_count=2)
+
+    assert event_bus.publish.call_count == 1
+    event = event_bus.publish.call_args.args[0]
+    assert event.data.group == "G01"
+    assert event.data.session_count == 2
+
+
+def test_normalize_day_key_variants():
+    norm = LiveBatchCoordinator._normalize_day_key
+    assert norm(1) == "1"
+    assert norm("1") == "1"
+    assert norm("Dia 1") == "1"
+    assert norm("Dia_01") == "1"
+    assert norm("Dia_10") == "10"
+    assert norm(None) == ""
