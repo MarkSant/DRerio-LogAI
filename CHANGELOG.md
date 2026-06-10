@@ -20,6 +20,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Total − Com Dados; "Com Dados" é cumulativo (inclui Concluídos). Ex.: 6
   sessões gravadas com relatórios de 12 planejadas → Total 12, Pendentes 6,
   Com Dados 6, Concluídos 6.
+- **"Visão Geral do Projeto" (Controle Principal) alinhada**: a caixa tinha
+  uma contagem própria duplicada com a semântica antiga e divergia da aba
+  Processamentos; agora ambas usam a mesma fonte
+  (`compute_project_status_counts`).
 - **"Copiar globais para o projeto" não persistia**:
   `save_project_model_slot_overrides` mutava `project_data` em memória e o
   save condicional do `apply` não enxergava as mutações feitas antes da

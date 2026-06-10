@@ -13,7 +13,6 @@ from __future__ import annotations
 
 import os
 import tkinter as tk
-from collections import Counter
 from typing import TYPE_CHECKING, Any
 
 import structlog
@@ -271,28 +270,24 @@ class VideoSelectorTreeManager:
         self.gui.root.after(0, _update_legend)
 
     def _update_project_overview_summary(self) -> None:
-        """Update the summary section of the project overview."""
+        """Update the summary section of the project overview.
+
+        Usa a MESMA contagem da aba Processamentos e Relatórios
+        (compute_project_status_counts) — antes havia uma derivação local
+        duplicada com semântica antiga (sem desenho experimental em projetos
+        live, "Com Dados" exclusivo), e os cards das duas abas divergiam.
+        """
         if not hasattr(self.gui, "project_overview_widget"):
             return
         if not self.gui.project_overview_widget:
             return
 
+        from zebtrack.ui.components.project_views.report_tree_builder import (
+            compute_project_status_counts,
+        )
+
         pm = self.gui.controller.project_manager
-        all_videos = pm.get_all_videos()
-
-        status_counts: Counter[str] = Counter()
-        for video in all_videos:
-            has_trajectory = pm.has_trajectory_data(video["path"])
-            has_summary = pm.has_summary_data(video["path"])
-
-            if has_summary:
-                status_counts["complete"] += 1
-            elif has_trajectory:
-                status_counts["processed"] += 1
-            else:
-                status_counts["pending"] += 1
-
-        status_counts["total"] = len(all_videos)
+        status_counts = compute_project_status_counts(pm)
 
         self.gui.project_overview_widget.update_summary(status_counts)
 

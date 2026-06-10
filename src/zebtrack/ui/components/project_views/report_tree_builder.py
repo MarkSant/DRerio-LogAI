@@ -737,78 +737,93 @@ class ReportTreeBuilder:
     def get_project_status_counts(self) -> dict[str, int]:
         """Calculate status counts for the project.
 
-        Semântica dos cards (derivada dos dados em disco, não do status cru —
-        sessões live ficam "recorded"/"processed" e nunca viram "complete"):
-
-        - ``complete`` (Concluídos): com sumário/relatório, ou status
-          explícito ``complete``.
-        - ``processed`` (Com Dados): com trajetória/dados — CUMULATIVO
-          (inclui os concluídos), para que "Pendentes = Total − Com Dados"
-          feche como o usuário espera.
-        - ``pending`` (Pendentes): unidades planejadas ainda sem dados. Em
-          projetos live o total é o desenho experimental (dias × grupos ×
-          sujeitos por grupo), não apenas as sessões já gravadas.
+        Delegates to :func:`compute_project_status_counts` — mesma fonte
+        usada pela "Visão Geral do Projeto" no Controle Principal, para que
+        os cards das duas abas nunca divirjam.
         """
-        pm = self.project_manager
-        all_videos = pm.get_all_videos()
+        return compute_project_status_counts(self.project_manager)
 
-        total = len(all_videos)
-        get_project_type = getattr(pm, "get_project_type", None)
-        if callable(get_project_type) and get_project_type() == "live":
-            project_data = getattr(pm, "project_data", {}) or {}
-            days = project_data.get("experiment_days") or 0
-            groups = project_data.get("groups") or []
-            subjects = project_data.get("subjects_per_group") or 0
-            planned = days * len(groups) * subjects
-            total = max(total, planned)
 
-        counts: dict[str, int] = {
-            "total": total,
-            "pending": 0,
-            "processing": 0,
-            "processed": 0,
-            "complete": 0,
-            "failed": 0,
-            "arena": 0,
-            "rois": 0,
-            "trajectory": 0,
-            "summary": 0,
-        }
+def compute_project_status_counts(pm: Any) -> dict[str, int]:
+    """Calcula os contadores de status do projeto a partir dos dados em disco.
 
-        beyond_pending = 0
-        for video in all_videos:
-            path = video.get("path")
-            has_trajectory = bool(path and pm.has_trajectory_data(path))
-            has_summary = bool(path and pm.has_summary_data(path))
+    Semântica dos cards (derivada dos dados, não do status cru — sessões
+    live ficam "recorded"/"processed" e nunca viram "complete"):
 
-            if path:
-                if pm.has_arena_data(path):
-                    counts["arena"] += 1
-                if pm.has_roi_data(path):
-                    counts["rois"] += 1
-                if has_trajectory:
-                    counts["trajectory"] += 1
-                if has_summary:
-                    counts["summary"] += 1
+    - ``complete`` (Concluídos): com sumário/relatório, ou status explícito
+      ``complete``.
+    - ``processed`` (Com Dados): com trajetória/dados — CUMULATIVO (inclui
+      os concluídos), para que "Pendentes = Total - Com Dados" feche.
+    - ``pending`` (Pendentes): unidades planejadas ainda sem dados. Em
+      projetos live o total é o desenho experimental (dias x grupos x
+      sujeitos por grupo), não apenas as sessões já gravadas.
 
-            raw_status = video.get("status", "pending")
-            is_complete = has_summary or raw_status == "complete"
-            has_data = has_trajectory or is_complete or raw_status == "processed"
+    Args:
+        pm: ProjectManager (ou equivalente) com get_all_videos/has_*_data.
 
-            if raw_status == "failed":
-                counts["failed"] += 1
-                beyond_pending += 1
-                continue
+    Returns:
+        Dicionário com total/pending/processing/processed/complete/failed e
+        os cumulativos arena/rois/trajectory/summary.
+    """
+    all_videos = pm.get_all_videos()
 
-            if is_complete:
-                counts["complete"] += 1
-            if has_data:
-                counts["processed"] += 1
-                beyond_pending += 1
-            elif raw_status == "processing":
-                counts["processing"] += 1
-                beyond_pending += 1
+    total = len(all_videos)
+    get_project_type = getattr(pm, "get_project_type", None)
+    if callable(get_project_type) and get_project_type() == "live":
+        project_data = getattr(pm, "project_data", {}) or {}
+        days = project_data.get("experiment_days") or 0
+        groups = project_data.get("groups") or []
+        subjects = project_data.get("subjects_per_group") or 0
+        planned = days * len(groups) * subjects
+        total = max(total, planned)
 
-        counts["pending"] = max(0, total - beyond_pending)
+    counts: dict[str, int] = {
+        "total": total,
+        "pending": 0,
+        "processing": 0,
+        "processed": 0,
+        "complete": 0,
+        "failed": 0,
+        "arena": 0,
+        "rois": 0,
+        "trajectory": 0,
+        "summary": 0,
+    }
 
-        return counts
+    beyond_pending = 0
+    for video in all_videos:
+        path = video.get("path")
+        has_trajectory = bool(path and pm.has_trajectory_data(path))
+        has_summary = bool(path and pm.has_summary_data(path))
+
+        if path:
+            if pm.has_arena_data(path):
+                counts["arena"] += 1
+            if pm.has_roi_data(path):
+                counts["rois"] += 1
+            if has_trajectory:
+                counts["trajectory"] += 1
+            if has_summary:
+                counts["summary"] += 1
+
+        raw_status = video.get("status", "pending")
+        is_complete = has_summary or raw_status == "complete"
+        has_data = has_trajectory or is_complete or raw_status == "processed"
+
+        if raw_status == "failed":
+            counts["failed"] += 1
+            beyond_pending += 1
+            continue
+
+        if is_complete:
+            counts["complete"] += 1
+        if has_data:
+            counts["processed"] += 1
+            beyond_pending += 1
+        elif raw_status == "processing":
+            counts["processing"] += 1
+            beyond_pending += 1
+
+    counts["pending"] = max(0, total - beyond_pending)
+
+    return counts

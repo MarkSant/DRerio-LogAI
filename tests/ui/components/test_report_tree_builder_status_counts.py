@@ -171,3 +171,42 @@ def test_prerecorded_mixed_project():
     assert counts["processed"] == 2
     assert counts["pending"] == 1
     assert counts["failed"] == 0
+
+
+def test_project_overview_summary_uses_shared_counts():
+    """A "Visão Geral do Projeto" (Controle Principal) usa a MESMA contagem.
+
+    Antes havia uma derivação local duplicada no VideoSelectorTreeManager
+    (sem desenho experimental em projetos live, "Com Dados" exclusivo) e os
+    cards das duas abas divergiam.
+    """
+    from unittest.mock import Mock
+
+    from zebtrack.ui.components.project_views.report_tree_builder import (
+        compute_project_status_counts,
+    )
+    from zebtrack.ui.components.project_views.video_selector_tree_manager import (
+        VideoSelectorTreeManager,
+    )
+
+    videos: list[dict] = [{"path": f"p/s{i}.mp4", **_DONE} for i in range(6)]
+    pm = _FakeProjectManager(
+        videos,
+        project_type="live",
+        project_data={
+            "experiment_days": 3,
+            "groups": ["Controle", "Tratamento 1"],
+            "subjects_per_group": 2,
+        },
+    )
+
+    manager = VideoSelectorTreeManager.__new__(VideoSelectorTreeManager)
+    manager.gui = Mock()
+    manager.gui.controller.project_manager = pm
+
+    manager._update_project_overview_summary()
+
+    expected = compute_project_status_counts(pm)
+    manager.gui.project_overview_widget.update_summary.assert_called_once_with(expected)
+    assert expected["total"] == 12
+    assert expected["pending"] == 6
