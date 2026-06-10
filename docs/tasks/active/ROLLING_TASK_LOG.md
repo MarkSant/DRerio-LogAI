@@ -10,7 +10,7 @@ This document tracks all major agent interventions, technical debt resolutions, 
 
 __ID:__ TASK-067
 __Agent:__ Claude Code (Fable 5)
-__Status:__ In Progress 🔄
+__Status:__ Completed ✅
 __Branch:__ fix/live-project-bug-sextet
 __Description:__
 Sessão de uso real reportou 6 bugs interligados de severidade alta. Causas-raiz
@@ -30,26 +30,34 @@ o projeto" não pergunta o alvo e mostra sucesso incondicional.
 
 ### Subtasks (TASK-067)
 
-- [ ] Bug 6a: trocar 4 acessos `weights.det_filename` por
-      `get_filenames_for_perspective(...)` (project_view_model,
-      project_lifecycle_coordinator ×2, processing_worker); remover type: ignore.
-- [ ] Bug 5: bootstrapper honra `model_selection.use_openvino` quando modelo
-      convertido; wizard prefill lê settings antes do auto-detect.
-- [ ] Bug 6b: dialog "projeto atual ou outra pasta" no CalibrationDialog +
-      `ModelOverrideService.copy_global_model_settings_to_project_path` +
-      feedback honesto (sem showinfo incondicional).
-- [ ] Bug 1: `resolve_results_directory` → `Zonas_Referencia/` para o
-      reference frame (constantes módulo).
-- [ ] Bug 2: `pm.import_zone_data_from_video_parquets` (auto-import no
-      offer_zone_reuse) + `copy_zone_parquet_files` sem return antecipado e com
-      diretórios-candidatos (parent, resolver, legacy Grupo_Sem_Grupo).
-- [ ] Bug 3: `mark_batch_complete` do dialog gera relatório parcial em thread
-      daemon + `LiveBatchCoordinator.mark_block_complete(group, day)` persiste
-      `batch_reports`; grid verde via `get_batch_reports()`.
-- [ ] Bug 4: `get_project_status_counts` deriva status por flags; rótulo
-      "recorded"; refresh pós-análise live.
-- [ ] Testes novos por bug + suíte rápida + GUI subset + ruff + mypy + pre-commit.
-- [ ] Docs: CHANGELOG, system_integration.md, KNOWN_ISSUES.
+- [x] Bug 6a: trocados 4 acessos `weights.det_filename` por resolução por
+      perspectiva (novo `Settings.get_default_det_filename()`); type: ignore
+      removidos. Bônus: snapshot do worker resolve filename contra source_dir.
+- [x] Bug 5: bootstrapper honra `model_selection.use_openvino` (com exigência
+      de modelo convertido); toggle global persiste em config.local.yaml via
+      save_settings; wizard prefill lê settings antes do auto-detect.
+- [x] Bug 6b: dialog "projeto atual ou outra pasta" no CalibrationDialog +
+      `ModelOverrideService.copy_global_model_settings_to_project_path`
+      (grava project_config.json com hash via ProjectService) + feedback
+      honesto; scope_info expõe project_path.
+- [x] Bug 1: `resolve_results_directory` → `Zonas_Referencia/` para o
+      reference frame (constantes módulo + legacy para leitura).
+- [x] Bug 2: `pm.import_zone_data_from_video_parquets` (auto-import no
+      offer_zone_reuse) + `copy_zone_parquet_files` sem return antecipado, com
+      diretórios-candidatos (parent, resolver, legacy Grupo_Sem_Grupo) e sem
+      recriar a hierarquia-fantasma para alvos sem grupo.
+- [x] Bug 3: `mark_batch_complete` do dialog reusa o gerador do relatório
+      parcial em thread daemon + `LiveBatchCoordinator.mark_block_complete`
+      persiste `batch_reports`; grid verde via `get_batch_reports()`.
+- [x] Bug 4: `get_project_status_counts` deriva status efetivo por flags
+      (recorded+summary→complete; sem dados→pending). Refresh pós-análise já
+      existia; nenhuma UI exibe "recorded" cru (rótulo dispensado).
+- [x] HOTFIX adicional: commit aa1b31be (Copilot Autofix via web) tinha
+      destruído try/except em live_session_manager.py — main não importava
+      (IndentationError). Restaurado preservando a intenção do autofix.
+- [x] Testes novos: 10 (zonas) + 6 (mark_block_complete) + 6 (contadores) +
+      3 (view model); suíte rápida + ruff + mypy + pre-commit verdes.
+- [x] Docs: CHANGELOG, system_integration.md.
 
 ### [2026-06-09] Preparação da aba Análise no 4º call site live (RecordingSessionCoordinator)
 

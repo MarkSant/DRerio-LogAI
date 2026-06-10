@@ -93,7 +93,7 @@ def test_trajectory_without_summary_counts_as_processed():
 
 def test_explicit_failed_and_complete_are_preserved():
     """Status explícitos vencem a derivação por flags."""
-    videos = [
+    videos: list[dict] = [
         {"path": "p/f.mp4", "status": "failed", "has_summary": True},
         {"path": "p/c.mp4", "status": "complete"},
     ]
@@ -120,14 +120,14 @@ def test_mixed_project_matches_user_expectation():
     Esperado: Total=3, Concluídos=2, Pendentes=1 (total menos com dados),
     nada zerado indevidamente.
     """
-    done = {
+    done: dict = {
         "status": "recorded",
         "has_arena": True,
         "has_rois": True,
         "has_trajectory": True,
         "has_summary": True,
     }
-    videos = [
+    videos: list[dict] = [
         {"path": "p/a.mp4", **done},
         {"path": "p/b.mp4", **done},
         {"path": "p/c.mp4", "status": "pending"},

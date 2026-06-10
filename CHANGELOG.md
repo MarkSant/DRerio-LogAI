@@ -9,6 +9,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### 🐛 Bug Fixes (June 2026) — sexteto de bugs em projetos live
+
+- **Zonas do frame de referência** agora vão para `<projeto>/Zonas_Referencia/`
+  na raiz do projeto, em vez do fallback confuso
+  `Grupo_Sem_Grupo/Dia_Indefinido/Sujeito_Indefinido/`. Leitura do caminho
+  legado mantida para projetos antigos.
+- **Reutilizar zonas**: o aviso "arquivos Parquet originais não encontrados"
+  não ocorre mais quando os parquets existem — a busca cobre fontes que o scan
+  não enxerga (PNG do frame de referência) e a hierarquia do projeto; vídeos
+  gravados ao vivo carregam automaticamente os parquets da própria pasta da
+  sessão, sem prompt.
+- **Marcar Lote Como Completo** agora gera de verdade o relatório do bloco
+  (Excel + Word em `partial_reports/`, mesmo gerador do botão "Gerar Relatório
+  Parcial") em segundo plano, com aviso honesto ao concluir/falhar; a
+  completude é persistida em `batch_reports` (sobrevive ao reinício) e o
+  quadrado do grid do Progresso fica verde.
+- **Contadores da aba Processamentos e Relatórios** derivam o status dos dados
+  em disco: sessões live com relatórios contam como Concluídos, sem dados como
+  Pendentes (antes só Total e Com Dados populavam).
+- **OpenVINO global é herdado**: o bootstrapper passou a honrar
+  `model_selection.use_openvino` persistido (antes só auto-detect de
+  hardware); o toggle global persiste em `config.local.yaml`; o wizard
+  pré-preenche a partir do global.
+- **Copiar globais para o projeto**: corrigido o crash
+  `'WeightsSelectionSettings' object has no attribute 'det_filename'`
+  (pesos são aninhados por perspectiva; novo
+  `Settings.get_default_det_filename()`); o botão agora pergunta o
+  projeto-alvo (atual ou outra pasta) e mostra sucesso/erro conforme o
+  resultado real, sem mensagem de sucesso incondicional.
+- **Hotfix**: restaurado bloco `try/except` de `live_session_manager.py`
+  destruído por um autofix do Copilot aplicado via web (a aplicação não
+  iniciava — `IndentationError` na importação).
+
 ## [4.0.0] - 2026-03-29
 
 ### 🚀 Highlights
