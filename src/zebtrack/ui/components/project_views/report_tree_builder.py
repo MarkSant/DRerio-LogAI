@@ -753,19 +753,33 @@ class ReportTreeBuilder:
         }
 
         for video in all_videos:
-            status = video.get("status", "pending")
-            if status in counts:
-                counts[status] += 1
-
             path = video.get("path")
+            has_trajectory = bool(path and pm.has_trajectory_data(path))
+            has_summary = bool(path and pm.has_summary_data(path))
+
             if path:
                 if pm.has_arena_data(path):
                     counts["arena"] += 1
                 if pm.has_roi_data(path):
                     counts["rois"] += 1
-                if pm.has_trajectory_data(path):
+                if has_trajectory:
                     counts["trajectory"] += 1
-                if pm.has_summary_data(path):
+                if has_summary:
                     counts["summary"] += 1
+
+            status = video.get("status", "pending")
+            # Deriva o status efetivo pelos dados existentes: sessões live são
+            # persistidas como "recorded"/"processed" e nunca chegam a
+            # "complete", o que zerava os cards Pendentes/Concluídos (só Total
+            # e Com Dados populavam). Pendentes = sem dados; Com Dados =
+            # trajetória sem relatório; Concluídos = com sumário/relatório.
+            if status not in ("failed", "complete"):
+                if has_summary:
+                    status = "complete"
+                elif has_trajectory:
+                    status = "processed"
+                elif status != "processing":
+                    status = "pending"
+            counts[status] += 1
 
         return counts
