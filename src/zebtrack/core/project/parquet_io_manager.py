@@ -101,12 +101,186 @@ class ParquetIOManager:
 
         return exported
 
+    @staticmethod
+    def _zone_parquet_filenames(stem: str) -> dict[str, str]:
+        """Nomes canônicos dos parquets de zona para um dado stem de vídeo."""
+        return {
+            "arena": f"1_ProcessingArea_{stem}.parquet",
+            "rois": f"2_AreasOfInterest_{stem}.parquet",
+        }
+
+    @staticmethod
+    def _resolve_source_zone_parquets(
+        source_video_path: Path | str,
+        source_entry: dict | None,
+        resolve_results_directory_fn: Callable[..., Path],
+        project_path: Path | str | None,
+    ) -> dict[str, str]:
+        """Localiza no disco os parquets de zona da fonte por diretórios candidatos.
+
+        Cobre fontes que ``scan_input_paths`` não enxerga (ex.: o PNG do frame
+        de referência live) e projetos hierárquicos: procura na pasta da
+        própria fonte, no diretório de resultados resolvido (que para o frame
+        de referência é ``Zonas_Referencia/``) e no caminho legado
+        ``Grupo_Sem_Grupo/Dia_Indefinido/Sujeito_Indefinido`` de projetos
+        antigos.
+        """
+        from zebtrack.core.project.output_registration_manager import (
+            LEGACY_NO_DAY_DIRNAME,
+            LEGACY_NO_GROUP_DIRNAME,
+            LEGACY_NO_SUBJECT_DIRNAME,
+        )
+
+        stem = Path(source_video_path).stem
+        filenames = ParquetIOManager._zone_parquet_filenames(stem)
+
+        search_dirs: list[Path] = [Path(source_video_path).parent]
+
+        metadata_hint = dict((source_entry or {}).get("metadata") or {})
+        try:
+            resolved_dir = resolve_results_directory_fn(
+                stem,
+                video_path=source_video_path,
+                metadata=metadata_hint or None,
+            )
+            if resolved_dir:
+                search_dirs.append(Path(resolved_dir))
+        # except Exception justified: resolução depende de metadados de usuário;
+        # a busca continua nos demais diretórios candidatos.
+        except Exception:
+            log.debug(
+                "project_manager.zones.source_results_dir_failed",
+                source=source_video_path,
+                exc_info=True,
+            )
+
+        if project_path:
+            search_dirs.append(
+                Path(project_path)
+                / LEGACY_NO_GROUP_DIRNAME
+                / LEGACY_NO_DAY_DIRNAME
+                / LEGACY_NO_SUBJECT_DIRNAME
+            )
+
+        found: dict[str, str] = {}
+        for key, filename in filenames.items():
+            for directory in search_dirs:
+                candidate = directory / filename
+                if candidate.exists():
+                    found[key] = str(candidate)
+                    break
+        return found
+
+    def import_zone_data_from_video_parquets(
+        self,
+        video_path: Path | str,
+        *,
+        project_path: Path | str | None,
+        find_video_entry_fn: Callable[..., dict | None],
+        resolve_results_directory_fn: Callable[..., Path],
+        get_zone_data_fn: Callable,
+        save_zone_data_fn: Callable,
+    ) -> bool:
+        """Importa zonas dos parquets já existentes do PRÓPRIO vídeo.
+
+        Vídeos gravados ao vivo já possuem ``1_ProcessingArea_*`` /
+        ``2_AreasOfInterest_*`` na pasta da sessão (o recorder os salva
+        durante a gravação), mas o registro de zonas em memória fica sob a
+        chave do frame de referência. Este método reconhece esses arquivos e
+        os carrega como ZoneData do vídeo, evitando o prompt de reutilização.
+
+        Returns:
+            True quando arena e/ou ROIs foram importadas.
+        """
+        import pandas as pd  # Lazy import to avoid loading pandas during startup
+
+        video_path = str(Path(video_path) if isinstance(video_path, str) else video_path)
+        source_entry = find_video_entry_fn(path=video_path)
+
+        candidates: dict[str, str] = {}
+        registered = (source_entry or {}).get("parquet_files") or {}
+        for key in ("arena", "rois"):
+            value = registered.get(key)
+            if value and Path(value).exists():
+                candidates[key] = str(value)
+
+        if "arena" not in candidates or "rois" not in candidates:
+            located = self._resolve_source_zone_parquets(
+                video_path,
+                source_entry,
+                resolve_results_directory_fn,
+                project_path,
+            )
+            for key, value in located.items():
+                candidates.setdefault(key, value)
+
+        if not candidates:
+            return False
+
+        zone_data = get_zone_data_fn(video_path=video_path, fallback_to_global=False)
+        imported = False
+
+        arena_path = candidates.get("arena")
+        if arena_path:
+            arena_df = pd.read_parquet(arena_path)
+            if not arena_df.empty and "x" in arena_df.columns and "y" in arena_df.columns:
+                zone_data.polygon = arena_df[["x", "y"]].values.tolist()
+                imported = True
+
+        rois_path = candidates.get("rois")
+        if rois_path:
+            rois_df = pd.read_parquet(rois_path)
+            required_cols = {"roi_name", "point_index", "x", "y"}
+            if not rois_df.empty and required_cols.issubset(rois_df.columns):
+                roi_polygons: list[list] = []
+                roi_names: list[str] = []
+                for roi_name in rois_df["roi_name"].unique():
+                    roi_df = rois_df[rois_df["roi_name"] == roi_name].sort_values("point_index")
+                    roi_polygons.append(roi_df[["x", "y"]].values.tolist())
+                    roi_names.append(roi_name)
+                zone_data.roi_polygons = roi_polygons
+                zone_data.roi_names = roi_names
+                default_colors = [
+                    (0, 128, 0),
+                    (255, 0, 0),
+                    (0, 0, 255),
+                    (0, 204, 204),
+                    (255, 0, 255),
+                    (0, 204, 204),
+                ]
+                zone_data.roi_colors = [
+                    default_colors[i % len(default_colors)] for i in range(len(roi_names))
+                ]
+                imported = True
+
+        if not imported:
+            return False
+
+        save_zone_data_fn(zone_data, video_path, persist=False)
+
+        if source_entry is not None:
+            parquet_map = source_entry.setdefault("parquet_files", {})
+            parquet_map.update(candidates)
+            if "arena" in candidates:
+                source_entry["has_arena"] = True
+            if "rois" in candidates:
+                source_entry["has_rois"] = True
+
+        log.info(
+            "project_manager.zones.imported_from_own_parquets",
+            video=Path(video_path).name,
+            arena=bool(arena_path),
+            rois=bool(rois_path),
+        )
+        return True
+
     def copy_zone_parquet_files(  # noqa: C901
         self,
         source_video_path: Path | str,
         target_video_path: Path | str,
         *,
         project_data: dict[str, Any],
+        project_path: Path | str | None = None,
         set_active_zone_video_fn: Callable,
         scan_input_paths_fn: Callable,
         find_video_entry_fn: Callable[..., dict | None],
@@ -133,23 +307,42 @@ class ParquetIOManager:
         if not source_video_path or not target_video_path:
             return copied
 
+        # Fontes que não são vídeo (ex.: PNG do frame de referência) retornam
+        # scan vazio — segue com dict vazio para os fallbacks abaixo agirem.
         scan_results = scan_input_paths_fn([source_video_path])
         if not scan_results:
             log.info(
                 "project_manager.zones.copy_missing_source_scan",
                 source=source_video_path,
             )
-            return copied
 
-        parquet_files: dict[str, str] = scan_results[0].get("parquet_files", {})
+        parquet_files: dict[str, str] = (
+            dict(scan_results[0].get("parquet_files", {})) if scan_results else {}
+        )
+        # Descarta entradas None do scan para não mascarar os fallbacks.
+        parquet_files = {k: v for k, v in parquet_files.items() if v}
 
+        source_entry = None
         # Enrich with registered files if missing (Fix for hierarchical project structure)
         if not parquet_files.get("arena") or not parquet_files.get("rois"):
             source_entry = find_video_entry_fn(path=source_video_path)
             if source_entry:
                 registered = source_entry.get("parquet_files", {})
-                if registered:
-                    parquet_files.update(registered)
+                for key, value in (registered or {}).items():
+                    if value and not parquet_files.get(key):
+                        parquet_files[key] = value
+
+        # Busca por diretórios candidatos (pasta da fonte, diretório resolvido
+        # — Zonas_Referencia para o frame de referência — e caminho legado).
+        if not parquet_files.get("arena") or not parquet_files.get("rois"):
+            located = self._resolve_source_zone_parquets(
+                source_video_path,
+                source_entry,
+                resolve_results_directory_fn,
+                project_path,
+            )
+            for key, value in located.items():
+                parquet_files.setdefault(key, value)
 
         if not parquet_files:
             log.info(
@@ -207,7 +400,19 @@ class ParquetIOManager:
             destination_dirs: list[Path] = [target_parent]
 
             if hierarchical_results_dir:
-                destination_dirs.append(Path(hierarchical_results_dir))
+                from zebtrack.core.project.output_registration_manager import (
+                    LEGACY_NO_GROUP_DIRNAME,
+                )
+
+                hierarchical_path = Path(hierarchical_results_dir)
+                # Não recria a hierarquia-fantasma "Grupo_Sem_Grupo" quando o
+                # alvo não tem metadados de grupo: a cópia na pasta do próprio
+                # vídeo já basta nesse caso.
+                if (
+                    LEGACY_NO_GROUP_DIRNAME not in hierarchical_path.parts
+                    and hierarchical_path != target_parent
+                ):
+                    destination_dirs.append(hierarchical_path)
 
             for dest_dir in destination_dirs:
                 dest_dir.mkdir(parents=True, exist_ok=True)

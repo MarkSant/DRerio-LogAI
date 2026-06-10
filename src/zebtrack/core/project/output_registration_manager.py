@@ -24,6 +24,20 @@ if TYPE_CHECKING:
 
 log = structlog.get_logger()
 
+# Frame de referência capturado na calibração de câmera ao vivo. As zonas
+# desenhadas sobre ele não pertencem a grupo/dia/sujeito algum, então seus
+# parquets vão para uma pasta dedicada na raiz do projeto em vez do fallback
+# hierárquico "Grupo_Sem_Grupo/Dia_Indefinido/Sujeito_Indefinido".
+LIVE_REFERENCE_FRAME_FILENAME = "live_camera_reference_frame.png"
+LIVE_REFERENCE_FRAME_STEM = "live_camera_reference_frame"
+REFERENCE_ZONES_DIRNAME = "Zonas_Referencia"
+
+# Componentes legados do fallback hierárquico — mantidos para leitura de
+# projetos antigos que ainda guardam as zonas de referência nesse caminho.
+LEGACY_NO_GROUP_DIRNAME = "Grupo_Sem_Grupo"
+LEGACY_NO_DAY_DIRNAME = "Dia_Indefinido"
+LEGACY_NO_SUBJECT_DIRNAME = "Sujeito_Indefinido"
+
 
 class OutputRegistrationManager:
     """Manages processing output registration and results directory resolution.
@@ -72,6 +86,15 @@ class OutputRegistrationManager:
         )
 
         if project_path:
+            # Zonas do frame de referência live: pasta dedicada na raiz do
+            # projeto (sem hierarquia artificial de grupo/dia/sujeito).
+            is_reference_frame = (
+                bool(video_path and Path(video_path).name == LIVE_REFERENCE_FRAME_FILENAME)
+                or str(experiment_source or "") == LIVE_REFERENCE_FRAME_STEM
+            )
+            if is_reference_frame:
+                return Path(project_path) / REFERENCE_ZONES_DIRNAME
+
             meta_lookup = metadata or {}
 
             if not meta_lookup and get_metadata_for_experiment_fn:
