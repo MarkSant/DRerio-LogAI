@@ -414,8 +414,35 @@ class MainViewModelRuntime:
         if not new_manager:
             return
 
+        # Atualizar a propria referencia do MainViewModel — sem isto,
+        # ``gui.controller.project_manager`` continua apontando para a
+        # instancia anterior, ``load_project_view`` chama
+        # ``pm.get_project_name()`` no manager antigo e a barra de titulo
+        # fica com o nome do projeto anterior mesmo apos abrir outro
+        # (regressao reportada em 2026-06-11 ao alternar Live_T4 -> Live_T9).
+        # As mesmas referencias derivadas (adapter, services com atributo
+        # ``project_manager``) ja sao sincronizadas abaixo.
+        self._vm.project_manager = new_manager
+
         if hasattr(self._vm, "project_workflow_adapter") and self._vm.project_workflow_adapter:
             self._vm.project_workflow_adapter.project_manager = new_manager
+
+        # Sub-view-models tambem guardam ``self.project_manager`` (setado
+        # uma vez no construtor a partir de ``dependencies``) — sem
+        # atualizar aqui, fluxos como ``ProjectViewModel.on_video_selected``
+        # ou checagens de ``AnalysisControlViewModel`` operam sobre o
+        # manager antigo apos um close/reopen.
+        for vm_attr in ("project_vm", "analysis_vm"):
+            sub_vm = getattr(self._vm, vm_attr, None)
+            if sub_vm is not None and hasattr(sub_vm, "project_manager"):
+                try:
+                    sub_vm.project_manager = new_manager
+                except AttributeError as exc:
+                    log.error(
+                        "main_view_model.project_manager_replaced.sub_vm_update_failed",
+                        sub_vm=vm_attr,
+                        error=str(exc),
+                    )
 
         services_to_update = [
             ("project_workflow_service", self._vm.project_workflow_service),
@@ -423,6 +450,7 @@ class MainViewModelRuntime:
             ("video_processing_service", self._vm.video_processing_service),
             ("recording_service", self._vm.recording_service),
             ("processing_coordinator", self._vm.processing_coordinator),
+            ("live_camera_service", getattr(self._vm, "live_camera_service", None)),
         ]
 
         orchestrators_to_update: list[tuple[str, Any]] = [

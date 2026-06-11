@@ -212,8 +212,16 @@ class TestProjectWorkflowServiceModelSettings(unittest.TestCase):
         assert weight == "project_seg.pt"
         assert openvino is False
 
-    def test_resolve_project_model_settings_ignores_stale_snapshot_when_overrides_empty(self):
-        """Empty overrides should inherit globals instead of reusing stale snapshots."""
+    def test_resolve_project_model_settings_prefers_project_root_when_overrides_empty(self):
+        """Regression (2026-06-11): when ``model_overrides["use_openvino"]``
+        is ``None``, the raiz ``project_data["use_openvino"]`` is the
+        canonical project choice (gravado pelo wizard ou pelo save
+        anterior). Antes esse caminho caia em ``_global_model_defaults``
+        e, ao reabrir um projeto OpenVINO criado pelo wizard com o
+        ``detector_state`` ainda no default False, o resolve devolvia
+        False e o ``apply_project_model_overrides`` sobrescrevia o True
+        em disco — corrompendo a configuracao do projeto.
+        """
         self.mock_project_manager.project_data = {
             "active_weight": "stale_weight.pt",
             "use_openvino": True,
@@ -231,8 +239,11 @@ class TestProjectWorkflowServiceModelSettings(unittest.TestCase):
 
         weight, openvino = self.service.resolve_project_model_settings(overrides=None)
 
+        # Active weight ainda segue _global_model_defaults quando o
+        # override e o snapshot sao None/ausente — apenas o
+        # use_openvino passou a preferir o project_data raiz.
         assert weight == "global_weight.pt"
-        assert openvino is False
+        assert openvino is True
 
     def test_resolve_project_model_settings_fallback_to_global_defaults(self):
         """Test resolution falls back to global defaults."""
