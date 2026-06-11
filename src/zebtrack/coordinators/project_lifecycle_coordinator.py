@@ -323,13 +323,29 @@ class ProjectLifecycleCoordinator(BaseCoordinator):
 
         # Defaults globais sao usados pelo resolver subsequente como
         # fallback quando ``model_overrides["use_openvino"]`` esta vazio
-        # (cenario imediatamente pos-criacao). Aqui priorizamos o flag
-        # vindo do wizard, depois o ``state_manager.detector_state`` e
-        # por ultimo o flag global da settings. Sem essa hierarquia, o
-        # ``get_use_openvino()`` puro retornava o default ``False`` do
-        # ``DetectorState`` no startup (state_manager nao e atualizado
-        # pelo bootstrapper), descartando a escolha do wizard. Mesma
-        # logica para o active_weight.
+        # (cenario imediatamente pos-criacao).
+        #
+        # Regra real para ``use_openvino``:
+        #   1. Se o wizard passou um valor (True ou False), respeitar
+        #      explicitamente — e a escolha mais recente do usuario.
+        #   2. Caso contrario, se ``state_manager.detector_state`` ja
+        #      reflete um True real (ex.: usuario marcou OpenVINO via
+        #      checkbox global apos o startup), usar esse True.
+        #   3. Quando o state e False, NAO confiamos nele como sinal
+        #      negativo — esse False pode ser apenas o default do
+        #      ``@dataclass DetectorState`` (use_openvino=False), ja
+        #      que o bootstrapper apenas seta os defaults globais e
+        #      NUNCA chama ``update_detector_state``. Nesse caso caimos
+        #      no flag persistido em ``settings.model_selection``, que
+        #      reflete a preferencia global salva em ``config.local.yaml``.
+        # Sem essa regra (so trocar para ``state if state else settings``
+        # nao basta — precisa do guard de "False pode ser default"), um
+        # usuario com OpenVINO global True via no log ``defaults_set
+        # use_openvino=false`` no momento do create e a escolha do
+        # wizard era descartada pelo resolver subsequente.
+        # ``active_weight`` segue a mesma ordem mas com checagem de
+        # ausencia (None/string vazia) em vez de boolean — nao tem o
+        # problema de "False generico".
         wizard_use_openvino = wizard_data.get("use_openvino")
         wizard_active_weight = wizard_data.get("active_weight")
         state_use_openvino = get_use_openvino()
