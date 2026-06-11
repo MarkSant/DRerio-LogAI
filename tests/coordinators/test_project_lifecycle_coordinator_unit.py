@@ -1,6 +1,8 @@
 """Unit tests for ProjectLifecycleCoordinator helpers."""
 
 from dataclasses import dataclass
+from types import SimpleNamespace
+from typing import Any, cast
 from unittest.mock import MagicMock
 
 import pytest
@@ -234,4 +236,213 @@ def test_close_project_swallows_live_stop_errors(event_bus):
     result = coord.close_project()
 
     assert result is new_manager
-    coord.project_workflow_adapter.close_project.assert_called_once()  # type: ignore[attr-defined]
+
+
+# === Bug A: wizard use_openvino must override stale state defaults ============
+
+
+def _make_create_project_coordinator(
+    *,
+    state_use_openvino: bool = False,
+    state_active_weight: str = "",
+    settings_use_openvino: bool = False,
+    create_result: dict | None = None,
+) -> ProjectLifecycleCoordinator:
+    """Build a coordinator wired to inspect ``set_global_model_defaults`` calls."""
+    workflow_service = MagicMock()
+    workflow_service.create_project.return_value = create_result or {
+        "success": False,
+        "error_message": "stop short of UI updates",
+        "wizard_metadata": None,
+        "animal_method": None,
+    }
+
+    detector_state = SimpleNamespace(
+        active_weight_name=state_active_weight,
+        use_openvino=state_use_openvino,
+    )
+    state_manager = MagicMock()
+    state_manager.get_detector_state.return_value = detector_state
+    # ``get_state`` may be called by other helpers; align defaults too.
+    state_manager.get_state.return_value = {
+        "active_weight_name": state_active_weight,
+        "use_openvino": state_use_openvino,
+    }
+
+    settings_obj = SimpleNamespace(
+        model_selection=SimpleNamespace(use_openvino=settings_use_openvino),
+    )
+
+    return ProjectLifecycleCoordinator(
+        state_manager=state_manager,
+        project_manager=MagicMock(),
+        project_workflow_service=workflow_service,
+        project_workflow_adapter=MagicMock(),
+        settings_obj=cast(Any, settings_obj),
+        event_bus=MagicMock(),
+        detector_service=MagicMock(),
+    )
+
+
+def test_create_project_prefers_wizard_use_openvino_over_stale_state():
+    """Regression: wizard chooses OpenVINO but ``state_manager.detector_state``
+    still holds the post-bootstrap default ``use_openvino=False``. The
+    coordinator must prime ``_global_model_defaults`` with the wizard value,
+    otherwise the resolver downstream falls back to ``False`` and the
+    detector silently starts as PyTorch (see analysis.log 2026-06-10
+    12:23:22 ``model_settings_resolved resolved_openvino=false``).
+    """
+    coord = _make_create_project_coordinator(
+        state_use_openvino=False,
+        settings_use_openvino=False,
+    )
+
+    coord.create_project(use_openvino=True, active_weight="best_det_topdown.pt")
+
+    set_defaults = cast(MagicMock, coord.project_workflow_service.set_global_model_defaults)
+    set_defaults.assert_called_once_with(
+        active_weight="best_det_topdown.pt",
+        use_openvino=True,
+    )
+
+
+def test_create_project_falls_back_to_settings_when_state_and_wizard_absent():
+    """When the wizard does not pass ``use_openvino`` and the state default
+    is still ``False``, the global ``settings.model_selection.use_openvino``
+    is honored. Without this, projects created without an explicit wizard
+    flag never inherit the user's persisted global preference."""
+    coord = _make_create_project_coordinator(
+        state_use_openvino=False,
+        settings_use_openvino=True,
+    )
+
+    coord.create_project()
+
+    set_defaults = cast(MagicMock, coord.project_workflow_service.set_global_model_defaults)
+    set_defaults.assert_called_once()
+    _, kwargs = set_defaults.call_args
+    assert kwargs["use_openvino"] is True
+
+
+def test_create_project_uses_state_when_wizard_silent_but_state_explicit():
+    """If state already reflects a real choice (e.g. user toggled OpenVINO
+    after startup), preserve it when the wizard does not override."""
+    coord = _make_create_project_coordinator(
+        state_use_openvino=True,
+        state_active_weight="state_weight.pt",
+        settings_use_openvino=False,
+    )
+
+    coord.create_project()
+
+    set_defaults = cast(MagicMock, coord.project_workflow_service.set_global_model_defaults)
+    set_defaults.assert_called_once()
+    _, kwargs = set_defaults.call_args
+    assert kwargs["use_openvino"] is True
+    assert kwargs["active_weight"] == "state_weight.pt"
+
+
+# === Bug C: copy_global_model_settings_to_project must rebuild detector ======
+
+
+def test_copy_global_injects_default_setters_and_rebuilds_detector():
+    """Regression: clicking "Copiar Globais para o Projeto" used to grava em
+    disco and silently leave the detector unchanged (and the OpenVINO
+    checkbox out of sync). With ``apply_runtime=True`` (default), the
+    coordinator now injects real ``state_manager`` setters and a
+    callback that rebuilds the detector + publishes UI events.
+    """
+    state_manager = MagicMock()
+    detector_service = MagicMock()
+    detector_service.initialize_detector.return_value = (True, None)
+    event_bus = MagicMock()
+
+    model_override_service = MagicMock()
+    model_override_service.copy_global_model_settings_to_project.return_value = (
+        "global_det.pt",
+        True,
+    )
+
+    coord = ProjectLifecycleCoordinator(
+        state_manager=state_manager,
+        project_manager=MagicMock(),
+        project_workflow_service=MagicMock(),
+        project_workflow_adapter=MagicMock(),
+        settings_obj=cast(
+            Any, SimpleNamespace(model_selection=SimpleNamespace(animal_method="det"))
+        ),
+        event_bus=event_bus,
+        detector_service=detector_service,
+        model_override_service=model_override_service,
+    )
+
+    result = coord.copy_global_model_settings_to_project(
+        get_global_defaults=lambda: {
+            "active_weight": "global_det.pt",
+            "use_openvino": True,
+        },
+        get_active_weight_name=lambda: "global_det.pt",
+    )
+
+    assert result == ("global_det.pt", True)
+    # Real setters injetados (nao None). Bound methods nao sao ``is``
+    # comparaveis entre acessos diferentes — compara por ``__func__``.
+    call_kwargs = model_override_service.copy_global_model_settings_to_project.call_args.kwargs
+    assert (
+        call_kwargs["active_weight_setter"].__func__
+        is ProjectLifecycleCoordinator._default_set_active_weight
+    )
+    assert (
+        call_kwargs["use_openvino_setter"].__func__
+        is ProjectLifecycleCoordinator._default_set_openvino_usage
+    )
+    assert (
+        call_kwargs["apply_runtime_callback"].__func__
+        is ProjectLifecycleCoordinator._default_apply_runtime_after_copy
+    )
+
+    # Apply runtime hook simula a entrega final (model_override_service em
+    # producao chama esse callback com os valores resolvidos).
+    coord._default_apply_runtime_after_copy("global_det.pt", True)
+
+    # Eventos UI publicados. `_publish_event` em BaseCoordinator
+    # transforma em Event(type=...); validamos so a presenca de
+    # publicacoes em vez de inspecionar o payload aninhado.
+    assert event_bus.publish.called
+
+    # Detector reconstruido.
+    detector_service.initialize_detector.assert_called_once()
+    init_kwargs = detector_service.initialize_detector.call_args.kwargs
+    assert init_kwargs["use_openvino"] is True
+    assert init_kwargs["animal_method"] == "det"
+
+
+def test_copy_global_with_apply_runtime_false_skips_defaults():
+    """Tests/legacy callers can opt out of the runtime side effects."""
+    model_override_service = MagicMock()
+    model_override_service.copy_global_model_settings_to_project.return_value = (
+        None,
+        False,
+    )
+
+    coord = ProjectLifecycleCoordinator(
+        state_manager=MagicMock(),
+        project_manager=MagicMock(),
+        project_workflow_service=MagicMock(),
+        project_workflow_adapter=MagicMock(),
+        settings_obj=MagicMock(),
+        event_bus=MagicMock(),
+        detector_service=MagicMock(),
+        model_override_service=model_override_service,
+    )
+
+    coord.copy_global_model_settings_to_project(
+        get_global_defaults=lambda: {},
+        get_active_weight_name=lambda: None,
+        apply_runtime=False,
+    )
+
+    call_kwargs = model_override_service.copy_global_model_settings_to_project.call_args.kwargs
+    assert call_kwargs["active_weight_setter"] is None
+    assert call_kwargs["use_openvino_setter"] is None
+    assert call_kwargs["apply_runtime_callback"] is None

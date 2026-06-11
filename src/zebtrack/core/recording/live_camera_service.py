@@ -35,6 +35,7 @@ if TYPE_CHECKING:
     from zebtrack.core.detection.multi_aquarium_detector import MultiAquariumDetector
     from zebtrack.core.main_view_model import MainViewModel
     from zebtrack.core.project.project_manager import ProjectManager
+    from zebtrack.core.project.project_workflow_service import ProjectWorkflowService
     from zebtrack.core.recording.recording_service import RecordingService
     from zebtrack.core.services.detector_service import DetectorService
     from zebtrack.core.state_manager import StateManager
@@ -142,6 +143,7 @@ class LiveCameraService(
         recorder: Any,  # Recorder
         event_bus: EventBusV2,  # Injected EventBusV2
         root: Misc | None = None,
+        project_workflow_service: ProjectWorkflowService | None = None,
     ):
         """
         Initialize LiveCameraService.
@@ -156,6 +158,10 @@ class LiveCameraService(
             recorder: Recorder instance
             event_bus: EventBusV2 for UI notifications
             root: Tkinter root for UI updates
+            project_workflow_service: ProjectWorkflowService used to resolve
+                project-specific model settings (active weight / use_openvino)
+                before starting a live session. Optional to keep older callers
+                working — fallback uses global ``settings.model_selection``.
         """
         self.controller = controller
         self.state_manager = state_manager
@@ -166,6 +172,7 @@ class LiveCameraService(
         self.recorder = recorder
         self.event_bus = event_bus
         self.root = root
+        self.project_workflow_service = project_workflow_service
 
         # Threading infrastructure
         self._lock = threading.Lock()  # Protects all shared state below

@@ -481,3 +481,85 @@ def test_release_preview_camera_swallows_release_exception(live_camera_service):
 
     preview_camera.release.assert_called_once()
     assert hardware_vm.camera is None
+
+
+# === Bug B: live session must honor project-level use_openvino ===============
+
+
+def test_resolve_session_detector_config_prefers_project_workflow_service(
+    live_camera_service,
+):
+    """Regression: live session must NOT silently use the global
+    ``settings.model_selection.use_openvino``. When a project is loaded
+    and a workflow service is wired, the resolver of the project (which
+    walks ``model_overrides`` -> ``project_data["use_openvino"]`` ->
+    globals) is the source of truth.
+    """
+    project_manager = Mock()
+    project_manager.project_path = "/tmp/project"
+    live_camera_service.project_manager = project_manager
+
+    workflow_service = Mock()
+    workflow_service.resolve_project_model_settings.return_value = (
+        "best_det_topdown.pt",
+        True,
+    )
+    live_camera_service.project_workflow_service = workflow_service
+
+    # Settings global aponta para False — antes do fix, esse era o
+    # valor que a sessao live usava.
+    live_camera_service.settings = SimpleNamespace(
+        model_selection=SimpleNamespace(use_openvino=False, animal_method="det"),
+    )
+
+    weight, openvino, source = live_camera_service._resolve_session_detector_config()
+
+    assert weight == "best_det_topdown.pt"
+    assert openvino is True
+    assert source == "project_workflow_service"
+    workflow_service.resolve_project_model_settings.assert_called_once_with()
+
+
+def test_resolve_session_detector_config_falls_back_to_settings_without_project(
+    live_camera_service,
+):
+    """No project loaded -> fall back to global settings (preserves
+    behavior for callers that use live without a project)."""
+    project_manager = Mock()
+    project_manager.project_path = None
+    live_camera_service.project_manager = project_manager
+
+    workflow_service = Mock()
+    live_camera_service.project_workflow_service = workflow_service
+
+    live_camera_service.settings = SimpleNamespace(
+        model_selection=SimpleNamespace(use_openvino=True, animal_method="det"),
+    )
+
+    weight, openvino, source = live_camera_service._resolve_session_detector_config()
+
+    assert weight is None
+    assert openvino is True
+    assert source == "settings"
+    workflow_service.resolve_project_model_settings.assert_not_called()
+
+
+def test_resolve_session_detector_config_falls_back_when_workflow_service_missing(
+    live_camera_service,
+):
+    """Callers that build LiveCameraService without a workflow service
+    (legacy tests) still get a working resolution path."""
+    project_manager = Mock()
+    project_manager.project_path = "/tmp/project"
+    live_camera_service.project_manager = project_manager
+    live_camera_service.project_workflow_service = None
+
+    live_camera_service.settings = SimpleNamespace(
+        model_selection=SimpleNamespace(use_openvino=False, animal_method="det"),
+    )
+
+    weight, openvino, source = live_camera_service._resolve_session_detector_config()
+
+    assert weight is None
+    assert openvino is False
+    assert source == "settings"
