@@ -425,6 +425,36 @@ Cross-component contracts introduced by the live-project bug-sextet fix
   overrides into another project's `project_config.json` via `ProjectService`
   (integrity hash preserved) without switching the open project.
 
+### 5.5. Unified Report Folders & Summary Resolution (June 2026)
+
+Both "Relatório para Selecionados" (partial) and "Relatório Unificado (Todos)"
+publish `REPORT_GENERATE` with `report_type="unified"` and a `report_scope`
+(`"selected"` vs `"all"`); the handler calls
+`ReportGenerationCoordinator.generate_unified_report(..., report_scope=...)`.
+
+- **Per-scope subfolders (no collision):** unified artifacts are written to
+  `<project>/unified_reports/total/` (scope `all`) or
+  `<project>/unified_reports/selecionados/` (scope `selected`). `replace_existing`
+  cleanup (`_cleanup_unified_reports`) and the run manifest
+  (`latest_unified_run.json`) are scoped to that subfolder, so regenerating the
+  total report no longer deletes the selected/partial one. Session/day-group
+  reports stay in `<project>/partial_reports/` (`BlockDetailDialog`); live raw
+  outputs stay in `<project>/live_analysis_sessions/`.
+- **Summary resolution fallback (fixes "sumários não encontrados"):**
+  `generate_unified_report` no longer trusts only `entry["parquet_files"]["summary"]`.
+  `_ensure_unified_summaries` → `_entry_summary_resolved` repairs stale absolute
+  paths (e.g. OneDrive sync between machines) by locating `{exp_id}_summary.parquet`
+  on disk via `resolve_results_directory`; if still missing but a trajectory
+  exists, it regenerates the summary through `generate_parquet_summaries` (same
+  on-disk-trajectory fallback used by `generate_project_reports`). Only videos
+  with neither summary nor trajectory are reported as missing, by name.
+- **UI access buttons:** `ProcessingReportsWidget._open_latest_unified_file` and
+  `_update_button_states` scan `unified_reports/` recursively (both subfolders +
+  legacy root); open-latest prefers the newest `latest_unified_run.json` artifact,
+  falling back to newest file by mtime.
+  `ReportGeneratorActions._resolve_unified_generation_strategy(scope)` checks only
+  the subfolder of the scope being generated.
+
 ---
 
 ## 6. Common Pitfalls for Agents

@@ -101,7 +101,7 @@ class ReportGeneratorActions:
             )
             return
 
-        replace_existing = self._resolve_unified_generation_strategy()
+        replace_existing = self._resolve_unified_generation_strategy("all")
         if replace_existing is None:
             return
 
@@ -144,7 +144,7 @@ class ReportGeneratorActions:
                     break
 
         if selected_videos:
-            replace_existing = self._resolve_unified_generation_strategy()
+            replace_existing = self._resolve_unified_generation_strategy("selected")
             if replace_existing is None:
                 return
 
@@ -189,7 +189,7 @@ class ReportGeneratorActions:
                     break
 
         if selected_videos:
-            replace_existing = self._resolve_unified_generation_strategy()
+            replace_existing = self._resolve_unified_generation_strategy("selected")
             if replace_existing is None:
                 return
 
@@ -208,8 +208,13 @@ class ReportGeneratorActions:
     # Conflict resolution
     # ------------------------------------------------------------------
 
-    def _resolve_unified_generation_strategy(self) -> bool | None:
+    def _resolve_unified_generation_strategy(self, scope: str = "all") -> bool | None:
         """Resolve conflict strategy when unified reports already exist.
+
+        Args:
+            scope: ``"all"`` para o relatório total, ``"selected"`` para o parcial.
+                Determina a subpasta verificada (total/ ou selecionados/), de modo
+                que a checagem de conflito reflita só o que será substituído.
 
         Returns:
             True to overwrite, False to keep and append, None if user cancels.
@@ -218,7 +223,8 @@ class ReportGeneratorActions:
         if not pm.project_path:
             return False
 
-        unified_dir = Path(pm.project_path) / "unified_reports"
+        scope_dir = "selecionados" if scope == "selected" else "total"
+        unified_dir = Path(pm.project_path) / "unified_reports" / scope_dir
         if not unified_dir.exists():
             return False
 

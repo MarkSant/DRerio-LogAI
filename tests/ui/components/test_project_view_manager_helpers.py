@@ -151,8 +151,8 @@ def test_resolve_unified_strategy_no_project_path_defaults_append():
 def test_resolve_unified_strategy_existing_yes_means_replace(tmp_path):
     _vsm, rtm, gui, pm = _make_manager()
     pm.project_path = str(tmp_path)
-    unified_dir = Path(tmp_path) / "unified_reports"
-    unified_dir.mkdir()
+    unified_dir = Path(tmp_path) / "unified_reports" / "total"
+    unified_dir.mkdir(parents=True)
     (unified_dir / "unified.parquet").write_text("x")
     gui.dialog_manager.ask_yes_no_cancel.return_value = True
 
@@ -162,8 +162,8 @@ def test_resolve_unified_strategy_existing_yes_means_replace(tmp_path):
 def test_resolve_unified_strategy_existing_no_means_append(tmp_path):
     _vsm, rtm, gui, pm = _make_manager()
     pm.project_path = str(tmp_path)
-    unified_dir = Path(tmp_path) / "unified_reports"
-    unified_dir.mkdir()
+    unified_dir = Path(tmp_path) / "unified_reports" / "total"
+    unified_dir.mkdir(parents=True)
     (unified_dir / "unified.xlsx").write_text("x")
     gui.dialog_manager.ask_yes_no_cancel.return_value = False
 
@@ -173,8 +173,8 @@ def test_resolve_unified_strategy_existing_no_means_append(tmp_path):
 def test_resolve_unified_strategy_existing_cancel_returns_none(tmp_path):
     _vsm, rtm, gui, pm = _make_manager()
     pm.project_path = str(tmp_path)
-    unified_dir = Path(tmp_path) / "unified_reports"
-    unified_dir.mkdir()
+    unified_dir = Path(tmp_path) / "unified_reports" / "total"
+    unified_dir.mkdir(parents=True)
     (unified_dir / "unified.docx").write_text("x")
     gui.dialog_manager.ask_yes_no_cancel.return_value = None
 

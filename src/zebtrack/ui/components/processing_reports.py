@@ -494,8 +494,6 @@ class ProcessingReportsWidget(BaseWidget):
             log.warning("processing_reports.open_unified.no_project_path")
             return
 
-        import glob
-        import json
         import os
 
         unified_dir = os.path.join(self._project_path, "unified_reports")
@@ -503,47 +501,18 @@ class ProcessingReportsWidget(BaseWidget):
             log.warning("processing_reports.open_unified.dir_not_found", dir=unified_dir)
             return
 
-        latest_manifest_path = os.path.join(unified_dir, "latest_unified_run.json")
-        latest_file = None
-
-        extension_key_map = {
-            ".docx": "word",
-            ".xlsx": "excel",
-            ".parquet": "parquet",
-        }
-        artifact_key = extension_key_map.get(extension)
-
-        if artifact_key and os.path.exists(latest_manifest_path):
-            try:
-                with open(latest_manifest_path, encoding="utf-8") as fp:
-                    manifest = json.load(fp)
-                artifacts = manifest.get("artifacts", {})
-                candidate = artifacts.get(artifact_key)
-                if isinstance(candidate, str) and os.path.exists(candidate):
-                    latest_file = candidate
-                else:
-                    log.warning(
-                        "processing_reports.open_unified.manifest_artifact_missing",
-                        extension=extension,
-                        artifact_key=artifact_key,
-                        candidate=candidate,
-                    )
-            except Exception:
-                log.warning(
-                    "processing_reports.open_unified.manifest_read_failed",
-                    path=latest_manifest_path,
-                    exc_info=True,
-                )
+        # Preferência: o artefato do run mais recente (manifesto). Como cada escopo
+        # tem seu próprio manifesto (total/ e selecionados/) — e projetos antigos
+        # têm o manifesto na raiz — escolhe-se o manifesto mais novo entre eles.
+        latest_file = self._artifact_from_latest_manifest(unified_dir, extension)
 
         if not latest_file:
-            # Legacy fallback: open most recent file by extension
-            pattern = os.path.join(unified_dir, f"*{extension}")
-            files = glob.glob(pattern)
-
+            # Fallback: arquivo mais recente por mtime, varrendo todas as subpastas
+            # (total/, selecionados/) e arquivos legados na raiz.
+            files = self._collect_unified_files(unified_dir, extension)
             if not files:
                 log.warning("processing_reports.open_unified.no_files", extension=extension)
                 return
-
             latest_file = max(files, key=os.path.getmtime)
 
         try:
@@ -555,6 +524,62 @@ class ProcessingReportsWidget(BaseWidget):
             log.info("processing_reports.open_unified.success", file=os.path.basename(latest_file))
         except Exception as e:
             log.error("processing_reports.open_unified.failed", file=latest_file, error=str(e))
+
+    @staticmethod
+    def _artifact_from_latest_manifest(unified_dir: Path | str, extension: str) -> str | None:
+        """Retorna o artefato do manifesto de run mais recente, se existir em disco.
+
+        Procura ``latest_unified_run.json`` na raiz (legado) e nas subpastas
+        ``total/`` e ``selecionados/``; usa o de maior mtime e devolve o caminho
+        do artefato correspondente à extensão (``word``/``excel``/``parquet``).
+        """
+        import json
+        import os
+
+        extension_key_map = {".docx": "word", ".xlsx": "excel", ".parquet": "parquet"}
+        artifact_key = extension_key_map.get(extension)
+        if not artifact_key:
+            return None
+
+        manifest_paths = [
+            os.path.join(unified_dir, "latest_unified_run.json"),
+            os.path.join(unified_dir, "total", "latest_unified_run.json"),
+            os.path.join(unified_dir, "selecionados", "latest_unified_run.json"),
+        ]
+        existing = [p for p in manifest_paths if os.path.exists(p)]
+        if not existing:
+            return None
+
+        for manifest_path in sorted(existing, key=os.path.getmtime, reverse=True):
+            try:
+                with open(manifest_path, encoding="utf-8") as fp:
+                    manifest = json.load(fp)
+                candidate = manifest.get("artifacts", {}).get(artifact_key)
+                if isinstance(candidate, str) and os.path.exists(candidate):
+                    return candidate
+            except Exception:
+                log.warning(
+                    "processing_reports.open_unified.manifest_read_failed",
+                    path=manifest_path,
+                    exc_info=True,
+                )
+        return None
+
+    @staticmethod
+    def _collect_unified_files(unified_dir: Path | str, extension: str) -> list[str]:
+        """Coleta recursivamente os arquivos de relatório unificado por extensão.
+
+        Cobre as subpastas total/ e selecionados/ e também arquivos legados
+        gravados diretamente em unified_reports/.
+        """
+        import os
+
+        matches: list[str] = []
+        for root, _dirs, names in os.walk(unified_dir):
+            for name in names:
+                if name.endswith(extension):
+                    matches.append(os.path.join(root, name))
+        return matches
 
     def _update_button_states(self, project_path: Path | str | None = None) -> None:
         """Update button enabled/disabled states based on selection and available reports.
@@ -603,11 +628,10 @@ class ProcessingReportsWidget(BaseWidget):
             has_unified_reports = False
 
             if os.path.exists(unified_dir):
-                # Check for any .docx, .xlsx, or .parquet files
-                files = os.listdir(unified_dir)
-                has_word = any(f.endswith(".docx") for f in files)
-                has_excel = any(f.endswith(".xlsx") for f in files)
-                has_parquet = any(f.endswith(".parquet") for f in files)
+                # Varre recursivamente (subpastas total/ e selecionados/ + legado na raiz).
+                has_word = bool(self._collect_unified_files(unified_dir, ".docx"))
+                has_excel = bool(self._collect_unified_files(unified_dir, ".xlsx"))
+                has_parquet = bool(self._collect_unified_files(unified_dir, ".parquet"))
                 has_unified_reports = has_word or has_excel or has_parquet
 
                 # Enable buttons based on file existence
