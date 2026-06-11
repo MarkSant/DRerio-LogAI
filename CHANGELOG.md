@@ -9,6 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### 🐛 Bug Fixes (June 2026) — vídeo único ao vivo abortava ao iniciar
+
+- **Análise de vídeo único ao vivo cancelava sozinha**: `LiveAnalysisDialog`
+  sobrescrevia `cancel()` zerando `self.result`. Como o `Dialog.ok()` do
+  `tkinter` chama `apply()` (que monta o resultado) e em seguida `cancel()` num
+  bloco `finally`, todo clique em "Iniciar Análise" tinha o resultado destruído
+  → `start_live_camera_analysis` caía no ramo `live_analysis.cancelled` e voltava
+  à janela principal sem iniciar a sessão. O override foi removido (o diálogo
+  agora segue o mesmo padrão do `SingleVideoConfigDialog`). Os testes antigos
+  chamavam `apply()` direto e não pegavam isso; novo teste de regressão exercita
+  a sequência real `apply()` → `cancel()`. O fluxo de **projetos ao vivo** não
+  usa esse diálogo e ficou intacto.
+
 ### 🐛 Bug Fixes (June 2026) — follow-ups do sexteto (validação em projeto real)
 
 - **Cores do grid do Progresso**: o ttkbootstrap sobrescrevia o `background=`

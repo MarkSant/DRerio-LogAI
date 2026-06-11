@@ -487,6 +487,56 @@ class TestLiveAnalysisDialog:
                 dialog.duration_var.set(1800)
                 assert dialog.duration_var.get() == 1800
 
+    def test_ok_then_cancel_preserves_result(self, tkinter_root, test_settings):
+        """Regressão: Dialog.ok() chama apply() e DEPOIS cancel() no finally.
+
+        O ``cancel()`` NÃO pode zerar o ``result`` montado por ``apply()``,
+        senão o fluxo de vídeo único ao vivo trata todo clique em "Iniciar
+        Análise" como cancelamento (``live_analysis.cancelled``) e volta à
+        janela principal sem iniciar a sessão. Os demais testes chamam
+        ``apply()`` diretamente e por isso não cobriam essa sequência.
+        """
+        mock_cameras = [{"index": 0, "name": "Test Camera", "resolution": "640x480"}]
+
+        with patch.object(LiveAnalysisDialog, "wait_window"):
+            with patch(
+                "zebtrack.core.services.wizard_service.WizardService.detect_available_cameras"
+            ) as mock_detect:
+                mock_detect.return_value = mock_cameras
+
+                dialog = LiveAnalysisDialog(tkinter_root, settings_obj=test_settings)
+                tkinter_root.update_idletasks()
+                tkinter_root.update()
+                wait_for_condition(lambda: len(dialog.camera_index_map) >= 1, timeout=1.0)
+
+                # Select camera
+                dialog.camera_combo.current(0)
+
+                # apply() é o primeiro passo de Dialog.ok()
+                dialog.apply()
+                assert dialog.result is not None
+                assert dialog.result["camera_index"] == 0
+
+                # cancel() é chamado por Dialog.ok() no finally; não pode
+                # descartar o resultado recém-montado.
+                dialog.cancel()
+                assert dialog.result is not None
+                assert dialog.result["camera_index"] == 0
+
+    def test_cancel_without_apply_leaves_result_none(self, tkinter_root, test_settings):
+        """Cancelamento real (sem apply) mantém ``result`` como None."""
+        with patch.object(LiveAnalysisDialog, "wait_window"):
+            with patch(
+                "zebtrack.core.services.wizard_service.WizardService.detect_available_cameras"
+            ) as mock_detect:
+                mock_detect.return_value = []
+
+                dialog = LiveAnalysisDialog(tkinter_root, settings_obj=test_settings)
+                tkinter_root.update_idletasks()
+
+                dialog.cancel()
+                assert dialog.result is None
+
 
 # ==============================================================================
 # Tests for LivePreviewWindow
