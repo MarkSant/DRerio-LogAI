@@ -79,13 +79,23 @@ class UnifiedReportMixin:
         if not project_path:
             return
 
-        unified_dir = Path(project_path) / "unified_reports"
+        # Cada escopo grava em sua própria subpasta para não colidir: gerar o
+        # relatório total não apaga mais os parciais (selecionados) e vice-versa.
+        scope_dir = "selecionados" if scope == "selected" else "total"
+        unified_dir = Path(project_path) / "unified_reports" / scope_dir
         unified_dir.mkdir(parents=True, exist_ok=True)
 
         if replace_existing:
             self._cleanup_unified_reports(unified_dir)
 
-        dfs = []
+        # Garante um sumário resolvível em disco para cada vídeo selecionado,
+        # regenerando a partir da trajetória quando necessário. Corrige o erro de
+        # "sumário não encontrado" quando o caminho salvo está defasado (projeto
+        # sincronizado via OneDrive entre máquinas) ou os sumários nunca foram
+        # exportados, mas a trajetória 3_CoordMovimento existe em disco.
+        missing_ids = self._ensure_unified_summaries(video_paths)
+
+        dfs: list[pd.DataFrame] = []
         roi_colors_map: dict = {}
 
         for path in video_paths:
@@ -93,28 +103,14 @@ class UnifiedReportMixin:
             if not entry:
                 continue
 
-            # Collect ROI colors from zone data
-            try:
-                zone_data = self.project_manager.get_zone_data(video_path=path)
-                if zone_data and zone_data.roi_names and zone_data.roi_colors:
-                    for roi_name, color in zip(
-                        zone_data.roi_names, zone_data.roi_colors, strict=True
-                    ):
-                        if roi_name not in roi_colors_map:
-                            roi_colors_map[roi_name] = color
-            except (OSError, KeyError, ValueError) as e:
-                log.debug(
-                    "workflow.unified_report.color_collection_failed",
-                    path=path,
-                    error=str(e),
-                )
+            self._collect_roi_colors_into(path, roi_colors_map)
 
             # Handle multi-aquarium entries
             multi_outputs = entry.get("multi_aquarium_outputs")
             entries_to_process: list[dict[str, Any]] = []
 
             if multi_outputs:
-                exp_id = entry.get("experiment_id", os.path.splitext(os.path.basename(path))[0])
+                exp_id = entry.get("experiment_id") or os.path.splitext(os.path.basename(path))[0]
                 fresh_meta = self.project_manager.get_metadata_for_experiment(
                     exp_id, video_path=path
                 )
@@ -137,7 +133,7 @@ class UnifiedReportMixin:
                         }
                     )
             else:
-                exp_id = entry.get("experiment_id", os.path.splitext(os.path.basename(path))[0])
+                exp_id = entry.get("experiment_id") or os.path.splitext(os.path.basename(path))[0]
                 fresh_meta = self.project_manager.get_metadata_for_experiment(
                     exp_id, video_path=path
                 )
@@ -150,33 +146,30 @@ class UnifiedReportMixin:
                     }
                 )
 
-            for process_entry in entries_to_process:
-                parquet_files = process_entry.get("parquet_files", {})
-                summary_path = parquet_files.get("summary")
-                entry_meta = process_entry.get("metadata", {})
-
-                if summary_path and os.path.exists(summary_path):
-                    try:
-                        df = pd.read_parquet(summary_path)
-                        if entry_meta:
-                            df = self._enrich_unified_report_metadata(df, entry_meta, process_entry)
-                        dfs.append(df)
-                    except (OSError, ValueError) as e:
-                        log.warning(
-                            "workflow.unified_report.read_failed",
-                            file=summary_path,
-                            error=str(e),
-                        )
+            self._append_entry_summaries(entries_to_process, path, dfs)
 
         if not dfs:
+            if missing_ids:
+                detail = ", ".join(missing_ids[:10])
+                extra = "" if len(missing_ids) <= 10 else f" (+{len(missing_ids) - 10})"
+                message = (
+                    f"Sem sumário/trajetória para: {detail}{extra}.\n\n"
+                    "Gere as trajetórias desses vídeos antes de criar o relatório."
+                )
+            else:
+                message = "Não foi possível encontrar sumários para os vídeos selecionados."
             self._publish_event(
                 UIEvents.UI_SHOW_WARNING,
-                payloads.MessagePayload(
-                    title="Dados insuficientes",
-                    message="Não foi possível encontrar sumários para os vídeos selecionados.",
-                ),
+                payloads.MessagePayload(title="Dados insuficientes", message=message),
             )
             return
+
+        if missing_ids:
+            log.warning(
+                "workflow.unified_report.partial_missing",
+                missing=missing_ids,
+                included=len(dfs),
+            )
 
         try:
             final_df, schema_mismatch, all_columns = self._align_and_concatenate_unified_dfs(dfs)
@@ -201,6 +194,157 @@ class UnifiedReportMixin:
                 UIEvents.UI_REFRESH_PROJECT_VIEWS,
                 payloads.ProjectViewsRefreshRequestedPayload(),
             )
+
+    # ------------------------------------------------------------------
+    # Summary resolution / regeneration
+    # ------------------------------------------------------------------
+
+    # Host-provided method (implemented by ReportGenerationCoordinator)
+    generate_parquet_summaries: Any  # (entries: list[dict], settings) -> None
+
+    def _collect_roi_colors_into(self, path: Path | str, roi_colors_map: dict) -> None:
+        """Acumula cores de ROI (nome → cor) das zonas do vídeo, sem sobrescrever."""
+        try:
+            zone_data = self.project_manager.get_zone_data(video_path=path)
+            if zone_data and zone_data.roi_names and zone_data.roi_colors:
+                for roi_name, color in zip(zone_data.roi_names, zone_data.roi_colors, strict=True):
+                    roi_colors_map.setdefault(roi_name, color)
+        except (OSError, KeyError, ValueError) as e:
+            log.debug("workflow.unified_report.color_collection_failed", path=path, error=str(e))
+
+    def _append_entry_summaries(
+        self, entries_to_process: list[dict], path: Path | str, dfs: list
+    ) -> None:
+        """Lê o sumário de cada process_entry (com fallback em disco) e acumula em ``dfs``."""
+        for process_entry in entries_to_process:
+            summary_path = process_entry.get("parquet_files", {}).get("summary")
+            entry_meta = process_entry.get("metadata", {})
+
+            # Caminho registrado pode estar defasado (sync OneDrive) ou apontar para
+            # um local inexistente (re-resolução de saídas em sessões live). Resolve
+            # no disco antes de desistir.
+            if not (summary_path and os.path.exists(summary_path)):
+                fallback_id = (
+                    process_entry.get("experiment_id")
+                    or os.path.splitext(os.path.basename(path))[0]
+                )
+                summary_path = self._summary_candidate_on_disk(fallback_id, path)
+
+            if not (summary_path and os.path.exists(summary_path)):
+                continue
+
+            try:
+                df = pd.read_parquet(summary_path)
+                if entry_meta:
+                    df = self._enrich_unified_report_metadata(df, entry_meta, process_entry)
+                dfs.append(df)
+            except (OSError, ValueError) as e:
+                log.warning("workflow.unified_report.read_failed", file=summary_path, error=str(e))
+
+    def _ensure_unified_summaries(self, video_paths: list[str]) -> list[str]:
+        """Garante sumários resolvíveis em disco para os vídeos do relatório.
+
+        Para cada vídeo: usa o caminho salvo se existir; senão procura o
+        ``{exp_id}_summary.parquet`` na pasta de resultados (reparando caminhos
+        absolutos defasados); se ainda faltar mas houver trajetória, regenera o
+        sumário via ``generate_parquet_summaries`` — a mesma infra do relatório
+        por-vídeo, que já tem fallback em disco para a trajetória.
+
+        Returns:
+            Lista de ``experiment_id`` que permanecem sem dados (sem sumário e
+            sem trajetória) após a tentativa de regeneração.
+        """
+        to_regen: list[dict] = []
+        regen_paths: list[str] = []
+        for path in video_paths:
+            entry = self.project_manager.find_video_entry(path=path)
+            if not entry:
+                continue
+            if self._entry_summary_resolved(entry, path):
+                continue
+            to_regen.append(entry)
+            regen_paths.append(path)
+
+        if to_regen:
+            log.info("workflow.unified_report.summary_regenerating", count=len(to_regen))
+            self.generate_parquet_summaries(to_regen, self.settings)
+
+        missing: list[str] = []
+        for path, entry in zip(regen_paths, to_regen, strict=True):
+            if not self._entry_summary_resolved(entry, path):
+                missing.append(
+                    entry.get("experiment_id") or os.path.splitext(os.path.basename(path))[0]
+                )
+        return missing
+
+    def _entry_summary_resolved(self, entry: dict, video_path: Path | str) -> bool:
+        """Verifica/repara o caminho do sumário de um entry (standard ou multi).
+
+        Registra em ``parquet_files['summary']`` qualquer ``_summary.parquet``
+        encontrado em disco e retorna ``True`` se houver ao menos um.
+        """
+        exp_id = entry.get("experiment_id") or os.path.splitext(os.path.basename(video_path))[0]
+
+        multi_outputs = entry.get("multi_aquarium_outputs")
+        if multi_outputs:
+            resolved_any = False
+            for aq_id_str, out_info in multi_outputs.items():
+                if not isinstance(out_info, dict):
+                    continue
+                pf = out_info.setdefault("parquet_files", {})
+                summary_path = pf.get("summary")
+                if summary_path and os.path.exists(summary_path):
+                    resolved_any = True
+                    continue
+                aq_dir = out_info.get("results_dir")
+                try:
+                    aq_id = int(aq_id_str)
+                except (TypeError, ValueError):
+                    continue
+                if aq_dir:
+                    candidate = os.path.join(str(aq_dir), f"{exp_id}_aq{aq_id + 1}_summary.parquet")
+                    if os.path.exists(candidate):
+                        pf["summary"] = candidate
+                        resolved_any = True
+            return resolved_any
+
+        pf = entry.get("parquet_files", {})
+        summary_path = pf.get("summary")
+        if summary_path and os.path.exists(summary_path):
+            return True
+
+        disk_candidate = self._summary_candidate_on_disk(exp_id, video_path)
+        if disk_candidate:
+            entry.setdefault("parquet_files", {})["summary"] = disk_candidate
+            log.info(
+                "workflow.unified_report.summary_resolved",
+                experiment_id=exp_id,
+                path=disk_candidate,
+            )
+            return True
+        return False
+
+    def _summary_candidate_on_disk(self, exp_id: str, video_path: Path | str) -> str | None:
+        """Procura ``{exp_id}_summary.parquet`` na pasta de resultados ou ao lado do vídeo."""
+        try:
+            res_path = self.project_manager.resolve_results_directory(
+                exp_id, video_path=str(video_path)
+            )
+        # except Exception justified: resolução de pasta tolerante a falhas de I/O
+        except Exception:
+            log.debug("workflow.unified_report.resolve_results_failed", exc_info=True)
+            return None
+
+        video_dir = os.path.dirname(str(video_path))
+        candidates = [
+            os.path.join(str(res_path), f"{exp_id}_summary.parquet"),
+            # Ao lado do vídeo (pasta de resultados pré-gravada).
+            os.path.join(video_dir, f"{exp_id}_summary.parquet"),
+            # Sessão live: o vídeo fica em .../Sujeito_NN/<sessao>/<sessao>.mp4 e o
+            # sumário costuma ficar um nível acima (.../Sujeito_NN/<sessao>_summary.parquet).
+            os.path.join(os.path.dirname(video_dir), f"{exp_id}_summary.parquet"),
+        ]
+        return next((c for c in candidates if os.path.exists(c)), None)
 
     # ------------------------------------------------------------------
     # DataFrame alignment

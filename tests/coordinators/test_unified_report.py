@@ -210,7 +210,7 @@ def test_metadata_enrichment_updates_unassigned_group_id(
     # Since we can't directly access the internal df, we verify via file output
     unified_dir = tmp_path / "unified_reports"
     if unified_dir.exists():
-        parquet_files = list(unified_dir.glob("*.parquet"))
+        parquet_files = list(unified_dir.rglob("*.parquet"))
         if parquet_files:
             result_df = pd.read_parquet(parquet_files[0])
             assert "unassigned" not in result_df["group_id"].values
@@ -247,7 +247,7 @@ def test_metadata_enrichment_updates_unknown_experiment_id(
     # Verify via output file
     unified_dir = tmp_path / "unified_reports"
     if unified_dir.exists():
-        parquet_files = list(unified_dir.glob("*.parquet"))
+        parquet_files = list(unified_dir.rglob("*.parquet"))
         if parquet_files:
             result_df = pd.read_parquet(parquet_files[0])
             assert "unknown" not in result_df["experiment_id"].values
@@ -281,7 +281,7 @@ def test_metadata_enrichment_preserves_existing_values(coordinator, sample_summa
     # Verify: Project metadata should override parquet values (metadata authority)
     unified_dir = tmp_path / "unified_reports"
     if unified_dir.exists():
-        parquet_files = list(unified_dir.glob("*.parquet"))
+        parquet_files = list(unified_dir.rglob("*.parquet"))
         if parquet_files:
             result_df = pd.read_parquet(parquet_files[0])
             # Project metadata "different_group" should override original "control"
@@ -344,7 +344,7 @@ def test_dataframe_alignment_with_mismatched_schemas(
     # Verify: Result should have all columns from both DataFrames
     unified_dir = tmp_path / "unified_reports"
     if unified_dir.exists():
-        parquet_files = list(unified_dir.glob("*.parquet"))
+        parquet_files = list(unified_dir.rglob("*.parquet"))
         if parquet_files:
             result_df = pd.read_parquet(parquet_files[0])
 
@@ -591,9 +591,9 @@ def test_unified_report_full_workflow_with_different_rois(
     unified_dir = tmp_path / "unified_reports"
     assert unified_dir.exists()
 
-    parquet_files = list(unified_dir.glob("*.parquet"))
-    excel_files = list(unified_dir.glob("*.xlsx"))
-    word_files = list(unified_dir.glob("*.docx"))
+    parquet_files = list(unified_dir.rglob("*.parquet"))
+    excel_files = list(unified_dir.rglob("*.xlsx"))
+    word_files = list(unified_dir.rglob("*.docx"))
 
     assert len(parquet_files) == 1
     assert len(excel_files) == 1
@@ -664,6 +664,225 @@ def test_unified_report_shows_error_when_all_exports_fail(
         and "Relatório Unificado" in getattr(call[0][1], "title", "")
     ]
     assert not success_calls, "Should not show success info when no unified files were generated"
+
+
+# =============================================================================
+# TESTS: Summary resolution / regeneration (bug "parquets não encontrados")
+# =============================================================================
+
+
+def test_summary_resolved_from_disk_when_path_unregistered(
+    coordinator, sample_summary_df, tmp_path
+):
+    """Sumário presente no disco mas NÃO registrado deve ser localizado (sem erro)."""
+    results_dir = tmp_path / "Grupo_A" / "Dia_1" / "Sujeito_1"
+    results_dir.mkdir(parents=True)
+    summary_path = results_dir / "video1_summary.parquet"
+    sample_summary_df.to_parquet(summary_path, index=False)
+
+    coordinator.project_manager.find_video_entry = Mock(
+        return_value={
+            "parquet_files": {},  # caminho do sumário ausente no project_data
+            "metadata": {"group_id": "control", "experiment_id": "video1"},
+            "experiment_id": "video1",
+        }
+    )
+    coordinator.project_manager.get_metadata_for_experiment = Mock(
+        return_value={"group_id": "control", "experiment_id": "video1"}
+    )
+    coordinator.project_manager.resolve_results_directory = Mock(return_value=results_dir)
+    coordinator.generate_parquet_summaries = Mock()
+
+    with patch.object(coordinator.project_manager, "project_path", tmp_path):
+        coordinator.generate_unified_report([str(tmp_path / "video1.mp4")])
+
+    # Achou no disco → não precisou regenerar
+    coordinator.generate_parquet_summaries.assert_not_called()
+
+    out = list((tmp_path / "unified_reports" / "total").rglob("*.parquet"))
+    assert out, "Deveria gerar o parquet unificado a partir do sumário encontrado no disco"
+
+    insufficient = [
+        c
+        for c in coordinator._publish_event.call_args_list
+        if c[0][0] == UIEvents.UI_SHOW_WARNING
+        and "Dados insuficientes" in getattr(c[0][1], "title", "")
+    ]
+    assert not insufficient, "Não deveria reportar 'Dados insuficientes' quando o sumário existe"
+
+
+def test_summary_regenerated_from_trajectory_when_missing(coordinator, sample_summary_df, tmp_path):
+    """Sem sumário em disco, deve regenerar via generate_parquet_summaries."""
+    results_dir = tmp_path / "Grupo_A" / "Dia_1" / "Sujeito_1"
+    results_dir.mkdir(parents=True)
+    summary_path = results_dir / "video1_summary.parquet"
+
+    entry = {
+        "parquet_files": {},
+        "metadata": {"group_id": "control", "experiment_id": "video1"},
+        "experiment_id": "video1",
+    }
+    coordinator.project_manager.find_video_entry = Mock(return_value=entry)
+    coordinator.project_manager.get_metadata_for_experiment = Mock(
+        return_value={"group_id": "control", "experiment_id": "video1"}
+    )
+    coordinator.project_manager.resolve_results_directory = Mock(return_value=results_dir)
+
+    def fake_regen(entries, settings=None):
+        # Simula a regeneração real: grava o sumário e registra o caminho no entry.
+        sample_summary_df.to_parquet(summary_path, index=False)
+        for e in entries:
+            e.setdefault("parquet_files", {})["summary"] = str(summary_path)
+
+    coordinator.generate_parquet_summaries = Mock(side_effect=fake_regen)
+
+    with patch.object(coordinator.project_manager, "project_path", tmp_path):
+        coordinator.generate_unified_report([str(tmp_path / "video1.mp4")])
+
+    coordinator.generate_parquet_summaries.assert_called_once()
+    out = list((tmp_path / "unified_reports" / "total").rglob("*.parquet"))
+    assert out, "Deveria gerar o parquet unificado após regenerar o sumário"
+
+
+def test_live_session_summary_above_session_folder(coordinator, sample_summary_df, tmp_path):
+    """Sessão live: vídeo em <sujeito>/<sessao>/<sessao>.mp4 e sumário um nível acima.
+
+    Mesmo com o caminho registrado defasado (apontando para dentro da pasta da
+    sessão, onde NÃO existe), deve resolver o sumário real e gerar o relatório.
+    """
+    sujeito = tmp_path / "Grupo_Controle" / "Dia_01" / "Sujeito_01"
+    session = sujeito / "live_20260609_162534"
+    session.mkdir(parents=True)
+    video = session / "live_20260609_162534.mp4"
+    video.write_text("fake")
+    # Sumário real fica UM NÍVEL ACIMA da pasta da sessão (layout live).
+    real_summary = sujeito / "live_20260609_162534_summary.parquet"
+    sample_summary_df.to_parquet(real_summary, index=False)
+    # Caminho registrado aponta para dentro da sessão (inexistente).
+    broken = session / "live_20260609_162534_summary.parquet"
+
+    coordinator.project_manager.find_video_entry = Mock(
+        return_value={
+            "parquet_files": {"summary": str(broken)},
+            "metadata": {"group_id": "Controle", "experiment_id": "live_20260609_162534"},
+            "experiment_id": None,  # live: sem experiment_id no topo
+        }
+    )
+    coordinator.project_manager.get_metadata_for_experiment = Mock(
+        return_value={"group_id": "Controle"}
+    )
+    # Resolver aponta para pasta inexistente — o candidato live (acima da sessão) salva.
+    coordinator.project_manager.resolve_results_directory = Mock(return_value=tmp_path / "nope")
+    coordinator.generate_parquet_summaries = Mock()
+
+    with patch.object(coordinator.project_manager, "project_path", tmp_path):
+        coordinator.generate_unified_report([str(video)], report_scope="selected")
+
+    coordinator.generate_parquet_summaries.assert_not_called()
+    out = list((tmp_path / "unified_reports" / "selecionados").rglob("*.parquet"))
+    assert out, "Deveria gerar o relatório a partir do sumário um nível acima da sessão"
+    insufficient = [
+        c
+        for c in coordinator._publish_event.call_args_list
+        if c[0][0] == UIEvents.UI_SHOW_WARNING
+        and "Dados insuficientes" in getattr(c[0][1], "title", "")
+    ]
+    assert not insufficient
+
+
+def test_warning_lists_missing_videos(coordinator, tmp_path):
+    """Quando nada pôde ser resolvido, o aviso deve nomear os vídeos faltantes."""
+    coordinator.project_manager.find_video_entry = Mock(
+        return_value={
+            "parquet_files": {},
+            "metadata": {},
+            "experiment_id": "Peixe_03",
+        }
+    )
+    coordinator.project_manager.resolve_results_directory = Mock(return_value=tmp_path / "nope")
+    coordinator.generate_parquet_summaries = Mock()  # não consegue regenerar
+
+    with patch.object(coordinator.project_manager, "project_path", tmp_path):
+        coordinator.generate_unified_report([str(tmp_path / "Peixe_03.mp4")])
+
+    warnings = [
+        c
+        for c in coordinator._publish_event.call_args_list
+        if c[0][0] == UIEvents.UI_SHOW_WARNING
+        and "Dados insuficientes" in getattr(c[0][1], "title", "")
+    ]
+    assert warnings, "Esperava aviso de dados insuficientes"
+    assert "Peixe_03" in warnings[-1][0][1].message
+
+
+# =============================================================================
+# TESTS: Folder separation by scope (total/ vs selecionados/)
+# =============================================================================
+
+
+@pytest.mark.parametrize(
+    "scope,subdir,other",
+    [("all", "total", "selecionados"), ("selected", "selecionados", "total")],
+)
+def test_unified_report_writes_to_scope_subdir(
+    coordinator, sample_summary_df, tmp_path, scope, subdir, other
+):
+    """Total grava em total/ e selecionados em selecionados/, sem misturar."""
+    results_dir = tmp_path / "r"
+    results_dir.mkdir()
+    summary_path = results_dir / "video1_summary.parquet"
+    sample_summary_df.to_parquet(summary_path, index=False)
+
+    coordinator.project_manager.find_video_entry = Mock(
+        return_value={
+            "parquet_files": {"summary": str(summary_path)},
+            "metadata": {"group_id": "control", "experiment_id": "video1"},
+            "experiment_id": "video1",
+        }
+    )
+    coordinator.project_manager.get_metadata_for_experiment = Mock(
+        return_value={"group_id": "control", "experiment_id": "video1"}
+    )
+
+    with patch.object(coordinator.project_manager, "project_path", tmp_path):
+        coordinator.generate_unified_report([str(tmp_path / "video1.mp4")], report_scope=scope)
+
+    target = tmp_path / "unified_reports" / subdir
+    assert list(target.rglob("*.parquet")), f"esperado parquet em {subdir}/"
+
+    other_dir = tmp_path / "unified_reports" / other
+    assert not other_dir.exists() or not list(other_dir.rglob("*.parquet"))
+
+
+def test_replace_existing_does_not_delete_other_scope(coordinator, sample_summary_df, tmp_path):
+    """Regenerar o total com replace_existing não pode apagar os selecionados."""
+    sel_dir = tmp_path / "unified_reports" / "selecionados"
+    sel_dir.mkdir(parents=True)
+    keep = sel_dir / "unified_partial_summary_old.parquet"
+    sample_summary_df.to_parquet(keep, index=False)
+
+    results_dir = tmp_path / "r"
+    results_dir.mkdir()
+    summary_path = results_dir / "video1_summary.parquet"
+    sample_summary_df.to_parquet(summary_path, index=False)
+
+    coordinator.project_manager.find_video_entry = Mock(
+        return_value={
+            "parquet_files": {"summary": str(summary_path)},
+            "metadata": {"group_id": "control", "experiment_id": "video1"},
+            "experiment_id": "video1",
+        }
+    )
+    coordinator.project_manager.get_metadata_for_experiment = Mock(
+        return_value={"group_id": "control", "experiment_id": "video1"}
+    )
+
+    with patch.object(coordinator.project_manager, "project_path", tmp_path):
+        coordinator.generate_unified_report(
+            [str(tmp_path / "video1.mp4")], replace_existing=True, report_scope="all"
+        )
+
+    assert keep.exists(), "replace do total não deve apagar relatórios de selecionados"
 
 
 # =============================================================================
