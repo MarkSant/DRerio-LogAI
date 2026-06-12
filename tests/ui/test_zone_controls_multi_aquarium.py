@@ -5,6 +5,7 @@ Tests for aquarium selector and related UI controls.
 """
 
 import tkinter as tk
+from tkinter import ttk
 from unittest.mock import MagicMock
 
 import pytest
@@ -216,6 +217,56 @@ class TestMultiAquariumIntegration:
 
         with pytest.raises(tk.TclError):
             zone_controls.aquarium_selector_frame.pack_info()
+
+
+class TestUpdateAquariumCount:
+    """Regression tests for update_aquarium_count (single-video auto-detect path).
+
+    Reproduz o bug do fluxo de vídeo único: a versão antiga ancorava o seletor
+    com ``pack(after=drawing_actions_parent.winfo_children()[0])`` sem proteção.
+    Quando esse primeiro filho não estava empacotado, o Tk levantava
+    ``TclError: window "..." isn't packed``, abortando
+    ``on_multi_auto_detect_success`` antes do redraw — e o polígono do aquário
+    nunca era desenhado.
+    """
+
+    @pytest.fixture
+    def zone_controls_with_unpacked_anchor(self, root):
+        """ZoneControls cujo drawing_actions_parent tem 1º filho NÃO empacotado."""
+        drawing_parent = ttk.Frame(root)
+        drawing_parent.pack(fill="x")
+        # Primeiro filho criado-mas-não-empacotado: é exatamente o cenário que
+        # disparava o 'isn't packed' no pack(after=...) da versão defeituosa.
+        ttk.Frame(drawing_parent)  # intencionalmente não empacotado
+        event_bus = MagicMock()
+        return ZoneControlsWidget(root, event_bus=event_bus, drawing_actions_parent=drawing_parent)
+
+    def test_update_count_2_does_not_raise_with_unpacked_anchor(
+        self, zone_controls_with_unpacked_anchor
+    ):
+        """count>=2 mostra o seletor sem levantar TclError (regressão do bug)."""
+        widget = zone_controls_with_unpacked_anchor
+
+        # A linha abaixo levantava tk.TclError ('window isn't packed') antes do fix.
+        widget.update_aquarium_count(2)
+
+        assert widget.aquarium_count_var.get() == 2
+        try:
+            widget.aquarium_selector_frame.pack_info()
+            is_visible = True
+        except tk.TclError:
+            is_visible = False
+        assert is_visible
+
+    def test_update_count_1_hides_selector(self, zone_controls_with_unpacked_anchor):
+        """count<2 esconde o seletor."""
+        widget = zone_controls_with_unpacked_anchor
+        widget.update_aquarium_count(2)
+        widget.update_aquarium_count(1)
+
+        assert widget.aquarium_count_var.get() == 1
+        with pytest.raises(tk.TclError):
+            widget.aquarium_selector_frame.pack_info()
 
     def test_radio_buttons_update_active_aquarium(self, zone_controls):
         """Test radio buttons update the active aquarium variable."""
