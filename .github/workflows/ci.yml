@@ -286,7 +286,7 @@ jobs:
       - name: "Run tests (Linux - with xvfb)"
         if: runner.os == 'Linux'
         run: |
-          xvfb-run --auto-servernum poetry run pytest -m "not gui" --cov=zebtrack --cov-report=xml:coverage-core.xml --cov-fail-under=45 --timeout=300 --timeout-method=thread
+          xvfb-run --auto-servernum poetry run pytest -m "not gui" --cov=zebtrack --cov-report=xml:coverage-core.xml --cov-fail-under=46 --timeout=300 --timeout-method=thread
         timeout-minutes: 45
 
       - name: "Run GUI tests (Linux - with xvfb)"
