@@ -238,3 +238,143 @@ def test_save_project_model_slot_overrides_passes_setters_to_apply() -> None:
 
     assert seen_weights == ["resolved_weight.pt"]
     assert seen_openvino == [True]
+
+
+# === Guard clauses sem projeto aberto ===
+
+
+def test_are_project_overrides_active_default_false() -> None:
+    service = _build_service(project_path=None, overrides={"slot_weights": {}})
+    assert service.are_project_overrides_active() is False
+
+
+def test_copy_global_returns_none_without_project() -> None:
+    project_manager = Mock()
+    project_manager.project_path = None
+    project_manager.project_data = {}
+    event_bus = Mock()
+    service = ModelOverrideService(
+        state_manager=cast(Any, Mock()),
+        project_manager=cast(Any, project_manager),
+        project_workflow_service=cast(Any, Mock()),
+        settings_obj=cast(Any, SimpleNamespace()),
+        event_bus=event_bus,
+    )
+
+    result = service.copy_global_model_settings_to_project(
+        get_global_defaults=lambda: {},
+        get_active_weight_name=lambda: None,
+    )
+
+    assert result is None
+    event_bus.publish.assert_called()  # aviso "Nenhum Projeto"
+
+
+def test_save_current_calibration_returns_none_without_project() -> None:
+    service = _build_service(project_path=None, overrides={"slot_weights": {}})
+    result = service.save_current_calibration_to_project(
+        get_active_weight_name=lambda: "w",
+        get_use_openvino=lambda: False,
+    )
+    assert result is None
+
+
+def test_save_project_model_overrides_returns_current_without_project() -> None:
+    service = _build_service(project_path=None, overrides={"slot_weights": {}})
+    result = service.save_project_model_overrides(
+        active_weight_override="w",
+        use_openvino_override=True,
+        get_active_weight_name=lambda: "atual",
+        get_use_openvino=lambda: True,
+    )
+    assert result == ("atual", True)
+    service.project_workflow_service.save_project_model_slot_overrides.assert_not_called()
+
+
+# === Persistência em project_data ===
+
+
+def test_ensure_overrides_record_creates_when_missing() -> None:
+    project_manager = Mock()
+    project_manager.project_path = "/tmp/project"
+    project_manager.project_data = {}
+    service = ModelOverrideService(
+        state_manager=cast(Any, Mock()),
+        project_manager=cast(Any, project_manager),
+        project_workflow_service=cast(Any, Mock()),
+        settings_obj=cast(Any, SimpleNamespace()),
+        event_bus=None,
+    )
+
+    rec = service._ensure_project_overrides_record()
+
+    assert "slot_weights" in rec
+    assert project_manager.project_data["model_overrides"] is rec
+
+
+def test_ensure_overrides_record_adds_slot_weights_key() -> None:
+    service = _build_service(project_path="/tmp/project", overrides={"active_weight": "x"})
+    rec = service._ensure_project_overrides_record()
+    assert rec["slot_weights"] == {}
+
+
+def test_persist_writes_weight_and_openvino_and_saves() -> None:
+    project_manager = Mock()
+    project_manager.project_path = "/tmp/project"
+    project_manager.project_data = {}
+    service = ModelOverrideService(
+        state_manager=cast(Any, Mock()),
+        project_manager=cast(Any, project_manager),
+        project_workflow_service=cast(Any, Mock()),
+        settings_obj=cast(Any, SimpleNamespace()),
+        event_bus=None,
+    )
+
+    overrides = service._persist_project_model_settings("best.pt", True)
+
+    assert overrides["active_weight"] == "best.pt"
+    assert overrides["use_openvino"] is True
+    assert project_manager.project_data["active_weight"] == "best.pt"
+    project_manager.save_project.assert_called_once()
+
+
+def test_persist_without_path_does_not_save() -> None:
+    project_manager = Mock()
+    project_manager.project_path = None
+    project_manager.project_data = {}
+    service = ModelOverrideService(
+        state_manager=cast(Any, Mock()),
+        project_manager=cast(Any, project_manager),
+        project_workflow_service=cast(Any, Mock()),
+        settings_obj=cast(Any, SimpleNamespace()),
+        event_bus=None,
+    )
+
+    service._persist_project_model_settings("w", False)
+
+    project_manager.save_project.assert_not_called()
+
+
+# === Delegações ao workflow service ===
+
+
+def test_resolve_delegates_to_workflow() -> None:
+    service = _build_service(project_path="/tmp/project", overrides={"slot_weights": {}})
+    service.project_workflow_service.resolve_project_model_settings.return_value = ("w", True)
+
+    assert service.resolve_project_model_settings({"a": 1}) == ("w", True)
+    service.project_workflow_service.resolve_project_model_settings.assert_called_once_with(
+        {"a": 1}
+    )
+
+
+def test_apply_delegates_to_workflow() -> None:
+    service = _build_service(project_path="/tmp/project", overrides={"slot_weights": {}})
+    service.project_workflow_service.apply_project_model_overrides.return_value = ("w", False)
+
+    result = service.apply_project_model_overrides(
+        overrides={"x": 1},
+        active_weight_setter=lambda w: None,
+        use_openvino_setter=lambda v: None,
+    )
+    assert result == ("w", False)
