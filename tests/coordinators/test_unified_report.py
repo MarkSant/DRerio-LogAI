@@ -744,6 +744,52 @@ def test_summary_regenerated_from_trajectory_when_missing(coordinator, sample_su
     assert out, "Deveria gerar o parquet unificado após regenerar o sumário"
 
 
+def test_live_session_summary_above_session_folder(coordinator, sample_summary_df, tmp_path):
+    """Sessão live: vídeo em <sujeito>/<sessao>/<sessao>.mp4 e sumário um nível acima.
+
+    Mesmo com o caminho registrado defasado (apontando para dentro da pasta da
+    sessão, onde NÃO existe), deve resolver o sumário real e gerar o relatório.
+    """
+    sujeito = tmp_path / "Grupo_Controle" / "Dia_01" / "Sujeito_01"
+    session = sujeito / "live_20260609_162534"
+    session.mkdir(parents=True)
+    video = session / "live_20260609_162534.mp4"
+    video.write_text("fake")
+    # Sumário real fica UM NÍVEL ACIMA da pasta da sessão (layout live).
+    real_summary = sujeito / "live_20260609_162534_summary.parquet"
+    sample_summary_df.to_parquet(real_summary, index=False)
+    # Caminho registrado aponta para dentro da sessão (inexistente).
+    broken = session / "live_20260609_162534_summary.parquet"
+
+    coordinator.project_manager.find_video_entry = Mock(
+        return_value={
+            "parquet_files": {"summary": str(broken)},
+            "metadata": {"group_id": "Controle", "experiment_id": "live_20260609_162534"},
+            "experiment_id": None,  # live: sem experiment_id no topo
+        }
+    )
+    coordinator.project_manager.get_metadata_for_experiment = Mock(
+        return_value={"group_id": "Controle"}
+    )
+    # Resolver aponta para pasta inexistente — o candidato live (acima da sessão) salva.
+    coordinator.project_manager.resolve_results_directory = Mock(return_value=tmp_path / "nope")
+    coordinator.generate_parquet_summaries = Mock()
+
+    with patch.object(coordinator.project_manager, "project_path", tmp_path):
+        coordinator.generate_unified_report([str(video)], report_scope="selected")
+
+    coordinator.generate_parquet_summaries.assert_not_called()
+    out = list((tmp_path / "unified_reports" / "selecionados").rglob("*.parquet"))
+    assert out, "Deveria gerar o relatório a partir do sumário um nível acima da sessão"
+    insufficient = [
+        c
+        for c in coordinator._publish_event.call_args_list
+        if c[0][0] == UIEvents.UI_SHOW_WARNING
+        and "Dados insuficientes" in getattr(c[0][1], "title", "")
+    ]
+    assert not insufficient
+
+
 def test_warning_lists_missing_videos(coordinator, tmp_path):
     """Quando nada pôde ser resolvido, o aviso deve nomear os vídeos faltantes."""
     coordinator.project_manager.find_video_entry = Mock(
