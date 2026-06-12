@@ -105,8 +105,8 @@ class HtmlReporter:
                 row=1,
                 col=1,
             )
-            fig.update_xaxis(title_text="X Position (cm)", row=1, col=1)
-            fig.update_yaxis(title_text="Y Position (cm)", row=1, col=1)
+            fig.update_xaxes(title_text="X Position (cm)", row=1, col=1)
+            fig.update_yaxes(title_text="Y Position (cm)", row=1, col=1)
 
         # 2. Velocity over time (top-right)
         velocity_ts = self._ctx.b_analyzer.calculate_velocity_timeseries()["v_mag"]
@@ -136,8 +136,8 @@ class HtmlReporter:
             row=1,
             col=2,
         )
-        fig.update_xaxis(title_text="Time (seconds)", row=1, col=2)
-        fig.update_yaxis(title_text="Velocity (cm/s)", row=1, col=2)
+        fig.update_xaxes(title_text="Time (seconds)", row=1, col=2)
+        fig.update_yaxes(title_text="Velocity (cm/s)", row=1, col=2)
 
         # 3. ROI time spent (bottom-left)
         if self._ctx.r_analyzer is not None:
@@ -157,8 +157,8 @@ class HtmlReporter:
                     row=2,
                     col=1,
                 )
-                fig.update_xaxis(title_text="ROI Name", row=2, col=1)
-                fig.update_yaxis(title_text="Time Spent (seconds)", row=2, col=1)
+                fig.update_xaxes(title_text="ROI Name", row=2, col=1)
+                fig.update_yaxes(title_text="Time Spent (seconds)", row=2, col=1)
 
         # 4. Freezing episodes (bottom-right)
         freezing_list = self._ctx.b_analyzer.detect_freezing_episodes(
@@ -187,8 +187,8 @@ class HtmlReporter:
                 row=2,
                 col=2,
             )
-            fig.update_xaxis(title_text="Time (seconds)", row=2, col=2)
-            fig.update_yaxis(title_text="Duration (seconds)", row=2, col=2)
+            fig.update_xaxes(title_text="Time (seconds)", row=2, col=2)
+            fig.update_yaxes(title_text="Duration (seconds)", row=2, col=2)
 
         # Layout
         metadata = self._ctx.metadata or {}
