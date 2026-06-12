@@ -9,6 +9,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### 🧪 Testes & Qualidade (June 2026) — cobertura de uso científico
+
+- **Correção de bug no relatório HTML interativo**: `HtmlReporter` chamava
+  `fig.update_xaxis()`/`fig.update_yaxis()` (singular) — métodos inexistentes no
+  Plotly 6. Qualquer geração de relatório `.html` que alcançasse os gráficos
+  levantava `AttributeError`. Corrigido para `update_xaxes()`/`update_yaxes()`
+  (plural). O módulo não tinha cobertura de teste, por isso o erro passou
+  despercebido. O fluxo `.docx`/`.xlsx`/`.parquet` não era afetado.
+- **Novos testes unitários** para módulos cientificamente críticos antes sem
+  cobertura direta:
+  - `analysis/reporters/`: `HtmlReporter`, `ParquetSummaryReporter`,
+    `ExcelReporter`, `ReporterContext` (caminho feliz, bordas e validação de
+    schema) — `tests/analysis/reporters/`.
+  - `core/project/metadata_manager.py`: carregamento de `metadata.csv`, ordem de
+    prioridade na busca de metadados, estado do detector e varredura de sessões
+    — `tests/core/project/test_metadata_manager.py`.
+  - `core/video/analysis_pipeline_runner.py`: métodos puros (coleta de
+    parâmetros, filtragem por track, contexto de calibração, proximidade social)
+    — `tests/core/video/test_analysis_pipeline_runner.py`.
+  - `utils/geometry.py`: casos degenerados e invariância do centróide
+    (property-based) — `tests/test_geometry.py`.
+- **Gate de cobertura core (Linux) elevado de 45% para 46%** após medição da
+  suíte `-m "not gui"` em 49.53% (margem de segurança ~3.5pp). Gates de GUI (32%)
+  e Windows (28%) mantidos por ausência de medição por job.
+
 ### 🐛 Bug Fixes (June 2026) — vídeo único ao vivo abortava ao iniciar
 
 - **Análise de vídeo único ao vivo cancelava sozinha**: `LiveAnalysisDialog`
