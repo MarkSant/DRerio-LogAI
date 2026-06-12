@@ -204,10 +204,15 @@ class MultiAquariumOverlayManager:
 
         # If ZoneControls exist, ensure the aquarium selector is set to 2 (or N)
         if self.gui.zone_controls:
-            # Update UI state for N aquariums
-            self.gui.zone_controls.update_aquarium_count(len(polygons))
+            # Update UI state for N aquariums. Protegido para que qualquer falha
+            # de layout/Tk não bloqueie o redraw do polígono abaixo (o desenho
+            # do aquário é o resultado esperado do auto-detect).
+            try:
+                self.gui.zone_controls.update_aquarium_count(len(polygons))
+            except Exception:
+                log.exception("canvas_manager.multi_success.update_count_failed")
 
-        # Redraw
+        # Redraw deve ocorrer independente do resultado da atualização de UI
         self.canvas_manager.redraw_zones_from_project_data(multi_data)
         self.canvas_manager.update_zone_listbox(multi_data)
 

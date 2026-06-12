@@ -1554,36 +1554,20 @@ class ZoneControlsWidget(BaseWidget):
         log.debug("zone_controls.active_aquarium_set", aquarium_id=aquarium_id)
 
     def update_aquarium_count(self, count: int) -> None:
-        """Update UI based on the number of aquariums."""
+        """Update UI based on the number of aquariums.
+
+        Reutiliza ``show_aquarium_selector``/``hide_aquarium_selector`` (a mesma
+        lógica robusta de ``set_aquarium_count``), que ancoram o
+        ``pack(after=...)`` com fallback e ``try/except``. Isso evita o
+        ``TclError: window "..." isn't packed`` que ocorria quando o primeiro
+        filho de ``drawing_actions_parent`` ainda não estava empacotado — falha
+        que abortava ``on_multi_auto_detect_success`` antes do redraw do
+        polígono no fluxo de vídeo único.
+        """
         log.info("zone_controls.update_aquarium_count", count=count)
         self.aquarium_count_var.set(count)
 
         if count >= 2:
-            if self.aquarium_selector_frame:
-                import tkinter as tk
-                from typing import cast
-
-                target_widget = (
-                    self.drawing_actions_parent.winfo_children()[0]
-                    if self.drawing_actions_parent
-                    else None
-                )
-                # Pack the frame
-            aquarium_frame = getattr(self, "aquarium_selector_frame", None)
-            if aquarium_frame:
-                if target_widget:
-                    aquarium_frame.pack(
-                        fill="x",
-                        pady=5,
-                        padx=5,
-                        after=cast(tk.Misc, target_widget),
-                    )
-                else:
-                    aquarium_frame.pack(
-                        fill="x",
-                        pady=5,
-                        padx=5,
-                    )
+            self.show_aquarium_selector()
         else:
-            if self.aquarium_selector_frame:
-                self.aquarium_selector_frame.pack_forget()
+            self.hide_aquarium_selector()

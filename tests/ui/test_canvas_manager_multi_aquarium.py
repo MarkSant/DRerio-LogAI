@@ -413,3 +413,54 @@ def test_on_multi_auto_detect_success_persists_source_video_dimensions() -> None
     assert saved_multi_data.sequential_processing is True
     assert saved_multi_data.aquariums[0].roi_names == ["roi"]
     capture_mock.assert_not_called()
+
+
+def test_on_multi_auto_detect_success_redraws_even_if_count_update_raises() -> None:
+    """Uma falha em update_aquarium_count não pode bloquear o redraw do polígono.
+
+    Regressão do bug do fluxo de vídeo único: a exceção 'window isn't packed'
+    levantada por update_aquarium_count abortava o handler antes de
+    redraw_zones_from_project_data, e o aquário nunca era desenhado.
+    """
+    with patch.object(CanvasManager, "__init__", lambda self, *args, **kwargs: None):
+        canvas_manager = CanvasManager(MagicMock())
+
+    project_manager = MagicMock()
+    project_manager.get_active_zone_video.return_value = "video.mp4"
+    project_manager.get_multi_aquarium_zone_data.return_value = None
+
+    gui = MagicMock()
+    gui.controller = MagicMock(
+        project_manager=project_manager,
+        settings=SimpleNamespace(camera=SimpleNamespace(desired_width=1280, desired_height=720)),
+    )
+    # update_aquarium_count falha como faria o TclError 'isn't packed' antigo
+    gui.zone_controls = MagicMock()
+    gui.zone_controls.update_aquarium_count.side_effect = RuntimeError("window isn't packed")
+    gui.dialog_manager = MagicMock()
+    gui._original_image = None
+
+    canvas_manager.gui = gui
+    canvas_manager.redraw_zones_from_project_data = MagicMock()  # type: ignore[method-assign]
+    canvas_manager.update_zone_listbox = MagicMock()  # type: ignore[method-assign]
+
+    overlay = MultiAquariumOverlayManager(canvas_manager)
+
+    with patch(
+        "zebtrack.ui.components.canvas.multi_aquarium_overlay.cv2.VideoCapture",
+    ):
+        overlay.on_multi_auto_detect_success(
+            {
+                "video_path": "video.mp4",
+                "source_video_width": 1920,
+                "source_video_height": 1080,
+                "polygons": [
+                    [(10, 10), (200, 10), (200, 200), (10, 200)],
+                    [(220, 10), (400, 10), (400, 200), (220, 200)],
+                ],
+            }
+        )
+
+    # O redraw e a atualização da lista DEVEM ocorrer apesar do erro de UI.
+    canvas_manager.redraw_zones_from_project_data.assert_called_once()
+    canvas_manager.update_zone_listbox.assert_called_once()
