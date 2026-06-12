@@ -237,10 +237,12 @@ class TestAnalyzeSocialProximity:
         )
 
     def test_enabled_with_two_tracks_invokes_analyzer(self, runner, trajectory_df, monkeypatch):
+        from zebtrack.analysis.roi import ROIAnalyzer
+
         sentinel = {"mean_distance_cm": 3.2}
+        # Patch direto no atributo da classe (mais robusto que alvo em string).
         monkeypatch.setattr(
-            "zebtrack.core.video.analysis_pipeline_runner.ROIAnalyzer.analyze_social_proximity",
-            lambda *a, **k: sentinel,
+            ROIAnalyzer, "analyze_social_proximity", staticmethod(lambda *a, **k: sentinel)
         )
         result = runner._analyze_social_proximity(
             filtered_df=trajectory_df,
