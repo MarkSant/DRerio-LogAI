@@ -171,6 +171,7 @@ def build_container(context: ContainerContext) -> punq.Container:
             recorder=context.recorder_factory.get_recorder(),
             event_bus=_resolve(container, EventBusV2),
             root=context.root,
+            project_workflow_service=_resolve(container, ProjectWorkflowService),
         ),
         scope=punq.Scope.singleton,
     )

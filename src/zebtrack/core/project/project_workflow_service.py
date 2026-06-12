@@ -274,7 +274,16 @@ class ProjectWorkflowService:
 
         # Resolve OpenVINO
         if openvino_override is None:
-            if legacy_project_data_fallback and project_data.get("use_openvino") is not None:
+            # ``model_overrides["use_openvino"] = None`` significa "herde do
+            # projeto" — e o projeto persiste a escolha em
+            # ``project_data["use_openvino"]`` (gravado tanto na criacao
+            # pelo wizard quanto no save apos abertura). Preferir esse
+            # snapshot antes de cair em ``_global_model_defaults`` impede
+            # que o reabrir de um projeto OpenVINO=True, com o detector
+            # state ainda no default False, sobrescreva True por False
+            # em disco no proximo save (corrupcao silenciosa observada
+            # em 2026-06-11 ao alternar entre Live_T8/Live_T9).
+            if project_data.get("use_openvino") is not None:
                 resolved_openvino = bool(project_data.get("use_openvino"))
             else:
                 resolved_openvino = bool(self._global_model_defaults.get("use_openvino", False))
@@ -449,8 +458,18 @@ class ProjectWorkflowService:
         self,
         slot_weights: dict[str, str | None] | None,
         use_openvino_override: bool | None,
+        active_weight_setter: Callable[..., Any] | None = None,
+        use_openvino_setter: Callable[..., Any] | None = None,
     ) -> tuple[str | None, bool]:
-        """Persist explicit slot overrides for the active project."""
+        """Persist explicit slot overrides for the active project.
+
+        ``active_weight_setter`` / ``use_openvino_setter`` propagam o
+        estado resolvido para o runtime (state_manager + UI). Antes esse
+        passo era pulado com lambdas no-op, deixando o detector ativo
+        intacto apos um "Copiar Globais para o Projeto" — o disco era
+        atualizado mas a sessao em curso continuava com o plugin antigo.
+        Setters omitidos preservam o comportamento legado.
+        """
         if not getattr(self.project_manager, "project_path", None):
             resolved_weight, resolved_openvino = self.resolve_project_model_settings()
             effective_openvino = (
@@ -485,10 +504,17 @@ class ProjectWorkflowService:
                 exc_info=True,
             )
 
+        # Setters explícitos sobrescrevem os no-op antigos. O ``or`` mantem
+        # a compatibilidade para callers (ex.: testes legados) que ainda
+        # invocam sem callbacks.
         return self.apply_project_model_overrides(
             overrides=overrides,
-            active_weight_setter=lambda _weight: None,
-            use_openvino_setter=lambda _enabled: None,
+            active_weight_setter=active_weight_setter
+            if active_weight_setter is not None
+            else (lambda _weight: None),
+            use_openvino_setter=use_openvino_setter
+            if use_openvino_setter is not None
+            else (lambda _enabled: None),
         )
 
     # === Project Creation Orchestration ===

@@ -130,6 +130,64 @@ class TestProjectManagerReplacedEvent(unittest.TestCase):
             # Service should not be updated
             assert mock_service.project_manager == old_manager
 
+    def test_handler_updates_main_view_model_project_manager(self):
+        """Regression (2026-06-11): ``controller.project_manager`` must be
+        updated when the manager is replaced. Antes o atributo do proprio
+        MainViewModel ficava apontando para a instancia inicial e
+        ``load_project_view`` lia ``pm.get_project_name()`` no manager
+        antigo — a barra de titulo mantinha o nome do projeto anterior
+        apos um close/reopen.
+        """
+        with patch.object(MainViewModel, "__init__", return_value=None):
+            controller = MainViewModel(None, None)  # type: ignore
+
+            old_manager = Mock()
+            old_manager.get_project_name = Mock(return_value="Live_T4")
+            new_manager = Mock()
+            new_manager.get_project_name = Mock(return_value="Live_T9")
+
+            controller.project_manager = old_manager  # type: ignore
+            controller.project_workflow_service = None  # type: ignore
+            controller.detector_service = None  # type: ignore
+            controller.video_processing_service = None  # type: ignore
+            controller.recording_service = None  # type: ignore
+            controller.processing_coordinator = None  # type: ignore
+
+            runtime = MainViewModelRuntime(controller)
+            runtime.handle_project_manager_replaced({"new_manager": new_manager})
+
+            assert controller.project_manager is new_manager
+            assert controller.project_manager.get_project_name() == "Live_T9"
+
+    def test_handler_updates_sub_view_models_project_manager(self):
+        """Sub-view-models (``project_vm`` / ``analysis_vm``) also hold
+        ``self.project_manager`` from their constructor — without updating
+        here they keep using the stale manager after close/reopen.
+        """
+        with patch.object(MainViewModel, "__init__", return_value=None):
+            controller = MainViewModel(None, None)  # type: ignore
+
+            new_manager = Mock()
+
+            project_vm = Mock()
+            project_vm.project_manager = Mock()
+            analysis_vm = Mock()
+            analysis_vm.project_manager = Mock()
+
+            controller.project_vm = project_vm  # type: ignore
+            controller.analysis_vm = analysis_vm  # type: ignore
+            controller.project_workflow_service = None  # type: ignore
+            controller.detector_service = None  # type: ignore
+            controller.video_processing_service = None  # type: ignore
+            controller.recording_service = None  # type: ignore
+            controller.processing_coordinator = None  # type: ignore
+
+            runtime = MainViewModelRuntime(controller)
+            runtime.handle_project_manager_replaced({"new_manager": new_manager})
+
+            assert project_vm.project_manager is new_manager
+            assert analysis_vm.project_manager is new_manager
+
 
 if __name__ == "__main__":
     unittest.main()

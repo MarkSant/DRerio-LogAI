@@ -21,6 +21,7 @@ if TYPE_CHECKING:
     from zebtrack.core.detection.multi_aquarium_detector import MultiAquariumDetector
     from zebtrack.core.main_view_model import MainViewModel
     from zebtrack.core.project.project_manager import ProjectManager
+    from zebtrack.core.project.project_workflow_service import ProjectWorkflowService
     from zebtrack.core.recording.recording_service import RecordingService
     from zebtrack.core.services.detector_service import DetectorService
     from zebtrack.core.state_manager import StateManager
@@ -50,6 +51,7 @@ class LiveSessionManagerMixin:
     recorder: Any
     event_bus: EventBusV2
     root: Any
+    project_workflow_service: ProjectWorkflowService | None
     _lock: threading.Lock
     frame_queue: Any
     video_queue: Any
@@ -104,6 +106,31 @@ class LiveSessionManagerMixin:
         def _start_threads(self) -> bool: ...
         def _clear_queues(self) -> None: ...
         def _on_session_complete(self, output_dir: Path) -> None: ...
+
+    def _resolve_session_detector_config(self) -> tuple[str | None, bool, str]:
+        """Resolve ``(active_weight, use_openvino, source)`` for the next session.
+
+        Preferencia: ``project_workflow_service.resolve_project_model_settings()``
+        quando ha projeto aberto (essa funcao ja encapsula a ordem
+        ``model_overrides`` -> ``project_data`` -> defaults globais).
+        Fallback: ``settings.model_selection.use_openvino`` global, usado
+        em testes/callers que rodam sem projeto.
+
+        Antes desse helper, ``start_session`` lia ``use_openvino``
+        diretamente das settings globais — o flag gravado pelo wizard
+        no projeto era ignorado e um projeto LIVE criado com OpenVINO
+        subia como YOLO (regressao 2026-06-10).
+        """
+        if self.project_workflow_service is not None and getattr(
+            self.project_manager, "project_path", None
+        ):
+            (
+                resolved_weight,
+                resolved_openvino,
+            ) = self.project_workflow_service.resolve_project_model_settings()
+            return resolved_weight, bool(resolved_openvino), "project_workflow_service"
+
+        return None, bool(self.settings.model_selection.use_openvino), "settings"
 
     def _resolve_calibration_perspective(self) -> str | None:
         """Read the configured aquarium perspective from project calibration.
@@ -350,8 +377,28 @@ class LiveSessionManagerMixin:
         if self.preview_window:
             self.preview_window.update_status_text("⏳ Carregando detector...", color="orange")
 
-        # Setup detector if needed
-        if not self.detector_service.detector:
+        resolved_weight, resolved_openvino, resolution_source = (
+            self._resolve_session_detector_config()
+        )
+
+        animal_method = self.settings.model_selection.animal_method
+
+        # Detectar mudanca em relacao ao detector ja carregado. O
+        # ``if not self.detector_service.detector`` antigo reusava o
+        # detector da sessao anterior mesmo quando o projeto pediu
+        # OpenVINO no meio do app aberto.
+        detector_state = self.state_manager.get_detector_state() if self.state_manager else None
+        current_openvino = detector_state.use_openvino if detector_state is not None else False
+        current_weight = detector_state.active_weight_name if detector_state is not None else ""
+
+        config_changed = current_openvino != resolved_openvino or (
+            resolved_weight is not None
+            and resolved_weight != ""
+            and resolved_weight != current_weight
+        )
+        needs_rebuild = self.detector_service.detector is None or config_changed
+
+        if needs_rebuild:
             # Resolve perspective from project calibration so the 4-slot
             # WeightManager can pick the perspective-flagged default weight
             # (top_down vs lateral). Without this, live previously fell back
@@ -361,13 +408,43 @@ class LiveSessionManagerMixin:
             log.info(
                 "live_camera_service.detector_setup.perspective_resolved",
                 perspective=perspective,
-                animal_method=self.settings.model_selection.animal_method,
-                use_openvino=self.settings.model_selection.use_openvino,
+                animal_method=animal_method,
+                use_openvino=resolved_openvino,
+                resolved_weight=resolved_weight,
+                resolution_source=resolution_source,
             )
 
+            # Forca recriacao quando a configuracao mudou — caso contrario
+            # ``initialize_detector`` poderia detectar que ja existe um
+            # detector pronto e nao recriar com o novo plugin.
+            if self.detector_service.detector is not None and config_changed:
+                log.info(
+                    "live_camera_service.detector_setup.rebuilding",
+                    old_openvino=current_openvino,
+                    new_openvino=resolved_openvino,
+                    old_weight=current_weight,
+                    new_weight=resolved_weight,
+                )
+                self.detector_service.detector = None
+
+            # Sincroniza o state_manager para refletir a configuracao
+            # resolvida — outros coordenadores (ex: detector_setup) leem
+            # daqui para decidir UI/aviso de fallback.
+            if self.state_manager and resolved_weight:
+                self.state_manager.update_detector_state(
+                    source="live_camera_service.start_session",
+                    active_weight_name=resolved_weight,
+                    use_openvino=resolved_openvino,
+                )
+            elif self.state_manager:
+                self.state_manager.update_detector_state(
+                    source="live_camera_service.start_session",
+                    use_openvino=resolved_openvino,
+                )
+
             success, _ = self.detector_service.initialize_detector(
-                animal_method=self.settings.model_selection.animal_method,
-                use_openvino=self.settings.model_selection.use_openvino,
+                animal_method=animal_method,
+                use_openvino=resolved_openvino,
                 perspective=perspective,
             )
             if not success:

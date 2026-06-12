@@ -124,6 +124,9 @@ class ModelOverrideService:
         get_global_defaults: Callable[[], dict],
         get_active_weight_name: Callable[[], str | None],
         refresh_callback: Callable[[str, bool], None] | None = None,
+        active_weight_setter: Callable[[str], None] | None = None,
+        use_openvino_setter: Callable[[bool], None] | None = None,
+        apply_runtime_callback: Callable[[str | None, bool], None] | None = None,
     ) -> tuple[str | None, bool] | None:
         """Copy global model settings to current project as overrides.
 
@@ -131,6 +134,16 @@ class ModelOverrideService:
             get_global_defaults: Callback to get global model defaults
             get_active_weight_name: Callback to get active weight name
             refresh_callback: Optional callback to refresh project views
+            active_weight_setter: Real setter that updates state_manager
+                ``detector_state.active_weight_name``. Sem ele o ``apply``
+                interno do workflow service rodava com lambda no-op e o
+                detector ativo nao sentia o copy.
+            use_openvino_setter: Real setter that updates state_manager
+                ``detector_state.use_openvino``. Mesma razao.
+            apply_runtime_callback: Callback invoked AFTER the override is
+                persisted and applied, receiving ``(resolved_weight,
+                resolved_openvino)``. Usado para reconstruir o detector e
+                publicar eventos de UI (checkbox/status).
 
         Returns:
             Tuple of (weight_name, use_openvino) if successful, None otherwise
@@ -160,8 +173,23 @@ class ModelOverrideService:
             self.project_workflow_service.save_project_model_slot_overrides(
                 slot_weights,  # type: ignore[arg-type]
                 use_openvino,
+                active_weight_setter=active_weight_setter,
+                use_openvino_setter=use_openvino_setter,
             )
         )
+
+        log.info(
+            "model_override_service.copy_global.applied",
+            resolved_weight=resolved_weight,
+            resolved_openvino=resolved_openvino,
+            had_runtime_callback=apply_runtime_callback is not None,
+        )
+
+        # Runtime hook: rebuild detector + publish UI events with the
+        # newly resolved settings. Mantido opcional para preservar callers
+        # antigos (testes).
+        if apply_runtime_callback is not None:
+            apply_runtime_callback(resolved_weight, resolved_openvino)
 
         message = "Configurações globais aplicadas ao projeto."
         self._publish_event(UIEvents.UI_SET_STATUS, payloads.StatusPayload(message=message))

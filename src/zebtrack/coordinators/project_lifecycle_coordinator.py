@@ -321,9 +321,51 @@ class ProjectLifecycleCoordinator(BaseCoordinator):
             apply_wizard_overrides_callback or self._default_apply_wizard_overrides
         )
 
+        # Defaults globais sao usados pelo resolver subsequente como
+        # fallback quando ``model_overrides["use_openvino"]`` esta vazio
+        # (cenario imediatamente pos-criacao).
+        #
+        # Regra real para ``use_openvino``:
+        #   1. Se o wizard passou um valor (True ou False), respeitar
+        #      explicitamente — e a escolha mais recente do usuario.
+        #   2. Caso contrario, se ``state_manager.detector_state`` ja
+        #      reflete um True real (ex.: usuario marcou OpenVINO via
+        #      checkbox global apos o startup), usar esse True.
+        #   3. Quando o state e False, NAO confiamos nele como sinal
+        #      negativo — esse False pode ser apenas o default do
+        #      ``@dataclass DetectorState`` (use_openvino=False), ja
+        #      que o bootstrapper apenas seta os defaults globais e
+        #      NUNCA chama ``update_detector_state``. Nesse caso caimos
+        #      no flag persistido em ``settings.model_selection``, que
+        #      reflete a preferencia global salva em ``config.local.yaml``.
+        # Sem essa regra (so trocar para ``state if state else settings``
+        # nao basta — precisa do guard de "False pode ser default"), um
+        # usuario com OpenVINO global True via no log ``defaults_set
+        # use_openvino=false`` no momento do create e a escolha do
+        # wizard era descartada pelo resolver subsequente.
+        # ``active_weight`` segue a mesma ordem mas com checagem de
+        # ausencia (None/string vazia) em vez de boolean — nao tem o
+        # problema de "False generico".
+        wizard_use_openvino = wizard_data.get("use_openvino")
+        wizard_active_weight = wizard_data.get("active_weight")
+        state_use_openvino = get_use_openvino()
+        state_active_weight = get_active_weight_name() or None
+        settings_use_openvino = (
+            bool(self.settings.model_selection.use_openvino) if self.settings else False
+        )
+
+        resolved_defaults_openvino = (
+            bool(wizard_use_openvino)
+            if wizard_use_openvino is not None
+            else (state_use_openvino if state_use_openvino else settings_use_openvino)
+        )
+        resolved_defaults_weight = (
+            wizard_active_weight if wizard_active_weight else state_active_weight
+        )
+
         self.project_workflow_service.set_global_model_defaults(
-            active_weight=get_active_weight_name() or None,
-            use_openvino=get_use_openvino(),
+            active_weight=resolved_defaults_weight or None,
+            use_openvino=resolved_defaults_openvino,
         )
 
         result = self.project_workflow_service.create_project(
@@ -932,13 +974,116 @@ class ProjectLifecycleCoordinator(BaseCoordinator):
         get_global_defaults: Callable[[], dict],
         get_active_weight_name: Callable[[], str | None],
         refresh_callback: Callable[[str, bool], None] | None = None,
+        active_weight_setter: Callable[[str], None] | None = None,
+        use_openvino_setter: Callable[[bool], None] | None = None,
+        apply_runtime_callback: Callable[[str | None, bool], None] | None = None,
+        apply_runtime: bool = True,
     ) -> tuple[str | None, bool] | None:
-        """Copy global model settings to current project as overrides."""
-        if self._model_override_service:
-            return self._model_override_service.copy_global_model_settings_to_project(
-                get_global_defaults, get_active_weight_name, refresh_callback
+        """Copy global model settings to current project as overrides.
+
+        Os ``*_setter`` e ``apply_runtime_callback`` propagam o copy para
+        o runtime (state_manager, detector ativo, UI). Quando nao
+        informados, o coordinator injeta defaults que atualizam o
+        state_manager, publicam ``UI_UPDATE_OPENVINO_CHECKBOX`` /
+        ``UI_UPDATE_OPENVINO_STATUS`` / ``UI_SET_ACTIVE_WEIGHT`` e
+        reinicializam o detector — comportamento esperado pelo botao
+        "Copiar Globais para o Projeto", que antes apenas gravava em
+        disco e nao alterava o detector ativo.
+
+        Passe ``apply_runtime=False`` (ou setters/callback no-op
+        explicitos) para preservar o comportamento legado em testes que
+        nao querem efeitos colaterais no runtime.
+        """
+        if not self._model_override_service:
+            return None
+
+        # Defaults reais — substituem os antigos no-op que ficavam
+        # implicitos em ``save_project_model_slot_overrides``.
+        effective_active_weight_setter = active_weight_setter
+        effective_use_openvino_setter = use_openvino_setter
+        effective_apply_runtime_callback = apply_runtime_callback
+
+        if apply_runtime:
+            if effective_active_weight_setter is None:
+                effective_active_weight_setter = self._default_set_active_weight
+            if effective_use_openvino_setter is None:
+                effective_use_openvino_setter = self._default_set_openvino_usage
+            if effective_apply_runtime_callback is None:
+                effective_apply_runtime_callback = self._default_apply_runtime_after_copy
+
+        return self._model_override_service.copy_global_model_settings_to_project(
+            get_global_defaults,
+            get_active_weight_name,
+            refresh_callback,
+            active_weight_setter=effective_active_weight_setter,
+            use_openvino_setter=effective_use_openvino_setter,
+            apply_runtime_callback=effective_apply_runtime_callback,
+        )
+
+    def _default_apply_runtime_after_copy(
+        self,
+        resolved_weight: str | None,
+        resolved_openvino: bool,
+    ) -> None:
+        """Publish UI events and rebuild detector after a copy-globals.
+
+        Espelha o que ``project_workflow_adapter.create_project_workflow``
+        ja faz pos-criacao de projeto (set checkbox, set status, set
+        active weight, setup detector). Antes deste hook, o usuario
+        clicava "Copiar Globais para o Projeto", via o ``messagebox`` de
+        sucesso, mas o checkbox de OpenVINO da UI e o detector em runtime
+        nao mudavam ate reabrir o projeto.
+        """
+        # State_manager ja foi atualizado pelos setters; aqui ficam os
+        # eventos UI e o rebuild do detector.
+        self._publish_event(
+            UIEvents.UI_UPDATE_OPENVINO_CHECKBOX,
+            payloads.UIUpdateOpenVinoCheckboxPayload(is_checked=bool(resolved_openvino)),
+        )
+        if resolved_weight:
+            self._publish_event(
+                UIEvents.UI_SET_ACTIVE_WEIGHT,
+                payloads.UISetActiveWeightPayload(weight_name=resolved_weight),
             )
-        return None
+        self._publish_event(
+            UIEvents.UI_UPDATE_OPENVINO_STATUS,
+            payloads.UIUpdateOpenVinoStatusPayload(
+                status="OpenVINO" if resolved_openvino else "PyTorch"
+            ),
+        )
+
+        # Reconstruir o detector ativo com o novo plugin. Se a sessao
+        # live ainda nao tiver iniciado, isso poupa o usuario de
+        # reabrir o projeto. Se ja estiver rodando, o
+        # ``live_session_manager`` agora tambem detecta a mudanca e
+        # rebuilda no proximo start_session (ver Bug B).
+        if not self.detector_service:
+            log.debug("project.copy_globals.no_detector_service")
+            return
+
+        try:
+            animal_method = self.settings.model_selection.animal_method if self.settings else None
+            success, error = self.detector_service.initialize_detector(
+                animal_method=animal_method,
+                use_openvino=bool(resolved_openvino),
+            )
+            if not success:
+                log.warning(
+                    "project.copy_globals.detector_rebuild_failed",
+                    error=error,
+                    use_openvino=resolved_openvino,
+                )
+            else:
+                log.info(
+                    "project.copy_globals.detector_rebuilt",
+                    use_openvino=resolved_openvino,
+                    weight=resolved_weight,
+                )
+        except Exception as e:  # except Exception justified: ML inference heterogeneous errors
+            log.warning(
+                "project.copy_globals.detector_rebuild_error",
+                error=str(e),
+            )
 
     def copy_global_model_settings_to_project_path(
         self,
