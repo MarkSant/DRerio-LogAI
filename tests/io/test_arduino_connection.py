@@ -7,6 +7,8 @@ Complementa ``tests/test_arduino.py`` (probe/scan) e
 
 from __future__ import annotations
 
+from typing import Any, cast
+
 import serial
 
 from zebtrack.io import arduino
@@ -61,7 +63,7 @@ class TestConnect:
     def test_connect_returns_true_if_already_open(self, monkeypatch):
         fake = FakeSerial(lines=[b"Arduino is ready.\n"])
         ard = Arduino("COM1", 9600)
-        ard.ser = fake  # já conectado
+        ard.ser = cast(Any, fake)  # já conectado
         assert ard.connect() is True
 
     def test_connect_handles_serial_exception(self, monkeypatch):
@@ -78,20 +80,21 @@ class TestSendCommandNumeric:
     def test_send_command_ack(self, monkeypatch):
         fake = FakeSerial(lines=[b"OK\n"])
         ard = Arduino("COM1", 9600)
-        ard.ser = fake
+        ard.ser = cast(Any, fake)
         assert ard.send_command(3) is True
-        assert ard.ser.written == [b"3\n"]
+        assert fake.written == [b"3\n"]
 
     def test_send_command_nack(self, monkeypatch):
         fake = FakeSerial(lines=[b"ERR\n"])
         ard = Arduino("COM1", 9600)
-        ard.ser = fake
+        ard.ser = cast(Any, fake)
         assert ard.send_command(3) is False
 
     def test_send_command_invalid_number_returns_false(self):
         ard = Arduino("COM1", 9600)
-        ard.ser = FakeSerial(lines=[b"OK\n"])
-        assert ard.send_command("nao_numero") is False
+        ard.ser = cast(Any, FakeSerial(lines=[b"OK\n"]))
+        # Tipo inválido de propósito: o contrato promete False, não exceção.
+        assert ard.send_command(cast(Any, "nao_numero")) is False
 
     def test_send_command_offline_returns_false(self):
         ard = Arduino("COM1", 9600)
@@ -100,7 +103,7 @@ class TestSendCommandNumeric:
 
     def test_send_command_serial_error_returns_false(self):
         ard = Arduino("COM1", 9600)
-        ard.ser = FakeSerial(raise_on_write=True)
+        ard.ser = cast(Any, FakeSerial(raise_on_write=True))
         assert ard.send_command(2) is False
 
 
@@ -127,7 +130,7 @@ class TestContextManagerAndClose:
     def test_close_is_idempotent(self):
         fake = FakeSerial()
         ard = Arduino("COM1", 9600)
-        ard.ser = fake
+        ard.ser = cast(Any, fake)
         ard.close()
         assert ard.ser is None
         ard.close()  # segunda chamada não deve quebrar

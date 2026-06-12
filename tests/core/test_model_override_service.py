@@ -280,15 +280,28 @@ def test_save_current_calibration_returns_none_without_project() -> None:
 
 
 def test_save_project_model_overrides_returns_current_without_project() -> None:
-    service = _build_service(project_path=None, overrides={"slot_weights": {}})
+    # Mock local do workflow para assertar sem esbarrar na tipagem do atributo.
+    workflow = Mock()
+    project_manager = Mock()
+    project_manager.project_path = None
+    project_manager.project_data = {"model_overrides": {"slot_weights": {}}}
+    service = ModelOverrideService(
+        state_manager=cast(Any, Mock()),
+        project_manager=cast(Any, project_manager),
+        project_workflow_service=cast(Any, workflow),
+        settings_obj=cast(Any, SimpleNamespace()),
+        event_bus=None,
+    )
+
     result = service.save_project_model_overrides(
         active_weight_override="w",
         use_openvino_override=True,
         get_active_weight_name=lambda: "atual",
         get_use_openvino=lambda: True,
     )
+
     assert result == ("atual", True)
-    service.project_workflow_service.save_project_model_slot_overrides.assert_not_called()
+    workflow.save_project_model_slot_overrides.assert_not_called()
 
 
 # === Persistência em project_data ===
@@ -358,19 +371,33 @@ def test_persist_without_path_does_not_save() -> None:
 # === Delegações ao workflow service ===
 
 
-def test_resolve_delegates_to_workflow() -> None:
-    service = _build_service(project_path="/tmp/project", overrides={"slot_weights": {}})
-    service.project_workflow_service.resolve_project_model_settings.return_value = ("w", True)
-
-    assert service.resolve_project_model_settings({"a": 1}) == ("w", True)
-    service.project_workflow_service.resolve_project_model_settings.assert_called_once_with(
-        {"a": 1}
+def _build_service_with_workflow(workflow: Mock) -> ModelOverrideService:
+    """Variante de _build_service que recebe o mock do workflow para asserções."""
+    project_manager = Mock()
+    project_manager.project_path = "/tmp/project"
+    project_manager.project_data = {"model_overrides": {"slot_weights": {}}}
+    return ModelOverrideService(
+        state_manager=cast(Any, Mock()),
+        project_manager=cast(Any, project_manager),
+        project_workflow_service=cast(Any, workflow),
+        settings_obj=cast(Any, SimpleNamespace()),
+        event_bus=None,
     )
 
 
+def test_resolve_delegates_to_workflow() -> None:
+    workflow = Mock()
+    workflow.resolve_project_model_settings.return_value = ("w", True)
+    service = _build_service_with_workflow(workflow)
+
+    assert service.resolve_project_model_settings({"a": 1}) == ("w", True)
+    workflow.resolve_project_model_settings.assert_called_once_with({"a": 1})
+
+
 def test_apply_delegates_to_workflow() -> None:
-    service = _build_service(project_path="/tmp/project", overrides={"slot_weights": {}})
-    service.project_workflow_service.apply_project_model_overrides.return_value = ("w", False)
+    workflow = Mock()
+    workflow.apply_project_model_overrides.return_value = ("w", False)
+    service = _build_service_with_workflow(workflow)
 
     result = service.apply_project_model_overrides(
         overrides={"x": 1},
