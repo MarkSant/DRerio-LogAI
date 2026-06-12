@@ -108,6 +108,15 @@ class TestHtmlReporterEdgeCases:
 
         assert (tmp_path / "no_freeze.html").exists()
 
+    def test_roi_bar_chart_rendered_when_roi_time_present(self, reporter_ctx, tmp_path):
+        """Com tempo de ROI não-vazio, o painel de barras de ROI é renderizado."""
+        reporter_ctx.r_analyzer.get_time_spent_in_rois = lambda: {"ROI1": 5.0, "ROI2": 2.0}
+
+        HtmlReporter(reporter_ctx).export_interactive_html_report(tmp_path / "roi.html")
+
+        content = (tmp_path / "roi.html").read_text(encoding="utf-8")
+        assert "ROI1" in content
+
     def test_missing_cm_columns_skips_trajectory_panel(self, reporter_ctx, tmp_path):
         """Sem colunas x_cm/y_cm -> painel de trajetória pulado, relatório gera."""
         df = reporter_ctx.b_analyzer.trajectory_data

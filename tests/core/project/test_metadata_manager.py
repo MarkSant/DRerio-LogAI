@@ -64,9 +64,7 @@ class TestGetMetadataForExperiment:
         assert result == {}
 
     def test_csv_match_takes_priority(self):
-        df = pd.DataFrame(
-            {"experiment_id": ["exp1"], "group_id": ["G1"], "subject": [7]}
-        )
+        df = pd.DataFrame({"experiment_id": ["exp1"], "group_id": ["G1"], "subject": [7]})
         result = MetadataManager.get_metadata_for_experiment(
             "exp1",
             metadata_df=df,
@@ -173,9 +171,7 @@ class TestDetectorState:
         assert MetadataManager._normalize_detector_thresholds(None) == {}
 
     def test_normalize_thresholds_skips_non_numeric(self):
-        out = MetadataManager._normalize_detector_thresholds(
-            {"conf_threshold": "nao_numerico"}
-        )
+        out = MetadataManager._normalize_detector_thresholds({"conf_threshold": "nao_numerico"})
         assert out == {}
 
 

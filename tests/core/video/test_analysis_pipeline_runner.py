@@ -158,9 +158,7 @@ class TestEnrichMetadataWithProfile:
         assert meta["analysis_profile_tracks"] == [1, 2]
 
     def test_none_profile_is_noop(self, runner):
-        meta = runner._enrich_metadata_with_profile(
-            metadata={"a": 1}, analysis_profile=None
-        )
+        meta = runner._enrich_metadata_with_profile(metadata={"a": 1}, analysis_profile=None)
         assert meta == {"a": 1}
 
 
@@ -181,13 +179,11 @@ class TestPrepareCalibrationContext:
             roi_names=["ROI_A"],
             roi_colors=[(255, 0, 0)],
         )
-        cal, arena_warped, rois, roi_colors, px, py = (
-            runner._prepare_analysis_calibration_context(
-                arena_polygon_px=[(0, 0), (100, 0), (100, 100), (0, 100)],
-                width_cm=10.0,
-                height_cm=10.0,
-                zone_data=zone,
-            )
+        cal, arena_warped, rois, roi_colors, px, py = runner._prepare_analysis_calibration_context(
+            arena_polygon_px=[(0, 0), (100, 0), (100, 100), (0, 100)],
+            width_cm=10.0,
+            height_cm=10.0,
+            zone_data=zone,
         )
         assert cal is not None
         assert arena_warped is not None
