@@ -617,11 +617,6 @@ class LiveAnalysisDialog(Dialog):
             return False
         return True
 
-    def cancel(self, event: Any | None = None) -> None:
-        """Override Dialog.cancel to ensure proper cleanup."""
-        self.result = None
-        super().cancel(event)
-
     def apply(self) -> None:
         """Build result dictionary and update settings."""
         selected = self.camera_selection_var.get().strip()
