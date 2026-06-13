@@ -9,6 +9,52 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### 🐛 Bug Fixes (June 2026) — vídeo único offline com 2 aquários não iniciava
+
+- **"Iniciar Análise de Vídeo Único" não fazia nada** no fluxo de teste de vídeo
+  único (sem projeto em disco) com 2 aquários: a auto-detecção e a janela de
+  atribuição funcionavam, mas o início da análise morria em silêncio. Causa:
+  vários `save_project()` **incondicionais** no caminho multi-aquário/sequencial
+  lançavam `ProjectInvalidError` quando `project_path is None`, exceção
+  **engolida** pelo `try/except` do `EventBusV2` (apenas log
+  `event_bus_v2.handler_failed`, sem diálogo). Correções:
+  - Guardados todos os `save_project()` do caminho com
+    `if self.project_manager.project_path:` (em `MultiAquariumCoordinator`
+    `_on_aquarium_assignment_completed` e `_apply_processing_mode_to_video`, e em
+    `SequentialProcessingCoordinator`).
+  - `_on_aquarium_assignment_completed` reordenado: grava `subject_id/group/day`
+    em `multi_aquarium_zones` (fonte da verdade lida no start) **antes e
+    independente** de o vídeo estar registrado como entry; espelho/metadados de
+    entry ficam sob `if entry:`.
+  - Error boundary em
+    `SingleVideoWorkflow._on_start_single_video_processing_clicked` (diálogo de
+    erro + log) para que falhas futuras no início não sumam.
+  - `resolve_results_directory` (fluxo sem projeto) passa a respeitar um
+    `experiment_id` explícito que difere do nome do vídeo (`<stem>_aqN` no
+    processamento sequencial) → cada aquário recebe sua própria pasta de
+    resultados (antes ambos colidiam e o 2º sobrescrevia o 1º). O fluxo de
+    aquário único permanece inalterado.
+  - **"Concluir" inicia a análise no fluxo de vídeo único**: no modo de teste de
+    vídeo único (com `pending_single_video_path` ativo), o botão "Concluir" passa
+    a delegar ao mesmo caminho de "Iniciar Análise de Vídeo Único" — concluir as
+    zonas (incl. multi-aquário) dispara o processamento, como o usuário espera.
+    Projetos e fluxo live mantêm o comportamento original (commit de zonas +
+    resume), pois a mudança é restrita ao modo de vídeo único.
+  - **Auto-detecção voltava ao modo single (1 aquário) mesmo pedindo 2**: a
+    `on_auto_detect_clicked` lia o número de aquários do cache global
+    `settings.analysis_config.num_aquariums`, que é ressincronizado para a
+    contagem do projeto (default 1) quando a UI é (re)montada — então logo após
+    escolher "2 aquários" no diálogo o valor já podia ter voltado a 1, e a
+    detecção rodava como `multi: false`. Agora lê do config submetido pelo
+    usuário (`pending_single_video_config`), que é imune a esse reset; fallback
+    para settings nos demais fluxos.
+  - A janela "Analisar Vídeo Único" passa a **pré-preencher "Número de Aquários"**
+    com o último valor configurado (em vez de fixar "1"), evitando reconfigurar a
+    cada abertura.
+  - Cobertura: `tests/coordinators/test_single_video_multi_aquarium_start.py`,
+    `tests/ui/builders/test_zone_control_builder.py`,
+    `tests/ui/components/test_single_video_workflow_auto_detect.py`.
+
 ### 🧪 Testes & Qualidade (June 2026) — cobertura de uso científico
 
 - **Correção de bug no relatório HTML interativo**: `HtmlReporter` chamava

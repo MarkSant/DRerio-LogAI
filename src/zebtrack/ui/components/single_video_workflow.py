@@ -193,9 +193,24 @@ class SingleVideoWorkflow:
             ),
         )
 
-        # Read num_aquariums from settings for multi-aquarium auto-detection
+        # Read num_aquariums para a auto-detecção multi-aquário.
+        #
+        # A fonte AUTORITATIVA no fluxo de vídeo único é o config submetido pelo
+        # usuário (``pending_single_video_config``), e NÃO o
+        # ``settings.analysis_config.num_aquariums`` global. Esse cache global é
+        # ressincronizado para a contagem do projeto (default 1) sempre que a UI do
+        # projeto é (re)montada — ex.: ``ProjectInitializer._sync_aquarium_count_from_project`` —
+        # então logo após escolher "2 aquários" no diálogo ele já pode ter voltado a
+        # 1, fazendo a auto-detecção cair em modo single (multi=False). Ler do config
+        # pendente torna a detecção imune a esse reset.
         num_aquariums = 1
-        if gui.settings and hasattr(gui.settings, "analysis_config"):
+        pending_config = getattr(gui, "pending_single_video_config", None)
+        if isinstance(pending_config, dict) and pending_config.get("num_aquariums") is not None:
+            try:
+                num_aquariums = int(pending_config["num_aquariums"])
+            except (TypeError, ValueError):
+                num_aquariums = 1
+        elif gui.settings and hasattr(gui.settings, "analysis_config"):
             num_aquariums = gui.settings.analysis_config.num_aquariums
 
         gui.event_dispatcher.publish_event(
@@ -212,7 +227,21 @@ class SingleVideoWorkflow:
     # ------------------------------------------------------------------
 
     def _on_start_single_video_processing_clicked(self) -> None:
-        """Handle the 'Start Analysis' button in the single video flow."""
+        """Handle the 'Start Analysis' button in the single video flow.
+
+        Envolto em error boundary: qualquer falha aqui (ou no handler síncrono de
+        ``VIDEO_START_SINGLE_PROCESSING``, despachado dentro de ``publish_event``)
+        precisa virar diálogo + log, e não sumir. Sem isto, exceções no caminho de
+        início eram engolidas e o usuário via "nada acontece".
+        """
+        try:
+            self._start_single_video_processing()
+        except Exception as e:  # except Exception justified: UI error boundary for button click
+            log.error("single_video_workflow.start.error", error=str(e), exc_info=True)
+            self.dialog_manager.show_error("Erro", f"Falha ao iniciar análise: {e}")
+
+    def _start_single_video_processing(self) -> None:
+        """Validate zones/config and publish ``VIDEO_START_SINGLE_PROCESSING``."""
         gui = self.gui
 
         # If the user was editing a polygon, prompt for confirmation before saving.

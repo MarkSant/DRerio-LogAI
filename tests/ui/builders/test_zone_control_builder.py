@@ -55,6 +55,38 @@ def test_conclude_video_saves_arena_when_editing_active():
     assert UIEvents.LIVE_RECORDING_RESUME_REQUESTED in types
 
 
+def test_conclude_video_single_video_mode_starts_analysis():
+    """Single-video TEST flow: 'Concluir' delega ao início da análise.
+
+    O usuário conclui as zonas (multi-aquário auto-detectado) e espera que isso
+    inicie o processamento — não há outra etapa. Concluir deve chamar o caminho de
+    start e NÃO cair na lógica de resume live.
+    """
+    gui = _conclude_gui(editing_zone=None, edited_points=[])
+    gui.pending_single_video_path = "C:/videos/exp_2aq.mp4"
+    gui.single_video_workflow = Mock()
+    builder = ZoneControlBuilder(gui, event_bus_v2=Mock())
+
+    builder._on_conclude_video()
+
+    gui.single_video_workflow._on_start_single_video_processing_clicked.assert_called_once()
+    # Não deve publicar resume live nem salvar arena no fluxo de vídeo único.
+    assert UIEvents.LIVE_RECORDING_RESUME_REQUESTED not in _published_types(gui)
+
+
+def test_conclude_video_project_mode_does_not_start_single_analysis():
+    """Sem vídeo único pendente (projeto/live), Concluir mantém o fluxo original."""
+    gui = _conclude_gui(editing_zone=None, edited_points=[])
+    gui.pending_single_video_path = None
+    gui.single_video_workflow = Mock()
+    builder = ZoneControlBuilder(gui, event_bus_v2=Mock())
+
+    builder._on_conclude_video()
+
+    gui.single_video_workflow._on_start_single_video_processing_clicked.assert_not_called()
+    assert UIEvents.LIVE_RECORDING_RESUME_REQUESTED in _published_types(gui)
+
+
 def _conclude_gui_with_pending(pending: bool):
     """gui stub whose zone_controls reports a pending live session."""
     gui = _conclude_gui(editing_zone=None, edited_points=[])

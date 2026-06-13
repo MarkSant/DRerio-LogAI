@@ -304,31 +304,9 @@ class SequentialProcessingCoordinator(BaseCoordinator):
 
             if success:
                 ctx["completed"].append(aq_id)
-                # Register outputs
-                entry = self.project_manager.find_video_entry(path=video_path)
-                if entry:
-                    multi_outputs = entry.setdefault("multi_aquarium_outputs", {})
-                    aq_key = str(aq_id)
-                    multi_outputs.setdefault(aq_key, {})
-                    multi_outputs[aq_key]["results_dir"] = results_dir
-
-                    # Scan for generated files
-                    traj_candidates = [
-                        f
-                        for f in os.listdir(results_dir)
-                        if f.startswith("3_CoordMovimento") and f.endswith(".parquet")
-                    ]
-                    if traj_candidates:
-                        pf = multi_outputs[aq_key].setdefault("parquet_files", {})
-                        pf["trajectory"] = os.path.join(results_dir, traj_candidates[0])
-
-                    # Update metadata
-                    multi_outputs[aq_key]["group"] = aq_metadata.get("group", "")
-                    multi_outputs[aq_key]["subject_id"] = aq_metadata.get("subject", "")
-                    multi_outputs[aq_key]["day"] = aq_metadata.get("day", "1")
-
-                    self.project_manager.save_project()
-
+                self._register_sequential_aquarium_output(
+                    aq_id, video_path, results_dir, aq_metadata
+                )
                 log.info(
                     "processing_coordinator.sequential.aquarium_done",
                     aquarium_id=aq_id,
@@ -389,6 +367,50 @@ class SequentialProcessingCoordinator(BaseCoordinator):
 
         if vpc:
             vpc.processing_thread = thread
+
+    def _register_sequential_aquarium_output(
+        self,
+        aq_id: int,
+        video_path: Path | str,
+        results_dir: Path | str,
+        aq_metadata: dict[str, Any],
+    ) -> None:
+        """Register a completed aquarium's outputs on its video entry.
+
+        No-op (besides the in-memory scan) when the video has no project entry —
+        the single-video TEST flow runs without a project on disk.
+        """
+        results_dir = Path(results_dir) if isinstance(results_dir, str) else results_dir
+
+        entry = self.project_manager.find_video_entry(path=video_path)
+        if not entry:
+            return
+
+        multi_outputs = entry.setdefault("multi_aquarium_outputs", {})
+        aq_key = str(aq_id)
+        multi_outputs.setdefault(aq_key, {})
+        multi_outputs[aq_key]["results_dir"] = str(results_dir)
+
+        # Scan for generated files
+        traj_candidates = [
+            f
+            for f in os.listdir(results_dir)
+            if f.startswith("3_CoordMovimento") and f.endswith(".parquet")
+        ]
+        if traj_candidates:
+            pf = multi_outputs[aq_key].setdefault("parquet_files", {})
+            pf["trajectory"] = os.path.join(results_dir, traj_candidates[0])
+
+        # Update metadata
+        multi_outputs[aq_key]["group"] = aq_metadata.get("group", "")
+        multi_outputs[aq_key]["subject_id"] = aq_metadata.get("subject", "")
+        multi_outputs[aq_key]["day"] = aq_metadata.get("day", "1")
+
+        # Vídeo único de teste roda sem projeto em disco; persistir só quando
+        # houver projeto (senão ``save_project`` lança e o avanço sequencial
+        # morre silenciosamente, engolido pelo callback do worker).
+        if self.project_manager.project_path:
+            self.project_manager.save_project()
 
     # ========================================================================
     # Sequential Advancement (from _on_video_completed)

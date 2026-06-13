@@ -133,7 +133,8 @@ class MultiAquariumCoordinator(BaseCoordinator):
             entry = self.project_manager.find_video_entry(path=video_path)
             if entry:
                 entry["multi_aquarium_zone_data"] = serialized
-                self.project_manager.save_project()
+                if self.project_manager.project_path:
+                    self.project_manager.save_project()
             log.info(
                 "processing_coordinator.mode_applied",
                 video=os.path.basename(video_path),
@@ -418,10 +419,6 @@ class MultiAquariumCoordinator(BaseCoordinator):
             if not vpath or vpath in self._assigned_videos:
                 continue
 
-            entry = self.project_manager.find_video_entry(path=vpath)
-            if not entry:
-                continue
-
             multi_data = self.project_manager.get_multi_aquarium_zone_data(vpath)
             if not multi_data:
                 continue
@@ -437,46 +434,57 @@ class MultiAquariumCoordinator(BaseCoordinator):
                         break
 
             # Persist into multi_aquarium_zones (source of truth read by
-            # processing validation), not only into the video entry mirror.
+            # processing validation) SEMPRE — inclusive quando o vídeo ainda não
+            # está registrado como entry (fluxo de vídeo único de teste, sem
+            # projeto em disco). É daqui que ``start_single_video_processing`` lê
+            # os ``subject_id`` para liberar o início da análise.
             self.project_manager.save_multi_aquarium_zone_data(vpath, multi_data, persist=False)
 
-            # Save updated multi-aquarium data
-            from zebtrack.core.project.zone_manager import ZoneManager
+            # As atualizações abaixo dependem de uma entry registrada (espelho no
+            # ``project_data`` + metadados para visibilidade na UI). Sem entry, os
+            # sujeitos já foram gravados em ``multi_aquarium_zones`` acima.
+            entry = self.project_manager.find_video_entry(path=vpath)
+            if entry:
+                from zebtrack.core.project.zone_manager import ZoneManager
 
-            serialized = ZoneManager.multi_aquarium_zone_data_to_dict(multi_data)
-            entry["multi_aquarium_zone_data"] = serialized
+                serialized = ZoneManager.multi_aquarium_zone_data_to_dict(multi_data)
+                entry["multi_aquarium_zone_data"] = serialized
 
-            # Propagate assignment metadata to entry["metadata"] for UI visibility
-            # Use first aquarium's config as the video-level metadata
-            metadata = entry.setdefault("metadata", {})
-            if configs:
-                first_config = configs[0]
-                group_val = first_config.get("group", "")
-                subject_val = first_config.get("subject_id", "")
-                day_val = first_config.get("day", "1")
-                if group_val:
-                    metadata["group"] = group_val
-                if subject_val:
-                    metadata["subject"] = subject_val
-                if day_val:
-                    metadata["day"] = day_val
+                # Propagate assignment metadata to entry["metadata"] for UI visibility
+                # Use first aquarium's config as the video-level metadata
+                metadata = entry.setdefault("metadata", {})
+                if configs:
+                    first_config = configs[0]
+                    group_val = first_config.get("group", "")
+                    subject_val = first_config.get("subject_id", "")
+                    day_val = first_config.get("day", "1")
+                    if group_val:
+                        metadata["group"] = group_val
+                    if subject_val:
+                        metadata["subject"] = subject_val
+                    if day_val:
+                        metadata["day"] = day_val
 
-            # Update metadata in multi_aquarium_outputs if they exist
-            multi_outputs = entry.get("multi_aquarium_outputs")
-            if multi_outputs:
-                for config in configs:
-                    aq_id_str = str(config.get("aquarium_id", 0))
-                    if aq_id_str in multi_outputs:
-                        multi_outputs[aq_id_str]["group"] = config.get("group", "")
-                        multi_outputs[aq_id_str]["subject_id"] = config.get("subject_id", "")
-                        multi_outputs[aq_id_str]["day"] = config.get("day", "1")
+                # Update metadata in multi_aquarium_outputs if they exist
+                multi_outputs = entry.get("multi_aquarium_outputs")
+                if multi_outputs:
+                    for config in configs:
+                        aq_id_str = str(config.get("aquarium_id", 0))
+                        if aq_id_str in multi_outputs:
+                            multi_outputs[aq_id_str]["group"] = config.get("group", "")
+                            multi_outputs[aq_id_str]["subject_id"] = config.get("subject_id", "")
+                            multi_outputs[aq_id_str]["day"] = config.get("day", "1")
 
-            # Relocate folders if needed
-            self._relocate_multi_aquarium_folders(vpath, entry, configs)
+                # Relocate folders if needed
+                self._relocate_multi_aquarium_folders(vpath, entry, configs)
 
             self._assigned_videos.add(vpath)
 
-        self.project_manager.save_project()
+        # Só grava em disco quando há projeto; o fluxo de vídeo único de teste
+        # opera em memória (``project_path is None`` → ``save_project`` lançaria
+        # ``ProjectInvalidError``, engolido pelo EventBus → "nada acontece").
+        if self.project_manager.project_path:
+            self.project_manager.save_project()
 
         self._publish_event(
             UIEvents.UI_REFRESH_PROJECT_VIEWS, payloads.ProjectViewsRefreshRequestedPayload()
