@@ -61,7 +61,16 @@ class SingleVideoConfigDialog(simpledialog.Dialog):
         """
         # --- Tkinter Variables ---
         self.video_path_var = StringVar(value="")
-        self.num_aquariums_var = StringVar(value="1")
+        # Pré-preenche "Número de Aquários" com o último valor configurado
+        # (``settings.analysis_config.num_aquariums``) em vez de fixar "1" — assim a
+        # janela LEMBRA a escolha do usuário e não força reconfigurar a cada abertura.
+        _num_aquariums_default = "1"
+        if self.settings and hasattr(self.settings, "analysis_config"):
+            try:
+                _num_aquariums_default = str(int(self.settings.analysis_config.num_aquariums))
+            except (AttributeError, TypeError, ValueError):
+                _num_aquariums_default = "1"
+        self.num_aquariums_var = StringVar(value=_num_aquariums_default)
         self.animals_per_aquarium_var = StringVar(value="1")
         self.aquarium_width_var = StringVar(value="10.0")
         self.aquarium_height_var = StringVar(value="10.0")

@@ -40,8 +40,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     zonas (incl. multi-aquário) dispara o processamento, como o usuário espera.
     Projetos e fluxo live mantêm o comportamento original (commit de zonas +
     resume), pois a mudança é restrita ao modo de vídeo único.
+  - **Auto-detecção voltava ao modo single (1 aquário) mesmo pedindo 2**: a
+    `on_auto_detect_clicked` lia o número de aquários do cache global
+    `settings.analysis_config.num_aquariums`, que é ressincronizado para a
+    contagem do projeto (default 1) quando a UI é (re)montada — então logo após
+    escolher "2 aquários" no diálogo o valor já podia ter voltado a 1, e a
+    detecção rodava como `multi: false`. Agora lê do config submetido pelo
+    usuário (`pending_single_video_config`), que é imune a esse reset; fallback
+    para settings nos demais fluxos.
+  - A janela "Analisar Vídeo Único" passa a **pré-preencher "Número de Aquários"**
+    com o último valor configurado (em vez de fixar "1"), evitando reconfigurar a
+    cada abertura.
   - Cobertura: `tests/coordinators/test_single_video_multi_aquarium_start.py`,
-    `tests/ui/builders/test_zone_control_builder.py`.
+    `tests/ui/builders/test_zone_control_builder.py`,
+    `tests/ui/components/test_single_video_workflow_auto_detect.py`.
 
 ### 🧪 Testes & Qualidade (June 2026) — cobertura de uso científico
 
