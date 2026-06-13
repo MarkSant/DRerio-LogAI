@@ -249,3 +249,11 @@ def test_sequential_advances_to_second_aquarium_without_project(
     assert len(captured) == 2, "sequential flow must advance to the second aquarium"
     out_dir_1 = captured[1].context.output_base_dir
     assert out_dir_0 != out_dir_1, "each aquarium needs its own results directory"
+
+    # Regressão #3 (key mismatch): o worker lê ``video_info.get("path")``; com a
+    # chave antiga "video_path" o path chegava vazio → ``Path("") == "."`` →
+    # FileNotFoundError "Could not open video: ." nos 2 aquários (0/2 concluídos).
+    for cap in captured:
+        vinfo = cap.context.videos_to_process[0]
+        assert vinfo.get("path") == video_path
+        assert "video_path" not in vinfo

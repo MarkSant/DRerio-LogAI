@@ -263,11 +263,16 @@ class SequentialProcessingCoordinator(BaseCoordinator):
             if "display_interval_frames" in single_video_config:
                 display_interval = int(single_video_config["display_interval_frames"])
 
-        # Build processing context (matches ProcessingContext dataclass fields)
+        # Build processing context (matches ProcessingContext dataclass fields).
+        # CHAVE "path" (não "video_path"): o worker lê ``video_info.get("path")``
+        # (processing_worker.py:501) e o handler de conclusão idem. Usar "video_path"
+        # fazia o worker receber "" → abrir Path("") == "." → FileNotFoundError
+        # "Could not open video: ." e os 2 aquários falhavam (0/2), sem saídas.
         video_info = {
-            "video_path": video_path,
+            "path": video_path,
             "experiment_id": f"{experiment_id}_aq{aq_id + 1}",
             "output_dir": results_dir,
+            "results_dir": results_dir,
             **aq_metadata,
         }
         processing_context = ProcessingContext(

@@ -1076,42 +1076,21 @@ class _WorkerProcess(multiprocessing.Process):
         if isinstance(video_zone_data, MultiAquariumZoneData):
             zones_by_aq = {aq.id: aq.to_zone_data() for aq in video_zone_data.aquariums}
 
-            # Calculate per-aquarium output folders using AquariumData metadata
-            # This ensures proper folder structure: Grupo_X/Dia_Y/Sujeito_Z/
-            output_folders_by_aquarium = {}
-            for aq in video_zone_data.aquariums:
-                # Extract metadata from AquariumData
-                aq_group = getattr(aq, "group", None) or "Sem_Grupo"
-                aq_subject = getattr(aq, "subject_id", None) or ""
-                aq_day = getattr(aq, "day", None) or "1"
-
-                # Format components similar to ProjectManager
-                group_component = f"Grupo_{self._sanitize_component(aq_group)}"
-                day_component = f"Dia_{self._format_day(aq_day)}"
-                subject_component = f"Sujeito_{self._format_subject(aq_subject)}"
-
-                # Build hierarchical path under the base results_dir's parent
-                # Get project root from results_dir if it follows project structure
-                base_path = Path(results_dir)
-                # Navigate up to project root (Grupo/Dia/Sujeito structure)
-                # Use base_path's ancestor that contains "Grupo_" or just use parent.parent.parent
-                project_root = base_path
-                for _ in range(3):  # Go up 3 levels (Sujeito -> Dia -> Grupo -> project)
-                    if project_root.parent.exists():
-                        project_root = project_root.parent
-
-                aq_folder = project_root / group_component / day_component / subject_component
-                output_folders_by_aquarium[aq.id] = str(aq_folder)
-
-                log.info(
-                    "worker.multi_aquarium.folder_calculated",
-                    aquarium_id=aq.id,
-                    group=aq_group,
-                    subject=aq_subject,
-                    day=aq_day,
-                    folder=str(aq_folder),
-                )
-
+            # Cada aquário grava em ``<results_dir>/aquarium_{N+1}/`` usando o DEFAULT
+            # do Recorder (não passamos ``output_folders_by_aquarium``). É exatamente
+            # onde o handler de conclusão procura
+            # (``_video_completion_mixin._scan_multi_aquarium_outputs`` →
+            # ``results_dir/aquarium_{N}/3_CoordMovimento_{exp}_aquarium_{N}.parquet``),
+            # então as saídas são encontradas, registradas e geram os relatórios.
+            #
+            # Antes, calculava-se a pasta "subindo 3 níveis" a partir de results_dir,
+            # supondo uma estrutura de projeto Grupo/Dia/Sujeito. Sem projeto salvo
+            # (``results_dir = <video>_results``) isso caía FORA da pasta do vídeo
+            # (ex.: ``Pesquisa Canabidiol/Grupo_…``) e a conclusão nunca achava — sem
+            # ícones nem relatórios, e a pasta anunciada ficava vazia. Com projeto, os
+            # 2 aquários colidiam na mesma pasta de metadados do vídeo. A organização
+            # por Grupo/Dia/Sujeito é responsabilidade do projeto/relocação, não do
+            # writer do worker.
             recorder.start_recording_multi_aquarium(
                 output_folder=results_dir,
                 width=width,
@@ -1122,7 +1101,6 @@ class _WorkerProcess(multiprocessing.Process):
                 pixel_per_cm_ratio=pixel_ratio,
                 calibration=None,
                 calibration_by_aquarium=calibration_by_aquarium,
-                output_folders_by_aquarium=output_folders_by_aquarium,
             )
 
         else:
