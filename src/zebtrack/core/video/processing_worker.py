@@ -1205,9 +1205,16 @@ class _WorkerProcess(multiprocessing.Process):
                         # Draw static arena/ROI overlays in worker.
                         # Bounding boxes stay UI-side to support Track ID filtering.
                         if is_multi_aquarium and multi_aq_detector is not None:
+                            # Apenas overlays ESTÁTICOS (polígonos dos aquários +
+                            # ROIs). As bounding boxes ficam por conta da UI — mesma
+                            # política do caminho single (``draw_overlay(frame, [])``)
+                            # — para suportar o filtro por Track ID. Passar
+                            # ``partitioned_detections`` aqui desenhava as bboxes no
+                            # worker E de novo na UI, resultando em caixas DUPLICADAS
+                            # sobrepostas (uma por aquário + uma da UI) por item.
                             multi_aq_detector.draw_multi_aquarium_overlay(
                                 frame,
-                                partitioned_detections,
+                                {},
                             )
                         else:
                             detector.draw_overlay(frame, [])

@@ -9,6 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### 🐛 Bug Fixes (June 2026) — bboxes duplicadas no preview multi-aquário
+
+- **Caixas (bboxes) sobrepostas, duas por item (aquário e peixe)** durante a
+  análise multi-aquário: o `ProcessingWorker` desenhava o overlay multi-aquário
+  **com as detecções** (`draw_multi_aquarium_overlay(frame, partitioned_detections)`),
+  desenhando as bounding boxes no frame; a UI então desenhava as MESMAS detecções
+  de novo (`preview_detections`) → cada item aparecia com 2 caixas. O caminho de
+  aquário único já evitava isso passando `[]` a `draw_overlay` (bboxes só na UI,
+  para suportar filtro por Track ID). Correção: o worker passa a desenhar apenas
+  os overlays **estáticos** (polígonos dos aquários + ROIs) no modo multi-aquário,
+  deixando as bboxes para a UI — `draw_multi_aquarium_overlay(frame, {})`.
+  Regressão coberta em `tests/core/test_detector_partitioned.py`.
+
 ### 🐛 Bug Fixes (June 2026) — vídeo único offline com 2 aquários não iniciava
 
 - **"Iniciar Análise de Vídeo Único" não fazia nada** no fluxo de teste de vídeo
