@@ -212,7 +212,21 @@ class SingleVideoWorkflow:
     # ------------------------------------------------------------------
 
     def _on_start_single_video_processing_clicked(self) -> None:
-        """Handle the 'Start Analysis' button in the single video flow."""
+        """Handle the 'Start Analysis' button in the single video flow.
+
+        Envolto em error boundary: qualquer falha aqui (ou no handler síncrono de
+        ``VIDEO_START_SINGLE_PROCESSING``, despachado dentro de ``publish_event``)
+        precisa virar diálogo + log, e não sumir. Sem isto, exceções no caminho de
+        início eram engolidas e o usuário via "nada acontece".
+        """
+        try:
+            self._start_single_video_processing()
+        except Exception as e:  # except Exception justified: UI error boundary for button click
+            log.error("single_video_workflow.start.error", error=str(e), exc_info=True)
+            self.dialog_manager.show_error("Erro", f"Falha ao iniciar análise: {e}")
+
+    def _start_single_video_processing(self) -> None:
+        """Validate zones/config and publish ``VIDEO_START_SINGLE_PROCESSING``."""
         gui = self.gui
 
         # If the user was editing a polygon, prompt for confirmation before saving.

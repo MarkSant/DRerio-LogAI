@@ -115,12 +115,23 @@ class OutputRegistrationManager:
 
         base_dir = Path(video_path).parent if video_path else Path.cwd()
 
-        # Non-project workflows must align exactly with the worker/recorder naming.
-        raw_component = None
-        if video_path:
-            raw_component = Path(video_path).stem
-        elif experiment_source:
-            raw_component = str(experiment_source)
+        # Non-project workflows must align exactly with the worker/recorder naming
+        # (``<video_stem>_results`` ao lado do vídeo). Exceção: quando um
+        # ``experiment_id`` explícito é passado e difere do stem — caso do
+        # processamento sequencial multi-aquário, que passa ``<stem>_aqN`` — ele é
+        # respeitado para que cada aquário receba sua própria pasta de resultados
+        # (senão o 2º aquário sobrescreveria os relatórios do 1º). Mantém-se o raw
+        # ``experiment_id`` para casar com o fallback do worker (``f"{experiment_id}_results"``).
+        video_stem = Path(video_path).stem if video_path else None
+        explicit_id = str(experiment_source) if experiment_source else None
+
+        raw_component: str | None
+        if explicit_id and explicit_id != video_stem:
+            raw_component = explicit_id
+        elif video_stem:
+            raw_component = video_stem
+        else:
+            raw_component = explicit_id
 
         safe_component = raw_component if raw_component else experiment_component
         return base_dir / f"{safe_component}_results"
