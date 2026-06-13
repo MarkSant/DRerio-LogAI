@@ -12,7 +12,7 @@ Phase 4.3: Detector decomposition — tests now target MultiAquariumDetector
 instead of the former monolithic Detector.
 """
 
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import numpy as np
 import pytest
@@ -485,6 +485,46 @@ class TestDrawMultiAquariumOverlay:
 
         # Frame should have been modified (not all zeros)
         assert np.any(result > 0)
+
+    def test_draw_overlay_empty_detections_draws_no_bboxes(self, detector, dual_aquarium_setup):
+        """Regressão (bboxes duplicadas): o worker chama este overlay com detecções
+        VAZIAS — só polígonos/ROIs estáticos. As bounding boxes ficam por conta da
+        UI (suporta filtro por Track ID). Desenhar bboxes aqui as duplicava no
+        preview (uma do worker + uma da UI). cv2.rectangle só é usado p/ bboxes.
+        """
+        detector.set_multi_aquarium_zones(
+            aquariums=dual_aquarium_setup,
+            actual_width=1280,
+            actual_height=720,
+        )
+        frame = np.zeros((720, 1280, 3), dtype=np.uint8)
+
+        with patch(
+            "zebtrack.core.detection.multi_aquarium_detector.cv2.rectangle"
+        ) as mock_rectangle:
+            detector.draw_multi_aquarium_overlay(frame, {})
+
+        mock_rectangle.assert_not_called()
+
+    def test_draw_overlay_draws_one_rectangle_per_detection(self, detector, dual_aquarium_setup):
+        """Quando recebe detecções (uso fora do worker), desenha 1 retângulo cada."""
+        detector.set_multi_aquarium_zones(
+            aquariums=dual_aquarium_setup,
+            actual_width=1280,
+            actual_height=720,
+        )
+        frame = np.zeros((720, 1280, 3), dtype=np.uint8)
+        detections = {
+            0: [(100, 200, 150, 250, 0.9, 1, 1)],
+            1: [(800, 200, 850, 250, 0.85, 1001, 1)],
+        }
+
+        with patch(
+            "zebtrack.core.detection.multi_aquarium_detector.cv2.rectangle"
+        ) as mock_rectangle:
+            detector.draw_multi_aquarium_overlay(frame, detections)
+
+        assert mock_rectangle.call_count == 2
 
 
 class TestROICroppingOptimization:
