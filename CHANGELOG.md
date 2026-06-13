@@ -9,6 +9,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### 🐛 Bug Fixes (June 2026) — multi-aquário: saídas/relatórios e sequencial
+
+- **Análise paralela (simultânea) de 2 aquários não gerava relatórios e a pasta
+  anunciada ficava vazia**: o `ProcessingWorker` calculava a pasta de saída de
+  cada aquário "subindo 3 níveis" a partir de `results_dir`, supondo uma estrutura
+  de projeto `Grupo/Dia/Sujeito`. Sem projeto salvo (`results_dir = <video>_results`)
+  isso gravava FORA da pasta do vídeo (ex.: `Pesquisa Canabidiol/Grupo_Controle/…`),
+  então o handler de conclusão — que procura em `results_dir/aquarium_{N}/` — nunca
+  achava as saídas, não registrava nada e não gerava `.xlsx`/`.docx` nem ícones.
+  Correção: o worker deixa o `Recorder` usar seu default `results_dir/aquarium_{N+1}/`
+  (não passa mais `output_folders_by_aquarium`), alinhando onde grava com onde a
+  conclusão procura. Contrato já coberto por `tests/io/test_recorder_multi_aquarium.py`.
+- **Análise sequencial (1 aquário por vez) falhava com `FileNotFoundError: Could not
+  open video: .`** nos 2 aquários (0/2 concluídos): o `SequentialProcessingCoordinator`
+  montava o `video_info` com a chave `"video_path"`, mas o worker lê
+  `video_info.get("path")` → recebia `""` → `Path("") == "."`. Correção: usar a chave
+  canônica `"path"` (igual ao fluxo de vídeo único). Regressão em
+  `tests/coordinators/test_single_video_multi_aquarium_start.py`.
+
 ### 🐛 Bug Fixes (June 2026) — bboxes duplicadas no preview multi-aquário
 
 - **Caixas (bboxes) sobrepostas, duas por item (aquário e peixe)** durante a
