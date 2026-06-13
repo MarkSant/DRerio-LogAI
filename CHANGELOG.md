@@ -34,7 +34,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     processamento sequencial) → cada aquário recebe sua própria pasta de
     resultados (antes ambos colidiam e o 2º sobrescrevia o 1º). O fluxo de
     aquário único permanece inalterado.
-  - Cobertura: `tests/coordinators/test_single_video_multi_aquarium_start.py`.
+  - **"Concluir" inicia a análise no fluxo de vídeo único**: no modo de teste de
+    vídeo único (com `pending_single_video_path` ativo), o botão "Concluir" passa
+    a delegar ao mesmo caminho de "Iniciar Análise de Vídeo Único" — concluir as
+    zonas (incl. multi-aquário) dispara o processamento, como o usuário espera.
+    Projetos e fluxo live mantêm o comportamento original (commit de zonas +
+    resume), pois a mudança é restrita ao modo de vídeo único.
+  - Cobertura: `tests/coordinators/test_single_video_multi_aquarium_start.py`,
+    `tests/ui/builders/test_zone_control_builder.py`.
 
 ### 🧪 Testes & Qualidade (June 2026) — cobertura de uso científico
 

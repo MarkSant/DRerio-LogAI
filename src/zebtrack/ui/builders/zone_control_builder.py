@@ -215,6 +215,21 @@ class ZoneControlBuilder:
 
     def _on_conclude_video(self):
         """Handle 'Concluir Edição do Vídeo' button click."""
+        # Fluxo de vídeo único de teste: "Concluir" deve INICIAR a análise.
+        # O usuário conclui as zonas (incl. multi-aquário auto-detectado) e espera
+        # que isso dispare o processamento — não há etapa de "marcar lote" aqui.
+        # Delega ao mesmo caminho do botão "Iniciar Análise de Vídeo Único", que
+        # valida zonas/config, trata edição de polígono e publica
+        # VIDEO_START_SINGLE_PROCESSING. Gated em ``pending_single_video_path``,
+        # então projetos e fluxo live mantêm o comportamento original (commit de
+        # zonas + resume), intactos.
+        if getattr(self.gui, "pending_single_video_path", None):
+            single_video_workflow = getattr(self.gui, "single_video_workflow", None)
+            if single_video_workflow is not None:
+                log.info("zone_control_builder.conclude_video.single_video_start")
+                single_video_workflow._on_start_single_video_processing_clicked()
+                return
+
         # 1. Save Project (Persist flags and data)
         if hasattr(self.gui, "controller") and self.gui.controller.project_manager:
             try:
