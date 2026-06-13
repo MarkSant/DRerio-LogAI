@@ -1076,12 +1076,13 @@ class _WorkerProcess(multiprocessing.Process):
         if isinstance(video_zone_data, MultiAquariumZoneData):
             zones_by_aq = {aq.id: aq.to_zone_data() for aq in video_zone_data.aquariums}
 
-            # Cada aquário grava em ``<results_dir>/aquarium_{N+1}/`` usando o DEFAULT
-            # do Recorder (não passamos ``output_folders_by_aquarium``). É exatamente
-            # onde o handler de conclusão procura
-            # (``_video_completion_mixin._scan_multi_aquarium_outputs`` →
-            # ``results_dir/aquarium_{N}/3_CoordMovimento_{exp}_aquarium_{N}.parquet``),
-            # então as saídas são encontradas, registradas e geram os relatórios.
+            # Cada aquário grava em ``<results_dir>/aquarium_{aq_id+1}/`` (pastas
+            # 1-based: aquarium_1, aquarium_2) usando o DEFAULT do Recorder (não
+            # passamos ``output_folders_by_aquarium``). É exatamente onde o handler de
+            # conclusão procura (``_video_completion_mixin._scan_multi_aquarium_outputs``
+            # → ``results_dir/aquarium_{aq_id+1}/`` com
+            # ``3_CoordMovimento_{exp}_aquarium_{aq_id+1}.parquet``), então as saídas são
+            # encontradas, registradas e geram os relatórios.
             #
             # Antes, calculava-se a pasta "subindo 3 níveis" a partir de results_dir,
             # supondo uma estrutura de projeto Grupo/Dia/Sujeito. Sem projeto salvo
