@@ -1076,22 +1076,32 @@ class _WorkerProcess(multiprocessing.Process):
         if isinstance(video_zone_data, MultiAquariumZoneData):
             zones_by_aq = {aq.id: aq.to_zone_data() for aq in video_zone_data.aquariums}
 
-            # Cada aquário grava em ``<results_dir>/aquarium_{aq_id+1}/`` (pastas
-            # 1-based: aquarium_1, aquarium_2) usando o DEFAULT do Recorder (não
-            # passamos ``output_folders_by_aquarium``). É exatamente onde o handler de
-            # conclusão procura (``_video_completion_mixin._scan_multi_aquarium_outputs``
-            # → ``results_dir/aquarium_{aq_id+1}/`` com
-            # ``3_CoordMovimento_{exp}_aquarium_{aq_id+1}.parquet``), então as saídas são
-            # encontradas, registradas e geram os relatórios.
+            # Cada aquário grava na PRÓPRIA pasta de metadados, ANCORADA na raiz
+            # ``results_dir`` (que para vídeo pré-gravado é ``<video>_results``, junto
+            # ao vídeo): ``<results_dir>/Grupo_X/Dia_YY/Sujeito_Z/``. A raiz contém a
+            # árvore Grupo/Dia/Sujeito (como a pasta de um projeto), sem espalhar
+            # ``Grupo_*`` no diretório-pai.
             #
-            # Antes, calculava-se a pasta "subindo 3 níveis" a partir de results_dir,
-            # supondo uma estrutura de projeto Grupo/Dia/Sujeito. Sem projeto salvo
-            # (``results_dir = <video>_results``) isso caía FORA da pasta do vídeo
-            # (ex.: ``Pesquisa Canabidiol/Grupo_…``) e a conclusão nunca achava — sem
-            # ícones nem relatórios, e a pasta anunciada ficava vazia. Com projeto, os
-            # 2 aquários colidiam na mesma pasta de metadados do vídeo. A organização
-            # por Grupo/Dia/Sujeito é responsabilidade do projeto/relocação, não do
-            # writer do worker.
+            # Importante: ancorar em ``results_dir`` (sem "subir N níveis") — o cálculo
+            # antigo subia 3 níveis e gravava FORA da pasta do vídeo; a versão seguinte
+            # usava ``aquarium_{N}`` (sem metadados). Aqui usamos ``_sanitize_component``
+            # p/ grupo e sujeito (mantém "Controle"/"S01", igual à convenção de projeto
+            # em ``OutputRegistrationManager``) e ``_format_day`` p/ o dia (``Dia_01``).
+            output_folders_by_aquarium: dict[int, str] = {}
+            for aq in video_zone_data.aquariums:
+                grupo = self._sanitize_component(getattr(aq, "group", "") or "")
+                dia = self._format_day(getattr(aq, "day", None))
+                sujeito = self._sanitize_component(getattr(aq, "subject_id", "") or "")
+                aq_folder = (
+                    Path(results_dir) / f"Grupo_{grupo}" / f"Dia_{dia}" / f"Sujeito_{sujeito}"
+                )
+                output_folders_by_aquarium[aq.id] = str(aq_folder)
+                log.info(
+                    "worker.multi_aquarium.folder_resolved",
+                    aquarium_id=aq.id,
+                    folder=str(aq_folder),
+                )
+
             recorder.start_recording_multi_aquarium(
                 output_folder=results_dir,
                 width=width,
@@ -1102,6 +1112,7 @@ class _WorkerProcess(multiprocessing.Process):
                 pixel_per_cm_ratio=pixel_ratio,
                 calibration=None,
                 calibration_by_aquarium=calibration_by_aquarium,
+                output_folders_by_aquarium=output_folders_by_aquarium,
             )
 
         else:

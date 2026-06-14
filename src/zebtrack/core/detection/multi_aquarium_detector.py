@@ -888,7 +888,7 @@ class MultiAquariumDetector:
         for aq in self._aquariums:
             aq_color = aquarium_colors.get(aq.id, (255, 255, 255))
 
-            # Draw aquarium polygon
+            # Draw aquarium polygon (LINE_AA = bordas suaves, igual aos rótulos da UI)
             polygon = self._scaled_aquarium_polygons.get(aq.id)
             if polygon is not None and polygon.size > 0:
                 cv2.polylines(
@@ -897,6 +897,7 @@ class MultiAquariumDetector:
                     isClosed=True,
                     color=aq_color,
                     thickness=2,
+                    lineType=cv2.LINE_AA,
                 )
 
                 if polygon.size > 0:
@@ -904,6 +905,8 @@ class MultiAquariumDetector:
                     label = f"Aquario {aq.id + 1}"
                     if aq.group:
                         label += f" ({aq.group})"
+                    # Espessura 1 + LINE_AA: casa com o rótulo do animal (não fica
+                    # grosso/serrilhado). Desenhado uma única vez por aquário.
                     cv2.putText(
                         frame,
                         label,
@@ -911,7 +914,8 @@ class MultiAquariumDetector:
                         cv2.FONT_HERSHEY_SIMPLEX,
                         0.6,
                         aq_color,
-                        2,
+                        1,
+                        cv2.LINE_AA,
                     )
 
             # Draw ROI polygons
@@ -924,6 +928,7 @@ class MultiAquariumDetector:
                     isClosed=True,
                     color=roi_color,
                     thickness=1,
+                    lineType=cv2.LINE_AA,
                 )
 
             # Draw detections for this aquarium
@@ -931,7 +936,7 @@ class MultiAquariumDetector:
             for det in detections:
                 if len(det) >= 6:
                     x1, y1, x2, y2, conf, track_id = det[:6]
-                    cv2.rectangle(frame, (x1, y1), (x2, y2), aq_color, 2)
+                    cv2.rectangle(frame, (x1, y1), (x2, y2), aq_color, 2, cv2.LINE_AA)
                     label = f"ID:{track_id}" if track_id else f"{conf:.0%}"
                     cv2.putText(
                         frame,
@@ -941,6 +946,7 @@ class MultiAquariumDetector:
                         0.5,
                         aq_color,
                         1,
+                        cv2.LINE_AA,
                     )
 
         return frame

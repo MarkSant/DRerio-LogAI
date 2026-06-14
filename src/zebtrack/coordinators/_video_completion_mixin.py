@@ -165,12 +165,15 @@ class VideoCompletionMixin:
         """Register outputs after video completion."""
         outputs_by_aquarium = alt_multi_outputs.copy() if alt_multi_outputs else {}
 
-        if (
-            video_results_dir
-            and video_results_dir != results_dir
-            and os.path.exists(video_results_dir)
-        ):
-            self._scan_multi_aquarium_outputs(video_results_dir, experiment_id, outputs_by_aquarium)
+        # Procura recursiva por saídas de cada aquário (layout antigo ``aquarium_N/``
+        # OU novo por metadados ``Grupo_X/Dia_YY/Sujeito_Z/``) quando ainda não há
+        # saídas detectadas e não há trajetória single. Cobre o paralelo multi-aquário.
+        if not outputs_by_aquarium and not trajectory_exists:
+            self._scan_multi_aquarium_outputs(results_dir, experiment_id, outputs_by_aquarium)
+            if video_results_dir and str(video_results_dir) != str(results_dir):
+                self._scan_multi_aquarium_outputs(
+                    video_results_dir, experiment_id, outputs_by_aquarium
+                )
 
         if trajectory_exists and not outputs_by_aquarium:
             self.project_manager.register_processing_outputs(
@@ -216,33 +219,34 @@ class VideoCompletionMixin:
                 payloads.ProjectViewsRefreshRequestedPayload(),
             )
 
-    def _scan_multi_aquarium_outputs(
-        self, results_dir: Path | str, experiment_id, outputs_by_aquarium
-    ):
-        """Scan directory for multi-aquarium outputs."""
+    @staticmethod
+    def _scan_multi_aquarium_outputs(results_dir: Path | str, experiment_id, outputs_by_aquarium):
+        """Scan ``results_dir`` recursively for per-aquarium trajectory parquets.
+
+        Os arquivos de cada aquário podem estar em ``aquarium_{N}/`` (layout antigo)
+        OU em ``Grupo_X/Dia_YY/Sujeito_Z/`` (layout por metadados). Procuramos em
+        qualquer profundidade por ``3_CoordMovimento_*_aquarium_{N}.parquet`` e
+        registramos cada aquário com a pasta-mãe como ``results_dir``. ``experiment_id``
+        não é usado no casamento (o sufixo ``_aquarium_{N}`` basta), mantido por
+        compatibilidade de assinatura.
+        """
+        del experiment_id  # não usado; casamento por ``_aquarium_{N}`` no nome
         if not results_dir or not os.path.exists(results_dir):
             return
-        for item in os.listdir(results_dir):
-            item_path = os.path.join(results_dir, item)
-            if not os.path.isdir(item_path):
-                continue
-            match = re.match(r"^aquarium_(\d+)$", item)
-            if match:
+        traj_pattern = re.compile(r"^3_CoordMovimento_.*_aquarium_(\d+)\.parquet$")
+        for root, _dirs, files in os.walk(results_dir):
+            for fname in files:
+                match = traj_pattern.match(fname)
+                if not match:
+                    continue
                 aq_id = int(match.group(1)) - 1
-                traj_candidates = [
-                    os.path.join(
-                        item_path,
-                        f"3_CoordMovimento_{experiment_id}_aquarium_{aq_id + 1}.parquet",
-                    ),
-                    os.path.join(item_path, f"3_CoordMovimento_{experiment_id}.parquet"),
-                ]
-                traj_file = next((p for p in traj_candidates if os.path.exists(p)), None)
-                if traj_file:
-                    outputs_by_aquarium[aq_id] = {
-                        "results_dir": item_path,
-                        "parquet_files": {"trajectory": traj_file},
-                        "day": 1,
-                    }
+                if aq_id in outputs_by_aquarium:
+                    continue  # primeiro match por aquário basta
+                outputs_by_aquarium[aq_id] = {
+                    "results_dir": root,
+                    "parquet_files": {"trajectory": os.path.join(root, fname)},
+                    "day": 1,
+                }
 
     def _generate_completion_reports(self, video_path: Path | str, experiment_id, is_multi):
         """Generate reports after video completion."""

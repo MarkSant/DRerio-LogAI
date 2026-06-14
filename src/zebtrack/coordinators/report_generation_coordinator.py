@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import math
 import os
+import re
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -210,22 +211,40 @@ class ReportGenerationCoordinator(BaseCoordinator, UnifiedReportMixin):
             return
 
         df = self._read_trajectory(trajectory_path)
+
+        # Metadados do aquário: a fonte da verdade é o MultiAquariumZoneData (definido
+        # na atribuição pós-autodetecção); fallback p/ output_info e metadata do vídeo.
+        aq_obj = None
+        if hasattr(zone_data, "aquariums") and zone_data.aquariums:
+            aq_obj = next((aq for aq in zone_data.aquariums if aq.id == aq_id), None)
+        entry_meta = entry.get("metadata", {})
         aq_metadata = {
-            **entry.get("metadata", {}),
+            **entry_meta,
             "aquarium_id": aq_id,
             "experiment_id": exp_id,
-            "group": output_info.get("group", entry.get("metadata", {}).get("group")),
-            "subject": output_info.get("subject_id", entry.get("metadata", {}).get("subject")),
+            "group": (
+                getattr(aq_obj, "group", None)
+                or output_info.get("group")
+                or entry_meta.get("group")
+            ),
+            "subject": (
+                getattr(aq_obj, "subject_id", None)
+                or output_info.get("subject_id")
+                or entry_meta.get("subject")
+            ),
+            "day": (
+                getattr(aq_obj, "day", None)
+                or output_info.get("day")
+                or entry_meta.get("day")
+                or "1"
+            ),
         }
 
         # Geometry
         arena_polygon: list[tuple[float, float]] = []
-        if hasattr(zone_data, "aquariums") and zone_data.aquariums:
-            for aq in zone_data.aquariums:
-                if aq.id == aq_id:
-                    arena_polygon = aq.polygon if aq.polygon else []
-                    break
-        elif zone_data:
+        if aq_obj is not None:
+            arena_polygon = aq_obj.polygon if aq_obj.polygon else []
+        elif zone_data and not hasattr(zone_data, "aquariums"):
             arena_polygon = zone_data.polygon if zone_data.polygon else []
 
         fb_w = getattr(zone_data, "video_width", p_w) or p_w
@@ -275,7 +294,30 @@ class ReportGenerationCoordinator(BaseCoordinator, UnifiedReportMixin):
             behavioral_config=params.get("behavioral_config"),
         )
 
-        self._export_individual_outputs(analysis_result, aq_results_dir, f"{exp_id}_aq{aq_id + 1}")
+        report_base = self._build_aquarium_report_base(aq_metadata, aq_id)
+        self._export_individual_outputs(analysis_result, aq_results_dir, report_base)
+
+    @staticmethod
+    def _build_aquarium_report_base(aq_metadata: dict, aq_id: int) -> str:
+        """Nome-base do relatório a partir dos metadados do aquário: ``Grupo_Sujeito_DiaN``.
+
+        Ex.: ``Controle_S01_Dia1``. Cai em ``aquario_{N+1}``/``S{N+1}`` por componente
+        ausente. Mantém "Controle"/"S01" (não extrai dígitos), igual à convenção de
+        pastas Grupo_/Sujeito_.
+        """
+
+        def _clean(value: object, fallback: str) -> str:
+            text = str(value).strip() if value not in (None, "") else ""
+            text = re.sub(r'[<>:"/\\|?*]', "_", text)
+            text = re.sub(r"\s+", "_", text)
+            text = re.sub(r"_+", "_", text).strip("._")
+            return text or fallback
+
+        group = _clean(aq_metadata.get("group"), f"aquario_{aq_id + 1}")
+        subject = _clean(aq_metadata.get("subject"), f"S{aq_id + 1:02d}")
+        day_match = re.search(r"\d+", str(aq_metadata.get("day", "1")))
+        day = day_match.group() if day_match else "1"
+        return f"{group}_{subject}_Dia{day}"
 
     def _generate_standard_report(
         self, path: Path | str, exp_id: str, entry: dict, metadata: dict
