@@ -456,17 +456,27 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
         """Religa ``gui.analysis_active`` e reabre a aba (ver live_session_ui_prep)."""
         live_session_ui_prep.activate_live_analysis_view(getattr(self, "view", None), self.root)
 
+    def _emit_processing_count_event(self, count: int) -> None:
+        """Publica só o evento do card "Processando" (sem mexer no estado).
+
+        Use quando ``active_processing_count`` já foi atualizado junto de outra
+        mudança de processing-state no MESMO ``_update_state`` (ex.: parada).
+        """
+        self._publish_event(
+            UIEvents.UI_UPDATE_PROCESSING_COUNT,
+            payloads.ProcessingCountPayload(count=count),
+        )
+
     def _publish_active_processing_count(self, count: int) -> None:
         """Espelha o nº de aquários ao vivo no card "Processando" (e no estado).
 
         Cada sessão ao vivo cobre um aquário/sujeito (``animals_per_aquarium``
         conta como 1), então ``count`` é ``1`` durante a sessão e ``0`` ao parar.
+        ``active_processing_count`` é a única mudança de processing-state aqui
+        (start confirmado), então o update isolado mantém o snapshot coerente.
         """
         self._update_state(StateCategory.PROCESSING, active_processing_count=count)
-        self._publish_event(
-            UIEvents.UI_UPDATE_PROCESSING_COUNT,
-            payloads.ProcessingCountPayload(count=count),
-        )
+        self._emit_processing_count_event(count)
 
     def _finalize_live_session_ui(
         self,
@@ -478,12 +488,14 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
         """Finalize analysis-tab UI and coordinator state after live-session stop."""
         experiment_id = self._last_live_experiment_id
         self._active_live_session_id = None
+        # Zera o card "Processando" no MESMO update da parada (funil único) para
+        # não expor snapshot incoerente (sessão inativa mas contador ainda >0).
         self._update_state(
             StateCategory.PROCESSING,
             is_live_session_active=False,
+            active_processing_count=0,
         )
-        # Zera o card "Processando" ao vivo (funil único de parada/cancelamento).
-        self._publish_active_processing_count(0)
+        self._emit_processing_count_event(0)
 
         self._publish_event(UIEvents.LIVE_SESSION_STOPPED, payloads.EmptyPayload())
 

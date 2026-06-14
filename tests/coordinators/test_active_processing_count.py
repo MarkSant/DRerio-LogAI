@@ -82,8 +82,12 @@ def test_started_publishes_count_for_first_task(ptc):
     ptc._on_processing_started("v.mp4")
 
     assert _processing_counts(ptc.event_bus) == [2]
+    # A contagem é incluída no MESMO update_processing_state do start (snapshot
+    # coerente para observers), e o evento de UI é emitido em seguida.
     ptc.state_manager.update_processing_state.assert_any_call(
-        source="processing_coordinator.active_processing_count",
+        source="processing_coordinator._on_processing_started",
+        is_processing=True,
+        current_video="v.mp4",
         active_processing_count=2,
     )
 
@@ -104,9 +108,22 @@ def test_complete_resets_count_to_zero(ptc):
     ptc._on_processing_complete({"videos_to_process": [{"path": "a.mp4"}], "success": True})
 
     assert _processing_counts(ptc.event_bus)[-1] == 0
+    # Reset coerente: count=0 no MESMO update que desliga is_processing.
+    ptc.state_manager.update_processing_state.assert_any_call(
+        source="processing_coordinator._on_processing_complete",
+        is_processing=False,
+        current_video=None,
+        active_processing_count=0,
+    )
 
 
 def test_fatal_error_resets_count_to_zero(ptc):
     ptc._on_processing_fatal_error({"error": "boom", "message": "falhou"})
 
     assert _processing_counts(ptc.event_bus)[-1] == 0
+    ptc.state_manager.update_processing_state.assert_any_call(
+        source="processing_coordinator._on_processing_fatal_error",
+        is_processing=False,
+        current_video=None,
+        active_processing_count=0,
+    )
