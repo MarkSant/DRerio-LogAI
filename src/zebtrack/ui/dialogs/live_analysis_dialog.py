@@ -455,9 +455,12 @@ class LiveAnalysisDialog(Dialog):
 
                 for cam in cameras:
                     index = cam["index"]
-                    name = cam.get("name", f"Câmera {index}")
-                    resolution = cam.get("resolution", "Unknown")
-                    display_name = f"[{index}] {name} ({resolution})"
+                    # Mesmo método de nomeação do wizard de projeto
+                    # (LiveConfigStep._detect_cameras): usar o campo
+                    # ``description`` que o WizardService já formata
+                    # (ex.: "HD Webcam [index 0] - HD (1280x720)"). Os campos
+                    # ``name``/``resolution`` não existem no dict retornado.
+                    display_name = cam.get("description", f"Câmera {index}")
                     display_names.append(display_name)
                     self.camera_index_map[display_name] = index
 

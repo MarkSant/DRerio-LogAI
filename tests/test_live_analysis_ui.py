@@ -86,16 +86,24 @@ class TestLiveAnalysisDialog:
 
     def test_camera_detection_success(self, tkinter_root, test_settings):
         """Test successful camera detection."""
+        # Mesmo formato que WizardService.detect_available_cameras() retorna
+        # (campo ``description`` já formatado), igual ao wizard de projeto.
         mock_cameras = [
             {
                 "index": 0,
-                "name": "720p HD Camera",
-                "resolution": "1920x1080",
+                "width": 1920,
+                "height": 1080,
+                "fps": 30.0,
+                "friendly_name": "720p HD Camera",
+                "description": "720p HD Camera [index 0] - Full HD (1920x1080)",
             },
             {
                 "index": 1,
-                "name": "Logi C270",
-                "resolution": "640x480",
+                "width": 640,
+                "height": 480,
+                "fps": 30.0,
+                "friendly_name": "Logi C270",
+                "description": "Logi C270 [index 1] - SD (640x480)",
             },
         ]
 
@@ -115,10 +123,10 @@ class TestLiveAnalysisDialog:
             # Verify camera index map populated
             assert len(dialog.camera_index_map) == 2
 
-            # Verify combobox values
+            # Verify combobox values use the WizardService ``description`` string
             values = dialog.camera_combo["values"]
             assert len(values) == 2
-            assert "[0]" in values[0]
+            assert values[0] == "720p HD Camera [index 0] - Full HD (1920x1080)"
             assert "720p HD Camera" in values[0]
 
             # Verify first camera auto-selected
