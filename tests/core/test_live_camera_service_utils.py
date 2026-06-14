@@ -189,6 +189,86 @@ def test_start_session_resets_live_detected_frames(live_camera_service, monkeypa
     assert svc._live_detected_frames == 0, "start_session deve zerar o contador de detectados"
 
 
+def _prime_service_for_zone_gate(svc, monkeypatch, *, project_path):
+    """Configura o ``LiveCameraService`` para alcançar o portão de zonas em
+    ``start_session`` sem tocar hardware/threads reais.
+
+    Mocka câmera, detector já carregado (sem rebuild), threads e state_manager
+    de modo que a execução pare logo após a decisão do portão defensivo.
+    """
+    svc.project_manager.project_path = project_path
+    svc.project_manager.get_zone_data.return_value = ZoneData()  # polígono vazio
+
+    # Câmera "abre" e expõe dimensões reais.
+    def _fake_setup_camera(_index):
+        svc.camera = SimpleNamespace(actual_width=640, actual_height=480, actual_fps=30.0)
+        return True
+
+    monkeypatch.setattr(svc, "_setup_camera", _fake_setup_camera)
+
+    # Detector já carregado e config inalterada → sem rebuild/initialize.
+    monkeypatch.setattr(svc, "_resolve_session_detector_config", lambda: (None, True, "settings"))
+    svc.state_manager.get_detector_state.return_value = SimpleNamespace(
+        use_openvino=True, active_weight_name=""
+    )
+    svc.settings = SimpleNamespace(model_selection=SimpleNamespace(animal_method="det"))
+
+    # Threads não sobem de verdade no teste.
+    monkeypatch.setattr(svc, "_start_threads", lambda: True)
+
+
+def test_start_session_no_project_empty_zones_enters_auto_detect(
+    live_camera_service, monkeypatch, tmp_path
+):
+    """Vídeo único ao vivo (sem projeto) com zonas vazias NÃO deve recusar.
+
+    Regressão: o portão defensivo retornava False com
+    ``zones_validated_but_missing`` antes de subir captura/preview, então o
+    frame nunca aparecia. Sem projeto não há arena predefinida — o fluxo deve
+    cair para a auto-detecção in-service (``_aquarium_detection_phase=True``).
+    """
+    svc = live_camera_service
+    _prime_service_for_zone_gate(svc, monkeypatch, project_path=None)
+
+    result = svc.start_session(
+        camera_index=0,
+        duration_s=1.0,
+        experiment_id="exp",
+        record_video=False,
+        output_base_dir=str(tmp_path),
+        use_external_preview=False,
+        zones_validated=True,
+    )
+
+    assert result is True, "sem projeto + zonas vazias deve iniciar (auto-detecção)"
+    assert svc._aquarium_detection_phase is True
+
+
+def test_start_session_with_project_empty_zones_still_refuses(
+    live_camera_service, monkeypatch, tmp_path
+):
+    """Com projeto carregado, o portão defensivo continua valendo.
+
+    Se um projeto prometeu ``zones_validated=True`` mas ``project_data`` está
+    sem polígono, isso é um bug real — ``start_session`` deve recusar (False)
+    em vez de mascarar entrando na auto-detecção.
+    """
+    svc = live_camera_service
+    _prime_service_for_zone_gate(svc, monkeypatch, project_path=str(tmp_path / "proj"))
+
+    result = svc.start_session(
+        camera_index=0,
+        duration_s=1.0,
+        experiment_id="exp",
+        record_video=False,
+        output_base_dir=str(tmp_path),
+        use_external_preview=False,
+        zones_validated=True,
+    )
+
+    assert result is False, "projeto com zonas vazias deve manter o guard defensivo"
+
+
 def test_detect_and_mark_cancellation_force_overrides_50pct(live_camera_service, tmp_path):
     """``force=True`` marca como cancelado mesmo após 50% da duração.
 

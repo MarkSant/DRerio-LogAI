@@ -471,16 +471,28 @@ class LiveSessionManagerMixin:
         # tests and ad-hoc callers that skip ``ensure_zones_before_recording``
         # keep their previous semantics.
         skip_detection_phase = bool(zones_validated)
+        has_project = bool(self.project_manager and self.project_manager.project_path)
         if skip_detection_phase and (not zone_data or not zone_data.polygon):
-            # Defensive: caller promised zones were validated but nothing is
-            # in project_data. Refuse to proceed so we don't enter the
-            # predefined-arena branch with an empty ZoneData.
-            log.error(
-                "live_camera_service.zones_validated_but_missing",
-                has_zone_data=zone_data is not None,
-                has_polygon=bool(zone_data and zone_data.polygon),
+            if has_project:
+                # Defensive: a project promised zones were validated but nothing
+                # is in project_data. Refuse to proceed so we don't enter the
+                # predefined-arena branch with an empty ZoneData.
+                log.error(
+                    "live_camera_service.zones_validated_but_missing",
+                    has_zone_data=zone_data is not None,
+                    has_polygon=bool(zone_data and zone_data.polygon),
+                )
+                return False
+            # Vídeo único ao vivo (sem projeto / fluxo de teste-avaliação): nunca
+            # há arena predefinida — ``ensure_zones_before_recording`` retorna True
+            # incondicionalmente sem produzir polígono. Em vez de recusar, cair para
+            # a auto-detecção in-service para que a captura/preview e o tracking
+            # realmente iniciem (mesmo caminho do live de projeto sem arena).
+            log.info(
+                "live_camera_service.no_project_auto_detect",
+                reason="single_video_live",
             )
-            return False
+            skip_detection_phase = False
 
         if not skip_detection_phase and (not zone_data or not zone_data.polygon):
             self._aquarium_detection_phase = True
