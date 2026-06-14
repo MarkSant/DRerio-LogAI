@@ -414,6 +414,26 @@ class EventDispatcher:
             _on_processing_stats,
         )
 
+        # Card "Processando" ao vivo (nº de aquários sob análise AGORA). Atualiza
+        # SÓ a chave "processing" nos dois widgets de status (Processamento e
+        # Relatórios + Visão Geral); update_status_counts ignora chaves ausentes,
+        # então os demais cards (Total/Pendentes/...) não são tocados.
+        def _on_processing_count(d) -> None:
+            count = _payload_get(d, "count", 0)
+
+            def _apply() -> None:
+                for attr in ("processing_reports_widget", "project_overview_widget"):
+                    widget = getattr(gui, attr, None)
+                    if widget is not None and hasattr(widget, "update_status_counts"):
+                        widget.update_status_counts({"processing": count})
+
+            self._run_on_ui_thread(_apply)
+
+        event_bus.subscribe(
+            UIEvents.UI_UPDATE_PROCESSING_COUNT,
+            _on_processing_count,
+        )
+
         # Audit Erro 2 round 4 (2026-05-25): wrap with diagnostics. The
         # publish from live_camera_session_coordinator was reaching the
         # event bus (publisher log confirms data), but the widget never

@@ -405,6 +405,45 @@ class TestGuiSubscriptions:
         event_bus.subscribe.assert_any_call(UIEvents.UI_SHOW_WARNING, ANY)
         event_bus.subscribe.assert_any_call(UIEvents.UI_SHOW_ERROR, ANY)
 
+    def test_processing_count_updates_only_processing_card_on_both_widgets(self):
+        """UI_UPDATE_PROCESSING_COUNT seta SÓ a chave "processing" nos dois cards."""
+        from zebtrack.ui import payloads
+
+        event_bus = MagicMock()
+        reports_widget = MagicMock()
+        overview_widget = MagicMock()
+        gui = SimpleNamespace(
+            event_bus=event_bus,
+            widget_factory=MagicMock(),
+            dialog_manager=MagicMock(),
+            status_var=MagicMock(),
+            notebook=MagicMock(),
+            state_synchronizer=MagicMock(),
+            video_selector_manager=MagicMock(),
+            project_view_manager=MagicMock(),
+            canvas_manager=MagicMock(),
+            zone_controls=MagicMock(),
+            menu_manager=MagicMock(),
+            zone_control_builder=MagicMock(),
+            processing_reports_widget=reports_widget,
+            project_overview_widget=overview_widget,
+        )
+        dispatcher = EventDispatcher(cast(Any, gui))
+        dispatcher.subscribe_to_ui_events()
+
+        handler = None
+        for call in event_bus.subscribe.call_args_list:
+            args, _kwargs = call
+            if args and args[0] == UIEvents.UI_UPDATE_PROCESSING_COUNT:
+                handler = args[1]
+                break
+        assert handler is not None
+
+        handler(payloads.ProcessingCountPayload(count=2))
+
+        reports_widget.update_status_counts.assert_called_once_with({"processing": 2})
+        overview_widget.update_status_counts.assert_called_once_with({"processing": 2})
+
 
 class TestUnregisterHandler:
     """Testes de remoção de handlers."""

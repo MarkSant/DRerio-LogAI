@@ -113,13 +113,18 @@ def test_explicit_failed_and_complete_are_preserved():
     assert counts["pending"] == 0
 
 
-def test_processing_status_kept_when_no_data_yet():
+def test_processing_status_without_data_counts_as_pending():
+    """O card "Processando" é ao vivo (UI_UPDATE_PROCESSING_COUNT), não derivado
+    do disco. Um status de disco "processing" sem trajetória conta como PENDENTE
+    e a chave "processing" NÃO é emitida (para não sobrescrever o valor ao vivo).
+    """
     videos: list[dict] = [{"path": "p/w.mp4", "status": "processing"}]
 
     counts = _builder(videos).get_project_status_counts()
 
-    assert counts["processing"] == 1
-    assert counts["pending"] == 0
+    assert "processing" not in counts
+    assert counts["pending"] == 1
+    assert counts["processed"] == 0
 
 
 def test_live_project_pending_uses_experimental_design():

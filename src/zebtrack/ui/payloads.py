@@ -100,6 +100,17 @@ class ProcessingStatsWrapperPayload:
 
 
 @dataclass(frozen=True)
+class ProcessingCountPayload:
+    """Quantidade de aquários/sujeitos sob análise AGORA (card "Processando").
+
+    Indicador efêmero em tempo real: ``N`` enquanto N aquários são processados
+    simultaneamente (paralelo), ``1`` por vez no sequencial, ``0`` ocioso.
+    """
+
+    count: int
+
+
+@dataclass(frozen=True)
 class DetectionOverlayPayload:
     detections: Sequence[Any]
     report: Mapping[str, Any] | None = None
