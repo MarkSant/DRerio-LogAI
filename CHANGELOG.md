@@ -9,6 +9,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### ✨ Multi-aquário: saída por metadados (pasta-raiz + nome) e rótulo suave
+
+- **Saída de cada aquário na própria pasta de metadados, sob uma pasta-raiz**: no
+  multi-aquário paralelo, cada aquário passa a gravar em
+  `<raiz>/Grupo_X/Dia_YY/Sujeito_Z/` (a raiz é `<video>_results`, junto ao vídeo
+  pré-gravado — sem espalhar `Grupo_*` no diretório-pai). O `ProcessingWorker`
+  resolve as pastas ancorando em `results_dir` (sem "subir N níveis"), reusando
+  `_sanitize_component`/`_format_day`.
+- **Conclusão acha as saídas em qualquer profundidade**:
+  `_video_completion_mixin._scan_multi_aquarium_outputs` agora é recursivo
+  (`os.walk`), casando `3_CoordMovimento_*_aquarium_N.parquet` no layout antigo
+  (`aquarium_N/`) e no novo (`Grupo/Dia/Sujeito/`).
+- **Relatórios nomeados por metadados**: `4_Relatorio_{Grupo}_{Sujeito}_Dia{N}`
+  (ex.: `4_Relatorio_Controle_S01_Dia1.docx`) em vez do nome do vídeo + `_aqN`.
+  Metadados lidos do `MultiAquariumZoneData` (fonte da verdade da atribuição).
+- **Rótulo do aquário no preview suave** (não mais "grosso/serrilhado"): adicionado
+  `cv2.LINE_AA` e espessura 1 ao overlay (`multi_aquarium_detector`), igualando a
+  qualidade do rótulo do animal. Não havia duplicação.
+- Cobertura: `tests/coordinators/test_multi_aquarium_output_layout.py`.
+- Pendente (PR à parte): vídeo AO VIVO — wizard perguntar a pasta-raiz de gravação.
+
 ### 🐛 Bug Fixes (June 2026) — multi-aquário: saídas/relatórios e sequencial
 
 - **Análise paralela (simultânea) de 2 aquários não gerava relatórios e a pasta
