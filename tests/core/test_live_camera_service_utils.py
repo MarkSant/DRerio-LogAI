@@ -68,6 +68,34 @@ def test_resolve_calibration_perspective_returns_none_when_no_project_manager(
     assert live_camera_service._resolve_calibration_perspective() is None
 
 
+def test_resolve_calibration_perspective_falls_back_to_session_params(live_camera_service):
+    """Fluxo sem-projeto (vídeo único ao vivo): a perspectiva vem do diálogo via
+    ``_analysis_params["behavioral_analysis"]``. Sem este fallback o detector
+    usava o peso perspectiva-agnóstico mesmo com o usuário escolhendo top_down.
+    """
+    pm = Mock()
+    pm.project_data = {}  # sem calibração de projeto
+    live_camera_service.project_manager = pm
+    live_camera_service._analysis_params = {
+        "behavioral_analysis": {"aquarium_perspective": "top_down"}
+    }
+
+    assert live_camera_service._resolve_calibration_perspective() == "top_down"
+
+
+def test_resolve_calibration_perspective_project_takes_precedence(live_camera_service):
+    """Quando o projeto define a perspectiva, ela tem precedência sobre os
+    params da sessão (não regride o fluxo de projeto)."""
+    pm = Mock()
+    pm.project_data = {"calibration": {"behavioral_analysis": {"aquarium_perspective": "lateral"}}}
+    live_camera_service.project_manager = pm
+    live_camera_service._analysis_params = {
+        "behavioral_analysis": {"aquarium_perspective": "top_down"}
+    }
+
+    assert live_camera_service._resolve_calibration_perspective() == "lateral"
+
+
 def test_resolve_live_multi_aquarium_zone_data_falls_back_to_reference_frame(
     live_camera_service, tmp_path, multi_aquarium_zone_data
 ):

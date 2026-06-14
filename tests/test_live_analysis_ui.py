@@ -456,7 +456,7 @@ class TestLiveAnalysisDialog:
                 dialog.record_video_var.set(False)
                 dialog.experiment_id_var.set("test_exp")
 
-                # Call apply
+                # Call apply (sem pasta de saída escolhida)
                 dialog.apply()
 
                 # Verify result structure
@@ -467,6 +467,13 @@ class TestLiveAnalysisDialog:
                 assert dialog.result["display_interval_frames"] == 10
                 assert dialog.result["record_video"] is False
                 assert dialog.result["experiment_id"] == "test_exp"
+                # Pasta de saída em branco → None (usa o padrão).
+                assert dialog.result["output_folder"] is None
+
+                # Com pasta escolhida, ela é propagada no resultado.
+                dialog.output_folder_var.set("D:/saidas/ao_vivo")
+                dialog.apply()
+                assert dialog.result["output_folder"] == "D:/saidas/ao_vivo"
 
     def test_quick_duration_buttons(self, tkinter_root, test_settings):
         """Test quick duration preset buttons."""

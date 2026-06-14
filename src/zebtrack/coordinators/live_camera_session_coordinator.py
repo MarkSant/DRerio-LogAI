@@ -1705,6 +1705,11 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
             "subject_id": config.get("subject_id"),
             "camera_index": camera_index,
             "polygon_source": polygon_source,
+            # Propaga a configuração comportamental (inclui ``aquarium_perspective``)
+            # para a pós-análise/relatório. Sem isto, o fluxo sem-projeto perdia a
+            # perspectiva escolhida (ex.: top_down) e o relatório caía no default
+            # lateral (dividindo em geotaxia indevidamente).
+            "behavioral_analysis": config.get("behavioral_analysis"),
         }
 
         prestart_step = (
@@ -1738,6 +1743,9 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
             group=config.get("experimental_group"),
             day=config.get("experiment_day"),
             subject=config.get("subject_id"),
+            # Pasta de saída escolhida pelo usuário no diálogo (quando informada,
+            # sobrepõe o padrão ``live_analysis_sessions/``).
+            override=config.get("output_folder"),
         )
         success = self.live_camera_service.start_session(
             camera_index=camera_index,

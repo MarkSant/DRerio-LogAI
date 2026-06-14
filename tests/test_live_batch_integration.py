@@ -263,6 +263,50 @@ def test_start_session_from_config_prepares_analysis_tab(test_settings):
     coord._prepare_analysis_tab_for_live_session.assert_called_once()
 
 
+def test_start_session_from_config_threads_perspective_and_output_folder(test_settings):
+    """Fluxo ad-hoc (LiveAnalysisDialog): a perspectiva comportamental e a pasta
+    de saída escolhida pelo usuário devem chegar ao serviço.
+
+    - ``behavioral_analysis`` (com ``aquarium_perspective``) entra no
+      ``analysis_config`` (senão o relatório cai no default lateral/geotaxia).
+    - ``output_folder`` é repassado como ``override`` para ``_resolve_session_paths``
+      (senão salva sempre em ``live_analysis_sessions/``).
+    """
+    coord = _make_session_coordinator(test_settings)
+    coord.live_camera_service.start_session.return_value = True
+
+    coord._prepare_analysis_tab_for_live_session = MagicMock()
+    coord._resolve_session_paths = MagicMock(return_value=("D:/saidas/ao_vivo", None))
+    coord._publish_live_analysis_metadata = MagicMock()
+    coord._publish_live_task_status = MagicMock()
+    coord._set_live_analysis_ui_state = MagicMock()
+
+    config = {
+        "camera_index": 0,
+        "duration_s": 30.0,
+        "experiment_id": "adhoc_persp",
+        "analysis_interval_frames": 1,
+        "display_interval_frames": 1,
+        "record_video": True,
+        "animals_per_aquarium": 1,
+        "behavioral_analysis": {"aquarium_perspective": "top_down"},
+        "output_folder": "D:/saidas/ao_vivo",
+    }
+    success = coord.start_session_from_config(config, zones_validated=True)
+
+    assert success
+
+    # output_folder vira override no resolvedor de caminhos
+    _, resolve_kwargs = coord._resolve_session_paths.call_args
+    assert resolve_kwargs.get("override") == "D:/saidas/ao_vivo"
+
+    # behavioral_analysis (perspectiva) entra no analysis_config do serviço
+    _, start_kwargs = coord.live_camera_service.start_session.call_args
+    analysis_config = start_kwargs["analysis_config"]
+    assert analysis_config["behavioral_analysis"] == {"aquarium_perspective": "top_down"}
+    assert start_kwargs["output_base_dir"] == "D:/saidas/ao_vivo"
+
+
 def test_activate_live_analysis_view_re_enables_rendering(test_settings):
     """``_activate_live_analysis_view`` religa ``analysis_active`` e reabre a aba.
 
