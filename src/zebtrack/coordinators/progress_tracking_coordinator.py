@@ -140,6 +140,50 @@ class ProgressTrackingCoordinator(BaseCoordinator):
             self._finalize_batch_context()
 
     # ========================================================================
+    # Active processing count (card "Processando" ao vivo)
+    # ========================================================================
+
+    @staticmethod
+    def _aquarium_count_for_task(task: dict | None) -> int:
+        """Nº de aquários processados SIMULTANEAMENTE nesta tarefa.
+
+        Multi-aquário **paralelo** (não explodido) processa todos os aquários
+        numa única passada → ``N``. Tarefas **sequenciais** já chegam explodidas
+        em 1-aquário (``is_multi_aquarium=False``) e vídeos comuns/multi-sujeito
+        contam ``1`` (a unidade é o aquário/vídeo).
+        """
+        if not task:
+            return 1
+        if task.get("is_multi_aquarium"):
+            zone_data = task.get("zone_data") or {}
+            aquariums = zone_data.get("aquariums") or []
+            if aquariums:
+                return len(aquariums)
+        return 1
+
+    def _current_task(self) -> dict | None:
+        """Tarefa em execução agora (a partir de ``_batch_videos``/idx)."""
+        idx = self._current_video_idx if self._current_video_idx >= 0 else 0
+        if 0 <= idx < len(self._batch_videos):
+            return self._batch_videos[idx]
+        return None
+
+    def _publish_active_processing_count(self, count: int) -> None:
+        """Atualiza o estado e emite ``UI_UPDATE_PROCESSING_COUNT`` para os cards."""
+        self.state_manager.update_processing_state(
+            source="processing_coordinator.active_processing_count",
+            active_processing_count=count,
+        )
+        self._publish_event(
+            UIEvents.UI_UPDATE_PROCESSING_COUNT,
+            payloads.ProcessingCountPayload(count=count),
+        )
+
+    def _refresh_active_processing_count(self) -> None:
+        """Recalcula o contador a partir da tarefa corrente e publica."""
+        self._publish_active_processing_count(self._aquarium_count_for_task(self._current_task()))
+
+    # ========================================================================
     # Processing Lifecycle Callbacks
     # ========================================================================
 
@@ -154,6 +198,9 @@ class ProgressTrackingCoordinator(BaseCoordinator):
             is_processing=True,
             current_video=video_path,
         )
+
+        # Card "Processando" ao vivo: nº de aquários da 1ª tarefa do lote.
+        self._refresh_active_processing_count()
 
         if self.view and self.root:
             self.root.after(
@@ -292,6 +339,9 @@ class ProgressTrackingCoordinator(BaseCoordinator):
         idx = progress_data.get("idx")
         if idx is not None and idx != self._current_video_idx:
             self._current_video_idx = idx
+            # Lote sequencial: ao trocar de tarefa, re-emite a contagem da nova
+            # (cada aquário explodido = 1; multi-aquário paralelo mantém N).
+            self._refresh_active_processing_count()
             if 0 <= idx < len(self._batch_videos):
                 new_video_path = self._batch_videos[idx].get("path")
                 if new_video_path and self.root:
@@ -425,12 +475,13 @@ class ProgressTrackingCoordinator(BaseCoordinator):
             video=os.path.basename(video) if video else "unknown",
         )
 
-        # Reset processing state
+        # Reset processing state (zera o card "Processando" ao vivo).
         self.state_manager.update_processing_state(
             source="processing_coordinator._on_processing_fatal_error",
             is_processing=False,
             current_video=None,
         )
+        self._publish_active_processing_count(0)
 
         if self.view and self.root:
             self.root.after(0, lambda: self._update_ui_for_processing_stop())
@@ -477,12 +528,13 @@ class ProgressTrackingCoordinator(BaseCoordinator):
             output_dir=output_dir,
         )
 
-        # Reset processing state
+        # Reset processing state (zera o card "Processando" ao vivo).
         self.state_manager.update_processing_state(
             source="processing_coordinator._on_processing_complete",
             is_processing=False,
             current_video=None,
         )
+        self._publish_active_processing_count(0)
 
         # Ensure progress bar shows 100% before hiding it
         if self.view and self.root:

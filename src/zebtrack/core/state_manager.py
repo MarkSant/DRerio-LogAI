@@ -231,6 +231,7 @@ class ProcessingState:
     """Immutable snapshot of processing-related state."""
 
     is_processing: bool = False
+    active_processing_count: int = 0  # aquários sob análise AGORA (card "Processando")
     processing_mode: str = "MULTI_TRACK"  # ProcessingMode enum
     processing_type: str | None = None
     processing_thread: threading.Thread | None = None
@@ -251,6 +252,7 @@ class ProcessingState:
         """Create a deep copy of processing state."""
         return ProcessingState(
             is_processing=self.is_processing,
+            active_processing_count=self.active_processing_count,
             processing_mode=self.processing_mode,
             processing_type=self.processing_type,
             processing_thread=self.processing_thread,
@@ -1240,6 +1242,7 @@ class StateManager:
             },
             "processing": {
                 "is_processing": snapshot.processing.is_processing,
+                "active_processing_count": snapshot.processing.active_processing_count,
                 "mode": snapshot.processing.processing_mode,
                 "current_video": snapshot.processing.current_video,
                 "progress": f"{snapshot.processing.current_frame}/{snapshot.processing.total_frames}",  # noqa: E501

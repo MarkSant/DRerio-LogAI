@@ -456,6 +456,18 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
         """Religa ``gui.analysis_active`` e reabre a aba (ver live_session_ui_prep)."""
         live_session_ui_prep.activate_live_analysis_view(getattr(self, "view", None), self.root)
 
+    def _publish_active_processing_count(self, count: int) -> None:
+        """Espelha o nº de aquários ao vivo no card "Processando" (e no estado).
+
+        Cada sessão ao vivo cobre um aquário/sujeito (``animals_per_aquarium``
+        conta como 1), então ``count`` é ``1`` durante a sessão e ``0`` ao parar.
+        """
+        self._update_state(StateCategory.PROCESSING, active_processing_count=count)
+        self._publish_event(
+            UIEvents.UI_UPDATE_PROCESSING_COUNT,
+            payloads.ProcessingCountPayload(count=count),
+        )
+
     def _finalize_live_session_ui(
         self,
         *,
@@ -470,6 +482,8 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
             StateCategory.PROCESSING,
             is_live_session_active=False,
         )
+        # Zera o card "Processando" ao vivo (funil único de parada/cancelamento).
+        self._publish_active_processing_count(0)
 
         self._publish_event(UIEvents.LIVE_SESSION_STOPPED, payloads.EmptyPayload())
 
@@ -1106,6 +1120,8 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
                     "duration_s": duration_s,
                 },
             )
+            # Card "Processando" ao vivo: 1 aquário em sessão.
+            self._publish_active_processing_count(1)
 
             # FIX Bug 3: Enable cancel button in integrated canvas mode
             if self.view and hasattr(self.view, "show_progress_bar"):
@@ -1766,6 +1782,8 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
             )
 
         if success:
+            # Card "Processando" ao vivo: 1 aquário em sessão.
+            self._publish_active_processing_count(1)
             self.live_calibration_coordinator.clear_last_polygon_source()
             self._publish_live_analysis_metadata(
                 experiment_id=experiment_id,
@@ -2069,6 +2087,8 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
             )
 
         if success:
+            # Card "Processando" ao vivo: 1 aquário em sessão.
+            self._publish_active_processing_count(1)
             # Polygon-source has been consumed for this session — reset so the next
             # session doesn't accidentally inherit a stale tag.
             self.live_calibration_coordinator.clear_last_polygon_source()

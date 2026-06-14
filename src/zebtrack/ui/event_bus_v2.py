@@ -196,6 +196,7 @@ class UIEvents(Enum):
     UI_DISPLAY_FRAME = auto()
     UI_UPDATE_SOCIAL_SUMMARY = auto()
     UI_UPDATE_PROCESSING_STATS = auto()
+    UI_UPDATE_PROCESSING_COUNT = auto()
     UI_VIDEO_HIERARCHY_SNAPSHOT_UPDATED = auto()
     UI_REQUEST_WEIGHT_FILE = auto()
     UI_REQUEST_WEIGHT_TYPE = auto()
@@ -431,6 +432,7 @@ _PAYLOAD_TYPES: dict[UIEvents, type[Any]] = {
     UIEvents.UI_DISPLAY_FRAME: payloads.FrameDisplayPayload,
     UIEvents.UI_UPDATE_SOCIAL_SUMMARY: payloads.SocialSummaryPayload,
     UIEvents.UI_UPDATE_PROCESSING_STATS: payloads.ProcessingStatsWrapperPayload,
+    UIEvents.UI_UPDATE_PROCESSING_COUNT: payloads.ProcessingCountPayload,
     UIEvents.UI_VIDEO_HIERARCHY_SNAPSHOT_UPDATED: payloads.VideoHierarchySnapshotUpdatedPayload,
     UIEvents.UI_REQUEST_WEIGHT_FILE: payloads.UIRequestWeightFilePayload,
     UIEvents.UI_REQUEST_WEIGHT_TYPE: payloads.UIRequestWeightTypePayload,

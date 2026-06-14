@@ -762,8 +762,9 @@ def compute_project_status_counts(pm: Any) -> dict[str, int]:
         pm: ProjectManager (ou equivalente) com get_all_videos/has_*_data.
 
     Returns:
-        Dicionário com total/pending/processing/processed/complete/failed e
-        os cumulativos arena/rois/trajectory/summary.
+        Dicionário com total/pending/processed/complete/failed e os cumulativos
+        arena/rois/trajectory/summary. A chave ``processing`` é omitida de
+        propósito (card ao vivo via UI_UPDATE_PROCESSING_COUNT).
     """
     all_videos = pm.get_all_videos()
 
@@ -777,10 +778,15 @@ def compute_project_status_counts(pm: Any) -> dict[str, int]:
         planned = days * len(groups) * subjects
         total = max(total, planned)
 
+    # NOTA: o card "Processando" NÃO é derivado do disco. Ele é um indicador
+    # ao vivo (nº de aquários sob análise AGORA), alimentado por
+    # UI_UPDATE_PROCESSING_COUNT a partir do ciclo de vida do processamento.
+    # Por isso a chave "processing" é deliberadamente omitida aqui — assim um
+    # refresh de disco nunca sobrescreve o valor ao vivo (update_status_counts
+    # só toca chaves presentes no dict).
     counts: dict[str, int] = {
         "total": total,
         "pending": 0,
-        "processing": 0,
         "processed": 0,
         "complete": 0,
         "failed": 0,
@@ -820,9 +826,9 @@ def compute_project_status_counts(pm: Any) -> dict[str, int]:
         if has_data:
             counts["processed"] += 1
             beyond_pending += 1
-        elif raw_status == "processing":
-            counts["processing"] += 1
-            beyond_pending += 1
+        # Um vídeo com status de disco "processing" mas sem dados conta como
+        # PENDENTE (não há trajetória ainda) — o card "Processando" ao vivo é
+        # quem indica execução real, não o status persistido.
 
     counts["pending"] = max(0, total - beyond_pending)
 
