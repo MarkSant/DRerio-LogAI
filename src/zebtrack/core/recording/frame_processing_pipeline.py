@@ -373,6 +373,45 @@ class FrameProcessingMixin:
 
                 # PHASE 1: Aquarium Detection (if needed)
                 if self._aquarium_detection_phase:
+                    # Exibe o feed da câmera no canvas integrado JÁ durante a
+                    # fase de detecção de aquário. Sem isto, o fluxo de vídeo
+                    # único ao vivo (sem projeto) deixava a aba "Análise" em
+                    # branco até a arena ser definida — ao contrário dos
+                    # projetos, que já têm arena e mostram o feed desde o 1º
+                    # frame. Emite o frame cru (sem overlay; arena ainda não
+                    # existe) e stats parciais, throttled pelo display_interval.
+                    if (
+                        not self._use_external_preview
+                        and self.event_bus
+                        and not self.exit_event.is_set()
+                        and (frames_received % max(self.display_interval_frames, 1)) == 0
+                    ):
+                        from zebtrack.ui import payloads
+                        from zebtrack.ui.event_bus_v2 import Event, UIEvents
+
+                        self.event_bus.publish(
+                            Event(
+                                type=UIEvents.UI_UPDATE_LIVE_FRAME,
+                                data=payloads.UIUpdateLiveFramePayload(
+                                    frame=frame,
+                                    detections=[],
+                                    fps=self._actual_fps,
+                                ),
+                            ),
+                        )
+                        self.event_bus.publish(
+                            Event(
+                                type=UIEvents.UI_UPDATE_PROCESSING_STATS,
+                                data=payloads.ProcessingStatsWrapperPayload(
+                                    stats={
+                                        "processed_frames": int(frame_number),
+                                        "detected_frames": int(self._live_detected_frames),
+                                    }
+                                ),
+                                source="frame_processing_pipeline.aquarium_detection",
+                            ),
+                        )
+
                     # Warmup period (skip first 30 frames ~1.5s)
                     if frame_number < 30:
                         if self.preview_window and frame_number % 5 == 0:

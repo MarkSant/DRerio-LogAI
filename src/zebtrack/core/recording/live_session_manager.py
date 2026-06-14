@@ -133,20 +133,31 @@ class LiveSessionManagerMixin:
         return None, bool(self.settings.model_selection.use_openvino), "settings"
 
     def _resolve_calibration_perspective(self) -> str | None:
-        """Read the configured aquarium perspective from project calibration.
+        """Read the configured aquarium perspective.
 
-        Returns ``"top_down"`` / ``"lateral"`` when the project has a
-        calibrated perspective, ``None`` when no project is loaded or the
-        calibration block is absent. Used to feed the 4-slot WeightManager
-        so live picks the correct perspective-flagged default weight.
+        Returns ``"top_down"`` / ``"lateral"`` when a perspective is configured,
+        ``None`` otherwise. Used to feed the 4-slot WeightManager so live picks
+        the correct perspective-flagged default weight.
+
+        Resolution order:
+          1. Projeto: ``project_data.calibration.behavioral_analysis.aquarium_perspective``.
+          2. Fluxo sem-projeto (vídeo único ao vivo): a perspectiva vem do diálogo
+             via ``analysis_config["behavioral_analysis"]["aquarium_perspective"]``
+             (armazenado em ``self._analysis_params``). Sem este fallback o
+             detector caía no peso perspectiva-agnóstico mesmo quando o usuário
+             escolheu top_down.
         """
-        if self.project_manager is None:
-            return None
-        project_data = getattr(self.project_manager, "project_data", None) or {}
-        cal_data = project_data.get("calibration") or {}
-        ba_data = cal_data.get("behavioral_analysis") or {}
-        perspective = ba_data.get("aquarium_perspective")
-        return perspective or None
+        if self.project_manager is not None:
+            project_data = getattr(self.project_manager, "project_data", None) or {}
+            cal_data = project_data.get("calibration") or {}
+            ba_data = cal_data.get("behavioral_analysis") or {}
+            perspective = ba_data.get("aquarium_perspective")
+            if perspective:
+                return perspective
+
+        params = getattr(self, "_analysis_params", None) or {}
+        session_ba = params.get("behavioral_analysis") or {}
+        return session_ba.get("aquarium_perspective") or None
 
     def is_session_active(self) -> bool:
         """Return True if a live session is currently running.

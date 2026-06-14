@@ -418,7 +418,11 @@ class LiveAnalysisPostProcessorMixin:
                         ]
                     if "smoothing_polyorder" in self._analysis_params:
                         params["smoothing_polyorder"] = self._analysis_params["smoothing_polyorder"]
-                    if "behavioral_analysis" in self._analysis_params:
+                    # Guard de verdade (não só presença da chave): o coordinator
+                    # pode inserir ``behavioral_analysis=None`` quando o config
+                    # não traz a seção; ``dict.update(None)`` quebraria a
+                    # pós-análise. Só mescla quando há um dict não-vazio.
+                    if self._analysis_params.get("behavioral_analysis"):
                         params["behavioral_config"].update(
                             self._analysis_params["behavioral_analysis"]
                         )

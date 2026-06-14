@@ -104,6 +104,9 @@ class LiveAnalysisDialog(Dialog):
         self.display_interval_var = IntVar(value=5)
         self.record_video_var = BooleanVar(value=True)
         self.experiment_id_var = StringVar(value="")
+        # Pasta de saída escolhida pelo usuário (vazia = padrão
+        # ``live_analysis_sessions/`` no diretório de trabalho).
+        self.output_folder_var = StringVar(value="")
 
         # Calibration parameters
         self.num_aquariums_var = IntVar(value=1)
@@ -325,6 +328,25 @@ class LiveAnalysisDialog(Dialog):
             variable=self.use_openvino_var,
         ).grid(row=2, column=0, columnspan=3, padx=5, pady=5, sticky="w")
 
+        # Output folder selection (mesma ideia do fluxo de projeto: o usuário
+        # escolhe ONDE salvar; vazio = pasta padrão ``live_analysis_sessions/``).
+        output_row = ttk.Frame(options_frame)
+        output_row.grid(row=3, column=0, columnspan=3, padx=5, pady=5, sticky="ew")
+        output_row.columnconfigure(1, weight=1)
+        ttk.Label(output_row, text="Pasta de Saída:").grid(row=0, column=0, padx=(0, 5), sticky="w")
+        ttk.Entry(output_row, textvariable=self.output_folder_var).grid(
+            row=0, column=1, sticky="ew"
+        )
+        ttk.Button(
+            output_row, text="Procurar...", command=self._select_output_folder, width=11
+        ).grid(row=0, column=2, padx=(5, 0))
+        create_help_label(
+            output_row,
+            "Diretório onde os resultados serão salvos.\n"
+            "• Se deixado em branco, usa a pasta padrão "
+            "'live_analysis_sessions/'.",
+        ).grid(row=0, column=3, padx=(5, 0))
+
         # --- Calibration & Detection (Bottom, simplified) ---
         adv_frame = ttk.LabelFrame(container, text="Parâmetros Avançados de IA e Setup", padding=10)
         adv_frame.pack(fill="x", pady=(0, 10))
@@ -439,6 +461,19 @@ class LiveAnalysisDialog(Dialog):
         self.bind("<Escape>", lambda e: self.cancel())
 
         box.pack()
+
+    def _select_output_folder(self) -> None:
+        """Abre um seletor de diretório para a pasta de saída dos resultados."""
+        from tkinter import filedialog
+
+        initial = self.output_folder_var.get().strip() or None
+        folder = filedialog.askdirectory(
+            title="Selecione a pasta de saída para os resultados",
+            initialdir=initial,
+            parent=self,
+        )
+        if folder:
+            self.output_folder_var.set(folder)
 
     def _detect_cameras(self) -> None:
         """Detect available cameras using WizardService."""
@@ -710,6 +745,8 @@ class LiveAnalysisDialog(Dialog):
             "use_openvino": bool(self.use_openvino_var.get()),
             "use_single_subject_tracker": animals_per_aquarium == 1,
             "behavioral_analysis": behavioral_config,
+            # Pasta de saída escolhida pelo usuário (None = padrão).
+            "output_folder": self.output_folder_var.get().strip() or None,
         }
 
         if self.result is not None:
