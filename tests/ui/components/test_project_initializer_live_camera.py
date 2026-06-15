@@ -236,6 +236,50 @@ def test_load_project_view_does_not_auto_prompt_arena_calibration_for_live():
     gui.validation_manager.check_live_project_calibration.assert_not_called()
 
 
+def test_create_main_control_frame_tears_down_existing_notebook():
+    """Idempotência (Issue 2): com um notebook já presente (fluxo de vídeo
+    único ao vivo SEM projeto, que monta a view tardiamente), uma 2ª chamada
+    deve DERRUBAR o antigo via ``_destroy_notebook_and_main_controls`` em vez de
+    empilhar um segundo ``ttk.Notebook`` no root (fileira de abas fantasma)."""
+    gui = MagicMock()
+    gui.welcome_frame = None
+    gui.status_frame = None
+    gui.notebook = MagicMock()  # notebook já existe
+    gui.controller.project_manager.get_project_type.return_value = None
+
+    initializer = ProjectInitializer(gui)
+
+    with (
+        patch("zebtrack.ui.components.project_initializer.ttk"),
+        patch("zebtrack.ui.components.project_initializer.Label"),
+        patch("zebtrack.ui.components.project_initializer.reset_geometry_if_not_maximized"),
+    ):
+        initializer.create_main_control_frame()
+
+    cast(MagicMock, gui.state_synchronizer._destroy_notebook_and_main_controls).assert_called_once()
+
+
+def test_create_main_control_frame_no_teardown_on_first_build():
+    """Primeira montagem (notebook None) NÃO deve chamar o teardown — só a
+    construção. Evita destruir/reconstruir desnecessariamente no caminho feliz."""
+    gui = MagicMock()
+    gui.welcome_frame = None
+    gui.status_frame = None
+    gui.notebook = None  # primeira montagem
+    gui.controller.project_manager.get_project_type.return_value = None
+
+    initializer = ProjectInitializer(gui)
+
+    with (
+        patch("zebtrack.ui.components.project_initializer.ttk"),
+        patch("zebtrack.ui.components.project_initializer.Label"),
+        patch("zebtrack.ui.components.project_initializer.reset_geometry_if_not_maximized"),
+    ):
+        initializer.create_main_control_frame()
+
+    cast(MagicMock, gui.state_synchronizer._destroy_notebook_and_main_controls).assert_not_called()
+
+
 def test_restore_persisted_project_settings_parses_string_false_preview_flag():
     """Persisted preview flags may come back as strings from older project data.
 

@@ -37,6 +37,16 @@ class ProjectInitializer:
     def create_main_control_frame(self) -> None:
         """Create the main UI with tabs for controlling the app."""
         gui = self.gui
+        # Idempotência: se já existe um notebook (ex.: fluxo de vídeo único ao
+        # vivo SEM projeto, que monta a view tardiamente via
+        # ``switch_to_analysis_view``), derruba notebook + controles + status
+        # ANTES de reconstruir. Sem isto, uma 2ª chamada empilha um SEGUNDO
+        # ``ttk.Notebook`` no ``root``: o antigo fica órfão-mas-mapeado, gerando
+        # uma fileira de abas fantasma (não-clicável) colada no rodapé, e
+        # ``create_processing_reports_tab`` move a aba "Processamento e
+        # Relatórios" para o notebook novo — fazendo-a "sumir" da fileira visível.
+        if gui.notebook is not None:
+            gui.state_synchronizer._destroy_notebook_and_main_controls()
         if gui.welcome_frame:
             gui.welcome_frame.destroy()
             gui.welcome_frame = None

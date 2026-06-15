@@ -763,6 +763,70 @@ def test_start_session_from_config_marks_and_stops_session(test_settings):
 
 
 @pytest.mark.integration
+def test_start_session_from_config_no_project_defers_then_resumes(test_settings):
+    """Vídeo único ao vivo SEM projeto: a 1ª chamada (zones_validated=False)
+    DEFERE — não inicia o serviço, guarda o contexto (kind='config') e publica
+    LIVE_RECORDING_PENDING (banner "Iniciar Gravação"). O resume re-executa com
+    zones_validated=True e o serviço arranca. Propaga ``camera_index`` do config
+    para ``ensure_zones_before_recording``."""
+    state_manager = StateManager()
+    event_bus = EventBusV2()
+
+    live_camera_service = MagicMock()
+    live_camera_service.start_session.return_value = True
+    live_camera_service.stop_session.return_value = True
+
+    pm = MagicMock()
+    pm.project_path = None  # sem projeto
+
+    calibration = MagicMock()
+    calibration.ensure_zones_before_recording.return_value = False  # deferido
+    calibration.pending_zone_confirmation = True
+    calibration.last_polygon_source = "auto"  # str real p/ o payload
+
+    coordinator = LiveCameraSessionCoordinator(
+        state_manager=state_manager,
+        live_camera_service=live_camera_service,
+        project_manager=pm,
+        detector_service=MagicMock(),
+        settings_obj=test_settings,
+        live_calibration_coordinator=calibration,
+        event_bus=event_bus,
+    )
+
+    pending_events: list = []
+    event_bus.subscribe(
+        UIEvents.LIVE_RECORDING_PENDING,
+        lambda payload: pending_events.append(payload),
+    )
+
+    config = {
+        "camera_index": 2,
+        "duration_s": 30.0,
+        "experiment_id": "camera_2",
+        "analysis_interval_frames": 1,
+        "display_interval_frames": 1,
+        "record_video": True,
+    }
+
+    # 1ª passada: defere (sem iniciar o serviço).
+    assert coordinator.start_session_from_config(config, zones_validated=False) is False
+    live_camera_service.start_session.assert_not_called()
+    assert coordinator._pending_live_kind == "config"
+    assert coordinator._pending_live_context is not None
+    assert pending_events, "deve publicar LIVE_RECORDING_PENDING (banner Iniciar Gravação)"
+    assert calibration.ensure_zones_before_recording.call_args.kwargs.get("camera_index") == 2, (
+        "camera_index do config deve chegar à calibração"
+    )
+
+    # Resume ("Iniciar Gravação") → re-executa com zones_validated=True.
+    coordinator._on_resume_requested()
+    live_camera_service.start_session.assert_called_once()
+    assert coordinator.is_live_session_active() is True
+    assert state_manager.get_processing_state().is_live_session_active is True
+
+
+@pytest.mark.integration
 def test_batch_registration_uses_last_experiment_id_after_finalize(test_settings):
     """``_finalize_live_session_ui`` clears ``_active_live_session_id`` before
     ``_register_batch_session`` runs, so the batch entry must fall back to

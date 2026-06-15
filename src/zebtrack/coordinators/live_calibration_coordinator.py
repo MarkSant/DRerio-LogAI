@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import datetime
 import os
+import tempfile
 import time
 from typing import TYPE_CHECKING, Any
 
@@ -136,6 +137,13 @@ class LiveCalibrationCoordinator(BaseCoordinator):
         # through to manual drawing (genuine failure) or abort cleanly (cancel).
         self._last_calibration_cancelled: bool = False
 
+        # Diretório temporário por-coordinator para o frame de referência quando
+        # NÃO há projeto (fluxo ad-hoc de vídeo único ao vivo). Sem projeto, o
+        # PNG de referência não tem ``project_path`` onde morar; gravar no CWD
+        # poluiria o diretório de trabalho e daria uma chave instável em
+        # ``zones_by_video``. Criado preguiçosamente em ``_reference_frame_path``.
+        self._adhoc_zone_dir: str | None = None
+
         log.info("live_calibration_coordinator.initialized")
 
     def _release_calibration_camera(self, reason: str) -> None:
@@ -208,29 +216,54 @@ class LiveCalibrationCoordinator(BaseCoordinator):
         """Reset the polygon-source tag (e.g. after a session is registered)."""
         self._set_last_polygon_source(None)
 
+    def _reference_frame_path(self) -> str:
+        """Caminho do PNG de frame de referência do live (chave de ``zones_by_video``).
+
+        Com projeto: ``<project_path>/live_camera_reference_frame.png`` (mantém a
+        chave estável que o canvas/edição já usam). Sem projeto (fluxo ad-hoc de
+        vídeo único ao vivo): um diretório temporário por-coordinator — evita
+        poluir o CWD e dá uma chave consistente entre captura, overlay e edição.
+        """
+        project_path = getattr(self.project_manager, "project_path", None)
+        if project_path:
+            return os.path.join(str(project_path), "live_camera_reference_frame.png")
+        if self._adhoc_zone_dir is None:
+            self._adhoc_zone_dir = tempfile.mkdtemp(prefix="zebtrack_live_adhoc_")
+        return os.path.join(self._adhoc_zone_dir, "live_camera_reference_frame.png")
+
     # =============================================================================
     # ZONE VALIDATION
     # =============================================================================
 
-    def ensure_zones_before_recording(self) -> bool:  # noqa: C901
+    def ensure_zones_before_recording(self, camera_index: int | None = None) -> bool:  # noqa: C901
         """Ensure project zones are defined before starting recording.
 
         New implementation uses ZoneCalibrationDialog and ZoneReuseDialog
         for enhanced user experience.
 
+        Args:
+            camera_index: Câmera a usar na calibração quando NÃO há projeto
+                (fluxo ad-hoc de vídeo único ao vivo). Em projetos, o índice
+                vem de ``project_data`` e este argumento é ignorado.
+
         Returns:
             True if recording can proceed, False if cancelled or waiting for zones
         """
-        if not self.project_manager.project_path:
-            return True
-
         project_type = self.project_manager.get_project_type()
+        has_project = bool(self.project_manager.project_path)
 
-        # Only apply special flow for live projects
-        if project_type != "live":
+        # "Sem projeto" = fluxo ad-hoc de vídeo único ao vivo. Tratado como
+        # LIVE-like: mesma calibração (auto/manual) + navegação para a aba de
+        # zonas + handshake de confirmação do projeto live. NÃO dá para decidir
+        # pelo tipo porque ``get_project_type()`` retorna None sem projeto —
+        # decidimos pela presença de projeto.
+        is_live_like = (project_type == "live") or (not has_project)
+
+        # Projeto pré-gravado mantém o fluxo não-live (diálogo ok/cancelar).
+        if not is_live_like:
             return self._ensure_zones_non_live()
 
-        # === LIVE PROJECT ZONE FLOW ===
+        # === LIVE PROJECT / AD-HOC LIVE ZONE FLOW ===
 
         zone_data = self.project_manager.get_zone_data()
         # Reabertura: as zonas do live ficam armazenadas sob a chave do
@@ -279,7 +312,7 @@ class LiveCalibrationCoordinator(BaseCoordinator):
                 # clicar em "Iniciar Gravação" (replay com zones_validated=True).
                 # Espelha o fluxo de auto-detecção (sucesso) abaixo, mas sem
                 # re-detectar — apenas captura um frame de referência fresco.
-                if not self._capture_reference_frame_for_zones():
+                if not self._capture_reference_frame_for_zones(camera_index=camera_index):
                     log.warning("live_calibration_coordinator.zones.reuse_reference_frame_failed")
 
                 # Fixa a chave de zonas ativa no reference-frame ANTES da
@@ -478,7 +511,9 @@ class LiveCalibrationCoordinator(BaseCoordinator):
 
                 # IMPORTANT: Use 30 frames for camera exposure adjustment
                 # (not just aquarium detection)
-                success = self.run_live_calibration(stabilization_frames=30, show_preview=True)
+                success = self.run_live_calibration(
+                    stabilization_frames=30, show_preview=True, camera_index=camera_index
+                )
 
                 if success:
                     # Polygon source ("auto" vs "manual") is recorded inside
@@ -633,7 +668,7 @@ class LiveCalibrationCoordinator(BaseCoordinator):
                 self._set_last_polygon_source("manual")
 
                 # Capture reference frame
-                if not self._capture_reference_frame_for_zones():
+                if not self._capture_reference_frame_for_zones(camera_index=camera_index):
                     log.error("live_calibration_coordinator.zones.reference_frame_failed")
                     return False
 
@@ -740,13 +775,19 @@ class LiveCalibrationCoordinator(BaseCoordinator):
     # =============================================================================
 
     def run_live_calibration(  # noqa: C901
-        self, stabilization_frames: int = 10, show_preview: bool = True
+        self,
+        stabilization_frames: int = 10,
+        show_preview: bool = True,
+        camera_index: int | None = None,
     ) -> bool:
         """Execute live aquarium calibration with auto-detection.
 
         Args:
             stabilization_frames: Number of frames to capture (default: 10)
             show_preview: If True, shows preview dialog for approval
+            camera_index: Câmera a usar quando NÃO há projeto (fluxo ad-hoc de
+                vídeo único ao vivo). Em projetos, o índice de ``project_data``
+                tem precedência e este argumento é ignorado.
 
         Returns:
             True if calibration successful, False otherwise
@@ -773,10 +814,7 @@ class LiveCalibrationCoordinator(BaseCoordinator):
                 (pre_run_project_data.get("arena_template") or {}).get("polygon")
             )
             if not template_present:
-                ref_key = os.path.join(
-                    str(self.project_manager.project_path or ""),
-                    "live_camera_reference_frame.png",
-                )
+                ref_key = self._reference_frame_path()
                 zones_map = pre_run_project_data.get("zones_by_video", {})
                 if ref_key in zones_map:
                     del zones_map[ref_key]
@@ -793,20 +831,26 @@ class LiveCalibrationCoordinator(BaseCoordinator):
         # Initialize camera if necessary
         if not self.camera or not hasattr(self.camera, "is_open") or not self.camera.is_open:
             try:
-                # Use camera_index from project if available (for live projects)
+                # Resolve do índice da câmera: projeto tem precedência (live
+                # projects); senão o índice passado pelo fluxo ad-hoc (vídeo
+                # único ao vivo SEM projeto); senão cai no global settings.
                 project_data = self.project_manager.project_data or {}
-                camera_index = project_data.get("camera_index")
+                resolved_index = project_data.get("camera_index")
+                index_source = "project"
+                if resolved_index is None and camera_index is not None:
+                    resolved_index = camera_index
+                    index_source = "config"
 
-                if camera_index is not None:
-                    # Temporarily override settings to use project camera
+                if resolved_index is not None:
+                    # Temporarily override settings to use the resolved camera
                     original_index = self.settings.camera.index
-                    self.settings.camera.index = camera_index
+                    self.settings.camera.index = resolved_index
                     self.camera = Camera(settings_obj=self.settings)
                     self.settings.camera.index = original_index  # Restore
                     log.info(
                         "live_calibration_coordinator.live_calibration.camera_initialized",
-                        camera_index=camera_index,
-                        source="project",
+                        camera_index=resolved_index,
+                        source=index_source,
                     )
                 else:
                     # Fallback to global settings
@@ -983,10 +1027,7 @@ class LiveCalibrationCoordinator(BaseCoordinator):
             # Fallback: Save and display the last captured frame for manual drawing
             if frames:
                 try:
-                    reference_path = os.path.join(
-                        str(self.project_manager.project_path or ""),
-                        "live_camera_reference_frame.png",
-                    )
+                    reference_path = self._reference_frame_path()
                     cv2.imwrite(reference_path, frames[-1])
 
                     if self.event_bus:
@@ -1098,9 +1139,7 @@ class LiveCalibrationCoordinator(BaseCoordinator):
             )
 
             # Save reference frame to disk so the Zone tab canvas can load it.
-            reference_frame_path = os.path.join(
-                str(self.project_manager.project_path or ""), "live_camera_reference_frame.png"
-            )
+            reference_frame_path = self._reference_frame_path()
             cv2.imwrite(reference_frame_path, frames[-1])
 
             # IN-MEMORY ONLY (persist=False) — audit Erro 4 (2026-05-25).
@@ -1158,26 +1197,38 @@ class LiveCalibrationCoordinator(BaseCoordinator):
     # REFERENCE FRAME CAPTURE
     # =============================================================================
 
-    def _capture_reference_frame_for_zones(self) -> bool:
-        """Capture frame from camera for zone tab reference."""
+    def _capture_reference_frame_for_zones(self, camera_index: int | None = None) -> bool:
+        """Capture frame from camera for zone tab reference.
+
+        Args:
+            camera_index: Câmera a usar quando NÃO há projeto (fluxo ad-hoc de
+                vídeo único ao vivo). Em projetos, o índice de ``project_data``
+                tem precedência e este argumento é ignorado.
+        """
         log.info("live_calibration_coordinator.capture_reference_frame.start")
 
+        resolved_index: int | None = None
         if not self.camera or not hasattr(self.camera, "is_open") or not self.camera.is_open:
             try:
-                # Use camera_index from project if available (for live projects)
+                # Resolve do índice: projeto tem precedência; senão o índice
+                # passado pelo fluxo ad-hoc (sem projeto); senão global settings.
                 project_data = self.project_manager.project_data or {}
-                camera_index = project_data.get("camera_index")
+                resolved_index = project_data.get("camera_index")
+                index_source = "project"
+                if resolved_index is None and camera_index is not None:
+                    resolved_index = camera_index
+                    index_source = "config"
 
-                if camera_index is not None:
-                    # Temporarily override settings to use project camera
+                if resolved_index is not None:
+                    # Temporarily override settings to use the resolved camera
                     original_index = self.settings.camera.index
-                    self.settings.camera.index = camera_index
+                    self.settings.camera.index = resolved_index
                     self.camera = Camera(settings_obj=self.settings)
                     self.settings.camera.index = original_index  # Restore
                     log.info(
                         "live_calibration_coordinator.capture_reference_frame.camera_initialized",
-                        camera_index=camera_index,
-                        source="project",
+                        camera_index=resolved_index,
+                        source=index_source,
                     )
                 else:
                     # Fallback to global settings
@@ -1205,12 +1256,14 @@ class LiveCalibrationCoordinator(BaseCoordinator):
             # CRITICAL: Warm up camera by discarding first frames
             # Webcams often need time to adjust exposure/white balance
             # Use same logic as LiveCameraService for consistency
-            camera_index = camera_index if camera_index is not None else self.settings.camera.index
-            warmup_frames = 30 if camera_index <= 1 else 10
+            effective_index = (
+                resolved_index if resolved_index is not None else self.settings.camera.index
+            )
+            warmup_frames = 30 if effective_index <= 1 else 10
 
             log.info(
                 "live_calibration_coordinator.capture_reference_frame.warmup_start",
-                camera_index=camera_index,
+                camera_index=effective_index,
                 warmup_frames=warmup_frames,
             )
 
@@ -1244,9 +1297,7 @@ class LiveCalibrationCoordinator(BaseCoordinator):
             log.error("live_calibration_coordinator.capture_reference_frame.capture_failed")
             return False
 
-        reference_path = os.path.join(
-            str(self.project_manager.project_path or ""), "live_camera_reference_frame.png"
-        )
+        reference_path = self._reference_frame_path()
         cv2.imwrite(reference_path, frame)
 
         if self.event_bus:

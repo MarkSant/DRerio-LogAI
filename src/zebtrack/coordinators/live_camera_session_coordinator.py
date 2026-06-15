@@ -1682,13 +1682,35 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
                 mode=selected_mode,
             )
 
+        # Vídeo único ao vivo SEM projeto: monta a view principal (notebook +
+        # abas) UMA vez, de forma SÍNCRONA, ANTES do gate de zonas. Espelha o
+        # fluxo pré-gravado (``SingleVideoWorkflow.setup_zone_definition_for_single_video``).
+        # Sem isto, o notebook só nascia tardiamente dentro de
+        # ``switch_to_analysis_view`` (via ``root.after(0)``), abrindo brecha para
+        # uma 2ª construção empilhar um segundo ``ttk.Notebook`` no root (Issue 2).
+        # Construir aqui garante que o ``UI_SELECT_TAB(zone_tab)`` emitido por
+        # ``ensure_zones_before_recording`` caia numa aba real e que o
+        # ``switch_to_analysis_view`` posterior encontre o notebook já existente.
+        # Auto-guarda em ``notebook is None`` → no-op no replay (zones_validated=True).
+        if not self.project_manager.project_path:
+            view = getattr(self, "view", None)
+            project_initializer = getattr(view, "project_initializer", None)
+            if (
+                view is not None
+                and project_initializer is not None
+                and getattr(view, "notebook", None) is None
+            ):
+                project_initializer.create_main_control_frame()
+
         # Ad-hoc flow (LiveAnalysisDialog) — gate through the same zone-validation
         # handshake as the live project flow so the user always gets a chance to
         # review/adjust the polygon before recording begins. When deferred, the
         # zone tab's "▶️ Iniciar Gravação" button replays this call with
         # ``zones_validated=True``.
         if not zones_validated:
-            zones_ready = self.live_calibration_coordinator.ensure_zones_before_recording()
+            zones_ready = self.live_calibration_coordinator.ensure_zones_before_recording(
+                camera_index=camera_index
+            )
             if not zones_ready:
                 if self.live_calibration_coordinator.pending_zone_confirmation:
                     pending_ctx = {

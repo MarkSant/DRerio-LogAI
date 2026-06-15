@@ -494,11 +494,15 @@ class LiveSessionManagerMixin:
                     has_polygon=bool(zone_data and zone_data.polygon),
                 )
                 return False
-            # Vídeo único ao vivo (sem projeto / fluxo de teste-avaliação): nunca
-            # há arena predefinida — ``ensure_zones_before_recording`` retorna True
-            # incondicionalmente sem produzir polígono. Em vez de recusar, cair para
-            # a auto-detecção in-service para que a captura/preview e o tracking
-            # realmente iniciem (mesmo caminho do live de projeto sem arena).
+            # Vídeo único ao vivo (sem projeto / fluxo de teste-avaliação):
+            # FALLBACK defensivo. No fluxo normal ``ensure_zones_before_recording``
+            # agora roda a calibração live (auto/manual) e o usuário conclui o
+            # polígono na aba de zonas ANTES de "Iniciar Gravação", então um
+            # polígono existe em ``detection_zones`` e o ramo de arena predefinida
+            # abaixo é tomado. Só caímos aqui se a sessão arrancar sem polígono
+            # concluído — em vez de recusar (sem projeto não há o que recusar),
+            # caímos na auto-detecção in-service para que captura/preview/tracking
+            # iniciem mesmo assim (mesmo caminho do live de projeto sem arena).
             log.info(
                 "live_camera_service.no_project_auto_detect",
                 reason="single_video_live",
