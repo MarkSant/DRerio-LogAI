@@ -1,12 +1,23 @@
 import logging
 import os
 import platform
-import tkinter as tk
 import warnings
 from typing import Any
 
 import pytest
 import structlog
+
+# Tkinter may be unavailable in minimal/headless environments (e.g. a Python
+# build without the Tcl/Tk bindings). Import it defensively so that pure-logic
+# tests (tracker, detection geometry, analysis) can still be collected and run.
+# GUI fixtures below skip gracefully when ``tk is None``.
+try:
+    import tkinter as tk
+
+    _TK_AVAILABLE = True
+except ImportError:
+    tk = None  # type: ignore[assignment]
+    _TK_AVAILABLE = False
 
 os.environ.setdefault("ZEBTRACK_SUPPRESS_POST_CREATION_GUIDE", "1")
 os.environ.setdefault("ZEBTRACK_SUPPRESS_WIZARD_DIALOGS", "1")
@@ -16,6 +27,8 @@ HEADLESS_TESTS = os.environ.get("ZEBTRACK_HEADLESS_TESTS", "0") == "1"
 
 
 def _can_initialize_tk() -> bool:
+    if not _TK_AVAILABLE:
+        return False
     try:
         root = tk.Tk()
         root.withdraw()
@@ -95,6 +108,11 @@ _configure_silent_logging()
 @pytest.fixture(scope="session", autouse=True)
 def suppress_tk_variable_finalizer_errors():
     """Prevent noisy Tkinter RuntimeError when Variable objects are GC'd post-tests."""
+    if not _TK_AVAILABLE:
+        # No tkinter in this environment — nothing to patch (GUI tests skip anyway).
+        yield
+        return
+
     original_del = getattr(tk.Variable, "__del__", None)
 
     def safe_del(self, *args, **kwargs):

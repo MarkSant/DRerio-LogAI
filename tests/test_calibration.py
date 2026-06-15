@@ -108,3 +108,47 @@ def test_pixel_to_cm_conversion():
     calculated_cm_value = pixel_value / px_per_cm_x
 
     assert calculated_cm_value == pytest.approx(expected_cm_value)
+
+
+# ---------------------------------------------------------------------------
+# Edge cases: missing / degenerate polygons and point/bbox transforms
+# ---------------------------------------------------------------------------
+
+
+def test_none_polygon_leaves_matrix_unset():
+    """No polygon → no homography; the object must stay in a safe identity state."""
+    calibration = Calibration(polygon=None, real_width_cm=20.0, real_height_cm=15.0)
+    assert calibration.homography_matrix is None
+    assert calibration.pixel_per_cm_ratio == (0.0, 0.0)
+
+
+def test_find_corners_returns_none_for_too_few_points():
+    assert Calibration._find_corners(np.array([[0, 0], [10, 10]], dtype=np.int32)) is None
+    assert Calibration._find_corners(None) is None  # type: ignore[arg-type]
+
+
+def test_warp_frame_without_matrix_is_passthrough():
+    calibration = Calibration(polygon=None, real_width_cm=20.0, real_height_cm=15.0)
+    frame = np.zeros((10, 12, 3), dtype=np.uint8)
+    assert calibration.warp_frame(frame) is frame
+
+
+def test_transform_points_without_matrix_is_passthrough():
+    calibration = Calibration(polygon=None, real_width_cm=20.0, real_height_cm=15.0)
+    points = [[1.0, 2.0], [3.0, 4.0]]
+    assert calibration.transform_points(points) is points
+
+
+def test_transform_bbox_without_matrix_is_passthrough():
+    calibration = Calibration(polygon=None, real_width_cm=20.0, real_height_cm=15.0)
+    assert calibration.transform_bbox(1.0, 2.0, 3.0, 4.0) == (1.0, 2.0, 3.0, 4.0)
+
+
+def test_transform_bbox_returns_axis_aligned_box(calibration_setup):
+    """With a valid homography, transform_bbox returns a well-formed AABB."""
+    polygon, w, h = calibration_setup
+    calibration = Calibration(polygon, w, h)
+    x1_w, y1_w, x2_w, y2_w = calibration.transform_bbox(150.0, 150.0, 300.0, 300.0)
+    # The result must be a valid axis-aligned box (min <= max on both axes).
+    assert x1_w <= x2_w
+    assert y1_w <= y2_w
