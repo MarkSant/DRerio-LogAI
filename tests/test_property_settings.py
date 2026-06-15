@@ -12,7 +12,7 @@ from __future__ import annotations
 from typing import Any, ClassVar
 
 import pytest
-from hypothesis import HealthCheck, given
+from hypothesis import given
 from hypothesis import settings as h_settings
 from hypothesis import strategies as st
 
@@ -28,7 +28,10 @@ from zebtrack.settings import (
 # STRATEGIES
 # =============================================================================
 
-valid_inference_size = st.integers(min_value=320, max_value=1280).filter(lambda x: x % 32 == 0)
+# Build multiples of 32 directly (320..1280) via .map instead of .filter, so Hypothesis
+# never discards ~31/32 of draws and cannot trip the ``filter_too_much`` health check
+# (which made test_valid_inference_size_passes flaky on busy machines).
+valid_inference_size = st.integers(min_value=10, max_value=40).map(lambda x: x * 32)
 invalid_inference_size = st.integers(min_value=1, max_value=1280).filter(lambda x: x % 32 != 0)
 odd_integer = st.integers(min_value=3, max_value=99).filter(lambda x: x % 2 == 1)
 even_integer = st.integers(min_value=2, max_value=100).filter(lambda x: x % 2 == 0)
@@ -80,11 +83,7 @@ class TestYOLOModelSettingsProperties:
             YOLOModelSettings(**self._YOLO_DEFAULTS, inference_size=size)
 
     @given(size=valid_inference_size)
-    @h_settings(
-        max_examples=30,
-        database=None,
-        suppress_health_check=[HealthCheck.filter_too_much],
-    )
+    @h_settings(max_examples=30, database=None)
     def test_round_trip(self, size: int) -> None:
         """Model should survive dump/load round-trip."""
         model = YOLOModelSettings(**self._YOLO_DEFAULTS, inference_size=size)
