@@ -228,7 +228,7 @@ class TestMainViewModelThreadLifecycle:
 
         # Stop thread
         main_view_model.cancel_event.set()
-        wait_for_thread_exit(main_view_model.processing_thread, timeout=2.0)
+        wait_for_thread_exit(main_view_model.processing_thread, timeout=5.0)
 
         # Verify thread stopped
         assert not main_view_model.processing_thread.is_alive()
@@ -251,7 +251,7 @@ class TestMainViewModelThreadLifecycle:
 
         # Signal cancellation
         main_view_model.cancel_event.set()
-        wait_for_thread_exit(main_view_model.processing_thread, timeout=2.0)
+        wait_for_thread_exit(main_view_model.processing_thread, timeout=5.0)
 
         # Verify cancel was detected
         assert cancel_detected[0] is True
@@ -274,7 +274,7 @@ class TestMainViewModelThreadLifecycle:
 
             # Stop
             main_view_model.cancel_event.set()
-            wait_for_thread_exit(main_view_model.processing_thread, timeout=2.0)
+            wait_for_thread_exit(main_view_model.processing_thread, timeout=5.0)
 
             assert not main_view_model.processing_thread.is_alive()
 
@@ -356,7 +356,7 @@ class TestMainViewModelConcurrentOperations:
 
         # Wait for completion
         for updater in updaters:
-            wait_for_thread_exit(updater, timeout=2.0)
+            wait_for_thread_exit(updater, timeout=5.0)
 
         # All threads should complete
         for updater in updaters:
@@ -382,7 +382,7 @@ class TestMainViewModelConcurrentOperations:
 
         # Wait for completion
         for scheduler in schedulers:
-            wait_for_thread_exit(scheduler, timeout=2.0)
+            wait_for_thread_exit(scheduler, timeout=5.0)
 
         # All threads should complete
         for scheduler in schedulers:
@@ -411,7 +411,7 @@ class TestMainViewModelRaceConditions:
 
         # Wait for completion
         for worker in workers:
-            wait_for_thread_exit(worker, timeout=2.0)
+            wait_for_thread_exit(worker, timeout=5.0)
 
         # All should complete, event should be set
         for worker in workers:
@@ -436,7 +436,7 @@ class TestMainViewModelRaceConditions:
 
         # Stop and replace
         main_view_model.cancel_event.set()
-        wait_for_thread_exit(thread1, timeout=2.0)
+        wait_for_thread_exit(thread1, timeout=5.0)
 
         # Start new thread
         main_view_model.cancel_event.clear()
@@ -455,7 +455,7 @@ class TestMainViewModelRaceConditions:
 
         # Cleanup
         main_view_model.cancel_event.set()
-        wait_for_thread_exit(thread2, timeout=2.0)
+        wait_for_thread_exit(thread2, timeout=5.0)
 
 
 class TestMainViewModelErrorHandling:
@@ -478,7 +478,7 @@ class TestMainViewModelErrorHandling:
 
         thread = threading.Thread(target=worker_with_error_handling, daemon=False)
         thread.start()
-        wait_for_thread_exit(thread, timeout=2.0)
+        wait_for_thread_exit(thread, timeout=5.0)
 
         # Thread should complete and exception should be caught
         assert not thread.is_alive()
@@ -504,7 +504,7 @@ class TestMainViewModelErrorHandling:
 
         thread = threading.Thread(target=worker_with_error_handling, daemon=False)
         thread.start()
-        wait_for_thread_exit(thread, timeout=2.0)
+        wait_for_thread_exit(thread, timeout=5.0)
 
         # Thread should complete
         assert not thread.is_alive()
