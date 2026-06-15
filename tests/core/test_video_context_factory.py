@@ -1,4 +1,4 @@
-"""Unit tests for ``zebtrack.core.video.VideoContextFactoryMixin``.
+"""Unit tests for ``zebtrack.core.video.video_context_factory.VideoContextFactoryMixin``.
 
 The mixin bundles small, well-isolated helpers for frame seeking, arena-polygon
 fallback, results-directory bookkeeping and trajectory loading. Most are pure
