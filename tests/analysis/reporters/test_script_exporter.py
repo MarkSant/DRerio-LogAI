@@ -31,7 +31,7 @@ def exporter():
             "velocity_cm_s": [0.5, 1.5, 2.5],
         }
     )
-    return ScriptExporter(SimpleNamespace(tidy_data=tidy))
+    return ScriptExporter(SimpleNamespace(tidy_data=tidy))  # type: ignore[arg-type]
 
 
 class TestScriptTemplates:

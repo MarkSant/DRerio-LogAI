@@ -124,7 +124,7 @@ def test_none_polygon_leaves_matrix_unset():
 
 def test_find_corners_returns_none_for_too_few_points():
     assert Calibration._find_corners(np.array([[0, 0], [10, 10]], dtype=np.int32)) is None
-    assert Calibration._find_corners(None) is None
+    assert Calibration._find_corners(None) is None  # type: ignore[arg-type]
 
 
 def test_warp_frame_without_matrix_is_passthrough():

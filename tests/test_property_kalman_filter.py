@@ -20,16 +20,14 @@ from hypothesis import strategies as st
 
 from zebtrack.tracker.kalman_filter import KalmanFilter
 
-_finite = dict(allow_nan=False, allow_infinity=False)
-
 
 @st.composite
 def measurement(draw: st.DrawFn) -> np.ndarray:
     """Generate a plausible (x, y, a, h) bounding-box measurement."""
-    x = draw(st.floats(min_value=-1000, max_value=1000, **_finite))
-    y = draw(st.floats(min_value=-1000, max_value=1000, **_finite))
-    a = draw(st.floats(min_value=0.1, max_value=5.0, **_finite))
-    h = draw(st.floats(min_value=1.0, max_value=1000.0, **_finite))
+    x = draw(st.floats(min_value=-1000, max_value=1000, allow_nan=False, allow_infinity=False))
+    y = draw(st.floats(min_value=-1000, max_value=1000, allow_nan=False, allow_infinity=False))
+    a = draw(st.floats(min_value=0.1, max_value=5.0, allow_nan=False, allow_infinity=False))
+    h = draw(st.floats(min_value=1.0, max_value=1000.0, allow_nan=False, allow_infinity=False))
     return np.array([x, y, a, h])
 
 

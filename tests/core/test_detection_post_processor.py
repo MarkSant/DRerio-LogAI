@@ -22,11 +22,11 @@ class TestValidateFrame:
 
     def test_none_raises(self):
         with pytest.raises(ValueError, match="valid numpy array"):
-            P.validate_frame(None)
+            P.validate_frame(None)  # type: ignore[arg-type]
 
     def test_non_ndarray_raises(self):
         with pytest.raises(ValueError, match="valid numpy array"):
-            P.validate_frame([[1, 2, 3]])
+            P.validate_frame([[1, 2, 3]])  # type: ignore[arg-type]
 
     def test_empty_raises(self):
         with pytest.raises(ValueError, match="empty"):
@@ -138,50 +138,50 @@ class TestValidateTrackContinuity:
 class TestResolveClassIds:
     def test_two_class_model(self):
         plugin = SimpleNamespace(class_names={0: "aquarium", 1: "zebrafish"})
-        assert P.resolve_class_ids(plugin) == (0, 1)
+        assert P.resolve_class_ids(plugin) == (0, 1)  # type: ignore[arg-type]
 
     def test_single_class_model_disables_aquarium(self):
         plugin = SimpleNamespace(class_names={0: "fish"})
-        assert P.resolve_class_ids(plugin) == (-1, 0)
+        assert P.resolve_class_ids(plugin) == (-1, 0)  # type: ignore[arg-type]
 
     def test_no_class_names_returns_defaults(self):
-        assert P.resolve_class_ids(SimpleNamespace()) == (0, 1)
+        assert P.resolve_class_ids(SimpleNamespace()) == (0, 1)  # type: ignore[arg-type]
 
 
 class TestSettingsGetters:
     def test_iou_threshold_default_and_value(self):
         assert P.get_iou_threshold(None) == pytest.approx(0.05)
         s = SimpleNamespace(bytetrack=SimpleNamespace(iou_threshold=0.3))
-        assert P.get_iou_threshold(s) == pytest.approx(0.3)
+        assert P.get_iou_threshold(s) == pytest.approx(0.3)  # type: ignore[arg-type]
 
     def test_max_center_distance_default_and_value(self):
         assert P.get_max_center_distance(None) == pytest.approx(400.0)
         s = SimpleNamespace(bytetrack=SimpleNamespace(max_center_distance=123.0))
-        assert P.get_max_center_distance(s) == pytest.approx(123.0)
+        assert P.get_max_center_distance(s) == pytest.approx(123.0)  # type: ignore[arg-type]
 
     def test_processing_interval_default_and_value(self):
         assert P.get_processing_interval(None) == 1
         s = SimpleNamespace(video_processing=SimpleNamespace(processing_interval=10))
-        assert P.get_processing_interval(s) == 10
+        assert P.get_processing_interval(s) == 10  # type: ignore[arg-type]
 
     def test_processing_interval_zero_falls_back_to_one(self):
         s = SimpleNamespace(video_processing=SimpleNamespace(processing_interval=0))
-        assert P.get_processing_interval(s) == 1
+        assert P.get_processing_interval(s) == 1  # type: ignore[arg-type]
 
     def test_fps_default_and_value(self):
         assert P.get_fps(None) == 30
         s = SimpleNamespace(video_processing=SimpleNamespace(fps=60))
-        assert P.get_fps(s) == 60
+        assert P.get_fps(s) == 60  # type: ignore[arg-type]
 
     def test_should_use_bytetrack_default_and_value(self):
         assert P.should_use_bytetrack(None) is True
         s = SimpleNamespace(tracking=SimpleNamespace(use_bytetrack=False))
-        assert P.should_use_bytetrack(s) is False
+        assert P.should_use_bytetrack(s) is False  # type: ignore[arg-type]
 
     def test_single_animal_mode_explicit_wins(self):
         assert P.get_single_animal_mode(None, explicit_mode=True) is True
 
     def test_single_animal_mode_from_settings(self):
         s = SimpleNamespace(video_processing=SimpleNamespace(single_animal_per_aquarium=True))
-        assert P.get_single_animal_mode(s, explicit_mode=False) is True
+        assert P.get_single_animal_mode(s, explicit_mode=False) is True  # type: ignore[arg-type]
         assert P.get_single_animal_mode(None, explicit_mode=False) is False
