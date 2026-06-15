@@ -14,6 +14,7 @@ manually adjusted by the user before approval.
 
 from __future__ import annotations
 
+import os
 from types import SimpleNamespace
 from typing import Any, cast
 from unittest.mock import MagicMock, patch
@@ -1004,7 +1005,7 @@ def test_ensure_zones_reuse_opens_zone_tab_and_defers(monkeypatch):
     # Já gravou antes → dispara o diálogo de reutilização.
     monkeypatch.setattr(coordinator, "_has_recorded_before", lambda: True)
     # Não tocar hardware na captura do frame de referência.
-    monkeypatch.setattr(coordinator, "_capture_reference_frame_for_zones", lambda: True)
+    monkeypatch.setattr(coordinator, "_capture_reference_frame_for_zones", lambda **kwargs: True)
 
     # Root com ``after`` real-mockado para agendar a edição deferida.
     coordinator.root = MagicMock()
@@ -1040,3 +1041,151 @@ def test_ensure_zones_reuse_opens_zone_tab_and_defers(monkeypatch):
     ]
     assert edit_calls, "edição deferida deve publicar POLYGON_EDIT_REQUESTED"
     assert edit_calls[0].data.preselect_all is True
+
+
+# ---------------------------------------------------------------------------
+# Vídeo único AO VIVO (SEM projeto) — fluxo ad-hoc tratado como live-like
+# ---------------------------------------------------------------------------
+
+
+def _make_no_project_coordinator() -> LiveCalibrationCoordinator:
+    """Coordinator sem projeto (fluxo ad-hoc de vídeo único ao vivo)."""
+    coordinator = _make_coordinator()
+    pm = coordinator.project_manager
+    pm.project_path = None  # type: ignore[attr-defined]
+    pm.get_project_type.return_value = None  # type: ignore[attr-defined]
+    pm.get_zone_data.return_value = SimpleNamespace(polygon=[])  # type: ignore[attr-defined]
+    pm.get_last_zone_video.return_value = None  # type: ignore[attr-defined]
+    pm.get_all_videos.return_value = []  # type: ignore[attr-defined]
+    coordinator.root = MagicMock()
+    return coordinator
+
+
+def test_ensure_zones_no_project_runs_live_flow_and_defers():
+    """SEM projeto NÃO deve mais retornar True direto: roda a calibração live
+    (auto), navega para a aba de zonas e DEFERE (pending_zone_confirmation),
+    propagando o ``camera_index`` para ``run_live_calibration``."""
+    from zebtrack.ui.event_bus_v2 import UIEvents
+
+    coordinator = _make_no_project_coordinator()
+    bus = cast(MagicMock, coordinator.event_bus)
+    bus.reset_mock()
+    coordinator.run_live_calibration = MagicMock(return_value=True)  # type: ignore[method-assign]
+
+    fake_calib_dialog = MagicMock()
+    fake_calib_dialog.show.return_value = {"method": "auto"}
+
+    with patch(
+        "zebtrack.ui.dialogs.zone_calibration_dialog.ZoneCalibrationDialog",
+        MagicMock(return_value=fake_calib_dialog),
+    ):
+        result = coordinator.ensure_zones_before_recording(camera_index=2)
+
+    # Deferido (não retorna True direto como antes).
+    assert result is False
+    assert coordinator.pending_zone_confirmation is True
+
+    # camera_index do diálogo ad-hoc chega à calibração.
+    coordinator.run_live_calibration.assert_called_once()
+    assert coordinator.run_live_calibration.call_args.kwargs.get("camera_index") == 2
+
+    published_types = [getattr(call.args[0], "type", None) for call in bus.publish.call_args_list]
+    assert UIEvents.UI_SELECT_TAB in published_types, "sem projeto deve abrir a aba de zonas"
+
+
+def test_ensure_zones_no_project_cancel_calibration_returns_false():
+    """SEM projeto + cancelar o ZoneCalibrationDialog → retorna False e NÃO
+    marca pending (nenhuma sessão/banner)."""
+    coordinator = _make_no_project_coordinator()
+
+    fake_calib_dialog = MagicMock()
+    fake_calib_dialog.show.return_value = None  # usuário cancelou
+
+    with patch(
+        "zebtrack.ui.dialogs.zone_calibration_dialog.ZoneCalibrationDialog",
+        MagicMock(return_value=fake_calib_dialog),
+    ):
+        result = coordinator.ensure_zones_before_recording(camera_index=1)
+
+    assert result is False
+    assert coordinator.pending_zone_confirmation is False
+
+
+def test_ensure_zones_prerecorded_uses_non_live_branch():
+    """Projeto PRÉ-GRAVADO continua no fluxo não-live (não roda calibração)."""
+    coordinator = _make_coordinator()
+    coordinator.project_manager.project_path = "/tmp/zebtrack"  # type: ignore[attr-defined]
+    coordinator.project_manager.get_project_type.return_value = "pre-recorded"  # type: ignore[attr-defined]
+    coordinator._ensure_zones_non_live = MagicMock(return_value=True)  # type: ignore[method-assign]
+
+    result = coordinator.ensure_zones_before_recording()
+
+    assert result is True
+    coordinator._ensure_zones_non_live.assert_called_once()
+
+
+def test_reference_frame_path_tempdir_without_project():
+    """Sem projeto, o PNG de referência mora em tmp (não no CWD) e a chave é
+    estável entre chamadas (mesmo diretório cacheado)."""
+    coordinator = _make_coordinator()
+    coordinator.project_manager.project_path = None  # type: ignore[attr-defined]
+
+    p1 = coordinator._reference_frame_path()
+    p2 = coordinator._reference_frame_path()
+
+    assert p1.endswith("live_camera_reference_frame.png")
+    assert os.path.isabs(p1)
+    assert p1 == p2, "diretório ad-hoc deve ser cacheado (chave estável)"
+    assert os.path.dirname(p1) != os.getcwd(), "não deve gravar no CWD"
+
+
+def test_reference_frame_path_uses_project_when_present(tmp_path):
+    """Com projeto, a chave permanece sob ``project_path`` (comportamento legado)."""
+    coordinator = _make_coordinator()
+    coordinator.project_manager.project_path = str(tmp_path)  # type: ignore[attr-defined]
+
+    path = coordinator._reference_frame_path()
+
+    assert path == os.path.join(str(tmp_path), "live_camera_reference_frame.png")
+
+
+def test_capture_reference_frame_uses_passed_camera_index_without_project(tmp_path):
+    """Sem ``camera_index`` em ``project_data``, a captura usa o índice passado
+    pelo fluxo ad-hoc (e não o global) ao construir a ``Camera``."""
+    coordinator = _make_coordinator()
+    coordinator.project_manager.project_path = None  # type: ignore[attr-defined]
+    coordinator.project_manager.project_data = {}  # type: ignore[attr-defined]
+    coordinator.settings = SimpleNamespace(camera=SimpleNamespace(index=0))  # type: ignore[assignment]
+    coordinator._adhoc_zone_dir = str(tmp_path)  # determinismo
+
+    captured_indices: list[int] = []
+    frame = np.zeros((480, 640, 3), dtype=np.uint8)
+
+    def _make_camera(settings_obj=None, **kwargs):
+        captured_indices.append(settings_obj.camera.index)
+        cam = MagicMock()
+        cam.is_open = True
+        cam.get_frame.return_value = (True, frame)
+        cam._stopped = MagicMock()
+        return cam
+
+    with (
+        patch(
+            "zebtrack.coordinators.live_calibration_coordinator.Camera",
+            side_effect=_make_camera,
+        ),
+        patch(
+            "zebtrack.coordinators.live_calibration_coordinator.time.sleep",
+            return_value=None,
+        ),
+        patch(
+            "zebtrack.coordinators.live_calibration_coordinator.cv2.imwrite",
+            return_value=True,
+        ),
+    ):
+        ok = coordinator._capture_reference_frame_for_zones(camera_index=3)
+
+    assert ok is True
+    assert 3 in captured_indices, "Camera deve ser criada com o índice ad-hoc (3)"
+    # settings global restaurado após a construção.
+    assert coordinator.settings.camera.index == 0
