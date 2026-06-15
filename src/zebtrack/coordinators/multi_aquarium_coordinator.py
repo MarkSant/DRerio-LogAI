@@ -332,6 +332,22 @@ class MultiAquariumCoordinator(BaseCoordinator):
                     )
                     # Set arena polygon directly (no SUCCESS event exists for single detect)
                     self.set_main_arena_polygon(polygon_list)
+                    # Sem evento de SUCCESS dedicado p/ single detect, a arena fica
+                    # salva mas o canvas nunca redesenha (a aba mostra só o frame),
+                    # e o usuário acha que "travou". save_zone_data NÃO mexe no
+                    # state_manager, então o observador on_project_state_changed
+                    # (que normalmente emite UI_REDRAW_ZONES) não dispara aqui.
+                    # Espelha o ramo multi e o LiveCalibrationCoordinator: redesenha
+                    # overlay + lista lateral a partir do project_manager
+                    # (zone_data=None => o renderer re-lê o polígono recém-salvo).
+                    self._publish_event(
+                        UIEvents.UI_REDRAW_ZONES,
+                        payloads.ZonesUpdatedPayload(zone_data=None),
+                    )
+                    self._publish_event(
+                        UIEvents.UI_UPDATE_ZONE_LIST,
+                        payloads.ZonesUpdatedPayload(zone_data=None),
+                    )
                     return {"polygon": polygon_list}
                 else:
                     log.warning("processing_coordinator.aquarium_detection.single_failed")

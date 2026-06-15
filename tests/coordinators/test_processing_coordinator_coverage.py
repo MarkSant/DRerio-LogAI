@@ -653,6 +653,39 @@ class TestAquariumDetection:
         except Exception:
             pass  # May fail on other dependencies
 
+    @patch("zebtrack.core.detection.aquarium_detector.AquariumDetector")
+    def test_single_detect_publishes_redraw_events(self, mock_aquarium_detector, coordinator):
+        """Single-aquarium auto-detect must publish UI_REDRAW_ZONES + UI_UPDATE_ZONE_LIST.
+
+        Regression: o ramo single salvava a arena (set_main_arena_polygon) mas não
+        publicava nenhum evento de redesenho, então no fluxo de vídeo único a aba de
+        Zonas ficava só com o frame e o usuário achava que "travou". O canvas precisa
+        redesenhar o polígono recém-detectado.
+        """
+        from zebtrack.ui.event_bus_v2 import UIEvents
+
+        mac = coordinator._multi_aquarium_coordinator
+        mac.weight_manager = MagicMock()
+        mac.weight_manager.get_weight_path_by_method.return_value = "fake_model.pt"
+
+        # Detector returns a valid 4-point polygon for the single aquarium.
+        mock_detector_instance = MagicMock()
+        mock_detector_instance.detect_aquariums.return_value = [
+            [[10, 10], [110, 10], [110, 110], [10, 110]]
+        ]
+        mock_aquarium_detector.return_value = mock_detector_instance
+
+        result = mac.run_aquarium_detection("/fake/video.mp4", multi_aquarium=False)
+
+        assert result is not None
+        assert "polygon" in result
+
+        published_types = [
+            call.args[0].type for call in mac.event_bus.publish.call_args_list if call.args
+        ]
+        assert UIEvents.UI_REDRAW_ZONES in published_types
+        assert UIEvents.UI_UPDATE_ZONE_LIST in published_types
+
 
 # =============================================================================
 # INTEGRATION WITH SERVICES TESTS
