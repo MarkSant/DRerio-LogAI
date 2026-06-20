@@ -74,7 +74,7 @@ def _roi_analyzer(xs: list[float], ys: list[float]) -> ROIAnalyzer:
     )
 
 
-_px = st.floats(min_value=0.0, max_value=600.0, allow_nan=False, allow_infinity=False)
+_px = st.floats(min_value=0.0, max_value=float(_FRAME), allow_nan=False, allow_infinity=False)
 
 
 @pytest.mark.property
