@@ -6,9 +6,12 @@ This mapping is what keeps each fish's trajectory attributable to the right
 aquarium in the output Parquet, so an off-by-one or a silent overflow collision
 corrupts per-subject data. The existing partitioned tests only cover the
 happy-path format; here we pin the **overflow guard** (``local > 999`` wraps via
-modulo) and the invariants a consumer relies on: recoverability
-(``global // 1000 == aquarium``, ``global % 1000 == local``), cross-aquarium
-uniqueness, ``None`` pass-through, and preservation of the bbox/conf/class fields.
+modulo) and the invariants a consumer relies on: recoverability *for in-range
+local ids* (``global // 1000 == aquarium`` and ``global % 1000 == local`` when
+``local <= 999`` -- overflow intentionally wraps so ``% 1000`` no longer returns
+the original local id), cross-aquarium uniqueness, that an overflowed id still
+stays inside its aquarium's 1000-band, ``None`` pass-through, and preservation of
+the bbox/conf/class fields.
 
 Style mirrors ``tests/test_property_zone_scaler.py`` (``.map``-based strategies,
 ``database=None``, ``@pytest.mark.property``).
