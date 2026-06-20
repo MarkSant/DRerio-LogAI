@@ -236,7 +236,7 @@ Multi-aquarium adds `aquarium_0/`, `aquarium_1/` subfolders mirroring this layou
 
 ## Testing Requirements
 
-- **Coverage gates**: 48% Linux core, 32% Linux GUI, 28% Windows core.
+- **Coverage gates**: 50% Linux core, 32% Linux GUI, 44% Windows core.
 - **Markers**: `@pytest.mark.{gui,slow,integration,unit}`.
 - **Fixtures**: `tests/conftest.py`.
 - **Source → tests lookup**: [`docs/testing/TEST_MAP.md`](docs/testing/TEST_MAP.md).

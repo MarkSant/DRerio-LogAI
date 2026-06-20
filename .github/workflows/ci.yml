@@ -286,7 +286,7 @@ jobs:
       - name: "Run tests (Linux - with xvfb)"
         if: runner.os == 'Linux'
         run: |
-          xvfb-run --auto-servernum poetry run pytest -m "not gui" --cov=zebtrack --cov-report=xml:coverage-core.xml --cov-fail-under=48 --timeout=300 --timeout-method=thread
+          xvfb-run --auto-servernum poetry run pytest -m "not gui" --cov=zebtrack --cov-report=xml:coverage-core.xml --cov-fail-under=50 --timeout=300 --timeout-method=thread
         timeout-minutes: 45
 
       - name: "Run GUI tests (Linux - with xvfb)"
@@ -299,7 +299,7 @@ jobs:
         if: runner.os == 'Windows'
         run: |
           $Env:ZEBTRACK_HEADLESS_TESTS = "1"
-          poetry run pytest -m "not gui" --ignore=tests/ui --ignore=tests/ui/test_aquarium_dialogs.py --cov=zebtrack --cov-report=xml:coverage-core.xml --cov-fail-under=28 --timeout=300 --timeout-method=thread
+          poetry run pytest -m "not gui" --ignore=tests/ui --ignore=tests/ui/test_aquarium_dialogs.py --cov=zebtrack --cov-report=xml:coverage-core.xml --cov-fail-under=44 --timeout=300 --timeout-method=thread
         timeout-minutes: 45
 
       - name: Upload Codecov core coverage (Linux)
