@@ -30,7 +30,9 @@ from hypothesis import strategies as st
 
 from zebtrack.analysis.behavior import ConcreteBehavioralAnalyzer
 
-# Large square arena (in px) so no point ever falls outside the geometry.
+# Arena polygon is required by the constructor, but the metrics under test
+# (distance, velocity, tortuosity, freezing) depend only on the trajectory
+# coordinates -- not on arena containment -- so its exact size is irrelevant here.
 _ARENA_PX = [[0, 0], [20000, 0], [20000, 20000], [0, 20000]]
 
 
@@ -137,15 +139,17 @@ class TestScaleInvarianceOfTortuosity:
         xs, ys = _path_points(flat)
         n = min(len(xs), len(ys))
         xs, ys = xs[:n], ys[:n]
-        # Keep scaled coordinates inside the arena (max coord ~18000, k<=3 -> <=54000;
-        # arena is 20000). Scale around the centroid to stay bounded.
+        # Scale about the centroid. Tortuosity does not depend on arena
+        # containment, so scaled points may fall outside the arena without
+        # affecting the ratio under test.
         cx, cy = float(np.mean(xs)), float(np.mean(ys))
         sx = [cx + (x - cx) * k for x in xs]
         sy = [cy + (y - cy) * k for y in ys]
 
         base = _make_analyzer(xs, ys).get_tortuosity()
         scaled = _make_analyzer(sx, sy).get_tortuosity()
-        # Either both NaN (degenerate straight-back path) or equal ratios.
+        # get_tortuosity returns NaN when the net displacement is 0 while the
+        # path length is > 0 (e.g. a closed loop); scaling preserves that case.
         if np.isnan(base) or np.isnan(scaled):
             assert np.isnan(base) and np.isnan(scaled)
         else:
