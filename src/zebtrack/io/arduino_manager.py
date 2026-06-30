@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import queue
 import threading
 import time
 from collections.abc import Callable
@@ -44,18 +45,38 @@ class ArduinoManager:
         self._arduino_factory = arduino_factory
         self.arduino: Arduino | None = None
         self._reader_thread: threading.Thread | None = None
+        self._writer_thread: threading.Thread | None = None
+        self._write_queue: queue.Queue[int] = queue.Queue()
         self._stop_event = threading.Event()
         self._lock = threading.RLock()
         self._port: str | None = None
         self._baud_rate: int | None = None
         self._last_command: int | None = None
+        # Outbound acknowledgement policy for ``send_command``: "ok" waits for an
+        # "OK" reply (legacy/blocking), "none" is fire-and-forget. Set per connect.
+        self._ack: str = "ok"
 
     # ---------------------------------------------------------------------
     # Public API
     # ---------------------------------------------------------------------
-    def connect(self, port: str, baud_rate: int) -> bool:
-        """Connects to Arduino and starts reader loop."""
+    def connect(
+        self, port: str, baud_rate: int, *, handshake: str = "none", ack: str = "ok"
+    ) -> bool:
+        """Connects to Arduino and starts reader/writer loops.
+
+        Args:
+            port: Serial port to open.
+            baud_rate: Serial baud rate.
+            handshake: Connection policy forwarded to the ``Arduino`` instance
+                ('none' = tolerant, 'ready_line' = strict). Defaults to 'none'.
+            ack: Outbound acknowledgement policy for ``send_command``. 'ok'
+                (default) keeps the legacy blocking path that waits for an "OK"
+                reply; 'none' makes ``send_command`` fire-and-forget (required
+                for sketches that do not reply "OK"). Defaults to 'ok' to
+                preserve callers that do not opt in.
+        """
         with self._lock:
+            self._ack = ack
             if self.is_connected() and self._port == port:
                 log.debug("arduino_manager.connect.already_connected", port=port)
                 return True
@@ -64,6 +85,9 @@ class ArduinoManager:
 
             try:
                 candidate = self._arduino_factory(port, baud_rate)
+                # Apply the handshake policy on the instance so it works whether
+                # the factory is the Arduino class or a test double.
+                candidate.handshake = handshake
             except Exception:  # pragma: no cover - constructor errors are rare
                 log.error(
                     "arduino_manager.connect.init_failed",
@@ -101,12 +125,19 @@ class ArduinoManager:
             self._port = port
             self._baud_rate = baud_rate
             self._stop_event.clear()
+            self._drain_write_queue()
             self._reader_thread = threading.Thread(
                 target=self._reader_loop,
                 name="ArduinoReader",
                 daemon=True,
             )
             self._reader_thread.start()
+            self._writer_thread = threading.Thread(
+                target=self._writer_loop,
+                name="ArduinoWriter",
+                daemon=True,
+            )
+            self._writer_thread.start()
 
         log.info("arduino_manager.connect.success", port=port, baud_rate=baud_rate)
         self._notify_status(True, port)
@@ -160,15 +191,21 @@ class ArduinoManager:
         else:
             command_value = command
 
-        if not self.is_connected():
+        with self._lock:
+            arduino = self.arduino if self.is_connected() else None
+        if arduino is None:
             self._notify_log("Não foi possível enviar comando: Arduino desconectado.")
             self._notify_command(command_value, success=False, source=source)
             return False
 
         success = False
         try:
-            assert self.arduino is not None
-            success = bool(self.arduino.send_command(command_value))
+            # Honour the ack policy: 'none' is fire-and-forget (no blocking ACK
+            # read), required for sketches that never reply "OK".
+            if self._ack == "none":
+                success = bool(arduino.send_command_async(command_value))
+            else:
+                success = bool(arduino.send_command(command_value))
         except Exception:  # except Exception justified: serial command send — hardware I/O boundary
             log.error(
                 "arduino_manager.command.error",
@@ -186,6 +223,33 @@ class ArduinoManager:
         self._notify_command(command_value, success=success, source=source)
         return success
 
+    def enqueue(self, token: int) -> bool:
+        """Queue a numeric token for fire-and-forget delivery to the Arduino.
+
+        Non-blocking: the token is handed to the writer thread, which writes it
+        without waiting for an acknowledgment. This is the path used by the
+        real-time per-zone command loop so frame processing never stalls on
+        serial I/O. Tokens queued while disconnected are dropped.
+
+        Args:
+            token: Numeric command to send (e.g. a per-zone enter/exit code).
+
+        Returns:
+            True if the token was queued, False if offline or invalid.
+        """
+        try:
+            token_value = int(token)
+        except (ValueError, TypeError):
+            log.error("arduino_manager.enqueue.invalid", token=token)
+            return False
+
+        if not self.is_connected():
+            log.debug("arduino_manager.enqueue.offline", token=token_value)
+            return False
+
+        self._write_queue.put(token_value)
+        return True
+
     def last_command(self) -> int | None:
         """Returns the last successful command sent."""
         return self._last_command
@@ -199,28 +263,62 @@ class ArduinoManager:
     # ------------------------------------------------------------------
     def _shutdown_reader_locked(self) -> None:
         self._stop_event.set()
-        thread = self._reader_thread
-        self._reader_thread = None
-        if thread and thread.is_alive() and thread is not threading.current_thread():
-            thread.join(timeout=1.0)
+        for attr in ("_reader_thread", "_writer_thread"):
+            thread = getattr(self, attr)
+            setattr(self, attr, None)
+            if thread and thread.is_alive() and thread is not threading.current_thread():
+                thread.join(timeout=1.0)
         if self.arduino:
             try:
                 self.arduino.close()
             except Exception:  # pragma: no cover - best effort close
                 log.warning("arduino_manager.disconnect.close_error", exc_info=True)
             self.arduino = None
+        self._drain_write_queue()
         self._stop_event.clear()
+
+    def _drain_write_queue(self) -> None:
+        """Discard any pending outbound tokens (e.g. after disconnect)."""
+        while True:
+            try:
+                self._write_queue.get_nowait()
+            except queue.Empty:
+                break
+
+    def _writer_loop(self) -> None:
+        """Drains the write queue and sends tokens fire-and-forget."""
+        log.debug("arduino_manager.writer.start", port=self._port)
+        while not self._stop_event.is_set():
+            try:
+                token = self._write_queue.get(timeout=0.25)
+            except queue.Empty:
+                continue
+
+            with self._lock:
+                arduino = self.arduino if self.is_connected() else None
+            if arduino is None:
+                log.debug("arduino_manager.writer.offline", token=token)
+                continue
+
+            try:
+                if arduino.send_command_async(token):
+                    self._last_command = token
+            # except Exception justified: serial write — hardware I/O boundary
+            except Exception:
+                log.error("arduino_manager.writer.send_error", token=token, exc_info=True)
+        log.debug("arduino_manager.writer.stop", port=self._port)
 
     def _reader_loop(self) -> None:
         """Continuously reads from serial port and dispatches events."""
         log.debug("arduino_manager.reader.start", port=self._port)
         while not self._stop_event.is_set():
-            if not self.is_connected():
+            with self._lock:
+                arduino = self.arduino if self.is_connected() else None
+            if arduino is None:
                 time.sleep(0.25)
                 continue
 
-            assert self.arduino is not None
-            serial_conn = getattr(self.arduino, "ser", None)
+            serial_conn = getattr(arduino, "ser", None)
             if not serial_conn:
                 time.sleep(0.5)
                 continue

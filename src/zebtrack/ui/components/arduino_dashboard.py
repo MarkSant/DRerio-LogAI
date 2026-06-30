@@ -240,7 +240,7 @@ class ArduinoDashboardWidget(BaseWidget):
                     self.append_log(
                         f"✓ Porta atualizada: {old_port or 'Nenhuma'} → {selected_device}"
                     )
-                    self.append_log("  Nova porta será usada na próxima gravação.")
+                    self.append_log("  Reconectando o Arduino na nova porta...")
 
                     log.info(
                         "arduino.port_updated",

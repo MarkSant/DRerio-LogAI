@@ -49,6 +49,10 @@ docs/
 - **[GUI Testing (Windows)](guides/developer/testing_gui_windows.md)** - Running Tkinter tests safely.
 - **[MCP Configuration](guides/developer/MCP_CONFIGURATION.md)** - Model Context Protocol setup and Docker MCP troubleshooting.
 
+### For Users
+
+- **[Per-Zone Arduino Commands](guides/user/arduino-bindings.md)** - Send signals to an Arduino on ROI enter/exit during live recordings.
+
 ## 🎓 Tutorials (Learning-Oriented)
 
 - **[First Tracking Run](tutorials/first_tracking_run.md)** - Get from video to results in 5 minutes.

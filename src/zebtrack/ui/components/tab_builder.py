@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING, Any, cast
 import structlog
 
 from zebtrack.ui import payloads
+from zebtrack.ui.components.arduino_bindings_panel import ArduinoBindingsPanel
 from zebtrack.ui.components.arduino_dashboard import ArduinoDashboardWidget
 from zebtrack.ui.components.model_diagnostics_panel import ModelDiagnosticsPanel
 from zebtrack.ui.components.project_model_configuration_panel import (
@@ -128,6 +129,18 @@ class TabBuilder:
         self.gui.viz_bottom_container = ttk.Frame(self.gui.viz_frame)
         self.gui.viz_bottom_container.pack(side="bottom", fill="x", pady=(5, 0))
 
+        # Per-zone Arduino command editor — lives at the bottom of the left
+        # panel, below the ROI controls, and self-hides unless this is a live
+        # project with Arduino enabled. Packed first (side=bottom) so it reserves
+        # its space before the scrollable zone controls expand to fill the rest.
+        try:
+            gui.arduino_bindings_panel = ArduinoBindingsPanel(left_panel_frame, self.gui.controller)
+            gui.arduino_bindings_panel.pack(side="bottom", fill="x", pady=(6, 0))
+        # except Exception justified: optional panel must never block the zone tab.
+        except Exception:
+            log.warning("tab_builder.arduino_bindings_panel.build_failed", exc_info=True)
+            gui.arduino_bindings_panel = None
+
         # Update ZoneControlsWidget to accept these containers
         self.gui.zone_controls = ZoneControlsWidget(
             left_panel_frame,
@@ -135,7 +148,7 @@ class TabBuilder:
             template_actions_parent=self.gui.viz_bottom_container,
             drawing_actions_parent=self.gui.viz_top_container,
         )
-        self.gui.zone_controls.pack(fill="both", expand=True)
+        self.gui.zone_controls.pack(side="top", fill="both", expand=True)
 
         # Keep legacy attributes in sync with the new component state
         self.gui.stabilization_frames_var = self.gui.zone_controls.stabilization_frames_var

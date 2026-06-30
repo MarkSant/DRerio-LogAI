@@ -84,6 +84,11 @@ class FrameProcessingMixin:
     _fps_adjustment_interval: int
     _multi_aq_detector: MultiAquariumDetector | None
     _experiment_id: str
+    # Per-zone Arduino command state (lazily built once per live session).
+    _arduino_zone_enabled: bool
+    _arduino_evaluator: Any
+    _arduino_mapper: Any
+    _arduino_session_end_tokens: list[int]
 
     # Properties from facade
     camera: Camera | None
@@ -344,6 +349,10 @@ class FrameProcessingMixin:
         first_frame_active = False
         frames_received = 0
         last_lag_update_time = 0.0
+
+        # Per-zone Arduino command loop — built once for this session (no-op
+        # unless the project opted into Arduino and defined bindings).
+        self._reset_arduino_zone_state()
 
         while not self.exit_event.is_set():
             try:
@@ -675,6 +684,12 @@ class FrameProcessingMixin:
                             has_recorder=self.recorder is not None,
                             recorder_start_time=self.recorder.start_time if self.recorder else None,
                         )
+
+                    # Per-zone Arduino commands: edge-triggered enter/exit tokens
+                    # while recording. Fire-and-forget (queued), so it never
+                    # stalls this loop. No-op unless Arduino + bindings are set.
+                    if self.recorder and self.recorder.start_time:
+                        self._dispatch_arduino_zone_commands(detections)
                 else:
                     detections = self.get_last_detections()
 
@@ -793,7 +808,112 @@ class FrameProcessingMixin:
                 if "frame" in locals():
                     del frame
 
+        # Session ended (timer complete or cancel) — turn everything off on the
+        # Arduino so LEDs/relays do not stay latched after recording stops.
+        self._arduino_zone_session_end_sweep()
+
         log.info("live_camera_service.processing_loop_finished", processed=processed_count)
+
+    # ------------------------------------------------------------------
+    # Per-zone Arduino command loop
+    # ------------------------------------------------------------------
+    def _arduino_manager(self) -> Any:
+        """Return the shared ArduinoManager (via controller), or None."""
+        return getattr(self.controller, "arduino_manager", None)
+
+    def _reset_arduino_zone_state(self) -> None:
+        """(Re)build the per-zone Arduino command state for a new session.
+
+        Cheap no-op unless the project enabled Arduino AND defined at least one
+        binding. The ROI evaluator is built lazily on the first analyzed frame
+        (the detector's scaled ROI polygons are only populated once it has seen
+        the actual frame dimensions).
+        """
+        self._arduino_zone_enabled = False
+        self._arduino_evaluator = None
+        self._arduino_mapper = None
+        self._arduino_session_end_tokens = []
+
+        project_data = getattr(self.project_manager, "project_data", {}) or {}
+        if not project_data.get("use_arduino"):
+            return
+
+        from zebtrack.core.services.arduino_bindings import ArduinoBindingConfig
+        from zebtrack.core.services.arduino_event_mapper import ArduinoEventMapper
+
+        cfg = ArduinoBindingConfig.from_project_data(project_data)
+        if cfg.is_empty():
+            return
+
+        self._arduino_mapper = ArduinoEventMapper(cfg.bindings)
+        self._arduino_session_end_tokens = cfg.session_end_tokens()
+        self._arduino_zone_enabled = True
+        log.info(
+            "live_camera_service.arduino_zone_commands.enabled",
+            bindings=len(cfg.bindings),
+            rois=cfg.roi_names(),
+        )
+
+    def _build_arduino_evaluator(self) -> Any:
+        """Lazily build the ROI evaluator from the detector's scaled polygons.
+
+        Returns the evaluator, or None if the detector has no usable ROI
+        polygons yet (in which case we retry on the next frame).
+        """
+        from zebtrack.core.services.arduino_roi_evaluator import ArduinoRoiEvaluator
+
+        detector = self.detector_service.detector
+        if detector is None:
+            return None
+        roi_names = list(getattr(detector, "roi_names", []) or [])
+        roi_polygons = list(getattr(detector, "scaled_roi_polygons", []) or [])
+        if not roi_names or not roi_polygons:
+            return None
+        evaluator = ArduinoRoiEvaluator(roi_names, roi_polygons)
+        return evaluator if evaluator.has_rois() else None
+
+    def _dispatch_arduino_zone_commands(self, detections: list) -> None:
+        """Emit edge-triggered enter/exit tokens for the current frame.
+
+        Computes which ROIs are occupied (any-track), diffs against the previous
+        frame via the mapper, and queues the resulting tokens fire-and-forget.
+        """
+        if not self._arduino_zone_enabled:
+            return
+        manager = self._arduino_manager()
+        if manager is None or not manager.is_connected():
+            return
+
+        if self._arduino_evaluator is None:
+            self._arduino_evaluator = self._build_arduino_evaluator()
+            if self._arduino_evaluator is None:
+                return  # detector ROIs not ready yet — try again next frame
+
+        centroids: list[tuple[float, float]] = []
+        for det in detections:
+            try:
+                x1, y1, x2, y2 = det[0], det[1], det[2], det[3]
+            except (IndexError, TypeError, ValueError):
+                continue
+            centroids.append(((x1 + x2) / 2.0, (y1 + y2) / 2.0))
+
+        occupied = self._arduino_evaluator.occupied_rois(centroids)
+        for token in self._arduino_mapper.update(occupied):
+            manager.enqueue(token)
+
+    def _arduino_zone_session_end_sweep(self) -> None:
+        """Queue the 'turn everything off' tokens at session end."""
+        if not self._arduino_zone_enabled or not self._arduino_session_end_tokens:
+            return
+        manager = self._arduino_manager()
+        if manager is None or not manager.is_connected():
+            return
+        for token in self._arduino_session_end_tokens:
+            manager.enqueue(token)
+        log.info(
+            "live_camera_service.arduino_zone_commands.session_end_sweep",
+            tokens=self._arduino_session_end_tokens,
+        )
 
     def _clear_queues(self) -> None:
         """Clear all queues."""

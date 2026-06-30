@@ -298,25 +298,32 @@ class ProjectInitializer:
         gui.root.after(100, gui.widget_factory.render_progress_grid)
 
         # Only attempt to connect if the user opted-in to Arduino in the wizard
-        # AND the hardware ViewModel actually has an ArduinoManager attached.
-        # ``settings.arduino.port`` comes from config.yaml defaults and is
-        # truthy even when the user disabled Arduino at project creation time,
-        # which previously caused ``hardware_vm.arduino`` to be None here and
-        # the ``.connect()`` call to crash.
+        # AND an ArduinoManager is wired (the bootstrapper creates it eagerly,
+        # so it is normally present). The manager lives on
+        # ``hardware_vm.arduino_manager`` — the legacy ``hardware_vm.arduino``
+        # attribute is deprecated and stays None, which previously made this
+        # branch never fire. ``ArduinoManager.connect`` requires (port, baud_rate);
+        # we resolve the port from the project (saved by the wizard) and fall
+        # back to ``settings.arduino.port``.
         use_arduino = bool(pm.project_data.get("use_arduino", False))
-        arduino_manager = getattr(gui.controller.hardware_vm, "arduino", None)
-        port_configured = bool(gui.controller.settings and gui.controller.settings.arduino.port)
-        if use_arduino and arduino_manager is not None and port_configured:
-            if not arduino_manager.connect():
+        arduino_manager = getattr(gui.controller.hardware_vm, "arduino_manager", None)
+        settings = gui.controller.settings
+        project_port = (pm.project_data.get("arduino_port") or "").strip()
+        port = project_port or (settings.arduino.port if settings else "")
+        baud_rate = settings.arduino.baud_rate if settings else 9600
+        handshake = settings.arduino.handshake if settings else "none"
+        ack = settings.arduino.ack if settings else "none"
+        if use_arduino and arduino_manager is not None and port:
+            if not arduino_manager.connect(port, baud_rate, handshake=handshake, ack=ack):
                 gui.dialog_manager.show_warning(
                     "Aviso do Arduino",
                     f"Não foi possível conectar ao Arduino na porta "
-                    f"{gui.controller.settings.arduino.port}. Executando em modo offline.",
+                    f"{port}. Executando em modo offline.",
                 )
         elif use_arduino and arduino_manager is None:
             log.warning(
                 "project_initializer.arduino_enabled_but_no_manager",
-                port=gui.controller.settings.arduino.port if gui.controller.settings else None,
+                port=port or None,
             )
         try:
             from zebtrack.core.services.wizard_service import WizardService

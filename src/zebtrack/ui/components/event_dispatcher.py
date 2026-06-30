@@ -649,6 +649,10 @@ class EventDispatcher:
             if gui.arduino_dashboard_widget
             else None,
         )
+        event_bus.subscribe(
+            UIEvents.ARDUINO_PORT_UPDATE_REQUESTED,
+            self._handle_arduino_port_update,
+        )
 
         # View Navigation & Modes
         def _handle_navigate_to_analysis(d):
@@ -715,6 +719,50 @@ class EventDispatcher:
                 str(_payload_get(d, "weight_type")) if _payload_get(d, "weight_type") else "",
             ),
         )
+
+    def _handle_arduino_port_update(self, data: payloads.EventPayload) -> None:
+        """Reconnect the Arduino immediately when the user picks a new port.
+
+        The dashboard's "Reverificar Portas" stores the chosen port in
+        ``project_data["arduino_port"]`` and emits this event. Now that the
+        ``ArduinoManager`` is a live singleton (``controller.arduino_manager``),
+        reconnect on the new port right away and reflect the result in the
+        dashboard, instead of deferring to the next recording.
+        """
+        if not self.gui:
+            return
+        gui = self._require_gui()
+
+        port = str(_payload_get(data, "port") or "").strip()
+        if not port:
+            return
+
+        controller = getattr(gui, "controller", None)
+        manager = getattr(controller, "arduino_manager", None)
+        settings = getattr(controller, "settings", None)
+        dashboard = getattr(gui, "arduino_dashboard_widget", None)
+        if manager is None or settings is None:
+            log.warning("event_dispatcher.arduino_port_update.no_manager", port=port)
+            return
+
+        baud_rate = settings.arduino.baud_rate
+        handshake = settings.arduino.handshake
+        ack = settings.arduino.ack
+        try:
+            connected = bool(manager.connect(port, baud_rate, handshake=handshake, ack=ack))
+        # except Exception justified: serial reconnection — hardware I/O boundary.
+        except Exception as exc:
+            connected = False
+            log.error("event_dispatcher.arduino_port_update.failed", port=port, error=str(exc))
+
+        log.info("event_dispatcher.arduino_port_update", port=port, connected=connected)
+        if dashboard is not None:
+            dashboard.update_status(connected=connected, port=port if connected else None)
+            dashboard.append_log(
+                f"✓ Reconectado na porta {port}."
+                if connected
+                else f"✗ Não foi possível conectar na porta {port}."
+            )
 
     def _handle_update_processing_mode(self, data: payloads.EventPayload) -> None:
         """Handle UI_UPDATE_PROCESSING_MODE event.

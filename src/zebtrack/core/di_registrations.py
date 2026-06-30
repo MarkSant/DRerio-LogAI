@@ -357,6 +357,15 @@ def resolve_main_view_model(container: punq.Container) -> MainViewModel:
     bootstrapper = _resolve(container, ApplicationBootstrapper)
     bootstrap_result = bootstrapper.initialize(controller_ref)
 
+    # The ArduinoManager is created by the bootstrapper (single source of truth).
+    # The RecordingSessionCoordinator was built earlier during build_container,
+    # before the bootstrap ran, so it received ``arduino_manager=None``. Inject
+    # the bootstrapped manager now so the external-trigger (inbound) path works.
+    arduino_manager = bootstrap_result.hardware.arduino_manager
+    if arduino_manager is not None:
+        recording_session_coordinator = _resolve(container, RecordingSessionCoordinator)
+        recording_session_coordinator.arduino_manager = arduino_manager
+
     controller = MainViewModel(dependencies, bootstrap_result)
     controller_ref.set(controller)
     return controller
