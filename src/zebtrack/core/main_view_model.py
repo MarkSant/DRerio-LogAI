@@ -397,9 +397,18 @@ class MainViewModel:
         """Route an inbound Arduino serial event to the recording coordinator.
 
         The ``ArduinoManager`` reader thread calls this on the controller when a
-        numeric line arrives from the device (external-trigger flow). Delegates
-        to ``RecordingSessionCoordinator.on_arduino_event`` when wired.
+        numeric line arrives from the device (external-trigger flow) — this
+        runs on the background ``ArduinoReader`` thread, not the main thread.
+        ``RecordingSessionCoordinator.on_arduino_event`` can start a recording
+        (countdown ``Toplevel``, button/status updates), so dispatch is marshaled
+        onto the Tk main loop via ``root.after(0, ...)`` per CLAUDE.md's
+        "UI updates from worker threads" rule. Falls back to a direct call when
+        there is no ``root`` (headless/tests).
         """
         coordinator = getattr(self.hardware_vm, "recording_session_coordinator", None)
-        if coordinator is not None and hasattr(coordinator, "on_arduino_event"):
+        if coordinator is None or not hasattr(coordinator, "on_arduino_event"):
+            return
+        if self.root is not None:
+            self.root.after(0, coordinator.on_arduino_event, event_code)
+        else:
             coordinator.on_arduino_event(event_code)
