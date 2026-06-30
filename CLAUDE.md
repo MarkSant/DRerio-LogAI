@@ -253,7 +253,7 @@ Multi-aquarium adds `aquarium_0/`, `aquarium_1/` subfolders mirroring this layou
 
 ## Hardware & Performance
 
-- **Arduino**: optional, via `arduino.port` setting. Zone-based commands (`enter_commands`, `exit_commands`). Graceful degradation without hardware.
+- **Arduino**: optional, via `arduino.port`/`arduino.baud_rate`/`arduino.handshake`/`arduino.ack` settings. Per-zone live commands are configured as **bindings** in `project_data["arduino_bindings"]` (`ArduinoBinding{roi, on_enter, on_exit}`, see `core/services/arduino_bindings.py`): the live pipeline sends the integer token on ROI enter/exit (edge-triggered, fire-and-forget via `ArduinoManager.enqueue`); the firmware decides what each token does. Graceful degradation without hardware.
 - **Camera**: `camera.index` in `config.local.yaml` (machine-specific).
 - **OpenVINO**: model cache in `openvino_model_cache/`.
 - **Parallelism**: `performance.max_parallel_videos` (2), `performance.max_parallel_plots` (3), `performance.parquet_compression` ("snappy"), `performance.enable_parallel_analysis` (true).

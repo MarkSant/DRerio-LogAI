@@ -32,24 +32,40 @@ class Arduino:
     READY_SIGNAL = "Arduino is ready."
     _PROBE_WARMUP_SECONDS = 0.1
 
-    def __init__(self, port: str, baud_rate: int):
+    def __init__(self, port: str, baud_rate: int, *, handshake: str = "ready_line"):
         """
         Initializes the Arduino controller.
+
+        Args:
+            port: Serial port (e.g. 'COM3' or '/dev/ttyACM0').
+            baud_rate: Serial baud rate.
+            handshake: Connection policy. 'ready_line' (default) requires the
+                device to print ``READY_SIGNAL`` on boot before connecting.
+                'none' connects as soon as the port opens — tolerant of sketches
+                that do not announce themselves.
         """
         self.port = port
         self.baud_rate = baud_rate
+        self.handshake = handshake
         self.ser: serial.Serial | None = None
-        log.info("arduino.init", port=self.port, baud_rate=self.baud_rate)
+        log.info("arduino.init", port=self.port, baud_rate=self.baud_rate, handshake=handshake)
 
     def connect(self) -> bool:
         """
         Attempts to establish a serial connection with the Arduino.
+
+        When ``handshake == "none"`` the connection succeeds as soon as the
+        serial port opens (no ready-signal required). Otherwise the device must
+        print ``READY_SIGNAL`` before the connection is accepted.
         """
         if self.ser and self.ser.is_open:
             log.info("arduino.connect.already_connected")
             return True
         try:
             self.ser = serial.Serial(self.port, self.baud_rate, timeout=2)
+            if self.handshake == "none":
+                log.info("arduino.connect.success", port=self.port, handshake="none")
+                return True
             ready_signal = self.ser.readline().decode("utf-8").strip()
             if ready_signal == self.READY_SIGNAL:
                 log.info("arduino.connect.success", port=self.port)
@@ -118,6 +134,39 @@ class Arduino:
                 return False
         else:
             log.debug("arduino.command.offline", command=command_num)
+            return False
+
+    def send_command_async(self, box_number: int) -> bool:
+        """
+        Sends a numeric command WITHOUT waiting for an acknowledgment.
+
+        Fire-and-forget variant of ``send_command``: writes ``"{n}\\n"`` and
+        flushes, but never blocks on ``readline``. This is the path used by the
+        real-time per-zone command loop, where a blocking ACK read would stall
+        frame processing. Any reply the device sends is consumed asynchronously
+        by the ``ArduinoManager`` reader thread.
+
+        Returns:
+            True if the bytes were written, False if offline or on write error.
+        """
+        try:
+            command_num = int(box_number)
+        except (ValueError, TypeError):
+            log.error("arduino.command.invalid", command=box_number)
+            return False
+
+        if not self.ser or not self.ser.is_open:
+            log.debug("arduino.command.offline", command=command_num)
+            return False
+
+        try:
+            self.ser.write(f"{command_num}\n".encode())
+            self.ser.flush()
+            log.info("arduino.command.sent_async", command=command_num)
+            return True
+        # except Exception justified: serial write/flush — hardware I/O with diverse driver errors
+        except Exception as e:
+            log.error("arduino.command.send_error", exc_info=e)
             return False
 
     def send_string_command(self, command: str) -> bool:

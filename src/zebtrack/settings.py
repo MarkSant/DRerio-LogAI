@@ -155,6 +155,24 @@ class ArduinoSettings(BaseModel):
         le=2000000,
         description="The baud rate for serial communication. Valid range: 300-2000000.",
     )
+    handshake: Literal["none", "ready_line"] = Field(
+        default="none",
+        description=(
+            "Connection handshake policy. 'none' (default): consider the device "
+            "connected as soon as the serial port opens — tolerant of sketches "
+            "that do not announce themselves. 'ready_line': require the device to "
+            "print 'Arduino is ready.' on boot before connecting (strict)."
+        ),
+    )
+    ack: Literal["none", "ok"] = Field(
+        default="none",
+        description=(
+            "Outbound command acknowledgement policy. 'none' (default): "
+            "fire-and-forget — write the token and do not block waiting for a "
+            "reply (required for the real-time per-zone command path). 'ok': "
+            "legacy mode where a numeric command waits for an 'OK' reply."
+        ),
+    )
 
 
 class RecorderSettings(BaseModel):

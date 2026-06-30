@@ -392,3 +392,14 @@ class MainViewModel:
 
     def on_arduino_command_sent(self, command: int, success: bool, source: str) -> None:
         self.hardware_vm.on_arduino_command_sent(command, success, source)
+
+    def on_arduino_event(self, event_code: int) -> None:
+        """Route an inbound Arduino serial event to the recording coordinator.
+
+        The ``ArduinoManager`` reader thread calls this on the controller when a
+        numeric line arrives from the device (external-trigger flow). Delegates
+        to ``RecordingSessionCoordinator.on_arduino_event`` when wired.
+        """
+        coordinator = getattr(self.hardware_vm, "recording_session_coordinator", None)
+        if coordinator is not None and hasattr(coordinator, "on_arduino_event"):
+            coordinator.on_arduino_event(event_code)

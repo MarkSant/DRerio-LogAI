@@ -152,7 +152,7 @@ class ApplicationBootstrapper:
         self._init_hardware_and_models()
 
         # 3. Initialize runtime state
-        self._init_runtime_state()
+        self._init_runtime_state(controller_ref)
 
         # Phase 6: The ~30-line attribute patching block that populated a bare
         # controller_proxy (created via __new__) has been REMOVED.
@@ -317,8 +317,14 @@ class ApplicationBootstrapper:
             "recommended_backend": recommended_backend,
         }
 
-    def _init_runtime_state(self):
-        """Initialize runtime attributes and threading primitives."""
+    def _init_runtime_state(self, controller_ref: Any) -> None:
+        """Initialize runtime attributes and threading primitives.
+
+        Args:
+            controller_ref: ``LazyRef[MainViewModel]`` proxy used as the callback
+                target of the ``ArduinoManager`` (inbound serial events and
+                status notifications are routed to the controller).
+        """
         # Core runtime attributes
         recorder = Recorder(settings_obj=self.settings)
 
@@ -350,9 +356,18 @@ class ApplicationBootstrapper:
                 cancel_event_id=id(cancel_event),
             )
 
+        # The ArduinoManager is created eagerly but opens NO serial port here —
+        # its constructor only stores references. The serial connection is
+        # established later, on project load, via project_initializer when the
+        # project opted into Arduino (``project_data["use_arduino"]``). Keeping a
+        # single instance as the source of truth means ``MainViewModel``,
+        # ``RecordingService`` and the live-pipeline hook all share it through
+        # ``controller.arduino_manager``.
+        arduino_manager = ArduinoManager(controller=controller_ref)
+
         self._runtime_state = {
             "recorder": recorder,
-            "arduino_manager": None,  # Will be initialized on demand
+            "arduino_manager": arduino_manager,
             "frame_queue": frame_queue,
             "video_queue": video_queue,
             "program_exit_event": program_exit_event,
