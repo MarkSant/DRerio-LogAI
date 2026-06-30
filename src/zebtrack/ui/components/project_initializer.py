@@ -312,8 +312,9 @@ class ProjectInitializer:
         port = project_port or (settings.arduino.port if settings else "")
         baud_rate = settings.arduino.baud_rate if settings else 9600
         handshake = settings.arduino.handshake if settings else "none"
+        ack = settings.arduino.ack if settings else "none"
         if use_arduino and arduino_manager is not None and port:
-            if not arduino_manager.connect(port, baud_rate, handshake=handshake):
+            if not arduino_manager.connect(port, baud_rate, handshake=handshake, ack=ack):
                 gui.dialog_manager.show_warning(
                     "Aviso do Arduino",
                     f"Não foi possível conectar ao Arduino na porta "

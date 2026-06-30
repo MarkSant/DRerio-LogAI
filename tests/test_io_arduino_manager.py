@@ -264,6 +264,38 @@ def test_arduino_manager_send_command_exception(mock_controller, arduino_factory
     manager.disconnect()
 
 
+def test_send_command_ack_none_uses_async(mock_controller, arduino_factory, mock_arduino):
+    """With ack='none', send_command is fire-and-forget (no blocking ACK read)."""
+    mock_arduino.send_command_async = MagicMock(return_value=True)
+
+    manager = ArduinoManager(mock_controller, arduino_factory=arduino_factory)
+    manager.connect("COM3", 9600, ack="none")
+
+    result = manager.send_command(42)
+
+    assert result is True
+    assert manager.last_command() == 42
+    mock_arduino.send_command_async.assert_called_once_with(42)
+    mock_arduino.send_command.assert_not_called()
+
+    manager.disconnect()
+
+
+def test_send_command_ack_ok_uses_blocking(mock_controller, arduino_factory, mock_arduino):
+    """The default ack policy keeps the legacy blocking send_command path."""
+    mock_arduino.send_command_async = MagicMock(return_value=True)
+
+    manager = ArduinoManager(mock_controller, arduino_factory=arduino_factory)
+    manager.connect("COM3", 9600)  # default ack='ok'
+
+    manager.send_command(7)
+
+    mock_arduino.send_command.assert_called_once_with(7)
+    mock_arduino.send_command_async.assert_not_called()
+
+    manager.disconnect()
+
+
 def test_arduino_manager_last_command(mock_controller, arduino_factory, mock_arduino):
     """Test last_command tracking."""
     manager = ArduinoManager(mock_controller, arduino_factory=arduino_factory)

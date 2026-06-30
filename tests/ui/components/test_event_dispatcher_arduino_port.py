@@ -12,7 +12,9 @@ from zebtrack.ui.components.event_dispatcher import EventDispatcher
 def _make_dispatcher(*, connect_result=True):
     manager = MagicMock()
     manager.connect.return_value = connect_result
-    settings = SimpleNamespace(arduino=SimpleNamespace(baud_rate=9600, handshake="none"))
+    settings = SimpleNamespace(
+        arduino=SimpleNamespace(baud_rate=9600, handshake="none", ack="none")
+    )
     dashboard = MagicMock()
     controller = SimpleNamespace(arduino_manager=manager, settings=settings)
     # A non-EventBus context (has ``event_bus`` attr) is treated as the GUI.
@@ -25,7 +27,7 @@ def test_port_update_reconnects_with_settings():
     dispatcher, manager, dashboard = _make_dispatcher(connect_result=True)
     dispatcher._handle_arduino_port_update({"port": "COM4", "old_port": "COM3"})
 
-    manager.connect.assert_called_once_with("COM4", 9600, handshake="none")
+    manager.connect.assert_called_once_with("COM4", 9600, handshake="none", ack="none")
     dashboard.update_status.assert_called_once_with(connected=True, port="COM4")
 
 

@@ -15,6 +15,7 @@ from tkinter import StringVar, ttk
 from typing import Any, cast
 
 import structlog
+from pydantic import ValidationError
 
 from zebtrack.core.services.arduino_bindings import (
     ArduinoBinding,
@@ -208,7 +209,9 @@ class ArduinoBindingsPanel(ttk.Frame):
                 on_enter=self._parse_token(self.enter_token.get()),
                 on_exit=self._parse_token(self.exit_token.get()),
             )
-        except ValueError as exc:
+        # ValidationError (Pydantic) subclasses ValueError, but catch it
+        # explicitly so a model-level constraint never escapes to crash the UI.
+        except (ValidationError, ValueError) as exc:
             self._set_status(str(exc), error=True)
             return
         if binding.on_enter is None and binding.on_exit is None:
@@ -299,10 +302,23 @@ class ArduinoBindingsPanel(ttk.Frame):
 
     @staticmethod
     def _parse_token(value: Any) -> int | None:
+        """Parse a token string into an int in ``[TOKEN_MIN, TOKEN_MAX]``.
+
+        Returns None for empty input. Raises ``ValueError`` (surfaced by the
+        caller as a friendly status message) for non-numeric or out-of-range
+        values — a Spinbox accepts free text, so the bound is enforced here
+        rather than relying on the widget or a later Pydantic error.
+        """
         text = str(value).strip()
         if not text:
             return None
-        return int(text)  # may raise ValueError -> surfaced by caller
+        try:
+            token = int(text)
+        except ValueError:
+            raise ValueError(f"Token inválido: '{text}'. Use um número inteiro.") from None
+        if not (TOKEN_MIN <= token <= TOKEN_MAX):
+            raise ValueError(f"Token fora do intervalo [{TOKEN_MIN}, {TOKEN_MAX}]: {token}.")
+        return token
 
     def _set_status(self, message: str, *, error: bool = False) -> None:
         if self._status is not None:

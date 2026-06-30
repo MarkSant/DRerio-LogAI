@@ -747,8 +747,9 @@ class EventDispatcher:
 
         baud_rate = settings.arduino.baud_rate
         handshake = settings.arduino.handshake
+        ack = settings.arduino.ack
         try:
-            connected = bool(manager.connect(port, baud_rate, handshake=handshake))
+            connected = bool(manager.connect(port, baud_rate, handshake=handshake, ack=ack))
         # except Exception justified: serial reconnection — hardware I/O boundary.
         except Exception as exc:
             connected = False

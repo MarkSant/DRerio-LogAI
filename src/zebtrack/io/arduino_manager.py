@@ -52,11 +52,16 @@ class ArduinoManager:
         self._port: str | None = None
         self._baud_rate: int | None = None
         self._last_command: int | None = None
+        # Outbound acknowledgement policy for ``send_command``: "ok" waits for an
+        # "OK" reply (legacy/blocking), "none" is fire-and-forget. Set per connect.
+        self._ack: str = "ok"
 
     # ---------------------------------------------------------------------
     # Public API
     # ---------------------------------------------------------------------
-    def connect(self, port: str, baud_rate: int, *, handshake: str = "none") -> bool:
+    def connect(
+        self, port: str, baud_rate: int, *, handshake: str = "none", ack: str = "ok"
+    ) -> bool:
         """Connects to Arduino and starts reader/writer loops.
 
         Args:
@@ -64,8 +69,14 @@ class ArduinoManager:
             baud_rate: Serial baud rate.
             handshake: Connection policy forwarded to the ``Arduino`` instance
                 ('none' = tolerant, 'ready_line' = strict). Defaults to 'none'.
+            ack: Outbound acknowledgement policy for ``send_command``. 'ok'
+                (default) keeps the legacy blocking path that waits for an "OK"
+                reply; 'none' makes ``send_command`` fire-and-forget (required
+                for sketches that do not reply "OK"). Defaults to 'ok' to
+                preserve callers that do not opt in.
         """
         with self._lock:
+            self._ack = ack
             if self.is_connected() and self._port == port:
                 log.debug("arduino_manager.connect.already_connected", port=port)
                 return True
@@ -180,15 +191,21 @@ class ArduinoManager:
         else:
             command_value = command
 
-        if not self.is_connected():
+        with self._lock:
+            arduino = self.arduino if self.is_connected() else None
+        if arduino is None:
             self._notify_log("Não foi possível enviar comando: Arduino desconectado.")
             self._notify_command(command_value, success=False, source=source)
             return False
 
         success = False
         try:
-            assert self.arduino is not None
-            success = bool(self.arduino.send_command(command_value))
+            # Honour the ack policy: 'none' is fire-and-forget (no blocking ACK
+            # read), required for sketches that never reply "OK".
+            if self._ack == "none":
+                success = bool(arduino.send_command_async(command_value))
+            else:
+                success = bool(arduino.send_command(command_value))
         except Exception:  # except Exception justified: serial command send — hardware I/O boundary
             log.error(
                 "arduino_manager.command.error",
@@ -277,13 +294,14 @@ class ArduinoManager:
             except queue.Empty:
                 continue
 
-            if not self.is_connected():
+            with self._lock:
+                arduino = self.arduino if self.is_connected() else None
+            if arduino is None:
                 log.debug("arduino_manager.writer.offline", token=token)
                 continue
 
-            assert self.arduino is not None
             try:
-                if self.arduino.send_command_async(token):
+                if arduino.send_command_async(token):
                     self._last_command = token
             # except Exception justified: serial write — hardware I/O boundary
             except Exception:
@@ -294,12 +312,13 @@ class ArduinoManager:
         """Continuously reads from serial port and dispatches events."""
         log.debug("arduino_manager.reader.start", port=self._port)
         while not self._stop_event.is_set():
-            if not self.is_connected():
+            with self._lock:
+                arduino = self.arduino if self.is_connected() else None
+            if arduino is None:
                 time.sleep(0.25)
                 continue
 
-            assert self.arduino is not None
-            serial_conn = getattr(self.arduino, "ser", None)
+            serial_conn = getattr(arduino, "ser", None)
             if not serial_conn:
                 time.sleep(0.5)
                 continue

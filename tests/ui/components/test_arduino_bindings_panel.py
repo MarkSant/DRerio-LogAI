@@ -73,6 +73,32 @@ class TestArduinoBindingsPanel:
         assert "arduino_bindings" not in pd
         pm.save_project.assert_not_called()
 
+    def test_out_of_range_token_rejected(self, tkinter_root):
+        pd = {"use_arduino": True}
+        controller, pm = _make_controller(pd, ["A"])
+        panel = ArduinoBindingsPanel(tkinter_root, controller)
+        tkinter_root.update_idletasks()
+
+        panel.roi_choice.set("A")
+        panel.enter_token.set("999")  # > TOKEN_MAX (255) -> rejected, no save
+        panel._add_or_update()
+
+        assert "arduino_bindings" not in pd
+        pm.save_project.assert_not_called()
+
+    def test_non_numeric_token_rejected(self, tkinter_root):
+        pd = {"use_arduino": True}
+        controller, pm = _make_controller(pd, ["A"])
+        panel = ArduinoBindingsPanel(tkinter_root, controller)
+        tkinter_root.update_idletasks()
+
+        panel.roi_choice.set("A")
+        panel.enter_token.set("abc")
+        panel._add_or_update()
+
+        assert "arduino_bindings" not in pd
+        pm.save_project.assert_not_called()
+
     def test_update_existing_roi_in_place(self, tkinter_root):
         pd = {"use_arduino": True}
         controller, _pm = _make_controller(pd, ["A"])
