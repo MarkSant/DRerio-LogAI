@@ -825,7 +825,7 @@ levantamento completo de licenças de dependências de terceiros.
 ### Instituições
 
 - **UNESP** - Universidade Estadual Paulista
-- **Laboratório de Pesquisa de Canabidiol**
+- **Laboratório de Fisiologia e Comportamento de Peixes** (Depto. de Fisiologia - IBB/UNESP)
 
 ### Tecnologias Open Source
 
@@ -847,7 +847,7 @@ Agradecimentos especiais a todos os contribuidores e à comunidade open source q
 
 <h4>Desenvolvido com ❤️ para pesquisa científica</h4>
 
-<h4>UNESP - Laboratório de Pesquisa de Canabidiol</h4>
+<h4>UNESP - Laboratório de Fisiologia e Comportamento de Peixes (Depto. de Fisiologia - IBB/UNESP)</h4>
 
 [⬆ Voltar ao topo](#drerio-logai)
 
