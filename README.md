@@ -202,7 +202,7 @@ O README destaca o estado atual (v4.0). Para detalhes completos por release, con
 
    ```bash
    git clone https://github.com/MarkSant/DRerio-LogAI.git
-   cd DRerio LogAI
+   cd DRerio-LogAI
    ```
 
 3. **Instale as dependências**:
@@ -228,7 +228,7 @@ Se você pretende contribuir ou modificar o código:
 ```bash
 # Clone e instale com dependências de desenvolvimento
 git clone https://github.com/MarkSant/DRerio-LogAI.git
-cd DRerio LogAI
+cd DRerio-LogAI
 poetry install --with dev
 
 # Instale os hooks de pré-commit
@@ -553,7 +553,7 @@ A documentação técnica está disponível na pasta `docs/`:
 ### Organização de Diretórios
 
 ```text
-DRerio LogAI/
+DRerio-LogAI/
 ├── src/zebtrack/               # Código-fonte principal
 │   ├── __main__.py            # Entry point (DI delegada a ApplicationBootstrapper)
 │   ├── core/                   # Camada de negócios (6 sub-packages)

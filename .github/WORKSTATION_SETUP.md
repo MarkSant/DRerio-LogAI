@@ -9,7 +9,7 @@ Este guia explica como configurar rapidamente um novo workstation com todas as o
 ```powershell
 # Clone o repositório
 git clone https://github.com/MarkSant/DRerio-LogAI.git
-cd DRerio LogAI
+cd DRerio-LogAI
 
 # Instale Poetry (se necessário)
 (Invoke-WebRequest -Uri https://install.python-poetry.org -UseBasicParsing).Content | python -

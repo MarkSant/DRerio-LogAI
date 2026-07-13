@@ -877,7 +877,7 @@ poetry run zebtrack
 1. **Ensure in correct directory**:
 
    ```bash
-   pwd  # Should be DRerio LogAI root directory
+   pwd  # Should be DRerio-LogAI root directory
    ls config.yaml  # Should exist
    ```
 

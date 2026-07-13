@@ -21,7 +21,7 @@ git --version
 
 ```powershell
 git clone https://github.com/MarkSant/DRerio-LogAI.git
-cd DRerio LogAI
+cd DRerio-LogAI
 ```
 
 > 💡 On Windows, use **PowerShell** (the default shell in the project). On Linux/macOS, any POSIX-compatible shell works.

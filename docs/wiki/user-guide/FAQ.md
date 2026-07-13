@@ -107,7 +107,7 @@ However, Poetry ensures consistent dependency versions and is strongly recommend
 ### How do I update to the latest version?
 
 ```bash
-cd DRerio LogAI
+cd DRerio-LogAI
 git pull origin main
 poetry install  # Update dependencies
 ```
@@ -701,7 +701,7 @@ GitHub repository: <https://github.com/MarkSant/DRerio-LogAI>
 **Structure**:
 
 ```text
-DRerio LogAI/
+DRerio-LogAI/
 ├── src/zebtrack/        # Application code
 ├── tests/               # Test suite
 ├── docs/                # Documentation

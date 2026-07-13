@@ -43,7 +43,7 @@ Poetry is the recommended installation method for both users and developers.
 ```bash
 # 1. Clone the repository
 git clone https://github.com/MarkSant/DRerio-LogAI.git
-cd DRerio LogAI
+cd DRerio-LogAI
 
 # 2. Install dependencies
 poetry install

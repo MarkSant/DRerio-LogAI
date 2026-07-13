@@ -8,7 +8,7 @@ Obrigado por querer contribuir com o DRerio LogAI! Este guia descreve o fluxo de
 
    ```powershell
    git clone https://github.com/MarkSant/DRerio-LogAI.git
-   cd DRerio LogAI
+   cd DRerio-LogAI
    ```
 
 1. Instale as dependências com Poetry:

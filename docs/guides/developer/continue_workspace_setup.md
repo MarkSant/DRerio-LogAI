@@ -68,7 +68,7 @@ Hardcoded API keys **removed** from global config. Now uses environment variable
 ```powershell
 $env:ANTHROPIC_API_KEY = "<your-key>"
 $env:GITHUB_PERSONAL_ACCESS_TOKEN = "<your-token>"
-code "c:\Users\santa\OneDrive\UNESP\Pesquisa Canabidiol\Codigos_Programas\DRerio LogAI"
+code "c:\Users\santa\OneDrive\UNESP\Pesquisa Canabidiol\Codigos_Programas\DRerio-LogAI"
 ```
 
 **Alternative (Continue-local secrets)**:

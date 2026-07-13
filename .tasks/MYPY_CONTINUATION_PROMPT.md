@@ -232,7 +232,7 @@ Success: no issues found in X source files
 Begin immediately with:
 
 ```powershell
-cd "C:\Users\santa\OneDrive\UNESP\Pesquisa Canabidiol\Codigos_Programas\DRerio LogAI"
+cd "C:\Users\santa\OneDrive\UNESP\Pesquisa Canabidiol\Codigos_Programas\DRerio-LogAI"
 poetry run mypy src/zebtrack/coordinators/processing_coordinator.py --no-error-summary
 ```
 
