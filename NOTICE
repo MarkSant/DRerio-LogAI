@@ -1,0 +1,126 @@
+DRerio LogAI
+NOTICE file
+===========
+
+Copyright
+---------
+
+Copyright (c) 2025 Universidade Estadual Paulista "Júlio de Mesquita Filho"
+(UNESP), CNPJ 48.031.918/0001-24. All patrimonial (economic) rights in this
+software belong to UNESP as the formal titleholder.
+
+Authors / Inventors (moral rights)
+-----------------------------------
+
+- Marco Antônio Sant'Ana Camargos — UNESP
+- Percília Cardoso Giaquinto — UNESP
+
+Official registration
+----------------------
+
+This software has been registered with the Brazilian National Institute of
+Industrial Property (INPI — Instituto Nacional da Propriedade Industrial)
+as a computer program, under Brazilian copyright law (Lei 9.609/98):
+
+- Process / Processo: BR 51 2026 005215-7
+- Petition / Petição: 870260066857
+- Filing date / Data de depósito: 07/07/2026
+- Declared creation date / Data de criação declarada: 22/10/2025
+
+The registration has been GRANTED/CONCLUDED by INPI (not pending review).
+This is a computer-program copyright registration, not a patent.
+
+Authorization for open-source distribution
+-------------------------------------------
+
+Distribution of this repository under an open-source license has been
+authorized by the titleholder, UNESP, via the Agência UNESP de Inovação
+(AUIN — UNESP's Innovation Agency). No separate authorization document
+number is required for this distribution.
+
+Relationship to PyZebArdYolo
+------------------------------
+
+This software (DRerio LogAI / ZebTrack-AI) is a separate project from the
+sibling repository "PyZebArdYolo" (a simpler real-time acquisition unit —
+webcam + YOLO11 + Arduino closed-loop — used in a separate hardware paper).
+PyZebArdYolo is NOT covered by the INPI registration above and does not
+carry the UNESP-titleholder requirement described in this NOTICE; in that
+repository the individual authors are the titleholders. Do not conflate the
+licensing/ownership terms of the two projects.
+
+Third-party dependency licenses
+---------------------------------
+
+This software is distributed together with (depends on) the following
+third-party open-source components. Each remains under its own license;
+none of these licenses are altered by the MIT terms in LICENSE.
+
+⚠ STRONG COPYLEFT — AFFECTS THE EFFECTIVE LICENSE OF THE WHOLE DISTRIBUTION:
+
+- ultralytics (Ultralytics YOLO) — AGPL-3.0-or-later
+  Because this project depends on/imports `ultralytics` for object
+  detection, the AGPL-3.0's copyleft provisions extend to the combined
+  distributed work unless a commercial/enterprise Ultralytics license is
+  obtained. See LICENSE for details. This mirrors the same situation
+  documented in the sibling PyZebArdYolo repository.
+
+Weak copyleft:
+
+- docxtpl (Python docx template engine, used for Word report generation)
+  — LGPL-2.1. Used as an unmodified library dependency; LGPL-2.1 does not
+  extend copyleft to applications that merely link against it.
+
+Permissive (MIT / BSD / Apache-2.0 / PSF-style / similar):
+
+- opencv-python — Apache-2.0
+- openvino — Apache-2.0
+- torch — BSD-3-Clause
+- torchvision — BSD-3-Clause
+- pyserial — BSD
+- pyyaml — MIT
+- pydantic — MIT
+- structlog — MIT OR Apache-2.0 (dual-licensed)
+- Pillow — MIT-CMU (PIL Software License)
+- urllib3 — MIT
+- idna — BSD-3-Clause
+- lxml — BSD-3-Clause
+- pyarrow — Apache-2.0
+- pandas — BSD-3-Clause
+- scipy — BSD-3-Clause
+- shapely — BSD-3-Clause
+- networkx — BSD-3-Clause
+- seaborn — BSD-3-Clause
+- python-docx — MIT
+- docxcompose — MIT
+- openpyxl — MIT
+- cython-bbox — MIT
+- ttkbootstrap — MIT AND (Apache-2.0 OR BSD-2-Clause)
+- tomli — MIT
+- setuptools — MIT
+- plotly — MIT
+- punq — MIT
+- pygrabber — MIT (Windows-only dependency)
+- filelock — MIT
+- fonttools — MIT
+
+This list reflects the direct dependencies declared in `pyproject.toml` /
+`poetry.lock` at the time of writing. It does not enumerate every
+transitive dependency; consult `poetry.lock` and each package's own
+metadata for the complete and current picture, and re-verify before
+each public release since dependency versions and their licenses can
+change.
+
+Model weights, datasets, and hardware/CAD files
+--------------------------------------------------
+
+No pretrained model weights (`*.pt`), training datasets, or hardware/CAD
+files are committed to this repository (see `.gitignore`: `weights/`,
+`*.pt`, `weights_config.json`, `openvino_model_cache/`). YOLO weight files
+referenced by the application are downloaded at runtime from Ultralytics'
+own distribution channels under Ultralytics' licensing terms (AGPL-3.0,
+as noted above) and are not redistributed as part of this repository. If
+Roboflow-sourced or other third-party datasets are added to this
+repository in the future, their license/attribution terms (e.g. Roboflow
+datasets are frequently CC BY 4.0, which requires attribution) must be
+recorded here before distribution.

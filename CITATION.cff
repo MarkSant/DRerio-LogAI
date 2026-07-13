@@ -1,11 +1,16 @@
 cff-version: 1.2.0
 message: "If you use this software in your research, please cite it as below."
 authors:
-  - family-names: "Camargos"
-    given-names: "Marco A. S."
+  - family-names: "Sant'Ana Camargos"
+    given-names: "Marco Antônio"
     orcid: "https://orcid.org/0009-0000-0014-1485"
-  - name: "The Zebtrack Controller Project"
-title: "ZebTrack-AI"
+    email: "marco.sant@unesp.br"
+    affiliation: "São Paulo State University (UNESP), Botucatu, Brazil"
+  - family-names: "Giaquinto"
+    given-names: "Percília Cardoso"
+    email: "percilia.giaquinto@unesp.br"
+    affiliation: "São Paulo State University (UNESP), Botucatu, Brazil"
+title: "DRerio LogAI"
 version: 4.0.0
 date-released: 2026-03-29
 abstract: "An intelligent tracking and behavioral analysis platform for Danio rerio (zebrafish) research using YOLO/OpenVINO deep learning and event-driven architecture."
@@ -16,7 +21,12 @@ keywords:
   - "arduino"
   - "computer vision"
 license: MIT
+license-url: "https://github.com/MarkSant/ZebTrack-AI/blob/main/LICENSE"
 repository-code: "https://github.com/MarkSant/ZebTrack-AI"
+identifiers:
+  - type: other
+    value: "INPI BR 51 2026 005215-7"
+    description: "Brazilian computer-program copyright registration (INPI, Petição 870260066857), titleholder: Universidade Estadual Paulista (UNESP)."
 # identifiers:
 #   - type: doi
 #     value: 10.5281/zenodo.XXXXXXX # TODO: Replace with your Zenodo DOI after archiving

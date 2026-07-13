@@ -1,4 +1,30 @@
-Copyright (c) 2025 The Project Developers
+DRerio LogAI — License Notice
+==============================
+
+This repository's ORIGINAL source code (excluding third-party dependencies
+listed in `pyproject.toml` / `poetry.lock`) is licensed under the MIT
+License below.
+
+Copyright (c) 2025 Universidade Estadual Paulista "Júlio de Mesquita Filho"
+(UNESP). All rights to this original source code belong to UNESP as the
+formal titleholder (see NOTICE for authorship, the INPI computer-program
+registration, and the AUIN open-source release authorization).
+
+IMPORTANT — effective license of the distributed software: this project
+depends on Ultralytics YOLO (`ultralytics`), which is licensed under the
+GNU Affero General Public License v3.0 (AGPL-3.0). Under the AGPL-3.0's
+copyleft terms, any combined/distributed work that links against or bundles
+an AGPL-3.0-licensed library is itself subject to AGPL-3.0 obligations,
+unless a separate commercial/enterprise license for Ultralytics YOLO has
+been obtained. In practice this means: while UNESP's own original code in
+this repository is offered under the permissive MIT terms below, the
+EFFECTIVE license governing the software AS DISTRIBUTED (this code + its
+required AGPL-3.0 dependency) is AGPL-3.0, not MIT alone. See NOTICE for
+the full third-party dependency license inventory.
+
+------------------------------------------------------------------------
+
+MIT License (applies to UNESP's original source code in this repository)
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
