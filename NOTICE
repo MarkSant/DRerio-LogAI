@@ -52,10 +52,10 @@ none of these licenses are altered by the MIT terms in LICENSE.
 
 - ultralytics (Ultralytics YOLO) — AGPL-3.0-or-later
   Because this project depends on/imports `ultralytics` for object
-  detection, the AGPL-3.0's copyleft provisions extend to the combined
-  distributed work unless a commercial/enterprise Ultralytics license is
-  obtained. See LICENSE for details. This mirrors the same situation
-  documented in the sibling PyZebArdYolo repository.
+  detection, the AGPL-3.0-or-later's copyleft provisions extend to the
+  combined distributed work unless a commercial/enterprise Ultralytics
+  license is obtained. See LICENSE for details. This mirrors the same
+  situation documented in the sibling PyZebArdYolo repository.
 
 Weak copyleft:
 
@@ -110,8 +110,9 @@ No pretrained model weights (`*.pt`), training datasets, or hardware/CAD
 files are committed to this repository (see `.gitignore`: `weights/`,
 `*.pt`, `weights_config.json`, `openvino_model_cache/`). YOLO weight files
 referenced by the application are downloaded at runtime from Ultralytics'
-own distribution channels under Ultralytics' licensing terms (AGPL-3.0,
-as noted above) and are not redistributed as part of this repository. If
+own distribution channels under Ultralytics' licensing terms
+(AGPL-3.0-or-later, as noted above) and are not redistributed as part of
+this repository. If
 Roboflow-sourced or other third-party datasets are added to this
 repository in the future, their license/attribution terms (e.g. Roboflow
 datasets are frequently CC BY 4.0, which requires attribution) must be

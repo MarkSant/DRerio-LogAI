@@ -8,7 +8,7 @@
 ![Version](https://img.shields.io/badge/version-4.0.0-blue.svg)
 ![Architecture](https://img.shields.io/badge/architecture-Event--Driven-green.svg)
 ![Python](https://img.shields.io/badge/python-3.12%2B-yellow.svg)
-![License](https://img.shields.io/badge/license-MIT%20%2B%20AGPL--3.0%20(effective)-lightgrey.svg)
+![License](https://img.shields.io/badge/license-MIT%20%2B%20AGPL--3.0--or--later%20effective-lightgrey.svg)
 ![INPI](https://img.shields.io/badge/INPI-BR%2051%202026%20005215--7-blueviolet.svg)
 [![CI](https://github.com/MarkSant/ZebTrack-AI/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/MarkSant/ZebTrack-AI/actions/workflows/ci.yml)
 [![Codecov](https://codecov.io/gh/MarkSant/ZebTrack-AI/branch/main/graph/badge.svg?token=XH937YKEOU)](https://codecov.io/gh/MarkSant/ZebTrack-AI)
@@ -798,10 +798,11 @@ O código-fonte original deste repositório (de titularidade da UNESP) é licenc
 
 ⚠️ **Licença efetiva da distribuição**: este projeto depende do
 [Ultralytics YOLO](https://github.com/ultralytics/ultralytics)
-(`ultralytics`), licenciado sob **AGPL-3.0**. Pelas condições de copyleft
-da AGPL-3.0, a obra combinada distribuída (este código + a dependência
-`ultralytics`) fica sujeita aos termos da AGPL-3.0, a menos que uma
-licença comercial/enterprise da Ultralytics seja obtida. Ou seja, a
+(`ultralytics`), licenciado sob **AGPL-3.0-or-later**. Pelas condições de
+copyleft da AGPL-3.0-or-later, a obra combinada distribuída (este código +
+a dependência `ultralytics`) fica sujeita aos termos da
+AGPL-3.0-or-later, a menos que uma licença comercial/enterprise da
+Ultralytics seja obtida. Ou seja, a
 licença MIT cobre o código original da UNESP, mas **não** cobre sozinha o
 pacote distribuído como um todo. Veja [NOTICE](NOTICE) para o
 levantamento completo de licenças de dependências de terceiros.
@@ -817,7 +818,7 @@ levantamento completo de licenças de dependências de terceiros.
 
 - 📋 Manter a licença e copyright
 - ⚠️ Sem garantias
-- ⚠️ Observar as obrigações da AGPL-3.0 da dependência `ultralytics` na distribuição do conjunto (veja acima)
+- ⚠️ Observar as obrigações da AGPL-3.0-or-later da dependência `ultralytics` na distribuição do conjunto (veja acima)
 
 ## 🙏 Agradecimentos
 
