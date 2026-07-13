@@ -59,11 +59,9 @@ O **titular** dos direitos patrimoniais (dono dos direitos econômicos) é a
 **Marco Antônio Sant'Ana Camargos** e **Percília Cardoso Giaquinto**,
 ambos com afiliação UNESP.
 
-A distribuição deste repositório sob licença de código aberto foi
-**autorizada pela Agência UNESP de Inovação (AUIN)**, em nome da
-universidade titular. Veja [NOTICE](NOTICE) para o detalhamento completo
-(copyright, dependências de terceiros e suas licenças) e
-[LICENSE](LICENSE) para os termos legais.
+Veja [NOTICE](NOTICE) para o detalhamento completo (copyright,
+dependências de terceiros e suas licenças) e [LICENSE](LICENSE) para os
+termos legais.
 
 ### ✨ Diferenciais
 

@@ -7,8 +7,8 @@ License below.
 
 Copyright (c) 2025 Universidade Estadual Paulista "Júlio de Mesquita Filho"
 (UNESP). All rights to this original source code belong to UNESP as the
-formal titleholder (see NOTICE for authorship, the INPI computer-program
-registration, and the AUIN open-source release authorization).
+formal titleholder (see NOTICE for authorship and the INPI computer-program
+registration).
 
 IMPORTANT — effective license of the distributed software: this project
 depends on Ultralytics YOLO (`ultralytics`), which is licensed under the
