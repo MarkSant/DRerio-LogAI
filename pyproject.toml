@@ -28,8 +28,9 @@ ultralytics = ">=8.3.179,<8.4.0"
 pyyaml = "^6.0.2"
 pydantic = "^2.11.7"
 structlog = "^25.4.0"
-# Pillow >=12.2.0 fixes CVE-2026-40192/42308/42309/42310/42311 (pip-audit CI gate).
-Pillow = ">=12.2.0"
+# Pillow >=12.3.0 fixes PYSEC-2026-2253/2254/2255/2256/2257 (pip-audit CI gate).
+# (12.2.0 previously covered the earlier CVE-2026-40192/42308/42309/42310/42311 set.)
+Pillow = ">=12.3.0"
 # urllib3 >=2.7.0 fixes PYSEC-2026-141/142 (pip-audit CI gate).
 urllib3 = ">=2.7.0"
 # Transitive bumps to clear pip-audit CI gate:
