@@ -1,5 +1,5 @@
 ---
-description: Run the ZebTrack-AI application
+description: Run the DRerio LogAI application
 ---
 
 # Run Application Workflow

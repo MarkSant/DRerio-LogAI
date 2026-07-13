@@ -1,4 +1,4 @@
-"""Splash screen for ZebTrack-AI startup."""
+"""Splash screen for DRerio LogAI startup."""
 
 import platform
 import tkinter as tk

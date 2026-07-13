@@ -1,4 +1,4 @@
-"""Main application view model orchestrating the ZebTrack-AI application.
+"""Main application view model orchestrating the DRerio LogAI application.
 
 Coordinates all core services, manages application state, handles user interactions,
 and orchestrates video processing workflows with dependency injection.
@@ -32,7 +32,7 @@ log = structlog.get_logger()
 
 class MainViewModel:
     """
-    Main View Model for ZebTrack-AI application.
+    Main View Model for DRerio LogAI application.
 
     Refactored to follow Single Responsibility Principle by delegating initialization
     to ApplicationBootstrapper and functionality to specialized ViewModels:

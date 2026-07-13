@@ -1,11 +1,11 @@
 # Hardware Optimization Guide
 
-Guide for optimizing ZebTrack-AI performance on different hardware profiles,
+Guide for optimizing DRerio LogAI performance on different hardware profiles,
 from low-end lab computers (4 GB RAM, no GPU) to high-end systems with NPU.
 
 ## Automatic Hardware Detection
 
-ZebTrack-AI automatically benchmarks your system on first startup and applies
+DRerio LogAI automatically benchmarks your system on first startup and applies
 optimal settings. The benchmark caches results so subsequent launches are fast.
 
 To force a re-benchmark, delete the cache:
@@ -18,7 +18,7 @@ Remove-Item -Recurse -Force openvino_model_cache/benchmark_cache.json
 
 ### Low-End (4-8 GB RAM, CPU-only, i3/i5)
 
-Typical for Brazilian university labs. ZebTrack-AI auto-detects and applies:
+Typical for Brazilian university labs. DRerio LogAI auto-detects and applies:
 
 | Setting                  | Auto Value | Effect                        |
 | ------------------------ | ---------- | ----------------------------- |

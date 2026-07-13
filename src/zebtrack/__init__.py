@@ -1,4 +1,4 @@
-"""ZebTrack-AI: Zebrafish behavioral tracking and analysis system."""
+"""DRerio LogAI: Zebrafish behavioral tracking and analysis system."""
 
 # Import and export custom exceptions for easy access
 from zebtrack.core.exceptions import (

@@ -6,7 +6,7 @@
 
 ## 1. Overview
 
-ZebTrack-AI uses **constructor injection** throughout the codebase. The Composition Root pattern is implemented in `src/zebtrack/__main__.py`, where all core services and coordinators are instantiated and wired.
+DRerio LogAI uses **constructor injection** throughout the codebase. The Composition Root pattern is implemented in `src/zebtrack/__main__.py`, where all core services and coordinators are instantiated and wired.
 
 ## 2. Settings Injection Strategy
 

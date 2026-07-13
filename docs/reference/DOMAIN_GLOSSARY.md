@@ -1,4 +1,4 @@
-# Domain Glossary — ZebTrack-AI
+# Domain Glossary — DRerio LogAI
 
 Quick definitions of project-specific terms. The goal: skim before reading code,
 not read code to learn vocabulary.

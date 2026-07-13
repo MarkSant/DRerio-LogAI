@@ -1,4 +1,4 @@
-# ZebTrack-AI Development Helper Script
+# DRerio LogAI Development Helper Script
 # Usage: .\scripts\dev.ps1 <command> [args...]
 #
 # This script is the universal entry point for the project's
@@ -15,7 +15,7 @@ param(
 )
 
 function Show-Help {
-    Write-Host 'ZebTrack-AI Development Commands' -ForegroundColor Cyan
+    Write-Host 'DRerio LogAI Development Commands' -ForegroundColor Cyan
     Write-Host '=================================' -ForegroundColor Cyan
     Write-Host ''
     Write-Host 'Usage: .\scripts\dev.ps1 <command> [args...]' -ForegroundColor Yellow
@@ -33,7 +33,7 @@ function Show-Help {
     Write-Host '  impact            Run impact analyzer. Args: <type> <name>' -ForegroundColor White
     Write-Host '                    e.g.  .\scripts\dev.ps1 impact class WeightManager' -ForegroundColor DarkGray
     Write-Host '  check-all         Run lint + fast test suite' -ForegroundColor White
-    Write-Host '  run               Launch ZebTrack-AI GUI' -ForegroundColor White
+    Write-Host '  run               Launch DRerio LogAI GUI' -ForegroundColor White
     Write-Host '  install           Install dependencies via Poetry' -ForegroundColor White
     Write-Host '  update            Update dependencies' -ForegroundColor White
     Write-Host '  clean             Remove build artifacts and cache files' -ForegroundColor White
@@ -109,7 +109,7 @@ switch ($Command.ToLower()) {
         Write-Host 'All checks passed!' -ForegroundColor Green
     }
     'run' {
-        Write-Host 'Launching ZebTrack-AI...' -ForegroundColor Cyan
+        Write-Host 'Launching DRerio LogAI...' -ForegroundColor Cyan
         poetry run zebtrack
     }
     'install' {

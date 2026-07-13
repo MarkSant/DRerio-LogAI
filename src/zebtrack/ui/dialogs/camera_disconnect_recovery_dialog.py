@@ -6,7 +6,7 @@ Presents options to user when camera disconnects during live session:
 - Resume manually after reconnect
 
 Version: 2.2.0
-Author: ZebTrack-AI Team
+Author: DRerio LogAI Team
 Date: January 2026
 """
 

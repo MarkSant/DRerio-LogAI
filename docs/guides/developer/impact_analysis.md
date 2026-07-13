@@ -8,7 +8,7 @@
 
 ## 🚨 CRITICAL: Read Before Any Modification
 
-This protocol is **MANDATORY** for all AI agents (Claude, Copilot, Gemini, etc.) working on ZebTrack-AI. Failure to follow these steps results in incomplete changes that break system coherence.
+This protocol is **MANDATORY** for all AI agents (Claude, Copilot, Gemini, etc.) working on DRerio LogAI. Failure to follow these steps results in incomplete changes that break system coherence.
 
 ---
 

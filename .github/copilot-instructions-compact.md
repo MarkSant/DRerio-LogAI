@@ -1,4 +1,4 @@
-# ZebTrack-AI Agent Playbook - COMPACT VERSION
+# DRerio LogAI Agent Playbook - COMPACT VERSION
 
 ## 🎯 Core Facts
 

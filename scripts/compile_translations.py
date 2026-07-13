@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Compile gettext translation catalogs for ZebTrack-AI.
+"""Compile gettext translation catalogs for DRerio LogAI.
 
 The script locates every ``*.po`` file under ``src/zebtrack/locales`` and
 produces the corresponding binary ``*.mo`` file, matching the expectations of

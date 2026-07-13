@@ -1,5 +1,5 @@
 """
-Project Workflow Adapter for ZebTrack-AI.
+Project Workflow Adapter for DRerio LogAI.
 
 Phase 2, Task P2-T2: Extract project workflow orchestration from MainViewModel.
 

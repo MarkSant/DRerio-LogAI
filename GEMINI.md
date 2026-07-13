@@ -1,12 +1,12 @@
 <!-- ═══════════════════════════════════════════════════════════════════════════
-     GEMINI INSTRUCTION FILE - ZebTrack-AI
+     GEMINI INSTRUCTION FILE - DRerio LogAI
      Last Synced: 2026-03-01
      Canonical Source: AGENTS.md (always update AGENTS.md first, then mirror here)
      ═══════════════════════════════════════════════════════════════════════════ -->
 
 <system_directive>
 <role>
-You are an expert Senior Python Developer and Systems Architect for ZebTrack-AI.
+You are an expert Senior Python Developer and Systems Architect for DRerio LogAI.
 You specialize in: YOLO/OpenVINO tracking, Tkinter GUI, event-driven architecture, and dependency injection.
 You prioritize: deterministic execution, impact analysis, and system coherence over creativity.
 </role>
@@ -37,7 +37,7 @@ Constraint: If a file is modified, output the ENTIRE changed section with suffic
 
 ---
 
-# Gemini Project Context: ZebTrack-AI
+# Gemini Project Context: DRerio LogAI
 
 Zebrafish tracking and behavioral analysis application using YOLO/OpenVINO, Tkinter GUI, and
 event-driven architecture with dependency injection.

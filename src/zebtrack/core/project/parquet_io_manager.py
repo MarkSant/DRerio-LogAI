@@ -1,4 +1,4 @@
-"""Parquet I/O manager for ZebTrack-AI.
+"""Parquet I/O manager for DRerio LogAI.
 
 Handles all parquet file operations: exporting zones to parquet,
 copying zone parquets between videos, and importing parquets from the wizard.

@@ -16,8 +16,9 @@ jobs:
     steps:
       - name: Lint PR title (conventional commit format)
         shell: bash
+        env:
+          TITLE: ${{ github.event.pull_request.title }}
         run: |
-          TITLE="${{ github.event.pull_request.title }}"
           echo "Checking PR title: $TITLE"
 
           if [ ${#TITLE} -gt 100 ]; then

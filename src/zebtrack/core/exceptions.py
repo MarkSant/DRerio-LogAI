@@ -1,5 +1,5 @@
 """
-Custom exception hierarchy for ZebTrack-AI.
+Custom exception hierarchy for DRerio LogAI.
 
 All application exceptions inherit from ZebTrackError for easy catching.
 """

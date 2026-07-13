@@ -6,7 +6,7 @@
 
 ## 1. Overview
 
-ZebTrack-AI manages spatial data across three distinct coordinate spaces. Understanding these transformations is critical for accurate behavioral analysis and visualization.
+DRerio LogAI manages spatial data across three distinct coordinate spaces. Understanding these transformations is critical for accurate behavioral analysis and visualization.
 
 ---
 

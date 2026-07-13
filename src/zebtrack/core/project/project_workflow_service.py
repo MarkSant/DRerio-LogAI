@@ -1,5 +1,5 @@
 """
-Project Workflow Service for ZebTrack-AI.
+Project Workflow Service for DRerio LogAI.
 
 Phase 5: Project Workflow Simplification
 Consolidates all project workflow logic (creation, opening, configuration)

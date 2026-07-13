@@ -1,6 +1,6 @@
 # Test Fixtures
 
-This directory contains test data files used by the ZebTrack-AI test suite.
+This directory contains test data files used by the DRerio LogAI test suite.
 
 ## Video Files
 

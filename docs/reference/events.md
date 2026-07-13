@@ -1,16 +1,16 @@
-# ZebTrack-AI Event Contracts & Registry
+# DRerio LogAI Event Contracts & Registry
 
 **Status:** Canonical Reference
 **Last Updated:** February 2, 2026
 **Category:** Reference (Diátaxis)
 
-This document defines the strict contracts for event-driven communication in ZebTrack-AI. All publishers and subscribers must adhere to these payloads.
+This document defines the strict contracts for event-driven communication in DRerio LogAI. All publishers and subscribers must adhere to these payloads.
 
 ---
 
 ## 1. Dual Event Bus Overview
 
-ZebTrack-AI utilizes two coexisting event bus systems to separate domain logic from UI orchestration.
+DRerio LogAI utilizes two coexisting event bus systems to separate domain logic from UI orchestration.
 
 | System            | Enum/Class        | Primary Use Case                          |
 | ----------------- | ----------------- | ----------------------------------------- |

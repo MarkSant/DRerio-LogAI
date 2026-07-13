@@ -1,4 +1,4 @@
-"""Coordinators Package - Orchestrators for ZebTrack-AI.
+"""Coordinators Package - Orchestrators for DRerio LogAI.
 
 This package contains coordinator classes that orchestrate complex workflows
 by delegating to services.

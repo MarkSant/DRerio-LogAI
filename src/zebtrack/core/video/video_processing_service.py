@@ -1,4 +1,4 @@
-"""Video Processing Service for ZebTrack-AI — Facade.
+"""Video Processing Service for DRerio LogAI — Facade.
 
 Phase 2.3 decomposition: Thin facade delegating to four extracted mixins:
 

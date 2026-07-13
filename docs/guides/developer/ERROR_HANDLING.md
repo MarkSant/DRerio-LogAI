@@ -1,10 +1,10 @@
-# Tratamento de Erros - ZebTrack-AI
+# Tratamento de Erros - DRerio LogAI
 
-Este documento descreve as estratégias e mecanismos de tratamento de erros implementados no ZebTrack-AI, garantindo robustez, rastreabilidade e recuperação adequada em caso de falhas.
+Este documento descreve as estratégias e mecanismos de tratamento de erros implementados no DRerio LogAI, garantindo robustez, rastreabilidade e recuperação adequada em caso de falhas.
 
 ## Visão Geral
 
-O sistema de tratamento de erros do ZebTrack-AI é estruturado em três níveis:
+O sistema de tratamento de erros do DRerio LogAI é estruturado em três níveis:
 
 1. **Erros Fatais**: Falhas críticas que impedem a continuação do processamento
 2. **Erros Recuperáveis**: Falhas isoladas que permitem continuar o processamento de outros vídeos
@@ -164,7 +164,7 @@ class SerialError(Exception):
 
 ### Convenção de Domínio
 
-O ZebTrack-AI usa `structlog` com a convenção `domínio.ação.resultado`:
+O DRerio LogAI usa `structlog` com a convenção `domínio.ação.resultado`:
 
 ```python
 import structlog

@@ -1,7 +1,7 @@
 # =============================================================================
-# ZebTrack-AI Configuration File
+# DRerio LogAI Configuration File
 # =============================================================================
-# This is the main configuration file for the ZebTrack-AI application.
+# This is the main configuration file for the DRerio LogAI application.
 # It defines all system settings including camera, detection models, tracking
 # parameters, and analysis behaviors.
 #

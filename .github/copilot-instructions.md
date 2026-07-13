@@ -1,10 +1,10 @@
 <!-- ═══════════════════════════════════════════════════════════════════════════
-     COPILOT INSTRUCTION FILE — ZebTrack-AI
+     COPILOT INSTRUCTION FILE — DRerio LogAI
      Last refreshed: 2026-05-09
      Canonical source: CLAUDE.md (this file is a Copilot-friendly summary)
      ═══════════════════════════════════════════════════════════════════════════ -->
 
-# ZebTrack-AI — Copilot Playbook
+# DRerio LogAI — Copilot Playbook
 
 GitHub Copilot loads this file automatically in VS Code. It is a **Copilot-sized
 summary** of the canonical agent guide. For anything not covered here, point

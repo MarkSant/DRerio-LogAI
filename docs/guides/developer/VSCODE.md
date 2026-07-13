@@ -1,6 +1,6 @@
 # VS Code Configuration & Extensions
 
-Workspace setup notes specific to ZebTrack-AI. Moved out of `CLAUDE.md` on
+Workspace setup notes specific to DRerio LogAI. Moved out of `CLAUDE.md` on
 2026-05-09 — the agent doesn't need to re-read this in every conversation.
 
 ## Required extensions

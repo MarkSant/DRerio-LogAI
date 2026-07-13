@@ -1,4 +1,4 @@
-# ZebTrack-AI Rolling Task Log
+# DRerio LogAI Rolling Task Log
 
 This document tracks all major agent interventions, technical debt resolutions, and architectural migrations. Every agent must append their current task here before starting and mark it as completed when finished.
 
@@ -446,7 +446,7 @@ __Status:__ Phase 4 Complete ✅ | Phase 5 (Secrets/Runtime) ✅ | Phase 6 (Vali
 __Branch:__ main
 __Description:__
 
-Implement Continue context configuration for ZebTrack-AI in three phases:
+Implement Continue context configuration for DRerio LogAI in three phases:
 
 - __Phase 1__: Workspace-scoped rules, remove hardcoded secrets from `.vscode/mcp.json`
 - __Phase 2__: Global agent configuration, secure environment variable setup, comprehensive guide

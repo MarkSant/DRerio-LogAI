@@ -1,5 +1,5 @@
 """
-Adaptive Hardware Benchmark for ZebTrack-AI.
+Adaptive Hardware Benchmark for DRerio LogAI.
 
 This module provides comprehensive hardware benchmarking that automatically
 adapts to the detected hardware (Intel iGPU, Intel Arc, NVIDIA, AMD, CPU-only).
@@ -1049,7 +1049,7 @@ if __name__ == "__main__":
     # CLI mode for testing
     import argparse
 
-    parser = argparse.ArgumentParser(description="ZebTrack-AI Hardware Benchmark")
+    parser = argparse.ArgumentParser(description="DRerio LogAI Hardware Benchmark")
     parser.add_argument("--force", action="store_true", help="Force re-run benchmark")
     parser.add_argument("--quick", action="store_true", help="Quick mode with fewer iterations")
     args = parser.parse_args()

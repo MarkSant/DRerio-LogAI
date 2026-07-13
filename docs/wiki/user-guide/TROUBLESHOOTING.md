@@ -1,6 +1,6 @@
 # Troubleshooting Guide
 
-This guide provides solutions to common issues encountered when using DRerio LogAI (ZebTrack-AI).
+This guide provides solutions to common issues encountered when using DRerio LogAI.
 
 ## Table of Contents
 
@@ -644,7 +644,7 @@ poetry run zebtrack
 5. **Test Arduino separately**:
    - Open Arduino IDE
    - Upload simple sketch (Blink)
-   - Verify working before using with ZebTrack-AI
+   - Verify working before using with DRerio LogAI
 
 6. **Check baud rate**:
 
@@ -877,7 +877,7 @@ poetry run zebtrack
 1. **Ensure in correct directory**:
 
    ```bash
-   pwd  # Should be ZebTrack-AI root directory
+   pwd  # Should be DRerio-LogAI root directory
    ls config.yaml  # Should exist
    ```
 
@@ -1052,9 +1052,9 @@ When reporting bugs, include:
 
 ### Community Support
 
-- **GitHub Issues**: <https://github.com/MarkSant/ZebTrack-AI/issues>
-- **Discussions**: <https://github.com/MarkSant/ZebTrack-AI/discussions>
-- **Email**: <support@zebtrack.ai>
+- **GitHub Issues**: <https://github.com/MarkSant/DRerio-LogAI/issues>
+- **Discussions**: <https://github.com/MarkSant/DRerio-LogAI/discussions>
+- **Email**: <marco.sant@unesp.br>
 
 ### Documentation
 

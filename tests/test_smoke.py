@@ -1,5 +1,5 @@
 """
-Smoke tests for ZebTrack-AI.
+Smoke tests for DRerio LogAI.
 
 Fast tests that validate critical components in < 30 seconds.
 Run with: poetry run pytest -m smoke -v

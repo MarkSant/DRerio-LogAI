@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Script de validação para testar todas as correções implementadas no ZebTrack-AI
+Script de validação para testar todas as correções implementadas no DRerio LogAI
 """
 
 import json
@@ -383,7 +383,7 @@ def test_6_instance_segmentation(model_path, video_path):
 def run_comprehensive_validation(model_path, video_path):
     """Executa validação completa"""
     print("=" * 80)
-    print("VALIDACAO COMPLETA DAS CORRECOES - ZEBTRACK-AI")
+    print("VALIDACAO COMPLETA DAS CORRECOES - DRERIO LOGAI")
     print("=" * 80)
     print(f"Modelo: {model_path}")
     print(f"Video: {video_path}")

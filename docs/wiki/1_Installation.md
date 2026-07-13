@@ -1,6 +1,6 @@
 # Installation Guide
 
-ZebTrack-AI currently ships as a Poetry project. The recommended way to run the application is to clone the repository, install the dependencies with Poetry, and launch the GUI from the virtual environment.
+DRerio LogAI currently ships as a Poetry project. The recommended way to run the application is to clone the repository, install the dependencies with Poetry, and launch the GUI from the virtual environment.
 
 ## Prerequisites
 
@@ -20,8 +20,8 @@ git --version
 ## Clone the repository
 
 ```powershell
-git clone https://github.com/MarkSant/ZebTrack-AI.git
-cd ZebTrack-AI
+git clone https://github.com/MarkSant/DRerio-LogAI.git
+cd DRerio-LogAI
 ```
 
 > 💡 On Windows, use **PowerShell** (the default shell in the project). On Linux/macOS, any POSIX-compatible shell works.

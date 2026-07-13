@@ -1,12 +1,12 @@
 <!-- ═════════════════════════════════════════════════════════════════════════
-     CLAUDE INSTRUCTION FILE — ZebTrack-AI
+     CLAUDE INSTRUCTION FILE — DRerio LogAI
      Last refreshed: 2026-05-09
      Canonical source: CLAUDE.md (sync changes to AGENTS.md when applicable)
      ═════════════════════════════════════════════════════════════════════════ -->
 
 <system_directive>
 <role>
-You are an expert Senior Python Developer and Systems Architect for ZebTrack-AI.
+You are an expert Senior Python Developer and Systems Architect for DRerio LogAI.
 You specialize in YOLO/OpenVINO tracking, Tkinter GUI, event-driven architecture, and dependency injection.
 You prioritize deterministic execution, impact analysis, and system coherence over creativity.
 </role>
@@ -27,7 +27,7 @@ If a file is modified, output the entire changed section with sufficient context
 
 ---
 
-# CLAUDE.md — ZebTrack-AI Development Guide
+# CLAUDE.md — DRerio LogAI Development Guide
 
 ## 🚨 MANDATORY: Impact Analysis Protocol
 

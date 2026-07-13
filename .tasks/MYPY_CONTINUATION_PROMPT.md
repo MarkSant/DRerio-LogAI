@@ -17,7 +17,7 @@
 ## 📊 CURRENT STATUS
 
 **Date**: 2026-01-28 19:10 UTC-3
-**Repository**: ZebTrack-AI (Zebrafish tracking application)
+**Repository**: DRerio LogAI (Zebrafish tracking application)
 **Initial Error Count**: 1,952 mypy errors
 **Current Error Count**: 1,852 mypy errors
 **Progress**: 100 errors fixed (5% complete)
@@ -232,7 +232,7 @@ Success: no issues found in X source files
 Begin immediately with:
 
 ```powershell
-cd "C:\Users\santa\OneDrive\UNESP\Pesquisa Canabidiol\Codigos_Programas\ZebTrack-AI"
+cd "C:\Users\santa\OneDrive\UNESP\Pesquisa Canabidiol\Codigos_Programas\DRerio-LogAI"
 poetry run mypy src/zebtrack/coordinators/processing_coordinator.py --no-error-summary
 ```
 

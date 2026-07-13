@@ -1,4 +1,4 @@
-# Quick Debug Guide for ZebTrack-AI
+# Quick Debug Guide for DRerio LogAI
 
 ## VS Code Debug Configurations
 

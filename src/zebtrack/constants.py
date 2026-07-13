@@ -1,4 +1,4 @@
-"""Application-wide constants for ZebTrack-AI.
+"""Application-wide constants for DRerio LogAI.
 
 Centralizes magic numbers to improve readability and consistency.
 Settings-driven values (Pydantic defaults in settings.py) are NOT duplicated here;

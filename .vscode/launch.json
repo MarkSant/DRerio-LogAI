@@ -1,5 +1,5 @@
 {
-    // ZebTrack-AI Debug Configurations (v2.1 optimized)
+    // DRerio LogAI Debug Configurations (v2.1 optimized)
     // Updated for pytest-timeout and daemon threading fixes
     "version": "0.2.0",
     "configurations": [

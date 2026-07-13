@@ -1,4 +1,4 @@
-# ZebTrack-AI Documentation Index
+# DRerio LogAI Documentation Index
 
 **Last Updated:** February 2, 2026
 **Version:** 4.1.0 (Diátaxis Corrected)

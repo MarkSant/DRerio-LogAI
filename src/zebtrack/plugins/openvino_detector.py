@@ -353,7 +353,7 @@ class OpenVINOPlugin(DetectorPlugin):
         # Fallback: Use generic class names if metadata not available
         if not metadata_loaded:
             # Infer number of classes from output shape if possible
-            num_classes = 2  # Default assumption for ZebTrack-AI
+            num_classes = 2  # Default assumption for DRerio LogAI
             if self.output_det:
                 try:
                     # Detection output shape: [1, 4+nc+nm, 8400]

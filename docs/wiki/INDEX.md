@@ -1,4 +1,4 @@
-# Índice da Wiki do ZebTrack-AI
+# Índice da Wiki do DRerio LogAI
 
 Este diretório contém a documentação estruturada para ser publicada na Wiki do projeto.
 

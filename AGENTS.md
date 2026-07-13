@@ -4,7 +4,7 @@
      Last refreshed: 2026-05-09
      ═════════════════════════════════════════════════════════════════════════ -->
 
-# Agent Instructions: ZebTrack-AI
+# Agent Instructions: DRerio LogAI
 
 > **The canonical agent guide is [`CLAUDE.md`](CLAUDE.md).** Read it first.
 > This file exists for tools that look for `AGENTS.md` by convention; it

@@ -1,6 +1,6 @@
 # ZebTrack UI Widgets Catalog
 
-This document catalogs reusable UI widgets in ZebTrack-AI, providing API documentation and usage examples.
+This document catalogs reusable UI widgets in DRerio LogAI, providing API documentation and usage examples.
 
 ## Table of Contents
 
@@ -404,6 +404,6 @@ Standard Form Layout:
 
 ---
 
-**Maintained by**: ZebTrack-AI Team
+**Maintained by**: DRerio LogAI Team
 **Last Updated**: October 29, 2025
 **Version**: 1.0

@@ -1,4 +1,4 @@
-# Getting Started with DRerio LogAI (ZebTrack-AI)
+# Getting Started with DRerio LogAI
 
 ## Welcome
 
@@ -42,8 +42,8 @@ Poetry is the recommended installation method for both users and developers.
 
 ```bash
 # 1. Clone the repository
-git clone https://github.com/MarkSant/ZebTrack-AI.git
-cd ZebTrack-AI
+git clone https://github.com/MarkSant/DRerio-LogAI.git
+cd DRerio-LogAI
 
 # 2. Install dependencies
 poetry install
@@ -54,7 +54,7 @@ poetry run zebtrack
 
 ### Alternative: Install from Release
 
-Pre-built executable releases are coming soon. Check the [Releases page](https://github.com/MarkSant/ZebTrack-AI/releases) for availability.
+Pre-built executable releases are coming soon. Check the [Releases page](https://github.com/MarkSant/DRerio-LogAI/releases) for availability.
 
 ---
 
@@ -602,10 +602,10 @@ Explore advanced capabilities:
 
 ### Community and Support
 
-- **Documentation Hub**: [docs.zebtrack.ai](https://docs.zebtrack.ai)
-- **GitHub Issues**: [Report bugs and request features](https://github.com/MarkSant/ZebTrack-AI/issues)
-- **Discussions**: [Community forum](https://github.com/MarkSant/ZebTrack-AI/discussions)
-- **Email Support**: <support@zebtrack.ai>
+- **Documentation Hub**: [DRerio LogAI docs (GitHub)](https://github.com/MarkSant/DRerio-LogAI/tree/main/docs)
+- **GitHub Issues**: [Report bugs and request features](https://github.com/MarkSant/DRerio-LogAI/issues)
+- **Discussions**: [Community forum](https://github.com/MarkSant/DRerio-LogAI/discussions)
+- **Email Support**: <marco.sant@unesp.br>
 
 ### Contributing
 

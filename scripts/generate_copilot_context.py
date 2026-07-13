@@ -193,7 +193,7 @@ def generate_yaml_context() -> str:
             discovered_lines.append("    key_methods: []")
     discovered_block = "\n".join(discovered_lines)
 
-    yaml_content = f"""# ZebTrack-AI Copilot Context Map (Auto-generated)
+    yaml_content = f"""# DRerio LogAI Copilot Context Map (Auto-generated)
 # Generated: {Path(__file__).name}
 # Purpose: Fast navigation and decision making for GitHub Copilot
 
@@ -305,7 +305,7 @@ discovered_classes:
 
 def main():
     """Gera arquivo de contexto otimizado."""
-    print("Analisando codebase do ZebTrack-AI...")
+    print("Analisando codebase do DRerio LogAI...")
 
     context = generate_yaml_context()
 

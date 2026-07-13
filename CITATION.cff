@@ -21,8 +21,8 @@ keywords:
   - "arduino"
   - "computer vision"
 license: MIT
-license-url: "https://github.com/MarkSant/ZebTrack-AI/blob/main/LICENSE"
-repository-code: "https://github.com/MarkSant/ZebTrack-AI"
+license-url: "https://github.com/MarkSant/DRerio-LogAI/blob/main/LICENSE"
+repository-code: "https://github.com/MarkSant/DRerio-LogAI"
 identifiers:
   - type: other
     value: "INPI BR 51 2026 005215-7"

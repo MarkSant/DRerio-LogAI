@@ -1,4 +1,4 @@
-"""Metadata manager for ZebTrack-AI.
+"""Metadata manager for DRerio LogAI.
 
 Handles metadata loading from CSV, experiment metadata lookup,
 detector state persistence, session tracking, and group caching.

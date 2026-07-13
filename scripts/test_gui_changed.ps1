@@ -1,5 +1,5 @@
 # ==============================================================================
-# ZebTrack-AI - Run GUI tests on changed files only
+# DRerio LogAI - Run GUI tests on changed files only
 # ==============================================================================
 #
 # Purpose:
@@ -24,7 +24,7 @@ param(
 $ErrorActionPreference = "Stop"
 
 Write-Host ""
-Write-Host "  ZebTrack-AI - GUI Test Runner (Changed Files)" -ForegroundColor Cyan
+Write-Host "  DRerio LogAI - GUI Test Runner (Changed Files)" -ForegroundColor Cyan
 Write-Host "  ==============================================" -ForegroundColor Cyan
 Write-Host ""
 

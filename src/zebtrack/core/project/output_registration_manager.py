@@ -1,4 +1,4 @@
-"""Output registration manager for ZebTrack-AI.
+"""Output registration manager for DRerio LogAI.
 
 Handles registration of processing outputs, results directory resolution,
 multi-aquarium output management, and batch report tracking.

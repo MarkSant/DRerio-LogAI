@@ -1,4 +1,4 @@
-"""Unified Base Coordinator for ZebTrack-AI.
+"""Unified Base Coordinator for DRerio LogAI.
 
 Provides the single base class for ALL coordinators in the application.
 Unified in Phase 3 from two prior implementations (base.py ABC and

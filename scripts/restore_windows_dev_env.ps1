@@ -143,7 +143,7 @@ function Install-RecommendedExtensions {
     }
 }
 
-Write-Step "Restaurando ambiente de desenvolvimento ZebTrack-AI (Windows)"
+Write-Step "Restaurando ambiente de desenvolvimento DRerio LogAI (Windows)"
 
 $repoRoot = Get-Location
 Write-Host "  Diretório atual: $repoRoot"

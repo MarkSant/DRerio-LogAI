@@ -11,7 +11,7 @@ class _FakeBehavioralAnalyzer:
             "y_cm_smoothed": np.array([0.0, 1.0, 0.0], dtype=float),
         }
 
-        # Shapely is an optional dependency in many environments, but ZebTrack-AI uses it.
+        # Shapely is an optional dependency in many environments, but DRerio LogAI uses it.
         from shapely.geometry import Polygon
 
         self.arena_polygon_cm = Polygon([(0, 0), (10, 0), (10, 10), (0, 10)])

@@ -1,4 +1,4 @@
-# ZebTrack-AI System Integration Map
+# DRerio LogAI System Integration Map
 
 **Status:** Living Document
 **Last Updated:** Feb 3, 2026 (v4.0)
@@ -76,7 +76,7 @@ Phase 3 consolidated 7 orchestrators into 4 "super coordinators." Phase 4 furthe
 > EventBusV2 (`UIEvents` enum). Migration of existing v1 subscribers is planned but
 > not yet started. See [ADR-009](../decisions/ADR-009-event-bus-unification.md).
 
-**CRITICAL:** ZebTrack-AI uses **two coexisting event bus systems** by design. Agents must understand which system to use for each use case.
+**CRITICAL:** DRerio LogAI uses **two coexisting event bus systems** by design. Agents must understand which system to use for each use case.
 
 ### 1.1. Event Bus Overview
 

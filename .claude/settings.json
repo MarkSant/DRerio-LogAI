@@ -1,6 +1,6 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-settings.json",
-  "_comment": "Shared Claude Code settings for ZebTrack-AI. Hooks live here so every developer/agent gets them. User-specific permissions belong in settings.local.json (which is git-ignored).",
+  "_comment": "Shared Claude Code settings for DRerio LogAI. Hooks live here so every developer/agent gets them. User-specific permissions belong in settings.local.json (which is git-ignored).",
   "hooks": {
     "PostToolUse": [
       {

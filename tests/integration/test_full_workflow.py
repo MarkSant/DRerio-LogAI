@@ -1,5 +1,5 @@
 """
-End-to-end integration tests for complete ZebTrack-AI workflow.
+End-to-end integration tests for complete DRerio LogAI workflow.
 
 Tests the integration of core components: Recorder, StateManager, and processing pipeline.
 """

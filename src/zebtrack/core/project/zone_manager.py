@@ -1,4 +1,4 @@
-"""Zone management module for ZebTrack-AI projects.
+"""Zone management module for DRerio LogAI projects.
 
 Handles all zone-related operations including:
 - Arena polygon management
@@ -26,7 +26,7 @@ log = structlog.get_logger()
 
 
 class ZoneManager:
-    """Manages zone-related operations for ZebTrack-AI projects.
+    """Manages zone-related operations for DRerio LogAI projects.
 
     Responsibilities:
     - Serializing/deserializing ZoneData objects

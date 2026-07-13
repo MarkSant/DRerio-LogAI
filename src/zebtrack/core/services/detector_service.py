@@ -1,5 +1,5 @@
 """
-Detector Service for ZebTrack-AI.
+Detector Service for DRerio LogAI.
 
 Phase 6: Service layer for detector and zone management.
 
@@ -1036,7 +1036,7 @@ class DetectorService:
         self, plugin_instance: DetectorPlugin, model_path: Path | str
     ) -> None:
         """
-        Validate that model has expected classes for ZebTrack-AI.
+        Validate that model has expected classes for DRerio LogAI.
 
         Args:
             plugin_instance: The instantiated detector plugin

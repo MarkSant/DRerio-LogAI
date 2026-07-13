@@ -1,5 +1,5 @@
 # ==============================================================================
-# ZebTrack-AI GUI Tests Runner
+# DRerio LogAI GUI Tests Runner
 # ==============================================================================
 #
 # Purpose:
@@ -28,7 +28,7 @@ param(
 )
 
 Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
-Write-Host "  ZebTrack-AI GUI Tests Runner" -ForegroundColor Cyan
+Write-Host "  DRerio LogAI GUI Tests Runner" -ForegroundColor Cyan
 Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
 Write-Host ""
 

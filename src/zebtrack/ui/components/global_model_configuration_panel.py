@@ -675,7 +675,7 @@ class GlobalModelConfigurationPanel(ttk.Frame):
             "carregado em memória (handle aberto), ou o OneDrive está "
             "sincronizando os arquivos.\n\n"
             "Soluções:\n"
-            "  1. Feche e reabra o ZebTrack-AI (libera o handle do modelo);\n"
+            "  1. Feche e reabra o DRerio LogAI (libera o handle do modelo);\n"
             "  2. Pause o OneDrive temporariamente e tente de novo;\n"
             "  3. Use 'poetry run zebtrack --reset-openvino-cache' antes de "
             "iniciar o app — apaga o cache enquanto nada está carregado."

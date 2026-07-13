@@ -8,7 +8,7 @@ Tests complete flow:
 - Batch report generation
 
 Version: 2.2.0
-Author: ZebTrack-AI Team
+Author: DRerio LogAI Team
 """
 
 from pathlib import Path

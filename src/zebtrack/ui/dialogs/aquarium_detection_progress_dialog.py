@@ -7,7 +7,7 @@ Shows real-time progress during automatic arena detection phase:
 - Valid/invalid detection counts
 
 Version: 2.2.0
-Author: ZebTrack-AI Team
+Author: DRerio LogAI Team
 Date: January 2026
 """
 
