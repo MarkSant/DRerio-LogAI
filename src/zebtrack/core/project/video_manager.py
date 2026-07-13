@@ -1,4 +1,4 @@
-"""Video management module for ZebTrack-AI projects.
+"""Video management module for DRerio LogAI projects.
 
 Handles all video-related operations including:
 - Video scanning and discovery
@@ -28,7 +28,7 @@ log = structlog.get_logger()
 
 
 class VideoManager:
-    """Manages video-related operations for ZebTrack-AI projects.
+    """Manages video-related operations for DRerio LogAI projects.
 
     Responsibilities:
     - Scanning directories for video files

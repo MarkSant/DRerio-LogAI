@@ -1,4 +1,4 @@
-"""DI container registrations for ZebTrack-AI.
+"""DI container registrations for DRerio LogAI.
 
 This module centralizes dependency wiring for the composition root, keeping
 __main__.py focused on startup orchestration.

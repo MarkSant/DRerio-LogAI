@@ -173,7 +173,7 @@ class MenuManager:
         ttk.Label(repo_frame, text="Repositório:", font=("TkDefaultFont", 9, "bold")).pack()
         repo_link = ttk.Label(
             repo_frame,
-            text="github.com/MarkSant/ZebTrack-AI",
+            text="github.com/MarkSant/DRerio-LogAI",
             font=("TkDefaultFont", 9),
             foreground="blue",
             cursor="hand2",
@@ -183,7 +183,7 @@ class MenuManager:
         def open_repo(event):
             import webbrowser
 
-            webbrowser.open("https://github.com/MarkSant/ZebTrack-AI")
+            webbrowser.open("https://github.com/MarkSant/DRerio-LogAI")
 
         repo_link.bind("<Button-1>", open_repo)
 

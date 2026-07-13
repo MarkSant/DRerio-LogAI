@@ -1,4 +1,4 @@
-"""Application startup orchestration for ZebTrack-AI."""
+"""Application startup orchestration for DRerio LogAI."""
 
 from __future__ import annotations
 
@@ -32,7 +32,7 @@ def run_app(
     configure_logging_fn: Any | None = None,
 ) -> None:
     """Run the application startup sequence."""
-    parser = argparse.ArgumentParser(description="ZebTrack-AI: Multi-animal tracking.")
+    parser = argparse.ArgumentParser(description="DRerio LogAI: Multi-animal tracking.")
     parser.add_argument(
         "--log-level",
         action="append",
@@ -327,7 +327,7 @@ def _set_windows_app_id(log: Any) -> None:
     try:
         import ctypes
 
-        myappid = "zebtrack.ai.app.v1"
+        myappid = "DRerio.LogAI.App.v1"
         windll = getattr(ctypes, "windll", None)
         if windll is not None:
             cast(Any, windll).shell32.SetCurrentProcessExplicitAppUserModelID(myappid)

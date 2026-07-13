@@ -1,4 +1,4 @@
-"""ZebTrack-AI application entrypoint."""
+"""DRerio LogAI application entrypoint."""
 
 import tkinter as tk
 from tkinter import messagebox

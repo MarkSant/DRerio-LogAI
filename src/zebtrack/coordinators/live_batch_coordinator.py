@@ -11,7 +11,7 @@ Architecture:
 - Persists outputs via ProjectManager
 
 Version: 2.2.0
-Author: ZebTrack-AI Team
+Author: DRerio LogAI Team
 Date: January 2026
 """
 

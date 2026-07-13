@@ -36,7 +36,7 @@ def discover_cameras(max_to_test=5):
 
 
 def run_test():
-    print("=== ZebTrack-AI: Teste de Detecção Não Filtrada ===")
+    print("=== DRerio LogAI: Teste de Detecção Não Filtrada ===")
 
     # 1. Carregar configurações e pesos
     try:

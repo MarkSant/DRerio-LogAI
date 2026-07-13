@@ -1,6 +1,6 @@
 # FAQ (Frequently Asked Questions)
 
-Common answers and troubleshooting tips for ZebTrack-AI users.
+Common answers and troubleshooting tips for DRerio LogAI users.
 
 ---
 
@@ -49,9 +49,9 @@ Templates include arena, ROI polygons, names, and colors. The wizard also reuses
 
 ---
 
-## Q: Can ZebTrack-AI handle videos recorded from an angle?
+## Q: Can DRerio LogAI handle videos recorded from an angle?
 
-**A:** Yes. Draw the arena corners in the zone editor; ZebTrack-AI computes a homography that warps coordinates into a normalized top-down plane. Metrics and ROI checks operate in this warped space, so moderate perspective skew is fine.
+**A:** Yes. Draw the arena corners in the zone editor; DRerio LogAI computes a homography that warps coordinates into a normalized top-down plane. Metrics and ROI checks operate in this warped space, so moderate perspective skew is fine.
 
 ---
 

@@ -1,9 +1,9 @@
 ---
-description: ZebTrack-AI core rules. Always loaded — points to the canonical agent guide.
+description: DRerio LogAI core rules. Always loaded — points to the canonical agent guide.
 alwaysApply: true
 ---
 
-# ZebTrack-AI — Cursor rules
+# DRerio LogAI — Cursor rules
 
 The canonical agent guide for this project is [`CLAUDE.md`](../../CLAUDE.md).
 Read it before any non-trivial change.

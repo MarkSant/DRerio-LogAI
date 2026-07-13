@@ -1,7 +1,9 @@
-"""Video utility functions for ZebTrack-AI.
+"""Video utility functions for DRerio LogAI.
 
 Common video operations extracted to avoid code duplication.
 """
+
+from pathlib import Path
 
 import cv2
 import structlog
@@ -9,7 +11,7 @@ import structlog
 log = structlog.get_logger()
 
 
-def get_video_dimensions(path: str) -> tuple[int, int] | None:
+def get_video_dimensions(path: Path | str) -> tuple[int, int] | None:
     """Safely get video dimensions (width, height).
 
     Args:
@@ -24,9 +26,10 @@ def get_video_dimensions(path: str) -> tuple[int, int] | None:
         >>>     width, height = dimensions
         >>>     print(f"Video is {width}x{height}")
     """
+    path = Path(path) if isinstance(path, str) else path
     cap = None
     try:
-        cap = cv2.VideoCapture(path)
+        cap = cv2.VideoCapture(str(path))
         if not cap.isOpened():
             log.warning("video.get_dimensions.failed_to_open", path=path)
             return None

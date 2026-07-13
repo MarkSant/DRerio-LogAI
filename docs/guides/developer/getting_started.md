@@ -1,6 +1,6 @@
 # Developer Getting Started
 
-This guide serves as the primary entry point for developers working on ZebTrack-AI.
+This guide serves as the primary entry point for developers working on DRerio LogAI.
 
 > **Quick Links**
 >
@@ -13,7 +13,7 @@ This guide serves as the primary entry point for developers working on ZebTrack-
 
 ## 1. Architecture (Event-Driven)
 
-ZebTrack-AI uses a decoupled **Event-Driven Architecture (EDA)**. Components (Views, Services) communicate via events rather than direct method calls, coordinated by Mediators.
+DRerio LogAI uses a decoupled **Event-Driven Architecture (EDA)**. Components (Views, Services) communicate via events rather than direct method calls, coordinated by Mediators.
 
 ### Key Changes
 

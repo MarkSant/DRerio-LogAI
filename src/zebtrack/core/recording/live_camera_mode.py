@@ -8,7 +8,7 @@ desired multi-aquarium real-time processing:
 3. Adapt Project Mode: Modify project to split aquariums across sessions
 
 Version: 2.2.0
-Author: ZebTrack-AI Team
+Author: DRerio LogAI Team
 Date: January 2026
 """
 

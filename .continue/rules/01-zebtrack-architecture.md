@@ -1,10 +1,10 @@
 ---
 name: ZebTrack Architecture
 alwaysApply: true
-description: Core architecture and canonical context sources for the ZebTrack-AI workspace.
+description: Core architecture and canonical context sources for the DRerio LogAI workspace.
 ---
 
-# ZebTrack-AI Architecture
+# DRerio LogAI Architecture
 
 - This workspace is a Python 3.12+ Tkinter application with MVVM, dependency injection,
   and EventBusV2-driven coordination.

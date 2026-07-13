@@ -1,9 +1,9 @@
-# Guia de Referência Operacional do ZebTrack-AI
+# Guia de Referência Operacional do DRerio LogAI
 
 **Última Atualização:** Dezembro 2025 (v3.2)
 **Atualizações Recentes:** Max Speed metric, Geotaxis naming fix, Sequential Multi-Aquarium, Unified Reports improvements
 
-Este guia consolida o conhecimento funcional do ZebTrack-AI para equipes de laboratório, mantenedores de software e auditores científicos. Aqui você encontra o fluxo completo de trabalho, tabelas de variáveis utilizadas nos relatórios, definições matemáticas, integrações com hardware (Arduino) e tutoriais passo a passo.
+Este guia consolida o conhecimento funcional do DRerio LogAI para equipes de laboratório, mantenedores de software e auditores científicos. Aqui você encontra o fluxo completo de trabalho, tabelas de variáveis utilizadas nos relatórios, definições matemáticas, integrações com hardware (Arduino) e tutoriais passo a passo.
 
 > **Escopo**: documento complementar ao `README.md`, `docs/explanation/architecture.md`, `docs/guides/developer/wizard.md` e `docs/reference/COORDINATE_SYSTEMS.md`. Sempre que novos comportamentos forem adicionados, atualize este guia junto com os testes automatizados.
 
@@ -29,7 +29,7 @@ Este guia consolida o conhecimento funcional do ZebTrack-AI para equipes de labo
 
 #### Detecção Automática de Hardware (v1.8+)
 
-O ZebTrack-AI detecta automaticamente o hardware disponível no startup e seleciona o backend ideal:
+O DRerio LogAI detecta automaticamente o hardware disponível no startup e seleciona o backend ideal:
 
 1. **Prioridade 1 - NVIDIA CUDA**: Se PyTorch detecta GPU NVIDIA com CUDA, usa backend PyTorch (melhor para GPUs NVIDIA).
 2. **Prioridade 2 - OpenVINO com GPU Intel**: Se OpenVINO está instalado e detecta GPU Intel (incluindo EVO), usa OpenVINO com aceleração GPU.

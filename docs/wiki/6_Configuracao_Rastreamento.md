@@ -4,7 +4,7 @@ Este guia descreve como ajustar os parâmetros de rastreamento para obter os mel
 
 ## 1. Seleção do Rastreador
 
-O ZebTrack-AI oferece duas opções:
+O DRerio LogAI oferece duas opções:
 
 - **ByteTrack (Recomendado)**: Usa inteligência artificial e Filtro de Kalman para prever o movimento do animal. É excelente para lidar com sumiços temporários ou reflexos.
 - **Rastreador Simples (Híbrido)**: Baseado apenas em distância e sobreposição de caixas. Ideal para casos muito simples (1 animal por aquário) em computadores com pouco processamento.

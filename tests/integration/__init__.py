@@ -1,1 +1,1 @@
-"""Integration tests for ZebTrack-AI."""
+"""Integration tests for DRerio LogAI."""

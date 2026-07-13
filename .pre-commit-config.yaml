@@ -1,4 +1,4 @@
-# Pre-commit hooks configuration for ZebTrack-AI
+# Pre-commit hooks configuration for DRerio LogAI
 # Install: poetry run pre-commit install
 # Run manually: poetry run pre-commit run --all-files
 

@@ -184,7 +184,7 @@ class ScriptExporter:
     # ------------------------------------------------------------------
     def _generate_r_script_template(self) -> str:
         """Generate template R script for data analysis."""
-        return """# ZebTrack-AI Analysis Script for R
+        return """# DRerio LogAI Analysis Script for R
 # Generated automatically - customize as needed
 
 # Required packages
@@ -261,7 +261,7 @@ ggplot(data, aes(x = timestamp, y = velocity_cm_s)) +
     def _generate_python_script_template(self) -> str:
         """Generate template Python script for data analysis."""
         return """# %% [markdown]
-# # ZebTrack-AI Analysis Notebook
+# # DRerio LogAI Analysis Notebook
 # Generated automatically - customize as needed
 
 # %% [markdown]

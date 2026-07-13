@@ -1,4 +1,4 @@
-"""Asset management module for ZebTrack-AI projects.
+"""Asset management module for DRerio LogAI projects.
 
 Handles all asset-related operations including:
 - ROI template management (save, load, import, list)
@@ -33,7 +33,7 @@ log = structlog.get_logger()
 
 
 class AssetManager:
-    """Manages asset-related operations for ZebTrack-AI projects.
+    """Manages asset-related operations for DRerio LogAI projects.
 
     Responsibilities:
     - ROI template persistence and retrieval

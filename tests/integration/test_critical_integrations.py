@@ -1,5 +1,5 @@
 """
-Critical integration tests for ZebTrack-AI core components.
+Critical integration tests for DRerio LogAI core components.
 
 Tests the integration of:
 1. Recorder + Camera (live streaming)

@@ -10,7 +10,7 @@ Architecture Decision:
 - Offers alternatives: single-aquarium, record-only, or adapt project
 
 Version: 2.2.0
-Author: ZebTrack-AI Team
+Author: DRerio LogAI Team
 Date: January 2026
 """
 

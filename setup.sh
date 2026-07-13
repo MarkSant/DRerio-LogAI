@@ -1,13 +1,13 @@
 #!/bin/bash
 
-# setup.sh - Environment setup script for ZebTrack-AI
+# setup.sh - Environment setup script for DRerio LogAI
 # This script installs necessary system dependencies, python packages,
 # and verifies the installation.
 
 set -e  # Exit immediately if a command exits with a non-zero status.
 
 echo "========================================="
-echo "Starting ZebTrack-AI Environment Setup"
+echo "Starting DRerio LogAI Environment Setup"
 echo "========================================="
 
 # 1. Install System Dependencies via apt-get

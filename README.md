@@ -1,7 +1,7 @@
 <div align="center">
-  <img src="src/zebtrack/ui/assets/logo_readme.png" alt="ZebTrack-AI Logo" width="400"/>
+  <img src="src/zebtrack/ui/assets/logo_readme.png" alt="DRerio LogAI Logo" width="400"/>
 
-# ZebTrack-AI
+# DRerio LogAI
 
 **Plataforma Inteligente de Rastreamento e Análise Comportamental para _Danio rerio_ (Zebrafish)**
 
@@ -10,8 +10,8 @@
 ![Python](https://img.shields.io/badge/python-3.12%2B-yellow.svg)
 ![License](https://img.shields.io/badge/license-MIT%20%2B%20AGPL--3.0--or--later%20effective-lightgrey.svg)
 ![INPI](https://img.shields.io/badge/INPI-BR%2051%202026%20005215--7-blueviolet.svg)
-[![CI](https://github.com/MarkSant/ZebTrack-AI/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/MarkSant/ZebTrack-AI/actions/workflows/ci.yml)
-[![Codecov](https://codecov.io/gh/MarkSant/ZebTrack-AI/branch/main/graph/badge.svg?token=XH937YKEOU)](https://codecov.io/gh/MarkSant/ZebTrack-AI)
+[![CI](https://github.com/MarkSant/DRerio-LogAI/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/MarkSant/DRerio-LogAI/actions/workflows/ci.yml)
+[![Codecov](https://codecov.io/gh/MarkSant/DRerio-LogAI/branch/main/graph/badge.svg?token=XH937YKEOU)](https://codecov.io/gh/MarkSant/DRerio-LogAI)
 
 [Documentação](docs/) | [Guia de Contribuição](docs/guides/developer/DEVELOPER_GUIDE.md) | [Arquitetura](docs/architecture/ARCHITECTURE.md) | [Changelog](CHANGELOG.md)
 
@@ -21,7 +21,7 @@
 
 ## 📋 Sobre o Projeto
 
-O **ZebTrack-AI** é uma solução completa e de código aberto para análise automatizada de comportamento de peixes zebrafish (_Danio rerio_) em experimentos científicos. Desenvolvido com foco em **reprodutibilidade**, **precisão** e **facilidade de uso**, o sistema combina técnicas avançadas de visão computacional com Deep Learning para rastreamento multi-objeto em tempo real.
+O **DRerio LogAI** é uma solução completa e de código aberto para análise automatizada de comportamento de peixes zebrafish (_Danio rerio_) em experimentos científicos. Desenvolvido com foco em **reprodutibilidade**, **precisão** e **facilidade de uso**, o sistema combina técnicas avançadas de visão computacional com Deep Learning para rastreamento multi-objeto em tempo real.
 
 ### 🎯 Motivação
 
@@ -31,7 +31,7 @@ Pesquisadores em neurociência, farmacologia e toxicologia frequentemente utiliz
 - **Subjetiva**: Variabilidade entre observadores
 - **Limitada**: Impossibilidade de rastrear múltiplos indivíduos simultaneamente
 
-O **ZebTrack-AI** resolve esses problemas oferecendo análise automatizada, objetiva e escalável.
+O **DRerio LogAI** resolve esses problemas oferecendo análise automatizada, objetiva e escalável.
 
 > **Não confunda com o PyZebArdYolo.** O **PyZebArdYolo** é um repositório
 > irmão, mais simples, focado em uma unidade de aquisição em tempo real
@@ -43,7 +43,7 @@ O **ZebTrack-AI** resolve esses problemas oferecendo análise automatizada, obje
 
 ## 🏛️ Titularidade e Registro
 
-O **DRerio LogAI (ZebTrack-AI)** possui **Registro de Programa de
+O **DRerio LogAI** possui **Registro de Programa de
 Computador concedido pelo INPI** (Instituto Nacional da Propriedade
 Industrial, Brasil), sob a Lei 9.609/98 (direito autoral de software —
 **não** se trata de patente):
@@ -201,8 +201,8 @@ O README destaca o estado atual (v4.0). Para detalhes completos por release, con
 2. **Clone o repositório**:
 
    ```bash
-   git clone https://github.com/MarkSant/ZebTrack-AI.git
-   cd ZebTrack-AI
+   git clone https://github.com/MarkSant/DRerio-LogAI.git
+   cd DRerio LogAI
    ```
 
 3. **Instale as dependências**:
@@ -227,8 +227,8 @@ Se você pretende contribuir ou modificar o código:
 
 ```bash
 # Clone e instale com dependências de desenvolvimento
-git clone https://github.com/MarkSant/ZebTrack-AI.git
-cd ZebTrack-AI
+git clone https://github.com/MarkSant/DRerio-LogAI.git
+cd DRerio LogAI
 poetry install --with dev
 
 # Instale os hooks de pré-commit
@@ -377,7 +377,7 @@ comandos e rechecagem de portas.
 - **Segmentação (seg)**: representa o alvo como máscara; tende a ser mais adequada quando a análise
    depende de precisão espacial (bordas/ROIs pequenas) e/ou quando há múltiplos animais
 
-O ZebTrack-AI expõe na UI os parâmetros críticos (confiança/NMS e ByteTrack) para documentar e
+O DRerio LogAI expõe na UI os parâmetros críticos (confiança/NMS e ByteTrack) para documentar e
 reproduzir o trade-off escolhido em cada experimento.
 
 ### Métricas Comportamentais
@@ -553,7 +553,7 @@ A documentação técnica está disponível na pasta `docs/`:
 ### Organização de Diretórios
 
 ```text
-ZebTrack-AI/
+DRerio LogAI/
 ├── src/zebtrack/               # Código-fonte principal
 │   ├── __main__.py            # Entry point (DI delegada a ApplicationBootstrapper)
 │   ├── core/                   # Camada de negócios (6 sub-packages)
@@ -779,7 +779,7 @@ Consulte o [DEVELOPER_GUIDE.md](docs/DEVELOPER_GUIDE.md) para diretrizes complet
 
 ### Publicações Científicas
 
-Este software foi desenvolvido para suportar pesquisas científicas com zebrafish. Se você usar o ZebTrack-AI em suas publicações, por favor cite-o conforme a seção "📖 Citation" abaixo.
+Este software foi desenvolvido para suportar pesquisas científicas com zebrafish. Se você usar o DRerio LogAI em suas publicações, por favor cite-o conforme a seção "📖 Citation" abaixo.
 
 ## 👥 Authors
 
@@ -790,7 +790,7 @@ Copyright patrimonial: **Universidade Estadual Paulista (UNESP)**. Veja a seçã
 
 ## 📖 Citation
 
-Se você usar o ZebTrack-AI em pesquisa, cite-o usando os metadados em [CITATION.cff](CITATION.cff) (formato Citation File Format 1.2.0 — reconhecido pelo GitHub como "Cite this repository").
+Se você usar o DRerio LogAI em pesquisa, cite-o usando os metadados em [CITATION.cff](CITATION.cff) (formato Citation File Format 1.2.0 — reconhecido pelo GitHub como "Cite this repository").
 
 ## 📄 Licença
 
@@ -849,6 +849,6 @@ Agradecimentos especiais a todos os contribuidores e à comunidade open source q
 
 <h4>UNESP - Laboratório de Pesquisa de Canabidiol</h4>
 
-[⬆ Voltar ao topo](#zebtrack-ai)
+[⬆ Voltar ao topo](#drerio-logai)
 
 </div>

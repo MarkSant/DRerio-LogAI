@@ -4,7 +4,7 @@ argument-hint: [optional pytest args, e.g. -k pattern, path]
 allowed-tools: Bash(poetry run pytest:*)
 ---
 
-Run the fast pytest subset for ZebTrack-AI:
+Run the fast pytest subset for DRerio LogAI:
 
 ```bash
 poetry run pytest -q $ARGUMENTS

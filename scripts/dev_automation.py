@@ -1,4 +1,4 @@
-"""Developer automation helpers for ZebTrack-AI.
+"""Developer automation helpers for DRerio LogAI.
 
 Provides a tiny CLI that chains common lint/test pipelines so routine
 quality gates can run with a single command. The script is intentionally

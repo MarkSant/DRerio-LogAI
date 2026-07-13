@@ -1,4 +1,4 @@
-"""Project management module for ZebTrack-AI.
+"""Project management module for DRerio LogAI.
 
 Provides the ProjectManager class for handling project lifecycle operations including
 creation, loading, configuration management, and asset tracking for zebrafish behavioral analysis.

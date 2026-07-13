@@ -1,4 +1,4 @@
-"""Shared type definitions for ZebTrack-AI core modules.
+"""Shared type definitions for DRerio LogAI core modules.
 
 This module contains commonly used type aliases to avoid duplication
 across different manager modules.

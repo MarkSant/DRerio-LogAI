@@ -1,4 +1,4 @@
-# ZebTrack-AI Architecture Overview (v4.0+)
+# DRerio LogAI Architecture Overview (v4.0+)
 
 **Status:** Canonical Reference
 **Last Updated:** February 2, 2026
@@ -6,7 +6,7 @@
 
 ## 1. Core Philosophy: Event-Driven & Decoupled
 
-ZebTrack-AI has evolved from a monolithic "God Object" architecture (v3.0) to a modular **Event-Driven Architecture (EDA)** utilizing the **Mediator** and **Dependency Injection** patterns. This ensures scalability, testability, and a clear separation of concerns between the User Interface (View) and the Business Logic (ViewModel/Model).
+DRerio LogAI has evolved from a monolithic "God Object" architecture (v3.0) to a modular **Event-Driven Architecture (EDA)** utilizing the **Mediator** and **Dependency Injection** patterns. This ensures scalability, testability, and a clear separation of concerns between the User Interface (View) and the Business Logic (ViewModel/Model).
 
 ### 1.1. The Transition
 

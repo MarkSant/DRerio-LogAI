@@ -20,11 +20,11 @@
 
 ## General Questions
 
-### What is DRerio LogAI (ZebTrack-AI)?
+### What is DRerio LogAI?
 
 DRerio LogAI is a comprehensive Python application for automated zebrafish behavioral tracking and analysis. It uses AI-powered detection (YOLO, OpenVINO) to track subjects in videos or live camera feeds, calculate behavioral metrics, and generate detailed reports.
 
-### What animals does ZebTrack-AI support?
+### What animals does DRerio LogAI support?
 
 Primarily zebrafish (Danio rerio), but the system works with any small aquatic animals including:
 
@@ -33,17 +33,17 @@ Primarily zebrafish (Danio rerio), but the system works with any small aquatic a
 - Small fish species (guppies, etc.)
 - Aquatic invertebrates (with appropriate model training)
 
-### Is ZebTrack-AI free to use?
+### Is DRerio LogAI free to use?
 
-Yes! ZebTrack-AI is open-source software released under the MIT License. You can use, modify, and distribute it freely for academic or commercial purposes.
+Yes! DRerio LogAI is open-source software released under the MIT License. You can use, modify, and distribute it freely for academic or commercial purposes.
 
-### Can I use ZebTrack-AI for publications?
+### Can I use DRerio LogAI for publications?
 
-Absolutely! ZebTrack-AI is designed for scientific research. When citing, please use:
+Absolutely! DRerio LogAI is designed for scientific research. When citing, please use:
 
 ```text
-ZebTrack-AI: DRerio LogAI - Automated Zebrafish Behavioral Tracking System
-https://github.com/MarkSant/ZebTrack-AI
+DRerio LogAI - Automated Zebrafish Behavioral Tracking System
+https://github.com/MarkSant/DRerio-LogAI
 ```
 
 (Formal citation format coming soon with publication)
@@ -107,7 +107,7 @@ However, Poetry ensures consistent dependency versions and is strongly recommend
 ### How do I update to the latest version?
 
 ```bash
-cd ZebTrack-AI
+cd DRerio LogAI
 git pull origin main
 poetry install  # Update dependencies
 ```
@@ -132,7 +132,7 @@ poetry install  # Update dependencies
 - GPU: NVIDIA GTX 1060 or better (6GB VRAM)
 - Storage: 20GB+ SSD
 
-### Can I run ZebTrack-AI without a GPU?
+### Can I run DRerio LogAI without a GPU?
 
 Yes! CPU-only mode works but is slower:
 
@@ -335,7 +335,7 @@ Custom models can be loaded in Wizard Step 4.
 
 ## Analysis and Results
 
-### What metrics does ZebTrack-AI calculate?
+### What metrics does DRerio LogAI calculate?
 
 **Spatial metrics**:
 
@@ -513,7 +513,7 @@ Yes! Use **Batch Processing**:
 - ❌ Short videos (minimal time savings)
 - ❌ High temporal resolution needed
 
-### How much RAM does ZebTrack-AI use?
+### How much RAM does DRerio LogAI use?
 
 **Typical usage**:
 
@@ -532,7 +532,7 @@ Yes! Use **Batch Processing**:
 
 ### What is Arduino integration?
 
-ZebTrack-AI can send commands to Arduino microcontrollers based on ROI events.
+DRerio LogAI can send commands to Arduino microcontrollers based on ROI events.
 
 **Use cases**:
 
@@ -646,7 +646,7 @@ for video in videos:
 
 - Check logs: `logs/zebtrack.log`
 - Run with verbose logging: `poetry run zebtrack --verbose`
-- Report bug: [GitHub Issues](https://github.com/MarkSant/ZebTrack-AI/issues)
+- Report bug: [GitHub Issues](https://github.com/MarkSant/DRerio-LogAI/issues)
 
 ### Results seem incorrect - what's wrong?
 
@@ -673,18 +673,18 @@ for video in videos:
 
 **Community**:
 
-- [GitHub Issues](https://github.com/MarkSant/ZebTrack-AI/issues)
-- [Discussions](https://github.com/MarkSant/ZebTrack-AI/discussions)
+- [GitHub Issues](https://github.com/MarkSant/DRerio-LogAI/issues)
+- [Discussions](https://github.com/MarkSant/DRerio-LogAI/discussions)
 
 **Direct support**:
 
-- Email: <support@zebtrack.ai>
+- Email: <marco.sant@unesp.br>
 
 ---
 
 ## Contributing and Development
 
-### How can I contribute to ZebTrack-AI?
+### How can I contribute to DRerio LogAI?
 
 Contributions welcome! See [Contributing Guide](../../../CONTRIBUTING.md) for:
 
@@ -696,12 +696,12 @@ Contributions welcome! See [Contributing Guide](../../../CONTRIBUTING.md) for:
 
 ### Where is the source code?
 
-GitHub repository: <https://github.com/MarkSant/ZebTrack-AI>
+GitHub repository: <https://github.com/MarkSant/DRerio-LogAI>
 
 **Structure**:
 
 ```text
-ZebTrack-AI/
+DRerio LogAI/
 ├── src/zebtrack/        # Application code
 ├── tests/               # Test suite
 ├── docs/                # Documentation
@@ -709,7 +709,7 @@ ZebTrack-AI/
 └── pyproject.toml       # Dependencies
 ```
 
-### Can I use ZebTrack-AI for commercial purposes?
+### Can I use DRerio LogAI for commercial purposes?
 
 Yes! The MIT License allows commercial use with no restrictions.
 
@@ -724,7 +724,7 @@ Yes! The MIT License allows commercial use with no restrictions.
 
 ## License and Citation
 
-### What license is ZebTrack-AI released under?
+### What license is DRerio LogAI released under?
 
 **MIT License** - permissive, open-source
 
@@ -737,13 +737,13 @@ You are free to:
 
 See [LICENSE](../../../LICENSE) file for full text.
 
-### How do I cite ZebTrack-AI in publications?
+### How do I cite DRerio LogAI in publications?
 
 **Temporary citation** (until formal publication):
 
 ```text
-ZebTrack-AI: DRerio LogAI - Automated Zebrafish Behavioral Tracking System
-https://github.com/MarkSant/ZebTrack-AI
+DRerio LogAI - Automated Zebrafish Behavioral Tracking System
+https://github.com/MarkSant/DRerio-LogAI
 Version 2.1 (2025)
 ```
 
@@ -753,4 +753,4 @@ Version 2.1 (2025)
 
 **Last Updated**: November 2025
 **Version**: 2.1
-**For more questions**: [Open an issue](https://github.com/MarkSant/ZebTrack-AI/issues) or email <support@zebtrack.ai>
+**For more questions**: [Open an issue](https://github.com/MarkSant/DRerio-LogAI/issues) or email <marco.sant@unesp.br>

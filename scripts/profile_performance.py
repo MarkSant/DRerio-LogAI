@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Performance Profiling Script for ZebTrack-AI
+Performance Profiling Script for DRerio LogAI
 
 This script provides comprehensive performance profiling capabilities:
 - CPU profiling (cProfile)
@@ -55,7 +55,7 @@ except ImportError:
 
 
 class PerformanceProfiler:
-    """Main profiler class for ZebTrack-AI performance analysis."""
+    """Main profiler class for DRerio LogAI performance analysis."""
 
     def __init__(self, output_dir: Path | None = None):
         """Initialize profiler.
@@ -502,7 +502,7 @@ class PerformanceProfiler:
 def main():
     """Main entry point for profiling script."""
     parser = argparse.ArgumentParser(
-        description="Performance profiling for ZebTrack-AI",
+        description="Performance profiling for DRerio LogAI",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
 
@@ -532,7 +532,7 @@ def main():
     profiler = PerformanceProfiler(output_dir=args.output_dir)
 
     print("\n" + "=" * 80)
-    print("ZebTrack-AI Performance Profiling")
+    print("DRerio LogAI Performance Profiling")
     print("=" * 80)
     print(f"Mode: {args.mode}")
     print(f"Output directory: {args.output_dir}")

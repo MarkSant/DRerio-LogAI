@@ -1,5 +1,5 @@
 """
-Application Bootstrapper for ZebTrack-AI.
+Application Bootstrapper for DRerio LogAI.
 
 Responsibility:
 - Initialize all internal services and orchestrators that are not injected via __main__.py

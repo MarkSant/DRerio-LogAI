@@ -1,5 +1,5 @@
 """
-Model Service for ZebTrack-AI.
+Model Service for DRerio LogAI.
 
 Phase 2.1: Service layer for AI model management.
 Phase 2.4: Expanded with configuration management and validation.

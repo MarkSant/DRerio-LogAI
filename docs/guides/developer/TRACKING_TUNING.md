@@ -1,10 +1,10 @@
 # Tracking Parameters and Tuning Guide
 
-This guide explains the tracking parameters available in ZebTrack-AI and how to tune them for different experimental setups.
+This guide explains the tracking parameters available in DRerio LogAI and how to tune them for different experimental setups.
 
 ## 1. Tracker Selection
 
-ZebTrack-AI offers two tracking strategies:
+DRerio LogAI offers two tracking strategies:
 
 ### ByteTrack (Advanced)
 

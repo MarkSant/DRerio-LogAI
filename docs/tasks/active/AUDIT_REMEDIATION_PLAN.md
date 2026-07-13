@@ -1,7 +1,7 @@
 # Plano de Remediação — 7 Críticas da Auditoria Técnica
 
 > **Criado**: 2026-03-01
-> **Origem**: Auditoria CTO-level do repositório ZebTrack-AI
+> **Origem**: Auditoria CTO-level do repositório DRerio LogAI
 > **Execução**: 4 fases independentes, cada uma executável por um agente distinto
 
 ---

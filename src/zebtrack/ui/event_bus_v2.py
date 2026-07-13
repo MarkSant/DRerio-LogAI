@@ -1,4 +1,4 @@
-"""Unified Event Bus for ZebTrack-AI Event-Driven Architecture.
+"""Unified Event Bus for DRerio LogAI Event-Driven Architecture.
 
 This module provides:
 - ``UIEvents`` enum — the canonical set of all application events (type-safe).
@@ -28,7 +28,7 @@ log = structlog.get_logger().bind(component="ui.event_bus_v2")
 
 
 class UIEvents(Enum):
-    """Canonical event catalog for all ZebTrack-AI communication.
+    """Canonical event catalog for all DRerio LogAI communication.
 
     Naming convention: ``DOMAIN_ACTION`` in UPPER_SNAKE_CASE.
     Each member replaces a former ``Events.*`` string constant or a raw

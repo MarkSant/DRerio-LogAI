@@ -4,7 +4,7 @@ alwaysApply: true
 description: Repository workflow, testing, documentation, and performance expectations.
 ---
 
-# ZebTrack-AI Workflow
+# DRerio LogAI Workflow
 
 - Keep `docs/tasks/active/ROLLING_TASK_LOG.md` updated for substantial agent sessions.
 - Use Poetry-first commands for app runs, tests, linting, and developer automation.

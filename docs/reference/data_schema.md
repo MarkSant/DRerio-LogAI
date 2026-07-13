@@ -1,4 +1,4 @@
-# ZebTrack-AI Data Schema Reference
+# DRerio LogAI Data Schema Reference
 
 **Category:** Reference (Diátaxis)
 **Status:** Canonical

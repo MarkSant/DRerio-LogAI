@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Impact Analyzer for ZebTrack-AI
+Impact Analyzer for DRerio LogAI
 
 A tool to analyze the impact of code changes by tracing dependencies,
 event subscriptions, and DI injection chains.
@@ -643,7 +643,7 @@ class ImpactAnalyzer:
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Analyze the impact of code changes in ZebTrack-AI",
+        description="Analyze the impact of code changes in DRerio LogAI",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=__doc__,
     )

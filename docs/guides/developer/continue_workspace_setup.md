@@ -2,7 +2,7 @@
 
 ## Overview
 
-This guide explains the Continue workspace overlay for ZebTrack-AI after deprecation of `@Codebase` and `@Docs` context providers.
+This guide explains the Continue workspace overlay for DRerio LogAI after deprecation of `@Codebase` and `@Docs` context providers.
 
 **Current Status**: Workspace rules and global config are active. For this repository, the stable workspace overlay is `.continue/rules/`, and workspace MCP integration is handled through `.vscode/mcp.json`.
 
@@ -50,7 +50,7 @@ This keeps the setup offline-first and aligned with the models actually installe
 
 - Put project-agnostic Continue rules in `%USERPROFILE%\.continue\config.yaml` under `rules:`.
 - Put global Continue MCP servers in `%USERPROFILE%\.continue\config.yaml` under `mcpServers:`.
-- For ZebTrack-AI, prefer `.continue/rules/*.md` for repository guidance and `.vscode/mcp.json` for workspace MCP integration used from VS Code.
+- For DRerio LogAI, prefer `.continue/rules/*.md` for repository guidance and `.vscode/mcp.json` for workspace MCP integration used from VS Code.
 - Only use workspace `.continue/mcpServers/*.yaml` if you have confirmed that your installed Continue version supports that schema.
 
 ### Secret Handling (Security Fix - Phase 2)
@@ -68,7 +68,7 @@ Hardcoded API keys **removed** from global config. Now uses environment variable
 ```powershell
 $env:ANTHROPIC_API_KEY = "<your-key>"
 $env:GITHUB_PERSONAL_ACCESS_TOKEN = "<your-token>"
-code "c:\Users\santa\OneDrive\UNESP\Pesquisa Canabidiol\Codigos_Programas\ZebTrack-AI"
+code "c:\Users\santa\OneDrive\UNESP\Pesquisa Canabidiol\Codigos_Programas\DRerio LogAI"
 ```
 
 **Alternative (Continue-local secrets)**:
@@ -104,7 +104,7 @@ Reload Continue and use these prompts to verify configuration:
 2. **What is the safe accessor for multi-aquarium zone data in this repository?**
    - Expected: `ProjectManager.get_multi_aquarium_zone_data()` (not `get_zone_data()`)
 
-3. **Before editing code in ZebTrack-AI, which impact analysis workflow should I follow?**
+3. **Before editing code in DRerio LogAI, which impact analysis workflow should I follow?**
    - Expected: `python scripts/impact_analyzer.py <type> <name>` as documented in `docs/guides/developer/impact_analysis.md`
 
 4. **What file tracks the active work log for this repository?**

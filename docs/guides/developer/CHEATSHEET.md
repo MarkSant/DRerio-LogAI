@@ -1,4 +1,4 @@
-# ZebTrack-AI Development Cheatsheet
+# DRerio LogAI Development Cheatsheet
 
 ## 🚀 Quick Start
 

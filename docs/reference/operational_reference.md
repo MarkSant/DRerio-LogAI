@@ -4,7 +4,7 @@
 **Status:** Canonical
 **Last Updated:** February 2, 2026
 
-This document defines the stable public interfaces of the ZebTrack-AI core services. Developers should rely on these methods when extending the system or integrating with new UI components.
+This document defines the stable public interfaces of the DRerio LogAI core services. Developers should rely on these methods when extending the system or integrating with new UI components.
 
 ## 1. Core Services API
 

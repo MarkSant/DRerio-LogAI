@@ -1,6 +1,6 @@
-# Event-Driven Workflows in ZebTrack-AI (v4.1)
+# Event-Driven Workflows in DRerio LogAI (v4.1)
 
-This document explains the Event-Driven Architecture (EDA) and Model-View-ViewModel (MVVM) workflows in ZebTrack-AI. The system utilizes a dual-bus communication pattern and a coordination layer (Mediators) to ensure high decoupling and testability.
+This document explains the Event-Driven Architecture (EDA) and Model-View-ViewModel (MVVM) workflows in DRerio LogAI. The system utilizes a dual-bus communication pattern and a coordination layer (Mediators) to ensure high decoupling and testability.
 
 ## 1. Core Architectural Layers
 

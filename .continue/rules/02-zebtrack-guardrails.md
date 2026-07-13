@@ -1,10 +1,10 @@
 ---
 name: ZebTrack Guardrails
 alwaysApply: true
-description: Critical ZebTrack-AI implementation constraints that the agent must preserve.
+description: Critical DRerio LogAI implementation constraints that the agent must preserve.
 ---
 
-# ZebTrack-AI Guardrails
+# DRerio LogAI Guardrails
 
 - Run impact analysis before code changes with `python scripts/impact_analyzer.py`.
 - Never import singleton settings with `from zebtrack import settings`; use constructor

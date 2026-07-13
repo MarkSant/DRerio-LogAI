@@ -1,13 +1,13 @@
 # Intel NPU Setup Guide
 
-Guide for configuring ZebTrack-AI to use Intel Neural Processing Units (NPU)
+Guide for configuring DRerio LogAI to use Intel Neural Processing Units (NPU)
 for hardware-accelerated zebrafish tracking inference.
 
 ## Requirements
 
 - **CPU**: Intel Core Ultra (Meteor Lake or newer) with integrated NPU
 - **Driver**: Intel NPU driver installed and up-to-date
-- **OpenVINO**: Version 2026.0+ (bundled with ZebTrack-AI)
+- **OpenVINO**: Version 2026.0+ (bundled with DRerio LogAI)
 - **OS**: Windows 11 (23H2+) or Linux with NPU kernel module
 
 ## Verifying NPU Availability
@@ -34,7 +34,7 @@ OpenVINO devices: ['CPU', 'GPU', 'NPU']
 
 ### Automatic (Recommended)
 
-ZebTrack-AI auto-detects NPU during the first-run benchmark.
+DRerio LogAI auto-detects NPU during the first-run benchmark.
 If NPU is available, it appears in the device selection combobox
 in the Calibration Dialog (Global Settings).
 
@@ -95,7 +95,7 @@ NPU advantages:
 
 ### NPU Inference Errors
 
-If NPU compilation fails, ZebTrack-AI automatically falls back to
+If NPU compilation fails, DRerio LogAI automatically falls back to
 CPU. Check logs for:
 
 ```text

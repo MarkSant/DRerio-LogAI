@@ -204,7 +204,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### 🚀 Highlights
 
-v4.0 is a comprehensive rewrite of ZebTrack-AI focused on **stability**,
+v4.0 is a comprehensive rewrite of DRerio LogAI focused on **stability**,
 **maintainability**, **performance**, and **hardware flexibility**. 133 commits
 since the initial audit plan, spanning 10 refactoring phases, performance
 optimizations, security hardening, and NPU support.
@@ -1675,7 +1675,7 @@ decomposition.
 
 ### Fixed
 
-- **Non-daemon threads blocking Python shutdown** ([#CRITICAL](https://github.com/MarkSant/ZebTrack-AI/commit/2372a4e))
+- **Non-daemon threads blocking Python shutdown** ([#CRITICAL](https://github.com/MarkSant/DRerio-LogAI/commit/2372a4e))
   - Changed 4 worker threads to `daemon=True` in `LiveCameraService` and `GUI`
   - Allows Python to exit even if threads are running
   - Prevents indefinite hangs waiting for threads to terminate

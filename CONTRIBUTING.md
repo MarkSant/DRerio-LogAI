@@ -1,14 +1,14 @@
 # Contributing Guide
 
-Obrigado por querer contribuir com o ZebTrack-AI! Este guia descreve o fluxo de trabalho, padrões de código e expectativas para pull requests.
+Obrigado por querer contribuir com o DRerio LogAI! Este guia descreve o fluxo de trabalho, padrões de código e expectativas para pull requests.
 
 ## 1. Preparando o ambiente
 
 1. Clone o repositório:
 
    ```powershell
-   git clone https://github.com/MarkSant/ZebTrack-AI.git
-   cd ZebTrack-AI
+   git clone https://github.com/MarkSant/DRerio-LogAI.git
+   cd DRerio LogAI
    ```
 
 1. Instale as dependências com Poetry:

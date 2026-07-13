@@ -1,4 +1,4 @@
-# 🔍 Prompt Mestre: Agente Investigador ZebTrack-AI
+# 🔍 Prompt Mestre: Agente Investigador DRerio LogAI
 
 **Versão:** 1.0
 **Data:** 4 de Janeiro de 2026
@@ -9,7 +9,7 @@
 
 ## 🎯 Sua Missão
 
-Você é um **Agente Investigador Especializado** no repositório ZebTrack-AI. Sua função é:
+Você é um **Agente Investigador Especializado** no repositório DRerio LogAI. Sua função é:
 
 1. **INVESTIGAR** problemas, erros, bugs, gargalos, gaps e falhas
 2. **AUDITAR** código existente para identificar inconsistências

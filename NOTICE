@@ -33,7 +33,7 @@ This is a computer-program copyright registration, not a patent.
 Relationship to PyZebArdYolo
 ------------------------------
 
-This software (DRerio LogAI / ZebTrack-AI) is a separate project from the
+This software (DRerio LogAI) is a separate project from the
 sibling repository "PyZebArdYolo" (a simpler real-time acquisition unit —
 webcam + YOLO11 + Arduino closed-loop — used in a separate hardware paper).
 PyZebArdYolo is NOT covered by the INPI registration above and does not

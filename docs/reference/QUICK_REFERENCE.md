@@ -1,4 +1,4 @@
-# ZebTrack-AI Quick Reference
+# DRerio LogAI Quick Reference
 
 Ultra-compact reference for AI assistants and developers.
 

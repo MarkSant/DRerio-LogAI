@@ -5,7 +5,7 @@
 
 ## 1. System Baselines (Target vs. Actual)
 
-These metrics represent the performance characteristics of ZebTrack-AI on standard lab hardware (e.g., Intel i7-12th Gen).
+These metrics represent the performance characteristics of DRerio LogAI on standard lab hardware (e.g., Intel i7-12th Gen).
 
 | Metric              | Baseline    | Target    | Bottleneck                         |
 | ------------------- | ----------- | --------- | ---------------------------------- |
@@ -28,7 +28,7 @@ Use these numbers as a baseline when validating regressions or hardware changes.
 
 ## 2. Concurrency Model
 
-ZebTrack-AI uses a multi-threaded approach to keep the UI responsive during intensive tasks.
+DRerio LogAI uses a multi-threaded approach to keep the UI responsive during intensive tasks.
 
 ### 2.1. Threaded Components
 

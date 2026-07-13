@@ -1,5 +1,5 @@
 """
-UI Scheduler Service for ZebTrack-AI.
+UI Scheduler Service for DRerio LogAI.
 
 Phase 4: UI Scheduling Consolidation
 Consolidates all UI scheduling and update operations into a single service,

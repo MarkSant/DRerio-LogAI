@@ -18,7 +18,7 @@ $ErrorActionPreference = "Continue"
 
 Write-Host ""
 Write-Host "========================================" -ForegroundColor Cyan
-Write-Host "  ZebTrack-AI: Prepare Commit" -ForegroundColor Cyan
+Write-Host "  DRerio LogAI: Prepare Commit" -ForegroundColor Cyan
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host ""
 

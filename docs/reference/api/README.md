@@ -1,6 +1,6 @@
 # API Documentation (Sphinx)
 
-This guide describes how to build the API documentation for ZebTrack-AI using Sphinx.
+This guide describes how to build the API documentation for DRerio LogAI using Sphinx.
 
 ## Current Status
 

@@ -1,6 +1,6 @@
 # Full Tutorial: From Video to Results
 
-This tutorial walks through the complete ZebTrack-AI workflow: creating a project with the wizard, configuring arenas/ROIs, running detections, and generating reports.
+This tutorial walks through the complete DRerio LogAI workflow: creating a project with the wizard, configuring arenas/ROIs, running detections, and generating reports.
 
 ---
 
@@ -49,7 +49,7 @@ This tutorial walks through the complete ZebTrack-AI workflow: creating a projec
 ### Pre-recorded projects
 
 1. In **Main Control**, click **"Adicionar e Processar Novos Vídeos/Pastas"**.
-2. Confirm the wizard’s processing plan. ZebTrack-AI handles detection → tracking → analysis automatically.
+2. Confirm the wizard’s processing plan. DRerio LogAI handles detection → tracking → analysis automatically.
 3. The overlay view displays:
    - Current frame with bounding boxes.
    - Processing statistics (total frames, processed frames, detected frames, ETA).
@@ -106,4 +106,4 @@ The unified report has been robustly improved:
 - Keep `config.local.yaml` under version control (if it contains shared lab defaults) or document overrides in your project README.
 - Consult `docs/reference/operational_reference.md` for formulas, ROI metrics, Arduino integration, and troubleshooting checklists.
 
-You’re now ready to perform end-to-end experiments with ZebTrack-AI!
+You’re now ready to perform end-to-end experiments with DRerio LogAI!

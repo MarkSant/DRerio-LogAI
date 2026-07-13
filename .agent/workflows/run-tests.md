@@ -1,5 +1,5 @@
 ---
-description: Run tests for the ZebTrack-AI project
+description: Run tests for the DRerio LogAI project
 ---
 
 # Run Tests Workflow

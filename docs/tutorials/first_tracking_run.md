@@ -5,7 +5,7 @@
 
 ## Visão Geral
 
-O Wizard de Criação de Projetos é um assistente inteligente de 5 etapas que automatiza a criação de projetos no ZebTrack-AI. Desde a versão 1.6 ele é a experiência padrão (a flag `ui_features.use_wizard_for_project_creation` deve permanecer habilitada). Ele detecta automaticamente o design experimental, importa zonas de arquivos Parquet existentes e configura estratégias de processamento otimizadas para cada vídeo.
+O Wizard de Criação de Projetos é um assistente inteligente de 5 etapas que automatiza a criação de projetos no DRerio LogAI. Desde a versão 1.6 ele é a experiência padrão (a flag `ui_features.use_wizard_for_project_creation` deve permanecer habilitada). Ele detecta automaticamente o design experimental, importa zonas de arquivos Parquet existentes e configura estratégias de processamento otimizadas para cada vídeo.
 
 **Novidade v1.7:** A janela do wizard agora usa tamanho fixo largo (1150x550px) com layout de 3 colunas. Todas as perguntas da primeira etapa são exibidas lado a lado, maximizando o uso do espaço horizontal e minimizando a altura. Espaçamentos compactos e 220px de margem inferior garantem que os botões de navegação fiquem sempre visíveis. Compatível com telas 1366x768+.
 
@@ -424,7 +424,7 @@ Exemplo:
 
 Para reportar problemas ou sugerir melhorias:
 
-- GitHub Issues: <https://github.com/anthropics/zebtrack-ai/issues>
+- GitHub Issues: <https://github.com/MarkSant/DRerio-LogAI/issues>
 - Documentação técnica complementar: `docs/guides/developer/wizard.md`
 - Arquitetura: `docs/explanation/architecture.md`
 

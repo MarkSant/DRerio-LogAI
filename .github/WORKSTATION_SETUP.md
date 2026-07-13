@@ -1,6 +1,6 @@
 # Workstation Setup Guide
 
-Este guia explica como configurar rapidamente um novo workstation com todas as otimizações e personalizações do ZebTrack-AI.
+Este guia explica como configurar rapidamente um novo workstation com todas as otimizações e personalizações do DRerio LogAI.
 
 ## 🚀 Quick Setup (5 minutos)
 
@@ -8,8 +8,8 @@ Este guia explica como configurar rapidamente um novo workstation com todas as o
 
 ```powershell
 # Clone o repositório
-git clone https://github.com/MarkSant/ZebTrack-AI.git
-cd ZebTrack-AI
+git clone https://github.com/MarkSant/DRerio-LogAI.git
+cd DRerio LogAI
 
 # Instale Poetry (se necessário)
 (Invoke-WebRequest -Uri https://install.python-poetry.org -UseBasicParsing).Content | python -

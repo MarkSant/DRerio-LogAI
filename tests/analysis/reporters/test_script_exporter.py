@@ -37,14 +37,14 @@ def exporter():
 class TestScriptTemplates:
     def test_r_template_has_key_sections(self, exporter):
         script = exporter._generate_r_script_template()
-        assert "ZebTrack-AI Analysis Script for R" in script
+        assert "DRerio LogAI Analysis Script for R" in script
         assert "library(arrow)" in script
         assert 'read_feather("data.feather")' in script
         assert "ggplot" in script
 
     def test_python_template_has_key_sections(self, exporter):
         script = exporter._generate_python_script_template()
-        assert "ZebTrack-AI Analysis Notebook" in script
+        assert "DRerio LogAI Analysis Notebook" in script
         assert "import pandas as pd" in script
         assert 'read_parquet("data.parquet")' in script
 
