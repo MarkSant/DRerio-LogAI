@@ -8,8 +8,8 @@ sys.path.insert(0, str(Path(__file__).parents[3] / "src"))
 
 # -- Project information -----------------------------------------------------
 project = "ZebTrack-AI"
-copyright = "2025, The Project Developers"
-author = "The Project Developers"
+copyright = "2025, Universidade Estadual Paulista (UNESP)"
+author = "Marco Antônio Sant'Ana Camargos, Percília Cardoso Giaquinto"
 release = "0.1.0"
 
 # -- General configuration ---------------------------------------------------

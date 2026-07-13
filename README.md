@@ -8,7 +8,8 @@
 ![Version](https://img.shields.io/badge/version-4.0.0-blue.svg)
 ![Architecture](https://img.shields.io/badge/architecture-Event--Driven-green.svg)
 ![Python](https://img.shields.io/badge/python-3.12%2B-yellow.svg)
-![License](https://img.shields.io/badge/license-MIT-lightgrey.svg)
+![License](https://img.shields.io/badge/license-MIT%20%2B%20AGPL--3.0--or--later%20effective-lightgrey.svg)
+![INPI](https://img.shields.io/badge/INPI-BR%2051%202026%20005215--7-blueviolet.svg)
 [![CI](https://github.com/MarkSant/ZebTrack-AI/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/MarkSant/ZebTrack-AI/actions/workflows/ci.yml)
 [![Codecov](https://codecov.io/gh/MarkSant/ZebTrack-AI/branch/main/graph/badge.svg?token=XH937YKEOU)](https://codecov.io/gh/MarkSant/ZebTrack-AI)
 
@@ -31,6 +32,36 @@ Pesquisadores em neurociência, farmacologia e toxicologia frequentemente utiliz
 - **Limitada**: Impossibilidade de rastrear múltiplos indivíduos simultaneamente
 
 O **ZebTrack-AI** resolve esses problemas oferecendo análise automatizada, objetiva e escalável.
+
+> **Não confunda com o PyZebArdYolo.** O **PyZebArdYolo** é um repositório
+> irmão, mais simples, focado em uma unidade de aquisição em tempo real
+> (webcam + YOLO11 + Arduino, closed-loop) usada em um paper de hardware
+> separado. Ele **não** está coberto pelo registro INPI descrito abaixo e
+> não tem a exigência de titularidade UNESP presente nos arquivos de
+> licença deste repositório — lá, os próprios autores figuram como
+> titulares. Os dois projetos são independentes.
+
+## 🏛️ Titularidade e Registro
+
+O **DRerio LogAI (ZebTrack-AI)** possui **Registro de Programa de
+Computador concedido pelo INPI** (Instituto Nacional da Propriedade
+Industrial, Brasil), sob a Lei 9.609/98 (direito autoral de software —
+**não** se trata de patente):
+
+- **Processo**: BR 51 2026 005215-7
+- **Petição**: 870260066857
+- **Data de depósito**: 07/07/2026
+- **Data de criação declarada**: 22/10/2025
+
+O **titular** dos direitos patrimoniais (dono dos direitos econômicos) é a
+**Universidade Estadual Paulista "Júlio de Mesquita Filho" (UNESP)**, CNPJ
+48.031.918/0001-24. Os **autores/inventores** (direitos morais) são
+**Marco Antônio Sant'Ana Camargos** e **Percília Cardoso Giaquinto**,
+ambos com afiliação UNESP.
+
+Veja [NOTICE](NOTICE) para o detalhamento completo (copyright,
+dependências de terceiros e suas licenças) e [LICENSE](LICENSE) para os
+termos legais.
 
 ### ✨ Diferenciais
 
@@ -748,19 +779,35 @@ Consulte o [DEVELOPER_GUIDE.md](docs/DEVELOPER_GUIDE.md) para diretrizes complet
 
 ### Publicações Científicas
 
-Este software foi desenvolvido para suportar pesquisas científicas com zebrafish. Se você usar o ZebTrack-AI em suas publicações, por favor cite:
+Este software foi desenvolvido para suportar pesquisas científicas com zebrafish. Se você usar o ZebTrack-AI em suas publicações, por favor cite-o conforme a seção "📖 Citation" abaixo.
 
-```text
-Santos, M. (2025). ZebTrack-AI: Automated Behavioral Tracking and Analysis
-Platform for Danio rerio. GitHub repository.
-https://github.com/MarkSant/ZebTrack-AI
-```
+## 👥 Authors
+
+- **Marco Antônio Sant'Ana Camargos** — São Paulo State University (UNESP), Botucatu, Brazil
+- **Percília Cardoso Giaquinto** — São Paulo State University (UNESP), Botucatu, Brazil
+
+Copyright patrimonial: **Universidade Estadual Paulista (UNESP)**. Veja a seção "🏛️ Titularidade e Registro" acima e o arquivo [NOTICE](NOTICE).
+
+## 📖 Citation
+
+Se você usar o ZebTrack-AI em pesquisa, cite-o usando os metadados em [CITATION.cff](CITATION.cff) (formato Citation File Format 1.2.0 — reconhecido pelo GitHub como "Cite this repository").
 
 ## 📄 Licença
 
-Este projeto está licenciado sob a **MIT License** - veja o arquivo [LICENSE](LICENSE) para detalhes.
+O código-fonte original deste repositório (de titularidade da UNESP) é licenciado sob a **MIT License** — veja o arquivo [LICENSE](LICENSE) para detalhes.
 
-**Em resumo**, você pode:
+⚠️ **Licença efetiva da distribuição**: este projeto depende do
+[Ultralytics YOLO](https://github.com/ultralytics/ultralytics)
+(`ultralytics`), licenciado sob **AGPL-3.0-or-later**. Pelas condições de
+copyleft da AGPL-3.0-or-later, a obra combinada distribuída (este código +
+a dependência `ultralytics`) fica sujeita aos termos da
+AGPL-3.0-or-later, a menos que uma licença comercial/enterprise da
+Ultralytics seja obtida. Ou seja, a
+licença MIT cobre o código original da UNESP, mas **não** cobre sozinha o
+pacote distribuído como um todo. Veja [NOTICE](NOTICE) para o
+levantamento completo de licenças de dependências de terceiros.
+
+**Em resumo** (para o código original sob MIT), você pode:
 
 - ✅ Usar comercialmente
 - ✅ Modificar
@@ -771,6 +818,7 @@ Este projeto está licenciado sob a **MIT License** - veja o arquivo [LICENSE](L
 
 - 📋 Manter a licença e copyright
 - ⚠️ Sem garantias
+- ⚠️ Observar as obrigações da AGPL-3.0-or-later da dependência `ultralytics` na distribuição do conjunto (veja acima)
 
 ## 🙏 Agradecimentos
 

@@ -2,7 +2,14 @@
 name = "drerio-logai"
 version = "4.0.0"
 description = "AI-powered tracking and behavioral analysis for Danio rerio (zebrafish) research. Automates video tracking, behavioral metrics, and scientific report generation."
-authors = ["Marco A. S. Camargos <marco.sant@unesp.br>"]
+authors = [
+    "Marco Antonio Sant'Ana Camargos <marco.sant@unesp.br>",
+    "Percilia Cardoso Giaquinto <percilia.giaquinto@unesp.br>",
+]
+# Original source code is MIT (copyright held by UNESP, see LICENSE/NOTICE).
+# The effective license of the software AS DISTRIBUTED is AGPL-3.0-or-later
+# because of the required `ultralytics` (Ultralytics YOLO) dependency below,
+# unless a commercial Ultralytics Enterprise license is obtained. See NOTICE.
 license = "MIT"
 readme = "README.md"
 packages = [{include = "zebtrack", from = "src"}]
