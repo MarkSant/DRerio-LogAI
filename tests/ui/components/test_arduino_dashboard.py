@@ -173,6 +173,45 @@ class TestArduinoDashboardWidget:
 
         assert widget.last_command_var.get() == "5"
 
+    def test_run_on_ui_thread_inline_on_main_thread(self, widget):
+        """On the main thread the callback runs inline (synchronous)."""
+        ran = []
+        widget._run_on_ui_thread(lambda: ran.append(True))
+        assert ran == [True]
+
+    def test_update_status_on_main_thread_applies_inline(self, widget):
+        """On the main thread the update is applied synchronously (no pumping)."""
+        widget.update_status(connected=True, port="COM9")
+        assert widget.status_var.get() == "Conectado (COM9)"
+
+    def test_run_on_ui_thread_marshals_when_off_main_thread(self, widget):
+        """Off the main thread the callback is deferred to Tk via after(0, ...).
+
+        Regression for the review note: EventBusV2 publishes synchronously on the
+        caller thread, so Arduino reader/writer worker threads reach these widget
+        methods. They MUST NOT touch Tk directly; the mutation is marshalled onto
+        the Tk main thread. Verified deterministically (mocked thread + toplevel)
+        so no real cross-thread Tk call is made.
+        """
+        from unittest.mock import MagicMock, patch
+
+        fake_top = MagicMock()
+        ran = []
+
+        with (
+            patch(
+                "zebtrack.ui.components.arduino_dashboard.threading.current_thread",
+                return_value=object(),  # anything != main_thread()
+            ),
+            patch.object(widget, "winfo_toplevel", return_value=fake_top),
+        ):
+            widget._run_on_ui_thread(lambda: ran.append(True))
+
+        # Deferred, not run inline; scheduled via after(0, fn).
+        assert ran == []
+        fake_top.after.assert_called_once()
+        assert fake_top.after.call_args.args[0] == 0
+
     def test_update_status_connected(self, widget):
         """Test update_status with connected state."""
         widget.update_status(connected=True, port="COM5")
