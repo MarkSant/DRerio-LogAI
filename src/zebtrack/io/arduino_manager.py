@@ -3,6 +3,7 @@ from __future__ import annotations
 import queue
 import threading
 import time
+from collections import deque
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
@@ -12,6 +13,10 @@ from zebtrack.io.arduino import Arduino
 
 if TYPE_CHECKING:
     from zebtrack.core.main_view_model import MainViewModel
+
+# Callback signature for the closed-loop latency sink:
+# ``(context, t_send, t_ack, ack_text)`` — see ``closed_loop_latency``.
+LatencySink = Callable[[dict[str, Any], float | None, float | None, str | None], None]
 
 _SerialExceptionBase: type[BaseException]
 
@@ -46,7 +51,9 @@ class ArduinoManager:
         self.arduino: Arduino | None = None
         self._reader_thread: threading.Thread | None = None
         self._writer_thread: threading.Thread | None = None
-        self._write_queue: queue.Queue[int] = queue.Queue()
+        # Queue items are ``(token, context)``: ``context`` is ``None`` for plain
+        # fire-and-forget sends and a dict for latency-tracked closed-loop sends.
+        self._write_queue: queue.Queue[tuple[int, dict[str, Any] | None]] = queue.Queue()
         self._stop_event = threading.Event()
         self._lock = threading.RLock()
         self._port: str | None = None
@@ -55,6 +62,15 @@ class ArduinoManager:
         # Outbound acknowledgement policy for ``send_command``: "ok" waits for an
         # "OK" reply (legacy/blocking), "none" is fire-and-forget. Set per connect.
         self._ack: str = "ok"
+
+        # Closed-loop latency instrumentation (opt-in per live session). The
+        # writer stamps ``t_send`` and records a pending entry; the reader stamps
+        # ``t_ack`` on the firmware ACK line and matches FIFO (the serial channel
+        # is strictly ordered). No-op unless a sink is registered.
+        self._latency_lock = threading.Lock()
+        self._latency_sink: LatencySink | None = None
+        self._pending_acks: deque[tuple[float, dict[str, Any]]] = deque()
+        self._max_pending_acks = 512
 
     # ---------------------------------------------------------------------
     # Public API
@@ -247,8 +263,86 @@ class ArduinoManager:
             log.debug("arduino_manager.enqueue.offline", token=token_value)
             return False
 
-        self._write_queue.put(token_value)
+        self._write_queue.put((token_value, None))
         return True
+
+    def enqueue_tracked(self, token: int, context: dict[str, Any]) -> bool:
+        """Queue a token for delivery, carrying latency-tracking ``context``.
+
+        Identical to :meth:`enqueue` but the ``context`` (ROI/edge/token, frame
+        capture timestamp, decision timestamp, …) rides along so the writer/
+        reader threads can attribute serial ``t_send``/``t_ack`` timestamps back
+        to the ROI transition that triggered them. Falls back to a plain,
+        untracked send when no latency sink is registered.
+
+        Args:
+            token: Numeric command to send.
+            context: Opaque per-trigger metadata forwarded to the latency sink.
+
+        Returns:
+            True if the token was queued, False if offline or invalid.
+        """
+        try:
+            token_value = int(token)
+        except (ValueError, TypeError):
+            log.error("arduino_manager.enqueue_tracked.invalid", token=token)
+            return False
+
+        if not self.is_connected():
+            log.debug("arduino_manager.enqueue_tracked.offline", token=token_value)
+            return False
+
+        with self._latency_lock:
+            tracked = self._latency_sink is not None
+        self._write_queue.put((token_value, context if tracked else None))
+        return True
+
+    def set_latency_sink(self, sink: LatencySink | None) -> None:
+        """Register (or clear) the closed-loop latency sink for this session.
+
+        Pass ``None`` at session end to stop tracking; any still-pending entries
+        are dropped (call :meth:`flush_pending_acks` first to emit them as
+        unmatched rows). Registering a sink also clears stale pendings from a
+        previous session.
+        """
+        with self._latency_lock:
+            self._latency_sink = sink
+            self._pending_acks.clear()
+
+    def flush_pending_acks(self) -> None:
+        """Emit every still-unmatched pending trigger with ``t_ack=None``.
+
+        Called at session end so triggers whose ACK never arrived still produce
+        a row (with the software-side timings present and the serial metrics
+        left empty).
+        """
+        with self._latency_lock:
+            drained = list(self._pending_acks)
+            self._pending_acks.clear()
+            sink = self._latency_sink
+        for t_send, context in drained:
+            self._emit_latency(context, t_send, None, None, sink)
+
+    def _emit_latency(
+        self,
+        context: dict[str, Any],
+        t_send: float | None,
+        t_ack: float | None,
+        ack_text: str | None,
+        sink: LatencySink | None = None,
+    ) -> None:
+        """Invoke the latency sink defensively (never propagate its errors)."""
+        if sink is None:
+            with self._latency_lock:
+                sink = self._latency_sink
+        if sink is None:
+            return
+        try:
+            sink(context, t_send, t_ack, ack_text)
+        # except Exception justified: the sink is user/session code; a failure
+        # must not break serial reading/writing.
+        except Exception:
+            log.error("arduino_manager.latency.sink_error", exc_info=True)
 
     def last_command(self) -> int | None:
         """Returns the last successful command sent."""
@@ -284,13 +378,15 @@ class ArduinoManager:
                 self._write_queue.get_nowait()
             except queue.Empty:
                 break
+        with self._latency_lock:
+            self._pending_acks.clear()
 
     def _writer_loop(self) -> None:
         """Drains the write queue and sends tokens fire-and-forget."""
         log.debug("arduino_manager.writer.start", port=self._port)
         while not self._stop_event.is_set():
             try:
-                token = self._write_queue.get(timeout=0.25)
+                token, context = self._write_queue.get(timeout=0.25)
             except queue.Empty:
                 continue
 
@@ -299,6 +395,20 @@ class ArduinoManager:
             if arduino is None:
                 log.debug("arduino_manager.writer.offline", token=token)
                 continue
+
+            # Stamp t_send as close to the wire as possible and register the
+            # pending trigger BEFORE writing, so a fast ACK can never be read by
+            # the reader thread before the pending entry exists.
+            t_send = time.perf_counter()
+            overflow: list[tuple[float, dict[str, Any]]] = []
+            if context is not None:
+                with self._latency_lock:
+                    if self._latency_sink is not None:
+                        self._pending_acks.append((t_send, context))
+                        while len(self._pending_acks) > self._max_pending_acks:
+                            overflow.append(self._pending_acks.popleft())
+            for old_send, old_ctx in overflow:
+                self._emit_latency(old_ctx, old_send, None, None)
 
             try:
                 if arduino.send_command_async(token):
@@ -325,6 +435,7 @@ class ArduinoManager:
 
             try:
                 raw_line = serial_conn.readline()
+                t_ack = time.perf_counter()
             except SerialExceptionType:
                 log.warning("arduino_manager.reader.serial_exception", exc_info=True)
                 self._notify_log("Conexão serial com Arduino perdida.")
@@ -349,12 +460,30 @@ class ArduinoManager:
                 continue
 
             if self._is_int(decoded):
+                # Numeric inbound lines are genuine device events (sensors,
+                # buttons). This firmware ACKs commands with TEXT lines, so a
+                # numeric line is never an ACK and must not consume a pending.
                 event_code = int(decoded)
                 self._dispatch_event(event_code)
-            else:
+            elif not self._consume_ack(decoded, t_ack):
                 self._notify_log(f"Arduino: {decoded}")
 
         log.debug("arduino_manager.reader.stop", port=self._port)
+
+    def _consume_ack(self, ack_text: str, t_ack: float) -> bool:
+        """Match a firmware ACK line to the oldest pending tracked send (FIFO).
+
+        Returns True when the line was consumed as an ACK (so the caller skips
+        the normal text-log path), False when there is nothing to match (no sink
+        or no pending) and the line should be logged as a plain message.
+        """
+        with self._latency_lock:
+            if self._latency_sink is None or not self._pending_acks:
+                return False
+            t_send, context = self._pending_acks.popleft()
+            sink = self._latency_sink
+        self._emit_latency(context, t_send, t_ack, ack_text, sink)
+        return True
 
     def _dispatch_event(self, event_code: int) -> None:
         log.info("arduino_manager.event", code=event_code)

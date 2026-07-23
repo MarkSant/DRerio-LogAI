@@ -275,6 +275,11 @@ class LiveCameraService(
         # Phase 4.3: Lazily-created MultiAquariumDetector (shares plugin w/ SingleDetector)
         self._multi_aq_detector: MultiAquariumDetector | None = None
 
+        # Closed-loop latency logging (per live session; built lazily on the
+        # first tracked Arduino trigger, finalized at session end).
+        self._closed_loop_log: Any = None
+        self._closed_loop_event_seq: int = 0
+
     # ── Thread-safe properties ──────────────────────────────────────────
 
     @property

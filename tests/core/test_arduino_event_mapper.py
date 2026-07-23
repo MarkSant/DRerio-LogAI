@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from zebtrack.core.services.arduino_bindings import ArduinoBinding
-from zebtrack.core.services.arduino_event_mapper import ArduinoEventMapper
+from zebtrack.core.services.arduino_event_mapper import ArduinoEventMapper, RoiTokenEvent
 
 BINDINGS = [
     ArduinoBinding(roi="A", on_enter=1, on_exit=2),
@@ -59,3 +59,25 @@ def test_deterministic_order_multiple_simultaneous():
     m = ArduinoEventMapper(BINDINGS)
     # Both enter same frame -> sorted by ROI name: A(1) then B(3)
     assert m.update({"B", "A"}) == [1, 3]
+
+
+def test_update_detailed_reports_roi_and_edge():
+    m = ArduinoEventMapper(BINDINGS)
+    assert m.update_detailed({"A"}) == [RoiTokenEvent(roi="A", edge="enter", token=1)]
+    assert m.update_detailed(set()) == [RoiTokenEvent(roi="A", edge="exit", token=2)]
+
+
+def test_update_detailed_exit_before_enter_on_move():
+    m = ArduinoEventMapper(BINDINGS)
+    m.update_detailed({"A"})
+    # A -> B in one frame: exit A before enter B, edges attributed correctly.
+    assert m.update_detailed({"B"}) == [
+        RoiTokenEvent(roi="A", edge="exit", token=2),
+        RoiTokenEvent(roi="B", edge="enter", token=3),
+    ]
+
+
+def test_update_and_update_detailed_agree_on_tokens():
+    m1 = ArduinoEventMapper(BINDINGS)
+    m2 = ArduinoEventMapper(BINDINGS)
+    assert m1.update({"B", "A"}) == [e.token for e in m2.update_detailed({"B", "A"})]

@@ -455,6 +455,49 @@ publish `REPORT_GENERATE` with `report_type="unified"` and a `report_scope`
   `ReportGeneratorActions._resolve_unified_generation_strategy(scope)` checks only
   the subfolder of the scope being generated.
 
+### 5.6. Closed-Loop Latency Logging (July 2026)
+
+Software-only characterization (no photodiode) of the live per-zone Arduino
+closed loop, layered on the zone-bindings feature (§ Hardware in `CLAUDE.md`).
+It timestamps, per ROI enter/exit trigger, three moments with
+`time.perf_counter()` (monotonic) and reuses the firmware's textual ACK line
+(`"Red LED 1 ON"`, …) as the "LED actuated" marker.
+
+- **Three marks:** `frame_t0` (frame read from camera, attached as the 3rd
+  element of the `frame_queue` tuple `(frame_count, frame, capture_perf)`),
+  `t_send` (in `ArduinoManager._writer_loop`, right before `ser.write`), `t_ack`
+  (in `ArduinoManager._reader_loop`, right after `readline`).
+- **Async correlation (FIFO):** the send is fire-and-forget and the ACK is read
+  on a **separate** thread, so `t_ack` cannot be captured at the `t_send` site
+  (unlike a synchronous `send_command`). The writer registers a pending
+  `(t_send, context)`; the reader matches the next **text** ACK line to the
+  oldest pending (`_consume_ack`) — valid because serial is strictly ordered.
+  **Numeric** inbound lines stay genuine device events (`_dispatch_event`); this
+  firmware only ACKs with text, so the two never collide.
+- **Contract additions on `ArduinoManager`:** `enqueue_tracked(token, context)`,
+  `set_latency_sink(sink)`, `flush_pending_acks()`. The `_write_queue` now carries
+  `(token, context|None)`. `ArduinoEventMapper.update_detailed()` returns
+  `RoiTokenEvent(roi, edge, token)` so each token is attributed to its transition.
+- **Sink & lifecycle:** `core/services/closed_loop_latency.ClosedLoopLatencyLog`
+  is built lazily on the first tracked trigger (needs `recorder.output_folder`)
+  in `FrameProcessingMixin._dispatch_arduino_zone_commands`, registered as the
+  manager's latency sink, and finalized in `_finalize_closed_loop_log()` at the
+  end of `_processing_loop` (after the session-end sweep). Reset per session in
+  `_reset_arduino_zone_state`.
+- **Output:** `5_ClosedLoop_<base>.csv` (streamed per trigger, crash-resilient)
+  and `5_ClosedLoop_<base>.parquet` (session end), alongside
+  `3_CoordMovimento_<base>.parquet`. Canonical columns `serial_act_ms`
+  (`t_ack-t_send`) and `frame_to_ack_ms` (`t_ack-frame_t0`) keep the exact names
+  used by the external `analise_latencia.py`; enrichment adds
+  `capture_to_decision_ms`, `decision_to_send_ms`, and `sampling_interval_ms`.
+- **Interpretation caveats:** `frame_to_ack_ms` starts at the **analyzed** frame's
+  capture (1 in `analysis_interval_frames`, default 10), so the sampling
+  quantization (animal crossing during a skipped frame, up to
+  `analysis_interval_frames/fps ≈ 333 ms @30 fps`) is a **separate** term logged
+  as `sampling_interval_ms`. The reference firmware's default blink path
+  (`delay(200)+delay(200)`) only polls serial ~every 400 ms, inflating
+  `serial_act_ms` — a real actuation delay the method correctly captures.
+
 ---
 
 ## 6. Common Pitfalls for Agents
@@ -620,6 +663,7 @@ Heavy imports (pandas, pyarrow, openpyxl) are deferred in:
 
 | Date | Version | Changes |
 | ---- | ------- | ------- |
+| Jul 23, 2026 | v4.1 | § 5.6 closed-loop latency logging (software-only, ACK-based) — `ArduinoManager` tracked path + FIFO ACK correlation, `5_ClosedLoop_<base>.{csv,parquet}` |
 | Feb 3, 2026 | v4.0 | Phase 4 coordinator decomposition (16 coordinators), ADR-009 deprecation notice, performance architecture (Phase 7), documentation standards (Phase 8), updated dependency container |
 | Dec 28, 2025 | v3.2 | Unified report contracts, max speed metric, geotaxis data fixes |
 | Dec 2, 2025 | v3.1 | Sequential multi-aquarium processing, dead event cleanup |

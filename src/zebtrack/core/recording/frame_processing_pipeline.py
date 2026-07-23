@@ -89,6 +89,9 @@ class FrameProcessingMixin:
     _arduino_evaluator: Any
     _arduino_mapper: Any
     _arduino_session_end_tokens: list[int]
+    # Closed-loop latency logging state (lazily built once per live session).
+    _closed_loop_log: Any
+    _closed_loop_event_seq: int
 
     # Properties from facade
     camera: Camera | None
@@ -223,6 +226,11 @@ class FrameProcessingMixin:
                 # Update last valid frame timestamp
                 current_time = time.time()
                 self._last_valid_frame_time = current_time
+                # Monotonic capture instant (FRAME_T0) — rides with the frame
+                # through the queue so the closed-loop latency log can measure
+                # capture -> LED-ACK end-to-end. Uses perf_counter (not time())
+                # so it is immune to wall-clock adjustments.
+                capture_perf = time.perf_counter()
 
                 # If we were disconnected, mark reconnection
                 if self._camera_disconnected:
@@ -258,7 +266,7 @@ class FrameProcessingMixin:
 
                 if is_analysis_frame:
                     try:
-                        self.frame_queue.put((frame_count, frame_copy), timeout=0.5)
+                        self.frame_queue.put((frame_count, frame_copy, capture_perf), timeout=0.5)
                     except queue.Full:
                         self._dropped_frames_processing += 1
                         log.warning(
@@ -267,7 +275,7 @@ class FrameProcessingMixin:
                             queue_backlog=self.frame_queue.qsize(),
                         )
                 elif not self.frame_queue.full():
-                    self.frame_queue.put_nowait((frame_count, frame_copy))
+                    self.frame_queue.put_nowait((frame_count, frame_copy, capture_perf))
 
                 # Control capture rate
                 default_fps = 30.0
@@ -356,9 +364,18 @@ class FrameProcessingMixin:
 
         while not self.exit_event.is_set():
             try:
-                frame_number, frame = self.frame_queue.get(timeout=1)
+                item = self.frame_queue.get(timeout=1)
             except queue.Empty:
                 continue
+
+            # Frames carry a monotonic capture timestamp (FRAME_T0) as a third
+            # element. Tolerate legacy 2-tuples (older tests / callers) with a
+            # None capture time — closed-loop latency just isn't measured then.
+            if len(item) >= 3:
+                frame_number, frame, capture_ts = item[0], item[1], item[2]
+            else:
+                frame_number, frame = item[0], item[1]
+                capture_ts = None
 
             frames_received += 1
             self._last_analyzed_frame = frame_number
@@ -689,7 +706,7 @@ class FrameProcessingMixin:
                     # while recording. Fire-and-forget (queued), so it never
                     # stalls this loop. No-op unless Arduino + bindings are set.
                     if self.recorder and self.recorder.start_time:
-                        self._dispatch_arduino_zone_commands(detections)
+                        self._dispatch_arduino_zone_commands(detections, frame_number, capture_ts)
                 else:
                     detections = self.get_last_detections()
 
@@ -812,6 +829,9 @@ class FrameProcessingMixin:
         # Arduino so LEDs/relays do not stay latched after recording stops.
         self._arduino_zone_session_end_sweep()
 
+        # Flush unmatched latency triggers and write 5_ClosedLoop_<base>.parquet.
+        self._finalize_closed_loop_log()
+
         log.info("live_camera_service.processing_loop_finished", processed=processed_count)
 
     # ------------------------------------------------------------------
@@ -833,6 +853,14 @@ class FrameProcessingMixin:
         self._arduino_evaluator = None
         self._arduino_mapper = None
         self._arduino_session_end_tokens = []
+
+        # Reset closed-loop latency state for the new session and drop any sink
+        # left registered on the shared ArduinoManager by a previous session.
+        self._closed_loop_log = None
+        self._closed_loop_event_seq = 0
+        manager = self._arduino_manager()
+        if manager is not None and hasattr(manager, "set_latency_sink"):
+            manager.set_latency_sink(None)
 
         project_data = getattr(self.project_manager, "project_data", {}) or {}
         if not project_data.get("use_arduino"):
@@ -872,11 +900,21 @@ class FrameProcessingMixin:
         evaluator = ArduinoRoiEvaluator(roi_names, roi_polygons)
         return evaluator if evaluator.has_rois() else None
 
-    def _dispatch_arduino_zone_commands(self, detections: list) -> None:
+    def _dispatch_arduino_zone_commands(
+        self,
+        detections: list,
+        frame_number: int | None = None,
+        capture_ts: float | None = None,
+    ) -> None:
         """Emit edge-triggered enter/exit tokens for the current frame.
 
         Computes which ROIs are occupied (any-track), diffs against the previous
         frame via the mapper, and queues the resulting tokens fire-and-forget.
+
+        When ``capture_ts`` (the frame's monotonic FRAME_T0) is available and the
+        ArduinoManager supports the tracked path, each token is sent with a
+        closed-loop latency context so the serial ``t_send``/``t_ack`` can be
+        attributed back to the ROI transition.
         """
         if not self._arduino_zone_enabled:
             return
@@ -898,8 +936,97 @@ class FrameProcessingMixin:
             centroids.append(((x1 + x2) / 2.0, (y1 + y2) / 2.0))
 
         occupied = self._arduino_evaluator.occupied_rois(centroids)
-        for token in self._arduino_mapper.update(occupied):
-            manager.enqueue(token)
+        events = self._arduino_mapper.update_detailed(occupied)
+        if not events:
+            return
+
+        # Enable closed-loop latency logging only when we have a capture instant
+        # AND the manager exposes the tracked path. The log is built lazily on the
+        # first tracked trigger (the recorder's output folder is known by then).
+        can_track = (
+            capture_ts is not None
+            and hasattr(manager, "enqueue_tracked")
+            and hasattr(manager, "set_latency_sink")
+        )
+        if can_track and self._closed_loop_log is None:
+            self._closed_loop_log = self._maybe_create_closed_loop_log()
+            if self._closed_loop_log is not None:
+                manager.set_latency_sink(self._closed_loop_log.on_sample)
+        log_enabled = can_track and self._closed_loop_log is not None
+
+        decision_perf = time.perf_counter() if log_enabled else None
+        wall_s: float | None = None
+        session_ts: float | None = None
+        if log_enabled and self.recorder and self.recorder.start_time:
+            wall_s = time.time()
+            session_ts = wall_s - self.recorder.start_time
+
+        for event in events:
+            if log_enabled:
+                self._closed_loop_event_seq += 1
+                context = {
+                    "event_id": self._closed_loop_event_seq,
+                    "frame": frame_number,
+                    "roi": event.roi,
+                    "edge": event.edge,
+                    "token": event.token,
+                    "frame_t0": capture_ts,
+                    "decision_perf": decision_perf,
+                    "session_ts_s": session_ts,
+                    "trigger_wall_s": wall_s,
+                    "analysis_interval_frames": self.analysis_interval_frames,
+                    "fps": self._actual_fps,
+                }
+                manager.enqueue_tracked(event.token, context)
+            else:
+                manager.enqueue(event.token)
+
+    def _maybe_create_closed_loop_log(self) -> Any:
+        """Build the closed-loop latency log once the recorder folder is known.
+
+        Returns the log instance, or None if the recorder has no output folder
+        yet (in which case we retry on the next tracked trigger).
+        """
+        recorder = getattr(self, "recorder", None)
+        output_folder = getattr(recorder, "output_folder", None)
+        if not output_folder:
+            return None
+        base_name = (
+            getattr(recorder, "base_name", "")
+            or getattr(self, "_current_base_name", "")
+            or getattr(self, "_experiment_id", "")
+            or "session"
+        )
+        from zebtrack.core.services.closed_loop_latency import ClosedLoopLatencyLog
+
+        log.info(
+            "live_camera_service.closed_loop.log_created",
+            output_folder=str(output_folder),
+            base_name=base_name,
+        )
+        return ClosedLoopLatencyLog(output_folder, base_name)
+
+    def _finalize_closed_loop_log(self) -> None:
+        """Flush unmatched pendings and write the parquet snapshot at session end."""
+        closed_loop_log = getattr(self, "_closed_loop_log", None)
+        if closed_loop_log is None:
+            return
+        manager = self._arduino_manager()
+        if manager is not None and hasattr(manager, "flush_pending_acks"):
+            manager.flush_pending_acks()
+        if manager is not None and hasattr(manager, "set_latency_sink"):
+            manager.set_latency_sink(None)
+        try:
+            closed_loop_log.finalize()
+            log.info(
+                "live_camera_service.closed_loop.finalized",
+                rows=closed_loop_log.row_count,
+            )
+        # except Exception justified: session teardown must not raise on an
+        # optional analytics artifact.
+        except Exception:
+            log.error("live_camera_service.closed_loop.finalize_error", exc_info=True)
+        self._closed_loop_log = None
 
     def _arduino_zone_session_end_sweep(self) -> None:
         """Queue the 'turn everything off' tokens at session end."""
