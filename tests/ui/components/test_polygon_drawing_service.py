@@ -104,7 +104,7 @@ def test_polygon_service_completion_roi_cancel_name():
     """Testa cancelamento de ROI se nome não fornecido."""
     service = PolygonDrawingService()
     mock_gui = MagicMock()
-    mock_gui.ask_string.return_value = None  # Cancel
+    mock_gui.dialog_manager.ask_string.return_value = None  # Cancel
 
     result = service.complete_polygon("roi", [(0, 0), (100, 0), (100, 100)], mock_gui)
 
@@ -116,7 +116,7 @@ def test_polygon_service_completion_roi_color_cancelled():
     """Testa cancelamento na seleção de cor."""
     service = PolygonDrawingService()
     mock_gui = MagicMock()
-    mock_gui.ask_string.return_value = "ROI 1"
+    mock_gui.dialog_manager.ask_string.return_value = "ROI 1"
 
     dialog_instance = Mock()
     dialog_instance.result = None
@@ -132,7 +132,7 @@ def test_polygon_service_completion_roi_success():
     """Testa conclusão de ROI com sucesso e evento."""
     service = PolygonDrawingService()
     mock_gui = MagicMock()
-    mock_gui.ask_string.return_value = "ROI 1"
+    mock_gui.dialog_manager.ask_string.return_value = "ROI 1"
     mock_gui.controller.analysis_vm.add_roi_polygon.return_value = True
     mock_gui.event_bus_v2 = Mock()
 

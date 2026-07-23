@@ -40,6 +40,13 @@ class VideoFrameManager:
     - Frame caching for re-rendering after settings changes
     """
 
+    #: Delay (ms) for the deferred background repaint scheduled after loading a
+    #: frame in ``display_roi_video_frame``. Exposed as a class constant so
+    #: consumers that must run *after* this repaint (e.g. a live auto-detect
+    #: zone-overlay refresh) can derive their own delay instead of hardcoding a
+    #: magic number that silently drifts if this value changes.
+    BG_REPAINT_DELAY_MS = 10
+
     def __init__(
         self, canvas_manager: CanvasManager, *, dialog_manager: DialogManager | None = None
     ) -> None:
@@ -169,8 +176,8 @@ class VideoFrameManager:
             # Draw immediately to prevent black canvas warnings
             self._draw_bg_image_to_canvas()
 
-            # Schedule another redraw after 10ms to ensure canvas is fully ready
-            self.gui.root.after(10, lambda: self._draw_bg_image_to_canvas())
+            # Schedule another redraw to ensure canvas is fully ready.
+            self.gui.root.after(self.BG_REPAINT_DELAY_MS, lambda: self._draw_bg_image_to_canvas())
 
         except Exception as e:
             self.dialog_manager.show_error("Erro ao Exibir Frame", str(e))

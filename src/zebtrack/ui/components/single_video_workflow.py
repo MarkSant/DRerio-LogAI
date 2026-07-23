@@ -291,18 +291,40 @@ class SingleVideoWorkflow:
         UI_UPDATE_ZONE_LIST refreshes the sidebar listbox, UI_REDRAW_ZONES
         replays ``renderer.redraw_zones`` over the reference frame
         (``zone_data=None`` => the renderer re-reads the just-saved polygon).
+
+        The redraw is DEFERRED via ``root.after``: UI_DISPLAY_VIDEO_FRAME
+        (published inside run_live_calibration) runs
+        ``video_frame_manager.display_roi_video_frame``, which schedules its
+        own ``root.after(10, _draw_bg_image_to_canvas)`` background repaint. A
+        synchronous overlay redraw would be WIPED by that later bg repaint,
+        so the polygon only reappeared after a manual double-click. Firing our
+        redraw after that repaint keeps the overlay on screen.
         """
         dispatcher = getattr(gui, "event_dispatcher", None)
         if dispatcher is None:
             return
-        dispatcher.publish_event(
-            UIEvents.UI_UPDATE_ZONE_LIST,
-            payloads.ZonesUpdatedPayload(zone_data=None),
-        )
-        dispatcher.publish_event(
-            UIEvents.UI_REDRAW_ZONES,
-            payloads.ZonesUpdatedPayload(zone_data=None),
-        )
+
+        def _do_refresh() -> None:
+            dispatcher.publish_event(
+                UIEvents.UI_UPDATE_ZONE_LIST,
+                payloads.ZonesUpdatedPayload(zone_data=None),
+            )
+            dispatcher.publish_event(
+                UIEvents.UI_REDRAW_ZONES,
+                payloads.ZonesUpdatedPayload(zone_data=None),
+            )
+
+        root = getattr(gui, "root", None)
+        if root is not None and hasattr(root, "after"):
+            # Fire strictly after display_roi_video_frame's own deferred bg
+            # repaint. Derive the delay from that repaint's constant (+ margin)
+            # instead of a bare magic number so the two never drift apart.
+            from zebtrack.ui.components.canvas.video_frame_manager import VideoFrameManager
+
+            delay_ms = VideoFrameManager.BG_REPAINT_DELAY_MS + 50
+            root.after(delay_ms, _do_refresh)
+        else:
+            _do_refresh()
 
     # ------------------------------------------------------------------
     # Start processing
