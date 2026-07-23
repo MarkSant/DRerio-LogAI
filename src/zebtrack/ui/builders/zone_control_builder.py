@@ -251,6 +251,22 @@ class ZoneControlBuilder:
 
         self._refresh_video_tree_dual_mode()
 
+        # The tree refresh above only rebuilds the drawing-tab video selector.
+        # The main-control per-video grid (project overview) is a separate view;
+        # without an explicit refresh it keeps showing stale arena/ROI badges
+        # after Concluir. Force an overview rebuild so both views agree.
+        video_selector_manager = getattr(self.gui, "video_selector_manager", None)
+        if video_selector_manager is not None:
+            try:
+                video_selector_manager.request_overview_refresh(
+                    reason="zones_concluded", force=True
+                )
+            except Exception:  # except Exception justified: refresh must not break Concluir
+                log.debug(
+                    "zone_control_builder.conclude_video.overview_refresh_failed",
+                    exc_info=True,
+                )
+
         from zebtrack.ui.event_bus_v2 import Event, UIEvents
 
         if hasattr(self.gui, "event_bus") and self.gui.event_bus:

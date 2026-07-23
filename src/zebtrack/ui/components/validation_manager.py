@@ -1240,6 +1240,21 @@ class ValidationManager:
         if total_days <= 0 or subjects_per_group <= 0:
             return
 
+        # Live zones are GLOBAL (single camera): they are defined once for the
+        # whole project (project_data["detection_zones"]), not per recorded
+        # video. Reflect that project-wide arena/ROI status on every planned
+        # placeholder instead of hardcoding False — otherwise the video
+        # selector and the per-video grid keep showing "—" even after the user
+        # concludes zone definition. Computed once here, reused for all rows.
+        planned_has_arena = False
+        planned_has_rois = False
+        try:
+            global_zone = pm.get_zone_data(fallback_to_global=True)
+            planned_has_arena = bool(global_zone and global_zone.polygon)
+            planned_has_rois = bool(global_zone and global_zone.roi_polygons)
+        except (OSError, ValueError, KeyError, AttributeError):
+            log.warning("validation_manager.planned_placeholders.global_zone_lookup_failed")
+
         recorded_keys: set[tuple[str, str, str]] = set()
         for video in all_videos:
             metadata = video.get("metadata") or {}
@@ -1315,8 +1330,8 @@ class ValidationManager:
                         "filename": "Sessão planejada",
                         "metadata": placeholder_metadata,
                         "status": "planejado",
-                        "has_arena": False,
-                        "has_rois": False,
+                        "has_arena": planned_has_arena,
+                        "has_rois": planned_has_rois,
                         "has_trajectory": False,
                         "has_complete_data": False,
                         "has_summary": False,
