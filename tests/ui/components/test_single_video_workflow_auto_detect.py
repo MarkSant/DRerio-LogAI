@@ -87,9 +87,14 @@ def _live_auto_detect_gui(*, project_type, calibration_coordinator):
     )
 
 
+def _published_event_types(gui):
+    return [call.args[0] for call in gui.event_dispatcher.publish_event.call_args_list]
+
+
 def test_live_project_routes_auto_detect_to_camera():
     """Projeto live sem vídeo → calibração pela câmera, NÃO publica ZONE_AUTO_DETECT."""
     calib = Mock()
+    calib.run_live_calibration.return_value = True
     gui = _live_auto_detect_gui(project_type="live", calibration_coordinator=calib)
     workflow = SingleVideoWorkflow(gui, dialog_manager=Mock())
 
@@ -98,7 +103,36 @@ def test_live_project_routes_auto_detect_to_camera():
     calib.run_live_calibration.assert_called_once()
     # stabilization_frames deve ser >= 30 (ajuste de exposição da câmera)
     assert calib.run_live_calibration.call_args.kwargs["stabilization_frames"] >= 30
-    gui.event_dispatcher.publish_event.assert_not_called()
+    # Não deve cair no caminho de vídeo (que publica ZONE_AUTO_DETECT).
+    assert UIEvents.ZONE_AUTO_DETECT not in _published_event_types(gui)
+
+
+def test_live_auto_detect_success_refreshes_zone_overlay():
+    """Detecção live aprovada → redesenha overlay do polígono (UI_REDRAW_ZONES)."""
+    calib = Mock()
+    calib.run_live_calibration.return_value = True
+    gui = _live_auto_detect_gui(project_type="live", calibration_coordinator=calib)
+    workflow = SingleVideoWorkflow(gui, dialog_manager=Mock())
+
+    workflow.on_auto_detect_clicked()
+
+    published = _published_event_types(gui)
+    assert UIEvents.UI_REDRAW_ZONES in published
+    assert UIEvents.UI_UPDATE_ZONE_LIST in published
+
+
+def test_live_auto_detect_cancelled_does_not_refresh_overlay():
+    """Detecção live cancelada/falha (False) → não redesenha nada."""
+    calib = Mock()
+    calib.run_live_calibration.return_value = False
+    gui = _live_auto_detect_gui(project_type="live", calibration_coordinator=calib)
+    workflow = SingleVideoWorkflow(gui, dialog_manager=Mock())
+
+    workflow.on_auto_detect_clicked()
+
+    published = _published_event_types(gui)
+    assert UIEvents.UI_REDRAW_ZONES not in published
+    assert UIEvents.UI_UPDATE_ZONE_LIST not in published
 
 
 def test_non_live_project_without_video_does_not_route_to_camera():
