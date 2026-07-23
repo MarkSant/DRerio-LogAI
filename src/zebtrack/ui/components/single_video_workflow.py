@@ -193,12 +193,12 @@ class SingleVideoWorkflow:
             ),
         )
 
-        # LIVE projects have no video file to auto-detect from — the arena must
-        # be detected from the live camera feed. Route to the camera-based
-        # calibration flow (same path as ZoneCalibrationDialog → "auto") instead
-        # of publishing ZONE_AUTO_DETECT with an empty path, which cascades into
-        # ``AquariumDetector`` trying to open ``.`` as a video file and failing
-        # with "Cannot open video file: .".
+        # Projetos LIVE não têm arquivo de vídeo para auto-detectar — a arena
+        # precisa ser detectada a partir do feed da câmera ao vivo. Roteia para
+        # o fluxo de calibração pela câmera (mesmo caminho do
+        # ZoneCalibrationDialog → "auto") em vez de publicar ZONE_AUTO_DETECT
+        # com um path vazio, que cascateia no ``AquariumDetector`` tentando
+        # abrir ``.`` como vídeo e falhando com "Cannot open video file: .".
         if not video_path and self._route_live_auto_detect(gui, stabilization_frames_int):
             return
 
