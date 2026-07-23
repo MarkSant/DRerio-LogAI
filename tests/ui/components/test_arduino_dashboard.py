@@ -129,6 +129,50 @@ class TestArduinoDashboardWidget:
         # Should not exceed MAX_LOG_LINES significantly
         assert line_count <= widget.MAX_LOG_LINES + 10  # Some tolerance for timing
 
+    def test_seeds_connected_status_from_manager(self, tkinter_root, event_bus):
+        """Regression: a panel built AFTER connect must reflect the live state.
+
+        Previously the dashboard hardcoded 'disconnected' at build time, so the
+        dot stayed red even though the serial connection was already up.
+        """
+        from unittest.mock import MagicMock
+
+        manager = MagicMock()
+        manager.is_connected.return_value = True
+        manager.current_port.return_value = "COM3"
+
+        widget = ArduinoDashboardWidget(
+            tkinter_root,
+            event_bus=event_bus,
+            arduino_manager=manager,
+        )
+        tkinter_root.update_idletasks()
+
+        assert widget.status_var.get() == "Conectado (COM3)"
+        assert widget.status_indicator.cget("foreground") == "#16a34a"
+
+    def test_command_event_updates_last_command(self, tkinter_root):
+        """UI_UPDATE_ARDUINO_COMMAND must refresh the 'Último comando' label.
+
+        Uses a real EventBusV2 so the widget's subscription actually dispatches.
+        """
+        from zebtrack.ui import payloads
+        from zebtrack.ui.event_bus_v2 import Event, EventBusV2, UIEvents
+
+        real_bus = EventBusV2()
+        widget = ArduinoDashboardWidget(tkinter_root, event_bus=real_bus)
+        tkinter_root.update_idletasks()
+
+        real_bus.publish(
+            Event(
+                type=UIEvents.UI_UPDATE_ARDUINO_COMMAND,
+                data=payloads.UIUpdateArduinoCommandPayload(command=5, success=True, source="zone"),
+            )
+        )
+        tkinter_root.update_idletasks()
+
+        assert widget.last_command_var.get() == "5"
+
     def test_update_status_connected(self, widget):
         """Test update_status with connected state."""
         widget.update_status(connected=True, port="COM5")

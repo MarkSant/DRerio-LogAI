@@ -413,6 +413,11 @@ class ArduinoManager:
             try:
                 if arduino.send_command_async(token):
                     self._last_command = token
+                    # Surface the fire-and-forget token in the dashboard
+                    # ("Último comando" + "Eventos recentes"). Edge-triggered, so
+                    # low rate; notifications are marshalled to the UI thread by
+                    # the event bus / widget.
+                    self._notify_command(token, success=True, source="zone")
             # except Exception justified: serial write — hardware I/O boundary
             except Exception:
                 log.error("arduino_manager.writer.send_error", token=token, exc_info=True)
