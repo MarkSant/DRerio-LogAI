@@ -6,7 +6,9 @@ and port configuration management for live tracking sessions.
 """
 
 # Standard library imports
+import threading
 import time
+from collections.abc import Callable
 from dataclasses import is_dataclass
 from tkinter import Label, StringVar, Text, messagebox, simpledialog, ttk
 from typing import Any
@@ -360,9 +362,31 @@ class ArduinoDashboardWidget(BaseWidget):
                 # Widget not ready or mainloop not running - silently skip
                 log.debug("arduino_dashboard.schedule_log_update.suppressed", exc_info=True)
 
+    def _run_on_ui_thread(self, fn: Callable[[], None]) -> None:
+        """Run ``fn`` on the Tk main thread.
+
+        Arduino status/command/log callbacks are published synchronously by
+        ``EventBusV2`` on the caller's thread, which — for connect/disconnect and
+        fire-and-forget tokens — is an ``ArduinoManager`` reader/writer worker
+        thread. Touching Tk widgets off the main thread is undefined behavior
+        (can hard-crash the interpreter), so we marshal onto the Tk thread via
+        ``after(0, ...)``. When already on the main thread we run inline so
+        callers (and tests) see the update synchronously.
+        """
+        if threading.current_thread() is threading.main_thread():
+            fn()
+            return
+        try:
+            self.winfo_toplevel().after(0, fn)
+        except (RuntimeError, AttributeError):
+            try:
+                self.after(0, fn)
+            except Exception:
+                log.debug("arduino_dashboard.run_on_ui_thread.suppressed", exc_info=True)
+
     def update_status(self, connected: bool, port: str | None) -> None:
         """
-        Update the connection status indicator.
+        Update the connection status indicator (thread-safe).
 
         Args:
             connected: Whether Arduino is connected
@@ -374,29 +398,36 @@ class ArduinoDashboardWidget(BaseWidget):
         elif connected:
             status_text = "Conectado"
 
-        try:
-            self.status_var.set(status_text)
-        except Exception:
-            log.debug("arduino_dashboard.status_var_set.suppressed", exc_info=True)
-
-        if self.status_indicator:
-            color = "#16a34a" if connected else "#b91c1c"  # Green or red
+        def _apply() -> None:
             try:
-                self.status_indicator.config(foreground=color)
+                self.status_var.set(status_text)
             except Exception:
-                log.debug("arduino_dashboard.status_indicator_config.suppressed", exc_info=True)
+                log.debug("arduino_dashboard.status_var_set.suppressed", exc_info=True)
+
+            if self.status_indicator:
+                color = "#16a34a" if connected else "#b91c1c"  # Green or red
+                try:
+                    self.status_indicator.config(foreground=color)
+                except Exception:
+                    log.debug("arduino_dashboard.status_indicator_config.suppressed", exc_info=True)
+
+        self._run_on_ui_thread(_apply)
 
     def set_last_command(self, command: str) -> None:
         """
-        Update the last command display.
+        Update the last command display (thread-safe).
 
         Args:
             command: Command text to display
         """
-        try:
-            self.last_command_var.set(command or "-")
-        except Exception:
-            log.debug("arduino_dashboard.last_command_set.suppressed", exc_info=True)
+
+        def _apply() -> None:
+            try:
+                self.last_command_var.set(command or "-")
+            except Exception:
+                log.debug("arduino_dashboard.last_command_set.suppressed", exc_info=True)
+
+        self._run_on_ui_thread(_apply)
 
     def clear_log(self) -> None:
         """Clear all log entries."""
