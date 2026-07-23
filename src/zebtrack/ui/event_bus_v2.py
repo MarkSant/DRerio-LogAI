@@ -174,6 +174,7 @@ class UIEvents(Enum):
     UI_REFRESH_PROJECT_VIEWS = auto()
     UI_UPDATE_ARDUINO_STATUS = auto()
     UI_APPEND_ARDUINO_LOG = auto()
+    UI_UPDATE_ARDUINO_COMMAND = auto()
     UI_UPDATE_OPENVINO_STATUS = auto()
     UI_SETUP_INTERACTIVE_POLYGON = auto()
     UI_DISPLAY_VIDEO_FRAME = auto()
@@ -410,6 +411,7 @@ _PAYLOAD_TYPES: dict[UIEvents, type[Any]] = {
     UIEvents.UI_REFRESH_PROJECT_VIEWS: payloads.ProjectViewsRefreshRequestedPayload,
     UIEvents.UI_UPDATE_ARDUINO_STATUS: payloads.UIUpdateArduinoStatusPayload,
     UIEvents.UI_APPEND_ARDUINO_LOG: payloads.UIAppendArduinoLogPayload,
+    UIEvents.UI_UPDATE_ARDUINO_COMMAND: payloads.UIUpdateArduinoCommandPayload,
     UIEvents.UI_UPDATE_OPENVINO_STATUS: payloads.UIUpdateOpenVinoStatusPayload,
     UIEvents.UI_SETUP_INTERACTIVE_POLYGON: payloads.SetupInteractivePolygonPayload,
     UIEvents.UI_DISPLAY_VIDEO_FRAME: payloads.VideoPathPayload,

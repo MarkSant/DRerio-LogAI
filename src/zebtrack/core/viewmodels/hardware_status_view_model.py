@@ -117,17 +117,71 @@ class HardwareStatusViewModel:
         )
         return False
 
+    def _publish_arduino_ui(self, event_type: Any, payload: Any) -> None:
+        """Publish an Arduino UI event on the bus (best-effort, thread-safe).
+
+        These callbacks fire from ``ArduinoManager`` (main thread on connect,
+        worker threads on serial read/write), so any exception must be swallowed
+        to keep the serial loops alive; the event bus itself marshals UI work.
+        """
+        bus = getattr(self, "ui_event_bus", None)
+        if bus is None:
+            return
+        try:
+            from zebtrack.ui.event_bus_v2 import Event
+
+            bus.publish(Event(type=event_type, data=payload, source="hardware_status_view_model"))
+        # except Exception justified: UI bridge must never break serial I/O.
+        except Exception:
+            log.debug("hardware_vm.arduino_ui_publish.suppressed", exc_info=True)
+
     def log_arduino_event(self, message: str) -> None:
-        # Deprecated - logging moved to SessionCoordinator
-        pass
+        """Bridge an Arduino log message to the dashboard's event log.
+
+        Publishes ``UI_APPEND_ARDUINO_LOG`` so the "Eventos recentes" panel
+        reflects connection, command and inbound-serial messages. Previously a
+        no-op, which silently dropped every Arduino log line.
+        """
+        from zebtrack.ui.event_bus_v2 import UIEvents
+        from zebtrack.ui.payloads import UIAppendArduinoLogPayload
+
+        self._publish_arduino_ui(
+            UIEvents.UI_APPEND_ARDUINO_LOG, UIAppendArduinoLogPayload(message=message)
+        )
 
     def on_arduino_status_change(self, connected: bool, port: str | None) -> None:
-        # Deprecated - status handling moved to SessionCoordinator
-        pass
+        """Bridge Arduino connection status to the dashboard indicator.
+
+        Publishes ``UI_UPDATE_ARDUINO_STATUS`` so the status dot turns green on
+        connect and red on disconnect. Previously a no-op, which left the dot
+        stuck red even when the serial connection was live.
+        """
+        from zebtrack.ui.event_bus_v2 import UIEvents
+        from zebtrack.ui.payloads import UIUpdateArduinoStatusPayload
+
+        self._publish_arduino_ui(
+            UIEvents.UI_UPDATE_ARDUINO_STATUS,
+            UIUpdateArduinoStatusPayload(connected=connected, port=port),
+        )
 
     def on_arduino_command_sent(self, command: int, success: bool, source: str) -> None:
-        # Deprecated - command handling moved to SessionCoordinator
-        pass
+        """Bridge a sent Arduino command to the dashboard ("Último comando").
+
+        Publishes ``UI_UPDATE_ARDUINO_COMMAND`` (updates the label) and an
+        ``UI_APPEND_ARDUINO_LOG`` line. Previously a no-op.
+        """
+        from zebtrack.ui.event_bus_v2 import UIEvents
+        from zebtrack.ui.payloads import UIAppendArduinoLogPayload, UIUpdateArduinoCommandPayload
+
+        self._publish_arduino_ui(
+            UIEvents.UI_UPDATE_ARDUINO_COMMAND,
+            UIUpdateArduinoCommandPayload(command=command, success=success, source=source),
+        )
+        status = "enviado" if success else "falhou"
+        self._publish_arduino_ui(
+            UIEvents.UI_APPEND_ARDUINO_LOG,
+            UIAppendArduinoLogPayload(message=f"Comando {command} {status} ({source})"),
+        )
 
     def _get_arduino_manager(self):
         # Lazy init if needed, though passed in bootstrap

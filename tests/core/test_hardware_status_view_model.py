@@ -309,3 +309,56 @@ def test_get_default_weights_summary_falls_back_to_global_default_without_overri
 
     assert lookup[("det", "aquarium")] == "det_aquarium_default.pt"
     assert lookup[("seg", "zebrafish")] == "seg_zebrafish_default.pt"
+
+
+# ---------------------------------------------------------------------------
+# Arduino UI bridge (regression: dashboard stayed disconnected / silent)
+# ---------------------------------------------------------------------------
+
+
+def _published(event_bus_mock):
+    """Return list of (event_type, payload) from a mocked bus.publish."""
+    from zebtrack.ui.event_bus_v2 import UIEvents  # noqa: F401
+
+    out = []
+    for call in event_bus_mock.publish.call_args_list:
+        event = call.args[0] if call.args else call.kwargs.get("event")
+        out.append((event.type, event.data))
+    return out
+
+
+def test_on_arduino_status_change_publishes_status_event(view_model):
+    from zebtrack.ui.event_bus_v2 import UIEvents
+
+    view_model.on_arduino_status_change(True, "COM3")
+
+    published = _published(view_model.ui_event_bus)
+    types = [t for t, _ in published]
+    assert UIEvents.UI_UPDATE_ARDUINO_STATUS in types
+    payload = next(d for t, d in published if t == UIEvents.UI_UPDATE_ARDUINO_STATUS)
+    assert payload.connected is True
+    assert payload.port == "COM3"
+
+
+def test_log_arduino_event_publishes_log_event(view_model):
+    from zebtrack.ui.event_bus_v2 import UIEvents
+
+    view_model.log_arduino_event("Arduino conectado na porta COM3.")
+
+    published = _published(view_model.ui_event_bus)
+    payload = next(d for t, d in published if t == UIEvents.UI_APPEND_ARDUINO_LOG)
+    assert "COM3" in payload.message
+
+
+def test_on_arduino_command_sent_publishes_command_and_log(view_model):
+    from zebtrack.ui.event_bus_v2 import UIEvents
+
+    view_model.on_arduino_command_sent(7, True, "zone")
+
+    published = _published(view_model.ui_event_bus)
+    types = [t for t, _ in published]
+    assert UIEvents.UI_UPDATE_ARDUINO_COMMAND in types
+    assert UIEvents.UI_APPEND_ARDUINO_LOG in types
+    cmd_payload = next(d for t, d in published if t == UIEvents.UI_UPDATE_ARDUINO_COMMAND)
+    assert cmd_payload.command == 7
+    assert cmd_payload.success is True

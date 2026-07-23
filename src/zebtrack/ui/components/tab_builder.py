@@ -28,6 +28,16 @@ class TabBuilder:
         # Use project_manager injected into GUI (Phase 4 dependency injection)
         self.project_manager = gui.project_manager
 
+    def _resolve_arduino_manager(self) -> Any:
+        """Return the shared ArduinoManager, or None if unavailable.
+
+        Lives on ``controller.hardware_vm.arduino_manager`` (bootstrap-created,
+        connected on project load). Used to seed the dashboard's initial status.
+        """
+        controller = getattr(self.gui, "controller", None)
+        hardware_vm = getattr(controller, "hardware_vm", None)
+        return getattr(hardware_vm, "arduino_manager", None)
+
     def build_main_controls_tab(self) -> ttk.Frame:
         """Build main controls tab based on project type."""
         if self.gui.notebook is None:
@@ -359,6 +369,7 @@ class TabBuilder:
             parent,
             event_bus=self.gui.event_bus,
             project_manager=self.project_manager,
+            arduino_manager=self._resolve_arduino_manager(),
         )
         self.gui.arduino_dashboard_widget.pack(fill="both", expand=False, pady=(0, 10))
 

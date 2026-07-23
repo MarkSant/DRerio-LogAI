@@ -52,6 +52,7 @@ class ArduinoDashboardWidget(BaseWidget):
         parent,
         event_bus: EventBusV2 | None = None,
         project_manager=None,
+        arduino_manager=None,
         **kwargs,
     ):
         """
@@ -61,10 +62,15 @@ class ArduinoDashboardWidget(BaseWidget):
             parent: Parent Tkinter widget
             event_bus: Optional event bus for emitting events
             project_manager: Optional project manager for updating configuration
+            arduino_manager: Optional ArduinoManager, used to seed the initial
+                status from the live connection state (the panel is often built
+                AFTER the serial connection was established on project load, so
+                relying only on future status events would leave the dot red).
             **kwargs: Additional arguments passed to BaseWidget
         """
         # Store project manager reference for port updates
         self.project_manager = project_manager
+        self.arduino_manager = arduino_manager
 
         # State variables
         self.status_var = StringVar(value="Desconectado")
@@ -76,7 +82,7 @@ class ArduinoDashboardWidget(BaseWidget):
 
         super().__init__(parent, event_bus=event_bus, **kwargs)
 
-        # Subscribe to Arduino status updates
+        # Subscribe to Arduino status + command updates
         if self.event_bus:
             self.event_bus.subscribe(
                 UIEvents.UI_UPDATE_ARDUINO_STATUS,
@@ -84,6 +90,10 @@ class ArduinoDashboardWidget(BaseWidget):
                     bool(_payload_get(data, "connected", False)),
                     _payload_get(data, "port"),
                 ),
+            )
+            self.event_bus.subscribe(
+                UIEvents.UI_UPDATE_ARDUINO_COMMAND,
+                lambda data: self.set_last_command(str(_payload_get(data, "command", "-"))),
             )
 
         # Initialize dashboard state
@@ -167,10 +177,33 @@ class ArduinoDashboardWidget(BaseWidget):
         ).pack(side="right")
 
     def _initialize_state(self) -> None:
-        """Initialize the dashboard to default state."""
+        """Initialize the dashboard, seeding status from the live connection.
+
+        The panel is usually built after the Arduino connected on project load,
+        so we reflect the manager's current state instead of assuming
+        disconnected — otherwise the dot would stay red until the next status
+        event, which may never come for an already-established connection.
+        """
         self.clear_log()
-        self.update_status(connected=False, port=None)
         self.set_last_command("-")
+
+        connected = False
+        port: str | None = None
+        manager = self.arduino_manager
+        if manager is not None:
+            try:
+                connected = bool(manager.is_connected())
+                if connected and hasattr(manager, "current_port"):
+                    port = manager.current_port()
+            # except Exception justified: hardware state probe must not break UI build.
+            except Exception:
+                log.debug("arduino_dashboard.seed_status.suppressed", exc_info=True)
+                connected = False
+                port = None
+
+        self.update_status(connected=connected, port=port)
+        if connected:
+            self.append_log(f"Arduino conectado ({port})" if port else "Arduino conectado")
 
     # Event handlers
 

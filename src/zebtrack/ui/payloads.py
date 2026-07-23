@@ -852,6 +852,13 @@ class UIAppendArduinoLogPayload:
     level: str | None = None
 
 
+@dataclass(frozen=True)
+class UIUpdateArduinoCommandPayload:
+    command: int
+    success: bool = True
+    source: str | None = None
+
+
 # ---------------------------------------------------------------------------
 # Recording and live payloads
 # ---------------------------------------------------------------------------
