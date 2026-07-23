@@ -316,8 +316,13 @@ class SingleVideoWorkflow:
 
         root = getattr(gui, "root", None)
         if root is not None and hasattr(root, "after"):
-            # 60 ms > the 10 ms bg repaint scheduled by display_roi_video_frame.
-            root.after(60, _do_refresh)
+            # Fire strictly after display_roi_video_frame's own deferred bg
+            # repaint. Derive the delay from that repaint's constant (+ margin)
+            # instead of a bare magic number so the two never drift apart.
+            from zebtrack.ui.components.canvas.video_frame_manager import VideoFrameManager
+
+            delay_ms = VideoFrameManager.BG_REPAINT_DELAY_MS + 50
+            root.after(delay_ms, _do_refresh)
         else:
             _do_refresh()
 
