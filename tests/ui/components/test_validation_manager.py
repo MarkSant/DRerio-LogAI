@@ -100,6 +100,59 @@ def mock_zone_data():
 
 
 @pytest.mark.gui
+class TestLivePlannedPlaceholderZoneFlags:
+    """Live planned-session placeholders must reflect the GLOBAL arena/ROI status.
+
+    Live zones are defined once for the whole project (detection_zones). The
+    planned-session rows in the video selector / per-video grid previously
+    hardcoded has_arena/has_rois=False, so the ✔ badges never appeared after
+    the user concluded zone definition.
+    """
+
+    @staticmethod
+    def _setup_live(mock_controller, zone_data):
+        pm = mock_controller.project_manager
+        pm.get_project_type.return_value = "live"
+        pm.get_zone_data.return_value = zone_data
+        pm.project_data = {
+            "project_type": "live",
+            "groups": ["G1"],
+            "experiment_days": 1,
+            "subjects_per_group": 1,
+        }
+
+    def _capture_placeholders(self, validation_manager):
+        captured: list[dict] = []
+        with patch.object(
+            validation_manager,
+            "_add_video_entry_to_hierarchy",
+            side_effect=lambda _hierarchy, video, *a, **k: captured.append(video),
+        ):
+            validation_manager._add_live_planned_session_placeholders(
+                hierarchy={},
+                all_videos=[],
+                normalized_search="",
+            )
+        return captured
+
+    def test_placeholders_reflect_global_arena_and_rois(
+        self, validation_manager, mock_controller, mock_zone_data
+    ):
+        self._setup_live(mock_controller, mock_zone_data)
+        captured = self._capture_placeholders(validation_manager)
+        assert captured, "expected at least one planned placeholder"
+        assert all(v["has_arena"] for v in captured)
+        assert all(v["has_rois"] for v in captured)
+
+    def test_placeholders_stay_empty_without_zone_data(self, validation_manager, mock_controller):
+        self._setup_live(mock_controller, ZoneData())  # no polygon, no ROIs
+        captured = self._capture_placeholders(validation_manager)
+        assert captured
+        assert all(not v["has_arena"] for v in captured)
+        assert all(not v["has_rois"] for v in captured)
+
+
+@pytest.mark.gui
 class TestValidationManagerInitialization:
     """Tests for ValidationManager initialization."""
 
