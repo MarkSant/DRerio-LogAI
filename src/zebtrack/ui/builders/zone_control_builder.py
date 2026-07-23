@@ -251,23 +251,13 @@ class ZoneControlBuilder:
 
         self._refresh_video_tree_dual_mode()
 
-        # The tree refresh above only rebuilds the drawing-tab video selector.
-        # The main-control per-video grid (project overview) is a separate view;
-        # without an explicit refresh it keeps showing stale arena/ROI badges
-        # after Concluir. Force an overview rebuild so both views agree.
-        video_selector_manager = getattr(self.gui, "video_selector_manager", None)
-        if video_selector_manager is not None:
-            try:
-                video_selector_manager.request_overview_refresh(
-                    reason="zones_concluded", force=True
-                )
-            except Exception:  # except Exception justified: refresh must not break Concluir
-                log.debug(
-                    "zone_control_builder.conclude_video.overview_refresh_failed",
-                    exc_info=True,
-                )
-
         from zebtrack.ui.event_bus_v2 import Event, UIEvents
+
+        # Tracks whether we committed an interactive edit below. When we do,
+        # ZONE_SAVE_ARENA → ZONES_UPDATED already schedules an overview refresh
+        # (with POST-save flags), so we must NOT force our own — that would
+        # rebuild the grid with pre-save data and duplicate the work.
+        zone_saved = False
 
         if hasattr(self.gui, "event_bus") and self.gui.event_bus:
             # 2. Commit an in-progress interactive edit, but ONLY when one is
@@ -287,6 +277,7 @@ class ZoneControlBuilder:
                 self.gui.event_bus.publish(
                     Event(type=UIEvents.ZONE_SAVE_ARENA, data=payloads.EmptyPayload())
                 )
+                zone_saved = True
                 log.info("zone_control_builder.conclude_video.zone_saved_event_emitted")
 
             # 3. Resume any pending live-recording session.
@@ -334,6 +325,26 @@ class ZoneControlBuilder:
                     )
                 )
                 log.info("zone_control_builder.conclude_video.live_resume_requested")
+
+        # Refresh the main-control per-video grid (project overview). The tree
+        # refresh above only rebuilds the drawing-tab selector; the overview is a
+        # separate view. Skip when we published ZONE_SAVE_ARENA above: that path
+        # emits ZONES_UPDATED, whose handler already schedules an overview
+        # refresh with the POST-save flags — forcing one here would rebuild with
+        # pre-save data and duplicate the work.
+        if not zone_saved:
+            video_selector_manager = getattr(self.gui, "video_selector_manager", None)
+            if video_selector_manager is not None:
+                try:
+                    video_selector_manager.request_overview_refresh(
+                        reason="zones_concluded", force=True
+                    )
+                except Exception as exc:  # except Exception justified: must not break Concluir
+                    log.debug(
+                        "zone_control_builder.conclude_video.overview_refresh_failed",
+                        error=str(exc),
+                        exc_info=True,
+                    )
 
         # 4. Optional: Feedback
         if hasattr(self.gui, "set_status"):

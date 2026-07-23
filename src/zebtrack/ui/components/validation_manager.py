@@ -1252,8 +1252,12 @@ class ValidationManager:
             global_zone = pm.get_zone_data(fallback_to_global=True)
             planned_has_arena = bool(global_zone and global_zone.polygon)
             planned_has_rois = bool(global_zone and global_zone.roi_polygons)
-        except (OSError, ValueError, KeyError, AttributeError):
-            log.warning("validation_manager.planned_placeholders.global_zone_lookup_failed")
+        except (OSError, ValueError, KeyError, AttributeError) as exc:
+            log.warning(
+                "validation_manager.planned_placeholders.global_zone_lookup_failed",
+                error=str(exc),
+                exc_info=True,
+            )
 
         recorded_keys: set[tuple[str, str, str]] = set()
         for video in all_videos:
