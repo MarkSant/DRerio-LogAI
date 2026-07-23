@@ -140,8 +140,10 @@ class ROICompletionStrategy(PolygonCompletionStrategy):
         return True, None
 
     def complete(self, video_points: list, gui: "ApplicationGUI") -> bool:
-        # Ask for ROI name
-        roi_name = gui.ask_string("Nome da ROI", "Digite um nome:")  # type: ignore[attr-defined]
+        # Ask for ROI name. ``ask_string`` lives on DialogManager, not on
+        # ApplicationGUI — calling ``gui.ask_string`` raised
+        # "'ApplicationGUI' object has no attribute 'ask_string'".
+        roi_name = gui.dialog_manager.ask_string("Nome da ROI", "Digite um nome:")
         if not roi_name:
             return False
 
