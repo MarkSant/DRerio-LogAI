@@ -13,12 +13,25 @@ token fires when the last one leaves.
 from __future__ import annotations
 
 from collections.abc import Iterable
+from typing import NamedTuple
 
 import structlog
 
 from zebtrack.core.services.arduino_bindings import ArduinoBinding
 
 log = structlog.get_logger()
+
+
+class RoiTokenEvent(NamedTuple):
+    """A single edge-triggered ROI transition and the token it emits.
+
+    ``edge`` is ``"enter"`` or ``"exit"``. Used by the closed-loop latency log
+    so each serial token can be attributed to the ROI transition that caused it.
+    """
+
+    roi: str
+    edge: str
+    token: int
 
 
 class ArduinoEventMapper:
@@ -37,6 +50,18 @@ class ArduinoEventMapper:
     def update(self, occupied_rois: Iterable[str]) -> list[int]:
         """Advance one frame and return the tokens to send (possibly empty).
 
+        Thin wrapper over :meth:`update_detailed` that discards the ROI/edge
+        attribution. Kept for callers that only need the raw token stream.
+
+        Args:
+            occupied_rois: ROI names occupied this frame (extra names not in the
+                bindings are ignored).
+        """
+        return [event.token for event in self.update_detailed(occupied_rois)]
+
+    def update_detailed(self, occupied_rois: Iterable[str]) -> list[RoiTokenEvent]:
+        """Advance one frame and return the ordered ROI transition events.
+
         Exits are emitted before enters so that, when an animal moves directly
         from one ROI to another in a single frame, the old device state is
         cleared before the new one is set. Iteration is sorted for determinism.
@@ -50,16 +75,16 @@ class ArduinoEventMapper:
         exited = self._prev - current
         self._prev = current
 
-        tokens: list[int] = []
+        events: list[RoiTokenEvent] = []
         for roi in sorted(exited):
             token = self._by_roi[roi].on_exit
             if token is not None:
-                tokens.append(token)
+                events.append(RoiTokenEvent(roi=roi, edge="exit", token=token))
         for roi in sorted(entered):
             token = self._by_roi[roi].on_enter
             if token is not None:
-                tokens.append(token)
-        return tokens
+                events.append(RoiTokenEvent(roi=roi, edge="enter", token=token))
+        return events
 
     def reset(self) -> None:
         """Forget the previous-frame occupancy (call when a session starts)."""

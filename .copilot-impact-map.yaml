@@ -329,6 +329,41 @@ domains:
       - "src/zebtrack/io/recorder.py"
       - "src/zebtrack/io/video_source.py"
 
+  # ---------------------------------------------------------------------------
+  # ARDUINO DOMAIN (live per-zone commands + closed-loop latency)
+  # ---------------------------------------------------------------------------
+  arduino:
+    description: "Live per-zone Arduino commands and closed-loop latency logging"
+
+    transport:
+      model: "DRerio sends integers only; firmware decides what each token does"
+      trigger: "Edge-triggered ROI enter/exit (any-track), fire-and-forget"
+      config: "project_data['use_arduino'] + project_data['arduino_bindings']"
+      manager_not_singleton: "ArduinoManager instantiated in bootstrap; shared"
+
+    closed_loop_latency:
+      purpose: "Software-only frame->LED latency via firmware textual ACK"
+      marks: "frame_t0 (capture) / t_send (writer) / t_ack (reader), perf_counter"
+      correlation: "FIFO: writer registers pending; reader matches next TEXT ACK"
+      gotcha: "Numeric inbound = device event; text = ACK. Async send => t_ack on reader thread"
+      output: "5_ClosedLoop_<base>.{csv,parquet} (canonical serial_act_ms, frame_to_ack_ms)"
+      caveat: "frame_to_ack starts at ANALYZED frame; sampling quantization is separate"
+
+    key_files:
+      - "src/zebtrack/io/arduino_manager.py"          # enqueue_tracked, sink, ACK FIFO
+      - "src/zebtrack/io/arduino.py"                   # send_command_async (ser.write)
+      - "src/zebtrack/core/services/arduino_bindings.py"       # ROI->token config
+      - "src/zebtrack/core/services/arduino_event_mapper.py"   # update_detailed -> RoiTokenEvent
+      - "src/zebtrack/core/services/arduino_roi_evaluator.py"  # centroid-in-ROI
+      - "src/zebtrack/core/services/closed_loop_latency.py"    # ClosedLoopLatencyLog
+      - "src/zebtrack/core/recording/frame_processing_pipeline.py"  # dispatch + lifecycle
+
+    related_tests:
+      - "tests/core/test_arduino_zone_dispatch.py"
+      - "tests/core/test_arduino_event_mapper.py"
+      - "tests/core/test_closed_loop_latency.py"
+      - "tests/test_io_arduino_manager.py"
+
 # =============================================================================
 # COORDINATOR HIERARCHY
 # =============================================================================
