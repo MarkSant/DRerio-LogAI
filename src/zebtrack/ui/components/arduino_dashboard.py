@@ -376,13 +376,24 @@ class ArduinoDashboardWidget(BaseWidget):
         if threading.current_thread() is threading.main_thread():
             fn()
             return
+        # Best-effort scheduling from a worker thread. Both ``winfo_toplevel``
+        # and ``after`` can raise beyond RuntimeError/AttributeError — notably
+        # ``TclError`` when the widget/toplevel was already destroyed during
+        # shutdown — and a scheduling failure must never propagate into the
+        # ArduinoManager serial threads. Catch broadly and fall back, then drop.
         try:
             self.winfo_toplevel().after(0, fn)
-        except (RuntimeError, AttributeError):
-            try:
-                self.after(0, fn)
-            except Exception:
-                log.debug("arduino_dashboard.run_on_ui_thread.suppressed", exc_info=True)
+            return
+        # except Exception justified: any Tk failure (incl. TclError) here just
+        # means we try the widget's own ``after`` next.
+        except Exception:
+            log.debug("arduino_dashboard.run_on_ui_thread.toplevel_after_failed", exc_info=True)
+        try:
+            self.after(0, fn)
+        # except Exception justified: last-resort scheduling; suppress so the
+        # worker-thread callback path never crashes.
+        except Exception:
+            log.debug("arduino_dashboard.run_on_ui_thread.suppressed", exc_info=True)
 
     def update_status(self, connected: bool, port: str | None) -> None:
         """

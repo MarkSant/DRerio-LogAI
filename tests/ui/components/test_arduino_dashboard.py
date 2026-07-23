@@ -212,6 +212,34 @@ class TestArduinoDashboardWidget:
         fake_top.after.assert_called_once()
         assert fake_top.after.call_args.args[0] == 0
 
+    def test_run_on_ui_thread_survives_tclerror_and_falls_back(self, widget):
+        """A destroyed toplevel raising TclError must not crash the worker path.
+
+        Regression for the review note: winfo_toplevel().after can raise TclError
+        (widget destroyed during shutdown). The helper must swallow it and fall
+        back to the widget's own after(), never propagating into the serial
+        worker thread.
+        """
+        from tkinter import TclError
+        from unittest.mock import MagicMock, patch
+
+        fake_top = MagicMock()
+        fake_top.after.side_effect = TclError("application has been destroyed")
+
+        with (
+            patch(
+                "zebtrack.ui.components.arduino_dashboard.threading.current_thread",
+                return_value=object(),
+            ),
+            patch.object(widget, "winfo_toplevel", return_value=fake_top),
+            patch.object(widget, "after") as fallback_after,
+        ):
+            # Must not raise despite the TclError from the toplevel.
+            widget._run_on_ui_thread(lambda: None)
+
+        fake_top.after.assert_called_once()
+        fallback_after.assert_called_once()  # fell back to self.after(0, fn)
+
     def test_update_status_connected(self, widget):
         """Test update_status with connected state."""
         widget.update_status(connected=True, port="COM5")
