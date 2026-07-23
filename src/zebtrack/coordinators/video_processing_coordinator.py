@@ -239,6 +239,15 @@ class VideoProcessingCoordinator(
             if not mac:
                 return
             video_path = str(_payload_get(payload, "video_path", ""))
+            # Guard against an empty/blank path (e.g. a LIVE project has no video
+            # file). Without this, ``AquariumDetector`` would try to open ``.``
+            # via cv2 and fail with "Cannot open video file: .". Mirrors the
+            # guard in ``MultiAquariumCoordinator._handle_multi_auto_detect``.
+            # Live projects route auto-detect to the camera in the UI layer
+            # (``SingleVideoWorkflow.on_auto_detect_clicked``).
+            if not video_path.strip() or video_path.strip() == ".":
+                log.warning("video_processing_coordinator.zone_auto_detect.no_video_path")
+                return
             stabilization_frames = int(_payload_get(payload, "stabilization_frames", 10))
             expected_count = _payload_get(payload, "expected_count")
 

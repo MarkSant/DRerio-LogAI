@@ -193,6 +193,15 @@ class SingleVideoWorkflow:
             ),
         )
 
+        # LIVE projects have no video file to auto-detect from — the arena must
+        # be detected from the live camera feed. Route to the camera-based
+        # calibration flow (same path as ZoneCalibrationDialog → "auto") instead
+        # of publishing ZONE_AUTO_DETECT with an empty path, which cascades into
+        # ``AquariumDetector`` trying to open ``.`` as a video file and failing
+        # with "Cannot open video file: .".
+        if not video_path and self._route_live_auto_detect(gui, stabilization_frames_int):
+            return
+
         # Read num_aquariums para a auto-detecção multi-aquário.
         #
         # A fonte AUTORITATIVA no fluxo de vídeo único é o config submetido pelo
@@ -221,6 +230,46 @@ class SingleVideoWorkflow:
                 expected_count=num_aquariums if num_aquariums >= 2 else None,
             ),
         )
+
+    def _route_live_auto_detect(self, gui: ApplicationGUI, stabilization_frames: int) -> bool:
+        """Route auto-detect to the live camera when the project is LIVE.
+
+        Returns ``True`` when the request was handled here (the caller must then
+        stop), ``False`` when this is not a live project and the caller should
+        fall through to the pre-recorded video path.
+
+        Live projects have no video file: the arena is detected from the camera
+        via ``LiveCalibrationCoordinator.run_live_calibration`` — the same call
+        the ``ZoneCalibrationDialog`` "auto" option makes. 30 stabilization
+        frames give the camera time to adjust exposure before detection.
+        """
+        controller = getattr(gui, "controller", None)
+        project_manager = getattr(controller, "project_manager", None) if controller else None
+        if project_manager is None or project_manager.get_project_type() != "live":
+            return False
+
+        calibration_coordinator = getattr(controller, "live_calibration_coordinator", None)
+        if calibration_coordinator is None:
+            log.error("single_video_workflow.auto_detect.live_no_calibration_coordinator")
+            self.dialog_manager.show_error(
+                "Erro",
+                "Não foi possível iniciar a detecção pela câmera "
+                "(coordenador de calibração indisponível).",
+            )
+            return True
+
+        log.info("single_video_workflow.auto_detect.live_camera_route")
+        try:
+            # Runs synchronously on the UI thread (opens a modal preview dialog),
+            # mirroring LiveCalibrationCoordinator's own "auto" calibration path.
+            calibration_coordinator.run_live_calibration(
+                stabilization_frames=max(stabilization_frames, 30),
+                show_preview=True,
+            )
+        except Exception as e:  # except Exception justified: camera + cv2 pipeline
+            log.error("single_video_workflow.auto_detect.live_failed", error=str(e), exc_info=True)
+            self.dialog_manager.show_error("Erro", f"Falha na detecção automática pela câmera: {e}")
+        return True
 
     # ------------------------------------------------------------------
     # Start processing
