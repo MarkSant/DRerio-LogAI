@@ -168,7 +168,13 @@ class ClosedLoopLatencyLog:
         """
         try:
             self._dir.mkdir(parents=True, exist_ok=True)
-            new_file = not self._csv_header_written and not self._csv_path.exists()
+            # Write the header when we have not written it yet AND the file is
+            # absent OR present but empty (a prior attempt may have created a
+            # 0-byte file then failed before writeheader — appending rows to it
+            # without a header would produce an invalid CSV).
+            new_file = not self._csv_header_written and (
+                not self._csv_path.exists() or self._csv_path.stat().st_size == 0
+            )
             with self._csv_path.open("a", newline="", encoding="utf-8") as fh:
                 writer = csv.DictWriter(fh, fieldnames=CSV_COLUMNS)
                 if new_file:

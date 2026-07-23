@@ -128,6 +128,14 @@ jobs:
           # runs torch only for YOLO/OpenVINO inference and does not define
           # scripted classes with list attributes, so the attack surface is
           # not reachable here.
+          #
+          # PYSEC-2026-3447: setuptools, fixed in 83.0.0. We cannot take that
+          # fix because setuptools is pinned ``<81`` (see pyproject.toml): the
+          # docxcompose dependency used for Word reports still imports the
+          # ``pkg_resources`` API removed in setuptools 81+. setuptools is a
+          # build/packaging tool, not exposed to untrusted input at app
+          # runtime. Drop this ignore once docxcompose migrates off
+          # pkg_resources and the ``setuptools < 81`` pin can be lifted.
           poetry run pip-audit --strict -r /tmp/requirements.txt \
             --ignore-vuln PYSEC-2025-210 \
             --ignore-vuln PYSEC-2025-197 \
@@ -140,6 +148,7 @@ jobs:
             --ignore-vuln PYSEC-2025-190 \
             --ignore-vuln PYSEC-2025-189 \
             --ignore-vuln PYSEC-2026-139 \
+            --ignore-vuln PYSEC-2026-3447 \
             --ignore-vuln CVE-2025-3000
 
       - name: Run bandit

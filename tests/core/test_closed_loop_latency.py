@@ -83,6 +83,19 @@ def test_csv_header_written_once_and_rows_appended(tmp_path):
     assert log.row_count == 2
 
 
+def test_header_written_when_prior_file_is_empty(tmp_path):
+    # A 0-byte file left by a crashed prior attempt must be treated as new so
+    # the first streamed row is preceded by a header (valid CSV).
+    csv_path = tmp_path / "5_ClosedLoop_exp.csv"
+    csv_path.touch()  # empty file exists before any row is written
+    log = ClosedLoopLatencyLog(tmp_path, "exp")
+    log.on_sample(_context(), t_send=10.02, t_ack=10.03, ack_text="ON")
+
+    lines = csv_path.read_text(encoding="utf-8").splitlines()
+    assert lines[0].split(",") == CSV_COLUMNS
+    assert len([ln for ln in lines[1:] if ln]) == 1
+
+
 def test_finalize_writes_parquet(tmp_path):
     pd = pytest.importorskip("pandas")
     log = ClosedLoopLatencyLog(tmp_path, "exp")
