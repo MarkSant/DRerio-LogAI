@@ -262,14 +262,47 @@ class SingleVideoWorkflow:
         try:
             # Runs synchronously on the UI thread (opens a modal preview dialog),
             # mirroring LiveCalibrationCoordinator's own "auto" calibration path.
-            calibration_coordinator.run_live_calibration(
+            success = calibration_coordinator.run_live_calibration(
                 stabilization_frames=max(stabilization_frames, 30),
                 show_preview=True,
             )
         except Exception as e:  # except Exception justified: camera + cv2 pipeline
             log.error("single_video_workflow.auto_detect.live_failed", error=str(e), exc_info=True)
             self.dialog_manager.show_error("Erro", f"Falha na detecção automática pela câmera: {e}")
+            return True
+
+        if success:
+            self._refresh_zone_tab_after_live_detection(gui)
         return True
+
+    @staticmethod
+    def _refresh_zone_tab_after_live_detection(gui: ApplicationGUI) -> None:
+        """Redraw the Zones tab after a successful live auto-detection.
+
+        ``run_live_calibration`` saves the polygon in memory and pushes the
+        reference frame (UI_DISPLAY_VIDEO_FRAME), but does NOT redraw the
+        overlay: ``save_zone_data`` never touches ``state_manager``, so the
+        ``on_project_state_changed`` observer that normally emits
+        UI_REDRAW_ZONES doesn't fire. Without an explicit refresh the user
+        sees the frame WITHOUT the detected polygon and assumes it was lost.
+
+        Mirrors the sanctioned ZoneCalibrationDialog "auto" flow
+        (``LiveCalibrationCoordinator.ensure_zones_before_recording``):
+        UI_UPDATE_ZONE_LIST refreshes the sidebar listbox, UI_REDRAW_ZONES
+        replays ``renderer.redraw_zones`` over the reference frame
+        (``zone_data=None`` => the renderer re-reads the just-saved polygon).
+        """
+        dispatcher = getattr(gui, "event_dispatcher", None)
+        if dispatcher is None:
+            return
+        dispatcher.publish_event(
+            UIEvents.UI_UPDATE_ZONE_LIST,
+            payloads.ZonesUpdatedPayload(zone_data=None),
+        )
+        dispatcher.publish_event(
+            UIEvents.UI_REDRAW_ZONES,
+            payloads.ZonesUpdatedPayload(zone_data=None),
+        )
 
     # ------------------------------------------------------------------
     # Start processing
