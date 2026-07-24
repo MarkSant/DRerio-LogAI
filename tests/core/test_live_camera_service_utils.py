@@ -316,6 +316,24 @@ def test_detect_and_mark_cancellation_force_overrides_50pct(live_camera_service,
     assert svc._detect_and_mark_cancellation(force=True) is True
 
 
+def test_detect_and_mark_cancellation_persists_cleared_zones(live_camera_service, tmp_path):
+    """Manual cancellation persists removal of the live reference zones."""
+    svc = live_camera_service
+    reference_path = tmp_path / "live_camera_reference_frame.png"
+    svc.project_manager.project_path = tmp_path
+    svc.project_manager.project_data = {
+        "zones_by_video": {str(reference_path): {"polygon": [[0, 0], [1, 1]]}}
+    }
+    svc.current_output_dir = tmp_path
+    svc._session_duration_s = 30.0
+    svc.recorder = Mock(start_time=time.time())
+
+    assert svc._detect_and_mark_cancellation(force=True) is True
+    assert str(reference_path) not in svc.project_manager.project_data["zones_by_video"]
+    assert svc.project_manager.project_data["detection_zones"]["polygon"] == []
+    svc.project_manager.save_project.assert_called_once()
+
+
 def test_stop_session_cancelled_deletes_output_dir(live_camera_service, tmp_path):
     """``stop_session(cancelled=True)`` apaga a subpasta da sessão do disco.
 

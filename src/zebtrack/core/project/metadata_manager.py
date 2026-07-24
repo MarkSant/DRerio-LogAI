@@ -346,7 +346,7 @@ class MetadataManager:
 
         # Scan project root for session folders.
         for item in os.scandir(project_path):
-            if item.is_dir():
+            if item.is_dir() and not (Path(item.path) / ".cancelled").exists():
                 _match_and_add(item.name)
 
         # Audit Erro 2 follow-up (2026-05-25): also scan the legacy live
@@ -358,7 +358,7 @@ class MetadataManager:
         live_dir = Path(project_path) / "live_analysis_sessions"
         if live_dir.exists() and live_dir.is_dir():
             for item in os.scandir(live_dir):
-                if item.is_dir():
+                if item.is_dir() and not (Path(item.path) / ".cancelled").exists():
                     _match_and_add(item.name)
 
         # Audit Erro 2 follow-up round 3 (2026-05-25): the modern live flow

@@ -4,6 +4,7 @@ Testes unitários para o coordenador de diálogos,
 extraído do MainViewModel na Fase 1 da refatoração.
 """
 
+from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import pytest
@@ -202,6 +203,27 @@ class TestAskYesNo:
         result = dialog_coordinator.ask_yes_no("Confirm", "Are you sure?")
 
         assert result is False
+
+
+class TestValidateZonesWithUi:
+    """Tests for video-specific arena validation."""
+
+    def test_uses_selected_video_zones_without_prompt(
+        self, dialog_coordinator, mock_project_manager
+    ):
+        selected_video = "C:/videos/selected.mp4"
+        mock_project_manager.get_multi_aquarium_zone_data.return_value = None
+        mock_project_manager.get_zone_data.return_value = SimpleNamespace(
+            polygon=[[0, 0], [100, 0], [100, 100]],
+            roi_polygons=[[[10, 10], [20, 10], [20, 20]]],
+        )
+
+        result = dialog_coordinator.validate_zones_with_ui(video_path=selected_video)
+
+        assert result is True
+        mock_project_manager.get_multi_aquarium_zone_data.assert_called_once_with(selected_video)
+        mock_project_manager.get_zone_data.assert_called_once_with(video_path=selected_video)
+        dialog_coordinator.ui_coordinator.ask_ok_cancel.assert_not_called()
 
 
 class TestShowProcessingSkippedInfo:

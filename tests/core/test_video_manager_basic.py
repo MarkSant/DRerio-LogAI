@@ -60,6 +60,23 @@ def test_get_next_video():
     assert VideoManager.get_next_video(project_data) == "two.mp4"
 
 
+def test_get_all_videos_excludes_cancelled_live_session(tmp_path):
+    session_dir = tmp_path / "live_20260723_100000"
+    session_dir.mkdir()
+    cancelled_video = session_dir / "live_recording.mp4"
+    cancelled_video.touch()
+    (session_dir / ".cancelled").touch()
+    valid_video = tmp_path / "recorded.mp4"
+    valid_video.touch()
+    project_data = {
+        "batches": [{"videos": [{"path": str(cancelled_video)}, {"path": str(valid_video)}]}]
+    }
+
+    videos = VideoManager.get_all_videos(project_data)
+
+    assert videos == [{"path": str(valid_video)}]
+
+
 def test_remove_video_entry(tmp_path):
     target = str(tmp_path / "video.mp4")
     project_data = {

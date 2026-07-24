@@ -769,16 +769,23 @@ class LiveSessionManagerMixin:
                     "roi_colors": [],
                     "metadata": {},
                 }
-                self.project_manager.save_project()
-                log.info(
-                    "live_camera_service.cancelled_session_zones_cleared",
-                    ref_key=ref_key,
-                )
         except Exception:
             log.warning(
                 "live_camera_service.cancelled_session_zones_clear_failed",
                 exc_info=True,
             )
+        else:
+            try:
+                self.project_manager.save_project()
+                log.info(
+                    "live_camera_service.cancelled_session_zones_cleared",
+                    ref_key=ref_key,
+                )
+            except Exception:
+                log.warning(
+                    "live_camera_service.cancelled_session_zones_save_failed",
+                    exc_info=True,
+                )
 
         return True
 

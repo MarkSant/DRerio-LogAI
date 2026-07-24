@@ -478,8 +478,26 @@ class VideoManager:
         """
         all_vids = []
         for batch in project_data.get("batches", []):
-            all_vids.extend(batch.get("videos", []))
+            for video in batch.get("videos", []):
+                if VideoManager.is_cancelled_video_entry(video):
+                    continue
+                all_vids.append(video)
         return all_vids
+
+    @staticmethod
+    def is_cancelled_video_entry(video_entry: dict[str, Any]) -> bool:
+        """Return whether a video belongs to a discarded live session."""
+        if video_entry.get("cancelled"):
+            return True
+
+        video_path = video_entry.get("path")
+        if not video_path:
+            return False
+
+        try:
+            return (Path(video_path).parent / ".cancelled").exists()
+        except OSError:
+            return False
 
     @staticmethod
     def iter_project_videos(project_data: dict[str, Any]) -> Any:

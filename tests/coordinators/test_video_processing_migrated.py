@@ -133,6 +133,24 @@ def test_workflow_zone_validation_fails(coordinator_setup):
     dialog_coordinator.validate_zones_with_ui.assert_called_once()
 
 
+def test_workflow_validates_the_active_zone_video(coordinator_setup):
+    """The project workflow must validate the video selected in the zone editor."""
+    coordinator, _view, dialog_coordinator, project_manager, _event_bus = coordinator_setup
+
+    validation_result = MagicMock()
+    validation_result.is_valid = True
+    coordinator.validate_can_start_processing = MagicMock(return_value=validation_result)
+    dialog_coordinator.handle_validation_error.return_value = True
+    dialog_coordinator.validate_zones_with_ui.return_value = False
+    project_manager.get_active_zone_video.return_value = "C:/videos/selected.mp4"
+
+    coordinator.start_project_processing_workflow()
+
+    dialog_coordinator.validate_zones_with_ui.assert_called_once_with(
+        video_path="C:/videos/selected.mp4"
+    )
+
+
 def test_workflow_user_cancels_file_dialog(coordinator_setup):
     """Workflow should stop if user cancels file dialog."""
     coordinator, view, dialog_coordinator, pm, _event_bus = coordinator_setup

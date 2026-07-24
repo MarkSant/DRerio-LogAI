@@ -1,6 +1,7 @@
 """Integration tests for LiveBatchCoordinator with wizard workflow (v2.3.0)."""
 
 from datetime import datetime
+from pathlib import Path
 from unittest.mock import MagicMock
 
 from pandas import DataFrame
@@ -175,6 +176,53 @@ def test_cancelled_session_not_registered(test_settings, tmp_path):
     assert batch_coord._active_batches == {}
     # And the service must be told to discard the partial session.
     mock_live_camera_service.stop_session.assert_called_once_with(cancelled=True)
+
+
+def test_persist_live_multi_aquarium_outputs_from_session_subdirectories(test_settings, tmp_path):
+    """Live session artifacts under aquarium_N directories populate multi-output flags."""
+    session_dir = tmp_path / "live_20260723_100000"
+    video_path = session_dir / "live_recording.mp4"
+    video_path.parent.mkdir()
+    video_path.touch()
+    for aquarium_id in (1, 2):
+        aquarium_dir = session_dir / f"aquarium_{aquarium_id}"
+        aquarium_dir.mkdir()
+        (aquarium_dir / f"1_ProcessingArea_exp_aquarium_{aquarium_id}.parquet").touch()
+        (aquarium_dir / f"2_AreasOfInterest_exp_aquarium_{aquarium_id}.parquet").touch()
+        (aquarium_dir / f"3_CoordMovimento_exp_aquarium_{aquarium_id}.parquet").touch()
+
+    project_manager = MagicMock()
+    project_manager.project_data = {"batches": []}
+    project_manager.find_video_entry.side_effect = lambda path: next(
+        (
+            video
+            for batch in project_manager.project_data["batches"]
+            for video in batch["videos"]
+            if video["path"] == path
+        ),
+        None,
+    )
+    coordinator = LiveBatchCoordinator(
+        project_manager=project_manager,
+        analysis_service=MagicMock(),
+        state_manager=MagicMock(),
+        settings_obj=test_settings,
+    )
+
+    coordinator._persist_session_to_project_data(
+        experiment_id="exp",
+        video_path=Path(video_path),
+        metadata={"group": "Controle", "day": 1, "subject_id": "S01"},
+    )
+
+    entry = project_manager.project_data["batches"][0]["videos"][0]
+    assert entry["status"] == "processed"
+    assert entry["has_trajectory"] is True
+    project_manager.register_multi_aquarium_outputs.assert_called_once()
+    registered_outputs = project_manager.register_multi_aquarium_outputs.call_args.kwargs[
+        "outputs_by_aquarium"
+    ]
+    assert set(registered_outputs) == {0, 1}
 
 
 def _make_session_coordinator(test_settings, **overrides):

@@ -203,3 +203,12 @@ class TestGetCompletedSessions:
         (tmp_path / "openvino_model_cache").mkdir()
         result = MetadataManager.get_completed_sessions(tmp_path)
         assert result == set()
+
+    def test_cancelled_legacy_live_session_is_ignored(self, tmp_path):
+        session_dir = tmp_path / "live_analysis_sessions" / "day3_Control_7_20260101_120000"
+        session_dir.mkdir(parents=True)
+        (session_dir / ".cancelled").touch()
+
+        result = MetadataManager.get_completed_sessions(tmp_path)
+
+        assert (3, "Control", "7") not in result

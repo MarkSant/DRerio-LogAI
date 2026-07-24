@@ -6,6 +6,7 @@ and UI-side dispatching (routing UI updates to widgets).
 
 from collections.abc import Callable
 from dataclasses import fields, is_dataclass
+from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
 import structlog
@@ -1195,7 +1196,7 @@ class EventDispatcher:
                 return False
         return True
 
-    def handle_analyze_single_video_clicked(self) -> None:
+    def handle_analyze_single_video_clicked(self, video_path: Path | str | None = None) -> None:
         """Handle the 'Analyze Single Video' action.
 
         Opens the SingleVideoConfigDialog to configure analysis parameters,
@@ -1225,10 +1226,12 @@ class EventDispatcher:
 
         # Open configuration dialog
         self.log.info("event_dispatcher.handle_analyze_single_video_clicked.opening_dialog")
+        selected_video_path = str(video_path) if video_path is not None else None
         dialog = SingleVideoConfigDialog(
             gui.root,
             settings_obj=settings,
             event_bus=gui.event_bus,
+            video_path=selected_video_path,
         )
         self.log.info(
             "event_dispatcher.handle_analyze_single_video_clicked.dialog_closed",
@@ -1241,7 +1244,8 @@ class EventDispatcher:
 
         # Get configuration from dialog
         config = dialog.result
-        video_path = config.get("video_path")
+        video_path = selected_video_path or config.get("video_path")
+        config["video_path"] = video_path
         self.log.info(
             "event_dispatcher.handle_analyze_single_video_clicked.config_retrieved",
             video_path=video_path,

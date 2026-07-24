@@ -135,6 +135,11 @@ class CanvasRenderer:
 
         self._clear_zone_elements(canvas)
         self._ensure_background(canvas)
+
+        if not self._has_background_geometry():
+            log.debug("gui.redraw_zones.waiting_for_background")
+            return
+
         self._draw_geotaxis_overlay()
 
         # Handle Multi-Aquarium Data
@@ -148,6 +153,15 @@ class CanvasRenderer:
         self._draw_single_aquarium_zones(canvas, zone_data)
 
         log.info("gui.redraw_zones.complete")
+
+    def _has_background_geometry(self) -> bool:
+        """Return whether a displayed frame has valid canvas coordinates."""
+        return bool(
+            getattr(self.manager, "_raw_bg_image", None)
+            and getattr(self.manager, "_canvas_bg_image", None)
+            and getattr(self.manager, "_bg_scale", None) is not None
+            and getattr(self.manager, "_bg_offset", None) is not None
+        )
 
     def _clear_zone_elements(self, canvas):
         """Clear only zone elements, preserving background."""

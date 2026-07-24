@@ -5,6 +5,7 @@ plan (PLANO_REFATORACAO_MAINVIEWMODEL.md).
 Responsible for coordinating all user dialogs and confirmations.
 """
 
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 import structlog
@@ -167,7 +168,7 @@ class DialogCoordinator:
             )
             return None  # Signal: do not process
 
-    def validate_zones_with_ui(self) -> bool:
+    def validate_zones_with_ui(self, video_path: Path | str | None = None) -> bool:
         """
         Validate that zones are defined, with UI dialogs for user interaction.
 
@@ -181,10 +182,22 @@ class DialogCoordinator:
             self.log.error("dialog.validate_zones.no_project_manager")
             return False
 
-        zone_data = self.project_manager.get_zone_data()
+        target_video = str(video_path) if video_path is not None else None
+        target_video = target_video or self.project_manager.get_active_zone_video()
+        multi_zone_data = (
+            self.project_manager.get_multi_aquarium_zone_data(target_video)
+            if target_video
+            else None
+        )
+        zone_data = self.project_manager.get_zone_data(video_path=target_video)
+        has_main_arena = bool(zone_data and zone_data.polygon)
+        if multi_zone_data:
+            has_main_arena = bool(multi_zone_data.aquariums) and all(
+                len(aquarium.polygon) >= 3 for aquarium in multi_zone_data.aquariums
+            )
 
         # Check if main arena is defined
-        if not zone_data or not zone_data.polygon:
+        if not has_main_arena:
             self.log.warning("workflow.project_processing.no_main_arena")
 
             response = self.ui_coordinator.ask_ok_cancel(
@@ -204,13 +217,13 @@ class DialogCoordinator:
                         )
                     )
 
-                    # Load frame from first video if available
-                    first_video = self.project_manager.get_next_video()
-                    if first_video:
+                    # Load the selected video frame when available.
+                    frame_video = target_video or self.project_manager.get_next_video()
+                    if frame_video:
                         self.event_bus.publish(
                             Event(
                                 type=UIEvents.UI_DISPLAY_VIDEO_FRAME,
-                                data=payloads.VideoPathPayload(video_path=first_video),
+                                data=payloads.VideoPathPayload(video_path=frame_video),
                             )
                         )
 
@@ -237,12 +250,12 @@ class DialogCoordinator:
                     self.log.info("workflow.project_processing.cancelled_no_arena")
                     return False
 
-                # Create default arena based on first video
-                first_video = self.project_manager.get_next_video()
-                if first_video:
+                # Create default arena based on the selected video.
+                frame_video = target_video or self.project_manager.get_next_video()
+                if frame_video:
                     try:
                         # Use VideoMetadataService to get dimensions
-                        dimensions = self.video_metadata_service.get_video_dimensions(first_video)
+                        dimensions = self.video_metadata_service.get_video_dimensions(frame_video)
                         if not dimensions:
                             self.show_error("Erro", "Não foi possível obter dimensões do vídeo")
                             return False
@@ -252,7 +265,7 @@ class DialogCoordinator:
 
                         # Update project manager with default arena
                         zone_data.polygon = default_arena
-                        self.project_manager.save_zone_data(zone_data)
+                        self.project_manager.save_zone_data(zone_data, video_path=target_video)
 
                         self.log.info(
                             "workflow.project_processing.default_arena_created",
@@ -293,7 +306,7 @@ class DialogCoordinator:
 
         self.log.info(
             "workflow.project_processing.zones_validated",
-            has_main_arena=bool(zone_data.polygon),
+            has_main_arena=has_main_arena,
             roi_count=len(zone_data.roi_polygons),
         )
 

@@ -371,7 +371,8 @@ class VideoProcessingCoordinator(
         )
         if not dc.handle_validation_error(validation_result):
             return
-        if not dc.validate_zones_with_ui():
+        active_zone_video = self.project_manager.get_active_zone_video()
+        if not dc.validate_zones_with_ui(video_path=active_zone_video):
             return
 
         paths = _ask_open_filenames_from_view(

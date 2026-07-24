@@ -266,6 +266,21 @@ class LiveBatchCoordinator:
             has_rois = bool(list(results_dir.glob("2_AreasOfInterest_*.parquet")))
             has_trajectory = bool(list(results_dir.glob("3_CoordMovimento_*.parquet")))
         has_summary = has_summary_excel_output(results_dir) if results_dir else False
+        outputs_by_aquarium = self._collect_multi_aquarium_outputs(results_dir, metadata)
+        if outputs_by_aquarium:
+            has_arena = has_arena or any(
+                output["parquet_files"].get("arena") for output in outputs_by_aquarium.values()
+            )
+            has_rois = has_rois or any(
+                output["parquet_files"].get("rois") for output in outputs_by_aquarium.values()
+            )
+            has_trajectory = has_trajectory or all(
+                output["parquet_files"].get("trajectory") for output in outputs_by_aquarium.values()
+            )
+            has_summary = has_summary or any(
+                output["parquet_files"].get("summary_excel")
+                for output in outputs_by_aquarium.values()
+            )
 
         video_entry: dict = {
             "path": video_path_str,
@@ -331,6 +346,12 @@ class LiveBatchCoordinator:
                 has_trajectory=has_trajectory,
             )
 
+        if outputs_by_aquarium:
+            self.project_manager.register_multi_aquarium_outputs(
+                video_path=video_path_str,
+                outputs_by_aquarium=outputs_by_aquarium,
+            )
+
         # Persist to disk so the next ``get_all_videos`` call sees it.
         try:
             self.project_manager.save_project()
@@ -347,6 +368,45 @@ class LiveBatchCoordinator:
                 error=str(exc),
                 experiment_id=experiment_id,
             )
+
+    @staticmethod
+    def _collect_multi_aquarium_outputs(
+        results_dir: Path | None,
+        metadata: dict,
+    ) -> dict[int, dict]:
+        """Collect output artifacts from live recorder aquarium subdirectories."""
+        if results_dir is None or not results_dir.exists():
+            return {}
+
+        outputs: dict[int, dict] = {}
+        for directory in sorted(results_dir.glob("aquarium_*")):
+            if not directory.is_dir():
+                continue
+
+            suffix = directory.name.removeprefix("aquarium_")
+            if not suffix.isdigit():
+                continue
+
+            parquet_files = {
+                "arena": next(directory.glob("1_ProcessingArea_*.parquet"), None),
+                "rois": next(directory.glob("2_AreasOfInterest_*.parquet"), None),
+                "trajectory": next(directory.glob("3_CoordMovimento_*.parquet"), None),
+                "summary_excel": find_summary_excel_file(directory),
+            }
+            if not any(parquet_files.values()):
+                continue
+
+            outputs[int(suffix) - 1] = {
+                "results_dir": str(directory),
+                "parquet_files": {
+                    name: str(path) if path else None for name, path in parquet_files.items()
+                },
+                "group": metadata.get("group", ""),
+                "subject_id": metadata.get("subject_id", ""),
+                "day": metadata.get("day", 1),
+            }
+
+        return outputs
 
     def mark_batch_complete(self, batch_id: str) -> bool:
         """Mark batch as complete and trigger unified report generation.

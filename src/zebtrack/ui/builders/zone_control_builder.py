@@ -4,6 +4,7 @@ Zone Control Builder for creating zone configuration and drawing widgets.
 Extracted from WidgetFactory to separate concern of zone control construction.
 """
 
+import os
 from datetime import datetime
 from tkinter import BooleanVar, StringVar, ttk
 from typing import TYPE_CHECKING
@@ -215,21 +216,6 @@ class ZoneControlBuilder:
 
     def _on_conclude_video(self):
         """Handle 'Concluir Edição do Vídeo' button click."""
-        # Fluxo de vídeo único de teste: "Concluir" deve INICIAR a análise.
-        # O usuário conclui as zonas (incl. multi-aquário auto-detectado) e espera
-        # que isso dispare o processamento — não há etapa de "marcar lote" aqui.
-        # Delega ao mesmo caminho do botão "Iniciar Análise de Vídeo Único", que
-        # valida zonas/config, trata edição de polígono e publica
-        # VIDEO_START_SINGLE_PROCESSING. Gated em ``pending_single_video_path``,
-        # então projetos e fluxo live mantêm o comportamento original (commit de
-        # zonas + resume), intactos.
-        if getattr(self.gui, "pending_single_video_path", None):
-            single_video_workflow = getattr(self.gui, "single_video_workflow", None)
-            if single_video_workflow is not None:
-                log.info("zone_control_builder.conclude_video.single_video_start")
-                single_video_workflow._on_start_single_video_processing_clicked()
-                return
-
         # 1. Save Project (Persist flags and data)
         if hasattr(self.gui, "controller") and self.gui.controller.project_manager:
             try:
@@ -280,52 +266,6 @@ class ZoneControlBuilder:
                 zone_saved = True
                 log.info("zone_control_builder.conclude_video.zone_saved_event_emitted")
 
-            # 3. Resume any pending live-recording session.
-            # When a live recording is deferred (LIVE_RECORDING_PENDING banner
-            # visible), "✅ Concluir" must ask the user whether to start the
-            # countdown now, then switch to the recording/analysis view and
-            # resume. For pre-recorded projects (no pending session) we keep the
-            # legacy behaviour: publish a resume that is a safe no-op.
-            zone_controls = getattr(self.gui, "zone_controls", None)
-            has_pending = bool(zone_controls and zone_controls.has_pending_live_session())
-
-            if has_pending:
-                from tkinter import messagebox
-
-                start_now = messagebox.askyesno(
-                    "Iniciar Gravação",
-                    "Zonas concluídas.\n\nIniciar a contagem regressiva para a gravação agora?",
-                )
-                if start_now:
-                    # Switch to the recording/analysis view, then resume → the
-                    # countdown and recording start there.
-                    self.gui.event_bus.publish(
-                        Event(
-                            type=UIEvents.UI_NAVIGATE_TO_ANALYSIS_VIEW,
-                            data=payloads.EmptyPayload(),
-                        )
-                    )
-                    self.gui.event_bus.publish(
-                        Event(
-                            type=UIEvents.LIVE_RECORDING_RESUME_REQUESTED,
-                            data=payloads.LiveRecordingResumeRequestedPayload(experiment_id=None),
-                        )
-                    )
-                    log.info("zone_control_builder.conclude_video.live_resume_confirmed")
-                else:
-                    # User declined — keep the pending banner so they can start
-                    # later via "▶️ Iniciar Gravação".
-                    log.info("zone_control_builder.conclude_video.live_resume_declined")
-            else:
-                # No pending live session: safe no-op resume (pre-recorded).
-                self.gui.event_bus.publish(
-                    Event(
-                        type=UIEvents.LIVE_RECORDING_RESUME_REQUESTED,
-                        data=payloads.LiveRecordingResumeRequestedPayload(experiment_id=None),
-                    )
-                )
-                log.info("zone_control_builder.conclude_video.live_resume_requested")
-
         # Refresh the main-control per-video grid (project overview). The tree
         # refresh above only rebuilds the drawing-tab selector; the overview is a
         # separate view. Skip when we published ZONE_SAVE_ARENA above: that path
@@ -349,6 +289,43 @@ class ZoneControlBuilder:
         # 4. Optional: Feedback
         if hasattr(self.gui, "set_status"):
             self.gui.set_status("Edição concluída. Dados salvos e indicadores atualizados.")
+
+    def _on_send_selected_video_to_analysis(self) -> None:
+        """Open analysis configuration for the real video selected in the zone tree."""
+        tree = getattr(self.gui, "video_selector_tree", None)
+        selection = tree.selection() if tree is not None else ()
+        if not selection:
+            self.gui.dialog_manager.show_warning(
+                "Nenhum Vídeo Selecionado",
+                "Selecione um vídeo gravado na lista antes de enviá-lo para análise.",
+            )
+            return
+
+        tags = tree.item(selection[0], "tags") or ()
+        video_path = str(tags[0]) if tags else ""
+        is_video_entry = video_path and video_path not in {"group", "day", "subject"}
+        if not is_video_entry or not os.path.isfile(video_path):
+            self.gui.dialog_manager.show_info(
+                "Vídeo Indisponível",
+                "Apenas vídeos gravados podem ser enviados para análise. "
+                "Sessões planejadas precisam ser gravadas primeiro.",
+            )
+            return
+
+        zone_controls = getattr(self.gui, "zone_controls", None)
+        if zone_controls and zone_controls.has_pending_live_session():
+            self.gui.dialog_manager.show_info(
+                "Gravação Pendente",
+                "Inicie ou cancele a gravação pendente antes de enviar outro vídeo para análise.",
+            )
+            return
+
+        event_dispatcher = getattr(self.gui, "event_dispatcher", None)
+        if event_dispatcher is None:
+            log.error("zone_control_builder.send_to_analysis.no_event_dispatcher")
+            return
+
+        event_dispatcher.handle_analyze_single_video_clicked(video_path=video_path)
 
     def create_zone_control_widgets(self) -> None:
         """
@@ -655,6 +632,11 @@ class ZoneControlBuilder:
             video_selector_frame,
             text="📹 Carregar Frame do Vídeo Selecionado",
             command=self.gui.canvas_manager.load_selected_video_frame,
+        ).pack(pady=(5, 0))
+        ttk.Button(
+            video_selector_frame,
+            text="Enviar Vídeo Selecionado para Análise",
+            command=self._on_send_selected_video_to_analysis,
         ).pack(pady=(5, 0))
 
         # 3.2. Legend section

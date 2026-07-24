@@ -4,6 +4,7 @@ SingleVideoConfigDialog.
 Extracted from gui.py for better modularity.
 """
 
+from pathlib import Path
 from tkinter import (
     BooleanVar,
     StringVar,
@@ -36,6 +37,7 @@ class SingleVideoConfigDialog(simpledialog.Dialog):
         parent,
         settings_obj: "Settings | None" = None,
         event_bus: "EventBusV2 | None" = None,
+        video_path: Path | str | None = None,
     ):
         """Initialize the single video configuration dialog.
 
@@ -43,11 +45,13 @@ class SingleVideoConfigDialog(simpledialog.Dialog):
             parent: Parent widget.
             settings_obj: Settings object with configuration.
             event_bus: Optional event bus.
+            video_path: Optional selected video path to lock in the dialog.
         """
         log.info("single_video_dialog.__init__")
         self.result: dict[str, Any] | None = None
         self.settings = settings_obj
         self.event_bus = event_bus
+        self._initial_video_path = str(video_path) if video_path is not None else None
         super().__init__(parent, "Configuração de Análise de Vídeo Único")
 
     def body(self, master):
@@ -60,7 +64,7 @@ class SingleVideoConfigDialog(simpledialog.Dialog):
             The initial focus widget.
         """
         # --- Tkinter Variables ---
-        self.video_path_var = StringVar(value="")
+        self.video_path_var = StringVar(value=self._initial_video_path or "")
         # Pré-preenche "Número de Aquários" com o último valor configurado
         # (``settings.analysis_config.num_aquariums``) em vez de fixar "1" — assim a
         # janela LEMBRA a escolha do usuário e não força reconfigurar a cada abertura.
@@ -143,7 +147,11 @@ class SingleVideoConfigDialog(simpledialog.Dialog):
         self.video_entry.grid(row=0, column=0, sticky="ew", padx=(0, 5))
 
         self.browse_btn = ttk.Button(
-            video_container, text="Procurar...", command=self._browse_video, width=12
+            video_container,
+            text="Procurar...",
+            command=self._browse_video,
+            width=12,
+            state="disabled" if self._initial_video_path else "normal",
         )
         self.browse_btn.grid(row=0, column=1, sticky="e")
 

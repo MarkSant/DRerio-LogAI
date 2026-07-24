@@ -29,17 +29,16 @@ def _published_types(gui):
     return [call.args[0].type for call in gui.event_bus.publish.call_args_list]
 
 
-def test_conclude_video_requests_live_resume_without_active_edit():
-    """Issue 3: clicking Concluir resumes a pending live session and does NOT
-    re-save an empty arena when no interactive edit is active."""
+def test_conclude_video_only_saves_without_active_edit():
+    """Concluir persists zone editing without starting recording or analysis."""
     gui = _conclude_gui(editing_zone=None, edited_points=[])
     builder = ZoneControlBuilder(gui, event_bus_v2=Mock())
 
     builder._on_conclude_video()
 
     types = _published_types(gui)
-    assert UIEvents.LIVE_RECORDING_RESUME_REQUESTED in types
     assert UIEvents.ZONE_SAVE_ARENA not in types
+    assert UIEvents.LIVE_RECORDING_RESUME_REQUESTED not in types
     assert gui._zones_dirty is False
 
 
@@ -52,16 +51,11 @@ def test_conclude_video_saves_arena_when_editing_active():
 
     types = _published_types(gui)
     assert UIEvents.ZONE_SAVE_ARENA in types
-    assert UIEvents.LIVE_RECORDING_RESUME_REQUESTED in types
+    assert UIEvents.LIVE_RECORDING_RESUME_REQUESTED not in types
 
 
-def test_conclude_video_single_video_mode_starts_analysis():
-    """Single-video TEST flow: 'Concluir' delega ao início da análise.
-
-    O usuário conclui as zonas (multi-aquário auto-detectado) e espera que isso
-    inicie o processamento — não há outra etapa. Concluir deve chamar o caminho de
-    start e NÃO cair na lógica de resume live.
-    """
+def test_conclude_video_single_video_mode_does_not_start_analysis():
+    """Concluir never starts analysis, even in the legacy single-video mode."""
     gui = _conclude_gui(editing_zone=None, edited_points=[])
     gui.pending_single_video_path = "C:/videos/exp_2aq.mp4"
     gui.single_video_workflow = Mock()
@@ -69,13 +63,12 @@ def test_conclude_video_single_video_mode_starts_analysis():
 
     builder._on_conclude_video()
 
-    gui.single_video_workflow._on_start_single_video_processing_clicked.assert_called_once()
-    # Não deve publicar resume live nem salvar arena no fluxo de vídeo único.
+    gui.single_video_workflow._on_start_single_video_processing_clicked.assert_not_called()
     assert UIEvents.LIVE_RECORDING_RESUME_REQUESTED not in _published_types(gui)
 
 
 def test_conclude_video_project_mode_does_not_start_single_analysis():
-    """Sem vídeo único pendente (projeto/live), Concluir mantém o fluxo original."""
+    """Concluir keeps the project mode free from implicit analysis actions."""
     gui = _conclude_gui(editing_zone=None, edited_points=[])
     gui.pending_single_video_path = None
     gui.single_video_workflow = Mock()
@@ -84,7 +77,7 @@ def test_conclude_video_project_mode_does_not_start_single_analysis():
     builder._on_conclude_video()
 
     gui.single_video_workflow._on_start_single_video_processing_clicked.assert_not_called()
-    assert UIEvents.LIVE_RECORDING_RESUME_REQUESTED in _published_types(gui)
+    assert UIEvents.LIVE_RECORDING_RESUME_REQUESTED not in _published_types(gui)
 
 
 def _conclude_gui_with_pending(pending: bool):
@@ -94,32 +87,37 @@ def _conclude_gui_with_pending(pending: bool):
     return gui
 
 
-def test_conclude_video_pending_live_confirm_navigates_and_resumes():
-    """Com sessão pendente, Concluir pergunta e — ao confirmar — navega para a
-    aba de análise/gravação e retoma a gravação (inicia a contagem regressiva).
-    """
+def test_conclude_video_pending_live_keeps_recording_pending():
+    """Concluir leaves live recording pending for its explicit banner action."""
     gui = _conclude_gui_with_pending(True)
     builder = ZoneControlBuilder(gui, event_bus_v2=Mock())
 
-    with patch("tkinter.messagebox.askyesno", return_value=True):
-        builder._on_conclude_video()
+    builder._on_conclude_video()
 
     types = _published_types(gui)
-    assert UIEvents.UI_NAVIGATE_TO_ANALYSIS_VIEW in types
-    assert UIEvents.LIVE_RECORDING_RESUME_REQUESTED in types
-
-
-def test_conclude_video_pending_live_decline_does_not_resume():
-    """Recusar o pop-up mantém a sessão pendente e NÃO retoma a gravação."""
-    gui = _conclude_gui_with_pending(True)
-    builder = ZoneControlBuilder(gui, event_bus_v2=Mock())
-
-    with patch("tkinter.messagebox.askyesno", return_value=False):
-        builder._on_conclude_video()
-
-    types = _published_types(gui)
-    assert UIEvents.LIVE_RECORDING_RESUME_REQUESTED not in types
     assert UIEvents.UI_NAVIGATE_TO_ANALYSIS_VIEW not in types
+    assert UIEvents.LIVE_RECORDING_RESUME_REQUESTED not in types
+
+
+def test_send_selected_video_to_analysis_uses_selected_file(tmp_path):
+    """The explicit action sends the selected recorded file to the config dialog."""
+    video_path = tmp_path / "recorded.mp4"
+    video_path.touch()
+    tree = Mock()
+    tree.selection.return_value = ("video-item",)
+    tree.item.return_value = (str(video_path),)
+    gui = _conclude_gui(editing_zone=None, edited_points=[])
+    gui.video_selector_tree = tree
+    gui.zone_controls = SimpleNamespace(has_pending_live_session=lambda: False)
+    gui.event_dispatcher = Mock()
+    gui.dialog_manager = Mock()
+    builder = ZoneControlBuilder(gui, event_bus_v2=Mock())
+
+    builder._on_send_selected_video_to_analysis()
+
+    gui.event_dispatcher.handle_analyze_single_video_clicked.assert_called_once_with(
+        video_path=str(video_path)
+    )
 
 
 class TestZoneControlBuilder:

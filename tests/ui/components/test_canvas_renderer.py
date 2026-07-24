@@ -91,6 +91,27 @@ def test_ensure_background_loads_frame_when_missing_bg_image():
     renderer.manager.load_video_frame_to_canvas.assert_called_once()
 
 
+def test_redraw_zones_defers_polygons_without_background_geometry():
+    canvas = Mock()
+    video_display = SimpleNamespace(canvas=canvas)
+    manager_overrides = {
+        "_canvas_bg_image": None,
+        "_raw_bg_image": None,
+        "_bg_scale": None,
+        "_bg_offset": None,
+        "load_video_frame_to_canvas": Mock(return_value=False),
+    }
+    renderer = _make_renderer(
+        gui_overrides={"video_display": video_display}, manager_overrides=manager_overrides
+    )
+    renderer._draw_single_aquarium_zones = Mock()
+
+    renderer.redraw_zones(SimpleNamespace(polygon=[[0, 0], [1, 0], [1, 1]], roi_polygons=[]))
+
+    renderer.manager.load_video_frame_to_canvas.assert_called_once()
+    renderer._draw_single_aquarium_zones.assert_not_called()
+
+
 def test_restore_background_image_uses_position():
     canvas = Mock()
     renderer = _make_renderer(
