@@ -149,6 +149,7 @@ class TestArduinoDashboardWidget:
         tkinter_root.update_idletasks()
 
         assert widget.status_var.get() == "Conectado (COM3)"
+        assert widget.status_indicator is not None
         assert widget.status_indicator.cget("foreground") == "#16a34a"
 
     def test_command_event_updates_last_command(self, tkinter_root):

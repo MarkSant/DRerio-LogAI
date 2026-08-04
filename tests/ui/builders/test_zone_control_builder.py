@@ -99,6 +99,45 @@ def test_conclude_video_pending_live_keeps_recording_pending():
     assert UIEvents.LIVE_RECORDING_RESUME_REQUESTED not in types
 
 
+def test_conclude_video_pending_live_skips_guidance_dialog():
+    """When a live session is pending, the banner already covers next steps."""
+    gui = _conclude_gui_with_pending(True)
+    gui.dialog_manager = Mock()
+    builder = ZoneControlBuilder(gui, event_bus_v2=Mock())
+
+    builder._on_conclude_video()
+
+    gui.dialog_manager.show_info.assert_not_called()
+
+
+def test_conclude_video_live_project_no_pending_shows_guidance_dialog():
+    """Live project, no pending session: point the user at Controle Principal."""
+    gui = _conclude_gui_with_pending(False)
+    gui.controller.project_manager.get_project_type.return_value = "live"
+    gui.dialog_manager = Mock()
+    builder = ZoneControlBuilder(gui, event_bus_v2=Mock())
+
+    builder._on_conclude_video()
+
+    gui.dialog_manager.show_info.assert_called_once()
+    title, message = gui.dialog_manager.show_info.call_args.args
+    assert "Concluídas" in title
+    assert "Controle Principal" in message
+    assert "Iniciar Gravação" in message
+
+
+def test_conclude_video_pre_recorded_project_skips_guidance_dialog():
+    """Pre-recorded projects have their own explicit analysis buttons."""
+    gui = _conclude_gui_with_pending(False)
+    gui.controller.project_manager.get_project_type.return_value = "pre-recorded"
+    gui.dialog_manager = Mock()
+    builder = ZoneControlBuilder(gui, event_bus_v2=Mock())
+
+    builder._on_conclude_video()
+
+    gui.dialog_manager.show_info.assert_not_called()
+
+
 def test_send_selected_video_to_analysis_uses_selected_file(tmp_path):
     """The explicit action sends the selected recorded file to the config dialog."""
     video_path = tmp_path / "recorded.mp4"

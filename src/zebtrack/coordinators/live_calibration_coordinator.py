@@ -286,8 +286,13 @@ class LiveCalibrationCoordinator(BaseCoordinator):
                 )
         has_zones: bool = bool(zone_data and zone_data.polygon)
 
-        # 1. If zones exist and this is not first recording, ask if want to reuse
-        if has_zones and self._has_recorded_before():
+        # 1. If zones already exist, ask if the user wants to reuse them.
+        # Previously also required ``_has_recorded_before()``, which meant a
+        # project with zones/ROIs/Arduino bindings already configured — but
+        # no recording EVER completed yet — fell through to a fresh
+        # auto-detect instead of recognizing the existing setup on reopen.
+        # Zone existence alone is the correct and sufficient signal here.
+        if has_zones:
             from zebtrack.ui.dialogs.zone_reuse_dialog import ZoneReuseDialog
 
             if not self.root:
@@ -487,7 +492,7 @@ class LiveCalibrationCoordinator(BaseCoordinator):
                 has_zones = False
 
         # 2. Ask user how to define zones (auto vs manual)
-        if not has_zones or (has_zones and not self._has_recorded_before()):
+        if not has_zones:
             # First time or zones don't exist
             from zebtrack.ui.dialogs.zone_calibration_dialog import ZoneCalibrationDialog
 

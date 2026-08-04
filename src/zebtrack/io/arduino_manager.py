@@ -59,6 +59,19 @@ class ArduinoManager:
         self._port: str | None = None
         self._baud_rate: int | None = None
         self._last_command: int | None = None
+        # Minimum gap enforced between consecutive writer-thread sends. The
+        # reference sketch (scripts/ard_sketch/Program_Final.ino) blocks
+        # ~200ms per loop() iteration in an unconditional flash-blink delay()
+        # (100ms + 100ms) whenever the flash button hasn't been pressed —
+        # Serial is only read again once that finishes. Writing a second
+        # command while the firmware is still in that window can desync its
+        # serial parser and silently break every ACK for the rest of the
+        # session (observed 2026-08-02: two zone-transition tokens ~255ms
+        # apart — inside the *previous* 400ms blink window — did exactly
+        # this). Matches the sketch's worst-case blocking window so a
+        # transition never lands mid-block.
+        self._min_send_interval_s: float = 0.2
+        self._last_send_perf: float | None = None
         # Outbound acknowledgement policy for ``send_command``: "ok" waits for an
         # "OK" reply (legacy/blocking), "none" is fire-and-forget. Set per connect.
         self._ack: str = "ok"
@@ -396,6 +409,8 @@ class ArduinoManager:
                 log.debug("arduino_manager.writer.offline", token=token)
                 continue
 
+            self._throttle_before_send()
+
             # Stamp t_send as close to the wire as possible and register the
             # pending trigger BEFORE writing, so a fast ACK can never be read by
             # the reader thread before the pending entry exists.
@@ -421,7 +436,22 @@ class ArduinoManager:
             # except Exception justified: serial write — hardware I/O boundary
             except Exception:
                 log.error("arduino_manager.writer.send_error", token=token, exc_info=True)
+            finally:
+                self._last_send_perf = time.perf_counter()
         log.debug("arduino_manager.writer.stop", port=self._port)
+
+    def _throttle_before_send(self) -> None:
+        """Sleep, if needed, so this send respects ``_min_send_interval_s``.
+
+        Only the background writer thread blocks here — frame processing
+        stays fire-and-forget via the queue, so this never stalls detection.
+        """
+        if self._last_send_perf is None:
+            return
+        elapsed = time.perf_counter() - self._last_send_perf
+        wait_s = self._min_send_interval_s - elapsed
+        if wait_s > 0:
+            time.sleep(wait_s)
 
     def _reader_loop(self) -> None:
         """Continuously reads from serial port and dispatches events."""

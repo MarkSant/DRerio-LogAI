@@ -212,3 +212,38 @@ class TestGetCompletedSessions:
         result = MetadataManager.get_completed_sessions(tmp_path)
 
         assert (3, "Control", "7") not in result
+
+    def test_hierarchical_session_with_only_arena_parquet_is_not_completed(self, tmp_path):
+        """An aborted recording that only wrote the arena parquet (Recorder
+        writes it as soon as the session folder opens, before any frame is
+        captured) must NOT count as a completed session — otherwise the
+        Progresso grid shows a video that was never actually recorded."""
+        session_dir = tmp_path / "Grupo_Controle" / "Dia_1" / "Sujeito_1" / "live_20260101_120000"
+        session_dir.mkdir(parents=True)
+        (session_dir / "1_ProcessingArea_exp.parquet").touch()
+
+        result = MetadataManager.get_completed_sessions(tmp_path)
+
+        assert (1, "Controle", "1") not in result
+
+    def test_hierarchical_session_with_trajectory_parquet_is_completed(self, tmp_path):
+        """A session with a real trajectory parquet counts as completed."""
+        session_dir = tmp_path / "Grupo_Controle" / "Dia_1" / "Sujeito_1" / "live_20260101_120000"
+        session_dir.mkdir(parents=True)
+        (session_dir / "1_ProcessingArea_exp.parquet").touch()
+        (session_dir / "3_CoordMovimento_exp.parquet").touch()
+
+        result = MetadataManager.get_completed_sessions(tmp_path)
+
+        assert (1, "Controle", "1") in result
+
+    def test_hierarchical_session_cancelled_with_trajectory_is_ignored(self, tmp_path):
+        """A cancelled session is ignored even if it has a trajectory parquet."""
+        session_dir = tmp_path / "Grupo_Controle" / "Dia_1" / "Sujeito_1" / "live_20260101_120000"
+        session_dir.mkdir(parents=True)
+        (session_dir / "3_CoordMovimento_exp.parquet").touch()
+        (session_dir / ".cancelled").touch()
+
+        result = MetadataManager.get_completed_sessions(tmp_path)
+
+        assert (1, "Controle", "1") not in result

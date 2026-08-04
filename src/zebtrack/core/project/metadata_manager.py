@@ -453,9 +453,19 @@ class MetadataManager:
     @staticmethod
     def _subject_dir_has_session(subject_dir: Path) -> bool:
         """A subject folder counts as completed iff at least one nested
-        session folder contains a trajectory or arena parquet AND is not
-        marked as cancelled (``.cancelled`` marker file — audit Erro 1
-        round 4, 2026-05-25)."""
+        session folder has a trajectory parquet AND is not marked as
+        cancelled (``.cancelled`` marker file — audit Erro 1 round 4,
+        2026-05-25).
+
+        Only the trajectory (``3_CoordMovimento_*``) counts — an
+        arena-only parquet (``1_ProcessingArea_*``) means a recording was
+        merely *started* (``Recorder`` writes it as soon as a session
+        folder opens, before any frame is captured/tracked) and interrupted
+        before producing real data. Counting that as "completed" made the
+        Progresso grid show a session as done (yellow/green, N/M videos)
+        for a folder with zero actual frames or trajectory — misleading the
+        user into thinking a video existed when only a stray, aborted
+        session folder did."""
         try:
             for session_entry in os.scandir(subject_dir):
                 if not session_entry.is_dir():
@@ -464,8 +474,6 @@ class MetadataManager:
                 if (session_path / ".cancelled").exists():
                     continue
                 if any(session_path.glob("3_CoordMovimento_*.parquet")):
-                    return True
-                if any(session_path.glob("1_ProcessingArea_*.parquet")):
                     return True
         except OSError:
             log.debug(
