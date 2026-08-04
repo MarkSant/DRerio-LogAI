@@ -1,9 +1,16 @@
 # yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
+#
+# Manual, targeted test runner for debugging a specific domain (GUI,
+# processing, multi-aquarium, events, analysis) without waiting on the full
+# suite. NOT wired to pull_request: the full `ci.yml` test job already runs
+# every one of these tests (`-m "not gui"` covers processing/events/analysis,
+# `-m gui` covers gui) on every PR push, so an automatic trigger here just
+# re-installs deps and re-runs a subset of that same suite a second time.
+# Trigger manually from the Actions tab when you want fast, isolated
+# feedback on one domain while iterating.
 name: Domain Tests
 
 on:
-  pull_request:
-    branches: [ main ]
   workflow_dispatch:
     inputs:
       domain:
@@ -18,10 +25,6 @@ on:
           - multi_aquarium
           - events
           - analysis
-
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
 
 jobs:
   detect-changes:
