@@ -7,6 +7,7 @@ Handles messagebox wrappers, file dialogs, custom dialogs, and user confirmation
 from __future__ import annotations
 
 import os
+import re
 from pathlib import Path
 from tkinter import filedialog, messagebox, simpledialog
 from typing import TYPE_CHECKING, Any, ClassVar, Literal
@@ -837,6 +838,86 @@ class DialogManager:
             UIEvents.PROJECT_OPEN,
             ProjectOpenPayload(project_path=project_path),
         )
+
+    def handle_start_recording_button_click(self) -> None:
+        """Handle the "Iniciar Gravação" click on the Controle Principal tab.
+
+        The button used to always open the generic Day/Group/Sujeito picker,
+        ignoring whatever scheduled session the user already had selected in
+        the "Vídeos do Projeto" tree just below it. Now it starts recording
+        directly for that selection when it resolves to a full session
+        (group + day + subject), matching the behaviour of clicking a cell
+        in the "Progresso do Experimento" grid. Falls back to the picker
+        when nothing — or only a partial group/day — is selected.
+        """
+        pm = self.gui.controller.project_manager
+        if not pm or pm.get_project_type() != "live":
+            self._open_recording_details_picker()
+            return
+
+        scope = self._resolve_selected_recording_scope()
+        day_number = self._extract_day_number(scope.get("day")) if scope else None
+        subject = self._extract_subject_number(scope.get("subject")) if scope else None
+        group = scope.get("group") if scope else None
+
+        if not (scope and day_number is not None and group and subject is not None):
+            if scope is None and hasattr(self.gui, "set_status"):
+                self.gui.set_status(
+                    "Nenhuma sessão selecionada na lista abaixo — selecione uma "
+                    "sessão agendada para pular a seleção manual."
+                )
+            self._open_recording_details_picker()
+            return
+
+        success = self.gui.controller.hardware_vm.start_live_project_session(
+            day=day_number, group=str(group), subject=str(subject)
+        )
+        if not success:
+            self.show_error(
+                "Erro na Gravação",
+                f"Falha ao iniciar sessão de gravação para {group}/{subject}.",
+            )
+        self.gui.widget_factory.render_progress_grid()
+
+    def _open_recording_details_picker(self) -> None:
+        """Fall back to the legacy Day/Group/Sujeito picker via RECORDING_START."""
+        from zebtrack.ui import payloads
+        from zebtrack.ui.event_bus_v2 import UIEvents
+
+        self.gui.event_dispatcher.publish_event(UIEvents.RECORDING_START, payloads.EmptyPayload())
+
+    def _resolve_selected_recording_scope(self) -> dict[str, Any] | None:
+        """Read the (group, day, subject) scope selected in the overview tree."""
+        widget = getattr(self.gui, "project_overview_widget", None)
+        get_scope = getattr(widget, "get_selected_scope", None)
+        if get_scope is None:
+            return None
+        return get_scope()
+
+    @staticmethod
+    def _extract_day_number(day_id: Any) -> int | None:
+        """Parse the numeric day out of a normalized id like ``"Dia_3"``."""
+        if day_id is None:
+            return None
+        match = re.search(r"(\d+)", str(day_id))
+        if not match:
+            return None
+        return int(match.group(1))
+
+    @staticmethod
+    def _extract_subject_number(subject_id: Any) -> str | None:
+        """Normalize a subject id/label (e.g. ``"01"``) to the plain digit
+        form (``"1"``) that ``start_live_project_session`` expects — matching
+        what ``SubjectSelectionDialog`` produces.
+        """
+        if subject_id is None:
+            return None
+        text = str(subject_id).strip()
+        if not text:
+            return None
+        if text.isdigit():
+            return str(int(text))
+        return text
 
     def handle_grid_cell_click(self, day: int, group_name: str) -> None:
         """Handle click on a cell in the experimental progress grid.

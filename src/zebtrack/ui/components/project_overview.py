@@ -1,6 +1,8 @@
 """Project overview widget component - project status and video tree display."""
 
+import tkinter as tk
 from tkinter import StringVar, ttk
+from typing import Any
 
 import structlog
 
@@ -47,6 +49,11 @@ class ProjectOverviewWidget(BaseWidget):
         # Reverse mapping: treeview iid → video_path
         self._iid_to_path: dict[str, str] = {}
         self._iid_to_report_path: dict[str, str] = {}
+
+        # Reverse mapping: treeview iid (group/day/subject nodes only) →
+        # {"group": ..., "day": ..., "subject": ...}. Lets callers resolve
+        # which scheduled session is selected without re-parsing iid strings.
+        self._iid_to_scope: dict[str, dict[str, Any]] = {}
 
         super().__init__(parent, event_bus=event_bus, **kwargs)
 
@@ -223,6 +230,32 @@ class ProjectOverviewWidget(BaseWidget):
                     ),
                 )
 
+    def get_selected_scope(self) -> dict[str, Any] | None:
+        """Resolve the (group, day, subject) scope of the current tree selection.
+
+        Video and partial-report leaves aren't registered directly — they
+        inherit their nearest ancestor's (subject/day/group) scope by walking
+        up ``Treeview.parent()``. Returns ``None`` if nothing is selected or
+        the tree no longer exists.
+        """
+        tree = self.project_overview_tree
+        if tree is None:
+            return None
+        selection = tree.selection()
+        if not selection:
+            return None
+
+        item_id: str = selection[0]
+        while item_id:
+            scope = self._iid_to_scope.get(item_id)
+            if scope is not None:
+                return scope
+            try:
+                item_id = tree.parent(item_id)
+            except tk.TclError:
+                return None
+        return None
+
     # Public API for updating widget state
 
     def update_summary(self, status_counts: dict[str, int]) -> None:
@@ -349,6 +382,7 @@ class ProjectOverviewWidget(BaseWidget):
         # Reset reverse mapping
         self._iid_to_path = {}
         self._iid_to_report_path = {}
+        self._iid_to_scope = {}
 
         # Store video index reference (for context menus, etc.)
         self._video_index = video_index
@@ -364,6 +398,7 @@ class ProjectOverviewWidget(BaseWidget):
                 values=(group.get("status_summary", ""), group.get("data_summary", "")),
             )
             self.expand_tree_item(group_id)
+            self._iid_to_scope[group_id] = {"group": group["id"], "day": None, "subject": None}
 
             # Add days
             for day in group.get("days", []):
@@ -375,6 +410,11 @@ class ProjectOverviewWidget(BaseWidget):
                     text=f"📅 {day['title']}",
                     values=(day["status"], day["data"]),
                 )
+                self._iid_to_scope[day_id] = {
+                    "group": group["id"],
+                    "day": day["id"],
+                    "subject": None,
+                }
 
                 # Add subjects
                 for subject in day.get("subjects", []):
@@ -386,6 +426,11 @@ class ProjectOverviewWidget(BaseWidget):
                         text=subject.get("label", f"🐟 Sujeito {subject['id']}"),
                         values=(subject.get("status", ""), subject.get("data", "")),
                     )
+                    self._iid_to_scope[subject_id] = {
+                        "group": group["id"],
+                        "day": day["id"],
+                        "subject": subject["id"],
+                    }
 
                     # Add videos
                     for video in subject.get("videos", []):

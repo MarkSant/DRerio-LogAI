@@ -290,11 +290,46 @@ class ZoneControlBuilder:
         if hasattr(self.gui, "set_status"):
             self.gui.set_status("Edição concluída. Dados salvos e indicadores atualizados.")
 
+        # 5. Next-step guidance for live projects.
+        self._show_conclude_next_step_guidance()
+
+    def _show_conclude_next_step_guidance(self) -> None:
+        """Point the user to the next action after committing zone edits.
+
+        "Concluir" only saves zone/ROI/Arduino-binding data — it never starts
+        a recording. When a live session is already deferred waiting on this
+        confirmation, the "⏳ Sessão pendente" banner built by ``ZoneControls``
+        already tells the user to click "▶️ Iniciar Gravação" there, so we
+        skip this to avoid a redundant dialog. Otherwise (proactive zone setup
+        with no pending session) there is currently no other cue in the UI, so
+        point the user at the "Controle Principal" tab. Only applies to live
+        projects — pre-recorded projects have their own explicit "Iniciar
+        Análise" / "Enviar Vídeo Selecionado para Análise" buttons.
+        """
+        zone_controls = getattr(self.gui, "zone_controls", None)
+        if zone_controls is not None and zone_controls.has_pending_live_session():
+            return
+
+        project_manager = getattr(getattr(self.gui, "controller", None), "project_manager", None)
+        get_project_type = getattr(project_manager, "get_project_type", None)
+        if get_project_type is None or get_project_type() != "live":
+            return
+
+        dialog_manager = getattr(self.gui, "dialog_manager", None)
+        if dialog_manager is None:
+            return
+        dialog_manager.show_info(
+            "Zonas Concluídas",
+            "Zonas, ROIs e comandos Arduino salvos.\n\n"
+            'Para iniciar a gravação ao vivo, vá até a aba "Controle Principal" '
+            'e clique em "Iniciar Gravação".',
+        )
+
     def _on_send_selected_video_to_analysis(self) -> None:
         """Open analysis configuration for the real video selected in the zone tree."""
         tree = getattr(self.gui, "video_selector_tree", None)
         selection = tree.selection() if tree is not None else ()
-        if not selection:
+        if tree is None or not selection:
             self.gui.dialog_manager.show_warning(
                 "Nenhum Vídeo Selecionado",
                 "Selecione um vídeo gravado na lista antes de enviá-lo para análise.",

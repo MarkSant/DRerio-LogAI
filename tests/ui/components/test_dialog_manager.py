@@ -1,7 +1,7 @@
 """Tests for DialogManager component."""
 
 from types import SimpleNamespace
-from unittest.mock import Mock, patch
+from unittest.mock import ANY, Mock, patch
 
 import pytest
 
@@ -1163,6 +1163,84 @@ class TestGridCellClick:
 
         mock_dialog.assert_called_once()
         mock_gui.widget_factory.render_progress_grid.assert_called_once()
+
+
+@pytest.mark.gui
+class TestStartRecordingButtonClick:
+    """Tests for the 'Iniciar Gravação' button on Controle Principal."""
+
+    def test_full_session_selected_starts_directly(self, dialog_manager, mock_gui):
+        """A fully-resolved (group/day/subject) selection skips the picker."""
+        mock_gui.controller.project_manager.get_project_type.return_value = "live"
+        mock_gui.controller.hardware_vm.start_live_project_session = Mock(return_value=True)
+        mock_gui.widget_factory = Mock()
+        mock_gui.project_overview_widget = SimpleNamespace(
+            get_selected_scope=Mock(return_value={"group": "G1", "day": "Dia_3", "subject": "02"})
+        )
+
+        dialog_manager.handle_start_recording_button_click()
+
+        mock_gui.controller.hardware_vm.start_live_project_session.assert_called_once_with(
+            day=3, group="G1", subject="2"
+        )
+        mock_gui.event_dispatcher.publish_event.assert_not_called()
+        mock_gui.widget_factory.render_progress_grid.assert_called_once()
+
+    def test_full_session_start_failure_shows_error(self, dialog_manager, mock_gui):
+        """A failed start surfaces an error dialog instead of failing silently."""
+        mock_gui.controller.project_manager.get_project_type.return_value = "live"
+        mock_gui.controller.hardware_vm.start_live_project_session = Mock(return_value=False)
+        mock_gui.widget_factory = Mock()
+        mock_gui.project_overview_widget = SimpleNamespace(
+            get_selected_scope=Mock(return_value={"group": "G1", "day": "Dia_1", "subject": "1"})
+        )
+
+        with patch.object(dialog_manager, "show_error") as mock_error:
+            dialog_manager.handle_start_recording_button_click()
+
+        mock_error.assert_called_once()
+
+    def test_no_selection_falls_back_to_picker(self, dialog_manager, mock_gui):
+        """Nothing selected in the tree: fall back to the manual picker."""
+        mock_gui.controller.project_manager.get_project_type.return_value = "live"
+        mock_gui.project_overview_widget = SimpleNamespace(
+            get_selected_scope=Mock(return_value=None)
+        )
+
+        dialog_manager.handle_start_recording_button_click()
+
+        mock_gui.controller.hardware_vm.start_live_project_session.assert_not_called()
+        mock_gui.event_dispatcher.publish_event.assert_called_once_with(
+            UIEvents.RECORDING_START, ANY
+        )
+
+    def test_partial_selection_falls_back_to_picker(self, dialog_manager, mock_gui):
+        """A group/day-only selection (no subject) isn't enough to auto-start."""
+        mock_gui.controller.project_manager.get_project_type.return_value = "live"
+        mock_gui.project_overview_widget = SimpleNamespace(
+            get_selected_scope=Mock(return_value={"group": "G1", "day": "Dia_1", "subject": None})
+        )
+
+        dialog_manager.handle_start_recording_button_click()
+
+        mock_gui.controller.hardware_vm.start_live_project_session.assert_not_called()
+        mock_gui.event_dispatcher.publish_event.assert_called_once_with(
+            UIEvents.RECORDING_START, ANY
+        )
+
+    def test_pre_recorded_project_always_uses_picker(self, dialog_manager, mock_gui):
+        """Pre-recorded projects have no scheduling concept — always the picker."""
+        mock_gui.controller.project_manager.get_project_type.return_value = "pre-recorded"
+        mock_gui.project_overview_widget = SimpleNamespace(
+            get_selected_scope=Mock(return_value={"group": "G1", "day": "Dia_1", "subject": "1"})
+        )
+
+        dialog_manager.handle_start_recording_button_click()
+
+        mock_gui.controller.hardware_vm.start_live_project_session.assert_not_called()
+        mock_gui.event_dispatcher.publish_event.assert_called_once_with(
+            UIEvents.RECORDING_START, ANY
+        )
 
 
 @pytest.mark.gui

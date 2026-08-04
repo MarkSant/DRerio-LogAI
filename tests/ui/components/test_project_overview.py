@@ -286,6 +286,108 @@ def test_populate_tree_with_hierarchy(overview_widget):
     assert len(subject_children) == 1  # One video
 
 
+def _populate_scope_hierarchy(overview_widget):
+    hierarchy_data = {
+        "groups": [
+            {
+                "id": "GrupoA",
+                "display": "Grupo A",
+                "status_summary": "",
+                "data_summary": "",
+                "days": [
+                    {
+                        "id": "Dia_3",
+                        "title": "Dia 3",
+                        "status": "",
+                        "data": "",
+                        "subjects": [
+                            {
+                                "id": "02",
+                                "label": "🐟 Sujeito 02",
+                                "status": "",
+                                "data": "",
+                                "videos": [
+                                    {
+                                        "id": "video1",
+                                        "display_name": "Sessão planejada",
+                                        "status": "planejado",
+                                        "data_badges": "",
+                                        "path": "planned_grupoa_day03_subject02",
+                                    }
+                                ],
+                            }
+                        ],
+                        "partial_reports": [
+                            {
+                                "id": "partial_1",
+                                "label": "📊 report.xlsx",
+                                "file_name": "report.xlsx",
+                                "file_path": "/tmp/report.xlsx",
+                            }
+                        ],
+                    }
+                ],
+            }
+        ]
+    }
+    overview_widget.populate_tree_with_hierarchy(hierarchy_data, video_index={})
+
+
+def test_get_selected_scope_none_without_selection(overview_widget):
+    """No selection in the tree resolves to no scope."""
+    _populate_scope_hierarchy(overview_widget)
+    assert overview_widget.get_selected_scope() is None
+
+
+def test_get_selected_scope_for_subject_node(overview_widget):
+    """Selecting a subject node resolves the full group/day/subject scope."""
+    _populate_scope_hierarchy(overview_widget)
+    subject_iid = "subject_GrupoA_Dia_3_02"
+    overview_widget.project_overview_tree.selection_set(subject_iid)
+
+    scope = overview_widget.get_selected_scope()
+
+    assert scope == {"group": "GrupoA", "day": "Dia_3", "subject": "02"}
+
+
+def test_get_selected_scope_for_video_leaf_inherits_subject(overview_widget):
+    """Selecting a video/placeholder leaf inherits its subject ancestor's scope."""
+    _populate_scope_hierarchy(overview_widget)
+    overview_widget.project_overview_tree.selection_set("video1")
+
+    scope = overview_widget.get_selected_scope()
+
+    assert scope == {"group": "GrupoA", "day": "Dia_3", "subject": "02"}
+
+
+def test_get_selected_scope_for_partial_report_leaf_inherits_day(overview_widget):
+    """Selecting a partial-report leaf inherits its day ancestor's scope (no subject)."""
+    _populate_scope_hierarchy(overview_widget)
+    overview_widget.project_overview_tree.selection_set("partial_1")
+
+    scope = overview_widget.get_selected_scope()
+
+    assert scope == {"group": "GrupoA", "day": "Dia_3", "subject": None}
+
+
+def test_get_selected_scope_for_group_node_has_no_day_or_subject(overview_widget):
+    """Selecting a bare group node resolves only the group."""
+    _populate_scope_hierarchy(overview_widget)
+    overview_widget.project_overview_tree.selection_set("group_GrupoA")
+
+    scope = overview_widget.get_selected_scope()
+
+    assert scope == {"group": "GrupoA", "day": None, "subject": None}
+
+
+def test_get_selected_scope_resets_on_repopulate(overview_widget):
+    """Stale iid → scope mappings from a prior population must not leak."""
+    _populate_scope_hierarchy(overview_widget)
+    overview_widget.populate_tree_with_hierarchy({"groups": []}, video_index={})
+
+    assert overview_widget._iid_to_scope == {}
+
+
 def test_populate_tree_with_hierarchy_adds_partial_report_nodes(overview_widget):
     """Day nodes should render block-level partial report children when present."""
     hierarchy_data = {
