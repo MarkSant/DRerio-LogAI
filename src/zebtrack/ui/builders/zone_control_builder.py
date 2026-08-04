@@ -329,7 +329,7 @@ class ZoneControlBuilder:
         """Open analysis configuration for the real video selected in the zone tree."""
         tree = getattr(self.gui, "video_selector_tree", None)
         selection = tree.selection() if tree is not None else ()
-        if not selection:
+        if tree is None or not selection:
             self.gui.dialog_manager.show_warning(
                 "Nenhum Vídeo Selecionado",
                 "Selecione um vídeo gravado na lista antes de enviá-lo para análise.",
