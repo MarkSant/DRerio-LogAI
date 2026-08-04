@@ -179,7 +179,17 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest]
+        # GUI-Linux runs as its own matrix entry (not a second sequential
+        # pytest invocation inside the core-Linux job) so it executes in
+        # parallel with core-Linux and core-Windows instead of adding to
+        # the critical path.
+        include:
+          - os: ubuntu-latest
+            suite: core
+          - os: ubuntu-latest
+            suite: gui
+          - os: windows-latest
+            suite: core
 
     runs-on: ${{ matrix.os }}
     timeout-minutes: 45
@@ -296,27 +306,27 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-build-
 
-      - name: "Run tests (Linux - with xvfb)"
-        if: runner.os == 'Linux'
+      - name: "Run core tests (Linux - with xvfb)"
+        if: runner.os == 'Linux' && matrix.suite == 'core'
         run: |
           xvfb-run --auto-servernum poetry run pytest -m "not gui" --cov=zebtrack --cov-report=xml:coverage-core.xml --cov-fail-under=50 --timeout=300 --timeout-method=thread
         timeout-minutes: 45
 
       - name: "Run GUI tests (Linux - with xvfb)"
-        if: runner.os == 'Linux'
+        if: runner.os == 'Linux' && matrix.suite == 'gui'
         run: |
           xvfb-run --auto-servernum poetry run pytest -m gui -n0 --reruns 2 --reruns-delay 1 --cov=zebtrack --cov-report=xml:coverage-gui.xml --cov-fail-under=32 --timeout=300 --timeout-method=thread
         timeout-minutes: 45
 
       - name: "Run tests (Windows)"
-        if: runner.os == 'Windows'
+        if: runner.os == 'Windows' && matrix.suite == 'core'
         run: |
           $Env:ZEBTRACK_HEADLESS_TESTS = "1"
           poetry run pytest -m "not gui" --ignore=tests/ui --ignore=tests/ui/test_aquarium_dialogs.py --cov=zebtrack --cov-report=xml:coverage-core.xml --cov-fail-under=44 --timeout=300 --timeout-method=thread
         timeout-minutes: 45
 
       - name: Upload Codecov core coverage (Linux)
-        if: runner.os == 'Linux'
+        if: runner.os == 'Linux' && matrix.suite == 'core'
         uses: codecov/codecov-action@v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
@@ -325,7 +335,7 @@ jobs:
           fail_ci_if_error: false
 
       - name: Upload Codecov gui coverage (Linux)
-        if: runner.os == 'Linux'
+        if: runner.os == 'Linux' && matrix.suite == 'gui'
         uses: codecov/codecov-action@v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
@@ -334,7 +344,7 @@ jobs:
           fail_ci_if_error: false
 
       - name: Upload Codecov core coverage (Windows)
-        if: runner.os == 'Windows'
+        if: runner.os == 'Windows' && matrix.suite == 'core'
         uses: codecov/codecov-action@v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
@@ -345,7 +355,7 @@ jobs:
       - name: Archive coverage results
         uses: actions/upload-artifact@v7
         with:
-          name: coverage-report-${{ matrix.os }}
+          name: coverage-report-${{ matrix.os }}-${{ matrix.suite }}
           path: |
             coverage-core.xml
             coverage-gui.xml
