@@ -951,6 +951,35 @@ def test_has_recorded_before_true_when_session_count_positive():
     assert coordinator._has_recorded_before() is True
 
 
+def test_ensure_zones_offers_reuse_when_zones_exist_but_never_recorded(monkeypatch):
+    """Zones/ROIs configured but no video ever recorded (``_has_recorded_before``
+    False) must still offer the reuse dialog, not silently re-run auto-detect.
+    Regression for: reopening a project where the user had only drawn the
+    arena/ROIs/Arduino bindings — before this fix, the missing recording
+    history caused the app to "forget" the existing zones and re-trigger
+    auto-detection on every "Iniciar Gravação" click."""
+    coordinator = _make_coordinator()
+    coordinator.project_manager.project_path = "/tmp/zebtrack"  # type: ignore[attr-defined]
+    coordinator.project_manager.get_project_type.return_value = "live"  # type: ignore[attr-defined]
+    zone_data = SimpleNamespace(polygon=[[10, 10], [20, 10], [20, 20], [10, 20]])
+    coordinator.project_manager.get_zone_data.return_value = zone_data  # type: ignore[attr-defined]
+    coordinator.project_manager.get_all_videos.return_value = []  # type: ignore[attr-defined]
+    coordinator._session_count = 0
+    coordinator.root = MagicMock()
+
+    fake_dialog = MagicMock()
+    fake_dialog.show.return_value = None  # user closes the reuse dialog
+
+    with patch(
+        "zebtrack.ui.dialogs.zone_reuse_dialog.ZoneReuseDialog",
+        MagicMock(return_value=fake_dialog),
+    ):
+        coordinator.ensure_zones_before_recording()
+
+    assert coordinator._has_recorded_before() is False, "sanity: no prior recording"
+    fake_dialog.show.assert_called_once()
+
+
 def test_ensure_zones_restores_active_zone_video_on_reopen(monkeypatch):
     """Ao reabrir, as zonas do live vivem sob a chave do reference-frame e o
     ``active_zone_video`` (em-memória) é None, então ``get_zone_data()`` vem

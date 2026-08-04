@@ -277,10 +277,7 @@ class TabBuilder:
         self.gui.start_rec_btn = Button(
             parent,
             text="Iniciar Gravação",
-            command=lambda: self.gui.event_dispatcher.publish_event(
-                UIEvents.RECORDING_START,
-                payloads.EmptyPayload(),
-            ),
+            command=lambda: self.gui.dialog_manager.handle_start_recording_button_click(),
         )
         self.gui.start_rec_btn.pack(side="left", padx=5)
 

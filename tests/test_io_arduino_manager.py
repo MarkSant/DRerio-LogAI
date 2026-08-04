@@ -469,3 +469,78 @@ def test_arduino_manager_reader_loop_ignores_empty_lines(
 
     # Should not have dispatched any events
     mock_controller.on_arduino_event.assert_not_called()
+
+
+# --------------------------------------------------------------------------- #
+# Writer-thread send throttle (audit 2026-08-02: two zone-transition tokens
+# ~255ms apart caused every later ACK to go unmatched for the rest of the
+# session, because the firmware was likely still blocked handling the first
+# command. ``_throttle_before_send`` enforces a minimum gap between writes.
+# --------------------------------------------------------------------------- #
+
+
+def test_throttle_before_send_skips_wait_on_first_send(mock_controller, monkeypatch):
+    """No prior send yet -> nothing to space out, no sleep."""
+    manager = ArduinoManager(mock_controller)
+    sleep_calls: list[float] = []
+    monkeypatch.setattr("zebtrack.io.arduino_manager.time.sleep", sleep_calls.append)
+
+    manager._throttle_before_send()
+
+    assert sleep_calls == []
+
+
+def test_throttle_before_send_waits_remaining_gap(mock_controller, monkeypatch):
+    """Called before the minimum interval elapsed -> sleeps the remainder."""
+    manager = ArduinoManager(mock_controller)
+    manager._min_send_interval_s = 0.4
+    manager._last_send_perf = 100.0
+    monkeypatch.setattr("zebtrack.io.arduino_manager.time.perf_counter", lambda: 100.1)
+    sleep_calls: list[float] = []
+    monkeypatch.setattr("zebtrack.io.arduino_manager.time.sleep", sleep_calls.append)
+
+    manager._throttle_before_send()
+
+    assert sleep_calls == [pytest.approx(0.3, abs=1e-9)]
+
+
+def test_throttle_before_send_no_wait_when_interval_already_elapsed(mock_controller, monkeypatch):
+    """Enough time already passed -> no sleep needed."""
+    manager = ArduinoManager(mock_controller)
+    manager._min_send_interval_s = 0.4
+    manager._last_send_perf = 100.0
+    monkeypatch.setattr("zebtrack.io.arduino_manager.time.perf_counter", lambda: 100.5)
+    sleep_calls: list[float] = []
+    monkeypatch.setattr("zebtrack.io.arduino_manager.time.sleep", sleep_calls.append)
+
+    manager._throttle_before_send()
+
+    assert sleep_calls == []
+
+
+@pytest.mark.slow
+def test_writer_loop_spaces_consecutive_sends_by_min_interval(
+    mock_controller, arduino_factory, mock_arduino
+):
+    """Two tokens enqueued back-to-back must reach the wire >= min interval apart."""
+    sent_at: list[float] = []
+
+    def _record(token):
+        sent_at.append(time.perf_counter())
+        return True
+
+    mock_arduino.send_command_async = MagicMock(side_effect=_record)
+
+    manager = ArduinoManager(mock_controller, arduino_factory=arduino_factory)
+    manager.connect("COM3", 9600, ack="none")
+    manager._min_send_interval_s = 0.2  # shortened so the test stays fast
+
+    assert manager.enqueue(1)
+    assert manager.enqueue(2)
+
+    wait_for_condition(lambda: len(sent_at) >= 2, timeout=2.0)
+    manager.disconnect()
+
+    assert len(sent_at) == 2
+    gap = sent_at[1] - sent_at[0]
+    assert gap >= manager._min_send_interval_s - 0.02  # scheduling tolerance
