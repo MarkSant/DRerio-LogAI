@@ -106,21 +106,29 @@ def canvas_manager(mock_gui):
     return CanvasManager(mock_gui)
 
 
-def _simulate_displayed_frame(canvas_manager):
-    """Put the manager in the state ``draw_bg_image()`` leaves behind.
+def _simulate_displayed_frame(canvas_manager, size=(800, 600)):
+    """Put the manager in the state ``CanvasRenderer.draw_bg_image()`` leaves behind.
 
     ``CanvasRenderer.redraw_zones`` refuses to draw zones until a frame is on
-    the canvas (``_has_background_geometry``), because zone coordinates are
-    meaningless without the scale/offset that mapping produced. Production sets
-    all four attributes together in ``draw_bg_image``; a test that sets only
-    scale/offset silently exercises the deferral path instead of the drawing it
-    means to assert.
+    the canvas (``CanvasRenderer._has_background_geometry``), because zone
+    coordinates are meaningless without the scale/offset that mapping produced.
+    A test that sets only scale/offset silently exercises the deferral path
+    instead of the drawing it means to assert.
+
+    ``draw_bg_image`` assigns every attribute below in one pass, including
+    ``_canvas_bg_position`` — which ``_restore_background_image`` reads. Leaving
+    it unset would push the restore path onto its ``winfo_width``/``winfo_height``
+    centering fallback instead of the stored position, hiding regressions there.
+    The values mirror that method: the image fills the mocked canvas at scale
+    1.0, so the offset is the origin and the position is the canvas center.
     """
-    canvas_manager._raw_bg_image = Image.new("RGB", (800, 600))
+    width, height = size
+    canvas_manager._raw_bg_image = Image.new("RGB", (width, height))
     canvas_manager._canvas_bg_image = Mock()
-    canvas_manager._bg_img_size = (800, 600)
+    canvas_manager._bg_img_size = (width, height)
     canvas_manager._bg_scale = 1.0
     canvas_manager._bg_offset = (0, 0)
+    canvas_manager._canvas_bg_position = (width // 2, height // 2, "center")
 
 
 @pytest.fixture
