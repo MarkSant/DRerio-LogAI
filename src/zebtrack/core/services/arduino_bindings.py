@@ -89,8 +89,11 @@ class ArduinoBinding(BaseModel):
     def _blank_label_is_none(cls, value: Any) -> Any:
         """Treat an empty or whitespace-only label as absent.
 
-        The panel's entry widget yields "" when the operator clears the field;
-        storing that would make ``label`` truthy-checks inconsistent.
+        The panel's entry widget yields "" when the operator clears the field.
+        Keeping that would leave two different representations of "no label"
+        ("" and None), so two bindings that mean the same thing would compare
+        unequal and round-trip through ``to_storage`` as different JSON. One
+        canonical absent value keeps equality and persistence predictable.
         """
         if isinstance(value, str) and not value.strip():
             return None

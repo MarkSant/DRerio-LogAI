@@ -354,21 +354,22 @@ class ArduinoBindingsPanel(ttk.Frame):
         threading.Thread(target=_worker, name="ArduinoBindingProbe", daemon=True).start()
 
     def _probe_plan(self) -> list[tuple[str, str, int]]:
-        """Flatten the bindings into the ordered ``(roi, edge, token)`` sends.
+        """Flatten the bindings into the ordered ``(display_name, edge, token)`` sends.
 
-        ``roi`` carries the operator's device label when one is set, so the
-        result lines name what is actually wired instead of leaning on the
-        firmware's ACK text (which names the channel from the sketch's point of
-        view — "Red LED 1" even when the pin drives a shock relay).
+        ``display_name`` is a label for the result lines, **not** a ROI name: it
+        becomes ``"Z1 (Choque)"`` when the operator named the device, and falls
+        back to the bare ROI otherwise. Naming what is actually wired beats
+        leaning on the firmware's ACK text, which names the channel from the
+        sketch's point of view ("Red LED 1" even when the pin drives a relay).
         """
         cfg = ArduinoBindingConfig.from_project_data(self._project_data())
         plan: list[tuple[str, str, int]] = []
         for binding in cfg.bindings:
-            name = f"{binding.roi} ({binding.label})" if binding.label else binding.roi
+            display_name = f"{binding.roi} ({binding.label})" if binding.label else binding.roi
             if binding.on_enter is not None:
-                plan.append((name, "enter", binding.on_enter))
+                plan.append((display_name, "enter", binding.on_enter))
             if binding.on_exit is not None:
-                plan.append((name, "exit", binding.on_exit))
+                plan.append((display_name, "exit", binding.on_exit))
         return plan
 
     def _schedule_ui(self, func: Any, *args: Any) -> None:
@@ -393,7 +394,11 @@ class ArduinoBindingsPanel(ttk.Frame):
         results: Sequence[tuple[tuple[str, str, int], tuple[int, str | None]]] | None,
         error: str | None,
     ) -> None:
-        """Render the probe results (Tk thread)."""
+        """Render the probe results (Tk thread).
+
+        ``results`` pairs each :meth:`_probe_plan` entry with the manager's
+        ``(token, ack_text)`` answer for it.
+        """
         if self._test_button is not None:
             self._test_button.config(state="normal")
         if results is None:
@@ -402,17 +407,17 @@ class ArduinoBindingsPanel(ttk.Frame):
 
         lines: list[str] = []
         problems = 0
-        for (roi, edge, token), (_sent, ack) in results:
+        for (display_name, edge, token), (_sent, ack) in results:
             edge_pt = "entrar" if edge == "enter" else "sair"
             if not ack:
-                lines.append(f"{roi} {edge_pt} → {token} → (sem resposta)")
+                lines.append(f"{display_name} {edge_pt} → {token} → (sem resposta)")
                 problems += 1
                 continue
             if edge_ack_is_inverted(edge, ack):
-                lines.append(f"⚠ {roi} {edge_pt} → {token} → {ack}")
+                lines.append(f"⚠ {display_name} {edge_pt} → {token} → {ack}")
                 problems += 1
             else:
-                lines.append(f"✓ {roi} {edge_pt} → {token} → {ack}")
+                lines.append(f"✓ {display_name} {edge_pt} → {token} → {ack}")
 
         if problems:
             lines.append("")
