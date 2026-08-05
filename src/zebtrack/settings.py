@@ -173,6 +173,19 @@ class ArduinoSettings(BaseModel):
             "legacy mode where a numeric command waits for an 'OK' reply."
         ),
     )
+    roi_exit_grace_frames: int = Field(
+        default=2,
+        ge=0,
+        le=100,
+        description=(
+            "How many consecutive analysed frames without any detection are "
+            "tolerated before the per-zone command loop declares the animal to "
+            "have left its ROI. A momentary tracker miss would otherwise emit a "
+            "spurious exit token (and a matching re-enter on the next hit), "
+            "making the device flicker. 0 restores the legacy behaviour of "
+            "exiting on the first empty frame."
+        ),
+    )
 
 
 class RecorderSettings(BaseModel):

@@ -19,6 +19,16 @@ def _nn(value: _T | None) -> _T:
     return value
 
 
+def _is_packed(widget) -> bool:
+    """True when the widget is currently managed by pack().
+
+    ``winfo_ismapped()`` is useless here: the panel is never gridded into a
+    visible toplevel in tests, so every widget reports unmapped. The geometry
+    manager, on the other hand, reflects pack()/pack_forget() exactly.
+    """
+    return bool(widget.winfo_manager())
+
+
 def _make_controller(project_data, roi_names, *, project_type="live", project_path="/proj"):
     pm = MagicMock()
     pm.project_data = project_data
@@ -139,3 +149,56 @@ class TestArduinoBindingsPanel:
         panel = ArduinoBindingsPanel(tkinter_root, controller)
         tkinter_root.update_idletasks()
         assert set(_nn(panel._tree).get_children()) == {"A", "B"}
+
+    def test_conflict_warning_hidden_for_disjoint_tokens(self, tkinter_root):
+        pd = {
+            "use_arduino": True,
+            "arduino_bindings": [
+                {"roi": "A", "on_enter": 1, "on_exit": 2},
+                {"roi": "B", "on_enter": 3, "on_exit": 4},
+            ],
+        }
+        controller, _pm = _make_controller(pd, ["A", "B"])
+        panel = ArduinoBindingsPanel(tkinter_root, controller)
+        tkinter_root.update_idletasks()
+        assert not _is_packed(_nn(panel._conflict_label))
+
+    def test_conflict_warning_shown_for_ambiguous_token(self, tkinter_root):
+        """Loading the off-by-one layout that latched a LED on must warn."""
+        pd = {
+            "use_arduino": True,
+            "arduino_bindings": [
+                {"roi": "Z2", "on_enter": 3, "on_exit": 4},
+                {"roi": "Z3", "on_enter": 4, "on_exit": 5},
+            ],
+        }
+        controller, _pm = _make_controller(pd, ["Z2", "Z3"])
+        panel = ArduinoBindingsPanel(tkinter_root, controller)
+        tkinter_root.update_idletasks()
+
+        label = _nn(panel._conflict_label)
+        assert _is_packed(label)
+        text = label.cget("text")
+        assert "4" in text
+        assert "Z2" in text and "Z3" in text
+
+    def test_conflict_warning_clears_after_fixing_tokens(self, tkinter_root):
+        pd = {
+            "use_arduino": True,
+            "arduino_bindings": [
+                {"roi": "Z2", "on_enter": 3, "on_exit": 4},
+                {"roi": "Z3", "on_enter": 4, "on_exit": 5},
+            ],
+        }
+        controller, _pm = _make_controller(pd, ["Z2", "Z3"])
+        panel = ArduinoBindingsPanel(tkinter_root, controller)
+        tkinter_root.update_idletasks()
+        assert _is_packed(_nn(panel._conflict_label))
+
+        panel.roi_choice.set("Z3")
+        panel.enter_token.set("5")
+        panel.exit_token.set("6")
+        panel._add_or_update()
+        tkinter_root.update_idletasks()
+
+        assert not _is_packed(_nn(panel._conflict_label))

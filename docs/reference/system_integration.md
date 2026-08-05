@@ -494,9 +494,43 @@ It timestamps, per ROI enter/exit trigger, three moments with
   capture (1 in `analysis_interval_frames`, default 10), so the sampling
   quantization (animal crossing during a skipped frame, up to
   `analysis_interval_frames/fps ≈ 333 ms @30 fps`) is a **separate** term logged
-  as `sampling_interval_ms`. The reference firmware's default blink path
-  (`delay(200)+delay(200)`) only polls serial ~every 400 ms, inflating
-  `serial_act_ms` — a real actuation delay the method correctly captures.
+  as `sampling_interval_ms`. Any `delay()` in the sketch's `loop()` is added to
+  `serial_act_ms` in full — a real actuation delay the method correctly captures.
+  See § 5.7 for the firmware rewrite that removed the blocking paths.
+
+### 5.7. Per-Zone Command Robustness (August 2026)
+
+Fixes from the audit of the 2026-08-04 live session, where one LED latched on
+and the others appeared dead. Root cause was a token mapping error amplified by
+two blocking `delay()` calls in the reference sketch.
+
+- **Ambiguous-token detection:** `ArduinoBindingConfig.token_conflicts()` returns
+  a `TokenConflict(token, enter_rois, exit_rois)` per integer wired as one ROI's
+  `on_enter` **and** another's `on_exit`. Such a mapping cannot be right — a
+  single firmware command cannot both set and clear a device state — and it
+  breaks `session_end_tokens()`, whose "turn everything off" sweep is built from
+  the exit tokens and would then turn a device **on**. The application is a pure
+  transport, so it **warns and never rewrites**: `_reset_arduino_zone_state`
+  logs `live_camera_service.arduino_zone_commands.token_conflict` at session
+  start, and `ArduinoBindingsPanel` shows a red warning under the table
+  (`_refresh_conflict_warning`, on load and on every save).
+  Canonical 4-zone layout for the reference sketch: `1/2`, `3/4`, `5/6`, `7/8`.
+- **ROI exit grace period:** `_dispatch_arduino_zone_commands` used to receive
+  empty `detections` on any frame the tracker missed, emptying the occupancy set
+  and firing an exit token plus a re-enter on the next hit (device flicker; the
+  audited session logged one such pair while the animal never left). Frames with
+  zero detections are now absorbed for `arduino.roi_exit_grace_frames`
+  (default 2, `0` = legacy) before the occupancy is allowed to go empty; any
+  frame **with** detections resets the counter. State lives in
+  `_arduino_missed_frames`, reset per session.
+- **Reference firmware (`scripts/ard_sketch/Program_Final/Program_Final.ino`):**
+  `loop()` is now free of `delay()`. `botaoChoque` was `pinMode(..., INPUT)`
+  without a pull-up, so the floating pin read `LOW` on its own and triggered a
+  `delay(15000)`; it is now `INPUT_PULLUP` with a `millis()`-timed shock window.
+  The flash path's `delay(100)+delay(100)` became a `millis()` toggle. The serial
+  drain also skips pending separators before `Serial.parseInt()`, so a leftover
+  `"\n"` no longer times out into a phantom `0` → `"Unknown command"` ACK that
+  would desynchronize the FIFO command↔ACK correlation of § 5.6.
 
 ---
 
@@ -663,6 +697,7 @@ Heavy imports (pandas, pyarrow, openpyxl) are deferred in:
 
 | Date | Version | Changes |
 | ---- | ------- | ------- |
+| Aug 4, 2026 | v4.2 | § 5.7 per-zone command robustness — ambiguous-token detection (`token_conflicts()`), ROI exit grace period (`arduino.roi_exit_grace_frames`), non-blocking reference firmware |
 | Jul 23, 2026 | v4.1 | § 5.6 closed-loop latency logging (software-only, ACK-based) — `ArduinoManager` tracked path + FIFO ACK correlation, `5_ClosedLoop_<base>.{csv,parquet}` |
 | Feb 3, 2026 | v4.0 | Phase 4 coordinator decomposition (16 coordinators), ADR-009 deprecation notice, performance architecture (Phase 7), documentation standards (Phase 8), updated dependency container |
 | Dec 28, 2025 | v3.2 | Unified report contracts, max speed metric, geotaxis data fixes |

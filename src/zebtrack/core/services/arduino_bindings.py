@@ -17,7 +17,7 @@ round-trips through the existing project JSON without schema migrations.
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any
+from typing import Any, NamedTuple
 
 import structlog
 from pydantic import BaseModel, ConfigDict, Field
@@ -26,6 +26,33 @@ log = structlog.get_logger()
 
 # Key under which bindings are stored inside ``project_data``.
 PROJECT_DATA_KEY = "arduino_bindings"
+
+
+class TokenConflict(NamedTuple):
+    """A token used with two contradictory meanings across the binding set.
+
+    The application is a pure transport: it cannot know that token ``5`` means
+    "green LED on" to the firmware. But it *can* tell that the same integer is
+    wired as the **enter** token of one ROI and the **exit** token of another —
+    a mapping that cannot be right, because a single firmware command cannot
+    both set and clear a device state.
+
+    This is the failure mode of an off-by-one while filling the bindings table
+    (e.g. ``Z3 = 4/5`` when the sketch expects ``Z3 = 5/6``): the ROI's "exit"
+    silently latches the *next* zone's device on, and the session-end sweep —
+    built from the exit tokens — turns it on instead of off.
+    """
+
+    token: int
+    enter_rois: list[str]
+    exit_rois: list[str]
+
+    def describe(self) -> str:
+        """Human-readable one-liner for logs and the UI status line."""
+        return (
+            f"token {self.token}: entrada de {', '.join(self.enter_rois)} "
+            f"e saída de {', '.join(self.exit_rois)}"
+        )
 
 
 class ArduinoBinding(BaseModel):
@@ -103,6 +130,12 @@ class ArduinoBindingConfig(BaseModel):
         This drives the "turn everything off" sweep: any ROI whose exit token
         would normally clear a device state is cleared, even if an animal was
         still inside when recording stopped.
+
+        The sweep only *means* "off" if each exit token clears something in the
+        firmware. When :meth:`token_conflicts` is non-empty that assumption is
+        broken and the sweep can latch a device **on**; callers should surface
+        the conflicts rather than silently dropping tokens, since only the
+        sketch knows what each integer does.
         """
         seen: set[int] = set()
         tokens: list[int] = []
@@ -111,6 +144,30 @@ class ArduinoBindingConfig(BaseModel):
                 seen.add(b.on_exit)
                 tokens.append(b.on_exit)
         return tokens
+
+    def token_conflicts(self) -> list[TokenConflict]:
+        """Tokens wired as an ``on_enter`` here and an ``on_exit`` there.
+
+        Returns one entry per offending token, ordered by token value. An empty
+        list means every token has a single unambiguous role across the whole
+        binding set. See :class:`TokenConflict` for why this matters.
+        """
+        enter_by_token: dict[int, list[str]] = {}
+        exit_by_token: dict[int, list[str]] = {}
+        for b in self.bindings:
+            if b.on_enter is not None:
+                enter_by_token.setdefault(b.on_enter, []).append(b.roi)
+            if b.on_exit is not None:
+                exit_by_token.setdefault(b.on_exit, []).append(b.roi)
+
+        return [
+            TokenConflict(
+                token=token,
+                enter_rois=enter_by_token[token],
+                exit_rois=exit_by_token[token],
+            )
+            for token in sorted(set(enter_by_token) & set(exit_by_token))
+        ]
 
     def is_empty(self) -> bool:
         """True when there are no bindings (the live hook can skip all work)."""

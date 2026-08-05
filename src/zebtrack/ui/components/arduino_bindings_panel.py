@@ -38,6 +38,13 @@ NOTE_NO_ARDUINO = (
     "por zona."
 )
 
+CONFLICT_WARNING = (
+    "⚠ Token ambíguo: o mesmo número está configurado como ENTRADA de uma ROI e "
+    "SAÍDA de outra. O sketch não consegue ligar e desligar com o mesmo comando — "
+    "a saída da ROI vai acender o dispositivo da outra zona, e o desligamento no "
+    "fim da sessão não vai funcionar. Confira a numeração —"
+)
+
 TOKEN_MIN = 0
 TOKEN_MAX = 255
 
@@ -59,6 +66,7 @@ class ArduinoBindingsPanel(ttk.Frame):
         self._status: ttk.Label | None = None
         self._note: ttk.Label | None = None
         self._frame: ttk.LabelFrame | None = None
+        self._conflict_label: ttk.Label | None = None
 
         self._build()
         self.refresh()
@@ -118,6 +126,11 @@ class ArduinoBindingsPanel(ttk.Frame):
         self._status = ttk.Label(frame, text="", foreground="gray")
         self._status.pack(anchor="w", pady=(4, 0))
 
+        # Packed on demand by _refresh_conflict_warning (hidden while clean).
+        self._conflict_label = ttk.Label(
+            frame, text="", foreground="red", wraplength=380, justify="left"
+        )
+
     # ------------------------------------------------------------------
     # Public refresh
     # ------------------------------------------------------------------
@@ -172,6 +185,7 @@ class ArduinoBindingsPanel(ttk.Frame):
             return
         self._tree.delete(*self._tree.get_children())
         cfg = ArduinoBindingConfig.from_project_data(self._project_data())
+        self._refresh_conflict_warning(cfg)
         for binding in cfg.bindings:
             self._tree.insert(
                 "",
@@ -270,6 +284,27 @@ class ArduinoBindingsPanel(ttk.Frame):
         except Exception as exc:
             log.error("arduino_bindings_panel.save_failed", error=str(exc), exc_info=True)
             self._set_status(f"Erro ao salvar: {exc}", error=True)
+        self._refresh_conflict_warning(cfg)
+
+    def _refresh_conflict_warning(self, cfg: ArduinoBindingConfig | None = None) -> None:
+        """Show/hide the ambiguous-token warning for the current bindings.
+
+        A token used as one ROI's "enter" and another's "exit" cannot mean the
+        same thing to the firmware, and it makes the session-end sweep turn a
+        device **on** instead of off. The panel cannot know what the sketch does
+        with each integer, so it warns rather than rejecting the value.
+        """
+        if self._conflict_label is None:
+            return
+        if cfg is None:
+            cfg = ArduinoBindingConfig.from_project_data(self._project_data())
+        conflicts = cfg.token_conflicts()
+        if not conflicts:
+            self._conflict_label.pack_forget()
+            return
+        detail = "; ".join(c.describe() for c in conflicts)
+        self._conflict_label.config(text=f"{CONFLICT_WARNING} {detail}.")
+        self._conflict_label.pack(anchor="w", fill="x", pady=(4, 0))
 
     def _collect_from_tree(self) -> ArduinoBindingConfig:
         bindings: list[ArduinoBinding] = []

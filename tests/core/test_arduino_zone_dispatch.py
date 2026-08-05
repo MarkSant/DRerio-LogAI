@@ -125,6 +125,73 @@ def test_no_dispatch_when_disconnected():
     assert mgr.sent == []
 
 
+def test_empty_frame_within_grace_does_not_emit_exit():
+    """Regression: a tracker miss used to fire exit + re-enter (device flicker).
+
+    The 2026-08-04 live session logged a Z3 exit at frame 1980 and a Z3 enter at
+    frame 2020 while the animal never left — the detector simply dropped a few
+    low-confidence frames.
+    """
+    h, mgr = _make(PROJECT_WITH_BINDINGS)
+    h._reset_arduino_zone_state()
+    h._dispatch_arduino_zone_commands([_bbox_at(5, 5)])
+    assert mgr.sent == [1]
+
+    # Two empty frames are absorbed (default grace = 2).
+    h._dispatch_arduino_zone_commands([])
+    h._dispatch_arduino_zone_commands([])
+    assert mgr.sent == [1]
+
+    # Detection returns inside the same ROI -> still no spurious transition.
+    h._dispatch_arduino_zone_commands([_bbox_at(6, 6)])
+    assert mgr.sent == [1]
+
+
+def test_exit_emitted_once_grace_is_exhausted():
+    h, mgr = _make(PROJECT_WITH_BINDINGS)
+    h._reset_arduino_zone_state()
+    h._dispatch_arduino_zone_commands([_bbox_at(5, 5)])
+    for _ in range(2):
+        h._dispatch_arduino_zone_commands([])
+    assert mgr.sent == [1]
+
+    # Third consecutive empty frame exceeds the grace -> the animal is gone.
+    h._dispatch_arduino_zone_commands([])
+    assert mgr.sent == [1, 2]
+
+
+def test_grace_counter_resets_between_misses():
+    """Isolated misses must not accumulate into a false exit."""
+    h, mgr = _make(PROJECT_WITH_BINDINGS)
+    h._reset_arduino_zone_state()
+    h._dispatch_arduino_zone_commands([_bbox_at(5, 5)])
+    for _ in range(5):
+        h._dispatch_arduino_zone_commands([])
+        h._dispatch_arduino_zone_commands([_bbox_at(5, 5)])
+    assert mgr.sent == [1]
+
+
+def test_grace_zero_restores_immediate_exit():
+    h, mgr = _make(PROJECT_WITH_BINDINGS)
+    h.settings = cast(Any, SimpleNamespace(arduino=SimpleNamespace(roi_exit_grace_frames=0)))
+    h._reset_arduino_zone_state()
+    h._dispatch_arduino_zone_commands([_bbox_at(5, 5)])
+    h._dispatch_arduino_zone_commands([])
+    assert mgr.sent == [1, 2]
+
+
+def test_grace_read_from_settings():
+    h, mgr = _make(PROJECT_WITH_BINDINGS)
+    h.settings = cast(Any, SimpleNamespace(arduino=SimpleNamespace(roi_exit_grace_frames=4)))
+    h._reset_arduino_zone_state()
+    h._dispatch_arduino_zone_commands([_bbox_at(5, 5)])
+    for _ in range(4):
+        h._dispatch_arduino_zone_commands([])
+    assert mgr.sent == [1]
+    h._dispatch_arduino_zone_commands([])
+    assert mgr.sent == [1, 2]
+
+
 def test_evaluator_retries_until_detector_rois_ready():
     # Detector has no ROI polygons yet -> dispatch is a no-op but stays enabled.
     empty_detector = FakeDetector([], [])
