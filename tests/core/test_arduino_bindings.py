@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import pytest
+
 from zebtrack.core.services.arduino_bindings import (
     ArduinoBinding,
     ArduinoBindingConfig,
@@ -75,9 +77,42 @@ def test_roi_names_dedup_preserves_order():
 def test_to_storage_roundtrip():
     cfg = ArduinoBindingConfig(bindings=[ArduinoBinding(roi="A", on_enter=1, on_exit=2)])
     stored = cfg.to_storage()
-    assert stored == [{"roi": "A", "on_enter": 1, "on_exit": 2}]
+    # ``label`` is persisted alongside the tokens, like on_enter/on_exit, so an
+    # absent one round-trips as an explicit null rather than a missing key.
+    assert stored == [{"roi": "A", "on_enter": 1, "on_exit": 2, "label": None}]
     again = ArduinoBindingConfig.from_project_data({"arduino_bindings": stored})
     assert again.bindings == cfg.bindings
+
+
+def test_label_roundtrips():
+    cfg = ArduinoBindingConfig(
+        bindings=[ArduinoBinding(roi="Z1", on_enter=1, on_exit=2, label="Choque")]
+    )
+    stored = cfg.to_storage()
+    assert stored[0]["label"] == "Choque"
+    again = ArduinoBindingConfig.from_project_data({"arduino_bindings": stored})
+    assert again.bindings[0].label == "Choque"
+
+
+def test_legacy_bindings_without_label_still_load():
+    """Projects created before the label field must keep working."""
+    pd = {"arduino_bindings": [{"roi": "Z1", "on_enter": 1, "on_exit": 2}]}
+    cfg = ArduinoBindingConfig.from_project_data(pd)
+    assert cfg.bindings[0].label is None
+    assert cfg.bindings[0].display_name() == "Z1"
+
+
+@pytest.mark.parametrize("blank", ["", "   ", "\t"])
+def test_blank_label_normalizes_to_none(blank):
+    """The entry widget yields '' when cleared; that must not become a label."""
+    binding = ArduinoBinding(roi="Z1", on_enter=1, label=blank)
+    assert binding.label is None
+    assert binding.display_name() == "Z1"
+
+
+def test_display_name_prefers_the_label():
+    binding = ArduinoBinding(roi="Z1", on_enter=1, label="Bomba")
+    assert binding.display_name() == "Bomba"
 
 
 def test_negative_token_rejected():

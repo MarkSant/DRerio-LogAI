@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from types import SimpleNamespace
-from typing import TypeVar
+from typing import Any, TypeVar
 from unittest.mock import MagicMock
 
 import pytest
@@ -96,7 +96,9 @@ class TestArduinoBindingsPanel:
         panel.exit_token.set("2")
         panel._add_or_update()
 
-        assert pd["arduino_bindings"] == [{"roi": "Direita", "on_enter": 1, "on_exit": 2}]
+        assert pd["arduino_bindings"] == [
+            {"roi": "Direita", "on_enter": 1, "on_exit": 2, "label": None}
+        ]
         pm.save_project.assert_called_once()
         assert len(_nn(panel._tree).get_children()) == 1
 
@@ -154,7 +156,7 @@ class TestArduinoBindingsPanel:
         panel.exit_token.set("6")
         panel._add_or_update()
 
-        assert pd["arduino_bindings"] == [{"roi": "A", "on_enter": 5, "on_exit": 6}]
+        assert pd["arduino_bindings"] == [{"roi": "A", "on_enter": 5, "on_exit": 6, "label": None}]
         assert len(_nn(panel._tree).get_children()) == 1
 
     def test_clear_removes_all(self, tkinter_root):
@@ -212,6 +214,71 @@ class TestArduinoBindingsPanel:
         text = label.cget("text")
         assert "4" in text
         assert "Z2" in text and "Z3" in text
+
+    def test_label_is_persisted_with_the_binding(self, tkinter_root):
+        pd = {"use_arduino": True}
+        controller, _pm = _make_controller(pd, ["Z1"])
+        panel = ArduinoBindingsPanel(tkinter_root, controller)
+        tkinter_root.update_idletasks()
+
+        panel.roi_choice.set("Z1")
+        panel.enter_token.set("1")
+        panel.exit_token.set("2")
+        panel.device_label.set("Choque")
+        panel._add_or_update()
+
+        assert pd["arduino_bindings"] == [
+            {"roi": "Z1", "on_enter": 1, "on_exit": 2, "label": "Choque"}
+        ]
+
+    def test_blank_label_is_not_persisted(self, tkinter_root):
+        # Annotated: inferred as dict[str, bool] otherwise, so indexing the
+        # bindings list below fails type checking.
+        pd: dict[str, Any] = {"use_arduino": True}
+        controller, _pm = _make_controller(pd, ["Z1"])
+        panel = ArduinoBindingsPanel(tkinter_root, controller)
+        tkinter_root.update_idletasks()
+
+        panel.roi_choice.set("Z1")
+        panel.enter_token.set("1")
+        panel.device_label.set("   ")
+        panel._add_or_update()
+
+        assert pd["arduino_bindings"][0]["label"] is None
+
+    def test_selecting_a_row_loads_its_label(self, tkinter_root):
+        pd = {
+            "use_arduino": True,
+            "arduino_bindings": [{"roi": "Z1", "on_enter": 1, "on_exit": 2, "label": "Bomba"}],
+        }
+        controller, _pm = _make_controller(pd, ["Z1"])
+        panel = ArduinoBindingsPanel(tkinter_root, controller)
+        tkinter_root.update_idletasks()
+
+        _nn(panel._tree).selection_set("Z1")
+        panel._on_select()
+
+        assert panel.device_label.get() == "Bomba"
+        assert panel.enter_token.get() == "1"
+
+    def test_probe_plan_uses_the_label_when_present(self, tkinter_root):
+        """The result lines must name what is wired, not the sketch's channel."""
+        pd = {
+            "use_arduino": True,
+            "arduino_bindings": [
+                {"roi": "Z1", "on_enter": 1, "on_exit": 2, "label": "Choque"},
+                {"roi": "Z2", "on_enter": 3},
+            ],
+        }
+        controller, _pm = _make_controller(pd, ["Z1", "Z2"])
+        panel = ArduinoBindingsPanel(tkinter_root, controller)
+        tkinter_root.update_idletasks()
+
+        assert panel._probe_plan() == [
+            ("Z1 (Choque)", "enter", 1),
+            ("Z1 (Choque)", "exit", 2),
+            ("Z2", "enter", 3),
+        ]
 
     def test_probe_plan_flattens_bindings_in_order(self, tkinter_root):
         pd = {
