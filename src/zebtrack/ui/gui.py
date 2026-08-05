@@ -314,7 +314,6 @@ class ApplicationGUI:
         self._openvino_status_message = "Desativado."
 
         # ROI Tab Widgets
-        self.roi_listbox = None
         self.run_analysis_btn = None
         # Note: roi_template_combobox is now a @property that delegates to zone_controls
 
