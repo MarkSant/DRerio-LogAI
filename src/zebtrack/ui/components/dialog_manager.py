@@ -1373,11 +1373,15 @@ class DialogManager:
         """Change the color of the selected ROI."""
         from zebtrack.ui.dialogs.color_selection_dialog import ColorSelectionDialog
 
-        selected = self.gui.zone_listbox.selection()
+        zone_listbox = self.gui.zone_controls.zone_listbox if self.gui.zone_controls else None
+        if not zone_listbox:
+            return
+
+        selected = zone_listbox.selection()
         if not selected:
             return
 
-        item = self.gui.zone_listbox.item(selected[0])
+        item = zone_listbox.item(selected[0])
         old_name = item["values"][0].replace("📍 ", "")
 
         # Use custom color dialog
@@ -1432,11 +1436,15 @@ class DialogManager:
 
     def rename_selected_roi(self):
         """Rename the selected ROI."""
-        selected = self.gui.zone_listbox.selection()
+        zone_listbox = self.gui.zone_controls.zone_listbox if self.gui.zone_controls else None
+        if not zone_listbox:
+            return
+
+        selected = zone_listbox.selection()
         if not selected:
             return
 
-        item = self.gui.zone_listbox.item(selected[0])
+        item = zone_listbox.item(selected[0])
         old_name = item["values"][0].replace("📍 ", "")
 
         new_name = self.ask_string(
