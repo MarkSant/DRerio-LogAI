@@ -390,12 +390,6 @@ class ArduinoManager:
         if not tokens:
             return []
 
-        with self._latency_lock:
-            if self._latency_sink is not None:
-                raise RuntimeError(
-                    "Uma sessão ao vivo está em andamento; pare a gravação antes de testar."
-                )
-
         results: dict[int, str | None] = {}
         done = threading.Event()
         expected = len(tokens)
@@ -413,7 +407,17 @@ class ArduinoManager:
             if len(results) >= expected:
                 done.set()
 
-        self.set_latency_sink(_collect)
+        # Claim the sink atomically: checking it is free and then installing it in
+        # two steps would let a live session register its own sink in between,
+        # and the probe would silently steal it mid-recording.
+        with self._latency_lock:
+            if self._latency_sink is not None:
+                raise RuntimeError(
+                    "Uma sessão ao vivo está em andamento; pare a gravação antes de testar."
+                )
+            self._latency_sink = _collect
+            self._pending_acks.clear()
+
         try:
             for index, token in enumerate(tokens):
                 self.enqueue_tracked(token, {"probe_index": index, "token": token})

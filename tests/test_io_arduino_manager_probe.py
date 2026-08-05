@@ -128,6 +128,28 @@ def test_probe_refuses_while_a_session_owns_the_sink(manager):
         manager.set_latency_sink(None)
 
 
+def test_probe_claims_the_sink_atomically(manager):
+    """A session registering its sink mid-check must not be stolen from.
+
+    The check and the install share one lock hold; this asserts the observable
+    contract — once a probe is running, the sink belongs to it, and a competing
+    claim seen before the install still raises.
+    """
+    seen: list[str | None] = []
+
+    def _session_sink(*_args):
+        seen.append("session")
+
+    manager.set_latency_sink(_session_sink)
+    try:
+        with pytest.raises(RuntimeError, match="sessão ao vivo"):
+            manager.probe_tokens([1], timeout_s=1.0)
+        # The refusal must leave the session's sink untouched.
+        assert manager._latency_sink is _session_sink
+    finally:
+        manager.set_latency_sink(None)
+
+
 def test_probe_reports_none_for_a_silent_firmware(mock_controller):
     """A sketch that never answers yields None rather than hanging forever."""
     mute = MagicMock()

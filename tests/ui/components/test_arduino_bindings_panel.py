@@ -43,10 +43,9 @@ def _make_controller(
     pm.get_zone_data.return_value = SimpleNamespace(roi_names=roi_names)
     pm.project_path = project_path
     pm.save_project = MagicMock()
-    return (
-        SimpleNamespace(project_manager=pm, arduino_manager=arduino_manager, root=None),
-        pm,
-    )
+    # No ``root`` here on purpose: the panel schedules UI work through its own
+    # ``self.after`` (it is a Tk widget), never through the controller.
+    return SimpleNamespace(project_manager=pm, arduino_manager=arduino_manager), pm
 
 
 def _fake_manager(acks_by_token, *, connected=True):

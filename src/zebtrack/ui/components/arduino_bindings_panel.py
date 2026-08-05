@@ -360,18 +360,21 @@ class ArduinoBindingsPanel(ttk.Frame):
         return plan
 
     def _schedule_ui(self, func: Any, *args: Any) -> None:
-        """Run ``func`` on the Tk main thread, or inline when no root is around."""
-        root = getattr(getattr(self.controller, "view", None), "root", None) or getattr(
-            self.controller, "root", None
-        )
-        if root is not None and hasattr(root, "after"):
-            try:
-                root.after(0, func, *args)
-                return
-            # except Exception justified: ``after`` fails during shutdown (TclError).
-            except Exception:  # pragma: no cover - defensive
-                log.debug("arduino_bindings_panel.schedule_ui.after_failed")
-        func(*args)
+        """Run ``func`` on the Tk main thread.
+
+        The panel is itself a Tk widget, so ``self.after`` is always the right
+        queue — no need to hunt for a root through the controller. There is
+        deliberately **no** inline fallback: this is called from the probe worker
+        thread, and running the callback here would touch widgets off the Tk
+        thread (CLAUDE.md). If scheduling fails the widget is being torn down,
+        so dropping the update is the correct outcome.
+        """
+        try:
+            self.after(0, func, *args)
+        # except Exception justified: ``after`` raises TclError once the widget
+        # (or the interpreter) is gone — nothing left to update.
+        except Exception:  # pragma: no cover - defensive
+            log.debug("arduino_bindings_panel.schedule_ui.after_failed")
 
     def _finish_test(
         self,

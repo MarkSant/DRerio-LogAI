@@ -23,16 +23,14 @@ from __future__ import annotations
 import re
 from typing import Literal
 
-import structlog
-
-log = structlog.get_logger()
-
 AckState = Literal["on", "off"]
 
 # Word-anchored so "ON" does not match inside "COMMAND" and, crucially, so
 # "LIGADO" does not match inside "DESLIGADO" (no word boundary after "DES").
+# "ACES" is narrowed to "ACES[AO]" (acesa/aceso/acesas/acesos) so an unrelated
+# "acesso"/"acessando" in a firmware message is not read as "turned on".
 _OFF_RE = re.compile(r"\b(?:OFF|DESLIG\w*|APAGA\w*)\b", re.IGNORECASE)
-_ON_RE = re.compile(r"\b(?:ON|LIG\w*|ACES\w*)\b", re.IGNORECASE)
+_ON_RE = re.compile(r"\b(?:ON|LIG\w*|ACES[AO]\w*)\b", re.IGNORECASE)
 
 
 def classify_ack(ack_text: str | None) -> AckState | None:

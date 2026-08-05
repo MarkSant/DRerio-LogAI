@@ -56,6 +56,17 @@ def test_off_inside_word_does_not_false_positive():
     assert classify_ack("Monitoring") is None
 
 
+@pytest.mark.parametrize("text", ["Acesso negado", "Acessando porta", "acessos: 3"])
+def test_acesso_is_not_read_as_acesa(text):
+    """'ACESSO'/'ACESSANDO' are whole words but mean access, not "lit"."""
+    assert classify_ack(text) is None
+
+
+@pytest.mark.parametrize("text", ["Luz acesa", "LED aceso", "Luzes acesas"])
+def test_acesa_variants_still_read_as_on(text):
+    assert classify_ack(text) == "on"
+
+
 def test_desligado_is_not_read_as_ligado():
     """'DESLIGADO' contains 'LIGADO' — the word boundary must keep them apart."""
     assert classify_ack("desligado") == "off"
