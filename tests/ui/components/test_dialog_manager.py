@@ -1248,6 +1248,15 @@ class TestChangeRoiColor:
     """Tests for change_roi_color."""
 
     @patch("zebtrack.ui.dialogs.color_selection_dialog.ColorSelectionDialog")
+    def test_change_roi_color_no_listbox(self, mock_dialog, dialog_manager, mock_gui):
+        """No zone_controls listbox should exit early without error."""
+        mock_gui.zone_controls = None
+
+        dialog_manager.change_roi_color()
+
+        mock_dialog.assert_not_called()
+
+    @patch("zebtrack.ui.dialogs.color_selection_dialog.ColorSelectionDialog")
     def test_change_roi_color_no_selection(self, mock_dialog, dialog_manager, mock_gui):
         """No selection should exit early without opening dialog."""
         listbox = Mock()
