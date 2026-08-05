@@ -285,5 +285,14 @@
     ],
     "powershell.startAutomatically": false,
     "powershell.integratedConsole.startInBackground": true,
-    "powershell.integratedConsole.showOnStartup": false
+    "powershell.integratedConsole.showOnStartup": false,
+    // ========================================
+    // Python Environments extension
+    // ========================================
+    // This extension takes over terminal activation from
+    // "python.terminal.activateEnvironment" above. Left on "ms-python.python:system"
+    // (what it writes by default) it resolves to the system interpreter, so new
+    // terminals silently stop running .venv\Scripts\Activate.ps1. "venv" points it
+    // at the in-project .venv that Poetry creates (virtualenvs.in-project = true).
+    "python-envs.defaultEnvManager": "ms-python.python:venv"
 }
