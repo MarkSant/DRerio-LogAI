@@ -29,10 +29,11 @@ log = structlog.get_logger()
 
 DISCLAIMER = (
     "O DRerio apenas ENVIA o número que você escolher quando o animal entra ou "
-    "sai da ROI. O que o número faz (acender LED, choque, flash, etc.) é "
-    "responsabilidade do SEU sketch Arduino — usar Arduino pressupõe que você "
-    "saiba programá-lo. Ex. do sketch RGB de referência: 1=LED verm.1 ON, 2=OFF, "
-    "3=azul ON, 4=OFF, 5=verde ON, 6=OFF, 7=verm.2 ON, 8=OFF."
+    "sai da ROI. O que o número aciona (LED, choque, flash, bomba, qualquer "
+    "módulo) é responsabilidade do SEU sketch Arduino — usar Arduino pressupõe "
+    "que você saiba programá-lo. O sketch de referência usa pares consecutivos: "
+    "1=canal 1 liga, 2=desliga, 3/4=canal 2, 5/6=canal 3, 7/8=canal 4. "
+    "Use 'Dispositivo' para registrar o que está de fato ligado em cada canal."
 )
 
 NOTE_NO_ARDUINO = (
@@ -63,6 +64,7 @@ class ArduinoBindingsPanel(ttk.Frame):
         self.roi_choice = StringVar(master=self)
         self.enter_token = StringVar(master=self)
         self.exit_token = StringVar(master=self)
+        self.device_label = StringVar(master=self)
 
         self._tree: ttk.Treeview | None = None
         self._roi_combo: ttk.Combobox | None = None
@@ -91,14 +93,16 @@ class ArduinoBindingsPanel(ttk.Frame):
             anchor="w", pady=(0, 6)
         )
 
-        cols = ("roi", "enter", "exit")
+        cols = ("roi", "label", "enter", "exit")
         tree = ttk.Treeview(frame, columns=cols, show="headings", height=4)
         tree.heading("roi", text="ROI")
+        tree.heading("label", text="Dispositivo")
         tree.heading("enter", text="Ao Entrar")
         tree.heading("exit", text="Ao Sair")
-        tree.column("roi", width=150, anchor="w")
-        tree.column("enter", width=80, anchor="center")
-        tree.column("exit", width=80, anchor="center")
+        tree.column("roi", width=95, anchor="w")
+        tree.column("label", width=115, anchor="w")
+        tree.column("enter", width=70, anchor="center")
+        tree.column("exit", width=70, anchor="center")
         tree.pack(fill="x")
         tree.bind("<<TreeviewSelect>>", self._on_select)
         self._tree = tree
@@ -118,6 +122,18 @@ class ArduinoBindingsPanel(ttk.Frame):
         ttk.Spinbox(
             editor, from_=TOKEN_MIN, to=TOKEN_MAX, textvariable=self.exit_token, width=5
         ).pack(side="left", padx=(2, 8))
+
+        label_row = ttk.Frame(frame)
+        label_row.pack(fill="x", pady=(4, 0))
+        ttk.Label(label_row, text="Dispositivo:").pack(side="left")
+        ttk.Entry(label_row, textvariable=self.device_label, width=22).pack(
+            side="left", padx=(2, 8)
+        )
+        ttk.Label(
+            label_row,
+            text="opcional — o que está ligado neste canal",
+            foreground="gray",
+        ).pack(side="left")
 
         buttons = ttk.Frame(frame)
         buttons.pack(fill="x", pady=(6, 0))
@@ -208,16 +224,17 @@ class ArduinoBindingsPanel(ttk.Frame):
         cfg = ArduinoBindingConfig.from_project_data(self._project_data())
         self._refresh_conflict_warning(cfg)
         for binding in cfg.bindings:
-            self._tree.insert(
-                "",
-                "end",
-                iid=binding.roi,
-                values=(
-                    binding.roi,
-                    "" if binding.on_enter is None else binding.on_enter,
-                    "" if binding.on_exit is None else binding.on_exit,
-                ),
-            )
+            self._tree.insert("", "end", iid=binding.roi, values=self._row_values(binding))
+
+    @staticmethod
+    def _row_values(binding: ArduinoBinding) -> tuple[str, str, str, str]:
+        """Tree row for a binding — column order must match ``cols`` in _build."""
+        return (
+            binding.roi,
+            binding.label or "",
+            "" if binding.on_enter is None else str(binding.on_enter),
+            "" if binding.on_exit is None else str(binding.on_exit),
+        )
 
     # ------------------------------------------------------------------
     # Editing
@@ -228,8 +245,11 @@ class ArduinoBindingsPanel(ttk.Frame):
         selection = self._tree.selection()
         if not selection:
             return
-        roi, enter, exit_ = cast("tuple[Any, Any, Any]", self._tree.item(selection[0], "values"))
+        roi, label, enter, exit_ = cast(
+            "tuple[Any, Any, Any, Any]", self._tree.item(selection[0], "values")
+        )
         self.roi_choice.set(roi)
+        self.device_label.set(str(label))
         self.enter_token.set(str(enter))
         self.exit_token.set(str(exit_))
 
@@ -243,6 +263,7 @@ class ArduinoBindingsPanel(ttk.Frame):
                 roi=roi,
                 on_enter=self._parse_token(self.enter_token.get()),
                 on_exit=self._parse_token(self.exit_token.get()),
+                label=self.device_label.get(),
             )
         # ValidationError (Pydantic) subclasses ValueError, but catch it
         # explicitly so a model-level constraint never escapes to crash the UI.
@@ -254,25 +275,9 @@ class ArduinoBindingsPanel(ttk.Frame):
             return
 
         if self._tree is not None and self._tree.exists(roi):
-            self._tree.item(
-                roi,
-                values=(
-                    roi,
-                    "" if binding.on_enter is None else binding.on_enter,
-                    "" if binding.on_exit is None else binding.on_exit,
-                ),
-            )
+            self._tree.item(roi, values=self._row_values(binding))
         elif self._tree is not None:
-            self._tree.insert(
-                "",
-                "end",
-                iid=roi,
-                values=(
-                    roi,
-                    "" if binding.on_enter is None else binding.on_enter,
-                    "" if binding.on_exit is None else binding.on_exit,
-                ),
-            )
+            self._tree.insert("", "end", iid=roi, values=self._row_values(binding))
         self._save()
 
     def _remove(self) -> None:
@@ -349,14 +354,22 @@ class ArduinoBindingsPanel(ttk.Frame):
         threading.Thread(target=_worker, name="ArduinoBindingProbe", daemon=True).start()
 
     def _probe_plan(self) -> list[tuple[str, str, int]]:
-        """Flatten the bindings into the ordered ``(roi, edge, token)`` sends."""
+        """Flatten the bindings into the ordered ``(display_name, edge, token)`` sends.
+
+        ``display_name`` is a label for the result lines, **not** a ROI name: it
+        becomes ``"Z1 (Choque)"`` when the operator named the device, and falls
+        back to the bare ROI otherwise. Naming what is actually wired beats
+        leaning on the firmware's ACK text, which names the channel from the
+        sketch's point of view ("Red LED 1" even when the pin drives a relay).
+        """
         cfg = ArduinoBindingConfig.from_project_data(self._project_data())
         plan: list[tuple[str, str, int]] = []
         for binding in cfg.bindings:
+            display_name = f"{binding.roi} ({binding.label})" if binding.label else binding.roi
             if binding.on_enter is not None:
-                plan.append((binding.roi, "enter", binding.on_enter))
+                plan.append((display_name, "enter", binding.on_enter))
             if binding.on_exit is not None:
-                plan.append((binding.roi, "exit", binding.on_exit))
+                plan.append((display_name, "exit", binding.on_exit))
         return plan
 
     def _schedule_ui(self, func: Any, *args: Any) -> None:
@@ -381,7 +394,11 @@ class ArduinoBindingsPanel(ttk.Frame):
         results: Sequence[tuple[tuple[str, str, int], tuple[int, str | None]]] | None,
         error: str | None,
     ) -> None:
-        """Render the probe results (Tk thread)."""
+        """Render the probe results (Tk thread).
+
+        ``results`` pairs each :meth:`_probe_plan` entry with the manager's
+        ``(token, ack_text)`` answer for it.
+        """
         if self._test_button is not None:
             self._test_button.config(state="normal")
         if results is None:
@@ -390,17 +407,17 @@ class ArduinoBindingsPanel(ttk.Frame):
 
         lines: list[str] = []
         problems = 0
-        for (roi, edge, token), (_sent, ack) in results:
+        for (display_name, edge, token), (_sent, ack) in results:
             edge_pt = "entrar" if edge == "enter" else "sair"
             if not ack:
-                lines.append(f"{roi} {edge_pt} → {token} → (sem resposta)")
+                lines.append(f"{display_name} {edge_pt} → {token} → (sem resposta)")
                 problems += 1
                 continue
             if edge_ack_is_inverted(edge, ack):
-                lines.append(f"⚠ {roi} {edge_pt} → {token} → {ack}")
+                lines.append(f"⚠ {display_name} {edge_pt} → {token} → {ack}")
                 problems += 1
             else:
-                lines.append(f"✓ {roi} {edge_pt} → {token} → {ack}")
+                lines.append(f"✓ {display_name} {edge_pt} → {token} → {ack}")
 
         if problems:
             lines.append("")
@@ -441,12 +458,15 @@ class ArduinoBindingsPanel(ttk.Frame):
         bindings: list[ArduinoBinding] = []
         if self._tree is not None:
             for iid in self._tree.get_children():
-                roi, enter, exit_ = cast("tuple[Any, Any, Any]", self._tree.item(iid, "values"))
+                roi, label, enter, exit_ = cast(
+                    "tuple[Any, Any, Any, Any]", self._tree.item(iid, "values")
+                )
                 bindings.append(
                     ArduinoBinding(
                         roi=str(roi),
                         on_enter=self._parse_token(enter),
                         on_exit=self._parse_token(exit_),
+                        label=str(label),
                     )
                 )
         return ArduinoBindingConfig(bindings=bindings)

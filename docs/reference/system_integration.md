@@ -558,6 +558,16 @@ says what the device did, and it is already captured for the closed-loop log.
   `live_camera_service.arduino_zone_commands.ack_inverted`, deduplicated per
   `(roi, edge)` since a ROI is crossed many times per session.
 
+- **Operator label (`ArduinoBinding.label`)**: the ACK text names the channel
+  from the sketch's own point of view (`"Red LED 1 ON"`), which is simply wrong
+  whenever that pin drives a shock relay, a pump, or any other module. Only the
+  operator knows what is wired, so each binding carries an optional free-text
+  label (`"Choque"`, `"Bomba"`), edited in the panel's "Dispositivo" column and
+  persisted alongside the tokens. Purely cosmetic — never sent to the device,
+  and blank input normalizes to `None`. Probe result lines read
+  `Z1 (Choque) entrar → 1 → Red LED 1 ON`, naming both the reality and the
+  firmware's own claim. Bindings saved before this field load with `label=None`.
+
 Canonical layout for the reference sketch stays `1/2, 3/4, 5/6, 7/8`. Verified
 live on 2026-08-04: 6 clean enter/exit pairs, every enter ACK `ON`, every exit
 ACK `OFF`, `serial_act_ms` 17-21 ms (was 3 000-12 700 ms before § 5.7's firmware

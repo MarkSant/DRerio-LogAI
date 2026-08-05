@@ -20,7 +20,7 @@ from collections.abc import Mapping
 from typing import Any, NamedTuple
 
 import structlog
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 log = structlog.get_logger()
 
@@ -72,6 +72,36 @@ class ArduinoBinding(BaseModel):
     on_exit: int | None = Field(
         default=None, ge=0, description="Token sent when an animal leaves the ROI."
     )
+    label: str | None = Field(
+        default=None,
+        description=(
+            "Optional operator-facing name for whatever this token drives "
+            "('Choque', 'Bomba', 'Luz azul'). Purely cosmetic — never sent to the "
+            "device. The firmware's ACK text names the channel from the sketch's "
+            "point of view ('Red LED 1'), which is wrong whenever the pin drives "
+            "something else; this is where the operator records what is really "
+            "wired. Empty/blank is normalized to None."
+        ),
+    )
+
+    @field_validator("label", mode="before")
+    @classmethod
+    def _blank_label_is_none(cls, value: Any) -> Any:
+        """Treat an empty or whitespace-only label as absent.
+
+        The panel's entry widget yields "" when the operator clears the field.
+        Keeping that would leave two different representations of "no label"
+        ("" and None), so two bindings that mean the same thing would compare
+        unequal and round-trip through ``to_storage`` as different JSON. One
+        canonical absent value keeps equality and persistence predictable.
+        """
+        if isinstance(value, str) and not value.strip():
+            return None
+        return value
+
+    def display_name(self) -> str:
+        """Operator-facing name for this binding's target: the label, else the ROI."""
+        return self.label or self.roi
 
 
 class ArduinoBindingConfig(BaseModel):
