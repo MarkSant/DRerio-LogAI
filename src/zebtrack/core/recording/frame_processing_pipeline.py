@@ -95,6 +95,7 @@ class FrameProcessingMixin:
     _arduino_mapper: Any
     _arduino_session_end_tokens: list[int]
     _arduino_missed_frames: int
+    _arduino_inverted_ack_seen: set[tuple[str, str]]
     # Closed-loop latency logging state (lazily built once per live session).
     _closed_loop_log: Any
     _closed_loop_event_seq: int
@@ -860,6 +861,7 @@ class FrameProcessingMixin:
         self._arduino_mapper = None
         self._arduino_session_end_tokens = []
         self._arduino_missed_frames = 0
+        self._arduino_inverted_ack_seen = set()
 
         # Reset closed-loop latency state for the new session and drop any sink
         # left registered on the shared ArduinoManager by a previous session.
@@ -1006,7 +1008,7 @@ class FrameProcessingMixin:
         if can_track and self._closed_loop_log is None:
             self._closed_loop_log = self._maybe_create_closed_loop_log()
             if self._closed_loop_log is not None:
-                manager.set_latency_sink(self._closed_loop_log.on_sample)
+                manager.set_latency_sink(self._on_arduino_latency_sample)
         log_enabled = can_track and self._closed_loop_log is not None
 
         decision_perf = time.perf_counter() if log_enabled else None
@@ -1035,6 +1037,57 @@ class FrameProcessingMixin:
                 manager.enqueue_tracked(event.token, context)
             else:
                 manager.enqueue(event.token)
+
+    def _on_arduino_latency_sample(
+        self,
+        context: dict[str, Any],
+        t_send: float | None,
+        t_ack: float | None,
+        ack_text: str | None,
+    ) -> None:
+        """Latency sink: write the closed-loop row, then sanity-check the ACK.
+
+        The firmware's reply says what the device actually did, so an ``enter``
+        answered with "... OFF" (or an ``exit`` with "... ON") proves the binding
+        is inverted — the animal arriving turns the stimulus off. We cannot fix
+        it (only the sketch knows the semantics) but the session must not look
+        healthy while every trigger does the opposite of what was intended.
+
+        Warned once per (roi, edge): the loop is edge-triggered but a ROI can be
+        crossed dozens of times in a session.
+        """
+        closed_loop_log = self._closed_loop_log
+        if closed_loop_log is not None:
+            closed_loop_log.on_sample(context, t_send, t_ack, ack_text)
+
+        if not ack_text:
+            return
+        from zebtrack.core.services.arduino_ack_semantics import (
+            describe_inversion,
+            edge_ack_is_inverted,
+        )
+
+        edge = context.get("edge")
+        roi = context.get("roi")
+        if not edge_ack_is_inverted(edge, ack_text):
+            return
+        key = (str(roi), str(edge))
+        if key in self._arduino_inverted_ack_seen:
+            return
+        self._arduino_inverted_ack_seen.add(key)
+        log.warning(
+            "live_camera_service.arduino_zone_commands.ack_inverted",
+            detail=describe_inversion(roi, edge, context.get("token"), ack_text),
+            roi=roi,
+            edge=edge,
+            token=context.get("token"),
+            ack_text=ack_text,
+            hint=(
+                "Check the per-zone bindings against the tokens your sketch "
+                "implements — the reference sketch pairs ON/OFF consecutively "
+                "(1/2, 3/4, 5/6, 7/8)."
+            ),
+        )
 
     def _maybe_create_closed_loop_log(self) -> Any:
         """Build the closed-loop latency log once the recorder folder is known.

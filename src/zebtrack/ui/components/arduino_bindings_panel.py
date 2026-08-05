@@ -11,12 +11,15 @@ controls. Persisted in ``project_data["arduino_bindings"]``.
 
 from __future__ import annotations
 
+import threading
+from collections.abc import Sequence
 from tkinter import StringVar, ttk
 from typing import Any, cast
 
 import structlog
 from pydantic import ValidationError
 
+from zebtrack.core.services.arduino_ack_semantics import edge_ack_is_inverted
 from zebtrack.core.services.arduino_bindings import (
     ArduinoBinding,
     ArduinoBindingConfig,
@@ -67,6 +70,8 @@ class ArduinoBindingsPanel(ttk.Frame):
         self._note: ttk.Label | None = None
         self._frame: ttk.LabelFrame | None = None
         self._conflict_label: ttk.Label | None = None
+        self._test_button: ttk.Button | None = None
+        self._test_output: ttk.Label | None = None
 
         self._build()
         self.refresh()
@@ -122,6 +127,22 @@ class ArduinoBindingsPanel(ttk.Frame):
         ttk.Button(buttons, text="Remover", command=self._remove).pack(side="left", padx=4)
         ttk.Button(buttons, text="Limpar", command=self._clear).pack(side="left")
         ttk.Button(buttons, text="🔄 ROIs", command=self.refresh_roi_choices).pack(side="right")
+
+        test_row = ttk.Frame(frame)
+        test_row.pack(fill="x", pady=(6, 0))
+        self._test_button = ttk.Button(
+            test_row, text="🔌 Testar comandos", command=self.test_bindings
+        )
+        self._test_button.pack(side="left")
+        ttk.Label(
+            test_row,
+            text="Envia cada token e mostra o que o firmware respondeu.",
+            foreground="gray",
+        ).pack(side="left", padx=(6, 0))
+
+        self._test_output = ttk.Label(
+            frame, text="", justify="left", wraplength=380, font=("TkFixedFont", 8)
+        )
 
         self._status = ttk.Label(frame, text="", foreground="gray")
         self._status.pack(anchor="w", pady=(4, 0))
@@ -285,6 +306,113 @@ class ArduinoBindingsPanel(ttk.Frame):
             log.error("arduino_bindings_panel.save_failed", error=str(exc), exc_info=True)
             self._set_status(f"Erro ao salvar: {exc}", error=True)
         self._refresh_conflict_warning(cfg)
+
+    # ------------------------------------------------------------------
+    # Command test (pre-flight)
+    # ------------------------------------------------------------------
+    def test_bindings(self) -> None:
+        """Send every configured token and report what the firmware answered.
+
+        The application only transports integers, so a token bound to the wrong
+        edge is invisible to it — the 2026-08-04 sessions lost two recordings to
+        exactly that. The firmware's ACK line, however, says what the device did.
+        Sending the tokens up front turns a post-mortem into a five-second check.
+
+        Serial I/O runs on a worker thread; results are marshalled back with
+        ``root.after(0, ...)`` (CLAUDE.md: Tk is touched only from its own thread).
+        """
+        manager = getattr(self.controller, "arduino_manager", None)
+        if manager is None or not manager.is_connected():
+            self._set_test_output("Arduino não conectado. Conecte antes de testar.", error=True)
+            return
+
+        probes = self._probe_plan()
+        if not probes:
+            self._set_test_output("Nenhum token configurado para testar.", error=True)
+            return
+
+        if self._test_button is not None:
+            self._test_button.config(state="disabled")
+        self._set_test_output("Testando… aguarde as respostas do firmware.")
+
+        def _worker() -> None:
+            try:
+                answers = manager.probe_tokens([token for _roi, _edge, token in probes])
+            # except Exception justified: serial/hardware boundary; the panel must
+            # report the failure instead of dying on a worker thread.
+            except Exception as exc:
+                log.warning("arduino_bindings_panel.test_failed", error=str(exc))
+                self._schedule_ui(self._finish_test, None, str(exc))
+                return
+            self._schedule_ui(self._finish_test, list(zip(probes, answers, strict=False)), None)
+
+        threading.Thread(target=_worker, name="ArduinoBindingProbe", daemon=True).start()
+
+    def _probe_plan(self) -> list[tuple[str, str, int]]:
+        """Flatten the bindings into the ordered ``(roi, edge, token)`` sends."""
+        cfg = ArduinoBindingConfig.from_project_data(self._project_data())
+        plan: list[tuple[str, str, int]] = []
+        for binding in cfg.bindings:
+            if binding.on_enter is not None:
+                plan.append((binding.roi, "enter", binding.on_enter))
+            if binding.on_exit is not None:
+                plan.append((binding.roi, "exit", binding.on_exit))
+        return plan
+
+    def _schedule_ui(self, func: Any, *args: Any) -> None:
+        """Run ``func`` on the Tk main thread, or inline when no root is around."""
+        root = getattr(getattr(self.controller, "view", None), "root", None) or getattr(
+            self.controller, "root", None
+        )
+        if root is not None and hasattr(root, "after"):
+            try:
+                root.after(0, func, *args)
+                return
+            # except Exception justified: ``after`` fails during shutdown (TclError).
+            except Exception:  # pragma: no cover - defensive
+                log.debug("arduino_bindings_panel.schedule_ui.after_failed")
+        func(*args)
+
+    def _finish_test(
+        self,
+        results: Sequence[tuple[tuple[str, str, int], tuple[int, str | None]]] | None,
+        error: str | None,
+    ) -> None:
+        """Render the probe results (Tk thread)."""
+        if self._test_button is not None:
+            self._test_button.config(state="normal")
+        if results is None:
+            self._set_test_output(f"Falha ao testar: {error}", error=True)
+            return
+
+        lines: list[str] = []
+        problems = 0
+        for (roi, edge, token), (_sent, ack) in results:
+            edge_pt = "entrar" if edge == "enter" else "sair"
+            if not ack:
+                lines.append(f"{roi} {edge_pt} → {token} → (sem resposta)")
+                problems += 1
+                continue
+            if edge_ack_is_inverted(edge, ack):
+                lines.append(f"⚠ {roi} {edge_pt} → {token} → {ack}")
+                problems += 1
+            else:
+                lines.append(f"✓ {roi} {edge_pt} → {token} → {ack}")
+
+        if problems:
+            lines.append("")
+            lines.append(
+                f"{problems} problema(s): uma ENTRADA deve ligar e uma SAÍDA "
+                "desligar. O sketch de referência pareia 1/2, 3/4, 5/6, 7/8."
+            )
+        self._set_test_output("\n".join(lines), error=bool(problems))
+
+    def _set_test_output(self, message: str, *, error: bool = False) -> None:
+        if self._test_output is None:
+            return
+        self._test_output.config(text=message, foreground="red" if error else "green")
+        if not self._test_output.winfo_manager():
+            self._test_output.pack(anchor="w", fill="x", pady=(4, 0))
 
     def _refresh_conflict_warning(self, cfg: ArduinoBindingConfig | None = None) -> None:
         """Show/hide the ambiguous-token warning for the current bindings.

@@ -29,14 +29,46 @@ def _is_packed(widget) -> bool:
     return bool(widget.winfo_manager())
 
 
-def _make_controller(project_data, roi_names, *, project_type="live", project_path="/proj"):
+def _make_controller(
+    project_data,
+    roi_names,
+    *,
+    project_type="live",
+    project_path="/proj",
+    arduino_manager=None,
+):
     pm = MagicMock()
     pm.project_data = project_data
     pm.get_project_type.return_value = project_type
     pm.get_zone_data.return_value = SimpleNamespace(roi_names=roi_names)
     pm.project_path = project_path
     pm.save_project = MagicMock()
-    return SimpleNamespace(project_manager=pm), pm
+    return (
+        SimpleNamespace(project_manager=pm, arduino_manager=arduino_manager, root=None),
+        pm,
+    )
+
+
+def _fake_manager(acks_by_token, *, connected=True):
+    """Stand-in ArduinoManager whose probe answers like the reference sketch."""
+    manager = MagicMock()
+    manager.is_connected.return_value = connected
+    manager.probe_tokens.side_effect = lambda tokens, **kw: [
+        (t, acks_by_token.get(t)) for t in tokens
+    ]
+    return manager
+
+
+SKETCH_ACKS = {
+    1: "Red LED 1 ON",
+    2: "Red LED 1 OFF",
+    3: "Blue LED ON",
+    4: "Blue LED OFF",
+    5: "Green LED ON",
+    6: "Green LED OFF",
+    7: "Red LED 2 ON",
+    8: "Red LED 2 OFF",
+}
 
 
 @pytest.mark.gui
@@ -181,6 +213,105 @@ class TestArduinoBindingsPanel:
         text = label.cget("text")
         assert "4" in text
         assert "Z2" in text and "Z3" in text
+
+    def test_probe_plan_flattens_bindings_in_order(self, tkinter_root):
+        pd = {
+            "use_arduino": True,
+            "arduino_bindings": [
+                {"roi": "Z1", "on_enter": 1, "on_exit": 2},
+                {"roi": "Z2", "on_enter": 3},
+            ],
+        }
+        controller, _pm = _make_controller(pd, ["Z1", "Z2"])
+        panel = ArduinoBindingsPanel(tkinter_root, controller)
+        tkinter_root.update_idletasks()
+
+        assert panel._probe_plan() == [
+            ("Z1", "enter", 1),
+            ("Z1", "exit", 2),
+            ("Z2", "enter", 3),
+        ]
+
+    def test_test_bindings_reports_correct_layout_as_ok(self, tkinter_root):
+        """The canonical layout: every enter answers ON, every exit answers OFF."""
+        pd = {
+            "use_arduino": True,
+            "arduino_bindings": [
+                {"roi": "Z1", "on_enter": 1, "on_exit": 2},
+                {"roi": "Z2", "on_enter": 3, "on_exit": 4},
+            ],
+        }
+        manager = _fake_manager(SKETCH_ACKS)
+        controller, _pm = _make_controller(pd, ["Z1", "Z2"], arduino_manager=manager)
+        panel = ArduinoBindingsPanel(tkinter_root, controller)
+        tkinter_root.update_idletasks()
+
+        results = [
+            (("Z1", "enter", 1), (1, "Red LED 1 ON")),
+            (("Z1", "exit", 2), (2, "Red LED 1 OFF")),
+        ]
+        panel._finish_test(results, None)
+
+        text = _nn(panel._test_output).cget("text")
+        assert "✓" in text
+        assert "⚠" not in text
+        assert "Red LED 1 ON" in text
+
+    def test_test_bindings_flags_the_inverted_layout(self, tkinter_root):
+        """Regression: Z1=1/5 — the exit token answers 'Green LED ON'."""
+        pd = {
+            "use_arduino": True,
+            "arduino_bindings": [{"roi": "Z1", "on_enter": 1, "on_exit": 5}],
+        }
+        manager = _fake_manager(SKETCH_ACKS)
+        controller, _pm = _make_controller(pd, ["Z1"], arduino_manager=manager)
+        panel = ArduinoBindingsPanel(tkinter_root, controller)
+        tkinter_root.update_idletasks()
+
+        results = [
+            (("Z1", "enter", 1), (1, "Red LED 1 ON")),
+            (("Z1", "exit", 5), (5, "Green LED ON")),
+        ]
+        panel._finish_test(results, None)
+
+        text = _nn(panel._test_output).cget("text")
+        assert "⚠" in text
+        assert "Green LED ON" in text
+        assert "1 problema(s)" in text
+
+    def test_test_bindings_reports_missing_ack(self, tkinter_root):
+        pd = {"use_arduino": True, "arduino_bindings": [{"roi": "Z1", "on_enter": 1}]}
+        controller, _pm = _make_controller(pd, ["Z1"], arduino_manager=_fake_manager({}))
+        panel = ArduinoBindingsPanel(tkinter_root, controller)
+        tkinter_root.update_idletasks()
+
+        panel._finish_test([(("Z1", "enter", 1), (1, None))], None)
+
+        assert "sem resposta" in _nn(panel._test_output).cget("text")
+
+    def test_test_bindings_without_arduino_connected(self, tkinter_root):
+        pd = {"use_arduino": True, "arduino_bindings": [{"roi": "Z1", "on_enter": 1}]}
+        manager = _fake_manager(SKETCH_ACKS, connected=False)
+        controller, _pm = _make_controller(pd, ["Z1"], arduino_manager=manager)
+        panel = ArduinoBindingsPanel(tkinter_root, controller)
+        tkinter_root.update_idletasks()
+
+        panel.test_bindings()
+
+        assert "não conectado" in _nn(panel._test_output).cget("text")
+        manager.probe_tokens.assert_not_called()
+
+    def test_test_bindings_surfaces_probe_error(self, tkinter_root):
+        pd = {"use_arduino": True, "arduino_bindings": [{"roi": "Z1", "on_enter": 1}]}
+        controller, _pm = _make_controller(pd, ["Z1"], arduino_manager=_fake_manager({}))
+        panel = ArduinoBindingsPanel(tkinter_root, controller)
+        tkinter_root.update_idletasks()
+
+        panel._finish_test(None, "sessão ao vivo em andamento")
+
+        assert "sessão ao vivo" in _nn(panel._test_output).cget("text")
+        # ttk returns a Tcl object here, not a plain str — compare the text form.
+        assert str(_nn(panel._test_button).cget("state")) == "normal"
 
     def test_conflict_warning_clears_after_fixing_tokens(self, tkinter_root):
         pd = {
