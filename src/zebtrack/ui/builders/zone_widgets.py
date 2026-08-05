@@ -9,7 +9,6 @@ import structlog
 
 from zebtrack.ui.builders.button_factory import ButtonFactory
 from zebtrack.ui.builders.panel_builder import PanelBuilder
-from zebtrack.ui.builders.zone_control_builder import ZoneControlBuilder
 
 log = structlog.get_logger()
 
@@ -132,11 +131,6 @@ class ZoneWidgetsBuilder:
     # ------------------------------------------------------------------
     # Zone controls
     # ------------------------------------------------------------------
-
-    def create_zone_control_widgets(self) -> None:
-        """Create all zone control widgets in the scrollable frame."""
-        builder = ZoneControlBuilder(self.gui)
-        builder.create_zone_control_widgets()
 
     def create_template_rois(self) -> None:
         """Open a dialog to create ROIs from a template."""

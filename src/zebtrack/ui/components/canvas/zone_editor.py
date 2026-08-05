@@ -399,8 +399,6 @@ class ZoneEditor:
             and self.gui.zone_controls.zone_listbox
         ):
             self.gui.zone_controls.zone_listbox.insert("", "end", values=(roi_name,))
-        elif hasattr(self.gui, "roi_listbox") and self.gui.roi_listbox:
-            self.gui.roi_listbox.insert("", "end", values=(roi_name,))
 
         self.stop_drawing()
 
