@@ -357,6 +357,83 @@ class ArduinoManager:
         except Exception:
             log.error("arduino_manager.latency.sink_error", exc_info=True)
 
+    def probe_tokens(
+        self, tokens: list[int], timeout_s: float = 10.0
+    ) -> list[tuple[int, str | None]]:
+        """Send each token and collect the firmware's ACK line for it.
+
+        Powers the bindings panel's "test commands" button: the operator sees
+        what each configured integer actually does *before* recording, instead of
+        discovering it from a session where no stimulus ever fired.
+
+        Blocking — call it from a worker thread, never from the Tk main thread.
+        Sends are serialized by the writer thread's existing throttle, so N
+        tokens take at least ``N * _min_send_interval_s``.
+
+        Refuses to run while a live session owns the latency sink, since probing
+        temporarily takes it over; the caller should surface that to the user.
+
+        Args:
+            tokens: Tokens to send, in order. Duplicates are allowed.
+            timeout_s: Overall budget for all ACKs to come back.
+
+        Returns:
+            One ``(token, ack_text)`` pair per input token, in order. ``ack_text``
+            is None for a token whose ACK did not arrive in time.
+
+        Raises:
+            RuntimeError: If disconnected, or if a session already registered a
+                latency sink.
+        """
+        if not self.is_connected():
+            raise RuntimeError("Arduino não está conectado.")
+        if not tokens:
+            return []
+
+        results: dict[int, str | None] = {}
+        done = threading.Event()
+        expected = len(tokens)
+
+        def _collect(
+            context: dict[str, Any],
+            _t_send: float | None,
+            _t_ack: float | None,
+            ack_text: str | None,
+        ) -> None:
+            index = context.get("probe_index")
+            if index is None:
+                return
+            results[int(index)] = ack_text
+            if len(results) >= expected:
+                done.set()
+
+        # Claim the sink atomically: checking it is free and then installing it in
+        # two steps would let a live session register its own sink in between,
+        # and the probe would silently steal it mid-recording.
+        with self._latency_lock:
+            if self._latency_sink is not None:
+                raise RuntimeError(
+                    "Uma sessão ao vivo está em andamento; pare a gravação antes de testar."
+                )
+            self._latency_sink = _collect
+            self._pending_acks.clear()
+
+        try:
+            for index, token in enumerate(tokens):
+                self.enqueue_tracked(token, {"probe_index": index, "token": token})
+            done.wait(timeout=timeout_s)
+            # Unmatched pendings become explicit None rows rather than silence.
+            self.flush_pending_acks()
+        finally:
+            self.set_latency_sink(None)
+
+        log.info(
+            "arduino_manager.probe_tokens.complete",
+            tokens=tokens,
+            answered=sum(1 for i in range(expected) if results.get(i)),
+        )
+        return [(token, results.get(index)) for index, token in enumerate(tokens)]
+
     def last_command(self) -> int | None:
         """Returns the last successful command sent."""
         return self._last_command

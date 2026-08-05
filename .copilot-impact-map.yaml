@@ -343,7 +343,9 @@ domains:
 
     robustness:
       token_conflicts: "Same int as one ROI's on_enter and another's on_exit latches a device ON and breaks the session-end sweep; token_conflicts() warns, never rewrites"
-      canonical_layout: "Reference sketch: Z1=1/2, Z2=3/4, Z3=5/6, Z4=7/8"
+      canonical_layout: "Reference sketch: Z1=1/2, Z2=3/4, Z3=5/6, Z4=7/8 (ON/OFF are consecutive pairs, NOT enters 1-4 / exits 5-8)"
+      ack_verification: "token_conflicts() is blind to unique-but-wrong-edge layouts; arduino_ack_semantics reads the firmware ACK (enter answering OFF = inverted). Pre-flight: ArduinoManager.probe_tokens + panel 'Testar comandos'. Runtime: arduino_zone_commands.ack_inverted, deduped per (roi, edge)"
+      probe_owns_sink: "probe_tokens temporarily takes the latency sink, so it raises while a live session holds one"
       exit_grace: "arduino.roi_exit_grace_frames (default 2) absorbs empty-detection frames before emitting ROI exit; 0 = legacy immediate exit"
       firmware_rule: "NO delay() in loop() — it blocks serial reads, collapses enter/exit pairs into an invisible flash and inflates serial_act_ms. Button pins need INPUT_PULLUP (floating INPUT self-triggers)"
 
@@ -361,6 +363,7 @@ domains:
       - "src/zebtrack/core/services/arduino_bindings.py"       # ROI->token config
       - "src/zebtrack/core/services/arduino_event_mapper.py"   # update_detailed -> RoiTokenEvent
       - "src/zebtrack/core/services/arduino_roi_evaluator.py"  # centroid-in-ROI
+      - "src/zebtrack/core/services/arduino_ack_semantics.py"  # ACK -> on/off, inversion check
       - "src/zebtrack/core/services/closed_loop_latency.py"    # ClosedLoopLatencyLog
       - "src/zebtrack/core/recording/frame_processing_pipeline.py"  # dispatch + lifecycle
       - "src/zebtrack/ui/components/arduino_bindings_panel.py" # editor + conflict warning
@@ -369,7 +372,9 @@ domains:
     related_tests:
       - "tests/core/test_arduino_zone_dispatch.py"
       - "tests/core/test_arduino_bindings.py"
+      - "tests/core/test_arduino_ack_semantics.py"
       - "tests/core/test_arduino_event_mapper.py"
+      - "tests/test_io_arduino_manager_probe.py"
       - "tests/core/test_closed_loop_latency.py"
       - "tests/test_io_arduino_manager.py"
       - "tests/ui/components/test_arduino_bindings_panel.py"

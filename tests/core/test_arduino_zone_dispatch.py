@@ -172,6 +172,103 @@ def test_unambiguous_tokens_do_not_warn():
     assert not _conflict_warnings(mock_log)
 
 
+def _ack_inverted_warnings(mock_log):
+    return [
+        call
+        for call in mock_log.warning.call_args_list
+        if call.args and str(call.args[0]).endswith("arduino_zone_commands.ack_inverted")
+    ]
+
+
+def _sample(harness, *, roi, edge, token, ack):
+    """Feed one latency sample through the pipeline's sink, as the reader would."""
+    harness._on_arduino_latency_sample({"roi": roi, "edge": edge, "token": token}, 1.0, 1.02, ack)
+
+
+def test_enter_answered_with_off_warns_once():
+    """Regression: Z4 enter answered 'Blue LED OFF' — the binding is inverted.
+
+    The firmware's own reply is the evidence; the app cannot know token semantics
+    on its own. A ROI is crossed many times per session, so the warning must not
+    repeat for the same (roi, edge).
+    """
+    h, _mgr = _make(PROJECT_WITH_BINDINGS)
+    h._reset_arduino_zone_state()
+    h._closed_loop_log = None
+
+    with patch.object(pipeline_module, "log") as mock_log:
+        for _ in range(5):
+            _sample(h, roi="Z4", edge="enter", token=4, ack="Blue LED OFF")
+
+    warnings = _ack_inverted_warnings(mock_log)
+    assert len(warnings) == 1
+    assert warnings[0].kwargs["roi"] == "Z4"
+    assert warnings[0].kwargs["ack_text"] == "Blue LED OFF"
+
+
+def test_exit_answered_with_on_warns():
+    h, _mgr = _make(PROJECT_WITH_BINDINGS)
+    h._reset_arduino_zone_state()
+    h._closed_loop_log = None
+
+    with patch.object(pipeline_module, "log") as mock_log:
+        _sample(h, roi="Z1", edge="exit", token=5, ack="Green LED ON")
+
+    assert len(_ack_inverted_warnings(mock_log)) == 1
+
+
+def test_distinct_rois_each_warn():
+    h, _mgr = _make(PROJECT_WITH_BINDINGS)
+    h._reset_arduino_zone_state()
+    h._closed_loop_log = None
+
+    with patch.object(pipeline_module, "log") as mock_log:
+        _sample(h, roi="Z2", edge="enter", token=2, ack="Red LED 1 OFF")
+        _sample(h, roi="Z4", edge="enter", token=4, ack="Blue LED OFF")
+
+    assert len(_ack_inverted_warnings(mock_log)) == 2
+
+
+def test_correct_pairing_never_warns():
+    """The layout verified live on 2026-08-04: every enter ON, every exit OFF."""
+    h, _mgr = _make(PROJECT_WITH_BINDINGS)
+    h._reset_arduino_zone_state()
+    h._closed_loop_log = None
+
+    with patch.object(pipeline_module, "log") as mock_log:
+        _sample(h, roi="Z2", edge="enter", token=3, ack="Blue LED ON")
+        _sample(h, roi="Z2", edge="exit", token=4, ack="Blue LED OFF")
+        _sample(h, roi="Z4", edge="enter", token=7, ack="Red LED 2 ON")
+        _sample(h, roi="Z4", edge="exit", token=8, ack="Red LED 2 OFF")
+
+    assert not _ack_inverted_warnings(mock_log)
+
+
+def test_unclassifiable_ack_never_warns():
+    h, _mgr = _make(PROJECT_WITH_BINDINGS)
+    h._reset_arduino_zone_state()
+    h._closed_loop_log = None
+
+    with patch.object(pipeline_module, "log") as mock_log:
+        _sample(h, roi="Z1", edge="enter", token=1, ack="Unknown command")
+        _sample(h, roi="Z1", edge="exit", token=2, ack=None)
+
+    assert not _ack_inverted_warnings(mock_log)
+
+
+def test_sample_still_reaches_the_closed_loop_log():
+    """Wrapping the sink must not stop the latency row from being written."""
+    rows = []
+    h, _mgr = _make(PROJECT_WITH_BINDINGS)
+    h._reset_arduino_zone_state()
+    h._closed_loop_log = cast(Any, SimpleNamespace(on_sample=lambda *args: rows.append(args)))
+
+    _sample(h, roi="Z4", edge="enter", token=4, ack="Blue LED OFF")
+
+    assert len(rows) == 1
+    assert rows[0][3] == "Blue LED OFF"
+
+
 def test_empty_frame_within_grace_does_not_emit_exit():
     """Regression: a tracker miss used to fire exit + re-enter (device flicker).
 

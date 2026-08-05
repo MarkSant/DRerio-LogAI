@@ -532,6 +532,37 @@ two blocking `delay()` calls in the reference sketch.
   `"\n"` no longer times out into a phantom `0` → `"Unknown command"` ACK that
   would desynchronize the FIFO command↔ACK correlation of § 5.6.
 
+### 5.8. Binding Verification via Firmware ACK (August 2026)
+
+`token_conflicts()` (§ 5.7) only catches an integer wired as one ROI's `enter`
+and another's `exit`. The 2026-08-04 follow-up session used `Z1=1/5, Z2=2/6,
+Z3=3/7, Z4=4/8` — a plausible "enters 1-4, exits 5-8" layout with **zero**
+conflicts by that definition, but inverted against a sketch that pairs ON/OFF
+consecutively. `Z4 enter` answered `"Blue LED OFF"` and no stimulus ever fired.
+
+The fix uses evidence rather than assumption: the firmware's ACK line already
+says what the device did, and it is already captured for the closed-loop log.
+
+- **`core/services/arduino_ack_semantics.py`** (pure): `classify_ack(text)` →
+  `"on"` / `"off"` / `None`, word-anchored so `ON` does not match inside
+  `COMMAND` and `LIGADO` does not match inside `DESLIGADO`. Ambiguous or opaque
+  text returns `None`, so a sketch with unreadable ACKs is never flagged.
+  `edge_ack_is_inverted(edge, ack)` is True only for enter→off or exit→on.
+- **Pre-flight (`ArduinoManager.probe_tokens`)**: sends each token and returns
+  `(token, ack_text)` in order. It temporarily owns the latency sink, so it
+  raises if a live session already registered one. Blocking — the bindings panel
+  calls it from a worker thread and marshals results back via `root.after(0,…)`.
+  `ArduinoBindingsPanel.test_bindings()` renders `✓`/`⚠` per binding.
+- **Runtime**: `FrameProcessingMixin._on_arduino_latency_sample` is now itself
+  the latency sink; it writes the closed-loop row and then warns
+  `live_camera_service.arduino_zone_commands.ack_inverted`, deduplicated per
+  `(roi, edge)` since a ROI is crossed many times per session.
+
+Canonical layout for the reference sketch stays `1/2, 3/4, 5/6, 7/8`. Verified
+live on 2026-08-04: 6 clean enter/exit pairs, every enter ACK `ON`, every exit
+ACK `OFF`, `serial_act_ms` 17-21 ms (was 3 000-12 700 ms before § 5.7's firmware
+rewrite).
+
 ---
 
 ## 6. Common Pitfalls for Agents
@@ -697,6 +728,7 @@ Heavy imports (pandas, pyarrow, openpyxl) are deferred in:
 
 | Date | Version | Changes |
 | ---- | ------- | ------- |
+| Aug 4, 2026 | v4.3 | § 5.8 binding verification via firmware ACK — `arduino_ack_semantics`, `ArduinoManager.probe_tokens`, panel "test commands" button, runtime `ack_inverted` warning |
 | Aug 4, 2026 | v4.2 | § 5.7 per-zone command robustness — ambiguous-token detection (`token_conflicts()`), ROI exit grace period (`arduino.roi_exit_grace_frames`), non-blocking reference firmware |
 | Jul 23, 2026 | v4.1 | § 5.6 closed-loop latency logging (software-only, ACK-based) — `ArduinoManager` tracked path + FIFO ACK correlation, `5_ClosedLoop_<base>.{csv,parquet}` |
 | Feb 3, 2026 | v4.0 | Phase 4 coordinator decomposition (16 coordinators), ADR-009 deprecation notice, performance architecture (Phase 7), documentation standards (Phase 8), updated dependency container |
