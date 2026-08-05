@@ -1,6 +1,7 @@
 import logging
 import os
 import platform
+import time
 import warnings
 from typing import Any
 
@@ -26,15 +27,47 @@ os.environ["ZEBTRACK_SUPPRESS_CONSOLE_LOGS"] = "1"
 HEADLESS_TESTS = os.environ.get("ZEBTRACK_HEADLESS_TESTS", "0") == "1"
 
 
-def _can_initialize_tk() -> bool:
+def _new_tk_root(attempts: int = 3, delay_s: float = 0.5):
+    """Create a withdrawn Tk root, retrying transient initialization failures.
+
+    On Windows, two pytest processes initializing Tk at the same moment can
+    transiently fail to read Tcl's *own* library scripts::
+
+        couldn't read file ".../tcl/tk8.6/ttk/notebook.tcl":
+        no such file or directory
+
+    The file is present — this is a file-access race (sharing/AV scanner), not a
+    broken install. It surfaced as whole GUI test files failing at once whenever
+    a second pytest run overlapped. A short retry turns it back into a normal
+    start; only a persistent failure is treated as "no Tk here".
+
+    Returns:
+        ``(root, error)`` — exactly one is None.
+    """
     if not _TK_AVAILABLE:
+        return None, None
+    last_error = None
+    for attempt in range(attempts):
+        try:
+            root = tk.Tk()
+            root.withdraw()
+            root.update_idletasks()
+            return root, None
+        except tk.TclError as exc:
+            last_error = exc
+            if attempt < attempts - 1:
+                time.sleep(delay_s)
+    return None, last_error
+
+
+def _can_initialize_tk() -> bool:
+    root, _error = _new_tk_root()
+    if root is None:
         return False
     try:
-        root = tk.Tk()
-        root.withdraw()
         root.destroy()
-    except tk.TclError:
-        return False
+    except tk.TclError:  # pragma: no cover - probe teardown, nothing to salvage
+        pass
     return True
 
 
@@ -390,16 +423,22 @@ def tkinter_session_root():
 
     # Create the tkinter root window (once per session)
     if not use_mock:
-        try:
-            root = tk.Tk()
-            root.withdraw()
-            root.update_idletasks()
-        except tk.TclError:
-            warnings.warn(
-                "Headless environment detected. Using Mock for Tkinter root.",
-                stacklevel=2,
-            )
-            root = _create_mock_tk_root()
+        root, error = _new_tk_root()
+        if root is None:
+            # Tk answered _can_initialize_tk() at import time but failed now,
+            # even after retries, so GUI tests were collected rather than
+            # skipped. Substituting a MagicMock here is worse than useless: real
+            # widget construction (ttkbootstrap inspects widget classes) blows
+            # up on it with an unrelated "'tuple' object has no attribute
+            # 'lower'", so every GUI test in the run reports a confusing failure
+            # instead of the truth, which is simply "Tk is unavailable right
+            # now". Skipping is honest and cannot be mistaken for a regression.
+            if display is not None:
+                try:
+                    display.stop()
+                except Exception:  # pragma: no cover - best effort
+                    pass
+            pytest.skip(f"Tk could not be initialized for this session: {error}")
     else:
         warnings.warn("Headless test mode enabled. Using Mock for Tkinter root.", stacklevel=2)
         root = _create_mock_tk_root()
