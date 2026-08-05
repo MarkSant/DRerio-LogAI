@@ -1252,7 +1252,7 @@ class TestChangeRoiColor:
         """No selection should exit early without opening dialog."""
         listbox = Mock()
         listbox.selection.return_value = []
-        mock_gui.zone_listbox = listbox
+        mock_gui.zone_controls.zone_listbox = listbox
 
         dialog_manager.change_roi_color()
 
@@ -1264,7 +1264,7 @@ class TestChangeRoiColor:
         listbox = Mock()
         listbox.selection.return_value = ["roi1"]
         listbox.item.return_value = {"values": ["ROI 1"]}
-        mock_gui.zone_listbox = listbox
+        mock_gui.zone_controls.zone_listbox = listbox
 
         dialog_instance = Mock()
         dialog_instance.result = None
@@ -1280,7 +1280,7 @@ class TestChangeRoiColor:
         listbox = Mock()
         listbox.selection.return_value = ["roi1"]
         listbox.item.return_value = {"values": ["📍 ROI 1"]}
-        mock_gui.zone_listbox = listbox
+        mock_gui.zone_controls.zone_listbox = listbox
 
         dialog_instance = Mock()
         dialog_instance.result = {"rgb": "#112233", "name": "Azul"}
@@ -1295,6 +1295,64 @@ class TestChangeRoiColor:
         dialog_manager.change_roi_color()
 
         assert zone_data.roi_colors[0] == "#112233"
+        mock_gui.controller.project_manager.save_zone_data.assert_called_once_with(zone_data)
+        mock_gui.set_status.assert_called_once()
+
+        event_types = [call[0][0].type for call in mock_event_bus.publish.call_args_list]
+        assert UIEvents.ZONES_UPDATED in event_types
+        assert UIEvents.PROJECT_VIEWS_REFRESH_REQUESTED in event_types
+
+
+@pytest.mark.gui
+class TestRenameSelectedRoi:
+    """Tests for rename_selected_roi."""
+
+    def test_rename_selected_roi_no_listbox(self, dialog_manager, mock_gui):
+        """No zone_controls listbox should exit early without error."""
+        mock_gui.zone_controls = None
+
+        dialog_manager.rename_selected_roi()
+
+    def test_rename_selected_roi_no_selection(self, dialog_manager, mock_gui):
+        """No selection should exit early without prompting."""
+        listbox = Mock()
+        listbox.selection.return_value = []
+        mock_gui.zone_controls.zone_listbox = listbox
+
+        with patch.object(dialog_manager, "ask_string") as mock_ask:
+            dialog_manager.rename_selected_roi()
+
+        mock_ask.assert_not_called()
+
+    def test_rename_selected_roi_cancelled(self, dialog_manager, mock_gui):
+        """Cancelled prompt should not update data."""
+        listbox = Mock()
+        listbox.selection.return_value = ["roi1"]
+        listbox.item.return_value = {"values": ["📍 ROI 1"]}
+        mock_gui.zone_controls.zone_listbox = listbox
+
+        with patch.object(dialog_manager, "ask_string", return_value=None):
+            dialog_manager.rename_selected_roi()
+
+        mock_gui.controller.project_manager.save_zone_data.assert_not_called()
+
+    def test_rename_selected_roi_success(self, dialog_manager, mock_gui, mock_event_bus):
+        """Successful rename should update zone data and publish events."""
+        listbox = Mock()
+        listbox.selection.return_value = ["roi1"]
+        listbox.item.return_value = {"values": ["📍 ROI 1"]}
+        mock_gui.zone_controls.zone_listbox = listbox
+
+        zone_data = SimpleNamespace(roi_names=["ROI 1"])
+        mock_gui._zone_context_service = Mock()
+        mock_gui._zone_context_service.get_zone_data_for_active_context = Mock(
+            return_value=zone_data
+        )
+
+        with patch.object(dialog_manager, "ask_string", return_value="ROI Renomeada"):
+            dialog_manager.rename_selected_roi()
+
+        assert zone_data.roi_names[0] == "ROI Renomeada"
         mock_gui.controller.project_manager.save_zone_data.assert_called_once_with(zone_data)
         mock_gui.set_status.assert_called_once()
 
