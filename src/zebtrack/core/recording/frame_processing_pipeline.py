@@ -28,6 +28,11 @@ if TYPE_CHECKING:
 
 log = structlog.get_logger()
 
+# Fallback for ``arduino.roi_exit_grace_frames`` when no settings object is
+# attached (mixin used standalone, e.g. in focused tests). Mirrors the default
+# declared on ``ArduinoSettings``.
+DEFAULT_ARDUINO_EXIT_GRACE_FRAMES = 2
+
 
 class FrameProcessingMixin:
     """Mixin providing frame capture, processing, and recording threads.
@@ -89,6 +94,7 @@ class FrameProcessingMixin:
     _arduino_evaluator: Any
     _arduino_mapper: Any
     _arduino_session_end_tokens: list[int]
+    _arduino_missed_frames: int
     # Closed-loop latency logging state (lazily built once per live session).
     _closed_loop_log: Any
     _closed_loop_event_seq: int
@@ -853,6 +859,7 @@ class FrameProcessingMixin:
         self._arduino_evaluator = None
         self._arduino_mapper = None
         self._arduino_session_end_tokens = []
+        self._arduino_missed_frames = 0
 
         # Reset closed-loop latency state for the new session and drop any sink
         # left registered on the shared ArduinoManager by a previous session.
@@ -880,7 +887,37 @@ class FrameProcessingMixin:
             "live_camera_service.arduino_zone_commands.enabled",
             bindings=len(cfg.bindings),
             rois=cfg.roi_names(),
+            exit_grace_frames=self._arduino_exit_grace_frames(),
         )
+
+        # A token that is an "enter" here and an "exit" there cannot mean the
+        # same thing to the firmware — the classic off-by-one when filling the
+        # bindings table. We cannot fix it (only the sketch knows the semantics)
+        # but the session must not start silently on a mapping that will latch a
+        # device on and never release it.
+        conflicts = cfg.token_conflicts()
+        if conflicts:
+            log.warning(
+                "live_camera_service.arduino_zone_commands.token_conflict",
+                conflicts=[c.describe() for c in conflicts],
+                hint=(
+                    "Each token should have a single role. Check the per-zone "
+                    "bindings against the tokens your sketch implements."
+                ),
+            )
+
+    def _arduino_exit_grace_frames(self) -> int:
+        """Consecutive empty frames tolerated before emitting ROI exit tokens.
+
+        Read from ``arduino.roi_exit_grace_frames``; falls back to the setting's
+        own default when no settings object is attached (e.g. focused tests).
+        """
+        settings_obj = getattr(self, "settings", None)
+        arduino_settings = getattr(settings_obj, "arduino", None)
+        value = getattr(arduino_settings, "roi_exit_grace_frames", None)
+        if value is None:
+            return DEFAULT_ARDUINO_EXIT_GRACE_FRAMES
+        return int(value)
 
     def _build_arduino_evaluator(self) -> Any:
         """Lazily build the ROI evaluator from the detector's scaled polygons.
@@ -915,6 +952,12 @@ class FrameProcessingMixin:
         ArduinoManager supports the tracked path, each token is sent with a
         closed-loop latency context so the serial ``t_send``/``t_ack`` can be
         attributed back to the ROI transition.
+
+        A frame with no detections is not proof the animal left its ROI — the
+        tracker drops low-confidence frames routinely. Such frames are absorbed
+        for ``arduino.roi_exit_grace_frames`` before the occupancy is allowed to
+        go empty, so a momentary miss no longer emits an exit token followed by
+        a re-enter on the next hit.
         """
         if not self._arduino_zone_enabled:
             return
@@ -926,6 +969,18 @@ class FrameProcessingMixin:
             self._arduino_evaluator = self._build_arduino_evaluator()
             if self._arduino_evaluator is None:
                 return  # detector ROIs not ready yet — try again next frame
+
+        if detections:
+            self._arduino_missed_frames = 0
+        else:
+            self._arduino_missed_frames += 1
+            if self._arduino_missed_frames <= self._arduino_exit_grace_frames():
+                log.debug(
+                    "live_camera_service.arduino_zone_commands.exit_deferred",
+                    frame_number=frame_number,
+                    missed_frames=self._arduino_missed_frames,
+                )
+                return  # hold the current occupancy — likely a tracker miss
 
         centroids: list[tuple[float, float]] = []
         for det in detections:
@@ -1029,7 +1084,12 @@ class FrameProcessingMixin:
         self._closed_loop_log = None
 
     def _arduino_zone_session_end_sweep(self) -> None:
-        """Queue the 'turn everything off' tokens at session end."""
+        """Queue the 'turn everything off' tokens at session end.
+
+        Emits every distinct exit token. This only clears the hardware if each
+        exit token clears something in the sketch — see the conflict warning
+        raised at session start when that assumption does not hold.
+        """
         if not self._arduino_zone_enabled or not self._arduino_session_end_tokens:
             return
         manager = self._arduino_manager()

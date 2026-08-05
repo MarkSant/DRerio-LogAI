@@ -67,6 +67,10 @@ arduino:
   # Used for sending zone-based commands to Arduino hardware
   port: 'COM5'
   baud_rate: 9600
+  # Consecutive analysed frames with zero detections tolerated before the
+  # per-zone command loop emits the ROI exit token. Absorbs momentary tracker
+  # misses that would otherwise make the device flicker off/on. 0 = legacy.
+  roi_exit_grace_frames: 2
 
 # -----------------------------------------------------------------------------
 # Recorder Settings (Parquet/Video Output)

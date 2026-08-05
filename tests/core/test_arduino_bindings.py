@@ -86,3 +86,67 @@ def test_negative_token_rejected():
 
     with pytest.raises(ValidationError):
         ArduinoBinding(roi="A", on_enter=-1)
+
+
+def test_token_conflicts_empty_for_disjoint_pairs():
+    """The canonical 4-zone layout (1/2, 3/4, 5/6, 7/8) has no ambiguity."""
+    cfg = ArduinoBindingConfig(
+        bindings=[
+            ArduinoBinding(roi="Z1", on_enter=1, on_exit=2),
+            ArduinoBinding(roi="Z2", on_enter=3, on_exit=4),
+            ArduinoBinding(roi="Z3", on_enter=5, on_exit=6),
+            ArduinoBinding(roi="Z4", on_enter=7, on_exit=8),
+        ]
+    )
+    assert cfg.token_conflicts() == []
+
+
+def test_token_conflicts_detects_off_by_one_layout():
+    """Regression: the 2026-08-04 live session that latched a LED on.
+
+    ``Z3`` was filled as 4/5 instead of 5/6, so token 4 was Z2's "off" and Z3's
+    "enter", and token 5 was Z3's "exit" and Z4's "enter" — the exit of Z3 turned
+    Z4's device ON and nothing ever cleared it.
+    """
+    cfg = ArduinoBindingConfig(
+        bindings=[
+            ArduinoBinding(roi="Z1", on_enter=1, on_exit=2),
+            ArduinoBinding(roi="Z2", on_enter=3, on_exit=4),
+            ArduinoBinding(roi="Z3", on_enter=4, on_exit=5),
+            ArduinoBinding(roi="Z4", on_enter=5, on_exit=6),
+        ]
+    )
+    conflicts = cfg.token_conflicts()
+    assert [c.token for c in conflicts] == [4, 5]
+    assert conflicts[0].enter_rois == ["Z3"]
+    assert conflicts[0].exit_rois == ["Z2"]
+    assert conflicts[1].enter_rois == ["Z4"]
+    assert conflicts[1].exit_rois == ["Z3"]
+    # The sweep still emits every exit token — including the one that turns a
+    # device on. Detecting it is the panel's/log's job, not a silent drop.
+    assert cfg.session_end_tokens() == [2, 4, 5, 6]
+
+
+def test_token_conflict_describe_names_both_sides():
+    cfg = ArduinoBindingConfig(
+        bindings=[
+            ArduinoBinding(roi="A", on_exit=9),
+            ArduinoBinding(roi="B", on_enter=9),
+        ]
+    )
+    (conflict,) = cfg.token_conflicts()
+    text = conflict.describe()
+    assert "9" in text
+    assert "A" in text
+    assert "B" in text
+
+
+def test_token_conflicts_ignores_same_token_on_same_edge():
+    """Two ROIs driving the same device on enter is unusual but unambiguous."""
+    cfg = ArduinoBindingConfig(
+        bindings=[
+            ArduinoBinding(roi="A", on_enter=1, on_exit=2),
+            ArduinoBinding(roi="B", on_enter=1, on_exit=2),
+        ]
+    )
+    assert cfg.token_conflicts() == []
