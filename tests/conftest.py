@@ -42,12 +42,16 @@ def _new_tk_root(attempts: int = 3, delay_s: float = 0.5):
     start; only a persistent failure is treated as "no Tk here".
 
     Returns:
-        ``(root, error)`` — exactly one is None.
+        ``(root, error)``. On success, ``(root, None)``. On failure ``root`` is
+        None and ``error`` is the last ``TclError`` — except when tkinter itself
+        is unavailable (or ``attempts`` is 0), where nothing was attempted and
+        both are None.
     """
     if not _TK_AVAILABLE:
         return None, None
     last_error = None
     for attempt in range(attempts):
+        root = None
         try:
             root = tk.Tk()
             root.withdraw()
@@ -55,6 +59,15 @@ def _new_tk_root(attempts: int = 3, delay_s: float = 0.5):
             return root, None
         except tk.TclError as exc:
             last_error = exc
+            # A root created before the failure must not survive into the next
+            # attempt: several live Tk instances are precisely what corrupts the
+            # Tcl/Tk library paths on Windows (see tkinter_session_root) and can
+            # hang teardown. Best-effort, since it is already half broken.
+            if root is not None:
+                try:
+                    root.destroy()
+                except Exception:  # pragma: no cover - nothing left to salvage
+                    pass
             if attempt < attempts - 1:
                 time.sleep(delay_s)
     return None, last_error
@@ -438,7 +451,8 @@ def tkinter_session_root():
                     display.stop()
                 except Exception:  # pragma: no cover - best effort
                     pass
-            pytest.skip(f"Tk could not be initialized for this session: {error}")
+            reason = str(error) if error is not None else "tkinter is unavailable"
+            pytest.skip(f"Tk could not be initialized for this session: {reason}")
     else:
         warnings.warn("Headless test mode enabled. Using Mock for Tkinter root.", stacklevel=2)
         root = _create_mock_tk_root()
