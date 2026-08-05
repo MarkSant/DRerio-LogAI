@@ -8,9 +8,11 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 from typing import Any, cast
+from unittest.mock import patch
 
 import numpy as np
 
+from zebtrack.core.recording import frame_processing_pipeline as pipeline_module
 from zebtrack.core.recording.frame_processing_pipeline import FrameProcessingMixin
 
 SQUARE_A = np.array([[0, 0], [10, 0], [10, 10], [0, 10]], dtype=np.int32)
@@ -123,6 +125,51 @@ def test_no_dispatch_when_disconnected():
     h._reset_arduino_zone_state()
     h._dispatch_arduino_zone_commands([_bbox_at(5, 5)])
     assert mgr.sent == []
+
+
+def _conflict_warnings(mock_log):
+    """Warning calls whose event name is the token-conflict one."""
+    return [
+        call
+        for call in mock_log.warning.call_args_list
+        if call.args and str(call.args[0]).endswith("arduino_zone_commands.token_conflict")
+    ]
+
+
+def test_conflicting_tokens_warn_at_session_start():
+    """Regression: the off-by-one layout that latched a LED on must not start silently.
+
+    Token 2 is A's exit and B's enter — the firmware cannot both set and clear a
+    state with one command, and the session-end sweep (built from the exit
+    tokens) would turn B's device on. The app only transports integers, so it
+    warns; it must NOT refuse to start the session.
+    """
+    project_data = {
+        "use_arduino": True,
+        "arduino_bindings": [
+            {"roi": "A", "on_enter": 1, "on_exit": 2},
+            {"roi": "B", "on_enter": 2, "on_exit": 3},
+        ],
+    }
+    h, _mgr = _make(project_data)
+
+    with patch.object(pipeline_module, "log") as mock_log:
+        h._reset_arduino_zone_state()
+
+    assert h._arduino_zone_enabled is True
+    warnings = _conflict_warnings(mock_log)
+    assert warnings, "conflicting bindings must raise a warning"
+    described = warnings[0].kwargs["conflicts"]
+    assert any("token 2" in text for text in described)
+
+
+def test_unambiguous_tokens_do_not_warn():
+    h, _mgr = _make(PROJECT_WITH_BINDINGS)
+
+    with patch.object(pipeline_module, "log") as mock_log:
+        h._reset_arduino_zone_state()
+
+    assert not _conflict_warnings(mock_log)
 
 
 def test_empty_frame_within_grace_does_not_emit_exit():
