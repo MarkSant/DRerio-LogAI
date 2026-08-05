@@ -106,6 +106,23 @@ def canvas_manager(mock_gui):
     return CanvasManager(mock_gui)
 
 
+def _simulate_displayed_frame(canvas_manager):
+    """Put the manager in the state ``draw_bg_image()`` leaves behind.
+
+    ``CanvasRenderer.redraw_zones`` refuses to draw zones until a frame is on
+    the canvas (``_has_background_geometry``), because zone coordinates are
+    meaningless without the scale/offset that mapping produced. Production sets
+    all four attributes together in ``draw_bg_image``; a test that sets only
+    scale/offset silently exercises the deferral path instead of the drawing it
+    means to assert.
+    """
+    canvas_manager._raw_bg_image = Image.new("RGB", (800, 600))
+    canvas_manager._canvas_bg_image = Mock()
+    canvas_manager._bg_img_size = (800, 600)
+    canvas_manager._bg_scale = 1.0
+    canvas_manager._bg_offset = (0, 0)
+
+
 @pytest.fixture
 def mock_zone_data():
     """Create mock zone data."""
@@ -760,8 +777,7 @@ class TestZoneDrawing:
         mock_gui._zone_context_service.get_zone_data_for_active_context.return_value = (
             mock_zone_data
         )
-        canvas_manager._bg_scale = 1.0
-        canvas_manager._bg_offset = (0, 0)
+        _simulate_displayed_frame(canvas_manager)
 
         canvas_manager.redraw_zones_from_project_data(mock_zone_data)
 
@@ -775,8 +791,7 @@ class TestZoneDrawing:
         mock_gui._zone_context_service.get_zone_data_for_active_context.return_value = (
             mock_zone_data
         )
-        canvas_manager._bg_scale = 1.0
-        canvas_manager._bg_offset = (0, 0)
+        _simulate_displayed_frame(canvas_manager)
 
         canvas_manager.redraw_zones_from_project_data(mock_zone_data)
 
@@ -786,6 +801,27 @@ class TestZoneDrawing:
 
         # Verify ROI labels were drawn (2 ROIs)
         assert mock_gui.video_display.canvas.create_text.call_count == 2
+
+    def test_redraw_zones_defers_until_frame_is_displayed(
+        self, canvas_manager, mock_gui, mock_zone_data
+    ):
+        """No background geometry yet -> zones are deferred, not drawn.
+
+        Pairs with the two tests above: they only prove the drawing path when
+        this one proves the guard is what keeps them honest. Without it, adding
+        the background setup could mask a regression where the guard never fires.
+        """
+        mock_gui._zone_context_service.get_zone_data_for_active_context.return_value = (
+            mock_zone_data
+        )
+        canvas_manager._raw_bg_image = None
+        canvas_manager._canvas_bg_image = None
+        canvas_manager._bg_scale = None
+        canvas_manager._bg_offset = None
+
+        canvas_manager.redraw_zones_from_project_data(mock_zone_data)
+
+        assert not mock_gui.video_display.canvas.create_polygon.called
 
     def test_redraw_zones_from_project_data_restores_background(
         self, canvas_manager, mock_gui, mock_zone_data
