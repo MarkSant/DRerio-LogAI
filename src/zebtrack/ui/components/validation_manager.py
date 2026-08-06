@@ -1525,19 +1525,45 @@ class ValidationManager:
             buffer_radius = float(self.gui.roi_buffer_radius_var.get())
             overlap_ratio = float(self.gui.roi_overlap_ratio_var.get())
 
-            # Validate ranges
+            # Faixas iguais às do resolvedor (e às do validador cruzado de
+            # ``Settings``): o mínimo só é EXCLUSIVO para o parâmetro que a
+            # regra escolhida usa. Aceitar aqui um zero que o resolvedor
+            # descartaria mostraria "aplicado" para um valor não aplicado;
+            # recusar um zero irrelevante barraria configuração legítima.
+            rule = self.gui.roi_inclusion_rule_var.get()
+            if rule == "centroid_in_on_buffered_roi" and buffer_radius <= 0:
+                raise ValueError("Raio de buffer deve ser maior que 0 para a regra de ROI dilatada")
             if buffer_radius < 0:
-                raise ValueError("Raio de buffer deve ser >= 0")
+                raise ValueError("Raio de buffer não pode ser negativo")
+            if rule in {"bbox_intersects", "seg_overlap"} and not (0 < overlap_ratio <= 1):
+                raise ValueError(
+                    "Fração de sobreposição deve ser maior que 0 e no máximo 1 "
+                    "para as regras de bbox/segmentação"
+                )
             if not (0 <= overlap_ratio <= 1):
                 raise ValueError("Fração de sobreposição deve estar entre 0 e 1")
 
             # Update settings if available
             if self.gui.controller.settings:
-                self.gui.controller.settings.roi_inclusion_rule = (
-                    self.gui.roi_inclusion_rule_var.get()
+                # Passa pela fonte canônica: ela normaliza os parâmetros e
+                # aplica na ordem que o validador cruzado de ``Settings``
+                # aceita (regra × parâmetro exigido).
+                from zebtrack.core.services.roi_rule_resolver import (
+                    apply_roi_rule_to_settings,
+                    resolve_roi_rule,
                 )
-                self.gui.controller.settings.roi_buffer_radius_value = buffer_radius
-                self.gui.controller.settings.roi_min_bbox_overlap_ratio = overlap_ratio
+
+                config = resolve_roi_rule(
+                    {
+                        "roi_settings": {
+                            "roi_inclusion_rule": self.gui.roi_inclusion_rule_var.get(),
+                            "roi_buffer_radius_value": buffer_radius,
+                            "roi_min_bbox_overlap_ratio": overlap_ratio,
+                        }
+                    },
+                    self.gui.controller.settings,
+                )
+                apply_roi_rule_to_settings(self.gui.controller.settings, config)
 
                 # Save to project if available
                 if self.gui.controller.project_manager.project_path:

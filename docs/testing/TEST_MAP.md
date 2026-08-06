@@ -68,6 +68,7 @@ broader suite:
 | `io/camera.py`, `io/live_stream_source.py` | `tests/io/test_camera*.py`, `tests/io/test_live_stream_source.py` |
 | `analysis/reporters/*` | `tests/analysis/test_reporter*.py`, `test_*_reporter.py` |
 | `analysis/behavior*.py`, `analysis/roi.py` | `tests/test_behavior_geotaxis.py`, `tests/analysis/test_roi*.py` |
+| `core/services/roi_rule_resolver.py` (regra de ROI) | `tests/core/services/test_roi_rule_resolver.py`, `tests/coordinators/test_roi_rule_propagation.py`, `tests/core/test_arduino_roi_evaluator.py`, `tests/ui/components/test_roi_settings_persistence.py` |
 | `tracker/byte_tracker.py` | `tests/test_byte_tracker_single_animal.py`, `test_tracker_threading_stress.py` |
 | `ui/wizard/*` | `tests/ui/wizard/` (13 files) + `tests/test_wizard_*.py` |
 | `ui/dialogs/*` | `tests/ui/dialogs/` + `tests/test_aquarium_dialogs.py` |

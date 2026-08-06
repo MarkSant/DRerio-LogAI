@@ -349,7 +349,7 @@ _PAYLOAD_TYPES: dict[UIEvents, type[Any]] = {
     UIEvents.ZONE_RENAME_SELECTED_ROI: payloads.EmptyPayload,
     UIEvents.ZONE_CHANGE_ROI_COLOR: payloads.EmptyPayload,
     UIEvents.ZONE_REMOVE_SELECTED_ROI: payloads.EmptyPayload,
-    UIEvents.ZONE_APPLY_ROI_SETTINGS: payloads.ZoneApplyRoiSettingsPayload,
+    UIEvents.ZONE_APPLY_ROI_SETTINGS: payloads.RoiSettingsApplyPayload,
     # Zone Widget Component Events
     UIEvents.ZONE_DRAW_ARENA: payloads.EmptyPayload,
     UIEvents.ZONE_DRAW_ROI: payloads.EmptyPayload,

@@ -6,6 +6,7 @@ Provides the ``FrameProcessingMixin`` mixed into ``LiveCameraService``.
 
 from __future__ import annotations
 
+import math
 import queue
 import threading
 import time
@@ -1152,8 +1153,13 @@ class FrameProcessingMixin:
 
         Returns the evaluator, or None if the detector has no usable ROI
         polygons yet (in which case we retry on the next frame).
+
+        A regra de inclusão vem da fonte canônica (projeto > global > default),
+        a mesma que o relatório usa: sem isso o LED disparava por centroide
+        enquanto o ``log_eventos`` contava por bbox.
         """
         from zebtrack.core.services.arduino_roi_evaluator import ArduinoRoiEvaluator
+        from zebtrack.core.services.roi_rule_resolver import resolve_roi_rule
 
         detector = self.detector_service.detector
         if detector is None:
@@ -1162,8 +1168,48 @@ class FrameProcessingMixin:
         roi_polygons = list(getattr(detector, "scaled_roi_polygons", []) or [])
         if not roi_names or not roi_polygons:
             return None
-        evaluator = ArduinoRoiEvaluator(roi_names, roi_polygons)
+
+        project_data = getattr(self.project_manager, "project_data", None)
+        rule_config = resolve_roi_rule(project_data, getattr(self, "settings", None))
+        evaluator = ArduinoRoiEvaluator(
+            roi_names,
+            roi_polygons,
+            rule_config=rule_config,
+            px_per_cm=self._arduino_buffer_px_per_cm(project_data),
+        )
+        log.info(
+            "live_camera_service.arduino_zone_commands.rule_resolved",
+            rule=evaluator.rule,
+            configured_rule=rule_config.rule,
+            rois=evaluator.roi_names,
+        )
         return evaluator if evaluator.has_rois() else None
+
+    @staticmethod
+    def _arduino_buffer_px_per_cm(project_data: Any) -> float:
+        """Escala px/cm usada para dilatar a ROI, igual à do ``ROIAnalyzer``.
+
+        O analisador converte o raio de buffer com ``sqrt(pixelcm_x*pixelcm_y)``;
+        sem calibração o raio permanece em pixels (fator 1.0).
+
+        Nada aqui pode levantar: isto roda no loop ao vivo. Um projeto com
+        ``calibration`` de tipo errado (lista, string) faria ``.get`` levantar
+        ``AttributeError`` — que o ``except (TypeError, ValueError)`` não pega —
+        e derrubaria a sessão. Tipo inesperado vira "sem calibração".
+        """
+        if not isinstance(project_data, dict):
+            return 1.0
+        calibration = project_data.get("calibration")
+        if not isinstance(calibration, dict):
+            return 1.0
+        try:
+            px_x = float(calibration.get("pixelcm_x", 1.0) or 1.0)
+            px_y = float(calibration.get("pixelcm_y", 1.0) or 1.0)
+        except (TypeError, ValueError):
+            return 1.0
+        if not math.isfinite(px_x) or not math.isfinite(px_y) or px_x <= 0 or px_y <= 0:
+            return 1.0
+        return float(math.sqrt(px_x * px_y))
 
     def _dispatch_arduino_zone_commands(
         self,
@@ -1215,15 +1261,19 @@ class FrameProcessingMixin:
                 )
                 return  # hold the current occupancy — likely a tracker miss
 
-        centroids: list[tuple[float, float]] = []
+        # Bboxes cruas, não centroides: a regra ``bbox_intersects`` precisa da
+        # área da caixa para calcular a fração de sobreposição — reduzir a
+        # detecção ao centroide aqui era o que fazia o Arduino divergir do
+        # relatório.
+        boxes: list[tuple[float, float, float, float]] = []
         for det in detections:
             try:
                 x1, y1, x2, y2 = det[0], det[1], det[2], det[3]
             except (IndexError, TypeError, ValueError):
                 continue
-            centroids.append(((x1 + x2) / 2.0, (y1 + y2) / 2.0))
+            boxes.append((float(x1), float(y1), float(x2), float(y2)))
 
-        occupied = self._arduino_evaluator.occupied_rois(centroids)
+        occupied = self._arduino_evaluator.occupied_rois(boxes)
         events = self._arduino_mapper.update_detailed(occupied)
         if not events:
             return

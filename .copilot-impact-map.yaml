@@ -403,7 +403,7 @@ domains:
       - "src/zebtrack/io/arduino.py"                   # send_command_async (ser.write)
       - "src/zebtrack/core/services/arduino_bindings.py"       # ROI->token config
       - "src/zebtrack/core/services/arduino_event_mapper.py"   # update_detailed -> RoiTokenEvent
-      - "src/zebtrack/core/services/arduino_roi_evaluator.py"  # centroid-in-ROI
+      - "src/zebtrack/core/services/arduino_roi_evaluator.py"  # ROI occupancy (rule from roi_rule_resolver)
       - "src/zebtrack/core/services/arduino_ack_semantics.py"  # ACK -> on/off, inversion check
       - "src/zebtrack/core/services/closed_loop_latency.py"    # ClosedLoopLatencyLog
       - "src/zebtrack/core/recording/frame_processing_pipeline.py"  # dispatch + lifecycle
@@ -419,6 +419,53 @@ domains:
       - "tests/core/test_closed_loop_latency.py"
       - "tests/test_io_arduino_manager.py"
       - "tests/ui/components/test_arduino_bindings_panel.py"
+
+  # ---------------------------------------------------------------------------
+  # ROI INCLUSION RULE DOMAIN (canonical resolver)
+  # ---------------------------------------------------------------------------
+  roi_inclusion_rule:
+    description: "Single source of truth for 'is the animal inside this ROI?'"
+
+    contract:
+      resolver: "resolve_roi_rule(project_data, settings_obj) -> RoiRuleConfig (frozen, pure)"
+      precedence: "project_data['roi_settings'] > settings_obj > default"
+      keys: "roi_inclusion_rule, roi_buffer_radius_value, roi_min_bbox_overlap_ratio (no new keys)"
+      invalid_values: "never raises; falls back one level and logs roi_rule.resolve.invalid_value"
+      apply: "apply_roi_rule_to_settings orders the 3 assignments so Settings' cross-field validator never sees an invalid intermediate state — do NOT hand-assign"
+
+    consumers:
+      prerecorded_report: "coordinators/_video_selection_mixin.py::_create_project_settings_snapshot"
+      report_regeneration: "coordinators/report_generation_coordinator.py::_create_project_settings_snapshot"
+      live_post_processing: "core/recording/live_analysis_post_processor.py::_build_post_analysis_service"
+      live_arduino: "core/recording/frame_processing_pipeline.py::_build_arduino_evaluator"
+      analyzer: "analysis/analysis_service.py::resolve_roi_rule -> ROIAnalyzer"
+
+    gotchas:
+      parity: "ArduinoRoiEvaluator uses shapely (same predicates as ROIAnalyzer), not cv2.pointPolygonTest; bboxes are forwarded raw — reducing them to centroids makes bbox_intersects impossible"
+      buffer_units: "buffered ROI dilated ONCE in the constructor; px_per_cm must be sqrt(pixelcm_x*pixelcm_y) to match ROIAnalyzer"
+      seg_overlap: "unimplemented in roi.py (raises); the live evaluator degrades to centroid_in and logs seg_overlap_unsupported_fallback"
+      ui_apply: "Zones tab 'Aplicar' emits ZONE_APPLY_ROI_SETTINGS (persists). DETECTOR_UPDATE_PARAMETERS silently drops the ROI keys"
+      no_float_in_ui: "The payload carries raw StringVar text; float() inside a Tk callback raises on bad input and kills the click. Parsing/validation happens once, in resolve_roi_rule (non-finite included)"
+      degenerate_bbox: "bbox_intersects divides by the box AREA — both dimensions must be > 0. A zero-side box falls back to the centroid WITH the warning, never silently"
+
+    key_files:
+      - "src/zebtrack/core/services/roi_rule_resolver.py"
+      - "src/zebtrack/analysis/analysis_service.py"
+      - "src/zebtrack/analysis/roi.py"
+      - "src/zebtrack/core/services/arduino_roi_evaluator.py"
+      - "src/zebtrack/coordinators/_video_selection_mixin.py"
+      - "src/zebtrack/coordinators/report_generation_coordinator.py"
+      - "src/zebtrack/core/recording/live_analysis_post_processor.py"
+      - "src/zebtrack/ui/components/event_dispatcher.py"
+      - "src/zebtrack/ui/components/zone_controls.py"
+      - "src/zebtrack/ui/builders/zone_control_builder.py"
+
+    related_tests:
+      - "tests/core/services/test_roi_rule_resolver.py"
+      - "tests/coordinators/test_roi_rule_propagation.py"
+      - "tests/core/test_arduino_roi_evaluator.py"
+      - "tests/ui/components/test_roi_settings_persistence.py"
+      - "tests/analysis/test_roi_analyzer.py"
 
 # =============================================================================
 # COORDINATOR HIERARCHY

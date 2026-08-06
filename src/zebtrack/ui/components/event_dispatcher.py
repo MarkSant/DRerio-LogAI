@@ -1061,6 +1061,10 @@ class EventDispatcher:
             UIEvents.DETECTOR_UPDATE_PARAMETERS,
             self._on_apply_roi_settings,
         )
+        event_bus.subscribe(
+            UIEvents.ZONE_APPLY_ROI_SETTINGS,
+            self._on_persist_roi_settings,
+        )
 
     def _on_apply_roi_settings(self, data: payloads.EventPayload) -> None:
         """Handle DETECTOR_UPDATE_PARAMETERS event.
@@ -1074,6 +1078,125 @@ class EventDispatcher:
         params = _payload_to_dict(data)
         if params and gui.controller:
             gui.controller.hardware_vm.update_detector_parameters(params)
+
+    def _on_persist_roi_settings(self, data: payloads.EventPayload) -> None:
+        """Handle ZONE_APPLY_ROI_SETTINGS — persist the ROI rule.
+
+        O botão "Aplicar" da aba de Zonas mandava as três chaves para
+        ``update_detector_parameters``, que as descarta silenciosamente (não
+        constam de nenhuma lista de parâmetros válidos) e ainda loga sucesso.
+        Nada era persistido. O destino correto é ``project_data["roi_settings"]``
+        — exatamente onde ``resolve_roi_rule`` procura.
+
+        Sem projeto aberto (vídeo único), não há onde persistir: a regra é
+        aplicada no ``Settings`` da sessão para que a análise em curso a honre.
+
+        Os valores chegam crus da UI (texto). Nada de ``float()`` aqui nem lá:
+        ``resolve_roi_rule`` converte, valida, loga o que descartar e cai no
+        valor anterior — um campo digitado errado nunca derruba o clique.
+        """
+        gui = self._require_gui()
+        if not gui or not gui.controller:
+            return
+
+        from zebtrack.core.services.roi_rule_resolver import (
+            apply_roi_rule_to_settings,
+            resolve_roi_rule,
+        )
+
+        params = _payload_to_dict(data)
+        raw = {
+            "roi_inclusion_rule": params.get("rule"),
+            "roi_buffer_radius_value": params.get("buffer_radius"),
+            "roi_min_bbox_overlap_ratio": params.get("overlap_ratio"),
+        }
+        # Campo em branco = "não informado", não valor inválido: descartar aqui
+        # evita um roi_rule.resolve.invalid_value só de ruído.
+        roi_settings = {
+            key: value
+            for key, value in raw.items()
+            if value is not None and str(value).strip() != ""
+        }
+        if not roi_settings:
+            return
+
+        settings_obj = getattr(gui.controller, "settings", None) or getattr(gui, "settings", None)
+        project_manager = getattr(gui.controller, "project_manager", None)
+        # save_project() levanta ProjectInvalidError sem project_path — e o
+        # EventBusV2 engoliria a exceção neste handler.
+        project_data = getattr(project_manager, "project_data", None)
+
+        # A base de uma edição PARCIAL é a regra efetiva de hoje, não o global:
+        # o painel edita três campos mas o usuário costuma mexer em um. Resolver
+        # contra ``settings_obj`` faria um campo em branco sobrescrever o valor
+        # do projeto pelo global (projeto 0.42 + global 0.10, usuário troca só a
+        # regra → 0.10 gravado sem intenção). A config resolvida expõe os nomes
+        # de ``Settings``, então serve de camada de base direto.
+        current = resolve_roi_rule(project_data, settings_obj)
+        config = resolve_roi_rule({"roi_settings": roi_settings}, current)
+
+        if (
+            project_manager is not None
+            and getattr(project_manager, "project_path", None)
+            # ``project_data`` só é dict num projeto carregado com sucesso; se
+            # vier None/corrompido, gravar levantaria e o EventBusV2 engoliria.
+            # Sem onde persistir, o caminho de sessão abaixo ainda aplica a regra.
+            and isinstance(project_data, dict)
+        ):
+            stored = project_data.get("roi_settings")
+            if not isinstance(stored, dict):
+                # Um projeto com ``roi_settings`` corrompido (lista, string…)
+                # faria as atribuições abaixo levantarem TypeError — e o
+                # EventBusV2 engoliria. O resolvedor já ignora esse lixo; a
+                # gravação faz o mesmo e o substitui.
+                if stored is not None:
+                    self.log.warning(
+                        "zone_controls.roi_settings.replacing_invalid",
+                        found=type(stored).__name__,
+                    )
+                stored = {}
+                project_data["roi_settings"] = stored
+            stored.update(config.to_roi_settings())
+            project_manager.save_project()
+            self.log.info(
+                "zone_controls.roi_settings.persisted",
+                scope="project",
+                rule=config.rule,
+            )
+            gui.show_info(
+                "Regra de ROI Aplicada",
+                f"{self._describe_roi_rule(config)}\n\n"
+                "Salva no projeto: vale para novas análises, para a regeneração "
+                "de relatórios e para o gatilho Arduino ao vivo.",
+            )
+            return
+
+        apply_roi_rule_to_settings(settings_obj, config)
+        self.log.info(
+            "zone_controls.roi_settings.persisted",
+            scope="session",
+            rule=config.rule,
+        )
+        gui.show_info(
+            "Regra de ROI Aplicada",
+            f"{self._describe_roi_rule(config)}\n\n"
+            "Aplicada a esta sessão. Sem projeto aberto, ela não é salva em disco.",
+        )
+
+    @staticmethod
+    def _describe_roi_rule(config: Any) -> str:
+        """Descreve os valores EFETIVOS, incluindo o parâmetro que a regra usa.
+
+        Mostrar o valor aplicado (e não o digitado) é o que torna visível um
+        campo inválido que caiu no valor anterior.
+        """
+        if config.uses_buffer:
+            detail = f"raio de buffer {config.buffer_radius_value:g}"
+        elif config.uses_bbox:
+            detail = f"sobreposição mínima {config.min_bbox_overlap_ratio:g}"
+        else:
+            detail = "sem parâmetros adicionais"
+        return f"Regra '{config.rule}' ({detail})."
 
     def _on_show_aquarium_assignment_dialog(self, data: payloads.EventPayload) -> None:
         """Handle ZONE_SHOW_AQUARIUM_ASSIGNMENT_DIALOG event.

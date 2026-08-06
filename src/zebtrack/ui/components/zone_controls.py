@@ -1335,7 +1335,14 @@ class ZoneControlsWidget(BaseWidget):
                 log.debug("zone_controls.finish_drawing.feedback_suppressed", exc_info=True)
 
     def _on_roi_rule_changed(self, event) -> None:
-        """Handle ROI rule change."""
+        """Handle ROI rule change — apenas feedback visual.
+
+        Trocar a seleção do combo mostra/esconde o parâmetro daquela regra e
+        atualiza a ajuda; nada é aplicado até o botão "Aplicar". Este handler
+        publicava ``DETECTOR_UPDATE_PARAMETERS``, cujo pipeline descarta as
+        chaves de ROI e ainda loga sucesso — o mesmo no-op que este PR remove
+        do "Aplicar", e que aqui não tinha sequer o que fazer.
+        """
         rule = self.roi_inclusion_rule_var.get()
 
         # Update visibility based on rule
@@ -1368,18 +1375,24 @@ class ZoneControlsWidget(BaseWidget):
         if self.rule_help_label:
             self.rule_help_label.config(text=help_text)
 
-        self.emit_event(
-            UIEvents.DETECTOR_UPDATE_PARAMETERS, payloads.DetectorUpdateParametersPayload(rule=rule)
-        )
-
     def _on_apply_roi_settings_clicked(self) -> None:
-        """Handle apply ROI settings button click."""
+        """Handle apply ROI settings button click.
+
+        Emite ``ZONE_APPLY_ROI_SETTINGS`` (persistido em
+        ``project_data["roi_settings"]``) — e não mais
+        ``DETECTOR_UPDATE_PARAMETERS``, que descartava as três chaves em
+        silêncio e ainda logava sucesso.
+
+        Os campos vão CRUS: ``float()`` aqui estoura com texto inválido dentro
+        do callback do Tk e o botão morre sem dizer nada. A validação (e o
+        descarte logado) é do ``resolve_roi_rule``.
+        """
         self.emit_event(
-            UIEvents.DETECTOR_UPDATE_PARAMETERS,
-            payloads.DetectorUpdateParametersPayload(
+            UIEvents.ZONE_APPLY_ROI_SETTINGS,
+            payloads.RoiSettingsApplyPayload(
                 rule=self.roi_inclusion_rule_var.get(),
-                buffer_radius=float(self.roi_buffer_radius_var.get() or 0.5),
-                overlap_ratio=float(self.roi_overlap_ratio_var.get() or 0.10),
+                buffer_radius=self.roi_buffer_radius_var.get(),
+                overlap_ratio=self.roi_overlap_ratio_var.get(),
             ),
         )
 

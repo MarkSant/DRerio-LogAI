@@ -399,6 +399,26 @@ class DetectorUpdateParametersPayload:
 
 
 @dataclass(frozen=True)
+class RoiSettingsApplyPayload:
+    """Regra de inclusão em ROI escolhida na aba de Zonas ("Aplicar").
+
+    Persistida em ``project_data["roi_settings"]`` — as mesmas chaves que o
+    editor de configurações grava e que ``resolve_roi_rule`` lê.
+
+    Os parâmetros aceitam ``str`` porque a UI envia o conteúdo cru dos campos:
+    um ``float()`` no callback do Tk estoura com texto inválido e mata o clique
+    do botão. Quem valida é ``resolve_roi_rule`` — um único ponto, que também
+    loga o descarte.
+    """
+
+    # Todos opcionais: o handler aplica só o que veio (um payload sem nenhum
+    # campo utilizável é no-op), então o tipo reflete o contrato do evento.
+    rule: str | None = None
+    buffer_radius: float | str | None = None
+    overlap_ratio: float | str | None = None
+
+
+@dataclass(frozen=True)
 class DetectorUpdateZonesPayload:
     zone_data: Any
 
@@ -406,11 +426,6 @@ class DetectorUpdateZonesPayload:
 @dataclass(frozen=True)
 class ZoneTemplateApplyPayload:
     template_name: str | None = None
-
-
-@dataclass(frozen=True)
-class ZoneApplyRoiSettingsPayload:
-    settings: Mapping[str, Any]
 
 
 @dataclass(frozen=True)

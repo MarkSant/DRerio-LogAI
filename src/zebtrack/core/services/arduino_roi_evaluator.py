@@ -1,77 +1,253 @@
-"""Per-frame ROI occupancy for the live Arduino command loop.
+"""Ocupação de ROI por frame para o loop de comandos Arduino ao vivo.
 
-Pure geometry: given the scaled ROI polygons (pixel space, as produced by
-``ZoneScaler``) and the centroids of the current frame's detections, returns the
-set of ROI names occupied by at least one animal ("any-track" scope).
+Geometria pura: dados os polígonos de ROI já escalados (espaço de pixels, como
+produzidos por ``ZoneScaler``) e as detecções do frame atual, devolve o conjunto
+de ROIs ocupadas por ao menos um animal (escopo "any-track").
 
-Reuses ``ZoneScaler.point_in_polygon`` (cv2-based, the same containment test the
-detector itself uses) so the occupancy decision matches the detector's
-coordinate space exactly and adds no new geometry dependency to the hot loop.
+A regra de inclusão vem da mesma fonte canônica que o relatório
+(:mod:`zebtrack.core.services.roi_rule_resolver`) e é avaliada com **shapely**,
+os mesmos predicados usados pelo ``ROIAnalyzer`` — sem isso o Arduino disparava
+sempre por centroide (``cv2.pointPolygonTest``) e o ``log_eventos`` do relatório
+podia contar entradas que o LED nunca acendeu.
+
+Os polígonos preparados (e dilatados, quando a regra pede) são construídos uma
+única vez no construtor: nada de geometria nova por frame.
 """
 
 from __future__ import annotations
 
+import time
 from collections.abc import Iterable, Sequence
+from typing import Any
 
 import numpy as np
+import shapely
 import structlog
+from shapely import prepare
+from shapely.geometry import Polygon
+from shapely.geometry.base import BaseGeometry
 
-from zebtrack.core.detection.zone_scaler import ZoneScaler
+from zebtrack.core.services.roi_rule_resolver import RoiRuleConfig
 
 log = structlog.get_logger()
 
+# A cada N chamadas o custo médio do avaliador vai para o log de debug. O loop
+# roda 1 vez a cada ``analysis_interval_frames`` frames (default 10), então o
+# custo por frame capturado é uma fração disto.
+_TIMING_LOG_EVERY = 100
+
 
 class ArduinoRoiEvaluator:
-    """Maps detection centroids to the set of occupied ROI names.
+    """Mapeia detecções para o conjunto de ROIs ocupadas.
 
     Args:
-        roi_names: ROI names, index-aligned with ``roi_polygons``.
-        roi_polygons: Scaled ROI polygons in frame-pixel space (e.g.
-            ``ZoneScaler.scaled_roi_polygons``). Each is an ``(N, 2)`` array of
-            vertices. Empty/degenerate polygons and names without a matching
-            polygon are ignored.
+        roi_names: nomes das ROIs, alinhados por índice com ``roi_polygons``.
+        roi_polygons: polígonos escalados em pixels do frame (ex.:
+            ``ZoneScaler.scaled_roi_polygons``). Cada um é um array ``(N, 2)``.
+            Polígonos vazios/degenerados e nomes sem polígono são ignorados.
+        rule_config: regra de inclusão resolvida. ``None`` usa o default de
+            :class:`RoiRuleConfig` (o mesmo default de ``Settings``).
+        px_per_cm: fator para converter ``buffer_radius_value`` (em cm, quando
+            há calibração) para pixels. O ``ROIAnalyzer`` usa
+            ``sqrt(pixelcm_x * pixelcm_y)``; passe o mesmo valor para que as
+            duas geometrias coincidam. Sem calibração, ``1.0`` mantém o raio em
+            pixels.
     """
 
     def __init__(
         self,
         roi_names: Sequence[str],
         roi_polygons: Sequence[np.ndarray | Sequence[Sequence[float]]],
+        rule_config: RoiRuleConfig | None = None,
+        px_per_cm: float = 1.0,
     ) -> None:
-        self._rois: list[tuple[str, np.ndarray]] = []
+        self._config = rule_config or RoiRuleConfig()
+        self._rule = self._effective_rule(self._config.rule)
+        self._px_per_cm = float(px_per_cm) if px_per_cm and px_per_cm > 0 else 1.0
+
+        self._rois: list[tuple[str, BaseGeometry]] = []
         for name, polygon in zip(roi_names, roi_polygons, strict=False):
-            poly = np.asarray(polygon, dtype=np.int32)
-            if poly.size == 0 or poly.shape[0] < 3:
+            geometry = self._build_geometry(polygon)
+            if geometry is None:
                 continue
-            self._rois.append((str(name), poly))
+            self._rois.append((str(name), geometry))
+
+        self._calls = 0
+        self._elapsed_s = 0.0
+        self._warned_missing_bbox = False
+
+    # ------------------------------------------------------------------
+    # Construção
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _effective_rule(rule: str) -> str:
+        """Regra realmente aplicável ao vivo.
+
+        ``seg_overlap`` exige máscaras de segmentação que a sessão ao vivo não
+        persiste (o ``ROIAnalyzer`` levanta ``ValueError``). Aqui o loop não
+        pode quebrar: cai para ``centroid_in`` e registra o fallback.
+        """
+        if rule == "seg_overlap":
+            log.warning(
+                "arduino_roi_evaluator.seg_overlap_unsupported_fallback",
+                fallback="centroid_in",
+            )
+            return "centroid_in"
+        return rule
+
+    def _build_geometry(
+        self, polygon: np.ndarray | Sequence[Sequence[float]]
+    ) -> BaseGeometry | None:
+        """Constrói (e dilata, se a regra pedir) o polígono preparado da ROI."""
+        poly = np.asarray(polygon, dtype=np.float64)
+        if poly.size == 0 or poly.ndim != 2 or poly.shape[0] < 3:
+            return None
+
+        geometry: BaseGeometry = Polygon(poly)
+        if not geometry.is_valid:
+            geometry = geometry.buffer(0)
+        if geometry.is_empty:
+            return None
+
+        if self._rule == "centroid_in_on_buffered_roi":
+            # Dilatação feita UMA vez, aqui: nunca por frame.
+            geometry = geometry.buffer(self._config.buffer_radius_value * self._px_per_cm)
+            if geometry.is_empty:
+                return None
+
+        prepare(geometry)
+        return geometry
+
+    # ------------------------------------------------------------------
+    # API
+    # ------------------------------------------------------------------
 
     @property
     def roi_names(self) -> list[str]:
-        """ROI names that have a usable polygon."""
+        """Nomes das ROIs com polígono utilizável."""
         return [name for name, _ in self._rois]
 
+    @property
+    def rule(self) -> str:
+        """Regra de inclusão efetivamente aplicada (após fallbacks)."""
+        return self._rule
+
     def has_rois(self) -> bool:
-        """True when at least one usable ROI polygon is configured."""
+        """True quando há ao menos um polígono de ROI utilizável."""
         return bool(self._rois)
 
-    def occupied_rois(self, centroids: Iterable[tuple[float, float]]) -> set[str]:
-        """Return the set of ROI names containing at least one centroid.
+    def occupied_rois(self, detections: Iterable[Sequence[float]]) -> set[str]:
+        """Conjunto de ROIs ocupadas por ao menos uma detecção.
 
         Args:
-            centroids: ``(x, y)`` points in frame-pixel space (bbox centers).
+            detections: itens ``(x1, y1, x2, y2)`` (bbox, espaço de pixels do
+                frame) ou ``(cx, cy)`` (apenas o centroide — caminho
+                compatível com chamadores antigos). Para ``bbox_intersects``,
+                uma caixa sem área (centroide, ou um dos lados zerado) não
+                permite calcular fração de área: a avaliação cai para
+                contenção do ponto e o fallback é logado uma vez.
         """
+        if not self._rois:
+            return set()
+
+        started = time.perf_counter()
         occupied: set[str] = set()
-        for cx, cy in centroids:
-            point = (float(cx), float(cy))
-            for name, polygon in self._rois:
-                if name in occupied:
-                    continue
-                if ZoneScaler.point_in_polygon(point, polygon):
-                    occupied.add(name)
-            if len(occupied) == len(self._rois):
-                break  # every ROI already occupied — no need to test more points
+        for detection in detections:
+            box = self._as_bbox(detection)
+            if box is None:
+                continue
+            if self._occupy(box, occupied):
+                break  # todas as ROIs já ocupadas — não há o que testar
+        self._record_timing(started)
         return occupied
 
     @staticmethod
     def centroid_of_bbox(x1: float, y1: float, x2: float, y2: float) -> tuple[float, float]:
-        """Centroid (center point) of a bounding box."""
+        """Centroide (ponto central) de uma bounding box."""
         return ((x1 + x2) / 2.0, (y1 + y2) / 2.0)
+
+    # ------------------------------------------------------------------
+    # Interno
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _as_bbox(detection: Sequence[float]) -> tuple[float, float, float, float] | None:
+        """Normaliza a detecção para ``(x1, y1, x2, y2)``.
+
+        Um centroide vira uma caixa degenerada (área zero) — o que é suficiente
+        para as regras de centroide e sinalizado para as de bbox.
+        """
+        try:
+            values = [float(v) for v in detection]
+        except (TypeError, ValueError):
+            return None
+        if len(values) >= 4:
+            x1, y1, x2, y2 = values[0], values[1], values[2], values[3]
+            return (min(x1, x2), min(y1, y2), max(x1, x2), max(y1, y2))
+        if len(values) == 2:
+            cx, cy = values
+            return (cx, cy, cx, cy)
+        return None
+
+    def _occupy(self, box: tuple[float, float, float, float], occupied: set[str]) -> bool:
+        """Testa uma detecção contra as ROIs pendentes. True se todas ocuparam."""
+        x1, y1, x2, y2 = box
+        centroid = shapely.points((x1 + x2) / 2.0, (y1 + y2) / 2.0)
+        # A fração de sobreposição divide pela ÁREA da caixa: exige as duas
+        # dimensões positivas. Uma caixa degenerada (um lado zerado) tem área
+        # zero e não é avaliável por essa regra — cai no centroide, mas com o
+        # aviso, para não mascarar detecção inválida.
+        has_area = x2 > x1 and y2 > y1
+        use_bbox = self._rule == "bbox_intersects" and has_area
+        if self._rule == "bbox_intersects" and not has_area:
+            self._warn_missing_bbox()
+
+        bbox_geom = shapely.box(x1, y1, x2, y2) if use_bbox else None
+        bbox_area = shapely.area(bbox_geom) if bbox_geom is not None else 0.0
+
+        for name, geometry in self._rois:
+            if name in occupied:
+                continue
+            if bbox_geom is not None and bbox_area > 0:
+                ratio = shapely.area(shapely.intersection(geometry, bbox_geom)) / bbox_area
+                inside = bool(ratio >= self._config.min_bbox_overlap_ratio)
+            else:
+                inside = bool(shapely.contains(geometry, centroid))
+            if inside:
+                occupied.add(name)
+        return len(occupied) == len(self._rois)
+
+    def _warn_missing_bbox(self) -> None:
+        """Avisa uma única vez que a regra de bbox recebeu caixa sem área."""
+        if self._warned_missing_bbox:
+            return
+        self._warned_missing_bbox = True
+        log.warning(
+            "arduino_roi_evaluator.bbox_rule_without_bbox_fallback",
+            rule=self._rule,
+            fallback="centroid_in",
+        )
+
+    def _record_timing(self, started: float) -> None:
+        """Acumula o custo do avaliador e o reporta a cada ``_TIMING_LOG_EVERY``."""
+        self._elapsed_s += time.perf_counter() - started
+        self._calls += 1
+        if self._calls % _TIMING_LOG_EVERY:
+            return
+        log.debug(
+            "arduino_roi_evaluator.timing",
+            calls=self._calls,
+            rois=len(self._rois),
+            rule=self._rule,
+            avg_ms=round(self._elapsed_s / self._calls * 1000.0, 4),
+        )
+
+    def stats(self) -> dict[str, Any]:
+        """Contadores de custo acumulados (usado por testes e diagnóstico)."""
+        return {
+            "calls": self._calls,
+            "avg_ms": (self._elapsed_s / self._calls * 1000.0) if self._calls else 0.0,
+            "rule": self._rule,
+            "rois": len(self._rois),
+        }

@@ -1644,3 +1644,105 @@ class TestSaveGlobalConfigFromWidget:
         mock_gui._reload_config_editor_values_widget.assert_called_once()
         mock_gui.dialog_manager.show_info.assert_called_once()
         assert settings_obj.video_processing == {"fps": 30}
+
+
+# ======================================================================
+# apply_roi_settings — faixas alinhadas com o resolvedor canônico
+# ======================================================================
+
+
+def _roi_vars(mock_gui, rule="centroid_in_on_buffered_roi", buffer_radius="2.0", overlap="0.3"):
+    """Preenche os StringVars de ROI que o método lê."""
+    mock_gui.roi_inclusion_rule_var = Mock()
+    mock_gui.roi_inclusion_rule_var.get = Mock(return_value=rule)
+    mock_gui.roi_buffer_radius_var = Mock()
+    mock_gui.roi_buffer_radius_var.get = Mock(return_value=buffer_radius)
+    mock_gui.roi_overlap_ratio_var = Mock()
+    mock_gui.roi_overlap_ratio_var.get = Mock(return_value=overlap)
+    return mock_gui
+
+
+@pytest.mark.gui
+def test_apply_roi_settings_writes_through_the_canonical_resolver(validation_manager, mock_gui):
+    from zebtrack.settings import load_settings
+
+    settings = load_settings()
+    mock_gui.controller.settings = settings
+    mock_gui.controller.project_manager.project_path = None
+    _roi_vars(mock_gui)
+
+    validation_manager.apply_roi_settings()
+
+    assert settings.roi_inclusion_rule == "centroid_in_on_buffered_roi"
+    assert settings.roi_buffer_radius_value == 2.0
+    assert settings.roi_min_bbox_overlap_ratio == 0.3
+    mock_gui.dialog_manager.show_info.assert_called_once()
+
+
+@pytest.mark.gui
+@pytest.mark.parametrize(
+    ("rule", "buffer_radius", "overlap"),
+    [
+        ("centroid_in_on_buffered_roi", "0", "0.3"),
+        ("bbox_intersects", "2.0", "0"),
+        ("bbox_intersects", "2.0", "1.5"),
+        ("centroid_in", "-1", "0.3"),
+        ("centroid_in", "2.0", "1.5"),
+    ],
+    ids=[
+        "buffer_zero_na_regra_que_o_usa",
+        "overlap_zero_na_regra_que_o_usa",
+        "overlap_acima_de_1",
+        "buffer_negativo",
+        "overlap_acima_de_1_regra_irrelevante",
+    ],
+)
+def test_apply_roi_settings_rejects_what_the_resolver_would_discard(
+    validation_manager, mock_gui, rule, buffer_radius, overlap
+):
+    """As faixas daqui têm de bater com as do resolvedor, regra a regra.
+
+    Aceitar um valor que o resolvedor descartaria mostraria "aplicado" para
+    algo que não foi aplicado.
+    """
+    from zebtrack.settings import load_settings
+
+    settings = load_settings()
+    mock_gui.controller.settings = settings
+    _roi_vars(mock_gui, rule=rule, buffer_radius=buffer_radius, overlap=overlap)
+
+    validation_manager.apply_roi_settings()
+
+    mock_gui.dialog_manager.show_error.assert_called_once()
+    mock_gui.dialog_manager.show_info.assert_not_called()
+
+
+@pytest.mark.gui
+@pytest.mark.parametrize(
+    ("rule", "buffer_radius", "overlap"),
+    [
+        ("bbox_intersects", "0", "0.3"),  # buffer irrelevante para a regra
+        ("centroid_in", "2.0", "0"),  # overlap irrelevante para a regra
+    ],
+    ids=["buffer_zero_irrelevante", "overlap_zero_irrelevante"],
+)
+def test_apply_roi_settings_accepts_zero_in_the_irrelevant_parameter(
+    validation_manager, mock_gui, rule, buffer_radius, overlap
+):
+    """Zero no parâmetro que a regra ignora é configuração legítima.
+
+    ``config.yaml`` distribui combinações assim; recusá-las barraria o usuário
+    por um campo que a regra escolhida nem lê.
+    """
+    from zebtrack.settings import load_settings
+
+    settings = load_settings()
+    mock_gui.controller.settings = settings
+    mock_gui.controller.project_manager.project_path = None
+    _roi_vars(mock_gui, rule=rule, buffer_radius=buffer_radius, overlap=overlap)
+
+    validation_manager.apply_roi_settings()
+
+    mock_gui.dialog_manager.show_error.assert_not_called()
+    mock_gui.dialog_manager.show_info.assert_called_once()
+    assert settings.roi_inclusion_rule == rule

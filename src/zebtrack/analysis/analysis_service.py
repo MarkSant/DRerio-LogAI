@@ -23,6 +23,7 @@ from zebtrack.analysis.metrics_cache import MetricsCache
 from zebtrack.analysis.models import AnalysisResult, CalibrationParams
 from zebtrack.analysis.roi import ROI, ROIAnalyzer
 from zebtrack.analysis.trajectory_validator import TrajectoryQualityValidator
+from zebtrack.core.services.roi_rule_resolver import RoiRuleConfig, resolve_roi_rule
 from zebtrack.ui import payloads as payloads
 from zebtrack.ui.event_bus_v2 import Event, UIEvents
 
@@ -60,16 +61,27 @@ class AnalysisService:
     - Coordinating BehavioralAnalyzer and ROIAnalyzer
     """
 
-    def __init__(self, settings_obj: "Settings | None" = None, enable_metrics_cache: bool = False):
+    def __init__(
+        self,
+        settings_obj: "Settings | None" = None,
+        enable_metrics_cache: bool = False,
+        roi_rule: RoiRuleConfig | None = None,
+    ):
         """Initialize the AnalysisService.
 
         Args:
             settings_obj: Settings instance (injected, optional for backward compatibility).
             enable_metrics_cache: If True, enables caching of base metrics for faster
                 threshold adjustments (IMPROVEMENT #2). Default: False for backward compatibility.
+            roi_rule: ROI inclusion rule already resolved by
+                :func:`zebtrack.core.services.roi_rule_resolver.resolve_roi_rule`.
+                When omitted, the rule is resolved from ``settings_obj`` — o que
+                mantém compatível quem já injeta um snapshot com os overrides do
+                projeto aplicados.
         """
         self.log = structlog.get_logger(__name__)
         self.settings = settings_obj
+        self.roi_rule = roi_rule
 
         # IMPROVEMENT #2: Optional metrics caching for faster parameter tuning
         self.metrics_cache: MetricsCache | None = None
@@ -77,6 +89,17 @@ class AnalysisService:
             cache_dir = Path(".cache/metrics")
             self.metrics_cache = MetricsCache(cache_dir)
             self.log.info("analysis_service.metrics_cache_enabled", cache_dir=str(cache_dir))
+
+    def resolve_roi_rule(self) -> RoiRuleConfig:
+        """Regra de inclusão em ROI efetiva para este serviço.
+
+        Uma configuração injetada tem prioridade; caso contrário resolve a
+        partir do ``Settings`` recebido (que, nos caminhos de relatório, já é o
+        snapshot com os overrides do projeto aplicados).
+        """
+        if self.roi_rule is not None:
+            return self.roi_rule
+        return resolve_roi_rule(None, self.settings)
 
     @staticmethod
     def _normalize_aquarium_perspective(perspective: str | None) -> str:
@@ -289,13 +312,14 @@ class AnalysisService:
         if not rois:
             return report, b_analyzer, None, validation_warnings, validation_stats
 
+        roi_rule = self.resolve_roi_rule()
         r_analyzer = ROIAnalyzer(
             behavior_analyzer=b_analyzer,
             rois=rois,
             flutter_n_frames=1,  # Reduced to detect brief entries/exits
-            inclusion_rule=self.settings.roi_inclusion_rule,
-            buffer_radius_value=self.settings.roi_buffer_radius_value,
-            min_bbox_overlap_ratio=self.settings.roi_min_bbox_overlap_ratio,
+            inclusion_rule=roi_rule.rule,
+            buffer_radius_value=roi_rule.buffer_radius_value,
+            min_bbox_overlap_ratio=roi_rule.min_bbox_overlap_ratio,
         )
         report["analise_roi"] = {
             "tempo_gasto_por_roi": r_analyzer.get_time_spent_in_rois(),

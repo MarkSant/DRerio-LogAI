@@ -672,6 +672,75 @@ or to measure latency — the capture instant lives in the ledger.
   recommending it — detecting at 30 fps can saturate and degrade the very
   measurement.
 
+### 5.10. Canonical ROI Inclusion Rule (August 2026)
+
+"Is the animal inside this ROI?" is decided in four places, and they used to
+disagree. `core/services/roi_rule_resolver.py` is now the single source:
+
+```python
+resolve_roi_rule(project_data, settings_obj) -> RoiRuleConfig  # frozen
+```
+
+Precedence is `project_data["roi_settings"]` > `settings_obj` > default. The
+function is pure (no I/O, no singleton) and never raises: an unknown rule, an
+unparseable string, a non-finite float (NaN **and** ±inf — `inf` would otherwise
+sail past the range check on `roi_buffer_radius_value`, which has no maximum) or
+an out-of-range value falls back to the previous precedence level and logs
+`roi_rule.resolve.invalid_value`. The **rule is resolved first**, because it
+decides the bounds: the exclusive minimum applies only to the parameter that
+rule actually uses, mirroring `Settings`' cross-field validator. A zero buffer
+under `bbox_intersects` is irrelevant and legitimate (shipped configs look like
+that) and is preserved without noise; a zero buffer under
+`centroid_in_on_buffered_roi` dilates nothing and falls back with a log.
+Recognized keys are exactly
+`roi_inclusion_rule`, `roi_buffer_radius_value`, `roi_min_bbox_overlap_ratio` —
+the same ones the settings editor writes.
+
+The four consumers:
+
+| Path | Consumer | Was |
+| ---- | -------- | --- |
+| Pre-recorded report | `VideoSelectionMixin._create_project_settings_snapshot` | honored the project |
+| Report regeneration | `ReportGenerationCoordinator._create_project_settings_snapshot` | duplicated snapshot, ROI keys never copied → regenerating changed the numbers |
+| Live post-processing | `LiveAnalysisPostProcessorMixin._build_post_analysis_service` | raw global `Settings` |
+| Live Arduino trigger | `FrameProcessingMixin._build_arduino_evaluator` | rule hardcoded to centroid-in-polygon |
+
+- **`AnalysisService(settings_obj=…, roi_rule=…)`**: the optional `roi_rule`
+  wins; without it the rule is resolved from the service's own `Settings` — so
+  callers that already inject a project snapshot keep working unchanged.
+- **`ArduinoRoiEvaluator`** now takes the `RoiRuleConfig` and evaluates with
+  **shapely**, the same predicates as `ROIAnalyzer` (`contains` for the centroid
+  rules, intersection-area ratio for `bbox_intersects`) instead of
+  `cv2.pointPolygonTest`. Buffered ROIs are dilated **once** in the constructor;
+  `px_per_cm` must be `sqrt(pixelcm_x*pixelcm_y)` to match the analyzer's radius
+  conversion. `_dispatch_arduino_zone_commands` now forwards raw bboxes — it
+  used to reduce them to centroids, which makes `bbox_intersects` impossible.
+  `seg_overlap` (unimplemented, `roi.py` raises) degrades to `centroid_in` with
+  `arduino_roi_evaluator.seg_overlap_unsupported_fallback` rather than killing
+  the live loop.
+- **Applying to `Settings`**: `apply_roi_rule_to_settings` writes the three
+  fields in an order that never passes through a state the cross-field validator
+  rejects (`validate_assignment=True`). `RoiRuleConfig` is normalized on
+  construction (`buffer > 0`, `0 < ratio <= 1`) precisely so that ordering
+  exists — do not hand-assign these fields.
+- **UI**: the Zones tab "Aplicar" button emits `ZONE_APPLY_ROI_SETTINGS`
+  (`RoiSettingsApplyPayload`) → `EventDispatcher._on_persist_roi_settings`,
+  which writes `project_data["roi_settings"]` + `save_project()` guarded by
+  `project_path`. It used to emit `DETECTOR_UPDATE_PARAMETERS`, whose handler
+  drops `rule`/`buffer_radius`/`overlap_ratio` (they are in no valid-parameter
+  list), returned `True` and logged success — a silent no-op. With no project
+  open the rule is applied to the session `Settings` instead.
+  The payload carries the **raw** `StringVar` text (`float | str | None`): a
+  `float()` inside a Tk callback raises on bad input and kills the click, so
+  parsing happens once, in the resolver, which logs whatever it discards. Blank
+  fields are dropped as "not informed" before resolving, and the confirmation
+  dialog shows the **effective** parameter — that is what makes a discarded
+  value visible to the operator.
+
+Note: the two settings snapshots still differ outside ROI —
+`VideoSelectionMixin` also applies offset/smoothing/behavioral overrides that
+`ReportGenerationCoordinator` does not, and vice-versa for the interval keys.
+
 ---
 
 ## 6. Common Pitfalls for Agents
@@ -837,6 +906,7 @@ Heavy imports (pandas, pyarrow, openpyxl) are deferred in:
 
 | Date | Version | Changes |
 | ---- | ------- | ------- |
+| Aug 6, 2026 | v4.5 | § 5.10 canonical ROI inclusion rule — `roi_rule_resolver`, four consumers unified, shapely-based `ArduinoRoiEvaluator`, `ZONE_APPLY_ROI_SETTINGS` persists the rule |
 | Aug 5, 2026 | v4.4 | § 5.9 frame ledger & timeline reconstruction — `6_FrameLedger_<base>.{csv,parquet}` + session anchor JSON, `video_queue` item carries capture metadata, `queue_wait_ms`/`inference_ms` appended to `5_ClosedLoop_*` |
 | Aug 4, 2026 | v4.3 | § 5.8 binding verification via firmware ACK — `arduino_ack_semantics`, `ArduinoManager.probe_tokens`, panel "test commands" button, runtime `ack_inverted` warning |
 | Aug 4, 2026 | v4.2 | § 5.7 per-zone command robustness — ambiguous-token detection (`token_conflicts()`), ROI exit grace period (`arduino.roi_exit_grace_frames`), non-blocking reference firmware |

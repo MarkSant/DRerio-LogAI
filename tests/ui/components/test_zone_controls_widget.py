@@ -81,19 +81,26 @@ def test_toggle_video_tree_label(widget):
 
 
 @pytest.mark.gui
-def test_on_roi_rule_changed_emits_event(widget, event_bus):
+def test_on_roi_rule_changed_only_updates_the_help_text(widget, event_bus):
+    """Trocar o combo é feedback visual; nada é aplicado até o "Aplicar".
+
+    O evento que este handler publicava (``DETECTOR_UPDATE_PARAMETERS``) tem um
+    pipeline que descarta as chaves de ROI e loga sucesso — um no-op enganoso.
+    """
     widget.roi_inclusion_rule_var.set("centroid_in_on_buffered_roi")
     widget._on_roi_rule_changed(None)
 
-    event_bus.publish.assert_called_with(
-        UIEvents.DETECTOR_UPDATE_PARAMETERS,
-        payloads.DetectorUpdateParametersPayload(rule="centroid_in_on_buffered_roi"),
-    )
     assert "centroide" in widget.rule_help_label.cget("text")
+    event_bus.publish.assert_not_called()
 
 
 @pytest.mark.gui
-def test_apply_roi_settings_emits_event(widget, event_bus):
+def test_apply_roi_settings_emits_persisting_event(widget, event_bus):
+    """O botão "Aplicar" precisa emitir o evento QUE PERSISTE, não o do detector.
+
+    ``DETECTOR_UPDATE_PARAMETERS`` descarta ``rule``/``buffer_radius``/
+    ``overlap_ratio`` em silêncio e ainda loga sucesso.
+    """
     widget.roi_inclusion_rule_var.set("bbox_intersects")
     widget.roi_buffer_radius_var.set("1.2")
     widget.roi_overlap_ratio_var.set("0.25")
@@ -101,10 +108,25 @@ def test_apply_roi_settings_emits_event(widget, event_bus):
     widget._on_apply_roi_settings_clicked()
 
     event_bus.publish.assert_called_with(
-        UIEvents.DETECTOR_UPDATE_PARAMETERS,
-        payloads.DetectorUpdateParametersPayload(
-            rule="bbox_intersects", buffer_radius=1.2, overlap_ratio=0.25
+        UIEvents.ZONE_APPLY_ROI_SETTINGS,
+        payloads.RoiSettingsApplyPayload(
+            rule="bbox_intersects", buffer_radius="1.2", overlap_ratio="0.25"
         ),
+    )
+
+
+@pytest.mark.gui
+def test_apply_roi_settings_with_invalid_text_does_not_raise(widget, event_bus):
+    """``float()`` no callback do Tk mataria o clique com texto inválido."""
+    widget.roi_inclusion_rule_var.set("centroid_in")
+    widget.roi_buffer_radius_var.set("abc")
+    widget.roi_overlap_ratio_var.set("")
+
+    widget._on_apply_roi_settings_clicked()  # não pode levantar
+
+    event_bus.publish.assert_called_with(
+        UIEvents.ZONE_APPLY_ROI_SETTINGS,
+        payloads.RoiSettingsApplyPayload(rule="centroid_in", buffer_radius="abc", overlap_ratio=""),
     )
 
 
