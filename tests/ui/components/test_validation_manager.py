@@ -1644,3 +1644,62 @@ class TestSaveGlobalConfigFromWidget:
         mock_gui._reload_config_editor_values_widget.assert_called_once()
         mock_gui.dialog_manager.show_info.assert_called_once()
         assert settings_obj.video_processing == {"fps": 30}
+
+
+# ======================================================================
+# apply_roi_settings — faixas alinhadas com o resolvedor canônico
+# ======================================================================
+
+
+def _roi_vars(mock_gui, rule="centroid_in_on_buffered_roi", buffer_radius="2.0", overlap="0.3"):
+    """Preenche os StringVars de ROI que o método lê."""
+    mock_gui.roi_inclusion_rule_var = Mock()
+    mock_gui.roi_inclusion_rule_var.get = Mock(return_value=rule)
+    mock_gui.roi_buffer_radius_var = Mock()
+    mock_gui.roi_buffer_radius_var.get = Mock(return_value=buffer_radius)
+    mock_gui.roi_overlap_ratio_var = Mock()
+    mock_gui.roi_overlap_ratio_var.get = Mock(return_value=overlap)
+    return mock_gui
+
+
+@pytest.mark.gui
+def test_apply_roi_settings_writes_through_the_canonical_resolver(validation_manager, mock_gui):
+    from zebtrack.settings import load_settings
+
+    settings = load_settings()
+    mock_gui.controller.settings = settings
+    mock_gui.controller.project_manager.project_path = None
+    _roi_vars(mock_gui)
+
+    validation_manager.apply_roi_settings()
+
+    assert settings.roi_inclusion_rule == "centroid_in_on_buffered_roi"
+    assert settings.roi_buffer_radius_value == 2.0
+    assert settings.roi_min_bbox_overlap_ratio == 0.3
+    mock_gui.dialog_manager.show_info.assert_called_once()
+
+
+@pytest.mark.gui
+@pytest.mark.parametrize(
+    ("buffer_radius", "overlap"),
+    [("0", "0.3"), ("2.0", "0"), ("2.0", "1.5"), ("-1", "0.3")],
+    ids=["buffer_zero", "overlap_zero", "overlap_acima_de_1", "buffer_negativo"],
+)
+def test_apply_roi_settings_rejects_what_the_resolver_would_discard(
+    validation_manager, mock_gui, buffer_radius, overlap
+):
+    """As faixas daqui têm de bater com o mínimo EXCLUSIVO do resolvedor.
+
+    Aceitar um zero aqui mostraria "aplicado" ao usuário para um valor que o
+    resolvedor descartaria em seguida.
+    """
+    from zebtrack.settings import load_settings
+
+    settings = load_settings()
+    mock_gui.controller.settings = settings
+    _roi_vars(mock_gui, buffer_radius=buffer_radius, overlap=overlap)
+
+    validation_manager.apply_roi_settings()
+
+    mock_gui.dialog_manager.show_error.assert_called_once()
+    mock_gui.dialog_manager.show_info.assert_not_called()

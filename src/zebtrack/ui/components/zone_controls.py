@@ -1335,7 +1335,14 @@ class ZoneControlsWidget(BaseWidget):
                 log.debug("zone_controls.finish_drawing.feedback_suppressed", exc_info=True)
 
     def _on_roi_rule_changed(self, event) -> None:
-        """Handle ROI rule change."""
+        """Handle ROI rule change — apenas feedback visual.
+
+        Trocar a seleção do combo mostra/esconde o parâmetro daquela regra e
+        atualiza a ajuda; nada é aplicado até o botão "Aplicar". Este handler
+        publicava ``DETECTOR_UPDATE_PARAMETERS``, cujo pipeline descarta as
+        chaves de ROI e ainda loga sucesso — o mesmo no-op que este PR remove
+        do "Aplicar", e que aqui não tinha sequer o que fazer.
+        """
         rule = self.roi_inclusion_rule_var.get()
 
         # Update visibility based on rule
@@ -1367,10 +1374,6 @@ class ZoneControlsWidget(BaseWidget):
 
         if self.rule_help_label:
             self.rule_help_label.config(text=help_text)
-
-        self.emit_event(
-            UIEvents.DETECTOR_UPDATE_PARAMETERS, payloads.DetectorUpdateParametersPayload(rule=rule)
-        )
 
     def _on_apply_roi_settings_clicked(self) -> None:
         """Handle apply ROI settings button click.
