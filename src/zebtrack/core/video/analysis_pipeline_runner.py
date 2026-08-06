@@ -6,8 +6,9 @@ Methods:
     _collect_analysis_parameters, _prepare_analysis_calibration_context,
     _generate_reports_for_video, _filter_trajectory_by_tracks,
     _enrich_metadata_with_profile, _create_reporter_instance,
-    _analyze_social_proximity, _register_project_outputs,
-    _run_analysis_pipeline
+    _analyze_social_proximity, _compute_social_outcome, _resolve_social_config,
+    _resolve_social_radius_cm, _record_social_outcome_warning,
+    _register_project_outputs, _run_analysis_pipeline
 """
 
 from __future__ import annotations
@@ -40,6 +41,10 @@ from zebtrack.analysis.reporters import (
 from zebtrack.analysis.roi import ROI, ROIAnalyzer
 from zebtrack.core.detection import ZoneData
 from zebtrack.core.detection.calibration import Calibration
+from zebtrack.core.video.social_analysis_outcome import (
+    DEFAULT_SOCIAL_RADIUS_CM,
+    SocialAnalysisOutcome,
+)
 from zebtrack.ui import payloads
 from zebtrack.ui.event_bus_v2 import Event, UIEvents
 
@@ -363,52 +368,236 @@ class AnalysisPipelineRunnerMixin:
         *,
         filtered_df: pd.DataFrame,
         analysis_profile: dict | None,
-        pixelcm_x: float,
-        pixelcm_y: float,
+        pixelcm_x: float | None,
+        pixelcm_y: float | None,
         experiment_id: str,
-    ) -> dict | None:
+    ) -> SocialAnalysisOutcome:
         """Analyze social proximity if enabled in analysis profile.
 
-        Returns:
-            Social proximity summary dict or None if disabled/failed
-        """
-        profile_dict = analysis_profile if isinstance(analysis_profile, dict) else {}
-        raw_social_config = profile_dict.get("social") if isinstance(profile_dict, dict) else {}
-        social_config = raw_social_config if isinstance(raw_social_config, dict) else {}
-        social_enabled = bool(social_config.get("enabled"))
+        Nunca devolve ``None`` mudo nem levanta: quando a análise não roda, o
+        motivo vem explícito em ``SocialAnalysisOutcome.skipped_reason`` e —
+        exceto para ``disabled`` — vira aviso no relatório. A proximidade social
+        é opcional; nenhuma falha aqui pode derrubar a geração dos relatórios.
 
-        if not social_enabled:
-            return None
+        Returns:
+            Outcome with the social metrics or an explicit skip reason.
+        """
+        try:
+            return self._compute_social_outcome(
+                filtered_df=filtered_df,
+                analysis_profile=analysis_profile,
+                pixelcm_x=pixelcm_x,
+                pixelcm_y=pixelcm_y,
+                experiment_id=experiment_id,
+            )
+        except Exception as exc:
+            # except Exception justified: fronteira da análise social opcional.
+            # Nada aqui (schema inesperado da trajetória, shapely/networkx) pode
+            # abortar o pipeline que já produziu trajetória e relatórios; o motivo
+            # `failed` chega ao relatório com a mensagem, então nada fica mudo.
+            log.warning(
+                "controller.analysis.social_failed_unexpected",
+                video=experiment_id,
+                error=str(exc),
+                exc_info=True,
+            )
+            return SocialAnalysisOutcome.skipped("failed", detail=f"technical detail: {exc}")
+
+    def _compute_social_outcome(
+        self,
+        *,
+        filtered_df: pd.DataFrame,
+        analysis_profile: dict | None,
+        pixelcm_x: float | None,
+        pixelcm_y: float | None,
+        experiment_id: str,
+    ) -> SocialAnalysisOutcome:
+        """Corpo da análise social — um motivo explícito por saída antecipada."""
+        social_config = self._resolve_social_config(
+            analysis_profile=analysis_profile,
+            experiment_id=experiment_id,
+        )
+        if social_config is None:
+            return SocialAnalysisOutcome.skipped("malformed_config")
+
+        if not bool(social_config.get("enabled")):
+            # Escolha deliberada do usuário: log informativo, sem aviso no relatório.
+            log.info("controller.analysis.social_disabled", video=experiment_id)
+            return SocialAnalysisOutcome.skipped("disabled")
 
         if pixelcm_x is None or pixelcm_y is None:
-            return None
+            log.warning("controller.analysis.social_no_calibration", video=experiment_id)
+            return SocialAnalysisOutcome.skipped("no_calibration")
 
         if "track_id" not in filtered_df.columns:
-            return None
+            log.warning("controller.analysis.social_no_track_id_column", video=experiment_id)
+            return SocialAnalysisOutcome.skipped("no_track_id_column")
 
         active_tracks = filtered_df["track_id"].dropna().unique().tolist()
         if len(active_tracks) <= 1:
-            return None
+            log.warning(
+                "controller.analysis.social_single_track",
+                video=experiment_id,
+                track_count=len(active_tracks),
+            )
+            return SocialAnalysisOutcome.skipped(
+                "single_track",
+                detail=f"{len(active_tracks)} track(s) available",
+            )
+
+        radius_cm, radius_notes = self._resolve_social_radius_cm(
+            social_config=social_config,
+            experiment_id=experiment_id,
+        )
 
         try:
-            radius_cm = float(social_config.get("radius_cm", 5.0))
-        except (TypeError, ValueError):
-            radius_cm = 5.0
-
-        try:
-            return ROIAnalyzer.analyze_social_proximity(
+            summary = ROIAnalyzer.analyze_social_proximity(
                 filtered_df,
                 radius_cm,
                 pixelcm_x,
                 pixelcm_y,
             )
-        except Exception:  # pragma: no cover - defensive
+        except (ValueError, KeyError, TypeError, AttributeError) as exc:
+            # Falhas esperadas de dados: coluna ausente, tipo inválido, geometria
+            # degenerada. O relatório segue sendo gerado, mas diz por que a seção
+            # social sumiu.
             log.warning(
                 "controller.analysis.social_failed",
                 video=experiment_id,
+                error=str(exc),
                 exc_info=True,
             )
+            return SocialAnalysisOutcome.skipped("failed", detail=f"technical detail: {exc}")
+
+        return SocialAnalysisOutcome.success(summary, notes=radius_notes)
+
+    def _resolve_social_config(
+        self,
+        *,
+        analysis_profile: dict | None,
+        experiment_id: str,
+    ) -> dict | None:
+        """Extrai a seção ``social`` do perfil.
+
+        Returns:
+            O dicionário de configuração social (vazio quando ausente), ou
+            ``None`` quando o perfil está malformado — malformação NÃO pode ser
+            confundida com ``disabled``, que é escolha deliberada do usuário.
+        """
+        if analysis_profile is None:
+            return {}
+
+        if not isinstance(analysis_profile, dict):
+            log.warning(
+                "controller.analysis.social_malformed_profile",
+                video=experiment_id,
+                profile_type=type(analysis_profile).__name__,
+            )
             return None
+
+        raw_social_config = analysis_profile.get("social")
+        if raw_social_config is None:
+            return {}
+
+        if not isinstance(raw_social_config, dict):
+            log.warning(
+                "controller.analysis.social_malformed_config",
+                video=experiment_id,
+                social_type=type(raw_social_config).__name__,
+            )
+            return None
+
+        return raw_social_config
+
+    def _resolve_social_radius_cm(
+        self,
+        *,
+        social_config: dict,
+        experiment_id: str,
+    ) -> tuple[float, tuple[str, ...]]:
+        """Resolve o raio de proximidade, avisando quando cai no default.
+
+        O raio é a definição operacional de "contato social": um valor
+        inconversível não pode virar 5.0 cm em silêncio, senão o relatório fica
+        cientificamente errado e com cara de certo.
+
+        Returns:
+            O raio em cm e as notas de degradação para o relatório.
+        """
+        raw_radius = social_config.get("radius_cm", DEFAULT_SOCIAL_RADIUS_CM)
+        try:
+            return float(raw_radius), ()
+        except (TypeError, ValueError):
+            log.warning(
+                "controller.analysis.social_radius_invalid",
+                video=experiment_id,
+                raw_radius=repr(raw_radius),
+            )
+            note = (
+                f"Social proximity used the default {DEFAULT_SOCIAL_RADIUS_CM} cm radius "
+                f"because the configured value ({raw_radius!r}) could not be read as a number."
+            )
+            return DEFAULT_SOCIAL_RADIUS_CM, (note,)
+
+    def _record_social_outcome_warning(
+        self,
+        *,
+        ctx: ReporterContext,
+        outcome: SocialAnalysisOutcome,
+    ) -> None:
+        """Propaga o motivo do skip social para os avisos do relatório.
+
+        ``disabled`` é escolha deliberada do usuário e não gera aviso; os demais
+        motivos (mais as notas de degradação) entram em
+        ``ctx.validation_warnings``, que o ``WordReporter`` imprime no apêndice
+        de validação e que também alimenta ``report["validacao"]["avisos"]``.
+
+        Nota: hoje apenas o relatório Word imprime esses avisos; o resumo Excel
+        não lê ``validation_warnings``.
+        """
+        messages = outcome.warning_messages
+        if not messages:
+            return
+
+        warnings_list = getattr(ctx, "validation_warnings", None)
+        if not isinstance(warnings_list, list):
+            # Contexto malformado é bug de construção do ReporterContext: reparar
+            # em silêncio esconderia o bug, então registra antes de seguir.
+            log.warning(
+                "controller.analysis.social_warning_list_missing",
+                warnings_type=type(warnings_list).__name__,
+            )
+            warnings_list = []
+            ctx.validation_warnings = warnings_list
+        warnings_list.extend(messages)
+
+        # Mantém report["validacao"]["avisos"] em sincronia com o contexto para
+        # consumidores que leem o dicionário do relatório em vez do ctx. Na
+        # construção real as duas listas são o MESMO objeto (reporter_context.py),
+        # daí o guard de duplicata.
+        report = getattr(ctx, "report", None)
+        if not isinstance(report, dict):
+            return
+
+        validation_section = report.setdefault("validacao", {})
+        if not isinstance(validation_section, dict):
+            log.warning(
+                "controller.analysis.social_report_validation_malformed",
+                section_type=type(validation_section).__name__,
+            )
+            return
+
+        report_warnings = validation_section.setdefault("avisos", [])
+        if not isinstance(report_warnings, list):
+            log.warning(
+                "controller.analysis.social_report_warnings_malformed",
+                warnings_type=type(report_warnings).__name__,
+            )
+            return
+
+        for message in messages:
+            if message not in report_warnings:
+                report_warnings.append(message)
 
     def _register_project_outputs(
         self,
@@ -568,6 +757,18 @@ class AnalysisPipelineRunnerMixin:
             log.info("controller.analysis.cancelled_before_reports", video=experiment_id)
             return False
 
+        # Analyze social proximity BEFORE generating the reports: quando a análise
+        # é pulada, o motivo precisa estar em ctx.validation_warnings a tempo de
+        # entrar no apêndice de validação do relatório.
+        social_outcome = self._analyze_social_proximity(
+            filtered_df=filtered_df,
+            analysis_profile=analysis_profile,
+            pixelcm_x=pixelcm_x,
+            pixelcm_y=pixelcm_y,
+            experiment_id=experiment_id,
+        )
+        self._record_social_outcome_warning(ctx=ctx, outcome=social_outcome)
+
         # Generate reports
         generated_outputs = self._generate_reports_for_video(
             ctx=ctx,
@@ -582,16 +783,8 @@ class AnalysisPipelineRunnerMixin:
 
         summary_parquet_path, summary_excel_path, report_docx_path = generated_outputs
 
-        # Analyze social proximity
-        social_summary = self._analyze_social_proximity(
-            filtered_df=filtered_df,
-            analysis_profile=analysis_profile,
-            pixelcm_x=pixelcm_x,
-            pixelcm_y=pixelcm_y,
-            experiment_id=experiment_id,
-        )
-
         # Publish social summary
+        social_summary = social_outcome.result
         profile_dict = analysis_profile if isinstance(analysis_profile, dict) else {}
         profile_name = profile_dict.get("name", "default")
         self.ui_event_bus.publish(
