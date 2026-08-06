@@ -60,6 +60,64 @@ def test_metrics_computed_from_timestamps(tmp_path):
     assert row["ack_text"] == "Red LED 1 ON"
 
 
+def test_queue_wait_and_inference_split_the_software_pipeline(tmp_path):
+    log = ClosedLoopLatencyLog(tmp_path, "exp")
+    # frame_t0=10.0, dequeue em +12 ms, decisão em +20 ms.
+    log.on_sample(
+        _context(dequeue_perf=10.012),
+        t_send=10.025,
+        t_ack=10.040,
+        ack_text="Red LED 1 ON",
+    )
+
+    row = _read_csv(tmp_path / "5_ClosedLoop_exp.csv")[0]
+    assert float(row["queue_wait_ms"]) == pytest.approx(12.0, abs=1e-6)
+    assert float(row["inference_ms"]) == pytest.approx(8.0, abs=1e-6)
+    # A soma é exatamente o agregado antigo, preservado por compatibilidade.
+    assert float(row["queue_wait_ms"]) + float(row["inference_ms"]) == pytest.approx(
+        float(row["capture_to_decision_ms"]), abs=1e-9
+    )
+
+
+def test_queue_wait_and_inference_blank_without_dequeue_stamp(tmp_path):
+    log = ClosedLoopLatencyLog(tmp_path, "exp")
+    log.on_sample(_context(), t_send=10.025, t_ack=10.040, ack_text="ON")  # sem dequeue_perf
+
+    row = _read_csv(tmp_path / "5_ClosedLoop_exp.csv")[0]
+    assert row["queue_wait_ms"] == ""
+    assert row["inference_ms"] == ""
+    assert float(row["capture_to_decision_ms"]) == pytest.approx(20.0, abs=1e-6)
+
+
+def test_canonical_columns_stay_first_and_new_ones_are_appended():
+    # ``analise_latencia.py`` (externo) depende destes nomes e desta ordem.
+    assert CSV_COLUMNS[1] == "serial_act_ms"
+    assert CSV_COLUMNS[2] == "frame_to_ack_ms"
+    legacy = [
+        "event_id",
+        "serial_act_ms",
+        "frame_to_ack_ms",
+        "capture_to_decision_ms",
+        "decision_to_send_ms",
+        "sampling_interval_ms",
+        "roi",
+        "edge",
+        "token",
+        "ack_text",
+        "frame",
+        "session_ts_s",
+        "trigger_wall_s",
+        "analysis_interval_frames",
+        "fps",
+        "frame_t0_perf",
+        "decision_perf",
+        "t_send_perf",
+        "t_ack_perf",
+    ]
+    assert CSV_COLUMNS[: len(legacy)] == legacy  # append-only
+    assert CSV_COLUMNS[len(legacy) :] == ["queue_wait_ms", "inference_ms", "dequeue_perf"]
+
+
 def test_unmatched_trigger_leaves_serial_metrics_empty(tmp_path):
     log = ClosedLoopLatencyLog(tmp_path, "exp")
     # No ACK ever arrived: t_ack None -> serial/frame_to_ack blank, software ok.
@@ -247,7 +305,9 @@ def test_dispatch_builds_tracked_context_and_writes_log(tmp_path):
     assert h._arduino_zone_enabled is True
 
     # Animal enters A on an analyzed frame with a capture timestamp present.
-    h._dispatch_arduino_zone_commands([_bbox_at(5, 5)], frame_number=100, capture_ts=500.0)
+    h._dispatch_arduino_zone_commands(
+        [_bbox_at(5, 5)], frame_number=100, capture_ts=500.0, dequeue_ts=500.010
+    )
 
     # Tracked path used, context carries ROI/edge/frame_t0.
     assert len(manager.tracked) == 1
@@ -255,6 +315,7 @@ def test_dispatch_builds_tracked_context_and_writes_log(tmp_path):
     assert token == 1
     assert ctx["roi"] == "A" and ctx["edge"] == "enter"
     assert ctx["frame_t0"] == 500.0
+    assert ctx["dequeue_perf"] == 500.010
     assert ctx["analysis_interval_frames"] == 10
 
     # A sink was registered; simulate the ACK and finalize.

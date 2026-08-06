@@ -9,7 +9,7 @@ from __future__ import annotations
 import queue
 import threading
 import time
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, NamedTuple
 
 import cv2
 import numpy as np
@@ -32,6 +32,39 @@ log = structlog.get_logger()
 # attached (mixin used standalone, e.g. in focused tests). Mirrors the default
 # declared on ``ArduinoSettings``.
 DEFAULT_ARDUINO_EXIT_GRACE_FRAMES = 2
+
+
+class VideoFrameMeta(NamedTuple):
+    """Metadados que viajam com o frame até a thread de vídeo.
+
+    Carregam o instante de captura (par perf/wall) e a classificação de cadência
+    feitos na thread de CAPTURA, para que a thread de vídeo — que conhece o
+    índice real do MP4 — escreva a linha completa do ledger.
+    """
+
+    pipeline_frame: int
+    t_capture_perf: float | None
+    t_capture_wall: float | None
+    is_analysis_frame: bool
+    queued_for_analysis: bool
+
+
+def _unpack_video_item(item: Any) -> tuple[Any, VideoFrameMeta | None]:
+    """Separa ``(frame, meta)`` de um item da ``video_queue``.
+
+    Tolera o formato legado (o frame cru, sem metadados) usado por testes e
+    chamadores antigos: nesse caso não há linha de ledger para produzir.
+    """
+    if isinstance(item, tuple) and len(item) == 6:
+        frame_count, perf, wall, is_analysis, queued, frame = item
+        return frame, VideoFrameMeta(
+            pipeline_frame=int(frame_count),
+            t_capture_perf=perf,
+            t_capture_wall=wall,
+            is_analysis_frame=bool(is_analysis),
+            queued_for_analysis=bool(queued),
+        )
+    return item, None
 
 
 class FrameProcessingMixin:
@@ -99,6 +132,8 @@ class FrameProcessingMixin:
     # Closed-loop latency logging state (lazily built once per live session).
     _closed_loop_log: Any
     _closed_loop_event_seq: int
+    # Ledger de frames (pipeline_frame ↔ video_frame_index ↔ tempo de captura).
+    _frame_ledger: Any
 
     # Properties from facade
     camera: Camera | None
@@ -169,6 +204,10 @@ class FrameProcessingMixin:
             # Clear exit event
             self.exit_event.clear()
             self._video_frames_written = 0  # Reset counter
+            # Ledger de frames da sessão: criado ANTES das threads (as duas
+            # produzem linhas) e ligado à pasta de saída assim que o recorder
+            # abre a gravação.
+            self._reset_frame_ledger()
 
             # Start capture thread
             self.capture_thread = threading.Thread(
@@ -203,6 +242,114 @@ class FrameProcessingMixin:
         except Exception as e:
             log.error("live_camera_service.thread_start_failed", error=str(e), exc_info=True)
             return False
+
+    # ------------------------------------------------------------------
+    # Ledger de frames (pipeline_frame ↔ video_frame_index ↔ tempo)
+    # ------------------------------------------------------------------
+    def _reset_frame_ledger(self) -> None:
+        """(Re)cria o ledger de frames para uma nova sessão.
+
+        Criado ANTES da pasta de saída existir (a gravação pode só começar após
+        a fase de detecção de aquário): as linhas ficam em memória até
+        ``_maybe_bind_frame_ledger`` encontrar o ``output_folder`` do recorder.
+        """
+        from zebtrack.core.recording.frame_ledger import FrameLedger
+
+        previous = getattr(self, "_frame_ledger", None)
+        if previous is not None:
+            # Sessão anterior encerrada de forma anômala — libera a thread de
+            # flush antes de trocar a instância.
+            try:
+                previous.finalize()
+            # except Exception justified: limpeza best-effort de artefato opcional.
+            except Exception:  # pragma: no cover - defensivo
+                log.warning("frame_ledger.previous_finalize_failed")
+        self._frame_ledger = FrameLedger()
+
+    def _maybe_bind_frame_ledger(self) -> None:
+        """Liga o ledger à pasta do recorder assim que ela existir (idempotente)."""
+        ledger = getattr(self, "_frame_ledger", None)
+        if ledger is None or ledger.is_bound:
+            return
+        recorder = getattr(self, "recorder", None)
+        output_folder = getattr(recorder, "output_folder", None)
+        if not output_folder:
+            return
+        base_name = (
+            getattr(recorder, "base_name", "")
+            or getattr(self, "_current_base_name", "")
+            or getattr(self, "_experiment_id", "")
+            or "session"
+        )
+        ledger.bind(output_folder, base_name)
+        ledger.set_anchor(
+            recorder_start_time=getattr(recorder, "start_time", None),
+            fps_nominal=getattr(recorder, "_fps", None) or getattr(self, "_actual_fps", None),
+            analysis_interval_frames=getattr(self, "analysis_interval_frames", None),
+        )
+
+    def _ledger_record(
+        self,
+        pipeline_frame: int,
+        t_capture_perf: float | None,
+        t_capture_wall: float | None,
+        outcome: str,
+        *,
+        video_frame_index: int = -1,
+        is_analysis_frame: bool = False,
+        queued_for_analysis: bool = False,
+    ) -> None:
+        """Registra uma linha no ledger (no-op se não houver ledger ativo)."""
+        ledger = getattr(self, "_frame_ledger", None)
+        if ledger is None:
+            return
+        ledger.record(
+            pipeline_frame,
+            t_capture_perf,
+            t_capture_wall,
+            outcome,
+            video_frame_index=video_frame_index,
+            is_analysis_frame=is_analysis_frame,
+            queued_for_analysis=queued_for_analysis,
+        )
+
+    def _ledger_record_meta(
+        self,
+        meta: VideoFrameMeta | None,
+        outcome: str,
+        *,
+        video_frame_index: int = -1,
+    ) -> None:
+        """Registra a linha da thread de vídeo a partir dos metadados do frame."""
+        if meta is None:
+            return  # item legado sem metadados — nada a correlacionar
+        self._ledger_record(
+            meta.pipeline_frame,
+            meta.t_capture_perf,
+            meta.t_capture_wall,
+            outcome,
+            video_frame_index=video_frame_index,
+            is_analysis_frame=meta.is_analysis_frame,
+            queued_for_analysis=meta.queued_for_analysis,
+        )
+
+    def _finalize_frame_ledger(self) -> None:
+        """Escreve ``6_FrameLedger_<base>.parquet`` + âncora e encerra o ledger.
+
+        Chamado no fim da sessão, DEPOIS do join das threads produtoras.
+        """
+        ledger = getattr(self, "_frame_ledger", None)
+        if ledger is None:
+            return
+        self._maybe_bind_frame_ledger()
+        try:
+            ledger.finalize()
+            log.info("live_camera_service.frame_ledger.finalized", rows=ledger.row_count)
+        # except Exception justified: o encerramento da sessão nunca pode falhar
+        # por causa de um artefato de análise opcional.
+        except Exception:
+            log.error("live_camera_service.frame_ledger.finalize_error", exc_info=True)
+        self._frame_ledger = None
 
     def _capture_loop(self) -> None:
         """Thread loop for capturing frames from camera."""
@@ -249,12 +396,61 @@ class FrameProcessingMixin:
                 # Create single copy of frame to share between queues
                 frame_copy = frame.copy()
 
+                # ANALYSIS FRAMES.
+                # Avaliado ANTES do enfileiramento de vídeo (era o inverso) para
+                # que a linha do ledger produzida pela thread de vídeo já carregue
+                # ``is_analysis_frame``/``queued_for_analysis``. O conjunto de
+                # operações bloqueantes por frame é o mesmo de antes — só a ordem
+                # muda — e a fila de vídeo (600 slots ≈ 20 s) absorve a inversão.
+                is_analysis_frame = (frame_count % self.analysis_interval_frames) == 0
+                queued_for_analysis = False
+
+                if is_analysis_frame:
+                    try:
+                        self.frame_queue.put((frame_count, frame_copy, capture_perf), timeout=0.5)
+                        queued_for_analysis = True
+                    except queue.Full:
+                        self._dropped_frames_processing += 1
+                        log.warning(
+                            "live_camera_service.analysis_frame_dropped",
+                            frame_count=frame_count,
+                            queue_backlog=self.frame_queue.qsize(),
+                        )
+                elif not self.frame_queue.full():
+                    # Enfileiramento OPORTUNISTA: o parquet contém mais do que os
+                    # múltiplos de ``analysis_interval_frames``. Mantido (não
+                    # perde dado), mas a linha do ledger marca a diferença para
+                    # que a análise possa recuperar a cadência determinística.
+                    self.frame_queue.put_nowait((frame_count, frame_copy, capture_perf))
+                    queued_for_analysis = True
+
                 # PRIORITY 1: VIDEO RECORDING - NEVER DROP
                 if self.is_capturing_for_video:
                     try:
-                        self.video_queue.put(frame_copy, timeout=0.5)
+                        self.video_queue.put(
+                            (
+                                frame_count,
+                                capture_perf,
+                                current_time,
+                                is_analysis_frame,
+                                queued_for_analysis,
+                                frame_copy,
+                            ),
+                            timeout=0.5,
+                        )
                     except queue.Full:
                         self._dropped_frames_video += 1
+                        # A thread de CAPTURA é a única que sabe deste descarte —
+                        # o frame nunca chega à thread de vídeo. Sem esta linha o
+                        # índice do MP4 desliza sem rastro no disco.
+                        self._ledger_record(
+                            frame_count,
+                            capture_perf,
+                            current_time,
+                            "dropped_queue_full",
+                            is_analysis_frame=is_analysis_frame,
+                            queued_for_analysis=queued_for_analysis,
+                        )
                         log.error(
                             "live_camera_service.video_frame_dropped_critical",
                             frame_count=frame_count,
@@ -267,22 +463,21 @@ class FrameProcessingMixin:
                         # bursty queue.Full does not spam the status bar.
                         if self._dropped_frames_video % 10 == 1:
                             self._publish_video_drop_status()
+                else:
+                    # Fora da janela de gravação: o frame existe na linha do
+                    # tempo, mas não corresponde a nenhum frame do MP4.
+                    self._ledger_record(
+                        frame_count,
+                        capture_perf,
+                        current_time,
+                        "not_recording",
+                        is_analysis_frame=is_analysis_frame,
+                        queued_for_analysis=queued_for_analysis,
+                    )
 
-                # PRIORITY 2: ANALYSIS FRAMES
-                is_analysis_frame = (frame_count % self.analysis_interval_frames) == 0
-
-                if is_analysis_frame:
-                    try:
-                        self.frame_queue.put((frame_count, frame_copy, capture_perf), timeout=0.5)
-                    except queue.Full:
-                        self._dropped_frames_processing += 1
-                        log.warning(
-                            "live_camera_service.analysis_frame_dropped",
-                            frame_count=frame_count,
-                            queue_backlog=self.frame_queue.qsize(),
-                        )
-                elif not self.frame_queue.full():
-                    self.frame_queue.put_nowait((frame_count, frame_copy, capture_perf))
+                # Liga o ledger à pasta de saída assim que o recorder abre a
+                # sessão (a gravação pode começar depois da detecção de aquário).
+                self._maybe_bind_frame_ledger()
 
                 # Control capture rate
                 default_fps = 30.0
@@ -321,12 +516,19 @@ class FrameProcessingMixin:
                 continue
 
             try:
-                frame = self.video_queue.get(timeout=0.5)
+                item = self.video_queue.get(timeout=0.5)
+                frame, meta = _unpack_video_item(item)
 
                 if self.recorder and self.recorder.is_recording and self.recorder.video_writer:
                     try:
                         self.recorder.write_video_frame(frame)
+                        # ``video_frame_index`` vem do CONSUMIDOR: é o índice
+                        # real dentro do MP4, não a inferência
+                        # ``frame_count - drops`` — que é justamente onde o
+                        # deslocamento nasce.
+                        video_index = self._video_frames_written
                         self._video_frames_written += 1
+                        self._ledger_record_meta(meta, "written", video_frame_index=video_index)
 
                         if self._video_frames_written % 100 == 0:
                             log.debug(
@@ -335,11 +537,17 @@ class FrameProcessingMixin:
                                 queue_size=self.video_queue.qsize(),
                             )
                     except OSError as e:
+                        # O frame saiu da fila mas NÃO foi escrito e
+                        # ``_video_frames_written`` não avança: sem esta linha o
+                        # índice do MP4 desliza sem explicação no disco.
+                        self._ledger_record_meta(meta, "write_failed")
                         log.warning(
                             "live_camera_service.video_write_error",
                             error=str(e),
                             frames_written=self._video_frames_written,
                         )
+                else:
+                    self._ledger_record_meta(meta, "not_recording")
 
             except queue.Empty:
                 continue
@@ -374,6 +582,12 @@ class FrameProcessingMixin:
                 item = self.frame_queue.get(timeout=1)
             except queue.Empty:
                 continue
+
+            # Instante em que o frame SAIU da fila. Separa a espera de fila
+            # (frame_t0 → dequeue) da inferência (dequeue → decisão) no log
+            # closed-loop; sem isso ``capture_to_decision_ms`` é um agregado
+            # que mistura as duas e não diz o que domina a latência.
+            dequeue_perf = time.perf_counter()
 
             # Frames carry a monotonic capture timestamp (FRAME_T0) as a third
             # element. Tolerate legacy 2-tuples (older tests / callers) with a
@@ -688,6 +902,16 @@ class FrameProcessingMixin:
                     # Record detections
                     if self.recorder and self.recorder.start_time:
                         if detections:
+                            # ATENÇÃO: este ``timestamp`` é o relógio de
+                            # PROCESSAMENTO — medido nesta thread, DEPOIS da
+                            # espera de fila e da inferência. NÃO use para
+                            # latência nem para datar o evento. O instante real
+                            # de captura está no ledger
+                            # (``6_FrameLedger_<base>``), coluna
+                            # ``t_capture_perf``/``t_capture_wall``, ligado por
+                            # ``pipeline_frame == frame``. O schema de
+                            # ``3_CoordMovimento`` é imutável por contrato, por
+                            # isso a correção é feita no consumo.
                             timestamp = time.time() - self.recorder.start_time
                             self.recorder.write_detection_data(timestamp, frame_number, detections)
                             log.info(
@@ -713,7 +937,9 @@ class FrameProcessingMixin:
                     # while recording. Fire-and-forget (queued), so it never
                     # stalls this loop. No-op unless Arduino + bindings are set.
                     if self.recorder and self.recorder.start_time:
-                        self._dispatch_arduino_zone_commands(detections, frame_number, capture_ts)
+                        self._dispatch_arduino_zone_commands(
+                            detections, frame_number, capture_ts, dequeue_perf
+                        )
                 else:
                     detections = self.get_last_detections()
 
@@ -944,11 +1170,16 @@ class FrameProcessingMixin:
         detections: list,
         frame_number: int | None = None,
         capture_ts: float | None = None,
+        dequeue_ts: float | None = None,
     ) -> None:
         """Emit edge-triggered enter/exit tokens for the current frame.
 
         Computes which ROIs are occupied (any-track), diffs against the previous
         frame via the mapper, and queues the resulting tokens fire-and-forget.
+
+        ``dequeue_ts`` is the ``perf_counter`` stamped when this frame left
+        ``frame_queue``; it splits the software pipeline into queue wait and
+        inference in the closed-loop log.
 
         When ``capture_ts`` (the frame's monotonic FRAME_T0) is available and the
         ArduinoManager supports the tracked path, each token is sent with a
@@ -1028,6 +1259,7 @@ class FrameProcessingMixin:
                     "edge": event.edge,
                     "token": event.token,
                     "frame_t0": capture_ts,
+                    "dequeue_perf": dequeue_ts,
                     "decision_perf": decision_perf,
                     "session_ts_s": session_ts,
                     "trigger_wall_s": wall_s,
