@@ -20,7 +20,13 @@ from zebtrack.core.services.roi_rule_resolver import (
     DEFAULT_BBOX_OVERLAP_BASIS,
     DEFAULT_BUFFER_RADIUS_VALUE,
     DEFAULT_MIN_BBOX_OVERLAP_RATIO,
+    DEFAULT_ROI_FLUTTER_ENTER_FRAMES,
+    DEFAULT_ROI_FLUTTER_EXIT_FRAMES,
     DEFAULT_ROI_INCLUSION_RULE,
+    DEFAULT_ROI_MAX_GAP_S,
+    DEFAULT_ROI_MIN_GAP_S,
+    DEFAULT_ROI_MIN_VISIT_S,
+    MAX_GAP_AUTO_FACTOR,
     VALID_ROI_INCLUSION_RULES,
     RoiRuleConfig,
 )
@@ -31,6 +37,18 @@ from zebtrack.core.services.roi_rule_resolver import (
 # tangência a área é positiva por ruído de ponto flutuante, enquanto o
 # predicado topológico decide pela relação, não pela magnitude.
 _INTERIORS_INTERSECT: str = "T********"
+
+
+def _first_not_none(*candidates: Any) -> Any:
+    """Primeiro candidato não-``None``.
+
+    Existe para não escrever ``a or b``: os valores em jogo aqui incluem ``0``
+    e ``0.0`` legítimos ("desligado"), e ``0 or 3`` é ``3``.
+    """
+    for candidate in candidates:
+        if candidate is not None:
+            return candidate
+    return None
 
 
 class ROI:
@@ -63,11 +81,16 @@ class ROIAnalyzer:
         self,
         behavior_analyzer: BehavioralAnalyzer,
         rois: list[ROI],
-        flutter_n_frames: int = 3,
+        flutter_n_frames: int | None = None,
         inclusion_rule: str = "bbox_intersects",
         buffer_radius_value: float | None = None,
         min_bbox_overlap_ratio: float | None = None,
         bbox_overlap_basis: str | None = None,
+        flutter_enter_frames: int | None = None,
+        flutter_exit_frames: int | None = None,
+        min_visit_s: float | None = None,
+        min_gap_s: float | None = None,
+        max_gap_s: float | None = None,
     ):
         """Initialize the ROIAnalyzer.
 
@@ -75,8 +98,9 @@ class ROIAnalyzer:
             behavior_analyzer (BehavioralAnalyzer): An instance of
                 BehavioralAnalyzer containing the full trajectory data.
             rois (List[ROI]): A list of ROI objects to be analyzed.
-            flutter_n_frames (int): The number of consecutive frames an animal
-                must be inside/outside an ROI to confirm an entry/exit event.
+            flutter_n_frames (int | None): **Legacy**. Symmetric debounce
+                window; maps to both ``flutter_enter_frames`` and
+                ``flutter_exit_frames`` when neither is given explicitly.
             inclusion_rule (str): Rule for determining ROI inclusion.
                 Options: "centroid_in", "centroid_in_on_buffered_roi",
                 "bbox_intersects", "seg_overlap"
@@ -88,12 +112,29 @@ class ROIAnalyzer:
                 (tangency excluded). None falls back to the canonical default.
             bbox_overlap_basis (str | None): Denominator of that fraction —
                 "bbox", "roi" or "max". None falls back to "bbox".
+            flutter_enter_frames (int | None): Consecutive frames inside
+                required to confirm an entry. The transition is backdated to
+                the first frame of the run.
+            flutter_exit_frames (int | None): Consecutive frames outside
+                required to confirm an exit (also backdated).
+            min_visit_s (float | None): Visits shorter than this (in seconds)
+                are discarded. 0.0 disables it.
+            min_gap_s (float | None): Gaps shorter than this (in seconds) merge
+                the two adjacent visits. 0.0 disables it.
+            max_gap_s (float | None): Cap on the time credited to an ROI for a
+                single trajectory step. ``None`` = automatic
+                (``MAX_GAP_AUTO_FACTOR`` × median observed interval);
+                ``math.inf`` = no cap.
+
+        Note:
+            Passing ``flutter_enter_frames=1``, ``flutter_exit_frames=1``,
+            ``min_visit_s=0.0``, ``min_gap_s=0.0`` and ``max_gap_s=math.inf``
+            reproduces the historical (unfiltered, uncapped) output exactly.
 
         """
         self._b_analyzer = behavior_analyzer
         self._rois = {roi.name: roi for roi in rois}
         self._trajectory = self._b_analyzer.trajectory_data.copy()
-        self._flutter_n = flutter_n_frames
         self._inclusion_rule = inclusion_rule
         # Os parâmetros passam pela MESMA normalização do RoiRuleConfig: as
         # faixas dependem da regra e um valor fora delas (um limiar negativo,
@@ -120,11 +161,32 @@ class ROIAnalyzer:
             bbox_overlap_basis=(
                 DEFAULT_BBOX_OVERLAP_BASIS if bbox_overlap_basis is None else bbox_overlap_basis
             ),
+            # ``flutter_n_frames`` é a entrada LEGADA e mapeia para os dois
+            # lados; um parâmetro explícito sempre vence. Cada `is None` cai no
+            # default canônico SEM log — ausência não é valor inválido.
+            flutter_enter_frames=_first_not_none(
+                flutter_enter_frames, flutter_n_frames, DEFAULT_ROI_FLUTTER_ENTER_FRAMES
+            ),
+            flutter_exit_frames=_first_not_none(
+                flutter_exit_frames, flutter_n_frames, DEFAULT_ROI_FLUTTER_EXIT_FRAMES
+            ),
+            min_visit_s=DEFAULT_ROI_MIN_VISIT_S if min_visit_s is None else min_visit_s,
+            min_gap_s=DEFAULT_ROI_MIN_GAP_S if min_gap_s is None else min_gap_s,
+            max_gap_s=DEFAULT_ROI_MAX_GAP_S if max_gap_s is None else max_gap_s,
         )
         self._buffer_radius_value = rule_config.buffer_radius_value
         self._min_bbox_overlap_ratio = rule_config.min_bbox_overlap_ratio
         self._bbox_overlap_basis = rule_config.bbox_overlap_basis
         self._overlap_any = rule_config.overlap_any
+        self._flutter_enter = rule_config.flutter_enter_frames
+        self._flutter_exit = rule_config.flutter_exit_frames
+        self._min_visit_s = rule_config.min_visit_s
+        self._min_gap_s = rule_config.min_gap_s
+        self._max_gap_s = rule_config.max_gap_s
+        # Relógio em segundos com o ``dt`` JÁ limitado, e o tempo que o teto
+        # descartou. Ambos preenchidos por ``_prepare_time_base``.
+        self._clock_s: np.ndarray = np.zeros(0, dtype=float)
+        self._unobserved_time_s: float = 0.0
         self._buffered_rois_cache: dict[str, Any] = {}  # Cache for buffered ROI geometries
         self._roi_geometries_px = self._normalize_roi_geometries()
         self._validate_rois()
@@ -191,12 +253,93 @@ class ROIAnalyzer:
 
         raise ValueError("Cannot find suitable pixel coordinate columns in trajectory data")
 
-    def _apply_flutter_filter(self, raw_presence: pd.Series) -> pd.Series:
-        """Apply a flutter filter to a boolean series of presence data.
+    @property
+    def unobserved_time_s(self) -> float:
+        """Tempo descartado pelo teto de ``dt``, em segundos.
 
-        An entry is confirmed after N consecutive `True` frames.
-        An exit is confirmed after N consecutive `False` frames.
-        The state during the transition period is maintained until confirmation.
+        É o tempo de sessão que NÃO foi medido: lacunas de rastreamento em que
+        o animal esteve em lugar nenhum conhecido. Sem o teto esse tempo era
+        creditado por inteiro à ROI onde o animal reapareceu — uma perda de 5 s
+        virava 5 s "dentro" dessa ROI.
+        """
+        return self._unobserved_time_s
+
+    def _prepare_time_base(self) -> None:
+        """Preenche a coluna ``dt``, aplica o teto e monta o relógio observado.
+
+        O teto (:attr:`_max_gap_s`) resolve o defeito de atribuição de tempo: o
+        DataFrame só tem linhas onde HOUVE detecção, então o ``dt`` da primeira
+        linha depois de uma lacuna vale a lacuna inteira. O excedente não é
+        creditado a ROI nenhuma — vai para :attr:`unobserved_time_s`.
+
+        A coluna ``dt`` só é reescrita nas linhas que o teto realmente corta.
+        Reescrevê-la inteira converteria ``Timedelta`` → segundos → ``Timedelta``
+        e introduziria arredondamento onde nada precisava mudar (o modo neutro
+        precisa ser idêntico BIT A BIT ao histórico).
+        """
+        self._trajectory["dt"] = self._trajectory.index.to_series().diff()
+
+        dt_column = self._trajectory["dt"]
+        is_timedelta = getattr(dt_column.dtype, "kind", "") == "m"
+        dt_seconds = (
+            dt_column.dt.total_seconds().to_numpy(dtype=float)
+            if is_timedelta
+            else pd.to_numeric(dt_column, errors="coerce").to_numpy(dtype=float)
+        )
+        # O primeiro frame não tem ``dt`` (NaN): não representa tempo algum.
+        dt_seconds = np.nan_to_num(dt_seconds, nan=0.0, posinf=0.0, neginf=0.0)
+
+        cap = self._resolve_max_gap(dt_seconds)
+        self._unobserved_time_s = 0.0
+        capped = dt_seconds
+        if np.isfinite(cap):
+            exceeds = dt_seconds > cap
+            if exceeds.any():
+                capped = np.minimum(dt_seconds, cap)
+                self._unobserved_time_s = float(np.sum(dt_seconds[exceeds] - cap))
+                cap_value = pd.Timedelta(seconds=cap) if is_timedelta else cap
+                # Posicional, não por rótulo: o índice da trajetória pode ter
+                # timestamps repetidos, e um ``.loc`` neles reescreveria linhas
+                # que o teto não cortou.
+                self._trajectory.iloc[
+                    np.flatnonzero(exceeds), self._trajectory.columns.get_loc("dt")
+                ] = cap_value
+
+        # Relógio monotônico do tempo OBSERVADO: é a base das durações de
+        # visita e de lacuna, para que um filtro de duração nunca "veja" o
+        # tempo que o teto acabou de descartar.
+        self._clock_s = np.cumsum(capped)
+
+    def _resolve_max_gap(self, dt_seconds: np.ndarray) -> float:
+        """Teto efetivo de ``dt``, em segundos (``inf`` = sem teto)."""
+        if self._max_gap_s is not None:
+            return float(self._max_gap_s)
+
+        positive = dt_seconds[dt_seconds > 0.0]
+        if positive.size == 0:
+            # Série de um frame só (ou timestamps repetidos): não há intervalo
+            # nominal do qual derivar um teto.
+            return float(np.inf)
+        return float(MAX_GAP_AUTO_FACTOR * np.median(positive))
+
+    def _apply_flutter_filter(self, raw_presence: pd.Series) -> pd.Series:
+        """Debounce de presença COM RETRODATAÇÃO.
+
+        Uma entrada é confirmada por ``flutter_enter_frames`` frames dentro
+        consecutivos, e uma saída por ``flutter_exit_frames`` frames fora — mas
+        a transição confirmada é REGISTRADA no PRIMEIRO frame da sequência, não
+        no frame em que a confirmação se completou.
+
+        A retrodatação é o que torna o filtro utilizável. A implementação
+        anterior usava ``rolling(N).min()/max()``, que é uma janela
+        retardatária: a transição aparecia N-1 frames depois de acontecer e
+        enviesava ``latencia_primeira_entrada`` e ``tempo_gasto_por_roi``
+        proporcionalmente a N. Foi por isso que a produção passou a fixar N=1 —
+        o viés só sumia desligando o filtro.
+
+        A borda inicial é explícita: o estado começa FORA e só muda com uma
+        sequência completa. O ``min_periods=1`` de antes deixava o primeiro
+        frame definir o estado sozinho, sem confirmação nenhuma.
 
         Args:
             raw_presence (pd.Series): The raw boolean series of presence.
@@ -205,32 +348,100 @@ class ROIAnalyzer:
             pd.Series: The stabilized boolean series.
 
         """
-        if self._flutter_n <= 1:
+        if self._flutter_enter <= 1 and self._flutter_exit <= 1:
+            # Sem janela de confirmação, a série estável É a série crua.
             return raw_presence
 
-        # True if the last N frames were all True (confirms entry)
-        stable_true = raw_presence.rolling(self._flutter_n, min_periods=1).min() == 1
-        # True if the last N frames were all False (confirms exit)
-        stable_false = raw_presence.rolling(self._flutter_n, min_periods=1).max() == 0
+        values = raw_presence.to_numpy(dtype=bool)
+        if values.size == 0:
+            return raw_presence
 
-        stable_presence = pd.Series(pd.NA, index=raw_presence.index, dtype="boolean")
-        stable_presence.loc[stable_true] = True
-        stable_presence.loc[stable_false] = False
+        # Fronteiras das sequências de valor constante.
+        starts = np.concatenate(([0], np.flatnonzero(np.diff(values)) + 1))
+        ends = np.concatenate((starts[1:], [values.size]))
 
-        stable_presence = stable_presence.ffill()
-        stable_presence = stable_presence.fillna(False)
-        stable_presence = stable_presence.astype(bool)
+        stable = np.zeros(values.size, dtype=bool)
+        state = False
+        last_change = 0
+        for start, end in zip(starts, ends, strict=True):
+            value = bool(values[start])
+            if value == state:
+                continue
+            if (end - start) < (self._flutter_enter if value else self._flutter_exit):
+                continue
+            # Retrodatação: tudo até ``start`` mantém o estado anterior, e o
+            # novo estado vale a partir do PRIMEIRO frame da sequência.
+            stable[last_change:start] = state
+            state = value
+            last_change = start
+        stable[last_change:] = state
 
-        return stable_presence
+        return pd.Series(stable, index=raw_presence.index)
+
+    def _apply_duration_filter(self, stable_presence: pd.Series) -> pd.Series:
+        """Descarta visitas curtas demais e funde lacunas curtas demais.
+
+        Roda DEPOIS do debounce, nunca antes: aplicar o limiar de duração sobre
+        a presença crua mediria a duração de eventos que o debounce ainda vai
+        remover ou retrodatar, e o resultado seria diferente (e errado).
+
+        As durações saem do relógio de tempo OBSERVADO
+        (:meth:`_prepare_time_base`), então uma lacuna de rastreamento não
+        infla artificialmente a duração da visita que a contém.
+
+        A duração de um intervalo ``[início, fim)`` é medida do instante do
+        primeiro frame ao instante do primeiro frame do estado oposto. Numa
+        sequência final (que vai até o fim da série) o instante de saída não
+        existe e a medida vai até o último frame observado — uma visita final
+        de um frame só tem, portanto, duração zero.
+        """
+        if self._min_visit_s <= 0.0 and self._min_gap_s <= 0.0:
+            return stable_presence
+
+        values = stable_presence.to_numpy(dtype=bool)
+        n = values.size
+        if n == 0 or self._clock_s.size != n:
+            return stable_presence
+
+        # Bordas das visitas: +1 entra, -1 sai. O ``pad`` com False nas duas
+        # pontas faz uma visita que começa no frame 0 (ou termina no último)
+        # aparecer como qualquer outra, sem caso especial.
+        padded = np.concatenate(([False], values, [False])).astype(np.int8)
+        edges = np.flatnonzero(np.diff(padded))
+        starts = edges[0::2]
+        ends = edges[1::2]  # exclusivo
+
+        visits: list[list[int]] = []
+        for start, end in zip(starts, ends, strict=True):
+            if (
+                visits
+                and self._min_gap_s > 0.0
+                and (self._clock_s[start] - self._clock_s[visits[-1][1]]) < self._min_gap_s
+            ):
+                # Lacuna curta demais: as duas visitas são a mesma.
+                visits[-1][1] = int(end)
+                continue
+            visits.append([int(start), int(end)])
+
+        filtered = np.zeros(n, dtype=bool)
+        for start, end in visits:
+            duration = self._clock_s[min(end, n - 1)] - self._clock_s[start]
+            if self._min_visit_s > 0.0 and duration < self._min_visit_s:
+                continue
+            filtered[start:end] = True
+
+        return pd.Series(filtered, index=stable_presence.index)
 
     def _calculate_presence_in_rois(self):
         """Calculate raw and stable presence for each ROI.
 
-        Based on the configured inclusion rule. Also creates a single column with
-        the current stable ROI name.
+        Ordem das operações — mudá-la muda os números:
+        presença crua → debounce/retrodatação → filtro de duração
+        (visita/lacuna) → série estável → métricas.
+
+        Also creates a single column with the current stable ROI name.
         """
-        # Calculate time delta between frames for later use
-        self._trajectory["dt"] = self._trajectory.index.to_series().diff()
+        self._prepare_time_base()
 
         # Determine coordinate space and extract coordinates
         x_coords, y_coords = self._get_centers_px()
@@ -240,7 +451,8 @@ class ROIAnalyzer:
                 roi_geometry, name, x_coords, y_coords
             )
 
-            self._trajectory[f"in_{name}_stable"] = self._apply_flutter_filter(raw_presence)
+            debounced = self._apply_flutter_filter(raw_presence)
+            self._trajectory[f"in_{name}_stable"] = self._apply_duration_filter(debounced)
 
         # Create a single column with the name of the ROI the animal is in
         self._trajectory["stable_roi"] = "Outside"
@@ -731,8 +943,19 @@ class ROIAnalyzer:
         center_roi = ROI(name="Center", geometry=center_poly, coordinate_space="cm")
         periphery_roi = ROI(name="Periphery", geometry=periphery_poly, coordinate_space="cm")
 
-        # Create a temporary analyzer instance to run the analysis
-        temp_analyzer = ROIAnalyzer(self._b_analyzer, [center_roi, periphery_roi], self._flutter_n)
+        # Create a temporary analyzer instance to run the analysis.
+        # Tudo por PALAVRA-CHAVE: a versão anterior passava o debounce como
+        # terceiro posicional, e qualquer parâmetro novo inserido antes dele
+        # teria trocado o argumento em silêncio.
+        temp_analyzer = ROIAnalyzer(
+            behavior_analyzer=self._b_analyzer,
+            rois=[center_roi, periphery_roi],
+            flutter_enter_frames=self._flutter_enter,
+            flutter_exit_frames=self._flutter_exit,
+            min_visit_s=self._min_visit_s,
+            min_gap_s=self._min_gap_s,
+            max_gap_s=self._max_gap_s,
+        )
 
         # Gather all results
         results = {

@@ -168,9 +168,16 @@ def test_get_event_log(roi_crossing_trajectory):
     entry_time = event_log.iloc[0]["timestamp"].total_seconds()
     exit_time = event_log.iloc[1]["timestamp"].total_seconds()
 
-    # With flutter filter of 3, entry is confirmed at t=2.7s, exit at t=7.7s
-    assert entry_time == pytest.approx(2.7, abs=0.1)
-    assert exit_time == pytest.approx(7.7, abs=0.1)
+    # O debounce de 3 frames confirma a transição 2 frames depois, mas a
+    # RETRODATA para o primeiro frame da sequência: os eventos ficam no
+    # instante em que o animal de fato cruzou a borda, não no instante em que o
+    # filtro terminou de se convencer (t=2.8s e t=7.7s, o que este teste
+    # cobrava antes). Era esse atraso — proporcional a N — que enviesava
+    # latência e tempo em ROI e obrigava a produção a rodar com o filtro
+    # desligado. Tolerância apertada de propósito: a retrodatação é exata, e um
+    # `abs` frouxo deixaria o viés de um frame passar despercebido.
+    assert entry_time == pytest.approx(2.6, abs=0.01)
+    assert exit_time == pytest.approx(7.5, abs=0.01)
 
 
 def test_project_manager_metadata_fallback():

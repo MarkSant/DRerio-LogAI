@@ -313,14 +313,22 @@ class AnalysisService:
             return report, b_analyzer, None, validation_warnings, validation_stats
 
         roi_rule = self.resolve_roi_rule()
+        # O debounce vem da config resolvida, não mais fixado em 1. O valor
+        # fixo existia porque o filtro antigo atrasava as transições
+        # proporcionalmente a N; agora ele retrodata, então filtrar o ruído não
+        # custa mais viés nas métricas temporais.
         r_analyzer = ROIAnalyzer(
             behavior_analyzer=b_analyzer,
             rois=rois,
-            flutter_n_frames=1,  # Reduced to detect brief entries/exits
             inclusion_rule=roi_rule.rule,
             buffer_radius_value=roi_rule.buffer_radius_value,
             min_bbox_overlap_ratio=roi_rule.min_bbox_overlap_ratio,
             bbox_overlap_basis=roi_rule.bbox_overlap_basis,
+            flutter_enter_frames=roi_rule.flutter_enter_frames,
+            flutter_exit_frames=roi_rule.flutter_exit_frames,
+            min_visit_s=roi_rule.min_visit_s,
+            min_gap_s=roi_rule.min_gap_s,
+            max_gap_s=roi_rule.max_gap_s,
         )
         report["analise_roi"] = {
             "tempo_gasto_por_roi": r_analyzer.get_time_spent_in_rois(),
@@ -334,6 +342,10 @@ class AnalysisService:
                 min_duration=freezing_min_duration,
             ),
             "transicoes_entre_rois": r_analyzer.get_roi_transitions().to_dict("index"),
+            # Tempo de sessão que NÃO foi medido (lacunas de rastreamento acima
+            # do teto de dt). Fica no relatório para o pesquisador saber quanto
+            # da sessão os números por ROI simplesmente não cobrem.
+            "tempo_nao_observado_s": r_analyzer.unobserved_time_s,
         }
         report["log_eventos"] = r_analyzer.get_event_log().to_dict("records")
 

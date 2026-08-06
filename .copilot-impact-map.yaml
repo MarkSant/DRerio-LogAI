@@ -429,7 +429,7 @@ domains:
     contract:
       resolver: "resolve_roi_rule(project_data, settings_obj) -> RoiRuleConfig (frozen, pure)"
       precedence: "project_data['roi_settings'] > settings_obj > default"
-      keys: "roi_inclusion_rule, roi_buffer_radius_value, roi_min_bbox_overlap_ratio, roi_bbox_overlap_basis (no other keys)"
+      keys: "GEOMETRY: roi_inclusion_rule, roi_buffer_radius_value, roi_min_bbox_overlap_ratio, roi_bbox_overlap_basis. TIMING: roi_flutter_enter_frames, roi_flutter_exit_frames, roi_min_visit_s, roi_min_gap_s, roi_max_gap_s (no other keys)"
       invalid_values: "never raises; falls back one level and logs roi_rule.resolve.invalid_value"
       apply: "apply_roi_rule_to_settings orders rule+2 numeric assignments so Settings' cross-field validator never sees an invalid intermediate state — do NOT hand-assign. roi_bbox_overlap_basis has no cross-field invariant and is written first"
       single_default: "Settings' Pydantic field is the ONE place a ROI default lives. config.yaml must NOT re-declare roi_min_bbox_overlap_ratio / roi_bbox_overlap_basis (it used to say 0.05 vs the model's 0.10), and UI StringVars are seeded from the resolved rule, never from literals"
@@ -453,6 +453,14 @@ domains:
       or_default_trap: "ROIAnalyzer uses `if x is None`, never `x or default`: 0.0 is a meaningful threshold and `or` would silently swap it for 0.10"
       negative_threshold: "A NEGATIVE ratio is invalid and dangerous in both directions: treated as the 0 special case it masks bad input; passed through to `ratio >= threshold` it matches boxes that do not even touch the ROI. RoiRuleConfig.__post_init__ sanitizes EVERY construction path (not just resolve_roi_rule) and logs roi_rule.config.sanitized; ROIAnalyzer routes its raw float params through the same config"
       overlap_any_scope: "`overlap_any` is `rule == bbox_intersects AND ratio == 0.0` — not `ratio <= 0`. A loose `<= 0` would route invalid negatives into the topological path; a bare `== 0.0` would answer True for seg_overlap, where 0 is invalid"
+      filter_order: "raw presence -> debounce (BACKDATED) -> duration filters (min_visit, then via merge min_gap) -> stable series -> metrics. NOT commutative: filtering by duration before the debounce measures events the debounce is about to move or delete"
+      backdating: "The confirmed transition is recorded at the FIRST frame of the run, not where confirmation completed. The old rolling(N, min_periods=1) window recorded it N-1 frames late and biased latencia_primeira_entrada / tempo_gasto_por_roi proportionally to N — which is why production hardcoded flutter_n_frames=1. Raising N now costs no timestamp bias"
+      seconds_not_frames: "roi_min_visit_s / roi_min_gap_s / roi_max_gap_s are DURATIONS. A frame count is not invariant: changing analysis_interval_frames changes the series rate and silently changes what an N-frame filter does"
+      gap_attribution: "The trajectory only has rows where a detection happened, so the dt after a tracking gap IS the whole gap and used to be credited entirely to the ROI of reappearance. roi_max_gap_s caps it (null = auto, 3x median interval; .inf = no cap); the excess goes to ROIAnalyzer.unobserved_time_s -> report['analise_roi']['tempo_nao_observado_s']"
+      neutral_mode: "enter=1, exit=1, min_visit_s=0, min_gap_s=0, max_gap_s=inf reproduces the historical output BIT FOR BIT (the dt column is not rewritten unless the cap binds, avoiding Timedelta->seconds->Timedelta rounding). Pinned by tests/analysis/test_roi_flutter.py::TestNeutralModeIsBitIdentical"
+      legacy_flutter_n: "flutter_n_frames stays accepted as the legacy SYMMETRIC input and maps to both windows; an explicit window wins. analyze_center_vs_periphery now passes everything by KEYWORD — it used to pass the debounce as the third positional, so inserting a parameter before it would swap the argument silently"
+      arduino_has_no_timing: "ArduinoRoiEvaluator applies NO temporal filter: it is per-frame geometry and the live loop has no series. Parity tests must neutralize the temporal layer, or they compare different things"
+      timing_not_in_ui: "The five timing keys are not editable from the UI yet — config.yaml / config.local.yaml / project_data['roi_settings'] only, like arduino.roi_exit_grace_frames"
 
     key_files:
       - "src/zebtrack/core/services/roi_rule_resolver.py"
@@ -476,6 +484,8 @@ domains:
       - "tests/core/test_arduino_roi_evaluator.py"
       - "tests/ui/components/test_roi_settings_persistence.py"
       - "tests/analysis/test_roi_analyzer.py"
+      - "tests/analysis/test_roi_flutter.py"
+      - "tests/analysis/test_roi_time_attribution.py"
       - "tests/ui/components/test_zone_controls_widget.py"
       - "tests/ui/components/test_config_editor.py"
       - "tests/test_settings.py"

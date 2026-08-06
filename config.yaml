@@ -295,6 +295,40 @@ roi_buffer_radius_value: 0.5
 # roi_bbox_overlap_basis: "bbox"
 
 # -----------------------------------------------------------------------------
+# ROI Presence Debounce and Duration Filters
+# -----------------------------------------------------------------------------
+# These decide WHEN a raw presence reading counts as a visit. Same single source
+# of truth as above: the Pydantic defaults in src/zebtrack/settings.py. Shown
+# commented out; uncomment only to override.
+#
+# Order of operations: raw presence -> debounce (backdated) -> duration filters
+# -> stable series -> metrics.
+#
+# Consecutive frames required to confirm an entry / an exit. The confirmed
+# transition is BACKDATED to the first frame of the run, so these do NOT delay
+# the recorded timestamps (that bias is why the filter used to be disabled).
+# Asymmetric on purpose: a one-frame dropout mid-visit is not an exit.
+# Set both to 1 to disable debouncing. Defaults: 2 and 3.
+# roi_flutter_enter_frames: 2
+# roi_flutter_exit_frames: 3
+#
+# Duration thresholds, in SECONDS (not frames: a frame count would silently
+# change meaning when analysis_interval_frames changes).
+#   - roi_min_visit_s: visits shorter than this are discarded. Default: 0.2
+#   - roi_min_gap_s:   gaps shorter than this merge the two adjacent visits
+#                      into one. Default: 0.0 (disabled)
+# roi_min_visit_s: 0.2
+# roi_min_gap_s: 0.0
+#
+# Cap on the time credited to an ROI for a single trajectory step. Without it,
+# a 5 s tracking gap is credited IN FULL to whichever ROI the animal reappeared
+# in. The discarded excess is reported as analise_roi.tempo_nao_observado_s.
+#   - null (default): automatic, 3x the median observed interval
+#   - a number:       explicit cap, in seconds
+#   - .inf:           no cap (historical behaviour)
+# roi_max_gap_s: null
+
+# -----------------------------------------------------------------------------
 # Trajectory Smoothing (Savitzky-Golay Filter)
 # -----------------------------------------------------------------------------
 trajectory_smoothing:

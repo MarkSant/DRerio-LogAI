@@ -229,10 +229,16 @@ def _px_analyzer(bboxes, roi_polygon, **kwargs):
     b_analyzer._video_height_px = 0
 
     kwargs.setdefault("inclusion_rule", "bbox_intersects")
+    # Harness de GEOMETRIA: o que se mede aqui é a regra de inclusão frame a
+    # frame. Debounce e filtro de duração ficam neutros de propósito — as
+    # séries têm 1 ou 2 frames, e o limiar de visita (0.2 s por padrão)
+    # descartaria a visita inteira antes de a geometria dizer qualquer coisa.
+    kwargs.setdefault("flutter_n_frames", 1)
+    kwargs.setdefault("min_visit_s", 0.0)
+    kwargs.setdefault("min_gap_s", 0.0)
     return ROIAnalyzer(
         behavior_analyzer=b_analyzer,
         rois=[ROI(name="R", geometry=roi_polygon, coordinate_space="px")],
-        flutter_n_frames=1,
         **kwargs,
     )
 

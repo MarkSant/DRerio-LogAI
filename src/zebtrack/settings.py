@@ -1081,6 +1081,57 @@ class Settings(BaseModel):
             "any non-zero overlap area counts (tangency does not)"
         ),
     )
+    roi_flutter_enter_frames: int = Field(
+        default=2,
+        ge=1,
+        description=(
+            "Consecutive frames inside an ROI required to confirm an entry. "
+            "The confirmed transition is BACKDATED to the first frame of the "
+            "run, so raising this suppresses noise without delaying the "
+            "recorded timestamp. 1 disables entry debouncing"
+        ),
+    )
+    roi_flutter_exit_frames: int = Field(
+        default=3,
+        ge=1,
+        description=(
+            "Consecutive frames outside an ROI required to confirm an exit "
+            "(also backdated). Asymmetric with the entry count on purpose: a "
+            "one-frame tracking dropout mid-visit is not an exit. 1 disables "
+            "exit debouncing"
+        ),
+    )
+    roi_min_visit_s: float = Field(
+        default=0.2,
+        ge=0.0,
+        description=(
+            "Minimum duration of an ROI visit, in seconds; shorter visits are "
+            "discarded. Expressed as a DURATION rather than a frame count "
+            "because changing analysis_interval_frames would silently change "
+            "what a frame-count threshold means. 0.0 disables it"
+        ),
+    )
+    roi_min_gap_s: float = Field(
+        default=0.0,
+        ge=0.0,
+        description=(
+            "Minimum duration of a gap between two visits to the same ROI, in "
+            "seconds; shorter gaps are merged into a single visit. 0.0 "
+            "(default) disables it"
+        ),
+    )
+    roi_max_gap_s: float | None = Field(
+        default=None,
+        gt=0.0,
+        description=(
+            "Cap on the time credited to an ROI for a single trajectory step, "
+            "in seconds. Tracking gaps would otherwise credit the whole gap to "
+            "whichever ROI the animal reappeared in. The excess is reported as "
+            "analise_roi.tempo_nao_observado_s. null (default) means automatic: "
+            "3x the median observed interval between analysed frames. Use .inf "
+            "to disable the cap (historical behaviour)"
+        ),
+    )
     roi_bbox_overlap_basis: Literal["bbox", "roi", "max"] = Field(
         default="bbox",
         description=(
