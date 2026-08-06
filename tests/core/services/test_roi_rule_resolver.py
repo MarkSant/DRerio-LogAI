@@ -141,6 +141,13 @@ def test_roi_settings_of_wrong_type_is_ignored():
     assert config.rule == "centroid_in"
 
 
+@pytest.mark.parametrize("garbage", ["texto", ["lista"], 42, object()])
+def test_project_data_of_wrong_type_never_raises(garbage):
+    """Isto roda no loop ao vivo: ``.get`` num não-dict levantaria AttributeError."""
+    config = resolve_roi_rule(garbage, _settings(rule="centroid_in"))
+    assert config.rule == "centroid_in"
+
+
 def test_settings_without_roi_attributes_uses_defaults():
     config = resolve_roi_rule(None, SimpleNamespace())
     assert config == RoiRuleConfig()

@@ -180,6 +180,32 @@ def test_arduino_evaluator_falls_back_to_global_rule(global_settings):
     assert evaluator.rule == "bbox_intersects"
 
 
+@pytest.mark.parametrize(
+    "project_data",
+    [
+        {"calibration": ["não", "é", "dict"]},
+        {"calibration": "10.0"},
+        {"calibration": {"pixelcm_x": "abc", "pixelcm_y": 10}},
+        {"calibration": {"pixelcm_x": float("inf"), "pixelcm_y": 10}},
+        "project_data corrompido",
+    ],
+    ids=["calib_lista", "calib_string", "px_texto", "px_inf", "project_data_nao_dict"],
+)
+def test_arduino_evaluator_survives_corrupted_project_data(global_settings, project_data):
+    """O loop ao vivo não pode morrer por causa de metadado corrompido."""
+    evaluator = _make_arduino_stub(global_settings, project_data)._build_arduino_evaluator()
+    assert evaluator is not None
+    assert evaluator.rule == "bbox_intersects"  # caiu na regra global
+
+
+def test_arduino_evaluator_uses_calibration_scale(global_settings):
+    """Com calibração válida, o raio de buffer vira pixels como no ROIAnalyzer."""
+    calibrated = {"calibration": {"pixelcm_x": 9.0, "pixelcm_y": 4.0}}
+    stub = _make_arduino_stub(global_settings, calibrated)
+    # sqrt(9 * 4) = 6 — a mesma conversão de ROIAnalyzer._buffer_radius_px.
+    assert stub._arduino_buffer_px_per_cm(calibrated) == 6.0
+
+
 def test_arduino_and_report_agree_on_the_same_rule(global_settings):
     """O gatilho e o relatório da MESMA sessão resolvem a mesma regra."""
     from zebtrack.core.recording.live_analysis_post_processor import (

@@ -169,12 +169,13 @@ def _normalize(rule: str, buffer_radius: float, overlap_ratio: float) -> RoiRule
     )
 
 
-def resolve_roi_rule(project_data: dict[str, Any] | None, settings_obj: Any) -> RoiRuleConfig:
+def resolve_roi_rule(project_data: Any, settings_obj: Any) -> RoiRuleConfig:
     """Resolve a regra de inclusão em ROI válida para o contexto.
 
     Args:
         project_data: ``ProjectManager.project_data`` (ou ``None`` quando não há
-            projeto aberto). Só a sub-chave ``roi_settings`` é lida.
+            projeto aberto). Só a sub-chave ``roi_settings`` é lida. Qualquer
+            outro tipo é tratado como "sem projeto".
         settings_obj: instância de ``Settings`` injetada (ou ``None``).
 
     Returns:
@@ -202,7 +203,9 @@ def resolve_roi_rule(project_data: dict[str, Any] | None, settings_obj: Any) -> 
             maximum=1.0,
         )
 
-    roi_settings: Any = (project_data or {}).get("roi_settings")
+    # ``.get`` num ``project_data`` de tipo inesperado levantaria AttributeError
+    # — e este resolvedor roda no loop ao vivo, onde nada pode levantar.
+    roi_settings: Any = project_data.get("roi_settings") if isinstance(project_data, dict) else None
     if isinstance(roi_settings, dict):
         rule = _coerce_rule(roi_settings.get(_KEY_RULE), rule, source="project")
         buffer_radius = _coerce_float(

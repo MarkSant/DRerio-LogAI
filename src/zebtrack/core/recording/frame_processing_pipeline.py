@@ -1186,19 +1186,28 @@ class FrameProcessingMixin:
         return evaluator if evaluator.has_rois() else None
 
     @staticmethod
-    def _arduino_buffer_px_per_cm(project_data: dict | None) -> float:
+    def _arduino_buffer_px_per_cm(project_data: Any) -> float:
         """Escala px/cm usada para dilatar a ROI, igual à do ``ROIAnalyzer``.
 
         O analisador converte o raio de buffer com ``sqrt(pixelcm_x*pixelcm_y)``;
         sem calibração o raio permanece em pixels (fator 1.0).
+
+        Nada aqui pode levantar: isto roda no loop ao vivo. Um projeto com
+        ``calibration`` de tipo errado (lista, string) faria ``.get`` levantar
+        ``AttributeError`` — que o ``except (TypeError, ValueError)`` não pega —
+        e derrubaria a sessão. Tipo inesperado vira "sem calibração".
         """
-        calibration = (project_data or {}).get("calibration") or {}
+        if not isinstance(project_data, dict):
+            return 1.0
+        calibration = project_data.get("calibration")
+        if not isinstance(calibration, dict):
+            return 1.0
         try:
             px_x = float(calibration.get("pixelcm_x", 1.0) or 1.0)
             px_y = float(calibration.get("pixelcm_y", 1.0) or 1.0)
         except (TypeError, ValueError):
             return 1.0
-        if px_x <= 0 or px_y <= 0:
+        if not math.isfinite(px_x) or not math.isfinite(px_y) or px_x <= 0 or px_y <= 0:
             return 1.0
         return float(math.sqrt(px_x * px_y))
 
