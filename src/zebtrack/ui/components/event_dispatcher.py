@@ -1061,6 +1061,10 @@ class EventDispatcher:
             UIEvents.DETECTOR_UPDATE_PARAMETERS,
             self._on_apply_roi_settings,
         )
+        event_bus.subscribe(
+            UIEvents.ZONE_APPLY_ROI_SETTINGS,
+            self._on_persist_roi_settings,
+        )
 
     def _on_apply_roi_settings(self, data: payloads.EventPayload) -> None:
         """Handle DETECTOR_UPDATE_PARAMETERS event.
@@ -1074,6 +1078,74 @@ class EventDispatcher:
         params = _payload_to_dict(data)
         if params and gui.controller:
             gui.controller.hardware_vm.update_detector_parameters(params)
+
+    def _on_persist_roi_settings(self, data: payloads.EventPayload) -> None:
+        """Handle ZONE_APPLY_ROI_SETTINGS — persist the ROI rule.
+
+        O botão "Aplicar" da aba de Zonas mandava as três chaves para
+        ``update_detector_parameters``, que as descarta silenciosamente (não
+        constam de nenhuma lista de parâmetros válidos) e ainda loga sucesso.
+        Nada era persistido. O destino correto é ``project_data["roi_settings"]``
+        — exatamente onde ``resolve_roi_rule`` procura.
+
+        Sem projeto aberto (vídeo único), não há onde persistir: a regra é
+        aplicada no ``Settings`` da sessão para que a análise em curso a honre.
+        """
+        gui = self._require_gui()
+        if not gui or not gui.controller:
+            return
+
+        from zebtrack.core.services.roi_rule_resolver import (
+            apply_roi_rule_to_settings,
+            resolve_roi_rule,
+        )
+
+        params = _payload_to_dict(data)
+        roi_settings = {
+            "roi_inclusion_rule": params.get("rule"),
+            "roi_buffer_radius_value": params.get("buffer_radius"),
+            "roi_min_bbox_overlap_ratio": params.get("overlap_ratio"),
+        }
+        roi_settings = {k: v for k, v in roi_settings.items() if v is not None}
+        if not roi_settings:
+            return
+
+        settings_obj = getattr(gui.controller, "settings", None) or getattr(gui, "settings", None)
+        config = resolve_roi_rule({"roi_settings": roi_settings}, settings_obj)
+
+        project_manager = getattr(gui.controller, "project_manager", None)
+        # save_project() levanta ProjectInvalidError sem project_path — e o
+        # EventBusV2 engoliria a exceção neste handler.
+        if project_manager is not None and getattr(project_manager, "project_path", None):
+            project_data = project_manager.project_data
+            stored = project_data.setdefault("roi_settings", {})
+            stored["roi_inclusion_rule"] = config.rule
+            stored["roi_buffer_radius_value"] = config.buffer_radius_value
+            stored["roi_min_bbox_overlap_ratio"] = config.min_bbox_overlap_ratio
+            project_manager.save_project()
+            self.log.info(
+                "zone_controls.roi_settings.persisted",
+                scope="project",
+                rule=config.rule,
+            )
+            gui.show_info(
+                "Regra de ROI Aplicada",
+                f"Regra '{config.rule}' salva no projeto.\n"
+                "Vale para novas análises e para a regeneração de relatórios.",
+            )
+            return
+
+        apply_roi_rule_to_settings(settings_obj, config)
+        self.log.info(
+            "zone_controls.roi_settings.persisted",
+            scope="session",
+            rule=config.rule,
+        )
+        gui.show_info(
+            "Regra de ROI Aplicada",
+            f"Regra '{config.rule}' aplicada a esta sessão.\n"
+            "Sem projeto aberto, ela não é salva em disco.",
+        )
 
     def _on_show_aquarium_assignment_dialog(self, data: payloads.EventPayload) -> None:
         """Handle ZONE_SHOW_AQUARIUM_ASSIGNMENT_DIALOG event.

@@ -22,6 +22,7 @@ import structlog
 
 from zebtrack.coordinators.processing_types import ValidationResult
 from zebtrack.core.project.project_manager import ProjectManager
+from zebtrack.core.services.roi_rule_resolver import apply_roi_rule_to_settings, resolve_roi_rule
 from zebtrack.ui.event_bus_v2 import UIEvents
 
 if TYPE_CHECKING:
@@ -375,13 +376,10 @@ class VideoSelectionMixin:
         if "smoothing_polyorder" in analysis_params:
             snapshot.trajectory_smoothing.polyorder = analysis_params["smoothing_polyorder"]
 
-        roi_settings = project_data.get("roi_settings", {})
-        if "roi_inclusion_rule" in roi_settings:
-            snapshot.roi_inclusion_rule = roi_settings["roi_inclusion_rule"]
-        if "roi_buffer_radius_value" in roi_settings:
-            snapshot.roi_buffer_radius_value = roi_settings["roi_buffer_radius_value"]
-        if "roi_min_bbox_overlap_ratio" in roi_settings:
-            snapshot.roi_min_bbox_overlap_ratio = roi_settings["roi_min_bbox_overlap_ratio"]
+        # Regra de ROI: resolvida pela fonte canônica (projeto > global >
+        # default), a mesma consumida pela regeneração de relatório, pela
+        # pós-análise ao vivo e pelo gatilho Arduino.
+        apply_roi_rule_to_settings(snapshot, resolve_roi_rule(project_data, self.settings))
 
         behavioral_config = project_data.get("behavioral_config", {})
         if behavioral_config and hasattr(snapshot, "behavioral_analysis"):

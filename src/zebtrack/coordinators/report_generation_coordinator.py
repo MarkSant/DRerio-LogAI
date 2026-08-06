@@ -24,6 +24,7 @@ from zebtrack.coordinators._unified_report_mixin import UnifiedReportMixin
 from zebtrack.coordinators.base_coordinator import BaseCoordinator
 from zebtrack.core.detection import MultiAquariumZoneData, ZoneData
 from zebtrack.core.detection.calibration import Calibration
+from zebtrack.core.services.roi_rule_resolver import apply_roi_rule_to_settings, resolve_roi_rule
 from zebtrack.ui import payloads
 from zebtrack.ui.event_bus_v2 import UIEvents
 
@@ -797,6 +798,11 @@ class ReportGenerationCoordinator(BaseCoordinator, UnifiedReportMixin):
             settings_snapshot.video_processing.single_animal_per_aquarium = bool(
                 project_data["single_animal_per_aquarium"]
             )
+
+        # Sem isto a regeneração de relatório usava a regra global e produzia
+        # números diferentes do processamento original (que honra o projeto via
+        # ``VideoSelectionMixin._create_project_settings_snapshot``).
+        apply_roi_rule_to_settings(settings_snapshot, resolve_roi_rule(project_data, self.settings))
 
         return settings_snapshot
 

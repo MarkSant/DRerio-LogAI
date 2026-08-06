@@ -17,6 +17,8 @@ import numpy as np
 import pandas as pd
 import structlog
 
+from zebtrack.core.services.roi_rule_resolver import resolve_roi_rule
+
 if TYPE_CHECKING:
     from zebtrack.core.detection.multi_aquarium_detector import MultiAquariumDetector
     from zebtrack.core.main_view_model import MainViewModel
@@ -74,6 +76,20 @@ class LiveAnalysisPostProcessorMixin:
     # Methods from other mixins
     def stop_session(self) -> bool: ...  # type: ignore[empty-body]
     def _setup_session_timer(self, duration_s: float, output_dir: Path) -> None: ...
+
+    def _build_post_analysis_service(self) -> Any:
+        """AnalysisService da pós-análise ao vivo, já com a regra de ROI resolvida.
+
+        A pós-análise lia só o ``Settings`` global e ignorava
+        ``project_data["roi_settings"]`` — o relatório podia contar uma entrada
+        que o Arduino (que resolve a regra pela mesma fonte) não disparou.
+        """
+        from zebtrack.analysis.analysis_service import AnalysisService
+
+        roi_rule = resolve_roi_rule(
+            getattr(self.project_manager, "project_data", None), self.settings
+        )
+        return AnalysisService(settings_obj=self.settings, roi_rule=roi_rule)
 
     def _resolve_live_session_video_path(self, output_dir: Path) -> Path:
         """Resolve the canonical video path for the current live session."""
@@ -360,7 +376,6 @@ class LiveAnalysisPostProcessorMixin:
         def _run_post_analysis() -> None:  # noqa: C901
             """Background thread worker for post-processing analysis."""
             try:
-                from zebtrack.analysis.analysis_service import AnalysisService
                 from zebtrack.analysis.reporters import (
                     ExcelReporter,
                     ReporterContext,
@@ -397,7 +412,7 @@ class LiveAnalysisPostProcessorMixin:
                 # --- FULL BEHAVIORAL ANALYSIS ---
                 log.info("live_camera_service.full_analysis.start")
 
-                analysis_service = AnalysisService(settings_obj=self.settings)
+                analysis_service = self._build_post_analysis_service()
                 params = analysis_service.collect_analysis_parameters(
                     self.project_manager.project_data
                 )

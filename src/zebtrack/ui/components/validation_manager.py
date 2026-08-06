@@ -1533,11 +1533,25 @@ class ValidationManager:
 
             # Update settings if available
             if self.gui.controller.settings:
-                self.gui.controller.settings.roi_inclusion_rule = (
-                    self.gui.roi_inclusion_rule_var.get()
+                # Passa pela fonte canônica: ela normaliza os parâmetros e
+                # aplica na ordem que o validador cruzado de ``Settings``
+                # aceita (regra × parâmetro exigido).
+                from zebtrack.core.services.roi_rule_resolver import (
+                    apply_roi_rule_to_settings,
+                    resolve_roi_rule,
                 )
-                self.gui.controller.settings.roi_buffer_radius_value = buffer_radius
-                self.gui.controller.settings.roi_min_bbox_overlap_ratio = overlap_ratio
+
+                config = resolve_roi_rule(
+                    {
+                        "roi_settings": {
+                            "roi_inclusion_rule": self.gui.roi_inclusion_rule_var.get(),
+                            "roi_buffer_radius_value": buffer_radius,
+                            "roi_min_bbox_overlap_ratio": overlap_ratio,
+                        }
+                    },
+                    self.gui.controller.settings,
+                )
+                apply_roi_rule_to_settings(self.gui.controller.settings, config)
 
                 # Save to project if available
                 if self.gui.controller.project_manager.project_path:

@@ -1373,10 +1373,16 @@ class ZoneControlsWidget(BaseWidget):
         )
 
     def _on_apply_roi_settings_clicked(self) -> None:
-        """Handle apply ROI settings button click."""
+        """Handle apply ROI settings button click.
+
+        Emite ``ZONE_APPLY_ROI_SETTINGS`` (persistido em
+        ``project_data["roi_settings"]``) — e não mais
+        ``DETECTOR_UPDATE_PARAMETERS``, que descartava as três chaves em
+        silêncio e ainda logava sucesso.
+        """
         self.emit_event(
-            UIEvents.DETECTOR_UPDATE_PARAMETERS,
-            payloads.DetectorUpdateParametersPayload(
+            UIEvents.ZONE_APPLY_ROI_SETTINGS,
+            payloads.RoiSettingsApplyPayload(
                 rule=self.roi_inclusion_rule_var.get(),
                 buffer_radius=float(self.roi_buffer_radius_var.get() or 0.5),
                 overlap_ratio=float(self.roi_overlap_ratio_var.get() or 0.10),

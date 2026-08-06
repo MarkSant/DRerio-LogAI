@@ -399,6 +399,19 @@ class DetectorUpdateParametersPayload:
 
 
 @dataclass(frozen=True)
+class RoiSettingsApplyPayload:
+    """Regra de inclusão em ROI escolhida na aba de Zonas ("Aplicar").
+
+    Persistida em ``project_data["roi_settings"]`` — as mesmas chaves que o
+    editor de configurações grava e que ``resolve_roi_rule`` lê.
+    """
+
+    rule: str
+    buffer_radius: float | None = None
+    overlap_ratio: float | None = None
+
+
+@dataclass(frozen=True)
 class DetectorUpdateZonesPayload:
     zone_data: Any
 
@@ -406,11 +419,6 @@ class DetectorUpdateZonesPayload:
 @dataclass(frozen=True)
 class ZoneTemplateApplyPayload:
     template_name: str | None = None
-
-
-@dataclass(frozen=True)
-class ZoneApplyRoiSettingsPayload:
-    settings: Mapping[str, Any]
 
 
 @dataclass(frozen=True)
