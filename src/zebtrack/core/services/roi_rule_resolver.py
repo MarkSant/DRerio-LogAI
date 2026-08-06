@@ -1,13 +1,22 @@
-"""Fonte canônica da regra de inclusão em ROI.
+"""Fonte canônica da configuração de presença em ROI.
 
 Todo caminho que decide se um animal está "dentro" de uma ROI — relatório de
 vídeo pré-gravado, regeneração de relatório, pós-processamento ao vivo e o
-gatilho Arduino ao vivo — resolve a regra por aqui. Antes deste módulo cada
-caminho lia (ou ignorava) `roi_settings` do projeto por conta própria, e os
+gatilho Arduino ao vivo — resolve a configuração por aqui. Antes deste módulo
+cada caminho lia (ou ignorava) `roi_settings` do projeto por conta própria, e os
 quatro divergiam: o relatório podia contar uma entrada que o Arduino não
 disparou, e regenerar o relatório mudava os números.
 
 Precedência: ``project_data["roi_settings"]`` > ``settings_obj`` > default.
+
+O nome ``RoiRuleConfig`` é histórico: o escopo hoje é maior que a regra
+geométrica. Além de **onde** o animal está (regra + parâmetros de área), a
+config carrega **quando** essa presença conta como visita — o debounce
+assimétrico de entrada/saída e os limiares de duração. Os dois grupos andam
+juntos de propósito: são exatamente o conjunto de parâmetros que o relatório e
+o gatilho Arduino precisam compartilhar para não divergirem, e é esse
+acoplamento que a classe existe para garantir. O nome ficou para não trocar
+importações em ~15 arquivos sem ganho semântico.
 
 O módulo é puro: nenhuma I/O, nenhum singleton, nenhuma dependência de UI.
 """
@@ -26,7 +35,13 @@ __all__ = [
     "DEFAULT_BBOX_OVERLAP_BASIS",
     "DEFAULT_BUFFER_RADIUS_VALUE",
     "DEFAULT_MIN_BBOX_OVERLAP_RATIO",
+    "DEFAULT_ROI_FLUTTER_ENTER_FRAMES",
+    "DEFAULT_ROI_FLUTTER_EXIT_FRAMES",
     "DEFAULT_ROI_INCLUSION_RULE",
+    "DEFAULT_ROI_MAX_GAP_S",
+    "DEFAULT_ROI_MIN_GAP_S",
+    "DEFAULT_ROI_MIN_VISIT_S",
+    "MAX_GAP_AUTO_FACTOR",
     "VALID_BBOX_OVERLAP_BASES",
     "VALID_ROI_INCLUSION_RULES",
     "RoiRuleConfig",
@@ -40,6 +55,32 @@ DEFAULT_ROI_INCLUSION_RULE: Final[str] = "bbox_intersects"
 DEFAULT_BUFFER_RADIUS_VALUE: Final[float] = 0.5
 DEFAULT_MIN_BBOX_OVERLAP_RATIO: Final[float] = 0.10
 DEFAULT_BBOX_OVERLAP_BASIS: Final[str] = "bbox"
+
+# Debounce ASSIMÉTRICO de presença. Confirmar a entrada é barato (2 frames) e
+# confirmar a saída é caro (3 frames): comportamentalmente, um animal que
+# "some" por um frame no meio de uma visita continua na ROI, mas uma entrada
+# precisa de menos evidência para não perder visitas curtas legítimas. É a
+# mesma assimetria que o caminho Arduino já tinha em
+# ``arduino.roi_exit_grace_frames``.
+DEFAULT_ROI_FLUTTER_ENTER_FRAMES: Final[int] = 2
+DEFAULT_ROI_FLUTTER_EXIT_FRAMES: Final[int] = 3
+
+# Limiares de DURAÇÃO, em segundos. Contagem de frames não é invariante:
+# trocar ``analysis_interval_frames`` de 10 para 5 dobra a taxa da série e muda
+# silenciosamente o que um filtro de N frames faz. Duração não muda.
+DEFAULT_ROI_MIN_VISIT_S: Final[float] = 0.2
+# Fusão de lacunas DESLIGADA por padrão: o debounce assimétrico já exige N
+# frames fora para registrar a saída, então fundir visitas por tempo em cima
+# disso juntaria visitas que o pesquisador não pediu para juntar. O mecanismo
+# fica disponível para quem tem rastreamento ruidoso.
+DEFAULT_ROI_MIN_GAP_S: Final[float] = 0.0
+
+# Teto do ``dt`` creditado a uma ROI. ``None`` = automático: o teto vira
+# ``MAX_GAP_AUTO_FACTOR`` vezes a mediana do intervalo observado entre frames
+# analisados. ``math.inf`` desliga o teto (comportamento histórico: uma lacuna
+# de rastreamento de 5 s era creditada INTEIRA à ROI onde o animal reapareceu).
+DEFAULT_ROI_MAX_GAP_S: Final[float | None] = None
+MAX_GAP_AUTO_FACTOR: Final[float] = 3.0
 
 VALID_ROI_INCLUSION_RULES: Final[frozenset[str]] = frozenset(
     {
@@ -74,6 +115,11 @@ _KEY_RULE: Final[str] = "roi_inclusion_rule"
 _KEY_BUFFER: Final[str] = "roi_buffer_radius_value"
 _KEY_OVERLAP: Final[str] = "roi_min_bbox_overlap_ratio"
 _KEY_BASIS: Final[str] = "roi_bbox_overlap_basis"
+_KEY_ENTER: Final[str] = "roi_flutter_enter_frames"
+_KEY_EXIT: Final[str] = "roi_flutter_exit_frames"
+_KEY_MIN_VISIT: Final[str] = "roi_min_visit_s"
+_KEY_MIN_GAP: Final[str] = "roi_min_gap_s"
+_KEY_MAX_GAP: Final[str] = "roi_max_gap_s"
 
 
 @dataclass(frozen=True)
@@ -108,6 +154,22 @@ class RoiRuleConfig:
     #: inteiro, dá razão 0.25 — mas é o que reproduz os números históricos.
     bbox_overlap_basis: str = DEFAULT_BBOX_OVERLAP_BASIS
 
+    #: Frames consecutivos DENTRO para confirmar uma entrada, e frames
+    #: consecutivos FORA para confirmar uma saída. ``1`` em ambos desliga o
+    #: debounce (a presença crua vira a série estável).
+    flutter_enter_frames: int = DEFAULT_ROI_FLUTTER_ENTER_FRAMES
+    flutter_exit_frames: int = DEFAULT_ROI_FLUTTER_EXIT_FRAMES
+
+    #: Visita mais curta que isto é descartada; lacuna mais curta que isto
+    #: funde as duas visitas adjacentes. ``0.0`` desliga cada um.
+    min_visit_s: float = DEFAULT_ROI_MIN_VISIT_S
+    min_gap_s: float = DEFAULT_ROI_MIN_GAP_S
+
+    #: Teto do ``dt`` creditado a uma ROI, em segundos. ``None`` = automático
+    #: (:data:`MAX_GAP_AUTO_FACTOR` × mediana do intervalo observado);
+    #: ``math.inf`` = sem teto.
+    max_gap_s: float | None = DEFAULT_ROI_MAX_GAP_S
+
     def __post_init__(self) -> None:
         """Torna a instância autoconsistente com a própria regra.
 
@@ -127,6 +189,29 @@ class RoiRuleConfig:
             _sanitize_overlap(self.rule, self.min_bbox_overlap_ratio),
         )
         object.__setattr__(self, "bbox_overlap_basis", _sanitize_basis(self.bbox_overlap_basis))
+        object.__setattr__(
+            self,
+            "flutter_enter_frames",
+            _sanitize_frames(
+                _KEY_ENTER, self.flutter_enter_frames, DEFAULT_ROI_FLUTTER_ENTER_FRAMES
+            ),
+        )
+        object.__setattr__(
+            self,
+            "flutter_exit_frames",
+            _sanitize_frames(_KEY_EXIT, self.flutter_exit_frames, DEFAULT_ROI_FLUTTER_EXIT_FRAMES),
+        )
+        object.__setattr__(
+            self,
+            "min_visit_s",
+            _sanitize_seconds(_KEY_MIN_VISIT, self.min_visit_s, DEFAULT_ROI_MIN_VISIT_S),
+        )
+        object.__setattr__(
+            self,
+            "min_gap_s",
+            _sanitize_seconds(_KEY_MIN_GAP, self.min_gap_s, DEFAULT_ROI_MIN_GAP_S),
+        )
+        object.__setattr__(self, "max_gap_s", _sanitize_max_gap(self.max_gap_s))
 
     @property
     def uses_bbox(self) -> bool:
@@ -184,6 +269,31 @@ class RoiRuleConfig:
         """Alias com o nome usado em ``Settings``/``roi_settings``."""
         return self.bbox_overlap_basis
 
+    @property
+    def roi_flutter_enter_frames(self) -> int:
+        """Alias com o nome usado em ``Settings``/``roi_settings``."""
+        return self.flutter_enter_frames
+
+    @property
+    def roi_flutter_exit_frames(self) -> int:
+        """Alias com o nome usado em ``Settings``/``roi_settings``."""
+        return self.flutter_exit_frames
+
+    @property
+    def roi_min_visit_s(self) -> float:
+        """Alias com o nome usado em ``Settings``/``roi_settings``."""
+        return self.min_visit_s
+
+    @property
+    def roi_min_gap_s(self) -> float:
+        """Alias com o nome usado em ``Settings``/``roi_settings``."""
+        return self.min_gap_s
+
+    @property
+    def roi_max_gap_s(self) -> float | None:
+        """Alias com o nome usado em ``Settings``/``roi_settings``."""
+        return self.max_gap_s
+
     def to_roi_settings(self) -> dict[str, Any]:
         """Serializa para ``project_data["roi_settings"]``."""
         return {
@@ -191,6 +301,11 @@ class RoiRuleConfig:
             _KEY_BUFFER: self.buffer_radius_value,
             _KEY_OVERLAP: self.min_bbox_overlap_ratio,
             _KEY_BASIS: self.bbox_overlap_basis,
+            _KEY_ENTER: self.flutter_enter_frames,
+            _KEY_EXIT: self.flutter_exit_frames,
+            _KEY_MIN_VISIT: self.min_visit_s,
+            _KEY_MIN_GAP: self.min_gap_s,
+            _KEY_MAX_GAP: self.max_gap_s,
         }
 
 
@@ -280,6 +395,60 @@ def _coerce_float(
     return number
 
 
+def _log_resolve_invalid(field: str, value: Any, source: str, fallback: Any) -> None:
+    """Registra um valor descartado por nível de precedência."""
+    log.warning(
+        "roi_rule.resolve.invalid_value",
+        field=field,
+        value=value,
+        source=source,
+        fallback=fallback,
+    )
+
+
+def _coerce_frames(value: Any, fallback: int, *, field: str, source: str) -> int:
+    """Converte e valida uma contagem de frames; cai em ``fallback`` se inválida."""
+    if value is None:
+        return fallback
+    count = _as_frame_count(value)
+    if count is None:
+        _log_resolve_invalid(field, value, source, fallback)
+        return fallback
+    return count
+
+
+def _coerce_seconds(value: Any, fallback: float, *, field: str, source: str) -> float:
+    """Converte e valida uma duração em segundos; cai em ``fallback`` se inválida."""
+    if value is None:
+        return fallback
+    number = _as_finite_float(value)
+    if number is None or number < 0.0:
+        _log_resolve_invalid(field, value, source, fallback)
+        return fallback
+    return number
+
+
+def _coerce_max_gap(value: Any, fallback: float | None, *, source: str) -> float | None:
+    """Converte e valida o teto de ``dt``.
+
+    ``None`` de uma camada significa "não informado" e preserva o ``fallback``.
+    Isso é indistinguível de "automático" apenas porque o default JÁ é
+    automático — se um dia o default virar um número, um ``null`` explícito no
+    YAML precisará de um sentinela próprio.
+    """
+    if value is None:
+        return fallback
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        _log_resolve_invalid(_KEY_MAX_GAP, value, source, fallback)
+        return fallback
+    if number == math.inf or (math.isfinite(number) and number > 0.0):
+        return number
+    _log_resolve_invalid(_KEY_MAX_GAP, value, source, fallback)
+    return fallback
+
+
 def _log_sanitized(field: str, value: Any, fallback: Any) -> None:
     """Registra um campo incoerente trocado pelo default canônico."""
     log.warning(
@@ -340,6 +509,62 @@ def _sanitize_basis(basis: Any) -> str:
         return basis
     _log_sanitized(_KEY_BASIS, basis, DEFAULT_BBOX_OVERLAP_BASIS)
     return DEFAULT_BBOX_OVERLAP_BASIS
+
+
+def _as_frame_count(value: Any) -> int | None:
+    """Converte para inteiro ``>= 1``; ``None`` quando não dá.
+
+    ``2.0`` passa (é o que sai de um YAML ou de um campo de texto), ``2.5`` não:
+    meio frame não existe, e arredondar em silêncio esconderia o erro de
+    digitação.
+    """
+    number = _as_finite_float(value)
+    if number is None or not float(number).is_integer():
+        return None
+    count = int(number)
+    return count if count >= 1 else None
+
+
+def _sanitize_frames(field: str, value: Any, fallback: int) -> int:
+    """Contagem de frames fora de faixa vira o default canônico."""
+    count = _as_frame_count(value)
+    if count is not None:
+        return count
+    _log_sanitized(field, value, fallback)
+    return fallback
+
+
+def _sanitize_seconds(field: str, value: Any, fallback: float) -> float:
+    """Duração negativa ou não-finita vira o default canônico.
+
+    ``0.0`` é válido e significa "desligado" — nunca é tratado como ausente,
+    justamente a armadilha do ``x or default`` (``0.0 or 0.2`` é ``0.2``).
+    """
+    number = _as_finite_float(value)
+    if number is not None and number >= 0.0:
+        return number
+    _log_sanitized(field, value, fallback)
+    return fallback
+
+
+def _sanitize_max_gap(value: Any) -> float | None:
+    """Normaliza o teto de ``dt``: ``None`` (auto), ``inf`` (sem teto) ou ``> 0``.
+
+    ``inf`` é aceito de propósito e não passa por :func:`_as_finite_float`: é o
+    modo neutro, o único jeito de reproduzir bit a bit os números históricos.
+    ``0`` e negativos não são: zerariam todo o tempo medido.
+    """
+    if value is None:
+        return None
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        _log_sanitized(_KEY_MAX_GAP, value, DEFAULT_ROI_MAX_GAP_S)
+        return DEFAULT_ROI_MAX_GAP_S
+    if number == math.inf or (math.isfinite(number) and number > 0.0):
+        return number
+    _log_sanitized(_KEY_MAX_GAP, value, DEFAULT_ROI_MAX_GAP_S)
+    return DEFAULT_ROI_MAX_GAP_S
 
 
 def resolve_roi_rule(project_data: Any, settings_obj: Any) -> RoiRuleConfig:
@@ -412,6 +637,31 @@ def resolve_roi_rule(project_data: Any, settings_obj: Any) -> RoiRuleConfig:
         basis = _coerce_basis(getattr(settings_obj, _KEY_BASIS, None), basis, source="settings")
     basis = _coerce_basis(roi_settings.get(_KEY_BASIS), basis, source="project")
 
+    # Debounce e limiares de duração não dependem da regra: nenhum deles muda
+    # de faixa conforme a geometria escolhida, então a precedência é a simples.
+    def _frames(key: str, default: int) -> int:
+        value = default
+        if settings_obj is not None:
+            value = _coerce_frames(
+                getattr(settings_obj, key, None), value, field=key, source="settings"
+            )
+        return _coerce_frames(roi_settings.get(key), value, field=key, source="project")
+
+    def _seconds(key: str, default: float) -> float:
+        value = default
+        if settings_obj is not None:
+            value = _coerce_seconds(
+                getattr(settings_obj, key, None), value, field=key, source="settings"
+            )
+        return _coerce_seconds(roi_settings.get(key), value, field=key, source="project")
+
+    max_gap = DEFAULT_ROI_MAX_GAP_S
+    if settings_obj is not None:
+        max_gap = _coerce_max_gap(
+            getattr(settings_obj, _KEY_MAX_GAP, None), max_gap, source="settings"
+        )
+    max_gap = _coerce_max_gap(roi_settings.get(_KEY_MAX_GAP), max_gap, source="project")
+
     # A autoconsistência final é do ``__post_init__`` — aqui os valores já
     # passaram pela coerção por nível de precedência.
     return RoiRuleConfig(
@@ -419,6 +669,11 @@ def resolve_roi_rule(project_data: Any, settings_obj: Any) -> RoiRuleConfig:
         buffer_radius_value=buffer_radius,
         min_bbox_overlap_ratio=overlap_ratio,
         bbox_overlap_basis=basis,
+        flutter_enter_frames=_frames(_KEY_ENTER, DEFAULT_ROI_FLUTTER_ENTER_FRAMES),
+        flutter_exit_frames=_frames(_KEY_EXIT, DEFAULT_ROI_FLUTTER_EXIT_FRAMES),
+        min_visit_s=_seconds(_KEY_MIN_VISIT, DEFAULT_ROI_MIN_VISIT_S),
+        min_gap_s=_seconds(_KEY_MIN_GAP, DEFAULT_ROI_MIN_GAP_S),
+        max_gap_s=max_gap,
     )
 
 
@@ -431,13 +686,23 @@ def apply_roi_rule_to_settings(settings_obj: Any, config: RoiRuleConfig) -> Any:
     abaixo mantém o objeto válido em todos os passos intermediários — o que só
     é possível porque :class:`RoiRuleConfig` já chega normalizada.
 
-    ``roi_bbox_overlap_basis`` fica fora dessa dança: não entra em nenhuma
-    invariante cruzada, então pode ser escrito primeiro, sempre.
+    ``roi_bbox_overlap_basis``, o debounce e os limiares de duração ficam fora
+    dessa dança: nenhum deles entra em invariante cruzada, então são escritos
+    primeiro, sempre. Um campo NOVO que ganhe validação cruzada com a regra
+    precisa entrar na ordenação abaixo, não aqui.
     """
     if settings_obj is None:
         return settings_obj
 
-    setattr(settings_obj, _KEY_BASIS, config.bbox_overlap_basis)
+    for field, value in (
+        (_KEY_BASIS, config.bbox_overlap_basis),
+        (_KEY_ENTER, config.flutter_enter_frames),
+        (_KEY_EXIT, config.flutter_exit_frames),
+        (_KEY_MIN_VISIT, config.min_visit_s),
+        (_KEY_MIN_GAP, config.min_gap_s),
+        (_KEY_MAX_GAP, config.max_gap_s),
+    ):
+        setattr(settings_obj, field, value)
 
     order: tuple[tuple[str, Any], ...]
     if config.uses_buffer:

@@ -789,6 +789,84 @@ Note: the two settings snapshots still differ outside ROI —
 `VideoSelectionMixin` also applies offset/smoothing/behavioral overrides that
 `ReportGenerationCoordinator` does not, and vice-versa for the interval keys.
 
+#### 5.10.2. Presence debounce, duration filters and gap capping (August 2026)
+
+`RoiRuleConfig` no longer carries only the geometric rule. It also decides
+**when** a raw presence reading becomes a visit, because the report and the
+Arduino trigger must share those parameters for the same reason they share the
+rule. Five keys, same precedence, same `roi_settings` dict:
+
+| Key | Default | Meaning |
+| --- | ------- | ------- |
+| `roi_flutter_enter_frames` | 2 | consecutive frames inside to confirm an entry |
+| `roi_flutter_exit_frames` | 3 | consecutive frames outside to confirm an exit |
+| `roi_min_visit_s` | 0.2 | visits shorter than this are discarded |
+| `roi_min_gap_s` | 0.0 (off) | gaps shorter than this merge adjacent visits |
+| `roi_max_gap_s` | `null` (auto) | cap on the `dt` credited to an ROI |
+
+**Order of operations, and it is not commutative:**
+
+```text
+raw presence -> debounce (backdated) -> duration filters -> stable series -> metrics
+```
+
+Running the duration filter *before* the debounce measures events the debounce
+is about to remove or move, and produces different — wrong — numbers.
+
+**Backdating is what made the filter usable.** The old `_apply_flutter_filter`
+used `rolling(N, min_periods=1)`, a *trailing* window: a transition was both
+confirmed **and recorded** `N-1` frames after it happened, biasing
+`latencia_primeira_entrada` and `tempo_gasto_por_roi` in proportion to N. That
+is why production hardcoded `flutter_n_frames=1` — the only way to remove the
+bias was to remove the filter. The rewrite detects runs and backdates the
+confirmed transition to the **first frame of the run**, so N can be raised
+without any timestamp cost. `min_periods=1` is gone too: the state starts
+outside and only a full run moves it, instead of frame 0 setting the state with
+no confirmation at all.
+
+The windows are **asymmetric** (enter 2 / exit 3) for the same behavioural
+reason `arduino.roi_exit_grace_frames` exists: a one-frame dropout mid-visit is
+not an exit, but an entry should not need much evidence.
+
+**Durations are in seconds, not frames.** A frame count is not invariant —
+changing `analysis_interval_frames` from 10 to 5 doubles the series rate and
+silently changes what an N-frame filter does. A duration does not move.
+
+**Gap capping fixes the largest of the four defects.** The trajectory DataFrame
+only has rows where a detection happened, so the `dt` of the first row after a
+tracking gap is the **whole gap**, and it used to be credited in full to
+whichever ROI the animal reappeared in — losing the animal for 5 s added 5 s of
+"time spent" to that ROI. `roi_max_gap_s` caps it; the discarded excess is
+summed into `ROIAnalyzer.unobserved_time_s` and published as
+`report["analise_roi"]["tempo_nao_observado_s"]`, so the researcher can see how
+much of the session the per-ROI numbers do not cover. `null` means automatic
+(`3 ×` the median observed interval); `.inf` disables the cap and restores the
+historical attribution. Visit/gap durations are read off the **capped** clock,
+so a tracking gap never inflates a visit.
+
+**Neutral mode is bit-identical.** `flutter_enter_frames=1`,
+`flutter_exit_frames=1`, `min_visit_s=0.0`, `min_gap_s=0.0`,
+`max_gap_s=math.inf` reproduces the old output exactly — the `dt` column is not
+even rewritten unless the cap actually binds, so no `Timedelta → seconds →
+Timedelta` rounding creeps in. `tests/analysis/test_roi_flutter.py::
+TestNeutralModeIsBitIdentical` pins it; that test is what makes the change
+opt-in rather than a silent renumbering.
+
+Gotchas:
+
+- `flutter_n_frames` stays accepted as the **legacy** symmetric input and maps
+  to both windows; an explicit window always wins.
+- `analyze_center_vs_periphery` now builds its temporary analyzer with
+  **keyword** arguments. It used to pass the debounce as the third positional,
+  so inserting any parameter before it would have swapped the argument silently.
+- `ArduinoRoiEvaluator` deliberately does **not** apply these filters: it is a
+  per-frame geometry evaluator, and the live loop has no time series. Parity
+  tests between the two must neutralize the temporal layer
+  (`tests/core/test_arduino_roi_evaluator.py`).
+- The five keys are **not** editable from the UI yet — they live in
+  `config.yaml` / `config.local.yaml` / `project_data["roi_settings"]`, like
+  `arduino.roi_exit_grace_frames`.
+
 ---
 
 ## 6. Common Pitfalls for Agents
@@ -954,6 +1032,7 @@ Heavy imports (pandas, pyarrow, openpyxl) are deferred in:
 
 | Date | Version | Changes |
 | ---- | ------- | ------- |
+| Aug 6, 2026 | v4.7 | § 5.10.2 ROI presence timing — backdated asymmetric debounce (production no longer hardcodes `flutter_n_frames=1`), duration filters in seconds, `roi_max_gap_s` + `analise_roi.tempo_nao_observado_s` |
 | Aug 6, 2026 | v4.6 | § 5.10.1 overlap semantics — single-source defaults (config.yaml no longer overrides `roi_min_bbox_overlap_ratio` with 0.05), `roi_bbox_overlap_basis` (`bbox`/`roi`/`max`), threshold `0` = any non-zero overlap area for `bbox_intersects` |
 | Aug 6, 2026 | v4.5 | § 5.10 canonical ROI inclusion rule — `roi_rule_resolver`, four consumers unified, shapely-based `ArduinoRoiEvaluator`, `ZONE_APPLY_ROI_SETTINGS` persists the rule |
 | Aug 5, 2026 | v4.4 | § 5.9 frame ledger & timeline reconstruction — `6_FrameLedger_<base>.{csv,parquet}` + session anchor JSON, `video_queue` item carries capture metadata, `queue_wait_ms`/`inference_ms` appended to `5_ClosedLoop_*` |

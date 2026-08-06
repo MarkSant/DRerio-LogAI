@@ -46,6 +46,17 @@ PAYLOAD = payloads.RoiSettingsApplyPayload(
     rule="centroid_in", buffer_radius=2.5, overlap_ratio=0.35
 )
 
+#: O painel grava a config RESOLVIDA INTEIRA, então toda expectativa de dict
+#: precisa incluir os campos temporais. Ficam num só lugar: um campo novo em
+#: ``RoiRuleConfig`` passa a exigir uma edição, não seis.
+TIMING_DEFAULTS = {
+    "roi_flutter_enter_frames": 2,
+    "roi_flutter_exit_frames": 3,
+    "roi_min_visit_s": 0.2,
+    "roi_min_gap_s": 0.0,
+    "roi_max_gap_s": None,
+}
+
 
 def test_apply_persists_into_project_roi_settings():
     project_data: dict = {}
@@ -58,6 +69,7 @@ def test_apply_persists_into_project_roi_settings():
         "roi_buffer_radius_value": 2.5,
         "roi_min_bbox_overlap_ratio": 0.35,
         "roi_bbox_overlap_basis": "bbox",
+        **TIMING_DEFAULTS,
     }
     dispatcher.gui.controller.project_manager.save_project.assert_called_once()
     dispatcher.gui.show_info.assert_called_once()
@@ -105,6 +117,7 @@ def test_partial_edit_keeps_the_project_value_not_the_global():
         "roi_buffer_radius_value": 3.0,  # preservado
         "roi_min_bbox_overlap_ratio": 0.42,  # preservado
         "roi_bbox_overlap_basis": "bbox",
+        **TIMING_DEFAULTS,
     }
 
 
@@ -173,6 +186,7 @@ def test_invalid_text_does_not_crash_and_falls_back():
         "roi_buffer_radius_value": 1.0,  # caiu no valor global
         "roi_min_bbox_overlap_ratio": 0.20,
         "roi_bbox_overlap_basis": "bbox",
+        **TIMING_DEFAULTS,
     }
 
 
@@ -233,6 +247,7 @@ def test_corrupted_roi_settings_is_replaced_not_crashed(corrupted):
         "roi_buffer_radius_value": 2.5,
         "roi_min_bbox_overlap_ratio": 0.35,
         "roi_bbox_overlap_basis": "bbox",
+        **TIMING_DEFAULTS,
     }
     dispatcher.gui.controller.project_manager.save_project.assert_called_once()
 

@@ -19,13 +19,16 @@ from zebtrack.analysis.roi import ROIAnalyzer
 # ---------------------------------------------------------------------------
 
 
-def _apply_flutter(raw: pd.Series, n: int) -> pd.Series:
+def _apply_flutter(raw: pd.Series, n: int, exit_n: int | None = None) -> pd.Series:
     """Call _apply_flutter_filter without full ROIAnalyzer construction.
 
     Creates a minimal mock that exposes only the fields the method needs.
+    O debounce é assimétrico; ``n`` sozinho configura os dois lados, que é o
+    contrato da entrada legada ``flutter_n_frames``.
     """
     analyzer = object.__new__(ROIAnalyzer)
-    analyzer._flutter_n = n
+    analyzer._flutter_enter = n
+    analyzer._flutter_exit = n if exit_n is None else exit_n
     return analyzer._apply_flutter_filter(raw)
 
 
@@ -125,10 +128,26 @@ class TestFlutterFilterTrivialCases:
     @given(length=st.integers(min_value=1, max_value=100), n=_flutter_n)
     @settings(max_examples=30, database=None)
     def test_all_true_stays_true(self, length: int, n: int) -> None:
-        """A series of all True values stays all True after filtering."""
-        raw = pd.Series([True] * length, dtype=bool)
+        """All-True stays all-True — provided the run can be confirmed at all.
+
+        The confirmed entry is backdated to the first frame of the run, so a
+        series that is long enough to confirm comes back untouched.
+        """
+        raw = pd.Series([True] * max(length, n), dtype=bool)
         result = _apply_flutter(raw, n)
         assert result.all()
+
+    @given(n=st.integers(min_value=2, max_value=10))
+    @settings(max_examples=20, database=None)
+    def test_run_shorter_than_the_window_never_confirms(self, n: int) -> None:
+        """A run too short to confirm stays outside — including at frame 0.
+
+        The old filter used ``min_periods=1``, so the very first frame set the
+        state with no confirmation at all. The border is now explicit: the
+        state starts outside and only a full run of ``n`` frames moves it.
+        """
+        raw = pd.Series([True] * (n - 1), dtype=bool)
+        assert not _apply_flutter(raw, n).any()
 
     @given(length=st.integers(min_value=1, max_value=100), n=_flutter_n)
     @settings(max_examples=30, database=None)

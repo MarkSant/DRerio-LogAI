@@ -287,10 +287,17 @@ def _roi_analyzer_presence(boxes, config: RoiRuleConfig) -> list[bool]:
         geometry=Polygon([(0, 0), (100, 0), (100, 100), (0, 100)]),
         coordinate_space="px",  # já em pixels, como os polígonos do detector
     )
+    # A paridade cobrada aqui é a da GEOMETRIA, caixa a caixa: é o que o
+    # avaliador ao vivo calcula. O debounce e os limiares de duração do
+    # relatório vivem uma camada acima (série temporal) e não têm equivalente
+    # no gatilho Arduino — deixá-los ligados aqui compararia coisas
+    # diferentes. As caixas de paridade são frames isolados e independentes.
     analyzer = ROIAnalyzer(
         behavior_analyzer=b_analyzer,
         rois=[roi],
         flutter_n_frames=1,  # sem filtro de flutuação: presença crua
+        min_visit_s=0.0,
+        min_gap_s=0.0,
         inclusion_rule=config.rule,
         buffer_radius_value=config.buffer_radius_value,
         min_bbox_overlap_ratio=config.min_bbox_overlap_ratio,
