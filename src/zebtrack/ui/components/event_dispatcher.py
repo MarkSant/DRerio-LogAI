@@ -1126,8 +1126,15 @@ class EventDispatcher:
         project_manager = getattr(gui.controller, "project_manager", None)
         # save_project() levanta ProjectInvalidError sem project_path — e o
         # EventBusV2 engoliria a exceção neste handler.
-        if project_manager is not None and getattr(project_manager, "project_path", None):
-            project_data = project_manager.project_data
+        project_data = getattr(project_manager, "project_data", None)
+        if (
+            project_manager is not None
+            and getattr(project_manager, "project_path", None)
+            # ``project_data`` só é dict num projeto carregado com sucesso; se
+            # vier None/corrompido, gravar levantaria e o EventBusV2 engoliria.
+            # Sem onde persistir, o caminho de sessão abaixo ainda aplica a regra.
+            and isinstance(project_data, dict)
+        ):
             stored = project_data.get("roi_settings")
             if not isinstance(stored, dict):
                 # Um projeto com ``roi_settings`` corrompido (lista, string…)

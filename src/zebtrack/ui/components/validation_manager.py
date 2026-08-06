@@ -1525,11 +1525,14 @@ class ValidationManager:
             buffer_radius = float(self.gui.roi_buffer_radius_var.get())
             overlap_ratio = float(self.gui.roi_overlap_ratio_var.get())
 
-            # Validate ranges
-            if buffer_radius < 0:
-                raise ValueError("Raio de buffer deve ser >= 0")
-            if not (0 <= overlap_ratio <= 1):
-                raise ValueError("Fração de sobreposição deve estar entre 0 e 1")
+            # Faixas iguais às do resolvedor (mínimo EXCLUSIVO): raio 0 não
+            # dilata e fração 0 aceita qualquer coisa. Validar aqui com `>= 0`
+            # aceitaria um zero que o resolvedor descartaria logo adiante — o
+            # usuário veria "aplicado" com um valor que não foi aplicado.
+            if buffer_radius <= 0:
+                raise ValueError("Raio de buffer deve ser maior que 0")
+            if not (0 < overlap_ratio <= 1):
+                raise ValueError("Fração de sobreposição deve ser maior que 0 e no máximo 1")
 
             # Update settings if available
             if self.gui.controller.settings:

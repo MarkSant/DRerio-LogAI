@@ -192,6 +192,18 @@ def test_corrupted_roi_settings_is_replaced_not_crashed(corrupted):
     dispatcher.gui.controller.project_manager.save_project.assert_called_once()
 
 
+@pytest.mark.parametrize("broken", [None, "não é dict", ["lista"]])
+def test_project_data_not_a_dict_applies_to_session_instead_of_raising(broken):
+    """Projeto carregado pela metade não pode matar o handler no bus."""
+    settings = load_settings()
+    dispatcher = _dispatcher("C:/proj/proj.json", broken, settings)
+
+    dispatcher._on_persist_roi_settings(PAYLOAD)
+
+    assert settings.roi_inclusion_rule == "centroid_in"
+    dispatcher.gui.controller.project_manager.save_project.assert_not_called()
+
+
 def test_empty_payload_is_a_noop():
     project_data: dict = {}
     dispatcher = _dispatcher("C:/proj/proj.json", project_data, load_settings())

@@ -1,7 +1,7 @@
 """Fonte canônica da regra de inclusão em ROI.
 
 Todo caminho que decide se um animal está "dentro" de uma ROI — relatório de
-vídeo pré-gravado, regeração de relatório, pós-processamento ao vivo e o
+vídeo pré-gravado, regeneração de relatório, pós-processamento ao vivo e o
 gatilho Arduino ao vivo — resolve a regra por aqui. Antes deste módulo cada
 caminho lia (ou ignorava) `roi_settings` do projeto por conta própria, e os
 quatro divergiam: o relatório podia contar uma entrada que o Arduino não
