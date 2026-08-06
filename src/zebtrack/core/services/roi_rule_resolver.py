@@ -84,6 +84,36 @@ class RoiRuleConfig:
         """True quando a regra dilata o polígono da ROI antes do teste."""
         return self.rule in _BUFFERED_RULES
 
+    # ------------------------------------------------------------------
+    # Aliases com os nomes de ``Settings``
+    # ------------------------------------------------------------------
+    # Permitem passar uma config JÁ resolvida como camada de base de
+    # :func:`resolve_roi_rule` — é assim que uma edição parcial (só a regra,
+    # por exemplo) cai no valor EFETIVO atual em vez de no global.
+
+    @property
+    def roi_inclusion_rule(self) -> str:
+        """Alias com o nome usado em ``Settings``/``roi_settings``."""
+        return self.rule
+
+    @property
+    def roi_buffer_radius_value(self) -> float:
+        """Alias com o nome usado em ``Settings``/``roi_settings``."""
+        return self.buffer_radius_value
+
+    @property
+    def roi_min_bbox_overlap_ratio(self) -> float:
+        """Alias com o nome usado em ``Settings``/``roi_settings``."""
+        return self.min_bbox_overlap_ratio
+
+    def to_roi_settings(self) -> dict[str, Any]:
+        """Serializa para ``project_data["roi_settings"]``."""
+        return {
+            _KEY_RULE: self.rule,
+            _KEY_BUFFER: self.buffer_radius_value,
+            _KEY_OVERLAP: self.min_bbox_overlap_ratio,
+        }
+
 
 def _coerce_rule(value: Any, fallback: str, *, source: str) -> str:
     """Valida o nome da regra; cai em ``fallback`` e loga quando inválido."""

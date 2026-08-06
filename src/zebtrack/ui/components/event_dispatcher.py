@@ -1121,12 +1121,20 @@ class EventDispatcher:
             return
 
         settings_obj = getattr(gui.controller, "settings", None) or getattr(gui, "settings", None)
-        config = resolve_roi_rule({"roi_settings": roi_settings}, settings_obj)
-
         project_manager = getattr(gui.controller, "project_manager", None)
         # save_project() levanta ProjectInvalidError sem project_path — e o
         # EventBusV2 engoliria a exceção neste handler.
         project_data = getattr(project_manager, "project_data", None)
+
+        # A base de uma edição PARCIAL é a regra efetiva de hoje, não o global:
+        # o painel edita três campos mas o usuário costuma mexer em um. Resolver
+        # contra ``settings_obj`` faria um campo em branco sobrescrever o valor
+        # do projeto pelo global (projeto 0.42 + global 0.10, usuário troca só a
+        # regra → 0.10 gravado sem intenção). A config resolvida expõe os nomes
+        # de ``Settings``, então serve de camada de base direto.
+        current = resolve_roi_rule(project_data, settings_obj)
+        config = resolve_roi_rule({"roi_settings": roi_settings}, current)
+
         if (
             project_manager is not None
             and getattr(project_manager, "project_path", None)
@@ -1148,9 +1156,7 @@ class EventDispatcher:
                     )
                 stored = {}
                 project_data["roi_settings"] = stored
-            stored["roi_inclusion_rule"] = config.rule
-            stored["roi_buffer_radius_value"] = config.buffer_radius_value
-            stored["roi_min_bbox_overlap_ratio"] = config.min_bbox_overlap_ratio
+            stored.update(config.to_roi_settings())
             project_manager.save_project()
             self.log.info(
                 "zone_controls.roi_settings.persisted",

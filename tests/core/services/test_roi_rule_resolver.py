@@ -192,6 +192,25 @@ def test_zero_parameter_falls_back_one_level_not_to_default(zero):
 # ----------------------------------------------------------------------
 
 
+def test_config_can_be_the_base_layer_of_another_resolve():
+    """Uma edição parcial resolve contra a config atual, não contra o global."""
+    current = RoiRuleConfig("bbox_intersects", 3.0, 0.42)
+    updated = resolve_roi_rule({"roi_settings": {"roi_inclusion_rule": "centroid_in"}}, current)
+    assert updated == RoiRuleConfig("centroid_in", 3.0, 0.42)
+
+
+def test_to_roi_settings_round_trips():
+    config = RoiRuleConfig("centroid_in_on_buffered_roi", 2.0, 0.6)
+    assert resolve_roi_rule({"roi_settings": config.to_roi_settings()}, None) == config
+
+
+def test_settings_name_aliases():
+    config = RoiRuleConfig("centroid_in", 2.0, 0.6)
+    assert config.roi_inclusion_rule == "centroid_in"
+    assert config.roi_buffer_radius_value == 2.0
+    assert config.roi_min_bbox_overlap_ratio == 0.6
+
+
 def test_config_is_frozen():
     config = RoiRuleConfig()
     with pytest.raises(dataclasses.FrozenInstanceError):

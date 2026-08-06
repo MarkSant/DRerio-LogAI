@@ -79,6 +79,47 @@ def test_persisted_settings_are_read_back_by_the_resolver():
     assert config.min_bbox_overlap_ratio == 0.35
 
 
+def test_partial_edit_keeps_the_project_value_not_the_global():
+    """Mexer só na regra não pode sobrescrever o parâmetro já salvo no projeto.
+
+    Projeto em 0.42, global em 0.10: resolver a edição contra o GLOBAL gravaria
+    0.10 sem o usuário ter pedido. A base tem de ser a regra efetiva de hoje.
+    """
+    project_data = {
+        "roi_settings": {
+            "roi_inclusion_rule": "bbox_intersects",
+            "roi_buffer_radius_value": 3.0,
+            "roi_min_bbox_overlap_ratio": 0.42,
+        }
+    }
+    settings = load_settings()
+    settings.roi_min_bbox_overlap_ratio = 0.10
+    settings.roi_buffer_radius_value = 0.5
+    dispatcher = _dispatcher("C:/proj/proj.json", project_data, settings)
+
+    dispatcher._on_persist_roi_settings(payloads.RoiSettingsApplyPayload(rule="centroid_in"))
+
+    assert project_data["roi_settings"] == {
+        "roi_inclusion_rule": "centroid_in",  # o que mudou
+        "roi_buffer_radius_value": 3.0,  # preservado
+        "roi_min_bbox_overlap_ratio": 0.42,  # preservado
+    }
+
+
+def test_invalid_field_falls_back_to_project_value_not_global():
+    """Texto inválido num campo cai no valor do PROJETO, não no global."""
+    project_data = {"roi_settings": {"roi_min_bbox_overlap_ratio": 0.42}}
+    settings = load_settings()
+    settings.roi_min_bbox_overlap_ratio = 0.10
+    dispatcher = _dispatcher("C:/proj/proj.json", project_data, settings)
+
+    dispatcher._on_persist_roi_settings(
+        payloads.RoiSettingsApplyPayload(rule="bbox_intersects", overlap_ratio="abc")
+    )
+
+    assert project_data["roi_settings"]["roi_min_bbox_overlap_ratio"] == 0.42
+
+
 def test_apply_preserves_other_project_keys():
     project_data = {"roi_settings": {"chave_legada": 1}, "calibration": {"pixelcm_x": 10}}
     dispatcher = _dispatcher("C:/proj/proj.json", project_data, load_settings())
