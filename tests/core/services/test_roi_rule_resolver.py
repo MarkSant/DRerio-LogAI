@@ -161,6 +161,25 @@ def test_config_is_always_self_consistent():
     assert 0 < config.min_bbox_overlap_ratio <= 1
 
 
+@pytest.mark.parametrize("zero", [0.0, 0, "0", -0.0])
+def test_zero_parameter_falls_back_one_level_not_to_default(zero):
+    """Zero é inválido, não "valor do projeto".
+
+    Se o zero passasse pela coerção, a normalização o trocaria pelo DEFAULT em
+    silêncio — o valor global seria descartado sem ninguém saber. Ele tem de
+    cair um nível, como qualquer outro valor inválido.
+    """
+    project = {
+        "roi_settings": {
+            "roi_buffer_radius_value": zero,
+            "roi_min_bbox_overlap_ratio": zero,
+        }
+    }
+    config = resolve_roi_rule(project, _settings(buffer_radius=2.0, overlap=0.25))
+    assert config.buffer_radius_value == 2.0
+    assert config.min_bbox_overlap_ratio == 0.25
+
+
 # ----------------------------------------------------------------------
 # Imutabilidade / helpers
 # ----------------------------------------------------------------------

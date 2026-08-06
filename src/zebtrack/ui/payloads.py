@@ -411,7 +411,9 @@ class RoiSettingsApplyPayload:
     loga o descarte.
     """
 
-    rule: str
+    # Todos opcionais: o handler aplica só o que veio (um payload sem nenhum
+    # campo utilizável é no-op), então o tipo reflete o contrato do evento.
+    rule: str | None = None
     buffer_radius: float | str | None = None
     overlap_ratio: float | str | None = None
 

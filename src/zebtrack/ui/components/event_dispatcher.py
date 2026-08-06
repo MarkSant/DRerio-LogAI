@@ -1128,7 +1128,19 @@ class EventDispatcher:
         # EventBusV2 engoliria a exceção neste handler.
         if project_manager is not None and getattr(project_manager, "project_path", None):
             project_data = project_manager.project_data
-            stored = project_data.setdefault("roi_settings", {})
+            stored = project_data.get("roi_settings")
+            if not isinstance(stored, dict):
+                # Um projeto com ``roi_settings`` corrompido (lista, string…)
+                # faria as atribuições abaixo levantarem TypeError — e o
+                # EventBusV2 engoliria. O resolvedor já ignora esse lixo; a
+                # gravação faz o mesmo e o substitui.
+                if stored is not None:
+                    self.log.warning(
+                        "zone_controls.roi_settings.replacing_invalid",
+                        found=type(stored).__name__,
+                    )
+                stored = {}
+                project_data["roi_settings"] = stored
             stored["roi_inclusion_rule"] = config.rule
             stored["roi_buffer_radius_value"] = config.buffer_radius_value
             stored["roi_min_bbox_overlap_ratio"] = config.min_bbox_overlap_ratio

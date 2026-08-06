@@ -176,13 +176,27 @@ def test_dialog_shows_effective_parameter():
     assert "0.2" in message
 
 
+@pytest.mark.parametrize("corrupted", [["lista"], "texto", 42])
+def test_corrupted_roi_settings_is_replaced_not_crashed(corrupted):
+    """``roi_settings`` com tipo errado levantaria TypeError — engolido pelo bus."""
+    project_data: dict = {"roi_settings": corrupted}
+    dispatcher = _dispatcher("C:/proj/proj.json", project_data, load_settings())
+
+    dispatcher._on_persist_roi_settings(PAYLOAD)
+
+    assert project_data["roi_settings"] == {
+        "roi_inclusion_rule": "centroid_in",
+        "roi_buffer_radius_value": 2.5,
+        "roi_min_bbox_overlap_ratio": 0.35,
+    }
+    dispatcher.gui.controller.project_manager.save_project.assert_called_once()
+
+
 def test_empty_payload_is_a_noop():
     project_data: dict = {}
     dispatcher = _dispatcher("C:/proj/proj.json", project_data, load_settings())
 
-    dispatcher._on_persist_roi_settings(
-        payloads.RoiSettingsApplyPayload(rule=None)  # type: ignore[arg-type]
-    )
+    dispatcher._on_persist_roi_settings(payloads.RoiSettingsApplyPayload(rule=None))
 
     assert project_data == {}
     dispatcher.gui.controller.project_manager.save_project.assert_not_called()

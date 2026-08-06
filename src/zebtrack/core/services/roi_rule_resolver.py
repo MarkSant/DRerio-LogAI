@@ -108,7 +108,6 @@ def _coerce_float(
     *,
     field: str,
     source: str,
-    minimum: float,
     maximum: float | None = None,
 ) -> float:
     """Converte e valida um parâmetro numérico; cai em ``fallback`` se inválido.
@@ -117,6 +116,12 @@ def _coerce_float(
     ``float()`` na UI). ``isfinite`` cobre NaN **e** ±inf: sem ele um ``inf`` no
     raio de buffer passaria pelo teste de faixa (não há ``maximum``) e viraria
     uma dilatação impossível lá na ponta.
+
+    O mínimo é **exclusivo**: zero não é valor útil para nenhum dos dois
+    parâmetros (um buffer de raio 0 não dilata; uma fração 0 aceita qualquer
+    coisa) e a regra ``centroid_in_on_buffered_roi`` do ``Settings`` até o
+    rejeita. Tratá-lo como inválido aqui é o que faz um ``0`` do projeto cair
+    no valor global **com log**, em vez de virar default em silêncio.
     """
     if value is None:
         return fallback
@@ -129,7 +134,7 @@ def _coerce_float(
         number = fallback
 
     if not invalid and (
-        not math.isfinite(number) or number < minimum or (maximum is not None and number > maximum)
+        not math.isfinite(number) or number <= 0.0 or (maximum is not None and number > maximum)
     ):
         invalid = True
 
@@ -146,11 +151,12 @@ def _coerce_float(
 
 
 def _normalize(rule: str, buffer_radius: float, overlap_ratio: float) -> RoiRuleConfig:
-    """Garante uma configuração autoconsistente para a regra escolhida.
+    """Rede de segurança da autoconsistência da configuração.
 
-    ``buffer_radius_value``/``min_bbox_overlap_ratio`` só têm significado para
-    parte das regras; zerá-los quebraria o validador cruzado de ``Settings`` ao
-    trocar de regra, então valores fora de faixa são substituídos pelo default.
+    Com o mínimo exclusivo em :func:`_coerce_float`, todo valor que chega aqui
+    já é utilizável (e os defaults também são) — este passo existe para que a
+    garantia "buffer > 0 e 0 < ratio <= 1" seja do tipo, não de quem o
+    construiu. É dela que depende a ordem de :func:`apply_roi_rule_to_settings`.
     """
     if buffer_radius <= 0.0:
         buffer_radius = DEFAULT_BUFFER_RADIUS_VALUE
@@ -187,14 +193,12 @@ def resolve_roi_rule(project_data: dict[str, Any] | None, settings_obj: Any) -> 
             buffer_radius,
             field=_KEY_BUFFER,
             source="settings",
-            minimum=0.0,
         )
         overlap_ratio = _coerce_float(
             getattr(settings_obj, _KEY_OVERLAP, None),
             overlap_ratio,
             field=_KEY_OVERLAP,
             source="settings",
-            minimum=0.0,
             maximum=1.0,
         )
 
@@ -206,14 +210,12 @@ def resolve_roi_rule(project_data: dict[str, Any] | None, settings_obj: Any) -> 
             buffer_radius,
             field=_KEY_BUFFER,
             source="project",
-            minimum=0.0,
         )
         overlap_ratio = _coerce_float(
             roi_settings.get(_KEY_OVERLAP),
             overlap_ratio,
             field=_KEY_OVERLAP,
             source="project",
-            minimum=0.0,
             maximum=1.0,
         )
     elif roi_settings is not None:
