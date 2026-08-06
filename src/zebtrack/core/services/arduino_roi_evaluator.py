@@ -144,8 +144,9 @@ class ArduinoRoiEvaluator:
             detections: itens ``(x1, y1, x2, y2)`` (bbox, espaço de pixels do
                 frame) ou ``(cx, cy)`` (apenas o centroide — caminho
                 compatível com chamadores antigos). Para ``bbox_intersects``,
-                um centroide sem bbox não permite calcular fração de área, e a
-                avaliação cai para contenção do ponto (logado uma vez).
+                uma caixa sem área (centroide, ou um dos lados zerado) não
+                permite calcular fração de área: a avaliação cai para
+                contenção do ponto e o fallback é logado uma vez.
         """
         if not self._rois:
             return set()
@@ -193,8 +194,13 @@ class ArduinoRoiEvaluator:
         """Testa uma detecção contra as ROIs pendentes. True se todas ocuparam."""
         x1, y1, x2, y2 = box
         centroid = shapely.points((x1 + x2) / 2.0, (y1 + y2) / 2.0)
-        use_bbox = self._rule == "bbox_intersects" and (x2 > x1 or y2 > y1)
-        if self._rule == "bbox_intersects" and not use_bbox:
+        # A fração de sobreposição divide pela ÁREA da caixa: exige as duas
+        # dimensões positivas. Uma caixa degenerada (um lado zerado) tem área
+        # zero e não é avaliável por essa regra — cai no centroide, mas com o
+        # aviso, para não mascarar detecção inválida.
+        has_area = x2 > x1 and y2 > y1
+        use_bbox = self._rule == "bbox_intersects" and has_area
+        if self._rule == "bbox_intersects" and not has_area:
             self._warn_missing_bbox()
 
         bbox_geom = shapely.box(x1, y1, x2, y2) if use_bbox else None
@@ -203,7 +209,7 @@ class ArduinoRoiEvaluator:
         for name, geometry in self._rois:
             if name in occupied:
                 continue
-            if use_bbox and bbox_geom is not None and bbox_area > 0:
+            if bbox_geom is not None and bbox_area > 0:
                 ratio = shapely.area(shapely.intersection(geometry, bbox_geom)) / bbox_area
                 inside = bool(ratio >= self._config.min_bbox_overlap_ratio)
             else:
@@ -213,7 +219,7 @@ class ArduinoRoiEvaluator:
         return len(occupied) == len(self._rois)
 
     def _warn_missing_bbox(self) -> None:
-        """Avisa uma única vez que a regra de bbox recebeu só centroides."""
+        """Avisa uma única vez que a regra de bbox recebeu caixa sem área."""
         if self._warned_missing_bbox:
             return
         self._warned_missing_bbox = True

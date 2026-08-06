@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from typing import Any
 from unittest.mock import MagicMock
 
 import numpy as np
@@ -130,6 +131,75 @@ def test_bbox_rule_with_centroid_only_input_falls_back():
         ["A"], [BIG_SQUARE], _cfg("bbox_intersects", min_bbox_overlap_ratio=0.5)
     )
     assert ev.occupied_rois([(50, 50)]) == {"A"}
+    assert ev._warned_missing_bbox is True
+
+
+@pytest.mark.parametrize(
+    "degenerate",
+    [
+        (40.0, 50.0, 60.0, 50.0),  # altura zero (linha horizontal)
+        (50.0, 40.0, 50.0, 60.0),  # largura zero (linha vertical)
+        (50.0, 50.0, 50.0, 50.0),  # ponto
+    ],
+    ids=["altura_zero", "largura_zero", "ponto"],
+)
+def test_degenerate_bbox_falls_back_and_warns(degenerate):
+    """Caixa sem ÁREA não é avaliável por fração — e o fallback tem de avisar.
+
+    Uma das dimensões positivas não basta: a razão divide pela área da caixa.
+    Cair para o centroide em silêncio mascararia detecção inválida.
+    """
+    ev = ArduinoRoiEvaluator(
+        ["A"], [BIG_SQUARE], _cfg("bbox_intersects", min_bbox_overlap_ratio=0.5)
+    )
+    assert ev.occupied_rois([degenerate]) == {"A"}  # centroide está dentro
+    assert ev._warned_missing_bbox is True
+
+
+def test_bbox_with_area_does_not_warn():
+    ev = ArduinoRoiEvaluator(
+        ["A"], [BIG_SQUARE], _cfg("bbox_intersects", min_bbox_overlap_ratio=0.5)
+    )
+    ev.occupied_rois([(40.0, 40.0, 60.0, 60.0)])
+    assert ev._warned_missing_bbox is False
+
+
+def test_self_intersecting_polygon_is_repaired():
+    """Bowtie: ``buffer(0)`` conserta em vez de descartar a ROI."""
+    bowtie = np.array([[0, 0], [100, 100], [100, 0], [0, 100]], dtype=np.int32)
+    ev = ArduinoRoiEvaluator(["A"], [bowtie], _cfg("centroid_in"))
+    assert ev.has_rois() is True
+    # O reparo produz os dois triângulos laterais que se tocam em (50, 50).
+    assert ev.occupied_rois([(70.0, 45.0, 80.0, 55.0)]) == {"A"}  # centroide (75, 50)
+    assert ev.occupied_rois([(70.0, 5.0, 80.0, 15.0)]) == set()  # centroide (75, 10)
+
+
+def test_malformed_polygon_shapes_are_ignored():
+    ev = ArduinoRoiEvaluator(
+        ["Flat", "Ok"],
+        [np.array([0, 1, 2, 3], dtype=np.int32), BIG_SQUARE],  # 1-D não é polígono
+        _cfg("centroid_in"),
+    )
+    assert ev.roi_names == ["Ok"]
+
+
+def test_detections_with_bad_shape_are_skipped():
+    """Detecção malformada é ignorada — não derruba o frame inteiro."""
+    ev = ArduinoRoiEvaluator(["A"], [BIG_SQUARE], _cfg("centroid_in"))
+    bad: list[Any] = [(50.0,), ("x", "y"), None, (50.0, 50.0)]
+    assert ev.occupied_rois(bad) == {"A"}
+
+
+def test_stats_before_any_call():
+    ev = ArduinoRoiEvaluator(["A"], [BIG_SQUARE], _cfg("centroid_in"))
+    assert ev.stats() == {"calls": 0, "avg_ms": 0.0, "rule": "centroid_in", "rois": 1}
+
+
+def test_non_positive_px_per_cm_is_ignored():
+    """``px_per_cm`` inválido cai em 1.0 em vez de zerar a dilatação."""
+    cfg = _cfg("centroid_in_on_buffered_roi", buffer_radius_value=20.0)
+    ev = ArduinoRoiEvaluator(["A"], [BIG_SQUARE], cfg, px_per_cm=0.0)
+    assert ev.occupied_rois([(104.0, 44.0, 116.0, 56.0)]) == {"A"}
 
 
 def test_timing_stats_are_collected():

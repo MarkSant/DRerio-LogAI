@@ -1090,6 +1090,10 @@ class EventDispatcher:
 
         Sem projeto aberto (vídeo único), não há onde persistir: a regra é
         aplicada no ``Settings`` da sessão para que a análise em curso a honre.
+
+        Os valores chegam crus da UI (texto). Nada de ``float()`` aqui nem lá:
+        ``resolve_roi_rule`` converte, valida, loga o que descartar e cai no
+        valor anterior — um campo digitado errado nunca derruba o clique.
         """
         gui = self._require_gui()
         if not gui or not gui.controller:
@@ -1101,12 +1105,18 @@ class EventDispatcher:
         )
 
         params = _payload_to_dict(data)
-        roi_settings = {
+        raw = {
             "roi_inclusion_rule": params.get("rule"),
             "roi_buffer_radius_value": params.get("buffer_radius"),
             "roi_min_bbox_overlap_ratio": params.get("overlap_ratio"),
         }
-        roi_settings = {k: v for k, v in roi_settings.items() if v is not None}
+        # Campo em branco = "não informado", não valor inválido: descartar aqui
+        # evita um roi_rule.resolve.invalid_value só de ruído.
+        roi_settings = {
+            key: value
+            for key, value in raw.items()
+            if value is not None and str(value).strip() != ""
+        }
         if not roi_settings:
             return
 
@@ -1130,8 +1140,9 @@ class EventDispatcher:
             )
             gui.show_info(
                 "Regra de ROI Aplicada",
-                f"Regra '{config.rule}' salva no projeto.\n"
-                "Vale para novas análises e para a regeneração de relatórios.",
+                f"{self._describe_roi_rule(config)}\n\n"
+                "Salva no projeto: vale para novas análises, para a regeneração "
+                "de relatórios e para o gatilho Arduino ao vivo.",
             )
             return
 
@@ -1143,9 +1154,24 @@ class EventDispatcher:
         )
         gui.show_info(
             "Regra de ROI Aplicada",
-            f"Regra '{config.rule}' aplicada a esta sessão.\n"
-            "Sem projeto aberto, ela não é salva em disco.",
+            f"{self._describe_roi_rule(config)}\n\n"
+            "Aplicada a esta sessão. Sem projeto aberto, ela não é salva em disco.",
         )
+
+    @staticmethod
+    def _describe_roi_rule(config: Any) -> str:
+        """Descreve os valores EFETIVOS, incluindo o parâmetro que a regra usa.
+
+        Mostrar o valor aplicado (e não o digitado) é o que torna visível um
+        campo inválido que caiu no valor anterior.
+        """
+        if config.uses_buffer:
+            detail = f"raio de buffer {config.buffer_radius_value:g}"
+        elif config.uses_bbox:
+            detail = f"sobreposição mínima {config.min_bbox_overlap_ratio:g}"
+        else:
+            detail = "sem parâmetros adicionais"
+        return f"Regra '{config.rule}' ({detail})."
 
     def _on_show_aquarium_assignment_dialog(self, data: payloads.EventPayload) -> None:
         """Handle ZONE_SHOW_AQUARIUM_ASSIGNMENT_DIALOG event.

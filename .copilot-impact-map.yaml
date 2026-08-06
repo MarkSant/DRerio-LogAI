@@ -404,6 +404,8 @@ domains:
       buffer_units: "buffered ROI dilated ONCE in the constructor; px_per_cm must be sqrt(pixelcm_x*pixelcm_y) to match ROIAnalyzer"
       seg_overlap: "unimplemented in roi.py (raises); the live evaluator degrades to centroid_in and logs seg_overlap_unsupported_fallback"
       ui_apply: "Zones tab 'Aplicar' emits ZONE_APPLY_ROI_SETTINGS (persists). DETECTOR_UPDATE_PARAMETERS silently drops the ROI keys"
+      no_float_in_ui: "The payload carries raw StringVar text; float() inside a Tk callback raises on bad input and kills the click. Parsing/validation happens once, in resolve_roi_rule (non-finite included)"
+      degenerate_bbox: "bbox_intersects divides by the box AREA — both dimensions must be > 0. A zero-side box falls back to the centroid WITH the warning, never silently"
 
     key_files:
       - "src/zebtrack/core/services/roi_rule_resolver.py"

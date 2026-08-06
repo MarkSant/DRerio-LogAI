@@ -96,6 +96,27 @@ def test_invalid_rule_in_settings_falls_back_to_default():
     assert config.rule == DEFAULT_ROI_INCLUSION_RULE
 
 
+@pytest.mark.parametrize("bad", [float("inf"), float("-inf"), float("nan")])
+def test_non_finite_parameters_fall_back(bad):
+    """``inf`` passaria pelo teste de faixa (buffer não tem máximo)."""
+    project = {
+        "roi_settings": {
+            "roi_buffer_radius_value": bad,
+            "roi_min_bbox_overlap_ratio": bad,
+        }
+    }
+    config = resolve_roi_rule(project, _settings(buffer_radius=2.0, overlap=0.25))
+    assert config.buffer_radius_value == 2.0
+    assert config.min_bbox_overlap_ratio == 0.25
+
+
+@pytest.mark.parametrize("raw", ["2.5", " 2.5 ", 2.5])
+def test_accepts_text_from_the_ui(raw):
+    """A aba de Zonas manda o campo cru; a conversão é aqui, não na UI."""
+    project = {"roi_settings": {"roi_buffer_radius_value": raw}}
+    assert resolve_roi_rule(project, _settings()).buffer_radius_value == 2.5
+
+
 @pytest.mark.parametrize("bad", ["texto", None, float("nan"), -1.0])
 def test_invalid_buffer_falls_back(bad):
     project = {

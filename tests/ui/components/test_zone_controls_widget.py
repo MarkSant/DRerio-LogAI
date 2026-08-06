@@ -108,8 +108,23 @@ def test_apply_roi_settings_emits_persisting_event(widget, event_bus):
     event_bus.publish.assert_called_with(
         UIEvents.ZONE_APPLY_ROI_SETTINGS,
         payloads.RoiSettingsApplyPayload(
-            rule="bbox_intersects", buffer_radius=1.2, overlap_ratio=0.25
+            rule="bbox_intersects", buffer_radius="1.2", overlap_ratio="0.25"
         ),
+    )
+
+
+@pytest.mark.gui
+def test_apply_roi_settings_with_invalid_text_does_not_raise(widget, event_bus):
+    """``float()`` no callback do Tk mataria o clique com texto inválido."""
+    widget.roi_inclusion_rule_var.set("centroid_in")
+    widget.roi_buffer_radius_var.set("abc")
+    widget.roi_overlap_ratio_var.set("")
+
+    widget._on_apply_roi_settings_clicked()  # não pode levantar
+
+    event_bus.publish.assert_called_with(
+        UIEvents.ZONE_APPLY_ROI_SETTINGS,
+        payloads.RoiSettingsApplyPayload(rule="centroid_in", buffer_radius="abc", overlap_ratio=""),
     )
 
 

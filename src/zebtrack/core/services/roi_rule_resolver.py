@@ -14,6 +14,7 @@ O módulo é puro: nenhuma I/O, nenhum singleton, nenhuma dependência de UI.
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from typing import Any, Final
 
@@ -110,21 +111,29 @@ def _coerce_float(
     minimum: float,
     maximum: float | None = None,
 ) -> float:
-    """Converte e valida um parâmetro numérico; cai em ``fallback`` se inválido."""
+    """Converte e valida um parâmetro numérico; cai em ``fallback`` se inválido.
+
+    Aceita texto (é por aqui que passam os campos da aba de Zonas, sem
+    ``float()`` na UI). ``isfinite`` cobre NaN **e** ±inf: sem ele um ``inf`` no
+    raio de buffer passaria pelo teste de faixa (não há ``maximum``) e viraria
+    uma dilatação impossível lá na ponta.
+    """
     if value is None:
         return fallback
+
+    invalid = False
     try:
         number = float(value)
     except (TypeError, ValueError):
-        log.warning(
-            "roi_rule.resolve.invalid_value",
-            field=field,
-            value=value,
-            source=source,
-            fallback=fallback,
-        )
-        return fallback
-    if number != number or number < minimum or (maximum is not None and number > maximum):
+        invalid = True
+        number = fallback
+
+    if not invalid and (
+        not math.isfinite(number) or number < minimum or (maximum is not None and number > maximum)
+    ):
+        invalid = True
+
+    if invalid:
         log.warning(
             "roi_rule.resolve.invalid_value",
             field=field,

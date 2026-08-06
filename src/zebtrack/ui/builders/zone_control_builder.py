@@ -127,6 +127,9 @@ class ZoneControlBuilder:
 
         Antes ia para ``DETECTOR_UPDATE_PARAMETERS``, que descarta ``rule``/
         ``buffer_radius``/``overlap_ratio`` sem persistir nada.
+
+        Os campos vão CRUS: ``float()`` aqui estoura com texto inválido dentro
+        do callback do Tk. Quem valida é ``resolve_roi_rule``.
         """
         from zebtrack.ui import payloads
         from zebtrack.ui.event_bus_v2 import Event, UIEvents
@@ -137,8 +140,8 @@ class ZoneControlBuilder:
                     type=UIEvents.ZONE_APPLY_ROI_SETTINGS,
                     data=payloads.RoiSettingsApplyPayload(
                         rule=self.gui.roi_inclusion_rule_var.get(),
-                        buffer_radius=float(self.gui.roi_buffer_radius_var.get() or 0.5),
-                        overlap_ratio=float(self.gui.roi_overlap_ratio_var.get() or 0.10),
+                        buffer_radius=self.gui.roi_buffer_radius_var.get(),
+                        overlap_ratio=self.gui.roi_overlap_ratio_var.get(),
                     ),
                     source="ZoneControlBuilder._emit_apply_roi_settings",
                 )

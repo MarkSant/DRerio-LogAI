@@ -111,6 +111,71 @@ def test_apply_does_not_route_to_detector_parameters():
     dispatcher.gui.controller.hardware_vm.update_detector_parameters.assert_not_called()
 
 
+def test_invalid_text_does_not_crash_and_falls_back():
+    """Campo digitado errado não pode derrubar o clique nem gravar lixo."""
+    project_data: dict = {}
+    settings = load_settings()
+    settings.roi_buffer_radius_value = 1.0
+    settings.roi_min_bbox_overlap_ratio = 0.20
+    dispatcher = _dispatcher("C:/proj/proj.json", project_data, settings)
+
+    dispatcher._on_persist_roi_settings(
+        payloads.RoiSettingsApplyPayload(
+            rule="centroid_in", buffer_radius="abc", overlap_ratio="1,5"
+        )
+    )
+
+    assert project_data["roi_settings"] == {
+        "roi_inclusion_rule": "centroid_in",
+        "roi_buffer_radius_value": 1.0,  # caiu no valor global
+        "roi_min_bbox_overlap_ratio": 0.20,
+    }
+
+
+def test_text_values_from_tk_stringvars_are_converted():
+    """A UI manda ``str`` (StringVar); quem converte é o resolvedor."""
+    project_data: dict = {}
+    dispatcher = _dispatcher("C:/proj/proj.json", project_data, load_settings())
+
+    dispatcher._on_persist_roi_settings(
+        payloads.RoiSettingsApplyPayload(
+            rule="centroid_in_on_buffered_roi", buffer_radius="2.5", overlap_ratio="0.35"
+        )
+    )
+
+    assert project_data["roi_settings"]["roi_buffer_radius_value"] == 2.5
+    assert project_data["roi_settings"]["roi_min_bbox_overlap_ratio"] == 0.35
+
+
+def test_blank_fields_are_ignored_not_invalid():
+    project_data: dict = {}
+    settings = load_settings()
+    settings.roi_buffer_radius_value = 1.0
+    dispatcher = _dispatcher("C:/proj/proj.json", project_data, settings)
+
+    dispatcher._on_persist_roi_settings(
+        payloads.RoiSettingsApplyPayload(rule="centroid_in", buffer_radius="", overlap_ratio="  ")
+    )
+
+    assert project_data["roi_settings"]["roi_inclusion_rule"] == "centroid_in"
+    assert project_data["roi_settings"]["roi_buffer_radius_value"] == 1.0
+
+
+def test_dialog_shows_effective_parameter():
+    """O diálogo mostra o valor APLICADO — é assim que um descarte fica visível."""
+    settings = load_settings()
+    settings.roi_min_bbox_overlap_ratio = 0.20
+    dispatcher = _dispatcher("C:/proj/proj.json", {}, settings)
+
+    dispatcher._on_persist_roi_settings(
+        payloads.RoiSettingsApplyPayload(rule="bbox_intersects", overlap_ratio="abc")
+    )
+
+    message = dispatcher.gui.show_info.call_args.args[1]
+    assert "bbox_intersects" in message
+    assert "0.2" in message
+
+
 def test_empty_payload_is_a_noop():
     project_data: dict = {}
     dispatcher = _dispatcher("C:/proj/proj.json", project_data, load_settings())

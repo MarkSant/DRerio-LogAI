@@ -404,11 +404,16 @@ class RoiSettingsApplyPayload:
 
     Persistida em ``project_data["roi_settings"]`` — as mesmas chaves que o
     editor de configurações grava e que ``resolve_roi_rule`` lê.
+
+    Os parâmetros aceitam ``str`` porque a UI envia o conteúdo cru dos campos:
+    um ``float()`` no callback do Tk estoura com texto inválido e mata o clique
+    do botão. Quem valida é ``resolve_roi_rule`` — um único ponto, que também
+    loga o descarte.
     """
 
     rule: str
-    buffer_radius: float | None = None
-    overlap_ratio: float | None = None
+    buffer_radius: float | str | None = None
+    overlap_ratio: float | str | None = None
 
 
 @dataclass(frozen=True)

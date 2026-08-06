@@ -583,8 +583,10 @@ resolve_roi_rule(project_data, settings_obj) -> RoiRuleConfig  # frozen
 ```
 
 Precedence is `project_data["roi_settings"]` > `settings_obj` > default. The
-function is pure (no I/O, no singleton) and never raises: an unknown rule or an
-out-of-range parameter falls back to the previous precedence level and logs
+function is pure (no I/O, no singleton) and never raises: an unknown rule, an
+unparseable string, a non-finite float (NaN **and** ±inf — `inf` would otherwise
+sail past the range check on `roi_buffer_radius_value`, which has no maximum) or
+an out-of-range value falls back to the previous precedence level and logs
 `roi_rule.resolve.invalid_value`. Recognized keys are exactly
 `roi_inclusion_rule`, `roi_buffer_radius_value`, `roi_min_bbox_overlap_ratio` —
 the same ones the settings editor writes.
@@ -623,6 +625,12 @@ The four consumers:
   drops `rule`/`buffer_radius`/`overlap_ratio` (they are in no valid-parameter
   list), returned `True` and logged success — a silent no-op. With no project
   open the rule is applied to the session `Settings` instead.
+  The payload carries the **raw** `StringVar` text (`float | str | None`): a
+  `float()` inside a Tk callback raises on bad input and kills the click, so
+  parsing happens once, in the resolver, which logs whatever it discards. Blank
+  fields are dropped as "not informed" before resolving, and the confirmation
+  dialog shows the **effective** parameter — that is what makes a discarded
+  value visible to the operator.
 
 Note: the two settings snapshots still differ outside ROI —
 `VideoSelectionMixin` also applies offset/smoothing/behavioral overrides that

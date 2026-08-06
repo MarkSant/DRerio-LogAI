@@ -1379,13 +1379,17 @@ class ZoneControlsWidget(BaseWidget):
         ``project_data["roi_settings"]``) — e não mais
         ``DETECTOR_UPDATE_PARAMETERS``, que descartava as três chaves em
         silêncio e ainda logava sucesso.
+
+        Os campos vão CRUS: ``float()`` aqui estoura com texto inválido dentro
+        do callback do Tk e o botão morre sem dizer nada. A validação (e o
+        descarte logado) é do ``resolve_roi_rule``.
         """
         self.emit_event(
             UIEvents.ZONE_APPLY_ROI_SETTINGS,
             payloads.RoiSettingsApplyPayload(
                 rule=self.roi_inclusion_rule_var.get(),
-                buffer_radius=float(self.roi_buffer_radius_var.get() or 0.5),
-                overlap_ratio=float(self.roi_overlap_ratio_var.get() or 0.10),
+                buffer_radius=self.roi_buffer_radius_var.get(),
+                overlap_ratio=self.roi_overlap_ratio_var.get(),
             ),
         )
 
