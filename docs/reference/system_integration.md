@@ -729,6 +729,19 @@ overlap — and not an `area > 0` comparison, which is noisy near tangency.
 executes. Both `Settings._validate_advanced_constraints` and
 `ValidationManager.apply_roi_settings` enforce exactly this split.
 
+The flag that selects the topological path is
+`RoiRuleConfig.overlap_any == (rule is bbox_intersects and ratio == 0.0)` —
+deliberately *not* `ratio <= 0`. A **negative** threshold is invalid and
+dangerous in both directions: routed into the topological path it masks bad
+input, and left on the ratio path `ratio >= negative` matches boxes that do not
+even touch the ROI. `RoiRuleConfig.__post_init__` therefore normalizes **every**
+construction path (not just `resolve_roi_rule`), replacing out-of-range values
+with the canonical default and logging `roi_rule.config.sanitized`; it never
+raises, because this runs in the live loop. `ROIAnalyzer` takes raw floats, so it
+routes them through the same config — but keeps `inclusion_rule` **raw**, so an
+unknown rule still raises in the dispatcher instead of silently becoming the
+default.
+
 The four consumers:
 
 | Path | Consumer | Was |

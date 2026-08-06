@@ -228,11 +228,11 @@ def _px_analyzer(bboxes, roi_polygon, **kwargs):
     b_analyzer._pixelcm_y = 1.0
     b_analyzer._video_height_px = 0
 
+    kwargs.setdefault("inclusion_rule", "bbox_intersects")
     return ROIAnalyzer(
         behavior_analyzer=b_analyzer,
         rois=[ROI(name="R", geometry=roi_polygon, coordinate_space="px")],
         flutter_n_frames=1,
-        inclusion_rule="bbox_intersects",
         **kwargs,
     )
 
@@ -284,6 +284,32 @@ class TestBboxOverlapBasis(unittest.TestCase):
         """``x or default`` trocaria o 0.0 explícito por 0.10 — regressão coberta."""
         analyzer = _px_analyzer([self.BBOX], self.ROI_POLY, min_bbox_overlap_ratio=0.0)
         self.assertEqual(analyzer._min_bbox_overlap_ratio, 0.0)
+        self.assertTrue(analyzer._overlap_any)
+
+    def test_out_of_range_ratio_falls_back_to_the_default(self):
+        """Limiar inválido não vira "qualquer sobreposição" nem passa reto.
+
+        Um negativo é o caso perigoso nas duas direções: tratado como o caso
+        especial do 0, mascara entrada inválida; deixado passar para a razão,
+        `ratio >= negativo` vale até para caixas que não tocam a ROI.
+        """
+        for bad in (-0.5, 1.5, float("nan")):
+            with self.subTest(bad=bad):
+                analyzer = _px_analyzer([self.BBOX], self.ROI_POLY, min_bbox_overlap_ratio=bad)
+                self.assertEqual(analyzer._min_bbox_overlap_ratio, 0.10)
+                self.assertFalse(analyzer._overlap_any)
+
+    def test_negative_ratio_does_not_include_a_disjoint_bbox(self):
+        """Fecha o buraco concreto: caixa fora da ROI segue fora com limiar negativo."""
+        disjoint = (500.0, 500.0, 520.0, 520.0)
+        analyzer = _px_analyzer([disjoint], self.ROI_POLY, min_bbox_overlap_ratio=-0.5)
+        self.assertFalse(bool(analyzer._trajectory["in_R_stable"].iloc[0]))
+
+    def test_unknown_rule_still_raises_after_sanitization(self):
+        """A REGRA segue crua: normalizar os parâmetros não pode calar o erro."""
+        with self.assertRaises(ValueError) as ctx:
+            _px_analyzer([self.BBOX], self.ROI_POLY, inclusion_rule="regra_inexistente")
+        self.assertIn("Unknown inclusion rule", str(ctx.exception))
 
 
 class TestZeroThresholdIsPureIntersection(unittest.TestCase):

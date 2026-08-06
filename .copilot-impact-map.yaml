@@ -451,6 +451,8 @@ domains:
       zero_threshold: "roi_min_bbox_overlap_ratio == 0 is legal ONLY for bbox_intersects and means 'any non-zero overlap AREA'. Evaluated with the DE-9IM pattern T******** (interiors intersect) — NOT shapely.intersects, which is True for tangency, and NOT area > 0, which is noisy near tangency. seg_overlap still requires > 0"
       overlap_basis: "roi_bbox_overlap_basis picks the fraction's denominator: bbox (default, historical) | roi | max. Default keeps old numbers bit-for-bit; 'bbox' under-reports small ROIs (bbox 4x the ROI area covering 100% of it scores 0.25)"
       or_default_trap: "ROIAnalyzer uses `if x is None`, never `x or default`: 0.0 is a meaningful threshold and `or` would silently swap it for 0.10"
+      negative_threshold: "A NEGATIVE ratio is invalid and dangerous in both directions: treated as the 0 special case it masks bad input; passed through to `ratio >= threshold` it matches boxes that do not even touch the ROI. RoiRuleConfig.__post_init__ sanitizes EVERY construction path (not just resolve_roi_rule) and logs roi_rule.config.sanitized; ROIAnalyzer routes its raw float params through the same config"
+      overlap_any_scope: "`overlap_any` is `rule == bbox_intersects AND ratio == 0.0` — not `ratio <= 0`. A loose `<= 0` would route invalid negatives into the topological path; a bare `== 0.0` would answer True for seg_overlap, where 0 is invalid"
 
     key_files:
       - "src/zebtrack/core/services/roi_rule_resolver.py"

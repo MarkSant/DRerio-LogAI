@@ -250,3 +250,23 @@ def test_tab_builder_resolves_the_effective_rule_for_the_panel():
 
     assert config.min_bbox_overlap_ratio == 0.42  # projeto vence
     assert config.bbox_overlap_basis == "max"  # global preenche o resto
+
+
+@pytest.mark.gui
+@pytest.mark.parametrize(
+    ("rule", "expected"),
+    [
+        ("bbox_intersects", "0 = qualquer sobreposição real."),
+        ("seg_overlap", "Deve ser maior que 0."),
+    ],
+)
+def test_overlap_hint_depends_on_the_selected_rule(widget, rule, expected):
+    """O 0 vale só em ``bbox_intersects``; em ``seg_overlap`` o validador recusa.
+
+    Um texto fixo "0 = qualquer sobreposição real" induzia ao erro com
+    ``seg_overlap`` selecionada.
+    """
+    widget.roi_inclusion_rule_var.set(rule)
+    widget._on_roi_rule_changed(None)
+
+    assert widget.overlap_hint_label.cget("text") == expected

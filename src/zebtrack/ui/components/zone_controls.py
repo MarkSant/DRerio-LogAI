@@ -109,6 +109,7 @@ class ZoneControlsWidget(BaseWidget):
         self.radius_frame: ttk.Frame | None = None
         self.overlap_frame: ttk.Frame | None = None
         self.rule_help_label: ttk.Label | None = None
+        self.overlap_hint_label: ttk.Label | None = None
         self._video_tree_expanded = True
 
         # Multi-aquarium widget references
@@ -867,12 +868,15 @@ class ZoneControlsWidget(BaseWidget):
         ttk.Entry(self.overlap_frame, textvariable=self.roi_overlap_ratio_var, width=10).pack(
             side="left", padx=(0, 10)
         )
-        ttk.Label(
+        # O texto depende da regra: 0 só vale em ``bbox_intersects``. Fixo, ele
+        # induziria ao erro com ``seg_overlap`` selecionada, onde 0 é recusado.
+        self.overlap_hint_label = ttk.Label(
             self.overlap_frame,
-            text="0 = qualquer sobreposição real.",
+            text="",
             font=("TkDefaultFont", 8),
             foreground="gray",
-        ).pack(side="left")
+        )
+        self.overlap_hint_label.pack(side="left")
 
         # Help text
         self.rule_help_label = ttk.Label(
@@ -1357,6 +1361,7 @@ class ZoneControlsWidget(BaseWidget):
         do "Aplicar", e que aqui não tinha sequer o que fazer.
         """
         rule = self.roi_inclusion_rule_var.get()
+        overlap_hint = ""
 
         # Update visibility based on rule
         if rule == "centroid_in_on_buffered_roi":
@@ -1375,6 +1380,12 @@ class ZoneControlsWidget(BaseWidget):
             help_text = (
                 "Considera dentro se a caixa/segmentação sobrepuser a ROI acima da fração mínima."
             )
+            # O 0 é exclusivo de ``bbox_intersects``; em ``seg_overlap`` o
+            # validador recusa e o painel não pode sugerir o contrário.
+            if rule == "bbox_intersects":
+                overlap_hint = "0 = qualquer sobreposição real."
+            else:
+                overlap_hint = "Deve ser maior que 0."
         else:
             # centroid_in or others
             if self.radius_frame:
@@ -1387,6 +1398,8 @@ class ZoneControlsWidget(BaseWidget):
 
         if self.rule_help_label:
             self.rule_help_label.config(text=help_text)
+        if self.overlap_hint_label:
+            self.overlap_hint_label.config(text=overlap_hint)
 
     def _on_apply_roi_settings_clicked(self) -> None:
         """Handle apply ROI settings button click.

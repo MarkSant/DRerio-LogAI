@@ -20,6 +20,9 @@ from zebtrack.core.services.roi_rule_resolver import (
     DEFAULT_BBOX_OVERLAP_BASIS,
     DEFAULT_BUFFER_RADIUS_VALUE,
     DEFAULT_MIN_BBOX_OVERLAP_RATIO,
+    DEFAULT_ROI_INCLUSION_RULE,
+    VALID_ROI_INCLUSION_RULES,
+    RoiRuleConfig,
 )
 
 # Padrão DE-9IM "interiores se tocam": é o predicado de sobreposição de área
@@ -92,19 +95,36 @@ class ROIAnalyzer:
         self._trajectory = self._b_analyzer.trajectory_data.copy()
         self._flutter_n = flutter_n_frames
         self._inclusion_rule = inclusion_rule
-        # `x or default` trocaria um 0.0 EXPLÍCITO pelo default — e 0.0 é
-        # justamente o limiar que pede o predicado de sobreposição pura.
-        self._buffer_radius_value = (
-            DEFAULT_BUFFER_RADIUS_VALUE if buffer_radius_value is None else buffer_radius_value
+        # Os parâmetros passam pela MESMA normalização do RoiRuleConfig: as
+        # faixas dependem da regra e um valor fora delas (um limiar negativo,
+        # p.ex., que faria `ratio >= limiar` valer até para caixas que não
+        # tocam a ROI) precisa cair no default com log, não seguir para a
+        # geometria. `x or default` também não serve: `0.0 or 0.10` é 0.10, e
+        # 0.0 é justamente o limiar que pede o predicado de sobreposição pura.
+        # A regra segue CRUA em `_inclusion_rule` — uma regra desconhecida deve
+        # continuar levantando no dispatcher, não virar a default em silêncio.
+        rule_config = RoiRuleConfig(
+            rule=(
+                inclusion_rule
+                if inclusion_rule in VALID_ROI_INCLUSION_RULES
+                else DEFAULT_ROI_INCLUSION_RULE
+            ),
+            buffer_radius_value=(
+                DEFAULT_BUFFER_RADIUS_VALUE if buffer_radius_value is None else buffer_radius_value
+            ),
+            min_bbox_overlap_ratio=(
+                DEFAULT_MIN_BBOX_OVERLAP_RATIO
+                if min_bbox_overlap_ratio is None
+                else min_bbox_overlap_ratio
+            ),
+            bbox_overlap_basis=(
+                DEFAULT_BBOX_OVERLAP_BASIS if bbox_overlap_basis is None else bbox_overlap_basis
+            ),
         )
-        self._min_bbox_overlap_ratio = (
-            DEFAULT_MIN_BBOX_OVERLAP_RATIO
-            if min_bbox_overlap_ratio is None
-            else min_bbox_overlap_ratio
-        )
-        self._bbox_overlap_basis = (
-            DEFAULT_BBOX_OVERLAP_BASIS if bbox_overlap_basis is None else bbox_overlap_basis
-        )
+        self._buffer_radius_value = rule_config.buffer_radius_value
+        self._min_bbox_overlap_ratio = rule_config.min_bbox_overlap_ratio
+        self._bbox_overlap_basis = rule_config.bbox_overlap_basis
+        self._overlap_any = rule_config.overlap_any
         self._buffered_rois_cache: dict[str, Any] = {}  # Cache for buffered ROI geometries
         self._roi_geometries_px = self._normalize_roi_geometries()
         self._validate_rois()
@@ -306,7 +326,7 @@ class ROIAnalyzer:
         # Vectorized box creation
         bboxes = shapely.box(min_x, min_y, max_x, max_y)
 
-        if self._min_bbox_overlap_ratio <= 0.0:
+        if self._overlap_any:
             # Limiar 0: qualquer sobreposição de área não-nula conta. Resolvido
             # pelo predicado topológico, sem razão de áreas — mais barato e
             # imune ao ruído de ponto flutuante perto da tangência.

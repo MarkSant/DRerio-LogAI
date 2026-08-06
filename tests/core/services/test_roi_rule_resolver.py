@@ -364,3 +364,67 @@ def test_apply_zero_overlap_to_real_settings():
 def test_overlap_any_flag():
     assert RoiRuleConfig("bbox_intersects", 1.0, 0.0).overlap_any is True
     assert RoiRuleConfig("bbox_intersects", 1.0, 0.10).overlap_any is False
+
+
+def test_overlap_any_is_restricted_to_bbox_intersects():
+    """A flag responde pela semântica documentada, não por "ratio <= 0".
+
+    ``seg_overlap`` não tem caminho de sobreposição pura, e as regras de
+    centroide nem olham a fração — nenhuma delas pode acionar o predicado
+    topológico.
+    """
+    for rule in ("centroid_in", "centroid_in_on_buffered_roi", "seg_overlap"):
+        assert RoiRuleConfig(rule, 1.0, 0.0).overlap_any is False, rule
+
+
+# ----------------------------------------------------------------------
+# Autoconsistência em QUALQUER construção (não só via resolve_roi_rule)
+# ----------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("bad", [-0.5, -1e-9, 1.5, float("nan"), float("inf"), "texto", None])
+def test_direct_construction_sanitizes_the_overlap_ratio(bad):
+    """Limiar fora de faixa vira o default mesmo sem passar pelo resolvedor.
+
+    Um limiar NEGATIVO era o caso perigoso: ``ratio >= limiar`` valeria até
+    para caixas que não tocam a ROI, transformando entrada inválida no
+    resultado mais permissivo possível.
+    """
+    config = RoiRuleConfig("bbox_intersects", 1.0, bad)
+    assert config.min_bbox_overlap_ratio == DEFAULT_MIN_BBOX_OVERLAP_RATIO
+    assert config.overlap_any is False
+
+
+@pytest.mark.parametrize("bad", [-0.5, float("nan"), float("inf"), "texto", None])
+def test_direct_construction_sanitizes_the_buffer_radius(bad):
+    config = RoiRuleConfig("centroid_in_on_buffered_roi", bad, 0.3)
+    assert config.buffer_radius_value == DEFAULT_BUFFER_RADIUS_VALUE
+
+
+def test_direct_construction_sanitizes_rule_and_basis():
+    config = RoiRuleConfig("regra_inexistente", 1.0, 0.3, "area")
+    assert config.rule == DEFAULT_ROI_INCLUSION_RULE
+    assert config.bbox_overlap_basis == DEFAULT_BBOX_OVERLAP_BASIS
+
+
+def test_zero_overlap_survives_direct_construction_for_bbox_intersects():
+    """O 0 legítimo NÃO pode ser confundido com valor fora de faixa."""
+    config = RoiRuleConfig("bbox_intersects", 1.0, 0.0)
+    assert config.min_bbox_overlap_ratio == 0.0
+    assert config.overlap_any is True
+
+
+def test_zero_overlap_is_sanitized_for_seg_overlap():
+    """Em ``seg_overlap`` o 0 é incoerente e cai no default, com log."""
+    config = RoiRuleConfig("seg_overlap", 1.0, 0.0)
+    assert config.min_bbox_overlap_ratio == DEFAULT_MIN_BBOX_OVERLAP_RATIO
+
+
+def test_sanitized_config_can_be_applied_to_real_settings():
+    """A autoconsistência é o que permite aplicar sem estado intermediário inválido."""
+    from zebtrack.settings import load_settings
+
+    settings = load_settings()
+    apply_roi_rule_to_settings(settings, RoiRuleConfig("seg_overlap", -1.0, -0.5))
+    assert settings.roi_min_bbox_overlap_ratio == DEFAULT_MIN_BBOX_OVERLAP_RATIO
+    assert settings.roi_buffer_radius_value == DEFAULT_BUFFER_RADIUS_VALUE
