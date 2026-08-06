@@ -320,6 +320,7 @@ class AnalysisService:
             inclusion_rule=roi_rule.rule,
             buffer_radius_value=roi_rule.buffer_radius_value,
             min_bbox_overlap_ratio=roi_rule.min_bbox_overlap_ratio,
+            bbox_overlap_basis=roi_rule.bbox_overlap_basis,
         )
         report["analise_roi"] = {
             "tempo_gasto_por_roi": r_analyzer.get_time_spent_in_rois(),

@@ -91,6 +91,40 @@ def test_bbox_intersects_uses_overlap_ratio():
     assert strict.occupied_rois([half_in]) == set()
 
 
+def test_zero_ratio_means_any_real_overlap_but_not_tangency():
+    """Limiar 0: sobreposição de área não-nula dispara; encostar na borda não."""
+    ev = ArduinoRoiEvaluator(["A"], [BIG_SQUARE], _cfg("bbox_intersects", min_bbox_overlap_ratio=0))
+    tangent = (100.0, 40.0, 120.0, 60.0)  # encosta em x=100
+    sliver = (99.0, 40.0, 199.0, 60.0)  # invade 1 px de largura (fração 0.01)
+
+    assert ev.occupied_rois([tangent]) == set()
+    assert ev.occupied_rois([sliver]) == {"A"}
+
+
+def test_basis_roi_counts_coverage_of_a_small_roi():
+    """Base "roi": uma caixa grande cobrindo a ROI inteira marca 1.0, não 0.25."""
+    small_roi = np.array([[45, 45], [55, 45], [55, 55], [45, 55]], dtype=np.int32)  # 10x10
+    big_box = (40.0, 40.0, 60.0, 60.0)  # 20x20, contém a ROI inteira
+
+    by_bbox = ArduinoRoiEvaluator(
+        ["A"], [small_roi], _cfg("bbox_intersects", min_bbox_overlap_ratio=0.5)
+    )
+    by_roi = ArduinoRoiEvaluator(
+        ["A"],
+        [small_roi],
+        _cfg("bbox_intersects", min_bbox_overlap_ratio=0.5, bbox_overlap_basis="roi"),
+    )
+    by_max = ArduinoRoiEvaluator(
+        ["A"],
+        [small_roi],
+        _cfg("bbox_intersects", min_bbox_overlap_ratio=0.5, bbox_overlap_basis="max"),
+    )
+
+    assert by_bbox.occupied_rois([big_box]) == set()  # 100/400 = 0.25
+    assert by_roi.occupied_rois([big_box]) == {"A"}  # 100/100 = 1.0
+    assert by_max.occupied_rois([big_box]) == {"A"}  # max(0.25, 1.0)
+
+
 def test_centroid_in_ignores_bbox_overlap():
     """Centroide fora, bbox sobrepondo: ``centroid_in`` não dispara."""
     half_in = (90.0, 40.0, 110.0, 60.0)  # centroide em x=100 (na borda)
@@ -260,6 +294,7 @@ def _roi_analyzer_presence(boxes, config: RoiRuleConfig) -> list[bool]:
         inclusion_rule=config.rule,
         buffer_radius_value=config.buffer_radius_value,
         min_bbox_overlap_ratio=config.min_bbox_overlap_ratio,
+        bbox_overlap_basis=config.bbox_overlap_basis,
     )
     return [bool(v) for v in analyzer._trajectory["in_A_stable"]]
 
@@ -271,8 +306,19 @@ def _roi_analyzer_presence(boxes, config: RoiRuleConfig) -> list[bool]:
         RoiRuleConfig("centroid_in_on_buffered_roi", buffer_radius_value=15.0),
         RoiRuleConfig("bbox_intersects", min_bbox_overlap_ratio=0.10),
         RoiRuleConfig("bbox_intersects", min_bbox_overlap_ratio=0.60),
+        RoiRuleConfig("bbox_intersects", min_bbox_overlap_ratio=0.0),
+        RoiRuleConfig("bbox_intersects", min_bbox_overlap_ratio=0.60, bbox_overlap_basis="roi"),
+        RoiRuleConfig("bbox_intersects", min_bbox_overlap_ratio=0.60, bbox_overlap_basis="max"),
     ],
-    ids=["centroid_in", "buffered", "bbox_10pct", "bbox_60pct"],
+    ids=[
+        "centroid_in",
+        "buffered",
+        "bbox_10pct",
+        "bbox_60pct",
+        "bbox_any_overlap",
+        "bbox_60pct_basis_roi",
+        "bbox_60pct_basis_max",
+    ],
 )
 def test_evaluator_agrees_with_roi_analyzer(config):
     """O gatilho ao vivo e o relatório precisam concordar caixa a caixa."""

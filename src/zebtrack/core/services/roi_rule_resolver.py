@@ -23,19 +23,23 @@ import structlog
 log = structlog.get_logger()
 
 __all__ = [
+    "DEFAULT_BBOX_OVERLAP_BASIS",
     "DEFAULT_BUFFER_RADIUS_VALUE",
     "DEFAULT_MIN_BBOX_OVERLAP_RATIO",
     "DEFAULT_ROI_INCLUSION_RULE",
+    "VALID_BBOX_OVERLAP_BASES",
     "VALID_ROI_INCLUSION_RULES",
     "RoiRuleConfig",
     "apply_roi_rule_to_settings",
     "resolve_roi_rule",
 ]
 
-# Espelham os defaults de ``Settings`` (settings.py).
+# Espelham os defaults de ``Settings`` (settings.py). ``Settings`` é a fonte
+# ÚNICA do valor: o ``config.yaml`` distribuído não redefine nenhum deles.
 DEFAULT_ROI_INCLUSION_RULE: Final[str] = "bbox_intersects"
 DEFAULT_BUFFER_RADIUS_VALUE: Final[float] = 0.5
 DEFAULT_MIN_BBOX_OVERLAP_RATIO: Final[float] = 0.10
+DEFAULT_BBOX_OVERLAP_BASIS: Final[str] = "bbox"
 
 VALID_ROI_INCLUSION_RULES: Final[frozenset[str]] = frozenset(
     {
@@ -46,15 +50,30 @@ VALID_ROI_INCLUSION_RULES: Final[frozenset[str]] = frozenset(
     }
 )
 
+# Denominador da fração de sobreposição (ver :attr:`RoiRuleConfig.bbox_overlap_basis`).
+VALID_BBOX_OVERLAP_BASES: Final[frozenset[str]] = frozenset({"bbox", "roi", "max"})
+
 # Regras que exigem os parâmetros numéricos correspondentes.
 _BUFFERED_RULES: Final[frozenset[str]] = frozenset({"centroid_in_on_buffered_roi"})
 _OVERLAP_RULES: Final[frozenset[str]] = frozenset({"bbox_intersects", "seg_overlap"})
+
+# Regras que exigem fração de sobreposição ESTRITAMENTE positiva.
+# ``bbox_intersects`` fica de fora: nela o limiar 0 tem significado próprio
+# ("qualquer sobreposição de área não-nula"), que é o que o nome da regra
+# sempre prometeu. ``seg_overlap`` não tem esse caminho implementado — aceitar
+# 0 lá prometeria uma semântica que ninguém executa.
+_STRICT_OVERLAP_RULES: Final[frozenset[str]] = frozenset({"seg_overlap"})
+
+# Regras em que o limiar 0 é o predicado de sobreposição pura. Derivado, para
+# não haver duas listas contando a mesma exceção de formas diferentes.
+_ANY_OVERLAP_RULES: Final[frozenset[str]] = _OVERLAP_RULES - _STRICT_OVERLAP_RULES
 
 # Chaves reconhecidas em ``project_data["roi_settings"]`` (mesmos nomes que o
 # editor de configurações já grava — não inventar chaves novas).
 _KEY_RULE: Final[str] = "roi_inclusion_rule"
 _KEY_BUFFER: Final[str] = "roi_buffer_radius_value"
 _KEY_OVERLAP: Final[str] = "roi_min_bbox_overlap_ratio"
+_KEY_BASIS: Final[str] = "roi_bbox_overlap_basis"
 
 
 @dataclass(frozen=True)
@@ -66,14 +85,48 @@ class RoiRuleConfig:
 
     A instância é sempre autoconsistente com a própria regra, nas mesmas
     faixas do validador cruzado de ``Settings``: o parâmetro **exigido** pela
-    regra é ``> 0`` (o outro pode ser ``0``, que ela ignora). É essa garantia
-    que permite a :func:`apply_roi_rule_to_settings` escrever os três campos
-    sem passar por um estado intermediário inválido.
+    regra é ``> 0`` (o outro pode ser ``0``, que ela ignora) — com a exceção
+    documentada de ``bbox_intersects``, onde ``0`` é um valor com significado.
+    É essa garantia que permite a :func:`apply_roi_rule_to_settings` escrever
+    os campos sem passar por um estado intermediário inválido.
+
+    A garantia vale para **toda** construção, não só para o que sai do
+    :func:`resolve_roi_rule`: a normalização mora no ``__post_init__``. Antes
+    ela ficava só no caminho do resolvedor, então uma instância criada à mão
+    podia levar um valor fora de faixa (um limiar negativo, por exemplo) direto
+    para a geometria — e um limiar negativo faria ``ratio >= limiar`` valer
+    para caixas que nem tocam a ROI.
     """
 
     rule: str = DEFAULT_ROI_INCLUSION_RULE
     buffer_radius_value: float = DEFAULT_BUFFER_RADIUS_VALUE
     min_bbox_overlap_ratio: float = DEFAULT_MIN_BBOX_OVERLAP_RATIO
+    #: Denominador da fração de sobreposição das regras de área:
+    #: ``"bbox"`` = ``inter / área_bbox`` (histórico), ``"roi"`` =
+    #: ``inter / área_roi``, ``"max"`` = o maior dos dois. O default ``"bbox"``
+    #: distorce ROIs pequenas — uma bbox 4x maior que a ROI, cobrindo-a por
+    #: inteiro, dá razão 0.25 — mas é o que reproduz os números históricos.
+    bbox_overlap_basis: str = DEFAULT_BBOX_OVERLAP_BASIS
+
+    def __post_init__(self) -> None:
+        """Torna a instância autoconsistente com a própria regra.
+
+        Rede de segurança, não validação de entrada: quem resolve a partir de
+        projeto/settings já caiu de nível com log em ``_coerce_*``, então aqui
+        só chega combinação genuinamente incoerente (ou construção à mão). Cada
+        campo fora de faixa vira o default canônico e é logado — nunca levanta,
+        porque isto roda no loop ao vivo.
+        """
+        object.__setattr__(self, "rule", _sanitize_rule(self.rule))
+        object.__setattr__(
+            self, "buffer_radius_value", _sanitize_buffer(self.rule, self.buffer_radius_value)
+        )
+        object.__setattr__(
+            self,
+            "min_bbox_overlap_ratio",
+            _sanitize_overlap(self.rule, self.min_bbox_overlap_ratio),
+        )
+        object.__setattr__(self, "bbox_overlap_basis", _sanitize_basis(self.bbox_overlap_basis))
 
     @property
     def uses_bbox(self) -> bool:
@@ -84,6 +137,25 @@ class RoiRuleConfig:
     def uses_buffer(self) -> bool:
         """True quando a regra dilata o polígono da ROI antes do teste."""
         return self.rule in _BUFFERED_RULES
+
+    @property
+    def overlap_any(self) -> bool:
+        """True quando o limiar dispensa a fração e pede só sobreposição real.
+
+        Limiar ``0`` em ``bbox_intersects`` é o predicado que o nome da regra
+        promete: **qualquer** sobreposição de área não-nula conta, sem fração
+        mínima. Tangência (contato só de borda, interseção de área zero) NÃO
+        conta — a checagem correspondente é topológica, não uma comparação de
+        área contra zero.
+
+        A condição é exatamente a semântica documentada — ``bbox_intersects``
+        **e** limiar exatamente zero. Um ``<= 0.0`` solto trataria um limiar
+        negativo como este caso especial, mascarando entrada inválida; e um
+        ``== 0.0`` sem a regra responderia True para ``seg_overlap``, onde zero
+        não é válido. O ``__post_init__`` já garante que negativo não chega
+        aqui; a condição estrita mantém a propriedade honesta mesmo assim.
+        """
+        return self.rule in _ANY_OVERLAP_RULES and self.min_bbox_overlap_ratio == 0.0
 
     # ------------------------------------------------------------------
     # Aliases com os nomes de ``Settings``
@@ -107,12 +179,18 @@ class RoiRuleConfig:
         """Alias com o nome usado em ``Settings``/``roi_settings``."""
         return self.min_bbox_overlap_ratio
 
+    @property
+    def roi_bbox_overlap_basis(self) -> str:
+        """Alias com o nome usado em ``Settings``/``roi_settings``."""
+        return self.bbox_overlap_basis
+
     def to_roi_settings(self) -> dict[str, Any]:
         """Serializa para ``project_data["roi_settings"]``."""
         return {
             _KEY_RULE: self.rule,
             _KEY_BUFFER: self.buffer_radius_value,
             _KEY_OVERLAP: self.min_bbox_overlap_ratio,
+            _KEY_BASIS: self.bbox_overlap_basis,
         }
 
 
@@ -126,6 +204,23 @@ def _coerce_rule(value: Any, fallback: str, *, source: str) -> str:
     log.warning(
         "roi_rule.resolve.invalid_value",
         field=_KEY_RULE,
+        value=value,
+        source=source,
+        fallback=fallback,
+    )
+    return fallback
+
+
+def _coerce_basis(value: Any, fallback: str, *, source: str) -> str:
+    """Valida o denominador da fração; cai em ``fallback`` e loga quando inválido."""
+    if value is None:
+        return fallback
+    basis = str(value).strip()
+    if basis in VALID_BBOX_OVERLAP_BASES:
+        return basis
+    log.warning(
+        "roi_rule.resolve.invalid_value",
+        field=_KEY_BASIS,
         value=value,
         source=source,
         fallback=fallback,
@@ -185,29 +280,66 @@ def _coerce_float(
     return number
 
 
-def _normalize(rule: str, buffer_radius: float, overlap_ratio: float) -> RoiRuleConfig:
-    """Rede de segurança da autoconsistência da configuração.
-
-    A garantia é a mesma do validador de ``Settings``: **o parâmetro exigido
-    pela regra** é > 0 (o outro pode ser 0, que é irrelevante para ela). É dela
-    que depende a ordem de :func:`apply_roi_rule_to_settings` — a cada passo o
-    objeto satisfaz a regra vigente, seja a antiga ou a nova.
-    """
-    if rule in _BUFFERED_RULES and not buffer_radius > 0.0:
-        buffer_radius = DEFAULT_BUFFER_RADIUS_VALUE
-    elif buffer_radius < 0.0:
-        buffer_radius = DEFAULT_BUFFER_RADIUS_VALUE
-
-    if rule in _OVERLAP_RULES and not 0.0 < overlap_ratio <= 1.0:
-        overlap_ratio = DEFAULT_MIN_BBOX_OVERLAP_RATIO
-    elif not 0.0 <= overlap_ratio <= 1.0:
-        overlap_ratio = DEFAULT_MIN_BBOX_OVERLAP_RATIO
-
-    return RoiRuleConfig(
-        rule=rule,
-        buffer_radius_value=buffer_radius,
-        min_bbox_overlap_ratio=overlap_ratio,
+def _log_sanitized(field: str, value: Any, fallback: Any) -> None:
+    """Registra um campo incoerente trocado pelo default canônico."""
+    log.warning(
+        "roi_rule.config.sanitized",
+        field=field,
+        value=value,
+        fallback=fallback,
     )
+
+
+def _sanitize_rule(rule: Any) -> str:
+    """Nome de regra desconhecido vira o default canônico."""
+    if isinstance(rule, str) and rule in VALID_ROI_INCLUSION_RULES:
+        return rule
+    _log_sanitized(_KEY_RULE, rule, DEFAULT_ROI_INCLUSION_RULE)
+    return DEFAULT_ROI_INCLUSION_RULE
+
+
+def _as_finite_float(value: Any) -> float | None:
+    """Converte para float finito; ``None`` quando não dá (texto, NaN, ±inf)."""
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return None
+    return number if math.isfinite(number) else None
+
+
+def _sanitize_buffer(rule: str, buffer_radius: Any) -> float:
+    """Raio negativo — ou zero na regra que o EXIGE — vira o default."""
+    number = _as_finite_float(buffer_radius)
+    if number is not None and (number > 0.0 if rule in _BUFFERED_RULES else number >= 0.0):
+        return number
+    _log_sanitized(_KEY_BUFFER, buffer_radius, DEFAULT_BUFFER_RADIUS_VALUE)
+    return DEFAULT_BUFFER_RADIUS_VALUE
+
+
+def _sanitize_overlap(rule: str, overlap_ratio: Any) -> float:
+    """Fração fora de faixa vira o default; o mínimo depende da regra.
+
+    Zero só é aceito nas regras de :data:`_ANY_OVERLAP_RULES` (hoje,
+    ``bbox_intersects``), onde é o predicado de sobreposição pura. Negativo
+    nunca é aceito: ``ratio >= limiar_negativo`` valeria até para caixas que
+    não tocam a ROI.
+    """
+    number = _as_finite_float(overlap_ratio)
+    low_ok = number is not None and (
+        number > 0.0 if rule in _STRICT_OVERLAP_RULES else number >= 0.0
+    )
+    if number is not None and low_ok and number <= 1.0:
+        return number
+    _log_sanitized(_KEY_OVERLAP, overlap_ratio, DEFAULT_MIN_BBOX_OVERLAP_RATIO)
+    return DEFAULT_MIN_BBOX_OVERLAP_RATIO
+
+
+def _sanitize_basis(basis: Any) -> str:
+    """Denominador desconhecido vira o default canônico."""
+    if isinstance(basis, str) and basis in VALID_BBOX_OVERLAP_BASES:
+        return basis
+    _log_sanitized(_KEY_BASIS, basis, DEFAULT_BBOX_OVERLAP_BASIS)
+    return DEFAULT_BBOX_OVERLAP_BASIS
 
 
 def resolve_roi_rule(project_data: Any, settings_obj: Any) -> RoiRuleConfig:
@@ -271,11 +403,23 @@ def resolve_roi_rule(project_data: Any, settings_obj: Any) -> RoiRuleConfig:
     overlap_ratio = _param(
         _KEY_OVERLAP,
         DEFAULT_MIN_BBOX_OVERLAP_RATIO,
-        required=rule in _OVERLAP_RULES,
+        required=rule in _STRICT_OVERLAP_RULES,
         maximum=1.0,
     )
 
-    return _normalize(rule, buffer_radius, overlap_ratio)
+    basis = DEFAULT_BBOX_OVERLAP_BASIS
+    if settings_obj is not None:
+        basis = _coerce_basis(getattr(settings_obj, _KEY_BASIS, None), basis, source="settings")
+    basis = _coerce_basis(roi_settings.get(_KEY_BASIS), basis, source="project")
+
+    # A autoconsistência final é do ``__post_init__`` — aqui os valores já
+    # passaram pela coerção por nível de precedência.
+    return RoiRuleConfig(
+        rule=rule,
+        buffer_radius_value=buffer_radius,
+        min_bbox_overlap_ratio=overlap_ratio,
+        bbox_overlap_basis=basis,
+    )
 
 
 def apply_roi_rule_to_settings(settings_obj: Any, config: RoiRuleConfig) -> Any:
@@ -286,9 +430,14 @@ def apply_roi_rule_to_settings(settings_obj: Any, config: RoiRuleConfig) -> Any:
     antes do parâmetro que ela exige levantaria ``ValidationError``. A ordem
     abaixo mantém o objeto válido em todos os passos intermediários — o que só
     é possível porque :class:`RoiRuleConfig` já chega normalizada.
+
+    ``roi_bbox_overlap_basis`` fica fora dessa dança: não entra em nenhuma
+    invariante cruzada, então pode ser escrito primeiro, sempre.
     """
     if settings_obj is None:
         return settings_obj
+
+    setattr(settings_obj, _KEY_BASIS, config.bbox_overlap_basis)
 
     order: tuple[tuple[str, Any], ...]
     if config.uses_buffer:

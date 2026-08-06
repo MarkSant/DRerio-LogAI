@@ -1535,10 +1535,13 @@ class ValidationManager:
                 raise ValueError("Raio de buffer deve ser maior que 0 para a regra de ROI dilatada")
             if buffer_radius < 0:
                 raise ValueError("Raio de buffer não pode ser negativo")
-            if rule in {"bbox_intersects", "seg_overlap"} and not (0 < overlap_ratio <= 1):
+            # ``bbox_intersects`` aceita 0: é o limiar que pede sobreposição de
+            # área não-nula sem fração mínima. ``seg_overlap`` não tem esse
+            # caminho implementado e segue exigindo > 0.
+            if rule == "seg_overlap" and not (0 < overlap_ratio <= 1):
                 raise ValueError(
                     "Fração de sobreposição deve ser maior que 0 e no máximo 1 "
-                    "para as regras de bbox/segmentação"
+                    "para a regra de segmentação"
                 )
             if not (0 <= overlap_ratio <= 1):
                 raise ValueError("Fração de sobreposição deve estar entre 0 e 1")

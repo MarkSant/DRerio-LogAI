@@ -9,6 +9,56 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### ⚠️ ROI: sobreposição — default unificado, semântica corrigida e base configurável
+
+> **MUDANÇA DE MEDIDA, não refactor.** O limiar de sobreposição efetivo passa de
+> **0.05** para **0.10**. Relatórios gerados antes e depois desta versão **não
+> são comparáveis**: `contagem_entradas`, `contagem_saidas`,
+> `tempo_gasto_por_roi`, `latencia_primeira_entrada` e as métricas derivadas por
+> ROI mudam para os mesmos vídeos. Para reproduzir números antigos, declare
+> explicitamente `roi_min_bbox_overlap_ratio: 0.05` no `config.yaml` (ou no
+> projeto, em `roi_settings`) — mas não misture as duas medidas numa mesma
+> análise estatística.
+
+- **Um só lugar define o default.** O mesmo parâmetro tinha três valores: `0.10`
+  no modelo Pydantic (`settings.py`), `0.05` no `config.yaml` (que vencia) e
+  `"0.10"` literal no `StringVar` da aba de Zonas. A aba **exibia 0.10 enquanto
+  a análise usava 0.05**. O `config.yaml` deixa de redeclarar a chave (fica só
+  comentada, documentando o default), e todos os campos da UI passam a ser
+  semeados a partir da regra resolvida (`resolve_roi_rule`), nunca de literais.
+  Justificativa do 0.10: 5% da bbox de um zebrafish em resolução típica é a
+  ponta da cauda encostando na borda, o que infla sistematicamente as contagens
+  de entrada e o tempo por ROI.
+- **`bbox_intersects` finalmente expressa o que o nome promete.** O limiar `0`
+  passa a ser válido para essa regra, com significado explícito: **qualquer
+  sobreposição de área não-nula** conta, sem fração mínima. Tangência (encostar
+  na borda, interseção de área zero) **não** conta — a avaliação usa o predicado
+  DE-9IM `T********` ("interiores se tocam"), não `shapely.intersects`, que
+  devolveria True para tangência. `seg_overlap` continua exigindo `> 0`: não tem
+  esse caminho implementado.
+- **Novo `roi_bbox_overlap_basis`** (`"bbox"` | `"roi"` | `"max"`, default
+  `"bbox"` — **retrocompatível**): escolhe o denominador da fração. O
+  denominador histórico (só a área da bbox) distorce ROIs pequenas — uma bbox
+  com 4× a área da ROI, cobrindo-a **inteira**, marca apenas 0.25 e reprova em
+  qualquer limiar ≥ 0.3, que é justamente o regime de zonas de
+  estímulo/recompensa. `"max"` é o recomendado para ROIs de tamanho arbitrário.
+  O campo viaja pelo `RoiRuleConfig` (é parte da regra, não config solta), então
+  relatório, regeneração, pós-processamento ao vivo e gatilho Arduino continuam
+  concordando caixa a caixa.
+- **Correções de descrição**: `roi_buffer_radius_value` é em **cm** (convertido
+  para px pela média geométrica da calibração, `sqrt(px_cm_x·px_cm_y)`), não "em
+  pixels ou cm"; e o comentário do `config.yaml` que dizia "qualquer parte da
+  bounding box" descrevia um limiar 0 que o validador rejeitava.
+- **Recomendação científica (não aplicada)**: para zonas pequenas,
+  `roi_bbox_overlap_basis: "max"` mede o que o experimento pergunta melhor que a
+  base histórica. A regra default segue `bbox_intersects` — mudá-la é decisão do
+  usuário.
+- Cobertura: `tests/analysis/test_roi_analyzer.py` (numéricos com geometria
+  fabricada e valores calculados à mão + regressão da base histórica + tangência),
+  `tests/core/test_arduino_roi_evaluator.py` (paridade ao vivo × relatório nos
+  novos modos), `tests/test_settings.py`, `tests/core/services/test_roi_rule_resolver.py`,
+  `tests/ui/components/test_zone_controls_widget.py`.
+
 ### ✨ Multi-aquário: saída por metadados (pasta-raiz + nome) e rótulo suave
 
 - **Saída de cada aquário na própria pasta de metadados, sob uma pasta-raiz**: no

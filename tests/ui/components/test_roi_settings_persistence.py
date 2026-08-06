@@ -57,6 +57,7 @@ def test_apply_persists_into_project_roi_settings():
         "roi_inclusion_rule": "centroid_in",
         "roi_buffer_radius_value": 2.5,
         "roi_min_bbox_overlap_ratio": 0.35,
+        "roi_bbox_overlap_basis": "bbox",
     }
     dispatcher.gui.controller.project_manager.save_project.assert_called_once()
     dispatcher.gui.show_info.assert_called_once()
@@ -103,6 +104,7 @@ def test_partial_edit_keeps_the_project_value_not_the_global():
         "roi_inclusion_rule": "centroid_in",  # o que mudou
         "roi_buffer_radius_value": 3.0,  # preservado
         "roi_min_bbox_overlap_ratio": 0.42,  # preservado
+        "roi_bbox_overlap_basis": "bbox",
     }
 
 
@@ -170,6 +172,7 @@ def test_invalid_text_does_not_crash_and_falls_back():
         "roi_inclusion_rule": "centroid_in",
         "roi_buffer_radius_value": 1.0,  # caiu no valor global
         "roi_min_bbox_overlap_ratio": 0.20,
+        "roi_bbox_overlap_basis": "bbox",
     }
 
 
@@ -229,6 +232,7 @@ def test_corrupted_roi_settings_is_replaced_not_crashed(corrupted):
         "roi_inclusion_rule": "centroid_in",
         "roi_buffer_radius_value": 2.5,
         "roi_min_bbox_overlap_ratio": 0.35,
+        "roi_bbox_overlap_basis": "bbox",
     }
     dispatcher.gui.controller.project_manager.save_project.assert_called_once()
 

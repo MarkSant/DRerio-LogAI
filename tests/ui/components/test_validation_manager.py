@@ -1684,14 +1684,14 @@ def test_apply_roi_settings_writes_through_the_canonical_resolver(validation_man
     ("rule", "buffer_radius", "overlap"),
     [
         ("centroid_in_on_buffered_roi", "0", "0.3"),
-        ("bbox_intersects", "2.0", "0"),
+        ("seg_overlap", "2.0", "0"),
         ("bbox_intersects", "2.0", "1.5"),
         ("centroid_in", "-1", "0.3"),
         ("centroid_in", "2.0", "1.5"),
     ],
     ids=[
         "buffer_zero_na_regra_que_o_usa",
-        "overlap_zero_na_regra_que_o_usa",
+        "overlap_zero_na_regra_que_o_exige",
         "overlap_acima_de_1",
         "buffer_negativo",
         "overlap_acima_de_1_regra_irrelevante",
@@ -1746,3 +1746,24 @@ def test_apply_roi_settings_accepts_zero_in_the_irrelevant_parameter(
     mock_gui.dialog_manager.show_error.assert_not_called()
     mock_gui.dialog_manager.show_info.assert_called_once()
     assert settings.roi_inclusion_rule == rule
+
+
+@pytest.mark.gui
+def test_apply_roi_settings_accepts_zero_overlap_for_bbox_intersects(validation_manager, mock_gui):
+    """0 em ``bbox_intersects`` é o limiar "qualquer sobreposição real".
+
+    O validador antigo o recusava, tornando inexprimível a semântica que o
+    nome da regra promete.
+    """
+    from zebtrack.settings import load_settings
+
+    settings = load_settings()
+    mock_gui.controller.settings = settings
+    mock_gui.controller.project_manager.project_path = None
+    _roi_vars(mock_gui, rule="bbox_intersects", buffer_radius="2.0", overlap="0")
+
+    validation_manager.apply_roi_settings()
+
+    mock_gui.dialog_manager.show_error.assert_not_called()
+    assert settings.roi_inclusion_rule == "bbox_intersects"
+    assert settings.roi_min_bbox_overlap_ratio == 0.0

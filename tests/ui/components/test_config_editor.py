@@ -6,6 +6,12 @@ from unittest.mock import Mock
 
 import pytest
 
+from zebtrack.core.services.roi_rule_resolver import (
+    DEFAULT_BBOX_OVERLAP_BASIS,
+    DEFAULT_BUFFER_RADIUS_VALUE,
+    DEFAULT_MIN_BBOX_OVERLAP_RATIO,
+    DEFAULT_ROI_INCLUSION_RULE,
+)
 from zebtrack.ui.components.config_editor import ConfigEditorWidget
 from zebtrack.ui.event_bus_v2 import EventBusV2, UIEvents
 
@@ -36,9 +42,11 @@ def test_widget_initialization(config_widget):
     assert config_widget.polyorder_var.get() == "3"
     assert config_widget.flush_interval_var.get() == "5.0"
     assert config_widget.flush_rows_var.get() == "500"
-    assert config_widget.roi_inclusion_rule_var.get() == "centroid_in"
-    assert config_widget.roi_buffer_radius_var.get() == "0"
-    assert config_widget.roi_overlap_ratio_var.get() == "0.5"
+    # Defaults da fonte canônica (roi_rule_resolver), não literais do widget.
+    assert config_widget.roi_inclusion_rule_var.get() == DEFAULT_ROI_INCLUSION_RULE
+    assert float(config_widget.roi_buffer_radius_var.get()) == DEFAULT_BUFFER_RADIUS_VALUE
+    assert float(config_widget.roi_overlap_ratio_var.get()) == DEFAULT_MIN_BBOX_OVERLAP_RATIO
+    assert config_widget.roi_overlap_basis_var.get() == DEFAULT_BBOX_OVERLAP_BASIS
 
 
 def test_get_values_returns_correct_structure(config_widget):
@@ -51,6 +59,7 @@ def test_get_values_returns_correct_structure(config_widget):
     assert "roi_inclusion_rule" in values
     assert "roi_buffer_radius_value" in values
     assert "roi_min_bbox_overlap_ratio" in values
+    assert "roi_bbox_overlap_basis" in values
 
     assert values["video_processing"]["fps"] == 30
     assert values["video_processing"]["processing_interval"] == 10
@@ -59,9 +68,10 @@ def test_get_values_returns_correct_structure(config_widget):
     assert values["trajectory_smoothing"]["polyorder"] == 3
     assert values["recorder"]["flush_interval_seconds"] == 5.0
     assert values["recorder"]["flush_row_threshold"] == 500
-    assert values["roi_inclusion_rule"] == "centroid_in"
-    assert values["roi_buffer_radius_value"] == 0.0
-    assert values["roi_min_bbox_overlap_ratio"] == 0.5
+    assert values["roi_inclusion_rule"] == DEFAULT_ROI_INCLUSION_RULE
+    assert values["roi_buffer_radius_value"] == DEFAULT_BUFFER_RADIUS_VALUE
+    assert values["roi_min_bbox_overlap_ratio"] == DEFAULT_MIN_BBOX_OVERLAP_RATIO
+    assert values["roi_bbox_overlap_basis"] == DEFAULT_BBOX_OVERLAP_BASIS
 
 
 def test_set_values_populates_form_correctly(config_widget):

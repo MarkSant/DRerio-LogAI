@@ -1191,9 +1191,14 @@ class EventDispatcher:
         campo inválido que caiu no valor anterior.
         """
         if config.uses_buffer:
-            detail = f"raio de buffer {config.buffer_radius_value:g}"
+            detail = f"raio de buffer {config.buffer_radius_value:g} cm"
+        elif config.uses_bbox and config.overlap_any:
+            detail = "qualquer sobreposição de área não-nula"
         elif config.uses_bbox:
-            detail = f"sobreposição mínima {config.min_bbox_overlap_ratio:g}"
+            detail = (
+                f"sobreposição mínima {config.min_bbox_overlap_ratio:g} "
+                f"(base: {config.bbox_overlap_basis})"
+            )
         else:
             detail = "sem parâmetros adicionais"
         return f"Regra '{config.rule}' ({detail})."

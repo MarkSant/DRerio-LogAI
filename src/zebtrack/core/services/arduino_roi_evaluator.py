@@ -36,6 +36,10 @@ log = structlog.get_logger()
 # custo por frame capturado é uma fração disto.
 _TIMING_LOG_EVERY = 100
 
+# Mesmo predicado DE-9IM do ``ROIAnalyzer`` para o limiar 0 ("interiores se
+# tocam" = sobreposição de área não-nula, tangência excluída).
+_INTERIORS_INTERSECT = "T********"
+
 
 class ArduinoRoiEvaluator:
     """Mapeia detecções para o conjunto de ROIs ocupadas.
@@ -65,12 +69,14 @@ class ArduinoRoiEvaluator:
         self._rule = self._effective_rule(self._config.rule)
         self._px_per_cm = float(px_per_cm) if px_per_cm and px_per_cm > 0 else 1.0
 
-        self._rois: list[tuple[str, BaseGeometry]] = []
+        # A área da ROI é o denominador alternativo da fração de sobreposição
+        # (``bbox_overlap_basis``) — pré-calculada aqui, nunca por frame.
+        self._rois: list[tuple[str, BaseGeometry, float]] = []
         for name, polygon in zip(roi_names, roi_polygons, strict=False):
             geometry = self._build_geometry(polygon)
             if geometry is None:
                 continue
-            self._rois.append((str(name), geometry))
+            self._rois.append((str(name), geometry, float(shapely.area(geometry))))
 
         self._calls = 0
         self._elapsed_s = 0.0
@@ -126,7 +132,7 @@ class ArduinoRoiEvaluator:
     @property
     def roi_names(self) -> list[str]:
         """Nomes das ROIs com polígono utilizável."""
-        return [name for name, _ in self._rois]
+        return [name for name, _, _ in self._rois]
 
     @property
     def rule(self) -> str:
@@ -206,17 +212,44 @@ class ArduinoRoiEvaluator:
         bbox_geom = shapely.box(x1, y1, x2, y2) if use_bbox else None
         bbox_area = shapely.area(bbox_geom) if bbox_geom is not None else 0.0
 
-        for name, geometry in self._rois:
+        for name, geometry, roi_area in self._rois:
             if name in occupied:
                 continue
             if bbox_geom is not None and bbox_area > 0:
-                ratio = shapely.area(shapely.intersection(geometry, bbox_geom)) / bbox_area
-                inside = bool(ratio >= self._config.min_bbox_overlap_ratio)
+                inside = self._bbox_inside(geometry, bbox_geom, bbox_area, roi_area)
             else:
                 inside = bool(shapely.contains(geometry, centroid))
             if inside:
                 occupied.add(name)
         return len(occupied) == len(self._rois)
+
+    def _bbox_inside(
+        self,
+        geometry: BaseGeometry,
+        bbox_geom: BaseGeometry,
+        bbox_area: float,
+        roi_area: float,
+    ) -> bool:
+        """Aplica a regra de área com o mesmo cálculo do ``ROIAnalyzer``.
+
+        Divergir aqui é o bug que o resolvedor canônico existe para impedir: o
+        relatório contaria uma entrada que o LED nunca acendeu.
+        """
+        if self._config.overlap_any:
+            # Limiar 0: sobreposição de área não-nula, sem fração mínima.
+            return bool(shapely.relate_pattern(geometry, bbox_geom, _INTERIORS_INTERSECT))
+
+        intersection_area = float(shapely.area(shapely.intersection(geometry, bbox_geom)))
+        basis = self._config.bbox_overlap_basis
+        by_bbox = intersection_area / bbox_area
+        by_roi = (intersection_area / roi_area) if roi_area > 0 else 0.0
+        if basis == "roi":
+            ratio = by_roi
+        elif basis == "max":
+            ratio = max(by_bbox, by_roi)
+        else:
+            ratio = by_bbox
+        return bool(ratio >= self._config.min_bbox_overlap_ratio)
 
     def _warn_missing_bbox(self) -> None:
         """Avisa uma única vez que a regra de bbox recebeu caixa sem área."""

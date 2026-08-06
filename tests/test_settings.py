@@ -345,6 +345,82 @@ roi_min_bbox_overlap_ratio: 1.5
                 with self.assertRaises(ValueError):
                     load_settings()
 
+    def test_zero_overlap_ratio_accepted_for_bbox_intersects(self):
+        """0 é o limiar "qualquer sobreposição real" — a semântica que o nome promete."""
+        valid_yaml = (
+            self.mock_yaml_content
+            + """
+roi_inclusion_rule: "bbox_intersects"
+roi_min_bbox_overlap_ratio: 0.0
+"""
+        )
+
+        with patch("pathlib.Path.is_file", side_effect=[True, False]):
+            with patch("builtins.open", mock_open(read_data=valid_yaml)):
+                settings = load_settings()
+                self.assertEqual(settings.roi_min_bbox_overlap_ratio, 0.0)
+
+    def test_zero_overlap_ratio_rejected_for_seg_overlap(self):
+        """``seg_overlap`` não tem caminho de sobreposição pura implementado."""
+        invalid_yaml = (
+            self.mock_yaml_content
+            + """
+roi_inclusion_rule: "seg_overlap"
+roi_min_bbox_overlap_ratio: 0.0
+"""
+        )
+
+        with patch("pathlib.Path.is_file", side_effect=[True, False]):
+            with patch("builtins.open", mock_open(read_data=invalid_yaml)):
+                with self.assertRaises(ValueError):
+                    load_settings()
+
+    def test_negative_overlap_ratio_rejected(self):
+        invalid_yaml = (
+            self.mock_yaml_content
+            + """
+roi_inclusion_rule: "bbox_intersects"
+roi_min_bbox_overlap_ratio: -0.1
+"""
+        )
+
+        with patch("pathlib.Path.is_file", side_effect=[True, False]):
+            with patch("builtins.open", mock_open(read_data=invalid_yaml)):
+                with self.assertRaises(ValueError):
+                    load_settings()
+
+    def test_overlap_basis_defaults_to_bbox(self):
+        """Sem configurar nada, a base é a histórica — retrocompatível."""
+        with patch("pathlib.Path.is_file", side_effect=[True, False]):
+            with patch("builtins.open", mock_open(read_data=self.mock_yaml_content)):
+                self.assertEqual(load_settings().roi_bbox_overlap_basis, "bbox")
+
+    def test_overlap_basis_accepts_the_three_options(self):
+        for basis in ("bbox", "roi", "max"):
+            with self.subTest(basis=basis):
+                valid_yaml = (
+                    self.mock_yaml_content
+                    + f"""
+roi_bbox_overlap_basis: "{basis}"
+"""
+                )
+                with patch("pathlib.Path.is_file", side_effect=[True, False]):
+                    with patch("builtins.open", mock_open(read_data=valid_yaml)):
+                        self.assertEqual(load_settings().roi_bbox_overlap_basis, basis)
+
+    def test_overlap_basis_rejects_unknown_value(self):
+        invalid_yaml = (
+            self.mock_yaml_content
+            + """
+roi_bbox_overlap_basis: "area"
+"""
+        )
+
+        with patch("pathlib.Path.is_file", side_effect=[True, False]):
+            with patch("builtins.open", mock_open(read_data=invalid_yaml)):
+                with self.assertRaises(ValueError):
+                    load_settings()
+
     def test_reload_settings(self):
         """Test that reload_settings() works as expected."""
         base_yaml = self.mock_yaml_content

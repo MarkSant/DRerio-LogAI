@@ -11,6 +11,12 @@ import structlog
 import yaml
 from pydantic import ValidationError
 
+from zebtrack.core.services.roi_rule_resolver import (
+    DEFAULT_BBOX_OVERLAP_BASIS,
+    DEFAULT_BUFFER_RADIUS_VALUE,
+    DEFAULT_MIN_BBOX_OVERLAP_RATIO,
+    DEFAULT_ROI_INCLUSION_RULE,
+)
 from zebtrack.settings import Settings
 from zebtrack.ui import payloads as payloads
 from zebtrack.ui.event_bus_v2 import UIEvents
@@ -274,14 +280,19 @@ class AnalysisWidgetsBuilder:
                     current, ("recorder", "flush_row_threshold"), 500
                 ),
             },
+            # Fallbacks da fonte canônica: literais divergentes aqui faziam o
+            # formulário exibir uma configuração que a análise nunca usaria.
             "roi_inclusion_rule": self.gui._extract_setting(
-                current, ("roi_inclusion_rule",), "centroid_in"
+                current, ("roi_inclusion_rule",), DEFAULT_ROI_INCLUSION_RULE
             ),
             "roi_buffer_radius_value": self.gui._extract_setting(
-                current, ("roi_buffer_radius_value",), 0.0
+                current, ("roi_buffer_radius_value",), DEFAULT_BUFFER_RADIUS_VALUE
             ),
             "roi_min_bbox_overlap_ratio": self.gui._extract_setting(
-                current, ("roi_min_bbox_overlap_ratio",), 0.5
+                current, ("roi_min_bbox_overlap_ratio",), DEFAULT_MIN_BBOX_OVERLAP_RATIO
+            ),
+            "roi_bbox_overlap_basis": self.gui._extract_setting(
+                current, ("roi_bbox_overlap_basis",), DEFAULT_BBOX_OVERLAP_BASIS
             ),
         }
 
@@ -416,6 +427,9 @@ class AnalysisWidgetsBuilder:
             project_data["roi_settings"]["roi_min_bbox_overlap_ratio"] = (
                 validated.roi_min_bbox_overlap_ratio
             )
+            project_data["roi_settings"]["roi_bbox_overlap_basis"] = (
+                validated.roi_bbox_overlap_basis
+            )
 
             self.gui.controller.project_manager.save_project()
 
@@ -524,6 +538,7 @@ class AnalysisWidgetsBuilder:
                     "roi_inclusion_rule": validated.roi_inclusion_rule,
                     "roi_buffer_radius_value": validated.roi_buffer_radius_value,
                     "roi_min_bbox_overlap_ratio": validated.roi_min_bbox_overlap_ratio,
+                    "roi_bbox_overlap_basis": validated.roi_bbox_overlap_basis,
                 }
             )
 
