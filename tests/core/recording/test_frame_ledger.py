@@ -16,6 +16,7 @@ from __future__ import annotations
 import queue
 import threading
 import time
+from pathlib import Path
 from typing import Any, cast
 
 import numpy as np
@@ -74,6 +75,43 @@ def test_record_does_no_synchronous_io(tmp_path):
     assert ledger.row_count == 50
     ledger.finalize()  # o flush final recupera tudo
     assert len(load_ledger(tmp_path, "exp")) == 50
+
+
+def test_failed_flush_retries_the_same_rows(tmp_path, monkeypatch):
+    """Uma falha de I/O não pode consumir as linhas pendentes.
+
+    Se o flush descartasse o lote ao falhar, as linhas existiriam só em memória
+    e um crash antes do ``finalize`` as perderia no disco — o CSV streamado
+    deixaria de ser resiliente a crash.
+    """
+    ledger = _ledger(tmp_path, flush_interval_s=60.0)
+    ledger._stop.set()
+    ledger._wake.set()
+    ledger._writer_thread.join(timeout=2.0)
+
+    ledger.record(1, 1.0, 1_700_000_000.0, "written", video_frame_index=0)
+    ledger.record(2, 2.0, 1_700_000_001.0, "written", video_frame_index=1)
+
+    original_open = Path.open
+    calls = {"n": 0}
+
+    def flaky_open(self, *args, **kwargs):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise OSError("disco indisponível")
+        return original_open(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "open", flaky_open)
+
+    ledger._flush()  # falha: as linhas voltam para a fila
+    assert not (tmp_path / "6_FrameLedger_exp.csv").exists()
+    assert len(ledger._unflushed) == 2
+
+    ledger._flush()  # segunda tentativa grava tudo, na ordem original
+    rows = load_ledger(tmp_path, "exp")
+    assert [r["pipeline_frame"] for r in rows] == [1, 2]
+    assert not ledger._unflushed
+    ledger.finalize()
 
 
 def test_concurrent_producers_lose_no_row(tmp_path):

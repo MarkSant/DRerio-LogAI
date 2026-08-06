@@ -245,9 +245,15 @@ class FrameLedger:
                     for row in pending:
                         writer.writerow({col: row.get(col) for col in LEDGER_COLUMNS})
                 self._csv_header_written = True
-            # except Exception justified: I/O best-effort numa thread daemon; as
-            # linhas seguem em memória para o parquet do fim da sessão.
+            # except Exception justified: I/O best-effort numa thread daemon —
+            # uma falha de disco não pode derrubar a captura.
             except Exception:
+                # As linhas voltam para a FRENTE da fila de pendentes: sem isso
+                # elas só existiriam em memória e um crash antes do ``finalize``
+                # as perderia no disco — exatamente a promessa de resiliência a
+                # crash que o CSV streamado existe para cumprir.
+                with self._lock:
+                    self._unflushed[:0] = pending
                 log.warning("frame_ledger.csv_stream_failed", path=str(csv_path))
 
     # ------------------------------------------------------------------
