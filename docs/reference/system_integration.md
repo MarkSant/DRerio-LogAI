@@ -693,8 +693,41 @@ under `bbox_intersects` is irrelevant and legitimate (shipped configs look like
 that) and is preserved without noise; a zero buffer under
 `centroid_in_on_buffered_roi` dilates nothing and falls back with a log.
 Recognized keys are exactly
-`roi_inclusion_rule`, `roi_buffer_radius_value`, `roi_min_bbox_overlap_ratio` —
-the same ones the settings editor writes.
+`roi_inclusion_rule`, `roi_buffer_radius_value`, `roi_min_bbox_overlap_ratio`,
+`roi_bbox_overlap_basis` — the same ones the settings editor writes.
+
+#### 5.10.1. Overlap semantics (August 2026)
+
+The **single source** of every ROI default is the Pydantic field in
+`settings.py`. The shipped `config.yaml` no longer re-declares
+`roi_min_bbox_overlap_ratio` (it used to say `0.05` while the model said `0.10`,
+so the Zones tab displayed one number and the analysis used another); the key is
+present only as a commented-out line documenting the default. UI StringVars are
+seeded from the resolved rule, never from literals.
+
+`roi_min_bbox_overlap_ratio` is the fraction of a **reference area** that must
+lie inside the ROI, and `roi_bbox_overlap_basis` picks that reference:
+
+| Basis | Ratio | Notes |
+| ----- | ----- | ----- |
+| `bbox` (default) | `inter / bbox_area` | Historical. A bbox 4× the ROI area covering **100%** of the ROI still scores 0.25 — wrong regime for small stimulus/reward zones. |
+| `roi` | `inter / roi_area` | Coverage of the zone. |
+| `max` | `max(both)` | Recommended for ROIs of arbitrary size. |
+
+`bbox` is the default, so nothing changes for anyone who does not configure it —
+`tests/analysis/test_roi_analyzer.py::TestBboxOverlapBasis` pins the historical
+numbers.
+
+`roi_min_bbox_overlap_ratio = 0.0` is legal **only** for `bbox_intersects`,
+where it means the predicate the rule name has always promised: any overlap of
+non-zero area counts, with no minimum fraction. It is evaluated with the DE-9IM
+pattern `T********` ("interiors intersect"), **not** `shapely.intersects` —
+`intersects` returns True for tangency (boundary-only contact), which is not
+overlap — and not an `area > 0` comparison, which is noisy near tangency.
+`seg_overlap` still requires `> 0`: it has no pure-predicate path implemented
+(`roi.py` raises for it), so accepting 0 there would promise a semantics nothing
+executes. Both `Settings._validate_advanced_constraints` and
+`ValidationManager.apply_roi_settings` enforce exactly this split.
 
 The four consumers:
 
@@ -718,11 +751,13 @@ The four consumers:
   `seg_overlap` (unimplemented, `roi.py` raises) degrades to `centroid_in` with
   `arduino_roi_evaluator.seg_overlap_unsupported_fallback` rather than killing
   the live loop.
-- **Applying to `Settings`**: `apply_roi_rule_to_settings` writes the three
-  fields in an order that never passes through a state the cross-field validator
-  rejects (`validate_assignment=True`). `RoiRuleConfig` is normalized on
-  construction (`buffer > 0`, `0 < ratio <= 1`) precisely so that ordering
-  exists — do not hand-assign these fields.
+- **Applying to `Settings`**: `apply_roi_rule_to_settings` writes the rule and
+  its two numeric parameters in an order that never passes through a state the
+  cross-field validator rejects (`validate_assignment=True`). `RoiRuleConfig` is
+  normalized on construction (`buffer > 0` where required, ratio in range for
+  the target rule) precisely so that ordering exists — do not hand-assign these
+  fields. `roi_bbox_overlap_basis` is outside that dance (no cross-field
+  invariant) and is written first, always.
 - **UI**: the Zones tab "Aplicar" button emits `ZONE_APPLY_ROI_SETTINGS`
   (`RoiSettingsApplyPayload`) → `EventDispatcher._on_persist_roi_settings`,
   which writes `project_data["roi_settings"]` + `save_project()` guarded by
@@ -906,6 +941,7 @@ Heavy imports (pandas, pyarrow, openpyxl) are deferred in:
 
 | Date | Version | Changes |
 | ---- | ------- | ------- |
+| Aug 6, 2026 | v4.6 | § 5.10.1 overlap semantics — single-source defaults (config.yaml no longer overrides `roi_min_bbox_overlap_ratio` with 0.05), `roi_bbox_overlap_basis` (`bbox`/`roi`/`max`), threshold `0` = any non-zero overlap area for `bbox_intersects` |
 | Aug 6, 2026 | v4.5 | § 5.10 canonical ROI inclusion rule — `roi_rule_resolver`, four consumers unified, shapely-based `ArduinoRoiEvaluator`, `ZONE_APPLY_ROI_SETTINGS` persists the rule |
 | Aug 5, 2026 | v4.4 | § 5.9 frame ledger & timeline reconstruction — `6_FrameLedger_<base>.{csv,parquet}` + session anchor JSON, `video_queue` item carries capture metadata, `queue_wait_ms`/`inference_ms` appended to `5_ClosedLoop_*` |
 | Aug 4, 2026 | v4.3 | § 5.8 binding verification via firmware ACK — `arduino_ack_semantics`, `ArduinoManager.probe_tokens`, panel "test commands" button, runtime `ack_inverted` warning |

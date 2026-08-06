@@ -429,9 +429,10 @@ domains:
     contract:
       resolver: "resolve_roi_rule(project_data, settings_obj) -> RoiRuleConfig (frozen, pure)"
       precedence: "project_data['roi_settings'] > settings_obj > default"
-      keys: "roi_inclusion_rule, roi_buffer_radius_value, roi_min_bbox_overlap_ratio (no new keys)"
+      keys: "roi_inclusion_rule, roi_buffer_radius_value, roi_min_bbox_overlap_ratio, roi_bbox_overlap_basis (no other keys)"
       invalid_values: "never raises; falls back one level and logs roi_rule.resolve.invalid_value"
-      apply: "apply_roi_rule_to_settings orders the 3 assignments so Settings' cross-field validator never sees an invalid intermediate state — do NOT hand-assign"
+      apply: "apply_roi_rule_to_settings orders rule+2 numeric assignments so Settings' cross-field validator never sees an invalid intermediate state — do NOT hand-assign. roi_bbox_overlap_basis has no cross-field invariant and is written first"
+      single_default: "Settings' Pydantic field is the ONE place a ROI default lives. config.yaml must NOT re-declare roi_min_bbox_overlap_ratio / roi_bbox_overlap_basis (it used to say 0.05 vs the model's 0.10), and UI StringVars are seeded from the resolved rule, never from literals"
 
     consumers:
       prerecorded_report: "coordinators/_video_selection_mixin.py::_create_project_settings_snapshot"
@@ -447,6 +448,9 @@ domains:
       ui_apply: "Zones tab 'Aplicar' emits ZONE_APPLY_ROI_SETTINGS (persists). DETECTOR_UPDATE_PARAMETERS silently drops the ROI keys"
       no_float_in_ui: "The payload carries raw StringVar text; float() inside a Tk callback raises on bad input and kills the click. Parsing/validation happens once, in resolve_roi_rule (non-finite included)"
       degenerate_bbox: "bbox_intersects divides by the box AREA — both dimensions must be > 0. A zero-side box falls back to the centroid WITH the warning, never silently"
+      zero_threshold: "roi_min_bbox_overlap_ratio == 0 is legal ONLY for bbox_intersects and means 'any non-zero overlap AREA'. Evaluated with the DE-9IM pattern T******** (interiors intersect) — NOT shapely.intersects, which is True for tangency, and NOT area > 0, which is noisy near tangency. seg_overlap still requires > 0"
+      overlap_basis: "roi_bbox_overlap_basis picks the fraction's denominator: bbox (default, historical) | roi | max. Default keeps old numbers bit-for-bit; 'bbox' under-reports small ROIs (bbox 4x the ROI area covering 100% of it scores 0.25)"
+      or_default_trap: "ROIAnalyzer uses `if x is None`, never `x or default`: 0.0 is a meaningful threshold and `or` would silently swap it for 0.10"
 
     key_files:
       - "src/zebtrack/core/services/roi_rule_resolver.py"
@@ -459,6 +463,10 @@ domains:
       - "src/zebtrack/ui/components/event_dispatcher.py"
       - "src/zebtrack/ui/components/zone_controls.py"
       - "src/zebtrack/ui/builders/zone_control_builder.py"
+      - "src/zebtrack/ui/components/tab_builder.py"      # seeds the Zones panel with the effective rule
+      - "src/zebtrack/ui/components/config_editor.py"    # global ROI form (incl. overlap basis)
+      - "src/zebtrack/settings.py"                       # the ONE place the defaults live
+      - "config.yaml"                                    # must not re-declare the ratio/basis
 
     related_tests:
       - "tests/core/services/test_roi_rule_resolver.py"
@@ -466,6 +474,9 @@ domains:
       - "tests/core/test_arduino_roi_evaluator.py"
       - "tests/ui/components/test_roi_settings_persistence.py"
       - "tests/analysis/test_roi_analyzer.py"
+      - "tests/ui/components/test_zone_controls_widget.py"
+      - "tests/ui/components/test_config_editor.py"
+      - "tests/test_settings.py"
 
 # =============================================================================
 # COORDINATOR HIERARCHY

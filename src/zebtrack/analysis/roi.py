@@ -16,6 +16,18 @@ from shapely.geometry import Point
 from shapely.geometry.base import BaseGeometry
 
 from zebtrack.analysis.behavior import BehavioralAnalyzer
+from zebtrack.core.services.roi_rule_resolver import (
+    DEFAULT_BBOX_OVERLAP_BASIS,
+    DEFAULT_BUFFER_RADIUS_VALUE,
+    DEFAULT_MIN_BBOX_OVERLAP_RATIO,
+)
+
+# Padrão DE-9IM "interiores se tocam": é o predicado de sobreposição de área
+# NÃO-NULA. `intersects` não serve — devolve True para tangência (contato só de
+# borda), que não é sobreposição. Comparar área > 0 também não: em quase
+# tangência a área é positiva por ruído de ponto flutuante, enquanto o
+# predicado topológico decide pela relação, não pela magnitude.
+_INTERIORS_INTERSECT: str = "T********"
 
 
 class ROI:
@@ -52,6 +64,7 @@ class ROIAnalyzer:
         inclusion_rule: str = "bbox_intersects",
         buffer_radius_value: float | None = None,
         min_bbox_overlap_ratio: float | None = None,
+        bbox_overlap_basis: str | None = None,
     ):
         """Initialize the ROIAnalyzer.
 
@@ -64,9 +77,14 @@ class ROIAnalyzer:
             inclusion_rule (str): Rule for determining ROI inclusion.
                 Options: "centroid_in", "centroid_in_on_buffered_roi",
                 "bbox_intersects", "seg_overlap"
-            buffer_radius_value (float | None): Radius for buffered ROI rule.
-            min_bbox_overlap_ratio (float | None): Minimum overlap ratio
-                for bbox rule.
+            buffer_radius_value (float | None): Radius for buffered ROI rule,
+                in cm (converted to px by the geometric mean of the
+                calibration). None falls back to the canonical default.
+            min_bbox_overlap_ratio (float | None): Minimum overlap fraction
+                for the bbox rule. 0.0 means "any non-zero overlap area"
+                (tangency excluded). None falls back to the canonical default.
+            bbox_overlap_basis (str | None): Denominator of that fraction —
+                "bbox", "roi" or "max". None falls back to "bbox".
 
         """
         self._b_analyzer = behavior_analyzer
@@ -74,8 +92,19 @@ class ROIAnalyzer:
         self._trajectory = self._b_analyzer.trajectory_data.copy()
         self._flutter_n = flutter_n_frames
         self._inclusion_rule = inclusion_rule
-        self._buffer_radius_value = buffer_radius_value or 0.5
-        self._min_bbox_overlap_ratio = min_bbox_overlap_ratio or 0.10
+        # `x or default` trocaria um 0.0 EXPLÍCITO pelo default — e 0.0 é
+        # justamente o limiar que pede o predicado de sobreposição pura.
+        self._buffer_radius_value = (
+            DEFAULT_BUFFER_RADIUS_VALUE if buffer_radius_value is None else buffer_radius_value
+        )
+        self._min_bbox_overlap_ratio = (
+            DEFAULT_MIN_BBOX_OVERLAP_RATIO
+            if min_bbox_overlap_ratio is None
+            else min_bbox_overlap_ratio
+        )
+        self._bbox_overlap_basis = (
+            DEFAULT_BBOX_OVERLAP_BASIS if bbox_overlap_basis is None else bbox_overlap_basis
+        )
         self._buffered_rois_cache: dict[str, Any] = {}  # Cache for buffered ROI geometries
         self._roi_geometries_px = self._normalize_roi_geometries()
         self._validate_rois()
@@ -277,18 +306,41 @@ class ROIAnalyzer:
         # Vectorized box creation
         bboxes = shapely.box(min_x, min_y, max_x, max_y)
 
+        if self._min_bbox_overlap_ratio <= 0.0:
+            # Limiar 0: qualquer sobreposição de área não-nula conta. Resolvido
+            # pelo predicado topológico, sem razão de áreas — mais barato e
+            # imune ao ruído de ponto flutuante perto da tangência.
+            raw_presence_np = shapely.relate_pattern(roi_geometry, bboxes, _INTERIORS_INTERSECT)
+            return pd.Series(raw_presence_np, index=self._trajectory.index)
+
         # Vectorized intersection
         intersections = shapely.intersection(roi_geometry, bboxes)
 
         # Vectorized area calculation
         intersection_areas = shapely.area(intersections)
         bbox_areas = shapely.area(bboxes)
+        roi_area = float(shapely.area(roi_geometry))
 
-        # Avoid division by zero
-        # If bbox_area is 0, overlap ratio is 0
+        # Avoid division by zero.
+        # A bbox degenerada (área 0) e uma ROI degenerada dão razão 0 — o
+        # nan_to_num cobre os dois denominadores.
         with np.errstate(divide="ignore", invalid="ignore"):
-            ratios = intersection_areas / bbox_areas
-            ratios = np.nan_to_num(ratios, nan=0.0, posinf=0.0, neginf=0.0)
+            by_bbox = np.nan_to_num(
+                intersection_areas / bbox_areas, nan=0.0, posinf=0.0, neginf=0.0
+            )
+            by_roi = np.nan_to_num(
+                intersection_areas / roi_area if roi_area else np.zeros_like(intersection_areas),
+                nan=0.0,
+                posinf=0.0,
+                neginf=0.0,
+            )
+
+        if self._bbox_overlap_basis == "roi":
+            ratios = by_roi
+        elif self._bbox_overlap_basis == "max":
+            ratios = np.maximum(by_bbox, by_roi)
+        else:
+            ratios = by_bbox
 
         raw_presence_np = ratios >= self._min_bbox_overlap_ratio
 

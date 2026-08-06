@@ -264,16 +264,35 @@ weights:
 # Options:
 #   - "centroid_in": Center point of bounding box must be inside ROI polygon
 #   - "centroid_in_on_buffered_roi": Center point inside buffered (expanded) ROI
-#   - "bbox_intersects": Any part of bounding box overlaps with ROI (default)
+#   - "bbox_intersects": Bounding box overlaps the ROI by at least
+#     roi_min_bbox_overlap_ratio of the reference area (default)
 #   - "seg_overlap": Segmentation mask overlaps with ROI (requires segmentation)
 roi_inclusion_rule: "bbox_intersects"
 
-# Buffer radius for "centroid_in_on_buffered_roi" mode (in pixels or cm depending on calibration)
+# Buffer radius for "centroid_in_on_buffered_roi" mode, in cm.
+# Converted to pixels by the geometric mean of the calibration,
+# sqrt(px_per_cm_x * px_per_cm_y); with no calibration the factor is 1.0,
+# so the value ends up being in pixels.
 roi_buffer_radius_value: 0.5
 
-# Minimum overlap ratio for "bbox_intersects" and "seg_overlap" modes (0.0-1.0)
-# 0.05 = at least 5% of bbox/mask must overlap to count as "inside"
-roi_min_bbox_overlap_ratio: 0.05
+# The two settings below have a SINGLE source of truth: the Pydantic defaults in
+# src/zebtrack/settings.py. They are shown commented out so that the values here
+# can never drift from the ones the analysis actually uses — uncomment only to
+# override them.
+#
+# Minimum overlap fraction for "bbox_intersects" and "seg_overlap" (0.0-1.0).
+# Default: 0.10. For "bbox_intersects" only, 0.0 has a meaning of its own —
+# any non-zero overlap area counts, with no minimum fraction (a bounding box
+# merely touching the ROI border does NOT count).
+# roi_min_bbox_overlap_ratio: 0.10
+#
+# Denominator of that fraction. Default: "bbox".
+#   - "bbox": intersection / bbox area (historical behaviour)
+#   - "roi":  intersection / ROI area
+#   - "max":  the larger of the two — recommended when ROIs are small relative
+#     to the animal's bounding box, where "bbox" under-reports badly (a bbox 4x
+#     the ROI area covering 100% of the ROI still only scores 0.25).
+# roi_bbox_overlap_basis: "bbox"
 
 # -----------------------------------------------------------------------------
 # Trajectory Smoothing (Savitzky-Golay Filter)

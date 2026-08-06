@@ -1064,13 +1064,30 @@ class Settings(BaseModel):
     roi_buffer_radius_value: float = Field(
         default=0.5,
         ge=0.0,
-        description="Buffer radius for centroid_in_on_buffered_roi mode (in pixels or cm)",
+        description=(
+            "Buffer radius for centroid_in_on_buffered_roi mode, in cm "
+            "(converted to px by the geometric mean of the calibration, "
+            "sqrt(px_per_cm_x * px_per_cm_y)); with no calibration the factor "
+            "is 1.0 and the value is effectively in px"
+        ),
     )
     roi_min_bbox_overlap_ratio: float = Field(
         default=0.10,
         ge=0.0,
         le=1.0,
-        description="Minimum overlap ratio required for bbox_intersects or seg_overlap",
+        description=(
+            "Minimum overlap fraction required for bbox_intersects or "
+            "seg_overlap. For bbox_intersects, 0.0 means the pure predicate: "
+            "any non-zero overlap area counts (tangency does not)"
+        ),
+    )
+    roi_bbox_overlap_basis: Literal["bbox", "roi", "max"] = Field(
+        default="bbox",
+        description=(
+            "Denominator of the overlap fraction: 'bbox' = intersection/bbox "
+            "area (historical), 'roi' = intersection/ROI area, 'max' = the "
+            "larger of the two (recommended for ROIs of arbitrary size)"
+        ),
     )
 
     analysis_config: "AnalysisConfigSettings" = Field(
@@ -1136,19 +1153,21 @@ class Settings(BaseModel):
         elif self.roi_buffer_radius_value < 0:
             raise ValueError("roi_buffer_radius_value cannot be negative.")
 
+        # ``bbox_intersects`` aceita 0.0: é o predicado que o nome da regra
+        # promete — qualquer sobreposição de área não-nula conta, sem fração
+        # mínima (tangência não conta). ``seg_overlap`` continua exigindo > 0
+        # porque não tem esse caminho implementado.
         overlap_ratio = self.roi_min_bbox_overlap_ratio
-        if self.roi_inclusion_rule in {"bbox_intersects", "seg_overlap"}:
+        if self.roi_inclusion_rule == "seg_overlap":
             if not (0.0 < overlap_ratio <= 1.0):
                 raise ValueError(
-                    "roi_min_bbox_overlap_ratio must be within (0, 1] when using "
-                    "bbox_intersects or seg_overlap."
+                    "roi_min_bbox_overlap_ratio must be within (0, 1] when using seg_overlap."
                 )
-        else:
-            if not (0.0 <= overlap_ratio <= 1.0):
-                raise ValueError(
-                    "roi_min_bbox_overlap_ratio must be within [0, 1] for the "
-                    "selected ROI inclusion rule."
-                )
+        elif not (0.0 <= overlap_ratio <= 1.0):
+            raise ValueError(
+                "roi_min_bbox_overlap_ratio must be within [0, 1] for the "
+                "selected ROI inclusion rule."
+            )
 
         return self
 

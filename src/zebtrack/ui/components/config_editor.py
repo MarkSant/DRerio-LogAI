@@ -12,6 +12,12 @@ from typing import Any
 
 import structlog
 
+from zebtrack.core.services.roi_rule_resolver import (
+    DEFAULT_BBOX_OVERLAP_BASIS,
+    DEFAULT_BUFFER_RADIUS_VALUE,
+    DEFAULT_MIN_BBOX_OVERLAP_RATIO,
+    DEFAULT_ROI_INCLUSION_RULE,
+)
 from zebtrack.ui import payloads
 from zebtrack.ui.components.base import BaseWidget
 from zebtrack.ui.components.behavioral_config_widget import BehavioralConfigWidget
@@ -57,9 +63,13 @@ class ConfigEditorWidget(BaseWidget):
         self.polyorder_var = StringVar(value="3")
         self.flush_interval_var = StringVar(value="5.0")
         self.flush_rows_var = StringVar(value="500")
-        self.roi_inclusion_rule_var = StringVar(value="centroid_in")
-        self.roi_buffer_radius_var = StringVar(value="0")
-        self.roi_overlap_ratio_var = StringVar(value="0.5")
+        # Defaults da fonte canônica: o formulário é repopulado por
+        # ``set_values`` a partir do ``Settings``, mas até lá não deve exibir
+        # números inventados aqui.
+        self.roi_inclusion_rule_var = StringVar(value=DEFAULT_ROI_INCLUSION_RULE)
+        self.roi_buffer_radius_var = StringVar(value=f"{DEFAULT_BUFFER_RADIUS_VALUE:g}")
+        self.roi_overlap_ratio_var = StringVar(value=f"{DEFAULT_MIN_BBOX_OVERLAP_RATIO:g}")
+        self.roi_overlap_basis_var = StringVar(value=DEFAULT_BBOX_OVERLAP_BASIS)
 
         # ROI rule widgets list for conditional enable/disable
         self._roi_rule_widgets: list[ttk.Widget] = []
@@ -396,12 +406,38 @@ class ConfigEditorWidget(BaseWidget):
         create_help_label(
             roi_frame,
             "Fração de Sobreposição Mínima\n\n"
-            "Mínimo de área do peixe (0 a 1) que deve estar na zona para contar.\n"
-            "• Ex: 0.50 significa que metade do peixe deve estar dentro.",
+            "Mínimo de área (0 a 1) que deve estar na zona para contar.\n"
+            "• Ex: 0.50 significa metade da área de referência dentro da zona.\n"
+            "• 0 (só na regra 'Intersecção BBox'): qualquer sobreposição real "
+            "conta; encostar na borda não.",
         ).grid(row=2, column=1, padx=2)
         ttk.Entry(roi_frame, textvariable=self.roi_overlap_ratio_var, width=8).grid(
             row=2, column=2, sticky="w", padx=5
         )
+
+        # Overlap basis (denominator of the fraction above)
+        ttk.Label(roi_frame, text="Base da Sobreposição:").grid(
+            row=3, column=0, sticky="w", padx=(0, 2), pady=2
+        )
+        create_help_label(
+            roi_frame,
+            "Base (denominador) da Fração de Sobreposição\n\n"
+            "Define em relação a QUE a fração é medida.\n"
+            "• bbox: fração da caixa do peixe que está na zona (histórico).\n"
+            "• roi: fração da zona que está coberta pela caixa.\n"
+            "• max: o maior dos dois — recomendado para zonas pequenas, onde "
+            "'bbox' subestima (uma caixa 4x maior que a zona, cobrindo-a "
+            "inteira, marca só 0.25).",
+        ).grid(row=3, column=1, padx=2)
+        config_basis_combo = ttk.Combobox(
+            roi_frame,
+            textvariable=self.roi_overlap_basis_var,
+            values=["bbox", "roi", "max"],
+            state="readonly",
+            width=28,
+        )
+        config_basis_combo.grid(row=3, column=2, sticky="w", padx=5)
+        self._roi_rule_widgets.append(config_basis_combo)
 
         # Hint
         ttk.Label(
@@ -412,7 +448,7 @@ class ConfigEditorWidget(BaseWidget):
             ),
             font=("TkDefaultFont", 8),
             foreground="#555555",
-        ).grid(row=3, column=0, columnspan=4, sticky="w", pady=(6, 0))
+        ).grid(row=4, column=0, columnspan=4, sticky="w", pady=(6, 0))
 
     def _build_detection_summary_section(self, parent=None) -> None:
         """Build read-only summary of detection/model parameters with edit button."""
@@ -543,6 +579,7 @@ class ConfigEditorWidget(BaseWidget):
             "roi_inclusion_rule": self.roi_inclusion_rule_var.get(),
             "roi_buffer_radius_value": float(self.roi_buffer_radius_var.get().strip()),
             "roi_min_bbox_overlap_ratio": float(self.roi_overlap_ratio_var.get().strip()),
+            "roi_bbox_overlap_basis": self.roi_overlap_basis_var.get(),
             "behavioral_analysis": self._get_behavioral_values(),
         }
 
@@ -616,6 +653,9 @@ class ConfigEditorWidget(BaseWidget):
 
         if "roi_buffer_radius_value" in values:
             self.roi_buffer_radius_var.set(str(values["roi_buffer_radius_value"]))
+
+        if "roi_bbox_overlap_basis" in values:
+            self.roi_overlap_basis_var.set(str(values["roi_bbox_overlap_basis"]))
 
     def _set_behavioral_analysis(self, ba: dict[str, Any]) -> None:
         """Populate behavioral analysis settings."""

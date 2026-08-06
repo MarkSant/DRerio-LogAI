@@ -25,6 +25,11 @@ except ImportError:  # pragma: no cover - optional dependency fallback
     ttkb = cast(Any, None)
 
 # Import custom modules
+from zebtrack.core.services.roi_rule_resolver import (
+    DEFAULT_BUFFER_RADIUS_VALUE,
+    DEFAULT_MIN_BBOX_OVERLAP_RATIO,
+    DEFAULT_ROI_INCLUSION_RULE,
+)
 from zebtrack.core.services.zone_context_service import ZoneContextService
 from zebtrack.core.video.processing_mode import ProcessingMode
 from zebtrack.ui.builders import ButtonFactory, PanelBuilder, ZoneControlBuilder
@@ -317,15 +322,26 @@ class ApplicationGUI:
         self.run_analysis_btn = None
         # Note: roi_template_combobox is now a @property that delegates to zone_controls
 
-        # ROI Inclusion Rule Variables
+        # ROI Inclusion Rule Variables — os fallbacks vêm da fonte canônica
+        # (roi_rule_resolver), nunca de literais que envelhecem em silêncio.
         self.roi_inclusion_rule_var = StringVar(
-            value=(self.settings.roi_inclusion_rule if self.settings else "bbox_intersects")
+            value=(
+                self.settings.roi_inclusion_rule if self.settings else DEFAULT_ROI_INCLUSION_RULE
+            )
         )
         self.roi_buffer_radius_var = StringVar(
-            value=str(self.settings.roi_buffer_radius_value if self.settings else 0.5)
+            value=str(
+                self.settings.roi_buffer_radius_value
+                if self.settings
+                else DEFAULT_BUFFER_RADIUS_VALUE
+            )
         )
         self.roi_overlap_ratio_var = StringVar(
-            value=str(self.settings.roi_min_bbox_overlap_ratio if self.settings else 0.10)
+            value=str(
+                self.settings.roi_min_bbox_overlap_ratio
+                if self.settings
+                else DEFAULT_MIN_BBOX_OVERLAP_RATIO
+            )
         )
         self.roi_template_var = StringVar(value="")
         # Add trace to log all changes to template var

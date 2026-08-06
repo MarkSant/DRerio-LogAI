@@ -5,6 +5,12 @@ from unittest.mock import Mock, patch
 
 import pytest
 
+from zebtrack.core.services.roi_rule_resolver import (
+    DEFAULT_BUFFER_RADIUS_VALUE,
+    DEFAULT_MIN_BBOX_OVERLAP_RATIO,
+    DEFAULT_ROI_INCLUSION_RULE,
+    RoiRuleConfig,
+)
 from zebtrack.ui import payloads
 from zebtrack.ui.components.zone_controls import ZoneControlsWidget
 from zebtrack.ui.event_bus_v2 import UIEvents
@@ -184,3 +190,63 @@ def test_reconfigure_subjects_updates_metadata_and_refreshes(widget, event_bus):
     event_types = [call.args[0] for call in event_bus.publish.call_args_list]
     assert UIEvents.VIDEO_METADATA_UPDATED in event_types
     assert UIEvents.PROJECT_VIEWS_REFRESH_REQUESTED in event_types
+
+
+@pytest.mark.gui
+def test_roi_panel_shows_the_effective_settings_not_literals(tkinter_root, event_bus):
+    """O painel exibe a regra EFETIVA recebida, não números escritos no widget.
+
+    Regressão do bug que motivou este teste: a aba de Zonas mostrava 0.10
+    (literal) enquanto a análise usava o valor do ``config.yaml``.
+    """
+    config = RoiRuleConfig(
+        rule="centroid_in_on_buffered_roi",
+        buffer_radius_value=2.5,
+        min_bbox_overlap_ratio=0.42,
+    )
+    widget = ZoneControlsWidget(tkinter_root, event_bus=event_bus, roi_rule_config=config)
+    tkinter_root.update_idletasks()
+
+    assert widget.roi_inclusion_rule_var.get() == "centroid_in_on_buffered_roi"
+    assert widget.roi_buffer_radius_var.get() == "2.5"
+    assert widget.roi_overlap_ratio_var.get() == "0.42"
+
+
+@pytest.mark.gui
+def test_roi_panel_without_config_uses_the_canonical_defaults(widget):
+    """Sem config injetada, os defaults vêm do resolvedor — não de literais."""
+    assert widget.roi_inclusion_rule_var.get() == DEFAULT_ROI_INCLUSION_RULE
+    assert float(widget.roi_buffer_radius_var.get()) == DEFAULT_BUFFER_RADIUS_VALUE
+    assert float(widget.roi_overlap_ratio_var.get()) == DEFAULT_MIN_BBOX_OVERLAP_RATIO
+
+
+@pytest.mark.gui
+def test_set_roi_rule_config_reseeds_the_panel(widget):
+    widget.set_roi_rule_config(RoiRuleConfig("bbox_intersects", 1.0, 0.0))
+
+    assert widget.roi_inclusion_rule_var.get() == "bbox_intersects"
+    assert widget.roi_overlap_ratio_var.get() == "0"
+
+
+def test_tab_builder_resolves_the_effective_rule_for_the_panel():
+    """A aba semeia o painel com projeto > global, via resolvedor canônico."""
+    from zebtrack.ui.components.tab_builder import TabBuilder
+
+    project_manager = SimpleNamespace(
+        project_data={"roi_settings": {"roi_min_bbox_overlap_ratio": 0.42}}
+    )
+    settings = SimpleNamespace(
+        roi_inclusion_rule="bbox_intersects",
+        roi_buffer_radius_value=1.5,
+        roi_min_bbox_overlap_ratio=0.10,
+        roi_bbox_overlap_basis="max",
+    )
+    gui = SimpleNamespace(
+        project_manager=project_manager,
+        controller=SimpleNamespace(settings=settings),
+    )
+
+    config = TabBuilder(gui)._resolve_roi_rule_for_panel()  # type: ignore[arg-type]
+
+    assert config.min_bbox_overlap_ratio == 0.42  # projeto vence
+    assert config.bbox_overlap_basis == "max"  # global preenche o resto

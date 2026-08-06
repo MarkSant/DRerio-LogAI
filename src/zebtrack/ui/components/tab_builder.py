@@ -3,6 +3,7 @@ from typing import TYPE_CHECKING, Any, cast
 
 import structlog
 
+from zebtrack.core.services.roi_rule_resolver import RoiRuleConfig, resolve_roi_rule
 from zebtrack.ui import payloads
 from zebtrack.ui.components.arduino_bindings_panel import ArduinoBindingsPanel
 from zebtrack.ui.components.arduino_dashboard import ArduinoDashboardWidget
@@ -37,6 +38,18 @@ class TabBuilder:
         controller = getattr(self.gui, "controller", None)
         hardware_vm = getattr(controller, "hardware_vm", None)
         return getattr(hardware_vm, "arduino_manager", None)
+
+    def _resolve_roi_rule_for_panel(self) -> RoiRuleConfig:
+        """Regra de ROI efetiva com que semear o painel da aba de Zonas.
+
+        Defensivo de propósito: a aba é construída com um ``gui`` incompleto em
+        testes e no arranque sem projeto. Sem settings nem projeto, o default
+        canônico — nunca um literal.
+        """
+        controller = getattr(self.gui, "controller", None)
+        settings_obj = getattr(controller, "settings", None) or getattr(self.gui, "settings", None)
+        project_data = getattr(self.project_manager, "project_data", None)
+        return resolve_roi_rule(project_data, settings_obj)
 
     def build_main_controls_tab(self) -> ttk.Frame:
         """Build main controls tab based on project type."""
@@ -157,6 +170,10 @@ class TabBuilder:
             event_bus=self.gui.event_bus,
             template_actions_parent=self.gui.viz_bottom_container,
             drawing_actions_parent=self.gui.viz_top_container,
+            # O painel exibe a regra EFETIVA (projeto > global > default). Sem
+            # isto ele mostrava literais fixos e mentia sobre o que a análise
+            # ia usar.
+            roi_rule_config=self._resolve_roi_rule_for_panel(),
         )
         self.gui.zone_controls.pack(side="top", fill="both", expand=True)
 

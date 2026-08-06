@@ -6,6 +6,7 @@ from typing import Any, ClassVar
 
 import structlog
 
+from zebtrack.core.services.roi_rule_resolver import RoiRuleConfig
 from zebtrack.ui import payloads
 from zebtrack.ui.components.base import BaseWidget
 from zebtrack.ui.dialogs.project_video_import_dialog import VideoMetadataDialog
@@ -47,6 +48,7 @@ class ZoneControlsWidget(BaseWidget):
         event_bus: EventBusV2 | None = None,
         drawing_actions_parent: ttk.Frame | None = None,
         template_actions_parent: ttk.Frame | None = None,
+        roi_rule_config: RoiRuleConfig | None = None,
         **kwargs: Any,
     ):
         """
@@ -57,6 +59,10 @@ class ZoneControlsWidget(BaseWidget):
             event_bus: Optional event bus for emitting events
             drawing_actions_parent: Optional parent frame for drawing actions (default: self)
             template_actions_parent: Optional parent frame for template actions (default: self)
+            roi_rule_config: Regra de ROI EFETIVA (já resolvida por
+                ``resolve_roi_rule``) com que semear o painel. ``None`` usa o
+                default canônico — nunca um literal escrito aqui, que é como o
+                painel passou a exibir 0.10 enquanto a análise usava 0.05.
             **kwargs: Additional arguments passed to BaseWidget
         """
         self.drawing_actions_parent = drawing_actions_parent
@@ -69,9 +75,10 @@ class ZoneControlsWidget(BaseWidget):
         self.stabilization_frames_var = StringVar(value="10")
         self.roi_template_var = StringVar(value="")
         self.video_search_var = StringVar()
-        self.roi_inclusion_rule_var = StringVar(value="bbox_intersects")
-        self.roi_buffer_radius_var = StringVar(value="0.5")
-        self.roi_overlap_ratio_var = StringVar(value="0.10")
+        roi_config = roi_rule_config or RoiRuleConfig()
+        self.roi_inclusion_rule_var = StringVar(value=roi_config.rule)
+        self.roi_buffer_radius_var = StringVar(value=f"{roi_config.buffer_radius_value:g}")
+        self.roi_overlap_ratio_var = StringVar(value=f"{roi_config.min_bbox_overlap_ratio:g}")
 
         # Multi-aquarium state variables
         self.aquarium_count_var = tk.IntVar(value=1)
@@ -860,6 +867,12 @@ class ZoneControlsWidget(BaseWidget):
         ttk.Entry(self.overlap_frame, textvariable=self.roi_overlap_ratio_var, width=10).pack(
             side="left", padx=(0, 10)
         )
+        ttk.Label(
+            self.overlap_frame,
+            text="0 = qualquer sobreposição real.",
+            font=("TkDefaultFont", 8),
+            foreground="gray",
+        ).pack(side="left")
 
         # Help text
         self.rule_help_label = ttk.Label(
@@ -1397,6 +1410,18 @@ class ZoneControlsWidget(BaseWidget):
         )
 
     # Public API for controlling widget state
+
+    def set_roi_rule_config(self, config: RoiRuleConfig) -> None:
+        """Reexibe a regra de ROI EFETIVA (ex.: depois de abrir um projeto).
+
+        Recebe a config já resolvida — o painel não conhece a precedência
+        projeto > global > default, só mostra o resultado dela.
+        """
+        self.roi_inclusion_rule_var.set(config.rule)
+        self.roi_buffer_radius_var.set(f"{config.buffer_radius_value:g}")
+        self.roi_overlap_ratio_var.set(f"{config.min_bbox_overlap_ratio:g}")
+        # Mostra/esconde o parâmetro da regra recém-exibida.
+        self._on_roi_rule_changed(None)
 
     def set_draw_roi_enabled(self, enabled: bool) -> None:
         """Enable or disable the draw ROI button."""

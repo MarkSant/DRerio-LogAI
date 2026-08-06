@@ -196,5 +196,125 @@ class TestROIAnalyzerInclusionRules(unittest.TestCase):
         self.assertIn("Unknown inclusion rule: invalid_rule", str(context.exception))
 
 
+def _px_analyzer(bboxes, roi_polygon, **kwargs):
+    """ROIAnalyzer sobre geometria FABRICADA em pixels.
+
+    ``coordinate_space="px"`` evita a transformação cm→px: o que se escreve no
+    teste é exatamente o que a regra vê, então os valores esperados podem ser
+    calculados à mão.
+
+    Args:
+        bboxes: sequência de ``(x1, y1, x2, y2)``, uma por frame.
+        roi_polygon: polígono da ROI, já em pixels.
+        **kwargs: repassados ao ``ROIAnalyzer`` (regra, limiar, base…).
+    """
+    frames = list(bboxes)
+    timestamps = pd.date_range(start="2023-01-01", periods=len(frames), freq="100ms")
+    trajectory = pd.DataFrame(
+        {
+            "x1": [b[0] for b in frames],
+            "y1": [b[1] for b in frames],
+            "x2": [b[2] for b in frames],
+            "y2": [b[3] for b in frames],
+            "x_center_px": [(b[0] + b[2]) / 2 for b in frames],
+            "y_center_px": [(b[1] + b[3]) / 2 for b in frames],
+        },
+        index=timestamps,
+    )
+
+    b_analyzer = MagicMock()
+    b_analyzer.trajectory_data = trajectory
+    b_analyzer._pixelcm_x = 1.0
+    b_analyzer._pixelcm_y = 1.0
+    b_analyzer._video_height_px = 0
+
+    return ROIAnalyzer(
+        behavior_analyzer=b_analyzer,
+        rois=[ROI(name="R", geometry=roi_polygon, coordinate_space="px")],
+        flutter_n_frames=1,
+        inclusion_rule="bbox_intersects",
+        **kwargs,
+    )
+
+
+class TestBboxOverlapBasis(unittest.TestCase):
+    """Numéricos da fração de sobreposição: geometria fabricada, valor à mão.
+
+    Uma bbox 20x20 px (área 400) contém inteiramente uma ROI 10x10 px
+    (área 100). A interseção é a própria ROI: 100 px².
+
+        base "bbox" -> 100/400 = 0.25
+        base "roi"  -> 100/100 = 1.00
+        base "max"  -> max(0.25, 1.00) = 1.00
+
+    É o regime que motiva a opção: com a base histórica, cobrir 100% de uma
+    zona pequena ainda marca 0.25 e reprova em qualquer limiar >= 0.3.
+    """
+
+    BBOX = (0.0, 0.0, 20.0, 20.0)
+    ROI_POLY = Polygon([(5, 5), (15, 5), (15, 15), (5, 15)])
+
+    def _presence(self, **kwargs):
+        analyzer = _px_analyzer([self.BBOX], self.ROI_POLY, **kwargs)
+        return bool(analyzer._trajectory["in_R_stable"].iloc[0])
+
+    def test_basis_bbox_is_quarter(self):
+        self.assertTrue(self._presence(min_bbox_overlap_ratio=0.25, bbox_overlap_basis="bbox"))
+        self.assertFalse(self._presence(min_bbox_overlap_ratio=0.26, bbox_overlap_basis="bbox"))
+
+    def test_basis_roi_is_full_coverage(self):
+        self.assertTrue(self._presence(min_bbox_overlap_ratio=1.0, bbox_overlap_basis="roi"))
+
+    def test_basis_max_takes_the_larger(self):
+        self.assertTrue(self._presence(min_bbox_overlap_ratio=1.0, bbox_overlap_basis="max"))
+
+    def test_default_basis_reproduces_the_historical_numbers(self):
+        """Regressão: sem configurar a base, o resultado é o de antes do campo.
+
+        Se alguém trocar o default de ``bbox_overlap_basis``, este teste cai —
+        é o que impede a mudança silenciosa de medida.
+        """
+        for threshold in (0.05, 0.10, 0.25, 0.26, 0.5):
+            explicit = self._presence(min_bbox_overlap_ratio=threshold, bbox_overlap_basis="bbox")
+            implicit = self._presence(min_bbox_overlap_ratio=threshold)
+            self.assertEqual(explicit, implicit, f"limiar {threshold}")
+            self.assertEqual(implicit, threshold <= 0.25, f"limiar {threshold}")
+
+    def test_zero_ratio_is_not_silently_replaced_by_the_default(self):
+        """``x or default`` trocaria o 0.0 explícito por 0.10 — regressão coberta."""
+        analyzer = _px_analyzer([self.BBOX], self.ROI_POLY, min_bbox_overlap_ratio=0.0)
+        self.assertEqual(analyzer._min_bbox_overlap_ratio, 0.0)
+
+
+class TestZeroThresholdIsPureIntersection(unittest.TestCase):
+    """Limiar 0: sobreposição de área não-nula conta, tangência não.
+
+    ROI 10x10 px na origem. Frame 0 encosta na borda direita (interseção de
+    área ZERO); frame 1 invade 1 px². ``shapely.intersects`` devolveria True
+    para os dois — por isso a regra usa o predicado de interiores.
+    """
+
+    ROI_POLY = Polygon([(0, 0), (10, 0), (10, 10), (0, 10)])
+    TANGENT = (10.0, 0.0, 20.0, 10.0)  # encosta em x=10: interseção de área 0
+    # Invade 1x1 px = 1 px² de interseção numa caixa de 20x1 px: fração 0.05,
+    # abaixo do limiar default (0.10) e acima de zero.
+    ONE_PIXEL = (9.0, 0.0, 29.0, 1.0)
+
+    def test_tangency_is_not_overlap_and_one_pixel_is(self):
+        analyzer = _px_analyzer(
+            [self.TANGENT, self.ONE_PIXEL], self.ROI_POLY, min_bbox_overlap_ratio=0.0
+        )
+        presence = analyzer._trajectory["in_R_stable"]
+        self.assertFalse(bool(presence.iloc[0]), "tangência não é sobreposição")
+        self.assertTrue(bool(presence.iloc[1]), "1 px² de interseção é sobreposição")
+
+    def test_one_pixel_fails_the_default_threshold(self):
+        """O mesmo 1 px² reprova no limiar default — o 0 não é redundante."""
+        analyzer = _px_analyzer([self.TANGENT, self.ONE_PIXEL], self.ROI_POLY)
+        presence = analyzer._trajectory["in_R_stable"]
+        self.assertFalse(bool(presence.iloc[0]))
+        self.assertFalse(bool(presence.iloc[1]))
+
+
 if __name__ == "__main__":
     unittest.main()
