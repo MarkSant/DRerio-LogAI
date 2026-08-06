@@ -686,7 +686,13 @@ function is pure (no I/O, no singleton) and never raises: an unknown rule, an
 unparseable string, a non-finite float (NaN **and** ±inf — `inf` would otherwise
 sail past the range check on `roi_buffer_radius_value`, which has no maximum) or
 an out-of-range value falls back to the previous precedence level and logs
-`roi_rule.resolve.invalid_value`. Recognized keys are exactly
+`roi_rule.resolve.invalid_value`. The **rule is resolved first**, because it
+decides the bounds: the exclusive minimum applies only to the parameter that
+rule actually uses, mirroring `Settings`' cross-field validator. A zero buffer
+under `bbox_intersects` is irrelevant and legitimate (shipped configs look like
+that) and is preserved without noise; a zero buffer under
+`centroid_in_on_buffered_roi` dilates nothing and falls back with a log.
+Recognized keys are exactly
 `roi_inclusion_rule`, `roi_buffer_radius_value`, `roi_min_bbox_overlap_ratio` —
 the same ones the settings editor writes.
 

@@ -64,10 +64,11 @@ class RoiRuleConfig:
     Imutável de propósito: é passada adiante para o ``ROIAnalyzer`` e para o
     ``ArduinoRoiEvaluator``, que precisam concordar bit a bit.
 
-    A instância é sempre autoconsistente (ver :meth:`normalized`):
-    ``buffer_radius_value > 0`` e ``0 < min_bbox_overlap_ratio <= 1``, de modo
-    que aplicá-la a um ``Settings`` nunca produz um estado intermediário
-    inválido, independentemente da regra anterior.
+    A instância é sempre autoconsistente com a própria regra, nas mesmas
+    faixas do validador cruzado de ``Settings``: o parâmetro **exigido** pela
+    regra é ``> 0`` (o outro pode ser ``0``, que ela ignora). É essa garantia
+    que permite a :func:`apply_roi_rule_to_settings` escrever os três campos
+    sem passar por um estado intermediário inválido.
     """
 
     rule: str = DEFAULT_ROI_INCLUSION_RULE
@@ -138,6 +139,7 @@ def _coerce_float(
     *,
     field: str,
     source: str,
+    required: bool,
     maximum: float | None = None,
 ) -> float:
     """Converte e valida um parâmetro numérico; cai em ``fallback`` se inválido.
@@ -147,11 +149,12 @@ def _coerce_float(
     raio de buffer passaria pelo teste de faixa (não há ``maximum``) e viraria
     uma dilatação impossível lá na ponta.
 
-    O mínimo é **exclusivo**: zero não é valor útil para nenhum dos dois
-    parâmetros (um buffer de raio 0 não dilata; uma fração 0 aceita qualquer
-    coisa) e a regra ``centroid_in_on_buffered_roi`` do ``Settings`` até o
-    rejeita. Tratá-lo como inválido aqui é o que faz um ``0`` do projeto cair
-    no valor global **com log**, em vez de virar default em silêncio.
+    ``required`` diz se a REGRA EFETIVA usa este parâmetro, e é isso que decide
+    se o mínimo é exclusivo — as mesmas faixas do validador cruzado de
+    ``Settings``. Um raio 0 com ``bbox_intersects`` é irrelevante e legítimo
+    (o ``config.yaml`` distribui configurações assim), então não vira ruído;
+    já um raio 0 com ``centroid_in_on_buffered_roi`` não dilata nada e cai um
+    nível **com log**, em vez de virar default em silêncio.
     """
     if value is None:
         return fallback
@@ -163,8 +166,9 @@ def _coerce_float(
         invalid = True
         number = fallback
 
+    minimum_ok = number > 0.0 if required else number >= 0.0
     if not invalid and (
-        not math.isfinite(number) or number <= 0.0 or (maximum is not None and number > maximum)
+        not math.isfinite(number) or not minimum_ok or (maximum is not None and number > maximum)
     ):
         invalid = True
 
@@ -174,6 +178,7 @@ def _coerce_float(
             field=field,
             value=value,
             source=source,
+            required_by_rule=required,
             fallback=fallback,
         )
         return fallback
@@ -183,15 +188,21 @@ def _coerce_float(
 def _normalize(rule: str, buffer_radius: float, overlap_ratio: float) -> RoiRuleConfig:
     """Rede de segurança da autoconsistência da configuração.
 
-    Com o mínimo exclusivo em :func:`_coerce_float`, todo valor que chega aqui
-    já é utilizável (e os defaults também são) — este passo existe para que a
-    garantia "buffer > 0 e 0 < ratio <= 1" seja do tipo, não de quem o
-    construiu. É dela que depende a ordem de :func:`apply_roi_rule_to_settings`.
+    A garantia é a mesma do validador de ``Settings``: **o parâmetro exigido
+    pela regra** é > 0 (o outro pode ser 0, que é irrelevante para ela). É dela
+    que depende a ordem de :func:`apply_roi_rule_to_settings` — a cada passo o
+    objeto satisfaz a regra vigente, seja a antiga ou a nova.
     """
-    if buffer_radius <= 0.0:
+    if rule in _BUFFERED_RULES and not buffer_radius > 0.0:
         buffer_radius = DEFAULT_BUFFER_RADIUS_VALUE
-    if not (0.0 < overlap_ratio <= 1.0):
+    elif buffer_radius < 0.0:
+        buffer_radius = DEFAULT_BUFFER_RADIUS_VALUE
+
+    if rule in _OVERLAP_RULES and not 0.0 < overlap_ratio <= 1.0:
         overlap_ratio = DEFAULT_MIN_BBOX_OVERLAP_RATIO
+    elif not 0.0 <= overlap_ratio <= 1.0:
+        overlap_ratio = DEFAULT_MIN_BBOX_OVERLAP_RATIO
+
     return RoiRuleConfig(
         rule=rule,
         buffer_radius_value=buffer_radius,
@@ -213,52 +224,56 @@ def resolve_roi_rule(project_data: Any, settings_obj: Any) -> RoiRuleConfig:
         caem no nível anterior da precedência e são logados como
         ``roi_rule.resolve.invalid_value``.
     """
-    rule = DEFAULT_ROI_INCLUSION_RULE
-    buffer_radius = DEFAULT_BUFFER_RADIUS_VALUE
-    overlap_ratio = DEFAULT_MIN_BBOX_OVERLAP_RATIO
-
-    if settings_obj is not None:
-        rule = _coerce_rule(getattr(settings_obj, _KEY_RULE, None), rule, source="settings")
-        buffer_radius = _coerce_float(
-            getattr(settings_obj, _KEY_BUFFER, None),
-            buffer_radius,
-            field=_KEY_BUFFER,
-            source="settings",
-        )
-        overlap_ratio = _coerce_float(
-            getattr(settings_obj, _KEY_OVERLAP, None),
-            overlap_ratio,
-            field=_KEY_OVERLAP,
-            source="settings",
-            maximum=1.0,
-        )
-
     # ``.get`` num ``project_data`` de tipo inesperado levantaria AttributeError
     # — e este resolvedor roda no loop ao vivo, onde nada pode levantar.
     roi_settings: Any = project_data.get("roi_settings") if isinstance(project_data, dict) else None
-    if isinstance(roi_settings, dict):
-        rule = _coerce_rule(roi_settings.get(_KEY_RULE), rule, source="project")
-        buffer_radius = _coerce_float(
-            roi_settings.get(_KEY_BUFFER),
-            buffer_radius,
-            field=_KEY_BUFFER,
+    if not isinstance(roi_settings, dict):
+        if roi_settings is not None:
+            log.warning(
+                "roi_rule.resolve.invalid_value",
+                field="roi_settings",
+                value=type(roi_settings).__name__,
+                source="project",
+                fallback="settings",
+            )
+        roi_settings = {}
+
+    # A REGRA vem primeiro: é ela que define quais parâmetros são exigidos e,
+    # portanto, as faixas válidas de cada um (idem validador de ``Settings``).
+    rule = DEFAULT_ROI_INCLUSION_RULE
+    if settings_obj is not None:
+        rule = _coerce_rule(getattr(settings_obj, _KEY_RULE, None), rule, source="settings")
+    rule = _coerce_rule(roi_settings.get(_KEY_RULE), rule, source="project")
+
+    def _param(key: str, default: float, *, required: bool, maximum: float | None = None) -> float:
+        value = default
+        if settings_obj is not None:
+            value = _coerce_float(
+                getattr(settings_obj, key, None),
+                value,
+                field=key,
+                source="settings",
+                required=required,
+                maximum=maximum,
+            )
+        return _coerce_float(
+            roi_settings.get(key),
+            value,
+            field=key,
             source="project",
+            required=required,
+            maximum=maximum,
         )
-        overlap_ratio = _coerce_float(
-            roi_settings.get(_KEY_OVERLAP),
-            overlap_ratio,
-            field=_KEY_OVERLAP,
-            source="project",
-            maximum=1.0,
-        )
-    elif roi_settings is not None:
-        log.warning(
-            "roi_rule.resolve.invalid_value",
-            field="roi_settings",
-            value=type(roi_settings).__name__,
-            source="project",
-            fallback="settings",
-        )
+
+    buffer_radius = _param(
+        _KEY_BUFFER, DEFAULT_BUFFER_RADIUS_VALUE, required=rule in _BUFFERED_RULES
+    )
+    overlap_ratio = _param(
+        _KEY_OVERLAP,
+        DEFAULT_MIN_BBOX_OVERLAP_RATIO,
+        required=rule in _OVERLAP_RULES,
+        maximum=1.0,
+    )
 
     return _normalize(rule, buffer_radius, overlap_ratio)
 

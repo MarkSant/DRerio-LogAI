@@ -153,38 +153,67 @@ def test_settings_without_roi_attributes_uses_defaults():
     assert config == RoiRuleConfig()
 
 
-def test_config_is_always_self_consistent():
-    """Parâmetros zerados viram default: aplicar a config nunca invalida Settings."""
+@pytest.mark.parametrize(
+    ("rule", "required_attr", "irrelevant_attr"),
+    [
+        ("centroid_in_on_buffered_roi", "buffer_radius_value", "min_bbox_overlap_ratio"),
+        ("bbox_intersects", "min_bbox_overlap_ratio", "buffer_radius_value"),
+        ("seg_overlap", "min_bbox_overlap_ratio", "buffer_radius_value"),
+    ],
+    ids=["buffered", "bbox_intersects", "seg_overlap"],
+)
+def test_config_is_self_consistent_with_its_own_rule(rule, required_attr, irrelevant_attr):
+    """O parâmetro EXIGIDO pela regra nunca é zero; o irrelevante pode ser.
+
+    São as mesmas faixas do validador cruzado de ``Settings`` — é isso que
+    permite aplicar a config sem passar por um estado intermediário inválido.
+    """
     project = {
         "roi_settings": {
-            "roi_inclusion_rule": "centroid_in",
+            "roi_inclusion_rule": rule,
             "roi_buffer_radius_value": 0.0,
             "roi_min_bbox_overlap_ratio": 0.0,
         }
     }
     config = resolve_roi_rule(project, None)
-    assert config.rule == "centroid_in"
-    assert config.buffer_radius_value > 0
-    assert 0 < config.min_bbox_overlap_ratio <= 1
+
+    assert config.rule == rule
+    assert getattr(config, required_attr) > 0
+    assert getattr(config, irrelevant_attr) == 0.0
 
 
-@pytest.mark.parametrize("zero", [0.0, 0, "0", -0.0])
-def test_zero_parameter_falls_back_one_level_not_to_default(zero):
-    """Zero é inválido, não "valor do projeto".
+@pytest.mark.parametrize("zero", [0.0, 0, "0"])
+def test_zero_in_the_required_parameter_falls_back_one_level(zero):
+    """Zero no parâmetro que a regra USA é inválido, não "valor do projeto".
 
-    Se o zero passasse pela coerção, a normalização o trocaria pelo DEFAULT em
-    silêncio — o valor global seria descartado sem ninguém saber. Ele tem de
-    cair um nível, como qualquer outro valor inválido.
+    Se passasse pela coerção, a normalização o trocaria pelo DEFAULT em
+    silêncio — o valor global seria descartado sem ninguém saber.
     """
     project = {
         "roi_settings": {
-            "roi_buffer_radius_value": zero,
+            "roi_inclusion_rule": "bbox_intersects",
             "roi_min_bbox_overlap_ratio": zero,
         }
     }
-    config = resolve_roi_rule(project, _settings(buffer_radius=2.0, overlap=0.25))
-    assert config.buffer_radius_value == 2.0
+    config = resolve_roi_rule(project, _settings(overlap=0.25))
     assert config.min_bbox_overlap_ratio == 0.25
+
+
+@pytest.mark.parametrize("zero", [0.0, 0, "0"])
+def test_zero_in_an_irrelevant_parameter_is_preserved(zero):
+    """Zero no parâmetro que a regra IGNORA é legítimo — nem ruído nem descarte.
+
+    ``config.yaml`` e projetos reais carregam parâmetros zerados da regra que
+    não está em uso; tratá-los como inválidos encheria o log do loop ao vivo.
+    """
+    project = {
+        "roi_settings": {
+            "roi_inclusion_rule": "bbox_intersects",
+            "roi_buffer_radius_value": zero,
+        }
+    }
+    config = resolve_roi_rule(project, _settings(buffer_radius=2.0))
+    assert config.buffer_radius_value == 0.0
 
 
 # ----------------------------------------------------------------------
