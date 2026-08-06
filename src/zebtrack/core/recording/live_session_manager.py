@@ -106,6 +106,7 @@ class LiveSessionManagerMixin:
         def _start_threads(self) -> bool: ...
         def _clear_queues(self) -> None: ...
         def _on_session_complete(self, output_dir: Path) -> None: ...
+        def _finalize_frame_ledger(self) -> None: ...
 
     def _resolve_session_detector_config(self) -> tuple[str | None, bool, str]:
         """Resolve ``(active_weight, use_openvino, source)`` for the next session.
@@ -883,6 +884,11 @@ class LiveSessionManagerMixin:
                 "live_camera_service.video_recording_thread_stopped",
                 frames_written=self._video_frames_written,
             )
+
+        # Ledger de frames: finalizado DEPOIS do join (as threads de captura e
+        # de vídeo são as duas produtoras) e ANTES de a pasta ser eventualmente
+        # descartada num cancelamento manual.
+        self._finalize_frame_ledger()
 
         # NOW it's safe to close writers — no thread is writing anymore
         # (or we've promoted to force_stop above if a thread hung).

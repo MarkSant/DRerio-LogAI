@@ -4,8 +4,10 @@ This module defines the ROIAnalyzer class for detailed behavioral analysis
 within specific regions of interest (ROIs).
 """
 
+from itertools import combinations
 from typing import Any, Literal
 
+import networkx as nx
 import numpy as np
 import pandas as pd
 import shapely
@@ -692,14 +694,6 @@ class ROIAnalyzer:
             A dictionary with social metrics per animal.
 
         """
-        try:
-            import networkx as nx
-        except ImportError:
-            # Avoid chaining the ImportError to the new exception context
-            raise ImportError(
-                "Please install 'networkx' to use social proximity analysis."
-            ) from None
-
         if "track_id" not in full_trajectory_df.columns:
             raise ValueError("Input DataFrame must contain a 'track_id' column.")
 
@@ -733,8 +727,6 @@ class ROIAnalyzer:
             # Build graph of interactions
             G = nx.Graph()
             G.add_nodes_from(animals)
-
-            from itertools import combinations
 
             for animal1, animal2 in combinations(animals, 2):
                 if rois[animal1].intersects(rois[animal2]):

@@ -330,6 +330,45 @@ domains:
       - "src/zebtrack/io/video_source.py"
 
   # ---------------------------------------------------------------------------
+  # FRAME LEDGER (live session timeline: parquet frame <-> MP4 frame <-> clock)
+  # ---------------------------------------------------------------------------
+  frame_ledger:
+    description: "Sidecar mapping pipeline_frame <-> video_frame_index <-> capture instant"
+
+    why: "Three independent numberings (capture frame_count, MP4 write counter, clock); a single lost frame shifted every later mapping with no trace on disk"
+
+    output:
+      ledger: "6_FrameLedger_<base>.{csv,parquet} — one row per CAPTURED frame"
+      anchor: "6_FrameLedger_<base>_anchor.json — t0_perf/t0_wall pair (MANDATORY: perf_counter has no epoch), recorder_start_time, fps_nominal, fps_real_medio, analysis_interval_frames, first_captured_index, first_video_index"
+      columns: ["pipeline_frame", "video_frame_index", "t_capture_perf", "t_capture_wall", "outcome", "is_analysis_frame", "queued_for_analysis"]
+
+    outcomes: "written | dropped_queue_full (capture thread) | write_failed (video thread, OSError after dequeue) | not_recording"
+
+    producers: "TWO threads, ONE lock: capture writes dropped_queue_full/not_recording; video writes written/write_failed with the REAL index from the write counter (never inferred as frame_count - drops)"
+
+    queue_item: "video_queue carries (frame_count, capture_perf, capture_wall, is_analysis_frame, queued_for_analysis, frame); legacy bare-frame items tolerated (no ledger row). frame_queue unchanged: (frame_count, frame, capture_perf)"
+
+    reconstruction: "3_CoordMovimento.frame == pipeline_frame -> t_capture_perf -> t0_wall + (t_capture_perf - t0_perf) -> video_frame_index"
+
+    gotchas:
+      timestamp_is_processing_clock: "3_CoordMovimento.timestamp is measured AFTER queue wait + inference; NEVER use it for latency or to date an event. Schema stays IMMUTABLE — fix at consumption time by joining the ledger"
+      opportunistic_spacing: "Parquet rows are NOT only multiples of analysis_interval_frames (off-cadence frames are enqueued when frame_queue has room); filter by is_analysis_frame to recover the deterministic cadence"
+      driver_buffering: "perf_counter after camera.get_frame() = frame available to PYTHON, not sensor exposure. UVC buffering (1-3 frames) is invisible and enters frame_to_ack_ms in full"
+      writer_returns_none: "cv2.VideoWriter.write() reports nothing; outcome='written' = no Python exception, NOT encoder confirmation"
+      no_sync_io: "record() only appends to memory; CSV flush runs on FrameLedgerWriterThread (daemon)"
+
+    lifecycle: "_reset_frame_ledger in _start_threads -> _maybe_bind_frame_ledger when recorder.output_folder exists -> _finalize_frame_ledger in stop_session AFTER joining producer threads. Independent of the Arduino/closed-loop path"
+
+    key_files:
+      - "src/zebtrack/core/recording/frame_ledger.py"                # FrameLedger + load/reconstruction helpers
+      - "src/zebtrack/core/recording/frame_processing_pipeline.py"   # capture/video producers
+      - "src/zebtrack/core/recording/live_session_manager.py"        # finalize after join
+
+    related_tests:
+      - "tests/core/recording/test_frame_ledger.py"
+      - "tests/core/recording/test_frame_timeline_reconstruction.py"
+
+  # ---------------------------------------------------------------------------
   # ARDUINO DOMAIN (live per-zone commands + closed-loop latency)
   # ---------------------------------------------------------------------------
   arduino:
@@ -356,6 +395,8 @@ domains:
       gotcha: "Numeric inbound = device event; text = ACK. Async send => t_ack on reader thread"
       output: "5_ClosedLoop_<base>.{csv,parquet} (canonical serial_act_ms, frame_to_ack_ms)"
       caveat: "frame_to_ack starts at ANALYZED frame; sampling quantization is separate"
+      columns_append_only: "CSV_COLUMNS is append-only; serial_act_ms/frame_to_ack_ms stay first (analise_latencia.py depends on the names). queue_wait_ms + inference_ms + dequeue_perf appended Aug 2026"
+      split: "queue_wait_ms (frame_t0->dequeue) + inference_ms (dequeue->decision) == capture_to_decision_ms (kept for compat)"
 
     key_files:
       - "src/zebtrack/io/arduino_manager.py"          # enqueue_tracked, sink, ACK FIFO

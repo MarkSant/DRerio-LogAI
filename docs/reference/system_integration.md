@@ -489,7 +489,15 @@ It timestamps, per ROI enter/exit trigger, three moments with
   `3_CoordMovimento_<base>.parquet`. Canonical columns `serial_act_ms`
   (`t_ack-t_send`) and `frame_to_ack_ms` (`t_ack-frame_t0`) keep the exact names
   used by the external `analise_latencia.py`; enrichment adds
-  `capture_to_decision_ms`, `decision_to_send_ms`, and `sampling_interval_ms`.
+  `capture_to_decision_ms`, `decision_to_send_ms`, `sampling_interval_ms` and —
+  since § 5.9 — `queue_wait_ms`, `inference_ms`, `dequeue_perf` (appended at the
+  end; `CSV_COLUMNS` is append-only and the first columns never move).
+- **Queue wait vs inference:** `capture_to_decision_ms` alone is an aggregate
+  with no diagnostic value — it mixes the time the frame sat in `frame_queue`
+  with the inference itself. `_processing_loop` stamps `dequeue_perf` right
+  after `frame_queue.get`, so `queue_wait_ms` (`frame_t0 → dequeue`) and
+  `inference_ms` (`dequeue → decision`) split it; their sum is exactly
+  `capture_to_decision_ms`, kept for compatibility.
 - **Interpretation caveats:** `frame_to_ack_ms` starts at the **analyzed** frame's
   capture (1 in `analysis_interval_frames`, default 10), so the sampling
   quantization (animal crossing during a skipped frame, up to
@@ -573,7 +581,98 @@ live on 2026-08-04: 6 clean enter/exit pairs, every enter ACK `ON`, every exit
 ACK `OFF`, `serial_act_ms` 17-21 ms (was 3 000-12 700 ms before § 5.7's firmware
 rewrite).
 
-### 5.9. Canonical ROI Inclusion Rule (August 2026)
+### 5.9. Frame Ledger & Timeline Reconstruction (August 2026)
+
+A live session keeps **three independent numberings** and, before this section,
+none of them was correlated on disk: `frame_count` (capture thread, 1-based,
+only incremented on a *successful* capture — it is the number written to the
+`frame` column of `3_CoordMovimento`), `_video_frames_written` (video thread,
+the real MP4 index), and the clock. A single lost frame shifted every later
+mapping with no trace. `core/recording/frame_ledger.FrameLedger` persists the
+map as a sidecar — the `3_CoordMovimento` schema stays **immutable**.
+
+- **Output:** `6_FrameLedger_<base>.csv` (streamed, crash-resilient),
+  `6_FrameLedger_<base>.parquet` (session end) and
+  `6_FrameLedger_<base>_anchor.json`. Columns: `pipeline_frame`,
+  `video_frame_index` (`-1` when the frame is not in the MP4), `t_capture_perf`,
+  `t_capture_wall`, `outcome`, `is_analysis_frame`, `queued_for_analysis`.
+- **One row per captured frame, two producers, one lock** (same pattern as
+  `ClosedLoopLatencyLog`). The CAPTURE thread writes `dropped_queue_full` (it is
+  the only thread that knows — the frame never reaches the video thread) and
+  `not_recording`; the VIDEO thread writes `written` / `write_failed` with the
+  **real** index taken from the write counter. The index comes from the
+  *consumer* precisely to eliminate the `index = frame_count − drops` inference,
+  which is where the offset is born.
+- **Three distinct loss modes, all now recorded:** `queue.Full` on
+  `video_queue` (capture thread), `OSError` in `write_video_frame` (video
+  thread — the frame was dequeued but `_video_frames_written` does **not**
+  advance), and a failed `camera.get_frame()` (never counted at all, so it
+  cannot desynchronize anything).
+- **Queue item shape:** `video_queue` now carries
+  `(frame_count, capture_perf, capture_wall, is_analysis_frame,
+  queued_for_analysis, frame)`. `_unpack_video_item` tolerates the legacy bare
+  frame (no ledger row is produced for it). `frame_queue` is unchanged:
+  `(frame_count, frame, capture_perf)`.
+- **Opportunistic queueing is preserved:** `3_CoordMovimento` does **not**
+  contain only multiples of `analysis_interval_frames` — frames off-cadence are
+  still enqueued when `frame_queue` has room, so the spacing is opportunistic
+  and not reproducible between runs. Nothing is dropped to "fix" it; instead
+  every row carries `is_analysis_frame`, so analysis can filter and recover the
+  deterministic cadence when it needs to.
+- **Lifecycle:** created in `_start_threads` (`_reset_frame_ledger`, buffering
+  in memory because recording may only start after the aquarium-detection
+  phase), bound to the recorder folder by `_maybe_bind_frame_ledger`, finalized
+  in `stop_session` **after** the producer threads are joined
+  (`_finalize_frame_ledger`). Independent of the Arduino path: a session with
+  no bindings and no ACK still gets a full ledger.
+- **Hot path:** `FrameLedger.record()` only appends to memory; the CSV flush
+  runs on a dedicated daemon thread (`FrameLedgerWriterThread`).
+
+**Session anchor (mandatory, not optional).** `perf_counter()` is monotonic and
+**has no epoch**: without the `t0_perf`/`t0_wall` pair there is no way to cross
+the ledger with the trajectory parquet (wall clock) or with `5_ClosedLoop_*`.
+The anchor JSON carries `t0_perf`, `t0_wall`, `recorder_start_time`,
+`fps_nominal`, `fps_real_medio`, `analysis_interval_frames`,
+`first_captured_index`, `first_video_index`.
+
+**Reconstruction formula** (helpers: `load_ledger`, `load_anchor`,
+`index_by_pipeline_frame`, `perf_to_wall` in `frame_ledger.py`):
+
+```text
+3_CoordMovimento.frame  ==  6_FrameLedger.pipeline_frame
+    -> t_capture_perf                                  (monotonic capture)
+    -> t0_wall + (t_capture_perf - t0_perf)            (wall clock)
+    -> video_frame_index                               (real MP4 index, -1 = absent)
+```
+
+**`3_CoordMovimento.timestamp` is a PROCESSING clock**, computed in the
+processing thread *after* the queue wait and the inference
+(`time.time() - recorder.start_time`). Use it to order, never to date an event
+or to measure latency — the capture instant lives in the ledger.
+
+**Honest caveats (this will end up in a publication):**
+
+- `frame_t0`/`t_capture_perf` is stamped in the **capture** thread, right after
+  `camera.get_frame()` and before any `put` — verified. So queue wait is
+  attributed to `queue_wait_ms` and never smuggled into inference time.
+- But `perf_counter()` after `camera.get_frame()` measures when the frame became
+  available **to Python**, not when the sensor exposed it. Driver/UVC buffering
+  (typically 1–3 frames) is invisible and enters `frame_to_ack_ms` in full as if
+  it were pipeline latency. It is not correctable in software without reference
+  hardware — declare the limit, do not omit it.
+- `cv2.VideoWriter.write()` returns `None` and does not report encoder failure.
+  An `outcome='written'` row means "Python handed the frame to the writer
+  without raising", not "the encoder confirmed the frame".
+- The MP4 FPS is **nominal** (`recorder._fps` fixed at `VideoWriter` open) while
+  real capture is `sleep(1/(fps*1.5))` + camera latency, and the pipeline still
+  adjusts FPS dynamically. Use `fps_real_medio` from the anchor (or the
+  per-frame timestamps) for any time axis, never the MP4 frame rate.
+- Full-rate analysis is a **configuration** question, not a code one:
+  `analysis_interval_frames = 1`. Measure `_dropped_frames_processing` before
+  recommending it — detecting at 30 fps can saturate and degrade the very
+  measurement.
+
+### 5.10. Canonical ROI Inclusion Rule (August 2026)
 
 "Is the animal inside this ROI?" is decided in four places, and they used to
 disagree. `core/services/roi_rule_resolver.py` is now the single source:
@@ -642,7 +741,7 @@ Note: the two settings snapshots still differ outside ROI —
 
 1. **Missing Event Payloads:** Always check the **Event Registry** above. If you publish `UI_DISPLAY_FRAME` without the `frame` key, the UI will crash or show nothing.
 2. **Direct UI Access:** Do not try to access `self.view.canvas` from a Coordinator. Use `self.event_bus.publish(Events.UI_..., data)`.
-3. **Worker Isolation:** The `ProcessingWorker` runs in a separate process (multiprocessing). It cannot access global variables or shared objects (like `self.detector`) modified in the main thread _after_ it started. Everything must be passed in `ProcessingContext`.
+3. **Worker Isolation:** The `ProcessingWorker` runs in a separate process (multiprocessing). It cannot access global variables or shared objects (like `self.detector`) modified in the main thread *after* it started. Everything must be passed in `ProcessingContext`.
 4. **Legacy vs. New:**
    - **Legacy:** `VideoProcessingOrchestrator`, `AnalysisOrchestrator` (Avoid modifying if possible).
    - **New (Phase 3):** `ProcessingCoordinator` (Preferred location for logic).
@@ -665,7 +764,7 @@ Note: the two settings snapshots still differ outside ROI —
 13. **Batch Processing Zone Data (Fixed Dec 2025):** When processing multiple videos in batch, each video has its own zone data. The `_load_zones_for_eligible_videos()` method now serializes zone data into each `video_info["zone_data"]` dict, and the worker uses `_get_zone_data_for_video(video_metadata)` to retrieve per-video zones instead of a global default.
 14. **ProcessingCallbacks.on_progress Signature (Updated Dec 2025):** The `on_progress` callback now has signature: `(index: int, total: int, experiment_id: str, fraction: float, message: str, stats: dict | None)`. The worker's `monitor_loop` passes all these fields, and `create_processing_callbacks` now publishes `UI_UPDATE_ANALYSIS_TASK_STATUS` with full video progress info.
 15. **Multi-Aquarium Zone Serialization (Fixed Dec 2025):** When processing multi-aquarium videos, `ProcessingCoordinator` serializes `MultiAquariumZoneData` using `ZoneManager.multi_aquarium_zone_data_to_dict`. The `ProcessingWorker` deserializes this using `ZoneManager.multi_aquarium_zone_data_from_dict`. This ensures the worker receives the complete configuration (aquariums list) instead of just a flattened/partial `ZoneData`.
-16. **Parquet Export for Compatibility (Fixed Dec 2025):** To ensure multi-aquarium videos are correctly classified as 'Ready for Analysis' (`has_arena=True`), `ProjectManager.save_multi_aquarium_zone_data` automatically exports the zones of Aquarium 0 to a standard parquet file (`1_ProcessingArea...`). This satisfies the legacy file scanner while preserving the full multi-aquarium structure in `project_config.json`. Also, `save_project()` is called strictly _after_ updating the file paths in the video entry to ensure persistence.
+16. **Parquet Export for Compatibility (Fixed Dec 2025):** To ensure multi-aquarium videos are correctly classified as 'Ready for Analysis' (`has_arena=True`), `ProjectManager.save_multi_aquarium_zone_data` automatically exports the zones of Aquarium 0 to a standard parquet file (`1_ProcessingArea...`). This satisfies the legacy file scanner while preserving the full multi-aquarium structure in `project_config.json`. Also, `save_project()` is called strictly *after* updating the file paths in the video entry to ensure persistence.
 
 17. **Multi-Aquarium Reporting + Reports Tree Contracts (Fixed Dec 2025):**
     - **Reporting MUST use multi-aquarium zone accessor:** In multi-aquarium report generation, always call `ProjectManager.get_multi_aquarium_zone_data()` (not `get_zone_data()`). The single-aquarium accessor returns only Aquarium 0 for backward compatibility and will corrupt Aquarium 1 crop/overlay alignment.
@@ -676,7 +775,7 @@ Note: the two settings snapshots still differ outside ROI —
     - **Key normalization:** `multi_aquarium_outputs` keys may be mixed (`0` vs `"0"`). Normalize keys to numeric aquarium IDs and merge duplicates to avoid Treeview iid collisions (symptom: only one aquarium visible).
     - **Persistence after generation (Option B):** After generating per-aquarium summaries/reports, re-register updated `multi_aquarium_outputs` via `ProjectManager.register_multi_aquarium_outputs(...)` so `has_summary` and artifact paths persist and the UI updates reliably.
 
-18. **Simultaneous Multi-Aquarium Completion Logic (Fixed Dec 2025):** In the single video workflow, `video_results_dir` is calculated dynamically and may not be preset in the project manager. The `on_video_completed` callback now robustly detects multi-aquarium outputs (`aquarium_0`, `aquarium_1`) by checking the filesystem, even if `video_results_dir` is None in the video entry. This ensures that `register_multi_aquarium_outputs` is called and reports are generated for simultaneous 2-aquarium analyses. The `is_multi_aquarium` flag is now initialized based on the _presence_ of these output folders, not just the project configuration.
+18. **Simultaneous Multi-Aquarium Completion Logic (Fixed Dec 2025):** In the single video workflow, `video_results_dir` is calculated dynamically and may not be preset in the project manager. The `on_video_completed` callback now robustly detects multi-aquarium outputs (`aquarium_0`, `aquarium_1`) by checking the filesystem, even if `video_results_dir` is None in the video entry. This ensures that `register_multi_aquarium_outputs` is called and reports are generated for simultaneous 2-aquarium analyses. The `is_multi_aquarium` flag is now initialized based on the *presence* of these output folders, not just the project configuration.
 
 19. **Unified Report & Analysis Contracts (Fixed Dec 28, 2025 - v3.2):**
     - **Reporter behavioral_config Storage:** The `Reporter` legacy constructor MUST store `self.behavioral_config = behavioral_config if behavioral_config else {}` BEFORE creating `tidy_data`. Previously, the conditional `if not hasattr(self, "behavioral_config")` always triggered because the parameter was never stored, causing geotaxis data to be empty.
@@ -801,7 +900,8 @@ Heavy imports (pandas, pyarrow, openpyxl) are deferred in:
 
 | Date | Version | Changes |
 | ---- | ------- | ------- |
-| Aug 5, 2026 | v4.4 | § 5.9 canonical ROI inclusion rule — `roi_rule_resolver`, four consumers unified, shapely-based `ArduinoRoiEvaluator`, `ZONE_APPLY_ROI_SETTINGS` persists the rule |
+| Aug 6, 2026 | v4.5 | § 5.10 canonical ROI inclusion rule — `roi_rule_resolver`, four consumers unified, shapely-based `ArduinoRoiEvaluator`, `ZONE_APPLY_ROI_SETTINGS` persists the rule |
+| Aug 5, 2026 | v4.4 | § 5.9 frame ledger & timeline reconstruction — `6_FrameLedger_<base>.{csv,parquet}` + session anchor JSON, `video_queue` item carries capture metadata, `queue_wait_ms`/`inference_ms` appended to `5_ClosedLoop_*` |
 | Aug 4, 2026 | v4.3 | § 5.8 binding verification via firmware ACK — `arduino_ack_semantics`, `ArduinoManager.probe_tokens`, panel "test commands" button, runtime `ack_inverted` warning |
 | Aug 4, 2026 | v4.2 | § 5.7 per-zone command robustness — ambiguous-token detection (`token_conflicts()`), ROI exit grace period (`arduino.roi_exit_grace_frames`), non-blocking reference firmware |
 | Jul 23, 2026 | v4.1 | § 5.6 closed-loop latency logging (software-only, ACK-based) — `ArduinoManager` tracked path + FIFO ACK correlation, `5_ClosedLoop_<base>.{csv,parquet}` |

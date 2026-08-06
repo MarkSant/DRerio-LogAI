@@ -18,12 +18,24 @@ Derived per-trigger metrics (milliseconds):
                                                   state machine -> serialization
                                                   -> LED ACK)
 * ``capture_to_decision_ms`` = decision - frame_t0 (software pipeline before the
-                                                    token is queued)
+                                                    token is queued; equals
+                                                    ``queue_wait_ms +
+                                                    inference_ms``)
+* ``queue_wait_ms``          = t_dequeue - frame_t0 (time the frame sat in
+                                                     ``frame_queue`` waiting for
+                                                     the processing thread)
+* ``inference_ms``           = decision - t_dequeue (detection + ROI state
+                                                     machine, once the frame is
+                                                     in hand)
 * ``decision_to_send_ms``    = t_send - decision (writer-thread queue latency)
 * ``sampling_interval_ms``   = analysis_interval_frames / fps * 1000 (UPPER bound
                                 of the extra quantization latency from analyzing
                                 only 1 in N frames; NOT part of frame_to_ack_ms,
                                 which starts at the *analyzed* frame's capture)
+
+``frame_t0`` is stamped in the CAPTURE thread, right after
+``camera.get_frame()`` and BEFORE any queue ``put`` — so the queue wait is
+attributed to ``queue_wait_ms`` and never smuggled into ``inference_ms``.
 
 Rows stream to ``5_ClosedLoop_<base>.csv`` (flushed per trigger for crash
 resilience) and are also written to ``5_ClosedLoop_<base>.parquet`` at session
@@ -65,6 +77,11 @@ CSV_COLUMNS: list[str] = [
     "decision_perf",
     "t_send_perf",
     "t_ack_perf",
+    # Append-only: colunas novas SEMPRE no fim. ``analise_latencia.py`` (externo)
+    # posiciona pelas duas primeiras colunas canônicas e ignora o resto.
+    "queue_wait_ms",
+    "inference_ms",
+    "dequeue_perf",
 ]
 
 
@@ -128,6 +145,7 @@ class ClosedLoopLatencyLog:
     ) -> dict[str, Any]:
         frame_t0 = context.get("frame_t0")
         decision = context.get("decision_perf")
+        dequeue = context.get("dequeue_perf")
         fps = context.get("fps")
         interval = context.get("analysis_interval_frames")
         sampling_interval_ms: float | None = None
@@ -157,6 +175,11 @@ class ClosedLoopLatencyLog:
             "decision_perf": decision,
             "t_send_perf": t_send,
             "t_ack_perf": t_ack,
+            # Decomposição de ``capture_to_decision_ms``: espera de fila vs
+            # inferência. Sem elas não dá para afirmar o que domina a latência.
+            "queue_wait_ms": _ms(frame_t0, dequeue),
+            "inference_ms": _ms(dequeue, decision),
+            "dequeue_perf": dequeue,
         }
 
     def _stream_csv_row(self, row: dict[str, Any]) -> None:

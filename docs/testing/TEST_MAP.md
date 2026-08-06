@@ -26,7 +26,7 @@ The test tree mirrors `src/zebtrack/`, with two exceptions:
 | `src/zebtrack/core/project/`          | 14    | `tests/core/test_project_*.py`, `test_*_manager*` | (mixed) |
 | `src/zebtrack/core/recording/`        | 7     | `tests/core/test_*recording*`, `test_live_*`    | (mixed) |
 | `src/zebtrack/core/services/`         | 7     | `tests/core/test_*service*.py`                  | (mixed) |
-| `src/zebtrack/core/video/`            | 13    | `tests/core/test_video_*.py`                    | (mixed) |
+| `src/zebtrack/core/video/`            | 14    | `tests/core/test_video_*.py`, `tests/core/video/test_*.py` | (mixed) |
 | `src/zebtrack/core/viewmodels/`       | 4     | `tests/core/test_*view_model*.py`               | (mixed) |
 | `src/zebtrack/io/`                    | 10    | `tests/io/test_*.py` + root `tests/test_io_*.py`| 8 + 3 |
 | `src/zebtrack/plugins/`               | 3     | `tests/test_plugins_*.py`                       | (root) |
@@ -59,6 +59,8 @@ broader suite:
 | `coordinators/sequential_processing_coordinator.py` | `tests/coordinators/test_sequential*.py` |
 | `coordinators/report_generation_coordinator.py` | `tests/coordinators/test_*report*.py`, `tests/analysis/test_reporter*.py` |
 | `core/recording/live_camera_service.py` | `tests/core/test_live_camera*.py`, `tests/integration/test_live_camera*.py` |
+| `core/recording/frame_processing_pipeline.py`, `core/recording/frame_ledger.py` | `tests/core/recording/`, `tests/core/test_closed_loop_latency.py`, `tests/core/test_arduino_zone_dispatch.py` |
+| `core/services/closed_loop_latency.py` | `tests/core/test_closed_loop_latency.py` (CSV columns are append-only!) |
 | `core/services/wizard_service.py` | `tests/test_wizard_*.py`, `tests/ui/wizard/`, `tests/integration/test_wizard*` |
 | `core/state_manager.py` | `tests/test_state_manager*.py` (4 files) |
 | `core/project/project_manager.py` (or any project/ module) | `tests/test_project_manager.py`, `tests/core/test_project_*` |
