@@ -59,6 +59,8 @@ broader suite:
 | `coordinators/sequential_processing_coordinator.py` | `tests/coordinators/test_sequential*.py` |
 | `coordinators/report_generation_coordinator.py` | `tests/coordinators/test_*report*.py`, `tests/analysis/test_reporter*.py` |
 | `core/recording/live_camera_service.py` | `tests/core/test_live_camera*.py`, `tests/integration/test_live_camera*.py` |
+| `core/recording/frame_processing_pipeline.py`, `core/recording/frame_ledger.py` | `tests/core/recording/`, `tests/core/test_closed_loop_latency.py`, `tests/core/test_arduino_zone_dispatch.py` |
+| `core/services/closed_loop_latency.py` | `tests/core/test_closed_loop_latency.py` (CSV columns are append-only!) |
 | `core/services/wizard_service.py` | `tests/test_wizard_*.py`, `tests/ui/wizard/`, `tests/integration/test_wizard*` |
 | `core/state_manager.py` | `tests/test_state_manager*.py` (4 files) |
 | `core/project/project_manager.py` (or any project/ module) | `tests/test_project_manager.py`, `tests/core/test_project_*` |

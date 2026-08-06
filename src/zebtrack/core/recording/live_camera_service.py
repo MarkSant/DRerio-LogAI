@@ -280,6 +280,11 @@ class LiveCameraService(
         self._closed_loop_log: Any = None
         self._closed_loop_event_seq: int = 0
 
+        # Ledger de frames da sessão (pipeline_frame ↔ video_frame_index ↔
+        # instante de captura). Recriado a cada ``_start_threads`` e finalizado
+        # em ``stop_session``, depois do join das threads produtoras.
+        self._frame_ledger: Any = None
+
     # ── Thread-safe properties ──────────────────────────────────────────
 
     @property
