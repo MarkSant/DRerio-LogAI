@@ -26,7 +26,7 @@ The test tree mirrors `src/zebtrack/`, with two exceptions:
 | `src/zebtrack/core/project/`          | 14    | `tests/core/test_project_*.py`, `test_*_manager*` | (mixed) |
 | `src/zebtrack/core/recording/`        | 7     | `tests/core/test_*recording*`, `test_live_*`    | (mixed) |
 | `src/zebtrack/core/services/`         | 7     | `tests/core/test_*service*.py`                  | (mixed) |
-| `src/zebtrack/core/video/`            | 13    | `tests/core/test_video_*.py`                    | (mixed) |
+| `src/zebtrack/core/video/`            | 14    | `tests/core/test_video_*.py`, `tests/core/video/test_*.py` | (mixed) |
 | `src/zebtrack/core/viewmodels/`       | 4     | `tests/core/test_*view_model*.py`               | (mixed) |
 | `src/zebtrack/io/`                    | 10    | `tests/io/test_*.py` + root `tests/test_io_*.py`| 8 + 3 |
 | `src/zebtrack/plugins/`               | 3     | `tests/test_plugins_*.py`                       | (root) |

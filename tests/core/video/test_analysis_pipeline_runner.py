@@ -1,9 +1,10 @@
 """Testes unitários para os métodos puros do ``AnalysisPipelineRunnerMixin``.
 
 Foco nos métodos que não orquestram threads/IO: coleta de parâmetros, filtragem
-por track, enriquecimento de metadados, contexto de calibração e proximidade
-social (caminhos degenerados). A orquestração completa (``_run_analysis_pipeline``)
-fica fora deste módulo por depender de IO e do barramento de eventos.
+por track, enriquecimento de metadados e contexto de calibração. A orquestração
+completa (``_run_analysis_pipeline``) fica fora deste módulo por depender de IO e
+do barramento de eventos. A proximidade social tem módulo próprio:
+``tests/core/video/test_social_proximity_outcome.py``.
 """
 
 from __future__ import annotations
@@ -191,63 +192,6 @@ class TestPrepareCalibrationContext:
         assert rois[0].name == "ROI_A"
         assert roi_colors["ROI_A"] == (255, 0, 0)
         assert px is not None and py is not None
-
-
-@pytest.mark.unit
-class TestAnalyzeSocialProximity:
-    def test_disabled_returns_none(self, runner, trajectory_df):
-        assert (
-            runner._analyze_social_proximity(
-                filtered_df=trajectory_df,
-                analysis_profile={"social": {"enabled": False}},
-                pixelcm_x=10.0,
-                pixelcm_y=10.0,
-                experiment_id="e",
-            )
-            is None
-        )
-
-    def test_single_track_returns_none(self, runner):
-        df = pd.DataFrame({"track_id": [1, 1, 1]})
-        assert (
-            runner._analyze_social_proximity(
-                filtered_df=df,
-                analysis_profile={"social": {"enabled": True}},
-                pixelcm_x=10.0,
-                pixelcm_y=10.0,
-                experiment_id="e",
-            )
-            is None
-        )
-
-    def test_missing_pixelcm_returns_none(self, runner, trajectory_df):
-        assert (
-            runner._analyze_social_proximity(
-                filtered_df=trajectory_df,
-                analysis_profile={"social": {"enabled": True}},
-                pixelcm_x=None,
-                pixelcm_y=None,
-                experiment_id="e",
-            )
-            is None
-        )
-
-    def test_enabled_with_two_tracks_invokes_analyzer(self, runner, trajectory_df, monkeypatch):
-        from zebtrack.analysis.roi import ROIAnalyzer
-
-        sentinel = {"mean_distance_cm": 3.2}
-        # Patch direto no atributo da classe (mais robusto que alvo em string).
-        monkeypatch.setattr(
-            ROIAnalyzer, "analyze_social_proximity", staticmethod(lambda *a, **k: sentinel)
-        )
-        result = runner._analyze_social_proximity(
-            filtered_df=trajectory_df,
-            analysis_profile={"social": {"enabled": True, "radius_cm": 4.0}},
-            pixelcm_x=10.0,
-            pixelcm_y=10.0,
-            experiment_id="e",
-        )
-        assert result is sentinel
 
 
 @pytest.mark.unit
