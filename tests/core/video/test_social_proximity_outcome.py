@@ -96,6 +96,13 @@ class TestSkipReasons:
         assert outcome.skipped_reason == "disabled"
         assert outcome.warning_message is None
 
+    def test_profile_without_social_key_is_disabled(self, runner, two_track_df):
+        """Perfil válido sem seção `social` é ausência, não malformação."""
+        outcome = _run(runner, two_track_df, {"name": "perfil_padrao"})
+
+        assert outcome.skipped_reason == "disabled"
+        assert outcome.warning_message is None
+
     @pytest.mark.parametrize(
         "profile",
         [
@@ -324,6 +331,30 @@ class TestWarningPropagation:
 
         # O aviso ainda chega ao ctx, que é o que o WordReporter lê.
         assert len(ctx.validation_warnings) == 1
+
+    def test_malformed_avisos_list_does_not_raise(self, runner):
+        ctx = SimpleNamespace(
+            validation_warnings=[],
+            report={"validacao": {"avisos": "não é lista"}},
+        )
+
+        runner._record_social_outcome_warning(
+            ctx=ctx, outcome=SocialAnalysisOutcome.skipped("single_track")
+        )
+
+        assert len(ctx.validation_warnings) == 1
+        assert ctx.report["validacao"]["avisos"] == "não é lista"
+
+    def test_report_list_distinct_from_ctx_list_also_receives_warning(self, runner):
+        """Quando as listas NÃO são o mesmo objeto, ambas precisam receber."""
+        ctx = SimpleNamespace(validation_warnings=[], report={"validacao": {"avisos": []}})
+
+        runner._record_social_outcome_warning(
+            ctx=ctx, outcome=SocialAnalysisOutcome.skipped("no_calibration")
+        )
+
+        assert len(ctx.validation_warnings) == 1
+        assert ctx.report["validacao"]["avisos"] == ctx.validation_warnings
 
 
 @pytest.mark.unit
