@@ -10,7 +10,7 @@ da seção social no relatório carrega um motivo explícito, e todo motivo — 
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Literal, get_args
+from typing import Any, Literal, cast, get_args
 
 SocialSkipReason = Literal[
     "disabled",
@@ -21,7 +21,12 @@ SocialSkipReason = Literal[
     "failed",
 ]
 
-SOCIAL_SKIP_REASONS: tuple[str, ...] = get_args(SocialSkipReason)
+# O `cast` preserva o vínculo com o `Literal`: iterar a constante devolve
+# `SocialSkipReason`, não `str`, então quem a percorre passa direto para
+# `SocialAnalysisOutcome.skipped()` sem `type: ignore`.
+SOCIAL_SKIP_REASONS: tuple[SocialSkipReason, ...] = cast(
+    "tuple[SocialSkipReason, ...]", get_args(SocialSkipReason)
+)
 
 #: Raio default (cm) do ROI dinâmico de proximidade social.
 DEFAULT_SOCIAL_RADIUS_CM = 5.0

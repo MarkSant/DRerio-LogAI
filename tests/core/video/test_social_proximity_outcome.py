@@ -174,7 +174,7 @@ class TestSkipReasons:
     def test_every_declared_reason_is_reachable_and_typed(self):
         """Todo motivo declarado tem mensagem, menos `disabled` (silencioso)."""
         for reason in SOCIAL_SKIP_REASONS:
-            outcome = SocialAnalysisOutcome.skipped(reason)  # type: ignore[arg-type]
+            outcome = SocialAnalysisOutcome.skipped(reason)
             assert outcome.succeeded is False
             if reason == "disabled":
                 assert outcome.warning_message is None
@@ -255,7 +255,7 @@ class TestWarningPropagation:
     )
     def test_reason_reaches_report_warnings(self, runner, reason):
         ctx = _ctx_stub()
-        outcome = SocialAnalysisOutcome.skipped(reason, detail="detalhe")  # type: ignore[arg-type]
+        outcome = SocialAnalysisOutcome.skipped(reason, detail="detalhe")
 
         runner._record_social_outcome_warning(ctx=ctx, outcome=outcome)
 
