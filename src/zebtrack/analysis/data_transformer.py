@@ -75,6 +75,9 @@ COLUMN_MAPPING = {
     "validation_unique_tracks": "validation_unique_tracks",
     "validation_temporal_gaps_count": "validation_temporal_gaps_count",
     "validation_temporal_gaps_max_frames": "validation_temporal_gaps_max_frames",
+    # Tempo de sessão que a análise de ROI NÃO cobre (lacunas de rastreamento
+    # acima do teto de dt). Escalar por experimento, não por ROI.
+    "tempo_nao_observado_s": "unobserved_time_s",
 }
 
 # Display mappings for User-Friendly names in Excel/Word
@@ -111,6 +114,7 @@ DISPLAY_COLUMN_MAPPING = {
     "validation_total_frames": "Val: Total Frames",
     "validation_unique_tracks": "Val: Unique Tracks",
     "validation_temporal_coverage_pct": "Val: Coverage (%)",
+    "unobserved_time_s": "Unobserved Time (s)",
     "group_id": "Group",
     "experiment_id": "Experiment ID",
     "aquarium_id": "Aquarium",
@@ -130,6 +134,27 @@ DYNAMIC_PREFIX_MAPPINGS = (
     ("episodios_congelamento_no_", "freezing_events_in_"),
     ("duracao_total_congelamento_no_", "freezing_duration_in_"),
     ("cor_roi_", "roi_color_"),
+)
+
+# Colunas da tabela LONGA por animal (uma linha por experimento x track x ROI).
+#
+# É deliberadamente uma SEGUNDA tabela, e não colunas largas do tipo
+# ``tempo_no_{roi}_track{N}_s`` no resumo: ``standardize_roi_columns`` padroniza o
+# esquema entre vídeos para permitir a concatenação do relatório unificado, e o
+# número de tracks VARIA por vídeo. Um esquema largo por track explodiria em
+# colunas cheias de buracos, quebrando exatamente o que aquela função garante.
+PER_ANIMAL_COLUMNS = (
+    "experiment_id",
+    "group_id",
+    "track_id",
+    "roi",
+    "tempo_s",
+    "percentual_tempo",
+    "entradas",
+    "saidas",
+    "latencia_primeira_entrada_s",
+    "distancia_cm",
+    "tempo_nao_observado_s",
 )
 
 # Fallback keys to search for group ID in metadata when not explicitly provided
@@ -463,7 +488,73 @@ class DataTransformer:
                 combined_data[f"cor_roi_{roi_name}"] = _rgb_to_color_name(roi_colors[roi_name])
 
         combined_data["total_entradas_roi"] = total_roi_entries
+        # Escalar por experimento (não por ROI): quanto da sessão as métricas
+        # acima simplesmente NÃO cobrem. Fica fora de ``roi_column_templates``
+        # de propósito — aquele mapa é só para colunas sufixadas por nome de ROI.
+        combined_data["tempo_nao_observado_s"] = roi_analysis.get("tempo_nao_observado_s")
         return combined_data
+
+    def build_per_animal_dataframe(
+        self,
+        report: dict[str, Any],
+        experiment_id: str,
+        group_id: str,
+    ) -> pd.DataFrame:
+        """Monta a tabela LONGA de métricas de ROI por animal.
+
+        Uma linha por ``(experimento, track_id, roi)``. Com um único sujeito a
+        tabela existe do mesmo jeito, com um track: não há caso especial
+        ausente, e os valores coincidem com os das métricas de grupo (é o
+        invariante que ``ROIAnalyzer.get_metrics_by_track`` promete).
+
+        Args:
+            report: Relatório estruturado da análise (lê ``analise_roi.por_animal``).
+            experiment_id: Identificador do experimento, já resolvido.
+            group_id: Identificador do grupo, já resolvido.
+
+        Returns:
+            pd.DataFrame: Tabela longa com as colunas de :data:`PER_ANIMAL_COLUMNS`.
+                Vazia (mas COM as colunas) quando não há métricas por animal.
+        """
+        per_animal = (report.get("analise_roi") or {}).get("por_animal") or {}
+
+        # União dos nomes de ROI preservando a ordem de primeira aparição: os
+        # tracks têm o mesmo conjunto de ROIs, mas um track sem posições sequer
+        # aparece no dicionário, então não dá para confiar no primeiro item.
+        roi_names: list[str] = []
+        for metrics in per_animal.values():
+            for roi_name in metrics.get("tempo_gasto_por_roi", {}) or {}:
+                if roi_name not in roi_names:
+                    roi_names.append(roi_name)
+
+        rows: list[dict[str, Any]] = []
+        for track_id, metrics in per_animal.items():
+            time_spent = metrics.get("tempo_gasto_por_roi", {}) or {}
+            entries = metrics.get("contagem_entradas", {}) or {}
+            exits = metrics.get("contagem_saidas", {}) or {}
+            latencies = metrics.get("latencia_primeira_entrada", {}) or {}
+            distances = metrics.get("distancia_por_roi", {}) or {}
+            unobserved = metrics.get("tempo_nao_observado_s")
+
+            for roi_name in roi_names:
+                roi_time = time_spent.get(roi_name, {}) or {}
+                rows.append(
+                    {
+                        "experiment_id": experiment_id,
+                        "group_id": group_id,
+                        "track_id": track_id,
+                        "roi": roi_name,
+                        "tempo_s": roi_time.get("seconds"),
+                        "percentual_tempo": roi_time.get("percentage"),
+                        "entradas": entries.get(roi_name, 0),
+                        "saidas": exits.get(roi_name, 0),
+                        "latencia_primeira_entrada_s": latencies.get(roi_name),
+                        "distancia_cm": distances.get(roi_name),
+                        "tempo_nao_observado_s": unobserved,
+                    }
+                )
+
+        return pd.DataFrame(rows, columns=list(PER_ANIMAL_COLUMNS))
 
     def standardize_roi_columns(
         self, df: pd.DataFrame, expected_roi_names: list[str] | None = None

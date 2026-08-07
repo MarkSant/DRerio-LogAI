@@ -239,15 +239,26 @@ class TestExportSummaryData:
         # Should call to_parquet
         mock_to_parquet.assert_called_once()
 
-    @patch.object(pd.DataFrame, "to_excel")
-    def test_export_summary_excel(self, mock_to_excel, reporter, tmp_path):
-        """Test export summary data to Excel format."""
+    def test_export_summary_excel(self, reporter, tmp_path):
+        """Test export summary data to Excel format.
+
+        Com métricas por animal o resumo tem DUAS abas, escritas por um
+        ``pd.ExcelWriter`` compartilhado — daí o writer também ser dublado: com
+        ``to_excel`` mockado nenhuma aba real é criada e o openpyxl recusa
+        salvar um arquivo sem abas visíveis.
+        """
         output_path = tmp_path / "summary.xlsx"
+        assert not reporter.per_animal_data.empty
 
-        ExcelReporter(reporter).export_summary(output_path)
+        with (
+            patch.object(pd.DataFrame, "to_excel") as mock_to_excel,
+            patch.object(pd, "ExcelWriter"),
+        ):
+            ExcelReporter(reporter).export_summary(output_path)
 
-        # Should call to_excel
-        mock_to_excel.assert_called_once()
+        assert mock_to_excel.call_count == 2
+        sheets = [call.kwargs.get("sheet_name") for call in mock_to_excel.call_args_list]
+        assert sheets == ["Sheet1", "por_animal"]
 
     def test_export_creates_parent_directory(self, reporter, tmp_path):
         """Test that parent directory is created if missing."""

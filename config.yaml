@@ -275,11 +275,12 @@ weights:
 #   - "seg_overlap": Segmentation mask overlaps with ROI (requires segmentation)
 roi_inclusion_rule: "bbox_intersects"
 
-# Buffer radius for "centroid_in_on_buffered_roi" mode, in cm.
+# Buffer radius for "centroid_in_on_buffered_roi" mode, in cm. Default: 0.5.
 # Converted to pixels by the geometric mean of the calibration,
 # sqrt(px_per_cm_x * px_per_cm_y); with no calibration the factor is 1.0,
-# so the value ends up being in pixels.
-roi_buffer_radius_value: 0.5
+# so the value ends up being in pixels. Same single source of truth as the keys
+# below — shown commented out; uncomment only to override.
+# roi_buffer_radius_value: 0.5
 
 # The two settings below have a SINGLE source of truth: the Pydantic defaults in
 # src/zebtrack/settings.py. They are shown commented out so that the values here

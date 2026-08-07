@@ -270,3 +270,21 @@ def test_overlap_hint_depends_on_the_selected_rule(widget, rule, expected):
     widget._on_roi_rule_changed(None)
 
     assert widget.overlap_hint_label.cget("text") == expected
+
+
+@pytest.mark.gui
+def test_seg_overlap_help_names_the_two_missing_prerequisites(widget):
+    """A ajuda de ``seg_overlap`` nomeia as chaves que faltam, não só "requer máscaras".
+
+    Dizer "requer dados de máscara" deixava o operador num beco sem saída: a
+    regra é selecionável, mas sem ``recorder.persist_masks`` e sem um modelo de
+    segmentação a análise degrada para ``bbox_intersects`` toda vez.
+    """
+    widget.roi_inclusion_rule_var.set("seg_overlap")
+    widget._on_roi_rule_changed(None)
+
+    help_text = widget.rule_help_label.cget("text")
+    assert "persist_masks" in help_text
+    assert "animal_method" in help_text
+    assert "seg" in help_text
+    assert "bbox_intersects" in help_text

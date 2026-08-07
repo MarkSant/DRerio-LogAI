@@ -120,7 +120,7 @@ class ReporterContext:
         fps: float | None = None,
         # Optional params
         roi_colors: dict | None = None,
-        video_path: str | None = None,
+        video_path: Path | str | None = None,
         calibration: Any = None,
         frame_crop_box: tuple[int, int, int, int] | None = None,
         # Analysis params
@@ -317,6 +317,15 @@ class ReporterContext:
         )
         self.tidy_data = self.data_transformer.standardize_tidy_dataframe(
             tidy_df, self.metadata or {}
+        )
+
+        # Tabela longa por animal. Os identificadores vêm do tidy JÁ resolvido
+        # (``standardize_tidy_dataframe`` aplica os fallbacks de experiment_id e
+        # group_id), para as duas tabelas do resumo não discordarem entre si.
+        self.per_animal_data = self.data_transformer.build_per_animal_dataframe(
+            self.report,
+            experiment_id=str(self.tidy_data["experiment_id"].iloc[0]),
+            group_id=str(self.tidy_data["group_id"].iloc[0]),
         )
 
     # ------------------------------------------------------------------

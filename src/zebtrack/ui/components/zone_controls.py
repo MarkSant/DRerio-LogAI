@@ -1377,14 +1377,24 @@ class ZoneControlsWidget(BaseWidget):
                 self.radius_frame.pack_forget()
             if self.overlap_frame and self.roi_rule_combo:
                 self.overlap_frame.pack(fill="x", pady=2, after=self.roi_rule_combo.master)
-            help_text = (
-                "Considera dentro se a caixa/segmentação sobrepuser a ROI acima da fração mínima."
-            )
             # O 0 é exclusivo de ``bbox_intersects``; em ``seg_overlap`` o
             # validador recusa e o painel não pode sugerir o contrário.
             if rule == "bbox_intersects":
+                help_text = (
+                    "Considera dentro se a caixa (bbox) sobrepuser a ROI acima da fração mínima."
+                )
                 overlap_hint = "0 = qualquer sobreposição real."
             else:
+                # A regra é selecionável mas tem TRÊS pré-requisitos; nomear os
+                # dois que não estão neste painel evita o beco sem saída de
+                # escolher seg_overlap e só descobrir a degradação no relatório.
+                help_text = (
+                    "Considera dentro pela sobreposição da MÁSCARA com a ROI. "
+                    "Exige também recorder.persist_masks ligado (editor de "
+                    "configurações) e model_selection.animal_method = 'seg'. "
+                    "Faltando um deles, a análise degrada para bbox_intersects "
+                    "e avisa no relatório."
+                )
                 overlap_hint = "Deve ser maior que 0."
         else:
             # centroid_in or others

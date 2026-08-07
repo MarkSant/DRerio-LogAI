@@ -7,7 +7,7 @@ smoothing, recorder settings, and ROI parameters.
 """
 
 from pathlib import Path
-from tkinter import StringVar, ttk
+from tkinter import BooleanVar, StringVar, ttk
 from typing import Any
 
 import structlog
@@ -63,6 +63,8 @@ class ConfigEditorWidget(BaseWidget):
         self.polyorder_var = StringVar(value="3")
         self.flush_interval_var = StringVar(value="5.0")
         self.flush_rows_var = StringVar(value="500")
+        # Default do modelo Pydantic (RecorderSettings.persist_masks): desligado.
+        self.persist_masks_var = BooleanVar(value=False)
         # Defaults da fonte canônica: o formulário é repopulado por
         # ``set_values`` a partir do ``Settings``, mas até lá não deve exibir
         # números inventados aqui.
@@ -73,6 +75,7 @@ class ConfigEditorWidget(BaseWidget):
 
         # ROI rule widgets list for conditional enable/disable
         self._roi_rule_widgets: list[ttk.Widget] = []
+        self._seg_overlap_warning_label: ttk.Label | None = None
 
         self.behavioral_config_widget: BehavioralConfigWidget | None = None
         self._detection_summary_frame: ttk.LabelFrame | None = None
@@ -340,6 +343,33 @@ class ConfigEditorWidget(BaseWidget):
             row=1, column=2, sticky="w", padx=5
         )
 
+        # Persistência de máscaras de segmentação
+        ttk.Label(recorder_frame, text="Salvar Máscaras (Segmentação):").grid(
+            row=2, column=0, sticky="w", padx=(0, 2), pady=2
+        )
+        create_help_label(
+            recorder_frame,
+            "Salvar Máscaras de Segmentação\n\n"
+            "Grava o sidecar 3b_Mascaras_<video>.parquet com a máscara de cada "
+            "detecção.\n"
+            "• É a ÚNICA fonte de máscaras da regra de ROI 'seg_overlap'.\n"
+            "• Custo: arquivo extra em disco e decodificação da máscara durante "
+            "o rastreamento. Desligado não custa nada.\n\n"
+            "Ligar só esta chave NÃO habilita 'seg_overlap'. Os três "
+            "pré-requisitos precisam valer juntos:\n"
+            "  1. recorder.persist_masks (esta opção)\n"
+            "  2. model_selection.animal_method = 'seg' (modelo de segmentação)\n"
+            "  3. a regra de ROI 'seg_overlap' selecionada\n"
+            "Faltando qualquer um, a análise cai para 'bbox_intersects' e "
+            "registra o aviso no relatório.\n"
+            "• Padrão: desligado.",
+        ).grid(row=2, column=1, padx=2)
+        ttk.Checkbutton(
+            recorder_frame,
+            variable=self.persist_masks_var,
+            text="Necessário para a regra de ROI 'seg_overlap'",
+        ).grid(row=2, column=2, columnspan=2, sticky="w", padx=5)
+
     def _build_roi_section(self, parent=None) -> None:
         """Build ROI parameters frame."""
         container = parent if parent else self
@@ -366,7 +396,11 @@ class ConfigEditorWidget(BaseWidget):
             "• Centroide (centroid_in): Apenas se o ponto central estiver na zona.\n"
             "• Centroide c/ Buffer: Expande a zona virtualmente para o cálculo.\n"
             "• Intersecção BBox: Se qualquer parte da caixa do peixe tocar a zona.\n"
-            "• Sobreposição Seg: Baseado na máscara de pixels (mais preciso).",
+            "• Sobreposição Seg: Baseado na máscara de pixels (mais preciso).\n\n"
+            "'seg_overlap' exige mais duas coisas além desta regra: "
+            "recorder.persist_masks ligado (opção 'Salvar Máscaras' acima) e "
+            "model_selection.animal_method = 'seg'. Faltando qualquer uma, a "
+            "análise degrada para 'bbox_intersects' e avisa no relatório.",
         ).grid(row=0, column=1, padx=2)
 
         config_roi_combo = ttk.Combobox(
@@ -439,6 +473,22 @@ class ConfigEditorWidget(BaseWidget):
         config_basis_combo.grid(row=3, column=2, sticky="w", padx=5)
         self._roi_rule_widgets.append(config_basis_combo)
 
+        # Aviso pró-ativo de pré-requisito faltando para 'seg_overlap'. Vale a
+        # pena aqui porque as duas chaves envolvidas moram NESTE mesmo widget:
+        # sem ele o operador só descobre a degradação no relatório, depois da
+        # sessão.
+        self._seg_overlap_warning_label = ttk.Label(
+            roi_frame,
+            text="",
+            font=("TkDefaultFont", 8),
+            foreground="#b45309",
+            justify="left",
+            wraplength=520,
+        )
+        self._seg_overlap_warning_label.grid(row=4, column=0, columnspan=4, sticky="w", pady=(6, 0))
+        self.persist_masks_var.trace_add("write", lambda *_: self._refresh_seg_overlap_warning())
+        self._refresh_seg_overlap_warning()
+
         # Hint
         ttk.Label(
             roi_frame,
@@ -448,7 +498,7 @@ class ConfigEditorWidget(BaseWidget):
             ),
             font=("TkDefaultFont", 8),
             foreground="#555555",
-        ).grid(row=4, column=0, columnspan=4, sticky="w", pady=(6, 0))
+        ).grid(row=5, column=0, columnspan=4, sticky="w", pady=(6, 0))
 
     def _build_detection_summary_section(self, parent=None) -> None:
         """Build read-only summary of detection/model parameters with edit button."""
@@ -575,6 +625,7 @@ class ConfigEditorWidget(BaseWidget):
             "recorder": {
                 "flush_interval_seconds": float(self.flush_interval_var.get().strip()),
                 "flush_row_threshold": int(self.flush_rows_var.get().strip()),
+                "persist_masks": bool(self.persist_masks_var.get()),
             },
             "roi_inclusion_rule": self.roi_inclusion_rule_var.get(),
             "roi_buffer_radius_value": float(self.roi_buffer_radius_var.get().strip()),
@@ -610,6 +661,7 @@ class ConfigEditorWidget(BaseWidget):
         self._set_recorder(values.get("recorder", {}))
         self._set_roi_settings(values)
         self._set_behavioral_analysis(values.get("behavioral_analysis", {}))
+        self._refresh_seg_overlap_warning()
         self.update_detection_summary(values)
 
     def _set_video_processing(self, vp: dict[str, Any]) -> None:
@@ -642,6 +694,8 @@ class ConfigEditorWidget(BaseWidget):
             self.flush_interval_var.set(str(rec["flush_interval_seconds"]))
         if "flush_row_threshold" in rec:
             self.flush_rows_var.set(str(rec["flush_row_threshold"]))
+        if "persist_masks" in rec:
+            self.persist_masks_var.set(bool(rec["persist_masks"]))
 
     def _set_roi_settings(self, values: dict[str, Any]) -> None:
         """Populate ROI settings."""
@@ -700,9 +754,31 @@ class ConfigEditorWidget(BaseWidget):
         """Handle reset button click."""
         self.emit_event(UIEvents.CONFIG_RESET_REQUESTED, payloads.EmptyPayload())
 
+    def _refresh_seg_overlap_warning(self) -> None:
+        """Show what is missing when 'seg_overlap' is selected without its prerequisites.
+
+        Só cobre ``persist_masks`` — ``animal_method`` é editado noutro widget,
+        então aqui ele é apenas NOMEADO, nunca inferido.
+        """
+        label = getattr(self, "_seg_overlap_warning_label", None)
+        if label is None:
+            return
+        if self.roi_inclusion_rule_var.get() == "seg_overlap" and not self.persist_masks_var.get():
+            label.config(
+                text=(
+                    "⚠️ 'seg_overlap' sem 'Salvar Máscaras' ligado: a análise vai "
+                    "degradar para 'bbox_intersects'. Ligue a opção na seção "
+                    "'Gravação de Dados' e confirme que o modelo é de segmentação "
+                    "(model_selection.animal_method = 'seg')."
+                )
+            )
+        else:
+            label.config(text="")
+
     def _on_roi_rule_changed(self, event=None) -> None:
         """Handle ROI rule combobox change."""
         selected_rule = self.roi_inclusion_rule_var.get()
+        self._refresh_seg_overlap_warning()
         self.emit_event(
             UIEvents.CONFIG_ROI_RULE_CHANGED,
             payloads.ConfigRoiRuleChangedPayload(rule=selected_rule),

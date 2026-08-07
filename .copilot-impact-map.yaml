@@ -477,12 +477,17 @@ domains:
       - "src/zebtrack/ui/components/zone_controls.py"
       - "src/zebtrack/ui/builders/zone_control_builder.py"
       - "src/zebtrack/ui/components/tab_builder.py"      # seeds the Zones panel with the effective rule
-      - "src/zebtrack/ui/components/config_editor.py"    # global ROI form (incl. overlap basis)
+      - "src/zebtrack/ui/components/config_editor.py"    # global ROI form + recorder.persist_masks
+      - "src/zebtrack/analysis/data_transformer.py"      # carries the ROI numbers into the summary
+      - "src/zebtrack/analysis/reporters/excel_reporter.py"  # summary sheet + por_animal sheet
+      - "src/zebtrack/analysis/reporters/reporter_context.py"  # builds tidy_data + per_animal_data
       - "src/zebtrack/settings.py"                       # the ONE place the defaults live
-      - "config.yaml"                                    # must not re-declare the ratio/basis
+      - "config.yaml"                                    # must not re-declare any roi_* default
 
     related_tests:
       - "tests/core/services/test_roi_rule_resolver.py"
+      - "tests/analysis/test_data_transformer_roi_metrics.py"
+      - "tests/analysis/reporters/test_excel_reporter_sheets.py"
       - "tests/coordinators/test_roi_rule_propagation.py"
       - "tests/core/test_arduino_roi_evaluator.py"
       - "tests/ui/components/test_roi_settings_persistence.py"
