@@ -1139,6 +1139,16 @@ class _WorkerProcess(multiprocessing.Process):
         # atribuída ao aquário errado, que é pior que máscara nenhuma.
         from zebtrack.core.services.mask_capture import should_capture_masks
 
+        # Sem ``project_data`` DE PROPÓSITO: o worker roda noutro processo e só
+        # recebe o SNAPSHOT de settings, que já chega com a regra do projeto
+        # aplicada por ``apply_roi_rule_to_settings`` (ver
+        # ``_video_selection_mixin._create_project_settings_snapshot``). Passar
+        # ``project_data`` aqui seria redundante — e serializá-lo através da
+        # fronteira de processo, só para reresolver o que o snapshot já carrega,
+        # seria custo sem ganho. Um caminho que entregue settings CRUAS (o
+        # coordenador sequencial de multi-aquário faz isso) simplesmente não
+        # captura e o relatório degrada com aviso: é a falha segura, não um
+        # número errado.
         capture_masks = (
             not is_multi_aquarium
             and hasattr(detector, "set_mask_capture")

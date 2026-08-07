@@ -161,6 +161,28 @@ def test_calibration_is_applied_to_mask_points(output_dir: str) -> None:
     assert geometry.area == pytest.approx(100.0)
 
 
+@pytest.mark.parametrize("ruim", [np.nan, np.inf, -np.inf], ids=["nan", "inf", "-inf"])
+def test_non_finite_coordinates_are_dropped_not_silently_repaired(
+    output_dir: str, ruim: float
+) -> None:
+    """Coordenada não-finita é DESCARTADA, não "consertada".
+
+    Não é zelo defensivo: o Shapely não levanta nada com um NaN. ``Polygon`` o
+    aceita, ``buffer(0)`` descarta o vértice e devolve um polígono plausível —
+    medido aqui, um contorno com um NaN virava área 3.0 e razão de sobreposição
+    1.0, isto é, o animal reportado como INTEIRAMENTE dentro da ROI.
+
+    Silencioso e errado é pior que ausente: sem máscara a linha conta como
+    fora; com a máscara "consertada" ela conta como dentro.
+    """
+    recorder = _make_recorder(persist=True)
+    corrompido = np.array([[0.0, 0.0], [ruim, 1.0], [2.0, 2.0], [0.0, 3.0]])
+    _record(recorder, output_dir, {0: {1: corrompido, 2: SQUARE}})
+
+    frame = pd.read_parquet(_sidecar(output_dir))
+    assert frame["track_id"].tolist() == [2], "só a máscara íntegra pode sobreviver"
+
+
 def test_degenerate_contours_are_dropped_not_raised(output_dir: str) -> None:
     """Menos de 3 pontos não fecha polígono; a linha é descartada em silêncio.
 

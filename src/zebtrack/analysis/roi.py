@@ -1012,6 +1012,16 @@ class ROIAnalyzer:
             # valor presente para aquele frame.
             tracks = np.full(len(self._trajectory), -1)
 
+        # Índice auxiliar por FRAME, montado UMA vez, para o caminho sem
+        # ``track_id``. Resolvê-lo com um ``next(...)`` sobre ``geometries`` a
+        # cada linha custaria O(linhas × máscaras) — numa trajetória de 100k
+        # frames isso é bilhões de comparações para um caso que o dicionário
+        # resolve em tempo constante.
+        by_frame: dict[int, Any] = {}
+        if "track_id" not in self._trajectory.columns:
+            for (frame_key, _track), geom in geometries.items():
+                by_frame.setdefault(frame_key, geom)
+
         aligned: list[Any] = []
         matched = 0
         for frame_no, track_id in zip(frames, tracks, strict=False):
@@ -1021,10 +1031,7 @@ class ROIAnalyzer:
             key = (int(frame_no), int(track_id) if not pd.isna(track_id) else -1)
             geometry = geometries.get(key)
             if geometry is None and key[1] == -1:
-                geometry = next(
-                    (geom for (f, _t), geom in geometries.items() if f == key[0]),
-                    None,
-                )
+                geometry = by_frame.get(key[0])
             if geometry is not None:
                 matched += 1
             aligned.append(geometry)

@@ -1040,6 +1040,17 @@ class Recorder:
             if coords.ndim != 2 or coords.shape[1] != 2 or len(coords) < 3:
                 return None
 
+        # NaN/inf são descartados ANTES do Shapely, e isso não é zelo: um NaN
+        # não levanta nada. ``Polygon`` o aceita, ``buffer(0)`` "conserta" a
+        # geometria descartando o vértice, e sai um polígono plausível — medido
+        # aqui, um contorno com um NaN virou área 3.0 com razão de sobreposição
+        # 1.0, ou seja, o animal reportado como INTEIRAMENTE dentro da ROI.
+        # Silencioso e errado é pior que ausente: sem a máscara a linha conta
+        # como fora, com ela conta como dentro.
+        if not np.isfinite(coords).all():
+            log.debug("recorder.masks.non_finite_coords")
+            return None
+
         try:
             polygon = Polygon(coords)
             if polygon.is_empty:
@@ -1052,7 +1063,13 @@ class Recorder:
                 if polygon.is_empty:
                     return None
             return bytes(polygon.wkb)
-        except (ValueError, TypeError) as exc:
+        # except Exception justificado: ``shapely`` levanta ``GEOSException``
+        # (que NÃO é ``ValueError``) em falhas de topologia, e a lista concreta
+        # varia entre versões do GEOS. Este método roda no LOOP DE GRAVAÇÃO, e o
+        # sidecar é opcional: deixar a exceção subir mataria a sessão inteira —
+        # inclusive a trajetória, que é o dado insubstituível — por causa de um
+        # contorno ruim. Mesma decisão de ``_flush_mask_data``.
+        except Exception as exc:
             log.debug("recorder.masks.invalid_geometry", error=str(exc))
             return None
 

@@ -268,3 +268,58 @@ def test_masks_are_matched_per_animal_not_per_frame() -> None:
 
     assert analyzer.degradation_warnings == []
     assert analyzer._trajectory["in_R_stable"].tolist() == [True, False]
+
+
+def test_trajectory_without_track_id_column_matches_by_frame() -> None:
+    """Sem coluna ``track_id``, a junção cai para o frame — e continua correta.
+
+    O índice auxiliar por frame é montado UMA vez; resolvê-lo varrendo todas as
+    máscaras a cada linha seria O(linhas * máscaras). Este teste fixa o
+    RESULTADO dessa otimização, para que trocar a estrutura de dados não mude
+    silenciosamente quem casa com quem.
+    """
+    inside = Polygon([(2, 2), (4, 2), (4, 4), (2, 4)])
+    outside = Polygon([(20, 20), (22, 20), (22, 22), (20, 22)])
+
+    index = pd.to_datetime(["2026-01-01 00:00:00", "2026-01-01 00:00:01"])
+    trajectory = pd.DataFrame(
+        {
+            "frame": [0, 1],
+            "x1": [2.0, 20.0],
+            "y1": [2.0, 20.0],
+            "x2": [4.0, 22.0],
+            "y2": [4.0, 22.0],
+            "x_center_px": [3.0, 21.0],
+            "y_center_px": [3.0, 21.0],
+        },
+        index=index,
+    )
+    assert "track_id" not in trajectory.columns
+
+    analyzer_mock = MagicMock()
+    analyzer_mock.trajectory_data = trajectory
+    analyzer_mock._pixelcm_x = 1.0
+    analyzer_mock._pixelcm_y = 1.0
+    analyzer_mock._video_height_px = 100
+    analyzer_mock.is_multi_track = False
+    analyzer_mock.track_labels = None
+    analyzer_mock.track_keys = None
+
+    masks = pd.DataFrame(
+        {"frame": [0, 1], "track_id": [7, 7], "mask_wkb": [inside.wkb, outside.wkb]}
+    )
+
+    analyzer = ROIAnalyzer(
+        behavior_analyzer=analyzer_mock,
+        rois=[ROI(name="R", geometry=ROI_SQUARE, coordinate_space="px")],
+        inclusion_rule="seg_overlap",
+        min_seg_overlap_ratio=0.5,
+        flutter_enter_frames=1,
+        flutter_exit_frames=1,
+        min_visit_s=0.0,
+        min_gap_s=0.0,
+        mask_source=masks,
+    )
+
+    assert analyzer.degradation_warnings == []
+    assert analyzer._trajectory["in_R_stable"].tolist() == [True, False]
