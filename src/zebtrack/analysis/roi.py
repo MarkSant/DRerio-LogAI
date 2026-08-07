@@ -51,6 +51,83 @@ def _first_not_none(*candidates: Any) -> Any:
     return None
 
 
+def _assign_stable_roi(frame: pd.DataFrame, roi_names: Any) -> None:
+    """Escreve a coluna ``stable_roi`` (nome da ROI atual, ou ``"Outside"``)."""
+    frame["stable_roi"] = "Outside"
+    for name in roi_names:
+        frame.loc[frame[f"in_{name}_stable"], "stable_roi"] = name
+
+
+def _to_seconds(value: Any) -> float:
+    """``Timedelta`` (ou número) para segundos."""
+    return value.total_seconds() if hasattr(value, "total_seconds") else float(value)
+
+
+# As quatro métricas abaixo são funções livres, não métodos, porque rodam sobre
+# DOIS quadros diferentes: a linha do tempo de grupo (``_view``) para os números
+# publicados e o recorte de UM animal para os números por sujeito. Como método
+# elas leriam ``self._trajectory`` e não haveria como pedir o recorte.
+def _time_spent_in_rois(frame: pd.DataFrame, roi_names: Any) -> dict[str, dict[str, float]]:
+    """Tempo total (segundos e percentual) em cada ROI, para o quadro dado."""
+    results = {}
+    total_time = frame["dt"].sum()
+    if total_time == 0:
+        return {name: {"seconds": 0.0, "percentage": 0.0} for name in roi_names}
+
+    total_time_seconds = _to_seconds(total_time)
+
+    for name in roi_names:
+        time_in_roi = frame.loc[frame[f"in_{name}_stable"], "dt"].sum()
+        time_in_roi_seconds = _to_seconds(time_in_roi)
+        results[name] = {
+            "seconds": time_in_roi_seconds,
+            "percentage": (time_in_roi_seconds / total_time_seconds) * 100
+            if total_time_seconds > 0
+            else 0.0,
+        }
+    return results
+
+
+def _latency_to_first_entry(frame: pd.DataFrame, roi_names: Any) -> dict[str, float | None]:
+    """Latência até a primeira entrada em cada ROI, para o quadro dado."""
+    results: dict[str, float | None] = {}
+    start_time = frame.index[0]
+
+    for name in roi_names:
+        entries = frame[f"in_{name}_stable"].diff() == 1
+        first_entry_time = entries.idxmax() if entries.any() else None
+
+        if first_entry_time and frame.loc[first_entry_time, f"in_{name}_stable"]:
+            results[name] = _to_seconds(first_entry_time - start_time)
+        else:
+            results[name] = None
+    return results
+
+
+def _entry_counts(frame: pd.DataFrame, roi_names: Any) -> dict[str, int]:
+    """Contagem de entradas (transição False→True) em cada ROI."""
+    return {name: (frame[f"in_{name}_stable"].astype(int).diff() == 1).sum() for name in roi_names}
+
+
+def _exit_counts(frame: pd.DataFrame, roi_names: Any) -> dict[str, int]:
+    """Contagem de saídas (transição True→False) de cada ROI."""
+    return {name: (frame[f"in_{name}_stable"].astype(int).diff() == -1).sum() for name in roi_names}
+
+
+def _distance_in_rois(frame: pd.DataFrame, roi_names: Any) -> dict[str, float]:
+    """Distância percorrida dentro de cada ROI, para o quadro dado.
+
+    O ``diff`` aqui é seguro porque o quadro recebido é sempre de um único
+    sujeito (ou a sessão inteira, quando só há um).
+    """
+    if "segment_dist" not in frame.columns:
+        frame["segment_dist"] = np.sqrt(
+            frame["x_cm_smoothed"].diff() ** 2 + frame["y_cm_smoothed"].diff() ** 2
+        )
+
+    return {name: frame.loc[frame[f"in_{name}_stable"], "segment_dist"].sum() for name in roi_names}
+
+
 class ROI:
     """A simple class to hold ROI data (name, geometry, and coordinate space)."""
 
@@ -135,6 +212,11 @@ class ROIAnalyzer:
         self._b_analyzer = behavior_analyzer
         self._rois = {roi.name: roi for roi in rois}
         self._trajectory = self._b_analyzer.trajectory_data.copy()
+        # Eixo de sujeito. ``trajectory_data`` preserva a ordem das linhas, então
+        # os rótulos posicionais do analisador comportamental valem aqui.
+        self._is_multi_track, self._track_labels, self._track_keys, self._track_positions = (
+            self._resolve_track_axis(behavior_analyzer)
+        )
         self._inclusion_rule = inclusion_rule
         # Os parâmetros passam pela MESMA normalização do RoiRuleConfig: as
         # faixas dependem da regra e um valor fora delas (um limiar negativo,
@@ -186,16 +268,77 @@ class ROIAnalyzer:
         # Relógio em segundos com o ``dt`` JÁ limitado, e o tempo que o teto
         # descartou. Ambos preenchidos por ``_prepare_time_base``.
         self._clock_s: np.ndarray = np.zeros(0, dtype=float)
+        # Um relógio por animal (mesma forma de soma-prefixo exclusiva). Com um
+        # único sujeito é ``[self._clock_s]``.
+        self._track_clocks: list[np.ndarray] = []
         self._unobserved_time_s: float = 0.0
+        self._unobserved_by_track: dict[Any, float] = {}
+        # Mapa (timestamp[, track]) -> linha, montado sob demanda por
+        # ``_episode_row``.
+        self._episode_row_index: dict[Any, int] | None = None
+        # Visão de GRUPO: uma linha por instante, ocupação = "algum animal
+        # dentro" (semântica ``any_track``, a mesma do ``ArduinoEventMapper``).
+        # Com um único sujeito é o PRÓPRIO ``_trajectory`` — o caminho histórico
+        # segue byte a byte o mesmo.
+        self._view: pd.DataFrame = self._trajectory
         self._buffered_rois_cache: dict[str, Any] = {}  # Cache for buffered ROI geometries
         self._roi_geometries_px = self._normalize_roi_geometries()
         self._validate_rois()
         self._calculate_presence_in_rois()
 
+    def _resolve_track_axis(
+        self, behavior_analyzer: BehavioralAnalyzer
+    ) -> tuple[bool, np.ndarray, list[Any], list[np.ndarray]]:
+        """Extrai o eixo de sujeito do analisador comportamental.
+
+        A adesão é verificada, não presumida: o eixo só é aceito se
+        ``is_multi_track`` for literalmente ``True`` e os rótulos vierem como um
+        ``ndarray`` do tamanho da trajetória. Um analisador substituto (mock,
+        adaptador antigo) devolve objetos truthy para qualquer atributo, e
+        aceitá-los faria a análise entrar no caminho multi-animal com um
+        agrupador de tamanho errado. Sem eixo válido, a análise é de sujeito
+        único — que é o comportamento histórico.
+        """
+        n_rows = len(self._trajectory)
+        single: tuple[bool, np.ndarray, list[Any], list[np.ndarray]] = (
+            False,
+            np.zeros(n_rows, dtype=np.int64),
+            [],
+            [np.arange(n_rows)],
+        )
+
+        if getattr(behavior_analyzer, "is_multi_track", False) is not True:
+            return single
+
+        labels = getattr(behavior_analyzer, "track_labels", None)
+        if not isinstance(labels, np.ndarray) or labels.size != n_rows:
+            return single
+
+        keys = getattr(behavior_analyzer, "track_keys", None)
+        if not isinstance(keys, list) or not keys:
+            return single
+
+        labels = np.asarray(labels, dtype=np.int64)
+        # As posições são recalculadas aqui em vez de lidas do analisador: são
+        # derivadas dos rótulos que acabaram de ser validados, e assim não há
+        # como as duas visões discordarem.
+        positions = [np.flatnonzero(labels == label) for label in range(len(keys))]
+        return True, labels, list(keys), positions
+
     @property
     def rois(self) -> dict[str, ROI]:
         """Returns the dictionary of ROI objects."""
         return self._rois
+
+    @property
+    def is_multi_track(self) -> bool:
+        """``True`` quando a trajetória analisada contém mais de um animal."""
+        return self._is_multi_track
+
+    @property
+    def track_keys(self) -> list[Any]:
+        """``track_id`` de cada animal presente na trajetória."""
+        return list(self._track_keys)
 
     def _validate_rois(self):
         """Check for empty or invalid ROIs."""
@@ -264,6 +407,15 @@ class ROIAnalyzer:
         """
         return self._unobserved_time_s
 
+    @property
+    def unobserved_time_s_by_track(self) -> dict[Any, float]:
+        """Tempo não observado de CADA animal, em segundos.
+
+        Vazio quando há um único sujeito: nesse caso
+        :attr:`unobserved_time_s` já é o número por animal.
+        """
+        return dict(self._unobserved_by_track)
+
     def _prepare_time_base(self) -> None:
         """Preenche a coluna ``dt``, aplica o teto e monta o relógio observado.
 
@@ -277,7 +429,15 @@ class ROIAnalyzer:
         e introduziria arredondamento onde nada precisava mudar (o modo neutro
         precisa ser idêntico BIT A BIT ao histórico).
         """
-        self._trajectory["dt"] = self._trajectory.index.to_series().diff()
+        index_series = self._trajectory.index.to_series()
+        # Por sujeito: um ``diff`` global sobre linhas de animais intercaladas
+        # devolveria zero (mesmo timestamp, animais diferentes) no lugar do
+        # intervalo real entre dois frames do MESMO animal.
+        self._trajectory["dt"] = (
+            index_series.groupby(self._track_labels).diff()
+            if self._is_multi_track
+            else index_series.diff()
+        )
 
         dt_column = self._trajectory["dt"]
         is_timedelta = getattr(dt_column.dtype, "kind", "") == "m"
@@ -307,7 +467,7 @@ class ROIAnalyzer:
 
         # Relógio monotônico do tempo OBSERVADO, em soma-prefixo EXCLUSIVA
         # (tamanho n+1, começando em 0). Com essa forma,
-        # ``_clock_s[fim] - _clock_s[início]`` é a soma do ``dt`` dos frames
+        # ``clock[fim] - clock[início]`` é a soma do ``dt`` dos frames
         # ``[início, fim)`` — exatamente o tempo que ``get_time_spent_in_rois``
         # credita a esses frames.
         #
@@ -317,6 +477,26 @@ class ROIAnalyzer:
         # (ainda que limitado pelo teto) inflava a duração da visita ANTERIOR,
         # que é justamente o que o teto existe para impedir.
         self._clock_s = np.concatenate(([0.0], np.cumsum(capped)))
+
+        if not self._is_multi_track:
+            self._track_clocks = [self._clock_s]
+            return
+
+        # UM relógio POR ANIMAL, cada um com o seu próprio zero. Não cabem num
+        # array só: a soma-prefixo exclusiva tem uma posição a mais que os
+        # frames que descreve, e um cumsum global somaria os intervalos de
+        # todos os peixes — qualquer visita pareceria N vezes mais longa.
+        excess = dt_seconds - capped
+        self._track_clocks = []
+        self._unobserved_by_track = {}
+        for label, positions in enumerate(self._track_positions):
+            self._track_clocks.append(
+                np.concatenate(([0.0], np.cumsum(capped[positions])))
+                if positions.size
+                else np.zeros(1, dtype=float)
+            )
+            if positions.size:
+                self._unobserved_by_track[self._track_keys[label]] = float(excess[positions].sum())
 
     def _resolve_max_gap(self, dt_seconds: np.ndarray) -> float:
         """Teto efetivo de ``dt``, em segundos (``inf`` = sem teto)."""
@@ -386,7 +566,34 @@ class ROIAnalyzer:
 
         return pd.Series(stable, index=raw_presence.index)
 
-    def _apply_duration_filter(self, stable_presence: pd.Series) -> pd.Series:
+    def _stabilize_presence(self, raw_presence: pd.Series) -> pd.Series:
+        """Debounce + filtro de duração, SEMPRE dentro de um mesmo animal.
+
+        Os dois filtros procuram sequências numa série ordenada de UM sujeito.
+        Aplicados a linhas de animais intercaladas, as sequências alternam entre
+        peixes e o resultado não significa nada: N frames "dentro" poderiam ser
+        N animais distintos passando uma vez cada.
+        """
+        if not self._is_multi_track:
+            return self._apply_duration_filter(
+                self._apply_flutter_filter(raw_presence), self._clock_s
+            )
+
+        stabilized = np.zeros(len(raw_presence), dtype=bool)
+        for label, positions in enumerate(self._track_positions):
+            if positions.size == 0:
+                continue
+            sub_presence = raw_presence.iloc[positions]
+            # O relógio DAQUELE animal, não uma fatia do relógio global: cada um
+            # é uma soma-prefixo exclusiva com o seu próprio zero.
+            sub_result = self._apply_duration_filter(
+                self._apply_flutter_filter(sub_presence), self._track_clocks[label]
+            )
+            stabilized[positions] = sub_result.to_numpy(dtype=bool)
+
+        return pd.Series(stabilized, index=raw_presence.index)
+
+    def _apply_duration_filter(self, stable_presence: pd.Series, clock: np.ndarray) -> pd.Series:
         """Descarta visitas curtas demais e funde lacunas curtas demais.
 
         Roda DEPOIS do debounce, nunca antes: aplicar o limiar de duração sobre
@@ -414,7 +621,7 @@ class ROIAnalyzer:
         values = stable_presence.to_numpy(dtype=bool)
         n = values.size
         # O relógio é soma-prefixo exclusiva: n+1 posições para n frames.
-        if n == 0 or self._clock_s.size != n + 1:
+        if n == 0 or clock.size != n + 1:
             return stable_presence
 
         # Bordas das visitas: +1 entra, -1 sai. O ``pad`` com False nas duas
@@ -430,7 +637,7 @@ class ROIAnalyzer:
             if (
                 visits
                 and self._min_gap_s > 0.0
-                and (self._clock_s[start] - self._clock_s[visits[-1][1]]) < self._min_gap_s
+                and (clock[start] - clock[visits[-1][1]]) < self._min_gap_s
             ):
                 # Lacuna curta demais: as duas visitas são a mesma. A lacuna é
                 # medida com a MESMA regra da visita — o tempo creditado aos
@@ -444,7 +651,7 @@ class ROIAnalyzer:
             # Sem ``min(end, n-1)``: a soma-prefixo exclusiva tem n+1 posições,
             # então uma visita que vai até o fim da série (``end == n``) não é
             # mais um caso especial.
-            duration = self._clock_s[end] - self._clock_s[start]
+            duration = clock[end] - clock[start]
             if self._min_visit_s > 0.0 and duration < self._min_visit_s:
                 continue
             filtered[start:end] = True
@@ -459,6 +666,9 @@ class ROIAnalyzer:
         (visita/lacuna) → série estável → métricas.
 
         Also creates a single column with the current stable ROI name.
+
+        Com mais de um animal, ``in_{roi}_stable`` continua sendo a presença
+        DAQUELE animal na linha; a ocupação de grupo mora em :attr:`_view`.
         """
         self._prepare_time_base()
 
@@ -470,14 +680,48 @@ class ROIAnalyzer:
                 roi_geometry, name, x_coords, y_coords
             )
 
-            debounced = self._apply_flutter_filter(raw_presence)
-            self._trajectory[f"in_{name}_stable"] = self._apply_duration_filter(debounced)
+            self._trajectory[f"in_{name}_stable"] = self._stabilize_presence(raw_presence)
 
         # Create a single column with the name of the ROI the animal is in
-        self._trajectory["stable_roi"] = "Outside"
-        for name in self._rois:
-            stable_col = f"in_{name}_stable"
-            self._trajectory.loc[self._trajectory[stable_col], "stable_roi"] = name
+        _assign_stable_roi(self._trajectory, self._rois)
+
+        self._view = self._build_group_view() if self._is_multi_track else self._trajectory
+
+    def _build_group_view(self) -> pd.DataFrame:
+        """Linha do tempo de OCUPAÇÃO do grupo: uma linha por instante.
+
+        A ROI conta como ocupada enquanto QUALQUER animal estiver dentro
+        (semântica ``any_track``). É a mesma leitura que o
+        ``ArduinoEventMapper`` usa ao vivo para acionar o hardware, de modo que
+        relatório e equipamento voltem a descrever o mesmo evento.
+
+        Existe porque as métricas de grupo não podem somar as linhas por animal:
+        ``dt`` ali é o intervalo DAQUELE animal, e somá-lo sobre N peixes daria
+        N × a duração da sessão.
+        """
+        stable_cols = [f"in_{name}_stable" for name in self._rois]
+        view = self._trajectory.groupby(level=0, sort=True)[stable_cols].any()
+
+        index_series = view.index.to_series()
+        view["dt"] = index_series.diff()
+        dt_seconds = view["dt"].dt.total_seconds().to_numpy(dtype=float)
+        dt_seconds = np.nan_to_num(dt_seconds, nan=0.0, posinf=0.0, neginf=0.0)
+
+        # O mesmo teto de lacuna das séries individuais, agora sobre a linha do
+        # tempo do grupo: a sessão só é "não observada" quando NENHUM animal
+        # foi visto.
+        cap = self._resolve_max_gap(dt_seconds)
+        self._unobserved_time_s = 0.0
+        if np.isfinite(cap):
+            exceeds = dt_seconds > cap
+            if exceeds.any():
+                self._unobserved_time_s = float(np.sum(dt_seconds[exceeds] - cap))
+                view.iloc[np.flatnonzero(exceeds), view.columns.get_loc("dt")] = pd.Timedelta(
+                    seconds=cap
+                )
+
+        _assign_stable_roi(view, self._rois)
+        return view
 
     def _calculate_roi_presence_by_rule(
         self,
@@ -612,91 +856,93 @@ class ROIAnalyzer:
     def get_time_spent_in_rois(self) -> dict[str, dict[str, float]]:
         """Calculate the total time (seconds and percentage) spent in each ROI.
 
+        Com mais de um animal os números são de OCUPAÇÃO da ROI (``any_track``):
+        o tempo em que ao menos um animal esteve dentro, não a soma dos tempos
+        individuais. Para os números por sujeito use :meth:`get_metrics_by_track`.
+
         Returns:
             Dictionary mapping ROI names to dictionaries with 'seconds' and
             'percentage' keys.
 
         """
-        results = {}
-        total_time = self._trajectory["dt"].sum()
-        if total_time == 0:
-            return {name: {"seconds": 0.0, "percentage": 0.0} for name in self._rois}
-
-        # Convert total_time Timedelta to seconds
-        total_time_seconds = (
-            total_time.total_seconds()
-            if hasattr(total_time, "total_seconds")
-            else float(total_time)
-        )
-
-        for name in self._rois:
-            time_in_roi = self._trajectory.loc[self._trajectory[f"in_{name}_stable"], "dt"].sum()
-            # Convert time_in_roi Timedelta to seconds
-            time_in_roi_seconds = (
-                time_in_roi.total_seconds()
-                if hasattr(time_in_roi, "total_seconds")
-                else float(time_in_roi)
-            )
-            results[name] = {
-                "seconds": time_in_roi_seconds,
-                "percentage": (time_in_roi_seconds / total_time_seconds) * 100
-                if total_time_seconds > 0
-                else 0.0,
-            }
-        return results
+        return _time_spent_in_rois(self._view, self._rois)
 
     def get_latency_to_first_entry(self) -> dict[str, float | None]:
         """Calculate the latency to the first entry into each ROI.
+
+        Multi-animal: latência até a PRIMEIRA ocupação da ROI por qualquer
+        animal.
 
         Returns:
             Dictionary mapping ROI names to latency in seconds (float) or None
             if the animal never enters that ROI.
 
         """
-        results = {}
-        start_time = self._trajectory.index[0]
-
-        for name in self._rois:
-            entries = self._trajectory[f"in_{name}_stable"].diff() == 1
-            first_entry_time = entries.idxmax() if entries.any() else None
-
-            if first_entry_time and self._trajectory.loc[first_entry_time, f"in_{name}_stable"]:
-                latency = first_entry_time - start_time
-                # Convert Timedelta to seconds
-                results[name] = (
-                    latency.total_seconds() if hasattr(latency, "total_seconds") else float(latency)
-                )
-            else:
-                results[name] = None
-        return results
+        return _latency_to_first_entry(self._view, self._rois)
 
     def get_entry_counts(self) -> dict[str, int]:
         """Count the number of entries into each ROI.
+
+        Multi-animal: transições de "ROI vazia" para "ROI ocupada". Duas
+        entradas simultâneas de animais diferentes são UMA ocupação — as
+        contagens por sujeito estão em :meth:`get_metrics_by_track`.
 
         Returns:
             Dictionary mapping ROI names to entry counts.
 
         """
-        results = {}
-        for name in self._rois:
-            # An entry is a transition from False to True
-            is_entry = self._trajectory[f"in_{name}_stable"].astype(int).diff() == 1
-            results[name] = is_entry.sum()
-        return results
+        return _entry_counts(self._view, self._rois)
 
     def get_exit_counts(self) -> dict[str, int]:
         """Count the number of exits from each ROI.
+
+        Multi-animal: transições de "ROI ocupada" para "ROI vazia".
 
         Returns:
             Dictionary mapping ROI names to exit counts.
 
         """
-        results = {}
-        for name in self._rois:
-            # An exit is a transition from True to False, which is a diff of -1.
-            is_exit = self._trajectory[f"in_{name}_stable"].astype(int).diff() == -1
-            results[name] = is_exit.sum()
+        return _exit_counts(self._view, self._rois)
+
+    def get_metrics_by_track(self) -> dict[str, dict[str, Any]]:
+        """Métricas de ROI POR ANIMAL, indexadas pelo ``track_id``.
+
+        É o cálculo cientificamente primário: cada animal tem a sua própria
+        série de presença, o seu próprio relógio e as suas próprias entradas e
+        saídas. Os números publicados no topo de ``analise_roi`` são a
+        AGREGAÇÃO ``any_track`` desta base.
+
+        Com um único sujeito devolve esse sujeito num dicionário de um item —
+        os valores coincidem com os das métricas de grupo.
+
+        Returns:
+            ``{track_id_str: {"tempo_gasto_por_roi": ..., ...}}``.
+
+        """
+        results: dict[str, dict[str, Any]] = {}
+        for label, positions in enumerate(self._track_positions):
+            if positions.size == 0:
+                continue
+            key = self._track_keys[label] if self._is_multi_track else self._sole_track_key()
+            frame = self._trajectory.iloc[positions].copy()
+            results[str(key)] = {
+                "tempo_gasto_por_roi": _time_spent_in_rois(frame, self._rois),
+                "latencia_primeira_entrada": _latency_to_first_entry(frame, self._rois),
+                "contagem_entradas": _entry_counts(frame, self._rois),
+                "contagem_saidas": _exit_counts(frame, self._rois),
+                "distancia_por_roi": _distance_in_rois(frame, self._rois),
+                "tempo_nao_observado_s": self._unobserved_by_track.get(
+                    key, self._unobserved_time_s if not self._is_multi_track else 0.0
+                ),
+            }
         return results
+
+    def _sole_track_key(self) -> Any:
+        """``track_id`` do único sujeito, quando existe a coluna."""
+        if "track_id" not in self._trajectory.columns or self._trajectory.empty:
+            return 0
+        first = self._trajectory["track_id"].iloc[0]
+        return 0 if pd.isna(first) else first
 
     def get_inter_visit_latencies(self) -> dict[str, list[float]]:
         """Calculate latencies for re-entries into each ROI.
@@ -712,16 +958,16 @@ class ROIAnalyzer:
         results = {}
 
         # Get all timestamps where the animal exits ANY ROI to 'Outside'
-        exited_any_roi = (self._trajectory["stable_roi"] != "Outside") & (
-            self._trajectory["stable_roi"].shift(-1) == "Outside"
+        exited_any_roi = (self._view["stable_roi"] != "Outside") & (
+            self._view["stable_roi"].shift(-1) == "Outside"
         )
-        all_exit_times = self._trajectory[exited_any_roi].index
+        all_exit_times = self._view[exited_any_roi].index
 
         for name in self._rois:
             latencies = []
             # Get all entry timestamps for the current ROI
-            entries = self._trajectory[f"in_{name}_stable"].diff() == 1
-            entry_times = self._trajectory[entries].index
+            entries = self._view[f"in_{name}_stable"].diff() == 1
+            entry_times = self._view[entries].index
 
             # For each entry, find the most recent prior exit from any ROI
             for entry_time in entry_times:
@@ -745,7 +991,7 @@ class ROIAnalyzer:
             DataFrame with transition counts from one ROI/state to another.
 
         """
-        states = self._trajectory["stable_roi"]
+        states = self._view["stable_roi"]
         # Compare current state with the state in the previous frame
         transitions = pd.crosstab(states, states.shift(-1), dropna=False)
         # Rename for clarity
@@ -761,7 +1007,7 @@ class ROIAnalyzer:
             sorted chronologically.
 
         """
-        states = self._trajectory["stable_roi"]
+        states = self._view["stable_roi"]
         # Find points where the state changes by comparing with the previous state
         state_changes = states[states != states.shift(1)]
 
@@ -824,22 +1070,24 @@ class ROIAnalyzer:
             Dictionary mapping ROI names to total distance in centimeters.
 
         """
-        results = {}
-        # Calculate distance for all segments first
-        if "segment_dist" not in self._trajectory.columns:
-            self._trajectory["segment_dist"] = np.sqrt(
-                self._trajectory["x_cm_smoothed"].diff() ** 2
-                + self._trajectory["y_cm_smoothed"].diff() ** 2
-            )
-
-        for name in self._rois:
-            # Sum the segment distances only for points within the ROI
+        if not self._is_multi_track:
+            # Sum the segment distances only for points within the ROI.
             # We consider the distance for a segment to be "in" the ROI if the
             # endpoint of the segment is in the ROI.
-            is_in_roi = self._trajectory[f"in_{name}_stable"]
-            total_dist_in_roi = self._trajectory.loc[is_in_roi, "segment_dist"].sum()
-            results[name] = total_dist_in_roi
-        return results
+            return _distance_in_rois(self._trajectory, self._rois)
+
+        # Com vários animais, a distância de grupo é a SOMA das distâncias
+        # individuais percorridas dentro da ROI — não há "o percurso do grupo".
+        # O ``diff`` tem de ser por sujeito: entre duas linhas consecutivas de
+        # peixes diferentes ele mediria a distância ENTRE os peixes.
+        totals = {name: 0.0 for name in self._rois}
+        for positions in self._track_positions:
+            if positions.size == 0:
+                continue
+            per_track = _distance_in_rois(self._trajectory.iloc[positions].copy(), self._rois)
+            for name, value in per_track.items():
+                totals[name] += float(value)
+        return totals
 
     def get_velocity_stats_in_rois(self) -> dict[str, dict[str, float] | None]:
         """Calculate velocity statistics within each ROI.
@@ -876,16 +1124,21 @@ class ROIAnalyzer:
         # Ensure freezing episodes are detected on the base analyzer
         freezing_episodes = self._b_analyzer.detect_freezing_episodes(vel_threshold, min_duration)
 
+        # Índice posicional do início de cada episódio. Com vários animais o
+        # timestamp NÃO identifica a linha (é repetido entre sujeitos), então o
+        # par (timestamp, track_id) é a única chave que devolve a linha certa;
+        # um ``.loc`` só pelo tempo devolveria várias linhas e o teste de
+        # verdade explodiria.
+        episode_rows = [self._episode_row(episode) for episode in freezing_episodes]
+
         for name in self._rois:
             roi_episodes = []
-            for episode in freezing_episodes:
+            column = self._trajectory[f"in_{name}_stable"].to_numpy(dtype=bool)
+            for episode, row in zip(freezing_episodes, episode_rows, strict=True):
                 # Check if the episode occurred inside the ROI
                 # We can check the start, mid, or end point. Let's use the start.
-                start_t = episode["start_time"]
-                if start_t in self._trajectory.index:
-                    traj_at_start = self._trajectory.loc[start_t]
-                    if traj_at_start[f"in_{name}_stable"]:
-                        roi_episodes.append(episode)
+                if row is not None and column[row]:
+                    roi_episodes.append(episode)
 
             results[name] = {
                 "count": len(roi_episodes),
@@ -902,6 +1155,12 @@ class ROIAnalyzer:
             by straight-line distance) or None if insufficient data.
 
         """
+        if self._is_multi_track:
+            # Razão POR PERCURSO: a média das tortuosidades individuais é a
+            # única leitura de grupo com significado. Concatenar os peixes num
+            # "percurso" só produziria a distância entre eles.
+            return self._tortuosity_in_rois_by_track()
+
         results: dict[str, float | None] = {}
         for name in self._rois:
             roi_traj = self._get_filtered_trajectory(name)
@@ -927,6 +1186,65 @@ class ROIAnalyzer:
             else:
                 results[name] = np.inf if path_distance > 0 else 1.0
         return results
+
+    def _episode_row(self, episode: dict[str, Any]) -> int | None:
+        """Índice POSICIONAL da linha em que um episódio começa.
+
+        Com vários animais o timestamp sozinho não identifica uma linha, então
+        a chave é o par (timestamp, ``track_id``) — que é exatamente o par que
+        ``detect_freezing_episodes`` carimba em cada episódio.
+        """
+        if self._episode_row_index is None:
+            index_values = self._trajectory.index.to_numpy()
+            if self._is_multi_track:
+                keys: list[Any] = [
+                    (index_values[row], self._track_keys[int(self._track_labels[row])])
+                    for row in range(len(index_values))
+                ]
+            else:
+                keys = list(index_values)
+            # O primeiro vencedor fica: espelha o ``.loc`` histórico, que
+            # devolvia a primeira linha do rótulo.
+            mapping: dict[Any, int] = {}
+            for row, key in enumerate(keys):
+                mapping.setdefault(key, row)
+            self._episode_row_index = mapping
+
+        if self._is_multi_track:
+            return self._episode_row_index.get((episode["start_time"], episode.get("track_id")))
+        return self._episode_row_index.get(episode["start_time"])
+
+    def _tortuosity_in_rois_by_track(self) -> dict[str, float | None]:
+        """Média das tortuosidades individuais dentro de cada ROI."""
+        per_roi: dict[str, list[float]] = {name: [] for name in self._rois}
+
+        for positions in self._track_positions:
+            if positions.size < 2:
+                continue
+            frame = self._trajectory.iloc[positions]
+            for name in self._rois:
+                roi_traj = frame[frame[f"in_{name}_stable"]]
+                if len(roi_traj) < 2:
+                    continue
+
+                path_distance = np.sqrt(
+                    roi_traj["x_cm_smoothed"].diff() ** 2 + roi_traj["y_cm_smoothed"].diff() ** 2
+                ).sum()
+                start_point = roi_traj.iloc[0]
+                end_point = roi_traj.iloc[-1]
+                straight_dist = np.sqrt(
+                    (end_point["x_cm_smoothed"] - start_point["x_cm_smoothed"]) ** 2
+                    + (end_point["y_cm_smoothed"] - start_point["y_cm_smoothed"]) ** 2
+                )
+
+                if straight_dist > 0:
+                    per_roi[name].append(float(path_distance / straight_dist))
+                else:
+                    per_roi[name].append(float(np.inf) if path_distance > 0 else 1.0)
+
+        return {
+            name: (float(np.mean(values)) if values else None) for name, values in per_roi.items()
+        }
 
     def analyze_center_vs_periphery(self, method: str, value: float) -> dict[str, Any]:
         """Generate center and periphery ROIs and runs a full analysis on them.
@@ -969,6 +1287,14 @@ class ROIAnalyzer:
         temp_analyzer = ROIAnalyzer(
             behavior_analyzer=self._b_analyzer,
             rois=[center_roi, periphery_roi],
+            # A REGRA de inclusão também é propagada. Sem isto, Centro e
+            # Periferia rodavam sempre com o default ``bbox_intersects``, mesmo
+            # num projeto configurado com ``centroid_in`` — dois números do
+            # mesmo relatório respondendo a critérios diferentes.
+            inclusion_rule=self._inclusion_rule,
+            buffer_radius_value=self._buffer_radius_value,
+            min_bbox_overlap_ratio=self._min_bbox_overlap_ratio,
+            bbox_overlap_basis=self._bbox_overlap_basis,
             flutter_enter_frames=self._flutter_enter,
             flutter_exit_frames=self._flutter_exit,
             min_visit_s=self._min_visit_s,

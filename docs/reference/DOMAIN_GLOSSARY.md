@@ -46,6 +46,36 @@ modes determine when a detection counts as "inside":
 - `bbox_intersects` — any part of bbox overlaps the polygon.
 - `seg_overlap` — segmentation mask overlaps (when available).
 
+**ROI metric semantics — per-animal vs. `any_track`**
+When a trajectory contains more than one `track_id`, "time in the ROI" has two
+distinct meanings, and the report carries both:
+
+- **Per animal** (primary calculation) — each animal gets its own presence
+  series, its own observed clock, and its own entries and exits. Published under
+  `report["analise_roi"]["por_animal"][track_id]`.
+- **`any_track` occupancy** (published at the top of `analise_roi`) — the ROI
+  counts as occupied while *any* animal is inside. This is the aggregation of
+  the per-animal series, and it is the same reading
+  `ArduinoEventMapper` uses to fire hardware on ROI enter/exit, so report and
+  equipment describe the same event.
+
+Consequences worth stating explicitly:
+
+- Two animals entering together are **one** occupancy entry but **two**
+  per-animal entries.
+- `tempo_gasto_por_roi.seconds` at the top level is session time, never the sum
+  of animal-seconds (which would reach N × the session duration).
+- `distancia_por_roi` at the top level *is* a sum across animals — there is no
+  "path of the group".
+- Tortuosity for multiple animals is the **mean** of the individual
+  tortuosities; concatenating subjects into one path would only measure the
+  distance between them.
+- With a single animal the two semantics coincide and the output is unchanged.
+
+`report["analise_roi"]["semantica"]` records which reading the top-level keys
+use, and `n_animais` how many subjects were found. Multi-animal trajectories
+also raise a validation warning, surfaced in the report's appendix.
+
 **Calibration**
 Maps pixels ↔ centimeters using a known real-world reference (often the arena
 edge length). When calibration exists, parquet rows include `x_cm`, `y_cm`.

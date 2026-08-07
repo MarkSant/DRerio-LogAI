@@ -883,6 +883,77 @@ Gotchas:
   `config.yaml` / `config.local.yaml` / `project_data["roi_settings"]`, like
   `arduino.roi_exit_grace_frames`.
 
+### 5.10.3 Multi-animal ROI semantics (per-animal + `any_track`)
+
+**The defect.** With more than one animal in the same trajectory, the pipeline
+measured an animal that does not exist. `BehavioralAnalyzer._preprocess_data`
+consolidated duplicate timestamps with `groupby(df.index).agg({... "mean"})`.
+That aggregation exists for duplicates the *tracker* emits for the **same**
+animal, but the key also caught **different** animals seen at the same instant:
+two fish became a ghost centroid at their midpoint, labelled with one of their
+`track_id`s. Downstream, `ROIAnalyzer` compounded it — presence, entries and
+exits all ran `.diff()` over interleaved rows, so a transition could be one
+animal followed by another. The common single-fish-per-aquarium setup has one
+track, which is why it went unnoticed.
+
+Multi-aquarium is a **different axis** and does not solve this:
+`global_id = aquarium_id * 1000 + local_id` separates animals *between* tanks,
+each analysed on its own. Two animals in the *same* tank still collapsed.
+
+**The fix, in two layers.**
+
+1. `_preprocess_data` groups by `(timestamp, track_id)` when the column exists.
+   Same-track duplicates are still averaged (original intent); distinct animals
+   are never merged. Without a `track_id` column there is no way to tell
+   subjects apart, so the historical per-timestamp average remains.
+2. Everything order-dependent became track-aware. `BehavioralAnalyzer` carries a
+   positional `track_labels` array (positional, because with several animals the
+   index has repeated timestamps and any label-based grouping mixes subjects)
+   and exposes `diff_by_track()`. Savitzky-Golay smoothing, distance, velocity,
+   angular velocity, tortuosity and freezing/inactivity episode blocking all run
+   per subject. In `ROIAnalyzer`, `dt`, the observed clock, the debounce and the
+   duration filter are all per animal.
+
+**Two published semantics.** See `DOMAIN_GLOSSARY.md` for the full contract:
+
+- `report["analise_roi"]["por_animal"][track_id]` — the primary calculation.
+- The top-level keys — `any_track` occupancy (the ROI is occupied while *any*
+  animal is inside), which is the aggregation of the above **and** the reading
+  `ArduinoEventMapper` already uses live, so report and hardware agree again.
+- `semantica` and `n_animais` record which is which; a multi-animal trajectory
+  also appends a validation warning (`unique_tracks` was already computed by
+  `trajectory_validator` and printed as a neutral statistic — it is now a
+  warning).
+
+Gotchas:
+
+- **Single track is bit-identical.** `ROIAnalyzer._view` *is* `_trajectory` when
+  there is one subject, so the group metrics run the identical code path.
+  `tests/analysis/test_multi_track_roi.py::TestSingleTrackRegression` pins it.
+- **The track axis is validated, not presumed.** `_resolve_track_axis` accepts
+  it only when `is_multi_track is True` *and* the labels are an `ndarray` of the
+  trajectory's length. A `MagicMock` analyzer returns a truthy object for every
+  attribute, and trusting it would enter the multi-animal path with a
+  wrong-sized grouper.
+- **Group `dt` is not the sum of per-animal `dt`.** Per-row `dt` is that
+  animal's interval; summing it over N fish gives N × the session. The group
+  numbers come from `_build_group_view()`, one row per instant.
+- **There is one observed clock per animal (`_track_clocks`), not one sliced
+  array.** Each is the exclusive prefix sum of § 5.10.2, with its own zero and
+  one position more than the frames it describes — so a slice of a global clock
+  would be both off by an origin and the wrong length. With a single subject the
+  list is `[_clock_s]` and the code path is unchanged.
+- **`distancia_por_roi` at group level *is* a sum** across animals — there is no
+  path of a group. Tortuosity is the **mean** of individual tortuosities.
+- **`calculate_sharp_turns` is still pooled.** Its cooldown loop walks turn
+  timestamps globally, so turns by different animals within the cooldown
+  collapse into one — it under-counts. Flagged in the validation warning;
+  fixing it is separate scope.
+- **`analyze_center_vs_periphery` now propagates `inclusion_rule`** (and the
+  overlap parameters) to its temporary analyzer. It never did: Center/Periphery
+  always ran with the default `bbox_intersects`, even in a project configured
+  for `centroid_in` — two numbers in one report answering different criteria.
+
 ---
 
 ## 6. Common Pitfalls for Agents
@@ -1048,6 +1119,7 @@ Heavy imports (pandas, pyarrow, openpyxl) are deferred in:
 
 | Date | Version | Changes |
 | ---- | ------- | ------- |
+| Aug 6, 2026 | v4.8 | § 5.10.3 multi-animal ROI — `(timestamp, track_id)` aggregation ends the ghost centroid, track-aware diffs/smoothing/episodes, `analise_roi.por_animal` + `any_track` group semantics, multi-track validation warning |
 | Aug 6, 2026 | v4.7 | § 5.10.2 ROI presence timing — backdated asymmetric debounce (production no longer hardcodes `flutter_n_frames=1`), duration filters in seconds, `roi_max_gap_s` + `analise_roi.tempo_nao_observado_s` |
 | Aug 6, 2026 | v4.6 | § 5.10.1 overlap semantics — single-source defaults (config.yaml no longer overrides `roi_min_bbox_overlap_ratio` with 0.05), `roi_bbox_overlap_basis` (`bbox`/`roi`/`max`), threshold `0` = any non-zero overlap area for `bbox_intersects` |
 | Aug 6, 2026 | v4.5 | § 5.10 canonical ROI inclusion rule — `roi_rule_resolver`, four consumers unified, shapely-based `ArduinoRoiEvaluator`, `ZONE_APPLY_ROI_SETTINGS` persists the rule |
