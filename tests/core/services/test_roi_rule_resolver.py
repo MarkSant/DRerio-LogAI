@@ -531,3 +531,94 @@ def test_timing_is_applied_to_real_settings():
     assert settings.roi_flutter_enter_frames == 5
     assert settings.roi_flutter_exit_frames == 7
     assert settings.roi_min_visit_s == 0.4
+
+
+# ----------------------------------------------------------------------
+# Guarda contra divergência de defaults
+# ----------------------------------------------------------------------
+
+
+def test_resolver_defaults_match_settings_defaults():
+    """As constantes do resolvedor e os defaults do Pydantic não podem divergir.
+
+    A duplicação existe porque ``settings.py`` é um módulo-folha (nenhum import
+    de ``zebtrack``): referenciar as constantes no ``Field(default=...)``
+    puxaria ``zebtrack.core.services.__init__`` — que carrega ``DetectorService``
+    e importa ``zebtrack.settings`` de volta. Este teste é a guarda que torna a
+    duplicação segura, e cobre as NOVE chaves de ROI, não só as temporais.
+    """
+    from zebtrack.settings import Settings
+
+    expected = {
+        "roi_inclusion_rule": DEFAULT_ROI_INCLUSION_RULE,
+        "roi_buffer_radius_value": DEFAULT_BUFFER_RADIUS_VALUE,
+        "roi_min_bbox_overlap_ratio": DEFAULT_MIN_BBOX_OVERLAP_RATIO,
+        "roi_bbox_overlap_basis": DEFAULT_BBOX_OVERLAP_BASIS,
+        "roi_flutter_enter_frames": DEFAULT_ROI_FLUTTER_ENTER_FRAMES,
+        "roi_flutter_exit_frames": DEFAULT_ROI_FLUTTER_EXIT_FRAMES,
+        "roi_min_visit_s": DEFAULT_ROI_MIN_VISIT_S,
+        "roi_min_gap_s": DEFAULT_ROI_MIN_GAP_S,
+        "roi_max_gap_s": DEFAULT_ROI_MAX_GAP_S,
+    }
+    declared = {key: Settings.model_fields[key].default for key in expected}
+    assert declared == expected
+
+
+def test_config_defaults_match_the_dataclass_defaults():
+    """E o `RoiRuleConfig` construído sem argumentos concorda com as constantes."""
+    config = RoiRuleConfig()
+    assert config.to_roi_settings() == {
+        "roi_inclusion_rule": DEFAULT_ROI_INCLUSION_RULE,
+        "roi_buffer_radius_value": DEFAULT_BUFFER_RADIUS_VALUE,
+        "roi_min_bbox_overlap_ratio": DEFAULT_MIN_BBOX_OVERLAP_RATIO,
+        "roi_bbox_overlap_basis": DEFAULT_BBOX_OVERLAP_BASIS,
+        "roi_flutter_enter_frames": DEFAULT_ROI_FLUTTER_ENTER_FRAMES,
+        "roi_flutter_exit_frames": DEFAULT_ROI_FLUTTER_EXIT_FRAMES,
+        "roi_min_visit_s": DEFAULT_ROI_MIN_VISIT_S,
+        "roi_min_gap_s": DEFAULT_ROI_MIN_GAP_S,
+        "roi_max_gap_s": DEFAULT_ROI_MAX_GAP_S,
+    }
+
+
+# ----------------------------------------------------------------------
+# `roi_max_gap_s`: ausente x `null` explícito
+# ----------------------------------------------------------------------
+
+
+def test_explicit_null_max_gap_overrides_a_numeric_global():
+    """``null`` no projeto volta ao automático, mesmo com teto numérico global.
+
+    Sem a distinção ausente/`None`, o `null` seria lido como "não informado" e
+    o número do global sobreviveria — o projeto não teria como voltar ao auto.
+    """
+    project = {"roi_settings": {"roi_max_gap_s": None}}
+    config = resolve_roi_rule(project, _timing_settings(roi_max_gap_s=2.0))
+    assert config.max_gap_s is None
+
+
+def test_absent_max_gap_key_preserves_the_global():
+    """Chave ausente continua sendo "não informado" — o global vence."""
+    project = {"roi_settings": {"roi_inclusion_rule": "centroid_in"}}
+    config = resolve_roi_rule(project, _timing_settings(roi_max_gap_s=2.0))
+    assert config.max_gap_s == 2.0
+
+
+def test_auto_config_round_trips_without_resurrecting_the_global():
+    """`to_roi_settings` sempre grava a chave; o round-trip não pode ressuscitar.
+
+    Um projeto em modo automático persistido contra um global numérico voltaria
+    a 2.0 na resolução seguinte — corrupção silenciosa da configuração salva.
+    """
+    auto = RoiRuleConfig(max_gap_s=None)
+    assert auto.to_roi_settings()["roi_max_gap_s"] is None
+
+    reread = resolve_roi_rule(
+        {"roi_settings": auto.to_roi_settings()}, _timing_settings(roi_max_gap_s=2.0)
+    )
+    assert reread.max_gap_s is None
+
+
+def test_settings_without_the_attribute_falls_back_to_the_default():
+    """Duplo de ``Settings`` sem o atributo é ausência, não ``None``."""
+    config = resolve_roi_rule(None, SimpleNamespace(roi_inclusion_rule="centroid_in"))
+    assert config.max_gap_s == DEFAULT_ROI_MAX_GAP_S

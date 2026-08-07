@@ -155,5 +155,78 @@ class TestTimeConservation:
         assert -1e-9 <= total_pct <= 100.0 + 1e-9
 
 
+class TestGapDoesNotInflateThePrecedingVisit:
+    """A duração da visita não pode incluir o ``dt`` do frame de FORA.
+
+    Regressão da revisão do PR #455: a duração era medida como
+    ``t[fim] - t[início]``, que embute o ``dt`` do primeiro frame fora da
+    visita. Quando esse frame é o reaparecimento depois de uma lacuna, o ``dt``
+    dele — mesmo já limitado pelo teto — inflava a visita ANTERIOR, que é
+    exatamente o que o teto existe para impedir.
+    """
+
+    #: 5 frames dentro (t=0.0..0.4), depois uma lacuna de 5 s e um frame fora.
+    #: Tempo CREDITADO à visita = dt[0..4] = 0 + 4 x 0.1 = 0.4 s.
+    #: Medida antiga = 0.4 + teto(0.3) = 0.7 s — 75 % a mais, vindo da lacuna.
+    _INSIDE_FRAMES = 5
+    _CREDITED_S = 0.4
+    _INFLATED_S = 0.7
+
+    @staticmethod
+    def _analyzer(**kwargs) -> ROIAnalyzer:
+        seconds = [i * _STEP_S for i in range(5)] + [4 * _STEP_S + _GAP_S]
+        points = [_IN_A] * 5 + [_IN_B]
+
+        index = pd.to_datetime(seconds, unit="s", origin=pd.Timestamp("2023-01-01"))
+        trajectory = pd.DataFrame(
+            {
+                "x_center_px": [p[0] for p in points],
+                "y_center_px": [p[1] for p in points],
+                "x1": [p[0] - 5 for p in points],
+                "y1": [p[1] - 5 for p in points],
+                "x2": [p[0] + 5 for p in points],
+                "y2": [p[1] + 5 for p in points],
+            },
+            index=index,
+        )
+
+        b_analyzer = MagicMock()
+        b_analyzer.trajectory_data = trajectory
+        b_analyzer._pixelcm_x = 1.0
+        b_analyzer._pixelcm_y = 1.0
+        b_analyzer._video_height_px = 0
+
+        return ROIAnalyzer(
+            behavior_analyzer=b_analyzer,
+            rois=_ROIS,
+            inclusion_rule="centroid_in",
+            flutter_enter_frames=1,
+            flutter_exit_frames=1,
+            **kwargs,
+        )
+
+    def test_visit_duration_is_the_credited_time_not_the_span(self) -> None:
+        """Limiar entre os dois valores: a medida certa descarta, a errada mantém."""
+        threshold = (self._CREDITED_S + self._INFLATED_S) / 2  # 0.55 s
+        analyzer = self._analyzer(min_visit_s=threshold)
+        assert not analyzer._trajectory["in_A_stable"].any()
+
+    def test_visit_survives_a_threshold_below_the_credited_time(self) -> None:
+        """Controle: a visita existe e sobrevive quando o limiar cabe nela."""
+        analyzer = self._analyzer(min_visit_s=self._CREDITED_S)
+        assert int(analyzer._trajectory["in_A_stable"].sum()) == self._INSIDE_FRAMES
+
+    def test_the_duration_filter_agrees_with_the_reported_time(self) -> None:
+        """O que o filtro mede é o que o relatório credita — mesma soma.
+
+        É o que torna ``min_visit_s`` explicável: "descartar visitas a que
+        menos de N segundos seria creditado".
+        """
+        analyzer = self._analyzer(min_visit_s=0.0)
+        assert analyzer.get_time_spent_in_rois()["A"]["seconds"] == pytest.approx(
+            self._CREDITED_S, abs=1e-6
+        )
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

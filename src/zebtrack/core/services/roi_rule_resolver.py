@@ -51,6 +51,16 @@ __all__ = [
 
 # Espelham os defaults de ``Settings`` (settings.py). ``Settings`` é a fonte
 # ÚNICA do valor: o ``config.yaml`` distribuído não redefine nenhum deles.
+#
+# A duplicação é deliberada e tem guarda automática. Referenciar estas
+# constantes direto no ``Field(default=...)`` do Pydantic seria o ideal, mas
+# criaria um ciclo de importação: qualquer import sob ``zebtrack.core.services``
+# executa o ``__init__`` do pacote, que carrega ``DetectorService`` e companhia
+# — e esses já importam ``zebtrack.settings`` (42 módulos entram junto).
+# ``settings.py`` é um módulo-folha, sem nenhum import de ``zebtrack``, de
+# propósito. A divergência silenciosa é barrada por
+# ``test_resolver_defaults_match_settings_defaults``, que compara as NOVE
+# chaves de ROI com os defaults declarados no modelo Pydantic.
 DEFAULT_ROI_INCLUSION_RULE: Final[str] = "bbox_intersects"
 DEFAULT_BUFFER_RADIUS_VALUE: Final[float] = 0.5
 DEFAULT_MIN_BBOX_OVERLAP_RATIO: Final[float] = 0.10
@@ -120,6 +130,21 @@ _KEY_EXIT: Final[str] = "roi_flutter_exit_frames"
 _KEY_MIN_VISIT: Final[str] = "roi_min_visit_s"
 _KEY_MIN_GAP: Final[str] = "roi_min_gap_s"
 _KEY_MAX_GAP: Final[str] = "roi_max_gap_s"
+
+
+class _Missing:
+    """Sentinela de "chave ausente", distinta de ``None``.
+
+    Necessária só para ``roi_max_gap_s``, onde ``None`` é um valor com
+    significado próprio ("teto automático") e não pode ser confundido com a
+    ausência da chave. Os demais campos não têm essa ambiguidade.
+    """
+
+    def __repr__(self) -> str:  # pragma: no cover - só para depuração
+        return "<MISSING>"
+
+
+_MISSING: Final[_Missing] = _Missing()
 
 
 @dataclass(frozen=True)
@@ -431,13 +456,22 @@ def _coerce_seconds(value: Any, fallback: float, *, field: str, source: str) -> 
 def _coerce_max_gap(value: Any, fallback: float | None, *, source: str) -> float | None:
     """Converte e valida o teto de ``dt``.
 
-    ``None`` de uma camada significa "não informado" e preserva o ``fallback``.
-    Isso é indistinguível de "automático" apenas porque o default JÁ é
-    automático — se um dia o default virar um número, um ``null`` explícito no
-    YAML precisará de um sentinela próprio.
+    ``roi_max_gap_s`` é o único campo em que ``None`` é um VALOR ("automático"),
+    não a ausência de valor. Por isso a ausência é sinalizada por
+    :data:`_MISSING`, e não por ``None``: com ``.get(key)`` puro, um projeto que
+    grava ``roi_max_gap_s: null`` para voltar ao automático não conseguiria
+    sobrepor um teto numérico vindo do global — o ``null`` seria lido como "não
+    informado" e o número do global sobreviveria.
+
+    O caminho é real e silencioso: :meth:`RoiRuleConfig.to_roi_settings` SEMPRE
+    grava a chave, então um projeto em modo automático persistido contra um
+    global numérico ressuscitaria o número do global na próxima resolução.
     """
-    if value is None:
+    if value is _MISSING:
         return fallback
+    if value is None:
+        # ``null`` explícito = automático, e é um override legítimo.
+        return None
     try:
         number = float(value)
     except (TypeError, ValueError):
@@ -655,12 +689,13 @@ def resolve_roi_rule(project_data: Any, settings_obj: Any) -> RoiRuleConfig:
             )
         return _coerce_seconds(roi_settings.get(key), value, field=key, source="project")
 
+    # ``_MISSING`` (não ``None``) marca a ausência: ver :func:`_coerce_max_gap`.
     max_gap = DEFAULT_ROI_MAX_GAP_S
     if settings_obj is not None:
         max_gap = _coerce_max_gap(
-            getattr(settings_obj, _KEY_MAX_GAP, None), max_gap, source="settings"
+            getattr(settings_obj, _KEY_MAX_GAP, _MISSING), max_gap, source="settings"
         )
-    max_gap = _coerce_max_gap(roi_settings.get(_KEY_MAX_GAP), max_gap, source="project")
+    max_gap = _coerce_max_gap(roi_settings.get(_KEY_MAX_GAP, _MISSING), max_gap, source="project")
 
     # A autoconsistência final é do ``__post_init__`` — aqui os valores já
     # passaram pela coerção por nível de precedência.
