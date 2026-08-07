@@ -159,3 +159,61 @@ class TestDerivedMetricsRespectTrackBoundaries:
 
         assert analyzer.is_multi_track is False
         assert analyzer.calculate_total_distance() == pytest.approx(7.0)
+
+
+class TestMaxTimeGapExcludesTheSegment:
+    """``max_time_gap`` tem de zerar o SEGMENTO, não descartar a linha."""
+
+    @staticmethod
+    def _rows_with_gap() -> pd.DataFrame:
+        """1 cm por frame; entre t=0.2 e t=5.2 há uma lacuna com salto de 50 cm."""
+        return _frame(
+            [
+                {"timestamp": 0.0, "track_id": 1, "x_center_px": 10.0, "y_center_px": 50.0},
+                {"timestamp": 0.1, "track_id": 1, "x_center_px": 11.0, "y_center_px": 50.0},
+                {"timestamp": 0.2, "track_id": 1, "x_center_px": 12.0, "y_center_px": 50.0},
+                {"timestamp": 5.2, "track_id": 1, "x_center_px": 62.0, "y_center_px": 50.0},
+                {"timestamp": 5.3, "track_id": 1, "x_center_px": 63.0, "y_center_px": 50.0},
+                {"timestamp": 5.4, "track_id": 1, "x_center_px": 64.0, "y_center_px": 50.0},
+            ]
+        )
+
+    def test_gap_segment_contributes_zero(self):
+        """A implementação antiga descartava a LINHA do reaparecimento.
+
+        Com isso o frame seguinte (x=63) virava vizinho do último frame antes
+        da lacuna (x=12) e os 50 cm atravessados continuavam sendo somados —
+        só que atribuídos a outro par. O total só caía de 54 para 53 cm.
+        """
+        analyzer = _analyzer(self._rows_with_gap())
+
+        # Sem teto: 2 + 50 + 2 = 54 cm.
+        assert analyzer.calculate_total_distance() == pytest.approx(54.0)
+        # Com teto: só os 4 segmentos de 1 cm sobrevivem.
+        assert analyzer.calculate_total_distance(max_time_gap=1.0) == pytest.approx(4.0)
+
+    def test_gap_is_evaluated_per_track(self):
+        """Com dois animais, a lacuna de um não pode cortar o segmento do outro."""
+        rows = []
+        for step, timestamp in enumerate([0.0, 0.1, 0.2]):
+            rows.append(
+                {
+                    "timestamp": timestamp,
+                    "track_id": 1,
+                    "x_center_px": 10.0 + step,
+                    "y_center_px": 50.0,
+                }
+            )
+            rows.append(
+                {
+                    "timestamp": timestamp,
+                    "track_id": 2,
+                    "x_center_px": 80.0 + step,
+                    "y_center_px": 50.0,
+                }
+            )
+
+        analyzer = _analyzer(_frame(rows))
+
+        # Dois animais, 2 cm cada, nenhum intervalo acima do teto.
+        assert analyzer.calculate_total_distance(max_time_gap=1.0) == pytest.approx(4.0)

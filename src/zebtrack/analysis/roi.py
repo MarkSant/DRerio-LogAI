@@ -15,7 +15,7 @@ from shapely import affinity, prepare
 from shapely.geometry import Point
 from shapely.geometry.base import BaseGeometry
 
-from zebtrack.analysis.behavior import BehavioralAnalyzer
+from zebtrack.analysis.behavior import BehavioralAnalyzer, Episode
 from zebtrack.core.services.roi_rule_resolver import (
     DEFAULT_BBOX_OVERLAP_BASIS,
     DEFAULT_BUFFER_RADIUS_VALUE,
@@ -1187,7 +1187,7 @@ class ROIAnalyzer:
                 results[name] = np.inf if path_distance > 0 else 1.0
         return results
 
-    def _episode_row(self, episode: dict[str, Any]) -> int | None:
+    def _episode_row(self, episode: Episode) -> int | None:
         """Índice POSICIONAL da linha em que um episódio começa.
 
         Com vários animais o timestamp sozinho não identifica uma linha, então

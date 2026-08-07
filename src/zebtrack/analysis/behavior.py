@@ -2,13 +2,32 @@
 
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
-from typing import Any
+from typing import Any, NotRequired, TypedDict
 
 import numpy as np
 import pandas as pd
 import shapely
 from scipy.signal import savgol_filter
 from shapely.geometry import Polygon
+
+
+class Episode(TypedDict):
+    """Um episódio contíguo de um estado (congelamento, inatividade, rajada).
+
+    ``start_time``/``end_time`` são rótulos do índice da trajetória, não
+    floats: o índice é um ``TimedeltaIndex`` (ou ``DatetimeIndex``), e a
+    anotação antiga ``dict[str, float]`` mentia sobre os três campos.
+
+    ``track_id`` só aparece quando a trajetória tem mais de um animal — é o
+    que permite a quem consome (``ROIAnalyzer._episode_row``) identificar a
+    LINHA de origem, já que com vários sujeitos o timestamp sozinho não
+    identifica linha nenhuma.
+    """
+
+    start_time: Any
+    end_time: Any
+    duration: float
+    track_id: NotRequired[Any]
 
 
 class BehavioralAnalyzer(ABC):
@@ -386,7 +405,7 @@ class BehavioralAnalyzer(ABC):
         vel_threshold: float | None = None,
         threshold_method: str = "absolute",
         quantile: float = 0.1,
-    ) -> list[dict[str, float]]:
+    ) -> list[Episode]:
         """
         Detect freezing episodes based on a velocity threshold.
 
@@ -404,9 +423,9 @@ class BehavioralAnalyzer(ABC):
             quantile (float): The quantile to use for the 'relative' method.
 
         Returns:
-            List[Dict[str, float]]: A list of dictionaries, where each
-            dictionary represents a freezing episode and contains 'start_time',
-            'end_time', and 'duration'.
+            list[Episode]: One entry per freezing episode, with 'start_time',
+            'end_time' and 'duration' — plus 'track_id' when the trajectory
+            holds more than one animal.
         """
         pass
 
@@ -689,30 +708,29 @@ class ConcreteBehavioralAnalyzer(BehavioralAnalyzer):
 
         Args:
             max_time_gap: Maximum time gap between points to consider continuous (seconds).
+                Segments spanning a longer gap contribute zero.
 
         Returns:
             Total distance in centimeters.
         """
         df = self._trajectory_data
-        multi_track = self._is_multi_track
+
+        # Os deslocamentos saem do quadro COMPLETO e só depois são zerados.
+        # Descartar as linhas de lacuna antes do ``diff`` (como se fazia) não
+        # remove o salto: apaga o ponto de reaparecimento e faz o ponto
+        # SEGUINTE virar vizinho do último ponto antes da lacuna, de modo que a
+        # distância atravessada continua sendo somada — só que atribuída a outro
+        # par de frames. Era o oposto do que ``max_time_gap`` promete.
+        dx = self.diff_by_track(df["x_cm_smoothed"])
+        dy = self.diff_by_track(df["y_cm_smoothed"])
+        distances = np.sqrt(dx**2 + dy**2)
+
         if max_time_gap is not None:
             time_diffs = self.diff_by_track(df.index.to_series())
             # Compare Timedelta with a Timedelta
             valid_segments = time_diffs <= pd.to_timedelta(max_time_gap, unit="s")
-            df = df[valid_segments]
-            # A filtragem reordena nada, mas remove linhas: os rótulos de track
-            # precisam acompanhar para o ``diff`` seguinte continuar por sujeito.
-            labels = self._track_labels[valid_segments.to_numpy()] if multi_track else None
-        else:
-            labels = self._track_labels if multi_track else None
+            distances = distances.where(valid_segments, 0.0)
 
-        if labels is None:
-            dx = df["x_cm_smoothed"].diff()
-            dy = df["y_cm_smoothed"].diff()
-        else:
-            dx = df["x_cm_smoothed"].groupby(labels).diff()
-            dy = df["y_cm_smoothed"].groupby(labels).diff()
-        distances = np.sqrt(dx**2 + dy**2)
         return distances.sum()
 
     def calculate_velocity_timeseries(self) -> pd.DataFrame:
@@ -751,7 +769,7 @@ class ConcreteBehavioralAnalyzer(BehavioralAnalyzer):
         vel_threshold: float | None = None,
         threshold_method: str = "absolute",
         quantile: float = 0.1,
-    ) -> list[dict[str, float]]:
+    ) -> list[Episode]:
         """Detect freezing episodes based on velocity threshold.
 
         Args:
@@ -761,7 +779,8 @@ class ConcreteBehavioralAnalyzer(BehavioralAnalyzer):
             quantile: Quantile to use if threshold_method is "quantile" (0-1).
 
         Returns:
-            List of dicts with 'start_time', 'end_time', 'duration' for each episode.
+            List of Episode dicts ('start_time', 'end_time', 'duration', and
+            'track_id' when there is more than one animal).
         """
         self.calculate_velocity_timeseries()
         v_mag = self._trajectory_data["v_mag"].fillna(0.0)
@@ -793,7 +812,7 @@ class ConcreteBehavioralAnalyzer(BehavioralAnalyzer):
                 end_time = block.index[-1]
                 duration = end_time - start_time
                 if duration.total_seconds() >= min_duration:
-                    episode: dict[str, Any] = {
+                    episode: Episode = {
                         "start_time": start_time,
                         "end_time": end_time,
                         "duration": duration.total_seconds(),
@@ -1080,7 +1099,7 @@ class ConcreteBehavioralAnalyzer(BehavioralAnalyzer):
         threshold_cm_s: float | None = None,
         min_duration: float = 0.5,
         quantile: float = 0.9,
-    ) -> dict[str, int | float | list[dict[str, float]]]:
+    ) -> dict[str, int | float | list[Episode]]:
         """
         Detect episodes where the animal exceeds a velocity threshold.
 
@@ -1130,7 +1149,7 @@ class ConcreteBehavioralAnalyzer(BehavioralAnalyzer):
         self,
         velocity_threshold_cm_s: float = 1.0,
         min_duration: float = 1.0,
-    ) -> dict[str, int | float | list[dict[str, float]]]:
+    ) -> dict[str, int | float | list[Episode]]:
         """
         Detect inactivity episodes where the velocity stays below a threshold.
 
@@ -1238,9 +1257,7 @@ class ConcreteBehavioralAnalyzer(BehavioralAnalyzer):
             "sharp_turns_timestamps": pd.Index(sharp_turn_timestamps),
         }
 
-    def _extract_velocity_episodes(
-        self, mask: pd.Series, min_duration: float
-    ) -> list[dict[str, float]]:
+    def _extract_velocity_episodes(self, mask: pd.Series, min_duration: float) -> list[Episode]:
         if min_duration < 0:
             raise ValueError("min_duration must be non-negative.")
 
@@ -1258,7 +1275,7 @@ class ConcreteBehavioralAnalyzer(BehavioralAnalyzer):
         change_groups = self._block_ids(aligned_values)
         min_duration_td = pd.to_timedelta(min_duration, unit="s")
 
-        episodes: list[dict[str, float]] = []
+        episodes: list[Episode] = []
         selected = self._trajectory_data[aligned_values]
         for _, block in selected.groupby(change_groups[aligned_values], sort=True):
             if block.empty:
