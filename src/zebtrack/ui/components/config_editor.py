@@ -26,6 +26,13 @@ from zebtrack.ui.wizard.tooltip import create_help_label
 
 log = structlog.get_logger()
 
+# Aviso mostrado ao selecionar ``seg_overlap`` sem o sidecar de máscaras ligado.
+SEG_OVERLAP_MISSING_MASKS_WARNING = (
+    "⚠️ 'seg_overlap' sem 'Salvar Máscaras' ligado: a análise vai degradar para "
+    "'bbox_intersects'. Ligue a opção na seção 'Gravação de Dados' e confirme "
+    "que o modelo é de segmentação (model_selection.animal_method = 'seg')."
+)
+
 
 class ConfigEditorWidget(BaseWidget):
     """
@@ -759,21 +766,18 @@ class ConfigEditorWidget(BaseWidget):
 
         Só cobre ``persist_masks`` — ``animal_method`` é editado noutro widget,
         então aqui ele é apenas NOMEADO, nunca inferido.
+
+        O ``None`` do rótulo é defensivo (o trace da variável pode disparar
+        antes de a seção de ROI existir, se a ordem de construção mudar); não é
+        um estado alcançável hoje.
         """
-        label = getattr(self, "_seg_overlap_warning_label", None)
-        if label is None:
-            return
-        if self.roi_inclusion_rule_var.get() == "seg_overlap" and not self.persist_masks_var.get():
-            label.config(
-                text=(
-                    "⚠️ 'seg_overlap' sem 'Salvar Máscaras' ligado: a análise vai "
-                    "degradar para 'bbox_intersects'. Ligue a opção na seção "
-                    "'Gravação de Dados' e confirme que o modelo é de segmentação "
-                    "(model_selection.animal_method = 'seg')."
-                )
+        missing_masks = (
+            self.roi_inclusion_rule_var.get() == "seg_overlap" and not self.persist_masks_var.get()
+        )
+        if self._seg_overlap_warning_label is not None:
+            self._seg_overlap_warning_label.config(
+                text=SEG_OVERLAP_MISSING_MASKS_WARNING if missing_masks else ""
             )
-        else:
-            label.config(text="")
 
     def _on_roi_rule_changed(self, event=None) -> None:
         """Handle ROI rule combobox change."""

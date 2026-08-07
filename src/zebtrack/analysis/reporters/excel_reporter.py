@@ -77,7 +77,12 @@ class ExcelReporter:
         per_animal = self._per_animal_frame()
         if fmt == "excel":
             if per_animal is None:
-                data_to_export.to_excel(path, index=False, engine="openpyxl")
+                # ``sheet_name`` explícito nos DOIS ramos: o nome da aba
+                # principal é contrato com quem lê o arquivo, não pode depender
+                # de um default futuro do pandas.
+                data_to_export.to_excel(
+                    path, sheet_name=MAIN_SHEET_NAME, index=False, engine="openpyxl"
+                )
             else:
                 with pd.ExcelWriter(path, engine="openpyxl") as writer:
                     data_to_export.to_excel(writer, sheet_name=MAIN_SHEET_NAME, index=False)

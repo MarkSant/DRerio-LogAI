@@ -50,6 +50,17 @@ def _format_time_minutes_seconds(seconds: float | None) -> str:
         return f"{hours}:{minutes:02d}:{secs:02d}"
 
 
+def _format_seconds_metric(seconds: float | None) -> str:
+    """Format a duration that is a MEASUREMENT, in seconds with two decimals.
+
+    Distinct from :func:`_format_time_minutes_seconds`, which truncates to whole
+    seconds — fine to place an event on a timeline, wrong for a reported metric.
+    """
+    if seconds is None or pd.isna(seconds):
+        return "N/A"
+    return f"{float(seconds):.2f} s"
+
+
 class WordReporter:
     """Generate individual Word document reports from a ``ReporterContext``.
 
@@ -364,12 +375,17 @@ class WordReporter:
 
         document.add_heading(_("ROI Coverage and Per-Animal Metrics"), level=2)
 
+        # Sem ``_format_time_minutes_seconds``: aquele formatador trunca com
+        # ``int`` (3.99 s vira "3s"), o que é aceitável para posicionar um evento
+        # na linha do tempo e não é aceitável aqui — este número é uma MÉTRICA,
+        # e subnotificá-lo faz o leitor achar que a sessão foi mais coberta do
+        # que foi.
         unobserved = roi_analysis.get("tempo_nao_observado_s")
         document.add_paragraph(
             _(
                 "Unobserved time (tracking gaps not credited to any ROI): {value}. "
                 "ROI durations do not cover this portion of the session."
-            ).format(value=_format_time_minutes_seconds(unobserved))
+            ).format(value=_format_seconds_metric(unobserved))
         )
 
         per_animal = roi_analysis.get("por_animal") or {}

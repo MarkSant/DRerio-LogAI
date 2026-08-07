@@ -25,6 +25,7 @@ from docx import Document
 from zebtrack.analysis.reporters.reporter_context import _
 from zebtrack.analysis.reporters.word_reporter import (
     WordReporter,
+    _format_seconds_metric,
     _format_time_minutes_seconds,
 )
 
@@ -186,3 +187,78 @@ class TestFormatTimeMinutesSeconds:
     def test_nan_returns_na(self) -> None:
         assert _format_time_minutes_seconds(float("nan")) == "N/A"
         assert _format_time_minutes_seconds(pd.NA) == "N/A"  # type: ignore[arg-type]
+
+
+class TestSecondsMetricFormatting:
+    """``_format_seconds_metric``: métrica, não posição na linha do tempo.
+
+    Existe porque ``_format_time_minutes_seconds`` trunca com ``int`` — 3.99 s
+    vira "3s". Aceitável para datar um evento, subnotificação para um número
+    que o leitor vai citar.
+    """
+
+    @pytest.mark.parametrize(
+        ("seconds", "expected"),
+        [
+            (0.0, "0.00 s"),
+            (3.99, "3.99 s"),
+            (0.004, "0.00 s"),
+            (75.5, "75.50 s"),
+        ],
+    )
+    def test_keeps_two_decimals(self, seconds: float, expected: str) -> None:
+        assert _format_seconds_metric(seconds) == expected
+
+    def test_does_not_truncate_like_the_timeline_formatter(self) -> None:
+        assert _format_time_minutes_seconds(3.99) == "3s"
+        assert _format_seconds_metric(3.99) == "3.99 s"
+
+    def test_missing_values_return_na(self) -> None:
+        assert _format_seconds_metric(None) == "N/A"
+        assert _format_seconds_metric(float("nan")) == "N/A"
+        assert _format_seconds_metric(pd.NA) == "N/A"  # type: ignore[arg-type]
+
+
+class TestRoiCoverageSection:
+    """A seção de cobertura de ROI no ``.docx``."""
+
+    def test_unobserved_time_is_reported_with_precision(self, reporter_ctx, tmp_path: Path) -> None:
+        out = tmp_path / "coverage.docx"
+        reporter_ctx.report["analise_roi"]["tempo_nao_observado_s"] = 3.99
+
+        WordReporter(reporter_ctx).export_individual_report(out)
+
+        text = _doc_text(out)
+        assert _("ROI Coverage and Per-Animal Metrics") in text
+        assert "3.99 s" in text
+
+    def test_section_absent_without_roi_analysis(
+        self, reporter_ctx_no_rois, tmp_path: Path
+    ) -> None:
+        out = tmp_path / "no_coverage.docx"
+
+        WordReporter(reporter_ctx_no_rois).export_individual_report(out)
+
+        assert _("ROI Coverage and Per-Animal Metrics") not in _doc_text(out)
+
+    def test_per_animal_table_only_with_more_than_one_track(
+        self, reporter_ctx, tmp_path: Path
+    ) -> None:
+        single = tmp_path / "single.docx"
+        WordReporter(reporter_ctx).export_individual_report(single)
+        assert _("Animal (track_id)") not in _doc_text(single)
+
+        reporter_ctx.report["analise_roi"]["por_animal"]["99"] = {
+            "tempo_gasto_por_roi": {"ROI1": {"seconds": 2.0, "percentage": 10.0}},
+            "latencia_primeira_entrada": {"ROI1": 1.0},
+            "contagem_entradas": {"ROI1": 1},
+            "contagem_saidas": {"ROI1": 1},
+            "distancia_por_roi": {"ROI1": 4.0},
+            "tempo_nao_observado_s": 0.5,
+        }
+        multi = tmp_path / "multi.docx"
+        WordReporter(reporter_ctx).export_individual_report(multi)
+
+        table = _find_table_by_header(multi, _("Animal (track_id)"))
+        assert table is not None, "per-animal table not found"
+        assert len(table.rows) == 1 + len(reporter_ctx.report["analise_roi"]["por_animal"])

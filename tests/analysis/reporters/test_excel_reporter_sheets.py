@@ -7,6 +7,8 @@ aba nenhuma.
 
 from __future__ import annotations
 
+from unittest.mock import patch
+
 import pandas as pd
 import pytest
 
@@ -73,6 +75,20 @@ class TestExcelReporterSheets:
             pd.read_excel(without_second),
         )
         assert _sheet_names(with_second)[0] == MAIN_SHEET_NAME
+
+    def test_single_sheet_branch_names_the_sheet_explicitly(self, reporter_ctx, tmp_path):
+        """O ramo de aba única também passa ``sheet_name``, não confia no default.
+
+        O nome é contrato com quem lê o arquivo; depender do default do pandas
+        deixaria os dois ramos livres para divergir numa versão futura.
+        """
+        output = tmp_path / "single.xlsx"
+        reporter_ctx.per_animal_data = reporter_ctx.per_animal_data.iloc[0:0]
+
+        with patch.object(pd.DataFrame, "to_excel") as mock_to_excel:
+            ExcelReporter(reporter_ctx).export_summary(output)
+
+        assert mock_to_excel.call_args.kwargs["sheet_name"] == MAIN_SHEET_NAME
 
     def test_summary_carries_unobserved_time(self, reporter_ctx, tmp_path):
         """A coluna escalar de tempo não observado chega à aba principal."""
