@@ -841,8 +841,24 @@ summed into `ROIAnalyzer.unobserved_time_s` and published as
 `report["analise_roi"]["tempo_nao_observado_s"]`, so the researcher can see how
 much of the session the per-ROI numbers do not cover. `null` means automatic
 (`3 ×` the median observed interval); `.inf` disables the cap and restores the
-historical attribution. Visit/gap durations are read off the **capped** clock,
-so a tracking gap never inflates a visit.
+historical attribution.
+
+A visit's duration is the time **credited to the visit's own frames** — the
+same sum `get_time_spent_in_rois` reports — read off an *exclusive* prefix-sum
+clock (`_clock_s`, length `n+1`). So `roi_min_visit_s` means literally
+"discard visits that would be credited less than N seconds". Measuring the
+span to the first frame *outside* instead (`t[end] - t[start]`) embeds that
+frame's `dt`, and when it is the reappearance after a gap the gap inflates the
+**preceding** visit — the exact defect the cap exists to prevent. (Caught in
+review of #455; regression pinned by
+`test_roi_time_attribution.py::TestGapDoesNotInflateThePrecedingVisit`.)
+
+`roi_max_gap_s` is the one key where `None` is a **value** ("automatic"), not
+an absence, so the resolver distinguishes the two with a `_MISSING` sentinel
+rather than plain `.get(key)`. Without it a project could never override a
+numeric global back to automatic — and since `to_roi_settings()` always writes
+the key, persisting an automatic project against a numeric global would
+silently resurrect the global's number on the next resolve.
 
 **Neutral mode is bit-identical.** `flutter_enter_frames=1`,
 `flutter_exit_frames=1`, `min_visit_s=0.0`, `min_gap_s=0.0`,

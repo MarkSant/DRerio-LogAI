@@ -305,10 +305,18 @@ class ROIAnalyzer:
                     np.flatnonzero(exceeds), self._trajectory.columns.get_loc("dt")
                 ] = cap_value
 
-        # Relógio monotônico do tempo OBSERVADO: é a base das durações de
-        # visita e de lacuna, para que um filtro de duração nunca "veja" o
-        # tempo que o teto acabou de descartar.
-        self._clock_s = np.cumsum(capped)
+        # Relógio monotônico do tempo OBSERVADO, em soma-prefixo EXCLUSIVA
+        # (tamanho n+1, começando em 0). Com essa forma,
+        # ``_clock_s[fim] - _clock_s[início]`` é a soma do ``dt`` dos frames
+        # ``[início, fim)`` — exatamente o tempo que ``get_time_spent_in_rois``
+        # credita a esses frames.
+        #
+        # A soma INCLUSIVA anterior media ``t[fim] - t[início]``, que embute o
+        # ``dt`` do frame ``fim`` — o primeiro frame FORA da visita. Se esse
+        # frame fosse o reaparecimento depois de uma lacuna, o ``dt`` dele
+        # (ainda que limitado pelo teto) inflava a duração da visita ANTERIOR,
+        # que é justamente o que o teto existe para impedir.
+        self._clock_s = np.concatenate(([0.0], np.cumsum(capped)))
 
     def _resolve_max_gap(self, dt_seconds: np.ndarray) -> float:
         """Teto efetivo de ``dt``, em segundos (``inf`` = sem teto)."""
@@ -389,18 +397,24 @@ class ROIAnalyzer:
         (:meth:`_prepare_time_base`), então uma lacuna de rastreamento não
         infla artificialmente a duração da visita que a contém.
 
-        A duração de um intervalo ``[início, fim)`` é medida do instante do
-        primeiro frame ao instante do primeiro frame do estado oposto. Numa
-        sequência final (que vai até o fim da série) o instante de saída não
-        existe e a medida vai até o último frame observado — uma visita final
-        de um frame só tem, portanto, duração zero.
+        A duração de um intervalo ``[início, fim)`` é o tempo CREDITADO aos
+        frames do próprio intervalo — a mesma soma que
+        :meth:`get_time_spent_in_rois` faz. Ou seja: "descartar visitas com
+        menos de ``min_visit_s``" quer dizer, literalmente, "descartar visitas
+        a que menos de ``min_visit_s`` seria creditado".
+
+        Medir de outro jeito reintroduziria o defeito: usar o intervalo até o
+        primeiro frame FORA (``t[fim] - t[início]``) embute o ``dt`` desse
+        frame, e se ele for o reaparecimento depois de uma lacuna, a lacuna
+        infla a visita anterior.
         """
         if self._min_visit_s <= 0.0 and self._min_gap_s <= 0.0:
             return stable_presence
 
         values = stable_presence.to_numpy(dtype=bool)
         n = values.size
-        if n == 0 or self._clock_s.size != n:
+        # O relógio é soma-prefixo exclusiva: n+1 posições para n frames.
+        if n == 0 or self._clock_s.size != n + 1:
             return stable_presence
 
         # Bordas das visitas: +1 entra, -1 sai. O ``pad`` com False nas duas
@@ -418,14 +432,19 @@ class ROIAnalyzer:
                 and self._min_gap_s > 0.0
                 and (self._clock_s[start] - self._clock_s[visits[-1][1]]) < self._min_gap_s
             ):
-                # Lacuna curta demais: as duas visitas são a mesma.
+                # Lacuna curta demais: as duas visitas são a mesma. A lacuna é
+                # medida com a MESMA regra da visita — o tempo creditado aos
+                # frames de fora, ``[fim_anterior, início)``.
                 visits[-1][1] = int(end)
                 continue
             visits.append([int(start), int(end)])
 
         filtered = np.zeros(n, dtype=bool)
         for start, end in visits:
-            duration = self._clock_s[min(end, n - 1)] - self._clock_s[start]
+            # Sem ``min(end, n-1)``: a soma-prefixo exclusiva tem n+1 posições,
+            # então uma visita que vai até o fim da série (``end == n``) não é
+            # mais um caso especial.
+            duration = self._clock_s[end] - self._clock_s[start]
             if self._min_visit_s > 0.0 and duration < self._min_visit_s:
                 continue
             filtered[start:end] = True
