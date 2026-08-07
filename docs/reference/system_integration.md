@@ -954,6 +954,73 @@ Gotchas:
   always ran with the default `bbox_intersects`, even in a project configured
   for `centroid_in` — two numbers in one report answering different criteria.
 
+### 5.10.4 `seg_overlap`: mask sidecar and declared degradation (August 2026)
+
+`seg_overlap` was selectable in the UI, the wizard and `config.yaml` since the
+rule set existed, and it **always failed** — `_calculate_seg_overlap` raised
+unconditionally. The chain was cut in four places at once: the model default is
+`det` (no masks exist), the tracking path disabled mask decoding for
+performance, the immutable `3_CoordMovimento` schema has nowhere to put a mask,
+and the consumer raised.
+
+**The sidecar.** Masks live in `3b_Mascaras_<base>.parquet`, next to the
+trajectory, with schema `frame:int64, track_id:int64, mask_wkb:binary` — the
+contour serialised as WKB (~200–400 B per detection). It is a *separate file* by
+contract: `3_CoordMovimento`'s column order is immutable (CLAUDE.md), and the
+join at consumption time is `(frame, track_id)`, the same shape of relationship
+`6_FrameLedger` has with `frame` (§ 5.9). It is written by the **same flush
+thread** as the main Parquet, right after it, so a second non-thread-safe writer
+never sees concurrent calls and the recording loop never blocks on disk.
+
+**Three conditions gate the capture**, and they live in exactly one place —
+`core/services/mask_capture.should_capture_masks()`:
+
+1. `recorder.persist_masks` (default `False`) — the operator asked.
+2. `model_selection.animal_method == "seg"` — a model capable of masks exists.
+3. The effective ROI rule (project overrides global) is `seg_overlap` — someone
+   will read the result.
+
+None of the three alone is enough. With the flag off, **nothing is decoded and
+no file is created** — that is the zero-cost promise, pinned by
+`tests/core/detection/test_mask_capture.py`.
+
+**Coordinates.** Masks come out of the plugin in ORIGINAL frame pixels, and the
+plugin only ever saw the *cropped* frame — so `SingleDetector` applies the same
+crop offset that `offset_detections` applies to boxes, and `Recorder` applies
+`calibration.transform_points` exactly as `write_detection_data` applies
+`transform_bbox`. Skipping either step would intersect mask and ROI in different
+coordinate spaces: a number would come out, and it would be wrong.
+
+**How a mask keeps its identity.** Masks are indexed by the detection's bbox,
+not by list position: crop offset, polygon filter, class-mismatch correction and
+ByteTrack all preserve the detection's coordinates (the tracker re-emits the
+ORIGINAL bbox, not the Kalman one), while a parallel list would desynchronise at
+the first filter. `SingleDetector.pop_track_masks(detections)` then re-keys by
+`track_id` and consumes the index — masks are valid for ONE frame, and handing
+them out twice would file a stale contour under another frame's `track_id`.
+
+**Degradation is declared, never an exception.** No sidecar (old data, `det`
+model, flag off), unreadable file, wrong columns, or zero rows matching
+`(frame, track_id)` → the rule falls back to `bbox_intersects`, logs
+`roi.seg_overlap.fallback` with the reason, and records it in
+`ROIAnalyzer.degradation_warnings`. `AnalysisService` merges that into
+`validation_warnings` **before** `_generate_reports_for_video` — the same
+constraint as § 5.10.3's multi-track warning, since `validation_warnings` and
+`report["validacao"]["avisos"]` are the same object. The fallback output is
+**bit-identical** to running `bbox_intersects` outright, not merely similar.
+
+**The threshold is its own field.** `roi_min_seg_overlap_ratio` (default `0.3`),
+never `roi_min_bbox_overlap_ratio` (`0.10`). The denominators differ — the mask
+*is* the animal, while a bbox drags the empty corners along — so the two
+fractions are not comparable and neither can default to the other. A row with no
+mask counts as OUTSIDE rather than silently falling back to its bbox: mixing the
+two rules row by row would produce a series matching no criterion at all.
+
+**Not covered:** multi-aquarium recording (detections pass through a partitioner
+that re-emits tuples, so the bbox index does not survive) and batch inference
+(`detect_batch` clears the one-frame mask buffer rather than risk misattributing
+it). Both degrade with the warning above.
+
 ---
 
 ## 6. Common Pitfalls for Agents
@@ -1119,6 +1186,7 @@ Heavy imports (pandas, pyarrow, openpyxl) are deferred in:
 
 | Date | Version | Changes |
 | ---- | ------- | ------- |
+| Aug 7, 2026 | v4.9 | § 5.10.4 `seg_overlap` made real — `3b_Mascaras_<base>.parquet` sidecar (WKB, same flush thread), opt-in mask decode gated by `should_capture_masks()`, calibration applied to mask points, dedicated `roi_min_seg_overlap_ratio`, declared degradation to `bbox_intersects` instead of the old unconditional raise |
 | Aug 6, 2026 | v4.8 | § 5.10.3 multi-animal ROI — `(timestamp, track_id)` aggregation ends the ghost centroid, track-aware diffs/smoothing/episodes, `analise_roi.por_animal` + `any_track` group semantics, multi-track validation warning |
 | Aug 6, 2026 | v4.7 | § 5.10.2 ROI presence timing — backdated asymmetric debounce (production no longer hardcodes `flutter_n_frames=1`), duration filters in seconds, `roi_max_gap_s` + `analise_roi.tempo_nao_observado_s` |
 | Aug 6, 2026 | v4.6 | § 5.10.1 overlap semantics — single-source defaults (config.yaml no longer overrides `roi_min_bbox_overlap_ratio` with 0.05), `roi_bbox_overlap_basis` (`bbox`/`roi`/`max`), threshold `0` = any non-zero overlap area for `bbox_intersects` |

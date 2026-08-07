@@ -63,7 +63,7 @@ class TrackingSessionRunnerMixin:
         self,
         *,
         video_path: Path,
-        results_dir: str,
+        results_dir: Path | str,
         experiment_id: str,
         calibration_data: dict | None,
         recorder: Recorder,
@@ -119,6 +119,16 @@ class TrackingSessionRunnerMixin:
             calibration=cal,
         )
 
+        # Captura de máscaras: a conjunção das três condições mora em
+        # ``should_capture_masks`` (flag + modelo seg + regra seg_overlap),
+        # com o ``project_data`` junto para que um override de regra do
+        # PROJETO conte — é a mesma precedência que o relatório vai aplicar.
+        if hasattr(detector, "set_mask_capture"):
+            from zebtrack.core.services.mask_capture import should_capture_masks
+
+            project_data = getattr(self.project_manager, "project_data", None)
+            detector.set_mask_capture(should_capture_masks(self.settings, project_data))
+
         return cap, session_recorder, zone_data, arena_polygon, cal, pixel_per_cm_ratio
 
     def _reset_detector_tracking_state(self, detector: Detector) -> None:
@@ -158,6 +168,8 @@ class TrackingSessionRunnerMixin:
             detections, _ = detector.detect(frame, project_type="pre-recorded")
             timestamp = cap.get(cv2.CAP_PROP_POS_MSEC) / 1000.0
             recorder.write_detection_data(timestamp, frame_num, detections)
+            if getattr(recorder, "persist_masks", False) and hasattr(detector, "pop_track_masks"):
+                recorder.write_mask_data(frame_num, detector.pop_track_masks(detections))
 
             if detections:
                 detected_count_increment = 1
@@ -242,7 +254,7 @@ class TrackingSessionRunnerMixin:
     def run_tracking_if_needed(
         self,
         video_path: Path | str,
-        results_dir: str,
+        results_dir: Path | str,
         experiment_id: str,
         detector: Detector | None = None,
         recorder: Recorder | None = None,
@@ -258,6 +270,7 @@ class TrackingSessionRunnerMixin:
             Tuple of (success: bool, arena_polygon: list | None)
         """
         video_path = Path(video_path) if isinstance(video_path, str) else video_path
+        results_dir = Path(results_dir) if isinstance(results_dir, str) else results_dir
         log.info("controller.tracking.check_or_run", video=experiment_id)
         trajectory_path = os.path.join(results_dir, f"3_CoordMovimento_{experiment_id}.parquet")
 

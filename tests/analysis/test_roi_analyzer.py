@@ -124,17 +124,36 @@ class TestROIAnalyzerInclusionRules(unittest.TestCase):
 
         self.assertIn("bbox_intersects requer colunas de bbox", str(context.exception))
 
-    def test_seg_overlap_rule_error(self):
-        """Test that seg_overlap rule raises appropriate error."""
-        with self.assertRaises(ValueError) as context:
-            ROIAnalyzer(
-                behavior_analyzer=self.mock_b_analyzer,
-                rois=[self.test_roi],
-                flutter_n_frames=1,
-                inclusion_rule="seg_overlap",
-            )
+    def test_seg_overlap_without_masks_degrades_instead_of_raising(self):
+        """Sem sidecar, ``seg_overlap`` cai para ``bbox_intersects`` COM aviso.
 
-        self.assertIn("seg_overlap requer dados de segmentação", str(context.exception))
+        Era uma exceção incondicional: escolher a regra na UI matava a análise
+        inteira. A degradação declarada é o contrato novo — o relatório sai, e
+        diz no apêndice de validação que saiu com outra regra.
+        """
+        analyzer = ROIAnalyzer(
+            behavior_analyzer=self.mock_b_analyzer,
+            rois=[self.test_roi],
+            flutter_n_frames=1,
+            inclusion_rule="seg_overlap",
+        )
+
+        warnings = analyzer.degradation_warnings
+        self.assertEqual(len(warnings), 1)
+        self.assertIn("seg_overlap", warnings[0])
+        self.assertIn("bbox_intersects", warnings[0])
+
+        # E o resultado é o MESMO que a regra de fallback produziria.
+        fallback = ROIAnalyzer(
+            behavior_analyzer=self.mock_b_analyzer,
+            rois=[self.test_roi],
+            flutter_n_frames=1,
+            inclusion_rule="bbox_intersects",
+        )
+        pd.testing.assert_series_equal(
+            analyzer._trajectory["in_TestROI_stable"],
+            fallback._trajectory["in_TestROI_stable"],
+        )
 
     def test_coordinate_space_fallback_to_px(self):
         """Test that analyzer falls back to pixel coordinates when cm coords are

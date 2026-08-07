@@ -35,6 +35,7 @@ __all__ = [
     "DEFAULT_BBOX_OVERLAP_BASIS",
     "DEFAULT_BUFFER_RADIUS_VALUE",
     "DEFAULT_MIN_BBOX_OVERLAP_RATIO",
+    "DEFAULT_MIN_SEG_OVERLAP_RATIO",
     "DEFAULT_ROI_FLUTTER_ENTER_FRAMES",
     "DEFAULT_ROI_FLUTTER_EXIT_FRAMES",
     "DEFAULT_ROI_INCLUSION_RULE",
@@ -59,12 +60,18 @@ __all__ = [
 # — e esses já importam ``zebtrack.settings`` (42 módulos entram junto).
 # ``settings.py`` é um módulo-folha, sem nenhum import de ``zebtrack``, de
 # propósito. A divergência silenciosa é barrada por
-# ``test_resolver_defaults_match_settings_defaults``, que compara as NOVE
+# ``test_resolver_defaults_match_settings_defaults``, que compara as DEZ
 # chaves de ROI com os defaults declarados no modelo Pydantic.
 DEFAULT_ROI_INCLUSION_RULE: Final[str] = "bbox_intersects"
 DEFAULT_BUFFER_RADIUS_VALUE: Final[float] = 0.5
 DEFAULT_MIN_BBOX_OVERLAP_RATIO: Final[float] = 0.10
 DEFAULT_BBOX_OVERLAP_BASIS: Final[str] = "bbox"
+
+# Limiar da regra ``seg_overlap``, com campo PRÓPRIO. Reaproveitar o limiar de
+# bbox seria um erro de escala: a bbox arrasta os cantos vazios em volta do
+# animal, então 0.10 dela é uma sobreposição bem menor do que 0.10 da máscara,
+# que É o animal. O default é 3x maior justamente por isso.
+DEFAULT_MIN_SEG_OVERLAP_RATIO: Final[float] = 0.3
 
 # Debounce ASSIMÉTRICO de presença. Confirmar a entrada é barato (2 frames) e
 # confirmar a saída é caro (3 frames): comportamentalmente, um animal que
@@ -124,6 +131,7 @@ _ANY_OVERLAP_RULES: Final[frozenset[str]] = _OVERLAP_RULES - _STRICT_OVERLAP_RUL
 _KEY_RULE: Final[str] = "roi_inclusion_rule"
 _KEY_BUFFER: Final[str] = "roi_buffer_radius_value"
 _KEY_OVERLAP: Final[str] = "roi_min_bbox_overlap_ratio"
+_KEY_SEG_OVERLAP: Final[str] = "roi_min_seg_overlap_ratio"
 _KEY_BASIS: Final[str] = "roi_bbox_overlap_basis"
 _KEY_ENTER: Final[str] = "roi_flutter_enter_frames"
 _KEY_EXIT: Final[str] = "roi_flutter_exit_frames"
@@ -179,6 +187,14 @@ class RoiRuleConfig:
     #: inteiro, dá razão 0.25 — mas é o que reproduz os números históricos.
     bbox_overlap_basis: str = DEFAULT_BBOX_OVERLAP_BASIS
 
+    #: Fração MÍNIMA da máscara de segmentação dentro da ROI, usada só por
+    #: ``seg_overlap``. Campo separado de propósito: o denominador ali é a
+    #: própria máscara (o animal), não uma caixa com os cantos vazios juntos,
+    #: então as duas frações não são comparáveis e um valor não serve de
+    #: default do outro. Nunca é ``0``: uma máscara que só encosta na ROI não
+    #: é um animal dentro dela.
+    min_seg_overlap_ratio: float = DEFAULT_MIN_SEG_OVERLAP_RATIO
+
     #: Frames consecutivos DENTRO para confirmar uma entrada, e frames
     #: consecutivos FORA para confirmar uma saída. ``1`` em ambos desliga o
     #: debounce (a presença crua vira a série estável).
@@ -214,6 +230,9 @@ class RoiRuleConfig:
             _sanitize_overlap(self.rule, self.min_bbox_overlap_ratio),
         )
         object.__setattr__(self, "bbox_overlap_basis", _sanitize_basis(self.bbox_overlap_basis))
+        object.__setattr__(
+            self, "min_seg_overlap_ratio", _sanitize_seg_overlap(self.min_seg_overlap_ratio)
+        )
         object.__setattr__(
             self,
             "flutter_enter_frames",
@@ -290,6 +309,11 @@ class RoiRuleConfig:
         return self.min_bbox_overlap_ratio
 
     @property
+    def roi_min_seg_overlap_ratio(self) -> float:
+        """Alias com o nome usado em ``Settings``/``roi_settings``."""
+        return self.min_seg_overlap_ratio
+
+    @property
     def roi_bbox_overlap_basis(self) -> str:
         """Alias com o nome usado em ``Settings``/``roi_settings``."""
         return self.bbox_overlap_basis
@@ -325,6 +349,7 @@ class RoiRuleConfig:
             _KEY_RULE: self.rule,
             _KEY_BUFFER: self.buffer_radius_value,
             _KEY_OVERLAP: self.min_bbox_overlap_ratio,
+            _KEY_SEG_OVERLAP: self.min_seg_overlap_ratio,
             _KEY_BASIS: self.bbox_overlap_basis,
             _KEY_ENTER: self.flutter_enter_frames,
             _KEY_EXIT: self.flutter_exit_frames,
@@ -537,6 +562,21 @@ def _sanitize_overlap(rule: str, overlap_ratio: Any) -> float:
     return DEFAULT_MIN_BBOX_OVERLAP_RATIO
 
 
+def _sanitize_seg_overlap(overlap_ratio: Any) -> float:
+    """Fração fora de ``(0, 1]`` vira o default canônico.
+
+    O mínimo é EXCLUSIVO em qualquer regra, não só em ``seg_overlap``: ao
+    contrário do limiar de bbox, aqui o zero nunca teve significado próprio —
+    a máscara é o contorno do animal, e "qualquer sobreposição de área
+    não-nula" com ela é um pixel de encostão, não presença.
+    """
+    number = _as_finite_float(overlap_ratio)
+    if number is not None and 0.0 < number <= 1.0:
+        return number
+    _log_sanitized(_KEY_SEG_OVERLAP, overlap_ratio, DEFAULT_MIN_SEG_OVERLAP_RATIO)
+    return DEFAULT_MIN_SEG_OVERLAP_RATIO
+
+
 def _sanitize_basis(basis: Any) -> str:
     """Denominador desconhecido vira o default canônico."""
     if isinstance(basis, str) and basis in VALID_BBOX_OVERLAP_BASES:
@@ -666,6 +706,17 @@ def resolve_roi_rule(project_data: Any, settings_obj: Any) -> RoiRuleConfig:
         maximum=1.0,
     )
 
+    # Sempre ``required=True``: o mínimo exclusivo não depende da regra ativa
+    # (ver :func:`_sanitize_seg_overlap`). Um limiar de segmentação inválido
+    # cai no default mesmo com ``bbox_intersects`` selecionada — o campo é
+    # persistido junto e reaparece quando a regra mudar.
+    seg_overlap_ratio = _param(
+        _KEY_SEG_OVERLAP,
+        DEFAULT_MIN_SEG_OVERLAP_RATIO,
+        required=True,
+        maximum=1.0,
+    )
+
     basis = DEFAULT_BBOX_OVERLAP_BASIS
     if settings_obj is not None:
         basis = _coerce_basis(getattr(settings_obj, _KEY_BASIS, None), basis, source="settings")
@@ -703,6 +754,7 @@ def resolve_roi_rule(project_data: Any, settings_obj: Any) -> RoiRuleConfig:
         rule=rule,
         buffer_radius_value=buffer_radius,
         min_bbox_overlap_ratio=overlap_ratio,
+        min_seg_overlap_ratio=seg_overlap_ratio,
         bbox_overlap_basis=basis,
         flutter_enter_frames=_frames(_KEY_ENTER, DEFAULT_ROI_FLUTTER_ENTER_FRAMES),
         flutter_exit_frames=_frames(_KEY_EXIT, DEFAULT_ROI_FLUTTER_EXIT_FRAMES),
@@ -731,6 +783,10 @@ def apply_roi_rule_to_settings(settings_obj: Any, config: RoiRuleConfig) -> Any:
 
     for field, value in (
         (_KEY_BASIS, config.bbox_overlap_basis),
+        # Fica FORA da dança de ordenação de propósito: a faixa de
+        # ``roi_min_seg_overlap_ratio`` é ``(0, 1]`` em qualquer regra, sem
+        # invariante cruzada com ``roi_inclusion_rule``.
+        (_KEY_SEG_OVERLAP, config.min_seg_overlap_ratio),
         (_KEY_ENTER, config.flutter_enter_frames),
         (_KEY_EXIT, config.flutter_exit_frames),
         (_KEY_MIN_VISIT, config.min_visit_s),

@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, Any
 
 import structlog
 
+from zebtrack.analysis.analysis_service import resolve_mask_sidecar
 from zebtrack.ui import payloads as payloads
 from zebtrack.ui.event_bus_v2 import Event, UIEvents
 from zebtrack.ui.payloads import StatusPayload
@@ -456,6 +457,7 @@ class AnalysisControlViewModel:
                     smoothing_window_length=params["smoothing_window_length"],
                     smoothing_polyorder=params["smoothing_polyorder"],
                     video_path=video_path,
+                    mask_sidecar_path=resolve_mask_sidecar(parquet_path),
                 )
 
                 # Generate Reports

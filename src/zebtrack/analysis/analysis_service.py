@@ -47,6 +47,33 @@ REQUIRED_TRAJECTORY_COLUMNS = [
 ]
 
 
+def resolve_mask_sidecar(trajectory_path: str | Path | None) -> Path | None:
+    """Caminho do ``3b_Mascaras_*.parquet`` irmão de uma trajetória.
+
+    O sidecar é nomeado a partir do MESMO ``base_name`` que o
+    ``3_CoordMovimento`` (ver ``Recorder.start_recording``), então derivá-lo do
+    caminho da trajetória evita passar mais um parâmetro por toda a cadeia de
+    coordenadores — e evita que os dois se desencontrem quando o nome do
+    experimento tem sufixo (``_aquarium_1``, por exemplo).
+
+    Returns:
+        O caminho quando o arquivo EXISTE; ``None`` caso contrário. Devolver um
+        caminho inexistente só empurraria a decisão para o ``ROIAnalyzer``, que
+        registraria o mesmo aviso com menos contexto.
+    """
+    if not trajectory_path:
+        return None
+
+    path = Path(trajectory_path)
+    name = path.name
+    prefix = "3_CoordMovimento_"
+    if not name.startswith(prefix):
+        return None
+
+    sidecar = path.with_name(f"3b_Mascaras_{name[len(prefix) :]}")
+    return sidecar if sidecar.exists() else None
+
+
 class AnalysisService:
     """
     A unified service layer that orchestrates behavioral and ROI analysis.
@@ -127,6 +154,7 @@ class AnalysisService:
         smoothing_polyorder: int | None = None,
         max_plausible_speed_cm_s: float = 50.0,
         behavioral_config: dict[str, Any] | None = None,
+        mask_sidecar_path: str | Path | None = None,
     ) -> tuple[dict[str, Any], ConcreteBehavioralAnalyzer, ROIAnalyzer | None, list, dict]:
         """
         Run a complete analysis pipeline on the given trajectory data.
@@ -145,6 +173,11 @@ class AnalysisService:
             freezing_vel_threshold: Velocity threshold for detecting freezing.
             freezing_min_duration: Minimum duration for a freezing episode.
             behavioral_config: Configuration for behavioral metrics (thigmotaxis, geotaxis).
+            mask_sidecar_path: Path to ``3b_Mascaras_<base>.parquet``, read only
+                by the ``seg_overlap`` rule. When absent (or the file does not
+                exist) that rule degrades to ``bbox_intersects`` and the
+                downgrade is appended to the validation warnings — the analysis
+                never fails because of a missing sidecar.
 
         Returns:
             A tuple containing:
@@ -346,7 +379,14 @@ class AnalysisService:
             min_visit_s=roi_rule.min_visit_s,
             min_gap_s=roi_rule.min_gap_s,
             max_gap_s=roi_rule.max_gap_s,
+            min_seg_overlap_ratio=roi_rule.min_seg_overlap_ratio,
+            mask_source=mask_sidecar_path,
         )
+        # A degradação de ``seg_overlap`` precisa entrar na lista ANTES de
+        # ``_generate_reports_for_video`` — ``validation_warnings`` e
+        # ``report["validacao"]["avisos"]`` são o MESMO objeto, e um append
+        # depois disso não aparece no documento.
+        validation_warnings.extend(r_analyzer.degradation_warnings)
         report["analise_roi"] = {
             "tempo_gasto_por_roi": r_analyzer.get_time_spent_in_rois(),
             "latencia_primeira_entrada": r_analyzer.get_latency_to_first_entry(),
@@ -399,6 +439,7 @@ class AnalysisService:
         sharp_turn_threshold: float = 45.0,
         frame_crop_box: tuple[int, int, int, int] | None = None,
         behavioral_config: dict[str, Any] | None = None,
+        mask_sidecar_path: str | Path | None = None,
     ) -> AnalysisResult:
         """Run complete analysis and return results as DTO (RECOMMENDED).
 
@@ -459,6 +500,7 @@ class AnalysisService:
             smoothing_polyorder=smoothing_polyorder,
             max_plausible_speed_cm_s=max_plausible_speed_cm_s,
             behavioral_config=behavioral_config,
+            mask_sidecar_path=mask_sidecar_path,
         )
 
         # Wrap in DTO

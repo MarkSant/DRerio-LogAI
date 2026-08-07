@@ -125,6 +125,10 @@ class OpenVINOPlugin(DetectorPlugin):
             FileNotFoundError: If the model's .xml file cannot be found.
             IntegrityError: If the model's hash does not match the expected hash.
         """
+        # Contornos do último ``detect()``, alinhados por índice às detecções.
+        # Ver :meth:`DetectorPlugin.pop_frame_masks`.
+        self._frame_masks: list[np.ndarray | None] = []
+
         model_path = Path(model_path) if isinstance(model_path, str) else model_path
         if not OPENVINO_AVAILABLE:
             raise ImportError("OpenVINO is not available. Please install openvino package.")
@@ -450,6 +454,7 @@ class OpenVINOPlugin(DetectorPlugin):
             old_conf = self.conf_threshold
             self.conf_threshold = conf_threshold
 
+        self._frame_masks = []
         try:
             input_tensor = self._preprocess(frame)
             self.infer_request.infer({self.input_layer.any_name: input_tensor})
@@ -457,8 +462,14 @@ class OpenVINOPlugin(DetectorPlugin):
             results = self.infer_request.results
             input_shape = input_tensor.shape[2:]
 
-            # Optimization: Skip mask decoding for tracking (performance)
-            detections, _ = self._postprocess(results, frame.shape, input_shape, decode_masks=False)
+            # Máscaras ficam DESLIGADAS por padrão no caminho de tracking: o
+            # ``process_mask`` + redimensionamento + ``findContours`` roda a
+            # cada frame e só a regra ``seg_overlap`` usa o resultado.
+            detections, masks = self._postprocess(
+                results, frame.shape, input_shape, decode_masks=self._capture_masks
+            )
+            if self._capture_masks:
+                self._frame_masks = list(masks or [])
 
             predictions: list[tuple[int, int, int, int, float, int | None, int]] = []
             for det in detections:
@@ -479,6 +490,12 @@ class OpenVINOPlugin(DetectorPlugin):
         finally:
             if old_conf is not None:
                 self.conf_threshold = old_conf
+
+    def pop_frame_masks(self) -> list[np.ndarray | None]:
+        """Contornos do último ``detect()``; consome o buffer."""
+        masks = self._frame_masks
+        self._frame_masks = []
+        return masks
 
     # Phase 7 — AsyncInferQueue batch inference
     # =========================================================================
@@ -507,6 +524,11 @@ class OpenVINOPlugin(DetectorPlugin):
         """
         if not frames:
             return []
+
+        # O buffer de máscaras é de UM frame. Numa chamada em lote não há
+        # como devolvê-lo alinhado, então ele é zerado: melhor nenhuma máscara
+        # (a análise degrada com aviso) do que a máscara do frame errado.
+        self._frame_masks = []
 
         # Trivial case — avoid async overhead for a single frame
         if len(frames) == 1:

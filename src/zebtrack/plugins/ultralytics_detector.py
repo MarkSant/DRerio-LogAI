@@ -30,6 +30,10 @@ class UltralyticsDetectorPlugin(DetectorPlugin):
             model_path: The path to the .pt model file.
             settings_obj: Settings instance (injected, uses global if None for backward compat).
         """
+        # Contornos do último ``detect()``, alinhados por índice às detecções.
+        # Ver :meth:`DetectorPlugin.pop_frame_masks`.
+        self._frame_masks: list[np.ndarray | None] = []
+
         model_path = str(Path(model_path) if isinstance(model_path, str) else model_path)
         if not ULTRALYTICS_AVAILABLE:
             raise ImportError("Ultralytics is not available. Please install ultralytics package.")
@@ -166,6 +170,7 @@ class UltralyticsDetectorPlugin(DetectorPlugin):
 
         results = self.model.predict(frame, **predict_kwargs)
 
+        self._frame_masks = []
         predictions: list[tuple[int, int, int, int, float, int | None, int]] = []
         if results and results[0].boxes is not None:
             boxes = results[0].boxes
@@ -198,6 +203,9 @@ class UltralyticsDetectorPlugin(DetectorPlugin):
                         class_id,
                     )
                 )
+
+            if self._capture_masks:
+                self._frame_masks = self._extract_masks(results[0], len(predictions))
         else:
             # ✅ DEBUG: Log when model returns no boxes
             log.debug(
@@ -208,6 +216,37 @@ class UltralyticsDetectorPlugin(DetectorPlugin):
             )
 
         return predictions
+
+    @staticmethod
+    def _extract_masks(result: Any, num_predictions: int) -> list[np.ndarray | None]:
+        """Contornos de ``result.masks.xy``, alinhados às ``num_predictions``.
+
+        ``masks.xy`` já vem em pixels do frame ORIGINAL e na mesma ordem de
+        ``result.boxes``, então o alinhamento é por índice. O corte em
+        ``num_predictions`` não é defensivo por hábito: um modelo de
+        segmentação pode devolver máscara órfã (sem box), e ``predict()`` neste
+        mesmo arquivo já trata esse caso — aqui elas não têm detecção a que se
+        associar e são descartadas.
+        """
+        masks = getattr(result, "masks", None)
+        polygons = getattr(masks, "xy", None) if masks is not None else None
+        if polygons is None:
+            return []
+
+        extracted: list[np.ndarray | None] = []
+        for i in range(num_predictions):
+            if i >= len(polygons):
+                extracted.append(None)
+                continue
+            points = np.asarray(polygons[i], dtype=float)
+            extracted.append(points if points.ndim == 2 and len(points) >= 3 else None)
+        return extracted
+
+    def pop_frame_masks(self) -> list[np.ndarray | None]:
+        """Contornos do último ``detect()``; consome o buffer."""
+        masks = self._frame_masks
+        self._frame_masks = []
+        return masks
 
     def predict(
         self, frame: np.ndarray, conf_threshold: float | None = None

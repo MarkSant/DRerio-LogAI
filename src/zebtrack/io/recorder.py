@@ -112,6 +112,18 @@ class Recorder:
         self._parquet_filename: str = ""
         self._last_flush_time: float = 0.0
 
+        # ------------------------------------------------------------------
+        # Sidecar de máscaras de segmentação (``3b_Mascaras_<base>.parquet``)
+        # ------------------------------------------------------------------
+        # Arquivo SEPARADO por contrato: o schema de ``3_CoordMovimento`` é
+        # imutável (CLAUDE.md), e uma coluna binária de geometria não caberia
+        # lá nem "só uma vez". O join no consumo é por ``(frame, track_id)``,
+        # exatamente como o ``6_FrameLedger`` faz por ``frame``.
+        self._persist_masks: bool = False
+        self._mask_data: list[dict[str, Any]] = []
+        self._mask_parquet_writer: pq.ParquetWriter | None = None
+        self._mask_parquet_filename: str = ""
+
         # Multi-aquarium support (Phase 7)
         self._multi_aquarium_mode: bool = False
         self._aquarium_recorders: dict[int, Recorder] = {}
@@ -148,6 +160,10 @@ class Recorder:
                 getattr(performance_settings, "parquet_compression", "snappy")
                 if performance_settings
                 else "snappy"
+            )
+
+            self._persist_masks = bool(
+                getattr(recorder_settings, "persist_masks", False) if recorder_settings else False
             )
 
             # Store fps from settings
@@ -298,6 +314,17 @@ class Recorder:
         self._initial_schema_columns = frozenset(self._parquet_columns)
         self._parquet_filename = os.path.join(
             self.output_folder, f"3_CoordMovimento_{self.base_name}.parquet"
+        )
+        # Nenhum arquivo é criado aqui: o writer do sidecar só nasce no
+        # primeiro flush COM linhas. Uma sessão com ``persist_masks`` ligado
+        # mas sem modelo de segmentação não deixa um parquet vazio para trás.
+        with self._data_lock:
+            self._mask_data = []
+        self._mask_parquet_writer = None
+        self._mask_parquet_filename = (
+            os.path.join(self.output_folder, f"3b_Mascaras_{self.base_name}.parquet")
+            if self._persist_masks
+            else ""
         )
         self._last_flush_time = time.time()
 
@@ -451,6 +478,7 @@ class Recorder:
                 break
             try:
                 self._flush_detection_data()
+                self._flush_mask_data()
             # except Exception justified: long-running worker, never crash recorder
             except Exception as exc:  # pragma: no cover - defensive
                 log.error("recorder.flush_loop.error", error=str(exc), exc_info=True)
@@ -458,6 +486,7 @@ class Recorder:
         if self._flush_drain_on_stop:
             try:
                 self._flush_detection_data(force=True)
+                self._flush_mask_data(force=True)
             # except Exception justified: final drain best-effort
             except Exception as exc:  # pragma: no cover - defensive
                 log.error(
@@ -521,11 +550,19 @@ class Recorder:
 
         if not force_stop:
             self._save_detection_data()
+            # Segundo drenar de propósito: quem grava sem a thread de flush
+            # (chamadores legados, testes que não passam por
+            # ``start_recording``) nunca teve o drenar final do ``_flush_loop``,
+            # e sem isto o sidecar sairia truncado no último bloco.
+            self._flush_mask_data(force=True)
+            self._close_mask_writer()
         else:
             # If forcing stop due to an error, just close writers and clear buffers.
             self._close_parquet_writer()
+            self._close_mask_writer()
             with self._data_lock:
                 self.detection_data.clear()
+                self._mask_data.clear()
             message = reason or "Error during recording."
             if reason and reason.lower().startswith("cancel"):
                 log.info("recorder.stop.forced", reason=message)
@@ -910,6 +947,174 @@ class Recorder:
                 self._flush_signal.set()
         else:
             self._flush_detection_data()
+
+    # =========================================================================
+    # Sidecar de máscaras (``3b_Mascaras_<base>.parquet``)
+    # =========================================================================
+
+    @property
+    def persist_masks(self) -> bool:
+        """Se este recorder grava o sidecar de máscaras."""
+        return self._persist_masks
+
+    @property
+    def mask_parquet_filename(self) -> str:
+        """Caminho do sidecar; string vazia quando a gravação está desligada."""
+        return self._mask_parquet_filename
+
+    def write_mask_data(self, frame_number: int, masks_by_track: dict[int, Any]) -> None:
+        """Enfileira os contornos de um frame para o sidecar.
+
+        Args:
+            frame_number: Mesmo ``frame`` gravado em ``3_CoordMovimento`` — é
+                a metade do join no consumo.
+            masks_by_track: ``track_id`` → pontos ``(N, 2)`` do contorno, em
+                pixels do frame ORIGINAL.
+
+        No-op silencioso quando a persistência está desligada, quando a
+        gravação não está ativa ou em pausa: as três condições valem para o
+        parquet principal, e um sidecar com frames que a trajetória não tem
+        deixaria o join com órfãos.
+        """
+        if not self._persist_masks or not masks_by_track:
+            return
+        if not self.is_recording or self._is_paused:
+            return
+
+        rows: list[dict[str, Any]] = []
+        for track_id, points in masks_by_track.items():
+            normalised_track = self._normalise_track_id(track_id)
+            if normalised_track is None:
+                continue
+            wkb = self._contour_to_wkb(points)
+            if wkb is None:
+                continue
+            rows.append(
+                {
+                    "frame": int(frame_number),
+                    "track_id": normalised_track,
+                    "mask_wkb": wkb,
+                }
+            )
+
+        if not rows:
+            return
+
+        with self._data_lock:
+            self._mask_data.extend(rows)
+            # Mesmo teto do buffer principal: um sidecar que cresce sem limite
+            # derruba o processo tão bem quanto a trajetória.
+            if len(self._mask_data) > self._max_buffer_rows:
+                dropped = len(self._mask_data) - self._max_buffer_rows
+                self._mask_data = self._mask_data[-self._max_buffer_rows :]
+                log.warning("recorder.masks.buffer_capped", dropped_rows=dropped)
+
+    def _contour_to_wkb(self, points: Any) -> bytes | None:
+        """Serializa um contorno para WKB, no MESMO espaço das bboxes.
+
+        A calibração é aplicada ponto a ponto porque as máscaras chegam em
+        pixels do vídeo ORIGINAL, enquanto ``write_detection_data`` já levou as
+        bboxes para o espaço warped. Sem essa transformação a interseção com a
+        ROI seria feita entre geometrias de espaços diferentes — o número
+        sairia, e estaria errado.
+
+        Retorna ``None`` para geometria degenerada (menos de 3 pontos, ou
+        polígono que o Shapely recusa).
+        """
+        # Import preguiçoso: ``shapely`` não faz parte do caminho quente de
+        # gravação quando ``persist_masks`` está desligado, e o
+        # ``RecorderFactory`` existe justamente para não pagar imports que a
+        # sessão não vai usar.
+        from shapely.geometry import Polygon
+
+        try:
+            coords = np.asarray(points, dtype=float)
+        except (TypeError, ValueError):
+            return None
+        if coords.ndim != 2 or coords.shape[1] != 2 or len(coords) < 3:
+            return None
+
+        if self.calibration:
+            transformed = self.calibration.transform_points(coords.tolist())
+            coords = np.asarray(transformed, dtype=float)
+            if coords.ndim != 2 or coords.shape[1] != 2 or len(coords) < 3:
+                return None
+
+        try:
+            polygon = Polygon(coords)
+            if polygon.is_empty:
+                return None
+            # ``buffer(0)`` conserta auto-interseção — contornos de máscara
+            # saem do ``findContours`` e podem se cruzar. Sem isso o polígono
+            # é inválido e a área da interseção lá na análise vem errada.
+            if not polygon.is_valid:
+                polygon = polygon.buffer(0)
+                if polygon.is_empty:
+                    return None
+            return bytes(polygon.wkb)
+        except (ValueError, TypeError) as exc:
+            log.debug("recorder.masks.invalid_geometry", error=str(exc))
+            return None
+
+    def _flush_mask_data(self, force: bool = False) -> None:
+        """Drena o buffer de máscaras para o sidecar.
+
+        Chamado pela MESMA thread de flush do parquet principal, logo depois
+        dele: um segundo writer não-thread-safe compartilhando a única thread
+        que escreve mantém a garantia de serialização sem custo novo.
+        """
+        if not self._persist_masks or not self._mask_parquet_filename:
+            return
+
+        with self._data_lock:
+            if not self._mask_data:
+                return
+            if not force and len(self._mask_data) < self._flush_row_threshold:
+                return
+            snapshot = list(self._mask_data)
+            self._mask_data.clear()
+
+        try:
+            table = pa.table(
+                {
+                    "frame": pa.array([row["frame"] for row in snapshot], type=pa.int64()),
+                    "track_id": pa.array([row["track_id"] for row in snapshot], type=pa.int64()),
+                    "mask_wkb": pa.array([row["mask_wkb"] for row in snapshot], type=pa.binary()),
+                }
+            )
+            if self._mask_parquet_writer is None:
+                self._mask_parquet_writer = pq.ParquetWriter(
+                    self._mask_parquet_filename,
+                    table.schema,
+                    compression=self._parquet_compression,
+                )
+                log.info("recorder.masks.writer_created", path=self._mask_parquet_filename)
+            self._mask_parquet_writer.write_table(table)
+            log.debug("recorder.masks.flush.success", rows=table.num_rows)
+        except Exception as exc:  # pragma: no cover - best effort, nunca derruba a sessão
+            # O sidecar é OPCIONAL: perdê-lo degrada a regra ``seg_overlap``
+            # para ``bbox_intersects`` com aviso no relatório. Derrubar a
+            # gravação por causa dele perderia também a trajetória, que é o
+            # dado insubstituível.
+            log.error(
+                "recorder.masks.flush.error",
+                path=self._mask_parquet_filename,
+                error=str(exc),
+                exc_info=True,
+            )
+
+    def _close_mask_writer(self) -> None:
+        """Fecha o writer do sidecar; remove o arquivo se ficou sem linhas."""
+        if self._mask_parquet_writer is None:
+            return
+        path = self._mask_parquet_filename
+        try:
+            self._mask_parquet_writer.close()
+            log.info("recorder.masks.writer_closed", path=path)
+        except Exception as exc:  # pragma: no cover - best effort close
+            log.error("recorder.masks.writer_close_error", path=path, error=str(exc))
+        finally:
+            self._mask_parquet_writer = None
 
     @staticmethod
     def _normalise_track_id(value: Any) -> int | None:

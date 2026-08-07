@@ -5,12 +5,14 @@ within specific regions of interest (ROIs).
 """
 
 from itertools import combinations
+from pathlib import Path
 from typing import Any, Literal
 
 import networkx as nx
 import numpy as np
 import pandas as pd
 import shapely
+import structlog
 from shapely import affinity, prepare
 from shapely.geometry import Point
 from shapely.geometry.base import BaseGeometry
@@ -20,6 +22,7 @@ from zebtrack.core.services.roi_rule_resolver import (
     DEFAULT_BBOX_OVERLAP_BASIS,
     DEFAULT_BUFFER_RADIUS_VALUE,
     DEFAULT_MIN_BBOX_OVERLAP_RATIO,
+    DEFAULT_MIN_SEG_OVERLAP_RATIO,
     DEFAULT_ROI_FLUTTER_ENTER_FRAMES,
     DEFAULT_ROI_FLUTTER_EXIT_FRAMES,
     DEFAULT_ROI_INCLUSION_RULE,
@@ -37,6 +40,8 @@ from zebtrack.core.services.roi_rule_resolver import (
 # tangência a área é positiva por ruído de ponto flutuante, enquanto o
 # predicado topológico decide pela relação, não pela magnitude.
 _INTERIORS_INTERSECT: str = "T********"
+
+log = structlog.get_logger()
 
 
 def _first_not_none(*candidates: Any) -> Any:
@@ -168,6 +173,8 @@ class ROIAnalyzer:
         min_visit_s: float | None = None,
         min_gap_s: float | None = None,
         max_gap_s: float | None = None,
+        min_seg_overlap_ratio: float | None = None,
+        mask_source: "str | Path | pd.DataFrame | None" = None,
     ):
         """Initialize the ROIAnalyzer.
 
@@ -202,6 +209,15 @@ class ROIAnalyzer:
                 single trajectory step. ``None`` = automatic
                 (``MAX_GAP_AUTO_FACTOR`` × median observed interval);
                 ``math.inf`` = no cap.
+            min_seg_overlap_ratio (float | None): Minimum fraction of the
+                segmentation MASK inside the ROI, for ``seg_overlap`` only.
+                Deliberately separate from ``min_bbox_overlap_ratio``: the two
+                fractions have different denominators and are not comparable.
+            mask_source (str | Path | DataFrame | None): The
+                ``3b_Mascaras_<base>.parquet`` sidecar, as a path or an
+                already-loaded frame. Only read by ``seg_overlap``. Without it
+                that rule DEGRADES to ``bbox_intersects`` and records the
+                downgrade in :attr:`degradation_warnings` — it never raises.
 
         Note:
             Passing ``flutter_enter_frames=1``, ``flutter_exit_frames=1``,
@@ -255,9 +271,15 @@ class ROIAnalyzer:
             min_visit_s=DEFAULT_ROI_MIN_VISIT_S if min_visit_s is None else min_visit_s,
             min_gap_s=DEFAULT_ROI_MIN_GAP_S if min_gap_s is None else min_gap_s,
             max_gap_s=DEFAULT_ROI_MAX_GAP_S if max_gap_s is None else max_gap_s,
+            min_seg_overlap_ratio=(
+                DEFAULT_MIN_SEG_OVERLAP_RATIO
+                if min_seg_overlap_ratio is None
+                else min_seg_overlap_ratio
+            ),
         )
         self._buffer_radius_value = rule_config.buffer_radius_value
         self._min_bbox_overlap_ratio = rule_config.min_bbox_overlap_ratio
+        self._min_seg_overlap_ratio = rule_config.min_seg_overlap_ratio
         self._bbox_overlap_basis = rule_config.bbox_overlap_basis
         self._overlap_any = rule_config.overlap_any
         self._flutter_enter = rule_config.flutter_enter_frames
@@ -283,6 +305,18 @@ class ROIAnalyzer:
         self._view: pd.DataFrame = self._trajectory
         self._buffered_rois_cache: dict[str, Any] = {}  # Cache for buffered ROI geometries
         self._roi_geometries_px = self._normalize_roi_geometries()
+
+        # Máscaras alinhadas ÀS LINHAS da trajetória (uma geometria por linha,
+        # ``None`` onde não há máscara), montadas uma única vez: o join por
+        # ``(frame, track_id)`` custa o mesmo para uma ROI ou para dez.
+        self._mask_geometries: np.ndarray | None = None
+        # Avisos de degradação para o relatório. Lista, não booleano: o leitor
+        # precisa do MOTIVO ("sem sidecar" e "sidecar sem interseção com a
+        # trajetória" pedem ações diferentes do pesquisador).
+        self._degradation_warnings: list[str] = []
+        if self._inclusion_rule == "seg_overlap":
+            self._mask_geometries = self._load_mask_geometries(mask_source)
+
         self._validate_rois()
         self._calculate_presence_in_rois()
 
@@ -738,7 +772,7 @@ class ROIAnalyzer:
         elif self._inclusion_rule == "bbox_intersects":
             return self._calculate_bbox_intersects(roi_geometry, x_coords, y_coords)
         elif self._inclusion_rule == "seg_overlap":
-            return self._calculate_seg_overlap(roi_geometry)
+            return self._calculate_seg_overlap(roi_geometry, x_coords, y_coords)
         else:
             raise ValueError(f"Unknown inclusion rule: {self._inclusion_rule}")
 
@@ -841,16 +875,221 @@ class ROIAnalyzer:
 
         return pd.Series(raw_presence_np, index=self._trajectory.index)
 
-    def _calculate_seg_overlap(self, roi_geometry: BaseGeometry) -> pd.Series:
-        """Calculate presence based on segmentation mask overlap."""
-        # Check for segmentation data columns
-        # Note: We don't persist segmentation masks in this PR,
-        # so this will always error
-        raise ValueError(
-            "Regra seg_overlap requer dados de segmentação que não estão "
-            "disponíveis neste dataset. "
-            "Por favor, selecione outra regra de inclusão (centroid_in, "
-            "centroid_in_on_buffered_roi, ou bbox_intersects)."
+    def _calculate_seg_overlap(
+        self, roi_geometry: BaseGeometry, x_coords: np.ndarray, y_coords: np.ndarray
+    ) -> pd.Series:
+        """Presença pela fração da MÁSCARA de segmentação dentro da ROI.
+
+        ``área(máscara ∩ ROI) / área(máscara)``. O denominador é sempre a
+        máscara — não há a escolha de base que ``bbox_intersects`` oferece,
+        porque aqui ela não faz sentido: a máscara já é o animal, e dividir
+        pela área da ROI responderia "que fração da ROI o animal cobre", uma
+        pergunta diferente.
+
+        Sem máscaras utilizáveis a regra DEGRADA para ``bbox_intersects``, com
+        aviso registrado. Nunca levanta: a análise inteira não pode morrer por
+        causa de um sidecar ausente.
+        """
+        if self._mask_geometries is None:
+            return self._calculate_bbox_intersects(roi_geometry, x_coords, y_coords)
+
+        masks = self._mask_geometries
+        prepare(roi_geometry)
+
+        # Vetorizado sobre TODAS as linhas, inclusive as sem máscara: o
+        # ``shapely`` propaga ``None`` como ``None`` nas operações e o
+        # ``nan_to_num`` fecha a conta. Um laço Python por linha aqui custaria
+        # uma ordem de grandeza a mais numa trajetória de 100k frames.
+        intersections = shapely.intersection(roi_geometry, masks)
+        intersection_areas = shapely.area(intersections)
+        mask_areas = shapely.area(masks)
+
+        with np.errstate(divide="ignore", invalid="ignore"):
+            ratios = np.nan_to_num(intersection_areas / mask_areas, nan=0.0, posinf=0.0, neginf=0.0)
+
+        # Máscara ausente (``None`` → área ``nan`` → razão 0) fica FORA da ROI
+        # em vez de herdar o resultado da bbox. Misturar as duas regras linha a
+        # linha produziria uma série que não corresponde a critério nenhum.
+        raw_presence_np = ratios >= self._min_seg_overlap_ratio
+        return pd.Series(raw_presence_np, index=self._trajectory.index)
+
+    @property
+    def degradation_warnings(self) -> list[str]:
+        """Avisos de degradação da regra, para o relatório.
+
+        Vazia quando a regra configurada rodou como configurada. O
+        ``AnalysisService`` concatena isto em ``validation_warnings``, que o
+        relatório imprime no apêndice de validação.
+        """
+        return list(self._degradation_warnings)
+
+    def _load_mask_geometries(self, mask_source: Any) -> np.ndarray | None:
+        """Máscaras do sidecar, alinhadas às LINHAS da trajetória.
+
+        Retorna ``None`` — o sinal de degradação — quando não há sidecar
+        utilizável. Cada motivo vira um aviso em
+        :attr:`degradation_warnings` e um log ``roi.seg_overlap.fallback``,
+        porque "o relatório saiu" e "o relatório saiu com a regra que você
+        escolheu" são coisas diferentes e o pesquisador precisa saber qual das
+        duas aconteceu.
+        """
+        # Máscaras JÁ alinhadas: é como o analisador interno de Centro/Periferia
+        # recebe as do analisador que o criou. Ele roda sobre a MESMA
+        # trajetória, então refazer o join daria exatamente o mesmo array por
+        # um segundo passe de parsing de WKB.
+        if isinstance(mask_source, np.ndarray):
+            if len(mask_source) == len(self._trajectory):
+                return mask_source
+            self._degrade(
+                "alinhamento_invalido",
+                "As máscaras pré-alinhadas não têm o mesmo número de linhas da trajetória.",
+            )
+            return None
+
+        masks_df = self._read_mask_frame(mask_source)
+        if masks_df is None:
+            return None
+
+        required = {"frame", "track_id", "mask_wkb"}
+        missing = required - set(masks_df.columns)
+        if missing:
+            self._degrade(
+                "colunas_ausentes",
+                f"O sidecar de máscaras não tem as colunas {sorted(missing)}.",
+            )
+            return None
+
+        if "frame" not in self._trajectory.columns:
+            self._degrade(
+                "trajetoria_sem_frame",
+                "A trajetória analisada não tem a coluna 'frame', que é metade "
+                "da chave de junção com as máscaras.",
+            )
+            return None
+
+        from shapely import wkb as shapely_wkb
+
+        # Chave (frame, track_id) → geometria. O sidecar pode ter mais frames
+        # que a trajetória (a análise pode ser um recorte), então o dicionário
+        # é construído a partir DELE e consultado pela trajetória, nunca o
+        # contrário.
+        geometries: dict[tuple[int, int], Any] = {}
+        invalid = 0
+        for frame_no, track_id, payload in zip(
+            masks_df["frame"].to_numpy(),
+            masks_df["track_id"].to_numpy(),
+            masks_df["mask_wkb"].to_numpy(),
+            strict=False,
+        ):
+            if payload is None or (isinstance(payload, float) and np.isnan(payload)):
+                continue
+            try:
+                geometry = shapely_wkb.loads(bytes(payload))
+            # except Exception justificado: ``shapely`` levanta ``GEOSException``
+            # (que NÃO é ``ValueError``) para WKB corrompido, e a lista de
+            # exceções concretas do GEOS não é estável entre versões. Uma linha
+            # ilegível do sidecar não pode derrubar a análise inteira.
+            except Exception:
+                invalid += 1
+                continue
+            if geometry is None or geometry.is_empty:
+                continue
+            geometries[(int(frame_no), int(track_id))] = geometry
+
+        if not geometries:
+            self._degrade(
+                "sidecar_vazio",
+                "O sidecar de máscaras não contém nenhuma geometria válida.",
+            )
+            return None
+
+        frames = self._trajectory["frame"].to_numpy()
+        if "track_id" in self._trajectory.columns:
+            tracks = self._trajectory["track_id"].to_numpy()
+        else:
+            # Sem coluna de track a trajetória é de um animal só; o sidecar
+            # ainda assim grava um ``track_id``, então a junção usa o único
+            # valor presente para aquele frame.
+            tracks = np.full(len(self._trajectory), -1)
+
+        aligned: list[Any] = []
+        matched = 0
+        for frame_no, track_id in zip(frames, tracks, strict=False):
+            if pd.isna(frame_no):
+                aligned.append(None)
+                continue
+            key = (int(frame_no), int(track_id) if not pd.isna(track_id) else -1)
+            geometry = geometries.get(key)
+            if geometry is None and key[1] == -1:
+                geometry = next(
+                    (geom for (f, _t), geom in geometries.items() if f == key[0]),
+                    None,
+                )
+            if geometry is not None:
+                matched += 1
+            aligned.append(geometry)
+
+        if matched == 0:
+            self._degrade(
+                "sem_correspondencia",
+                "Nenhuma máscara do sidecar corresponde a (frame, track_id) da "
+                "trajetória analisada.",
+            )
+            return None
+
+        log.info(
+            "roi.seg_overlap.masks_loaded",
+            rows=len(self._trajectory),
+            matched=matched,
+            invalid=invalid,
+            coverage=round(matched / max(1, len(self._trajectory)), 4),
+        )
+        return np.array(aligned, dtype=object)
+
+    def _read_mask_frame(self, mask_source: Any) -> pd.DataFrame | None:
+        """Normaliza ``mask_source`` para um DataFrame, ou ``None`` com aviso."""
+        if mask_source is None:
+            self._degrade(
+                "sidecar_ausente",
+                "A regra 'seg_overlap' foi selecionada mas nenhum sidecar de "
+                "máscaras (3b_Mascaras_*.parquet) foi informado. Grave com "
+                "recorder.persist_masks ligado e um modelo de segmentação "
+                "(model_selection.animal_method='seg').",
+            )
+            return None
+
+        if isinstance(mask_source, pd.DataFrame):
+            if mask_source.empty:
+                self._degrade("sidecar_vazio", "O sidecar de máscaras está vazio.")
+                return None
+            return mask_source
+
+        path = Path(mask_source)
+        if not path.exists():
+            self._degrade(
+                "sidecar_ausente",
+                f"O sidecar de máscaras não existe em '{path}'. Dados gravados "
+                "antes desta funcionalidade, ou com recorder.persist_masks "
+                "desligado, não o têm.",
+            )
+            return None
+
+        try:
+            masks_df = pd.read_parquet(path)
+        except Exception as exc:  # except Exception justificado: degradar, nunca falhar
+            self._degrade("sidecar_ilegivel", f"O sidecar '{path}' não pôde ser lido: {exc}")
+            return None
+
+        if masks_df.empty:
+            self._degrade("sidecar_vazio", f"O sidecar '{path}' não tem linhas.")
+            return None
+        return masks_df
+
+    def _degrade(self, reason: str, detail: str) -> None:
+        """Registra a queda de ``seg_overlap`` para ``bbox_intersects``."""
+        log.warning("roi.seg_overlap.fallback", reason=reason, detail=detail)
+        self._degradation_warnings.append(
+            f"Regra de ROI 'seg_overlap' degradada para 'bbox_intersects': {detail}"
         )
 
     def get_time_spent_in_rois(self) -> dict[str, dict[str, float]]:
@@ -1300,6 +1539,12 @@ class ROIAnalyzer:
             min_visit_s=self._min_visit_s,
             min_gap_s=self._min_gap_s,
             max_gap_s=self._max_gap_s,
+            min_seg_overlap_ratio=self._min_seg_overlap_ratio,
+            # As máscaras já resolvidas seguem junto: sem isto, Centro e
+            # Periferia degradariam para ``bbox_intersects`` num relatório cuja
+            # análise de ROI rodou com ``seg_overlap``, e o mesmo relatório
+            # traria dois números respondendo a critérios diferentes.
+            mask_source=self._mask_geometries,
         )
 
         # Gather all results

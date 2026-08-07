@@ -134,6 +134,17 @@ timestamp, frame, track_id, x1, y1, x2, y2, confidence,
 - Zones stored in reference coordinates (`camera.desired_width × camera.desired_height`). **Must call `Detector.set_zones()` after video dimensions known** to rescale.
 - Arena: "4 corners OR center" logic.
 - ROI modes: `centroid_in`, `centroid_in_on_buffered_roi`, `bbox_intersects`, `seg_overlap`.
+- **`seg_overlap` needs masks that only exist if they were RECORDED.** It reads the
+  `3b_Mascaras_<base>.parquet` sidecar, written only when all three hold:
+  `recorder.persist_masks` **and** `model_selection.animal_method == "seg"` **and**
+  the effective rule is `seg_overlap`. That conjunction lives in exactly one place —
+  `core/services/mask_capture.should_capture_masks()`; never re-derive it at a call site.
+- **Missing masks DEGRADE, never raise.** `seg_overlap` falls back to `bbox_intersects`,
+  logs `roi.seg_overlap.fallback` and appends to `ROIAnalyzer.degradation_warnings`, which
+  `AnalysisService` merges into `validation_warnings` **before** reports are generated.
+  Its threshold is `roi_min_seg_overlap_ratio` (default 0.3) — **not**
+  `roi_min_bbox_overlap_ratio` (0.10): the denominators differ (mask vs. bbox), so the
+  two fractions are not comparable.
 - Full guide: [`docs/reference/COORDINATE_SYSTEMS.md`](docs/reference/COORDINATE_SYSTEMS.md).
 
 ### 🐟 Multi-Aquarium (CRITICAL)
@@ -226,6 +237,7 @@ Pattern: `domain.action.result`.
   1_ArenaROI_<video>.parquet          # Arena/ROI definitions
   2_Zones_<video>.parquet             # Zone metadata
   3_CoordMovimento_<video>.parquet    # Trajectory (immutable schema)
+  3b_Mascaras_<video>.parquet         # Segmentation masks (only with recorder.persist_masks)
   <video>_summary.xlsx                # Metrics per ROI
   <video>_report.docx                 # Word report with plots
 ```
