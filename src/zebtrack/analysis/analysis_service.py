@@ -197,6 +197,23 @@ class AnalysisService:
                 stats=validation_stats,
             )
 
+        # Multi-animal é uma mudança de SEMÂNTICA do relatório, não um detalhe
+        # de implementação: o número já existia em `unique_tracks` e só era
+        # impresso como estatística neutra. Vira aviso porque o leitor precisa
+        # saber que os números de ROI passaram a ser de OCUPAÇÃO da região, e
+        # que os números por animal estão noutra chave.
+        unique_tracks = int(validation_stats.get("unique_tracks", 1) or 1)
+        if unique_tracks > 1:
+            validation_warnings.append(
+                f"Trajetória com {unique_tracks} animais (track_ids). As métricas de ROI "
+                "no topo do relatório são de OCUPAÇÃO da região (semântica any_track: "
+                "a ROI conta como ocupada enquanto qualquer animal estiver dentro). "
+                "As métricas por animal estão em 'analise_roi.por_animal'. As métricas "
+                "de comportamento geral que dependem da ORDEM dos frames "
+                "(curvas_acentuadas) agrupam todos os animais e devem ser lidas com "
+                "cautela."
+            )
+
         smoothing_cfg = self.settings.trajectory_smoothing
         window_length = (
             smoothing_window_length
@@ -346,6 +363,14 @@ class AnalysisService:
             # do teto de dt). Fica no relatório para o pesquisador saber quanto
             # da sessão os números por ROI simplesmente não cobrem.
             "tempo_nao_observado_s": r_analyzer.unobserved_time_s,
+            # Semântica das chaves ACIMA. Com um único animal `any_track` e
+            # "por animal" coincidem — a chave existe para o leitor não ter de
+            # adivinhar qual dos dois está lendo.
+            "semantica": "any_track",
+            "n_animais": len(r_analyzer.track_keys) if r_analyzer.is_multi_track else 1,
+            # Cálculo primário: cada animal com a sua própria série de presença.
+            # O bloco acima é a agregação disto.
+            "por_animal": r_analyzer.get_metrics_by_track(),
         }
         report["log_eventos"] = r_analyzer.get_event_log().to_dict("records")
 

@@ -126,3 +126,156 @@ class TestRoiEntryExitInvariants:
             # Finishing inside (entry without exit) or starting inside then leaving
             # (exit without entry) differ by at most one.
             assert abs(int(entries[name]) - int(exits[name])) <= 1
+
+
+def _multi_track_roi_analyzer(
+    xs_a: list[float],
+    ys_a: list[float],
+    xs_b: list[float],
+    ys_b: list[float],
+) -> ROIAnalyzer:
+    """Same fixture as ``_roi_analyzer``, but with TWO animals interleaved.
+
+    The rows alternate track 1 / track 2 on identical timestamps -- the exact
+    arrangement in which a global ``.diff()`` alternates between subjects.
+    """
+    n = len(xs_a)
+    rows = []
+    for i in range(n):
+        timestamp = i / 30.0
+        for track_id, x, y in ((1, xs_a[i], ys_a[i]), (2, xs_b[i], ys_b[i])):
+            rows.append(
+                {
+                    "timestamp": timestamp,
+                    "track_id": track_id,
+                    "x_center_px": x,
+                    "y_center_px": y,
+                    "x1": x - 5,
+                    "y1": y - 5,
+                    "x2": x + 5,
+                    "y2": y + 5,
+                }
+            )
+
+    b_analyzer = ConcreteBehavioralAnalyzer(
+        trajectory_df=pd.DataFrame(rows),
+        pixelcm_x=10.0,
+        pixelcm_y=10.0,
+        video_height_px=_FRAME,
+        arena_polygon_px=_ARENA_PX,
+        fps=30.0,
+        window_length=1,
+        polyorder=0,
+    )
+    return ROIAnalyzer(
+        behavior_analyzer=b_analyzer,
+        rois=_ROIS,
+        flutter_n_frames=1,
+        inclusion_rule="centroid_in",
+    )
+
+
+@pytest.mark.property
+class TestMultiTrackRoiInvariants:
+    """The same physical invariants must hold for EACH animal, not just the group.
+
+    A group aggregate can look sane while an individual series is nonsense: a
+    percentage above 100 % for one animal would be invisible in an ``any_track``
+    occupancy number that saturates at 100 % anyway.
+    """
+
+    @given(
+        xs_a=st.lists(_px, min_size=6, max_size=25),
+        ys_a=st.lists(_px, min_size=6, max_size=25),
+        xs_b=st.lists(_px, min_size=6, max_size=25),
+        ys_b=st.lists(_px, min_size=6, max_size=25),
+    )
+    @settings(max_examples=25, database=None)
+    def test_per_track_time_percentage_bounded(
+        self,
+        xs_a: list[float],
+        ys_a: list[float],
+        xs_b: list[float],
+        ys_b: list[float],
+    ) -> None:
+        n = min(len(xs_a), len(ys_a), len(xs_b), len(ys_b))
+        analyzer = _multi_track_roi_analyzer(xs_a[:n], ys_a[:n], xs_b[:n], ys_b[:n])
+
+        for metrics in analyzer.get_metrics_by_track().values():
+            for stats in metrics["tempo_gasto_por_roi"].values():
+                assert stats["seconds"] >= 0.0
+                assert -1e-9 <= stats["percentage"] <= 100.0 + 1e-9
+
+    @given(
+        xs_a=st.lists(_px, min_size=6, max_size=25),
+        ys_a=st.lists(_px, min_size=6, max_size=25),
+        xs_b=st.lists(_px, min_size=6, max_size=25),
+        ys_b=st.lists(_px, min_size=6, max_size=25),
+    )
+    @settings(max_examples=25, database=None)
+    def test_per_track_disjoint_roi_time_sum_within_session(
+        self,
+        xs_a: list[float],
+        ys_a: list[float],
+        xs_b: list[float],
+        ys_b: list[float],
+    ) -> None:
+        n = min(len(xs_a), len(ys_a), len(xs_b), len(ys_b))
+        analyzer = _multi_track_roi_analyzer(xs_a[:n], ys_a[:n], xs_b[:n], ys_b[:n])
+
+        for metrics in analyzer.get_metrics_by_track().values():
+            total_pct = sum(
+                stats["percentage"] for stats in metrics["tempo_gasto_por_roi"].values()
+            )
+            assert total_pct <= 100.0 + 1e-9
+
+    @given(
+        xs_a=st.lists(_px, min_size=6, max_size=25),
+        ys_a=st.lists(_px, min_size=6, max_size=25),
+        xs_b=st.lists(_px, min_size=6, max_size=25),
+        ys_b=st.lists(_px, min_size=6, max_size=25),
+    )
+    @settings(max_examples=25, database=None)
+    def test_per_track_entries_exits_balanced(
+        self,
+        xs_a: list[float],
+        ys_a: list[float],
+        xs_b: list[float],
+        ys_b: list[float],
+    ) -> None:
+        n = min(len(xs_a), len(ys_a), len(xs_b), len(ys_b))
+        analyzer = _multi_track_roi_analyzer(xs_a[:n], ys_a[:n], xs_b[:n], ys_b[:n])
+
+        for metrics in analyzer.get_metrics_by_track().values():
+            for name in ("A", "B"):
+                entries = int(metrics["contagem_entradas"][name])
+                exits = int(metrics["contagem_saidas"][name])
+                assert entries >= 0
+                assert exits >= 0
+                assert abs(entries - exits) <= 1
+
+    @given(
+        xs_a=st.lists(_px, min_size=6, max_size=25),
+        ys_a=st.lists(_px, min_size=6, max_size=25),
+        xs_b=st.lists(_px, min_size=6, max_size=25),
+        ys_b=st.lists(_px, min_size=6, max_size=25),
+    )
+    @settings(max_examples=25, database=None)
+    def test_group_occupancy_dominates_each_animal(
+        self,
+        xs_a: list[float],
+        ys_a: list[float],
+        xs_b: list[float],
+        ys_b: list[float],
+    ) -> None:
+        """``any_track`` is an OR: occupancy can never be shorter than one animal's stay."""
+        n = min(len(xs_a), len(ys_a), len(xs_b), len(ys_b))
+        analyzer = _multi_track_roi_analyzer(xs_a[:n], ys_a[:n], xs_b[:n], ys_b[:n])
+
+        group = analyzer.get_time_spent_in_rois()
+        for metrics in analyzer.get_metrics_by_track().values():
+            for name in ("A", "B"):
+                assert (
+                    group[name]["percentage"]
+                    >= metrics["tempo_gasto_por_roi"][name]["percentage"] - 1e-9
+                )
