@@ -725,3 +725,58 @@ def test_recorder_verify_parquet_integrity(tmp_path):
 
     # Missing file
     assert Recorder._verify_parquet_integrity(str(tmp_path / "nonexistent.parquet")) is False
+
+
+# =============================================================================
+# Sidecar de máscaras — o schema IMUTÁVEL de 3_CoordMovimento não muda
+# =============================================================================
+
+
+def test_immutable_schema_unchanged_by_mask_feature(recorder_setup):
+    """As colunas de ``3_CoordMovimento`` seguem exatamente as de sempre.
+
+    O sidecar de máscaras existe justamente para NÃO tocar neste schema, que é
+    imutável por contrato de projeto (CLAUDE.md). Este teste é a guarda: se
+    alguém "só acrescentar uma coluninha" de geometria aqui, ele quebra.
+    """
+    recorder, output_folder, frame_width, frame_height = recorder_setup
+    recorder._persist_masks = True
+
+    from zebtrack.core.detection import ZoneData
+
+    recorder.start_recording(
+        output_folder, frame_width, frame_height, zones=ZoneData(), is_video_file=True
+    )
+    recorder.write_detection_data(0.0, 0, [(1, 1, 5, 5, 0.9, 1, 1)])
+    recorder.write_mask_data(0, {1: np.array([[0.0, 0.0], [4.0, 0.0], [4.0, 4.0]])})
+    recorder.stop_recording()
+
+    base_name = os.path.basename(output_folder)
+    trajectory = pd.read_parquet(
+        os.path.join(output_folder, f"3_CoordMovimento_{base_name}.parquet")
+    )
+
+    assert list(trajectory.columns) == [
+        "timestamp",
+        "frame",
+        "track_id",
+        "x1",
+        "y1",
+        "x2",
+        "y2",
+        "confidence",
+        "uncertainty",
+        "bbox_iou",
+        "x_center_px",
+        "y_center_px",
+    ]
+    assert "mask_wkb" not in trajectory.columns
+    # E a máscara foi para o arquivo separado.
+    assert os.path.exists(os.path.join(output_folder, f"3b_Mascaras_{base_name}.parquet"))
+
+
+def test_persist_masks_defaults_to_off(recorder_setup):
+    """O padrão é NÃO gravar máscaras: custo zero para quem não usa seg_overlap."""
+    recorder, _output_folder, _w, _h = recorder_setup
+    assert recorder.persist_masks is False
+    assert recorder.mask_parquet_filename == ""

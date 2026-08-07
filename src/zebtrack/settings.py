@@ -203,6 +203,16 @@ class RecorderSettings(BaseModel):
         ge=1,
         description="Number of detection rows buffered before forcing a flush.",
     )
+    persist_masks: bool = Field(
+        False,
+        description=(
+            "Persist segmentation masks to the 3b_Mascaras_<base>.parquet sidecar. "
+            "Required by the seg_overlap ROI rule, which has no other source of "
+            "masks. Costs nothing when disabled: no mask is decoded in the "
+            "tracking path and no file is created. Only takes effect with a "
+            "segmentation model (model_selection.animal_method == 'seg')"
+        ),
+    )
 
 
 class YOLOModelSettings(BaseModel):
@@ -1079,6 +1089,19 @@ class Settings(BaseModel):
             "Minimum overlap fraction required for bbox_intersects or "
             "seg_overlap. For bbox_intersects, 0.0 means the pure predicate: "
             "any non-zero overlap area counts (tangency does not)"
+        ),
+    )
+    roi_min_seg_overlap_ratio: float = Field(
+        default=0.3,
+        gt=0.0,
+        le=1.0,
+        description=(
+            "Minimum fraction of the SEGMENTATION MASK that must fall inside "
+            "the ROI for seg_overlap. Deliberately NOT roi_min_bbox_overlap_ratio: "
+            "the mask is already the animal, with none of the empty corners a "
+            "bbox drags along, so a defensible threshold is much higher than the "
+            "bbox one (0.10). Zero is not accepted — a mask that merely touches "
+            "the ROI is not an animal inside it"
         ),
     )
     roi_flutter_enter_frames: int = Field(

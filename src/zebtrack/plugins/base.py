@@ -15,6 +15,13 @@ class DetectorPlugin(ABC):
     conf_threshold: float = 0.25
     nms_threshold: float = 0.45
 
+    #: Captura de máscaras no caminho de TRACKING. Desligada por padrão porque
+    #: decodificar a máscara custa tempo de inferência a cada frame e só a
+    #: regra ``seg_overlap`` consome o resultado. Enquanto for ``False``,
+    #: nenhum decode acontece — é isso que garante o custo zero prometido por
+    #: ``recorder.persist_masks``.
+    _capture_masks: bool = False
+
     @abstractmethod
     def __init__(self, model_path: Path | str, **kwargs):
         """
@@ -62,6 +69,31 @@ class DetectorPlugin(ABC):
         """
         pass
 
+    def set_mask_capture(self, enabled: bool) -> None:
+        """Liga ou desliga o decode de máscaras no caminho de tracking.
+
+        Um plugin sem modelo de segmentação aceita a chamada e simplesmente não
+        produz máscara nenhuma: quem decide se a regra é aplicável é a camada
+        de análise, que já sabe degradar para ``bbox_intersects``. Falhar aqui
+        transformaria uma configuração inconsistente numa exceção no meio da
+        gravação.
+        """
+        self._capture_masks = bool(enabled)
+
+    def pop_frame_masks(self) -> list[np.ndarray | None]:
+        """Contornos do ÚLTIMO ``detect()``, alinhados por índice às detecções.
+
+        Consome o buffer: uma segunda chamada sem novo ``detect()`` devolve
+        lista vazia. É deliberado — devolver de novo o frame anterior faria
+        máscaras velhas serem gravadas com o ``track_id`` de outro frame, que
+        é exatamente o erro que este sidecar existe para não cometer.
+
+        Cada elemento é um ``ndarray`` ``(N, 2)`` de pontos em pixels do FRAME
+        ORIGINAL, ou ``None`` quando aquela detecção não produziu contorno.
+        A implementação padrão nunca captura nada.
+        """
+        return []
+
     def detect_batch(
         self,
         frames: list[np.ndarray],
@@ -79,4 +111,14 @@ class DetectorPlugin(ABC):
         Returns:
             List of detection lists, one per input frame.
         """
-        return [self.detect(frame, conf_threshold=conf_threshold) for frame in frames]
+        results = [self.detect(frame, conf_threshold=conf_threshold) for frame in frames]
+        if len(frames) > 1:
+            # Sobraria a máscara do ÚLTIMO frame, que um ``pop_frame_masks``
+            # posterior atribuiria ao lote inteiro. Ver a mesma decisão em
+            # ``OpenVINOPlugin.detect_batch``.
+            self._drop_frame_masks()
+        return results
+
+    def _drop_frame_masks(self) -> None:
+        """Descarta o buffer de máscaras (no-op quando não há captura)."""
+        self.pop_frame_masks()

@@ -11,6 +11,7 @@ from zebtrack.core.services.roi_rule_resolver import (
     DEFAULT_BBOX_OVERLAP_BASIS,
     DEFAULT_BUFFER_RADIUS_VALUE,
     DEFAULT_MIN_BBOX_OVERLAP_RATIO,
+    DEFAULT_MIN_SEG_OVERLAP_RATIO,
     DEFAULT_ROI_FLUTTER_ENTER_FRAMES,
     DEFAULT_ROI_FLUTTER_EXIT_FRAMES,
     DEFAULT_ROI_INCLUSION_RULE,
@@ -545,7 +546,7 @@ def test_resolver_defaults_match_settings_defaults():
     de ``zebtrack``): referenciar as constantes no ``Field(default=...)``
     puxaria ``zebtrack.core.services.__init__`` — que carrega ``DetectorService``
     e importa ``zebtrack.settings`` de volta. Este teste é a guarda que torna a
-    duplicação segura, e cobre as NOVE chaves de ROI, não só as temporais.
+    duplicação segura, e cobre as DEZ chaves de ROI, não só as temporais.
     """
     from zebtrack.settings import Settings
 
@@ -553,6 +554,7 @@ def test_resolver_defaults_match_settings_defaults():
         "roi_inclusion_rule": DEFAULT_ROI_INCLUSION_RULE,
         "roi_buffer_radius_value": DEFAULT_BUFFER_RADIUS_VALUE,
         "roi_min_bbox_overlap_ratio": DEFAULT_MIN_BBOX_OVERLAP_RATIO,
+        "roi_min_seg_overlap_ratio": DEFAULT_MIN_SEG_OVERLAP_RATIO,
         "roi_bbox_overlap_basis": DEFAULT_BBOX_OVERLAP_BASIS,
         "roi_flutter_enter_frames": DEFAULT_ROI_FLUTTER_ENTER_FRAMES,
         "roi_flutter_exit_frames": DEFAULT_ROI_FLUTTER_EXIT_FRAMES,
@@ -571,6 +573,7 @@ def test_config_defaults_match_the_dataclass_defaults():
         "roi_inclusion_rule": DEFAULT_ROI_INCLUSION_RULE,
         "roi_buffer_radius_value": DEFAULT_BUFFER_RADIUS_VALUE,
         "roi_min_bbox_overlap_ratio": DEFAULT_MIN_BBOX_OVERLAP_RATIO,
+        "roi_min_seg_overlap_ratio": DEFAULT_MIN_SEG_OVERLAP_RATIO,
         "roi_bbox_overlap_basis": DEFAULT_BBOX_OVERLAP_BASIS,
         "roi_flutter_enter_frames": DEFAULT_ROI_FLUTTER_ENTER_FRAMES,
         "roi_flutter_exit_frames": DEFAULT_ROI_FLUTTER_EXIT_FRAMES,

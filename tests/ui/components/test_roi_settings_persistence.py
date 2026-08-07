@@ -47,14 +47,17 @@ PAYLOAD = payloads.RoiSettingsApplyPayload(
 )
 
 #: O painel grava a config RESOLVIDA INTEIRA, então toda expectativa de dict
-#: precisa incluir os campos temporais. Ficam num só lugar: um campo novo em
-#: ``RoiRuleConfig`` passa a exigir uma edição, não seis.
+#: precisa incluir os campos que ele NÃO edita. Ficam num só lugar: um campo
+#: novo em ``RoiRuleConfig`` passa a exigir uma edição, não seis.
 TIMING_DEFAULTS = {
     "roi_flutter_enter_frames": 2,
     "roi_flutter_exit_frames": 3,
     "roi_min_visit_s": 0.2,
     "roi_min_gap_s": 0.0,
     "roi_max_gap_s": None,
+    # Limiar de ``seg_overlap``: sem campo no painel (como os temporais), mas
+    # persistido junto para que a regra encontre o valor quando for escolhida.
+    "roi_min_seg_overlap_ratio": 0.3,
 }
 
 

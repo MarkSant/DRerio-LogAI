@@ -85,10 +85,67 @@ class SingleDetector:
         self._byte_tracker: BYTETracker | None = None
         self._byte_tracker_params: tuple[float, float, int, float, float, bool, bool] | None = None
 
+        # Máscaras do frame corrente, indexadas pela bbox JÁ no espaço do frame
+        # inteiro. A bbox é a chave porque ela é o único identificador que
+        # sobrevive intacto ao caminho todo: recorte, filtro de polígono,
+        # correção de classe e ByteTrack preservam as coordenadas da detecção
+        # (o rastreador reemite a bbox ORIGINAL, não a do Kalman). Uma lista
+        # paralela, ao contrário, se desalinharia no primeiro filtro.
+        self._frame_mask_index: dict[tuple[int, int, int, int], np.ndarray] = {}
+
         # Dynamic class ID resolution
         self.aquarium_class_id, self.animal_class_id = DetectionPostProcessor.resolve_class_ids(
             plugin
         )
+
+    # =========================================================================
+    # Captura de máscaras de segmentação (regra ROI ``seg_overlap``)
+    # =========================================================================
+
+    def set_mask_capture(self, enabled: bool) -> None:
+        """Propaga a captura de máscaras para o plugin."""
+        setter = getattr(self.plugin, "set_mask_capture", None)
+        if callable(setter):
+            setter(enabled)
+        elif enabled:
+            log.warning(
+                "single_detector.mask_capture.unsupported_plugin",
+                plugin=type(self.plugin).__name__,
+            )
+
+    @staticmethod
+    def _mask_key(x1: Any, y1: Any, x2: Any, y2: Any) -> tuple[int, int, int, int]:
+        """Chave da bbox no índice de máscaras.
+
+        Trunca com ``int()`` dos dois lados — o mesmo que o rastreador aplica
+        ao montar a tupla final — para que a busca não erre por um bbox que
+        chegou como ``float`` na indexação e como ``int`` na consulta.
+        """
+        return (int(x1), int(y1), int(x2), int(y2))
+
+    def pop_track_masks(self, detections: list[tuple]) -> dict[int, np.ndarray]:
+        """Máscaras do último ``detect()``, agora chaveadas por ``track_id``.
+
+        Consome o índice: as máscaras valem para UM frame, e devolvê-las de
+        novo gravaria o contorno de um frame com o ``track_id`` de outro.
+
+        Uma detecção sem máscara correspondente simplesmente não entra no
+        resultado — é o caso do rastreador que emitiu uma predição do Kalman
+        sem detecção casada, onde não existe contorno para aquele frame.
+        """
+        index = self._frame_mask_index
+        self._frame_mask_index = {}
+        if not index:
+            return {}
+
+        by_track: dict[int, np.ndarray] = {}
+        for det in detections:
+            if len(det) < 6 or det[5] is None:
+                continue
+            contour = index.get(self._mask_key(det[0], det[1], det[2], det[3]))
+            if contour is not None:
+                by_track[int(det[5])] = contour
+        return by_track
 
     # =========================================================================
     # Properties — backward compatibility
@@ -291,6 +348,7 @@ class SingleDetector:
 
         cropped_frame, crop_x1, crop_y1 = crop_info
         raw_detections = self.plugin.detect(cropped_frame, conf_threshold=conf_threshold)
+        self._index_frame_masks(raw_detections, crop_x1, crop_y1)
 
         predictions = DetectionPostProcessor.offset_detections(raw_detections, crop_x1, crop_y1)
 
@@ -335,6 +393,37 @@ class SingleDetector:
             return tracked, None
 
         return self.track(predictions, project_type)
+
+    def _index_frame_masks(self, raw_detections: list[tuple], crop_x1: int, crop_y1: int) -> None:
+        """Indexa os contornos do frame pela bbox no espaço do frame inteiro.
+
+        As máscaras saem do plugin no espaço do RECORTE (o plugin só viu o
+        frame recortado), então levam o mesmo deslocamento que
+        ``offset_detections`` aplica às caixas. Sem isso a máscara ficaria
+        deslocada da ROI pelo tamanho da margem do recorte.
+        """
+        self._frame_mask_index = {}
+        popper = getattr(self.plugin, "pop_frame_masks", None)
+        if not callable(popper):
+            return
+
+        masks = popper()
+        if not masks:
+            return
+
+        offset = np.array([float(crop_x1), float(crop_y1)], dtype=float)
+        for det, contour in zip(raw_detections, masks, strict=False):
+            if contour is None or len(contour) < 3:
+                # Menos de 3 pontos não fecha polígono. Descartar aqui é o que
+                # mantém o sidecar com geometria sempre válida.
+                continue
+            points = np.asarray(contour, dtype=float)
+            if points.ndim != 2 or points.shape[1] != 2:
+                continue
+            key = self._mask_key(
+                det[0] + crop_x1, det[1] + crop_y1, det[2] + crop_x1, det[3] + crop_y1
+            )
+            self._frame_mask_index[key] = points + offset
 
     def track(self, predictions: list[tuple], project_type: str) -> tuple[list[tuple], str | None]:
         """Track objects across frames using configured tracker.

@@ -79,6 +79,12 @@ recorder:
   # Auto-flush detection data to disk periodically to prevent data loss
   flush_interval_seconds: 5.0  # Flush every N seconds
   flush_row_threshold: 500     # Or when N detections buffered (whichever comes first)
+  # Persist segmentation masks to the 3b_Mascaras_<base>.parquet sidecar.
+  # Required by the "seg_overlap" ROI rule, which has no other source of masks.
+  # Costs NOTHING while False: no mask is decoded and no file is created. Only
+  # takes effect with a segmentation model (model_selection.animal_method: "seg").
+  # See docs/guides/developer/performance-tuning.md § 1.1 for the measured cost.
+  persist_masks: false
 
 # -----------------------------------------------------------------------------
 # YOLO Model Settings (Object Detection)
@@ -280,7 +286,8 @@ roi_buffer_radius_value: 0.5
 # can never drift from the ones the analysis actually uses — uncomment only to
 # override them.
 #
-# Minimum overlap fraction for "bbox_intersects" and "seg_overlap" (0.0-1.0).
+# Minimum overlap fraction for "bbox_intersects" (0.0-1.0), and for the
+# "bbox_intersects" FALLBACK that "seg_overlap" uses when masks are missing.
 # Default: 0.10. For "bbox_intersects" only, 0.0 has a meaning of its own —
 # any non-zero overlap area counts, with no minimum fraction (a bounding box
 # merely touching the ROI border does NOT count).
@@ -293,6 +300,15 @@ roi_buffer_radius_value: 0.5
 #     to the animal's bounding box, where "bbox" under-reports badly (a bbox 4x
 #     the ROI area covering 100% of the ROI still only scores 0.25).
 # roi_bbox_overlap_basis: "bbox"
+#
+# Minimum fraction of the SEGMENTATION MASK inside the ROI, for "seg_overlap"
+# only. Default: 0.3. This is a SEPARATE field from roi_min_bbox_overlap_ratio
+# on purpose: the denominator there is a bounding box (which drags along the
+# empty corners around the animal), here it is the mask itself (which IS the
+# animal). The two fractions are not comparable, so neither can default to the
+# other — 0.10 of a mask is a much stricter overlap than 0.10 of a bbox.
+# Zero is not accepted: a mask merely touching the ROI is not an animal inside.
+# roi_min_seg_overlap_ratio: 0.3
 
 # -----------------------------------------------------------------------------
 # ROI Presence Debounce and Duration Filters

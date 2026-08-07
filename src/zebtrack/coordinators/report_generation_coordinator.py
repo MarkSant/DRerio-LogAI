@@ -18,6 +18,7 @@ from typing import TYPE_CHECKING, Any
 
 import structlog
 
+from zebtrack.analysis.analysis_service import resolve_mask_sidecar
 from zebtrack.analysis.roi import ROI
 from zebtrack.analysis.roi_builder import build_roi_from_polygon
 from zebtrack.coordinators._unified_report_mixin import UnifiedReportMixin
@@ -396,6 +397,7 @@ class ReportGenerationCoordinator(BaseCoordinator, UnifiedReportMixin):
             video_path=video_path_report,
             frame_crop_box=None,
             behavioral_config=analysis_params.get("behavioral_config"),
+            mask_sidecar_path=resolve_mask_sidecar(traj_path),
         )
 
         report_paths = self._export_individual_outputs(analysis_result, str(results_path), exp_id)
