@@ -26,7 +26,20 @@ import structlog
 
 log = structlog.get_logger()
 
-__all__ = ["ExternalTriggerDecision", "decide_external_trigger"]
+__all__ = ["ExternalTriggerDecision", "decide_external_trigger", "normalize_arduino_port"]
+
+
+def normalize_arduino_port(value: object) -> str:
+    """Extrai a porta como texto limpo, tolerando tipos inesperados.
+
+    ``(data.get("arduino_port") or "").strip()`` parece seguro e não é: um JSON
+    de projeto editado à mão com ``"arduino_port": 3`` faz ``3 or ""`` devolver
+    o int, e ``.strip()`` levanta ``AttributeError`` — no caminho de INICIAR
+    gravação. O gate existe para degradar, não para explodir.
+    """
+    if value is None:
+        return ""
+    return str(value).strip()
 
 
 class ExternalTriggerDecision(Enum):
@@ -101,8 +114,5 @@ def decide_external_trigger(
                 log.warning("external_trigger_gate.rejected.arduino_offline")
                 return ExternalTriggerDecision.REJECT_ARDUINO_OFFLINE
 
-    log.info(
-        "external_trigger_gate.armed",
-        port=(data.get("arduino_port") or "").strip(),
-    )
+    log.info("external_trigger_gate.armed", port=normalize_arduino_port(data.get("arduino_port")))
     return ExternalTriggerDecision.ARM_AND_WAIT

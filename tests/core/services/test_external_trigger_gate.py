@@ -13,6 +13,7 @@ import pytest
 from zebtrack.core.services.external_trigger_gate import (
     ExternalTriggerDecision,
     decide_external_trigger,
+    normalize_arduino_port,
 )
 
 
@@ -115,3 +116,29 @@ class TestConnectivityCheck:
         manager = SimpleNamespace(is_connected=lambda: False)
         data = {"external_trigger_mode": False, "use_arduino": True}
         assert decide_external_trigger(data, manager) is ExternalTriggerDecision.PROCEED
+
+
+class TestPortNormalization:
+    """``(x or "").strip()`` parece seguro e não é: um JSON com
+    ``"arduino_port": 3`` faz ``3 or ""`` devolver o int, e ``.strip()``
+    levanta AttributeError — no caminho de INICIAR gravação."""
+
+    @pytest.mark.parametrize(
+        ("raw", "expected"),
+        [
+            ("COM3", "COM3"),
+            ("  COM3  ", "COM3"),
+            ("", ""),
+            (None, ""),
+            (3, "3"),
+            (3.0, "3.0"),
+            (["COM3"], "['COM3']"),
+        ],
+    )
+    def test_normalize_never_raises(self, raw, expected):
+        assert normalize_arduino_port(raw) == expected
+
+    def test_gate_survives_non_string_port(self):
+        """O gate deve ARMAR normalmente, não explodir, com porta numérica."""
+        data = {"external_trigger_mode": True, "use_arduino": True, "arduino_port": 3}
+        assert decide_external_trigger(data) is ExternalTriggerDecision.ARM_AND_WAIT

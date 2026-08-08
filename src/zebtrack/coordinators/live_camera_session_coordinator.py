@@ -1923,6 +1923,7 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
         from zebtrack.core.services.external_trigger_gate import (
             ExternalTriggerDecision,
             decide_external_trigger,
+            normalize_arduino_port,
         )
 
         decision = decide_external_trigger(project_data, self._arduino_manager())
@@ -1941,7 +1942,7 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
                 experiment_id=context.get("experiment_id"),
             )
             if self.event_bus is not None:
-                port = ((project_data or {}).get("arduino_port") or "").strip()
+                port = normalize_arduino_port((project_data or {}).get("arduino_port"))
                 if offline:
                     message = (
                         "Este projeto usa Modo de Gatilho Externo, mas o Arduino "
@@ -1974,7 +1975,7 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
 
         # ARM_AND_WAIT
         self._pending_trigger_context = dict(context)
-        port = ((project_data or {}).get("arduino_port") or "").strip()
+        port = normalize_arduino_port((project_data or {}).get("arduino_port"))
         log.info(
             "live_camera_session_coordinator.external_trigger.armed",
             experiment_id=context.get("experiment_id"),

@@ -20,10 +20,40 @@ from zebtrack.core.services.session_duration_resolver import (
 
 
 class TestKeyBuilding:
-    @pytest.mark.parametrize("day", [1, "1", "Dia_1", "D1"])
+    @pytest.mark.parametrize(
+        "day",
+        [1, "1", "Dia_1", "D1", "Dia_01", "Dia 1", "dia_1", "D01", " Dia_1 "],
+    )
     def test_day_formats_normalize_to_same_key(self, day):
-        """O codebase carrega os três formatos de dia; a chave tem de ser uma só."""
+        r"""O codebase carrega TODAS estas variantes; a chave tem de ser uma só.
+
+        O zero à esquerda não é hipotético: ``OutputRegistrationManager
+        ._format_day_component`` monta pastas com ``f"{day_number:02d}"`` (daí
+        ``Dia_01``), e ``metadata_manager`` já precisa de ``^Dia_0*(\d+)$`` para
+        desfazer. Sem a mesma tolerância aqui, um override gravado pela UI
+        (``Dia_1``) nunca casaria com uma consulta vinda do registro de saída.
+        """
         assert duration_override_key(day, "Controle", "3") == "Dia_1|Controle|3"
+
+    def test_zero_padded_day_resolves_the_same_override(self):
+        """O caso que realmente importa: gravar com um formato e ler com outro."""
+        data = {"recording_duration_s": 300.0}
+        set_duration_override(data, 1, "Controle", "3", 900.0)
+
+        assert resolve_session_duration(data, "Dia_01", "Controle", "3") == 900.0
+        assert resolve_session_duration(data, "Dia_1", "Controle", "3") == 900.0
+        assert resolve_session_duration(data, 1, "Controle", "3") == 900.0
+
+    def test_canonical_wire_format_is_pinned(self):
+        """A chave é formato de PERSISTÊNCIA: mudá-la invalida projetos salvos."""
+        assert duration_override_key(1, "Controle", "3") == "Dia_1|Controle|3"
+        assert block_override_key(1, "Controle") == "Dia_1|Controle|*"
+
+    def test_unrecognisable_day_does_not_raise(self):
+        """Cai no default em vez de explodir no meio de uma gravação."""
+        key = duration_override_key("semana que vem", "Controle", "3")
+        assert key == "semana que vem|Controle|3"
+        assert resolve_session_duration({}, "semana que vem", "Controle", "3") == 300.0
 
     def test_block_key_uses_wildcard_subject(self):
         assert block_override_key(2, "Tratado") == f"Dia_2|Tratado|{SUBJECT_WILDCARD}"

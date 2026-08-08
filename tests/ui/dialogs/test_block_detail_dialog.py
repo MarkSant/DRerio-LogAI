@@ -17,6 +17,7 @@ from unittest.mock import MagicMock, patch
 import pandas as pd
 from docx import Document
 
+from zebtrack.core.services.session_duration_resolver import duration_override_key
 from zebtrack.ui.dialogs.block_detail_dialog import BlockDetailDialog
 
 
@@ -227,7 +228,7 @@ def test_start_session_passes_resolved_duration():
     )
     dialog.project_manager.project_data = {
         "recording_duration_s": 300.0,
-        "session_duration_overrides": {"Dia_1|Controle|1": 900.0},
+        "session_duration_overrides": {duration_override_key(1, "Controle", "1"): 900.0},
     }
 
     dialog.start_session("1")
@@ -272,7 +273,7 @@ def test_heterogeneous_duration_warning_lists_distinct_durations(tmp_path):
     dialog = _build_partial_report_dialog(tmp_path)
     dialog.project_manager.project_data = {
         "recording_duration_s": 300.0,
-        "session_duration_overrides": {"Dia_1|Controle|2": 900.0},
+        "session_duration_overrides": {duration_override_key(1, "Controle", "2"): 900.0},
     }
 
     warning = dialog._heterogeneous_duration_warning(["1", "2"])

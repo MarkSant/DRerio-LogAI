@@ -56,21 +56,42 @@ SUBJECT_WILDCARD: Final[str] = "*"
 
 
 def _normalize_day(day: object) -> str:
-    """Normaliza ``1``, ``"1"`` e ``"Dia_1"`` para ``"Dia_1"``.
+    """Normaliza qualquer variante de dia usada no codebase para ``"Dia_N"``.
 
-    Valor irreconhecível volta como texto limpo — a chave simplesmente não vai
-    casar com nada, que é o comportamento correto (cai no default) e não uma
-    exceção no meio de uma gravação.
+    Casos cobertos, todos reais neste projeto:
+
+    * ``1`` / ``"1"`` — ``BlockDetailDialog.day_num`` e a grade;
+    * ``"Dia_1"`` — ``metadata["day"]``, montado com ``f"Dia_{day}"``;
+    * ``"Dia_01"`` — pastas de saída, que usam ``f"{day_number:02d}"``
+      (``OutputRegistrationManager._format_day_component``). ``metadata_manager``
+      já precisa de ``^Dia_0*(\\d+)$`` para desfazer isso; sem a mesma tolerância
+      aqui, o override gravado pela UI (``Dia_1``) nunca casaria com uma consulta
+      vinda do registro de saída (``Dia_01``);
+    * ``"Dia 1"`` / ``"D1"`` — variantes de separador e prefixo curto.
+
+    **O zero à esquerda é descartado**: ``Dia_01`` e ``Dia_1`` são o MESMO dia e
+    precisam da mesma chave, senão o override some conforme o call site.
+
+    Valor irreconhecível volta como texto limpo — a chave não casa com nada, que
+    é o correto (cai no default) e não uma exceção no meio de uma gravação.
     """
     text = str(day).strip()
     if not text:
         return ""
-    if text.startswith("Dia_"):
-        return text
-    if text.startswith("D") and text[1:].isdigit():
-        return f"Dia_{text[1:]}"
-    if text.isdigit():
-        return f"Dia_{text}"
+
+    # Descasca o prefixo (``Dia``/``D``) e o separador (``_``, espaço, ``-``).
+    core = text
+    for prefix in ("dia", "d"):
+        if core.lower().startswith(prefix):
+            candidate = core[len(prefix) :].lstrip("_- ")
+            if candidate.isdigit():
+                core = candidate
+                break
+
+    if core.isdigit():
+        # ``int()`` remove o zero à esquerda: "01" e "1" viram o mesmo dia.
+        return f"Dia_{int(core)}"
+
     return text
 
 

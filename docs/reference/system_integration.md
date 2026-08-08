@@ -1036,18 +1036,33 @@ did nothing: the session started immediately, ignoring the Arduino. The rule now
 lives in `core/services/external_trigger_gate.py` and both paths consult it:
 
 ```python
-decide_external_trigger(project_data) -> ExternalTriggerDecision
-# PROCEED | ARM_AND_WAIT | REJECT_NO_ARDUINO
+decide_external_trigger(project_data, arduino_manager=None) -> ExternalTriggerDecision
+# PROCEED | ARM_AND_WAIT | REJECT_NO_ARDUINO | REJECT_ARDUINO_OFFLINE
 ```
 
 The function is pure (no I/O, no events) — each coordinator translates the
 decision into its own pending state and UI events. `use_arduino` is the source of
-truth for availability; a saved `arduino_port` with `use_arduino` false means the
+truth for *intent*; a saved `arduino_port` with `use_arduino` false means the
 user disabled the hardware, not that hardware exists.
 
-`REJECT_NO_ARDUINO` **refuses the session** rather than recording blind. The
-protocol was designed around synchronisation with an external event; a recording
-started at the wrong instant is useless data that only surfaces at analysis time.
+Both rejections **refuse the session** rather than recording blind. The protocol
+was designed around synchronisation with an external event; a recording started
+at the wrong instant is useless data that only surfaces at analysis time.
+
+The two rejections are distinct because the user's next action differs:
+
+| Decision | Condition | User must |
+| -------- | --------- | --------- |
+| `REJECT_NO_ARDUINO` | trigger on, `use_arduino` off | configure the Arduino, or turn the trigger off |
+| `REJECT_ARDUINO_OFFLINE` | trigger on, `use_arduino` on, port **not open** | check the cable / free the port, reopen the project |
+
+The offline check matters because `initialize_live_components` warns "executando
+em modo offline" when `connect` fails and then **opens the project anyway** with
+`use_arduino=True`. Checking intent alone would arm a session that waits forever
+for a signal with no way to arrive — the worst outcome, because it looks like it
+is working. Pass `arduino_manager` to enable the check; without it the gate
+degrades to the config-only decision, and a probe that raises never blocks a
+recording.
 
 Gate order in `start_live_project_session` is **zones first, trigger second**. The
 polygon is operator work and must be finished before we sit waiting for a signal,

@@ -249,6 +249,8 @@ class RecordingSessionCoordinator(BaseCoordinator):
             os.makedirs(output_folder, exist_ok=True)
 
             # Setup Arduino if needed
+            from zebtrack.core.services.external_trigger_gate import normalize_arduino_port
+
             project_data = project_data or self.project_manager.project_data or {}
             arduino_enabled = bool(project_data.get("use_arduino"))
 
@@ -260,7 +262,7 @@ class RecordingSessionCoordinator(BaseCoordinator):
                 "folder_name": folder_name,
                 "output_folder": output_folder,
                 "arduino_enabled": arduino_enabled,
-                "arduino_port": (project_data.get("arduino_port") or "").strip(),
+                "arduino_port": normalize_arduino_port(project_data.get("arduino_port")),
             }
 
             # Inject camera dimensions AND index into context (if camera available)
@@ -482,7 +484,12 @@ class RecordingSessionCoordinator(BaseCoordinator):
                 dentro do gate, para os dois caminhos concordarem sempre.
 
         Returns:
-            bool: True if waiting for trigger (stop processing), False if proceed
+            bool: **True = não prossiga com a gravação agora.** Cobre DOIS
+            desfechos diferentes — sessão armada aguardando o sinal, e sessão
+            recusada (sem Arduino ou Arduino offline). O call site só precisa
+            saber que deve parar; qual dos dois foi, e a mensagem
+            correspondente, já foram publicados como evento de UI aqui dentro.
+            False = gatilho desligado, siga para a gravação normalmente.
         """
         from zebtrack.core.services.external_trigger_gate import (
             ExternalTriggerDecision,

@@ -1,139 +1,142 @@
-# Modo de Gatilho Externo (Live Projects)
+# External Trigger Mode (Live Projects)
 
-Como fazer o **Arduino dar a partida na gravação** em vez do operador clicar.
-Use quando o início da gravação precisa coincidir com um evento externo — um
-estímulo, a abertura de um portão, um botão do próprio setup, outro equipamento.
+How to make the **Arduino start the recording** instead of the operator clicking.
+Use it when the start of a recording must coincide with an external event — a
+stimulus, a gate opening, a button on your own rig, another instrument.
 
-Este documento cobre o gatilho de **entrada** (Arduino → DRerio: "comece agora").
-Para o sentido oposto — DRerio → Arduino, ligar um LED quando o animal entra numa
-ROI — veja [`arduino-bindings.md`](arduino-bindings.md). Os dois são
-independentes e podem ser usados juntos.
+This document covers the **inbound** trigger (Arduino → DRerio: "start now").
+For the opposite direction — DRerio → Arduino, lighting an LED when the animal
+enters a ROI — see [`arduino-bindings.md`](arduino-bindings.md). The two are
+independent and can be used together.
 
-## Preciso disso? (resposta curta: provavelmente não)
+## Do I need this? (short answer: probably not)
 
-**Não. O modo é OPT-IN e vem desligado.** Se você não marcar a caixa, nada muda:
-a gravação começa quando você clica em "Iniciar", exatamente como sempre. Nenhum
-Arduino é exigido, nada trava, nenhum aviso aparece.
+**No. The mode is OPT-IN and ships disabled.** If you leave the box unticked
+nothing changes: recording starts when you click "Iniciar", exactly as before.
+No Arduino is required, nothing blocks, no warning appears.
 
-Marcar "Usar Arduino" **também não** liga o gatilho — são duas caixas separadas.
-Você pode usar o Arduino só para os comandos por zona e continuar iniciando as
-gravações na mão. Ao desmarcar "Usar Arduino", o gatilho é desmarcado junto e
-fica desabilitado.
+Ticking **"Usar Arduino"** does **not** enable the trigger either — they are two
+separate checkboxes. You can use the Arduino purely for per-zone commands and
+keep starting recordings by hand. Unticking "Usar Arduino" clears and disables
+the trigger checkbox along with it.
 
-## O contrato: o sketch precisa FALAR
+## The contract: your sketch must SPEAK
 
-Este é o ponto onde a maioria dos setups falha:
+This is where most setups fail:
 
-> **O sketch de referência que acompanha o projeto NÃO serve para o gatilho.**
-> Ele só *recebe* tokens (comandos por zona) — nunca *envia* nada numérico. Se
-> você ligar o gatilho e gravar com ele, a sessão vai esperar para sempre.
+> **The reference sketch shipped with this project does NOT work for the
+> trigger.** It only *receives* tokens (per-zone commands) — it never *sends*
+> anything numeric. Enable the trigger and record with it, and the session will
+> wait forever.
 
-O DRerio escuta a serial continuamente e interpreta **linhas numéricas** vindas
-do dispositivo:
+DRerio listens on the serial port continuously and interprets **numeric lines**
+coming from the device:
 
-| O Arduino envia | O DRerio faz |
-| --------------- | ------------ |
-| `1` | Inicia a gravação que está armada |
-| `0` | Encerra a gravação em curso (ou desarma a espera) |
-| qualquer outro número | Registra no log e ignora |
-| texto (ex.: `Red LED 1 ON`) | Tratado como ACK/mensagem, **nunca** como gatilho |
+| Arduino sends | DRerio does |
+| ------------- | ----------- |
+| `1` | Starts the armed recording |
+| `0` | Stops the running recording (or disarms the wait) |
+| any other number | Logged and ignored |
+| text (e.g. `Red LED 1 ON`) | Treated as an ACK/message, **never** as a trigger |
 
-A distinção número/texto é o que separa gatilho de ACK. `Serial.println(1)`
-dispara a gravação; `Serial.println("1 ON")` não.
+That number-vs-text distinction is what separates a trigger from an ACK.
+`Serial.println(1)` fires the recording; `Serial.println("1 ON")` does not.
 
-## Sketch mínimo
+## Minimal sketch
 
-Um botão no pino 2 que inicia a gravação ao ser pressionado:
+A button on pin 2 that starts the recording when pressed:
 
 ```cpp
-const int BOTAO_INICIO = 2;
-int ultimoEstado = HIGH;
-unsigned long ultimoDebounce = 0;
+const int START_BUTTON = 2;
+int lastState = HIGH;
+unsigned long lastDebounce = 0;
 const unsigned long DEBOUNCE_MS = 50;
 
 void setup() {
-  // INPUT_PULLUP, nunca INPUT: um pino flutuante dispara sozinho.
-  pinMode(BOTAO_INICIO, INPUT_PULLUP);
-  Serial.begin(9600);   // precisa bater com arduino.baud_rate
+  // INPUT_PULLUP, never INPUT: a floating pin triggers by itself.
+  pinMode(START_BUTTON, INPUT_PULLUP);
+  Serial.begin(9600);   // must match arduino.baud_rate
 }
 
 void loop() {
-  // Nunca use delay() aqui — ele bloqueia a leitura da serial pelo tempo todo.
-  int estado = digitalRead(BOTAO_INICIO);
+  // Never use delay() here — it blocks the serial read for its full duration.
+  int state = digitalRead(START_BUTTON);
 
-  if (estado != ultimoEstado && (millis() - ultimoDebounce) > DEBOUNCE_MS) {
-    ultimoDebounce = millis();
-    if (estado == LOW) {          // pressionado (pull-up: LOW = fechado)
-      Serial.println(1);          // NUMERO puro -> o DRerio grava
+  if (state != lastState && (millis() - lastDebounce) > DEBOUNCE_MS) {
+    lastDebounce = millis();
+    if (state == LOW) {          // pressed (pull-up: LOW = closed)
+      Serial.println(1);         // bare NUMBER -> DRerio starts recording
     }
-    ultimoEstado = estado;
+    lastState = state;
   }
 }
 ```
 
-Para encerrar por hardware, envie `Serial.println(0)` do mesmo jeito. Se você não
-enviar `0`, a gravação termina normalmente pela duração configurada.
+To stop from hardware, send `Serial.println(0)` the same way. If you never send
+`0`, the recording ends normally at its configured duration.
 
-## Passo a passo
+## Step by step
 
-1. **No wizard** (etapa 3, "Configuração de Gravação ao Vivo"):
-   - marque **"Usar Arduino para sincronização"** — a porta é detectada e
-     pré-selecionada sozinha (o app prefere a que responde ao handshake e tem
-     "Arduino" na descrição);
-   - clique em **"Testar"** para confirmar que a porta abre;
-   - marque **"Modo de Gatilho Externo (External Trigger)"**.
-2. **Termine o wizard** normalmente e abra o projeto. A porta é aberta no load.
-3. **Na grade de Progresso**, clique numa cobaia e em **"▶️ Iniciar"**.
-   - A gravação **não** começa. Aparece o aviso
-     **"Aguardando sinal externo... (porta COMx)"**.
-   - As zonas são pedidas ANTES dessa espera — o polígono precisa estar pronto
-     antes de ficarmos aguardando o sinal.
-4. **Acione o gatilho**. Ao receber `1`, a gravação começa.
+1. **In the wizard** (step 3, "Configuração de Gravação ao Vivo"):
+   - tick **"Usar Arduino para sincronização"** — the port is detected and
+     preselected automatically (the app prefers the one that answers the
+     handshake and has "Arduino" in its description);
+   - click **"Testar"** to confirm the port opens;
+   - tick **"Modo de Gatilho Externo (External Trigger)"**.
+2. **Finish the wizard** and open the project. The port is opened at load time.
+3. **In the Progress grid**, click a subject and then **"▶️ Iniciar"**.
+   - Recording does **not** start. The notice
+     **"Aguardando sinal externo... (porta COMx)"** appears.
+   - Zones are requested BEFORE this wait — the polygon must be ready before we
+     sit waiting for a signal.
+4. **Fire the trigger.** On receiving `1`, recording begins.
 
-## Configuração da porta
+## Port configuration
 
-Por máquina, em [`config.local.yaml`](../../../config.local.yaml):
+Per machine, in [`config.local.yaml`](../../../config.local.yaml):
 
 ```yaml
 arduino:
-  port: 'COM3'        # COM3 no Windows, /dev/ttyACM0 no Linux
-  baud_rate: 9600     # precisa bater com o Serial.begin() do sketch
-  handshake: none     # 'none' (padrão) = conectado assim que a porta abre
-  ack: none           # 'none' (padrão) = não espera resposta "OK"
+  port: 'COM3'        # COM3 on Windows, /dev/ttyACM0 on Linux
+  baud_rate: 9600     # must match the sketch's Serial.begin()
+  handshake: none     # 'none' (default) = connected as soon as the port opens
+  ack: none           # 'none' (default) = do not wait for an "OK" reply
 ```
 
-`handshake: ready_line` exige que o sketch imprima `Arduino is ready.` no boot.
-Com o padrão `none`, basta a porta abrir.
+`handshake: ready_line` requires the sketch to print `Arduino is ready.` on boot.
+With the default `none`, opening the port is enough.
 
-## Quando a gravação é RECUSADA
+## When the recording is REFUSED
 
-Com o gatilho ligado, o DRerio prefere recusar a sessão a gravar na hora errada —
-uma gravação fora de sincronia é dado inútil que só se descobre na análise.
+With the trigger enabled, DRerio prefers refusing the session over recording at
+the wrong moment — an out-of-sync recording is useless data that only surfaces at
+analysis time.
 
-| Situação | Mensagem | O que fazer |
-| -------- | -------- | ----------- |
-| Gatilho ligado, **"Usar Arduino" desligado** | "…exige um Arduino configurado" | Ligue o Arduino no projeto, ou desligue o gatilho |
-| Gatilho ligado, Arduino ligado, **porta não conectada** | "…o Arduino não está conectado (porta COMx)" | Verifique o cabo e se a porta não está tomada por outro programa; reabra o projeto |
+| Situation | Message | What to do |
+| --------- | ------- | ---------- |
+| Trigger on, **"Usar Arduino" off** | "…exige um Arduino configurado" | Enable the Arduino in the project, or turn the trigger off |
+| Trigger on, Arduino on, **port not connected** | "…o Arduino não está conectado (porta COMx)" | Check the cable and that no other program holds the port; reopen the project |
 
-O segundo caso é comum e silencioso: se o cabo estiver solto quando você abre o
-projeto, aparece um aviso de "modo offline" e o projeto abre assim mesmo. Sem
-essa recusa, a sessão armaria e esperaria um sinal que não tem por onde chegar.
+The second case is common and quiet: if the cable is loose when you open the
+project, a "modo offline" warning appears and the project opens anyway. Without
+this refusal the session would arm and wait for a signal that has no way to
+arrive.
 
-## Solução de problemas
+## Troubleshooting
 
-| Sintoma | Causa provável |
-| ------- | -------------- |
-| Fica em "Aguardando sinal externo" para sempre | O sketch não envia número puro. `Serial.println("1")` com aspas é texto, não gatilho — confira no Monitor Serial da IDE |
-| Nada acontece e nem o aviso aparece | O gatilho não está marcado no projeto; confira em "Config. Avançadas"/JSON do projeto |
-| "Não foi possível conectar" ao abrir o projeto | Porta ocupada pelo Monitor Serial da IDE do Arduino — feche-o (só um programa por porta) |
-| Dispara sozinho, sem tocar em nada | Pino do botão declarado como `INPUT` em vez de `INPUT_PULLUP` — pino flutuante oscila |
-| Dispara com muito atraso | `delay()` dentro do `loop()`. Use `millis()` |
-| O DRerio loga o evento mas não grava | Nenhuma sessão armada. O `1` só vale depois do "▶️ Iniciar"; antes disso é registrado e ignorado |
+| Symptom | Likely cause |
+| ------- | ------------ |
+| Stuck on "Aguardando sinal externo" forever | The sketch is not sending a bare number. `Serial.println("1")` with quotes is text, not a trigger — check in the IDE's Serial Monitor |
+| Nothing happens and no notice appears | The trigger is not enabled in the project; check "Config. Avançadas" / the project JSON |
+| "Não foi possível conectar" when opening the project | Port held by the Arduino IDE's Serial Monitor — close it (one program per port) |
+| Fires on its own, untouched | Button pin declared as `INPUT` instead of `INPUT_PULLUP` — a floating pin oscillates |
+| Fires with a long delay | `delay()` inside `loop()`. Use `millis()` |
+| DRerio logs the event but does not record | No session armed. The `1` only counts after "▶️ Iniciar"; before that it is logged and ignored |
 
-## Referências
+## References
 
-- [`arduino-bindings.md`](arduino-bindings.md) — o sentido oposto (ROI → dispositivo)
-- [`system_integration.md`](../../reference/system_integration.md) § 5.11 — arquitetura do gate
-- `scripts/ard_sketch/Program_Final/Program_Final.ino` — sketch de referência dos
-  comandos por zona (**não** implementa o gatilho; use-o como base e acrescente
-  o `Serial.println(1)` acima)
+- [`arduino-bindings.md`](arduino-bindings.md) — the opposite direction (ROI → device)
+- [`system_integration.md`](../../reference/system_integration.md) § 5.11 — gate architecture
+- `scripts/ard_sketch/Program_Final/Program_Final.ino` — reference sketch for
+  per-zone commands (**does not** implement the trigger; use it as a base and add
+  the `Serial.println(1)` shown above)
