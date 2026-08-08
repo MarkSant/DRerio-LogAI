@@ -238,7 +238,9 @@ Pattern: `domain.action.result`.
   2_Zones_<video>.parquet             # Zone metadata
   3_CoordMovimento_<video>.parquet    # Trajectory (immutable schema)
   3b_Mascaras_<video>.parquet         # Segmentation masks (only with recorder.persist_masks)
-  <video>_summary.xlsx                # Metrics per ROI
+  <video>_summary.xlsx                # Sheet1: metrics per ROI; por_animal: long table
+                                      #   (experiment x track_id x roi), written only
+                                      #   when per-animal metrics exist
   <video>_report.docx                 # Word report with plots
 ```
 

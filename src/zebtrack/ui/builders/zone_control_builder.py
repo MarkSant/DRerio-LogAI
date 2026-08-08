@@ -110,11 +110,17 @@ class ZoneControlBuilder:
                 self.gui.overlap_frame.pack(fill="x", pady=2)
             if hasattr(self.gui, "overlap_help_label") and self.gui.overlap_help_label:
                 self.gui.overlap_help_label.config(
-                    text="Requer dados de máscara. Se não houver, selecione outra regra."
+                    text="Fração da MÁSCARA do animal dentro da ROI (não do bbox). "
+                    "Sem máscaras gravadas a análise cai para 'bbox_intersects'."
                 )
             help_text = (
                 "Considera dentro com base na sobreposição da máscara do animal "
-                "com a ROI. Requer segmentação; mais preciso e mais custoso."
+                "com a ROI; mais preciso e mais custoso. Exige, ALÉM desta regra: "
+                "recorder.persist_masks ligado (grava o sidecar "
+                "3b_Mascaras_<video>.parquet, no editor de configurações) e "
+                "model_selection.animal_method = 'seg' (modelo de segmentação). "
+                "Faltando qualquer um, a análise degrada para 'bbox_intersects' "
+                "e avisa no relatório."
             )
         else:
             help_text = ""

@@ -2,7 +2,7 @@
 Tests for ConfigEditorWidget component.
 """
 
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 import pytest
 
@@ -266,3 +266,63 @@ def test_detection_summary_visibility_can_toggle(config_widget):
     config_widget.set_detection_summary_visible(True)
 
     assert config_widget._detection_summary_frame.winfo_manager() == "pack"
+
+
+def test_persist_masks_round_trip(config_widget):
+    """``recorder.persist_masks`` é lido e escrito pelo formulário.
+
+    Sem widget, a única forma de habilitar o pré-requisito de ``seg_overlap``
+    era editar ``config.yaml`` à mão.
+    """
+    assert config_widget.get_values()["recorder"]["persist_masks"] is False
+
+    config_widget.set_values({"recorder": {"persist_masks": True}})
+
+    assert config_widget.persist_masks_var.get() is True
+    assert config_widget.get_values()["recorder"]["persist_masks"] is True
+
+    config_widget.set_values({"recorder": {"persist_masks": False}})
+
+    assert config_widget.get_values()["recorder"]["persist_masks"] is False
+
+
+def test_persist_masks_help_names_the_other_two_prerequisites(tkinter_root, event_bus):
+    """A ajuda avisa que ligar só esta chave não habilita ``seg_overlap``.
+
+    Os textos são capturados na construção porque o tooltip vive num objeto
+    ``ToolTip`` que o label não referencia de volta.
+    """
+    import zebtrack.ui.components.config_editor as config_editor_module
+
+    captured: list[str] = []
+    real_create_help_label = config_editor_module.create_help_label
+
+    def _spy(parent, text):
+        captured.append(text)
+        return real_create_help_label(parent, text)
+
+    with patch.object(config_editor_module, "create_help_label", _spy):
+        ConfigEditorWidget(tkinter_root, event_bus=event_bus)
+    tkinter_root.update_idletasks()
+
+    persist_help = [t for t in captured if "persist_masks" in t]
+    assert persist_help, "nenhuma ajuda menciona persist_masks"
+    assert any("animal_method" in t and "seg_overlap" in t for t in persist_help)
+
+
+def test_seg_overlap_warning_appears_only_when_masks_are_off(config_widget):
+    """Selecionar ``seg_overlap`` com máscaras desligadas avisa na hora."""
+    config_widget.roi_inclusion_rule_var.set("seg_overlap")
+    config_widget._on_roi_rule_changed()
+
+    assert "bbox_intersects" in config_widget._seg_overlap_warning_label.cget("text")
+
+    config_widget.persist_masks_var.set(True)
+
+    assert config_widget._seg_overlap_warning_label.cget("text") == ""
+
+    config_widget.persist_masks_var.set(False)
+    config_widget.roi_inclusion_rule_var.set("bbox_intersects")
+    config_widget._on_roi_rule_changed()
+
+    assert config_widget._seg_overlap_warning_label.cget("text") == ""

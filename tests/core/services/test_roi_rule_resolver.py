@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import dataclasses
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -564,6 +565,31 @@ def test_resolver_defaults_match_settings_defaults():
     }
     declared = {key: Settings.model_fields[key].default for key in expected}
     assert declared == expected
+
+
+def test_config_yaml_roi_keys_match_settings_defaults():
+    """Toda chave ``roi_*`` DESCOMENTADA no ``config.yaml`` repete o default Pydantic.
+
+    O bloco de ROI do arquivo foi reescrito para ter fonte ÚNICA nos defaults do
+    modelo: as chaves ficam comentadas justamente para não poderem divergir. Uma
+    chave descomentada é permitida (``roi_inclusion_rule`` é o botão principal e
+    vê-lo no arquivo tem valor), mas só enquanto repetir o default — caso
+    contrário volta o mecanismo de deriva que causou o bug dos três defaults
+    conflitantes.
+    """
+    import yaml
+
+    from zebtrack.settings import Settings
+
+    config_path = Path(__file__).resolve().parents[3] / "config.yaml"
+    raw = yaml.safe_load(config_path.read_text(encoding="utf-8")) or {}
+
+    declared = {key: value for key, value in raw.items() if key.startswith("roi_")}
+    expected = {key: Settings.model_fields[key].default for key in declared}
+    assert declared == expected, (
+        "Chave roi_* descomentada no config.yaml divergindo do default de Settings. "
+        "Comente a chave (documentando o default no comentário) ou alinhe o valor."
+    )
 
 
 def test_config_defaults_match_the_dataclass_defaults():

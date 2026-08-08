@@ -50,6 +50,17 @@ def _format_time_minutes_seconds(seconds: float | None) -> str:
         return f"{hours}:{minutes:02d}:{secs:02d}"
 
 
+def _format_seconds_metric(seconds: float | None) -> str:
+    """Format a duration that is a MEASUREMENT, in seconds with two decimals.
+
+    Distinct from :func:`_format_time_minutes_seconds`, which truncates to whole
+    seconds — fine to place an event on a timeline, wrong for a reported metric.
+    """
+    if seconds is None or pd.isna(seconds):
+        return "N/A"
+    return f"{float(seconds):.2f} s"
+
+
 class WordReporter:
     """Generate individual Word document reports from a ``ReporterContext``.
 
@@ -252,6 +263,7 @@ class WordReporter:
         # Delegate to sub-sections
         self._append_roi_reference_map(document, progress_callback, total_steps)
         self._append_visualizations(document, progress_callback, total_steps)
+        self._append_roi_coverage_and_per_animal(document)
         self._append_roi_event_log(document, progress_callback, total_steps)
         self._append_validation_warnings(document, progress_callback, total_steps)
 
@@ -349,6 +361,74 @@ class WordReporter:
         if config.get("geotaxis_enabled") is False:
             return False
         return True
+
+    def _append_roi_coverage_and_per_animal(self, document: DocxDocument) -> None:
+        """Append unobserved time and, with more than one track, a per-animal table.
+
+        Deliberately short: the Word file is a summary, not a dump.  The full
+        per-``(animal, ROI)`` grid lives in the ``por_animal`` sheet of the
+        ``.xlsx`` summary, which this section points to.
+        """
+        roi_analysis = (self._ctx.report or {}).get("analise_roi") or {}
+        if not roi_analysis:
+            return
+
+        document.add_heading(_("ROI Coverage and Per-Animal Metrics"), level=2)
+
+        # Sem ``_format_time_minutes_seconds``: aquele formatador trunca com
+        # ``int`` (3.99 s vira "3s"), o que é aceitável para posicionar um evento
+        # na linha do tempo e não é aceitável aqui — este número é uma MÉTRICA,
+        # e subnotificá-lo faz o leitor achar que a sessão foi mais coberta do
+        # que foi.
+        unobserved = roi_analysis.get("tempo_nao_observado_s")
+        document.add_paragraph(
+            _(
+                "Unobserved time (tracking gaps not credited to any ROI): {value}. "
+                "ROI durations do not cover this portion of the session."
+            ).format(value=_format_seconds_metric(unobserved))
+        )
+
+        per_animal = roi_analysis.get("por_animal") or {}
+        if len(per_animal) <= 1:
+            return
+
+        document.add_paragraph(
+            _(
+                "ROI metrics at the top of this report are region OCCUPANCY "
+                "(any_track). Per-animal totals follow; the full per-animal x ROI "
+                "breakdown is in the 'por_animal' sheet of the summary spreadsheet."
+            )
+        )
+
+        headers = [
+            _("Animal (track_id)"),
+            _("Time in ROIs (s)"),
+            _("Entries"),
+            _("Distance in ROIs (cm)"),
+            _("Unobserved (s)"),
+        ]
+        table = document.add_table(rows=1, cols=len(headers))
+        table.style = "Table Grid"
+        for index, header in enumerate(headers):
+            table.cell(0, index).text = header
+
+        for track_id, metrics in per_animal.items():
+            time_spent = metrics.get("tempo_gasto_por_roi", {}) or {}
+            entries = metrics.get("contagem_entradas", {}) or {}
+            distances = metrics.get("distancia_por_roi", {}) or {}
+
+            total_time = sum(
+                float(value.get("seconds") or 0.0) for value in time_spent.values() if value
+            )
+            total_entries = sum(int(value or 0) for value in entries.values())
+            total_distance = sum(float(value or 0.0) for value in distances.values())
+
+            cells = table.add_row().cells
+            cells[0].text = str(track_id)
+            cells[1].text = f"{total_time:.2f}"
+            cells[2].text = str(total_entries)
+            cells[3].text = f"{total_distance:.2f}"
+            cells[4].text = f"{float(metrics.get('tempo_nao_observado_s') or 0.0):.2f}"
 
     def _append_roi_event_log(
         self,

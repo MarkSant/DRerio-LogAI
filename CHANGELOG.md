@@ -9,6 +9,63 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Métricas de ROI chegam ao entregável (`.xlsx` e `.docx`)
+
+- **Nova aba `por_animal` no `<video>_summary.xlsx`.** As métricas por animal
+  (`ROIAnalyzer.get_metrics_by_track`) eram calculadas, testadas e expostas em
+  `report["analise_roi"]["por_animal"]` — e nenhum reporter as lia. O aviso
+  multi-animal chegava a mandar o pesquisador olhar uma chave de dicionário que
+  não existe em arquivo nenhum. Agora há uma segunda aba em formato **longo**
+  (uma linha por `experimento × track_id × ROI`:
+  `experiment_id, group_id, track_id, roi, tempo_s, percentual_tempo, entradas,
+  saidas, latencia_primeira_entrada_s, distancia_cm, tempo_nao_observado_s`).
+  Longo e não largo de propósito: `standardize_roi_columns` existe para
+  padronizar o esquema entre vídeos e permitir a concatenação do relatório
+  unificado, e o número de tracks **varia por vídeo** — colunas
+  `tempo_no_{roi}_track{N}_s` explodiriam o esquema em buracos. Com um único
+  animal a aba existe do mesmo jeito, com um track.
+- **`tempo_nao_observado_s` visível no resumo** (`Unobserved Time (s)`): quanto
+  da sessão as métricas de ROI simplesmente **não cobrem** (lacunas de
+  rastreamento acima do teto `roi_max_gap_s`). É escalar por experimento, então
+  fica fora dos templates de coluna sufixados por ROI.
+- **Word**: nova seção curta com o tempo não observado e, com mais de um track,
+  uma tabela compacta por animal que aponta para a aba `por_animal` — o `.docx`
+  é resumo, não dump.
+- **Colunas antigas do resumo intactas** em nome, ordem e valor, com teste de
+  regressão que congela a lista: quem já tem script lendo esse `.xlsx` não
+  quebra. A aba principal mantém o nome default (`Sheet1`) e continua sendo a
+  primeira; a aba nova só é escrita quando há dado.
+- Cobertura: `tests/analysis/test_data_transformer_roi_metrics.py`,
+  `tests/analysis/reporters/test_excel_reporter_sheets.py`.
+
+### `recorder.persist_masks` deixa de ser inalcançável pela interface
+
+- A regra `seg_overlap` é selecionável em três pontos da UI, mas um dos seus
+  três pré-requisitos — `recorder.persist_masks` — não tinha **nenhum widget**:
+  só existia editando `config.yaml` à mão. O usuário escolhia `seg_overlap` e a
+  análise caía para `bbox_intersects` para sempre (degradação declarada, mas um
+  beco sem saída de usabilidade). Agora há um checkbox em **Gravação de Dados
+  (Recorder)** no editor de configurações.
+- Os textos de ajuda de `seg_overlap` (aba de Zonas e editor de configurações)
+  passam a **nomear os três pré-requisitos** — a regra, `recorder.persist_masks`
+  e `model_selection.animal_method = "seg"` — em vez de só dizer "requer dados
+  de máscara".
+- Aviso pró-ativo no editor de configurações: selecionar `seg_overlap` com
+  `persist_masks` desligado mostra o que falta na hora, em vez de deixar o
+  operador descobrir no relatório depois da sessão.
+- Cobertura: `tests/ui/components/test_config_editor.py`,
+  `tests/ui/components/test_zone_controls_widget.py` (marcador `gui`).
+
+### `config.yaml`: fim do último resíduo de duplicação de default de ROI
+
+- `roi_buffer_radius_value` estava descomentado repetindo o default Pydantic —
+  sujeito ao mesmo mecanismo de deriva que causou o bug dos três defaults
+  conflitantes. Passa a ficar comentado, documentando o valor.
+  `roi_inclusion_rule` segue descomentado (é o botão principal).
+- Nova guarda automática em `tests/core/services/test_roi_rule_resolver.py`:
+  toda chave `roi_*` **descomentada** no `config.yaml` precisa bater com o
+  default declarado em `Settings`.
+
 ### ⚠️ ROI: sobreposição — default unificado, semântica corrigida e base configurável
 
 > **MUDANÇA DE MEDIDA, não refactor.** O limiar de sobreposição efetivo passa de

@@ -9,12 +9,19 @@ from __future__ import annotations
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+import pandas as pd
 import structlog
 
 if TYPE_CHECKING:
     from zebtrack.analysis.reporters.reporter_context import ReporterContext
 
 log = structlog.get_logger(__name__)
+
+# Nome default do pandas para a primeira aba. Mantido explicitamente porque
+# scripts de terceiros leem este arquivo por POSIÇÃO/nome de aba: a segunda aba
+# é aditiva, a primeira não pode mudar de identidade.
+MAIN_SHEET_NAME = "Sheet1"
+PER_ANIMAL_SHEET_NAME = "por_animal"
 
 
 class ExcelReporter:
@@ -67,9 +74,36 @@ class ExcelReporter:
         )
 
         fmt = "csv" if str(path).lower().endswith(".csv") else "excel"
+        per_animal = self._per_animal_frame()
         if fmt == "excel":
-            data_to_export.to_excel(path, index=False, engine="openpyxl")
+            if per_animal is None:
+                # ``sheet_name`` explícito nos DOIS ramos: o nome da aba
+                # principal é contrato com quem lê o arquivo, não pode depender
+                # de um default futuro do pandas.
+                data_to_export.to_excel(
+                    path, sheet_name=MAIN_SHEET_NAME, index=False, engine="openpyxl"
+                )
+            else:
+                with pd.ExcelWriter(path, engine="openpyxl") as writer:
+                    data_to_export.to_excel(writer, sheet_name=MAIN_SHEET_NAME, index=False)
+                    per_animal.to_excel(writer, sheet_name=PER_ANIMAL_SHEET_NAME, index=False)
         else:
             data_to_export.to_csv(path, index=False)
 
-        log.info("reporter.excel.exported", path=str(path), format=fmt)
+        log.info(
+            "reporter.excel.exported",
+            path=str(path),
+            format=fmt,
+            per_animal_rows=0 if per_animal is None else len(per_animal),
+        )
+
+    def _per_animal_frame(self) -> pd.DataFrame | None:
+        """Tabela longa por animal, ou ``None`` quando não há o que escrever.
+
+        Uma aba vazia é pior do que aba nenhuma: o pesquisador abre, vê só
+        cabeçalho e não sabe se a análise falhou ou se não havia dado.
+        """
+        per_animal = getattr(self._ctx, "per_animal_data", None)
+        if per_animal is None or per_animal.empty:
+            return None
+        return per_animal
