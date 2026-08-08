@@ -418,6 +418,10 @@ class ProjectLifecycleManager:
             },
             "use_timed_recording": use_timed_recording,
             "recording_duration_s": recording_duration_s,
+            # Durações por bloco/cobaia que fogem do padrão do projeto. Chaves
+            # montadas por ``session_duration_resolver.duration_override_key``;
+            # vazio significa "todo mundo usa recording_duration_s".
+            "session_duration_overrides": {},
             "use_countdown": use_countdown,
             "countdown_duration_s": countdown_duration_s,
             "batches": [],
@@ -600,6 +604,14 @@ class ProjectLifecycleManager:
             loaded_data["display_interval_frames"] = 10
             migration_applied = True
             migrated_fields.append("display_interval_frames")
+
+        # Projetos anteriores à duração por cobaia. Também normaliza o caso de um
+        # JSON editado à mão que trocou o dict por outro tipo — o resolver
+        # toleraria, mas ``set_duration_override`` precisa de um dict de verdade.
+        if not isinstance(loaded_data.get("session_duration_overrides"), dict):
+            loaded_data["session_duration_overrides"] = {}
+            migration_applied = True
+            migrated_fields.append("session_duration_overrides")
 
         if "analysis_profiles" not in loaded_data or not loaded_data.get("analysis_profiles"):
             default_profile = (

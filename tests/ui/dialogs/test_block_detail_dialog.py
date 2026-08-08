@@ -24,6 +24,7 @@ def _build_dialog(
     *,
     start_session_return: bool,
     pending_zone_confirmation: bool,
+    pending_external_trigger: bool = False,
 ) -> tuple[BlockDetailDialog, MagicMock]:
     """Construct a BlockDetailDialog bypassing Toplevel init.
 
@@ -38,12 +39,19 @@ def _build_dialog(
     dialog.subjects_per_group = 3
     dialog.completed_sessions = set()
     dialog.destroy = MagicMock()  # Skip real Tk teardown
+    # ``start_session`` resolve a duração da cobaia antes de delegar.
+    dialog.project_manager = SimpleNamespace(
+        project_data={"recording_duration_s": 300.0}, project_path=None
+    )
 
     session_coordinator = MagicMock()
     session_coordinator.start_live_project_session.return_value = start_session_return
     session_coordinator.live_calibration_coordinator = SimpleNamespace(
         pending_zone_confirmation=pending_zone_confirmation,
     )
+    # Precisa de retorno EXPLÍCITO: um MagicMock cru devolve um filho truthy, o
+    # que faria todo start_session parecer "adiado" e engoliria erros reais.
+    session_coordinator.has_pending_external_trigger.return_value = pending_external_trigger
     dialog.session_coordinator = session_coordinator
 
     return cast(BlockDetailDialog, dialog), session_coordinator
@@ -55,7 +63,9 @@ def _build_partial_report_dialog(tmp_path) -> BlockDetailDialog:
     dialog.group_name = "Controle"
     dialog.subjects_per_group = 1
     dialog.completed_sessions = {(1, "Controle", "1")}
-    dialog.project_manager = SimpleNamespace(project_path=str(tmp_path))
+    dialog.project_manager = SimpleNamespace(
+        project_path=str(tmp_path), project_data={"recording_duration_s": 300.0}
+    )
     dialog._find_session_folder = MagicMock(return_value=tmp_path / "session_1")
     return cast(BlockDetailDialog, dialog)
 
@@ -202,3 +212,89 @@ def test_write_partial_report_word_lists_only_successfully_parsed_sessions(tmp_p
     assert len(session_rows) == 2
     assert session_rows[1].cells[0].text == "1"
     assert session_rows[1].cells[1].text == valid_summary.name
+
+
+# ---------------------------------------------------------------------------
+# Duração por bloco/cobaia + gatilho externo
+# ---------------------------------------------------------------------------
+
+
+def test_start_session_passes_resolved_duration():
+    """A duração resolvida tem de CHEGAR ao coordinator — sem isso o override
+    aparece na UI e a gravação continua usando o padrão do projeto."""
+    dialog, session_coordinator = _build_dialog(
+        start_session_return=True, pending_zone_confirmation=False
+    )
+    dialog.project_manager.project_data = {
+        "recording_duration_s": 300.0,
+        "session_duration_overrides": {"Dia_1|Controle|1": 900.0},
+    }
+
+    dialog.start_session("1")
+
+    _args, kwargs = session_coordinator.start_live_project_session.call_args
+    assert kwargs["duration_s"] == 900.0
+
+
+def test_start_session_falls_back_to_project_duration():
+    dialog, session_coordinator = _build_dialog(
+        start_session_return=True, pending_zone_confirmation=False
+    )
+    dialog.project_manager.project_data = {"recording_duration_s": 420.0}
+
+    dialog.start_session("2")
+
+    _args, kwargs = session_coordinator.start_live_project_session.call_args
+    assert kwargs["duration_s"] == 420.0
+
+
+def test_start_session_no_error_when_armed_for_external_trigger():
+    """Sessão armada aguardando o Arduino retorna False, mas NÃO é falha:
+    o usuário já vê o aviso 'Aguardando sinal externo'."""
+    dialog, _ = _build_dialog(
+        start_session_return=False,
+        pending_zone_confirmation=False,
+        pending_external_trigger=True,
+    )
+
+    with patch("zebtrack.ui.dialogs.block_detail_dialog.messagebox.showerror") as mock_error:
+        dialog.start_session("1")
+
+    mock_error.assert_not_called()
+
+
+def test_heterogeneous_duration_warning_absent_when_uniform(tmp_path):
+    dialog = _build_partial_report_dialog(tmp_path)
+    assert dialog._heterogeneous_duration_warning(["1", "2"]) is None
+
+
+def test_heterogeneous_duration_warning_lists_distinct_durations(tmp_path):
+    dialog = _build_partial_report_dialog(tmp_path)
+    dialog.project_manager.project_data = {
+        "recording_duration_s": 300.0,
+        "session_duration_overrides": {"Dia_1|Controle|2": 900.0},
+    }
+
+    warning = dialog._heterogeneous_duration_warning(["1", "2"])
+
+    assert warning is not None
+    assert "5 min" in warning
+    assert "15 min" in warning
+    assert "video_duration_s" in warning
+
+
+def test_partial_report_stats_columns_include_duration():
+    """``video_duration_s`` não casa com nenhum dos keywords antigos; sem ela o
+    agregado esconde o dado que torna as métricas comparáveis (ou não)."""
+    df = pd.DataFrame(
+        {
+            "video_duration_s": [300.0, 900.0],
+            "total_distance": [1.0, 2.0],
+            "analysis_timestamp": [1, 2],
+        }
+    )
+
+    columns = BlockDetailDialog._get_partial_report_stats_columns(df)
+
+    assert "video_duration_s" in columns
+    assert "analysis_timestamp" not in columns

@@ -48,6 +48,43 @@ if TYPE_CHECKING:
 log = structlog.get_logger()
 
 
+def pick_default_arduino_port(ports_info: list[dict[str, Any]]) -> dict[str, Any] | None:
+    """Escolhe qual porta pré-selecionar no dropdown do Arduino.
+
+    Ordem de precedência, da evidência mais forte para a mais fraca:
+
+    1. respondeu ao handshake **e** tem "arduino" na descrição do driver;
+    2. respondeu ao handshake (mesmo com descrição genérica — clones e placas
+       com chip CH340/FTDI aparecem como "USB-SERIAL", e o handshake é prova
+       muito mais confiável que o nome);
+    3. tem "arduino" na descrição, mas não respondeu ao handshake (placa
+       presente porém ocupada por outro programa, ou sketch sem handshake);
+    4. a primeira da lista — comportamento histórico, melhor que deixar vazio.
+
+    Havendo empate dentro de um nível, vence a primeira da lista, como pedido.
+    Devolve ``None`` para lista vazia; nunca levanta.
+    """
+    if not ports_info:
+        return None
+
+    def _named_arduino(port: dict[str, Any]) -> bool:
+        return "arduino" in str(port.get("description") or "").lower()
+
+    def _handshake(port: dict[str, Any]) -> bool:
+        return bool(port.get("has_handshake"))
+
+    for predicate in (
+        lambda p: _handshake(p) and _named_arduino(p),
+        _handshake,
+        _named_arduino,
+    ):
+        for port in ports_info:
+            if predicate(port):
+                return port
+
+    return ports_info[0]
+
+
 class LiveConfigStep(WizardStep):
     """
     Live Configuration step - configure camera and recording settings.
@@ -249,9 +286,15 @@ class LiveConfigStep(WizardStep):
             self.external_trigger_cb,
             (
                 "Modo de Gatilho Externo\n\n"
-                "Quando habilitado, o Arduino pode controlar início/parada da gravação.\n"
-                "Útil para sincronizar gravações com eventos externos ou automação.\n\n"
-                "Requer Arduino conectado e configurado."
+                "Quem dá a partida na gravação passa a ser o Arduino, não o "
+                "operador.\n\n"
+                "Ao iniciar uma sessão, o app NÃO grava de imediato: ele exibe "
+                "'Aguardando sinal externo' e fica parado até o Arduino enviar "
+                "o código 1 pela serial. O código 0 encerra a gravação.\n\n"
+                "Útil para sincronizar o início com um estímulo, um portão ou "
+                "outro equipamento.\n\n"
+                "Requer Arduino conectado e a porta selecionada acima — sem "
+                "isso a sessão é recusada, não iniciada às cegas."
             ),
         )
 
@@ -605,6 +648,12 @@ class LiveConfigStep(WizardStep):
             self.detect_arduino_btn.config(state="normal")
             self.test_arduino_btn.config(state="normal")
             self.external_trigger_cb.config(state="normal")
+            # Detectar aqui, e não só no botão "Detectar": marcar o checkbox e
+            # encarar um combo vazio obrigava o usuário a descobrir sozinho que
+            # havia um segundo clique a dar. ``_detect_arduino_ports`` usa cache
+            # de 30 s no WizardService, então re-marcar não custa nova varredura.
+            if not self.arduino_port_combo["values"]:
+                self._detect_arduino_ports()
         else:
             self.arduino_port_combo.config(state="disabled")
             self.detect_arduino_btn.config(state="disabled")
@@ -701,9 +750,26 @@ class LiveConfigStep(WizardStep):
                     fg="green",
                 )
 
-                # Auto-select first port if none selected
-                if not self.arduino_port_var.get() and display_list:
-                    self.arduino_port_var.set(display_list[0])
+                # Auto-seleção: só quando o usuário ainda não escolheu nada, para
+                # não sobrescrever uma seleção manual nem a porta restaurada de
+                # um template (ver ``_restore_arduino``).
+                if not self.arduino_port_var.get():
+                    chosen = pick_default_arduino_port(ports_info)
+                    if chosen is not None:
+                        self.arduino_port_var.set(chosen["display_name"])
+                        # Dizer QUAL porta foi escolhida — auto-seleção silenciosa
+                        # parece mágica e o usuário não confere.
+                        self.arduino_status_label.config(
+                            text=f"✓ {len(ports_info)} porta(s) — usando {chosen['device']}",
+                            fg="green",
+                        )
+                        log.info(
+                            "live_config.arduino_port.auto_selected",
+                            device=chosen["device"],
+                            description=chosen.get("description"),
+                            has_handshake=bool(chosen.get("has_handshake")),
+                            candidates=len(ports_info),
+                        )
             else:
                 self.arduino_port_combo["values"] = []
                 self.arduino_port_map.clear()

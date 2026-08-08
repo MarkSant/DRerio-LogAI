@@ -471,30 +471,50 @@ class RecordingSessionCoordinator(BaseCoordinator):
     def _handle_external_trigger(self, context: dict, arduino_enabled: bool) -> bool:
         """Handle external trigger setup for recording.
 
+        A REGRA vive em ``external_trigger_gate.decide_external_trigger`` — a
+        mesma que ``LiveCameraSessionCoordinator`` consulta. Aqui fica só a
+        tradução da decisão em eventos de UI e estado pendente deste coordinator.
+
         Args:
             context: Recording context with session details
-            arduino_enabled: Whether Arduino is available
+            arduino_enabled: Mantido por compatibilidade com os call sites; a
+                disponibilidade do Arduino é lida de ``project_data["use_arduino"]``
+                dentro do gate, para os dois caminhos concordarem sempre.
 
         Returns:
             bool: True if waiting for trigger (stop processing), False if proceed
         """
-        project_data = self.project_manager.project_data or {}
-        external_trigger_requested = bool(project_data.get("external_trigger_mode"))
+        from zebtrack.core.services.external_trigger_gate import (
+            ExternalTriggerDecision,
+            decide_external_trigger,
+        )
 
-        if external_trigger_requested and not arduino_enabled:
+        _ = arduino_enabled  # ver docstring: a fonte de verdade é o gate
+        project_data = self.project_manager.project_data or {}
+        decision = decide_external_trigger(project_data, getattr(self, "arduino_manager", None))
+
+        if decision in (
+            ExternalTriggerDecision.REJECT_NO_ARDUINO,
+            ExternalTriggerDecision.REJECT_ARDUINO_OFFLINE,
+        ):
             if self.event_bus:
                 self.event_bus.publish(
                     Event(
                         type=UIEvents.UI_SHOW_ERROR,
                         data=payloads.ErrorOccurredPayload(
                             title="Trigger Externo Indisponível",
-                            message="O modo de trigger externo exige um Arduino configurado.",
+                            message=(
+                                "O Arduino não está conectado — verifique o cabo e "
+                                "se a porta não está em uso por outro programa."
+                                if decision is ExternalTriggerDecision.REJECT_ARDUINO_OFFLINE
+                                else "O modo de trigger externo exige um Arduino configurado."
+                            ),
                         ),
                     )
                 )
             return True
 
-        if external_trigger_requested and arduino_enabled:
+        if decision is ExternalTriggerDecision.ARM_AND_WAIT:
             self._pending_external_trigger = context
             port = context.get("arduino_port", "")
             if self.event_bus:

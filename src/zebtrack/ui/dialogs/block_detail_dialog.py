@@ -16,6 +16,12 @@ from typing import TYPE_CHECKING
 
 import structlog
 
+from zebtrack.core.services.session_duration_resolver import (
+    SUBJECT_WILDCARD,
+    collect_block_durations,
+    resolve_session_duration,
+    set_duration_override,
+)
 from zebtrack.utils.report_files import find_summary_excel_file, has_summary_excel_output
 
 if TYPE_CHECKING:
@@ -106,6 +112,12 @@ class BlockDetailDialog(Toplevel):
         self._camera_friendly_name_override: str | None = None
         self._camera_label: Label | None = None
 
+        # Duration widgets (populated by build_ui). Unlike the camera override,
+        # durations are PERSISTED in project_data — an experiment where animals
+        # were recorded for different lengths must stay auditable after restart.
+        self._duration_label: Label | None = None
+        self._subject_container: Frame | None = None
+
         self.build_ui()
 
     def build_ui(self):
@@ -123,7 +135,7 @@ class BlockDetailDialog(Toplevel):
         ).pack(side="left", padx=20, pady=20)
 
         # Progress info - v2.3.1: Use subjects_per_group and completed_sessions
-        subjects = [str(i + 1) for i in range(self.subjects_per_group)]
+        subjects = self._subjects()
         completed = sum(
             1 for s in subjects if (self.day_num, self.group_name, s) in self.completed_sessions
         )
@@ -180,6 +192,7 @@ class BlockDetailDialog(Toplevel):
         scrollbar.pack(side="right", fill="y")
 
         # Populate subjects
+        self._subject_container = subject_container
         for subject in subjects:
             self.create_subject_row(subject_container, subject)
 
@@ -205,6 +218,30 @@ class BlockDetailDialog(Toplevel):
             camera_frame,
             text="Trocar...",
             command=self._open_camera_chooser,
+        ).pack(side="left")
+
+        # Duration section: block-level default for this Day x Group.
+        duration_frame = Frame(self)
+        duration_frame.pack(fill="x", padx=20, pady=(0, 10))
+
+        Label(
+            duration_frame,
+            text="⏱️ Duração padrão do bloco:",
+            font=("Segoe UI", 10, "bold"),
+        ).pack(side="left")
+
+        self._duration_label = Label(
+            duration_frame,
+            text=self._format_block_duration(),
+            font=("Segoe UI", 10),
+            anchor="w",
+        )
+        self._duration_label.pack(side="left", padx=(5, 10))
+
+        Button(
+            duration_frame,
+            text="Alterar...",
+            command=self._edit_block_duration,
         ).pack(side="left")
 
         # Actions frame
@@ -512,6 +549,27 @@ class BlockDetailDialog(Toplevel):
                 bg="white",
             ).pack(anchor="w")
 
+        # Duração desta cobaia. Para pendentes é o que SERÁ usado (e é editável);
+        # para gravadas é registro do que foi planejado — a duração real do vídeo
+        # vive no resumo da sessão, e reescrever o override depois do fato só
+        # falsificaria o histórico.
+        project_data = self._project_data()
+        duration_s = resolve_session_duration(project_data, self.day_num, self.group_name, subject)
+        overrides = project_data.get("session_duration_overrides") or {}
+        from zebtrack.core.services.session_duration_resolver import duration_override_key
+
+        has_own = duration_override_key(self.day_num, self.group_name, subject) in overrides
+        Label(
+            info_frame,
+            text=(
+                f"⏱️ {self._format_duration(duration_s)}"
+                f"{' (própria)' if has_own else ' (padrão do bloco)'}"
+            ),
+            font=("Segoe UI", 8, "bold" if has_own else "normal"),
+            fg="#b36b00" if has_own else "#666",
+            bg="white",
+        ).pack(anchor="w")
+
         # v2.3.1: Show folder name if exists
         if session_folder:
             Label(
@@ -534,6 +592,11 @@ class BlockDetailDialog(Toplevel):
                 row,
                 text="▶️ Iniciar",
                 command=lambda: self.start_session(subject),
+            ).pack(side="right", padx=5, pady=10)
+            Button(
+                row,
+                text="⏱️ Duração",
+                command=lambda: self._edit_subject_duration(subject),
             ).pack(side="right", padx=5, pady=10)
 
     def _format_current_camera(self) -> str:
@@ -660,18 +723,201 @@ class BlockDetailDialog(Toplevel):
         if self._camera_label is not None:
             self._camera_label.config(text=self._format_current_camera())
 
+    # ------------------------------------------------------------------
+    # Recording duration (block default + per-subject override)
+    # ------------------------------------------------------------------
+
+    def _project_data(self) -> dict:
+        """Return ``project_data``, or an empty dict when unavailable."""
+        return getattr(self.project_manager, "project_data", None) or {}
+
+    @staticmethod
+    def _format_duration(duration_s: float) -> str:
+        """Render seconds as the minutes the operator actually thinks in."""
+        minutes = duration_s / 60.0
+        if abs(minutes - round(minutes)) < 0.01:
+            return f"{round(minutes)} min"
+        return f"{minutes:.1f} min"
+
+    def _format_block_duration(self) -> str:
+        """Label for the block default, flagging where the value came from."""
+        project_data = self._project_data()
+        # O bloco não tem "cobaia", então resolvemos com o curinga: isso pula o
+        # nível de cobaia e cai direto em bloco > projeto.
+        duration = resolve_session_duration(
+            project_data, self.day_num, self.group_name, SUBJECT_WILDCARD
+        )
+        overrides = project_data.get("session_duration_overrides") or {}
+        from zebtrack.core.services.session_duration_resolver import block_override_key
+
+        has_block_override = block_override_key(self.day_num, self.group_name) in overrides
+        origin = "bloco" if has_block_override else "projeto"
+        return f"{self._format_duration(duration)} ({origin})"
+
+    def _ask_duration_minutes(self, title: str, prompt: str, current_s: float) -> float | None:
+        """Prompt for a duration in minutes. Returns seconds, or None if cancelled."""
+        answer = simpledialog.askstring(
+            title,
+            prompt,
+            initialvalue=f"{current_s / 60.0:g}",
+            parent=self,
+        )
+        if answer is None:
+            return None
+
+        try:
+            minutes = float(answer.strip().replace(",", "."))
+        except ValueError:
+            messagebox.showwarning(
+                "Valor inválido",
+                f"'{answer}' não é um número de minutos.",
+                parent=self,
+            )
+            return None
+
+        if minutes <= 0:
+            messagebox.showwarning(
+                "Valor inválido",
+                "A duração deve ser maior que zero.",
+                parent=self,
+            )
+            return None
+
+        return minutes * 60.0
+
+    def _persist_project(self) -> bool:
+        """Save the project, surfacing failures instead of swallowing them.
+
+        ``save_project()`` raises when ``project_path`` is unset, and callers
+        reached through the event bus have that exception eaten by the bus's
+        try/except — the user would see the new duration on screen and lose it
+        on restart. Check and report here.
+        """
+        if not getattr(self.project_manager, "project_path", None):
+            messagebox.showerror(
+                "Projeto não salvo",
+                "O projeto não tem um caminho definido, então a duração não pôde "
+                "ser gravada. Salve o projeto e tente de novo.",
+                parent=self,
+            )
+            return False
+
+        try:
+            if hasattr(self.project_manager, "save_project"):
+                self.project_manager.save_project()
+        # except Exception justified: qualquer falha de I/O aqui precisa virar
+        # feedback honesto — silenciar faria a duração "sumir" no próximo boot.
+        except Exception as exc:
+            log.error("block_detail.duration.save_failed", error=str(exc), exc_info=True)
+            messagebox.showerror(
+                "Falha ao salvar",
+                f"A duração não pôde ser gravada no projeto:\n{exc}",
+                parent=self,
+            )
+            return False
+
+        return True
+
+    def _edit_block_duration(self) -> None:
+        """Set/clear the Day x Group default duration."""
+        project_data = self._project_data()
+        current = resolve_session_duration(
+            project_data, self.day_num, self.group_name, SUBJECT_WILDCARD
+        )
+
+        new_duration = self._ask_duration_minutes(
+            "Duração padrão do bloco",
+            (
+                f"Duração das gravações de Dia {self.day_num} - {self.group_name}, "
+                "em minutos:\n\n"
+                "Vale para todas as cobaias deste bloco que não tenham duração "
+                "própria. Sessões já gravadas não são afetadas."
+            ),
+            current,
+        )
+        if new_duration is None:
+            return
+
+        set_duration_override(
+            project_data, self.day_num, self.group_name, SUBJECT_WILDCARD, new_duration
+        )
+        if not self._persist_project():
+            return
+
+        if self._duration_label is not None:
+            self._duration_label.config(text=self._format_block_duration())
+        self.refresh_subject_rows()
+
+    def _edit_subject_duration(self, subject: str) -> None:
+        """Set/clear the per-subject duration override."""
+        project_data = self._project_data()
+        current = resolve_session_duration(project_data, self.day_num, self.group_name, subject)
+        block_default = resolve_session_duration(
+            project_data, self.day_num, self.group_name, SUBJECT_WILDCARD
+        )
+
+        new_duration = self._ask_duration_minutes(
+            f"Duração — Animal {subject}",
+            (
+                f"Duração da gravação do Animal {subject} "
+                f"(Dia {self.day_num} - {self.group_name}), em minutos:\n\n"
+                f"Deixe igual a {self._format_duration(block_default)} para seguir "
+                "o padrão do bloco."
+            ),
+            current,
+        )
+        if new_duration is None:
+            return
+
+        # Igualar ao padrão do bloco = voltar a herdar. Guardar um override
+        # idêntico ao pai só criaria ruído no JSON e mentiria na UI ("próprio"
+        # quando na verdade é herdado).
+        if abs(new_duration - block_default) < 0.5:
+            set_duration_override(project_data, self.day_num, self.group_name, subject, None)
+        else:
+            set_duration_override(
+                project_data, self.day_num, self.group_name, subject, new_duration
+            )
+
+        if not self._persist_project():
+            return
+
+        self.refresh_subject_rows()
+
+    def refresh_subject_rows(self) -> None:
+        """Rebuild the subject list so duration labels reflect the new values."""
+        container = getattr(self, "_subject_container", None)
+        if container is None:
+            return
+        for child in container.winfo_children():
+            child.destroy()
+        for subject in self._subjects():
+            self.create_subject_row(container, subject)
+
+    def _subjects(self) -> list[str]:
+        """Subject IDs of this block, as strings ("1", "2", ...)."""
+        return [str(i + 1) for i in range(self.subjects_per_group)]
+
     def start_session(self, subject: str):
         """Start live session for subject.
 
         Args:
             subject: Subject ID to start session for
         """
+        # Resolver ANTES do destroy: depois de fechar o diálogo ainda dá para ler
+        # project_manager, mas manter a leitura aqui deixa o valor no log junto
+        # do resto do contexto da sessão.
+        duration_s = resolve_session_duration(
+            self._project_data(), self.day_num, self.group_name, subject
+        )
+
         log.info(
             "block_detail.start_session",
             day=self.day_num,
             group=self.group_name,
             subject=subject,
             camera_override=self._camera_index_override,
+            duration_s=duration_s,
         )
 
         # v2.3.1: Actually start the session using session_coordinator
@@ -688,23 +934,28 @@ class BlockDetailDialog(Toplevel):
                 day=self.day_num,
                 group=str(self.group_name),
                 subject=subject,
+                duration_s=duration_s,
                 camera_index_override=override_index,
                 camera_friendly_name_override=override_name,
             )
 
             if not success:
-                # ``start_live_project_session`` returns False in two distinct
+                # ``start_live_project_session`` returns False in three distinct
                 # situations: a genuine failure (camera missing, bad project
-                # type) AND the legitimate "deferred awaiting zone confirmation"
-                # case after the auto-detect flow approves a polygon. In the
-                # deferred case the user has been routed to the zone tab and
-                # the LIVE_RECORDING_PENDING banner offers "▶️ Iniciar Gravação"
-                # — surfacing an error popup here would be a lie. Probe the
-                # calibration coordinator's pending flag to differentiate.
+                # type) AND two legitimate deferrals — "awaiting zone
+                # confirmation" after the auto-detect flow approves a polygon,
+                # and "armed, awaiting the external Arduino trigger". In both
+                # deferred cases the user already has the right affordance on
+                # screen (the LIVE_RECORDING_PENDING banner, or the "Aguardando
+                # sinal externo" notice) — an error popup here would be a lie.
                 cal_coord = getattr(self.session_coordinator, "live_calibration_coordinator", None)
                 deferred = bool(
                     cal_coord is not None and getattr(cal_coord, "pending_zone_confirmation", False)
                 )
+                if not deferred and hasattr(
+                    self.session_coordinator, "has_pending_external_trigger"
+                ):
+                    deferred = bool(self.session_coordinator.has_pending_external_trigger())
                 if deferred:
                     log.info(
                         "block_detail.start_session.deferred_for_zones",
@@ -725,7 +976,7 @@ class BlockDetailDialog(Toplevel):
     def start_next_session(self):
         """Start next pending session."""
         # v2.3.1: Use subjects_per_group and completed_sessions
-        subjects = [str(i + 1) for i in range(self.subjects_per_group)]
+        subjects = self._subjects()
         for subject in subjects:
             if (self.day_num, self.group_name, subject) not in self.completed_sessions:
                 self.start_session(subject)
@@ -767,7 +1018,7 @@ class BlockDetailDialog(Toplevel):
             )
 
     def _get_completed_subjects_for_partial_report(self) -> list[str]:
-        subjects = [str(i + 1) for i in range(self.subjects_per_group)]
+        subjects = self._subjects()
         return [
             subject
             for subject in subjects
@@ -833,13 +1084,43 @@ class BlockDetailDialog(Toplevel):
     def _get_partial_report_stats_columns(unified_df) -> list[str]:
         import pandas as pd
 
+        # ``duration`` entra explicitamente: nenhum dos outros keywords o captura
+        # (a coluna é ``video_duration_s``), e sem ela o agregado esconde
+        # justamente o dado que torna as métricas absolutas comparáveis — ou não.
+        keywords = ["distance", "speed", "time", "entries", "duration"]
         return [
             col
             for col in unified_df.columns
             if col != "analysis_timestamp"
-            and any(keyword in col.lower() for keyword in ["distance", "speed", "time", "entries"])
+            and any(keyword in col.lower() for keyword in keywords)
             and pd.api.types.is_numeric_dtype(unified_df[col])
         ]
+
+    def _heterogeneous_duration_warning(self, subjects: list[str]) -> str | None:
+        """Aviso quando as cobaias do bloco não compartilham a mesma duração.
+
+        Métricas ABSOLUTAS (distância total, nº de entradas, tempo em ROI) crescem
+        com o tempo de gravação. Agregá-las por média entre animais gravados por
+        tempos diferentes produz um número que parece comparável e não é. O app
+        não normaliza sozinho — essa decisão é do pesquisador — mas também não
+        cala sobre o problema.
+        """
+        durations = collect_block_durations(
+            self._project_data(), self.day_num, self.group_name, subjects
+        )
+        distinct = sorted({round(value, 3) for value in durations.values()})
+        if len(distinct) <= 1:
+            return None
+
+        listed = ", ".join(self._format_duration(value) for value in distinct)
+        return (
+            f"As sessões deste bloco têm durações diferentes ({listed}).\n\n"
+            "Métricas ABSOLUTAS — distância total, número de entradas, tempo em "
+            "ROI — crescem com o tempo de gravação e NÃO são diretamente "
+            "comparáveis entre estes animais. A coluna 'video_duration_s' está "
+            "no relatório para você normalizar como preferir.\n\n"
+            "Deseja gerar o relatório mesmo assim?"
+        )
 
     @staticmethod
     def _format_partial_report_cell_value(value) -> str:
@@ -895,6 +1176,23 @@ class BlockDetailDialog(Toplevel):
         document.add_paragraph(f"Gerado em: {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}")
         document.add_paragraph(f"Sessões agregadas: {len(all_data)}")
         document.add_paragraph(f"Planilha consolidada: {excel_name}")
+
+        # A ressalva vai para DENTRO do documento, não só para o popup: quem lê o
+        # relatório meses depois não viu a caixa de diálogo.
+        subjects_in_report = [subject for subject, _ in parsed_summary_files]
+        durations = collect_block_durations(
+            self._project_data(), self.day_num, self.group_name, subjects_in_report
+        )
+        distinct = sorted({round(value, 3) for value in durations.values()})
+        if len(distinct) > 1:
+            listed = ", ".join(self._format_duration(value) for value in distinct)
+            document.add_paragraph(
+                f"ATENÇÃO — durações de gravação heterogêneas neste bloco ({listed}). "
+                "Métricas absolutas (distância total, número de entradas, tempo em "
+                "ROI) escalam com o tempo de gravação e não são diretamente "
+                "comparáveis entre estes animais sem normalização. Use a coluna "
+                "'video_duration_s' da planilha para normalizar."
+            )
 
         document.add_heading("Sessões incluídas", level=2)
         session_table = document.add_table(rows=1, cols=2)
@@ -1069,6 +1367,15 @@ class BlockDetailDialog(Toplevel):
             )
             return
 
+        warning = self._heterogeneous_duration_warning(completed_in_block)
+        if warning and not messagebox.askyesno("Durações diferentes no bloco", warning):
+            log.info(
+                "block_detail.partial_report.cancelled_on_duration_warning",
+                day=self.day_num,
+                group=self.group_name,
+            )
+            return
+
         try:
             reports_dir = Path(self.project_manager.project_path) / "partial_reports"
             reports_dir.mkdir(parents=True, exist_ok=True)
@@ -1222,6 +1529,15 @@ class BlockDetailDialog(Toplevel):
                 f"Nenhum arquivo de resumo encontrado nas sessões de\n"
                 f"Dia {self.day_num} - {self.group_name}\n\n"
                 f"Execute a análise das sessões primeiro.",
+            )
+            return
+
+        warning = self._heterogeneous_duration_warning(completed_in_block)
+        if warning and not messagebox.askyesno("Durações diferentes no bloco", warning):
+            log.info(
+                "block_detail.mark_batch_complete.cancelled_on_duration_warning",
+                day=self.day_num,
+                group=self.group_name,
             )
             return
 

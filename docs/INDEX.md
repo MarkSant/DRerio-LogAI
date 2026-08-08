@@ -52,6 +52,7 @@ docs/
 ### For Users
 
 - **[Per-Zone Arduino Commands](guides/user/arduino-bindings.md)** - Send signals to an Arduino on ROI enter/exit during live recordings.
+- **[External Trigger Mode](guides/user/external-trigger.md)** - Let the Arduino start/stop the recording (opt-in; the reference sketch does not implement it).
 
 ## 🎓 Tutorials (Learning-Oriented)
 

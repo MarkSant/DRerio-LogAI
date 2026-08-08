@@ -11,7 +11,7 @@ import pytest
 
 from zebtrack.core.services.wizard_service import WizardService
 from zebtrack.ui.wizard.enums import WizardStepID
-from zebtrack.ui.wizard.live_config_step import LiveConfigStep
+from zebtrack.ui.wizard.live_config_step import LiveConfigStep, pick_default_arduino_port
 
 
 @pytest.mark.gui
@@ -270,3 +270,71 @@ class TestLiveConfigTemplateReconcile:
 
         assert calls["camera"] == 0
         assert step.camera_selection_var.get() == ""
+
+
+def _picked_device(ports: list[dict[str, Any]]) -> str:
+    """Device da porta escolhida — falha explicitamente se nada foi escolhido."""
+    chosen = pick_default_arduino_port(ports)
+    assert chosen is not None, "esperava uma porta escolhida"
+    return str(chosen["device"])
+
+
+class TestPickDefaultArduinoPort:
+    """Precedência da auto-seleção da porta do Arduino (helper puro, sem Tk)."""
+
+    @staticmethod
+    def _port(device: str, description: str, has_handshake: bool) -> dict[str, Any]:
+        return {
+            "device": device,
+            "description": description,
+            "has_handshake": has_handshake,
+            "display_name": f"{device} - {description}",
+        }
+
+    def test_empty_list_returns_none(self):
+        assert pick_default_arduino_port([]) is None
+
+    def test_prefers_handshake_and_arduino_name(self):
+        ports = [
+            self._port("COM1", "USB-SERIAL CH340", True),
+            self._port("COM5", "Arduino Uno", False),
+            self._port("COM3", "Arduino Mega 2560", True),
+        ]
+        assert _picked_device(ports) == "COM3"
+
+    def test_handshake_beats_arduino_name_alone(self):
+        """Um clone que RESPONDEU é evidência melhor que um nome de driver mudo."""
+        ports = [
+            self._port("COM5", "Arduino Uno", False),
+            self._port("COM1", "USB-SERIAL CH340", True),
+        ]
+        assert _picked_device(ports) == "COM1"
+
+    def test_falls_back_to_arduino_name_without_handshake(self):
+        ports = [
+            self._port("COM1", "Dispositivo Serial USB", False),
+            self._port("COM7", "Arduino Uno", False),
+        ]
+        assert _picked_device(ports) == "COM7"
+
+    def test_falls_back_to_first_port(self):
+        ports = [
+            self._port("COM8", "Dispositivo Serial USB", False),
+            self._port("COM9", "Conversor FTDI", False),
+        ]
+        assert _picked_device(ports) == "COM8"
+
+    def test_ties_resolve_to_first_listed(self):
+        """Havendo mais de uma porta 'Arduino', vence a primeira listada."""
+        ports = [
+            self._port("COM3", "Arduino Uno", True),
+            self._port("COM4", "Arduino Nano", True),
+        ]
+        assert _picked_device(ports) == "COM3"
+
+    def test_name_match_is_case_insensitive_and_tolerates_missing_fields(self):
+        ports = [
+            {"device": "COM2", "display_name": "COM2"},  # sem description/handshake
+            self._port("COM6", "ARDUINO LEONARDO", False),
+        ]
+        assert _picked_device(ports) == "COM6"

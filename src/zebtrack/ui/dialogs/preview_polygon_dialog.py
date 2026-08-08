@@ -181,7 +181,10 @@ class PreviewPolygonDialog:
         # Question
         question_label = ttk.Label(
             main_frame,
-            text="Deseja usar este polígono ou ajustar manualmente?",
+            text=(
+                "Aprovar este polígono (você ainda poderá ajustá-lo) "
+                "ou rejeitar e desenhar manualmente?"
+            ),
             font=("Segoe UI", 9),
         )
         question_label.pack(pady=(5, 10))
@@ -194,13 +197,15 @@ class PreviewPolygonDialog:
         button_frame = ttk.Frame(main_frame)
         button_frame.pack(side=tk.BOTTOM)
 
-        reject_btn = ttk.Button(
-            button_frame, text="Rejeitar/Ajustar", command=self._on_reject, width=18
-        )
+        # Rótulos: "Rejeitar" descarta o polígono e leva ao desenho manual do
+        # zero; "Aprovar/Ajustar" mantém o polígono — que o usuário pode ter
+        # editado arrastando vértices aqui mesmo, e que ainda poderá ajustar na
+        # aba de Configuração de Zonas antes de gravar.
+        reject_btn = ttk.Button(button_frame, text="Rejeitar", command=self._on_reject, width=18)
         reject_btn.pack(side=tk.LEFT, padx=5)
 
         approve_btn = ttk.Button(
-            button_frame, text="Aprovar e Usar", command=self._on_approve, width=18
+            button_frame, text="Aprovar/Ajustar", command=self._on_approve, width=18
         )
         approve_btn.pack(side=tk.LEFT, padx=5)
 

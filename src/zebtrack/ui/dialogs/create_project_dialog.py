@@ -123,12 +123,11 @@ class CreateProjectDialog(simpledialog.Dialog):
             row=6, column=1, sticky="w", padx=5
         )
 
-        Label(master, text="Intervalo de Exibição (frames):").grid(
-            row=7, column=0, sticky="w", padx=5, pady=2
-        )
-        Entry(master, textvariable=self.display_interval_var, width=10).grid(
-            row=7, column=1, sticky="w", padx=5
-        )
+        # "Intervalo de Exibição" fica fora da criação de projeto: ele só regula
+        # a frequência de redesenho do preview, nunca os dados analisados. O
+        # ajuste vive no Editor de Configurações. ``display_interval_var`` segue
+        # alimentando o projeto com o default (linha 7 do grid fica vazia e o
+        # Tk a colapsa sozinho).
 
         # --- Detection Methods ---
         Label(master, text="Método para Aquário:").grid(row=8, column=0, sticky="w", padx=5, pady=2)

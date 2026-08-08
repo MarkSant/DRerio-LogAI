@@ -142,6 +142,18 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
         self._pending_live_context: dict[str, Any] | None = None
         self._pending_live_kind: str | None = None  # "project" or "config"
 
+        # Sessão armada aguardando o código 1 do Arduino (modo de gatilho
+        # externo). Campo SEPARADO de ``_pending_live_context``: uma sessão pode
+        # precisar dos dois portões em sequência (desenhar zonas e só então
+        # esperar o sinal), e compartilhar o slot faria o segundo apagar o
+        # primeiro. Ver ``_external_trigger_allows_start``.
+        self._pending_trigger_context: dict[str, Any] | None = None
+
+        # Injetado por ``di_registrations`` DEPOIS do bootstrap (o manager é
+        # criado lá, e este coordinator é construído antes). Serve para checar
+        # conectividade antes de armar o gatilho — ver ``_arduino_manager``.
+        self.arduino_manager: Any = None
+
         # Subscribe to resume / cancel buttons published by the zone tab UI.
         if self.event_bus is not None:
             self.event_bus.subscribe(
@@ -1874,6 +1886,186 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
         return success
 
     # =============================================================================
+    # EXTERNAL TRIGGER (Arduino starts/stops the recording)
+    # =============================================================================
+
+    def _arduino_manager(self) -> Any:
+        """Localiza o ``ArduinoManager`` para sondar conectividade, ou ``None``.
+
+        O manager é injetado no ``RecordingSessionCoordinator`` pela DI
+        (``di_registrations``), não neste coordinator — daí a busca em cadeia.
+        Devolver ``None`` é aceitável: o gate degrada para a decisão baseada só
+        em configuração.
+        """
+        manager = getattr(self, "arduino_manager", None)
+        if manager is not None:
+            return manager
+        for holder_name in ("recording_session_coordinator", "view"):
+            holder = getattr(self, holder_name, None)
+            candidate = getattr(holder, "arduino_manager", None)
+            if candidate is not None:
+                return candidate
+        return None
+
+    def _external_trigger_allows_start(
+        self, project_data: dict[str, Any] | None, context: dict[str, Any]
+    ) -> bool:
+        """Decide se a gravação pode começar agora sob modo de gatilho externo.
+
+        A regra é a de ``external_trigger_gate`` — a MESMA que o caminho legado
+        de ``RecordingSessionCoordinator`` usa. Aqui só traduzimos a decisão em
+        estado pendente e eventos de UI.
+
+        Returns:
+            True para gravar agora; False quando a sessão foi armada (aguardando
+            o código 1 do Arduino) ou recusada por falta de Arduino.
+        """
+        from zebtrack.core.services.external_trigger_gate import (
+            ExternalTriggerDecision,
+            decide_external_trigger,
+        )
+
+        decision = decide_external_trigger(project_data, self._arduino_manager())
+
+        if decision is ExternalTriggerDecision.PROCEED:
+            return True
+
+        if decision in (
+            ExternalTriggerDecision.REJECT_NO_ARDUINO,
+            ExternalTriggerDecision.REJECT_ARDUINO_OFFLINE,
+        ):
+            offline = decision is ExternalTriggerDecision.REJECT_ARDUINO_OFFLINE
+            log.error(
+                "live_camera_session_coordinator.external_trigger.rejected",
+                reason=decision.value,
+                experiment_id=context.get("experiment_id"),
+            )
+            if self.event_bus is not None:
+                port = ((project_data or {}).get("arduino_port") or "").strip()
+                if offline:
+                    message = (
+                        "Este projeto usa Modo de Gatilho Externo, mas o Arduino "
+                        f"não está conectado{f' (porta {port})' if port else ''}.\n\n"
+                        "A gravação NÃO foi iniciada: ela ficaria esperando para "
+                        "sempre um sinal que não tem por onde chegar.\n\n"
+                        "Verifique o cabo, se a porta não está em uso por outro "
+                        "programa (IDE do Arduino, monitor serial) e reabra o "
+                        "projeto para reconectar."
+                    )
+                else:
+                    message = (
+                        "Este projeto está com o Modo de Gatilho Externo ligado, "
+                        "mas sem Arduino configurado.\n\n"
+                        "A gravação NÃO foi iniciada: começar agora ignoraria o "
+                        "sinal externo que o protocolo espera. Configure o Arduino "
+                        "ou desligue o gatilho externo nas configurações do projeto."
+                    )
+                self.event_bus.publish(
+                    Event(
+                        type=UIEvents.UI_SHOW_ERROR,
+                        data=payloads.MessagePayload(
+                            title="Trigger Externo Indisponível",
+                            message=message,
+                        ),
+                        source="LiveCameraSessionCoordinator._external_trigger_allows_start",
+                    )
+                )
+            return False
+
+        # ARM_AND_WAIT
+        self._pending_trigger_context = dict(context)
+        port = ((project_data or {}).get("arduino_port") or "").strip()
+        log.info(
+            "live_camera_session_coordinator.external_trigger.armed",
+            experiment_id=context.get("experiment_id"),
+            port=port,
+        )
+        if self.event_bus is not None:
+            self.event_bus.publish(
+                Event(
+                    type=UIEvents.UI_SHOW_EXTERNAL_TRIGGER_NOTICE,
+                    data=payloads.ExternalTriggerNoticePayload(
+                        folder_name=str(context.get("folder_name") or ""),
+                        day=context.get("day_int"),
+                        group=context.get("group"),
+                        cobaia=context.get("subject"),
+                        port=port,
+                    ),
+                    source="LiveCameraSessionCoordinator._external_trigger_allows_start",
+                )
+            )
+            self.event_bus.publish(
+                Event(
+                    type=UIEvents.UI_SET_STATUS,
+                    data=payloads.StatusPayload(
+                        message=f"Aguardando sinal externo... (porta {port})"
+                    ),
+                    source="LiveCameraSessionCoordinator._external_trigger_allows_start",
+                )
+            )
+        return False
+
+    def has_pending_external_trigger(self) -> bool:
+        """True quando uma sessão está armada aguardando o sinal do Arduino."""
+        return self._pending_trigger_context is not None
+
+    def clear_pending_external_trigger(self) -> None:
+        """Desarma a espera pelo gatilho e limpa o aviso na UI."""
+        if self._pending_trigger_context is None:
+            return
+        self._pending_trigger_context = None
+        if self.event_bus is not None:
+            self.event_bus.publish(Event(type=UIEvents.UI_CLEAR_EXTERNAL_TRIGGER_NOTICE))
+
+    def on_arduino_event(self, event_code: int) -> None:
+        """Trata um código numérico vindo do Arduino (fluxo de gatilho externo).
+
+        Código 1 inicia a sessão armada; 0 encerra a que estiver em curso (ou
+        desarma a espera). Qualquer outro código é ignorado — a serial carrega
+        ACKs textuais e outros tokens que não são comandos de gravação.
+
+        Chamado a partir do laço Tk (ver ``MainViewModel.on_arduino_event``), já
+        marshalado para fora da thread leitora do Arduino.
+        """
+        log.info("live_camera_session_coordinator.arduino.event_received", code=event_code)
+
+        if event_code == 1:
+            context = self._pending_trigger_context
+            if context is None:
+                log.warning("live_camera_session_coordinator.arduino.event.unexpected_start")
+                return
+
+            self._pending_trigger_context = None
+            if self.event_bus is not None:
+                self.event_bus.publish(Event(type=UIEvents.UI_CLEAR_EXTERNAL_TRIGGER_NOTICE))
+
+            log.info(
+                "live_camera_session_coordinator.arduino.triggering_recording",
+                experiment_id=context.get("experiment_id"),
+            )
+            # ``zones_validated=True``: o portão de zonas já passou antes de
+            # armarmos. ``external_trigger_armed=True``: não rearmar em loop.
+            self.start_live_project_session(
+                day=context["day_int"],
+                group=context["group"],
+                subject=context["subject"],
+                duration_s=context.get("duration_s"),
+                camera_index_override=context.get("camera_index_override"),
+                camera_friendly_name_override=context.get("camera_friendly_name_override"),
+                zones_validated=True,
+                external_trigger_armed=True,
+            )
+        elif event_code == 0:
+            if self._pending_trigger_context is not None:
+                log.info("live_camera_session_coordinator.arduino.disarming")
+                self.clear_pending_external_trigger()
+            elif self.is_live_session_active():
+                log.info("live_camera_session_coordinator.arduino.stopping_recording")
+                self.stop_live_session()
+        else:
+            log.info("live_camera_session_coordinator.arduino.event.ignored", code=event_code)
+
+    # =============================================================================
     # LIVE PROJECT SESSIONS
     # =============================================================================
 
@@ -1887,6 +2079,7 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
         camera_index_override: int | None = None,
         camera_friendly_name_override: str | None = None,
         zones_validated: bool = False,
+        external_trigger_armed: bool = False,
     ) -> bool:
         """Start a live recording session for a Live project.
 
@@ -1902,9 +2095,16 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
                 and use this index for THIS session only (no persistence).
             camera_friendly_name_override: Friendly name paired with the override
                 (only logged for traceability).
+            external_trigger_armed: True when this call is the replay fired by the
+                Arduino's start code — skips the trigger gate so the session
+                actually records instead of arming a second time.
 
         Returns:
-            True if session started successfully, False otherwise
+            True if session started successfully, False otherwise.
+            **False does NOT always mean failure**: it also covers the two
+            legitimate deferrals (waiting for zone confirmation, waiting for the
+            external trigger). Callers that show an error on False must probe the
+            pending flags first — see ``BlockDetailDialog.start_session``.
         """
         # Validate project type
         if self.project_manager.get_project_type() != "live":
@@ -2019,6 +2219,24 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
                 else:
                     log.info("live_camera_session_coordinator.live_project_session.zones_not_ready")
                 return False
+
+        # Portão do gatilho externo — DEPOIS do portão de zonas de propósito: o
+        # polígono é trabalho do operador e deve estar pronto antes de ficarmos
+        # esperando o sinal, senão o Arduino dispara numa sessão sem arena.
+        if not external_trigger_armed and not self._external_trigger_allows_start(
+            project_data,
+            {
+                "day_int": day,
+                "group": group,
+                "subject": subject,
+                "duration_s": duration_s,
+                "camera_index_override": camera_index_override,
+                "camera_friendly_name_override": camera_friendly_name_override,
+                "experiment_id": experiment_id,
+                "folder_name": experiment_id,
+            },
+        ):
+            return False
 
         # v2.3.1: Increment session count to track recordings for zone reuse dialog
         self.live_calibration_coordinator.increment_session_count()

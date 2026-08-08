@@ -313,6 +313,10 @@ Na primeira execução, o sistema irá:
     - **Ao vivo**: design experimental (grupos/dias/sujeitos) → configuração de câmera/Arduino e
        gravação (inclui modo de gatilho externo) → calibração física → seleção de modelo/pesos/
        parâmetros → confirmação
+    - O **modo de gatilho externo** (Arduino dá a partida na gravação) é opt-in e vem
+       desligado; exige um sketch que envie `1`/`0` pela serial — o sketch de referência
+       do repositório **não** faz isso. Ver
+       [`docs/guides/user/external-trigger.md`](docs/guides/user/external-trigger.md).
 
 2. **Processar Vídeos**
    - Detecção automática de peixes com YOLO

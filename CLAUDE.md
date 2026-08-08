@@ -154,6 +154,33 @@ timestamp, frame, track_id, x1, y1, x2, y2, confidence,
 - Sequential vs parallel processing toggle: `MultiAquariumZoneData.sequential_processing` (UI in `ui/components/zone_controls.py`).
 - See [`docs/reference/DOMAIN_GLOSSARY.md`](docs/reference/DOMAIN_GLOSSARY.md) and [`docs/archive/PHASES.md`](docs/archive/PHASES.md) for full data model.
 
+### ⏱️ Duração da sessão ao vivo
+
+- **`core/services/session_duration_resolver.resolve_session_duration()` é a fonte única.**
+  Precedência: override da cobaia > padrão do bloco (dia × grupo) > `project_data["recording_duration_s"]` > 300 s.
+  Overrides ficam em `project_data["session_duration_overrides"]`, com chaves montadas por
+  `duration_override_key()` — **nunca** monte a string `"Dia_1|Grupo|3"` à mão: o dia chega
+  como `1`, `"1"` ou `"Dia_1"` conforme o call site, e o resolver é quem normaliza.
+- Um override corrompido **degrada, não levanta**: cai para o próximo nível com aviso no log.
+  Duração zero perderia a gravação tão silenciosamente quanto uma exceção.
+- **Durações heterogêneas dentro de um bloco invalidam a comparação de métricas ABSOLUTAS**
+  (distância total, nº de entradas, tempo em ROI). O app não normaliza sozinho — a decisão é do
+  pesquisador — mas avisa antes de gerar o relatório parcial/lote e carimba a ressalva dentro do
+  `.docx`. A coluna `video_duration_s` está no `.xlsx` justamente para permitir a normalização.
+
+### 🔌 Modo de gatilho externo (Arduino inicia a gravação)
+
+- **`core/services/external_trigger_gate.decide_external_trigger()` é a regra única.** Existem
+  DOIS caminhos que iniciam gravação ao vivo — o legado (`RecordingSessionCoordinator`, botão do
+  painel) e o da grade de Progresso (`LiveCameraSessionCoordinator.start_live_project_session`).
+  Até o gate existir, só o legado consultava `external_trigger_mode`, e gravar pela grade
+  ignorava o sinal em silêncio.
+- Gatilho ligado **sem** `use_arduino` ⇒ sessão **recusada**, nunca iniciada às cegas: uma
+  gravação começada na hora errada é dado inútil que só se descobre na análise.
+- `start_live_project_session` retorna `False` em três situações — falha real, aguardando zonas,
+  e armado aguardando o gatilho. Quem mostra erro nesse `False` **precisa** sondar
+  `pending_zone_confirmation` e `has_pending_external_trigger()` antes.
+
 ### 🧵 Threading & UI
 
 - **All UI updates from worker threads MUST use `root.after(0, ...)`** (Tkinter main thread only).
