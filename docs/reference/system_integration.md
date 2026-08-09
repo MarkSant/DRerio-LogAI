@@ -1021,6 +1021,104 @@ that re-emits tuples, so the bbox index does not survive) and batch inference
 (`detect_batch` clears the one-frame mask buffer rather than risk misattributing
 it). Both degrade with the warning above.
 
+### 5.11. External Trigger Reaches the Progress Grid (August 2026)
+
+Two code paths start a live recording, and only one of them used to honour
+`external_trigger_mode`:
+
+| Path | Entry point | Folder layout |
+| ---- | ----------- | ------------- |
+| Legacy | Control-panel "Iniciar Gravação" → `RecordingSessionCoordinator.start_recording` | `D{day}_G{group}_S{subject}/` at project root |
+| Current | Progress-grid subject → `BlockDetailDialog.start_session` → `LiveCameraSessionCoordinator.start_live_project_session` | `Grupo_X/Dia_Y/Sujeito_Z/live_{ts}/` |
+
+Ticking "Modo de Gatilho Externo" in the wizard and then recording from the grid
+did nothing: the session started immediately, ignoring the Arduino. The rule now
+lives in `core/services/external_trigger_gate.py` and both paths consult it:
+
+```python
+decide_external_trigger(project_data, arduino_manager=None) -> ExternalTriggerDecision
+# PROCEED | ARM_AND_WAIT | REJECT_NO_ARDUINO | REJECT_ARDUINO_OFFLINE
+```
+
+The function is pure (no I/O, no events) — each coordinator translates the
+decision into its own pending state and UI events. `use_arduino` is the source of
+truth for *intent*; a saved `arduino_port` with `use_arduino` false means the
+user disabled the hardware, not that hardware exists.
+
+Both rejections **refuse the session** rather than recording blind. The protocol
+was designed around synchronisation with an external event; a recording started
+at the wrong instant is useless data that only surfaces at analysis time.
+
+The two rejections are distinct because the user's next action differs:
+
+| Decision | Condition | User must |
+| -------- | --------- | --------- |
+| `REJECT_NO_ARDUINO` | trigger on, `use_arduino` off | configure the Arduino, or turn the trigger off |
+| `REJECT_ARDUINO_OFFLINE` | trigger on, `use_arduino` on, port **not open** | check the cable / free the port, reopen the project |
+
+The offline check matters because `initialize_live_components` warns "executando
+em modo offline" when `connect` fails and then **opens the project anyway** with
+`use_arduino=True`. Checking intent alone would arm a session that waits forever
+for a signal with no way to arrive — the worst outcome, because it looks like it
+is working. Pass `arduino_manager` to enable the check; without it the gate
+degrades to the config-only decision, and a probe that raises never blocks a
+recording.
+
+Gate order in `start_live_project_session` is **zones first, trigger second**. The
+polygon is operator work and must be finished before we sit waiting for a signal,
+otherwise the Arduino can fire into a session with no arena. The two use separate
+slots (`_pending_live_context` for zones, `_pending_trigger_context` for the
+trigger) because a session can legitimately need both.
+
+`MainViewModel.on_arduino_event` routes to whichever coordinator actually has an
+armed session (probed on the reader thread, before the `root.after(0, ...)`
+marshalling), falling back to the legacy coordinator so unexpected start codes
+still get logged.
+
+**Consequence for callers:** `start_live_project_session` returns `False` for
+three different reasons — genuine failure, awaiting zone confirmation, and armed
+awaiting the trigger. Anything that shows an error on `False` must probe
+`live_calibration_coordinator.pending_zone_confirmation` **and**
+`has_pending_external_trigger()` first, or it will lie to the user.
+
+### 5.12. Per-Subject Recording Duration (August 2026)
+
+The wizard sets one duration for the whole project. Real protocols need
+exceptions — a shorter habituation day, an animal that needed longer — and the
+only previous escape was recreating the project.
+
+`core/services/session_duration_resolver.py` is the single source:
+
+```python
+resolve_session_duration(project_data, day, group, subject) -> float  # seconds
+```
+
+Precedence: subject override > block (day × group) default >
+`project_data["recording_duration_s"]` > 300 s. Overrides live in
+`project_data["session_duration_overrides"]` keyed by `duration_override_key()`,
+which normalises the three day formats the codebase carries (`1`, `"1"`,
+`"Dia_1"`) — never hand-build the key string.
+
+Values are edited in `BlockDetailDialog` (block default beside the camera row;
+per-subject button on each pending row), stored in seconds, and shown in minutes.
+Setting a subject back to the block default **removes** the override rather than
+storing a duplicate, so the UI never claims "própria" for an inherited value.
+A corrupt override degrades to the next precedence level with a log — a zero
+duration would lose the recording as silently as an exception would.
+
+**Report impact.** Nothing breaks: `duracao_video_s` was already recorded per
+session and exported as `video_duration_s`, and no reporter divides by duration
+(`sharp_turns_per_minute` is the only time-normalised metric). But the partial
+and batch reports aggregate with `groupby("animal").mean()`, and **absolute**
+metrics — total distance, entry counts, time in ROI — scale with recording
+length. Mixed durations inside a block make those means non-comparable. The app
+therefore (a) forces `video_duration_s` into the aggregated columns, (b) asks for
+confirmation before generating a report over a heterogeneous block, and (c)
+stamps the caveat inside the `.docx`. It deliberately does **not** normalise
+automatically: changing the semantics of existing metrics would break
+comparability with already-published data, and that call belongs to the
+researcher.
+
 ---
 
 ## 6. Common Pitfalls for Agents
@@ -1186,6 +1284,7 @@ Heavy imports (pandas, pyarrow, openpyxl) are deferred in:
 
 | Date | Version | Changes |
 | ---- | ------- | ------- |
+| Aug 8, 2026 | v5.0 | § 5.11 external trigger reaches the Progress grid (`external_trigger_gate`, two coordinators unified, `on_arduino_event` routing); § 5.12 per-subject recording duration (`session_duration_resolver`, `session_duration_overrides`, heterogeneity warning in partial/batch reports) |
 | Aug 7, 2026 | v4.9 | § 5.10.4 `seg_overlap` made real — `3b_Mascaras_<base>.parquet` sidecar (WKB, same flush thread), opt-in mask decode gated by `should_capture_masks()`, calibration applied to mask points, dedicated `roi_min_seg_overlap_ratio`, declared degradation to `bbox_intersects` instead of the old unconditional raise |
 | Aug 6, 2026 | v4.8 | § 5.10.3 multi-animal ROI — `(timestamp, track_id)` aggregation ends the ghost centroid, track-aware diffs/smoothing/episodes, `analise_roi.por_animal` + `any_track` group semantics, multi-track validation warning |
 | Aug 6, 2026 | v4.7 | § 5.10.2 ROI presence timing — backdated asymmetric debounce (production no longer hardcodes `flutter_n_frames=1`), duration filters in seconds, `roi_max_gap_s` + `analise_roi.tempo_nao_observado_s` |

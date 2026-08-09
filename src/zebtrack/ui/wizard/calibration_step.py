@@ -274,24 +274,13 @@ class CalibrationStep(WizardStep):
             ),
         )
 
-        # Display interval
-        display_row = Frame(advanced_frame)
-        display_row.pack(fill="x", pady=3)
-
-        Label(display_row, text="Intervalo de Exibição (frames):", width=30, anchor="w").pack(
-            side="left"
-        )
-        display_entry = Entry(display_row, textvariable=self.display_interval_var, width=10)
-        display_entry.pack(side="left", padx=(5, 0))
-        ToolTip(
-            display_entry,
-            (
-                "🖥️ Intervalo de Exibição\n\n"
-                "Atualiza a imagem na tela a cada N frames processados.\n\n"
-                "• Valores altos (ex: 30) tornam a interface mais fluida "
-                "durante o processamento em lote."
-            ),
-        )
+        # O "Intervalo de Exibição" NÃO aparece aqui de propósito: ele só regula
+        # a frequência com que o overlay/preview é redesenhado na tela (ver
+        # ``processing_worker`` e ``frame_processing_pipeline``) e nunca afeta os
+        # dados gravados nem as métricas. Como decisão de criação de projeto ele
+        # só confundia; quem precisa aliviar a UI em máquina modesta ajusta no
+        # Editor de Configurações. ``display_interval_var`` segue viva e é
+        # exportada por ``get_data`` para o valor continuar fluindo ao projeto.
 
         # RIGHT COLUMN: Behavioral analysis configuration (full height)
         behavioral_frame = LabelFrame(

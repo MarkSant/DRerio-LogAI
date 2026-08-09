@@ -9,6 +9,85 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Gatilho externo passa a valer na grade de Progresso
+
+- **O checkbox "Modo de Gatilho Externo" do wizard não fazia nada no fluxo que os
+  usuários realmente usam.** A cadeia Arduino → gravação estava completa, mas
+  `external_trigger_mode` era lido em UM único lugar: `RecordingSessionCoordinator`,
+  o caminho legado do botão "Iniciar Gravação" do painel. Clicar numa cobaia na
+  grade de Progresso ia por `LiveCameraSessionCoordinator.start_live_project_session`,
+  que nunca consultava a flag — a gravação começava na hora e ignorava o sinal
+  externo. Falha silenciosa: só se descobre na análise, com o dado já perdido.
+- A regra agora vive em `core/services/external_trigger_gate.py`
+  (`decide_external_trigger` → `PROCEED` / `ARM_AND_WAIT` / `REJECT_NO_ARDUINO` /
+  `REJECT_ARDUINO_OFFLINE`) e os **dois** caminhos a consultam. Com gatilho ligado e
+  Arduino presente, a sessão é ARMADA (aviso "Aguardando sinal externo") e só grava
+  ao receber o código 1; o código 0 encerra ou desarma.
+- **Gatilho ligado sem Arduino configurado agora RECUSA a sessão** em vez de gravar
+  às cegas. O protocolo foi desenhado em torno da sincronia com um evento externo.
+- **O gate checa CONECTIVIDADE, não só intenção.** Se o `connect` falha ao abrir o
+  projeto, o app avisa "modo offline" e segue com `use_arduino=True`; armar nesse
+  estado deixaria a sessão esperando para sempre um sinal sem por onde chegar — o
+  pior desfecho, porque parece estar funcionando. `REJECT_ARDUINO_OFFLINE` é
+  distinto de `REJECT_NO_ARDUINO` porque a ação do usuário é outra (conectar o cabo
+  vs. configurar o projeto). Falha ao sondar a serial degrada em vez de bloquear.
+- **Documentação que faltava**: [`docs/guides/user/external-trigger.md`](docs/guides/user/external-trigger.md).
+  O protocolo (`1` inicia, `0` encerra, **número puro** — texto é ACK) só existia
+  numa linha de tabela de referência técnica. E o sketch de referência do repositório
+  **não implementa o gatilho**: ele só recebe tokens, nunca envia. Quem marcasse a
+  caixa e usasse `Program_Final.ino` esperaria indefinidamente. O guia traz sketch
+  mínimo, passo a passo e solução de problemas.
+- Ordem dos portões: zonas primeiro, gatilho depois — o polígono é trabalho do
+  operador e precisa estar pronto antes de ficarmos esperando o sinal, senão o
+  Arduino dispara numa sessão sem arena.
+- `MainViewModel.on_arduino_event` roteia para o coordinator que de fato tem sessão
+  armada, mantendo o legado como destino padrão.
+
+### Duração de gravação editável por bloco e por cobaia
+
+- O wizard define UMA duração para o projeto inteiro. Agora, na janela de detalhe do
+  bloco (grade de Progresso → clique no quadrado Dia × Grupo) há um **padrão do bloco**
+  e um **override por cobaia**, ambos persistidos em
+  `project_data["session_duration_overrides"]` — sobrevivem a reiniciar o app e ficam
+  auditáveis no JSON do projeto.
+- Fonte única: `core/services/session_duration_resolver.resolve_session_duration()`.
+  Precedência cobaia > bloco > projeto > 300 s. As chaves são montadas por
+  `duration_override_key()`, que normaliza os três formatos de dia (`1`, `"1"`,
+  `"Dia_1"`) que o codebase carrega. Override corrompido degrada para o nível de cima
+  com aviso — duração zero perderia a gravação tão silenciosamente quanto uma exceção.
+- Igualar a duração de uma cobaia ao padrão do bloco **remove** o override em vez de
+  duplicá-lo, para a UI não dizer "própria" sobre um valor herdado.
+- **Relatórios:** nada quebra — `video_duration_s` já era gravado por sessão e nenhum
+  reporter divide por duração. Mas os relatórios parcial/lote agregam por
+  `groupby("animal").mean()`, e métricas ABSOLUTAS (distância total, nº de entradas,
+  tempo em ROI) escalam com o tempo de gravação. Agora `video_duration_s` entra
+  explicitamente nas colunas agregadas, o app pede confirmação antes de gerar
+  relatório sobre um bloco heterogêneo, e carimba a ressalva dentro do `.docx`.
+  Normalização automática NÃO foi introduzida: mudar a semântica das métricas
+  existentes quebraria a comparabilidade com dados já publicados.
+
+### Wizard ao vivo: porta do Arduino e intervalo de exibição
+
+- **A porta do Arduino é detectada e pré-selecionada ao marcar "Usar Arduino".** Antes,
+  marcar o checkbox só habilitava um combo vazio — a detecção exigia um segundo clique
+  no botão "Detectar", nada indicava isso. A escolha segue precedência explícita
+  (`pick_default_arduino_port`): handshake + nome "Arduino" > handshake > nome > primeira
+  da lista. O handshake vence o nome porque clones com chip CH340/FTDI aparecem como
+  "USB-SERIAL" e responder é prova melhor que o rótulo do driver. O rótulo de status
+  passa a dizer QUAL porta foi escolhida.
+- **"Intervalo de Exibição (frames)" saiu do wizard e do diálogo de criação de projeto.**
+  Ele é funcional — regula o throttle de redesenho do overlay/preview — mas **nunca**
+  afeta os dados gravados nem as métricas, e como decisão de criação de projeto só
+  confundia. O parâmetro segue vivo no pipeline e editável no Editor de Configurações
+  (e no fluxo de vídeo único, onde o ajuste ad-hoc faz sentido).
+
+### Auto-detecção do aquário: rótulos honestos
+
+- `"Rejeitar/Ajustar"` → `"Rejeitar"` e `"Aprovar e Usar"` → `"Aprovar/Ajustar"`. Os
+  rótulos antigos invertiam a expectativa: quem aprova é que ainda pode ajustar (na
+  própria janela, arrastando vértices, e depois na aba de Zonas); rejeitar leva ao
+  desenho manual do zero.
+
 ### Métricas de ROI chegam ao entregável (`.xlsx` e `.docx`)
 
 - **Nova aba `por_animal` no `<video>_summary.xlsx`.** As métricas por animal

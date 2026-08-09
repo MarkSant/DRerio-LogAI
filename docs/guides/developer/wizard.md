@@ -89,6 +89,21 @@ def validate_external_trigger(cls, v, info):
     return v
 ```
 
+> **Onde `external_trigger_mode` é consumido em runtime**: a validação acima só
+> garante coerência no momento da criação. Quem decide o comportamento da gravação
+> é `core/services/external_trigger_gate.decide_external_trigger()`, consultado
+> tanto pelo caminho legado (`RecordingSessionCoordinator`) quanto pelo da grade de
+> Progresso (`LiveCameraSessionCoordinator.start_live_project_session`). Um projeto
+> antigo pode ter a flag ligada e `use_arduino` desligado (edição manual do JSON,
+> migração): nesse caso o gate **recusa** a sessão em vez de gravar às cegas. Ver
+> [`system_integration.md`](../../reference/system_integration.md) § 5.11.
+>
+> **Intervalo de Exibição**: `display_interval_frames` continua em `wizard_data` e
+> em `project_data`, mas **não tem mais campo na UI do wizard** — ele só regula o
+> throttle de redesenho do preview, nunca os dados analisados. `CalibrationStep`
+> mantém `display_interval_var` para o valor seguir fluindo; a edição fica no
+> Editor de Configurações.
+
 ### Camada 3: UI Steps (`wizard/*.py`)
 
 **Localização**: `src/zebtrack/ui/wizard/`

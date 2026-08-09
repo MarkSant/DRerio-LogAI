@@ -399,16 +399,48 @@ class MainViewModel:
         The ``ArduinoManager`` reader thread calls this on the controller when a
         numeric line arrives from the device (external-trigger flow) — this
         runs on the background ``ArduinoReader`` thread, not the main thread.
-        ``RecordingSessionCoordinator.on_arduino_event`` can start a recording
-        (countdown ``Toplevel``, button/status updates), so dispatch is marshaled
-        onto the Tk main loop via ``root.after(0, ...)`` per CLAUDE.md's
-        "UI updates from worker threads" rule. Falls back to a direct call when
-        there is no ``root`` (headless/tests).
+        Há DOIS coordinators capazes de gravar sob gatilho externo: o legado
+        (``RecordingSessionCoordinator``, botão do painel de controle) e o da
+        grade de Progresso (``LiveCameraSessionCoordinator``). O evento vai para
+        quem realmente tem uma sessão armada; sem ninguém armado, o legado segue
+        como destino padrão — ele é quem sabe logar o "start inesperado".
+
+        ``on_arduino_event`` pode iniciar uma gravação (countdown ``Toplevel``,
+        updates de botão/status), então o dispatch é marshalado para o laço Tk
+        via ``root.after(0, ...)`` conforme a regra "UI updates from worker
+        threads" do CLAUDE.md. Sem ``root`` (headless/testes), chama direto.
         """
-        coordinator = getattr(self.hardware_vm, "recording_session_coordinator", None)
-        if coordinator is None or not hasattr(coordinator, "on_arduino_event"):
+        coordinator = self._arduino_event_target()
+        if coordinator is None:
             return
         if self.root is not None:
             self.root.after(0, coordinator.on_arduino_event, event_code)
         else:
             coordinator.on_arduino_event(event_code)
+
+    def _arduino_event_target(self):
+        """Escolhe qual coordinator recebe o evento do Arduino.
+
+        Precedência: quem tem sessão armada aguardando o gatilho vence. Isso é
+        avaliado na thread leitora (barato: só lê um campo), antes do
+        ``root.after`` — trocar o destino depois exigiria replicar a decisão
+        dentro do callback.
+        """
+        live_coordinator = getattr(self, "live_camera_session_coordinator", None)
+        if live_coordinator is None:
+            live_coordinator = getattr(self.hardware_vm, "live_camera_session_coordinator", None)
+
+        if live_coordinator is not None and hasattr(live_coordinator, "on_arduino_event"):
+            try:
+                if live_coordinator.has_pending_external_trigger():
+                    return live_coordinator
+            # except Exception justified: roda na thread leitora do Arduino; uma
+            # falha na sondagem não pode derrubar a serial nem perder o evento —
+            # caímos no coordinator legado.
+            except Exception:
+                log.debug("main_view_model.arduino_event.probe_failed", exc_info=True)
+
+        legacy = getattr(self.hardware_vm, "recording_session_coordinator", None)
+        if legacy is not None and hasattr(legacy, "on_arduino_event"):
+            return legacy
+        return live_coordinator if hasattr(live_coordinator, "on_arduino_event") else None

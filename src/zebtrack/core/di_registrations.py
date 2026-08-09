@@ -365,6 +365,12 @@ def resolve_main_view_model(container: punq.Container) -> MainViewModel:
     if arduino_manager is not None:
         recording_session_coordinator = _resolve(container, RecordingSessionCoordinator)
         recording_session_coordinator.arduino_manager = arduino_manager
+        # O LiveCameraSessionCoordinator (caminho da grade de Progresso) também
+        # arma o gatilho externo, e precisa do manager para checar CONECTIVIDADE
+        # antes de armar — sem isso a sessão esperaria para sempre um sinal que
+        # não tem por onde chegar quando o connect falhou no load do projeto.
+        live_camera_session_coordinator = _resolve(container, LiveCameraSessionCoordinator)
+        live_camera_session_coordinator.arduino_manager = arduino_manager
 
     controller = MainViewModel(dependencies, bootstrap_result)
     controller_ref.set(controller)

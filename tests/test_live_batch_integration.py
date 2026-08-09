@@ -650,3 +650,141 @@ def test_normalize_day_key_variants():
     assert norm("Dia_01") == "1"
     assert norm("Dia_10") == "10"
     assert norm(None) == ""
+
+
+# ---------------------------------------------------------------------------
+# Modo de gatilho externo no caminho da grade de Progresso
+# ---------------------------------------------------------------------------
+
+
+def _make_trigger_coordinator(test_settings, project_data):
+    """Coordinator de projeto live pronto para exercitar o gate de gatilho."""
+    coord = _make_session_coordinator(test_settings)
+    coord.project_manager.get_project_type.return_value = "live"
+    coord.project_manager.project_data = project_data
+    coord.live_camera_service.start_session.return_value = True
+    coord.event_bus = MagicMock()
+
+    coord._prepare_analysis_tab_for_live_session = MagicMock()
+    coord._resolve_session_paths = MagicMock(return_value=(None, None))
+    coord._publish_live_analysis_metadata = MagicMock()
+    coord._publish_live_task_status = MagicMock()
+    coord._set_live_analysis_ui_state = MagicMock()
+    return coord
+
+
+def test_external_trigger_arms_instead_of_recording(test_settings):
+    """O bug que este gate fecha: com gatilho externo ligado, a grade gravava na
+    hora e ignorava o sinal do Arduino."""
+    coord = _make_trigger_coordinator(
+        test_settings,
+        {
+            "recording_duration_s": 30.0,
+            "external_trigger_mode": True,
+            "use_arduino": True,
+            "arduino_port": "COM3",
+        },
+    )
+
+    success = coord.start_live_project_session(
+        day=1, group="Controle", subject="1", zones_validated=True
+    )
+
+    assert success is False
+    coord.live_camera_service.start_session.assert_not_called()
+    assert coord.has_pending_external_trigger() is True
+
+
+def test_external_trigger_without_arduino_is_refused(test_settings):
+    """Gravar às cegas seria pior que recusar — o protocolo espera sincronia."""
+    coord = _make_trigger_coordinator(
+        test_settings,
+        {"recording_duration_s": 30.0, "external_trigger_mode": True, "use_arduino": False},
+    )
+
+    success = coord.start_live_project_session(
+        day=1, group="Controle", subject="1", zones_validated=True
+    )
+
+    assert success is False
+    coord.live_camera_service.start_session.assert_not_called()
+    assert coord.has_pending_external_trigger() is False
+
+
+def test_arduino_start_code_records_the_armed_session(test_settings):
+    coord = _make_trigger_coordinator(
+        test_settings,
+        {
+            "recording_duration_s": 30.0,
+            "external_trigger_mode": True,
+            "use_arduino": True,
+            "arduino_port": "COM3",
+        },
+    )
+    coord.start_live_project_session(
+        day=2, group="Tratado", subject="3", duration_s=600.0, zones_validated=True
+    )
+    assert coord.live_camera_service.start_session.call_count == 0
+
+    coord.on_arduino_event(1)
+
+    assert coord.live_camera_service.start_session.call_count == 1
+    _args, kwargs = coord.live_camera_service.start_session.call_args
+    assert kwargs["duration_s"] == 600.0
+    assert kwargs["experiment_id"] == "day2_Tratado_3"
+    # Desarmado: um segundo código 1 não pode disparar outra gravação.
+    assert coord.has_pending_external_trigger() is False
+    coord.on_arduino_event(1)
+    assert coord.live_camera_service.start_session.call_count == 1
+
+
+def test_arduino_stop_code_disarms_pending_session(test_settings):
+    coord = _make_trigger_coordinator(
+        test_settings,
+        {
+            "recording_duration_s": 30.0,
+            "external_trigger_mode": True,
+            "use_arduino": True,
+        },
+    )
+    coord.start_live_project_session(day=1, group="Controle", subject="1", zones_validated=True)
+
+    coord.on_arduino_event(0)
+
+    assert coord.has_pending_external_trigger() is False
+    coord.live_camera_service.start_session.assert_not_called()
+
+
+def test_unknown_arduino_codes_are_ignored(test_settings):
+    """A serial carrega ACKs e outros tokens que não são comandos de gravação."""
+    coord = _make_trigger_coordinator(
+        test_settings,
+        {
+            "recording_duration_s": 30.0,
+            "external_trigger_mode": True,
+            "use_arduino": True,
+        },
+    )
+    coord.start_live_project_session(day=1, group="Controle", subject="1", zones_validated=True)
+
+    for code in (2, 7, -1, 99):
+        coord.on_arduino_event(code)
+
+    assert coord.has_pending_external_trigger() is True
+    coord.live_camera_service.start_session.assert_not_called()
+
+
+def test_trigger_off_records_immediately(test_settings):
+    """Sem gatilho externo, nada muda: grava na hora."""
+    coord = _make_trigger_coordinator(
+        test_settings,
+        {"recording_duration_s": 30.0, "external_trigger_mode": False, "use_arduino": True},
+    )
+
+    success = coord.start_live_project_session(
+        day=1, group="Controle", subject="1", zones_validated=True
+    )
+
+    assert success is True
+    coord.live_camera_service.start_session.assert_called_once()
+    assert coord.has_pending_external_trigger() is False
