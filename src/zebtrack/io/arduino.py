@@ -196,8 +196,8 @@ class Arduino:
                 allowed=list(ALLOWED_ARDUINO_COMMANDS),
             )
             raise ArduinoCommandError(
-                f"Comando inválido: '{command}'. "
-                f"Comandos permitidos: {', '.join(sorted(ALLOWED_ARDUINO_COMMANDS))}"
+                f"Invalid command: '{command}'. "
+                f"Allowed commands: {', '.join(sorted(ALLOWED_ARDUINO_COMMANDS))}"
             )
 
         try:

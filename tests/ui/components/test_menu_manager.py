@@ -463,11 +463,11 @@ class TestShowOverviewContextMenu:
     @pytest.mark.parametrize(
         "asset,expected_label",
         [
-            ("arena", "Apagar arena"),
-            ("rois", "Apagar ROIs"),
-            ("trajectory", "Apagar trajetória"),
-            ("summary", "Apagar relatórios/sumários"),
-            ("video", "Remover vídeo do projeto"),
+            ("arena", "Delete arena"),
+            ("rois", "Delete ROIs"),
+            ("trajectory", "Delete trajectory"),
+            ("summary", "Delete reports/summaries"),
+            ("video", "Remove video from project"),
         ],
     )
     def test_show_overview_context_menu_labels(
@@ -507,7 +507,7 @@ class TestHandleOverviewAssetRemoval:
         menu_manager.handle_overview_asset_removal("/path/to/video.mp4", "arena")
 
         menu_manager.gui.dialog_manager.show_warning.assert_called_once_with(
-            "Ação indisponível", "Video is being processed"
+            "Action unavailable", "Video is being processed"
         )
         mock_messagebox.askyesno.assert_not_called()
 
@@ -537,7 +537,7 @@ class TestHandleOverviewAssetRemoval:
         # Verify confirmation dialog
         assert mock_messagebox.askyesno.call_count == 1
         call_args = mock_messagebox.askyesno.call_args[0]
-        assert call_args[0] == "Remover arena"
+        assert call_args[0] == "Remove arena"
 
         # Verify event published
         from zebtrack.ui.event_bus_v2 import UIEvents
@@ -593,11 +593,11 @@ class TestHandleOverviewAssetRemoval:
     @pytest.mark.parametrize(
         "asset,expected_status",
         [
-            ("arena", "Arena removida"),
-            ("rois", "ROIs removidas"),
-            ("trajectory", "Trajetória removida"),
-            ("summary", "Relatórios removidos"),
-            ("video", "Vídeo removido do projeto"),
+            ("arena", "Arena removed"),
+            ("rois", "ROIs removed"),
+            ("trajectory", "Trajectory removed"),
+            ("summary", "Reports removed"),
+            ("video", "Video removed from project"),
         ],
     )
     @patch("zebtrack.ui.components.menu_manager.messagebox")
@@ -706,10 +706,10 @@ class TestShowProcessingReportsContextMenu:
             if label:
                 labels.append(label)
 
-        assert "🗑️ Apagar Arena (Selecionado)" in labels
-        assert "🔄 Editar Grupo / Dia / Sujeitos" in labels
-        assert "🗑️ Apagar Item Específico..." in labels
-        assert "🗑️ Excluir Vídeo / Dados..." in labels
+        assert "🗑️ Delete Arena (Selected)" in labels
+        assert "🔄 Edit Group / Day / Subjects" in labels
+        assert "🗑️ Delete Specific Item..." in labels
+        assert "🗑️ Delete Video / Data..." in labels
 
         # Second menu should be the delete submenu
         assert len(created_menus) >= 2
@@ -725,8 +725,8 @@ class TestShowProcessingReportsContextMenu:
             if label:
                 delete_labels.append(label)
 
-        assert "🏛️ Apagar Arena" in delete_labels
-        assert "📈 Apagar Trajetória" in delete_labels
+        assert "🏛️ Delete Arena" in delete_labels
+        assert "📈 Delete Trajectory" in delete_labels
 
     def test_show_processing_reports_context_menu_honors_asset_override(
         self, menu_manager, tkinter_root
@@ -785,8 +785,8 @@ class TestShowProcessingReportsContextMenu:
             if label:
                 delete_labels.append(label)
 
-        assert "📈 Apagar Trajetória" in delete_labels
-        assert "📝 Apagar Relatórios" in delete_labels
+        assert "📈 Delete Trajectory" in delete_labels
+        assert "📝 Delete Reports" in delete_labels
 
 
 @pytest.mark.gui

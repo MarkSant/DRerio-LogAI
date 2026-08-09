@@ -25,6 +25,8 @@ from typing import TYPE_CHECKING
 import psutil
 import structlog
 
+from zebtrack.i18n import _
+
 if TYPE_CHECKING:
     from zebtrack.settings import Settings
 
@@ -350,58 +352,71 @@ class HardwareCapabilityDetector:
 
         if capability == MultiAquariumCapability.INSUFFICIENT:
             recommendations.append(
-                "Sistema insuficiente para processamento em tempo real. "
-                "Recomendado: apenas gravar vídeo e processar offline."
+                _(
+                    "System insufficient for real-time processing. "
+                    "Recommended: record video only and process offline."
+                )
             )
             recommendations.append(
-                f"Upgrade sugerido: Mínimo 2 cores CPU e 4GB RAM disponível "
-                f"(atual: {cpu_cores} cores, {available_memory_gb:.1f}GB)"
+                _(
+                    "Suggested upgrade: at least 2 CPU cores and 4GB of available RAM "
+                    "(current: {cores} cores, {memory:.1f}GB)"
+                ).format(cores=cpu_cores, memory=available_memory_gb)
             )
 
         elif capability == MultiAquariumCapability.LIMITED:
             recommendations.append(
-                "Sistema limitado a 1 aquário por vez em tempo real. "
-                "Para múltiplos aquários, considere gravação offline."
+                _(
+                    "System limited to 1 aquarium at a time in real time. "
+                    "For multiple aquariums, consider offline recording."
+                )
             )
             if cpu_cores <= 3:
                 recommendations.append(
-                    f"CPU limitada ({cpu_cores} cores). "
-                    "Upgrade para 4+ cores melhora desempenho multi-aquário."
+                    _(
+                        "Limited CPU ({cores} cores). Upgrading to 4+ cores improves "
+                        "multi-aquarium performance."
+                    ).format(cores=cpu_cores)
                 )
             if available_memory_gb < 6:
                 recommendations.append(
-                    f"Memória limitada ({available_memory_gb:.1f}GB disponível). "
-                    "Feche aplicações em segundo plano ou upgrade para 8GB+ RAM."
+                    _(
+                        "Limited memory ({memory:.1f}GB available). Close background "
+                        "applications or upgrade to 8GB+ RAM."
+                    ).format(memory=available_memory_gb)
                 )
 
         elif capability == MultiAquariumCapability.MODERATE:
-            recommendations.append("Sistema suporta até 2 aquários simultaneamente.")
+            recommendations.append(_("System supports up to 2 aquariums simultaneously."))
             if not has_gpu:
                 recommendations.append(
-                    "GPU não detectada. Adicionar GPU melhora desempenho significativamente."
+                    _("No GPU detected. Adding a GPU improves performance significantly.")
                 )
 
         elif capability == MultiAquariumCapability.GOOD:
             recommendations.append(
-                "Sistema suporta 2-3 aquários simultaneamente com boa performance."
+                _("System supports 2-3 aquariums simultaneously with good performance.")
             )
 
         elif capability == MultiAquariumCapability.EXCELLENT:
             recommendations.append(
-                "Sistema excelente! Suporta 4+ aquários simultaneamente com alta performance."
+                _("Excellent system! Supports 4+ aquariums simultaneously at high performance.")
             )
 
         # High load warnings
         if cpu_usage > 70:
             recommendations.append(
-                f"CPU com alta carga ({cpu_usage:.1f}%). "
-                "Feche aplicações em segundo plano antes de iniciar captura."
+                _(
+                    "CPU under heavy load ({usage:.1f}%). Close background applications "
+                    "before starting capture."
+                ).format(usage=cpu_usage)
             )
 
         if memory_usage > 80:
             recommendations.append(
-                f"Memória com alta ocupação ({memory_usage:.1f}%). "
-                "Feche aplicações em segundo plano para liberar RAM."
+                _(
+                    "Memory heavily used ({usage:.1f}%). Close background applications to free RAM."
+                ).format(usage=memory_usage)
             )
 
         return recommendations
@@ -421,19 +436,23 @@ class HardwareCapabilityDetector:
         warnings = []
 
         if capability == MultiAquariumCapability.INSUFFICIENT:
-            warnings.append("⚠️ PROCESSAMENTO EM TEMPO REAL NÃO RECOMENDADO. Use modo record-only.")
+            warnings.append(_("⚠️ REAL-TIME PROCESSING NOT RECOMMENDED. Use record-only mode."))
 
         if cpu_usage > 80:
-            warnings.append(f"⚠️ CPU sobrecarregada ({cpu_usage:.1f}%). Frames podem ser perdidos.")
+            warnings.append(
+                _("⚠️ CPU overloaded ({usage:.1f}%). Frames may be dropped.").format(usage=cpu_usage)
+            )
 
         if memory_usage > 90:
             warnings.append(
-                f"⚠️ Memória crítica ({memory_usage:.1f}%). Risco de travamento do sistema."
+                _("⚠️ Critical memory ({usage:.1f}%). Risk of system freeze.").format(
+                    usage=memory_usage
+                )
             )
 
         if available_memory_gb < 4:
             warnings.append(
-                "⚠️ Memória disponível muito baixa. Feche outras aplicações imediatamente."
+                _("⚠️ Available memory is very low. Close other applications immediately.")
             )
 
         return warnings

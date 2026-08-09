@@ -117,7 +117,7 @@ def test_arduino_manager_connect_handshake_failed(mock_controller, arduino_facto
     mock_arduino.close.assert_called_once()
     mock_controller.on_arduino_status_change.assert_called_with(False, "COM3")
     mock_controller.log_arduino_event.assert_called_with(
-        "Não foi possível conectar ao Arduino na porta COM3."
+        "Could not connect to the Arduino on port COM3."
     )
 
 
@@ -242,7 +242,7 @@ def test_arduino_manager_send_command_not_connected(mock_controller):
     assert manager.last_command() is None
 
     mock_controller.log_arduino_event.assert_called_with(
-        "Não foi possível enviar comando: Arduino desconectado."
+        "Could not send command: Arduino disconnected."
     )
     mock_controller.on_arduino_command_sent.assert_called_with(42, False, "auto")
 

@@ -71,7 +71,7 @@ def test_create_zone_summary_cards_defaults(tkinter_root):
 
     assert frame.winfo_exists() == 1
     assert cards["arena_missing"]["value"].get() == "0"
-    assert cards["arena_missing"]["detail"].get() == "Nenhum vídeo listado"
+    assert cards["arena_missing"]["detail"].get() == "No videos listed"
     assert cards["rois_missing"]["value"].get() == "0"
     assert cards["ready_for_processing"]["value"].get() == "0"
 

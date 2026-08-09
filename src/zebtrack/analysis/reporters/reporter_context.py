@@ -9,11 +9,8 @@ reporter classes.
 
 from __future__ import annotations
 
-import gettext
-import locale
-import os
 import warnings
-from collections.abc import Callable, Sequence
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
@@ -25,16 +22,18 @@ from zebtrack.analysis.data_transformer import DataTransformer
 from zebtrack.analysis.models import AnalysisResult
 from zebtrack.analysis.roi import ROI
 from zebtrack.analysis.visualization_generator import VisualizationGenerator
+from zebtrack.i18n import LOCALES_DIR as LOCALES_DIR  # re-exported for callers
+from zebtrack.i18n import REPORTER_DOMAIN, translate
 
 log = structlog.get_logger(__name__)
 
 # ---------------------------------------------------------------------------
-# Paths – templates and locales live under ``src/zebtrack/``
+# Paths – templates live under ``src/zebtrack/``; LOCALES_DIR and
+# REPORTER_DOMAIN are re-exported from zebtrack.i18n so there is exactly one
+# definition of each in the codebase.
 # ---------------------------------------------------------------------------
 _ZEBTRACK_PKG = Path(__file__).resolve().parent.parent.parent
 TEMPLATES_DIR = _ZEBTRACK_PKG / "templates"
-LOCALES_DIR = _ZEBTRACK_PKG / "locales"
-REPORTER_DOMAIN = "reporter"
 INDIVIDUAL_REPORT_TEMPLATE = TEMPLATES_DIR / "individual_report_template.docx"
 PROJECT_REPORT_TEMPLATE = TEMPLATES_DIR / "project_report_template.docx"
 
@@ -42,50 +41,16 @@ PROJECT_REPORT_TEMPLATE = TEMPLATES_DIR / "project_report_template.docx"
 # ---------------------------------------------------------------------------
 # i18n helpers  (shared with word_reporter and html_reporter)
 # ---------------------------------------------------------------------------
-def _load_translator() -> Callable[[str], str]:
-    """Build a gettext translator for the reporter domain."""
-    languages: list[str] = []
-
-    env_candidates: list[str] = []
-    for env_var in ("LANGUAGE", "LC_ALL", "LC_MESSAGES", "LANG"):
-        value = os.environ.get(env_var)
-        if value:
-            env_candidates.extend(lang for lang in value.split(":") if lang)
-
-    try:
-        current_locale = locale.getlocale()[0]
-    except (AttributeError, TypeError, ValueError):
-        current_locale = None
-
-    for candidate in [*env_candidates, current_locale]:
-        if not candidate:
-            continue
-        if candidate not in languages:
-            languages.append(candidate)
-        if "_" in candidate:
-            base = candidate.split("_", 1)[0]
-            if base not in languages:
-                languages.append(base)
-
-    try:
-        translator = gettext.translation(
-            REPORTER_DOMAIN,
-            localedir=str(LOCALES_DIR),
-            languages=languages if languages else None,
-            fallback=True,
-        )
-    except OSError:
-        translator = gettext.NullTranslations()
-
-    return translator.gettext
-
-
-_translator: Callable[[str], str] = _load_translator()
-
-
 def _(message: str) -> str:
-    """Translate *message* using the reporter domain catalogue."""
-    return _translator(message)
+    """Translate *message* using the reporter domain catalogue.
+
+    A thin adapter over :mod:`zebtrack.i18n`, which owns catalogue loading and
+    the active language for the whole application. Two things changed in v5.0.0:
+    reports now follow the ``ui.language`` setting instead of the operating
+    system locale, and the catalogue is resolved per call rather than frozen at
+    import, so a language chosen during startup actually reaches the reports.
+    """
+    return translate(message, domain=REPORTER_DOMAIN)
 
 
 # ---------------------------------------------------------------------------

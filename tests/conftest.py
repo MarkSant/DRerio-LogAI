@@ -24,7 +24,38 @@ os.environ.setdefault("ZEBTRACK_SUPPRESS_POST_CREATION_GUIDE", "1")
 os.environ.setdefault("ZEBTRACK_SUPPRESS_WIZARD_DIALOGS", "1")
 # Suppress console logs during tests - this env var is checked by logging_config.py
 os.environ["ZEBTRACK_SUPPRESS_CONSOLE_LOGS"] = "1"
+# i18n: never show the first-launch language chooser, and pin the language so
+# assertions on user-facing text do not depend on the developer's machine.
+os.environ.setdefault("ZEBTRACK_SKIP_LANGUAGE_PROMPT", "1")
+os.environ.setdefault("ZEBTRACK_LANGUAGE", "en")
 HEADLESS_TESTS = os.environ.get("ZEBTRACK_HEADLESS_TESTS", "0") == "1"
+
+
+@pytest.fixture(autouse=True, scope="session")
+def _force_english_ui():
+    """Pin the interface language to English for the whole session.
+
+    English msgids are the source strings, so tests assert on the same text that
+    appears in the code. Before v5.0.0 the report translator read the operating
+    system locale, which made report tests pass or fail depending on whether the
+    developer's machine was pt-BR -- this removes that dependency.
+    """
+    from zebtrack import i18n
+
+    i18n.reset_for_tests()
+    i18n.install("en")
+    yield
+    i18n.reset_for_tests()
+
+
+@pytest.fixture
+def language_pt_br():
+    """Opt-in fixture for tests that exercise the Portuguese catalogue."""
+    from zebtrack import i18n
+
+    i18n.install("pt_BR")
+    yield
+    i18n.install("en")
 
 
 def _new_tk_root(attempts: int = 3, delay_s: float = 0.5):

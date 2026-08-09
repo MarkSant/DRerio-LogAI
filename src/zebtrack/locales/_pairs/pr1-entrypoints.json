@@ -1,0 +1,13 @@
+{
+  "_comment": "PR1 batch: startup, splash and bootstrapper. Each key is the English msgid now in the code; each value is the exact Portuguese literal it replaced. See scripts/i18n_pairs.py.",
+  "Loading settings...": "Carregando configurações...",
+  "Ready!": "Pronto!",
+  "Optimizing for your hardware (first run)...": "Otimizando para seu hardware (primeira execução)...",
+  "Loading model system...": "Carregando sistema de modelos...",
+  "Initializing project manager...": "Inicializando gerenciador de projetos...",
+  "Configuring detector...": "Configurando detector...",
+  "Preparing video processing...": "Preparando processamento de vídeo...",
+  "Creating graphical interface...": "Criando interface gráfica...",
+  "Finalizing startup...": "Finalizando inicialização...",
+  "Recommended, but the model is not converted. Use 'Diagnostics' to convert.": "Recomendado mas modelo não convertido. Use 'Diagnóstico' para converter."
+}

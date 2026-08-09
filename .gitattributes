@@ -20,3 +20,13 @@
 *.ico binary
 *.lnk binary
 *.parquet binary
+
+# Compiled gettext catalogues. These ship inside the package and are read at
+# runtime; line-ending normalization would corrupt them, and the damage only
+# shows up as untranslated strings rather than as an error.
+*.mo binary
+
+# .po/.pot are text, but keep them LF so a Windows checkout does not rewrite
+# every line of a catalogue on the next `pybabel update`.
+*.po text eol=lf
+*.pot text eol=lf

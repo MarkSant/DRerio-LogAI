@@ -27,12 +27,12 @@ def test_create_project_action_buttons(tkinter_root):
     buttons = frame.winfo_children()
     assert len(buttons) == 6
     texts = [btn.cget("text") for btn in buttons]
-    assert "Configuração Global de Modelos..." in texts
-    assert "Diagnóstico Global..." in texts
-    assert "Analisar Vídeo Único" in texts
-    assert "Analisar Câmera ao Vivo" in texts
-    assert "Criar Novo Projeto" in texts
-    assert "Abrir Projeto Existente" in texts
+    assert "Global Model Configuration..." in texts
+    assert "Global Diagnostics..." in texts
+    assert "Analyze Single Video" in texts
+    assert "Analyze Live Camera" in texts
+    assert "Create New Project" in texts
+    assert "Open Existing Project" in texts
 
     for btn in buttons:
         cast(Any, btn).invoke()
@@ -56,8 +56,8 @@ def test_create_floating_drawing_buttons(tkinter_root):
     buttons = frame.winfo_children()
     assert len(buttons) == 2
     texts = [btn.cget("text") for btn in buttons]
-    assert "↶ Desfazer (Ctrl+Z)" in texts
-    assert "↷ Refazer (Ctrl+Y)" in texts
+    assert "↶ Undo (Ctrl+Z)" in texts
+    assert "↷ Redo (Ctrl+Y)" in texts
 
     for btn in buttons:
         cast(Any, btn).invoke()

@@ -181,6 +181,26 @@ timestamp, frame, track_id, x1, y1, x2, y2, confidence,
   e armado aguardando o gatilho. Quem mostra erro nesse `False` **precisa** sondar
   `pending_zone_confirmation` e `has_pending_external_trigger()` antes.
 
+### 🌐 Idioma da interface (i18n)
+
+- **`zebtrack.i18n` é a fonte única do idioma.** `_()` resolve o catálogo **na chamada**, não no
+  import — é isso que permite importar módulos de UI antes de o idioma ser escolhido. Uma chamada a
+  `_()` em corpo de módulo ou de classe congela a tradução no import e é reprovada por
+  `tests/i18n/test_no_import_time_translation.py`.
+- **O locale do SO NÃO é consultado.** Só `ui.language` (em `config.local.yaml`) decide, com
+  `ZEBTRACK_LANGUAGE` como escape para testes/CI. Antes da v5.0.0 uma máquina pt-BR gerava
+  relatórios em português sem ninguém pedir.
+- `i18n.install()` precisa rodar **antes** de `_warm_container()` construir a árvore de UI. A ordem
+  em `core/app_runner.run_app()` é: root Tk → prompt de primeiro uso → `load_settings()` →
+  `i18n.install()` → splash → UI.
+- **Nem toda string em português é texto de interface.** `Grupo_*`/`Dia_*`/`Sujeito_*`, as chaves de
+  `session_duration_overrides`, a aba `por_animal` e as chaves do dict `report` são contratos de
+  persistência: traduzir qualquer um deles não gera um app em inglês, gera um app que não lê os
+  projetos que ele mesmo gravou. Lista completa em `scripts/i18n_allowlist.txt`.
+- **Nunca ramifique pelo texto de uma exceção** (`if "caminho não definido" in str(e)`): a tradução
+  quebra o `if` em silêncio, tomando o ramo errado. Use o tipo da exceção.
+- Guia completo: [`docs/guides/developer/i18n.md`](docs/guides/developer/i18n.md).
+
 ### 🧵 Threading & UI
 
 - **All UI updates from worker threads MUST use `root.after(0, ...)`** (Tkinter main thread only).
@@ -325,7 +345,11 @@ Tuning details: [`docs/guides/developer/performance-tuning.md`](docs/guides/deve
 
 ## Conventions
 
-- **Language**: Portuguese in code/comments; English in technical docs (Portuguese only in `docs/wiki/`).
+- **Language**: **English is the source language.** Every user-visible string is written in English
+  and wrapped in `_()` (`from zebtrack.i18n import _`); Portuguese lives in the pt_BR catalogue under
+  `src/zebtrack/locales/`. New comments and docstrings are English too; existing Portuguese ones are
+  converted as their file is migrated. Technical docs are English; `docs/wiki/` keeps Portuguese
+  alongside the English pages. See [`docs/guides/developer/i18n.md`](docs/guides/developer/i18n.md).
 - **Line length**: 100 chars (Ruff).
 - **Python**: ≥3.12 required.
 - **setuptools**: pinned <81 (docxcompose dependency).

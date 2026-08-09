@@ -35,7 +35,7 @@ def test_build_status_icon_legend_simple(factory):
 def test_get_zone_summary_helper_text(factory):
     text = factory.get_zone_summary_helper_text()
     assert STATUS_SYMBOLS["summary"] in text
-    assert "trajetórias" in text
+    assert "trajectories" in text
 
 
 @pytest.mark.parametrize(

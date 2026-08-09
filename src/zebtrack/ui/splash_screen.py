@@ -8,6 +8,7 @@ from tkinter import ttk
 import structlog
 
 from zebtrack.constants import SPLASH_HEIGHT, SPLASH_WIDTH
+from zebtrack.i18n import _
 
 log = structlog.get_logger()
 
@@ -214,7 +215,7 @@ class SplashScreen:
             is_first: Whether this is the first app launch (no cached benchmark).
         """
         if is_first:
-            self._first_launch_var.set("Primeira execução — otimizando para seu hardware...")
+            self._first_launch_var.set(_("First run — optimizing for your hardware..."))
         else:
             self._first_launch_var.set("")
         self.splash.update()

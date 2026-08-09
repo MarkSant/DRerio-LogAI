@@ -17,6 +17,7 @@ from zebtrack.core.services.roi_rule_resolver import (
     DEFAULT_MIN_BBOX_OVERLAP_RATIO,
     DEFAULT_ROI_INCLUSION_RULE,
 )
+from zebtrack.i18n import _
 from zebtrack.settings import Settings
 from zebtrack.ui import payloads as payloads
 from zebtrack.ui.event_bus_v2 import UIEvents
@@ -58,7 +59,7 @@ class AnalysisWidgetsBuilder:
 
         self.gui.analysis_tab_frame = self.gui.analysis_display_widget
 
-        self.gui.notebook.add(self.gui.analysis_display_widget, text="Análise de Vídeo")
+        self.gui.notebook.add(self.gui.analysis_display_widget, text=_("Video Analysis"))
 
         # Audit Erro 2 round 6 (2026-05-25): drain any payloads that fired
         # BEFORE this widget existed (e.g. live session metadata/stats
@@ -159,7 +160,7 @@ class AnalysisWidgetsBuilder:
 
         self.gui.processing_reports_tab_frame = ttk.Frame(self.gui.notebook, padding="10")
         self.gui.notebook.add(
-            self.gui.processing_reports_tab_frame, text="Processamento e Relatórios"
+            self.gui.processing_reports_tab_frame, text=_("Processing and Reports")
         )
 
         from zebtrack.ui.components.processing_reports import ProcessingReportsWidget
@@ -201,7 +202,7 @@ class AnalysisWidgetsBuilder:
             event_bus=self.gui.event_bus,
         )
 
-        self.gui.notebook.add(self.gui.config_editor_widget, text="Config. Avançadas")
+        self.gui.notebook.add(self.gui.config_editor_widget, text=_("Advanced Settings"))
 
         if self.gui.event_bus:
 
@@ -236,9 +237,7 @@ class AnalysisWidgetsBuilder:
     def reload_config_editor_values_widget(self) -> None:
         """Load current settings into ConfigEditorWidget."""
         if self._settings is None:
-            self.dialog_manager.show_error(
-                "Erro", "Settings não disponível. Não foi possível carregar."
-            )
+            self.dialog_manager.show_error(_("Error"), _("Settings unavailable. Could not load."))
             return
 
         current = self._settings
@@ -337,8 +336,8 @@ class AnalysisWidgetsBuilder:
         """Reset ConfigEditorWidget form fields to reflect current settings object."""
         self.reload_config_editor_values_widget()
         self.dialog_manager.show_info(
-            "Formulário recarregado",
-            "Valores restaurados para refletir as configurações atuais.",
+            _("Form reloaded"),
+            _("Values restored to reflect the current settings."),
         )
 
     def on_save_global_config_from_widget(self, values: dict) -> None:
@@ -346,15 +345,13 @@ class AnalysisWidgetsBuilder:
         try:
             self._validate_config_values(values)
         except ValueError as exc:
-            self.dialog_manager.show_error("Erro de Validação", str(exc))
+            self.dialog_manager.show_error(_("Validation Error"), str(exc))
             return
 
         update_payload: dict[str, Any] = values
 
         if self._settings is None:
-            self.dialog_manager.show_error(
-                "Erro", "Settings não disponível. Não foi possível salvar."
-            )
+            self.dialog_manager.show_error(_("Error"), _("Settings unavailable. Could not save."))
             return
 
         from zebtrack.ui.components.validation_manager import ValidationManager
@@ -364,7 +361,7 @@ class AnalysisWidgetsBuilder:
         try:
             validated = Settings.model_validate(merged)
         except ValidationError as exc:
-            self.dialog_manager.show_error("Erro de Validação", str(exc))
+            self.dialog_manager.show_error(_("Validation Error"), str(exc))
             return
 
         if self.gui.controller.project_manager.project_path:
@@ -383,19 +380,19 @@ class AnalysisWidgetsBuilder:
         polyorder = values["trajectory_smoothing"]["polyorder"]
 
         if fps <= 0:
-            raise ValueError("FPS deve ser maior que 0.")
+            raise ValueError(_("FPS must be greater than 0."))
         if processing_interval <= 0:
-            raise ValueError("O intervalo de processamento deve ser maior que 0.")
+            raise ValueError(_("The processing interval must be greater than 0."))
         if processing_offset < 0:
-            raise ValueError("O offset deve ser maior ou igual a 0.")
+            raise ValueError(_("The offset must be greater than or equal to 0."))
         if flush_interval < 0:
-            raise ValueError("O intervalo de flush deve ser >= 0.")
+            raise ValueError(_("The flush interval must be >= 0."))
         if flush_rows < 1:
-            raise ValueError("O limite de linhas para flush deve ser >= 1.")
+            raise ValueError(_("The flush row threshold must be >= 1."))
         if window_length < 3 or window_length % 2 == 0:
-            raise ValueError("Window length deve ser ímpar e pelo menos 3.")
+            raise ValueError(_("Window length must be odd and at least 3."))
         if polyorder < 1:
-            raise ValueError("Polyorder deve ser pelo menos 1.")
+            raise ValueError(_("Polyorder must be at least 1."))
 
     def _update_current_project_settings(self, validated: Settings) -> None:
         """Update settings for the currently active project."""
@@ -434,16 +431,19 @@ class AnalysisWidgetsBuilder:
             self.gui.controller.project_manager.save_project()
 
             self.dialog_manager.show_info(
-                "Configurações do Projeto Atualizadas",
-                "As alterações foram salvas APENAS no projeto atual.\n"
-                "O arquivo global (config.local.yaml) NÃO foi alterado.",
+                _("Project Settings Updated"),
+                _(
+                    "The changes were saved to the CURRENT PROJECT ONLY.\n"
+                    "The global file (config.local.yaml) was NOT modified."
+                ),
             )
 
             self.reload_config_editor_values_widget()
 
         except (OSError, ValueError, AttributeError) as e:
             self.dialog_manager.show_error(
-                "Erro ao Salvar no Projeto", f"Falha ao atualizar configurações do projeto: {e}"
+                _("Error Saving to Project"),
+                _("Failed to update the project settings: {error}").format(error=e),
             )
 
     def _update_global_settings_file(self, update_payload: dict, validated: Settings) -> None:
@@ -468,7 +468,8 @@ class AnalysisWidgetsBuilder:
                 )
         except (OSError, yaml.YAMLError) as exc:
             self.dialog_manager.show_error(
-                "Erro", f"Não foi possível salvar config.local.yaml: {exc}"
+                _("Error"),
+                _("Could not save config.local.yaml: {error}").format(error=exc),
             )
             return
 
@@ -485,11 +486,11 @@ class AnalysisWidgetsBuilder:
 
         self.reload_config_editor_values_widget()
 
-        msg = "Alterações registradas em config.local.yaml."
+        msg = _("Changes recorded in config.local.yaml.")
         if project_updated:
-            msg += "\n\nO projeto atual também foi atualizado com estes valores."
+            msg += _("\n\nThe current project was also updated with these values.")
 
-        self.dialog_manager.show_info("Configurações Salvas", msg)
+        self.dialog_manager.show_info(_("Settings Saved"), msg)
 
     def _sync_global_to_project(self, validated: Settings) -> bool:
         """Sync global settings changes to the active project."""
@@ -553,7 +554,10 @@ class AnalysisWidgetsBuilder:
         except (OSError, ValueError, KeyError, AttributeError) as e:
             log.error("config.save.project_sync_failed", error=str(e))
             self.dialog_manager.show_warning(
-                "Aviso",
-                f"Configuração global salva, mas erro ao atualizar projeto atual: {e}",
+                _("Warning"),
+                _(
+                    "Global settings were saved, but the current project could not "
+                    "be updated: {error}"
+                ).format(error=e),
             )
             return False
