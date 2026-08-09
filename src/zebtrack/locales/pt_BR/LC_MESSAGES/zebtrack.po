@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: DRerio LogAI VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-08-09 01:07-0300\n"
+"POT-Creation-Date: 2026-08-09 02:04-0300\n"
 "PO-Revision-Date: 2026-08-08 21:41-0300\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: pt_BR <LL@li.org>\n"
@@ -66,16 +66,16 @@ msgstr ""
 msgid "Could not connect to the Arduino on port {port}."
 msgstr "Não foi possível conectar ao Arduino na porta {port}."
 
-#: src/zebtrack/io/arduino_manager.py:222
+#: src/zebtrack/io/arduino_manager.py:220
 #, python-brace-format
 msgid "Invalid command: {command}"
 msgstr "Comando inválido: {command}"
 
-#: src/zebtrack/io/arduino_manager.py:231
+#: src/zebtrack/io/arduino_manager.py:229
 msgid "Could not send command: Arduino disconnected."
 msgstr "Não foi possível enviar comando: Arduino desconectado."
 
-#: src/zebtrack/io/arduino_manager.py:558
+#: src/zebtrack/io/arduino_manager.py:556
 msgid "Serial connection to the Arduino was lost."
 msgstr "Conexão serial com Arduino perdida."
 
@@ -106,6 +106,32 @@ msgstr ""
 "• Peso: {weights}\n"
 "• OpenVINO: {openvino}"
 
+#: src/zebtrack/ui/sentinels.py:33
+msgid "All"
+msgstr "Todos"
+
+#: src/zebtrack/ui/sentinels.py:38
+msgid "No Group"
+msgstr "Sem Grupo"
+
+#: src/zebtrack/ui/sentinels.py:43
+msgid "No Day"
+msgstr "Sem Dia"
+
+# | msgid "Remove reports"
+#: src/zebtrack/ui/sentinels.py:48
+msgid "Not reported"
+msgstr "Não informado"
+
+#: src/zebtrack/ui/sentinels.py:57
+msgid "Day"
+msgstr "Dia"
+
+# | msgid "Pending arenas"
+#: src/zebtrack/ui/sentinels.py:65
+msgid "Main Arena"
+msgstr "Arena Principal"
+
 # | msgid "Optimizing for your hardware (first run)..."
 #: src/zebtrack/ui/splash_screen.py:218
 msgid "First run — optimizing for your hardware..."
@@ -124,68 +150,68 @@ msgstr "Processamento e Relatórios"
 msgid "Advanced Settings"
 msgstr "Config. Avançadas"
 
-#: src/zebtrack/ui/builders/analysis_widgets.py:241
-#: src/zebtrack/ui/builders/analysis_widgets.py:357
-#: src/zebtrack/ui/builders/analysis_widgets.py:475
+#: src/zebtrack/ui/builders/analysis_widgets.py:240
+#: src/zebtrack/ui/builders/analysis_widgets.py:354
+#: src/zebtrack/ui/builders/analysis_widgets.py:471
 #: src/zebtrack/ui/builders/zone_widgets.py:144
 #: src/zebtrack/ui/builders/zone_widgets.py:150
 msgid "Error"
 msgstr "Erro"
 
-#: src/zebtrack/ui/builders/analysis_widgets.py:241
+#: src/zebtrack/ui/builders/analysis_widgets.py:240
 msgid "Settings unavailable. Could not load."
 msgstr "Settings não disponível. Não foi possível carregar."
 
-#: src/zebtrack/ui/builders/analysis_widgets.py:341
+#: src/zebtrack/ui/builders/analysis_widgets.py:339
 msgid "Form reloaded"
 msgstr "Formulário recarregado"
 
-#: src/zebtrack/ui/builders/analysis_widgets.py:342
+#: src/zebtrack/ui/builders/analysis_widgets.py:340
 msgid "Values restored to reflect the current settings."
 msgstr "Valores restaurados para refletir as configurações atuais."
 
-#: src/zebtrack/ui/builders/analysis_widgets.py:350
-#: src/zebtrack/ui/builders/analysis_widgets.py:368
+#: src/zebtrack/ui/builders/analysis_widgets.py:348
+#: src/zebtrack/ui/builders/analysis_widgets.py:364
 msgid "Validation Error"
 msgstr "Erro de Validação"
 
-#: src/zebtrack/ui/builders/analysis_widgets.py:357
+#: src/zebtrack/ui/builders/analysis_widgets.py:354
 msgid "Settings unavailable. Could not save."
 msgstr "Settings não disponível. Não foi possível salvar."
 
-#: src/zebtrack/ui/builders/analysis_widgets.py:387
+#: src/zebtrack/ui/builders/analysis_widgets.py:383
 msgid "FPS must be greater than 0."
 msgstr "FPS deve ser maior que 0."
 
-#: src/zebtrack/ui/builders/analysis_widgets.py:389
+#: src/zebtrack/ui/builders/analysis_widgets.py:385
 msgid "The processing interval must be greater than 0."
 msgstr "O intervalo de processamento deve ser maior que 0."
 
-#: src/zebtrack/ui/builders/analysis_widgets.py:391
+#: src/zebtrack/ui/builders/analysis_widgets.py:387
 msgid "The offset must be greater than or equal to 0."
 msgstr "O offset deve ser maior ou igual a 0."
 
-#: src/zebtrack/ui/builders/analysis_widgets.py:393
+#: src/zebtrack/ui/builders/analysis_widgets.py:389
 msgid "The flush interval must be >= 0."
 msgstr "O intervalo de flush deve ser >= 0."
 
-#: src/zebtrack/ui/builders/analysis_widgets.py:395
+#: src/zebtrack/ui/builders/analysis_widgets.py:391
 msgid "The flush row threshold must be >= 1."
 msgstr "O limite de linhas para flush deve ser >= 1."
 
-#: src/zebtrack/ui/builders/analysis_widgets.py:397
+#: src/zebtrack/ui/builders/analysis_widgets.py:393
 msgid "Window length must be odd and at least 3."
 msgstr "Window length deve ser ímpar e pelo menos 3."
 
-#: src/zebtrack/ui/builders/analysis_widgets.py:399
+#: src/zebtrack/ui/builders/analysis_widgets.py:395
 msgid "Polyorder must be at least 1."
 msgstr "Polyorder deve ser pelo menos 1."
 
-#: src/zebtrack/ui/builders/analysis_widgets.py:438
+#: src/zebtrack/ui/builders/analysis_widgets.py:434
 msgid "Project Settings Updated"
 msgstr "Configurações do Projeto Atualizadas"
 
-#: src/zebtrack/ui/builders/analysis_widgets.py:440
+#: src/zebtrack/ui/builders/analysis_widgets.py:436
 msgid ""
 "The changes were saved to the CURRENT PROJECT ONLY.\n"
 "The global file (config.local.yaml) was NOT modified."
@@ -193,25 +219,25 @@ msgstr ""
 "As alterações foram salvas APENAS no projeto atual.\n"
 "O arquivo global (config.local.yaml) NÃO foi alterado."
 
-#: src/zebtrack/ui/builders/analysis_widgets.py:449
+#: src/zebtrack/ui/builders/analysis_widgets.py:445
 msgid "Error Saving to Project"
 msgstr "Erro ao Salvar no Projeto"
 
-#: src/zebtrack/ui/builders/analysis_widgets.py:450
+#: src/zebtrack/ui/builders/analysis_widgets.py:446
 #, python-brace-format
 msgid "Failed to update the project settings: {error}"
 msgstr "Falha ao atualizar configurações do projeto: {error}"
 
-#: src/zebtrack/ui/builders/analysis_widgets.py:476
+#: src/zebtrack/ui/builders/analysis_widgets.py:472
 #, python-brace-format
 msgid "Could not save config.local.yaml: {error}"
 msgstr "Não foi possível salvar config.local.yaml: {error}"
 
-#: src/zebtrack/ui/builders/analysis_widgets.py:493
+#: src/zebtrack/ui/builders/analysis_widgets.py:489
 msgid "Changes recorded in config.local.yaml."
 msgstr "Alterações registradas em config.local.yaml."
 
-#: src/zebtrack/ui/builders/analysis_widgets.py:495
+#: src/zebtrack/ui/builders/analysis_widgets.py:491
 msgid ""
 "\n"
 "\n"
@@ -221,15 +247,15 @@ msgstr ""
 "\n"
 "O projeto atual também foi atualizado com estes valores."
 
-#: src/zebtrack/ui/builders/analysis_widgets.py:497
+#: src/zebtrack/ui/builders/analysis_widgets.py:493
 msgid "Settings Saved"
 msgstr "Configurações Salvas"
 
-#: src/zebtrack/ui/builders/analysis_widgets.py:561
+#: src/zebtrack/ui/builders/analysis_widgets.py:557
 msgid "Warning"
 msgstr "Aviso"
 
-#: src/zebtrack/ui/builders/analysis_widgets.py:563
+#: src/zebtrack/ui/builders/analysis_widgets.py:559
 #, python-brace-format
 msgid ""
 "Global settings were saved, but the current project could not be updated: "
@@ -274,23 +300,23 @@ msgstr "↶ Desfazer (Ctrl+Z)"
 msgid "↷ Redo (Ctrl+Y)"
 msgstr "↷ Refazer (Ctrl+Y)"
 
-#: src/zebtrack/ui/builders/common_widgets.py:48
+#: src/zebtrack/ui/builders/common_widgets.py:49
 msgid "Trajectory"
 msgstr "Trajetória"
 
-#: src/zebtrack/ui/builders/common_widgets.py:51
+#: src/zebtrack/ui/builders/common_widgets.py:52
 msgid "Summary"
 msgstr "Sumário"
 
-#: src/zebtrack/ui/builders/common_widgets.py:52
+#: src/zebtrack/ui/builders/common_widgets.py:53
 msgid "Missing"
 msgstr "Ausente"
 
-#: src/zebtrack/ui/builders/common_widgets.py:53
+#: src/zebtrack/ui/builders/common_widgets.py:54
 msgid "Legend: "
 msgstr "Legenda: "
 
-#: src/zebtrack/ui/builders/common_widgets.py:58
+#: src/zebtrack/ui/builders/common_widgets.py:59
 msgid ""
 "marks videos ready to generate trajectories (arena and ROIs saved). The "
 "number shows how many are still awaiting processing."
@@ -298,23 +324,23 @@ msgstr ""
 "indica vídeos prontos para gerar trajetórias (arena e ROIs salvos). O valor "
 "mostra quantos ainda aguardam processamento."
 
-#: src/zebtrack/ui/builders/common_widgets.py:171
+#: src/zebtrack/ui/builders/common_widgets.py:180
 msgid "Weight Type"
 msgstr "Tipo de Peso"
 
-#: src/zebtrack/ui/builders/common_widgets.py:182
+#: src/zebtrack/ui/builders/common_widgets.py:191
 msgid "Select the model type:"
 msgstr "Selecione o tipo de modelo:"
 
-#: src/zebtrack/ui/builders/common_widgets.py:188
+#: src/zebtrack/ui/builders/common_widgets.py:197
 msgid "Segmentation (for masks and precise edges)"
 msgstr "Segmentação (para máscaras e bordas precisas)"
 
-#: src/zebtrack/ui/builders/common_widgets.py:195
+#: src/zebtrack/ui/builders/common_widgets.py:204
 msgid "Detection (for fast bounding boxes)"
 msgstr "Detecção (para caixas delimitadoras rápidas)"
 
-#: src/zebtrack/ui/builders/common_widgets.py:214
+#: src/zebtrack/ui/builders/common_widgets.py:223
 msgid "Cancel"
 msgstr "Cancelar"
 
@@ -362,7 +388,7 @@ msgstr "Ao Vivo"
 msgid "Pre-recorded"
 msgstr "Pré-gravado"
 
-#: src/zebtrack/ui/builders/project_widgets.py:345
+#: src/zebtrack/ui/builders/project_widgets.py:344
 #, python-brace-format
 msgid "Project: {name} ({type})"
 msgstr "Projeto: {name} ({type})"
@@ -484,61 +510,61 @@ msgstr "Selecione um aquário ativo primeiro."
 msgid "The aquarium polygon data could not be retrieved."
 msgstr "Não foi possível obter os dados do polígono do aquário."
 
-#: src/zebtrack/ui/components/menu_manager.py:60
+#: src/zebtrack/ui/components/menu_manager.py:61
 msgid "File"
 msgstr "Arquivo"
 
-#: src/zebtrack/ui/components/menu_manager.py:61
+#: src/zebtrack/ui/components/menu_manager.py:62
 msgid "Exit"
 msgstr "Sair"
 
-#: src/zebtrack/ui/components/menu_manager.py:68
+#: src/zebtrack/ui/components/menu_manager.py:69
 msgid "Settings"
 msgstr "Configurações"
 
-#: src/zebtrack/ui/components/menu_manager.py:69
+#: src/zebtrack/ui/components/menu_manager.py:70
 msgid "Language..."
 msgstr "Idioma..."
 
-#: src/zebtrack/ui/components/menu_manager.py:73
+#: src/zebtrack/ui/components/menu_manager.py:74
 msgid "Tools"
 msgstr "Ferramentas"
 
-#: src/zebtrack/ui/components/menu_manager.py:75
+#: src/zebtrack/ui/components/menu_manager.py:76
 msgid "Restore Defaults (Restart)"
 msgstr "Restaurar Padrões (Reiniciar)"
 
-#: src/zebtrack/ui/components/menu_manager.py:81
+#: src/zebtrack/ui/components/menu_manager.py:82
 msgid "Help"
 msgstr "Ajuda"
 
-#: src/zebtrack/ui/components/menu_manager.py:82
-#: src/zebtrack/ui/components/menu_manager.py:148
+#: src/zebtrack/ui/components/menu_manager.py:83
+#: src/zebtrack/ui/components/menu_manager.py:149
 msgid "About DRerio LogAI"
 msgstr "Sobre DRerio LogAI"
 
-#: src/zebtrack/ui/components/menu_manager.py:104
+#: src/zebtrack/ui/components/menu_manager.py:105
 msgid "Could not save language"
 msgstr "Não foi possível salvar o idioma"
 
-#: src/zebtrack/ui/components/menu_manager.py:105
+#: src/zebtrack/ui/components/menu_manager.py:106
 msgid "The language preference could not be written to config.local.yaml."
 msgstr "A preferência de idioma não pôde ser gravada em config.local.yaml."
 
-#: src/zebtrack/ui/components/menu_manager.py:111
+#: src/zebtrack/ui/components/menu_manager.py:112
 msgid "Language changed"
 msgstr "Idioma alterado"
 
-#: src/zebtrack/ui/components/menu_manager.py:112
+#: src/zebtrack/ui/components/menu_manager.py:113
 msgid "The new language will be applied the next time the application starts."
 msgstr "O novo idioma será aplicado na próxima vez que o aplicativo iniciar."
 
-#: src/zebtrack/ui/components/menu_manager.py:124
-#: src/zebtrack/ui/components/menu_manager.py:139
+#: src/zebtrack/ui/components/menu_manager.py:125
+#: src/zebtrack/ui/components/menu_manager.py:140
 msgid "Restore Defaults"
 msgstr "Restaurar Padrões"
 
-#: src/zebtrack/ui/components/menu_manager.py:126
+#: src/zebtrack/ui/components/menu_manager.py:127
 msgid ""
 "This will remove the benchmark cache and config.local.yaml.\n"
 "The application will close and must be restarted.\n"
@@ -550,7 +576,7 @@ msgstr ""
 "\n"
 "Deseja continuar?"
 
-#: src/zebtrack/ui/components/menu_manager.py:140
+#: src/zebtrack/ui/components/menu_manager.py:141
 msgid ""
 "Defaults restored successfully.\n"
 "The application will now close."
@@ -558,12 +584,12 @@ msgstr ""
 "Padrões restaurados com sucesso.\n"
 "O aplicativo será encerrado agora."
 
-#: src/zebtrack/ui/components/menu_manager.py:198
+#: src/zebtrack/ui/components/menu_manager.py:200
 #, python-brace-format
 msgid "Version {version}"
 msgstr "Versão {version}"
 
-#: src/zebtrack/ui/components/menu_manager.py:205
+#: src/zebtrack/ui/components/menu_manager.py:207
 msgid ""
 "Automated behavioral tracking and analysis\n"
 "for research with Danio rerio (zebrafish)\n"
@@ -577,126 +603,126 @@ msgstr ""
 "Integração de visão computacional (YOLO/OpenVINO),\n"
 "análise comportamental e geração de relatórios científicos"
 
-#: src/zebtrack/ui/components/menu_manager.py:219
+#: src/zebtrack/ui/components/menu_manager.py:221
 msgid "Repository:"
 msgstr "Repositório:"
 
-#: src/zebtrack/ui/components/menu_manager.py:237
+#: src/zebtrack/ui/components/menu_manager.py:239
 msgid "License: MIT"
 msgstr "Licença: MIT"
 
-#: src/zebtrack/ui/components/menu_manager.py:241
+#: src/zebtrack/ui/components/menu_manager.py:243
 msgid "Close"
 msgstr "Fechar"
 
-#: src/zebtrack/ui/components/menu_manager.py:269
+#: src/zebtrack/ui/components/menu_manager.py:271
 msgid "Load video"
 msgstr "Carregar vídeo"
 
-#: src/zebtrack/ui/components/menu_manager.py:273
-#: src/zebtrack/ui/components/menu_manager.py:697
+#: src/zebtrack/ui/components/menu_manager.py:275
+#: src/zebtrack/ui/components/menu_manager.py:696
 msgid "🔄 Edit Group / Day / Subjects"
 msgstr "🔄 Editar Grupo / Dia / Sujeitos"
 
-#: src/zebtrack/ui/components/menu_manager.py:287
+#: src/zebtrack/ui/components/menu_manager.py:289
 msgid "No video selected"
 msgstr "Nenhum vídeo selecionado"
 
-#: src/zebtrack/ui/components/menu_manager.py:288
+#: src/zebtrack/ui/components/menu_manager.py:290
 msgid "Select a project video to edit its group, day and subjects."
 msgstr "Selecione um vídeo do projeto para editar grupo, dia e sujeitos."
 
-#: src/zebtrack/ui/components/menu_manager.py:295
+#: src/zebtrack/ui/components/menu_manager.py:297
 msgid "Invalid selection"
 msgstr "Seleção inválida"
 
-#: src/zebtrack/ui/components/menu_manager.py:296
+#: src/zebtrack/ui/components/menu_manager.py:298
 msgid "Select a project video item to edit its metadata."
 msgstr "Selecione um item de vídeo do projeto para editar seus metadados."
 
-#: src/zebtrack/ui/components/menu_manager.py:332
+#: src/zebtrack/ui/components/menu_manager.py:334
 msgid "Video not found"
 msgstr "Vídeo não encontrado"
 
-#: src/zebtrack/ui/components/menu_manager.py:333
+#: src/zebtrack/ui/components/menu_manager.py:335
 msgid "The selected video could not be located in the project."
 msgstr "Não foi possível localizar o vídeo selecionado no projeto."
 
-#: src/zebtrack/ui/components/menu_manager.py:356
+#: src/zebtrack/ui/components/menu_manager.py:358
 #, python-brace-format
 msgid "Metadata updated • {name}"
 msgstr "Metadados atualizados • {name}"
 
-#: src/zebtrack/ui/components/menu_manager.py:468
+#: src/zebtrack/ui/components/menu_manager.py:470
 msgid "Delete arena"
 msgstr "Apagar arena"
 
-#: src/zebtrack/ui/components/menu_manager.py:469
-#: src/zebtrack/ui/components/menu_manager.py:713
+#: src/zebtrack/ui/components/menu_manager.py:471
+#: src/zebtrack/ui/components/menu_manager.py:712
 msgid "Delete ROIs"
 msgstr "Apagar ROIs"
 
-#: src/zebtrack/ui/components/menu_manager.py:470
+#: src/zebtrack/ui/components/menu_manager.py:472
 msgid "Delete trajectory"
 msgstr "Apagar trajetória"
 
-#: src/zebtrack/ui/components/menu_manager.py:471
+#: src/zebtrack/ui/components/menu_manager.py:473
 msgid "Delete reports/summaries"
 msgstr "Apagar relatórios/sumários"
 
-#: src/zebtrack/ui/components/menu_manager.py:472
-#: src/zebtrack/ui/components/menu_manager.py:533
+#: src/zebtrack/ui/components/menu_manager.py:474
+#: src/zebtrack/ui/components/menu_manager.py:535
 msgid "Remove video from project"
 msgstr "Remover vídeo do projeto"
 
-#: src/zebtrack/ui/components/menu_manager.py:478
+#: src/zebtrack/ui/components/menu_manager.py:480
 #, python-brace-format
 msgid "Remove {asset}"
 msgstr "Remover {asset}"
 
-#: src/zebtrack/ui/components/menu_manager.py:497
+#: src/zebtrack/ui/components/menu_manager.py:499
 msgid "Action unavailable"
 msgstr "Ação indisponível"
 
-#: src/zebtrack/ui/components/menu_manager.py:498
+#: src/zebtrack/ui/components/menu_manager.py:500
 msgid "The selected item cannot be removed right now."
 msgstr "Não é possível remover o item selecionado neste momento."
 
-#: src/zebtrack/ui/components/menu_manager.py:517
+#: src/zebtrack/ui/components/menu_manager.py:519
 msgid "Remove arena"
 msgstr "Remover arena"
 
-#: src/zebtrack/ui/components/menu_manager.py:518
+#: src/zebtrack/ui/components/menu_manager.py:520
 msgid ""
 "Remove the arena from this video? The associated ROIs will be cleared too."
 msgstr ""
 "Deseja remover a arena deste vídeo? As ROIs associadas também serão limpas."
 
-#: src/zebtrack/ui/components/menu_manager.py:521
+#: src/zebtrack/ui/components/menu_manager.py:523
 msgid "Remove ROIs"
 msgstr "Remover ROIs"
 
-#: src/zebtrack/ui/components/menu_manager.py:522
+#: src/zebtrack/ui/components/menu_manager.py:524
 msgid "Remove every ROI saved for this video?"
 msgstr "Deseja remover todas as ROIs salvas para este vídeo?"
 
-#: src/zebtrack/ui/components/menu_manager.py:525
+#: src/zebtrack/ui/components/menu_manager.py:527
 msgid "Remove trajectory"
 msgstr "Remover trajetória"
 
-#: src/zebtrack/ui/components/menu_manager.py:526
+#: src/zebtrack/ui/components/menu_manager.py:528
 msgid "Remove the trajectory generated for this video?"
 msgstr "Deseja remover a trajetória gerada para este vídeo?"
 
-#: src/zebtrack/ui/components/menu_manager.py:529
+#: src/zebtrack/ui/components/menu_manager.py:531
 msgid "Remove reports"
 msgstr "Remover relatórios"
 
-#: src/zebtrack/ui/components/menu_manager.py:530
+#: src/zebtrack/ui/components/menu_manager.py:532
 msgid "Remove the reports and summaries associated with this video?"
 msgstr "Deseja remover os relatórios e sumários associados a este vídeo?"
 
-#: src/zebtrack/ui/components/menu_manager.py:535
+#: src/zebtrack/ui/components/menu_manager.py:537
 msgid ""
 "Remove this video from the project? Arenas, ROIs and trajectories already "
 "removed cannot be recovered automatically."
@@ -704,15 +730,15 @@ msgstr ""
 "Deseja remover este vídeo do projeto? As arenas, ROIs e trajetórias já "
 "removidas não poderão ser recuperadas automaticamente."
 
-#: src/zebtrack/ui/components/menu_manager.py:545
+#: src/zebtrack/ui/components/menu_manager.py:547
 msgid "Remove item"
 msgstr "Remover item"
 
-#: src/zebtrack/ui/components/menu_manager.py:546
+#: src/zebtrack/ui/components/menu_manager.py:548
 msgid "Confirm removal of the selected item?"
 msgstr "Confirma a remoção do item selecionado?"
 
-#: src/zebtrack/ui/components/menu_manager.py:553
+#: src/zebtrack/ui/components/menu_manager.py:555
 #, python-brace-format
 msgid ""
 "This video holds data from {count} separate aquarium(s).\n"
@@ -731,7 +757,7 @@ msgstr ""
 "\n"
 "Deseja continuar com a remoção?"
 
-#: src/zebtrack/ui/components/menu_manager.py:562
+#: src/zebtrack/ui/components/menu_manager.py:564
 #, python-brace-format
 msgid ""
 "This video holds data from {count} separate aquarium(s).\n"
@@ -746,7 +772,7 @@ msgstr ""
 "\n"
 "{message}"
 
-#: src/zebtrack/ui/components/menu_manager.py:569
+#: src/zebtrack/ui/components/menu_manager.py:571
 #, python-brace-format
 msgid ""
 "{message}\n"
@@ -757,125 +783,133 @@ msgstr ""
 "\n"
 "Vídeo: {name}"
 
-#: src/zebtrack/ui/components/menu_manager.py:578
+#: src/zebtrack/ui/components/menu_manager.py:580
 msgid "Delete file from disk?"
 msgstr "Excluir arquivo do disco?"
 
-#: src/zebtrack/ui/components/menu_manager.py:580
+#: src/zebtrack/ui/components/menu_manager.py:581
 msgid "Also remove the video file from disk? This action cannot be undone."
 msgstr ""
 "Deseja também remover o arquivo de vídeo do disco? Essa ação não poderá ser "
 "desfeita."
 
-#: src/zebtrack/ui/components/menu_manager.py:604
+#: src/zebtrack/ui/components/menu_manager.py:603
 msgid "Removal not completed"
 msgstr "Remoção não realizada"
 
-#: src/zebtrack/ui/components/menu_manager.py:605
+#: src/zebtrack/ui/components/menu_manager.py:604
 msgid "The selected item could not be removed. Check the logs for details."
 msgstr ""
 "Não foi possível remover o item selecionado. Consulte os logs para mais "
 "detalhes."
 
-#: src/zebtrack/ui/components/menu_manager.py:610
+#: src/zebtrack/ui/components/menu_manager.py:609
 msgid "Arena removed"
 msgstr "Arena removida"
 
-#: src/zebtrack/ui/components/menu_manager.py:611
+#: src/zebtrack/ui/components/menu_manager.py:610
 msgid "ROIs removed"
 msgstr "ROIs removidas"
 
-#: src/zebtrack/ui/components/menu_manager.py:612
+#: src/zebtrack/ui/components/menu_manager.py:611
 msgid "Trajectory removed"
 msgstr "Trajetória removida"
 
-#: src/zebtrack/ui/components/menu_manager.py:613
+#: src/zebtrack/ui/components/menu_manager.py:612
 msgid "Reports removed"
 msgstr "Relatórios removidos"
 
-#: src/zebtrack/ui/components/menu_manager.py:614
+#: src/zebtrack/ui/components/menu_manager.py:613
 msgid "Video removed from project"
 msgstr "Vídeo removido do projeto"
 
-#: src/zebtrack/ui/components/menu_manager.py:617
+#: src/zebtrack/ui/components/menu_manager.py:616
 #, python-brace-format
 msgid "{label} • {name}"
 msgstr "{label} • {name}"
 
-#: src/zebtrack/ui/components/menu_manager.py:618
+#: src/zebtrack/ui/components/menu_manager.py:617
 msgid "Item removed"
 msgstr "Item removido"
 
-#: src/zebtrack/ui/components/menu_manager.py:712
+#: src/zebtrack/ui/components/menu_manager.py:711
 msgid "Delete Arena"
 msgstr "Apagar Arena"
 
-#: src/zebtrack/ui/components/menu_manager.py:714
+#: src/zebtrack/ui/components/menu_manager.py:713
 msgid "Delete Trajectory"
 msgstr "Apagar Trajetória"
 
-#: src/zebtrack/ui/components/menu_manager.py:715
+#: src/zebtrack/ui/components/menu_manager.py:714
 msgid "Delete Summary"
 msgstr "Apagar Sumário"
 
-#: src/zebtrack/ui/components/menu_manager.py:717
+#: src/zebtrack/ui/components/menu_manager.py:716
 #, python-brace-format
 msgid "Delete {asset}"
 msgstr "Apagar {asset}"
 
-#: src/zebtrack/ui/components/menu_manager.py:719
+#: src/zebtrack/ui/components/menu_manager.py:718
 #, python-brace-format
 msgid "🗑️ {label} (Selected)"
 msgstr "🗑️ {label} (Selecionado)"
 
-#: src/zebtrack/ui/components/menu_manager.py:730
+#: src/zebtrack/ui/components/menu_manager.py:729
 msgid "🏛️ Delete Arena"
 msgstr "🏛️ Apagar Arena"
 
-#: src/zebtrack/ui/components/menu_manager.py:737
+#: src/zebtrack/ui/components/menu_manager.py:736
 msgid "📍 Delete ROIs"
 msgstr "📍 Apagar ROIs"
 
-#: src/zebtrack/ui/components/menu_manager.py:744
+#: src/zebtrack/ui/components/menu_manager.py:743
 msgid "📈 Delete Trajectory"
 msgstr "📈 Apagar Trajetória"
 
-#: src/zebtrack/ui/components/menu_manager.py:751
+#: src/zebtrack/ui/components/menu_manager.py:750
 msgid "📝 Delete Reports"
 msgstr "📝 Apagar Relatórios"
 
-#: src/zebtrack/ui/components/menu_manager.py:757
+#: src/zebtrack/ui/components/menu_manager.py:756
 msgid "🗑️ Delete Specific Item..."
 msgstr "🗑️ Apagar Item Específico..."
 
-#: src/zebtrack/ui/components/menu_manager.py:763
+#: src/zebtrack/ui/components/menu_manager.py:762
 msgid "🗑️ Delete Video / Data..."
 msgstr "🗑️ Excluir Vídeo / Dados..."
 
-#: src/zebtrack/ui/components/menu_manager.py:768
+#: src/zebtrack/ui/components/menu_manager.py:767
 msgid "🧹 Delete All Processing Data"
 msgstr "🧹 Apagar Todos os Dados de Processamento"
 
-#: src/zebtrack/ui/components/menu_manager.py:773
+#: src/zebtrack/ui/components/menu_manager.py:772
 msgid "❌ Remove Video from Project"
 msgstr "❌ Remover Vídeo do Projeto"
 
-#: src/zebtrack/ui/components/menu_manager.py:783
-#: src/zebtrack/ui/components/menu_manager.py:836
+#: src/zebtrack/ui/components/menu_manager.py:782
+#: src/zebtrack/ui/components/menu_manager.py:835
 msgid "🔧 Edit Vertices"
 msgstr "🔧 Editar Vértices"
 
-#: src/zebtrack/ui/components/menu_manager.py:788
+#: src/zebtrack/ui/components/menu_manager.py:787
 msgid "✏️ Rename"
 msgstr "✏️ Renomear"
 
-#: src/zebtrack/ui/components/menu_manager.py:791
+#: src/zebtrack/ui/components/menu_manager.py:790
 msgid "🎨 Change Color"
 msgstr "🎨 Mudar Cor"
 
-#: src/zebtrack/ui/components/menu_manager.py:795
+#: src/zebtrack/ui/components/menu_manager.py:794
 msgid "🗑️ Remove"
 msgstr "🗑️ Remover"
+
+#: src/zebtrack/ui/components/canvas/zone_editor.py:134
+msgid "Polygon"
+msgstr "Polígono"
+
+#: src/zebtrack/ui/components/canvas/zone_editor.py:134
+msgid "Teal"
+msgstr "Teal"
 
 #: src/zebtrack/utils/hardware_benchmark.py:811
 msgid "Step 2/6 — Testing video decoding..."
@@ -973,21 +1007,21 @@ msgstr ""
 "Memória com alta ocupação ({usage:.1f}%). Feche aplicações em segundo plano "
 "para liberar RAM."
 
-#: src/zebtrack/utils/hardware_capability.py:441
+#: src/zebtrack/utils/hardware_capability.py:439
 msgid "⚠️ REAL-TIME PROCESSING NOT RECOMMENDED. Use record-only mode."
 msgstr "⚠️ PROCESSAMENTO EM TEMPO REAL NÃO RECOMENDADO. Use modo record-only."
 
-#: src/zebtrack/utils/hardware_capability.py:446
+#: src/zebtrack/utils/hardware_capability.py:443
 #, python-brace-format
 msgid "⚠️ CPU overloaded ({usage:.1f}%). Frames may be dropped."
 msgstr "⚠️ CPU sobrecarregada ({usage:.1f}%). Frames podem ser perdidos."
 
-#: src/zebtrack/utils/hardware_capability.py:453
+#: src/zebtrack/utils/hardware_capability.py:448
 #, python-brace-format
 msgid "⚠️ Critical memory ({usage:.1f}%). Risk of system freeze."
 msgstr "⚠️ Memória crítica ({usage:.1f}%). Risco de travamento do sistema."
 
-#: src/zebtrack/utils/hardware_capability.py:460
+#: src/zebtrack/utils/hardware_capability.py:455
 msgid "⚠️ Available memory is very low. Close other applications immediately."
 msgstr ""
 "⚠️ Memória disponível muito baixa. Feche outras aplicações imediatamente."

@@ -41,11 +41,15 @@ def test_get_zone_summary_helper_text(factory):
 @pytest.mark.parametrize(
     ("day_value", "metadata", "expected"),
     [
-        ("1", {"day_label": "Dia Especial"}, "Dia Dia Especial"),
-        ("2", {"day": "2"}, "Dia 2"),
-        ("", {}, "Sem Dia"),
-        (None, {}, "Sem Dia"),
-        ("sem dia", {}, "Sem Dia"),
+        # "Day Dia Especial" keeps a pre-existing quirk: unlike
+        # validation_manager._build_day_title, this builder does not check
+        # whether the label already starts with the day prefix.
+        ("1", {"day_label": "Dia Especial"}, "Day Dia Especial"),
+        ("2", {"day": "2"}, "Day 2"),
+        ("", {}, "No Day"),
+        (None, {}, "No Day"),
+        # Legacy metadata still says "sem dia"; it must still be recognized.
+        ("sem dia", {}, "No Day"),
     ],
 )
 def test_build_day_title(factory, day_value, metadata, expected):
@@ -73,7 +77,7 @@ def test_build_track_options(factory):
 
     options = factory.build_track_options(detections)
 
-    assert options == ["Todos", "2", "3"]
+    assert options == ["All", "2", "3"]
 
 
 def test_build_project_actions_calls_button_factory(monkeypatch):

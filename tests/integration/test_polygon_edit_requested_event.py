@@ -118,7 +118,7 @@ class TestPolygonEditRequestedEvent:
 
         # Mock zone listbox selection
         listbox_mock = MagicMock()
-        item_mock = {"values": ["Arena Principal"]}
+        item_mock = {"values": ["Main Arena"]}
         listbox_mock.selection.return_value = ["item_1"]
         listbox_mock.item.return_value = item_mock
         gui_mock.zone_controls.zone_listbox = listbox_mock
@@ -213,7 +213,7 @@ class TestPolygonEditRequestedEvent:
         )
 
         listbox_mock = MagicMock()
-        item_mock = {"values": ["Arena Principal"]}
+        item_mock = {"values": ["Main Arena"]}
         listbox_mock.selection.return_value = ["item_1"]
         listbox_mock.item.return_value = item_mock
         gui_mock.zone_controls.zone_listbox = listbox_mock

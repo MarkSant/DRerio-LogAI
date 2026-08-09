@@ -66,6 +66,7 @@ from zebtrack.ui.dialogs import (
     StartRecordingDialog,
 )
 from zebtrack.ui.event_bus_v2 import EventBusV2, UIEvents
+from zebtrack.ui.sentinels import all_tracks_label
 from zebtrack.ui.ui_coordinator import UICoordinator
 
 if TYPE_CHECKING:
@@ -355,7 +356,7 @@ class ApplicationGUI:
         self.analysis_display_widget: AnalysisDisplayWidget | None = None
         self._active_processing_mode = ProcessingMode.MULTI_TRACK
 
-        self._available_track_options: tuple[str, ...] = ("Todos",)
+        self._available_track_options: tuple[str, ...] = (all_tracks_label(),)
         self._current_detections: list[tuple] = []
         self._last_analysis_frame = None
         self._analysis_overlay_image = None

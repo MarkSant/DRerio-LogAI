@@ -32,7 +32,7 @@ class TestAnalysisDisplayWidget:
         widget = AnalysisDisplayWidget(
             tkinter_root,
             event_bus=event_bus,
-            available_track_options=["Todos", "1", "2"],
+            available_track_options=["All", "1", "2"],
         )
         tkinter_root.update_idletasks()
         return widget
@@ -55,7 +55,7 @@ class TestAnalysisDisplayWidget:
         assert widget.subject_var.get() == "Indivíduo: --"
         assert widget.profile_var.get() == "Configuração de análise: default"
         assert widget.tracking_mode_var.get() == "Modo de rastreamento: --"
-        assert widget.track_selector_var.get() == "Todos"
+        assert widget.track_selector_var.get() == "All"
 
         # Verify widget references are created
         assert widget.status_label is not None
@@ -68,7 +68,7 @@ class TestAnalysisDisplayWidget:
 
     def test_widget_with_custom_track_options(self, tkinter_root, event_bus):
         """Test widget accepts custom track options."""
-        custom_tracks = ["Todos", "1", "2", "3", "4"]
+        custom_tracks = ["All", "1", "2", "3", "4"]
         widget = AnalysisDisplayWidget(
             tkinter_root,
             event_bus=event_bus,
@@ -142,7 +142,7 @@ class TestAnalysisDisplayWidget:
 
     def test_update_track_options(self, widget):
         """Test update_track_options updates combobox values."""
-        new_tracks = ["Todos", "10", "20", "30"]
+        new_tracks = ["All", "10", "20", "30"]
         widget.update_track_options(new_tracks)
 
         assert widget._available_track_options == new_tracks
@@ -299,7 +299,7 @@ class TestAnalysisDisplayWidget:
         assert widget.subject_var.get() == "Indivíduo: --"
         assert widget.tracking_mode_var.get() == "Modo de rastreamento: --"
         assert widget.profile_var.get() == "Configuração de análise: default"
-        assert widget.track_selector_var.get() == "Todos"
+        assert widget.track_selector_var.get() == "All"
         assert not widget.progress_frame.winfo_ismapped()
         assert str(widget.cancel_btn["state"]) == "disabled"
 
@@ -358,11 +358,11 @@ class TestAnalysisDisplayWidget:
         )
         tkinter_root.update_idletasks()
 
-        # Empty list gets defaulted to ["Todos"] by the `or` operator in constructor
-        assert widget._available_track_options == ["Todos"]
+        # Empty list gets defaulted to ["All"] by the `or` operator in constructor
+        assert widget._available_track_options == ["All"]
         # Widget should still be functional
-        widget.update_track_options(["Todos", "1", "2"])
-        assert widget._available_track_options == ["Todos", "1", "2"]
+        widget.update_track_options(["All", "1", "2"])
+        assert widget._available_track_options == ["All", "1", "2"]
 
     def test_progress_updates_with_invalid_values(self, widget):
         """Test progress bar handles edge case values."""

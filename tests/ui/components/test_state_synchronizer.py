@@ -38,10 +38,10 @@ def test_update_track_options_deduplicates():
     gui = _make_gui()
     synchronizer = StateSynchronizer(gui)
 
-    synchronizer._update_track_options(["Todos", "1", "", "1", "2"])
+    synchronizer._update_track_options(["All", "1", "", "1", "2"])
 
-    assert gui._available_track_options == ("Todos", "1", "2")
-    gui.analysis_display_widget.update_track_options.assert_called_once_with(["Todos", "1", "2"])
+    assert gui._available_track_options == ("All", "1", "2")
+    gui.analysis_display_widget.update_track_options.assert_called_once_with(["All", "1", "2"])
 
 
 def test_update_processing_stats_updates_percent():
@@ -93,7 +93,7 @@ def test_update_social_summary_formats_and_updates_tracks():
     gui.analysis_display_widget.set_social_summary.assert_called_once_with(
         "Interações sociais: ID 1: 50.0%, ID 2: 12.3%"
     )
-    gui.analysis_display_widget.update_track_options.assert_called_once_with(["Todos", "1", "2"])
+    gui.analysis_display_widget.update_track_options.assert_called_once_with(["All", "1", "2"])
 
 
 def test_update_social_summary_no_stats():
@@ -142,16 +142,16 @@ def test_update_processing_mode_accepts_string_mode_name():
 
 def test_analysis_metadata_defaults():
     assert StateSynchronizer._analysis_metadata_defaults() == (
-        "Sem Grupo",
-        "Sem Dia",
-        "Não informado",
+        "No Group",
+        "No Day",
+        "Not reported",
     )
 
 
 def test_default_analysis_metadata_text():
     assert (
         StateSynchronizer._default_analysis_metadata_text()
-        == "Grupo: Sem Grupo | Dia: Sem Dia | Indivíduo: Não informado"
+        == "Grupo: No Group | Dia: No Day | Indivíduo: Not reported"
     )
 
 

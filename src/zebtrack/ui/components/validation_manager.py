@@ -20,6 +20,7 @@ from pydantic import ValidationError
 
 from zebtrack.core.detection import ZoneData
 from zebtrack.settings import Settings
+from zebtrack.ui.sentinels import day_prefix, no_day_label, no_group_label
 from zebtrack.utils.report_files import find_block_partial_report_files
 
 if TYPE_CHECKING:
@@ -841,7 +842,7 @@ class ValidationManager:
             value: Day identifier (int, float, or string)
 
         Returns:
-            Formatted day label (e.g., "03" or "Sem Dia")
+            Formatted day label (e.g., "03" or the localized "No Day")
         """
         if value in (None, ""):
             return ""
@@ -854,8 +855,10 @@ class ValidationManager:
         if not value_str:
             return ""
         lower_value = value_str.lower()
-        if lower_value == "sem dia":
-            return "Sem Dia"
+        # "sem dia" is what existing projects and metadata already contain; it is
+        # recognized on input and rendered through the localized label.
+        if lower_value in ("sem dia", no_day_label().lower()):
+            return no_day_label()
         match = re.search(r"(\d+)", value_str)
         if match:
             try:
@@ -1063,7 +1066,7 @@ class ValidationManager:
             metadata: Optional metadata dictionary
 
         Returns:
-            Formatted day title (e.g., "Dia 03")
+            Formatted day title (e.g., "Day 03")
         """
         metadata = metadata or {}
         candidate = metadata.get("day_label") or ""
@@ -1073,16 +1076,17 @@ class ValidationManager:
             candidate = self._format_day_display(day_value)
         if not candidate:
             base_value = day_value if day_value not in (None, "") else None
-            candidate = str(base_value) if base_value is not None else "Sem Dia"
+            candidate = str(base_value) if base_value is not None else no_day_label()
         candidate_str = str(candidate).strip()
         if not candidate_str:
-            candidate_str = "Sem Dia"
-        if candidate_str.lower() == "sem dia":
-            return "Sem Dia"
-        # If candidate already has "Dia " prefix, don't add it again
-        if candidate_str.lower().startswith("dia "):
+            candidate_str = no_day_label()
+        if candidate_str.lower() in ("sem dia", no_day_label().lower()):
+            return no_day_label()
+        # Do not prefix twice. Both spellings are checked because existing
+        # metadata may already carry a Portuguese "Dia N" day_label.
+        if candidate_str.lower().startswith(("dia ", f"{day_prefix().lower()} ")):
             return candidate_str
-        return f"Dia {candidate_str}"
+        return f"{day_prefix()} {candidate_str}"
 
     def resolve_group_display(self, metadata: dict) -> str:
         """Resolve group display name from metadata fields.
@@ -1091,7 +1095,7 @@ class ValidationManager:
             metadata: Metadata dictionary containing group information
 
         Returns:
-            Formatted group display name, or "Sem Grupo" if not found
+            Formatted group display name, or the localized "No Group" if not found
         """
         for key in (
             "group_display_name",
@@ -1105,7 +1109,7 @@ class ValidationManager:
                 text = str(value).strip()
                 if text:
                     return text
-        return "Sem Grupo"
+        return no_group_label()
 
     def resolve_day_display(self, metadata: dict) -> str:
         """Resolve day display name from metadata fields.
@@ -1114,24 +1118,30 @@ class ValidationManager:
             metadata: Metadata dictionary containing day information
 
         Returns:
-            Formatted day display name, or "Sem Dia" if not found
+            Formatted day display name, or the localized "No Day" if not found
         """
+        # Both prefixes are recognized: existing metadata may already carry a
+        # Portuguese "Dia N" label written by an earlier version.
+        known_prefixes = ("dia", day_prefix().lower())
+
         for key in ("day_label", "day_display_name"):
             value = metadata.get(key)
             if value not in (None, "", "None"):
                 text = str(value).strip()
                 if text:
-                    return text if text.lower().startswith("dia") else f"Dia {text}"
+                    if text.lower().startswith(known_prefixes):
+                        return text
+                    return f"{day_prefix()} {text}"
 
         for key in ("day", "day_id", "dia"):
             value = metadata.get(key)
             if value not in (None, "", "None"):
                 formatted = self._format_day_display(value)
-                if formatted.lower() == "sem dia":
-                    return "Sem Dia"
-                return f"Dia {formatted}"
+                if formatted.lower() in ("sem dia", no_day_label().lower()):
+                    return no_day_label()
+                return f"{day_prefix()} {formatted}"
 
-        return "Sem Dia"
+        return no_day_label()
 
     def _build_video_hierarchy_data(
         self,
@@ -1377,8 +1387,15 @@ class ValidationManager:
             is_multi_subject_entry: Whether this is from a multi-subject expansion
             multi_subject_index: Index in multi-subject list (for display ordering)
         """
+        # group_id and raw_day are GROUPING KEYS, not labels: raw_day feeds
+        # _normalize_day_id, which returns values in the "Dia_N" id space. They
+        # stay in their original spelling so tree grouping is stable and matches
+        # what earlier versions produced; only the *_display values below are
+        # localized.
         group_id = group_override or metadata.get("group") or "Sem Grupo"
-        group_display = metadata.get("group_display_name") or group_id
+        group_display = metadata.get("group_display_name") or (
+            no_group_label() if group_id == "Sem Grupo" else group_id
+        )
         raw_day = day_override or metadata.get("day") or "Sem Dia"
 
         # v2.3.1: Normalize day_id to consistent format for proper grouping

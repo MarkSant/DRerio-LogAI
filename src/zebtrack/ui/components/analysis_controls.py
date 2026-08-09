@@ -8,6 +8,7 @@ from PIL import Image, ImageTk
 from zebtrack.ui import payloads
 from zebtrack.ui.components.base import BaseWidget
 from zebtrack.ui.event_bus_v2 import EventBusV2, UIEvents
+from zebtrack.ui.sentinels import all_tracks_label
 from zebtrack.ui.wizard.tooltip import ToolTip
 
 log = structlog.get_logger()
@@ -63,7 +64,7 @@ class AnalysisControlsWidget(BaseWidget):
             master=stringvar_master,
             value="Configuração de análise: default",
         )
-        self.track_selector_var = StringVar(master=stringvar_master, value="Todos")
+        self.track_selector_var = StringVar(master=stringvar_master, value=all_tracks_label())
         self.social_summary_var = StringVar(
             master=stringvar_master,
             value="Interações sociais: aguardando dados.",
@@ -143,7 +144,7 @@ class AnalysisControlsWidget(BaseWidget):
             controls_frame,
             textvariable=self.track_selector_var,
             state="readonly",
-            values=["Todos"],
+            values=[all_tracks_label()],
             width=14,
         )
         self.track_selector_widget.grid(row=0, column=1, padx=(6, 12), sticky="w")
@@ -217,7 +218,7 @@ class AnalysisControlsWidget(BaseWidget):
         Update the available track options in the selector.
 
         Args:
-            tracks: List of track IDs (e.g., ["Todos", "1", "2", "3"])
+            tracks: List of track IDs (e.g., ["All", "1", "2", "3"])
         """
         if self.track_selector_widget:
             self.track_selector_widget.config(values=tracks)

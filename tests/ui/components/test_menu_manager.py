@@ -838,7 +838,7 @@ class TestShowRoiContextMenu:
 
         listbox = Mock()
         listbox.identify_row.return_value = "arena-1"
-        listbox.item.return_value = {"values": ["Arena Principal"]}
+        listbox.item.return_value = {"values": ["Main Arena"]}
 
         menu_manager.gui.root = tkinter_root
         menu_manager.gui.zone_controls = SimpleNamespace(zone_listbox=listbox)

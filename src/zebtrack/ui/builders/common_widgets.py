@@ -11,6 +11,7 @@ import structlog
 
 from zebtrack.i18n import _
 from zebtrack.settings import Settings
+from zebtrack.ui.sentinels import all_tracks_label, day_prefix, no_day_label
 
 log = structlog.get_logger()
 
@@ -69,13 +70,15 @@ class CommonWidgetsBuilder:
             candidate = self.gui.validation_manager._format_day_display(day_value)
         if not candidate:
             base_value = day_value if day_value not in (None, "") else None
-            candidate = str(base_value) if base_value is not None else "Sem Dia"
+            candidate = str(base_value) if base_value is not None else no_day_label()
         candidate_str = str(candidate).strip()
         if not candidate_str:
-            candidate_str = "Sem Dia"
-        if candidate_str.lower() == "sem dia":
-            return "Sem Dia"
-        return f"Dia {candidate_str}"
+            candidate_str = no_day_label()
+        # "sem dia" is what existing metadata contains; both spellings map to
+        # the localized label.
+        if candidate_str.lower() in ("sem dia", no_day_label().lower()):
+            return no_day_label()
+        return f"{day_prefix()} {candidate_str}"
 
     def build_processing_report_artifact_id(self, parent_id: str, artifact_path: Path | str) -> str:
         """Create a stable item id for report artifacts while avoiding duplicates.
@@ -103,7 +106,7 @@ class CommonWidgetsBuilder:
                 observed.add(text)
 
         ordered = sorted(observed, key=str)
-        return ["Todos", *ordered]
+        return [all_tracks_label(), *ordered]
 
     # ------------------------------------------------------------------
     # Misc helpers

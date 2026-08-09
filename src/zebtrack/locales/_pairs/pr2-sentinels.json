@@ -1,0 +1,11 @@
+{
+  "_comment": "PR2: display labels that are also compared with == in another module, now routed through ui/sentinels.py. Values are the Portuguese literals they replaced.",
+  "All": "Todos",
+  "No Group": "Sem Grupo",
+  "No Day": "Sem Dia",
+  "Not reported": "Não informado",
+  "Day": "Dia",
+  "Main Arena": "Arena Principal",
+  "Polygon": "Polígono",
+  "Teal": "Teal"
+}

@@ -16,6 +16,7 @@ from zebtrack.ui import payloads
 # Local imports
 from zebtrack.ui.components.base import BaseWidget
 from zebtrack.ui.event_bus_v2 import EventBusV2, UIEvents
+from zebtrack.ui.sentinels import all_tracks_label
 from zebtrack.ui.wizard.tooltip import ToolTip, create_help_label
 
 log = structlog.get_logger()
@@ -59,7 +60,7 @@ class AnalysisDisplayWidget(BaseWidget):
         Args:
             parent: Parent Tkinter widget
             event_bus: Optional event bus for emitting events
-            available_track_options: Initial list of available tracks (default: ["Todos"])
+            available_track_options: Initial list of available tracks (default: ["All"])
             **kwargs: Additional arguments passed to BaseWidget
         """
         # State variables for display
@@ -81,13 +82,13 @@ class AnalysisDisplayWidget(BaseWidget):
             master=stringvar_master,
             value="Interações sociais: não aplicável no momento.",
         )
-        self.track_selector_var = StringVar(master=stringvar_master, value="Todos")
+        self.track_selector_var = StringVar(master=stringvar_master, value=all_tracks_label())
 
         # Progress statistics
         self.progress_labels: dict[str, StringVar] = {}
 
         # Available track options
-        self._available_track_options = available_track_options or ["Todos"]
+        self._available_track_options = available_track_options or [all_tracks_label()]
 
         # Widget references
         self.status_label: ttk.Label | None = None
@@ -312,7 +313,7 @@ class AnalysisDisplayWidget(BaseWidget):
         Update the available track options in the selector.
 
         Args:
-            tracks: List of track IDs (e.g., ["Todos", "1", "2", "3"])
+            tracks: List of track IDs (e.g., ["All", "1", "2", "3"])
         """
         self._available_track_options = tracks
         if self.track_selector_widget:
@@ -438,7 +439,7 @@ class AnalysisDisplayWidget(BaseWidget):
         self.set_tracking_mode("--")
         self.set_profile("default")
         self.set_social_summary("Interações sociais: aguardando dados.")
-        self.track_selector_var.set("Todos")
+        self.track_selector_var.set(all_tracks_label())
         self.hide_progress()
         self.disable_cancel_button()
         self.clear_video_display()

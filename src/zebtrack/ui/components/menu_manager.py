@@ -20,6 +20,7 @@ from zebtrack.i18n import _
 from zebtrack.ui import payloads
 from zebtrack.ui.dialogs.project_video_import_dialog import VideoMetadataDialog
 from zebtrack.ui.event_bus_v2 import Event, UIEvents
+from zebtrack.ui.sentinels import is_main_arena_row
 
 if TYPE_CHECKING:
     from zebtrack.ui.components.dialog_manager import DialogManager
@@ -823,12 +824,12 @@ class MenuManager:
 
             # Check if ROI (not main arena)
             values = listbox.item(item)["values"]
-            if values and "Arena Principal" not in values[0]:
+            if values and not is_main_arena_row(values[0]):
                 # ROI - show full menu
                 if self.gui.roi_context_menu:
                     self.gui.roi_context_menu.post(x, y)
-            elif values and "Arena Principal" in values[0]:
-                # Arena Principal - show limited menu (only edit vertices)
+            elif values and is_main_arena_row(values[0]):
+                # Main arena - show limited menu (only edit vertices)
                 arena_menu = Menu(self.gui.root, tearoff=0)
                 arena_menu.add_command(
                     label=_("🔧 Edit Vertices"),

@@ -71,7 +71,7 @@ def mock_gui(tkinter_root, mock_controller):
     gui._on_handle_drag = Mock()
     gui._on_handle_release = Mock()
     gui.track_selector_var = Mock()
-    gui.track_selector_var.get = Mock(return_value="Todos")
+    gui.track_selector_var.get = Mock(return_value="All")
     gui.track_selector_widget = Mock()
     gui.track_selector_widget.winfo_height = Mock(return_value=30)
     gui.track_selector_widget.update_idletasks = Mock()
@@ -887,6 +887,4 @@ class TestDetectionOverlay:
 
         canvas_manager._update_analysis_track_options_from_detections(detections)
 
-        mock_gui.state_synchronizer._update_track_options.assert_called_once_with(
-            ["Todos", "1", "3"]
-        )
+        mock_gui.state_synchronizer._update_track_options.assert_called_once_with(["All", "1", "3"])
