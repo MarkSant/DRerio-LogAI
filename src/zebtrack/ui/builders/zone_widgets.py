@@ -7,6 +7,7 @@ from tkinter import Canvas, ttk
 
 import structlog
 
+from zebtrack.i18n import _
 from zebtrack.ui.builders.button_factory import ButtonFactory
 from zebtrack.ui.builders.panel_builder import PanelBuilder
 
@@ -21,7 +22,7 @@ class ZoneWidgetsBuilder:
         self.common = common_builder
 
     def create_zone_summary_cards_section(self) -> None:
-        """Renderiza os cartões com indicadores numéricos da etapa de zonas."""
+        """Render the cards holding the numeric indicators of the zone step."""
         if not getattr(self.gui, "zone_controls_frame", None):
             return
 
@@ -140,13 +141,13 @@ class ZoneWidgetsBuilder:
 
         current_arena_id = self.gui.arena_selector_var.get()
         if not current_arena_id:
-            self.gui.dialog_manager.show_error("Erro", "Selecione um aquário ativo primeiro.")
+            self.gui.dialog_manager.show_error(_("Error"), _("Select an active aquarium first."))
             return
 
         arena_data = self.gui.controller.project_manager.get_zone_data()
         if not arena_data or not arena_data.polygon:
             self.gui.dialog_manager.show_error(
-                "Erro", "Não foi possível obter os dados do polígono do aquário."
+                _("Error"), _("The aquarium polygon data could not be retrieved.")
             )
             return
 

@@ -22,6 +22,7 @@ from typing import TYPE_CHECKING, Any
 
 import structlog
 
+from zebtrack.i18n import _
 from zebtrack.ui import payloads
 
 if TYPE_CHECKING:
@@ -174,7 +175,7 @@ class ProjectWorkflowAdapter:
             self._publish_event(
                 UIEvents.SHOW_ERROR,
                 payloads.MessagePayload(
-                    title="Configuração Inválida",
+                    title=_("Invalid Configuration"),
                     message=result["error_message"],
                 ),
             )
@@ -303,13 +304,22 @@ class ProjectWorkflowAdapter:
         self._publish_event(
             UIEvents.SHOW_INFO,
             payloads.MessagePayload(
-                title="Projeto Carregado",
-                message=f"Projeto '{project_info['name']}' carregado com sucesso!\n\n"
-                f"• Vídeos: {project_info['videos_count']}\n"
-                f"• Arena Principal: {project_info['zone_status']}\n"
-                f"• ROIs: {project_info['roi_count']}\n"
-                f"• Peso: {project_info['active_weight']}\n"
-                f"• OpenVINO: {'✓' if project_info['use_openvino'] else '✗'}",
+                title=_("Project Loaded"),
+                message=_(
+                    "Project '{name}' loaded successfully!\n\n"
+                    "• Videos: {videos}\n"
+                    "• Main Arena: {arena}\n"
+                    "• ROIs: {rois}\n"
+                    "• Weights: {weights}\n"
+                    "• OpenVINO: {openvino}"
+                ).format(
+                    name=project_info["name"],
+                    videos=project_info["videos_count"],
+                    arena=project_info["zone_status"],
+                    rois=project_info["roi_count"],
+                    weights=project_info["active_weight"],
+                    openvino="✓" if project_info["use_openvino"] else "✗",
+                ),
             ),
         )
 

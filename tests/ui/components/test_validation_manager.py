@@ -1169,8 +1169,8 @@ class TestFormatDayDisplay:
             ("3", "03"),
             ("03", "03"),
             ("10", "10"),
-            ("sem dia", "Sem Dia"),
-            ("SEM DIA", "Sem Dia"),
+            ("sem dia", "No Day"),
+            ("SEM DIA", "No Day"),
             ("abc", "abc"),
         ],
     )
@@ -1368,7 +1368,7 @@ class TestInternalHelpers:
     def test_build_day_title_basic(self, validation_manager):
         """Test _build_day_title with basic input."""
         result = validation_manager._build_day_title(3)
-        assert result == "Dia 03"
+        assert result == "Day 03"
 
     def test_build_day_title_with_metadata(self, validation_manager):
         """Test _build_day_title with metadata."""
@@ -1377,9 +1377,9 @@ class TestInternalHelpers:
         assert result == "Dia 05"
 
     def test_build_day_title_sem_dia(self, validation_manager):
-        """Test _build_day_title with 'Sem Dia'."""
+        """Legacy 'sem dia' metadata still renders as the localized no-day label."""
         result = validation_manager._build_day_title("sem dia")
-        assert result == "Sem Dia"
+        assert result == "No Day"
 
     def test_build_video_hierarchy_data_empty(self, validation_manager):
         """Test _build_video_hierarchy_data with empty list."""

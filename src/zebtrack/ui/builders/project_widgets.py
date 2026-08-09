@@ -8,6 +8,7 @@ from tkinter import Frame, Label, ttk
 
 import structlog
 
+from zebtrack.i18n import _
 from zebtrack.ui.builders.button_factory import ButtonFactory
 from zebtrack.ui.builders.panel_builder import PanelBuilder
 from zebtrack.ui.event_bus_v2 import UIEvents
@@ -123,7 +124,7 @@ class ProjectWidgetsBuilder:
             if not all([days, groups, subjects_per_group]):
                 ttk.Label(
                     self.gui.grid_container,
-                    text="O design experimental não está totalmente configurado.",
+                    text=_("The experimental design is not fully configured."),
                 ).pack()
                 return
 
@@ -275,13 +276,13 @@ class ProjectWidgetsBuilder:
 
         ttk.Button(
             self.gui.project_overview_frame,
-            text="Editar Metadata do Vídeo Selecionado...",
+            text=_("Edit Selected Video Metadata..."),
             command=self.gui.menu_manager.edit_selected_project_overview_video_metadata,
         ).pack(fill="x", padx=5, pady=(0, 5))
 
         ttk.Button(
             self.gui.project_overview_frame,
-            text="Ir para Processamento e Relatórios \u2192",
+            text=_("Go to Processing and Reports \u2192"),
             command=self.gui.video_selector_manager.navigate_to_processing_reports_tab,
         ).pack(fill="x", padx=5, pady=(0, 5))
 
@@ -334,15 +335,15 @@ class ProjectWidgetsBuilder:
 
         project_type_str = self.gui.controller.project_manager.get_project_type()
         if project_type_str == "live":
-            project_type_display = "Ao Vivo"
+            project_type_display = _("Live")
         elif project_type_str == "pre-recorded":
-            project_type_display = "Pré-gravado"
+            project_type_display = _("Pre-recorded")
         else:
             project_type_display = project_type_str
 
-        status_text = (
-            f"Projeto: {self.gui.controller.project_manager.get_project_name()} "
-            f"({project_type_display})"
+        status_text = _("Project: {name} ({type})").format(
+            name=self.gui.controller.project_manager.get_project_name(),
+            type=project_type_display,
         )
         self.gui.status_var.set(status_text)
         status_frame = Frame(self.gui.root)

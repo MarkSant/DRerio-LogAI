@@ -17,6 +17,8 @@ import numpy as np
 import structlog
 from PIL import Image
 
+from zebtrack.ui.sentinels import all_tracks_label
+
 if TYPE_CHECKING:
     from pathlib import Path
 
@@ -271,11 +273,11 @@ class VideoFrameManager:
             selected = str(widget.track_selector_var.get()).strip()
             if selected:
                 return selected
-        return "Todos"
+        return all_tracks_label()
 
     def _filter_detections_by_track(self, detections: list, selected_track: str) -> list:
         """Filter detections according to selected Track ID."""
-        if selected_track == "Todos":
+        if selected_track == all_tracks_label():
             return detections
 
         filtered: list = []
@@ -302,9 +304,9 @@ class VideoFrameManager:
                 if track_id:
                     track_ids.add(track_id)
 
-        options = ["Todos", *sorted(track_ids, key=lambda value: (len(value), value))]
+        options = [all_tracks_label(), *sorted(track_ids, key=lambda value: (len(value), value))]
         normalized = tuple(options)
-        if getattr(self.gui, "_available_track_options", ("Todos",)) == normalized:
+        if getattr(self.gui, "_available_track_options", (all_tracks_label(),)) == normalized:
             return
 
         synchronizer = getattr(self.gui, "state_synchronizer", None)

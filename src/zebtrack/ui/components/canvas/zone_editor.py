@@ -19,8 +19,10 @@ import numpy as np
 import structlog
 import ttkbootstrap as ttk
 
+from zebtrack.i18n import _
 from zebtrack.ui import payloads
 from zebtrack.ui.event_bus_v2 import Event, UIEvents
+from zebtrack.ui.sentinels import is_main_arena_row, main_arena_row_label
 
 if TYPE_CHECKING:
     from zebtrack.core.services.zone_context_service import ZoneContextService
@@ -129,7 +131,7 @@ class ZoneEditor:
             # Add Arena with dark teal color (matching the overlay drawing)
             if zone_data.polygon:
                 controls.add_zone_to_list(
-                    "arena", "🏟 Arena Principal", "Polígono", "Teal", "#008B8B"
+                    "arena", main_arena_row_label(), _("Polygon"), _("Teal"), "#008B8B"
                 )
             # Add ROIs
             if zone_data.roi_names:
@@ -433,7 +435,7 @@ class ZoneEditor:
 
         zone_data = self.zone_context_service.get_zone_data_for_active_context()
 
-        if "Arena Principal" in zone_name:
+        if is_main_arena_row(zone_name):
             # Edit main arena
             if not zone_data.polygon:
                 self.dialog_manager.show_warning("Erro", "Arena principal não encontrada.")

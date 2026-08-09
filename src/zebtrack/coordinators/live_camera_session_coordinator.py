@@ -33,6 +33,7 @@ from zebtrack.coordinators.base_coordinator import (
 from zebtrack.core.state_manager import StateCategory
 from zebtrack.ui import payloads
 from zebtrack.ui.event_bus_v2 import Event, UIEvents
+from zebtrack.ui.sentinels import no_day_label, no_group_label, not_reported_label
 from zebtrack.utils.report_files import has_summary_excel_output
 
 if TYPE_CHECKING:
@@ -426,9 +427,9 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
                 day_value = metadata.get("day_label") or metadata.get("day")
                 subject_value = metadata.get("subject") or metadata.get("subject_id")
                 widget.set_metadata(
-                    group=str(group_value or "Sem Grupo"),
-                    day=str(day_value or "Sem Dia"),
-                    subject=str(subject_value or "Não informado"),
+                    group=str(group_value or no_group_label()),
+                    day=str(day_value or no_day_label()),
+                    subject=str(subject_value or not_reported_label()),
                     profile=str(metadata.get("profile") or LIVE_PROFILE_DISPLAY_DEFAULT),
                 )
 

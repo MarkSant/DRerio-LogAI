@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Any
 
 import structlog
 
+from zebtrack.i18n import _
 from zebtrack.io.arduino import Arduino
 
 if TYPE_CHECKING:
@@ -135,7 +136,9 @@ class ArduinoManager:
                     )
                     candidate.close()
                     self._notify_status(False, port)
-                    self._notify_log(f"Não foi possível conectar ao Arduino na porta {port}.")
+                    self._notify_log(
+                        _("Could not connect to the Arduino on port {port}.").format(port=port)
+                    )
                     return False
             # except Exception justified: Arduino handshake - serial I/O
             except Exception:
@@ -214,7 +217,7 @@ class ArduinoManager:
         command_value: int
         if isinstance(command, str):
             if not command.isdigit():
-                self._notify_log(f"Comando inválido: {command}")
+                self._notify_log(_("Invalid command: {command}").format(command=command))
                 return False
             command_value = int(command)
         else:
@@ -223,7 +226,7 @@ class ArduinoManager:
         with self._lock:
             arduino = self.arduino if self.is_connected() else None
         if arduino is None:
-            self._notify_log("Não foi possível enviar comando: Arduino desconectado.")
+            self._notify_log(_("Could not send command: Arduino disconnected."))
             self._notify_command(command_value, success=False, source=source)
             return False
 
@@ -386,7 +389,7 @@ class ArduinoManager:
                 latency sink.
         """
         if not self.is_connected():
-            raise RuntimeError("Arduino não está conectado.")
+            raise RuntimeError("Arduino is not connected.")
         if not tokens:
             return []
 
@@ -413,7 +416,7 @@ class ArduinoManager:
         with self._latency_lock:
             if self._latency_sink is not None:
                 raise RuntimeError(
-                    "Uma sessão ao vivo está em andamento; pare a gravação antes de testar."
+                    "A live session is in progress; stop the recording before testing."
                 )
             self._latency_sink = _collect
             self._pending_acks.clear()
@@ -550,7 +553,7 @@ class ArduinoManager:
                 t_ack = time.perf_counter()
             except SerialExceptionType:
                 log.warning("arduino_manager.reader.serial_exception", exc_info=True)
-                self._notify_log("Conexão serial com Arduino perdida.")
+                self._notify_log(_("Serial connection to the Arduino was lost."))
                 self.disconnect()
                 break
             # except Exception justified: serial reader fallback

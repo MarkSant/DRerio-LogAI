@@ -114,7 +114,7 @@ def test_probe_clears_the_sink_afterwards(manager):
 
 def test_probe_requires_connection(mock_controller):
     mgr = ArduinoManager(mock_controller)
-    with pytest.raises(RuntimeError, match="não está conectado"):
+    with pytest.raises(RuntimeError, match="is not connected"):
         mgr.probe_tokens([1])
 
 
@@ -122,7 +122,7 @@ def test_probe_refuses_while_a_session_owns_the_sink(manager):
     """Probing hijacks the latency sink, so it must not run mid-recording."""
     manager.set_latency_sink(lambda *args: None)
     try:
-        with pytest.raises(RuntimeError, match="sessão ao vivo"):
+        with pytest.raises(RuntimeError, match="live session is in progress"):
             manager.probe_tokens([1])
     finally:
         manager.set_latency_sink(None)
@@ -142,7 +142,7 @@ def test_probe_claims_the_sink_atomically(manager):
 
     manager.set_latency_sink(_session_sink)
     try:
-        with pytest.raises(RuntimeError, match="sessão ao vivo"):
+        with pytest.raises(RuntimeError, match="live session is in progress"):
             manager.probe_tokens([1], timeout_s=1.0)
         # The refusal must leave the session's sink untouched.
         assert manager._latency_sink is _session_sink

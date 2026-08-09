@@ -14,6 +14,7 @@ from typing import Any, Literal, cast
 import structlog
 
 from zebtrack.constants import SPLASH_CLOSE_DELAY_MS
+from zebtrack.i18n import _
 from zebtrack.logging_config import configure_logging
 
 # Suppress pkg_resources deprecation from docxcompose (setuptools pinned to <81)
@@ -77,48 +78,58 @@ def run_app(
     configure_logging_levels = _setup_logging(args.log_level, configure_logging_fn)
     log = structlog.get_logger()
 
+    from zebtrack import i18n
     from zebtrack.settings import load_settings
 
-    settings_obj = _load_settings_or_exit(
-        load_settings=load_settings,
-        configure_logging_levels=configure_logging_levels,
-        tk_module=tk_module,
-        messagebox_module=messagebox_module,
-        log=log,
-    )
-
-    from zebtrack.utils import set_seed
-
-    if settings_obj.reproducibility and settings_obj.reproducibility.seed:
-        set_seed(settings_obj.reproducibility.seed)
-        log.info("reproducibility.seed.set", seed=settings_obj.reproducibility.seed)
-
-    log.info("application.starting", component="main")
-    _set_windows_app_id(log)
-
-    from zebtrack.core.dependency_container import LazyRef
-    from zebtrack.core.di_registrations import (
-        ContainerContext,
-        build_container,
-        resolve_main_view_model,
-    )
-    from zebtrack.core.state_manager import StateManager
-    from zebtrack.core.ui_scheduler import UIScheduler
-    from zebtrack.io.recorder_factory import RecorderFactory
-    from zebtrack.settings import save_settings
-    from zebtrack.ui.event_bus_v2 import EventBusV2
-    from zebtrack.ui.window_utils import maximize_window
-
     try:
+        # The Tk root is created here, earlier than the splash, because the
+        # first-launch language question has to be asked *before* settings are
+        # read: answering it writes ui.language into config.local.yaml, and
+        # load_settings() below is what picks that value up.
         root = tk_module.Tk()
         root.withdraw()
 
+        _select_language_on_first_run(root, log=log)
+
+        settings_obj = _load_settings_or_exit(
+            load_settings=load_settings,
+            configure_logging_levels=configure_logging_levels,
+            root=root,
+            messagebox_module=messagebox_module,
+            log=log,
+        )
+
+        # Install the translator before anything user-visible exists and,
+        # critically, before _warm_container() builds the whole UI tree below.
+        i18n.install(settings_obj.ui.language)
+
+        from zebtrack.utils import set_seed
+
+        if settings_obj.reproducibility and settings_obj.reproducibility.seed:
+            set_seed(settings_obj.reproducibility.seed)
+            log.info("reproducibility.seed.set", seed=settings_obj.reproducibility.seed)
+
+        log.info("application.starting", component="main")
+        _set_windows_app_id(log)
+
+        from zebtrack.core.dependency_container import LazyRef
+        from zebtrack.core.di_registrations import (
+            ContainerContext,
+            build_container,
+            resolve_main_view_model,
+        )
+        from zebtrack.core.state_manager import StateManager
+        from zebtrack.core.ui_scheduler import UIScheduler
+        from zebtrack.io.recorder_factory import RecorderFactory
+        from zebtrack.settings import save_settings
+        from zebtrack.ui.event_bus_v2 import EventBusV2
         from zebtrack.ui.icon_utils import set_window_icon
         from zebtrack.ui.splash_screen import create_splash
+        from zebtrack.ui.window_utils import maximize_window
 
         set_window_icon(root)
         splash = create_splash(parent=root)
-        splash.update_progress(0.0, "Carregando configurações...")
+        splash.update_progress(0.0, _("Loading settings..."))
 
         # Detect first launch (no cached benchmark) and inform user
         _detect_first_launch(settings_obj, splash)
@@ -149,7 +160,7 @@ def run_app(
         controller = resolve_main_view_model(container)
         controller.bind_events()
 
-        splash.update_progress(1.0, "Pronto!")
+        splash.update_progress(1.0, _("Ready!"))
         root.update()
 
         def close_splash_and_show_main() -> None:
@@ -285,10 +296,19 @@ def _load_settings_or_exit(
     *,
     load_settings: Callable[[], Any],
     configure_logging_levels: Callable[[Any | None], None],
-    tk_module: Any,
+    root: Any,
     messagebox_module: Any,
     log: Any,
 ) -> Any:
+    """Load settings, or show a fatal dialog and exit.
+
+    Takes the caller's *root* instead of building its own: by the time this runs
+    a Tk root already exists (the language chooser needed one), and creating a
+    second Tk interpreter in the same process breaks the first.
+
+    These dialogs stay untranslated -- settings failed to load, so we do not know
+    which language was requested.
+    """
     try:
         settings_obj = load_settings()
         log.info(
@@ -300,24 +320,58 @@ def _load_settings_or_exit(
         return settings_obj
     except FileNotFoundError as e:
         log.critical("settings.load.file_not_found", error=str(e))
-        root = tk_module.Tk()
-        root.withdraw()
         messagebox_module.showerror(
             "Configuration File Not Found",
             f"Could not find configuration file: {e}\n\n"
             "The application requires 'config.yaml' to start.",
+            parent=root,
         )
         sys.exit(1)
     except ValueError as e:
         log.critical("settings.load.validation_error", error=str(e))
-        root = tk_module.Tk()
-        root.withdraw()
         messagebox_module.showerror(
             "Configuration Validation Error",
             f"Configuration file contains invalid values:\n\n{e}\n\n"
             "Please check your config.yaml file.",
+            parent=root,
         )
         sys.exit(1)
+
+
+def _select_language_on_first_run(root: Any, *, log: Any) -> None:
+    """Ask for a language the first time the application runs, then persist it.
+
+    "First run" means there is no ``config.local.yaml``. That is the same file
+    ``--reset`` deletes, so a factory reset deliberately asks again. The cached
+    benchmark used by :func:`_detect_first_launch` is not usable here: it needs a
+    ``settings_obj`` and a splash that do not exist yet at this point in startup.
+
+    Only ``ui.language`` is written, via
+    :func:`zebtrack.settings.write_local_override` -- never ``save_settings``,
+    which would freeze the entire current default tree into the override file.
+
+    Any failure degrades to English and lets startup continue. A language
+    chooser is not worth aborting the application over.
+    """
+    from pathlib import Path
+
+    from zebtrack.i18n import LANGUAGE_ENV_VAR
+
+    if os.environ.get("ZEBTRACK_SKIP_LANGUAGE_PROMPT") or os.environ.get(LANGUAGE_ENV_VAR):
+        return
+
+    if Path("config.local.yaml").exists():
+        return
+
+    try:
+        from zebtrack.settings import write_local_override
+        from zebtrack.ui.language_dialog import ask_language
+
+        language = ask_language(root)
+        write_local_override({"ui": {"language": language}})
+        log.info("i18n.first_run.language_selected", language=language)
+    except Exception:
+        log.warning("i18n.first_run.prompt_failed", exc_info=True)
 
 
 def _set_windows_app_id(log: Any) -> None:
@@ -365,7 +419,7 @@ def _run_benchmark_if_enabled(
 
         cached = load_cached_benchmark()
         if cached is None:
-            splash.update_progress(0.02, "Otimizando para seu hardware (primeira execução)...")
+            splash.update_progress(0.02, _("Optimizing for your hardware (first run)..."))
             log.info("benchmark.running_first_time")
 
             def progress_cb(step: int, total: int, message: str) -> None:
@@ -452,12 +506,12 @@ def _warm_container(container: Any, splash: Any) -> None:
     # Phase weights: (cumulative fraction, message)
     # Benchmark phase occupies 0.0-0.15, warm-up occupies 0.15-0.95
     phases = [
-        (0.20, "Carregando sistema de modelos..."),
-        (0.35, "Inicializando gerenciador de projetos..."),
-        (0.50, "Configurando detector..."),
-        (0.65, "Preparando processamento de vídeo..."),
-        (0.85, "Criando interface gráfica..."),
-        (0.95, "Finalizando inicialização..."),
+        (0.20, _("Loading model system...")),
+        (0.35, _("Initializing project manager...")),
+        (0.50, _("Configuring detector...")),
+        (0.65, _("Preparing video processing...")),
+        (0.85, _("Creating graphical interface...")),
+        (0.95, _("Finalizing startup...")),
     ]
 
     splash.update_progress(phases[0][0], phases[0][1])

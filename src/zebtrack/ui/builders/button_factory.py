@@ -8,6 +8,8 @@ import tkinter as tk
 from collections.abc import Callable
 from tkinter import ttk
 
+from zebtrack.i18n import _
+
 
 class ButtonFactory:
     """
@@ -31,42 +33,42 @@ class ButtonFactory:
         Returns:
             The created LabelFrame containing the buttons
         """
-        project_actions_frame = ttk.LabelFrame(parent, text="Ações do Projeto", padding=10)
+        project_actions_frame = ttk.LabelFrame(parent, text=_("Project Actions"), padding=10)
         project_actions_frame.pack(fill="x", pady=10, expand=True)
 
         ttk.Button(
             project_actions_frame,
-            text="Configuração Global de Modelos...",
+            text=_("Global Model Configuration..."),
             command=commands["model_configuration"],
         ).pack(fill="x", padx=10, pady=5)
 
         ttk.Button(
             project_actions_frame,
-            text="Diagnóstico Global...",
+            text=_("Global Diagnostics..."),
             command=commands["diagnostics"],
         ).pack(fill="x", padx=10, pady=5)
 
         ttk.Button(
             project_actions_frame,
-            text="Analisar Vídeo Único",
+            text=_("Analyze Single Video"),
             command=commands["single_analysis"],
         ).pack(fill="x", padx=10, pady=5)
 
         ttk.Button(
             project_actions_frame,
-            text="Analisar Câmera ao Vivo",
+            text=_("Analyze Live Camera"),
             command=commands["live_camera"],
         ).pack(fill="x", padx=10, pady=5)
 
         ttk.Button(
             project_actions_frame,
-            text="Criar Novo Projeto",
+            text=_("Create New Project"),
             command=commands["create_project"],
         ).pack(fill="x", padx=10, pady=5)
 
         ttk.Button(
             project_actions_frame,
-            text="Abrir Projeto Existente",
+            text=_("Open Existing Project"),
             command=commands["open_project"],
         ).pack(fill="x", padx=10, pady=5)
 
@@ -92,7 +94,7 @@ class ButtonFactory:
         # Undo button
         undo_btn = ttk.Button(
             drawing_buttons_frame,
-            text="↶ Desfazer (Ctrl+Z)",
+            text=_("↶ Undo (Ctrl+Z)"),
             command=commands["undo"],
             width=20,
         )
@@ -101,7 +103,7 @@ class ButtonFactory:
         # Redo button
         redo_btn = ttk.Button(
             drawing_buttons_frame,
-            text="↷ Refazer (Ctrl+Y)",
+            text=_("↷ Redo (Ctrl+Y)"),
             command=commands["redo"],
             width=20,
         )

@@ -7,6 +7,8 @@ Extracted from WidgetFactory to separate concern of panel construction.
 import tkinter as tk
 from tkinter import StringVar, ttk
 
+from zebtrack.i18n import _
+
 # Status symbols used in UI
 STATUS_SYMBOLS = {
     "arena": "\U0001f3df",  # 🏟
@@ -36,7 +38,7 @@ class PanelBuilder:
         Returns:
             The created LabelFrame
         """
-        model_status_frame = ttk.LabelFrame(parent, text="Estado do Modelo de Detecção", padding=10)
+        model_status_frame = ttk.LabelFrame(parent, text=_("Detection Model Status"), padding=10)
         model_status_frame.pack(fill="x", pady=10, expand=True)
 
         # ``active_weight`` is a multi-line summary of the 4 default slots —
@@ -78,7 +80,7 @@ class PanelBuilder:
         """
         zone_summary_frame = ttk.LabelFrame(
             parent,
-            text=f"{STATUS_SYMBOLS['summary']} Indicadores de Preparação",
+            text=f"{STATUS_SYMBOLS['summary']} " + _("Readiness Indicators"),
             padding=10,
         )
         zone_summary_frame.pack(fill="x", pady=(0, 5))
@@ -87,11 +89,11 @@ class PanelBuilder:
         cards_container.pack(fill="x")
 
         card_specs = [
-            ("arena_missing", f"{STATUS_SYMBOLS['arena']} Arenas pendentes"),
-            ("rois_missing", f"{STATUS_SYMBOLS['rois']} ROIs pendentes"),
+            ("arena_missing", f"{STATUS_SYMBOLS['arena']} " + _("Pending arenas")),
+            ("rois_missing", f"{STATUS_SYMBOLS['rois']} " + _("Pending ROIs")),
             (
                 "ready_for_processing",
-                f"{STATUS_SYMBOLS['summary']} Prontos para trajetórias",
+                f"{STATUS_SYMBOLS['summary']} " + _("Ready for trajectories"),
             ),
         ]
 
@@ -103,7 +105,7 @@ class PanelBuilder:
             cards_container.columnconfigure(idx, weight=1)
 
             value_var = StringVar(value="0")
-            detail_var = StringVar(value="Nenhum vídeo listado")
+            detail_var = StringVar(value=_("No videos listed"))
 
             ttk.Label(card, text=title, font=("TkDefaultFont", 9, "bold")).pack(anchor="w")
             value_label = ttk.Label(

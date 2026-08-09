@@ -16,9 +16,11 @@ from typing import TYPE_CHECKING, Any
 import structlog
 from PIL import Image, ImageTk
 
+from zebtrack.i18n import _
 from zebtrack.ui import payloads
 from zebtrack.ui.dialogs.project_video_import_dialog import VideoMetadataDialog
 from zebtrack.ui.event_bus_v2 import Event, UIEvents
+from zebtrack.ui.sentinels import is_main_arena_row
 
 if TYPE_CHECKING:
     from zebtrack.ui.components.dialog_manager import DialogManager
@@ -56,32 +58,76 @@ class MenuManager:
 
         # File menu
         file_menu = Menu(menubar, tearoff=0)
-        menubar.add_cascade(label="Arquivo", menu=file_menu)
-        file_menu.add_command(label="Sair", command=self.gui.root.quit, accelerator="Ctrl+Q")
+        menubar.add_cascade(label=_("File"), menu=file_menu)
+        file_menu.add_command(label=_("Exit"), command=self.gui.root.quit, accelerator="Ctrl+Q")
 
         # Bind keyboard shortcuts
         self.gui.root.bind("<Control-q>", lambda e: self.gui.root.quit())
 
+        # Settings menu
+        settings_menu = Menu(menubar, tearoff=0)
+        menubar.add_cascade(label=_("Settings"), menu=settings_menu)
+        settings_menu.add_command(label=_("Language..."), command=self.change_language)
+
         # Tools menu
         tools_menu = Menu(menubar, tearoff=0)
-        menubar.add_cascade(label="Ferramentas", menu=tools_menu)
+        menubar.add_cascade(label=_("Tools"), menu=tools_menu)
         tools_menu.add_command(
-            label="Restaurar Padrões (Reiniciar)",
+            label=_("Restore Defaults (Restart)"),
             command=self._reset_defaults,
         )
 
         # Help menu
         help_menu = Menu(menubar, tearoff=0)
-        menubar.add_cascade(label="Ajuda", menu=help_menu)
-        help_menu.add_command(label="Sobre DRerio LogAI", command=self.show_about_dialog)
+        menubar.add_cascade(label=_("Help"), menu=help_menu)
+        help_menu.add_command(label=_("About DRerio LogAI"), command=self.show_about_dialog)
+
+    def change_language(self) -> None:
+        """Let the user pick a different interface language.
+
+        Writes only ``ui.language`` to ``config.local.yaml`` and takes effect on
+        the next start: re-rendering a live Tkinter tree in another language
+        would mean rebuilding every widget already on screen.
+        """
+        from zebtrack.settings import write_local_override
+        from zebtrack.ui.language_dialog import ask_language
+
+        current = self._current_language()
+        chosen = ask_language(self.gui.root, initial=current)
+        if chosen == current:
+            return
+
+        try:
+            write_local_override({"ui": {"language": chosen}})
+        except Exception as exc:
+            log.error("i18n.language_change.save_failed", error=str(exc))
+            self.dialog_manager.show_error(
+                _("Could not save language"),
+                _("The language preference could not be written to config.local.yaml."),
+            )
+            return
+
+        log.info("i18n.language_change.saved", language=chosen)
+        self.dialog_manager.show_info(
+            _("Language changed"),
+            _("The new language will be applied the next time the application starts."),
+        )
+
+    def _current_language(self) -> str:
+        """Return the language currently in effect."""
+        from zebtrack.i18n import get_language
+
+        return get_language()
 
     def _reset_defaults(self):
         """Reset benchmark cache and local config after user confirmation."""
         confirm = messagebox.askyesno(
-            "Restaurar Padrões",
-            "Isso irá remover o cache de benchmark e o config.local.yaml.\n"
-            "O aplicativo será fechado e precisará ser reiniciado.\n\n"
-            "Deseja continuar?",
+            _("Restore Defaults"),
+            _(
+                "This will remove the benchmark cache and config.local.yaml.\n"
+                "The application will close and must be restarted.\n\n"
+                "Do you want to continue?"
+            ),
             parent=self.gui.root,
         )
         if not confirm:
@@ -91,8 +137,8 @@ class MenuManager:
 
         _perform_reset()
         messagebox.showinfo(
-            "Restaurar Padrões",
-            "Padrões restaurados com sucesso.\nO aplicativo será encerrado agora.",
+            _("Restore Defaults"),
+            _("Defaults restored successfully.\nThe application will now close."),
             parent=self.gui.root,
         )
         self.gui.root.quit()
@@ -100,7 +146,7 @@ class MenuManager:
     def show_about_dialog(self):
         """Show the About dialog with application information."""
         about_window = Toplevel(self.gui.root)
-        about_window.title("Sobre DRerio LogAI")
+        about_window.title(_("About DRerio LogAI"))
         about_window.resizable(False, False)
 
         # Set icon for About window
@@ -150,16 +196,18 @@ class MenuManager:
             version = "Unknown"
 
         version_label = ttk.Label(
-            about_window, text=f"Versão {version}", font=("TkDefaultFont", 10)
+            about_window,
+            text=_("Version {version}").format(version=version),
+            font=("TkDefaultFont", 10),
         )
         version_label.pack(pady=(0, 15))
 
         # Description
-        desc_text = (
-            "Rastreamento e análise comportamental automatizada\n"
-            "para pesquisa com Danio rerio (zebrafish)\n\n"
-            "Integração de visão computacional (YOLO/OpenVINO),\n"
-            "análise comportamental e geração de relatórios científicos"
+        desc_text = _(
+            "Automated behavioral tracking and analysis\n"
+            "for research with Danio rerio (zebrafish)\n\n"
+            "Computer vision (YOLO/OpenVINO), behavioral analysis\n"
+            "and scientific report generation, integrated"
         )
         desc_label = ttk.Label(
             about_window, text=desc_text, justify="center", font=("TkDefaultFont", 9)
@@ -170,7 +218,7 @@ class MenuManager:
         repo_frame = ttk.Frame(about_window)
         repo_frame.pack(pady=(0, 10))
 
-        ttk.Label(repo_frame, text="Repositório:", font=("TkDefaultFont", 9, "bold")).pack()
+        ttk.Label(repo_frame, text=_("Repository:"), font=("TkDefaultFont", 9, "bold")).pack()
         repo_link = ttk.Label(
             repo_frame,
             text="github.com/MarkSant/DRerio-LogAI",
@@ -188,11 +236,11 @@ class MenuManager:
         repo_link.bind("<Button-1>", open_repo)
 
         # License
-        license_label = ttk.Label(about_window, text="Licença: MIT", font=("TkDefaultFont", 9))
+        license_label = ttk.Label(about_window, text=_("License: MIT"), font=("TkDefaultFont", 9))
         license_label.pack(pady=(10, 15))
 
         # Close button
-        close_btn = ttk.Button(about_window, text="Fechar", command=about_window.destroy)
+        close_btn = ttk.Button(about_window, text=_("Close"), command=about_window.destroy)
         close_btn.pack(pady=(0, 20))
 
         # Center window on screen
@@ -220,11 +268,11 @@ class MenuManager:
         self._overview_context_menu = Menu(self.gui.root, tearoff=0)
         pvm = self.gui.project_view_manager
         self._overview_context_menu.add_command(
-            label="Carregar vídeo",
+            label=_("Load video"),
             command=lambda: pvm.handle_project_overview_double_click(item_id),
         )
         self._overview_context_menu.add_command(
-            label="🔄 Editar Grupo / Dia / Sujeitos",
+            label=_("🔄 Edit Group / Day / Subjects"),
             command=lambda: self._edit_video_metadata(video_path),
         )
         self._overview_context_menu.post(x, y)
@@ -238,16 +286,16 @@ class MenuManager:
         selection = tree.selection()
         if not selection:
             self.dialog_manager.show_info(
-                "Nenhum vídeo selecionado",
-                "Selecione um vídeo do projeto para editar grupo, dia e sujeitos.",
+                _("No video selected"),
+                _("Select a project video to edit its group, day and subjects."),
             )
             return
 
         video_path = self._resolve_project_overview_video_path(selection[0])
         if not video_path:
             self.dialog_manager.show_info(
-                "Seleção inválida",
-                "Selecione um item de vídeo do projeto para editar seus metadados.",
+                _("Invalid selection"),
+                _("Select a project video item to edit its metadata."),
             )
             return
 
@@ -283,8 +331,8 @@ class MenuManager:
         video_entry = project_manager.find_video_entry(path=video_path)
         if not video_entry:
             self.dialog_manager.show_error(
-                "Vídeo não encontrado",
-                "Não foi possível localizar o vídeo selecionado no projeto.",
+                _("Video not found"),
+                _("The selected video could not be located in the project."),
             )
             return
 
@@ -307,7 +355,7 @@ class MenuManager:
             return
 
         basename = Path(video_path).name
-        status_message = f"Metadados atualizados • {basename}"
+        status_message = _("Metadata updated • {name}").format(name=basename)
         self.gui.set_status(status_message)
 
         if self.gui.event_bus_v2:
@@ -419,17 +467,17 @@ class MenuManager:
             self._overview_context_menu = Menu(tree, tearoff=0)
 
         labels = {
-            "arena": "Apagar arena",
-            "rois": "Apagar ROIs",
-            "trajectory": "Apagar trajetória",
-            "summary": "Apagar relatórios/sumários",
-            "video": "Remover vídeo do projeto",
+            "arena": _("Delete arena"),
+            "rois": _("Delete ROIs"),
+            "trajectory": _("Delete trajectory"),
+            "summary": _("Delete reports/summaries"),
+            "video": _("Remove video from project"),
         }
 
         menu = self._overview_context_menu
         menu.delete(0, "end")
         menu.add_command(
-            label=labels.get(asset, f"Remover {asset}"),
+            label=labels.get(asset, _("Remove {asset}").format(asset=asset)),
             command=lambda: self.handle_overview_asset_removal(video_path, asset),
         )
 
@@ -448,8 +496,8 @@ class MenuManager:
         allowed, reason = self.gui.controller.project_vm.can_remove_project_asset(video_path, asset)
         if not allowed:
             self.dialog_manager.show_warning(
-                "Ação indisponível",
-                reason or "Não é possível remover o item selecionado neste momento.",
+                _("Action unavailable"),
+                reason or _("The selected item cannot be removed right now."),
             )
             return
 
@@ -468,27 +516,27 @@ class MenuManager:
 
         prompts = {
             "arena": (
-                "Remover arena",
-                ("Deseja remover a arena deste vídeo? As ROIs associadas também serão limpas."),
+                _("Remove arena"),
+                _("Remove the arena from this video? The associated ROIs will be cleared too."),
             ),
             "rois": (
-                "Remover ROIs",
-                "Deseja remover todas as ROIs salvas para este vídeo?",
+                _("Remove ROIs"),
+                _("Remove every ROI saved for this video?"),
             ),
             "trajectory": (
-                "Remover trajetória",
-                "Deseja remover a trajetória gerada para este vídeo?",
+                _("Remove trajectory"),
+                _("Remove the trajectory generated for this video?"),
             ),
             "summary": (
-                "Remover relatórios",
-                "Deseja remover os relatórios e sumários associados a este vídeo?",
+                _("Remove reports"),
+                _("Remove the reports and summaries associated with this video?"),
             ),
             "video": (
-                "Remover vídeo do projeto",
-                (
-                    "Deseja remover este vídeo do projeto? As arenas, ROIs e "
-                    "trajetórias já removidas não poderão ser recuperadas "
-                    "automaticamente."
+                _("Remove video from project"),
+                _(
+                    "Remove this video from the project? Arenas, ROIs and "
+                    "trajectories already removed cannot be recovered "
+                    "automatically."
                 ),
             ),
         }
@@ -496,31 +544,31 @@ class MenuManager:
         title, message = prompts.get(
             asset,
             (
-                "Remover item",
-                "Confirma a remoção do item selecionado?",
+                _("Remove item"),
+                _("Confirm removal of the selected item?"),
             ),
         )
 
         # v2.3.2: Add multi-aquarium warning if applicable
         if is_multi_aquarium and asset == "video":
-            message = (
-                f"Este vídeo possui dados de {num_aquariums} aquário(s) separados.\n\n"
-                f"⚠️ ATENÇÃO: Ao remover o vídeo, TODOS os dados e relatórios de "
-                f"TODOS os aquários serão excluídos permanentemente.\n\n"
-                f"Se deseja manter os dados de algum aquário, cancele esta operação "
-                f"e exporte os relatórios antes de prosseguir.\n\n"
-                f"Deseja continuar com a remoção?"
-            )
+            message = _(
+                "This video holds data from {count} separate aquarium(s).\n\n"
+                "⚠️ WARNING: Removing the video permanently deletes ALL data and "
+                "reports from ALL aquariums.\n\n"
+                "To keep the data from any aquarium, cancel this operation and "
+                "export the reports first.\n\n"
+                "Continue with the removal?"
+            ).format(count=num_aquariums)
         elif is_multi_aquarium and asset in ("trajectory", "summary"):
-            message = (
-                f"Este vídeo possui dados de {num_aquariums} aquário(s) separados.\n\n"
-                f"⚠️ Ao remover este item, os dados de TODOS os aquários serão afetados.\n\n"
-                f"{message}"
-            )
+            message = _(
+                "This video holds data from {count} separate aquarium(s).\n\n"
+                "⚠️ Removing this item affects the data of ALL aquariums.\n\n"
+                "{message}"
+            ).format(count=num_aquariums, message=message)
 
         confirm = messagebox.askyesno(
             title,
-            f"{message}\n\nVídeo: {basename}",
+            _("{message}\n\nVideo: {name}").format(message=message, name=basename),
             icon="warning",
         )
         if not confirm:
@@ -529,11 +577,8 @@ class MenuManager:
         delete_files = True
         if asset == "video":
             delete_files = messagebox.askyesno(
-                "Excluir arquivo do disco?",
-                (
-                    "Deseja também remover o arquivo de vídeo do disco? Essa ação "
-                    "não poderá ser desfeita."
-                ),
+                _("Delete file from disk?"),
+                _("Also remove the video file from disk? This action cannot be undone."),
                 icon="question",
             )
 
@@ -555,23 +600,22 @@ class MenuManager:
 
         if not success:
             self.dialog_manager.show_error(
-                "Remoção não realizada",
-                (
-                    "Não foi possível remover o item selecionado. Consulte os "
-                    "logs para mais detalhes."
-                ),
+                _("Removal not completed"),
+                _("The selected item could not be removed. Check the logs for details."),
             )
             return
 
         status_labels = {
-            "arena": "Arena removida",
-            "rois": "ROIs removidas",
-            "trajectory": "Trajetória removida",
-            "summary": "Relatórios removidos",
-            "video": "Vídeo removido do projeto",
+            "arena": _("Arena removed"),
+            "rois": _("ROIs removed"),
+            "trajectory": _("Trajectory removed"),
+            "summary": _("Reports removed"),
+            "video": _("Video removed from project"),
         }
 
-        status_message = f"{status_labels.get(asset, 'Item removido')} • {basename}"
+        status_message = _("{label} • {name}").format(
+            label=status_labels.get(asset, _("Item removed")), name=basename
+        )
         self.gui.set_status(status_message)
 
         if self.gui.event_bus_v2:
@@ -649,7 +693,7 @@ class MenuManager:
         clicked_asset = column_map.get(column_id)
 
         menu.add_command(
-            label="🔄 Editar Grupo / Dia / Sujeitos",
+            label=_("🔄 Edit Group / Day / Subjects"),
             command=lambda: self._edit_video_metadata(str(video_path)),
         )
         menu.add_separator()
@@ -664,14 +708,14 @@ class MenuManager:
             }
             if exists_map.get(clicked_asset):
                 labels = {
-                    "arena": "Apagar Arena",
-                    "rois": "Apagar ROIs",
-                    "trajectory": "Apagar Trajetória",
-                    "summary": "Apagar Sumário",
+                    "arena": _("Delete Arena"),
+                    "rois": _("Delete ROIs"),
+                    "trajectory": _("Delete Trajectory"),
+                    "summary": _("Delete Summary"),
                 }
-                label = labels.get(clicked_asset, f"Apagar {clicked_asset}")
+                label = labels.get(clicked_asset, _("Delete {asset}").format(asset=clicked_asset))
                 menu.add_command(
-                    label=f"🗑️ {label} (Selecionado)",
+                    label=_("🗑️ {label} (Selected)").format(label=label),
                     command=lambda: callbacks["delete_asset"](video_path, clicked_asset),
                 )
                 menu.add_separator()
@@ -682,72 +726,72 @@ class MenuManager:
 
         if has_arena:
             delete_menu.add_command(
-                label="🏛️ Apagar Arena",
+                label=_("🏛️ Delete Arena"),
                 command=lambda: callbacks["delete_asset"](video_path, "arena"),
             )
             has_any_delete = True
 
         if has_rois:
             delete_menu.add_command(
-                label="📍 Apagar ROIs",
+                label=_("📍 Delete ROIs"),
                 command=lambda: callbacks["delete_asset"](video_path, "rois"),
             )
             has_any_delete = True
 
         if has_trajectory:
             delete_menu.add_command(
-                label="📈 Apagar Trajetória",
+                label=_("📈 Delete Trajectory"),
                 command=lambda: callbacks["delete_asset"](video_path, "trajectory"),
             )
             has_any_delete = True
 
         if has_summary:
             delete_menu.add_command(
-                label="📝 Apagar Relatórios",
+                label=_("📝 Delete Reports"),
                 command=lambda: callbacks["delete_asset"](video_path, "summary"),
             )
             has_any_delete = True
 
         if has_any_delete:
-            menu.add_cascade(label="🗑️ Apagar Item Específico...", menu=delete_menu)
+            menu.add_cascade(label=_("🗑️ Delete Specific Item..."), menu=delete_menu)
             menu.add_separator()
 
         delete_choice = callbacks.get("delete_choice")
         if delete_choice is not None:
             menu.add_command(
-                label="🗑️ Excluir Vídeo / Dados...",
+                label=_("🗑️ Delete Video / Data..."),
                 command=lambda: delete_choice(video_path),
             )
         else:
             menu.add_command(
-                label="🧹 Apagar Todos os Dados de Processamento",
+                label=_("🧹 Delete All Processing Data"),
                 command=lambda: callbacks["delete_all_processing"](video_path),
             )
 
             menu.add_command(
-                label="❌ Remover Vídeo do Projeto",
+                label=_("❌ Remove Video from Project"),
                 command=lambda: callbacks["delete_video"](video_path),
             )
 
         menu.post(x, y)
 
     def create_roi_context_menu(self):
-        """Cria menu de contexto para ROIs."""
+        """Create the ROI context menu."""
         self.gui.roi_context_menu = Menu(self.gui.root, tearoff=0)
         self.gui.roi_context_menu.add_command(
-            label="🔧 Editar Vértices",
+            label=_("🔧 Edit Vertices"),
             command=self.gui.canvas_manager.edit_selected_zone_vertices,
         )
         self.gui.roi_context_menu.add_separator()
         self.gui.roi_context_menu.add_command(
-            label="✏️ Renomear", command=self.gui.dialog_manager.rename_selected_roi
+            label=_("✏️ Rename"), command=self.gui.dialog_manager.rename_selected_roi
         )
         self.gui.roi_context_menu.add_command(
-            label="🎨 Mudar Cor", command=self.gui.dialog_manager.change_roi_color
+            label=_("🎨 Change Color"), command=self.gui.dialog_manager.change_roi_color
         )
         self.gui.roi_context_menu.add_separator()
         self.gui.roi_context_menu.add_command(
-            label="🗑️ Remover", command=self.gui.canvas_manager.remove_selected_roi
+            label=_("🗑️ Remove"), command=self.gui.canvas_manager.remove_selected_roi
         )
 
     def show_roi_context_menu(self, event=None, x=None, y=None, item_id=None) -> None:
@@ -780,15 +824,15 @@ class MenuManager:
 
             # Check if ROI (not main arena)
             values = listbox.item(item)["values"]
-            if values and "Arena Principal" not in values[0]:
+            if values and not is_main_arena_row(values[0]):
                 # ROI - show full menu
                 if self.gui.roi_context_menu:
                     self.gui.roi_context_menu.post(x, y)
-            elif values and "Arena Principal" in values[0]:
-                # Arena Principal - show limited menu (only edit vertices)
+            elif values and is_main_arena_row(values[0]):
+                # Main arena - show limited menu (only edit vertices)
                 arena_menu = Menu(self.gui.root, tearoff=0)
                 arena_menu.add_command(
-                    label="🔧 Editar Vértices",
+                    label=_("🔧 Edit Vertices"),
                     command=self.gui.canvas_manager.edit_selected_zone_vertices,
                 )
                 arena_menu.post(x, y)

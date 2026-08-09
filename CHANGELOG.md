@@ -9,6 +9,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Interface em inglês por padrão, português selecionável (i18n — fase 1/3)
+
+- **O idioma agora é uma escolha do pesquisador, não do sistema operacional.** Na
+  primeira execução (sem `config.local.yaml`) o app pergunta o idioma antes de
+  qualquer outra tela, num diálogo bilíngue; depois a troca fica em
+  **Configurações → Idioma**. A escolha é gravada em `ui.language` no
+  `config.local.yaml` e vale a partir da próxima abertura.
+- **Inglês é a língua-fonte.** Cada string visível é escrita em inglês no código e
+  o português vive no catálogo pt_BR (`src/zebtrack/locales/`). Tradução ausente
+  cai no texto inglês — por isso não existe, nem precisa existir, catálogo `en`.
+- **Meia dúzia de rótulos do relatório Word nunca chegou a ser traduzida.** O
+  `word_reporter.py` tinha ~50 strings sob `_()` e o `reporter.po` só 25: quem
+  rodava em português recebia metade do relatório em inglês, sem aviso. Ao montar
+  o pipeline de extração as 25 faltantes apareceram e foram traduzidas.
+- **`zone_control_builder` deixou de ramificar pelo texto de uma exceção.** O
+  `except` que ignora "projeto ainda não criado" comparava a frase
+  `"caminho do projeto não definido"`; traduzir o lado que levanta o erro
+  transformaria um skip esperado em erro logado, em silêncio. Agora usa
+  `except ProjectInvalidError`.
+- **Cancelar o diálogo de idioma não troca mais o idioma.** `Esc` / fechar a janela
+  devolve o idioma vigente; antes devolvia inglês, então cancelar em Configurações
+  rodando em português mudava para inglês sem o usuário pedir.
+- Esta é a fase 1 de 3: cobre inicialização, splash, menus, builders e painéis de
+  hardware (~190 strings). Diálogos, wizard e serviços vêm nas fases seguintes.
+
+#### Breaking changes
+
+- **`LANG`/`LC_ALL`/`LANGUAGE` e o locale do SO não são mais consultados.** Uma
+  máquina Windows em pt-BR que hoje gera relatórios em português passará a gerar em
+  inglês até que o idioma seja escolhido no app (ou `ZEBTRACK_LANGUAGE=pt_BR` seja
+  exportado).
+- **`config.local.yaml` passa a conter a chave `ui:`.** Um arquivo escrito pela
+  v5.x não é lido por versões 4.x, que rejeitam chaves desconhecidas
+  (`extra="forbid"`).
+
 ### Gatilho externo passa a valer na grade de Progresso
 
 - **O checkbox "Modo de Gatilho Externo" do wizard não fazia nada no fluxo que os

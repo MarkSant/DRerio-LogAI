@@ -861,6 +861,26 @@ class UIFeatureFlags(BaseModel):
     )
 
 
+class UISettings(BaseModel):
+    """Persistent user interface preferences.
+
+    Distinct from :class:`UIFeatureFlags`: those are staged rollout switches
+    expected to disappear once a feature ships, while these are choices the user
+    makes and keeps.
+    """
+
+    model_config = ConfigDict(validate_assignment=True, extra="forbid")
+
+    language: Literal["en", "pt_BR"] = Field(
+        "en",
+        description=(
+            "Interface and report language. English is the default; the choice is "
+            "applied when the application starts, not while it is running. Keep the "
+            "allowed values in sync with zebtrack.i18n.SUPPORTED_LANGUAGES."
+        ),
+    )
+
+
 class PerformanceSettings(BaseModel):
     """Performance and parallelization settings (Phase 8)."""
 
@@ -1178,6 +1198,10 @@ class Settings(BaseModel):
         default_factory=UIFeatureFlags,
         description="Feature flags for UI experiments and gradual rollouts",
     )
+    ui: UISettings = Field(
+        default_factory=UISettings,
+        description="Persistent user interface preferences, such as the language.",
+    )
     trajectory_smoothing: TrajectorySmoothingSettings = Field(
         default_factory=TrajectorySmoothingSettings,
         description="Smoothing parameters applied to trajectory preprocessing.",
@@ -1445,6 +1469,62 @@ def save_settings(
     except Exception as e:
         log.error("settings.save.failed", path=str(target_path), error=str(e))
         raise
+
+
+def write_local_override(
+    updates: dict[str, Any],
+    target_path: Path | str = Path("config.local.yaml"),
+) -> None:
+    """Merge *updates* into the local override file, touching nothing else.
+
+    The surgical counterpart of :func:`save_settings`. ``save_settings`` dumps
+    the whole resolved Settings tree, which freezes every current default into
+    ``config.local.yaml`` and permanently defeats the layered
+    ``config.yaml`` -> ``config.local.yaml`` merge for that installation. When
+    only one preference changed -- the language, say -- write only that::
+
+        write_local_override({"ui": {"language": "pt_BR"}})
+
+    Args:
+        updates: Nested dict of keys to set. Merged over the existing file.
+        target_path: Override file to write (default: config.local.yaml).
+
+    Raises:
+        OSError, yaml.YAMLError: If the file cannot be read or written. Callers
+            that run during startup should degrade rather than propagate.
+    """
+    target_path = Path(target_path) if isinstance(target_path, str) else target_path
+
+    existing: dict[str, Any] = {}
+    if target_path.exists():
+        with open(target_path, encoding="utf-8") as f:
+            loaded = yaml.safe_load(f)
+        if isinstance(loaded, dict):
+            existing = loaded
+        else:
+            # An empty or malformed override file is replaced rather than
+            # merged into -- there is nothing there worth preserving.
+            log.warning(
+                "settings.local_override.unexpected_content",
+                path=str(target_path),
+                type=type(loaded).__name__,
+            )
+
+    merged = _deep_merge_dicts(existing, updates)
+
+    with open(target_path, "w", encoding="utf-8") as f:
+        yaml.dump(
+            merged,
+            f,
+            default_flow_style=False,
+            sort_keys=False,
+            allow_unicode=True,
+        )
+    log.info(
+        "settings.local_override.written",
+        path=str(target_path),
+        keys=sorted(updates.keys()),
+    )
 
 
 def export_schema(

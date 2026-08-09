@@ -13,6 +13,7 @@ import structlog
 
 from zebtrack.ui import payloads as payloads
 from zebtrack.ui.event_bus_v2 import EventBusV2, UIEvents
+from zebtrack.ui.sentinels import no_day_label, no_group_label, not_reported_label
 
 if TYPE_CHECKING:
     from zebtrack.ui.gui import ApplicationGUI
@@ -536,16 +537,16 @@ class EventDispatcher:
                     if widget is None:
                         log.warning("event_dispatcher.analysis_metadata.backup_widget_missing")
                         return
-                    group = payload_metadata.get("group") or "Sem Grupo"
+                    group = payload_metadata.get("group") or no_group_label()
                     day = (
                         payload_metadata.get("day")
                         or payload_metadata.get("day_label")
-                        or "Sem Dia"
+                        or no_day_label()
                     )
                     subject = (
                         payload_metadata.get("subject")
                         or payload_metadata.get("subject_id")
-                        or "Não informado"
+                        or not_reported_label()
                     )
                     if hasattr(widget, "set_metadata"):
                         widget.set_metadata(
@@ -816,10 +817,12 @@ class EventDispatcher:
                     controller.update_analysis_metadata(metadata=metadata)
                 elif hasattr(widget, "set_metadata") and isinstance(metadata, dict):
                     widget.set_metadata(
-                        group=str(metadata.get("group") or "Sem Grupo"),
-                        day=str(metadata.get("day") or metadata.get("day_label") or "Sem Dia"),
+                        group=str(metadata.get("group") or no_group_label()),
+                        day=str(metadata.get("day") or metadata.get("day_label") or no_day_label()),
                         subject=str(
-                            metadata.get("subject") or metadata.get("subject_id") or "Não informado"
+                            metadata.get("subject")
+                            or metadata.get("subject_id")
+                            or not_reported_label()
                         ),
                     )
                 log.info(

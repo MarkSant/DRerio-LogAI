@@ -1,0 +1,94 @@
+# Strings that look Portuguese but MUST NOT be translated.
+#
+# Read by scripts/i18n_scan.py and by
+# tests/i18n/test_no_untranslated_literals.py. One pattern per line; blank lines
+# and lines starting with '#' are ignored. A literal matches when it CONTAINS
+# the pattern (case-sensitive), so "Grupo_" covers "Grupo_{group}" and
+# "Grupo_Sem_Grupo" alike.
+#
+# Everything here is a persistence contract: a value written to disk, used to
+# build a path, or used as a dictionary key that reaches Parquet/JSON/XLSX.
+# Translating one of these does not produce an English app -- it produces an app
+# that cannot read the projects it wrote yesterday. Where such a token is
+# *displayed*, translate at the display boundary only (render _("Unassigned")
+# for a stored "Sem_Grupo"); never change what is stored.
+
+# --- Output directory names and their rescan regexes ------------------------
+# src/zebtrack/core/project/output_registration_manager.py:37-39,167-229
+# src/zebtrack/core/project/metadata_manager.py:384-386
+Grupo_
+Dia_
+Sujeito_
+Sem_Grupo
+Indefinido
+
+# --- session_duration_overrides composite keys ------------------------------
+# Built by core/services/session_duration_resolver.duration_override_key() and
+# stored as JSON dict keys inside project.json. A renamed prefix orphans every
+# stored override SILENTLY: no exception, the duration just falls back to the
+# project default in the middle of a recording.
+Dia_1|
+
+# --- XLSX sheet name and its column set -------------------------------------
+# analysis/reporters/excel_reporter.py:24, analysis/data_transformer.py:146-158
+# Third-party scripts read this sheet by name.
+por_animal
+tempo_s
+percentual_tempo
+entradas
+saidas
+latencia_primeira_entrada_s
+distancia_cm
+tempo_nao_observado_s
+
+# --- report dict keys (analysis_service.py, roi.py) -------------------------
+comportamento_geral
+analise_roi
+log_eventos
+validacao
+avisos
+estatisticas
+tempo_gasto_por_roi
+latencia_primeira_entrada
+contagem_entradas
+contagem_saidas
+distancia_por_roi
+estatisticas_velocidade
+congelamento_por_roi
+transicoes_entre_rois
+semantica
+n_animais
+velocidade_media_cm_s
+distancia_total_cm
+tortuosidade
+
+# --- PT->EN column mapping tables -------------------------------------------
+# analysis/data_transformer.py COLUMN_MAPPING / DYNAMIC_PREFIX_MAPPINGS: the
+# left-hand side of the mapping is the internal Portuguese name being renamed.
+tempo_no_
+entradas_no_
+saidas_do_
+latencia_para_
+cor_roi_
+curvas_acentuadas_por_minuto
+grupo_id
+
+# --- bilingual lookup keys kept for backward compatibility ------------------
+# analysis/data_transformer.py GROUP_ID_FALLBACK_KEYS, utils/report_files.py
+grupo
+resumo
+
+# --- in-memory sentinel values compared by identity across modules ----------
+# These are NOT persisted, but they are compared with == in files far from
+# where they are produced -- "Todos" is set in common_widgets/analysis_display
+# and tested in canvas/video_frame_manager; "Sem Dia"/"Não informado" are
+# produced in validation_manager/project_workflow_service and compared in
+# state_synchronizer and the live coordinators.
+#
+# They must be converted to a real sentinel (or translated at every site at
+# once) rather than piecemeal: translating the producer without the comparer
+# silently breaks track filtering and day grouping, with no exception raised.
+# Until then, translate them only where they are rendered.
+Todos
+Sem Dia
+Não informado

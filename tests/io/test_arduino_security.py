@@ -36,11 +36,11 @@ class TestArduinoCommandSecurity:
             mock_serial.reset_mock()
 
     def test_invalid_command_rejected(self, arduino, mock_serial):
-        """Comandos inválidos devem ser rejeitados."""
-        with pytest.raises(ArduinoCommandError, match="Comando inválido"):
+        """Invalid commands must be rejected."""
+        with pytest.raises(ArduinoCommandError, match="Invalid command"):
             arduino.send_string_command("INVALID_COMMAND")
 
-        # Serial não deve ter sido chamado
+        # Serial must not have been touched
         mock_serial.write.assert_not_called()
 
     def test_command_injection_attempt_blocked(self, arduino, mock_serial):
@@ -54,7 +54,7 @@ class TestArduinoCommandSecurity:
         ]
 
         for malicious_cmd in injection_attempts:
-            with pytest.raises(ArduinoCommandError, match="Comando inválido"):
+            with pytest.raises(ArduinoCommandError, match="Invalid command"):
                 arduino.send_string_command(malicious_cmd)
 
             mock_serial.write.assert_not_called()
@@ -82,7 +82,7 @@ class TestArduinoCommandSecurity:
             arduino.send_string_command("HACK")
 
         error_msg = str(exc_info.value)
-        assert "Comandos permitidos:" in error_msg
+        assert "Allowed commands:" in error_msg
 
         # Deve listar pelo menos alguns comandos
         for cmd in ["START", "STOP", "STATUS"]:

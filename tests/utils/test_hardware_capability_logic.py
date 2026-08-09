@@ -135,11 +135,11 @@ def test_generate_recommendations_and_warnings():
         cpu_usage=75,
         memory_usage=85,
     )
-    assert any("Sistema limitado" in rec for rec in recommendations)
+    assert any("System limited" in rec for rec in recommendations)
     assert any("CPU" in rec for rec in recommendations)
-    assert any("Memória" in rec for rec in recommendations)
-    assert any("CPU com alta carga" in rec for rec in recommendations)
-    assert any("Memória com alta ocupação" in rec for rec in recommendations)
+    assert any("memory" in rec.lower() for rec in recommendations)
+    assert any("CPU under heavy load" in rec for rec in recommendations)
+    assert any("Memory heavily used" in rec for rec in recommendations)
 
     warnings = detector._generate_warnings(
         capability=MultiAquariumCapability.INSUFFICIENT,
@@ -147,10 +147,10 @@ def test_generate_recommendations_and_warnings():
         memory_usage=95,
         available_memory_gb=2.5,
     )
-    assert any("PROCESSAMENTO EM TEMPO REAL" in w for w in warnings)
-    assert any("CPU sobrecarregada" in w for w in warnings)
-    assert any("Memória crítica" in w for w in warnings)
-    assert any("Memória disponível muito baixa" in w for w in warnings)
+    assert any("REAL-TIME PROCESSING NOT RECOMMENDED" in w for w in warnings)
+    assert any("CPU overloaded" in w for w in warnings)
+    assert any("Critical memory" in w for w in warnings)
+    assert any("Available memory is very low" in w for w in warnings)
 
 
 def test_report_string_format():

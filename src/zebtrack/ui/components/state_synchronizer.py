@@ -13,6 +13,12 @@ from typing import TYPE_CHECKING, Any
 import structlog
 
 from zebtrack.core.video.processing_mode import ProcessingMode
+from zebtrack.ui.sentinels import (
+    all_tracks_label,
+    no_day_label,
+    no_group_label,
+    not_reported_label,
+)
 
 if TYPE_CHECKING:
     from zebtrack.ui.components.dialog_manager import DialogManager
@@ -381,8 +387,8 @@ class StateSynchronizer:
         self.gui._analysis_overlay_image = None
 
         if self.gui.analysis_display_widget:
-            self.gui.analysis_display_widget.track_selector_var.set("Todos")
-            self._update_track_options(["Todos"])
+            self.gui.analysis_display_widget.track_selector_var.set(all_tracks_label())
+            self._update_track_options([all_tracks_label()])
 
             if self.gui.analysis_display_widget.track_selector_widget:
                 state = (
@@ -397,13 +403,13 @@ class StateSynchronizer:
         cleaned: list[str] = []
         seen: set[str] = set()
         for option in options:
-            option_str = str(option).strip() or "Todos"
+            option_str = str(option).strip() or all_tracks_label()
             if option_str not in seen:
                 cleaned.append(option_str)
                 seen.add(option_str)
 
         if not cleaned:
-            cleaned = ["Todos"]
+            cleaned = [all_tracks_label()]
 
         normalized = tuple(cleaned)
         # We still update local state for consistency if GUI uses it
@@ -431,7 +437,7 @@ class StateSynchronizer:
     @staticmethod
     def _analysis_metadata_defaults() -> tuple[str, str, str]:
         """Return default values for analysis metadata."""
-        return ("Sem Grupo", "Sem Dia", "Não informado")
+        return (no_group_label(), no_day_label(), not_reported_label())
 
     @classmethod
     def _default_analysis_metadata_text(cls) -> str:
@@ -581,7 +587,7 @@ class StateSynchronizer:
         if tracks and self.gui._active_processing_mode is not ProcessingMode.SINGLE_SUBJECT:
             normalized_tracks = [str(track).strip() for track in tracks if str(track).strip()]
             if normalized_tracks:
-                self._update_track_options(["Todos", *normalized_tracks])
+                self._update_track_options([all_tracks_label(), *normalized_tracks])
 
     # ========================================================================
     # Processing Statistics Updates
@@ -733,11 +739,11 @@ class StateSynchronizer:
 
             if mode is ProcessingMode.SINGLE_SUBJECT:
                 if self.gui.analysis_display_widget:
-                    self.gui.analysis_display_widget.track_selector_var.set("Todos")
+                    self.gui.analysis_display_widget.track_selector_var.set(all_tracks_label())
                     self.gui.analysis_display_widget.set_social_summary(
                         "Interações sociais: não aplicável no modo de sujeito único."
                     )
-                self._update_track_options(["Todos"])
+                self._update_track_options([all_tracks_label()])
 
         # 1. Get current active video from ProjectManager via Controller
         if hasattr(self.gui, "controller") and self.gui.controller:
@@ -762,9 +768,9 @@ class StateSynchronizer:
                 day = combined_metadata.get("day")
                 subject = combined_metadata.get("subject")
 
-                group_str = str(group) if group not in (None, "") else "Sem Grupo"
-                day_str = str(day) if day not in (None, "") else "Sem Dia"
-                subject_str = str(subject) if subject not in (None, "") else "Não informado"
+                group_str = str(group) if group not in (None, "") else no_group_label()
+                day_str = str(day) if day not in (None, "") else no_day_label()
+                subject_str = str(subject) if subject not in (None, "") else not_reported_label()
 
                 self._apply_analysis_metadata_strings(group_str, day_str, subject_str)
 
@@ -832,7 +838,7 @@ class StateSynchronizer:
         # Update metadata display only when at least one field is explicitly provided;
         # otherwise preserve values already set via UI_UPDATE_ANALYSIS_METADATA.
         if group is not None or day is not None or subject is not None:
-            group_str = str(group) if group else "Sem Grupo"
-            day_str = str(day) if day else "Sem Dia"
-            subject_str = str(subject) if subject else "Não informado"
+            group_str = str(group) if group else no_group_label()
+            day_str = str(day) if day else no_day_label()
+            subject_str = str(subject) if subject else not_reported_label()
             self._apply_analysis_metadata_strings(group_str, day_str, subject_str)

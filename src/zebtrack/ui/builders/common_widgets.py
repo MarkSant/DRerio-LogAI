@@ -9,7 +9,9 @@ from tkinter import Frame, Label, Radiobutton, StringVar, Toplevel, ttk
 
 import structlog
 
+from zebtrack.i18n import _
 from zebtrack.settings import Settings
+from zebtrack.ui.sentinels import all_tracks_label, day_prefix, no_day_label
 
 log = structlog.get_logger()
 
@@ -44,19 +46,18 @@ class CommonWidgetsBuilder:
         legend_parts = [
             f"{STATUS_SYMBOLS['arena']} \u2713 Arena",
             f"{STATUS_SYMBOLS['rois']} \u2713 ROIs",
-            f"{STATUS_SYMBOLS['trajectory']} \u2713 Trajetória",
+            f"{STATUS_SYMBOLS['trajectory']} \u2713 " + _("Trajectory"),
         ]
         if include_summary:
-            legend_parts.append(f"{STATUS_SYMBOLS['summary']} \u2713 Sumário")
-        legend_parts.append("\u2717 Ausente")
-        return "Legenda: " + " | ".join(legend_parts)
+            legend_parts.append(f"{STATUS_SYMBOLS['summary']} \u2713 " + _("Summary"))
+        legend_parts.append("\u2717 " + _("Missing"))
+        return _("Legend: ") + " | ".join(legend_parts)
 
     def get_zone_summary_helper_text(self) -> str:
         """Return helper text for zone summary section."""
-        return (
-            f"{STATUS_SYMBOLS['summary']} indica vídeos prontos para gerar "
-            "trajetórias (arena e ROIs salvos). O valor mostra quantos ainda "
-            "aguardam processamento."
+        return f"{STATUS_SYMBOLS['summary']} " + _(
+            "marks videos ready to generate trajectories (arena and ROIs "
+            "saved). The number shows how many are still awaiting processing."
         )
 
     def build_day_title(self, day_value, metadata: dict | None = None) -> str:
@@ -69,16 +70,24 @@ class CommonWidgetsBuilder:
             candidate = self.gui.validation_manager._format_day_display(day_value)
         if not candidate:
             base_value = day_value if day_value not in (None, "") else None
-            candidate = str(base_value) if base_value is not None else "Sem Dia"
+            candidate = str(base_value) if base_value is not None else no_day_label()
         candidate_str = str(candidate).strip()
         if not candidate_str:
-            candidate_str = "Sem Dia"
-        if candidate_str.lower() == "sem dia":
-            return "Sem Dia"
-        return f"Dia {candidate_str}"
+            candidate_str = no_day_label()
+        # "sem dia" is what existing metadata contains; both spellings map to
+        # the localized label.
+        if candidate_str.lower() in ("sem dia", no_day_label().lower()):
+            return no_day_label()
+        return f"{day_prefix()} {candidate_str}"
 
-    def build_processing_report_artifact_id(self, parent_id: str, artifact_path: str) -> str:
-        """Create a stable item id for report artifacts while avoiding duplicates."""
+    def build_processing_report_artifact_id(self, parent_id: str, artifact_path: Path | str) -> str:
+        """Create a stable item id for report artifacts while avoiding duplicates.
+
+        Normalizing through Path also makes the id independent of separator
+        style, so a caller passing ``"a/b.docx"`` and one passing
+        ``Path("a\\b.docx")`` no longer produce two tree entries for one file.
+        """
+        artifact_path = Path(artifact_path) if isinstance(artifact_path, str) else artifact_path
         digest_source = f"{parent_id}|{artifact_path}".encode("utf-8", "ignore")
         digest = hashlib.blake2b(digest_source, digest_size=8).hexdigest()
         return f"file_{digest}"
@@ -97,7 +106,7 @@ class CommonWidgetsBuilder:
                 observed.add(text)
 
         ordered = sorted(observed, key=str)
-        return ["Todos", *ordered]
+        return [all_tracks_label(), *ordered]
 
     # ------------------------------------------------------------------
     # Misc helpers
@@ -168,7 +177,7 @@ class CommonWidgetsBuilder:
     def prompt_for_weight_type(self):
         """Prompt user to select weight type when it cannot be determined from filename."""
         dialog = Toplevel(self.gui.root)
-        dialog.title("Tipo de Peso")
+        dialog.title(_("Weight Type"))
         dialog.geometry("300x150")
         dialog.resizable(False, False)
         dialog.transient(self.gui.root)
@@ -179,20 +188,20 @@ class CommonWidgetsBuilder:
         y = (self.gui.root.winfo_screenheight() // 2) - (150 // 2)
         dialog.geometry(f"+{x}+{y}")
 
-        Label(dialog, text="Selecione o tipo de modelo:").pack(pady=10)
+        Label(dialog, text=_("Select the model type:")).pack(pady=10)
 
         weight_type_var = StringVar(value="seg")
 
         Radiobutton(
             dialog,
-            text="Segmentação (para máscaras e bordas precisas)",
+            text=_("Segmentation (for masks and precise edges)"),
             variable=weight_type_var,
             value="seg",
         ).pack(anchor="w", padx=20)
 
         Radiobutton(
             dialog,
-            text="Detecção (para caixas delimitadoras rápidas)",
+            text=_("Detection (for fast bounding boxes)"),
             variable=weight_type_var,
             value="det",
         ).pack(anchor="w", padx=20)
@@ -211,7 +220,7 @@ class CommonWidgetsBuilder:
         button_frame.pack(pady=20)
 
         ttk.Button(button_frame, text="OK", command=on_ok).pack(side="left", padx=5)
-        ttk.Button(button_frame, text="Cancelar", command=on_cancel).pack(side="left", padx=5)
+        ttk.Button(button_frame, text=_("Cancel"), command=on_cancel).pack(side="left", padx=5)
 
         dialog.wait_window()
         return result[0]

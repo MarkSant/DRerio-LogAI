@@ -407,6 +407,16 @@ ui_features:
   suppress_roi_mismatch_warning: false
 
 # -----------------------------------------------------------------------------
+# User Interface Preferences
+# -----------------------------------------------------------------------------
+ui:
+  # Interface and report language: "en" (default) or "pt_BR".
+  # Asked once on first launch and stored in config.local.yaml; also changeable
+  # from Settings -> Language. Applied at startup, not while running.
+  # The operating system locale is deliberately NOT consulted.
+  language: en
+
+# -----------------------------------------------------------------------------
 # Performance & Parallelization (Phase 8)
 # -----------------------------------------------------------------------------
 performance:

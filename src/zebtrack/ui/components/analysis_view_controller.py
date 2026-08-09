@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING, Any
 import structlog
 
 from zebtrack.core.video.processing_mode import ProcessingMode, ProcessingReport
+from zebtrack.ui.sentinels import all_tracks_label
 
 if TYPE_CHECKING:
     from tkinter import StringVar, ttk
@@ -270,8 +271,8 @@ class AnalysisViewController:
 
         if mode is ProcessingMode.SINGLE_SUBJECT:
             if self._analysis_display:
-                self._analysis_display.track_selector_var.set("Todos")
-            self._state_synchronizer._update_track_options(["Todos"])
+                self._analysis_display.track_selector_var.set(all_tracks_label())
+            self._state_synchronizer._update_track_options([all_tracks_label()])
         elif previous_mode is ProcessingMode.SINGLE_SUBJECT:
             options = self._widget_factory.build_track_options(self.gui._current_detections)
             self._state_synchronizer._update_track_options(options)
@@ -405,8 +406,8 @@ class AnalysisViewController:
         self.gui._analysis_overlay_image = None
 
         if self._analysis_display:
-            self._analysis_display.track_selector_var.set("Todos")
-            self._state_synchronizer._update_track_options(["Todos"])
+            self._analysis_display.track_selector_var.set(all_tracks_label())
+            self._state_synchronizer._update_track_options([all_tracks_label()])
 
             if self._analysis_display.track_selector_widget:
                 state = (
@@ -430,7 +431,7 @@ class AnalysisViewController:
                 observed.add(text)
 
         ordered = sorted(observed, key=str)
-        return ["Todos", *ordered]
+        return [all_tracks_label(), *ordered]
 
     def on_track_selection_changed(self, _event: Any = None) -> None:
         """Handle track selector change — re-render the last analysis frame."""

@@ -119,9 +119,9 @@ def test_conclude_video_live_project_no_pending_shows_guidance_dialog():
 
     gui.dialog_manager.show_info.assert_called_once()
     title, message = gui.dialog_manager.show_info.call_args.args
-    assert "Concluídas" in title
-    assert "Controle Principal" in message
-    assert "Iniciar Gravação" in message
+    assert "Completed" in title
+    assert "Main Control" in message
+    assert "Start Recording" in message
 
 
 def test_conclude_video_pre_recorded_project_skips_guidance_dialog():

@@ -11,6 +11,8 @@ from typing import TYPE_CHECKING
 
 import structlog
 
+from zebtrack.core.exceptions import ProjectInvalidError
+from zebtrack.i18n import _
 from zebtrack.ui import payloads
 
 if TYPE_CHECKING:
@@ -79,48 +81,53 @@ class ZoneControlBuilder:
             self.gui.overlap_frame.pack_forget()
 
         if rule == "centroid_in":
-            help_text = (
-                "Considera dentro quando o centróide do animal está dentro do "
-                "polígono da ROI. Simples e rápido; pode perder entradas parciais "
-                "(ex.: cabeça entra primeiro)."
+            help_text = _(
+                "Counts as inside when the animal's centroid is inside the ROI "
+                "polygon. Simple and fast; may miss partial entries (e.g. the head "
+                "enters first)."
             )
         elif rule == "centroid_in_on_buffered_roi":
             if self.gui.radius_frame:
                 self.gui.radius_frame.pack(fill="x", pady=2)
-            help_text = (
-                "Igual ao centróide, porém com ROI dilatada por r para capturar "
-                "entradas parciais (ex.: cabeça). r em cm se houver calibração; "
-                "senão em px."
+            help_text = _(
+                "Same as centroid, but with the ROI dilated by r to capture partial "
+                "entries (e.g. the head). r is in cm when calibration exists, "
+                "otherwise in px."
             )
         elif rule == "bbox_intersects":
             if self.gui.overlap_frame:
                 self.gui.overlap_frame.pack(fill="x", pady=2)
             if hasattr(self.gui, "overlap_help_label") and self.gui.overlap_help_label:
                 self.gui.overlap_help_label.config(
-                    text="A detecção é considerada dentro da ROI quando a fração "
-                    "de área do bbox contida na ROI atinge este valor."
+                    text=_(
+                        "A detection counts as inside the ROI when the fraction of "
+                        "the bbox area contained in the ROI reaches this value."
+                    )
                 )
-            help_text = (
-                "Considera dentro quando o retângulo do animal (bbox) sobrepõe "
-                "a ROI ao menos pela fração definida. Captura entradas parciais; "
-                "pode superestimar em bordas."
+            help_text = _(
+                "Counts as inside when the animal's rectangle (bbox) overlaps the "
+                "ROI by at least the given fraction. Captures partial entries; may "
+                "overestimate at the edges."
             )
         elif rule == "seg_overlap":
             if self.gui.overlap_frame:
                 self.gui.overlap_frame.pack(fill="x", pady=2)
             if hasattr(self.gui, "overlap_help_label") and self.gui.overlap_help_label:
                 self.gui.overlap_help_label.config(
-                    text="Fração da MÁSCARA do animal dentro da ROI (não do bbox). "
-                    "Sem máscaras gravadas a análise cai para 'bbox_intersects'."
+                    text=_(
+                        "Fraction of the animal's MASK inside the ROI (not the bbox). "
+                        "Without recorded masks the analysis falls back to "
+                        "'bbox_intersects'."
+                    )
                 )
-            help_text = (
-                "Considera dentro com base na sobreposição da máscara do animal "
-                "com a ROI; mais preciso e mais custoso. Exige, ALÉM desta regra: "
-                "recorder.persist_masks ligado (grava o sidecar "
-                "3b_Mascaras_<video>.parquet, no editor de configurações) e "
-                "model_selection.animal_method = 'seg' (modelo de segmentação). "
-                "Faltando qualquer um, a análise degrada para 'bbox_intersects' "
-                "e avisa no relatório."
+            help_text = _(
+                "Counts as inside based on the overlap between the animal's mask "
+                "and the ROI; more precise and more expensive. BEYOND this rule it "
+                "requires: recorder.persist_masks enabled (writes the "
+                "3b_Mascaras_<video>.parquet sidecar, in the settings editor) and "
+                "model_selection.animal_method = 'seg' (a segmentation model). If "
+                "either is missing, the analysis degrades to 'bbox_intersects' and "
+                "says so in the report."
             )
         else:
             help_text = ""
@@ -230,21 +237,24 @@ class ZoneControlBuilder:
         )
 
     def _on_conclude_video(self):
-        """Handle 'Concluir Edição do Vídeo' button click."""
+        """Handle the 'Conclude Video Editing' button click."""
         # 1. Save Project (Persist flags and data)
         if hasattr(self.gui, "controller") and self.gui.controller.project_manager:
             try:
                 self._apply_arena_template_choice()
                 self.gui.controller.project_manager.save_project()
+            except ProjectInvalidError as e:
+                # In Single Video Mode the project may not exist yet. Expected and
+                # safe to ignore here: "Conclude" mostly refreshes the UI.
+                #
+                # This used to also match the words "caminho do projeto não definido"
+                # inside the message. Matching on prose makes the branch depend on the
+                # interface language: translating the raising site would silently turn
+                # an expected skip into a logged error. The type says the same thing
+                # and cannot drift.
+                log.debug("zone_control_builder.save_project.skipped", reason=str(e))
             except Exception as e:
-                # In Single Video Mode, project might not be created yet.
-                # This is expected and safe to ignore for "Conclude" action which mostly updates UI.
-                if "ProjectInvalidError" in str(
-                    type(e).__name__
-                ) or "caminho do projeto não definido" in str(e):
-                    log.debug("zone_control_builder.save_project.skipped", reason=str(e))
-                else:
-                    log.error("zone_control_builder.save_project.failed", error=str(e))
+                log.error("zone_control_builder.save_project.failed", error=str(e))
 
         # Clear the dirty flag — zones are now fully committed
         if hasattr(self.gui, "_zones_dirty"):
@@ -303,7 +313,7 @@ class ZoneControlBuilder:
 
         # 4. Optional: Feedback
         if hasattr(self.gui, "set_status"):
-            self.gui.set_status("Edição concluída. Dados salvos e indicadores atualizados.")
+            self.gui.set_status(_("Editing complete. Data saved and indicators updated."))
 
         # 5. Next-step guidance for live projects.
         self._show_conclude_next_step_guidance()
@@ -334,10 +344,12 @@ class ZoneControlBuilder:
         if dialog_manager is None:
             return
         dialog_manager.show_info(
-            "Zonas Concluídas",
-            "Zonas, ROIs e comandos Arduino salvos.\n\n"
-            'Para iniciar a gravação ao vivo, vá até a aba "Controle Principal" '
-            'e clique em "Iniciar Gravação".',
+            _("Zones Completed"),
+            _(
+                "Zones, ROIs and Arduino commands saved.\n\n"
+                'To start the live recording, go to the "Main Control" tab '
+                'and click "Start Recording".'
+            ),
         )
 
     def _on_send_selected_video_to_analysis(self) -> None:
@@ -346,8 +358,8 @@ class ZoneControlBuilder:
         selection = tree.selection() if tree is not None else ()
         if tree is None or not selection:
             self.gui.dialog_manager.show_warning(
-                "Nenhum Vídeo Selecionado",
-                "Selecione um vídeo gravado na lista antes de enviá-lo para análise.",
+                _("No Video Selected"),
+                _("Select a recorded video from the list before sending it for analysis."),
             )
             return
 
@@ -356,17 +368,22 @@ class ZoneControlBuilder:
         is_video_entry = video_path and video_path not in {"group", "day", "subject"}
         if not is_video_entry or not os.path.isfile(video_path):
             self.gui.dialog_manager.show_info(
-                "Vídeo Indisponível",
-                "Apenas vídeos gravados podem ser enviados para análise. "
-                "Sessões planejadas precisam ser gravadas primeiro.",
+                _("Video Unavailable"),
+                _(
+                    "Only recorded videos can be sent for analysis. Planned sessions "
+                    "must be recorded first."
+                ),
             )
             return
 
         zone_controls = getattr(self.gui, "zone_controls", None)
         if zone_controls and zone_controls.has_pending_live_session():
             self.gui.dialog_manager.show_info(
-                "Gravação Pendente",
-                "Inicie ou cancele a gravação pendente antes de enviar outro vídeo para análise.",
+                _("Recording Pending"),
+                _(
+                    "Start or cancel the pending recording before sending another "
+                    "video for analysis."
+                ),
             )
             return
 

@@ -30,13 +30,13 @@ def _make_gui_instance() -> gui.ApplicationGUI:
     # Mock validation_manager with resolve methods
     inst_any.validation_manager = Mock()
     inst_any.validation_manager.resolve_group_display.side_effect = lambda metadata: metadata.get(
-        "group_display_name", "Sem Grupo"
+        "group_display_name", "No Group"
     )
     inst_any.validation_manager.resolve_day_display.side_effect = (
-        lambda metadata: f"Dia {metadata['day']:02d}" if "day" in metadata else "Sem Dia"
+        lambda metadata: f"Day {metadata['day']:02d}" if "day" in metadata else "No Day"
     )
     inst_any.validation_manager.resolve_subject_display.side_effect = (
-        lambda metadata: f"{metadata['subject']:02d}" if "subject" in metadata else "Não informado"
+        lambda metadata: f"{metadata['subject']:02d}" if "subject" in metadata else "Not reported"
     )
 
     # Mock state_synchronizer with actual StateSynchronizer implementation
@@ -102,7 +102,7 @@ def test_update_analysis_metadata_formats_values() -> None:
     assert gui_instance.analysis_metadata_var is not None
     assert (
         gui_instance.analysis_metadata_var.get()
-        == "Grupo: Tratamento A | Dia: Dia 03 | Indivíduo: 07"
+        == "Grupo: Tratamento A | Dia: Day 03 | Indivíduo: 07"
     )
 
 

@@ -1,0 +1,16 @@
+{
+  "_comment": "PR2: shared confirmation dialogs (dialog_manager). Values are the Portuguese literals they replaced.",
+  "Delete {kind}": "Excluir {kind}",
+  "How do you want to delete {kind} '{label}'?\n\nYes: remove the item from the project.\nNo: delete only the arena, ROIs, trajectory and generated reports.\nCancel: make no changes.": "Como deseja excluir {kind} '{label}'?\n\nSim: remover o item do projeto.\nNão: apagar apenas arena, ROIs, trajetória e relatórios gerados.\nCancelar: não fazer nenhuma alteração.",
+  "\n  … and {count} more video(s)": "\n  … e mais {count} vídeo(s)",
+  "Delete only the processing data of '{label}'?\n\nThis removes the generated Trajectory and Reports,\nkeeping the Arena and ROIs for reprocessing.": "Apagar apenas os dados de processamento de '{label}'?\n\nIsso removerá Trajetória e Relatórios gerados,\nmantendo Arena e ROIs para novo processamento.",
+  "Delete only the processing data of '{label}'?\n\nThis affects {count} video(s):\n{preview}\n\nTrajectory and Reports will be removed, keeping Arena/ROIs.": "Apagar apenas os dados de processamento de '{label}'?\n\nIsso afetará {count} vídeo(s):\n{preview}\n\nSerão removidos Trajetória e Relatórios, mantendo Arena/ROIs.",
+  "Delete Processing Data": "Apagar Dados de Processamento",
+  "Delete Files from Disk": "Excluir Arquivos do Disco",
+  "Also delete the generated files (Parquets, reports) from disk?\n\nChoosing 'No' removes only the reference in the project.": "Deseja também excluir os arquivos gerados (Parquets, relatórios) do disco?\n\nSe escolher 'Não', apenas a referência no projeto será removida.",
+  "Also delete the files (Parquets, reports) from disk?\n\nChoosing 'No' removes only the reference in the project.": "Deseja também excluir os arquivos (Parquets, relatórios) do disco?\n\nSe escolher 'Não', apenas a referência no projeto será removida.",
+  "Group": "Grupo",
+  "Subject": "Sujeito",
+  "Remove {type} '{label}'?\n\nThis affects {count} video(s):\n{preview}\n\nThis action cannot be undone.": "Remover {type} '{label}'?\n\nIsso afetará {count} vídeo(s):\n{preview}\n\nEsta ação não pode ser desfeita.",
+  "Delete {type}": "Excluir {type}"
+}

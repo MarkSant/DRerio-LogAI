@@ -38,6 +38,7 @@ from zebtrack.core.video.batch_configuration_service import BatchConfigurationSe
 from zebtrack.core.video.video_classification_service import VideoClassificationService
 from zebtrack.core.video.video_selection_service import VideoSelectionService
 from zebtrack.core.video.video_validation_service import VideoValidationService
+from zebtrack.i18n import _
 from zebtrack.io.arduino_manager import ArduinoManager
 from zebtrack.io.recorder import Recorder
 from zebtrack.ui.components.event_dispatcher import EventDispatcher
@@ -421,7 +422,7 @@ class ApplicationBootstrapper:
         ):
             if hasattr(self.view, "weight_hardware_manager"):
                 self.view.weight_hardware_manager.update_openvino_status_display(
-                    "Recomendado mas modelo não convertido. Use 'Diagnóstico' para converter."
+                    _("Recommended, but the model is not converted. Use 'Diagnostics' to convert.")
                 )
 
     def _init_orchestrators(self, controller_ref):
