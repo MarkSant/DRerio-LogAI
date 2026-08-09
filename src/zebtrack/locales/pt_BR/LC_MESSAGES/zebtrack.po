@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: DRerio LogAI VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-08-09 02:04-0300\n"
+"POT-Creation-Date: 2026-08-09 02:22-0300\n"
 "PO-Revision-Date: 2026-08-08 21:41-0300\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: pt_BR <LL@li.org>\n"
@@ -123,6 +123,7 @@ msgstr "Sem Dia"
 msgid "Not reported"
 msgstr "Não informado"
 
+#: src/zebtrack/ui/components/dialog_manager.py:282
 #: src/zebtrack/ui/sentinels.py:57
 msgid "Day"
 msgstr "Dia"
@@ -509,6 +510,130 @@ msgstr "Selecione um aquário ativo primeiro."
 #: src/zebtrack/ui/builders/zone_widgets.py:150
 msgid "The aquarium polygon data could not be retrieved."
 msgstr "Não foi possível obter os dados do polígono do aquário."
+
+# | msgid "Delete {asset}"
+#: src/zebtrack/ui/components/dialog_manager.py:211
+#, python-brace-format
+msgid "Delete {kind}"
+msgstr "Excluir {kind}"
+
+#: src/zebtrack/ui/components/dialog_manager.py:213
+#, python-brace-format
+msgid ""
+"How do you want to delete {kind} '{label}'?\n"
+"\n"
+"Yes: remove the item from the project.\n"
+"No: delete only the arena, ROIs, trajectory and generated reports.\n"
+"Cancel: make no changes."
+msgstr ""
+"Como deseja excluir {kind} '{label}'?\n"
+"\n"
+"Sim: remover o item do projeto.\n"
+"Não: apagar apenas arena, ROIs, trajetória e relatórios gerados.\n"
+"Cancelar: não fazer nenhuma alteração."
+
+#: src/zebtrack/ui/components/dialog_manager.py:233
+#: src/zebtrack/ui/components/dialog_manager.py:311
+#, python-brace-format
+msgid ""
+"\n"
+"  … and {count} more video(s)"
+msgstr ""
+"\n"
+"  … e mais {count} vídeo(s)"
+
+#: src/zebtrack/ui/components/dialog_manager.py:239
+#, python-brace-format
+msgid ""
+"Delete only the processing data of '{label}'?\n"
+"\n"
+"This removes the generated Trajectory and Reports,\n"
+"keeping the Arena and ROIs for reprocessing."
+msgstr ""
+"Apagar apenas os dados de processamento de '{label}'?\n"
+"\n"
+"Isso removerá Trajetória e Relatórios gerados,\n"
+"mantendo Arena e ROIs para novo processamento."
+
+#: src/zebtrack/ui/components/dialog_manager.py:245
+#, python-brace-format
+msgid ""
+"Delete only the processing data of '{label}'?\n"
+"\n"
+"This affects {count} video(s):\n"
+"{preview}\n"
+"\n"
+"Trajectory and Reports will be removed, keeping Arena/ROIs."
+msgstr ""
+"Apagar apenas os dados de processamento de '{label}'?\n"
+"\n"
+"Isso afetará {count} vídeo(s):\n"
+"{preview}\n"
+"\n"
+"Serão removidos Trajetória e Relatórios, mantendo Arena/ROIs."
+
+# | msgid "🧹 Delete All Processing Data"
+#: src/zebtrack/ui/components/dialog_manager.py:251
+msgid "Delete Processing Data"
+msgstr "Apagar Dados de Processamento"
+
+# | msgid "Delete file from disk?"
+#: src/zebtrack/ui/components/dialog_manager.py:259
+#: src/zebtrack/ui/components/dialog_manager.py:328
+msgid "Delete Files from Disk"
+msgstr "Excluir Arquivos do Disco"
+
+#: src/zebtrack/ui/components/dialog_manager.py:261
+msgid ""
+"Also delete the generated files (Parquets, reports) from disk?\n"
+"\n"
+"Choosing 'No' removes only the reference in the project."
+msgstr ""
+"Deseja também excluir os arquivos gerados (Parquets, relatórios) do disco?\n"
+"\n"
+"Se escolher 'Não', apenas a referência no projeto será removida."
+
+# | msgid "No Group"
+#: src/zebtrack/ui/components/dialog_manager.py:281
+msgid "Group"
+msgstr "Grupo"
+
+#: src/zebtrack/ui/components/dialog_manager.py:283
+msgid "Subject"
+msgstr "Sujeito"
+
+#: src/zebtrack/ui/components/dialog_manager.py:316
+#, python-brace-format
+msgid ""
+"Remove {type} '{label}'?\n"
+"\n"
+"This affects {count} video(s):\n"
+"{preview}\n"
+"\n"
+"This action cannot be undone."
+msgstr ""
+"Remover {type} '{label}'?\n"
+"\n"
+"Isso afetará {count} vídeo(s):\n"
+"{preview}\n"
+"\n"
+"Esta ação não pode ser desfeita."
+
+# | msgid "Delete {asset}"
+#: src/zebtrack/ui/components/dialog_manager.py:322
+#, python-brace-format
+msgid "Delete {type}"
+msgstr "Excluir {type}"
+
+#: src/zebtrack/ui/components/dialog_manager.py:330
+msgid ""
+"Also delete the files (Parquets, reports) from disk?\n"
+"\n"
+"Choosing 'No' removes only the reference in the project."
+msgstr ""
+"Deseja também excluir os arquivos (Parquets, relatórios) do disco?\n"
+"\n"
+"Se escolher 'Não', apenas a referência no projeto será removida."
 
 #: src/zebtrack/ui/components/menu_manager.py:61
 msgid "File"

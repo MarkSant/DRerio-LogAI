@@ -10,9 +10,11 @@ import os
 import re
 from pathlib import Path
 from tkinter import filedialog, messagebox, simpledialog
-from typing import TYPE_CHECKING, Any, ClassVar, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 import structlog
+
+from zebtrack.i18n import _
 
 # Dialogs are imported locally within methods to avoid circular dependencies
 
@@ -206,13 +208,13 @@ class DialogManager:
     ) -> Literal["project", "data"] | None:
         """Ask whether to remove only generated data or the project item too."""
         choice = self.ask_yes_no_cancel(
-            f"Excluir {target_kind}",
-            (
-                f"Como deseja excluir {target_kind} '{target_label}'?\n\n"
-                "Sim: remover o item do projeto.\n"
-                "Não: apagar apenas arena, ROIs, trajetória e relatórios gerados.\n"
-                "Cancelar: não fazer nenhuma alteração."
-            ),
+            _("Delete {kind}").format(kind=target_kind),
+            _(
+                "How do you want to delete {kind} '{label}'?\n\n"
+                "Yes: remove the item from the project.\n"
+                "No: delete only the arena, ROIs, trajectory and generated reports.\n"
+                "Cancel: make no changes."
+            ).format(kind=target_kind, label=target_label),
             icon="warning",
         )
         if choice is None:
@@ -228,23 +230,23 @@ class DialogManager:
         """Confirm deletion of generated processing data for one or more videos."""
         preview = "\n".join(f"  • {name}" for name in video_names[:5])
         if video_count > 5:
-            preview += f"\n  … e mais {video_count - 5} vídeo(s)"
+            preview += _("\n  … and {count} more video(s)").format(count=video_count - 5)
 
         if video_count <= 1:
-            msg = (
-                f"Apagar apenas os dados de processamento de '{target_label}'?\n\n"
-                "Isso removerá Trajetória e Relatórios gerados,\n"
-                "mantendo Arena e ROIs para novo processamento."
-            )
+            msg = _(
+                "Delete only the processing data of '{label}'?\n\n"
+                "This removes the generated Trajectory and Reports,\n"
+                "keeping the Arena and ROIs for reprocessing."
+            ).format(label=target_label)
         else:
-            msg = (
-                f"Apagar apenas os dados de processamento de '{target_label}'?\n\n"
-                f"Isso afetará {video_count} vídeo(s):\n{preview}\n\n"
-                "Serão removidos Trajetória e Relatórios, mantendo Arena/ROIs."
-            )
+            msg = _(
+                "Delete only the processing data of '{label}'?\n\n"
+                "This affects {count} video(s):\n{preview}\n\n"
+                "Trajectory and Reports will be removed, keeping Arena/ROIs."
+            ).format(label=target_label, count=video_count, preview=preview)
 
         confirmed = self.ask_yes_no(
-            "Apagar Dados de Processamento",
+            _("Delete Processing Data"),
             msg,
             icon="warning",
         )
@@ -252,10 +254,10 @@ class DialogManager:
             return False, False
 
         delete_files = self.ask_yes_no(
-            "Excluir Arquivos do Disco",
-            (
-                "Deseja também excluir os arquivos gerados (Parquets, relatórios) do disco?\n\n"
-                "Se escolher 'Não', apenas a referência no projeto será removida."
+            _("Delete Files from Disk"),
+            _(
+                "Also delete the generated files (Parquets, reports) from disk?\n\n"
+                "Choosing 'No' removes only the reference in the project."
             ),
             icon="question",
         )
@@ -265,11 +267,19 @@ class DialogManager:
     # Hierarchy Deletion Dialogs
     # =========================================================================
 
-    _NODE_TYPE_LABELS: ClassVar[dict[str, str]] = {
-        "group": "Grupo",
-        "day": "Dia",
-        "subject": "Sujeito",
-    }
+    @staticmethod
+    def _node_type_labels() -> dict[str, str]:
+        """Display names for hierarchy node types.
+
+        A function rather than a class attribute: a class body executes at
+        import time, which may be before the language is installed, and the
+        labels would freeze in whatever language was active then.
+        """
+        return {
+            "group": _("Group"),
+            "day": _("Day"),
+            "subject": _("Subject"),
+        }
 
     def confirm_delete_hierarchy_node(
         self,
@@ -293,25 +303,29 @@ class DialogManager:
             Tuple ``(confirmed, delete_files)``.
             ``confirmed`` is ``False`` if the user cancelled at step 1.
         """
-        type_label = self._NODE_TYPE_LABELS.get(node_type, node_type)
+        type_label = self._node_type_labels().get(node_type, node_type)
         preview = "\n".join(f"  • {n}" for n in video_names[:5])
         if video_count > 5:
-            preview += f"\n  … e mais {video_count - 5} vídeo(s)"
+            preview += _("\n  … and {count} more video(s)").format(count=video_count - 5)
 
-        msg = (
-            f"Remover {type_label} '{node_label}'?\n\n"
-            f"Isso afetará {video_count} vídeo(s):\n{preview}\n\n"
-            "Esta ação não pode ser desfeita."
+        msg = _(
+            "Remove {type} '{label}'?\n\n"
+            "This affects {count} video(s):\n{preview}\n\n"
+            "This action cannot be undone."
+        ).format(type=type_label, label=node_label, count=video_count, preview=preview)
+
+        confirmed = messagebox.askyesno(
+            _("Delete {type}").format(type=type_label), msg, icon="warning"
         )
-
-        confirmed = messagebox.askyesno(f"Excluir {type_label}", msg, icon="warning")
         if not confirmed:
             return False, False
 
         delete_files = messagebox.askyesno(
-            "Excluir Arquivos do Disco",
-            "Deseja também excluir os arquivos (Parquets, relatórios) do disco?\n\n"
-            "Se escolher 'Não', apenas a referência no projeto será removida.",
+            _("Delete Files from Disk"),
+            _(
+                "Also delete the files (Parquets, reports) from disk?\n\n"
+                "Choosing 'No' removes only the reference in the project."
+            ),
             icon="question",
         )
         return True, delete_files

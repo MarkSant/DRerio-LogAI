@@ -9,7 +9,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: DRerio LogAI VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-08-09 02:04-0300\n"
+"POT-Creation-Date: 2026-08-09 02:22-0300\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -112,6 +112,7 @@ msgstr ""
 msgid "Not reported"
 msgstr ""
 
+#: src/zebtrack/ui/components/dialog_manager.py:282
 #: src/zebtrack/ui/sentinels.py:57
 msgid "Day"
 msgstr ""
@@ -462,6 +463,96 @@ msgstr ""
 
 #: src/zebtrack/ui/builders/zone_widgets.py:150
 msgid "The aquarium polygon data could not be retrieved."
+msgstr ""
+
+#: src/zebtrack/ui/components/dialog_manager.py:211
+#, python-brace-format
+msgid "Delete {kind}"
+msgstr ""
+
+#: src/zebtrack/ui/components/dialog_manager.py:213
+#, python-brace-format
+msgid ""
+"How do you want to delete {kind} '{label}'?\n"
+"\n"
+"Yes: remove the item from the project.\n"
+"No: delete only the arena, ROIs, trajectory and generated reports.\n"
+"Cancel: make no changes."
+msgstr ""
+
+#: src/zebtrack/ui/components/dialog_manager.py:233
+#: src/zebtrack/ui/components/dialog_manager.py:311
+#, python-brace-format
+msgid ""
+"\n"
+"  … and {count} more video(s)"
+msgstr ""
+
+#: src/zebtrack/ui/components/dialog_manager.py:239
+#, python-brace-format
+msgid ""
+"Delete only the processing data of '{label}'?\n"
+"\n"
+"This removes the generated Trajectory and Reports,\n"
+"keeping the Arena and ROIs for reprocessing."
+msgstr ""
+
+#: src/zebtrack/ui/components/dialog_manager.py:245
+#, python-brace-format
+msgid ""
+"Delete only the processing data of '{label}'?\n"
+"\n"
+"This affects {count} video(s):\n"
+"{preview}\n"
+"\n"
+"Trajectory and Reports will be removed, keeping Arena/ROIs."
+msgstr ""
+
+#: src/zebtrack/ui/components/dialog_manager.py:251
+msgid "Delete Processing Data"
+msgstr ""
+
+#: src/zebtrack/ui/components/dialog_manager.py:259
+#: src/zebtrack/ui/components/dialog_manager.py:328
+msgid "Delete Files from Disk"
+msgstr ""
+
+#: src/zebtrack/ui/components/dialog_manager.py:261
+msgid ""
+"Also delete the generated files (Parquets, reports) from disk?\n"
+"\n"
+"Choosing 'No' removes only the reference in the project."
+msgstr ""
+
+#: src/zebtrack/ui/components/dialog_manager.py:281
+msgid "Group"
+msgstr ""
+
+#: src/zebtrack/ui/components/dialog_manager.py:283
+msgid "Subject"
+msgstr ""
+
+#: src/zebtrack/ui/components/dialog_manager.py:316
+#, python-brace-format
+msgid ""
+"Remove {type} '{label}'?\n"
+"\n"
+"This affects {count} video(s):\n"
+"{preview}\n"
+"\n"
+"This action cannot be undone."
+msgstr ""
+
+#: src/zebtrack/ui/components/dialog_manager.py:322
+#, python-brace-format
+msgid "Delete {type}"
+msgstr ""
+
+#: src/zebtrack/ui/components/dialog_manager.py:330
+msgid ""
+"Also delete the files (Parquets, reports) from disk?\n"
+"\n"
+"Choosing 'No' removes only the reference in the project."
 msgstr ""
 
 #: src/zebtrack/ui/components/menu_manager.py:61
