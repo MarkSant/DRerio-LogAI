@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING, Any, cast
 import structlog
 
 from zebtrack.core.services.roi_rule_resolver import RoiRuleConfig, resolve_roi_rule
+from zebtrack.i18n import _
 from zebtrack.ui import payloads
 from zebtrack.ui.components.arduino_bindings_panel import ArduinoBindingsPanel
 from zebtrack.ui.components.arduino_dashboard import ArduinoDashboardWidget
@@ -57,7 +58,7 @@ class TabBuilder:
             return ttk.Frame(self.gui.root)  # Fallback
 
         self.gui.main_controls_frame = ttk.Frame(self.gui.notebook, padding="10")
-        self.gui.notebook.add(self.gui.main_controls_frame, text="Controle Principal")
+        self.gui.notebook.add(self.gui.main_controls_frame, text=_("Main Control"))
 
         if not self.project_manager:
             return self.gui.main_controls_frame
@@ -78,7 +79,7 @@ class TabBuilder:
         # Botão fechar (sempre presente)
         Button(
             controls_container,
-            text="Fechar Projeto",
+            text=_("Close Project"),
             command=lambda: self.gui.event_dispatcher.publish_event(
                 UIEvents.PROJECT_CLOSE,
                 payloads.EmptyPayload(),
@@ -130,7 +131,7 @@ class TabBuilder:
 
         # 1. Create the main frame for the tab and rename it
         self.gui.zone_tab_frame = ttk.Frame(self.gui.notebook, padding="10")
-        self.gui.notebook.add(self.gui.zone_tab_frame, text="Configuração de Zonas")
+        self.gui.notebook.add(self.gui.zone_tab_frame, text=_("Zone Configuration"))
 
         # 2. Create the PanedWindow for side-by-side panels
         main_pane = ttk.PanedWindow(self.gui.zone_tab_frame, orient="horizontal")
@@ -233,7 +234,7 @@ class TabBuilder:
         self.gui.model_configuration_tab_frame = ttk.Frame(self.gui.notebook, padding="10")
         self.gui.notebook.add(
             self.gui.model_configuration_tab_frame,
-            text="Config. Modelo IA",
+            text=_("AI Model Config."),
         )
         panel = ProjectModelConfigurationPanel(
             self.gui.model_configuration_tab_frame,
@@ -248,7 +249,7 @@ class TabBuilder:
             return
 
         self.gui.diagnostics_tab_frame = ttk.Frame(self.gui.notebook, padding="10")
-        self.gui.notebook.add(self.gui.diagnostics_tab_frame, text="Diagnóstico Modelo IA")
+        self.gui.notebook.add(self.gui.diagnostics_tab_frame, text=_("AI Model Diagnostics"))
         panel = ModelDiagnosticsPanel(
             self.gui.diagnostics_tab_frame,
             self.gui.controller,
@@ -272,12 +273,12 @@ class TabBuilder:
     def _add_project_model_navigation_buttons(self, parent) -> None:
         ttk.Button(
             parent,
-            text="Config. Modelo IA",
+            text=_("AI Model Config."),
             command=self._select_model_configuration_tab,
         ).pack(side="left", padx=5)
         ttk.Button(
             parent,
-            text="Diagnóstico Modelo IA",
+            text=_("AI Model Diagnostics"),
             command=self._select_diagnostics_tab,
         ).pack(side="left", padx=5)
 
@@ -293,14 +294,14 @@ class TabBuilder:
         """Add recording buttons for live projects."""
         self.gui.start_rec_btn = Button(
             parent,
-            text="Iniciar Gravação",
+            text=_("Start Recording"),
             command=lambda: self.gui.dialog_manager.handle_start_recording_button_click(),
         )
         self.gui.start_rec_btn.pack(side="left", padx=5)
 
         self.gui.stop_rec_btn = Button(
             parent,
-            text="Parar Gravação",
+            text=_("Stop Recording"),
             command=lambda: self.gui.event_dispatcher.publish_event(
                 UIEvents.RECORDING_STOP,
                 payloads.EmptyPayload(),
@@ -313,7 +314,7 @@ class TabBuilder:
         """Add processing buttons for pre-recorded projects."""
         ttk.Button(
             parent,
-            text="Adicionar Vídeos/Pastas ao Projeto...",
+            text=_("Add Videos/Folders to the Project..."),
             command=lambda: self.gui.event_dispatcher.publish_event(
                 UIEvents.PROJECT_IMPORT_VIDEOS,
                 payloads.ProjectImportVideosPayload(),
@@ -322,7 +323,7 @@ class TabBuilder:
 
         ttk.Button(
             parent,
-            text="Processar Vídeos Pendentes...",
+            text=_("Process Pending Videos..."),
             command=lambda: self.gui.event_dispatcher.publish_event(
                 UIEvents.PROJECT_PROCESS_VIDEOS,
                 payloads.ProjectProcessVideosPayload(video_paths=()),
@@ -333,7 +334,7 @@ class TabBuilder:
         """Build model status section (project context — 2-slot summary)."""
         model_status_frame = ttk.LabelFrame(
             parent,
-            text="Estado do Modelo de Detecção",
+            text=_("Detection Model Status"),
             padding=10,
         )
         model_status_frame.pack(side="left", fill="both", expand=True, padx=(5, 0))

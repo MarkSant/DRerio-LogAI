@@ -51,7 +51,7 @@ def _make_gui_instance() -> gui.ApplicationGUI:
     inst_any.analysis_view_controller = avc
 
     def apply_metadata_strings(group: str, day: str, subject: str) -> None:
-        combined = f"Grupo: {group} | Dia: {day} | Indivíduo: {subject}"
+        combined = f"Group: {group} | Day: {day} | Individual: {subject}"
         inst_any.analysis_metadata_var.set(combined)
 
     inst_any.state_synchronizer._apply_analysis_metadata_strings.side_effect = (
@@ -67,7 +67,7 @@ def _make_gui_instance() -> gui.ApplicationGUI:
         total_videos = max(int(total) if total is not None else 0, 1)
         current_index = max(int(index) if index is not None else 0, 0) + 1
 
-        parts: list[str] = [f"Vídeo {current_index} de {total_videos}"]
+        parts: list[str] = [f"Video {current_index} of {total_videos}"]
 
         if experiment_id:
             exp_text = str(experiment_id).strip()
@@ -102,7 +102,7 @@ def test_update_analysis_metadata_formats_values() -> None:
     assert gui_instance.analysis_metadata_var is not None
     assert (
         gui_instance.analysis_metadata_var.get()
-        == "Grupo: Tratamento A | Dia: Day 03 | Indivíduo: 07"
+        == "Group: Tratamento A | Day: Day 03 | Individual: 07"
     )
 
 
@@ -127,7 +127,7 @@ def test_update_analysis_task_status_formats_step() -> None:
     )
 
     assert gui_instance.analysis_task_var is not None
-    assert gui_instance.analysis_task_var.get() == "Vídeo 2 de 4 — EXP123 • Rastreamento"
+    assert gui_instance.analysis_task_var.get() == "Video 2 of 4 — EXP123 • Rastreamento"
 
 
 def test_update_analysis_task_status_without_step() -> None:
@@ -136,4 +136,4 @@ def test_update_analysis_task_status_without_step() -> None:
         index=0, total=0, experiment_id=""
     )
 
-    assert gui_instance.analysis_task_var.get() == "Vídeo 1 de 1"
+    assert gui_instance.analysis_task_var.get() == "Video 1 of 1"

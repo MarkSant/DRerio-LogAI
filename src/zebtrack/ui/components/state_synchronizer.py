@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING, Any
 import structlog
 
 from zebtrack.core.video.processing_mode import ProcessingMode
+from zebtrack.i18n import _
 from zebtrack.ui.sentinels import (
     all_tracks_label,
     no_day_label,
@@ -265,7 +266,7 @@ class StateSynchronizer:
             log.debug("state_sync.hide_progress_bar.suppressed", exc_info=True)
 
         try:
-            self.gui.analysis_status_var.set("Nenhuma análise em andamento.")
+            self.gui.analysis_status_var.set(_("No analysis in progress."))
         except (tk.TclError, AttributeError):
             log.debug("state_sync.analysis_status_reset.suppressed", exc_info=True)
 
@@ -426,8 +427,8 @@ class StateSynchronizer:
         """Reset ConfigEditorWidget form fields to reflect current settings object."""
         self.gui._reload_config_editor_values_widget()
         self.dialog_manager.show_info(
-            "Formulário recarregado",
-            "Valores restaurados para refletir as configurações atuais.",
+            _("Form reloaded"),
+            _("Values restored to reflect the current settings."),
         )
 
     # ========================================================================
@@ -443,7 +444,9 @@ class StateSynchronizer:
     def _default_analysis_metadata_text(cls) -> str:
         """Return default analysis metadata text."""
         group, day, subject = cls._analysis_metadata_defaults()
-        return f"Grupo: {group} | Dia: {day} | Indivíduo: {subject}"
+        return _("Group: {group} | Day: {day} | Individual: {subject}").format(
+            group=group, day=day, subject=subject
+        )
 
     def _set_analysis_metadata_defaults(self) -> None:
         """Set analysis metadata to default values."""
@@ -457,7 +460,9 @@ class StateSynchronizer:
         subject: str,
     ) -> None:
         """Apply analysis metadata strings to UI variables."""
-        combined = f"Grupo: {group} | Dia: {day} | Indivíduo: {subject}"
+        combined = _("Group: {group} | Day: {day} | Individual: {subject}").format(
+            group=group, day=day, subject=subject
+        )
 
         if getattr(self.gui, "analysis_metadata_var", None) is not None:
             self.gui.analysis_metadata_var.set(combined)
@@ -466,24 +471,24 @@ class StateSynchronizer:
         analysis_widget = getattr(self.gui, "analysis_display_widget", None)
         if analysis_widget:
             if getattr(analysis_widget, "group_var", None) is not None:
-                analysis_widget.group_var.set(f"Grupo: {group}")
+                analysis_widget.group_var.set(_("Group: {value}").format(value=group))
             if getattr(analysis_widget, "day_var", None) is not None:
-                analysis_widget.day_var.set(f"Dia: {day}")
+                analysis_widget.day_var.set(_("Day: {value}").format(value=day))
             if getattr(analysis_widget, "subject_var", None) is not None:
-                analysis_widget.subject_var.set(f"Indivíduo: {subject}")
+                analysis_widget.subject_var.set(_("Individual: {value}").format(value=subject))
         else:
             # Fallback to gui-level variables (legacy support)
             if getattr(self.gui, "analysis_group_var", None) is not None:
-                self.gui.analysis_group_var.set(f"Grupo: {group}")
+                self.gui.analysis_group_var.set(_("Group: {value}").format(value=group))
             if getattr(self.gui, "analysis_day_var", None) is not None:
-                self.gui.analysis_day_var.set(f"Dia: {day}")
+                self.gui.analysis_day_var.set(_("Day: {value}").format(value=day))
             if getattr(self.gui, "analysis_subject_var", None) is not None:
-                self.gui.analysis_subject_var.set(f"Indivíduo: {subject}")
+                self.gui.analysis_subject_var.set(_("Individual: {value}").format(value=subject))
 
     @staticmethod
     def _default_analysis_task_text() -> str:
         """Return default analysis task text."""
-        return "Nenhuma tarefa em andamento."
+        return _("No task in progress.")
 
     def prepare_single_video_ui_state(self, config: dict | None) -> None:
         """Ensure zone controls reflect the incoming single-video configuration."""
@@ -548,17 +553,17 @@ class StateSynchronizer:
                 if formatted:
                     if self.gui.analysis_display_widget:
                         self.gui.analysis_display_widget.set_social_summary(
-                            "Interações sociais: " + ", ".join(formatted)
+                            _("Social interactions: {details}").format(details=", ".join(formatted))
                         )
                 else:
                     if self.gui.analysis_display_widget:
                         self.gui.analysis_display_widget.set_social_summary(
-                            "Interações sociais: nenhum agrupamento registrado."
+                            _("Social interactions: no grouping recorded.")
                         )
             else:
                 if self.gui.analysis_display_widget:
                     self.gui.analysis_display_widget.set_social_summary(
-                        "Interações sociais: nenhum agrupamento registrado."
+                        _("Social interactions: no grouping recorded.")
                     )
         else:
             if self.gui.analysis_display_widget:
@@ -569,19 +574,19 @@ class StateSynchronizer:
 
                 if self.gui._active_processing_mode is ProcessingMode.SINGLE_SUBJECT:
                     self.gui.analysis_display_widget.set_social_summary(
-                        "Interações sociais: não aplicável no modo de sujeito único."
+                        _("Social interactions: not applicable in single-subject mode.")
                     )
                 elif profile != "social_interaction":
                     self.gui.analysis_display_widget.set_social_summary(
-                        "Interações sociais: perfil atual não gera métricas sociais."
+                        _("Social interactions: the current profile produces no social metrics.")
                     )
                 elif single_track_context:
                     self.gui.analysis_display_widget.set_social_summary(
-                        "Interações sociais: não aplicável para um único animal monitorado."
+                        _("Social interactions: not applicable for a single monitored animal.")
                     )
                 else:
                     self.gui.analysis_display_widget.set_social_summary(
-                        "Interações sociais: aguardando dados."
+                        _("Social interactions: waiting for data.")
                     )
 
         if tracks and self.gui._active_processing_mode is not ProcessingMode.SINGLE_SUBJECT:
@@ -741,7 +746,7 @@ class StateSynchronizer:
                 if self.gui.analysis_display_widget:
                     self.gui.analysis_display_widget.track_selector_var.set(all_tracks_label())
                     self.gui.analysis_display_widget.set_social_summary(
-                        "Interações sociais: não aplicável no modo de sujeito único."
+                        _("Social interactions: not applicable in single-subject mode.")
                     )
                 self._update_track_options([all_tracks_label()])
 
@@ -803,7 +808,9 @@ class StateSynchronizer:
         if index is not None or total is not None:
             total_videos = max(int(total) if total is not None else 0, 1)
             current_index = max(int(index) if index is not None else 0, 0) + 1
-            parts.append(f"Vídeo {current_index} de {total_videos}")
+            parts.append(
+                _("Video {current} of {total}").format(current=current_index, total=total_videos)
+            )
 
         if experiment_id:
             exp_text = str(experiment_id).strip()
@@ -813,8 +820,12 @@ class StateSynchronizer:
         if step:
             step_text = str(step).strip()
             if step_text:
-                if step_text.lower().startswith("etapa:"):
-                    step_text = step_text[6:].strip()
+                # Both spellings: the producer (progress_notifier) prefixes the
+                # Portuguese "Etapa:" today and the English "Step:" once migrated.
+                for prefix in ("etapa:", "step:"):
+                    if step_text.lower().startswith(prefix):
+                        step_text = step_text[len(prefix) :].strip()
+                        break
                 if step_text:
                     parts.append(f"• {step_text}")
 

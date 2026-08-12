@@ -64,7 +64,7 @@ def test_update_analysis_task_status_formats_batch_progress():
 
     synchronizer.update_analysis_task_status(index=1, total=5, experiment_id="EXP-02", step="")
 
-    analysis_display_widget.task_var.set.assert_called_once_with("Vídeo 2 de 5 — EXP-02")
+    analysis_display_widget.task_var.set.assert_called_once_with("Video 2 of 5 — EXP-02")
 
 
 def test_update_analysis_task_status_allows_live_task_only_message():
@@ -91,7 +91,7 @@ def test_update_social_summary_formats_and_updates_tracks():
     synchronizer.update_social_summary(profile="default", stats=stats, tracks=["1", "2"])
 
     gui.analysis_display_widget.set_social_summary.assert_called_once_with(
-        "Interações sociais: ID 1: 50.0%, ID 2: 12.3%"
+        "Social interactions: ID 1: 50.0%, ID 2: 12.3%"
     )
     gui.analysis_display_widget.update_track_options.assert_called_once_with(["All", "1", "2"])
 
@@ -103,7 +103,7 @@ def test_update_social_summary_no_stats():
     synchronizer.update_social_summary(profile="default", stats=None, tracks=None)
 
     gui.analysis_display_widget.set_social_summary.assert_called_once_with(
-        "Interações sociais: perfil atual não gera métricas sociais."
+        "Social interactions: the current profile produces no social metrics."
     )
 
 
@@ -114,7 +114,7 @@ def test_update_social_summary_no_stats_social_profile_waiting_data():
     synchronizer.update_social_summary(profile="social_interaction", stats=None, tracks=None)
 
     gui.analysis_display_widget.set_social_summary.assert_called_once_with(
-        "Interações sociais: aguardando dados."
+        "Social interactions: waiting for data."
     )
 
 
@@ -125,7 +125,7 @@ def test_update_processing_mode_single_sets_social_summary_not_applicable():
     synchronizer.update_processing_mode({"mode": ProcessingMode.SINGLE_SUBJECT})
 
     gui.analysis_display_widget.set_social_summary.assert_called_once_with(
-        "Interações sociais: não aplicável no modo de sujeito único."
+        "Social interactions: not applicable in single-subject mode."
     )
 
 
@@ -151,7 +151,7 @@ def test_analysis_metadata_defaults():
 def test_default_analysis_metadata_text():
     assert (
         StateSynchronizer._default_analysis_metadata_text()
-        == "Grupo: No Group | Dia: No Day | Indivíduo: Not reported"
+        == "Group: No Group | Day: No Day | Individual: Not reported"
     )
 
 
@@ -169,10 +169,10 @@ def test_apply_analysis_metadata_strings_updates_widget_vars():
 
     synchronizer._apply_analysis_metadata_strings("G1", "D2", "S3")
 
-    gui.analysis_metadata_var.set.assert_called_once_with("Grupo: G1 | Dia: D2 | Indivíduo: S3")
-    analysis_display_widget.group_var.set.assert_called_once_with("Grupo: G1")
-    analysis_display_widget.day_var.set.assert_called_once_with("Dia: D2")
-    analysis_display_widget.subject_var.set.assert_called_once_with("Indivíduo: S3")
+    gui.analysis_metadata_var.set.assert_called_once_with("Group: G1 | Day: D2 | Individual: S3")
+    analysis_display_widget.group_var.set.assert_called_once_with("Group: G1")
+    analysis_display_widget.day_var.set.assert_called_once_with("Day: D2")
+    analysis_display_widget.subject_var.set.assert_called_once_with("Individual: S3")
 
 
 def test_apply_analysis_metadata_strings_falls_back_to_gui_vars():
@@ -187,9 +187,9 @@ def test_apply_analysis_metadata_strings_falls_back_to_gui_vars():
 
     synchronizer._apply_analysis_metadata_strings("G1", "D2", "S3")
 
-    gui.analysis_group_var.set.assert_called_once_with("Grupo: G1")
-    gui.analysis_day_var.set.assert_called_once_with("Dia: D2")
-    gui.analysis_subject_var.set.assert_called_once_with("Indivíduo: S3")
+    gui.analysis_group_var.set.assert_called_once_with("Group: G1")
+    gui.analysis_day_var.set.assert_called_once_with("Day: D2")
+    gui.analysis_subject_var.set.assert_called_once_with("Individual: S3")
 
 
 def test_update_recording_ui_updates_buttons():

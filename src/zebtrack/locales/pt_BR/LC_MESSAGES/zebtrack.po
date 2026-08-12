@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: DRerio LogAI VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-08-12 15:37-0300\n"
+"POT-Creation-Date: 2026-08-12 15:45-0300\n"
 "PO-Revision-Date: 2026-08-08 21:41-0300\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: pt_BR <LL@li.org>\n"
@@ -81,7 +81,7 @@ msgstr "Vídeo Único"
 #: src/zebtrack/ui/components/model_diagnostics_panel.py:831
 #: src/zebtrack/ui/components/model_diagnostics_panel.py:838
 #: src/zebtrack/ui/components/model_diagnostics_panel.py:854
-#: src/zebtrack/ui/components/project_model_configuration_panel.py:393
+#: src/zebtrack/ui/components/project_model_configuration_panel.py:391
 #: src/zebtrack/ui/components/project_views/report_asset_actions.py:452
 #: src/zebtrack/ui/components/project_views/video_selector_tree_manager.py:824
 #: src/zebtrack/ui/components/validation_manager.py:154
@@ -1766,10 +1766,12 @@ msgid "Settings unavailable. Could not load."
 msgstr "Settings não disponível. Não foi possível carregar."
 
 #: src/zebtrack/ui/builders/analysis_widgets.py:339
+#: src/zebtrack/ui/components/state_synchronizer.py:430
 msgid "Form reloaded"
 msgstr "Formulário recarregado"
 
 #: src/zebtrack/ui/builders/analysis_widgets.py:340
+#: src/zebtrack/ui/components/state_synchronizer.py:431
 msgid "Values restored to reflect the current settings."
 msgstr "Valores restaurados para refletir as configurações atuais."
 
@@ -1954,6 +1956,7 @@ msgid "Cancel"
 msgstr "Cancelar"
 
 #: src/zebtrack/ui/builders/panel_builder.py:41
+#: src/zebtrack/ui/components/tab_builder.py:337
 msgid "Detection Model Status"
 msgstr "Estado do Modelo de Detecção"
 
@@ -2125,6 +2128,7 @@ msgstr "Não foi possível obter os dados do polígono do aquário."
 #: src/zebtrack/ui/components/analysis_display.py:63
 #: src/zebtrack/ui/components/analysis_display.py:437
 #: src/zebtrack/ui/components/analysis_view_controller.py:221
+#: src/zebtrack/ui/components/state_synchronizer.py:269
 msgid "No analysis in progress."
 msgstr "Nenhuma análise em andamento."
 
@@ -2133,6 +2137,8 @@ msgstr "Nenhuma análise em andamento."
 #: src/zebtrack/ui/components/analysis_display.py:66
 #: src/zebtrack/ui/components/analysis_display.py:294
 #: src/zebtrack/ui/components/project_views/project_view_helpers.py:94
+#: src/zebtrack/ui/components/state_synchronizer.py:474
+#: src/zebtrack/ui/components/state_synchronizer.py:484
 #, python-brace-format
 msgid "Group: {value}"
 msgstr "Grupo: {value}"
@@ -2142,6 +2148,8 @@ msgstr "Grupo: {value}"
 #: src/zebtrack/ui/components/analysis_display.py:69
 #: src/zebtrack/ui/components/analysis_display.py:295
 #: src/zebtrack/ui/components/project_views/project_view_helpers.py:96
+#: src/zebtrack/ui/components/state_synchronizer.py:476
+#: src/zebtrack/ui/components/state_synchronizer.py:486
 #, python-brace-format
 msgid "Day: {value}"
 msgstr "Dia: {value}"
@@ -2150,6 +2158,8 @@ msgstr "Dia: {value}"
 #: src/zebtrack/ui/components/analysis_controls.py:204
 #: src/zebtrack/ui/components/analysis_display.py:72
 #: src/zebtrack/ui/components/analysis_display.py:296
+#: src/zebtrack/ui/components/state_synchronizer.py:479
+#: src/zebtrack/ui/components/state_synchronizer.py:489
 #, python-brace-format
 msgid "Individual: {value}"
 msgstr "Indivíduo: {value}"
@@ -2186,6 +2196,7 @@ msgstr "Configuração de análise: {value}"
 
 #: src/zebtrack/ui/components/analysis_controls.py:74
 #: src/zebtrack/ui/components/analysis_display.py:442
+#: src/zebtrack/ui/components/state_synchronizer.py:595
 msgid "Social interactions: waiting for data."
 msgstr "Interações sociais: aguardando dados."
 
@@ -2193,6 +2204,7 @@ msgstr "Interações sociais: aguardando dados."
 #: src/zebtrack/ui/components/analysis_display.py:64
 #: src/zebtrack/ui/components/analysis_display.py:438
 #: src/zebtrack/ui/components/analysis_view_controller.py:223
+#: src/zebtrack/ui/components/state_synchronizer.py:495
 msgid "No task in progress."
 msgstr "Nenhuma tarefa em andamento."
 
@@ -2638,14 +2650,14 @@ msgstr "Conectado ({port})"
 msgid "Connected"
 msgstr "Conectado"
 
+# | msgid "Behavioural Analysis Defaults"
 #: src/zebtrack/ui/components/behavioral_config_widget.py:123
-#| msgid "Behavioural Analysis Defaults"
 msgid "Behavioural Analysis Configuration"
 msgstr "Configuração de Análise Comportamental"
 
 # | msgid "🐠 Aquarium (Detection)"
+# | msgid "Aquarium Detected"
 #: src/zebtrack/ui/components/behavioral_config_widget.py:142
-#| msgid "Aquarium Detected"
 msgid "Aquarium Perspective *"
 msgstr "Perspectiva do Aquário *"
 
@@ -2658,13 +2670,13 @@ msgid "Top-Down View"
 msgstr "Vista de Cima (Top-Down)"
 
 # | msgid "Analyze Single Video"
+# | msgid "Single Video"
 #: src/zebtrack/ui/components/behavioral_config_widget.py:156
-#| msgid "Single Video"
 msgid "Side View"
 msgstr "Vista Lateral"
 
+# | msgid "Perspective"
 #: src/zebtrack/ui/components/behavioral_config_widget.py:165
-#| msgid "Perspective"
 msgid "Perspective:"
 msgstr "Perspectiva:"
 
@@ -2694,8 +2706,8 @@ msgstr "Geotaxis (Proximidade ao Fundo) - Apenas Vista Lateral"
 msgid "Enable geotaxis analysis"
 msgstr "Habilitar análise de geotaxis"
 
+# | msgid "Calibration Context"
 #: src/zebtrack/ui/components/behavioral_config_widget.py:237
-#| msgid "Calibration Context"
 msgid "Calculation mode:"
 msgstr "Modo de cálculo:"
 
@@ -2711,8 +2723,8 @@ msgstr "Por Zonas Verticais"
 msgid "Distance from the bottom (cm):"
 msgstr "Distância do fundo (cm):"
 
+# | msgid "Select an active aquarium first."
 #: src/zebtrack/ui/components/behavioral_config_widget.py:285
-#| msgid "Select an active aquarium first."
 msgid "Split the aquarium into:"
 msgstr "Dividir aquário em:"
 
@@ -2728,9 +2740,8 @@ msgstr "Considerar como 'fundo':"
 msgid "lowest zone(s)"
 msgstr "zona(s) mais baixa(s)"
 
+# | msgid "The {label} must be between 0 and 1."
 #: src/zebtrack/ui/components/behavioral_config_widget.py:503
-#, python-brace-format
-#| msgid "The {label} must be between 0 and 1."
 msgid "Thigmotaxis distance must be between 0.1 and 10.0 cm"
 msgstr "Distância de thigmotaxis deve estar entre 0.1 e 10.0 cm"
 
@@ -2738,20 +2749,18 @@ msgstr "Distância de thigmotaxis deve estar entre 0.1 e 10.0 cm"
 msgid "Geotaxis can only be enabled for the side perspective"
 msgstr "Geotaxis só pode ser habilitado para perspectiva lateral"
 
+# | msgid "The {label} must be between 0 and 1."
 #: src/zebtrack/ui/components/behavioral_config_widget.py:515
-#, python-brace-format
-#| msgid "The {label} must be between 0 and 1."
 msgid "Geotaxis distance must be between 0.1 and 10.0 cm"
 msgstr "Distância de geotaxis deve estar entre 0.1 e 10.0 cm"
 
+# | msgid "The {label} must be between 0 and 1."
 #: src/zebtrack/ui/components/behavioral_config_widget.py:521
-#, python-brace-format
-#| msgid "The {label} must be between 0 and 1."
 msgid "The number of zones must be between 2 and 10"
 msgstr "Número de zonas deve estar entre 2 e 10"
 
+# | msgid "The number of frames must be a whole number."
 #: src/zebtrack/ui/components/behavioral_config_widget.py:524
-#| msgid "The number of frames must be a whole number."
 msgid "The number of bottom zones must be 1 or 2"
 msgstr "Número de zonas de fundo deve ser 1 ou 2"
 
@@ -2790,6 +2799,7 @@ msgstr "Arquivos monitorados: {default} → {local}"
 
 # | msgid "Preparing video processing..."
 #: src/zebtrack/ui/components/config_editor.py:177
+#: src/zebtrack/ui/components/control_panel.py:96
 #: src/zebtrack/ui/components/project_views/video_selector_tree_manager.py:599
 msgid "Video Processing"
 msgstr "Processamento de Vídeo"
@@ -3138,7 +3148,7 @@ msgstr "💡 Abre o diálogo de Calibração e Detecção."
 #: src/zebtrack/ui/components/config_editor.py:615
 #: src/zebtrack/ui/components/model_diagnostics_panel.py:778
 #: src/zebtrack/ui/components/project_model_configuration_panel.py:189
-#: src/zebtrack/ui/components/project_model_configuration_panel.py:380
+#: src/zebtrack/ui/components/project_model_configuration_panel.py:378
 #: src/zebtrack/ui/components/weight_hardware_manager.py:145
 msgid "Enabled"
 msgstr "Ativado"
@@ -3146,7 +3156,7 @@ msgstr "Ativado"
 #: src/zebtrack/ui/components/config_editor.py:615
 #: src/zebtrack/ui/components/model_diagnostics_panel.py:778
 #: src/zebtrack/ui/components/project_model_configuration_panel.py:191
-#: src/zebtrack/ui/components/project_model_configuration_panel.py:380
+#: src/zebtrack/ui/components/project_model_configuration_panel.py:378
 #: src/zebtrack/ui/components/weight_hardware_manager.py:145
 msgid "Disabled"
 msgstr "Desativado"
@@ -3169,6 +3179,49 @@ msgid ""
 msgstr ""
 "As validações avançadas (offset < intervalo, polyorder < janela, etc.) são "
 "aplicadas automaticamente ao salvar."
+
+#: src/zebtrack/ui/components/control_panel.py:58
+#| msgid "Preparing video processing..."
+msgid "Recording and Processing Controls"
+msgstr "Controles de Gravação e Processamento"
+
+# | msgid "Recording Pending"
+#: src/zebtrack/ui/components/control_panel.py:64
+#| msgid "Recording Error"
+msgid "Recording"
+msgstr "Gravação"
+
+#: src/zebtrack/ui/components/control_panel.py:72
+#: src/zebtrack/ui/components/zone_controls.py:234
+msgid "▶️ Start Recording"
+msgstr "▶️ Iniciar Gravação"
+
+#: src/zebtrack/ui/components/control_panel.py:84
+#| msgid "▶️ Start Recording"
+msgid "⏹️ Stop Recording"
+msgstr "⏹️ Parar Gravação"
+
+# | msgid "Processing and Reports"
+# | msgid "Processing Mode:"
+#: src/zebtrack/ui/components/control_panel.py:101
+#| msgid "Processing Videos"
+msgid "🎬 Process Video"
+msgstr "🎬 Processar Vídeo"
+
+#: src/zebtrack/ui/components/control_panel.py:107
+#: src/zebtrack/ui/components/menu_manager.py:69
+msgid "Settings"
+msgstr "Configurações"
+
+#: src/zebtrack/ui/components/control_panel.py:113
+#| msgid "Preparing video processing..."
+msgid "Show Preview During Processing"
+msgstr "Mostrar Preview Durante Processamento"
+
+#: src/zebtrack/ui/components/control_panel.py:123
+#| msgid "Processing Interval (N):"
+msgid "Processing Interval (frames):"
+msgstr "Intervalo de Processamento (frames):"
 
 #: src/zebtrack/ui/components/dialog_manager.py:97
 #, python-brace-format
@@ -4163,10 +4216,6 @@ msgstr ""
 msgid "File"
 msgstr "Arquivo"
 
-#: src/zebtrack/ui/components/menu_manager.py:69
-msgid "Settings"
-msgstr "Configurações"
-
 #: src/zebtrack/ui/components/menu_manager.py:70
 msgid "Language..."
 msgstr "Idioma..."
@@ -4948,14 +4997,14 @@ msgid "Select one of the project's effective weights for diagnostics."
 msgstr "Selecione um dos pesos efetivos do projeto para diagnóstico."
 
 # | msgid "Restore Defaults"
+# | msgid "Restore Global Defaults"
 #: src/zebtrack/ui/components/project_model_configuration_panel.py:22
-#| msgid "Restore Global Defaults"
 msgid "Inherit (global default)"
 msgstr "Herdar (padrão global)"
 
 # | msgid "Global Model Configuration..."
+# | msgid "Model Configuration"
 #: src/zebtrack/ui/components/project_model_configuration_panel.py:62
-#| msgid "Model Configuration"
 msgid "Project Model Configuration"
 msgstr "Configuração de Modelos do Projeto"
 
@@ -4976,15 +5025,15 @@ msgstr ""
 "defaults por slot ou manutenção do OpenVINO, use a Configuração Global de "
 "Modelos."
 
+# | msgid "Effective weights for this project:"
 #: src/zebtrack/ui/components/project_model_configuration_panel.py:93
-#| msgid "Effective weights for this project:"
 msgid "Weights specific to this project"
 msgstr "Pesos específicos deste projeto"
 
 # | msgid "Global Model Configuration..."
 # | msgid "Model Configuration"
+# | msgid "Scope: Global Configuration"
 #: src/zebtrack/ui/components/project_model_configuration_panel.py:114
-#| msgid "Scope: Global Configuration"
 msgid "Inherit the global configuration"
 msgstr "Herdar configuração global"
 
@@ -4992,8 +5041,8 @@ msgstr "Herdar configuração global"
 msgid "Uses exactly the global OpenVINO configuration for this project."
 msgstr "Usa exatamente a configuração global do OpenVINO para este projeto."
 
+# | msgid "Enabled"
 #: src/zebtrack/ui/components/project_model_configuration_panel.py:126
-#| msgid "Enabled"
 msgid "Force enabled"
 msgstr "Forçar ativado"
 
@@ -5002,8 +5051,8 @@ msgid ""
 "Always uses OpenVINO in this project, regardless of the global default."
 msgstr "Sempre usa OpenVINO neste projeto, independente do padrão global."
 
+# | msgid "Disabled"
 #: src/zebtrack/ui/components/project_model_configuration_panel.py:139
-#| msgid "Disabled"
 msgid "Force disabled"
 msgstr "Forçar desativado"
 
@@ -5026,81 +5075,175 @@ msgstr ""
 "• Forçar desativado: mantém PyTorch mesmo que o global esteja ativo."
 
 # | msgid "Open Existing Project"
+# | msgid "Existing Results"
 #: src/zebtrack/ui/components/project_model_configuration_panel.py:163
-#| msgid "Existing Results"
 msgid "Effective Result"
 msgstr "Resultado Efetivo"
 
 # | msgid "Weight Type"
+# | msgid "Weight Name"
 #: src/zebtrack/ui/components/project_model_configuration_panel.py:167
-#| msgid "Weight Name"
 msgid "Weights in use:"
 msgstr "Pesos utilizados:"
 
 # | msgid "Restore Defaults"
+# | msgid "Restore Global Defaults"
 #: src/zebtrack/ui/components/project_model_configuration_panel.py:178
-#| msgid "Restore Global Defaults"
 msgid "Global Defaults"
 msgstr "Padrões Globais"
 
+# | msgid "OpenVINO: {status}"
 #: src/zebtrack/ui/components/project_model_configuration_panel.py:187
 #, python-brace-format
-#| msgid "OpenVINO: {status}"
 msgid "Global OpenVINO: {state}"
 msgstr "OpenVINO global: {state}"
 
+# | msgid "💾 Save Current Zones"
 #: src/zebtrack/ui/components/project_model_configuration_panel.py:200
-#| msgid "💾 Save Current Zones"
 msgid "Save Preferences"
 msgstr "Salvar Preferências"
 
 # | msgid "Remove video from project"
+# | msgid "No video found in the project"
 #: src/zebtrack/ui/components/project_model_configuration_panel.py:205
-#| msgid "No video found in the project"
 msgid "Copy Globals to the Project"
 msgstr "Copiar Globais para o Projeto"
 
+# | msgid "Remove video from project"
 #: src/zebtrack/ui/components/project_model_configuration_panel.py:210
-#| msgid "Remove video from project"
 msgid "Reload From Project"
 msgstr "Recarregar do Projeto"
 
 # | msgid "Project Loaded"
+# | msgid "No Project Loaded"
 #: src/zebtrack/ui/components/project_model_configuration_panel.py:250
-#| msgid "No Project Loaded"
 msgid "No active project slot was identified."
 msgstr "Nenhum slot ativo do projeto foi identificado."
 
+# | msgid "No effective weight available."
 #: src/zebtrack/ui/components/project_model_configuration_panel.py:369
-#| msgid "No effective weight available."
 msgid "No weight available"
 msgstr "Nenhum peso disponível"
 
 # | msgid "Restore Defaults"
-#: src/zebtrack/ui/components/project_model_configuration_panel.py:371
-#| msgid "Restore Global Defaults"
+# | msgid "Restore Global Defaults"
+#: src/zebtrack/ui/components/project_model_configuration_panel.py:370
 msgid "No global default available"
 msgstr "Nenhum padrão global disponível"
 
 # | msgid "Project Settings Updated"
-#: src/zebtrack/ui/components/project_model_configuration_panel.py:397
-#| msgid "Parameters Updated"
+# | msgid "Parameters Updated"
+#: src/zebtrack/ui/components/project_model_configuration_panel.py:395
 msgid "Preferences updated"
 msgstr "Preferências atualizadas"
 
-#: src/zebtrack/ui/components/project_model_configuration_panel.py:398
+#: src/zebtrack/ui/components/project_model_configuration_panel.py:396
 msgid "The project preferences have been saved."
 msgstr "As preferências do projeto foram salvas."
 
-#: src/zebtrack/ui/components/project_model_configuration_panel.py:412
-#| msgid "Project Settings Updated"
+# | msgid "Project Settings Updated"
+#: src/zebtrack/ui/components/project_model_configuration_panel.py:410
 msgid "Project updated"
 msgstr "Projeto atualizado"
 
-#: src/zebtrack/ui/components/project_model_configuration_panel.py:413
-#| msgid "The detector settings were saved for this project."
+# | msgid "The detector settings were saved for this project."
+#: src/zebtrack/ui/components/project_model_configuration_panel.py:411
 msgid "The current global settings have been copied into this project."
 msgstr "As configurações globais atuais foram copiadas para este projeto."
+
+#: src/zebtrack/ui/components/state_synchronizer.py:447
+#: src/zebtrack/ui/components/state_synchronizer.py:463
+#, python-brace-format
+msgid "Group: {group} | Day: {day} | Individual: {subject}"
+msgstr "Grupo: {group} | Dia: {day} | Indivíduo: {subject}"
+
+#: src/zebtrack/ui/components/state_synchronizer.py:560
+#, python-brace-format
+#| msgid "Social interactions: waiting for data."
+msgid "Social interactions: {details}"
+msgstr "Interações sociais: {details}"
+
+#: src/zebtrack/ui/components/state_synchronizer.py:567
+#: src/zebtrack/ui/components/state_synchronizer.py:572
+#| msgid "Social interactions: waiting for data."
+msgid "Social interactions: no grouping recorded."
+msgstr "Interações sociais: nenhum agrupamento registrado."
+
+#: src/zebtrack/ui/components/state_synchronizer.py:583
+#: src/zebtrack/ui/components/state_synchronizer.py:755
+#| msgid "Social interactions: not applicable right now."
+msgid "Social interactions: not applicable in single-subject mode."
+msgstr "Interações sociais: não aplicável no modo de sujeito único."
+
+#: src/zebtrack/ui/components/state_synchronizer.py:587
+msgid "Social interactions: the current profile produces no social metrics."
+msgstr "Interações sociais: perfil atual não gera métricas sociais."
+
+#: src/zebtrack/ui/components/state_synchronizer.py:591
+#| msgid "Social interactions: not applicable right now."
+msgid "Social interactions: not applicable for a single monitored animal."
+msgstr "Interações sociais: não aplicável para um único animal monitorado."
+
+#: src/zebtrack/ui/components/state_synchronizer.py:818
+#, python-brace-format
+#| msgid "Analysing frame {current}/{total}..."
+msgid "Video {current} of {total}"
+msgstr "Vídeo {current} de {total}"
+
+#: src/zebtrack/ui/components/tab_builder.py:61
+msgid "Main Control"
+msgstr "Controle Principal"
+
+# | msgid "Error Saving to Project"
+# | msgid "Save to Project"
+#: src/zebtrack/ui/components/tab_builder.py:82
+#| msgid "No Project"
+msgid "Close Project"
+msgstr "Fechar Projeto"
+
+# | msgid "Global Model Configuration..."
+#: src/zebtrack/ui/components/tab_builder.py:134
+#| msgid "Model Configuration"
+msgid "Zone Configuration"
+msgstr "Configuração de Zonas"
+
+# | msgid "Global Model Configuration..."
+#: src/zebtrack/ui/components/tab_builder.py:237
+#: src/zebtrack/ui/components/tab_builder.py:276
+#| msgid "Model Configuration"
+msgid "AI Model Config."
+msgstr "Config. Modelo IA"
+
+# | msgid "Loading settings..."
+# | msgid "Global Diagnostics..."
+#: src/zebtrack/ui/components/tab_builder.py:252
+#: src/zebtrack/ui/components/tab_builder.py:281
+#| msgid "Starting model diagnostics..."
+msgid "AI Model Diagnostics"
+msgstr "Diagnóstico Modelo IA"
+
+#: src/zebtrack/ui/components/tab_builder.py:297
+#| msgid "▶️ Start Recording"
+msgid "Start Recording"
+msgstr "Iniciar Gravação"
+
+#: src/zebtrack/ui/components/tab_builder.py:304
+#| msgid "▶️ Start Recording"
+msgid "Stop Recording"
+msgstr "Parar Gravação"
+
+# | msgid "The selected video could not be located in the project."
+#: src/zebtrack/ui/components/tab_builder.py:317
+#| msgid "Select Videos or Folders to Add to the Project"
+msgid "Add Videos/Folders to the Project..."
+msgstr "Adicionar Vídeos/Pastas ao Projeto..."
+
+# | msgid "Processing and Reports"
+# | msgid "Processing Mode:"
+#: src/zebtrack/ui/components/tab_builder.py:326
+#| msgid "Processing Videos"
+msgid "Process Pending Videos..."
+msgstr "Processar Vídeos Pendentes..."
 
 # | msgid "Pending ROIs"
 #: src/zebtrack/ui/components/validation_manager.py:54
@@ -5468,10 +5611,6 @@ msgstr "Fonte ativa: {value}"
 #, python-brace-format
 msgid "Aquarium model: {value}"
 msgstr "Modelo do aquário: {value}"
-
-#: src/zebtrack/ui/components/zone_controls.py:234
-msgid "▶️ Start Recording"
-msgstr "▶️ Iniciar Gravação"
 
 #: src/zebtrack/ui/components/zone_controls.py:241
 msgid "✖ Cancel Session"
