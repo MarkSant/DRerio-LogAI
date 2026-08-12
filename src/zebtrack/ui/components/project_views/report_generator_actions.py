@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING, Any
 
 import structlog
 
+from zebtrack.i18n import _
 from zebtrack.ui import payloads
 
 if TYPE_CHECKING:
@@ -96,8 +97,8 @@ class ReportGeneratorActions:
         all_videos = self.project_manager.get_all_videos()
         if not all_videos:
             self.dialog_manager.show_warning(
-                "Sem Dados",
-                "Não há vídeos processados neste projeto para gerar um relatório.",
+                _("No Data"),
+                _("There are no processed videos in this project to build a report from."),
             )
             return
 
@@ -237,19 +238,19 @@ class ReportGeneratorActions:
             return False
 
         response = self.dialog_manager.ask_yes_no_cancel(
-            "Relatórios Unificados Existentes",
-            (
-                "Já existem relatórios unificados neste projeto.\n\n"
-                "Sim: apagar os anteriores e gerar novo\n"
-                "Não: manter anteriores e gerar outro com novo nome\n"
-                "Cancelar: abortar geração"
+            _("Existing Unified Reports"),
+            _(
+                "This project already has unified reports.\n\n"
+                "Yes: delete the previous ones and generate a new report\n"
+                "No: keep the previous ones and generate another under a new name\n"
+                "Cancel: abort generation"
             ),
             icon="warning",
         )
 
         if response is None:
             if self._set_status:
-                self._set_status("Geração de relatório unificado cancelada pelo usuário.")
+                self._set_status(_("Unified report generation cancelled by the user."))
             return None
 
         return bool(response)
@@ -289,7 +290,9 @@ class ReportGeneratorActions:
             success = False
             last_error = None
 
-            for _ in range(3):
+            # NOT ``for _ in ...``: ``_`` is the gettext callable in this module,
+            # and rebinding it here would break every _() call further down.
+            for _attempt in range(3):
                 try:
                     shutil.rmtree(unified_dir, onerror=on_rm_error)
                     success = True
@@ -301,7 +304,7 @@ class ReportGeneratorActions:
             if success:
                 log.info("project.delete_unified.success", path=unified_dir)
                 self.dialog_manager.show_info(
-                    "Sucesso", "Todos os relatórios unificados foram apagados."
+                    _("Success"), _("All unified reports have been deleted.")
                 )
 
                 widget = self._processing_reports_widget
@@ -310,18 +313,20 @@ class ReportGeneratorActions:
             else:
                 log.warning("project.delete_unified.failed", error=str(last_error))
 
-                msg = "Não foi possível apagar a pasta.\nVerifique se algum arquivo está aberto."
+                msg = _("Could not delete the folder.\nCheck whether a file is still open.")
                 if last_error and "OneDrive" in str(unified_dir):
-                    msg += (
-                        "\n\nO OneDrive pode estar bloqueando arquivos. "
-                        "Tente novamente em instantes."
-                    )
+                    msg += _("\n\nOneDrive may be locking files. Try again in a few moments.")
 
-                self.dialog_manager.show_error("Erro ao Apagar", f"{msg}\n\nErro: {last_error}")
+                self.dialog_manager.show_error(
+                    _("Deletion Error"),
+                    _("{message}\n\nError: {error}").format(message=msg, error=last_error),
+                )
 
         # Always refresh button states regardless of success/failure
         widget = self._processing_reports_widget
         if widget and hasattr(widget, "_update_button_states"):
             widget._update_button_states(pm.project_path)
         else:
-            self.dialog_manager.show_info("Aviso", "Não havia relatórios unificados para apagar.")
+            self.dialog_manager.show_info(
+                _("Warning"), _("There were no unified reports to delete.")
+            )

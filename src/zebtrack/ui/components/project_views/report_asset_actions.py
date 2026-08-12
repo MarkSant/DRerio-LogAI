@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING, Any
 
 import structlog
 
+from zebtrack.i18n import _
 from zebtrack.ui import payloads
 from zebtrack.ui.event_bus_v2 import UIEvents
 
@@ -104,7 +105,7 @@ class ReportAssetActions:
         video_name = os.path.basename(str(video_path)) or str(video_path)
         delete_mode = self.dialog_manager.choose_processing_reports_delete_mode(
             video_name,
-            target_kind="vídeo",
+            target_kind=_("video"),
         )
         if delete_mode is None:
             return
@@ -161,7 +162,7 @@ class ReportAssetActions:
                 changed = True
 
         if changed:
-            self._refresh_project_views("Análises resetadas (desenhos preservados)")
+            self._refresh_project_views(_("Analyses reset (drawings preserved)"))
         return changed
 
     def delete_all_processing_data(self, video_path: Path | str) -> None:
@@ -208,9 +209,11 @@ class ReportAssetActions:
 
         artifacts: list[tuple[str, str, str]] = []
         if docx_path:
-            artifacts.append(("file", docx_path, "📝 Word: " + Path(docx_path).name))
+            label = _("📝 Word: {name}").format(name=Path(docx_path).name)
+            artifacts.append(("file", docx_path, label))
         if excel_path:
-            artifacts.append(("file", excel_path, "📊 Excel: " + Path(excel_path).name))
+            label = _("📊 Excel: {name}").format(name=Path(excel_path).name)
+            artifacts.append(("file", excel_path, label))
 
         if not artifacts:
             return
@@ -220,7 +223,7 @@ class ReportAssetActions:
                 parent_id,
                 "end",
                 text=label,
-                values=("", "", "", "", "Abrir"),
+                values=("", "", "", "", _("Open")),
                 tags=("report-file",),
             )
             self._report_tree_metadata[child_id] = {
@@ -332,14 +335,15 @@ class ReportAssetActions:
         if not file_path:
             log.warning("gui.open_report_file.missing_path", metadata_keys=list(metadata.keys()))
             self.dialog_manager.show_warning(
-                "Arquivo indisponível", "Caminho do relatório não foi encontrado."
+                _("File unavailable"), _("The report path was not found.")
             )
             return
 
         if not os.path.exists(file_path):
             log.warning("gui.open_report_file.not_found", path=file_path)
             self.dialog_manager.show_warning(
-                "Arquivo não encontrado", f"O arquivo não existe mais:\n{file_path}"
+                _("File not found"),
+                _("The file no longer exists:\n{path}").format(path=file_path),
             )
             return
 
@@ -354,9 +358,7 @@ class ReportAssetActions:
 
         unified_dir = Path(pm.project_path) / "unified_reports"
         if not unified_dir.exists():
-            self.dialog_manager.show_warning(
-                "Indisponível", "Nenhum relatório unificado encontrado."
-            )
+            self.dialog_manager.show_warning(_("Unavailable"), _("No unified report found."))
             return
 
         pattern = ""
@@ -373,7 +375,8 @@ class ReportAssetActions:
         files = list(unified_dir.glob(pattern))
         if not files:
             self.dialog_manager.show_warning(
-                "Indisponível", f"Nenhum relatório {file_type} encontrado."
+                _("Unavailable"),
+                _("No {type} report found.").format(type=file_type),
             )
             return
 
@@ -427,8 +430,8 @@ class ReportAssetActions:
 
         if not results_dir or not os.path.isdir(results_dir) or not has_results:
             self.dialog_manager.show_warning(
-                "Relatórios indisponíveis",
-                "Gere o relatório para este vídeo antes de abrir a pasta de resultados.",
+                _("Reports unavailable"),
+                _("Generate the report for this video before opening the results folder."),
             )
             return
 
@@ -446,4 +449,4 @@ class ReportAssetActions:
             open_path(path)
         except OSError as e:
             log.error("gui.open_path.failed", path=path, error=str(e))
-            self.dialog_manager.show_error("Erro", f"Não foi possível abrir: {e}")
+            self.dialog_manager.show_error(_("Error"), _("Could not open: {error}").format(error=e))

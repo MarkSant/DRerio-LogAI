@@ -48,6 +48,7 @@ MIGRATED_PATHS: tuple[str, ...] = (
     "src/zebtrack/ui/components/global_model_configuration_panel.py",
     "src/zebtrack/ui/components/menu_manager.py",
     "src/zebtrack/ui/components/model_diagnostics_panel.py",
+    "src/zebtrack/ui/components/project_views",
     "src/zebtrack/ui/components/validation_manager.py",
     "src/zebtrack/ui/components/weight_hardware_manager.py",
     "src/zebtrack/ui/components/zone_context_panel.py",

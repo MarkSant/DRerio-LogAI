@@ -9,7 +9,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: DRerio LogAI VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-08-12 15:12-0300\n"
+"POT-Creation-Date: 2026-08-12 15:25-0300\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -51,8 +51,8 @@ msgstr ""
 #: src/zebtrack/ui/builders/analysis_widgets.py:471
 #: src/zebtrack/ui/builders/zone_widgets.py:144
 #: src/zebtrack/ui/builders/zone_widgets.py:150
-#: src/zebtrack/ui/components/arduino_dashboard.py:312
-#: src/zebtrack/ui/components/arduino_dashboard.py:319
+#: src/zebtrack/ui/components/arduino_dashboard.py:309
+#: src/zebtrack/ui/components/arduino_dashboard.py:316
 #: src/zebtrack/ui/components/canvas/zone_editor.py:203
 #: src/zebtrack/ui/components/canvas/zone_editor.py:315
 #: src/zebtrack/ui/components/canvas/zone_editor.py:450
@@ -74,6 +74,8 @@ msgstr ""
 #: src/zebtrack/ui/components/model_diagnostics_panel.py:831
 #: src/zebtrack/ui/components/model_diagnostics_panel.py:838
 #: src/zebtrack/ui/components/model_diagnostics_panel.py:854
+#: src/zebtrack/ui/components/project_views/report_asset_actions.py:455
+#: src/zebtrack/ui/components/project_views/video_selector_tree_manager.py:824
 #: src/zebtrack/ui/components/validation_manager.py:154
 #: src/zebtrack/ui/components/validation_manager.py:183
 #: src/zebtrack/ui/components/validation_manager.py:491
@@ -426,7 +428,7 @@ msgid "Analysis Running"
 msgstr ""
 
 #: src/zebtrack/coordinators/dialog_coordinator.py:395
-#: src/zebtrack/ui/components/arduino_dashboard.py:306
+#: src/zebtrack/ui/components/arduino_dashboard.py:303
 msgid "No Project Loaded"
 msgstr ""
 
@@ -760,6 +762,7 @@ msgstr ""
 #: src/zebtrack/ui/components/canvas/zone_editor.py:902
 #: src/zebtrack/ui/components/dialog_manager.py:1454
 #: src/zebtrack/ui/components/dialog_manager.py:1515
+#: src/zebtrack/ui/components/project_views/report_generator_actions.py:307
 #: src/zebtrack/ui/components/validation_manager.py:1613
 msgid "Success"
 msgstr ""
@@ -925,6 +928,7 @@ msgid "Batch Processing"
 msgstr ""
 
 #: src/zebtrack/coordinators/progress_tracking_coordinator.py:696
+#: src/zebtrack/ui/components/project_views/report_asset_actions.py:108
 msgid "video"
 msgstr ""
 
@@ -1106,6 +1110,9 @@ msgid "The zones were updated with template '{name}'."
 msgstr ""
 
 #: src/zebtrack/coordinators/ui_state_coordinator.py:626
+#: src/zebtrack/ui/components/project_views/report_asset_actions.py:345
+#: src/zebtrack/ui/components/project_views/video_selector_tree_manager.py:859
+#: src/zebtrack/ui/components/project_views/video_selector_tree_manager.py:891
 msgid "File not found"
 msgstr ""
 
@@ -1242,6 +1249,7 @@ msgid "No eligible video with data for analysis was found."
 msgstr ""
 
 #: src/zebtrack/coordinators/video_processing_coordinator.py:913
+#: src/zebtrack/ui/components/project_views/report_tree_builder.py:634
 #, python-brace-format
 msgid "Aquarium {number}"
 msgstr ""
@@ -1491,6 +1499,7 @@ msgid "Settings Saved"
 msgstr ""
 
 #: src/zebtrack/ui/builders/analysis_widgets.py:557
+#: src/zebtrack/ui/components/project_views/report_generator_actions.py:333
 #: src/zebtrack/ui/components/validation_manager.py:1627
 msgid "Warning"
 msgstr ""
@@ -1737,6 +1746,7 @@ msgstr ""
 #: src/zebtrack/ui/components/analysis_controls.py:202
 #: src/zebtrack/ui/components/analysis_display.py:66
 #: src/zebtrack/ui/components/analysis_display.py:294
+#: src/zebtrack/ui/components/project_views/project_view_helpers.py:93
 #, python-brace-format
 msgid "Group: {value}"
 msgstr ""
@@ -1745,6 +1755,7 @@ msgstr ""
 #: src/zebtrack/ui/components/analysis_controls.py:203
 #: src/zebtrack/ui/components/analysis_display.py:69
 #: src/zebtrack/ui/components/analysis_display.py:295
+#: src/zebtrack/ui/components/project_views/project_view_helpers.py:95
 #, python-brace-format
 msgid "Day: {value}"
 msgstr ""
@@ -2011,7 +2022,7 @@ msgid "Token out of range [{minimum}, {maximum}]: {value}."
 msgstr ""
 
 #: src/zebtrack/ui/components/arduino_dashboard.py:79
-#: src/zebtrack/ui/components/arduino_dashboard.py:419
+#: src/zebtrack/ui/components/arduino_dashboard.py:416
 msgid "Disconnected"
 msgstr ""
 
@@ -2078,18 +2089,18 @@ msgid ""
 "Available ports:\n"
 msgstr ""
 
-#: src/zebtrack/ui/components/arduino_dashboard.py:259
+#: src/zebtrack/ui/components/arduino_dashboard.py:257
 msgid ""
 "\n"
 "\n"
 "Type the port name (e.g. COM3):"
 msgstr ""
 
-#: src/zebtrack/ui/components/arduino_dashboard.py:271
+#: src/zebtrack/ui/components/arduino_dashboard.py:269
 msgid "Invalid Port"
 msgstr ""
 
-#: src/zebtrack/ui/components/arduino_dashboard.py:273
+#: src/zebtrack/ui/components/arduino_dashboard.py:271
 #, python-brace-format
 msgid ""
 "Port '{port}' is not among the detected ports.\n"
@@ -2097,35 +2108,35 @@ msgid ""
 "Valid ports: {valid}"
 msgstr ""
 
-#: src/zebtrack/ui/components/arduino_dashboard.py:287
+#: src/zebtrack/ui/components/arduino_dashboard.py:284
 #, python-brace-format
 msgid "✓ Port updated: {old} → {new}"
 msgstr ""
 
-#: src/zebtrack/ui/components/arduino_dashboard.py:288
+#: src/zebtrack/ui/components/arduino_dashboard.py:285
 msgid "no port"
 msgstr ""
 
-#: src/zebtrack/ui/components/arduino_dashboard.py:291
+#: src/zebtrack/ui/components/arduino_dashboard.py:288
 msgid "  Reconnecting the Arduino on the new port..."
 msgstr ""
 
-#: src/zebtrack/ui/components/arduino_dashboard.py:307
+#: src/zebtrack/ui/components/arduino_dashboard.py:304
 msgid "No project is currently loaded."
 msgstr ""
 
-#: src/zebtrack/ui/components/arduino_dashboard.py:313
+#: src/zebtrack/ui/components/arduino_dashboard.py:310
 msgid ""
 "The pyserial library is not installed.\n"
 "\n"
 "Run: pip install pyserial"
 msgstr ""
 
-#: src/zebtrack/ui/components/arduino_dashboard.py:315
+#: src/zebtrack/ui/components/arduino_dashboard.py:312
 msgid "✗ pyserial not available"
 msgstr ""
 
-#: src/zebtrack/ui/components/arduino_dashboard.py:320
+#: src/zebtrack/ui/components/arduino_dashboard.py:317
 #, python-brace-format
 msgid ""
 "An error occurred while rechecking ports:\n"
@@ -2133,17 +2144,17 @@ msgid ""
 "{error}"
 msgstr ""
 
-#: src/zebtrack/ui/components/arduino_dashboard.py:322
+#: src/zebtrack/ui/components/arduino_dashboard.py:319
 #, python-brace-format
 msgid "✗ Error during recheck: {error}"
 msgstr ""
 
-#: src/zebtrack/ui/components/arduino_dashboard.py:421
+#: src/zebtrack/ui/components/arduino_dashboard.py:418
 #, python-brace-format
 msgid "Connected ({port})"
 msgstr ""
 
-#: src/zebtrack/ui/components/arduino_dashboard.py:423
+#: src/zebtrack/ui/components/arduino_dashboard.py:420
 msgid "Connected"
 msgstr ""
 
@@ -2172,6 +2183,7 @@ msgid "Monitored files: {default} → {local}"
 msgstr ""
 
 #: src/zebtrack/ui/components/config_editor.py:177
+#: src/zebtrack/ui/components/project_views/video_selector_tree_manager.py:599
 msgid "Video Processing"
 msgstr ""
 
@@ -4005,6 +4017,8 @@ msgstr ""
 msgid "(no file)"
 msgstr ""
 
+#: src/zebtrack/ui/components/project_views/report_tree_builder.py:353
+#: src/zebtrack/ui/components/project_views/video_selector_tree_manager.py:509
 #: src/zebtrack/ui/components/validation_manager.py:354
 #: src/zebtrack/ui/components/validation_manager.py:1524
 #, python-brace-format
@@ -4809,6 +4823,355 @@ msgstr ""
 msgid "Zones deleted successfully."
 msgstr ""
 
+#: src/zebtrack/ui/components/project_views/project_view_helpers.py:34
+#, python-brace-format
+msgid "{count} video"
+msgstr ""
+
+#: src/zebtrack/ui/components/project_views/project_view_helpers.py:35
+#, python-brace-format
+msgid "{count} videos"
+msgstr ""
+
+#: src/zebtrack/ui/components/project_views/project_view_helpers.py:97
+#, python-brace-format
+msgid "Subject: {value}"
+msgstr ""
+
+#: src/zebtrack/ui/components/project_views/project_view_helpers.py:99
+msgid "No metadata"
+msgstr ""
+
+#: src/zebtrack/ui/components/project_views/report_asset_actions.py:165
+msgid "Analyses reset (drawings preserved)"
+msgstr ""
+
+#: src/zebtrack/ui/components/project_views/report_asset_actions.py:212
+#, python-brace-format
+msgid "📝 Word: {name}"
+msgstr ""
+
+#: src/zebtrack/ui/components/project_views/report_asset_actions.py:215
+#, python-brace-format
+msgid "📊 Excel: {name}"
+msgstr ""
+
+#: src/zebtrack/ui/components/project_views/report_asset_actions.py:226
+msgid "Open"
+msgstr ""
+
+#: src/zebtrack/ui/components/project_views/report_asset_actions.py:338
+msgid "File unavailable"
+msgstr ""
+
+#: src/zebtrack/ui/components/project_views/report_asset_actions.py:338
+msgid "The report path was not found."
+msgstr ""
+
+#: src/zebtrack/ui/components/project_views/report_asset_actions.py:346
+#, python-brace-format
+msgid ""
+"The file no longer exists:\n"
+"{path}"
+msgstr ""
+
+#: src/zebtrack/ui/components/project_views/report_asset_actions.py:362
+#: src/zebtrack/ui/components/project_views/report_asset_actions.py:380
+msgid "Unavailable"
+msgstr ""
+
+#: src/zebtrack/ui/components/project_views/report_asset_actions.py:362
+msgid "No unified report found."
+msgstr ""
+
+#: src/zebtrack/ui/components/project_views/report_asset_actions.py:381
+#, python-brace-format
+msgid "No {type} report found."
+msgstr ""
+
+#: src/zebtrack/ui/components/project_views/report_asset_actions.py:435
+msgid "Reports unavailable"
+msgstr ""
+
+#: src/zebtrack/ui/components/project_views/report_asset_actions.py:436
+msgid "Generate the report for this video before opening the results folder."
+msgstr ""
+
+#: src/zebtrack/ui/components/project_views/report_asset_actions.py:455
+#, python-brace-format
+msgid "Could not open: {error}"
+msgstr ""
+
+#: src/zebtrack/ui/components/project_views/report_generator_actions.py:100
+msgid "No Data"
+msgstr ""
+
+#: src/zebtrack/ui/components/project_views/report_generator_actions.py:101
+msgid "There are no processed videos in this project to build a report from."
+msgstr ""
+
+#: src/zebtrack/ui/components/project_views/report_generator_actions.py:241
+msgid "Existing Unified Reports"
+msgstr ""
+
+#: src/zebtrack/ui/components/project_views/report_generator_actions.py:243
+msgid ""
+"This project already has unified reports.\n"
+"\n"
+"Yes: delete the previous ones and generate a new report\n"
+"No: keep the previous ones and generate another under a new name\n"
+"Cancel: abort generation"
+msgstr ""
+
+#: src/zebtrack/ui/components/project_views/report_generator_actions.py:253
+msgid "Unified report generation cancelled by the user."
+msgstr ""
+
+#: src/zebtrack/ui/components/project_views/report_generator_actions.py:307
+msgid "All unified reports have been deleted."
+msgstr ""
+
+#: src/zebtrack/ui/components/project_views/report_generator_actions.py:316
+msgid ""
+"Could not delete the folder.\n"
+"Check whether a file is still open."
+msgstr ""
+
+#: src/zebtrack/ui/components/project_views/report_generator_actions.py:319
+msgid ""
+"\n"
+"\n"
+"OneDrive may be locking files. Try again in a few moments."
+msgstr ""
+
+#: src/zebtrack/ui/components/project_views/report_generator_actions.py:323
+msgid "Deletion Error"
+msgstr ""
+
+#: src/zebtrack/ui/components/project_views/report_generator_actions.py:324
+#, python-brace-format
+msgid ""
+"{message}\n"
+"\n"
+"Error: {error}"
+msgstr ""
+
+#: src/zebtrack/ui/components/project_views/report_generator_actions.py:333
+msgid "There were no unified reports to delete."
+msgstr ""
+
+#: src/zebtrack/ui/components/project_views/report_tree_builder.py:213
+#, python-brace-format
+msgid "Day {number}"
+msgstr ""
+
+#: src/zebtrack/ui/components/project_views/report_tree_builder.py:285
+msgid "🧾 Partial Reports"
+msgstr ""
+
+#: src/zebtrack/ui/components/project_views/report_tree_builder.py:378
+#, python-brace-format
+msgid "Subject {label}"
+msgstr ""
+
+#: src/zebtrack/ui/components/project_views/report_tree_builder.py:393
+#, python-brace-format
+msgid "Aq. {number}"
+msgstr ""
+
+#: src/zebtrack/ui/components/project_views/report_tree_builder.py:400
+#: src/zebtrack/ui/components/project_views/report_tree_builder.py:574
+msgid "Processed"
+msgstr ""
+
+#: src/zebtrack/ui/components/project_views/report_tree_builder.py:400
+msgid "Not processed"
+msgstr ""
+
+#: src/zebtrack/ui/components/project_views/report_tree_builder.py:402
+msgid "No Arena"
+msgstr ""
+
+#: src/zebtrack/ui/components/project_views/reports_tree_manager.py:43
+msgid "group"
+msgstr ""
+
+#: src/zebtrack/ui/components/project_views/reports_tree_manager.py:44
+msgid "day"
+msgstr ""
+
+#: src/zebtrack/ui/components/project_views/reports_tree_manager.py:45
+msgid "subject"
+msgstr ""
+
+#: src/zebtrack/ui/components/project_views/reports_tree_manager.py:46
+msgid "item"
+msgstr ""
+
+#: src/zebtrack/ui/components/project_views/reports_tree_manager.py:230
+msgid "📂 Open File"
+msgstr ""
+
+#: src/zebtrack/ui/components/project_views/reports_tree_manager.py:234
+msgid "📁 Open File Folder"
+msgstr ""
+
+#: src/zebtrack/ui/components/project_views/reports_tree_manager.py:293
+msgid "🗑️ Delete Aquarium (drawing + data)..."
+msgstr ""
+
+#: src/zebtrack/ui/components/project_views/reports_tree_manager.py:297
+msgid "🐟 Delete Animal (keep aquarium)..."
+msgstr ""
+
+#: src/zebtrack/ui/components/project_views/reports_tree_manager.py:301
+msgid "🔄 Reset Analyses (keep drawings)..."
+msgstr ""
+
+#: src/zebtrack/ui/components/project_views/reports_tree_manager.py:315
+msgid "Delete Aquarium"
+msgstr ""
+
+#: src/zebtrack/ui/components/project_views/reports_tree_manager.py:316
+#, python-brace-format
+msgid "Delete aquarium {number} along with its drawings and analysis data?"
+msgstr ""
+
+#: src/zebtrack/ui/components/project_views/reports_tree_manager.py:325
+#: src/zebtrack/ui/components/project_views/reports_tree_manager.py:372
+#: src/zebtrack/ui/components/project_views/reports_tree_manager.py:409
+msgid "Delete Files From Disk"
+msgstr ""
+
+#: src/zebtrack/ui/components/project_views/reports_tree_manager.py:327
+msgid ""
+"Do you also want to delete this aquarium's generated files from disk?\n"
+"\n"
+"If you choose 'No', only the reference in the project is removed."
+msgstr ""
+
+#: src/zebtrack/ui/components/project_views/reports_tree_manager.py:351
+msgid "Delete Animal"
+msgstr ""
+
+#: src/zebtrack/ui/components/project_views/reports_tree_manager.py:352
+#, python-brace-format
+msgid "Delete the animal bound to aquarium {number}, keeping the drawn aquarium?"
+msgstr ""
+
+#: src/zebtrack/ui/components/project_views/reports_tree_manager.py:361
+msgid "Delete Analysis Data As Well?"
+msgstr ""
+
+#: src/zebtrack/ui/components/project_views/reports_tree_manager.py:363
+msgid ""
+"Do you also want to delete this aquarium's current trajectory and "
+"reports?\n"
+"\n"
+"If you choose 'No', only the animal binding is removed."
+msgstr ""
+
+#: src/zebtrack/ui/components/project_views/reports_tree_manager.py:374
+#: src/zebtrack/ui/components/project_views/reports_tree_manager.py:411
+msgid ""
+"Do you also want to delete the analysis files from disk?\n"
+"\n"
+"If you choose 'No', only the reference in the project is removed."
+msgstr ""
+
+#: src/zebtrack/ui/components/project_views/reports_tree_manager.py:398
+msgid "Reset Analyses"
+msgstr ""
+
+#: src/zebtrack/ui/components/project_views/reports_tree_manager.py:400
+#, python-brace-format
+msgid ""
+"Delete only the trajectory and reports of aquarium {number}, keeping the "
+"arena and the ROIs?"
+msgstr ""
+
+#: src/zebtrack/ui/components/project_views/reports_tree_manager.py:439
+#, python-brace-format
+msgid "🔄 Edit {kind} metadata…"
+msgstr ""
+
+#: src/zebtrack/ui/components/project_views/reports_tree_manager.py:444
+#, python-brace-format
+msgid "🗑️ Delete {kind}…"
+msgstr ""
+
+#: src/zebtrack/ui/components/project_views/reports_tree_manager.py:479
+#, python-brace-format
+msgid "Metadata updated on {count} video(s) • {label}"
+msgstr ""
+
+#: src/zebtrack/ui/components/project_views/video_selector_tree_manager.py:531
+msgid "🎬 (video)"
+msgstr ""
+
+#: src/zebtrack/ui/components/project_views/video_selector_tree_manager.py:600
+msgid "No eligible video was found or selected."
+msgstr ""
+
+#: src/zebtrack/ui/components/project_views/video_selector_tree_manager.py:629
+msgid "Summaries"
+msgstr ""
+
+#: src/zebtrack/ui/components/project_views/video_selector_tree_manager.py:630
+msgid "Select at least one video with a trajectory to export the summary."
+msgstr ""
+
+#: src/zebtrack/ui/components/project_views/video_selector_tree_manager.py:824
+#, python-brace-format
+msgid "Could not open the folder: {error}"
+msgstr ""
+
+#: src/zebtrack/ui/components/project_views/video_selector_tree_manager.py:860
+#, python-brace-format
+msgid ""
+"The selected report could not be located:\n"
+"{path}"
+msgstr ""
+
+#: src/zebtrack/ui/components/project_views/video_selector_tree_manager.py:871
+#, python-brace-format
+msgid "Report opened: {name}"
+msgstr ""
+
+#: src/zebtrack/ui/components/project_views/video_selector_tree_manager.py:876
+msgid "Error Opening"
+msgstr ""
+
+#: src/zebtrack/ui/components/project_views/video_selector_tree_manager.py:877
+#, python-brace-format
+msgid ""
+"Could not open the selected report.\n"
+"{error}"
+msgstr ""
+
+#: src/zebtrack/ui/components/project_views/video_selector_tree_manager.py:892
+#, python-brace-format
+msgid ""
+"The selected video could not be located:\n"
+"{path}"
+msgstr ""
+
+#: src/zebtrack/ui/components/project_views/video_selector_tree_manager.py:900
+#, python-brace-format
+msgid "Frame loaded: {name}"
+msgstr ""
+
+#: src/zebtrack/ui/components/project_views/video_selector_tree_manager.py:905
+msgid "Error Loading"
+msgstr ""
+
+#: src/zebtrack/ui/components/project_views/video_selector_tree_manager.py:906
+#, python-brace-format
+msgid ""
+"Could not load the selected video.\n"
+"{path}"
+msgstr ""
+
 #: src/zebtrack/utils/hardware_benchmark.py:811
 msgid "Step 2/6 — Testing video decoding..."
 msgstr ""
@@ -4907,4 +5270,3 @@ msgstr ""
 #: src/zebtrack/utils/hardware_capability.py:455
 msgid "⚠️ Available memory is very low. Close other applications immediately."
 msgstr ""
-

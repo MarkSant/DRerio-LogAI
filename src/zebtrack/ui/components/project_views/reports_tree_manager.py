@@ -18,6 +18,7 @@ from typing import TYPE_CHECKING, Any, ClassVar
 
 import structlog
 
+from zebtrack.i18n import _
 from zebtrack.ui import payloads
 from zebtrack.ui.components.project_views.report_asset_actions import ReportAssetActions
 from zebtrack.ui.components.project_views.report_generator_actions import ReportGeneratorActions
@@ -29,6 +30,20 @@ if TYPE_CHECKING:
     from zebtrack.ui.components.dialog_manager import DialogManager
 
 log = structlog.get_logger()
+
+
+def hierarchy_label(node_type: str) -> str:
+    """Return the user-facing noun for a hierarchy node type.
+
+    A function rather than the former ``_HIERARCHY_LABELS`` class attribute:
+    ``_()`` resolves the catalogue at call time, and a class-body dict would
+    freeze these three nouns into whatever language was installed at import.
+    """
+    return {
+        "group": _("group"),
+        "day": _("day"),
+        "subject": _("subject"),
+    }.get(node_type, _("item"))
 
 
 class ReportsTreeManager:
@@ -44,11 +59,6 @@ class ReportsTreeManager:
 
     _HIERARCHY_NODE_TYPES: ClassVar[frozenset[str]] = frozenset({"group", "day", "subject"})
     _AQUARIUM_NODE_TYPE: ClassVar[str] = "aquarium"
-    _HIERARCHY_LABELS: ClassVar[dict[str, str]] = {
-        "group": "grupo",
-        "day": "dia",
-        "subject": "sujeito",
-    }
 
     def __init__(
         self,
@@ -217,11 +227,11 @@ class ReportsTreeManager:
         """Show context menu for report files instead of opening on right-click."""
         menu = Menu(self.gui.root, tearoff=0)
         menu.add_command(
-            label="📂 Abrir Arquivo",
+            label=_("📂 Open File"),
             command=lambda: self._assets.open_report_file_from_metadata(metadata),
         )
         menu.add_command(
-            label="📁 Abrir Pasta do Arquivo",
+            label=_("📁 Open File Folder"),
             command=lambda: self._assets.open_report_parent_folder_from_metadata(metadata),
         )
         menu.post(x, y)
@@ -280,15 +290,15 @@ class ReportsTreeManager:
         menu = Menu(self.gui.root, tearoff=0)
 
         menu.add_command(
-            label="🗑️ Apagar Aquário (desenho + dados)...",
+            label=_("🗑️ Delete Aquarium (drawing + data)..."),
             command=lambda: self._handle_delete_aquarium_scope(metadata),
         )
         menu.add_command(
-            label="🐟 Apagar Animal (manter aquário)...",
+            label=_("🐟 Delete Animal (keep aquarium)..."),
             command=lambda: self._handle_clear_aquarium_subject(metadata),
         )
         menu.add_command(
-            label="🔄 Reiniciar Análises (manter desenhos)...",
+            label=_("🔄 Reset Analyses (keep drawings)..."),
             command=lambda: self._handle_reset_aquarium_analysis(metadata),
         )
 
@@ -302,10 +312,9 @@ class ReportsTreeManager:
             return
 
         confirmed = self.dialog_manager.ask_yes_no(
-            "Apagar Aquário",
-            (
-                f"Deseja apagar o aquário {int(aquarium_id) + 1} com seus desenhos "
-                "e dados de análise?"
+            _("Delete Aquarium"),
+            _("Delete aquarium {number} along with its drawings and analysis data?").format(
+                number=int(aquarium_id) + 1
             ),
             icon="warning",
         )
@@ -313,10 +322,10 @@ class ReportsTreeManager:
             return
 
         delete_files = self.dialog_manager.ask_yes_no(
-            "Excluir Arquivos do Disco",
-            (
-                "Deseja também excluir os arquivos gerados desse aquário no disco?\n\n"
-                "Se escolher 'Não', apenas a referência no projeto será removida."
+            _("Delete Files From Disk"),
+            _(
+                "Do you also want to delete this aquarium's generated files from disk?\n\n"
+                "If you choose 'No', only the reference in the project is removed."
             ),
             icon="question",
         )
@@ -339,10 +348,9 @@ class ReportsTreeManager:
             return
 
         confirmed = self.dialog_manager.ask_yes_no(
-            "Apagar Animal",
-            (
-                f"Deseja apagar o animal vinculado ao aquário {int(aquarium_id) + 1} "
-                "mantendo o aquário desenhado?"
+            _("Delete Animal"),
+            _("Delete the animal bound to aquarium {number}, keeping the drawn aquarium?").format(
+                number=int(aquarium_id) + 1
             ),
             icon="warning",
         )
@@ -350,10 +358,10 @@ class ReportsTreeManager:
             return
 
         delete_analysis_data = self.dialog_manager.ask_yes_no(
-            "Apagar Também Dados de Análise?",
-            (
-                "Deseja também apagar trajetória e relatórios atuais desse aquário?\n\n"
-                "Se escolher 'Não', somente o vínculo do animal será removido."
+            _("Delete Analysis Data As Well?"),
+            _(
+                "Do you also want to delete this aquarium's current trajectory and reports?\n\n"
+                "If you choose 'No', only the animal binding is removed."
             ),
             icon="question",
         )
@@ -361,10 +369,10 @@ class ReportsTreeManager:
         delete_files = False
         if delete_analysis_data:
             delete_files = self.dialog_manager.ask_yes_no(
-                "Excluir Arquivos do Disco",
-                (
-                    "Deseja também excluir os arquivos de análise do disco?\n\n"
-                    "Se escolher 'Não', apenas a referência no projeto será removida."
+                _("Delete Files From Disk"),
+                _(
+                    "Do you also want to delete the analysis files from disk?\n\n"
+                    "If you choose 'No', only the reference in the project is removed."
                 ),
                 icon="question",
             )
@@ -387,21 +395,21 @@ class ReportsTreeManager:
             return
 
         confirmed = self.dialog_manager.ask_yes_no(
-            "Reiniciar Análises",
-            (
-                f"Deseja apagar apenas trajetória e relatórios do aquário {int(aquarium_id) + 1}, "
-                "mantendo arena e ROIs?"
-            ),
+            _("Reset Analyses"),
+            _(
+                "Delete only the trajectory and reports of aquarium {number}, "
+                "keeping the arena and the ROIs?"
+            ).format(number=int(aquarium_id) + 1),
             icon="warning",
         )
         if not confirmed:
             return
 
         delete_files = self.dialog_manager.ask_yes_no(
-            "Excluir Arquivos do Disco",
-            (
-                "Deseja também excluir os arquivos de análise no disco?\n\n"
-                "Se escolher 'Não', apenas a referência no projeto será removida."
+            _("Delete Files From Disk"),
+            _(
+                "Do you also want to delete the analysis files from disk?\n\n"
+                "If you choose 'No', only the reference in the project is removed."
             ),
             icon="question",
         )
@@ -424,16 +432,16 @@ class ReportsTreeManager:
     ) -> None:
         """Show context menu for group/day/subject nodes in the reports tree."""
         node_type = str(metadata.get("type", "item"))
-        label = self._HIERARCHY_LABELS.get(node_type, "item")
+        label = hierarchy_label(node_type)
 
         menu = Menu(self.gui.root, tearoff=0)
         menu.add_command(
-            label=f"🔄 Editar metadata do {label}…",
+            label=_("🔄 Edit {kind} metadata…").format(kind=label),
             command=lambda: self._handle_hierarchy_metadata_edit_action(item_id, metadata),
         )
         menu.add_separator()
         menu.add_command(
-            label=f"🗑️ Excluir {label}…",
+            label=_("🗑️ Delete {kind}…").format(kind=label),
             command=lambda: self._handle_hierarchy_delete_action(item_id, metadata),
         )
         menu.post(x, y)
@@ -455,7 +463,7 @@ class ReportsTreeManager:
         dialog = BatchVideoMetadataDialog(
             self.gui.root,
             target_label=label,
-            target_kind=self._HIERARCHY_LABELS.get(node_type, "item"),
+            target_kind=hierarchy_label(node_type),
             affected_count=len(video_paths),
             available_groups=project_manager.get_available_groups(),
             initial_values=initial_values,
@@ -468,7 +476,9 @@ class ReportsTreeManager:
         if not changed_count:
             return
 
-        status_message = f"Metadados atualizados em {changed_count} vídeo(s) • {label}"
+        status_message = _("Metadata updated on {count} video(s) • {label}").format(
+            count=changed_count, label=label
+        )
         self.gui.set_status(status_message)
         self.refresh_processing_reports_tab()
 
@@ -511,7 +521,7 @@ class ReportsTreeManager:
         display_label = self._get_item_display_label(item_id)
         delete_mode = self.dialog_manager.choose_processing_reports_delete_mode(
             display_label,
-            target_kind=self._HIERARCHY_LABELS.get(node_type, "item"),
+            target_kind=hierarchy_label(node_type),
         )
         if delete_mode is None:
             return

@@ -17,6 +17,7 @@ from typing import TYPE_CHECKING, Any
 
 import structlog
 
+from zebtrack.i18n import _
 from zebtrack.ui import payloads as payloads
 from zebtrack.ui.components.project_views.project_view_helpers import (
     summarize_batch_data,
@@ -174,18 +175,24 @@ class VideoSelectorTreeManager:
             self.gui.root.title("DRerio LogAI")
 
     def navigate_to_processing_reports_tab(self) -> None:
-        """Navigate to the Processing and Reports tab."""
-        if not self.gui.notebook:
+        """Navigate to the Processing and Reports tab.
+
+        Selects the frame, never the displayed tab label: the label is
+        translated, so matching on its text stopped working the moment the tab
+        was built with ``_("Processing and Reports")`` — silently, because the
+        miss only logs a warning and the tab simply never opens.
+        """
+        notebook = self.gui.notebook
+        frame = getattr(self.gui, "processing_reports_tab_frame", None)
+        if not notebook or frame is None:
+            log.warning("gui.navigate.processing_reports_tab_not_found")
             return
 
-        tab_count = self.gui.notebook.index("end")
-        for i in range(tab_count):
-            tab_text = self.gui.notebook.tab(i, "text")
-            if "Processamento e Relatórios" in tab_text:
-                self.gui.notebook.select(i)
-                return
-
-        log.warning("gui.navigate.processing_reports_tab_not_found")
+        try:
+            notebook.select(frame)
+        except tk.TclError:
+            # The frame exists but is not (or no longer) managed by the notebook.
+            log.warning("gui.navigate.processing_reports_tab_not_found")
 
     # ==================================================================
     # Project Overview Management
@@ -499,7 +506,7 @@ class VideoSelectorTreeManager:
                     subject_node = tree.insert(
                         day_node,
                         "end",
-                        text=f"🐟 Sujeito {subject_label}",
+                        text=_("🐟 Subject {label}").format(label=subject_label),
                         open=True,
                         tags=("subject", _group_id, day_id, subject_id),
                     )
@@ -521,7 +528,7 @@ class VideoSelectorTreeManager:
 
                         status_display = " ".join(badges) if badges else "—"
 
-                        display_text = f"🎬 {filename}" if filename else "🎬 (vídeo)"
+                        display_text = f"🎬 {filename}" if filename else _("🎬 (video)")
 
                         tree.insert(
                             subject_node,
@@ -589,8 +596,8 @@ class VideoSelectorTreeManager:
                 return
 
             self.dialog_manager.show_info(
-                "Processamento",
-                "Nenhum vídeo elegível foi encontrado ou selecionado.",
+                _("Video Processing"),
+                _("No eligible video was found or selected."),
             )
             return
 
@@ -619,8 +626,8 @@ class VideoSelectorTreeManager:
 
         if not selections:
             self.dialog_manager.show_info(
-                "Sumários",
-                "Selecione ao menos um vídeo com trajetória para exportar o sumário.",
+                _("Summaries"),
+                _("Select at least one video with a trajectory to export the summary."),
             )
             return
 
@@ -813,7 +820,9 @@ class VideoSelectorTreeManager:
                 open_path(results_dir)
             except OSError as e:
                 log.error("gui.open_results_folder.failed", error=str(e))
-                self.dialog_manager.show_error("Erro", f"Não foi possível abrir a pasta: {e}")
+                self.dialog_manager.show_error(
+                    _("Error"), _("Could not open the folder: {error}").format(error=e)
+                )
 
     def on_project_overview_right_click(self, event: Any | None = None) -> None:
         """Handle right-click on project overview tree."""
@@ -847,8 +856,8 @@ class VideoSelectorTreeManager:
         if report_path:
             if not os.path.exists(report_path):
                 self.dialog_manager.show_warning(
-                    "Arquivo não encontrado",
-                    f"O relatório selecionado não foi localizado:\n{report_path}",
+                    _("File not found"),
+                    _("The selected report could not be located:\n{path}").format(path=report_path),
                 )
                 return
 
@@ -856,12 +865,14 @@ class VideoSelectorTreeManager:
                 from zebtrack.utils.os_opener import open_path
 
                 open_path(report_path)
-                self.gui.set_status(f"Relatório aberto: {os.path.basename(report_path)}")
+                self.gui.set_status(
+                    _("Report opened: {name}").format(name=os.path.basename(report_path))
+                )
             except OSError as e:
                 log.error("gui.open_partial_report.failed", error=str(e), path=report_path)
                 self.dialog_manager.show_error(
-                    "Erro ao Abrir",
-                    f"Não foi possível abrir o relatório selecionado.\n{e}",
+                    _("Error Opening"),
+                    _("Could not open the selected report.\n{error}").format(error=e),
                 )
             return
 
@@ -875,8 +886,8 @@ class VideoSelectorTreeManager:
 
         if not os.path.exists(video_path):
             self.dialog_manager.show_warning(
-                "Arquivo não encontrado",
-                f"O vídeo selecionado não foi localizado:\n{video_path}",
+                _("File not found"),
+                _("The selected video could not be located:\n{path}").format(path=video_path),
             )
             return
 
@@ -884,13 +895,13 @@ class VideoSelectorTreeManager:
         if success:
             self.dialog_manager.offer_zone_reuse(video_path)
             self.gui.canvas_manager.redraw_zones_from_project_data()
-            message = f"Frame carregado: {os.path.basename(video_path)}"
+            message = _("Frame loaded: {name}").format(name=os.path.basename(video_path))
             self.gui.set_status(message)
             self.gui.video_selector_manager.request_overview_refresh(reason=message)
         else:
             self.dialog_manager.show_error(
-                "Erro ao Carregar",
-                f"Não foi possível carregar o vídeo selecionado.\n{video_path}",
+                _("Error Loading"),
+                _("Could not load the selected video.\n{path}").format(path=video_path),
             )
 
     # ==================================================================

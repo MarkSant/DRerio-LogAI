@@ -234,7 +234,7 @@ def test_reports_tree_adds_partial_report_files_under_day_node(monkeypatch, tmp_
     builder.populate_from_hierarchy(tree, hierarchy, "", metadata_store)
 
     partial_node = next(
-        iid for iid, data in tree.inserted.items() if data["text"] == "🧾 Relatórios Parciais"
+        iid for iid, data in tree.inserted.items() if data["text"] == "🧾 Partial Reports"
     )
     child_texts = [tree.inserted[child_id]["text"] for child_id in tree.children[partial_node]]
 

@@ -454,18 +454,26 @@ class ProjectInitializer:
     # ------------------------------------------------------------------
 
     def navigate_to_processing_reports_tab(self) -> None:
-        """Navigate to the Processing and Reports tab."""
-        if not self.gui.notebook:
+        """Navigate to the Processing and Reports tab.
+
+        Selects the frame, never the displayed tab label: the label is
+        translated, so matching on its text stopped working the moment the tab
+        was built with ``_("Processing and Reports")`` — silently, because the
+        miss only logs a warning and the tab simply never opens.
+        """
+        import tkinter as tk
+
+        notebook = self.gui.notebook
+        frame = getattr(self.gui, "processing_reports_tab_frame", None)
+        if not notebook or frame is None:
+            log.warning("project_initializer.navigate.processing_reports_tab_not_found")
             return
 
-        tab_count = self.gui.notebook.index("end")
-        for i in range(tab_count):
-            tab_text = self.gui.notebook.tab(i, "text")
-            if "Processamento e Relatórios" in tab_text:
-                self.gui.notebook.select(i)
-                return
-
-        log.warning("project_initializer.navigate.processing_reports_tab_not_found")
+        try:
+            notebook.select(frame)
+        except tk.TclError:
+            # The frame exists but is not (or no longer) managed by the notebook.
+            log.warning("project_initializer.navigate.processing_reports_tab_not_found")
 
     # ------------------------------------------------------------------
     # Project workflow dialogs

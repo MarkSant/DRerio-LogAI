@@ -10,9 +10,12 @@ independently testable.
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 
 import structlog
+
+from zebtrack.i18n import _
 
 log = structlog.get_logger()
 
@@ -24,9 +27,13 @@ def format_status_label(count: int) -> str:
         count: Number of videos.
 
     Returns:
-        Formatted string like "5 vídeos" or "1 vídeo".
+        Formatted string like "5 videos" or "1 video".
     """
-    return f"{count} vídeo{'s' if count != 1 else ''}"
+    # Two plain msgids rather than ngettext: the catalogue is populated from the
+    # recorded English->Portuguese pair files, which carry no plural forms.
+    if count == 1:
+        return _("{count} video").format(count=count)
+    return _("{count} videos").format(count=count)
 
 
 def format_status_summary(total: int, count: int) -> str:
@@ -37,10 +44,10 @@ def format_status_summary(total: int, count: int) -> str:
         count: Count for this status.
 
     Returns:
-        Formatted string like "5 vídeos (25%)".
+        Formatted string like "5 videos (25%)".
     """
     if total == 0:
-        return "0 vídeos (0%)"
+        return f"{format_status_label(0)} (0%)"
     percentage = int((count / total) * 100)
     label = format_status_label(count)
     return f"{label} ({percentage}%)"
@@ -84,13 +91,13 @@ def format_video_metadata(video: dict) -> str:
     metadata = video.get("metadata", {})
 
     if metadata.get("group"):
-        parts.append(f"Grupo: {metadata['group']}")
+        parts.append(_("Group: {value}").format(value=metadata["group"]))
     if metadata.get("day") is not None:
-        parts.append(f"Dia: {metadata['day']}")
+        parts.append(_("Day: {value}").format(value=metadata["day"]))
     if metadata.get("subject"):
-        parts.append(f"Sujeito: {metadata['subject']}")
+        parts.append(_("Subject: {value}").format(value=metadata["subject"]))
 
-    return " | ".join(parts) if parts else "Sem metadata"
+    return " | ".join(parts) if parts else _("No metadata")
 
 
 def video_sort_key(value: Any) -> tuple[int, Any]:
@@ -142,7 +149,7 @@ def summarize_batch_data(videos: list[dict], pm: Any) -> dict[str, Any]:
     return counts
 
 
-def format_data_badges(video_path: str, pm: Any) -> str:
+def format_data_badges(video_path: Path | str, pm: Any) -> str:
     """Format data availability badges for a video.
 
     Args:
