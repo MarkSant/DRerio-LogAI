@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: DRerio LogAI VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-08-09 02:22-0300\n"
+"POT-Creation-Date: 2026-08-12 07:10-0300\n"
 "PO-Revision-Date: 2026-08-08 21:41-0300\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: pt_BR <LL@li.org>\n"
@@ -18,6 +18,228 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=2; plural=(n > 1);\n"
 "Generated-By: Babel 2.18.0\n"
+
+# | msgid "Loading settings..."
+# | msgid "Global Diagnostics..."
+#: src/zebtrack/coordinators/model_diagnostics_coordinator.py:203
+msgid "Starting model diagnostics..."
+msgstr "Iniciando diagnóstico do modelo..."
+
+#: src/zebtrack/coordinators/model_diagnostics_coordinator.py:240
+#: src/zebtrack/coordinators/model_diagnostics_coordinator.py:299
+#: src/zebtrack/coordinators/model_diagnostics_coordinator.py:474
+#: src/zebtrack/coordinators/model_diagnostics_coordinator.py:620
+#: src/zebtrack/ui/builders/analysis_widgets.py:240
+#: src/zebtrack/ui/builders/analysis_widgets.py:354
+#: src/zebtrack/ui/builders/analysis_widgets.py:471
+#: src/zebtrack/ui/builders/zone_widgets.py:144
+#: src/zebtrack/ui/builders/zone_widgets.py:150
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:594
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:609
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:617
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:624
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:645
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:666
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:806
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:816
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:823
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:833
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:840
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:856
+msgid "Error"
+msgstr "Erro"
+
+# | msgid "No video selected"
+#: src/zebtrack/coordinators/model_diagnostics_coordinator.py:241
+msgid "No active weight selected."
+msgstr "Nenhum peso ativo selecionado."
+
+#: src/zebtrack/coordinators/model_diagnostics_coordinator.py:268
+msgid "Convert Model?"
+msgstr "Converter Modelo?"
+
+#: src/zebtrack/coordinators/model_diagnostics_coordinator.py:270
+msgid ""
+"The OpenVINO model was not found or is incomplete. Do you want to convert it"
+" now?"
+msgstr ""
+"O modelo OpenVINO não foi encontrado ou está incompleto. Deseja convertê-lo "
+"agora?"
+
+#: src/zebtrack/coordinators/model_diagnostics_coordinator.py:300
+msgid "Conversion to OpenVINO failed."
+msgstr "A conversão para OpenVINO falhou."
+
+#: src/zebtrack/coordinators/model_diagnostics_coordinator.py:315
+msgid "Diagnostics cancelled."
+msgstr "Diagnóstico cancelado."
+
+# | msgid "Loading model system..."
+#: src/zebtrack/coordinators/model_diagnostics_coordinator.py:354
+msgid "Loading models..."
+msgstr "Carregando modelos..."
+
+# | msgid "Loading model system..."
+#: src/zebtrack/coordinators/model_diagnostics_coordinator.py:394
+msgid "Error Loading Model"
+msgstr "Erro ao Carregar Modelo"
+
+#: src/zebtrack/coordinators/model_diagnostics_coordinator.py:395
+#, python-brace-format
+msgid "Failure: {error}"
+msgstr "Falha: {error}"
+
+#: src/zebtrack/coordinators/model_diagnostics_coordinator.py:475
+msgid "YOLO is not available (ultralytics is not installed)"
+msgstr "YOLO não está disponível (ultralytics não instalado)"
+
+# | msgid "Error"
+#: src/zebtrack/coordinators/model_diagnostics_coordinator.py:530
+msgid "Model Error"
+msgstr "Erro de Modelo"
+
+#: src/zebtrack/coordinators/model_diagnostics_coordinator.py:532
+msgid ""
+"The OpenVINO model directory does not contain the required .xml files. "
+"Please reconvert the model."
+msgstr ""
+"O diretório do modelo OpenVINO não contém arquivos .xml necessários. Por "
+"favor, reconverta o modelo."
+
+# | msgid "Validation Error"
+#: src/zebtrack/coordinators/model_diagnostics_coordinator.py:549
+#: src/zebtrack/coordinators/model_diagnostics_coordinator.py:569
+msgid "Plugin Error"
+msgstr "Erro de Plugin"
+
+#: src/zebtrack/coordinators/model_diagnostics_coordinator.py:550
+msgid "OpenVINO plugin not found for diagnostics."
+msgstr "Plugin OpenVINO não encontrado para diagnóstico."
+
+#: src/zebtrack/coordinators/model_diagnostics_coordinator.py:571
+msgid "The OpenVINO plugin does not have the required predict method."
+msgstr "O plugin OpenVINO não possui o método predict necessário."
+
+# | msgid "Could not connect to the Arduino on port {port}."
+#: src/zebtrack/coordinators/model_diagnostics_coordinator.py:621
+#, python-brace-format
+msgid "Could not open the video: {path}"
+msgstr "Não foi possível abrir o vídeo: {path}"
+
+#: src/zebtrack/coordinators/model_diagnostics_coordinator.py:645
+#, python-brace-format
+msgid "Analysing frame {current}/{total}..."
+msgstr "Analisando frame {current}/{total}..."
+
+#: src/zebtrack/coordinators/model_diagnostics_coordinator.py:692
+msgid "OpenVINO Inference Error"
+msgstr "Erro de Inferência OpenVINO"
+
+#: src/zebtrack/coordinators/model_diagnostics_coordinator.py:694
+#, python-brace-format
+msgid "Inference failed on frame {frame}: {error}"
+msgstr "Falha na inferência do frame {frame}: {error}"
+
+#: src/zebtrack/coordinators/model_diagnostics_coordinator.py:717
+msgid "Save Diagnostic Report"
+msgstr "Salvar Relatório de Diagnóstico"
+
+#: src/zebtrack/coordinators/model_diagnostics_coordinator.py:720
+msgid "Text files"
+msgstr "Arquivos de Texto"
+
+#: src/zebtrack/coordinators/model_diagnostics_coordinator.py:732
+msgid "Success"
+msgstr "Sucesso"
+
+#: src/zebtrack/coordinators/model_diagnostics_coordinator.py:733
+#, python-brace-format
+msgid ""
+"Diagnostic report saved to:\n"
+"{path}"
+msgstr ""
+"Relatório de diagnóstico salvo em:\n"
+"{path}"
+
+# | msgid "Error Saving to Project"
+#: src/zebtrack/coordinators/model_diagnostics_coordinator.py:745
+msgid "Error Saving"
+msgstr "Erro ao Salvar"
+
+# | msgid "Could not save config.local.yaml: {error}"
+#: src/zebtrack/coordinators/model_diagnostics_coordinator.py:746
+#, python-brace-format
+msgid "Could not save the file: {error}"
+msgstr "Não foi possível salvar o arquivo: {error}"
+
+#: src/zebtrack/coordinators/model_diagnostics_coordinator.py:755
+msgid "Diagnostics finished. Ready."
+msgstr "Diagnóstico concluído. Pronto."
+
+#: src/zebtrack/coordinators/model_diagnostics_coordinator.py:770
+msgid "Model Diagnostic Report"
+msgstr "Relatório de Diagnóstico do Modelo"
+
+#: src/zebtrack/coordinators/model_diagnostics_coordinator.py:772
+#, python-brace-format
+msgid "- Video: {path}"
+msgstr "- Vídeo: {path}"
+
+#: src/zebtrack/coordinators/model_diagnostics_coordinator.py:773
+#, python-brace-format
+msgid "- Frames analysed: {count}"
+msgstr "- Frames Analisados: {count}"
+
+#: src/zebtrack/coordinators/model_diagnostics_coordinator.py:774
+#, python-brace-format
+msgid "- Confidence threshold: {value}"
+msgstr "- Limiar de Confiança: {value}"
+
+#: src/zebtrack/coordinators/model_diagnostics_coordinator.py:783
+#, python-brace-format
+msgid "--- [ {model} RESULTS ] ---"
+msgstr "--- [ RESULTADOS {model} ] ---"
+
+#: src/zebtrack/coordinators/model_diagnostics_coordinator.py:789
+#, python-brace-format
+msgid "Frame {number}:"
+msgstr "Frame {number}:"
+
+#: src/zebtrack/coordinators/model_diagnostics_coordinator.py:800
+msgid "unknown"
+msgstr "desconhecido"
+
+#: src/zebtrack/coordinators/model_diagnostics_coordinator.py:811
+#: src/zebtrack/coordinators/model_diagnostics_coordinator.py:865
+#, python-brace-format
+msgid ", Mask: {count} points"
+msgstr ", Máscara: {count} pontos"
+
+#: src/zebtrack/coordinators/model_diagnostics_coordinator.py:820
+#: src/zebtrack/coordinators/model_diagnostics_coordinator.py:874
+#, python-brace-format
+msgid ""
+"  - Class {class_id} ('{class_name}'), Conf: {conf}, BBox: {bbox}{mask_info}"
+msgstr ""
+"  - Classe {class_id} ('{class_name}'), Conf: {conf}, BBox: "
+"{bbox}{mask_info}"
+
+#: src/zebtrack/coordinators/model_diagnostics_coordinator.py:844
+#, python-brace-format
+msgid ""
+"  - [MASK WITHOUT BOX] Probable Aquarium, approx. BBox: [{x_min}, {y_min}, "
+"{x_max}, {y_max}], Area: {area}, Points: {points}"
+msgstr ""
+"  - [MÁSCARA SEM BOX] Provável Aquário, BBox aprox: [{x_min}, {y_min}, "
+"{x_max}, {y_max}], Área: {area}, Pontos: {points}"
+
+#: src/zebtrack/coordinators/model_diagnostics_coordinator.py:890
+msgid "  Masks without a bounding box (possible aquariums):"
+msgstr "  Máscaras sem bounding box (possíveis aquários):"
+
+#: src/zebtrack/coordinators/model_diagnostics_coordinator.py:894
+msgid "  - No detections found."
+msgstr "  - Nenhuma detecção encontrada."
 
 #: src/zebtrack/core/app_runner.py:132
 msgid "Loading settings..."
@@ -123,7 +345,7 @@ msgstr "Sem Dia"
 msgid "Not reported"
 msgstr "Não informado"
 
-#: src/zebtrack/ui/components/dialog_manager.py:282
+#: src/zebtrack/ui/components/dialog_manager.py:280
 #: src/zebtrack/ui/sentinels.py:57
 msgid "Day"
 msgstr "Dia"
@@ -132,6 +354,10 @@ msgstr "Dia"
 #: src/zebtrack/ui/sentinels.py:65
 msgid "Main Arena"
 msgstr "Arena Principal"
+
+#: src/zebtrack/ui/sentinels.py:81
+msgid "Both"
+msgstr "Ambos"
 
 # | msgid "Optimizing for your hardware (first run)..."
 #: src/zebtrack/ui/splash_screen.py:218
@@ -150,14 +376,6 @@ msgstr "Processamento e Relatórios"
 #: src/zebtrack/ui/builders/analysis_widgets.py:205
 msgid "Advanced Settings"
 msgstr "Config. Avançadas"
-
-#: src/zebtrack/ui/builders/analysis_widgets.py:240
-#: src/zebtrack/ui/builders/analysis_widgets.py:354
-#: src/zebtrack/ui/builders/analysis_widgets.py:471
-#: src/zebtrack/ui/builders/zone_widgets.py:144
-#: src/zebtrack/ui/builders/zone_widgets.py:150
-msgid "Error"
-msgstr "Erro"
 
 #: src/zebtrack/ui/builders/analysis_widgets.py:240
 msgid "Settings unavailable. Could not load."
@@ -533,7 +751,7 @@ msgstr ""
 "Cancelar: não fazer nenhuma alteração."
 
 #: src/zebtrack/ui/components/dialog_manager.py:233
-#: src/zebtrack/ui/components/dialog_manager.py:311
+#: src/zebtrack/ui/components/dialog_manager.py:309
 #, python-brace-format
 msgid ""
 "\n"
@@ -542,7 +760,7 @@ msgstr ""
 "\n"
 "  … e mais {count} vídeo(s)"
 
-#: src/zebtrack/ui/components/dialog_manager.py:239
+#: src/zebtrack/ui/components/dialog_manager.py:237
 #, python-brace-format
 msgid ""
 "Delete only the processing data of '{label}'?\n"
@@ -555,7 +773,7 @@ msgstr ""
 "Isso removerá Trajetória e Relatórios gerados,\n"
 "mantendo Arena e ROIs para novo processamento."
 
-#: src/zebtrack/ui/components/dialog_manager.py:245
+#: src/zebtrack/ui/components/dialog_manager.py:243
 #, python-brace-format
 msgid ""
 "Delete only the processing data of '{label}'?\n"
@@ -573,17 +791,17 @@ msgstr ""
 "Serão removidos Trajetória e Relatórios, mantendo Arena/ROIs."
 
 # | msgid "🧹 Delete All Processing Data"
-#: src/zebtrack/ui/components/dialog_manager.py:251
+#: src/zebtrack/ui/components/dialog_manager.py:249
 msgid "Delete Processing Data"
 msgstr "Apagar Dados de Processamento"
 
 # | msgid "Delete file from disk?"
-#: src/zebtrack/ui/components/dialog_manager.py:259
-#: src/zebtrack/ui/components/dialog_manager.py:328
+#: src/zebtrack/ui/components/dialog_manager.py:257
+#: src/zebtrack/ui/components/dialog_manager.py:324
 msgid "Delete Files from Disk"
 msgstr "Excluir Arquivos do Disco"
 
-#: src/zebtrack/ui/components/dialog_manager.py:261
+#: src/zebtrack/ui/components/dialog_manager.py:259
 msgid ""
 "Also delete the generated files (Parquets, reports) from disk?\n"
 "\n"
@@ -594,15 +812,15 @@ msgstr ""
 "Se escolher 'Não', apenas a referência no projeto será removida."
 
 # | msgid "No Group"
-#: src/zebtrack/ui/components/dialog_manager.py:281
+#: src/zebtrack/ui/components/dialog_manager.py:279
 msgid "Group"
 msgstr "Grupo"
 
-#: src/zebtrack/ui/components/dialog_manager.py:283
+#: src/zebtrack/ui/components/dialog_manager.py:281
 msgid "Subject"
 msgstr "Sujeito"
 
-#: src/zebtrack/ui/components/dialog_manager.py:316
+#: src/zebtrack/ui/components/dialog_manager.py:312
 #, python-brace-format
 msgid ""
 "Remove {type} '{label}'?\n"
@@ -620,12 +838,12 @@ msgstr ""
 "Esta ação não pode ser desfeita."
 
 # | msgid "Delete {asset}"
-#: src/zebtrack/ui/components/dialog_manager.py:322
+#: src/zebtrack/ui/components/dialog_manager.py:318
 #, python-brace-format
 msgid "Delete {type}"
 msgstr "Excluir {type}"
 
-#: src/zebtrack/ui/components/dialog_manager.py:330
+#: src/zebtrack/ui/components/dialog_manager.py:326
 msgid ""
 "Also delete the files (Parquets, reports) from disk?\n"
 "\n"
@@ -634,6 +852,536 @@ msgstr ""
 "Deseja também excluir os arquivos (Parquets, relatórios) do disco?\n"
 "\n"
 "Se escolher 'Não', apenas a referência no projeto será removida."
+
+#: src/zebtrack/ui/components/global_model_configuration_panel.py:29
+msgid "Aquarium"
+msgstr "Aquário"
+
+#: src/zebtrack/ui/components/global_model_configuration_panel.py:29
+msgid "Zebrafish"
+msgstr "Zebrafish"
+
+# | msgid "Settings"
+#: src/zebtrack/ui/components/global_model_configuration_panel.py:34
+msgid "Segmentation"
+msgstr "Segmentação"
+
+# | msgid "Invalid selection"
+#: src/zebtrack/ui/components/global_model_configuration_panel.py:34
+msgid "Detection"
+msgstr "Detecção"
+
+# | msgid "Teal"
+#: src/zebtrack/ui/components/global_model_configuration_panel.py:39
+msgid "Lateral"
+msgstr "Lateral"
+
+#: src/zebtrack/ui/components/global_model_configuration_panel.py:39
+msgid "Top (top-down)"
+msgstr "Topo (top-down)"
+
+# | msgid "Ready!"
+#: src/zebtrack/ui/components/global_model_configuration_panel.py:45
+msgid "✓ Ready"
+msgstr "✓ Pronto"
+
+#: src/zebtrack/ui/components/global_model_configuration_panel.py:46
+msgid "⏳ Converting"
+msgstr "⏳ Convertendo"
+
+# | msgid "File"
+#: src/zebtrack/ui/components/global_model_configuration_panel.py:47
+msgid "✗ Failed"
+msgstr "✗ Falhou"
+
+# | msgid "Global Model Configuration..."
+#: src/zebtrack/ui/components/global_model_configuration_panel.py:107
+msgid "Model Configuration"
+msgstr "Configuração do Modelo"
+
+#: src/zebtrack/ui/components/global_model_configuration_panel.py:142
+msgid "Default weights per slot"
+msgstr "Pesos padrão por slot"
+
+#: src/zebtrack/ui/components/global_model_configuration_panel.py:148
+msgid ""
+"Each combination (method × target) uses a default weight. The detector looks"
+" up the right slot at runtime."
+msgstr ""
+"Cada combinação (método × alvo) usa um peso padrão. O detector consulta o "
+"slot correto em runtime."
+
+#: src/zebtrack/ui/components/global_model_configuration_panel.py:162
+msgid "🐠 Aquarium (Detection)"
+msgstr "🐠 Aquário (Detecção)"
+
+#: src/zebtrack/ui/components/global_model_configuration_panel.py:163
+msgid "🐠 Aquarium (Segmentation)"
+msgstr "🐠 Aquário (Segmentação)"
+
+#: src/zebtrack/ui/components/global_model_configuration_panel.py:164
+msgid "🐟 Animal (Detection)"
+msgstr "🐟 Animal (Detecção)"
+
+#: src/zebtrack/ui/components/global_model_configuration_panel.py:165
+msgid "🐟 Animal (Segmentation)"
+msgstr "🐟 Animal (Segmentação)"
+
+# | msgid "Weight Type"
+#: src/zebtrack/ui/components/global_model_configuration_panel.py:184
+msgid "Weight catalogue"
+msgstr "Catálogo de pesos"
+
+#: src/zebtrack/ui/components/global_model_configuration_panel.py:190
+msgid ""
+"Ctrl/Shift-click to select several. Type = how the model operates "
+"(segmentation or detection); Target = what it identifies (aquarium or "
+"zebrafish)."
+msgstr ""
+"Ctrl/Shift-clique para selecionar múltiplos. Tipo = como o modelo opera "
+"(segmentação ou detecção); Alvo = o que ele identifica (aquário ou "
+"zebrafish)."
+
+# | msgid "Weight Type"
+#: src/zebtrack/ui/components/global_model_configuration_panel.py:213
+msgid "Weight Name"
+msgstr "Nome do Peso"
+
+#: src/zebtrack/ui/components/global_model_configuration_panel.py:214
+msgid "Type"
+msgstr "Tipo"
+
+#: src/zebtrack/ui/components/global_model_configuration_panel.py:215
+msgid "Target"
+msgstr "Alvo"
+
+#: src/zebtrack/ui/components/global_model_configuration_panel.py:216
+msgid "Perspective"
+msgstr "Perspectiva"
+
+#: src/zebtrack/ui/components/global_model_configuration_panel.py:217
+msgid "Default?"
+msgstr "Default?"
+
+#: src/zebtrack/ui/components/global_model_configuration_panel.py:242
+msgid "Add Weight..."
+msgstr "Adicionar Peso..."
+
+# | msgid "Delete {asset}"
+#: src/zebtrack/ui/components/global_model_configuration_panel.py:245
+msgid "Delete Selected"
+msgstr "Excluir Selecionado"
+
+# | msgid "Language..."
+#: src/zebtrack/ui/components/global_model_configuration_panel.py:248
+msgid "Change Target..."
+msgstr "Alterar Alvo..."
+
+#: src/zebtrack/ui/components/global_model_configuration_panel.py:251
+msgid "Validate Paths"
+msgstr "Validar Caminhos"
+
+#: src/zebtrack/ui/components/global_model_configuration_panel.py:256
+msgid "Convert to OpenVINO"
+msgstr "Converter p/ OpenVINO"
+
+#: src/zebtrack/ui/components/global_model_configuration_panel.py:266
+msgid "Optimise with OpenVINO (for Intel hardware)"
+msgstr "Otimizar com OpenVINO (para hardware Intel)"
+
+#: src/zebtrack/ui/components/global_model_configuration_panel.py:281
+msgid "OpenVINO device:"
+msgstr "Dispositivo OpenVINO:"
+
+#: src/zebtrack/ui/components/global_model_configuration_panel.py:294
+msgid "Cache maintenance"
+msgstr "Manutenção de caches"
+
+#: src/zebtrack/ui/components/global_model_configuration_panel.py:300
+msgid ""
+"OpenVINO caches speed detection up but stay tied to the original .pt file. "
+"Clear them when replacing weights with the same name or after retraining."
+msgstr ""
+"Caches OpenVINO aceleram a detecção mas ficam vinculados ao arquivo .pt "
+"original. Limpe-os ao trocar pesos com o mesmo nome ou após retreino."
+
+#: src/zebtrack/ui/components/global_model_configuration_panel.py:317
+msgid "Delete OpenVINO Cache (Selected)"
+msgstr "Apagar Cache OpenVINO (Selecionado)"
+
+#: src/zebtrack/ui/components/global_model_configuration_panel.py:322
+msgid "Delete ALL OpenVINO Caches"
+msgstr "Apagar TODOS os Caches OpenVINO"
+
+#: src/zebtrack/ui/components/global_model_configuration_panel.py:327
+msgid "Rescan Weights Folder"
+msgstr "Reescanear Pasta de Pesos"
+
+#: src/zebtrack/ui/components/global_model_configuration_panel.py:332
+msgid "Reset Weight List (factory)"
+msgstr "Resetar Lista de Pesos (fábrica)"
+
+#: src/zebtrack/ui/components/global_model_configuration_panel.py:337
+msgid "System & Hardware"
+msgstr "Sistema & Hardware"
+
+#: src/zebtrack/ui/components/global_model_configuration_panel.py:343
+msgid ""
+"Re-running the benchmark recalculates the optimal OpenVINO settings (device,"
+" precision, hint) for your current hardware."
+msgstr ""
+"Reexecutar o benchmark recalcula a configuração ótima do OpenVINO (device, "
+"precisão, hint) para o seu hardware atual."
+
+#: src/zebtrack/ui/components/global_model_configuration_panel.py:358
+msgid "Re-run Hardware Benchmark"
+msgstr "Reexecutar Benchmark de Hardware"
+
+#: src/zebtrack/ui/components/global_model_configuration_panel.py:363
+msgid "Open Cache Folder"
+msgstr "Abrir Pasta de Caches"
+
+# | msgid "Invalid selection"
+#: src/zebtrack/ui/components/global_model_configuration_panel.py:380
+msgid "No Selection"
+msgstr "Nenhuma Seleção"
+
+#: src/zebtrack/ui/components/global_model_configuration_panel.py:381
+msgid "Please select at least one weight first."
+msgstr "Por favor, selecione pelo menos um peso primeiro."
+
+# | msgid "Video not found"
+#: src/zebtrack/ui/components/global_model_configuration_panel.py:399
+msgid "Weight not found"
+msgstr "Peso não encontrado"
+
+#: src/zebtrack/ui/components/global_model_configuration_panel.py:400
+#, python-brace-format
+msgid "Could not find data for '{name}'."
+msgstr "Não foi possível encontrar dados para '{name}'."
+
+# | msgid "Missing"
+#: src/zebtrack/ui/components/global_model_configuration_panel.py:454
+msgid "⚠ File missing"
+msgstr "⚠ Arquivo ausente"
+
+#: src/zebtrack/ui/components/global_model_configuration_panel.py:484
+msgid "Seg (legacy)"
+msgstr "Seg (legado)"
+
+#: src/zebtrack/ui/components/global_model_configuration_panel.py:486
+msgid "Det (legacy)"
+msgstr "Det (legado)"
+
+#: src/zebtrack/ui/components/global_model_configuration_panel.py:514
+msgid "Select weight file"
+msgstr "Selecionar arquivo de peso"
+
+#: src/zebtrack/ui/components/global_model_configuration_panel.py:515
+msgid "YOLO models"
+msgstr "Modelos YOLO"
+
+# | msgid "File"
+#: src/zebtrack/ui/components/global_model_configuration_panel.py:515
+msgid "All files"
+msgstr "Todos os arquivos"
+
+#: src/zebtrack/ui/components/global_model_configuration_panel.py:531
+msgid "Confirm Deletion"
+msgstr "Confirmar Exclusão"
+
+#: src/zebtrack/ui/components/global_model_configuration_panel.py:533
+#, python-brace-format
+msgid ""
+"Delete the registry entry for weight '{name}'?\n"
+"\n"
+"(The .pt file on disk will not be deleted.)"
+msgstr ""
+"Excluir o registro do peso '{name}'?\n"
+"\n"
+"(O arquivo .pt em disco não será apagado.)"
+
+#: src/zebtrack/ui/components/global_model_configuration_panel.py:552
+msgid "Change Target"
+msgstr "Alterar Alvo"
+
+#: src/zebtrack/ui/components/global_model_configuration_panel.py:554
+#, python-brace-format
+msgid ""
+"Current target of '{name}': {target}\n"
+"\n"
+"Type the new target: 'aquarium' or 'zebrafish'"
+msgstr ""
+"Alvo atual de '{name}': {target}\n"
+"\n"
+"Digite o novo alvo: 'aquario' ou 'zebrafish'"
+
+# | msgid "Invalid selection"
+#: src/zebtrack/ui/components/global_model_configuration_panel.py:568
+msgid "Invalid target"
+msgstr "Alvo inválido"
+
+#: src/zebtrack/ui/components/global_model_configuration_panel.py:569
+#, python-brace-format
+msgid "Target '{value}' not recognised. Use 'aquarium' or 'zebrafish'."
+msgstr "Alvo '{value}' não reconhecido. Use 'aquario' ou 'zebrafish'."
+
+#: src/zebtrack/ui/components/global_model_configuration_panel.py:592
+msgid "Weights with a missing file"
+msgstr "Pesos com arquivo ausente"
+
+#: src/zebtrack/ui/components/global_model_configuration_panel.py:594
+msgid ""
+"The following weights reference .pt files that were not found on disk:\n"
+"\n"
+"  • "
+msgstr ""
+"Os seguintes pesos referenciam arquivos .pt que não foram encontrados em disco:\n"
+"\n"
+"  • "
+
+# | msgid "Validation Error"
+#: src/zebtrack/ui/components/global_model_configuration_panel.py:602
+msgid "Validation finished"
+msgstr "Validação concluída"
+
+#: src/zebtrack/ui/components/global_model_configuration_panel.py:603
+msgid "Every registered .pt file exists on disk."
+msgstr "Todos os arquivos .pt registrados existem em disco."
+
+#: src/zebtrack/ui/components/global_model_configuration_panel.py:625
+msgid "Nothing to convert"
+msgstr "Nada a converter"
+
+#: src/zebtrack/ui/components/global_model_configuration_panel.py:627
+msgid ""
+"The selected weights are already converted to OpenVINO. Use 'Delete OpenVINO"
+" Cache' first to force a reconversion."
+msgstr ""
+"Os pesos selecionados já estão convertidos para OpenVINO. Use 'Apagar Cache "
+"OpenVINO' antes para forçar reconversão."
+
+#: src/zebtrack/ui/components/global_model_configuration_panel.py:636
+#, python-brace-format
+msgid ""
+"Convert {count} weights to OpenVINO now?\n"
+"\n"
+"  • "
+msgstr ""
+"Converter {count} pesos para OpenVINO agora?\n"
+"\n"
+"  • "
+
+#: src/zebtrack/ui/components/global_model_configuration_panel.py:639
+#, python-brace-format
+msgid "Convert '{name}' to OpenVINO now?"
+msgstr "Converter '{name}' para OpenVINO agora?"
+
+#: src/zebtrack/ui/components/global_model_configuration_panel.py:642
+msgid ""
+"\n"
+"\n"
+"The conversion runs in the background; the status in the 'OpenVINO' column is refreshed every ~1.5s until it finishes."
+msgstr ""
+"\n"
+"\n"
+"A conversão roda em background; o status na coluna 'OpenVINO' será atualizado a cada ~1.5s até concluir."
+
+#: src/zebtrack/ui/components/global_model_configuration_panel.py:646
+#, python-brace-format
+msgid ""
+"\n"
+"\n"
+"({count} weight(s) are already ready and were skipped.)"
+msgstr ""
+"\n"
+"\n"
+"({count} peso(s) já estão prontos e foram ignorados.)"
+
+#: src/zebtrack/ui/components/global_model_configuration_panel.py:649
+msgid "OpenVINO Conversion"
+msgstr "Conversão OpenVINO"
+
+# | msgid "Delete Arena"
+#: src/zebtrack/ui/components/global_model_configuration_panel.py:665
+msgid "Delete OpenVINO cache"
+msgstr "Apagar cache OpenVINO"
+
+#: src/zebtrack/ui/components/global_model_configuration_panel.py:666
+#, python-brace-format
+msgid "Delete the OpenVINO cache of '{name}'?"
+msgstr "Apagar o cache OpenVINO de '{name}'?"
+
+# | msgid "🧹 Delete All Processing Data"
+#: src/zebtrack/ui/components/global_model_configuration_panel.py:676
+msgid "Delete ALL caches"
+msgstr "Apagar TODOS os caches"
+
+#: src/zebtrack/ui/components/global_model_configuration_panel.py:678
+msgid ""
+"This action removes ALL converted OpenVINO models.\n"
+"\n"
+"They will be regenerated on the next detection. Continue?"
+msgstr ""
+"Esta ação remove TODOS os modelos OpenVINO convertidos.\n"
+"\n"
+"Eles serão regenerados na próxima detecção. Continuar?"
+
+# | msgid "Invalid Configuration"
+#: src/zebtrack/ui/components/global_model_configuration_panel.py:686
+#: src/zebtrack/ui/components/global_model_configuration_panel.py:790
+msgid "Additional confirmation"
+msgstr "Confirmação adicional"
+
+#: src/zebtrack/ui/components/global_model_configuration_panel.py:687
+msgid "Confirm the removal of every OpenVINO cache?"
+msgstr "Confirma a remoção de todos os caches OpenVINO?"
+
+#: src/zebtrack/ui/components/global_model_configuration_panel.py:710
+#, python-brace-format
+msgid "of weight '{name}'"
+msgstr "do peso '{name}'"
+
+#: src/zebtrack/ui/components/global_model_configuration_panel.py:710
+msgid "of every weight"
+msgstr "de todos os pesos"
+
+#: src/zebtrack/ui/components/global_model_configuration_panel.py:713
+msgid "OpenVINO caches deleted"
+msgstr "Caches OpenVINO apagados"
+
+#: src/zebtrack/ui/components/global_model_configuration_panel.py:715
+#, python-brace-format
+msgid ""
+"OpenVINO cache {scope} removed successfully ({count} entry/entries processed).\n"
+"\n"
+"The status in the list is back to '—'; the next detection will regenerate the cache."
+msgstr ""
+"Cache OpenVINO {scope} removido com sucesso ({count} entrada(s) processada(s)).\n"
+"\n"
+"O status na lista voltou para '—'; a próxima detecção regenerará o cache."
+
+#: src/zebtrack/ui/components/global_model_configuration_panel.py:727
+#, python-brace-format
+msgid "✓ {count} cache(s) deleted successfully."
+msgstr "✓ {count} cache(s) apagado(s) com sucesso."
+
+#: src/zebtrack/ui/components/global_model_configuration_panel.py:731
+msgid ""
+"⚠ Could not delete the cache of the following weights:\n"
+"  • "
+msgstr ""
+"⚠ Não foi possível apagar o cache dos seguintes pesos:\n"
+"  • "
+
+#: src/zebtrack/ui/components/global_model_configuration_panel.py:736
+msgid ""
+"⚠ Orphan folders that resisted removal:\n"
+"  • "
+msgstr ""
+"⚠ Pastas órfãs que resistiram à remoção:\n"
+"  • "
+
+#: src/zebtrack/ui/components/global_model_configuration_panel.py:740
+msgid ""
+"\n"
+"Likely cause: the running detector still has the model loaded in memory (open handle), or OneDrive is syncing the files.\n"
+"\n"
+"Fixes:\n"
+"  1. Close and reopen DRerio LogAI (releases the model handle);\n"
+"  2. Pause OneDrive temporarily and try again;\n"
+"  3. Use 'poetry run zebtrack --reset-openvino-cache' before starting the app — it clears the cache while nothing is loaded."
+msgstr ""
+"\n"
+"Causa provável: o detector em execução ainda tem o modelo carregado em memória (handle aberto), ou o OneDrive está sincronizando os arquivos.\n"
+"\n"
+"Soluções:\n"
+"  1. Feche e reabra o DRerio LogAI (libera o handle do modelo);\n"
+"  2. Pause o OneDrive temporariamente e tente de novo;\n"
+"  3. Use 'poetry run zebtrack --reset-openvino-cache' antes de iniciar o app — apaga o cache enquanto nada está carregado."
+
+#: src/zebtrack/ui/components/global_model_configuration_panel.py:750
+msgid "Caches partially deleted"
+msgstr "Caches parcialmente apagados"
+
+#: src/zebtrack/ui/components/global_model_configuration_panel.py:765
+#: src/zebtrack/ui/components/global_model_configuration_panel.py:772
+msgid "Rescan"
+msgstr "Reescaneamento"
+
+#: src/zebtrack/ui/components/global_model_configuration_panel.py:766
+#, python-brace-format
+msgid ""
+"{count} new weight(s) detected:\n"
+"  • "
+msgstr ""
+"{count} novo(s) peso(s) detectado(s):\n"
+"  • "
+
+#: src/zebtrack/ui/components/global_model_configuration_panel.py:773
+#, python-brace-format
+msgid "No new weight found in '{folder}'."
+msgstr "Nenhum peso novo encontrado em '{folder}'."
+
+# | msgid "Trajectory removed"
+#: src/zebtrack/ui/components/global_model_configuration_panel.py:779
+msgid "Factory reset"
+msgstr "Reset de fábrica"
+
+#: src/zebtrack/ui/components/global_model_configuration_panel.py:781
+msgid ""
+"This action deletes 'weights_config.json' and rebuilds the registry from the settings + a scan of the 'weights/' folder.\n"
+"\n"
+"Custom defaults will be lost. Continue?"
+msgstr ""
+"Esta ação apaga 'weights_config.json' e refaz o registro a partir das configurações + scan da pasta 'weights/'.\n"
+"\n"
+"Defaults personalizados serão perdidos. Continuar?"
+
+#: src/zebtrack/ui/components/global_model_configuration_panel.py:791
+msgid "Confirm resetting the weight list to the factory state?"
+msgstr "Confirma o reset da lista de pesos para o estado de fábrica?"
+
+#: src/zebtrack/ui/components/global_model_configuration_panel.py:801
+msgid "Re-run benchmark"
+msgstr "Reexecutar benchmark"
+
+#: src/zebtrack/ui/components/global_model_configuration_panel.py:803
+msgid ""
+"The benchmark will take ~10-30 seconds and will update the optimal OpenVINO "
+"settings. Continue?"
+msgstr ""
+"O benchmark levará ~10-30 segundos e atualizará as configurações ótimas do "
+"OpenVINO. Continuar?"
+
+#: src/zebtrack/ui/components/global_model_configuration_panel.py:811
+msgid "Benchmark running"
+msgstr "Benchmark em execução"
+
+#: src/zebtrack/ui/components/global_model_configuration_panel.py:813
+msgid ""
+"The benchmark is running in the background. The settings will be applied "
+"automatically when it finishes."
+msgstr ""
+"O benchmark está rodando em background. As configurações serão aplicadas "
+"automaticamente ao terminar."
+
+#: src/zebtrack/ui/components/global_model_configuration_panel.py:835
+msgid "Failed to open folder"
+msgstr "Falha ao abrir pasta"
+
+#: src/zebtrack/ui/components/global_model_configuration_panel.py:836
+#, python-brace-format
+msgid ""
+"Could not open the file explorer at:\n"
+"{path}\n"
+"\n"
+"{error}"
+msgstr ""
+"Não foi possível abrir o explorador na pasta:\n"
+"{path}\n"
+"\n"
+"{error}"
 
 #: src/zebtrack/ui/components/menu_manager.py:61
 msgid "File"
@@ -686,6 +1434,7 @@ msgstr "O novo idioma será aplicado na próxima vez que o aplicativo iniciar."
 
 #: src/zebtrack/ui/components/menu_manager.py:125
 #: src/zebtrack/ui/components/menu_manager.py:140
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:231
 msgid "Restore Defaults"
 msgstr "Restaurar Padrões"
 
@@ -1027,6 +1776,420 @@ msgstr "🎨 Mudar Cor"
 #: src/zebtrack/ui/components/menu_manager.py:794
 msgid "🗑️ Remove"
 msgstr "🗑️ Remover"
+
+# | msgid "No video selected"
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:56
+msgid "No video selected."
+msgstr "Nenhum vídeo selecionado."
+
+# | msgid "Loading settings..."
+# | msgid "Global Diagnostics..."
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:87
+msgid "Global Diagnostics"
+msgstr "Diagnóstico Global"
+
+# | msgid "Project Actions"
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:87
+msgid "Project Diagnostics"
+msgstr "Diagnóstico do Projeto"
+
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:95
+msgid ""
+"Use this panel to validate weights, tune detector parameters and run quick "
+"video tests outside the context of a project."
+msgstr ""
+"Use este painel para validar pesos, ajustar parâmetros do detector e "
+"executar testes rápidos em vídeo fora do contexto de um projeto."
+
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:108
+msgid ""
+"Changes made here affect only this project's detector parameters. Choose "
+"below which effective project weight you want to diagnose."
+msgstr ""
+"Ajustes feitos aqui afetam apenas os parâmetros do detector deste projeto. "
+"Escolha abaixo qual peso efetivo do projeto deseja diagnosticar."
+
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:129
+msgid "Test Model on Video..."
+msgstr "Testar Modelo em Vídeo..."
+
+# | msgid "Loading settings..."
+# | msgid "Global Diagnostics..."
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:138
+msgid "Weight for diagnostics:"
+msgstr "Peso para diagnóstico:"
+
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:150
+msgid ""
+"The weight chosen here is applied temporarily as the active weight for the "
+"test. The permanent global configuration is still controlled by the Global "
+"Model Configuration window."
+msgstr ""
+"O peso escolhido aqui é aplicado temporariamente como peso ativo para o "
+"teste. A configuração global permanente continua sendo controlada pela "
+"janela de Configuração Global de Modelos."
+
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:167
+msgid "Project weight for diagnostics:"
+msgstr "Peso do projeto para diagnóstico:"
+
+# | msgid "Edit Selected Video Metadata..."
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:187
+msgid "Select Video..."
+msgstr "Selecionar Vídeo..."
+
+# | msgid "Error Saving to Project"
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:207
+msgid "Save to Project"
+msgstr "Salvar no Projeto"
+
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:212
+msgid "Reload Saved Values"
+msgstr "Recarregar Valores Salvos"
+
+# | msgid "Restore Defaults"
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:217
+msgid "Restore Global Defaults"
+msgstr "Restaurar Padrões Globais"
+
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:226
+msgid "Apply Parameters"
+msgstr "Aplicar Parâmetros"
+
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:253
+msgid "No. Frames (Test):"
+msgstr "Nº Frames (Teste):"
+
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:259
+msgid ""
+"Number of video frames to process in the diagnostic test.\n"
+"Use a low value (e.g. 100) for quick tests."
+msgstr ""
+"Quantidade de frames do vídeo a serem processados no teste de diagnóstico.\n"
+"Use um valor baixo (ex: 100) para testes rápidos."
+
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:268
+msgid "Confidence Threshold:"
+msgstr "Limiar Confiança:"
+
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:274
+msgid ""
+"Confidence Threshold\n"
+"\n"
+"Minimum probability (0.0 to 1.0) for a detection to count as valid.\n"
+"• Raise it (e.g. 0.50) if there are many 'false positives' (noise/ghosts).\n"
+"• Lower it (e.g. 0.15) if the fish is not detected in some frames.\n"
+"• Recommended default: 0.25"
+msgstr ""
+"Limiar de Confiança (Confidence Threshold)\n"
+"\n"
+"Probabilidade mínima (0.0 a 1.0) para considerar uma detecção válida.\n"
+"• Aumente (ex: 0.50) se houver muitos 'falsos positivos' (ruído/fantasmas).\n"
+"• Diminua (ex: 0.15) se o peixe não estiver sendo detectado em alguns frames.\n"
+"• Padrão recomendado: 0.25"
+
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:285
+msgid "NMS Threshold:"
+msgstr "Limiar NMS:"
+
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:291
+msgid ""
+"NMS Threshold (Non-Maximum Suppression)\n"
+"\n"
+"Controls the removal of duplicate boxes for the same object.\n"
+"• Low values (e.g. 0.4) merge overlapping boxes aggressively.\n"
+"• High values (e.g. 0.7) allow more overlap.\n"
+"• Recommended default: 0.50"
+msgstr ""
+"Limiar NMS (Non-Maximum Suppression)\n"
+"\n"
+"Controla a remoção de caixas duplicadas para o mesmo objeto.\n"
+"• Valores baixos (ex: 0.4) fundem caixas sobrepostas agressivamente.\n"
+"• Valores altos (ex: 0.7) permitem mais sobreposição.\n"
+"• Padrão recomendado: 0.50"
+
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:306
+msgid "Use ByteTrack (Advanced Tracking)"
+msgstr "Usar ByteTrack (Rastreamento Avançado)"
+
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:335
+msgid "Track Thresh:"
+msgstr "Track Thresh:"
+
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:341
+msgid ""
+"Track Threshold (Tracking)\n"
+"\n"
+"Minimum confidence to START or KEEP a track.\n"
+"• Defines how 'sure' the detector must be to create a new ID.\n"
+"• Raise it to avoid junk/noise tracks.\n"
+"• Lower it to keep the ID of fish that are hard to detect.\n"
+"• Recommended default: 0.25"
+msgstr ""
+"Track Threshold (Rastreamento)\n"
+"\n"
+"Confiança mínima para INICIAR ou MANTER um rastro.\n"
+"• Define quão 'certo' o detector deve estar para criar um ID novo.\n"
+"• Aumente para evitar rastros de lixo/ruído.\n"
+"• Diminua para manter o ID de peixes difíceis de detectar.\n"
+"• Padrão recomendado: 0.25"
+
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:352
+msgid "Match Thresh:"
+msgstr "Match Thresh:"
+
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:358
+msgid ""
+"Match Threshold\n"
+"\n"
+"Tolerance for associating a new detection with an existing track.\n"
+"• High values (e.g. 0.8+) are more permissive (good for fast movement).\n"
+"• Low values (<0.5) are restrictive (avoids identity swaps, but may lose the track).\n"
+"• Recommended default: 0.95"
+msgstr ""
+"Match Threshold\n"
+"\n"
+"Tolerância para associar uma nova detecção a um rastro existente.\n"
+"• Valores altos (ex: 0.8+) são mais permissivos (bom para movimentos rápidos).\n"
+"• Valores baixos (<0.5) são restritivos (evita troca de identidade, mas pode perder o rastro).\n"
+"• Padrão recomendado: 0.95"
+
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:370
+msgid "Track Buffer:"
+msgstr "Track Buffer:"
+
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:376
+msgid ""
+"Track Buffer (Memory)\n"
+"\n"
+"How many frames the system 'remembers' a fish after it disappears (occlusion/miss).\n"
+"• Raise it (e.g. 120) if the fish vanishes for a long time.\n"
+"• Lower it to drop lost tracks quickly.\n"
+"• Default: 90 frames (~3s at 30fps)"
+msgstr ""
+"Track Buffer (Memória)\n"
+"\n"
+"Quantos frames o sistema 'lembra' do peixe após ele sumir (oclusão/falha).\n"
+"• Aumente (ex: 120) se o peixe some por muito tempo.\n"
+"• Diminua para deletar rastros perdidos rapidamente.\n"
+"• Padrão: 90 frames (~3s a 30fps)"
+
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:387
+msgid "Max Dist. (px):"
+msgstr "Dist. Máx (px):"
+
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:393
+msgid ""
+"Maximum Distance (pixels)\n"
+"\n"
+"How far the centre of the fish may move between processed frames.\n"
+"• Prevents impossible associations (teleporting).\n"
+"• Raise it if the fish is fast or the frame rate is low.\n"
+"• Lower it if IDs are swapped between distant fish.\n"
+"• Default: 400.0 px"
+msgstr ""
+"Distância Máxima (pixels)\n"
+"\n"
+"O quanto o centro do peixe pode se mover entre frames processados.\n"
+"• Impede associações impossíveis (teletransporte).\n"
+"• Aumente se o peixe é rápido ou se a taxa de frames é baixa.\n"
+"• Diminua se houver trocas de ID entre peixes distantes.\n"
+"• Padrão: 400.0 px"
+
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:405
+msgid "IoU Thresh:"
+msgstr "IoU Thresh:"
+
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:411
+msgid ""
+"IoU Threshold (Tracking)\n"
+"\n"
+"Minimum overlap (Intersection over Union) to associate boxes.\n"
+"• Default: 0.05 (undemanding).\n"
+"• Raise it (e.g. 0.3) to require the fish to stay in almost the same position.\n"
+"• Lower it to allow abrupt movements that change the box area."
+msgstr ""
+"IoU Threshold (Rastreamento)\n"
+"\n"
+"Sobreposição mínima (Intersection over Union) para associar caixas.\n"
+"• Padrão: 0.05 (baixa exigência).\n"
+"• Aumente (ex: 0.3) para exigir que o peixe mantenha quase a mesma posição.\n"
+"• Diminua para permitir movimentos bruscos que mudam a área da caixa."
+
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:424
+msgid "Model(s) to Test:"
+msgstr "Modelo(s) a Testar:"
+
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:460
+msgid ""
+"ℹ️ ByteTrack disabled. Using simple (Hybrid) tracking, which relies only on "
+"'Maximum Distance' and 'IoU Threshold' to keep the ID."
+msgstr ""
+"ℹ️ ByteTrack desativado. Usando rastreamento simples (Híbrido) que utiliza "
+"apenas 'Distância Máxima' e 'IoU Threshold' para manter o ID."
+
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:470
+msgid "💡 ByteTrack active (Kalman filter). Recommended for greater stability."
+msgstr ""
+"💡 ByteTrack ativo (Filtro de Kalman). Recomendado para maior estabilidade."
+
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:571
+msgid "No overrides"
+msgstr "Sem overrides"
+
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:573
+msgid ""
+"This project has no saved overrides yet. The current global values will be "
+"kept."
+msgstr ""
+"Este projeto ainda não possui overrides salvos. Valores globais atuais serão"
+" mantidos."
+
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:595
+msgid "Enter valid numeric values for the detector parameters."
+msgstr "Insira valores numéricos válidos para os parâmetros do detector."
+
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:601
+msgid "confidence threshold"
+msgstr "limiar de confiança"
+
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:602
+msgid "NMS threshold"
+msgstr "limiar NMS"
+
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:603
+msgid "track threshold"
+msgstr "track threshold"
+
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:604
+msgid "match threshold"
+msgstr "match threshold"
+
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:605
+msgid "IoU threshold"
+msgstr "IoU threshold"
+
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:610
+#, python-brace-format
+msgid "The {label} must be between 0 and 1."
+msgstr "O {label} deve estar entre 0 e 1."
+
+# | msgid "Polyorder must be at least 1."
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:618
+msgid "Track Buffer must be at least 1 frame."
+msgstr "Track Buffer deve ser pelo menos 1 frame."
+
+# | msgid "FPS must be greater than 0."
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:625
+msgid "Maximum Distance must be greater than 0."
+msgstr "Distância Máxima deve ser maior que 0."
+
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:650
+msgid "The detector settings were saved for this project."
+msgstr "As configurações do detector foram salvas para este projeto."
+
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:652
+msgid "The detector settings were applied successfully."
+msgstr "As configurações do detector foram aplicadas com sucesso."
+
+# | msgid "Project Settings Updated"
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:654
+msgid "Parameters Updated"
+msgstr "Parâmetros Atualizados"
+
+# | msgid "Language changed"
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:657
+msgid "No changes"
+msgstr "Sem alterações"
+
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:658
+msgid "The parameters given were already in use."
+msgstr "Os parâmetros informados já estavam em uso."
+
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:673
+msgid "Detector Parameters"
+msgstr "Parâmetros do Detector"
+
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:674
+msgid "Default parameters restored."
+msgstr "Parâmetros padrão restaurados."
+
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:684
+msgid "No weights found."
+msgstr "Nenhum peso encontrado."
+
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:746
+msgid "No effective weight available."
+msgstr "Nenhum peso efetivo disponível."
+
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:764
+msgid "Effective weights for this project:"
+msgstr "Pesos efetivos deste projeto:"
+
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:766
+msgid "Slot"
+msgstr "Slot"
+
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:767
+msgid "None"
+msgstr "Nenhum"
+
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:770
+#, python-brace-format
+msgid "{label}: {weight} (project override)"
+msgstr "{label}: {weight} (override do projeto)"
+
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:776
+#, python-brace-format
+msgid "{label}: {weight} (global default)"
+msgstr "{label}: {weight} (padrão global)"
+
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:780
+msgid "Enabled"
+msgstr "Ativado"
+
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:780
+msgid "Disabled"
+msgstr "Desativado"
+
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:781
+#, python-brace-format
+msgid "OpenVINO: {status}"
+msgstr "OpenVINO: {status}"
+
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:793
+msgid "Select the Video for Diagnostics"
+msgstr "Selecione o Vídeo para Diagnóstico"
+
+# | msgid "Video Unavailable"
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:794
+msgid "Video files"
+msgstr "Arquivos de vídeo"
+
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:807
+msgid "Please select a video file."
+msgstr "Por favor, selecione um arquivo de vídeo."
+
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:817
+msgid "The number of frames must be a positive integer."
+msgstr "O número de frames deve ser um inteiro positivo."
+
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:824
+msgid "The number of frames must be a whole number."
+msgstr "O número de frames deve ser um número inteiro."
+
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:834
+msgid "The confidence threshold must be a number between 0.0 and 1.0."
+msgstr "O limiar de confiança deve ser um número entre 0.0 e 1.0."
+
+# | msgid "The flush row threshold must be >= 1."
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:841
+msgid "The confidence threshold must be a valid number."
+msgstr "O limiar de confiança deve ser um número válido."
+
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:857
+msgid "Select one of the project's effective weights for diagnostics."
+msgstr "Selecione um dos pesos efetivos do projeto para diagnóstico."
 
 #: src/zebtrack/ui/components/canvas/zone_editor.py:134
 msgid "Polygon"

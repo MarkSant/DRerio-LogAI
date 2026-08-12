@@ -71,7 +71,7 @@ def test_model_diagnostics_panel_project_builds_effective_weight_selector(
     assert panel.weights_dropdown is not None
     assert "🐠 Aquário (det): weights.pt" in panel.weights_dropdown["values"]
     assert "🐟 Animal (seg): seg_project.pt" in panel.weights_dropdown["values"]
-    assert "Pesos efetivos deste projeto:" in panel.project_weight_summary_var.get()
+    assert "Effective weights for this project:" in panel.project_weight_summary_var.get()
 
 
 def test_run_diagnostic_publishes_event(tkinter_root, diagnostics_controller):

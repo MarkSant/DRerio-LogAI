@@ -28,13 +28,16 @@ from i18n_scan import load_allowlist, scan_paths  # noqa: E402
 
 # Migrated in PR1. Extend as later PRs land.
 MIGRATED_PATHS: tuple[str, ...] = (
+    "src/zebtrack/coordinators/model_diagnostics_coordinator.py",
     "src/zebtrack/core/app_runner.py",
     "src/zebtrack/core/application_bootstrapper.py",
     "src/zebtrack/i18n.py",
     "src/zebtrack/io",
     "src/zebtrack/plugins",
     "src/zebtrack/ui/builders",
+    "src/zebtrack/ui/components/global_model_configuration_panel.py",
     "src/zebtrack/ui/components/menu_manager.py",
+    "src/zebtrack/ui/components/model_diagnostics_panel.py",
     "src/zebtrack/ui/language_dialog.py",
     "src/zebtrack/ui/project_workflow_adapter.py",
     "src/zebtrack/ui/splash_screen.py",

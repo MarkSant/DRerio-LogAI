@@ -19,9 +19,11 @@ import cv2
 import structlog
 
 from zebtrack.coordinators.base_coordinator import BaseCoordinator, CoordinatorValidationError
+from zebtrack.i18n import _
 from zebtrack.plugins import DETECTOR_PLUGINS
 from zebtrack.ui.event_bus_v2 import Event, EventBusV2, UIEvents
 from zebtrack.ui.payloads import MessagePayload, StatusPayload
+from zebtrack.ui.sentinels import both_models_label
 
 YOLO: Any | None = None
 
@@ -170,7 +172,8 @@ class ModelDiagnosticsCoordinator(BaseCoordinator):
                 - video_path: Path to test video
                 - frames_to_analyze: Number of frames to analyze
                 - confidence_threshold: Detection confidence threshold
-                - model_to_test: 'YOLO (PyTorch)', 'OpenVINO', or 'Ambos'
+                - model_to_test: 'YOLO (PyTorch)', 'OpenVINO', or the
+                  translated "both" label from ``ui.sentinels.both_models_label``
                 - parent_dialog: Optional dialog to close after launching
                 - active_weight_name: Optional weight name override
 
@@ -197,7 +200,7 @@ class ModelDiagnosticsCoordinator(BaseCoordinator):
             parent_dialog.destroy()
 
         if self.view:
-            self.view.set_status("Iniciando diagnóstico do modelo...")
+            self.view.set_status(_("Starting model diagnostics..."))
             self.view.update_idletasks()
 
         model_to_test = config["model_to_test"]
@@ -233,13 +236,16 @@ class ModelDiagnosticsCoordinator(BaseCoordinator):
                 self.event_bus.publish(
                     Event(
                         type=UIEvents.UI_SHOW_ERROR,
-                        data=MessagePayload(title="Erro", message="Nenhum peso ativo selecionado."),
+                        data=MessagePayload(
+                            title=_("Error"),
+                            message=_("No active weight selected."),
+                        ),
                     )
                 )
             return
 
         # --- Pre-flight checks (OpenVINO conversion) ---
-        if model_to_test in ["OpenVINO", "Ambos"]:
+        if model_to_test in ["OpenVINO", both_models_label()]:
             ov_path = active_weight_details.get("openvino_path")
             # Validate that the OpenVINO directory exists AND contains .xml files
             if not _is_valid_openvino_directory(ov_path):
@@ -259,10 +265,10 @@ class ModelDiagnosticsCoordinator(BaseCoordinator):
                         )
 
                 if self.view and self.view.dialog_manager.ask_ok_cancel(
-                    "Converter Modelo?",
-                    (
-                        "O modelo OpenVINO não foi encontrado ou está incompleto. "
-                        "Deseja convertê-lo agora?"
+                    _("Convert Model?"),
+                    _(
+                        "The OpenVINO model was not found or is incomplete. "
+                        "Do you want to convert it now?"
                     ),
                 ):
                     # Delegate to conversion callback if set
@@ -290,8 +296,8 @@ class ModelDiagnosticsCoordinator(BaseCoordinator):
                                 Event(
                                     type=UIEvents.UI_SHOW_ERROR,
                                     data=MessagePayload(
-                                        title="Erro",
-                                        message="A conversão para OpenVINO falhou.",
+                                        title=_("Error"),
+                                        message=_("Conversion to OpenVINO failed."),
                                     ),
                                 )
                             )
@@ -299,14 +305,14 @@ class ModelDiagnosticsCoordinator(BaseCoordinator):
                 else:
                     log.warning("diagnostic.openvino.conversion_skipped")
                     # If user skips conversion, modify config to only run YOLO if possible
-                    if model_to_test == "Ambos":
+                    if model_to_test == both_models_label():
                         config["model_to_test"] = "YOLO (PyTorch)"
                     else:  # model_to_test was 'OpenVINO'
                         if self.event_bus:
                             self.event_bus.publish(
                                 Event(
                                     type=UIEvents.UI_SET_STATUS,
-                                    data=StatusPayload(message="Diagnóstico cancelado."),
+                                    data=StatusPayload(message=_("Diagnostics cancelled.")),
                                 )
                             )
                         return
@@ -345,7 +351,7 @@ class ModelDiagnosticsCoordinator(BaseCoordinator):
         results: dict[str, list] = {}
 
         try:
-            self._update_diagnostic_progress(progress_dialog, "Carregando modelos...")
+            self._update_diagnostic_progress(progress_dialog, _("Loading models..."))
 
             yolo_model = self._initialize_diagnostic_yolo_model(
                 model_to_test, weight_details, results, progress_dialog
@@ -384,7 +390,10 @@ class ModelDiagnosticsCoordinator(BaseCoordinator):
                 self.event_bus.publish(
                     Event(
                         type=UIEvents.UI_SHOW_ERROR,
-                        data=MessagePayload(title="Erro ao Carregar Modelo", message=f"Falha: {e}"),
+                        data=MessagePayload(
+                            title=_("Error Loading Model"),
+                            message=_("Failure: {error}").format(error=e),
+                        ),
                     )
                 )
 
@@ -451,7 +460,7 @@ class ModelDiagnosticsCoordinator(BaseCoordinator):
         Raises:
             DiagnosticAbortError: If YOLO setup fails
         """
-        if model_to_test not in ["YOLO (PyTorch)", "Ambos"]:
+        if model_to_test not in ["YOLO (PyTorch)", both_models_label()]:
             return None
 
         if not ULTRALYTICS_AVAILABLE:
@@ -462,8 +471,8 @@ class ModelDiagnosticsCoordinator(BaseCoordinator):
                     Event(
                         type=UIEvents.UI_SHOW_ERROR,
                         data=MessagePayload(
-                            title="Erro",
-                            message="YOLO não está disponível (ultralytics não instalado)",
+                            title=_("Error"),
+                            message=_("YOLO is not available (ultralytics is not installed)"),
                         ),
                     )
                 )
@@ -501,7 +510,7 @@ class ModelDiagnosticsCoordinator(BaseCoordinator):
         Raises:
             DiagnosticAbortError: If OpenVINO setup fails
         """
-        if model_to_test not in ["OpenVINO", "Ambos"]:
+        if model_to_test not in ["OpenVINO", both_models_label()]:
             return None
 
         ov_path = weight_details.get("openvino_path")
@@ -518,10 +527,10 @@ class ModelDiagnosticsCoordinator(BaseCoordinator):
                     Event(
                         type=UIEvents.UI_SHOW_ERROR,
                         data=MessagePayload(
-                            title="Erro de Modelo",
-                            message=(
-                                "O diretório do modelo OpenVINO não contém arquivos "
-                                ".xml necessários. Por favor, reconverta o modelo."
+                            title=_("Model Error"),
+                            message=_(
+                                "The OpenVINO model directory does not contain the "
+                                "required .xml files. Please reconvert the model."
                             ),
                         ),
                     )
@@ -537,8 +546,8 @@ class ModelDiagnosticsCoordinator(BaseCoordinator):
                     Event(
                         type=UIEvents.UI_SHOW_ERROR,
                         data=MessagePayload(
-                            title="Erro de Plugin",
-                            message="Plugin OpenVINO não encontrado para diagnóstico.",
+                            title=_("Plugin Error"),
+                            message=_("OpenVINO plugin not found for diagnostics."),
                         ),
                     )
                 )
@@ -557,8 +566,10 @@ class ModelDiagnosticsCoordinator(BaseCoordinator):
                     Event(
                         type=UIEvents.UI_SHOW_ERROR,
                         data=MessagePayload(
-                            title="Erro de Plugin",
-                            message="O plugin OpenVINO não possui o método predict necessário.",
+                            title=_("Plugin Error"),
+                            message=_(
+                                "The OpenVINO plugin does not have the required predict method."
+                            ),
                         ),
                     )
                 )
@@ -605,8 +616,8 @@ class ModelDiagnosticsCoordinator(BaseCoordinator):
                     Event(
                         type=UIEvents.UI_SHOW_ERROR,
                         data=MessagePayload(
-                            title="Erro",
-                            message=f"Não foi possível abrir o vídeo: {video_path}",
+                            title=_("Error"),
+                            message=_("Could not open the video: {path}").format(path=video_path),
                         ),
                     )
                 )
@@ -628,7 +639,9 @@ class ModelDiagnosticsCoordinator(BaseCoordinator):
                 if not ret:
                     break
 
-                status_msg = f"Analisando frame {frame_count + 1}/{frames_to_analyze}..."
+                status_msg = _("Analysing frame {current}/{total}...").format(
+                    current=frame_count + 1, total=frames_to_analyze
+                )
                 self._update_diagnostic_progress(
                     progress_dialog,
                     status_msg,
@@ -673,10 +686,10 @@ class ModelDiagnosticsCoordinator(BaseCoordinator):
                                 Event(
                                     type=UIEvents.UI_SHOW_ERROR,
                                     data=MessagePayload(
-                                        title="Erro de Inferência OpenVINO",
-                                        message=(
-                                            f"Falha na inferência do frame {frame_count + 1}: {exc}"
-                                        ),
+                                        title=_("OpenVINO Inference Error"),
+                                        message=_(
+                                            "Inference failed on frame {frame}: {error}"
+                                        ).format(frame=frame_count + 1, error=exc),
                                     ),
                                 )
                             )
@@ -698,10 +711,10 @@ class ModelDiagnosticsCoordinator(BaseCoordinator):
             return
 
         save_path = self.view.dialog_manager.ask_save_filename(
-            title="Salvar Relatório de Diagnóstico",
+            title=_("Save Diagnostic Report"),
             defaultextension=".txt",
             initialfile="diagnostic_report.txt",
-            filetypes=[("Arquivos de Texto", "*.txt")],
+            filetypes=[(_("Text files"), "*.txt")],
         )
 
         if save_path:
@@ -713,8 +726,10 @@ class ModelDiagnosticsCoordinator(BaseCoordinator):
                         Event(
                             type=UIEvents.UI_SHOW_INFO,
                             data=MessagePayload(
-                                title="Sucesso",
-                                message=f"Relatório de diagnóstico salvo em:\n{save_path}",
+                                title=_("Success"),
+                                message=_("Diagnostic report saved to:\n{path}").format(
+                                    path=save_path
+                                ),
                             ),
                         )
                     )
@@ -724,8 +739,8 @@ class ModelDiagnosticsCoordinator(BaseCoordinator):
                         Event(
                             type=UIEvents.UI_SHOW_ERROR,
                             data=MessagePayload(
-                                title="Erro ao Salvar",
-                                message=f"Não foi possível salvar o arquivo: {e}",
+                                title=_("Error Saving"),
+                                message=_("Could not save the file: {error}").format(error=e),
                             ),
                         )
                     )
@@ -734,7 +749,7 @@ class ModelDiagnosticsCoordinator(BaseCoordinator):
             self.event_bus.publish(
                 Event(
                     type=UIEvents.UI_SET_STATUS,
-                    data=StatusPayload(message="Diagnóstico concluído. Pronto."),
+                    data=StatusPayload(message=_("Diagnostics finished. Ready.")),
                 )
             )
 
@@ -749,22 +764,22 @@ class ModelDiagnosticsCoordinator(BaseCoordinator):
             Formatted report string
         """
         report_lines = [
-            "Relatório de Diagnóstico do Modelo",
+            _("Model Diagnostic Report"),
             "-----------------------------------",
-            f"- Vídeo: {config['video_path']}",
-            f"- Frames Analisados: {config['frames_to_analyze']}",
-            f"- Limiar de Confiança: {config['confidence_threshold']}",
+            _("- Video: {path}").format(path=config["video_path"]),
+            _("- Frames analysed: {count}").format(count=config["frames_to_analyze"]),
+            _("- Confidence threshold: {value}").format(value=config["confidence_threshold"]),
             "-----------------------------------",
             "",
         ]
 
         for model_name, preds_list in results.items():
-            report_lines.append(f"--- [ RESULTADOS {model_name.upper()} ] ---")
+            report_lines.append(_("--- [ {model} RESULTS ] ---").format(model=model_name.upper()))
             report_lines.append("")
 
             for i, preds in enumerate(preds_list):
                 frame_num = i + 1
-                report_lines.append(f"Frame {frame_num}:")
+                report_lines.append(_("Frame {number}:").format(number=frame_num))
 
                 detections = []
                 mask_only_detections = []
@@ -775,7 +790,7 @@ class ModelDiagnosticsCoordinator(BaseCoordinator):
                     if preds.boxes is not None:
                         for j, box in enumerate(preds.boxes):
                             class_id = int(box.cls)
-                            class_name = preds.names.get(class_id, "desconhecido")
+                            class_name = preds.names.get(class_id, _("unknown"))
                             conf = float(box.conf)
                             bbox = [int(coord) for coord in box.xyxy[0]]
 
@@ -786,12 +801,22 @@ class ModelDiagnosticsCoordinator(BaseCoordinator):
                                 and j < len(preds.masks.xy)
                             )
                             mask_info = (
-                                f", Máscara: {len(preds.masks.xy[j])} pontos" if has_mask else ""
+                                _(", Mask: {count} points").format(count=len(preds.masks.xy[j]))
+                                if has_mask
+                                else ""
                             )
 
                             detections.append(
-                                f"  - Classe {class_id} ('{class_name}'), "
-                                f"Conf: {conf:.2f}, BBox: {bbox}{mask_info}"
+                                _(
+                                    "  - Class {class_id} ('{class_name}'), "
+                                    "Conf: {conf}, BBox: {bbox}{mask_info}"
+                                ).format(
+                                    class_id=class_id,
+                                    class_name=class_name,
+                                    conf=f"{conf:.2f}",
+                                    bbox=bbox,
+                                    mask_info=mask_info,
+                                )
                             )
 
                     # Process orphan masks (without boxes)
@@ -806,9 +831,18 @@ class ModelDiagnosticsCoordinator(BaseCoordinator):
                             area = (x_max - x_min) * (y_max - y_min)
 
                             mask_only_detections.append(
-                                f"  - [MÁSCARA SEM BOX] Provável Aquário, "
-                                f"BBox aprox: [{x_min}, {y_min}, {x_max}, {y_max}], "
-                                f"Área: {area}, Pontos: {len(mask)}"
+                                _(
+                                    "  - [MASK WITHOUT BOX] Probable Aquarium, "
+                                    "approx. BBox: [{x_min}, {y_min}, {x_max}, {y_max}], "
+                                    "Area: {area}, Points: {points}"
+                                ).format(
+                                    x_min=x_min,
+                                    y_min=y_min,
+                                    x_max=x_max,
+                                    y_max=y_max,
+                                    area=area,
+                                    points=len(mask),
+                                )
                             )
 
                 # Handle OpenVINO plugin format
@@ -819,24 +853,32 @@ class ModelDiagnosticsCoordinator(BaseCoordinator):
                         conf = det["confidence"]
                         bbox = det["box"]
                         mask_info = (
-                            f", Máscara: {det.get('mask_points', 0)} pontos"
+                            _(", Mask: {count} points").format(count=det.get("mask_points", 0))
                             if det.get("has_mask")
                             else ""
                         )
 
                         detections.append(
-                            f"  - Classe {class_id} ('{class_name}'), "
-                            f"Conf: {conf:.2f}, BBox: {bbox}{mask_info}"
+                            _(
+                                "  - Class {class_id} ('{class_name}'), "
+                                "Conf: {conf}, BBox: {bbox}{mask_info}"
+                            ).format(
+                                class_id=class_id,
+                                class_name=class_name,
+                                conf=f"{conf:.2f}",
+                                bbox=bbox,
+                                mask_info=mask_info,
+                            )
                         )
 
                 # Add detections to report
                 if detections:
                     report_lines.extend(detections)
                 if mask_only_detections:
-                    report_lines.append("  Máscaras sem bounding box (possíveis aquários):")
+                    report_lines.append(_("  Masks without a bounding box (possible aquariums):"))
                     report_lines.extend(mask_only_detections)
                 if not detections and not mask_only_detections:
-                    report_lines.append("  - Nenhuma detecção encontrada.")
+                    report_lines.append(_("  - No detections found."))
 
                 report_lines.append("")
 
