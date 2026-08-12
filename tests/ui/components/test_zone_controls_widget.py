@@ -79,11 +79,11 @@ def test_get_video_path_from_item(widget):
 def test_toggle_video_tree_label(widget):
     widget._video_tree_expanded = True
     widget._update_video_tree_toggle_label()
-    assert widget.video_tree_toggle_btn.cget("text") == "Recolher tudo"
+    assert widget.video_tree_toggle_btn.cget("text") == "Collapse all"
 
     widget._video_tree_expanded = False
     widget._update_video_tree_toggle_label()
-    assert widget.video_tree_toggle_btn.cget("text") == "Expandir tudo"
+    assert widget.video_tree_toggle_btn.cget("text") == "Expand all"
 
 
 @pytest.mark.gui
@@ -96,7 +96,7 @@ def test_on_roi_rule_changed_only_updates_the_help_text(widget, event_bus):
     widget.roi_inclusion_rule_var.set("centroid_in_on_buffered_roi")
     widget._on_roi_rule_changed(None)
 
-    assert "centroide" in widget.rule_help_label.cget("text")
+    assert "centroid" in widget.rule_help_label.cget("text")
     event_bus.publish.assert_not_called()
 
 
@@ -256,8 +256,8 @@ def test_tab_builder_resolves_the_effective_rule_for_the_panel():
 @pytest.mark.parametrize(
     ("rule", "expected"),
     [
-        ("bbox_intersects", "0 = qualquer sobreposição real."),
-        ("seg_overlap", "Deve ser maior que 0."),
+        ("bbox_intersects", "0 = any real overlap."),
+        ("seg_overlap", "Must be greater than 0."),
     ],
 )
 def test_overlap_hint_depends_on_the_selected_rule(widget, rule, expected):

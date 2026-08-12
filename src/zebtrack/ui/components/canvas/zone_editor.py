@@ -32,6 +32,22 @@ if TYPE_CHECKING:
 log = structlog.get_logger()
 
 
+def bgr_color_names() -> dict[tuple[int, int, int], str]:
+    """BGR triple -> displayed colour name (mirrors color_selection_dialog).
+
+    A function rather than a class-level dict: the latter would translate at
+    import time, before a language has been installed.
+    """
+    return {
+        (0, 128, 0): _("Green"),
+        (255, 0, 0): _("Blue"),
+        (0, 0, 255): _("Red"),
+        (0, 204, 204): _("Yellow"),
+        (255, 0, 255): _("Magenta"),
+        (255, 255, 0): _("Cyan"),
+    }
+
+
 class ZoneEditor:
     """Manages zone editing and CRUD operations for CanvasManager.
 
@@ -42,19 +58,9 @@ class ZoneEditor:
     - Polygon and circle drawing initiation and events
     - ROI removal with confirmation
     - Zone copy/paste/delete clipboard operations
-    - Color mapping (BGR to Portuguese color names)
+    - Color mapping (BGR to colour names)
     - Geotaxis visualization toggling
     """
-
-    # BGR to color name mapping (matches color_selection_dialog.py)
-    _BGR_COLOR_MAP: typing.ClassVar = {
-        (0, 128, 0): "Verde",
-        (255, 0, 0): "Azul",
-        (0, 0, 255): "Vermelho",
-        (0, 204, 204): "Amarelo",
-        (255, 0, 255): "Magenta",
-        (255, 255, 0): "Ciano",
-    }
 
     def __init__(
         self,
@@ -191,13 +197,14 @@ class ZoneEditor:
         """Activates polygon drawing mode."""
         # Garante que há frame no canvas
         if self.canvas_manager._canvas_bg_image is None:
-            self.gui.set_status("Carregando frame para desenho...")
+            self.gui.set_status(_("Loading frame for drawing..."))
             if not self.canvas_manager.load_video_frame_to_canvas():
                 self.dialog_manager.show_error(
-                    "Erro",
-                    "Não foi possível carregar um frame. "
-                    "Por favor, carregue um vídeo ou use 'Detectar Aquário (Auto)' "
-                    "primeiro.",
+                    _("Error"),
+                    _(
+                        "Could not load a frame. Please load a video or use "
+                        "'Detect Aquarium (Auto)' first."
+                    ),
                 )
                 return False
 
@@ -218,8 +225,9 @@ class ZoneEditor:
         if not self.gui.drawing_instruction_label and zc_frame and zc_listbox:
             self.gui.drawing_instruction_label = ttk.Label(
                 zc_frame,
-                text="Clique para adicionar pontos.\nClique duplo para finalizar.\n"
-                "Ctrl+Z: Desfazer | Ctrl+Y: Refazer",
+                text=_(
+                    "Click to add points.\nDouble-click to finish.\nCtrl+Z: Undo | Ctrl+Y: Redo"
+                ),
                 justify="center",
                 relief="solid",
                 padding=5,
@@ -230,8 +238,10 @@ class ZoneEditor:
         self.gui.widget_factory.create_drawing_buttons()
 
         self.gui.set_status(
-            "Modo de Desenho (Polígono): Clique para adicionar pontos, "
-            "clique duplo para finalizar. Ctrl+Z para desfazer."
+            _(
+                "Drawing Mode (Polygon): click to add points, double-click to "
+                "finish. Ctrl+Z to undo."
+            )
         )
 
     def stop_drawing(self) -> None:
@@ -260,7 +270,7 @@ class ZoneEditor:
         # Clear coordinate lists
         self.gui.drawing_state_manager.clear_points()
 
-        self.gui.set_status("Pronto.")
+        self.gui.set_status(_("Ready."))
 
     def handle_vertex_drag(self, event):
         """Pass-through for event handling (API compatibility)."""
@@ -274,8 +284,8 @@ class ZoneEditor:
         """Start drawing the main arena polygon."""
         if self.gui.analysis_active:
             self.dialog_manager.show_warning(
-                "Análise em Progresso",
-                "Não é possível editar zonas durante a análise de vídeo.",
+                _("Analysis in Progress"),
+                _("Zones cannot be edited while a video is being analysed."),
             )
             return
 
@@ -287,24 +297,23 @@ class ZoneEditor:
         if zone_controls and zone_controls.aquarium_count_var.get() == 2:
             active_id = zone_controls.active_aquarium_var.get()
             self.canvas_manager.multi_aquarium._show_aquarium_indicator(
-                f"Desenhando: Aquário {active_id + 1} de 2"
+                _("Drawing: Aquarium {number} of 2").format(number=active_id + 1)
             )
 
     def start_roi_drawing(self) -> None:
         """Start drawing an ROI polygon."""
         if self.gui.analysis_active:
             self.dialog_manager.show_warning(
-                "Análise em Progresso",
-                "Não é possível editar zonas durante a análise de vídeo.",
+                _("Analysis in Progress"),
+                _("Zones cannot be edited while a video is being analysed."),
             )
             return
 
         main_arena = self.zone_context_service.get_zone_data_for_active_context().polygon
         if not main_arena:
             self.dialog_manager.show_error(
-                "Erro",
-                "Por favor, defina o 'Polígono Principal' primeiro antes de "
-                "adicionar Áreas de Interesse.",
+                _("Error"),
+                _("Please define the 'Main Polygon' first, before adding Regions of Interest."),
             )
             return
         self.gui.drawing_state_manager.drawing_type = "roi"
@@ -322,7 +331,7 @@ class ZoneEditor:
             canvas.bind("<ButtonPress-1>", self.on_canvas_press_circle)
             canvas.bind("<B1-Motion>", self.on_canvas_drag_circle)
             canvas.bind("<ButtonRelease-1>", self.on_canvas_release_circle)
-        self.gui.set_status("Modo de Desenho (Círculo): Clique e arraste para definir o raio.")
+        self.gui.set_status(_("Drawing Mode (Circle): click and drag to set the radius."))
 
     def on_canvas_press_circle(self, event) -> None:
         """Handle mouse press during circle drawing."""
@@ -363,8 +372,8 @@ class ZoneEditor:
             return
 
         roi_name = self.dialog_manager.ask_string(
-            "Nome da ROI",
-            "Digite um nome para esta nova Região de Interesse (Círculo):",
+            _("ROI Name"),
+            _("Type a name for this new Region of Interest (Circle):"),
         )
         if not roi_name:
             self.stop_drawing()
@@ -428,8 +437,8 @@ class ZoneEditor:
         # Check if we are already in drawing mode
         if self.gui.drawing_state_manager.mode is not None:
             self.dialog_manager.show_warning(
-                "Modo de Desenho Ativo",
-                "Finalize o desenho atual antes de editar vértices de outra zona.",
+                _("Drawing Mode Active"),
+                _("Finish the current drawing before editing another zone's vertices."),
             )
             return
 
@@ -438,7 +447,7 @@ class ZoneEditor:
         if is_main_arena_row(zone_name):
             # Edit main arena
             if not zone_data.polygon:
-                self.dialog_manager.show_warning("Erro", "Arena principal não encontrada.")
+                self.dialog_manager.show_warning(_("Error"), _("Main arena not found."))
                 return
 
             # Convert polygon to the format expected by setup_interactive_polygon
@@ -460,9 +469,11 @@ class ZoneEditor:
             self.canvas_manager.current_editing_zone = "arena"
             self.gui.current_editing_zone = "arena"
             self.gui.set_status(
-                "Editando arena: arraste para mover · clique-triplo apaga · "
-                "arraste um retângulo ou Shift/Ctrl+clique para selecionar · "
-                "Del / botão direito para apagar a seleção."
+                _(
+                    "Editing arena: drag to move · triple-click deletes · "
+                    "drag a rectangle or Shift/Ctrl+click to select · "
+                    "Del / right-click to delete the selection."
+                )
             )
 
             # Explicitly show buttons
@@ -496,9 +507,11 @@ class ZoneEditor:
                 self.canvas_manager.current_editing_zone = ("roi", roi_index, roi_name)
                 self.gui.current_editing_zone = ("roi", roi_index, roi_name)
                 self.gui.set_status(
-                    f"Editando ROI '{roi_name}': arraste para mover · clique-triplo apaga · "
-                    "arraste um retângulo ou Shift/Ctrl+clique para selecionar · "
-                    "Del / botão direito para apagar a seleção."
+                    _(
+                        "Editing ROI '{name}': drag to move · triple-click deletes · "
+                        "drag a rectangle or Shift/Ctrl+click to select · "
+                        "Del / right-click to delete the selection."
+                    ).format(name=roi_name)
                 )
 
                 # Explicitly show buttons
@@ -506,7 +519,9 @@ class ZoneEditor:
                     self.gui.zone_controls.show_interactive_buttons()
 
             except (ValueError, IndexError):
-                self.dialog_manager.show_error("Erro", f"ROI '{roi_name}' não encontrada.")
+                self.dialog_manager.show_error(
+                    _("Error"), _("ROI '{name}' not found.").format(name=roi_name)
+                )
                 return
 
     def save_arena(self) -> None:
@@ -540,22 +555,26 @@ class ZoneEditor:
                         video_path, multi_data
                     )
 
-                    status_message = f"Arena do Aquário {active_id + 1} salva com sucesso."
+                    status_message = _("Arena of Aquarium {number} saved successfully.").format(
+                        number=active_id + 1
+                    )
                     self.gui.set_status(status_message)
 
                     # Auto-advance to next aquarium if available
                     next_id = active_id + 1
                     if next_id < zone_controls.aquarium_count_var.get():
                         self.dialog_manager.show_info(
-                            "Próximo Aquário",
-                            f"Arena do Aquário {active_id + 1} salva.\n"
-                            f"Agora desenhe a arena do Aquário {next_id + 1}.",
+                            _("Next Aquarium"),
+                            _(
+                                "Arena of Aquarium {saved} saved.\n"
+                                "Now draw the arena of Aquarium {next}."
+                            ).format(saved=active_id + 1, next=next_id + 1),
                         )
                         zone_controls.set_active_aquarium(next_id)
                         self.start_main_arena_drawing()
                     else:
                         self.dialog_manager.show_info(
-                            "Concluído", "Todas as arenas foram definidas."
+                            _("Finished"), _("Every arena has been defined.")
                         )
 
                     # Refresh UI
@@ -620,10 +639,10 @@ class ZoneEditor:
                 # sucesso. Avisa o erro e aborta para permitir nova tentativa.
                 log.warning("zone_editor.save_arena.arena_persist_failed")
                 self.gui.set_status(
-                    "Falha ao salvar a arena principal. A edição foi mantida; tente novamente."
+                    _("Failed to save the main arena. The edit was kept; try again.")
                 )
                 return
-            status_message = "Arena principal salva com sucesso."
+            status_message = _("Main arena saved successfully.")
             self.gui.set_status(status_message)
             self.update_roi_button_state()
 
@@ -641,7 +660,7 @@ class ZoneEditor:
 
         elif isinstance(current_editing_zone, tuple) and current_editing_zone[0] == "roi":
             # Save ROI
-            _, roi_index, roi_name = current_editing_zone
+            _kind, roi_index, roi_name = current_editing_zone
             zone_data = self.zone_context_service.get_zone_data_for_active_context()
 
             # Update the ROI polygon
@@ -650,7 +669,7 @@ class ZoneEditor:
             # Save to project
             self.gui.controller.project_manager.save_zone_data(zone_data)
 
-            status_message = f"ROI '{roi_name}' salva com sucesso."
+            status_message = _("ROI '{name}' saved successfully.").format(name=roi_name)
             self.gui.set_status(status_message)
 
             if self.canvas_manager.event_bus_v2:
@@ -667,7 +686,7 @@ class ZoneEditor:
         else:
             # Fallback
             self.gui.controller.analysis_vm.save_manual_arena(self.gui.edited_polygon_points)
-            status_message = "Zona salva com sucesso."
+            status_message = _("Zone saved successfully.")
             self.gui.set_status(status_message)
             self.update_roi_button_state()
 
@@ -708,12 +727,12 @@ class ZoneEditor:
         )
         self.clear_interactive_polygon()
         if current_editing_zone == "arena":
-            self.gui.set_status("Edição da arena descartada.")
+            self.gui.set_status(_("Arena edit discarded."))
         elif isinstance(current_editing_zone, tuple) and current_editing_zone[0] == "roi":
-            _, _, roi_name = current_editing_zone
-            self.gui.set_status(f"Edição da ROI '{roi_name}' descartada.")
+            _kind, _index, roi_name = current_editing_zone
+            self.gui.set_status(_("Edit of ROI '{name}' discarded.").format(name=roi_name))
         else:
-            self.gui.set_status("Edição descartada.")
+            self.gui.set_status(_("Edit discarded."))
 
         self.canvas_manager.redraw_zones_from_project_data()
 
@@ -755,13 +774,13 @@ class ZoneEditor:
         count = len(self.gui.edited_polygon_points)
         self.canvas_manager.selected_vertex_indices = set(range(count))
         self.canvas_manager.renderer.draw_interactive_polygon()
-        self.gui.set_status(f"{count} vértice(s) selecionado(s).")
+        self.gui.set_status(_("{count} vertex/vertices selected.").format(count=count))
 
     def select_no_vertices(self) -> None:
         """Clear the current vertex selection."""
         self.canvas_manager.selected_vertex_indices = set()
         self.canvas_manager.renderer.draw_interactive_polygon()
-        self.gui.set_status("Seleção de vértices limpa.")
+        self.gui.set_status(_("Vertex selection cleared."))
 
     def toggle_vertex_selection(self, index: int, *, selected: bool) -> None:
         """Add (selected=True) or remove (selected=False) a vertex from the selection."""
@@ -777,7 +796,7 @@ class ZoneEditor:
 
         Refuses to drop the polygon below ``MIN_POLYGON_VERTICES``. Mutates
         ``gui.edited_polygon_points`` in place; persistence still happens when the
-        user clicks "✅ Salvar Edição" (``ZONE_SAVE_ARENA`` → :meth:`save_arena`).
+        user clicks "Save Edit" (``ZONE_SAVE_ARENA`` → :meth:`save_arena`).
         """
         if indices is None:
             indices = set(self.canvas_manager.selected_vertex_indices)
@@ -790,10 +809,10 @@ class ZoneEditor:
         remaining = len(points) - len(valid)
         if remaining < self.MIN_POLYGON_VERTICES:
             self.dialog_manager.show_warning(
-                "Não é possível apagar",
-                "Um polígono precisa de pelo menos "
-                f"{self.MIN_POLYGON_VERTICES} vértices. "
-                f"Restariam apenas {remaining}.",
+                _("Cannot delete"),
+                _(
+                    "A polygon needs at least {minimum} vertices. Only {remaining} would be left."
+                ).format(minimum=self.MIN_POLYGON_VERTICES, remaining=remaining),
             )
             return
 
@@ -804,7 +823,9 @@ class ZoneEditor:
         self.canvas_manager.selected_vertex_indices = set()
         self.canvas_manager.dragged_handle_index = None
         self.canvas_manager.renderer.draw_interactive_polygon()
-        self.gui.set_status(f"{len(valid)} vértice(s) apagado(s). Clique em 'Salvar Edição'.")
+        self.gui.set_status(
+            _("{count} vertex/vertices deleted. Click 'Save Edit'.").format(count=len(valid))
+        )
         log.info("zone_editor.delete_vertices", count=len(valid), remaining=len(points))
 
     def update_roi_button_state(self) -> None:
@@ -850,7 +871,7 @@ class ZoneEditor:
 
             # Verify index validity
             if idx < 0 or idx >= len(zone_data.roi_names):
-                self.dialog_manager.show_error("Erro", "Índice da ROI inválido ou desincronizado.")
+                self.dialog_manager.show_error(_("Error"), _("Invalid or out-of-sync ROI index."))
                 return
 
             roi_name = zone_data.roi_names[idx]
@@ -876,9 +897,9 @@ class ZoneEditor:
                 # Update view
                 self.canvas_manager.redraw_zones_from_project_data()
 
-                status_message = f"ROI '{roi_name}' removida com sucesso."
+                status_message = _("ROI '{name}' removed successfully.").format(name=roi_name)
                 self.gui.set_status(status_message)
-                self.dialog_manager.show_info("Sucesso", status_message)
+                self.dialog_manager.show_info(_("Success"), status_message)
 
                 # Refresh project views
                 if self.canvas_manager.event_bus_v2:
@@ -902,20 +923,23 @@ class ZoneEditor:
 
         except (ValueError, IndexError, AttributeError) as e:
             log.error("canvas_manager.remove_roi.error", error=str(e))
-            self.dialog_manager.show_error("Erro", f"Falha ao remover ROI: {e}")
+            self.dialog_manager.show_error(
+                _("Error"), _("Failed to remove ROI: {error}").format(error=e)
+            )
 
     # -------------------------------------------------------------------------
     # Color Mapping Utilities
     # -------------------------------------------------------------------------
 
     def _get_color_name_from_bgr(self, bgr: tuple) -> str:
-        """Convert BGR tuple to Portuguese color name.
+        """Convert a BGR tuple to its displayed colour name.
 
         Args:
             bgr: BGR color tuple (B, G, R)
 
         Returns:
-            Portuguese color name or hex code if not found
+            Translated colour name, or the hex code when it is not a palette
+            colour.
         """
         # Normalize to tuple of ints
         # Explicitly construct tuple of length 3 to satisfy dict key type
@@ -924,8 +948,9 @@ class ZoneEditor:
             int(bgr[1]),
             int(bgr[2]),
         )
-        if bgr_tuple in self._BGR_COLOR_MAP:
-            return self._BGR_COLOR_MAP[bgr_tuple]
+        color_names = bgr_color_names()
+        if bgr_tuple in color_names:
+            return color_names[bgr_tuple]
         # Fallback to hex code if color not in standard palette
         return f"#{bgr_tuple[2]:02x}{bgr_tuple[1]:02x}{bgr_tuple[0]:02x}"
 
@@ -940,19 +965,19 @@ class ZoneEditor:
             video_path: Path to the video to copy zones from
         """
         if not video_path:
-            self.gui.set_status("Nenhum vídeo selecionado para copiar zonas.")
+            self.gui.set_status(_("No video selected to copy zones from."))
             return
 
         # Get project manager
         project_manager = getattr(self.gui, "project_manager", None)
         if not project_manager:
-            self.gui.set_status("Gerenciador de projeto não disponível.")
+            self.gui.set_status(_("Project manager not available."))
             return
 
         # Get zone data for the video
         zone_data = project_manager.get_zone_data(video_path)
         if not zone_data or not zone_data.polygon:
-            self.gui.set_status("Nenhuma zona encontrada para copiar.")
+            self.gui.set_status(_("No zone found to copy."))
             return
 
         # Store in clipboard
@@ -964,7 +989,7 @@ class ZoneEditor:
         }
 
         roi_count = len(zone_data.roi_polygons) if zone_data.roi_polygons else 0
-        self.gui.set_status(f"Zonas copiadas: 1 arena + {roi_count} ROI(s).")
+        self.gui.set_status(_("Zones copied: 1 arena + {count} ROI(s).").format(count=roi_count))
         log.info(
             "canvas_manager.copy_zones.success",
             video_path=video_path,
@@ -978,17 +1003,17 @@ class ZoneEditor:
             video_path: Path to the video to paste zones to
         """
         if not video_path:
-            self.gui.set_status("Nenhum vídeo selecionado para colar zonas.")
+            self.gui.set_status(_("No video selected to paste zones into."))
             return
 
         if not self._zone_clipboard:
-            self.gui.set_status("Nenhuma zona na área de transferência.")
+            self.gui.set_status(_("No zone on the clipboard."))
             return
 
         # Get project manager
         project_manager = getattr(self.gui, "project_manager", None)
         if not project_manager:
-            self.gui.set_status("Gerenciador de projeto não disponível.")
+            self.gui.set_status(_("Project manager not available."))
             return
 
         # Get or create zone data for target video
@@ -1008,7 +1033,7 @@ class ZoneEditor:
         project_manager.save_zone_data(zone_data, video_path)
 
         roi_count = len(zone_data.roi_polygons) if zone_data.roi_polygons else 0
-        self.gui.set_status(f"Zonas coladas: 1 arena + {roi_count} ROI(s).")
+        self.gui.set_status(_("Zones pasted: 1 arena + {count} ROI(s).").format(count=roi_count))
         log.info(
             "canvas_manager.paste_zones.success",
             video_path=video_path,
@@ -1036,19 +1061,19 @@ class ZoneEditor:
             video_path: Path to the video to delete zones from
         """
         if not video_path:
-            self.gui.set_status("Nenhum vídeo selecionado para excluir zonas.")
+            self.gui.set_status(_("No video selected to delete zones from."))
             return
 
         # Get project manager
         project_manager = getattr(self.gui, "project_manager", None)
         if not project_manager:
-            self.gui.set_status("Gerenciador de projeto não disponível.")
+            self.gui.set_status(_("Project manager not available."))
             return
 
         # Get zone data
         zone_data = project_manager.get_zone_data(video_path)
         if not zone_data or not zone_data.polygon:
-            self.gui.set_status("Nenhuma zona para excluir.")
+            self.gui.set_status(_("No zone to delete."))
             return
 
         # Clear the zones
@@ -1073,7 +1098,7 @@ class ZoneEditor:
                         except OSError:
                             pass
 
-        self.gui.set_status("Zonas excluídas com sucesso.")
+        self.gui.set_status(_("Zones deleted successfully."))
         log.info("canvas_manager.delete_zones.success", video_path=video_path)
 
         # Refresh display

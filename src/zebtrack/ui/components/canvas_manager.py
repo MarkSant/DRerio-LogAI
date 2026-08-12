@@ -57,7 +57,6 @@ class CanvasManager:
 
     # Class-level aliases for external code that references these directly
     AQUARIUM_COLORS: typing.ClassVar = MultiAquariumOverlayManager.AQUARIUM_COLORS
-    _BGR_COLOR_MAP: typing.ClassVar = ZoneEditor._BGR_COLOR_MAP
 
     def __init__(
         self, gui, event_bus_v2=None, *, zone_context_service: ZoneContextService | None = None
