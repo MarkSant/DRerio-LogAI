@@ -93,7 +93,9 @@ class DialogManager:
                 title=title,
                 message=message,
             )
-            self._update_status_bar(f"[Erro] {title}: {message}")
+            self._update_status_bar(
+                _("[Error] {title}: {message}").format(title=title, message=message)
+            )
             return
         messagebox.showerror(title, message)
 
@@ -113,7 +115,9 @@ class DialogManager:
                 title=title,
                 message=message,
             )
-            self._update_status_bar(f"[Aviso] {title}: {message}")
+            self._update_status_bar(
+                _("[Warning] {title}: {message}").format(title=title, message=message)
+            )
             return
         messagebox.showwarning(title, message)
 
@@ -437,8 +441,8 @@ class DialogManager:
         """
         if not getattr(self.gui.controller.project_manager, "project_path", None):
             self.show_warning(
-                "Nenhum Projeto",
-                "Abra um projeto antes de ajustar a calibração específica.",
+                _("No Project"),
+                _("Open a project before adjusting the specific calibration."),
             )
             return
 
@@ -504,8 +508,8 @@ class DialogManager:
             return
 
         file_path = self.ask_open_filename(
-            title="Importar Template de ROI para Biblioteca",
-            filetypes=[("Templates de ROI", "*.json"), ("Todos os arquivos", "*.*")],
+            title=_("Import ROI Template into the Library"),
+            filetypes=[(_("ROI templates"), "*.json"), (_("All files"), "*.*")],
         )
         if not file_path:
             return
@@ -514,17 +518,17 @@ class DialogManager:
             metadata = pm.import_roi_template(file_path)
         except Exception as exc:  # pragma: no cover - defensive
             log.error("gui.roi_templates.import_failed", error=str(exc), file=file_path)
-            self.show_error("Erro ao importar", str(exc))
+            self.show_error(_("Import error"), str(exc))
             return
 
         self.gui.roi_template_manager.refresh_templates()
         self.gui.roi_template_manager.select_template_by_metadata(metadata)
         template_name = metadata.get("name", Path(file_path).stem)
-        message = (
-            f"Template '{template_name}' adicionado à biblioteca.\n\n"
-            "Use o botão 'Aplicar' para usar este template."
-        )
-        self.show_info("Template importado", message)
+        message = _(
+            "Template '{name}' added to the library.\n\n"
+            "Use the 'Apply' button to use this template."
+        ).format(name=template_name)
+        self.show_info(_("Template imported"), message)
 
     def import_and_apply_roi_template(self) -> None:
         """Import a template file and immediately apply it to current video."""
@@ -533,8 +537,8 @@ class DialogManager:
             return
 
         file_path = self.ask_open_filename(
-            title="Importar e Aplicar Template de ROI",
-            filetypes=[("Templates de ROI", "*.json"), ("Todos os arquivos", "*.*")],
+            title=_("Import and Apply ROI Template"),
+            filetypes=[(_("ROI templates"), "*.json"), (_("All files"), "*.*")],
         )
         if not file_path:
             return
@@ -556,8 +560,8 @@ class DialogManager:
 
         if not active_video:
             self.show_warning(
-                "Vídeo não selecionado",
-                "Selecione um vídeo antes de aplicar o template.",
+                _("Video not selected"),
+                _("Select a video before applying the template."),
             )
             return
 
@@ -604,7 +608,7 @@ class DialogManager:
                 error=str(exc),
                 file=file_path,
             )
-            self.show_error("Erro ao importar e aplicar", str(exc))
+            self.show_error(_("Import-and-apply error"), str(exc))
             return
 
         # NEW PATH - Event-Driven Architecture v4.0
@@ -650,8 +654,8 @@ class DialogManager:
             self.gui.roi_template_manager.refresh_templates()
 
         self.show_info(
-            "Template aplicado",
-            f"As zonas foram atualizadas com o template '{template_name}'.",
+            _("Template applied"),
+            _("The zones were updated with template '{name}'.").format(name=template_name),
         )
 
     # =========================================================================
@@ -817,8 +821,10 @@ class DialogManager:
                     pm.save_project()
             except (OSError, AttributeError, ValueError) as exc:
                 self.show_warning(
-                    "Falha ao salvar câmera",
-                    f"Não foi possível salvar a câmera como padrão do projeto:\n{exc}",
+                    _("Failed to save camera"),
+                    _("Could not save the camera as the project default:\n{error}").format(
+                        error=exc
+                    ),
                 )
 
         return result
@@ -839,7 +845,7 @@ class DialogManager:
 
     def open_project_workflow(self) -> None:
         """Handle the UI part of opening a project, then call the controller."""
-        project_path = self.ask_directory(title="Selecione uma Pasta de Projeto Existente")
+        project_path = self.ask_directory(title=_("Select an Existing Project Folder"))
         if not project_path:
             return
 
@@ -854,7 +860,7 @@ class DialogManager:
         )
 
     def handle_start_recording_button_click(self) -> None:
-        """Handle the "Iniciar Gravação" click on the Controle Principal tab.
+        """Handle the "Start Recording" click on the main control tab.
 
         The button used to always open the generic Day/Group/Sujeito picker,
         ignoring whatever scheduled session the user already had selected in
@@ -877,8 +883,10 @@ class DialogManager:
         if not (scope and day_number is not None and group and subject is not None):
             if scope is None and hasattr(self.gui, "set_status"):
                 self.gui.set_status(
-                    "Nenhuma sessão selecionada na lista abaixo — selecione uma "
-                    "sessão agendada para pular a seleção manual."
+                    _(
+                        "No session selected in the list below — select a scheduled "
+                        "session to skip the manual picker."
+                    )
                 )
             self._open_recording_details_picker()
             return
@@ -888,8 +896,10 @@ class DialogManager:
         )
         if not success:
             self.show_error(
-                "Erro na Gravação",
-                f"Falha ao iniciar sessão de gravação para {group}/{subject}.",
+                _("Recording Error"),
+                _("Failed to start the recording session for {group}/{subject}.").format(
+                    group=group, subject=subject
+                ),
             )
         self.gui.widget_factory.render_progress_grid()
 
@@ -978,8 +988,10 @@ class DialogManager:
 
                     if not success:
                         self.show_error(
-                            "Erro na Gravação",
-                            f"Falha ao iniciar sessão de gravação para {group_name}/{subject_id}.",
+                            _("Recording Error"),
+                            _(
+                                "Failed to start the recording session for {group}/{subject}."
+                            ).format(group=group_name, subject=subject_id),
                         )
                 else:
                     # Legacy path for pre-recorded projects
@@ -1022,11 +1034,17 @@ class DialogManager:
             True if user confirmed deletion, False otherwise
         """
         return self.ask_yes_no(
-            "Confirmar Deleção",
-            f"Tem certeza que deseja deletar o template '{template_name}'?\n\n"
-            f"Localização: {template_location}\n"
-            f"Arquivo: {template_file}\n\n"
-            f"Esta ação não pode ser desfeita.",
+            _("Confirm Template Deletion"),
+            _(
+                "Are you sure you want to delete template '{name}'?\n\n"
+                "Location: {location}\n"
+                "File: {file}\n\n"
+                "This action cannot be undone."
+            ).format(
+                name=template_name,
+                location=template_location,
+                file=template_file,
+            ),
             icon="warning",
         )
 
@@ -1040,9 +1058,10 @@ class DialogManager:
             True if user confirmed removal, False otherwise
         """
         return self.ask_yes_no(
-            "Confirmar Remoção",
-            f"Tem certeza que deseja remover a ROI '{roi_name}'?\n\n"
-            "Esta ação não pode ser desfeita.",
+            _("Confirm Removal"),
+            _(
+                "Are you sure you want to remove ROI '{name}'?\n\nThis action cannot be undone."
+            ).format(name=roi_name),
             icon="warning",
         )
 
@@ -1053,12 +1072,14 @@ class DialogManager:
             True to save and proceed, False to discard and proceed, None to cancel
         """
         return self.ask_yes_no_cancel(
-            "Salvar Polígono?",
-            "Você deseja salvar as alterações no polígono antes de iniciar a "
-            "análise?\n\n"
-            "Sim: Salvar e iniciar análise\n"
-            "Não: Descartar alterações e iniciar análise\n"
-            "Cancelar: Voltar para edição",
+            _("Save Polygon?"),
+            _(
+                "Do you want to save the polygon changes before starting the "
+                "analysis?\n\n"
+                "Yes: save and start the analysis\n"
+                "No: discard the changes and start the analysis\n"
+                "Cancel: go back to editing"
+            ),
         )
 
     def confirm_pending_zone_edit_before_navigation(self, *, context: str) -> bool | None:
@@ -1071,12 +1092,14 @@ class DialogManager:
             True to save and proceed, False to discard and proceed, None to cancel navigation
         """
         return self.ask_yes_no_cancel(
-            "Salvar edição de zonas?",
-            "Há um desenho/edição de zona em andamento.\n\n"
-            f"Deseja salvar antes de {context}?\n\n"
-            "Sim: Salvar alterações e continuar\n"
-            "Não: Descartar alterações e continuar\n"
-            "Cancelar: Permanecer no vídeo atual",
+            _("Save zone edit?"),
+            _(
+                "A zone drawing/edit is in progress.\n\n"
+                "Do you want to save before {context}?\n\n"
+                "Yes: save the changes and continue\n"
+                "No: discard the changes and continue\n"
+                "Cancel: stay on the current video"
+            ).format(context=context),
             icon="warning",
         )
 
@@ -1115,11 +1138,17 @@ class DialogManager:
                     day_display = f"{int(day):02d}"
                 except (TypeError, ValueError):
                     day_display = str(day)
-            descriptors.append(f"Dia {day_display}, Grupo {group}, Sujeito {cobaia}")
+            descriptors.append(
+                _("Day {day}, Group {group}, Subject {subject}").format(
+                    day=day_display, group=group, subject=cobaia
+                )
+            )
         if port:
-            descriptors.append(f"Porta {port}")
+            descriptors.append(_("Port {port}").format(port=port))
 
-        message = f"Aguardando sinal externo para iniciar {session_label}."
+        message = _("Waiting for the external signal to start {session}.").format(
+            session=session_label
+        )
         if descriptors:
             message += f" ({' • '.join(descriptors)})"
 
@@ -1198,10 +1227,9 @@ class DialogManager:
             open_path(target_path)
         except Exception as exc:  # pragma: no cover - GUI feedback
             self.show_error(
-                "Erro ao abrir pasta",
-                (
-                    "Não foi possível abrir o diretório de resultados.\n"
-                    f"Caminho: {target_path}\n\nDetalhes: {exc}"
+                _("Error opening folder"),
+                _("Could not open the results directory.\nPath: {path}\n\nDetails: {error}").format(
+                    path=target_path, error=exc
                 ),
             )
 
@@ -1239,8 +1267,8 @@ class DialogManager:
 
         if imported:
             pm.save_project()
-            status_message = (
-                f'Zonas carregadas dos arquivos do vídeo "{os.path.basename(video_path)}".'
+            status_message = _('Zones loaded from the files of video "{name}".').format(
+                name=os.path.basename(video_path)
             )
             self.gui.set_status(status_message)
             if self.event_bus_v2:
@@ -1283,12 +1311,12 @@ class DialogManager:
         last_name = os.path.basename(last_video_with_zones)
 
         reuse = messagebox.askyesno(
-            "Reutilizar zonas existentes?",
-            (
-                f'O vídeo "{current_name}" não possui arena ou ROIs salvas.\n\n'
-                f'Deseja reutilizar as zonas desenhadas para "{last_name}"?\n'
-                'Escolha "Sim" para reutilizar ou "Não" para começar do zero.'
-            ),
+            _("Reuse existing zones?"),
+            _(
+                'Video "{current}" has no saved arena or ROIs.\n\n'
+                'Do you want to reuse the zones drawn for "{last}"?\n'
+                'Choose "Yes" to reuse or "No" to start from scratch.'
+            ).format(current=current_name, last=last_name),
             icon="question",
         )
 
@@ -1300,15 +1328,17 @@ class DialogManager:
             )
             pm.save_project()
 
-            status_message = f'Zonas reutilizadas de "{last_name}" para "{current_name}".'
+            status_message = _('Zones reused from "{last}" for "{current}".').format(
+                last=last_name, current=current_name
+            )
             self.gui.set_status(status_message)
             self.show_warning(
-                "Zonas reutilizadas",
-                (
-                    f'As zonas de "{last_name}" foram aplicadas em "{current_name}".\n\n'
-                    "Revise os contornos antes de iniciar a análise para garantir que "
-                    "correspondem ao vídeo atual."
-                ),
+                _("Zones reused"),
+                _(
+                    'The zones of "{last}" were applied to "{current}".\n\n'
+                    "Review the outlines before starting the analysis to make sure "
+                    "they match the current video."
+                ).format(last=last_name, current=current_name),
             )
 
             if self.event_bus_v2:
@@ -1342,16 +1372,16 @@ class DialogManager:
 
             if not copied_files:
                 self.show_warning(
-                    "Arquivos Parquet Indisponíveis",
-                    (
-                        "As zonas foram copiadas, mas não encontramos os arquivos "
-                        "Parquet originais para duplicar. Caso necessário, redesenhe "
-                        "as zonas e salve-as manualmente para gerar novos arquivos."
+                    _("Parquet Files Unavailable"),
+                    _(
+                        "The zones were copied, but the original Parquet files could "
+                        "not be found to duplicate. If needed, redraw the zones and "
+                        "save them manually to generate new files."
                     ),
                 )
         else:
             pm.clear_zone_data_for_video(video_path, persist=False)
-            status_message = "Comece a desenhar a arena e as ROIs para este vídeo."
+            status_message = _("Start drawing the arena and the ROIs for this video.")
             self.gui.set_status(status_message)
 
             if self.event_bus_v2:
@@ -1417,9 +1447,11 @@ class DialogManager:
             self.gui.controller.project_manager.save_zone_data(zone_data)
 
             # Update visualization
-            status_message = f"Cor da ROI '{old_name}' alterada para {color_name}."
+            status_message = _("Colour of ROI '{name}' changed to {colour}.").format(
+                name=old_name, colour=color_name
+            )
             self.gui.set_status(status_message)
-            self.show_info("Sucesso", status_message)
+            self.show_info(_("Success"), status_message)
 
             if self.event_bus_v2:
                 from zebtrack.ui import payloads
@@ -1444,9 +1476,9 @@ class DialogManager:
                 )
 
         except ValueError:
-            self.show_error("Erro", "ROI não encontrada")
+            self.show_error(_("Error"), _("ROI not found"))
         except IndexError:
-            self.show_error("Erro", "Dados de cor da ROI não encontrados")
+            self.show_error(_("Error"), _("ROI colour data not found"))
 
     def rename_selected_roi(self):
         """Rename the selected ROI."""
@@ -1462,7 +1494,9 @@ class DialogManager:
         old_name = item["values"][0].replace("📍 ", "")
 
         new_name = self.ask_string(
-            "Renomear ROI", f"Novo nome para '{old_name}':", initialvalue=old_name
+            _("Rename ROI"),
+            _("New name for '{name}':").format(name=old_name),
+            initialvalue=old_name,
         )
 
         if new_name and new_name != old_name:
@@ -1476,9 +1510,9 @@ class DialogManager:
                 self.gui.controller.project_manager.save_zone_data(zone_data)
 
                 # Update visualization
-                status_message = f"ROI renomeada para '{new_name}'."
+                status_message = _("ROI renamed to '{name}'.").format(name=new_name)
                 self.gui.set_status(status_message)
-                self.show_info("Sucesso", status_message)
+                self.show_info(_("Success"), status_message)
 
                 if self.event_bus_v2:
                     from zebtrack.ui import payloads
@@ -1503,4 +1537,4 @@ class DialogManager:
                     )
 
             except ValueError:
-                self.show_error("Erro", "ROI não encontrada")
+                self.show_error(_("Error"), _("ROI not found"))

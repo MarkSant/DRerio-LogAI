@@ -574,7 +574,7 @@ class TestROITemplateDialogs:
             dialog_manager.import_and_apply_roi_template()
 
         mock_warning.assert_called_once()
-        assert "Selecione um vídeo" in mock_warning.call_args[0][1]
+        assert "Select a video" in mock_warning.call_args[0][1]
 
     @patch("zebtrack.ui.components.dialog_manager.filedialog")
     def test_import_and_apply_roi_template_success(
@@ -1082,10 +1082,10 @@ class TestNotificationDialogs:
         mock_gui.external_trigger_notice_var.set.assert_called_once()
         message = mock_gui.external_trigger_notice_var.set.call_args[0][0]
         assert "análise" in message
-        assert "Dia 02" in message
-        assert "Grupo G1" in message
-        assert "Sujeito 5" in message
-        assert "Porta COM3" in message
+        assert "Day 02" in message
+        assert "Group G1" in message
+        assert "Subject 5" in message
+        assert "Port COM3" in message
 
     def test_show_external_trigger_notice_no_label(self, dialog_manager, mock_gui):
         """Test show_external_trigger_notice when label is None."""
@@ -1545,16 +1545,16 @@ class TestEdgeCases:
         dialog_manager.show_external_trigger_notice("test", day=1, group="G1", cobaia="C1")
 
         message = mock_gui.external_trigger_notice_var.set.call_args[0][0]
-        assert "Dia 01" in message or "Dia 1" in message  # Format may vary
-        assert "Grupo G1" in message
-        assert "Sujeito C1" in message
+        assert "Day 01" in message or "Day 1" in message  # Format may vary
+        assert "Group G1" in message
+        assert "Subject C1" in message
 
     def test_show_external_trigger_notice_only_port(self, dialog_manager, mock_gui):
         """Test show_external_trigger_notice with only port."""
         dialog_manager.show_external_trigger_notice("test", port="COM5")
 
         message = mock_gui.external_trigger_notice_var.set.call_args[0][0]
-        assert "Porta COM5" in message
+        assert "Port COM5" in message
 
     @patch("zebtrack.ui.dialogs.calibration_dialog.CalibrationDialog")
     def test_open_project_calibration_falls_back_to_dialog_when_tab_unavailable(

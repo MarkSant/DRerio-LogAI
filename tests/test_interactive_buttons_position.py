@@ -33,10 +33,10 @@ def test_interactive_buttons_positioned_after_zone_list():
             combined_code += f.read()
 
     # Just verify that save/discard buttons exist somewhere
-    assert "Salvar" in combined_code and "button" in combined_code.lower(), (
+    assert "Save" in combined_code and "button" in combined_code.lower(), (
         "Save button functionality should exist"
     )
-    assert "Descartar" in combined_code or "Cancelar" in combined_code, (
+    assert "Discard" in combined_code or "Cancel" in combined_code, (
         "Discard/Cancel button functionality should exist"
     )
 

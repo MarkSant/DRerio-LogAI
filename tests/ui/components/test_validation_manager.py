@@ -8,9 +8,9 @@ import pytest
 
 from zebtrack.core.detection import ZoneData
 from zebtrack.ui.components.validation_manager import (
-    PROJECT_STATUS_META,
     STATUS_SYMBOLS,
     ValidationManager,
+    project_status_meta,
 )
 
 
@@ -175,19 +175,19 @@ class TestComposeOverviewStatusLine:
     def test_compose_overview_status_line_empty(self, validation_manager):
         """Test status line with no videos."""
         result = validation_manager.compose_overview_status_line(0, Counter())
-        assert result == "Nenhum vídeo cadastrado."
+        assert result == "No video registered."
 
     def test_compose_overview_status_line_negative_total(self, validation_manager):
         """Test status line with negative total."""
         result = validation_manager.compose_overview_status_line(-1, Counter())
-        assert result == "Nenhum vídeo cadastrado."
+        assert result == "No video registered."
 
     def test_compose_overview_status_line_single_status(self, validation_manager):
         """Test status line with single status."""
         counts = Counter({"pending": 5})
         result = validation_manager.compose_overview_status_line(5, counts)
 
-        assert "🧮 5 vídeo(s)" in result
+        assert "🧮 5 video(s)" in result
         assert "⏳ 5" in result
 
     def test_compose_overview_status_line_multiple_statuses(self, validation_manager):
@@ -195,7 +195,7 @@ class TestComposeOverviewStatusLine:
         counts = Counter({"pending": 3, "processing": 1, "complete": 2})
         result = validation_manager.compose_overview_status_line(6, counts)
 
-        assert "🧮 6 vídeo(s)" in result
+        assert "🧮 6 video(s)" in result
         assert "⏳ 3" in result
         assert "🔁 1" in result
         assert "✅ 2" in result
@@ -213,8 +213,8 @@ class TestComposeOverviewStatusLine:
         )
         result = validation_manager.compose_overview_status_line(15, counts)
 
-        assert "🧮 15 vídeo(s)" in result
-        for icon, _ in PROJECT_STATUS_META.values():
+        assert "🧮 15 video(s)" in result
+        for icon, _label in project_status_meta().values():
             assert icon in result
 
     def test_compose_overview_status_line_unknown_status(self, validation_manager):
@@ -222,7 +222,7 @@ class TestComposeOverviewStatusLine:
         counts = Counter({"pending": 2, "unknown_status": 3})
         result = validation_manager.compose_overview_status_line(5, counts)
 
-        assert "🧮 5 vídeo(s)" in result
+        assert "🧮 5 video(s)" in result
         assert "⏳ 2" in result
         assert "+ 3" in result  # Unknown statuses grouped
 
@@ -666,7 +666,7 @@ class TestValidateRoiTemplateData:
         is_valid, error = validation_manager.validate_roi_template_data(None)
 
         assert is_valid is False
-        assert "Desenhe" in error
+        assert "Draw" in error
 
     def test_validate_roi_template_data_no_polygon_no_rois(self, validation_manager):
         """Test with no polygon and no ROIs."""
@@ -674,7 +674,7 @@ class TestValidateRoiTemplateData:
         is_valid, error = validation_manager.validate_roi_template_data(zone_data)
 
         assert is_valid is False
-        assert "Desenhe" in error
+        assert "Draw" in error
 
     def test_validate_roi_template_data_with_polygon(self, validation_manager, mock_zone_data):
         """Test with valid polygon."""
@@ -703,14 +703,14 @@ class TestValidateArenaForAnalysis:
         is_valid, error = validation_manager.validate_arena_for_analysis(None)
 
         assert is_valid is False
-        assert "Selecione" in error
+        assert "Select" in error
 
     def test_validate_arena_for_analysis_empty(self, validation_manager):
         """Test with empty arena ID."""
         is_valid, error = validation_manager.validate_arena_for_analysis("")
 
         assert is_valid is False
-        assert "Selecione" in error
+        assert "Select" in error
 
     def test_validate_arena_for_analysis_valid(self, validation_manager):
         """Test with valid arena ID."""
@@ -729,7 +729,7 @@ class TestValidateArenaPolygonData:
         is_valid, error, data = validation_manager.validate_arena_polygon_data(None)
 
         assert is_valid is False
-        assert "polígono" in error
+        assert "polygon" in error
         assert data is None
 
     def test_validate_arena_polygon_data_no_polygon(self, validation_manager):
@@ -738,7 +738,7 @@ class TestValidateArenaPolygonData:
         is_valid, error, data = validation_manager.validate_arena_polygon_data(arena_data)
 
         assert is_valid is False
-        assert "polígono" in error
+        assert "polygon" in error
         assert data is None
 
     def test_validate_arena_polygon_data_valid(self, validation_manager):
@@ -795,7 +795,7 @@ class TestValidatePositiveInteger:
         is_valid, error, result = validation_manager.validate_positive_integer(value)
 
         assert is_valid is False
-        assert "inteiro positivo" in error
+        assert "positive integer" in error
         assert result is None
 
     def test_validate_positive_integer_custom_field_name(self, validation_manager):
@@ -818,14 +818,14 @@ class TestValidateActiveVideoSelection:
         is_valid, error = validation_manager.validate_active_video_selection(None)
 
         assert is_valid is False
-        assert "Selecione" in error
+        assert "Select" in error
 
     def test_validate_active_video_selection_empty(self, validation_manager):
         """Test with empty video path."""
         is_valid, error = validation_manager.validate_active_video_selection("")
 
         assert is_valid is False
-        assert "Selecione" in error
+        assert "Select" in error
 
     def test_validate_active_video_selection_valid(self, validation_manager):
         """Test with valid video path."""
@@ -1241,7 +1241,7 @@ class TestFormatRoiTemplateDisplay:
         result = validation_manager.format_roi_template_display(template)
 
         assert "Empty" in result
-        assert "Sem dados" in result
+        assert "No data" in result
 
 
 @pytest.mark.gui
@@ -1328,7 +1328,7 @@ class TestInternalHelpers:
         """Test _get_status_meta with known statuses."""
         icon, label = validation_manager._get_status_meta("pending")
         assert icon == "⏳"
-        assert label == "Pendentes"
+        assert label == "Pending"
 
     def test_get_status_meta_special_keys(self, validation_manager):
         """Test _get_status_meta with special keys."""
@@ -1511,7 +1511,7 @@ class TestEdgeCases:
         counts = Counter({"custom_status_1": 3, "custom_status_2": 2})
         result = validation_manager.compose_overview_status_line(5, counts)
 
-        assert "🧮 5 vídeo(s)" in result
+        assert "🧮 5 video(s)" in result
         assert "+ 5" in result  # All 5 are unknown
 
     def test_format_video_metadata_with_day_label(self, validation_manager):
@@ -1554,7 +1554,7 @@ class TestSaveGlobalConfigFromWidget:
         )
 
         mock_gui.dialog_manager.show_error.assert_called_once()
-        assert "Erro de Validação" in mock_gui.dialog_manager.show_error.call_args[0][0]
+        assert "Validation Error" in mock_gui.dialog_manager.show_error.call_args[0][0]
 
     def test_save_global_config_without_settings(self, mock_gui):
         """Show error when settings object is missing."""
@@ -1577,7 +1577,7 @@ class TestSaveGlobalConfigFromWidget:
         )
 
         mock_gui.dialog_manager.show_error.assert_called_once()
-        assert "Settings não disponível" in mock_gui.dialog_manager.show_error.call_args[0][1]
+        assert "Settings not available" in mock_gui.dialog_manager.show_error.call_args[0][1]
 
     @patch("zebtrack.ui.components.validation_manager.Path.exists", return_value=False)
     @patch("zebtrack.ui.components.validation_manager.yaml.safe_dump")
