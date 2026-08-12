@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING, Any
 
 import structlog
 
+from zebtrack.i18n import _
 from zebtrack.ui.window_utils import reset_geometry_if_not_maximized
 
 if TYPE_CHECKING:
@@ -80,14 +81,15 @@ class ProjectInitializer:
         # Status frame below the notebook
         project_type_str = gui.controller.project_manager.get_project_type()
         if project_type_str == "live":
-            project_type_display = "Ao Vivo"
+            project_type_display = _("Live")
         elif project_type_str == "pre-recorded":
-            project_type_display = "Pré-gravado"
+            project_type_display = _("Pre-recorded")
         else:
             project_type_display = project_type_str
 
-        status_text = (
-            f"Projeto: {gui.controller.project_manager.get_project_name()} ({project_type_display})"
+        status_text = _("Project: {name} ({type})").format(
+            name=gui.controller.project_manager.get_project_name(),
+            type=project_type_display,
         )
         gui.status_var.set(status_text)
         status_frame = ttk.Frame(gui.root)
@@ -121,7 +123,7 @@ class ProjectInitializer:
 
         # Reset analysis display state from single video workflow
         gui.hide_progress_bar()
-        gui.analysis_status_var.set("Nenhuma análise em andamento.")
+        gui.analysis_status_var.set(_("No analysis in progress."))
         if gui.analysis_display_widget and gui.analysis_display_widget.video_label:
             try:
                 gui.analysis_display_widget.video_label.configure(image="")
@@ -316,9 +318,10 @@ class ProjectInitializer:
         if use_arduino and arduino_manager is not None and port:
             if not arduino_manager.connect(port, baud_rate, handshake=handshake, ack=ack):
                 gui.dialog_manager.show_warning(
-                    "Aviso do Arduino",
-                    f"Não foi possível conectar ao Arduino na porta "
-                    f"{port}. Executando em modo offline.",
+                    _("Arduino Warning"),
+                    _(
+                        "Could not connect to the Arduino on port {port}. Running in offline mode."
+                    ).format(port=port),
                 )
         elif use_arduino and arduino_manager is None:
             log.warning(
@@ -341,13 +344,13 @@ class ProjectInitializer:
                     saved_name=saved_name,
                 )
                 gui.dialog_manager.show_warning(
-                    "Câmera não encontrada",
-                    (
-                        f"A câmera salva no projeto ('{saved_name}') não foi detectada.\n\n"
-                        f"As gravações irão falhar até você selecionar outra câmera. "
-                        f"Use 'Trocar câmera...' no bloco do animal antes de iniciar a "
-                        f"sessão para escolher um dispositivo conectado."
-                    ),
+                    _("Camera not found"),
+                    _(
+                        "The camera saved in the project ('{name}') was not detected.\n\n"
+                        "Recordings will fail until you select another camera. "
+                        "Use 'Change camera...' in the animal block before starting "
+                        "the session to pick a connected device."
+                    ).format(name=saved_name),
                 )
             elif status == "SHIFTED":
                 log.info(
@@ -390,7 +393,7 @@ class ProjectInitializer:
             gui.controller.hardware_vm.camera = None
             gui.controller.hardware_vm.active_frame_source = None
         except OSError as e:
-            gui.dialog_manager.show_error("Erro na Câmera", str(e))
+            gui.dialog_manager.show_error(_("Camera Error"), str(e))
             gui.widget_factory.create_welcome_frame()
             return
 
@@ -501,8 +504,8 @@ class ProjectInitializer:
         missing = [f for f in required_fields if f not in wizard.result]
         if missing:
             gui.dialog_manager.show_error(
-                "Erro no Wizard",
-                f"Campos obrigatórios ausentes: {', '.join(missing)}",
+                _("Wizard Error"),
+                _("Missing required fields: {fields}").format(fields=", ".join(missing)),
             )
             return
 
@@ -527,7 +530,7 @@ class ProjectInitializer:
 
         gui = self.gui
         project_path = gui.dialog_manager.ask_directory(
-            title="Selecione uma Pasta de Projeto Existente"
+            title=_("Select an Existing Project Folder")
         )
         if not project_path:
             return

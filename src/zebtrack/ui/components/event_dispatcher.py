@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING, Any, cast
 
 import structlog
 
+from zebtrack.i18n import _
 from zebtrack.ui import payloads as payloads
 from zebtrack.ui.event_bus_v2 import EventBusV2, UIEvents
 from zebtrack.ui.sentinels import no_day_label, no_group_label, not_reported_label
@@ -761,9 +762,9 @@ class EventDispatcher:
         if dashboard is not None:
             dashboard.update_status(connected=connected, port=port if connected else None)
             dashboard.append_log(
-                f"✓ Reconectado na porta {port}."
+                _("✓ Reconnected on port {port}.").format(port=port)
                 if connected
-                else f"✗ Não foi possível conectar na porta {port}."
+                else _("✗ Could not connect on port {port}.").format(port=port)
             )
 
     def _handle_update_processing_mode(self, data: payloads.EventPayload) -> None:
@@ -1021,11 +1022,11 @@ class EventDispatcher:
             # Edição" (o commit real). "Concluir" também salva a edição ativa.
             if EventDispatcher._finish_drawing_is_interactive_edit(gui):
                 if hasattr(gui, "set_status"):
-                    gui.set_status("Posição ajustada. Clique em 'Salvar Edição' para confirmar.")
+                    gui.set_status(_("Position adjusted. Click 'Save Edit' to confirm."))
                 return
             gui.canvas_manager.event_handler.on_canvas_double_click(None)
             if hasattr(gui, "set_status"):
-                gui.set_status("✓ Desenho finalizado. Clique em 'Salvar Edição' para confirmar.")
+                gui.set_status(_("✓ Drawing finished. Click 'Save Edit' to confirm."))
 
         event_bus.subscribe(UIEvents.ZONE_FINISH_DRAWING, _handle_finish_drawing)
         event_bus.subscribe(
@@ -1167,10 +1168,12 @@ class EventDispatcher:
                 rule=config.rule,
             )
             gui.show_info(
-                "Regra de ROI Aplicada",
-                f"{self._describe_roi_rule(config)}\n\n"
-                "Salva no projeto: vale para novas análises, para a regeneração "
-                "de relatórios e para o gatilho Arduino ao vivo.",
+                _("ROI Rule Applied"),
+                _(
+                    "{description}\n\n"
+                    "Saved in the project: it applies to new analyses, to report "
+                    "regeneration and to the live Arduino trigger."
+                ).format(description=self._describe_roi_rule(config)),
             )
             return
 
@@ -1181,9 +1184,11 @@ class EventDispatcher:
             rule=config.rule,
         )
         gui.show_info(
-            "Regra de ROI Aplicada",
-            f"{self._describe_roi_rule(config)}\n\n"
-            "Aplicada a esta sessão. Sem projeto aberto, ela não é salva em disco.",
+            _("ROI Rule Applied"),
+            _(
+                "{description}\n\n"
+                "Applied to this session. With no project open it is not saved to disk."
+            ).format(description=self._describe_roi_rule(config)),
         )
 
     @staticmethod
@@ -1194,17 +1199,17 @@ class EventDispatcher:
         campo inválido que caiu no valor anterior.
         """
         if config.uses_buffer:
-            detail = f"raio de buffer {config.buffer_radius_value:g} cm"
+            detail = _("buffer radius {value:g} cm").format(value=config.buffer_radius_value)
         elif config.uses_bbox and config.overlap_any:
-            detail = "qualquer sobreposição de área não-nula"
+            detail = _("any non-zero area overlap")
         elif config.uses_bbox:
-            detail = (
-                f"sobreposição mínima {config.min_bbox_overlap_ratio:g} "
-                f"(base: {config.bbox_overlap_basis})"
+            detail = _("minimum overlap {value:g} (basis: {basis})").format(
+                value=config.min_bbox_overlap_ratio,
+                basis=config.bbox_overlap_basis,
             )
         else:
-            detail = "sem parâmetros adicionais"
-        return f"Regra '{config.rule}' ({detail})."
+            detail = _("no additional parameters")
+        return _("Rule '{rule}' ({detail}).").format(rule=config.rule, detail=detail)
 
     def _on_show_aquarium_assignment_dialog(self, data: payloads.EventPayload) -> None:
         """Handle ZONE_SHOW_AQUARIUM_ASSIGNMENT_DIALOG event.

@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: DRerio LogAI VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-08-12 16:06-0300\n"
+"POT-Creation-Date: 2026-08-12 16:15-0300\n"
 "PO-Revision-Date: 2026-08-08 21:41-0300\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: pt_BR <LL@li.org>\n"
@@ -90,6 +90,12 @@ msgstr "Vídeo Único"
 #: src/zebtrack/ui/components/project_model_configuration_panel.py:391
 #: src/zebtrack/ui/components/project_views/report_asset_actions.py:452
 #: src/zebtrack/ui/components/project_views/video_selector_tree_manager.py:824
+#: src/zebtrack/ui/components/single_video_workflow.py:74
+#: src/zebtrack/ui/components/single_video_workflow.py:258
+#: src/zebtrack/ui/components/single_video_workflow.py:277
+#: src/zebtrack/ui/components/single_video_workflow.py:354
+#: src/zebtrack/ui/components/single_video_workflow.py:385
+#: src/zebtrack/ui/components/single_video_workflow.py:389
 #: src/zebtrack/ui/components/validation_manager.py:154
 #: src/zebtrack/ui/components/validation_manager.py:183
 #: src/zebtrack/ui/components/validation_manager.py:491
@@ -260,6 +266,8 @@ msgstr ""
 #: src/zebtrack/coordinators/_video_selection_mixin.py:224
 #: src/zebtrack/coordinators/_video_selection_mixin.py:243
 #: src/zebtrack/coordinators/_video_selection_mixin.py:256
+#: src/zebtrack/ui/components/processing_reports.py:114
+#: src/zebtrack/ui/components/project_overview.py:84
 #: src/zebtrack/ui/components/validation_manager.py:55
 msgid "Processing"
 msgstr "Processando"
@@ -862,6 +870,7 @@ msgstr "Trigger Externo Indisponível"
 # | msgid "Video not found"
 # | msgid "ROI not found"
 #: src/zebtrack/coordinators/live_camera_session_coordinator.py:2168
+#: src/zebtrack/ui/components/project_initializer.py:348
 msgid "Camera not found"
 msgstr "Câmera não encontrada"
 
@@ -1386,7 +1395,7 @@ msgstr ""
 #: src/zebtrack/coordinators/ui_state_coordinator.py:588
 #: src/zebtrack/ui/components/dialog_manager.py:563
 #: src/zebtrack/ui/components/roi_template_manager.py:188
-#: src/zebtrack/ui/components/roi_template_manager.py:308
+#: src/zebtrack/ui/components/roi_template_manager.py:302
 msgid "Video not selected"
 msgstr "Vídeo não selecionado"
 
@@ -1433,7 +1442,7 @@ msgstr "O arquivo associado ao template não foi encontrado."
 # | msgid "📹 Select Video for Drawing"
 # | msgid "Select a video before applying the template."
 #: src/zebtrack/coordinators/ui_state_coordinator.py:638
-#: src/zebtrack/ui/components/roi_template_manager.py:267
+#: src/zebtrack/ui/components/roi_template_manager.py:263
 msgid "Error applying the template"
 msgstr "Erro ao aplicar template"
 
@@ -1494,7 +1503,7 @@ msgstr "Selecione Vídeos ou Pastas para Adicionar ao Projeto"
 #: src/zebtrack/ui/components/dialog_manager.py:512
 #: src/zebtrack/ui/components/dialog_manager.py:541
 #: src/zebtrack/ui/components/global_model_configuration_panel.py:515
-#: src/zebtrack/ui/components/roi_template_manager.py:431
+#: src/zebtrack/ui/components/roi_template_manager.py:425
 msgid "All files"
 msgstr "Todos os arquivos"
 
@@ -2011,14 +2020,17 @@ msgid "Go to Processing and Reports →"
 msgstr "Ir para Processamento e Relatórios →"
 
 #: src/zebtrack/ui/builders/project_widgets.py:338
+#: src/zebtrack/ui/components/project_initializer.py:84
 msgid "Live"
 msgstr "Ao Vivo"
 
 #: src/zebtrack/ui/builders/project_widgets.py:340
+#: src/zebtrack/ui/components/project_initializer.py:86
 msgid "Pre-recorded"
 msgstr "Pré-gravado"
 
 #: src/zebtrack/ui/builders/project_widgets.py:344
+#: src/zebtrack/ui/components/project_initializer.py:90
 #, python-brace-format
 msgid "Project: {name} ({type})"
 msgstr "Projeto: {name} ({type})"
@@ -2147,6 +2159,8 @@ msgstr "Não foi possível obter os dados do polígono do aquário."
 #: src/zebtrack/ui/components/analysis_display.py:63
 #: src/zebtrack/ui/components/analysis_display.py:437
 #: src/zebtrack/ui/components/analysis_view_controller.py:221
+#: src/zebtrack/ui/components/project_initializer.py:126
+#: src/zebtrack/ui/components/single_video_workflow.py:92
 #: src/zebtrack/ui/components/state_synchronizer.py:269
 msgid "No analysis in progress."
 msgstr "Nenhuma análise em andamento."
@@ -3336,6 +3350,7 @@ msgstr ""
 
 # | msgid "No Group"
 #: src/zebtrack/ui/components/dialog_manager.py:283
+#: src/zebtrack/ui/components/project_overview.py:401
 #: src/zebtrack/ui/components/zone_controls.py:26
 msgid "Group"
 msgstr "Grupo"
@@ -3389,7 +3404,7 @@ msgid "Open a project before adjusting the specific calibration."
 msgstr "Abra um projeto antes de ajustar a calibração específica."
 
 #: src/zebtrack/ui/components/dialog_manager.py:511
-#: src/zebtrack/ui/components/roi_template_manager.py:428
+#: src/zebtrack/ui/components/roi_template_manager.py:422
 msgid "Import ROI Template into the Library"
 msgstr "Importar Template de ROI para Biblioteca"
 
@@ -3402,12 +3417,12 @@ msgstr "Templates de ROI"
 # | msgid "Error"
 # | msgid "Model Error"
 #: src/zebtrack/ui/components/dialog_manager.py:521
-#: src/zebtrack/ui/components/roi_template_manager.py:441
+#: src/zebtrack/ui/components/roi_template_manager.py:435
 msgid "Import error"
 msgstr "Erro ao importar"
 
 #: src/zebtrack/ui/components/dialog_manager.py:528
-#: src/zebtrack/ui/components/roi_template_manager.py:449
+#: src/zebtrack/ui/components/roi_template_manager.py:443
 #, python-brace-format
 msgid ""
 "Template '{name}' added to the library.\n"
@@ -3420,7 +3435,7 @@ msgstr ""
 
 # | msgid "Template:"
 #: src/zebtrack/ui/components/dialog_manager.py:531
-#: src/zebtrack/ui/components/roi_template_manager.py:452
+#: src/zebtrack/ui/components/roi_template_manager.py:446
 msgid "Template imported"
 msgstr "Template importado"
 
@@ -3465,6 +3480,7 @@ msgstr ""
 
 # | msgid "Open Existing Project"
 #: src/zebtrack/ui/components/dialog_manager.py:848
+#: src/zebtrack/ui/components/project_initializer.py:536
 msgid "Select an Existing Project Folder"
 msgstr "Selecione uma Pasta de Projeto Existente"
 
@@ -3707,6 +3723,82 @@ msgstr "Novo nome para '{name}':"
 msgid "ROI renamed to '{name}'."
 msgstr "ROI renomeada para '{name}'."
 
+# | msgid "Port {port}"
+# | msgid "Connected ({port})"
+#: src/zebtrack/ui/components/event_dispatcher.py:765
+#, python-brace-format
+msgid "✓ Reconnected on port {port}."
+msgstr "✓ Reconectado na porta {port}."
+
+# | msgid "Could not connect to the Arduino on port {port}."
+#: src/zebtrack/ui/components/event_dispatcher.py:767
+#, python-brace-format
+msgid "✗ Could not connect on port {port}."
+msgstr "✗ Não foi possível conectar na porta {port}."
+
+#: src/zebtrack/ui/components/event_dispatcher.py:1026
+msgid "Position adjusted. Click 'Save Edit' to confirm."
+msgstr "Posição ajustada. Clique em 'Salvar Edição' para confirmar."
+
+#: src/zebtrack/ui/components/event_dispatcher.py:1032
+msgid "✓ Drawing finished. Click 'Save Edit' to confirm."
+msgstr "✓ Desenho finalizado. Clique em 'Salvar Edição' para confirmar."
+
+# | msgid "Template:"
+# | msgid "Template applied"
+#: src/zebtrack/ui/components/event_dispatcher.py:1175
+#: src/zebtrack/ui/components/event_dispatcher.py:1191
+msgid "ROI Rule Applied"
+msgstr "Regra de ROI Aplicada"
+
+#: src/zebtrack/ui/components/event_dispatcher.py:1177
+#, python-brace-format
+msgid ""
+"{description}\n"
+"\n"
+"Saved in the project: it applies to new analyses, to report regeneration and to the live Arduino trigger."
+msgstr ""
+"{description}\n"
+"\n"
+"Salva no projeto: vale para novas análises, para a regeneração de relatórios e para o gatilho Arduino ao vivo."
+
+#: src/zebtrack/ui/components/event_dispatcher.py:1193
+#, python-brace-format
+msgid ""
+"{description}\n"
+"\n"
+"Applied to this session. With no project open it is not saved to disk."
+msgstr ""
+"{description}\n"
+"\n"
+"Aplicada a esta sessão. Sem projeto aberto, ela não é salva em disco."
+
+# | msgid "Buffer radius (r):"
+#: src/zebtrack/ui/components/event_dispatcher.py:1206
+#, python-brace-format
+msgid "buffer radius {value:g} cm"
+msgstr "raio de buffer {value:g} cm"
+
+# | msgid "0 = any real overlap."
+#: src/zebtrack/ui/components/event_dispatcher.py:1210
+msgid "any non-zero area overlap"
+msgstr "qualquer sobreposição de área não-nula"
+
+#: src/zebtrack/ui/components/event_dispatcher.py:1212
+#, python-brace-format
+msgid "minimum overlap {value:g} (basis: {basis})"
+msgstr "sobreposição mínima {value:g} (base: {basis})"
+
+# | msgid "Detector Parameters"
+#: src/zebtrack/ui/components/event_dispatcher.py:1217
+msgid "no additional parameters"
+msgstr "sem parâmetros adicionais"
+
+#: src/zebtrack/ui/components/event_dispatcher.py:1218
+#, python-brace-format
+msgid "Rule '{rule}' ({detail})."
+msgstr "Regra '{rule}' ({detail})."
+
 #: src/zebtrack/ui/components/global_model_configuration_panel.py:29
 msgid "Aquarium"
 msgstr "Aquário"
@@ -3939,7 +4031,8 @@ msgid "YOLO models"
 msgstr "Modelos YOLO"
 
 #: src/zebtrack/ui/components/global_model_configuration_panel.py:531
-#: src/zebtrack/ui/components/roi_template_manager.py:278
+#: src/zebtrack/ui/components/processing_reports.py:471
+#: src/zebtrack/ui/components/roi_template_manager.py:274
 msgid "Confirm Deletion"
 msgstr "Confirmar Exclusão"
 
@@ -4346,6 +4439,8 @@ msgid "🔄 Edit Group / Day / Subjects"
 msgstr "🔄 Editar Grupo / Dia / Sujeitos"
 
 #: src/zebtrack/ui/components/menu_manager.py:289
+#: src/zebtrack/ui/components/processing_reports.py:220
+#: src/zebtrack/ui/components/processing_reports.py:677
 msgid "No video selected"
 msgstr "Nenhum vídeo selecionado"
 
@@ -5043,6 +5138,222 @@ msgstr "Digite um nome:"
 msgid "Incomplete Polygon"
 msgstr "Polígono Incompleto"
 
+# | msgid "Teal"
+#: src/zebtrack/ui/components/processing_reports.py:112
+#: src/zebtrack/ui/components/project_overview.py:82
+#: src/zebtrack/ui/components/validation_manager.py:1001
+msgid "Total"
+msgstr "Total"
+
+# | msgid "Pending ROIs"
+#: src/zebtrack/ui/components/processing_reports.py:113
+#: src/zebtrack/ui/components/project_overview.py:83
+#: src/zebtrack/ui/components/validation_manager.py:54
+msgid "Pending"
+msgstr "Pendentes"
+
+# | msgid "Data"
+#: src/zebtrack/ui/components/processing_reports.py:115
+#: src/zebtrack/ui/components/project_overview.py:85
+#: src/zebtrack/ui/components/validation_manager.py:56
+msgid "With data"
+msgstr "Com dados"
+
+# | msgid "Zones Completed"
+#: src/zebtrack/ui/components/processing_reports.py:116
+#: src/zebtrack/ui/components/project_overview.py:86
+#: src/zebtrack/ui/components/validation_manager.py:57
+msgid "Completed"
+msgstr "Concluídos"
+
+# | msgid "File"
+# | msgid "✗ Failed"
+#: src/zebtrack/ui/components/processing_reports.py:117
+#: src/zebtrack/ui/components/project_overview.py:87
+#: src/zebtrack/ui/components/validation_manager.py:58
+msgid "Failed"
+msgstr "Com falha"
+
+# | msgid "Project Settings Updated"
+# | msgid "Project updated"
+#: src/zebtrack/ui/components/processing_reports.py:142
+msgid "Project Structure"
+msgstr "Estrutura do Projeto"
+
+#: src/zebtrack/ui/components/processing_reports.py:151
+msgid "Select videos to process or to generate reports for:"
+msgstr "Selecione vídeos para processar ou gerar relatórios:"
+
+#: src/zebtrack/ui/components/processing_reports.py:155
+#: src/zebtrack/ui/components/project_overview.py:119
+msgid "🔄 Refresh"
+msgstr "🔄 Atualizar"
+
+# | msgid "Expand all"
+#: src/zebtrack/ui/components/processing_reports.py:160
+#: src/zebtrack/ui/components/processing_reports.py:323
+#: src/zebtrack/ui/components/processing_reports.py:703
+msgid "⊞ Expand All"
+msgstr "⊞ Expandir Tudo"
+
+# | msgid "✏️ Rename"
+#: src/zebtrack/ui/components/processing_reports.py:181
+#: src/zebtrack/ui/components/zone_controls.py:818
+msgid "Name"
+msgstr "Nome"
+
+# | msgid "Pending arenas"
+# | msgid "Main Arena"
+# | msgid "Arena"
+#: src/zebtrack/ui/components/processing_reports.py:182
+msgid "🏛️ Arena"
+msgstr "🏛️ Arena"
+
+# | msgid "ROIs"
+# | msgid "🔄 ROIs"
+#: src/zebtrack/ui/components/processing_reports.py:183
+msgid "📍 ROIs"
+msgstr "📍 ROIs"
+
+# | msgid "Trajectory"
+#: src/zebtrack/ui/components/processing_reports.py:184
+msgid "📈 Trajectory"
+msgstr "📈 Trajetória"
+
+# | msgid "Summary"
+#: src/zebtrack/ui/components/processing_reports.py:185
+msgid "Σ Summary"
+msgstr "Σ Sumário"
+
+#: src/zebtrack/ui/components/processing_reports.py:186
+#: src/zebtrack/ui/components/project_overview.py:137
+msgid "Status"
+msgstr "Status"
+
+# | msgid "Processing and Reports"
+#: src/zebtrack/ui/components/processing_reports.py:229
+msgid "Processing and Report Actions"
+msgstr "Ações de Processamento e Relatórios"
+
+# | msgid "📈 Delete Trajectory"
+#: src/zebtrack/ui/components/processing_reports.py:236
+msgid "▶️ Generate Trajectories"
+msgstr "▶️ Gerar Trajetórias"
+
+#: src/zebtrack/ui/components/processing_reports.py:244
+msgid "Σ Export Summaries (Parquet)"
+msgstr "Σ Exportar Sumários (Parquet)"
+
+# | msgid "No video selected"
+# | msgid "Video not selected"
+#: src/zebtrack/ui/components/processing_reports.py:255
+msgid "📄 Report for Selected"
+msgstr "📄 Relatório para Selecionados"
+
+# | msgid "Remove reports"
+# | msgid "Not reported"
+# | msgid "Unified Report"
+#: src/zebtrack/ui/components/processing_reports.py:263
+msgid "📚 Unified Report (All)"
+msgstr "📚 Relatório Unificado (Todos)"
+
+# | msgid "Open Cache Folder"
+# | msgid "📁 Open File Folder"
+#: src/zebtrack/ui/components/processing_reports.py:274
+msgid "📄 Open Unified Word"
+msgstr "📄 Abrir Word Unificado"
+
+#: src/zebtrack/ui/components/processing_reports.py:282
+msgid "📊 Open Unified Excel"
+msgstr "📊 Abrir Excel Unificado"
+
+# | msgid "Remove reports"
+# | msgid "Not reported"
+# | msgid "Unified Report"
+#: src/zebtrack/ui/components/processing_reports.py:290
+msgid "Σ Open Unified Parquet"
+msgstr "Σ Abrir Parquet Unificado"
+
+# | msgid "Delete {asset}"
+# | msgid "Delete {kind}"
+# | msgid "🗑️ Delete {kind}…"
+#: src/zebtrack/ui/components/processing_reports.py:298
+msgid "🗑️ Delete Everything"
+msgstr "🗑️ Apagar Tudo"
+
+# | msgid "Collapse all"
+#: src/zebtrack/ui/components/processing_reports.py:330
+msgid "⊟ Collapse All"
+msgstr "⊟ Colapsar Tudo"
+
+# | msgid ""
+# | "Also remove the video file from disk? This action cannot be undone."
+# | msgid "" "Are you sure you want to remove ROI '{name}'?\n" "\n" "This
+# action
+# | cannot be undone."
+#: src/zebtrack/ui/components/processing_reports.py:473
+msgid ""
+"Are you sure you want to delete ALL unified reports (Parquet, Excel, Word)?\n"
+"\n"
+"This action cannot be undone."
+msgstr ""
+"Tem certeza que deseja apagar TODOS os relatórios unificados (Parquet, Excel, Word)?\n"
+"\n"
+"Esta ação não pode ser desfeita."
+
+# | msgid "{count} vertex/vertices selected."
+# | msgid "{count} vertex(es) selected."
+#: src/zebtrack/ui/components/processing_reports.py:670
+#, python-brace-format
+msgid "{count} video(s) selected"
+msgstr "{count} vídeo(s) selecionado(s)"
+
+# | msgid "Warning"
+#: src/zebtrack/ui/components/project_initializer.py:321
+msgid "Arduino Warning"
+msgstr "Aviso do Arduino"
+
+# | msgid "Could not connect to the Arduino on port {port}."
+#: src/zebtrack/ui/components/project_initializer.py:323
+#, python-brace-format
+msgid ""
+"Could not connect to the Arduino on port {port}. Running in offline mode."
+msgstr ""
+"Não foi possível conectar ao Arduino na porta {port}. Executando em modo "
+"offline."
+
+# | msgid "" "The camera saved in the project ('{name}') was not detected.\n"
+# | "\n" "Connect the right device or use 'Change camera' in the recording
+# | dialog " "to pick another one."
+#: src/zebtrack/ui/components/project_initializer.py:350
+#, python-brace-format
+msgid ""
+"The camera saved in the project ('{name}') was not detected.\n"
+"\n"
+"Recordings will fail until you select another camera. Use 'Change camera...' in the animal block before starting the session to pick a connected device."
+msgstr ""
+"A câmera salva no projeto ('{name}') não foi detectada.\n"
+"\n"
+"As gravações irão falhar até você selecionar outra câmera. Use 'Trocar câmera...' no bloco do animal antes de iniciar a sessão para escolher um dispositivo conectado."
+
+# | msgid "Error"
+# | msgid "Model Error"
+#: src/zebtrack/ui/components/project_initializer.py:397
+msgid "Camera Error"
+msgstr "Erro na Câmera"
+
+# | msgid "Error"
+# | msgid "Model Error"
+# | msgid "Import error"
+#: src/zebtrack/ui/components/project_initializer.py:508
+msgid "Wizard Error"
+msgstr "Erro no Wizard"
+
+#: src/zebtrack/ui/components/project_initializer.py:509
+#, python-brace-format
+msgid "Missing required fields: {fields}"
+msgstr "Campos obrigatórios ausentes: {fields}"
+
 # | msgid "Restore Defaults"
 # | msgid "Restore Global Defaults"
 #: src/zebtrack/ui/components/project_model_configuration_panel.py:22
@@ -5198,11 +5509,66 @@ msgstr "Projeto atualizado"
 msgid "The current global settings have been copied into this project."
 msgstr "As configurações globais atuais foram copiadas para este projeto."
 
-#: src/zebtrack/ui/components/roi_template_manager.py:252
+# | msgid "Project Loaded"
+#: src/zebtrack/ui/components/project_overview.py:65
+msgid "Project Overview"
+msgstr "Visão Geral do Projeto"
+
+# | msgid "Project Actions"
+#: src/zebtrack/ui/components/project_overview.py:112
+msgid "Project Videos"
+msgstr "Vídeos do Projeto"
+
+# | msgid "Load video"
+# | msgid "video"
+#: src/zebtrack/ui/components/project_overview.py:136
+msgid "Videos"
+msgstr "Vídeos"
+
+# | msgid "No Day"
+# | msgid "No data"
+# | msgid "No metadata"
+#: src/zebtrack/ui/components/project_overview.py:138
+msgid "Metadata"
+msgstr "Metadados"
+
+#: src/zebtrack/ui/components/project_overview.py:173
+#, python-brace-format
+msgid ""
+"Legend: {arena} Arena | {rois} ROIs | {trajectory} Trajectory | {summary} "
+"Summary"
+msgstr ""
+"Legenda: {arena} Arena | {rois} ROIs | {trajectory} Trajetória | {summary} "
+"Sumário"
+
+# | msgid "Delete {asset}"
+# | msgid "🗑️ Delete {label}…"
+#: src/zebtrack/ui/components/project_overview.py:432
+#: src/zebtrack/ui/components/project_views/report_tree_builder.py:353
+#: src/zebtrack/ui/components/project_views/video_selector_tree_manager.py:509
+#: src/zebtrack/ui/components/validation_manager.py:354
+#: src/zebtrack/ui/components/validation_manager.py:1524
+#, python-brace-format
+msgid "🐟 Subject {label}"
+msgstr "🐟 Sujeito {label}"
+
+# | msgid "Partial Unified Report"
+#: src/zebtrack/ui/components/project_overview.py:462
+#: src/zebtrack/ui/components/project_views/report_tree_builder.py:285
+msgid "🧾 Partial Reports"
+msgstr "🧾 Relatórios Parciais"
+
+# | msgid "Partial Unified Report"
+# | msgid "🧾 Partial Reports"
+#: src/zebtrack/ui/components/project_overview.py:475
+msgid "Partial Report"
+msgstr "Relatório Parcial"
+
+#: src/zebtrack/ui/components/roi_template_manager.py:250
 msgid "Review the applied zones"
 msgstr "Revise as zonas aplicadas"
 
-#: src/zebtrack/ui/components/roi_template_manager.py:254
+#: src/zebtrack/ui/components/roi_template_manager.py:252
 msgid ""
 "Check the arena/ROIs on the current video before starting the analysis. "
 "Templates may need fine tuning per video."
@@ -5210,37 +5576,37 @@ msgstr ""
 "Confira arena/ROIs no vídeo atual antes de iniciar a análise. Templates "
 "podem precisar de ajustes finos por vídeo."
 
-#: src/zebtrack/ui/components/roi_template_manager.py:259
+#: src/zebtrack/ui/components/roi_template_manager.py:257
 #, python-brace-format
 msgid "Template '{name}' applied to the video being edited."
 msgstr "Template '{name}' aplicado ao vídeo em edição."
 
-#: src/zebtrack/ui/components/roi_template_manager.py:279
+# | msgid "Do you really want to exit?"
+#: src/zebtrack/ui/components/roi_template_manager.py:275
 #, python-brace-format
-#| msgid "Do you really want to exit?"
 msgid "Do you really want to delete template '{name}'?"
 msgstr "Deseja realmente excluir o template '{name}'?"
 
 # | msgid "Select the Video for Diagnostics"
 # | msgid "📹 Select Video for Drawing"
 # | msgid "Select a video before applying the template."
-#: src/zebtrack/ui/components/roi_template_manager.py:297
-#| msgid "Error applying the template"
+# | msgid "Error applying the template"
+#: src/zebtrack/ui/components/roi_template_manager.py:291
 msgid "Error deleting the template"
 msgstr "Erro ao excluir template"
 
 # | msgid "Select the Video for Diagnostics"
-#: src/zebtrack/ui/components/roi_template_manager.py:309
-#| msgid "📹 Select Video for Drawing"
+# | msgid "📹 Select Video for Drawing"
+#: src/zebtrack/ui/components/roi_template_manager.py:303
 msgid "Select a video to clear the applied drawings."
 msgstr "Selecione um vídeo para limpar os desenhos aplicados."
 
-#: src/zebtrack/ui/components/roi_template_manager.py:314
-#| msgid "🧹 Clear drawing"
+# | msgid "🧹 Clear drawing"
+#: src/zebtrack/ui/components/roi_template_manager.py:308
 msgid "Clear the applied drawing"
 msgstr "Limpar desenho aplicado"
 
-#: src/zebtrack/ui/components/roi_template_manager.py:316
+#: src/zebtrack/ui/components/roi_template_manager.py:310
 msgid ""
 "Clear the arena and the ROIs of the current video?\n"
 "\n"
@@ -5250,43 +5616,108 @@ msgstr ""
 "\n"
 "Esta ação afeta somente o vídeo selecionado e não remove templates da biblioteca."
 
-#: src/zebtrack/ui/components/roi_template_manager.py:326
+#: src/zebtrack/ui/components/roi_template_manager.py:320
 msgid "The current video's drawings were cleared."
 msgstr "Desenhos do vídeo atual foram limpos."
 
 # | msgid "Error Saving to Project"
-#: src/zebtrack/ui/components/roi_template_manager.py:330
-#| msgid "Error resuming the recording"
+# | msgid "Error resuming the recording"
+#: src/zebtrack/ui/components/roi_template_manager.py:324
 msgid "Error clearing the drawing"
 msgstr "Erro ao limpar desenho"
 
-#: src/zebtrack/ui/components/roi_template_manager.py:430
+#: src/zebtrack/ui/components/roi_template_manager.py:424
 #: src/zebtrack/ui/components/zone_controls.py:594
 msgid "ROI Templates"
 msgstr "Templates de ROI"
 
 # | msgid "Invalid selection"
-#: src/zebtrack/ui/components/roi_template_manager.py:536
-#| msgid "Invalid target"
+# | msgid "Invalid target"
+#: src/zebtrack/ui/components/roi_template_manager.py:530
 msgid "Invalid template"
 msgstr "Template inválido"
 
 # | msgid "Error Saving to Project"
-#: src/zebtrack/ui/components/roi_template_manager.py:540
-#| msgid "Error Saving"
+# | msgid "Error Saving"
+#: src/zebtrack/ui/components/roi_template_manager.py:534
 msgid "Error saving"
 msgstr "Erro ao salvar"
 
 # | msgid "Template:"
-#: src/zebtrack/ui/components/roi_template_manager.py:546
-#| msgid "Template applied"
+# | msgid "Template applied"
+#: src/zebtrack/ui/components/roi_template_manager.py:540
 msgid "Template saved"
 msgstr "Template salvo"
 
-#: src/zebtrack/ui/components/roi_template_manager.py:547
+#: src/zebtrack/ui/components/roi_template_manager.py:541
 #, python-brace-format
 msgid "Template '{name}' is available for use."
 msgstr "Template '{name}' disponível para uso."
+
+# | msgid "Failed to update the project settings: {error}"
+# | msgid "Failed to start the recording: {error}"
+#: src/zebtrack/ui/components/single_video_workflow.py:74
+#: src/zebtrack/ui/components/single_video_workflow.py:354
+#, python-brace-format
+msgid "Failed to start the analysis: {error}"
+msgstr "Falha ao iniciar análise: {error}"
+
+# | msgid "Video Analysis"
+# | msgid "Single Video Analysis Options"
+# | msgid "Starting the live analysis."
+#: src/zebtrack/ui/components/single_video_workflow.py:129
+msgid "Start Single-Video Analysis"
+msgstr "Iniciar Análise de Vídeo Único"
+
+#: src/zebtrack/ui/components/canvas/zone_editor.py:287
+#: src/zebtrack/ui/components/canvas/zone_editor.py:307
+#: src/zebtrack/ui/components/single_video_workflow.py:151
+msgid "Analysis in Progress"
+msgstr "Análise em Progresso"
+
+# | msgid "Zones cannot be edited while a video is being analysed."
+#: src/zebtrack/ui/components/single_video_workflow.py:152
+msgid "Zones cannot be detected while a video is being analysed."
+msgstr "Não é possível detectar zonas durante a análise de vídeo."
+
+# | msgid "Invalid selection"
+# | msgid "Invalid target"
+# | msgid "Invalid Port"
+#: src/zebtrack/ui/components/single_video_workflow.py:168
+msgid "Invalid Input"
+msgstr "Entrada Inválida"
+
+# | msgid "The number of frames must be a whole number."
+#: src/zebtrack/ui/components/single_video_workflow.py:169
+msgid "The number of frames to analyse must be a positive whole number."
+msgstr "O número de frames para análise deve ser um número inteiro positivo."
+
+#: src/zebtrack/ui/components/single_video_workflow.py:260
+msgid ""
+"Could not start camera detection (calibration coordinator unavailable)."
+msgstr ""
+"Não foi possível iniciar a detecção pela câmera (coordenador de calibração "
+"indisponível)."
+
+# | msgid "Validation Error"
+# | msgid "Validation finished"
+# | msgid "Validation Failed"
+# | msgid "Automatic Detection Failed"
+#: src/zebtrack/ui/components/single_video_workflow.py:278
+#, python-brace-format
+msgid "Automatic camera detection failed: {error}"
+msgstr "Falha na detecção automática pela câmera: {error}"
+
+# | msgid "Every arena has been defined."
+#: src/zebtrack/ui/components/single_video_workflow.py:385
+msgid "No aquarium has been defined."
+msgstr "Nenhum aquário foi definido."
+
+# | msgid "The aquarium polygon data could not be retrieved."
+# | msgid "The main aquarium polygon has not been defined"
+#: src/zebtrack/ui/components/single_video_workflow.py:390
+msgid "The aquarium's main area (polygon) has not been defined."
+msgstr "A área principal do aquário (polígono) não foi definida."
 
 #: src/zebtrack/ui/components/state_synchronizer.py:447
 #: src/zebtrack/ui/components/state_synchronizer.py:463
@@ -5382,27 +5813,6 @@ msgstr "Adicionar Vídeos/Pastas ao Projeto..."
 msgid "Process Pending Videos..."
 msgstr "Processar Vídeos Pendentes..."
 
-# | msgid "Pending ROIs"
-#: src/zebtrack/ui/components/validation_manager.py:54
-msgid "Pending"
-msgstr "Pendentes"
-
-# | msgid "Data"
-#: src/zebtrack/ui/components/validation_manager.py:56
-msgid "With data"
-msgstr "Com dados"
-
-# | msgid "Zones Completed"
-#: src/zebtrack/ui/components/validation_manager.py:57
-msgid "Completed"
-msgstr "Concluídos"
-
-# | msgid "File"
-# | msgid "✗ Failed"
-#: src/zebtrack/ui/components/validation_manager.py:58
-msgid "Failed"
-msgstr "Com falha"
-
 # | msgid "The processing interval must be greater than 0."
 #: src/zebtrack/ui/components/validation_manager.py:134
 msgid "The display interval must be greater than 0."
@@ -5447,16 +5857,6 @@ msgstr "🧮 {count} vídeo(s)"
 #: src/zebtrack/ui/components/validation_manager.py:310
 msgid "(no file)"
 msgstr "(sem arquivo)"
-
-# | msgid "Delete {asset}"
-# | msgid "🗑️ Delete {label}…"
-#: src/zebtrack/ui/components/project_views/report_tree_builder.py:353
-#: src/zebtrack/ui/components/project_views/video_selector_tree_manager.py:509
-#: src/zebtrack/ui/components/validation_manager.py:354
-#: src/zebtrack/ui/components/validation_manager.py:1524
-#, python-brace-format
-msgid "🐟 Subject {label}"
-msgstr "🐟 Sujeito {label}"
 
 # | msgid "⚙ Edit Calibration..."
 #: src/zebtrack/ui/components/validation_manager.py:426
@@ -5554,11 +5954,6 @@ msgstr "Arena + ROIs"
 #: src/zebtrack/ui/components/validation_manager.py:915
 msgid "Global"
 msgstr "Global"
-
-# | msgid "Teal"
-#: src/zebtrack/ui/components/validation_manager.py:1001
-msgid "Total"
-msgstr "Total"
 
 # | msgid "✖ Cancel Session"
 #: src/zebtrack/ui/components/validation_manager.py:1362
@@ -5956,11 +6351,6 @@ msgstr "Expandir tudo"
 msgid "Defined Zones"
 msgstr "Zonas Definidas"
 
-# | msgid "✏️ Rename"
-#: src/zebtrack/ui/components/zone_controls.py:818
-msgid "Name"
-msgstr "Nome"
-
 #: src/zebtrack/ui/components/zone_controls.py:820
 msgid "Colour"
 msgstr "Cor"
@@ -6071,14 +6461,14 @@ msgstr ""
 "ROI."
 
 # | msgid "Data"
+# | msgid "With data"
 #: src/zebtrack/ui/components/zone_edit_guard.py:66
-#| msgid "With data"
 msgid "switch tabs"
 msgstr "trocar de aba"
 
 # | msgid "Analysis in Progress"
+# | msgid "No task in progress."
 #: src/zebtrack/ui/components/zone_edit_guard.py:117
-#| msgid "No task in progress."
 msgid "Zone editing in progress"
 msgstr "Edição de zonas em andamento"
 
@@ -6094,8 +6484,8 @@ msgstr ""
 # | msgid "Validation Error"
 # | msgid "Validation finished"
 # | msgid "✓ Drawing Finished"
+# | msgid "Processing Finished"
 #: src/zebtrack/ui/components/zone_edit_guard.py:157
-#| msgid "Processing Finished"
 msgid "Zones not finalised"
 msgstr "Zonas não finalizadas"
 
@@ -6117,8 +6507,8 @@ msgstr ""
 "• Não: Prossegue sem finalizar\n"
 "• Cancelar: Permanece no vídeo atual"
 
+# | msgid "The video analysis was cancelled."
 #: src/zebtrack/ui/components/zone_edit_guard.py:169
-#| msgid "The video analysis was cancelled."
 msgid "Video switch cancelled."
 msgstr "Troca de vídeo cancelada."
 
@@ -6130,8 +6520,8 @@ msgstr "Troca de vídeo cancelada para manter a edição atual."
 msgid "Edit saved. Moving on to the next video..."
 msgstr "Edição salva. Prosseguindo para o próximo vídeo..."
 
+# | msgid "✅ Save Edit"
 #: src/zebtrack/ui/components/zone_edit_guard.py:196
-#| msgid "✅ Save Edit"
 msgid "Save edit"
 msgstr "Salvar edição"
 
@@ -6403,11 +6793,6 @@ msgid ""
 msgstr ""
 "Modo de Desenho (Polígono): Clique para adicionar pontos, clique duplo para "
 "finalizar. Ctrl+Z para desfazer."
-
-#: src/zebtrack/ui/components/canvas/zone_editor.py:287
-#: src/zebtrack/ui/components/canvas/zone_editor.py:307
-msgid "Analysis in Progress"
-msgstr "Análise em Progresso"
 
 #: src/zebtrack/ui/components/canvas/zone_editor.py:288
 #: src/zebtrack/ui/components/canvas/zone_editor.py:308
@@ -6827,11 +7212,6 @@ msgstr "Não havia relatórios unificados para apagar."
 msgid "Day {number}"
 msgstr "Dia {number}"
 
-# | msgid "Partial Unified Report"
-#: src/zebtrack/ui/components/project_views/report_tree_builder.py:285
-msgid "🧾 Partial Reports"
-msgstr "🧾 Relatórios Parciais"
-
 # | msgid "Delete {asset}"
 # | msgid "🗑️ Delete {label}…"
 # | msgid "🐟 Subject {label}"
@@ -7103,8 +7483,8 @@ msgstr ""
 msgid "Frame loaded: {name}"
 msgstr "Frame carregado: {name}"
 
+# | msgid "Buffer radius cannot be negative"
 #: src/zebtrack/ui/components/validators/config_validator.py:88
-#| msgid "Buffer radius cannot be negative"
 msgid "Buffer radius must be >= 0"
 msgstr "Raio de buffer deve ser >= 0"
 

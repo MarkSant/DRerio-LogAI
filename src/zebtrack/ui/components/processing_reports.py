@@ -11,6 +11,7 @@ from tkinter import StringVar, ttk
 
 import structlog
 
+from zebtrack.i18n import _
 from zebtrack.ui import payloads
 from zebtrack.ui.components.base import BaseWidget
 from zebtrack.ui.event_bus_v2 import EventBusV2, UIEvents
@@ -108,12 +109,12 @@ class ProcessingReportsWidget(BaseWidget):
 
         # Create status cards in a single horizontal row (6 cards total)
         status_types = [
-            ("total", "🧮", "Total"),
-            ("pending", "⏳", "Pendentes"),
-            ("processing", "🔁", "Processando"),
-            ("processed", "📦", "Com Dados"),
-            ("complete", "✅", "Concluídos"),
-            ("failed", "⚠️", "Com Falha"),
+            ("total", "🧮", _("Total")),
+            ("pending", "⏳", _("Pending")),
+            ("processing", "🔁", _("Processing")),
+            ("processed", "📦", _("With data")),
+            ("complete", "✅", _("Completed")),
+            ("failed", "⚠️", _("Failed")),
         ]
 
         for idx, (status_key, icon, label) in enumerate(status_types):
@@ -138,7 +139,7 @@ class ProcessingReportsWidget(BaseWidget):
 
     def _build_tree_view(self) -> None:
         """Build the hierarchical project tree view."""
-        tree_frame = ttk.LabelFrame(self, text="Estrutura do Projeto", padding=10)
+        tree_frame = ttk.LabelFrame(self, text=_("Project Structure"), padding=10)
         tree_frame.pack(fill="both", expand=True)
 
         # Tree controls header
@@ -147,16 +148,16 @@ class ProcessingReportsWidget(BaseWidget):
 
         ttk.Label(
             controls_frame,
-            text="Selecione vídeos para processar ou gerar relatórios:",
+            text=_("Select videos to process or to generate reports for:"),
             font=("TkDefaultFont", 9),
         ).pack(side="left")
 
-        ttk.Button(controls_frame, text="🔄 Atualizar", command=self._on_refresh_clicked).pack(
+        ttk.Button(controls_frame, text=_("🔄 Refresh"), command=self._on_refresh_clicked).pack(
             side="right", padx=(5, 0)
         )
 
         self.btn_expand_collapse = ttk.Button(
-            controls_frame, text="⊞ Expandir Tudo", command=self._on_expand_collapse_clicked
+            controls_frame, text=_("⊞ Expand All"), command=self._on_expand_collapse_clicked
         )
         self.btn_expand_collapse.pack(side="right")
 
@@ -177,12 +178,12 @@ class ProcessingReportsWidget(BaseWidget):
         )
 
         # Configure headings
-        self.tree.heading("#0", text="Nome")
-        self.tree.heading("arena", text="🏛️ Arena")
-        self.tree.heading("rois", text="📍 ROIs")
-        self.tree.heading("trajectory", text="📈 Trajetória")
-        self.tree.heading("summary", text="Σ Sumário")
-        self.tree.heading("status", text="Status")
+        self.tree.heading("#0", text=_("Name"))
+        self.tree.heading("arena", text=_("🏛️ Arena"))
+        self.tree.heading("rois", text=_("📍 ROIs"))
+        self.tree.heading("trajectory", text=_("📈 Trajectory"))
+        self.tree.heading("summary", text=_("Σ Summary"))
+        self.tree.heading("status", text=_("Status"))
 
         # Configure columns
         self.tree.column("#0", width=280, stretch=True)
@@ -216,7 +217,7 @@ class ProcessingReportsWidget(BaseWidget):
 
         self.selection_label = ttk.Label(
             info_frame,
-            text="Nenhum vídeo selecionado",
+            text=_("No video selected"),
             font=("TkDefaultFont", 8),
             foreground="#555555",
         )
@@ -224,13 +225,13 @@ class ProcessingReportsWidget(BaseWidget):
 
     def _build_action_toolbar(self) -> None:
         """Build the action toolbar with processing and reporting buttons."""
-        toolbar_frame = ttk.LabelFrame(self, text="Ações de Processamento e Relatórios", padding=10)
+        toolbar_frame = ttk.LabelFrame(self, text=_("Processing and Report Actions"), padding=10)
         toolbar_frame.pack(fill="x", pady=(10, 0))
 
         # Create buttons in a horizontal layout
         self.btn_generate_trajectories = ttk.Button(
             toolbar_frame,
-            text="▶️ Gerar Trajetórias",
+            text=_("▶️ Generate Trajectories"),
             command=self._on_generate_trajectories_clicked,
             state="disabled",
         )
@@ -238,7 +239,7 @@ class ProcessingReportsWidget(BaseWidget):
 
         self.btn_export_summaries = ttk.Button(
             toolbar_frame,
-            text="Σ Exportar Sumários (Parquet)",
+            text=_("Σ Export Summaries (Parquet)"),
             command=self._on_export_summaries_clicked,
             state="disabled",
         )
@@ -249,7 +250,7 @@ class ProcessingReportsWidget(BaseWidget):
 
         self.btn_generate_partial = ttk.Button(
             toolbar_frame,
-            text="📄 Relatório para Selecionados",
+            text=_("📄 Report for Selected"),
             command=self._on_generate_partial_clicked,
             state="disabled",
         )
@@ -257,7 +258,7 @@ class ProcessingReportsWidget(BaseWidget):
 
         self.btn_generate_unified = ttk.Button(
             toolbar_frame,
-            text="📚 Relatório Unificado (Todos)",
+            text=_("📚 Unified Report (All)"),
             command=self._on_generate_unified_clicked,
             state="normal",  # Always enabled
         )
@@ -268,7 +269,7 @@ class ProcessingReportsWidget(BaseWidget):
 
         self.btn_open_unified_word = ttk.Button(
             toolbar_frame,
-            text="📄 Abrir Word Unificado",
+            text=_("📄 Open Unified Word"),
             command=self._on_open_unified_word_clicked,
             state="disabled",
         )
@@ -276,7 +277,7 @@ class ProcessingReportsWidget(BaseWidget):
 
         self.btn_open_unified_excel = ttk.Button(
             toolbar_frame,
-            text="📊 Abrir Excel Unificado",
+            text=_("📊 Open Unified Excel"),
             command=self._on_open_unified_excel_clicked,
             state="disabled",
         )
@@ -284,7 +285,7 @@ class ProcessingReportsWidget(BaseWidget):
 
         self.btn_open_unified_parquet = ttk.Button(
             toolbar_frame,
-            text="Σ Abrir Parquet Unificado",
+            text=_("Σ Open Unified Parquet"),
             command=self._on_open_unified_parquet_clicked,
             state="disabled",
         )
@@ -292,7 +293,7 @@ class ProcessingReportsWidget(BaseWidget):
 
         self.btn_delete_unified = ttk.Button(
             toolbar_frame,
-            text="🗑️ Apagar Tudo",
+            text=_("🗑️ Delete Everything"),
             command=self._on_delete_unified_clicked,
             state="disabled",
         )
@@ -317,14 +318,14 @@ class ProcessingReportsWidget(BaseWidget):
             self._collapse_all_items()
             self._tree_expanded = False
             if self.btn_expand_collapse:
-                self.btn_expand_collapse.config(text="⊞ Expandir Tudo")
+                self.btn_expand_collapse.config(text=_("⊞ Expand All"))
             log.debug("processing_reports.tree_collapsed")
         else:
             # Expand all
             self._expand_all_items()
             self._tree_expanded = True
             if self.btn_expand_collapse:
-                self.btn_expand_collapse.config(text="⊟ Colapsar Tudo")
+                self.btn_expand_collapse.config(text=_("⊟ Collapse All"))
             log.debug("processing_reports.tree_expanded")
 
     def _expand_all_items(self) -> None:
@@ -465,10 +466,12 @@ class ProcessingReportsWidget(BaseWidget):
         from tkinter import messagebox
 
         confirm = messagebox.askyesno(
-            "Confirmar Exclusão",
-            "Tem certeza que deseja apagar TODOS os relatórios unificados "
-            "(Parquet, Excel, Word)?\n\n"
-            "Esta ação não pode ser desfeita.",
+            _("Confirm Deletion"),
+            _(
+                "Are you sure you want to delete ALL unified reports "
+                "(Parquet, Excel, Word)?\n\n"
+                "This action cannot be undone."
+            ),
             icon="warning",
         )
 
@@ -662,12 +665,12 @@ class ProcessingReportsWidget(BaseWidget):
         if self.selection_label:
             if has_selection:
                 self.selection_label.config(
-                    text=f"{len(video_selection)} vídeo(s) selecionado(s)",
+                    text=_("{count} video(s) selected").format(count=len(video_selection)),
                     foreground="#0f5132",
                 )
             else:
                 self.selection_label.config(
-                    text="Nenhum vídeo selecionado",
+                    text=_("No video selected"),
                     foreground="#555555",
                 )
 
@@ -693,7 +696,7 @@ class ProcessingReportsWidget(BaseWidget):
         # Reset expand/collapse state when tree is cleared
         self._tree_expanded = False
         if self.btn_expand_collapse:
-            self.btn_expand_collapse.config(text="⊞ Expandir Tudo")
+            self.btn_expand_collapse.config(text=_("⊞ Expand All"))
 
     def add_tree_item(
         self,

@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING
 
 import structlog
 
+from zebtrack.i18n import _
 from zebtrack.ui import payloads
 from zebtrack.ui.decorators import public_api
 from zebtrack.ui.event_bus_v2 import UIEvents
@@ -69,7 +70,9 @@ class SingleVideoWorkflow:
             log.info("single_video_workflow.on_analyze_clicked.END")
         except Exception as e:  # except Exception justified: UI error boundary for button click
             log.error("single_video_workflow.on_analyze_clicked.ERROR", error=str(e))
-            self.dialog_manager.show_error("Erro", f"Falha ao iniciar análise: {e}")
+            self.dialog_manager.show_error(
+                _("Error"), _("Failed to start the analysis: {error}").format(error=e)
+            )
 
     # ------------------------------------------------------------------
     # Zone definition setup
@@ -86,7 +89,7 @@ class SingleVideoWorkflow:
         )
         # Reset analysis UI elements for a clean setup
         gui.hide_progress_bar()
-        gui.analysis_status_var.set("Nenhuma análise em andamento.")
+        gui.analysis_status_var.set(_("No analysis in progress."))
         if gui.analysis_display_widget and gui.analysis_display_widget.video_label:
             try:
                 gui.analysis_display_widget.video_label.configure(image="")
@@ -123,7 +126,7 @@ class SingleVideoWorkflow:
         if not gui.start_single_analysis_btn:
             btn = ttk.Button(
                 gui.fixed_button_frame,
-                text="Iniciar Análise de Vídeo Único",
+                text=_("Start Single-Video Analysis"),
                 command=self._on_start_single_video_processing_clicked,
             )
             btn.pack(side="bottom", fill="x", pady=5)
@@ -145,8 +148,8 @@ class SingleVideoWorkflow:
         # Prevent editing during analysis
         if gui.analysis_active:
             self.dialog_manager.show_warning(
-                "Análise em Progresso",
-                "Não é possível detectar zonas durante a análise de vídeo.",
+                _("Analysis in Progress"),
+                _("Zones cannot be detected while a video is being analysed."),
             )
             return
 
@@ -162,8 +165,8 @@ class SingleVideoWorkflow:
                 raise ValueError
         except (ValueError, TypeError):
             self.dialog_manager.show_warning(
-                "Entrada Inválida",
-                "O número de frames para análise deve ser um número inteiro positivo.",
+                _("Invalid Input"),
+                _("The number of frames to analyse must be a positive whole number."),
             )
             return
 
@@ -252,9 +255,8 @@ class SingleVideoWorkflow:
         if calibration_coordinator is None:
             log.error("single_video_workflow.auto_detect.live_no_calibration_coordinator")
             self.dialog_manager.show_error(
-                "Erro",
-                "Não foi possível iniciar a detecção pela câmera "
-                "(coordenador de calibração indisponível).",
+                _("Error"),
+                _("Could not start camera detection (calibration coordinator unavailable)."),
             )
             return True
 
@@ -268,7 +270,10 @@ class SingleVideoWorkflow:
             )
         except Exception as e:  # except Exception justified: camera + cv2 pipeline
             log.error("single_video_workflow.auto_detect.live_failed", error=str(e), exc_info=True)
-            self.dialog_manager.show_error("Erro", f"Falha na detecção automática pela câmera: {e}")
+            self.dialog_manager.show_error(
+                _("Error"),
+                _("Automatic camera detection failed: {error}").format(error=e),
+            )
             return True
 
         if success:
@@ -342,7 +347,9 @@ class SingleVideoWorkflow:
             self._start_single_video_processing()
         except Exception as e:  # except Exception justified: UI error boundary for button click
             log.error("single_video_workflow.start.error", error=str(e), exc_info=True)
-            self.dialog_manager.show_error("Erro", f"Falha ao iniciar análise: {e}")
+            self.dialog_manager.show_error(
+                _("Error"), _("Failed to start the analysis: {error}").format(error=e)
+            )
 
     def _start_single_video_processing(self) -> None:
         """Validate zones/config and publish ``VIDEO_START_SINGLE_PROCESSING``."""
@@ -372,12 +379,12 @@ class SingleVideoWorkflow:
 
         if isinstance(zone_data, MultiAquariumZoneData):
             if not zone_data.aquariums:
-                self.dialog_manager.show_error("Erro", "Nenhum aquário foi definido.")
+                self.dialog_manager.show_error(_("Error"), _("No aquarium has been defined."))
                 return
         elif not zone_data.polygon:
             self.dialog_manager.show_error(
-                "Erro",
-                "A área principal do aquário (polígono) não foi definida.",
+                _("Error"),
+                _("The aquarium's main area (polygon) has not been defined."),
             )
             return
 

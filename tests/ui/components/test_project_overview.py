@@ -162,9 +162,9 @@ def test_tree_has_correct_columns(overview_widget):
     assert "metadata" in columns
 
     # Check headings
-    assert tree.heading("#0")["text"] == "Vídeos"
+    assert tree.heading("#0")["text"] == "Videos"
     assert tree.heading("status")["text"] == "Status"
-    assert tree.heading("metadata")["text"] == "Metadados"
+    assert tree.heading("metadata")["text"] == "Metadata"
 
 
 def test_multiple_status_updates(overview_widget):
@@ -432,7 +432,7 @@ def test_populate_tree_with_hierarchy_adds_partial_report_nodes(overview_widget)
     partial_root_id = day_children[0]
 
     assert overview_widget.project_overview_tree.item(partial_root_id, "text") == (
-        "🧾 Relatórios Parciais"
+        "🧾 Partial Reports"
     )
     partial_children = overview_widget.project_overview_tree.get_children(partial_root_id)
     assert len(partial_children) == 2
