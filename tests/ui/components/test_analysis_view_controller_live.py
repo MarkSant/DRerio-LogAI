@@ -55,8 +55,8 @@ def test_start_analysis_view_mode_resets_defaults_for_non_live_processing():
 
     controller.start_analysis_view_mode()
 
-    gui.analysis_status_var.set.assert_called_once_with("Preparando análise...")
-    gui.analysis_task_var.set.assert_called_once_with("Preparando fila de análise...")
+    gui.analysis_status_var.set.assert_called_once_with("Preparing the analysis...")
+    gui.analysis_task_var.set.assert_called_once_with("Preparing the analysis queue...")
     gui.state_synchronizer._set_analysis_metadata_defaults.assert_called_once()
 
 
@@ -110,7 +110,7 @@ def test_update_analysis_metadata_preserves_last_live_values_on_partial_payload(
         call("Controle", "Dia 2", "02"),
         call("Controle", "Dia 2", "02"),
     ]
-    gui.analysis_profile_var.set.assert_called_with("Configuração de análise: custom")
+    gui.analysis_profile_var.set.assert_called_with("Analysis configuration: custom")
 
 
 @pytest.mark.gui

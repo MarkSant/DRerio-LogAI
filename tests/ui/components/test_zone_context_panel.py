@@ -12,8 +12,8 @@ from typing import Any, cast
 from unittest.mock import MagicMock
 
 from zebtrack.ui.components.zone_context_panel import (
-    _BADGE_STYLES,
     ZoneContextPanel,
+    _badge_styles,
     _badge_visuals,
 )
 
@@ -58,26 +58,26 @@ def _bare_panel(
 
 def test_badge_visuals_for_auto_returns_green_style():
     text, fg, bg = _badge_visuals("auto")
-    assert text == _BADGE_STYLES["auto"][0]
+    assert text == _badge_styles()["auto"][0]
     assert fg == "white"
     assert bg == "#2e7d32"
 
 
 def test_badge_visuals_for_manual_returns_orange_style():
     text, fg, bg = _badge_visuals("manual")
-    assert text == _BADGE_STYLES["manual"][0]
+    assert text == _badge_styles()["manual"][0]
     assert bg == "#ef6c00"
 
 
 def test_badge_visuals_for_none_returns_gray_style():
     text, fg, bg = _badge_visuals(None)
-    assert text == _BADGE_STYLES["none"][0]
+    assert text == _badge_styles()["none"][0]
     assert bg == "#757575"
 
 
 def test_badge_visuals_for_unknown_source_falls_back_to_none():
     text, _, bg = _badge_visuals("garbage")
-    assert text == _BADGE_STYLES["none"][0]
+    assert text == _badge_styles()["none"][0]
     assert bg == "#757575"
 
 
@@ -92,7 +92,7 @@ def test_update_auto_polygon_source_writes_green_badge():
     badge = cast(MagicMock, panel._badge_label)
     badge.config.assert_called_once()
     kwargs = badge.config.call_args.kwargs
-    assert kwargs["text"] == _BADGE_STYLES["auto"][0]
+    assert kwargs["text"] == _badge_styles()["auto"][0]
     assert kwargs["background"] == "#2e7d32"
 
 
@@ -100,7 +100,7 @@ def test_update_manual_polygon_source_writes_orange_badge():
     panel = _bare_panel()
     panel.update(polygon_source="manual")
     kwargs = cast(MagicMock, panel._badge_label).config.call_args.kwargs
-    assert kwargs["text"] == _BADGE_STYLES["manual"][0]
+    assert kwargs["text"] == _badge_styles()["manual"][0]
     assert kwargs["background"] == "#ef6c00"
 
 
@@ -109,7 +109,7 @@ def test_update_none_polygon_source_writes_gray_badge():
     panel._polygon_source = "auto"  # start from a non-empty state
     panel.update(polygon_source=None)
     kwargs = cast(MagicMock, panel._badge_label).config.call_args.kwargs
-    assert kwargs["text"] == _BADGE_STYLES["none"][0]
+    assert kwargs["text"] == _badge_styles()["none"][0]
     assert kwargs["background"] == "#757575"
 
 
@@ -124,15 +124,15 @@ def test_update_active_source_writes_formatted_label():
     panel = _bare_panel()
     panel.update(active_source="trial_42.mp4")
     cast(MagicMock, panel._source_label).config.assert_called_once_with(
-        text="Fonte ativa: trial_42.mp4"
+        text="Active source: trial_42.mp4"
     )
 
 
 def test_update_model_caption_writes_formatted_label():
     panel = _bare_panel()
-    panel.update(model_caption="aquarium_seg.pt · método seg")
+    panel.update(model_caption="aquarium_seg.pt · method seg")
     cast(MagicMock, panel._model_label).config.assert_called_once_with(
-        text="Modelo do aquário: aquarium_seg.pt · método seg"
+        text="Aquarium model: aquarium_seg.pt · method seg"
     )
 
 
@@ -159,7 +159,7 @@ def test_polygon_source_event_dispatches_via_root_after():
     assert captured, "callback should have been queued onto root.after"
     captured[0]()
     kwargs = cast(MagicMock, panel._badge_label).config.call_args.kwargs
-    assert kwargs["text"] == _BADGE_STYLES["auto"][0]
+    assert kwargs["text"] == _badge_styles()["auto"][0]
 
 
 def test_video_frame_event_updates_active_source_with_basename():
@@ -175,7 +175,7 @@ def test_video_frame_event_updates_active_source_with_basename():
     assert captured
     captured[0]()
     cast(MagicMock, panel._source_label).config.assert_called_once_with(
-        text="Fonte ativa: session_a.mp4"
+        text="Active source: session_a.mp4"
     )
 
 
@@ -195,7 +195,7 @@ def test_video_frame_event_for_live_reference_frame_shows_camera_label():
 
     captured[0]()
     cast(MagicMock, panel._source_label).config.assert_called_once_with(
-        text="Fonte ativa: Câmera ao vivo (idx 2)"
+        text="Active source: Live camera (idx 2)"
     )
 
 
@@ -220,10 +220,10 @@ def test_project_opened_event_triggers_refresh_from_project():
 
     captured[0]()
     cast(MagicMock, panel._source_label).config.assert_called_with(
-        text="Fonte ativa: Câmera ao vivo (idx 0)"
+        text="Active source: Live camera (idx 0)"
     )
     cast(MagicMock, panel._model_label).config.assert_called_with(
-        text="Modelo do aquário: aquarium.pt · método det"
+        text="Aquarium model: aquarium.pt · method det"
     )
 
 
@@ -242,7 +242,7 @@ def test_refresh_from_project_pre_recorded_shows_placeholder_source():
     panel = _bare_panel(project_manager=project_manager)
     panel.refresh_from_project()
 
-    cast(MagicMock, panel._source_label).config.assert_called_with(text="Fonte ativa: —")
+    cast(MagicMock, panel._source_label).config.assert_called_with(text="Active source: —")
 
 
 def test_refresh_from_project_seeds_badge_from_existing_zone_metadata():
@@ -260,7 +260,7 @@ def test_refresh_from_project_seeds_badge_from_existing_zone_metadata():
     panel.refresh_from_project()
 
     kwargs = cast(MagicMock, panel._badge_label).config.call_args.kwargs
-    assert kwargs["text"] == _BADGE_STYLES["auto"][0]
+    assert kwargs["text"] == _badge_styles()["auto"][0]
 
 
 def test_refresh_from_project_without_weight_manager_returns_dash_caption():
@@ -272,7 +272,7 @@ def test_refresh_from_project_without_weight_manager_returns_dash_caption():
     panel = _bare_panel(project_manager=project_manager, weight_manager=None)
     panel.refresh_from_project()
 
-    cast(MagicMock, panel._model_label).config.assert_called_with(text="Modelo do aquário: —")
+    cast(MagicMock, panel._model_label).config.assert_called_with(text="Aquarium model: —")
 
 
 # ---------------------------------------------------------------------------

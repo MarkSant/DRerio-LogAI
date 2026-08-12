@@ -9,7 +9,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: DRerio LogAI VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-08-12 07:46-0300\n"
+"POT-Creation-Date: 2026-08-12 08:02-0300\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -401,6 +401,7 @@ msgstr ""
 
 #: src/zebtrack/coordinators/model_diagnostics_coordinator.py:729
 #: src/zebtrack/coordinators/video_processing_coordinator.py:444
+#: src/zebtrack/ui/components/canvas/multi_aquarium_overlay.py:235
 #: src/zebtrack/ui/components/canvas/zone_editor.py:902
 #: src/zebtrack/ui/components/dialog_manager.py:1454
 #: src/zebtrack/ui/components/dialog_manager.py:1515
@@ -743,6 +744,7 @@ msgid "First run — optimizing for your hardware..."
 msgstr ""
 
 #: src/zebtrack/ui/builders/analysis_widgets.py:62
+#: src/zebtrack/ui/components/analysis_controls.py:167
 msgid "Video Analysis"
 msgstr ""
 
@@ -1078,6 +1080,124 @@ msgstr ""
 
 #: src/zebtrack/ui/builders/zone_widgets.py:150
 msgid "The aquarium polygon data could not be retrieved."
+msgstr ""
+
+#: src/zebtrack/ui/components/analysis_controls.py:48
+#: src/zebtrack/ui/components/analysis_display.py:63
+#: src/zebtrack/ui/components/analysis_display.py:437
+#: src/zebtrack/ui/components/analysis_view_controller.py:221
+msgid "No analysis in progress."
+msgstr ""
+
+#: src/zebtrack/ui/components/analysis_controls.py:52
+#: src/zebtrack/ui/components/analysis_controls.py:202
+#: src/zebtrack/ui/components/analysis_display.py:66
+#: src/zebtrack/ui/components/analysis_display.py:294
+#, python-brace-format
+msgid "Group: {value}"
+msgstr ""
+
+#: src/zebtrack/ui/components/analysis_controls.py:55
+#: src/zebtrack/ui/components/analysis_controls.py:203
+#: src/zebtrack/ui/components/analysis_display.py:69
+#: src/zebtrack/ui/components/analysis_display.py:295
+#, python-brace-format
+msgid "Day: {value}"
+msgstr ""
+
+#: src/zebtrack/ui/components/analysis_controls.py:58
+#: src/zebtrack/ui/components/analysis_controls.py:204
+#: src/zebtrack/ui/components/analysis_display.py:72
+#: src/zebtrack/ui/components/analysis_display.py:296
+#, python-brace-format
+msgid "Individual: {value}"
+msgstr ""
+
+#: src/zebtrack/ui/components/analysis_controls.py:61
+#: src/zebtrack/ui/components/analysis_controls.py:206
+#, python-brace-format
+msgid "Task: {value}"
+msgstr ""
+
+#: src/zebtrack/ui/components/analysis_controls.py:65
+#: src/zebtrack/ui/components/analysis_controls.py:210
+#: src/zebtrack/ui/components/analysis_display.py:80
+#: src/zebtrack/ui/components/analysis_display.py:302
+#, python-brace-format
+msgid "Tracking mode: {value}"
+msgstr ""
+
+#: src/zebtrack/ui/components/analysis_controls.py:65
+msgid "Multi-individual"
+msgstr ""
+
+#: src/zebtrack/ui/components/analysis_controls.py:69
+#: src/zebtrack/ui/components/analysis_controls.py:214
+#: src/zebtrack/ui/components/analysis_display.py:76
+#: src/zebtrack/ui/components/analysis_display.py:298
+#: src/zebtrack/ui/components/analysis_display.py:306
+#: src/zebtrack/ui/components/analysis_view_controller.py:308
+#, python-brace-format
+msgid "Analysis configuration: {value}"
+msgstr ""
+
+#: src/zebtrack/ui/components/analysis_controls.py:74
+#: src/zebtrack/ui/components/analysis_display.py:442
+msgid "Social interactions: waiting for data."
+msgstr ""
+
+#: src/zebtrack/ui/components/analysis_display.py:64
+#: src/zebtrack/ui/components/analysis_display.py:438
+#: src/zebtrack/ui/components/analysis_view_controller.py:223
+msgid "No task in progress."
+msgstr ""
+
+#: src/zebtrack/ui/components/analysis_display.py:84
+msgid "Social interactions: not applicable right now."
+msgstr ""
+
+#: src/zebtrack/ui/components/analysis_display.py:217
+msgid "Total Frames:"
+msgstr ""
+
+#: src/zebtrack/ui/components/analysis_display.py:218
+msgid "Processed:"
+msgstr ""
+
+#: src/zebtrack/ui/components/analysis_display.py:219
+msgid "Detected Frames:"
+msgstr ""
+
+#: src/zebtrack/ui/components/analysis_display.py:220
+msgid "Completed:"
+msgstr ""
+
+#: src/zebtrack/ui/components/analysis_display.py:221
+msgid "Elapsed Time:"
+msgstr ""
+
+#: src/zebtrack/ui/components/analysis_display.py:222
+msgid "Estimated Time:"
+msgstr ""
+
+#: src/zebtrack/ui/components/analysis_display.py:239
+msgid "Cancel Analysis"
+msgstr ""
+
+#: src/zebtrack/ui/components/analysis_profile.py:18
+msgid ""
+"Shows the analysis configuration applied to this session. When no "
+"specific rule matches the group, day or individual, the project uses the "
+"default profile. When it reads 'project default (default)', that is "
+"exactly this fallback."
+msgstr ""
+
+#: src/zebtrack/ui/components/analysis_view_controller.py:155
+msgid "Preparing the analysis..."
+msgstr ""
+
+#: src/zebtrack/ui/components/analysis_view_controller.py:161
+msgid "Preparing the analysis queue..."
 msgstr ""
 
 #: src/zebtrack/ui/components/config_editor.py:39
@@ -3079,6 +3199,52 @@ msgstr ""
 msgid "Error applying settings: {error}"
 msgstr ""
 
+#: src/zebtrack/ui/components/zone_context_panel.py:46
+msgid "Auto-detected"
+msgstr ""
+
+#: src/zebtrack/ui/components/zone_context_panel.py:47
+msgid "Manually edited"
+msgstr ""
+
+#: src/zebtrack/ui/components/zone_context_panel.py:48
+msgid "Not defined"
+msgstr ""
+
+#: src/zebtrack/ui/components/zone_context_panel.py:107
+msgid "Calibration Context"
+msgstr ""
+
+#: src/zebtrack/ui/components/zone_context_panel.py:252
+#: src/zebtrack/ui/components/zone_context_panel.py:302
+msgid "Live camera"
+msgstr ""
+
+#: src/zebtrack/ui/components/zone_context_panel.py:253
+#, python-brace-format
+msgid "Live camera (idx {index})"
+msgstr ""
+
+#: src/zebtrack/ui/components/zone_context_panel.py:289
+#, python-brace-format
+msgid "no model · method {method}"
+msgstr ""
+
+#: src/zebtrack/ui/components/zone_context_panel.py:290
+#, python-brace-format
+msgid "{name} · method {method}"
+msgstr ""
+
+#: src/zebtrack/ui/components/zone_context_panel.py:307
+#, python-brace-format
+msgid "Active source: {value}"
+msgstr ""
+
+#: src/zebtrack/ui/components/zone_context_panel.py:311
+#, python-brace-format
+msgid "Aquarium model: {value}"
+msgstr ""
+
 #: src/zebtrack/ui/components/zone_controls.py:234
 msgid "▶️ Start Recording"
 msgstr ""
@@ -3364,6 +3530,43 @@ msgstr ""
 
 #: src/zebtrack/ui/components/zone_controls.py:1418
 msgid "Counts as inside if the geometric centroid is strictly inside the ROI."
+msgstr ""
+
+#: src/zebtrack/ui/components/canvas/multi_aquarium_overlay.py:41
+msgid "Aquarium 1"
+msgstr ""
+
+#: src/zebtrack/ui/components/canvas/multi_aquarium_overlay.py:46
+msgid "Aquarium 2"
+msgstr ""
+
+#: src/zebtrack/ui/components/canvas/multi_aquarium_overlay.py:237
+#, python-brace-format
+msgid ""
+"Detected {count} aquariums successfully!\n"
+"Check that the markings are correct."
+msgstr ""
+
+#: src/zebtrack/ui/components/canvas/multi_aquarium_overlay.py:267
+msgid "Add a Second Aquarium"
+msgstr ""
+
+#: src/zebtrack/ui/components/canvas/multi_aquarium_overlay.py:269
+msgid ""
+"Polygon saved successfully!\n"
+"\n"
+"Does this video have two aquariums?\n"
+"If so, you will be able to draw the second one."
+msgstr ""
+
+#: src/zebtrack/ui/components/canvas/multi_aquarium_overlay.py:329
+msgid "Information"
+msgstr ""
+
+#: src/zebtrack/ui/components/canvas/multi_aquarium_overlay.py:331
+msgid ""
+"Draw the polygon of Aquarium 2.\n"
+"The polygon of Aquarium 1 is shown as a reference."
 msgstr ""
 
 #: src/zebtrack/ui/components/canvas/zone_editor.py:42

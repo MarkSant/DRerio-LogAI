@@ -48,13 +48,13 @@ class TestAnalysisDisplayWidget:
         tkinter_root.update_idletasks()
 
         # Verify default state variables
-        assert widget.status_var.get() == "Nenhuma análise em andamento."
-        assert widget.task_var.get() == "Nenhuma tarefa em andamento."
-        assert widget.group_var.get() == "Grupo: --"
-        assert widget.day_var.get() == "Dia: --"
-        assert widget.subject_var.get() == "Indivíduo: --"
-        assert widget.profile_var.get() == "Configuração de análise: default"
-        assert widget.tracking_mode_var.get() == "Modo de rastreamento: --"
+        assert widget.status_var.get() == "No analysis in progress."
+        assert widget.task_var.get() == "No task in progress."
+        assert widget.group_var.get() == "Group: --"
+        assert widget.day_var.get() == "Day: --"
+        assert widget.subject_var.get() == "Individual: --"
+        assert widget.profile_var.get() == "Analysis configuration: default"
+        assert widget.tracking_mode_var.get() == "Tracking mode: --"
         assert widget.track_selector_var.get() == "All"
 
         # Verify widget references are created
@@ -110,30 +110,30 @@ class TestAnalysisDisplayWidget:
             profile="custom_profile",
         )
 
-        assert widget.group_var.get() == "Grupo: Grupo A"
-        assert widget.day_var.get() == "Dia: Dia 1"
-        assert widget.subject_var.get() == "Indivíduo: Peixe 1"
-        assert widget.profile_var.get() == "Configuração de análise: custom_profile"
+        assert widget.group_var.get() == "Group: Grupo A"
+        assert widget.day_var.get() == "Day: Dia 1"
+        assert widget.subject_var.get() == "Individual: Peixe 1"
+        assert widget.profile_var.get() == "Analysis configuration: custom_profile"
 
     def test_set_metadata_without_profile(self, widget):
         """Test set_metadata works without profile parameter."""
         widget.set_metadata(group="Grupo B", day="Dia 2", subject="Peixe 2")
 
-        assert widget.group_var.get() == "Grupo: Grupo B"
-        assert widget.day_var.get() == "Dia: Dia 2"
-        assert widget.subject_var.get() == "Indivíduo: Peixe 2"
+        assert widget.group_var.get() == "Group: Grupo B"
+        assert widget.day_var.get() == "Day: Dia 2"
+        assert widget.subject_var.get() == "Individual: Peixe 2"
         # Profile should not change
-        assert "Configuração de análise:" in widget.profile_var.get()
+        assert "Analysis configuration:" in widget.profile_var.get()
 
     def test_set_tracking_mode(self, widget):
         """Test set_tracking_mode updates tracking mode label."""
         widget.set_tracking_mode("Single-subject")
-        assert widget.tracking_mode_var.get() == "Modo de rastreamento: Single-subject"
+        assert widget.tracking_mode_var.get() == "Tracking mode: Single-subject"
 
     def test_set_profile(self, widget):
         """Test set_profile updates profile label."""
         widget.set_profile("advanced")
-        assert widget.profile_var.get() == "Configuração de análise: advanced"
+        assert widget.profile_var.get() == "Analysis configuration: advanced"
 
     def test_set_social_summary(self, widget):
         """Test set_social_summary updates social summary text."""
@@ -292,13 +292,13 @@ class TestAnalysisDisplayWidget:
         widget.winfo_toplevel().update_idletasks()
 
         # Verify all defaults
-        assert widget.status_var.get() == "Nenhuma análise em andamento."
-        assert widget.task_var.get() == "Nenhuma tarefa em andamento."
-        assert widget.group_var.get() == "Grupo: --"
-        assert widget.day_var.get() == "Dia: --"
-        assert widget.subject_var.get() == "Indivíduo: --"
-        assert widget.tracking_mode_var.get() == "Modo de rastreamento: --"
-        assert widget.profile_var.get() == "Configuração de análise: default"
+        assert widget.status_var.get() == "No analysis in progress."
+        assert widget.task_var.get() == "No task in progress."
+        assert widget.group_var.get() == "Group: --"
+        assert widget.day_var.get() == "Day: --"
+        assert widget.subject_var.get() == "Individual: --"
+        assert widget.tracking_mode_var.get() == "Tracking mode: --"
+        assert widget.profile_var.get() == "Analysis configuration: default"
         assert widget.track_selector_var.get() == "All"
         assert not widget.progress_frame.winfo_ismapped()
         assert str(widget.cancel_btn["state"]) == "disabled"
@@ -434,4 +434,4 @@ class TestAnalysisDisplayWidget:
 
         # Reset for next analysis
         widget.reset_to_defaults()
-        assert widget.status_var.get() == "Nenhuma análise em andamento."
+        assert widget.status_var.get() == "No analysis in progress."

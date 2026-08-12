@@ -24,6 +24,7 @@ from typing import TYPE_CHECKING, Any, cast
 
 import structlog
 
+from zebtrack.i18n import _
 from zebtrack.ui.event_bus_v2 import UIEvents
 
 if TYPE_CHECKING:
@@ -34,12 +35,18 @@ if TYPE_CHECKING:
 log = structlog.get_logger()
 
 
-_BADGE_STYLES: dict[str, tuple[str, str, str]] = {
-    # source → (label, foreground, background)
-    "auto": ("Auto-detectado", "white", "#2e7d32"),  # green
-    "manual": ("Editado manualmente", "white", "#ef6c00"),  # orange
-    "none": ("Não definido", "white", "#757575"),  # gray
-}
+def _badge_styles() -> dict[str, tuple[str, str, str]]:
+    """Polygon-source tag → (label, foreground, background).
+
+    A function, not a module dict: the labels are translated, and a dict
+    built at import time would freeze them before a language is installed.
+    The keys are stored provenance tags and are never translated.
+    """
+    return {
+        "auto": (_("Auto-detected"), "white", "#2e7d32"),  # green
+        "manual": (_("Manually edited"), "white", "#ef6c00"),  # orange
+        "none": (_("Not defined"), "white", "#757575"),  # gray
+    }
 
 
 class _Sentinel:
@@ -97,7 +104,7 @@ class ZoneContextPanel:
         ``grid`` it themselves if they need custom layout (the default
         wiring in ``ZoneControlBuilder`` packs at the top of the tab).
         """
-        self.frame = ttk.LabelFrame(parent, text="Contexto da Calibração", padding=8)
+        self.frame = ttk.LabelFrame(parent, text=_("Calibration Context"), padding=8)
 
         # Row 0 — active source
         self._source_label = ttk.Label(
@@ -242,8 +249,8 @@ class ZoneContextPanel:
                 project_data = pm.project_data or {}
                 idx = project_data.get("camera_index")
                 if idx is None:
-                    return "Câmera ao vivo"
-                return f"Câmera ao vivo (idx {idx})"
+                    return _("Live camera")
+                return _("Live camera (idx {index})").format(index=idx)
         except Exception as exc:
             log.debug("zone_context_panel.active_source.project_type_failed", error=str(exc))
         return "—"
@@ -279,8 +286,8 @@ class ZoneContextPanel:
             log.debug("zone_context_panel.model_caption.weight_lookup_failed", error=str(exc))
             return "—"
         if not path:
-            return f"sem modelo · método {method}"
-        return f"{Path(str(path)).name} · método {method}"
+            return _("no model · method {method}").format(method=method)
+        return _("{name} · method {method}").format(name=Path(str(path)).name, method=method)
 
     def _format_active_source_from_path(self, video_path: Path | str | None) -> str:
         if not video_path:
@@ -292,22 +299,23 @@ class ZoneContextPanel:
         # Reference frames used during live calibration shouldn't masquerade as
         # the user's file selection.
         if base == "live_camera_reference_frame.png":
-            return self._compute_active_source() or "Câmera ao vivo"
+            return self._compute_active_source() or _("Live camera")
         return base
 
     @staticmethod
     def _format_source_line(value: str) -> str:
-        return f"Fonte ativa: {value}"
+        return _("Active source: {value}").format(value=value)
 
     @staticmethod
     def _format_model_line(value: str) -> str:
-        return f"Modelo do aquário: {value}"
+        return _("Aquarium model: {value}").format(value=value)
 
 
 def _badge_visuals(source: str | None) -> tuple[str, str, str]:
     """Map a polygon source tag to (text, foreground, background)."""
+    styles = _badge_styles()
     if source == "auto":
-        return _BADGE_STYLES["auto"]
+        return styles["auto"]
     if source == "manual":
-        return _BADGE_STYLES["manual"]
-    return _BADGE_STYLES["none"]
+        return styles["manual"]
+    return styles["none"]

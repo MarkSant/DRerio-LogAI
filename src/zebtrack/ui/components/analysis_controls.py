@@ -5,19 +5,15 @@ from tkinter import Label, StringVar, ttk
 import structlog
 from PIL import Image, ImageTk
 
+from zebtrack.i18n import _
 from zebtrack.ui import payloads
+from zebtrack.ui.components.analysis_profile import analysis_profile_tooltip
 from zebtrack.ui.components.base import BaseWidget
 from zebtrack.ui.event_bus_v2 import EventBusV2, UIEvents
 from zebtrack.ui.sentinels import all_tracks_label
 from zebtrack.ui.wizard.tooltip import ToolTip
 
 log = structlog.get_logger()
-
-ANALYSIS_PROFILE_TOOLTIP = (
-    "Mostra a configuração de análise aplicada a esta sessão. "
-    "Quando nenhuma regra específica combina com grupo, dia ou indivíduo, "
-    "o projeto usa o perfil padrão."
-)
 
 
 class AnalysisControlsWidget(BaseWidget):
@@ -49,25 +45,33 @@ class AnalysisControlsWidget(BaseWidget):
         stringvar_master = parent
         self.analysis_status_var = StringVar(
             master=stringvar_master,
-            value="Nenhuma análise em andamento.",
+            value=_("No analysis in progress."),
         )
         self.analysis_metadata_var = StringVar(master=stringvar_master, value="")
-        self.analysis_group_var = StringVar(master=stringvar_master, value="Grupo: --")
-        self.analysis_day_var = StringVar(master=stringvar_master, value="Dia: --")
-        self.analysis_subject_var = StringVar(master=stringvar_master, value="Indivíduo: --")
-        self.analysis_task_var = StringVar(master=stringvar_master, value="Tarefa: --")
+        self.analysis_group_var = StringVar(
+            master=stringvar_master, value=_("Group: {value}").format(value="--")
+        )
+        self.analysis_day_var = StringVar(
+            master=stringvar_master, value=_("Day: {value}").format(value="--")
+        )
+        self.analysis_subject_var = StringVar(
+            master=stringvar_master, value=_("Individual: {value}").format(value="--")
+        )
+        self.analysis_task_var = StringVar(
+            master=stringvar_master, value=_("Task: {value}").format(value="--")
+        )
         self.tracking_mode_var = StringVar(
             master=stringvar_master,
-            value="Modo de rastreamento: Multi-indivíduos",
+            value=_("Tracking mode: {value}").format(value=_("Multi-individual")),
         )
         self.analysis_profile_var = StringVar(
             master=stringvar_master,
-            value="Configuração de análise: default",
+            value=_("Analysis configuration: {value}").format(value="default"),
         )
         self.track_selector_var = StringVar(master=stringvar_master, value=all_tracks_label())
         self.social_summary_var = StringVar(
             master=stringvar_master,
-            value="Interações sociais: aguardando dados.",
+            value=_("Social interactions: waiting for data."),
         )
 
         # Widget references
@@ -127,7 +131,7 @@ class AnalysisControlsWidget(BaseWidget):
 
         self.analysis_profile_label = ttk.Label(info_frame, textvariable=self.analysis_profile_var)
         self.analysis_profile_label.grid(row=1, column=3, sticky="w")
-        ToolTip(self.analysis_profile_label, ANALYSIS_PROFILE_TOOLTIP)
+        ToolTip(self.analysis_profile_label, analysis_profile_tooltip())
 
         # Tracking mode (third row)
         self.tracking_mode_label = ttk.Label(info_frame, textvariable=self.tracking_mode_var)
@@ -160,7 +164,7 @@ class AnalysisControlsWidget(BaseWidget):
 
     def _build_video_display(self) -> None:
         """Build the video display area."""
-        video_frame = ttk.LabelFrame(self, text="Análise de Vídeo", padding=5)
+        video_frame = ttk.LabelFrame(self, text=_("Video Analysis"), padding=5)
         video_frame.pack(fill="both", expand=True, pady=(10, 0))
 
         self.analysis_video_label = Label(video_frame, bg="black")
@@ -195,19 +199,19 @@ class AnalysisControlsWidget(BaseWidget):
             subject: Subject identifier
             task: Optional task description
         """
-        self.analysis_group_var.set(f"Grupo: {group}")
-        self.analysis_day_var.set(f"Dia: {day}")
-        self.analysis_subject_var.set(f"Indivíduo: {subject}")
+        self.analysis_group_var.set(_("Group: {value}").format(value=group))
+        self.analysis_day_var.set(_("Day: {value}").format(value=day))
+        self.analysis_subject_var.set(_("Individual: {value}").format(value=subject))
         if task:
-            self.analysis_task_var.set(f"Tarefa: {task}")
+            self.analysis_task_var.set(_("Task: {value}").format(value=task))
 
     def set_tracking_mode(self, mode: str) -> None:
         """Update the tracking mode display."""
-        self.tracking_mode_var.set(f"Modo de rastreamento: {mode}")
+        self.tracking_mode_var.set(_("Tracking mode: {value}").format(value=mode))
 
     def set_profile(self, profile: str) -> None:
         """Update the analysis profile display."""
-        self.analysis_profile_var.set(f"Configuração de análise: {profile}")
+        self.analysis_profile_var.set(_("Analysis configuration: {value}").format(value=profile))
 
     def set_social_summary(self, summary: str) -> None:
         """Update the social proximity summary text."""

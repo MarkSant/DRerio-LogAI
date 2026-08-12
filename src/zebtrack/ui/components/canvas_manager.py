@@ -19,7 +19,6 @@ This file retains:
 
 from __future__ import annotations
 
-import typing
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
@@ -56,7 +55,6 @@ class CanvasManager:
     """
 
     # Class-level aliases for external code that references these directly
-    AQUARIUM_COLORS: typing.ClassVar = MultiAquariumOverlayManager.AQUARIUM_COLORS
 
     def __init__(
         self, gui, event_bus_v2=None, *, zone_context_service: ZoneContextService | None = None
