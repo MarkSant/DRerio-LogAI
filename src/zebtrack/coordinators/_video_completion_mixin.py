@@ -16,6 +16,7 @@ from typing import TYPE_CHECKING, Any, cast
 
 import structlog
 
+from zebtrack.i18n import _
 from zebtrack.ui import payloads as payloads
 from zebtrack.ui.event_bus_v2 import UIEvents
 
@@ -275,7 +276,9 @@ class VideoCompletionMixin:
             self._publish_event(
                 UIEvents.UI_SHOW_WARNING,
                 payloads.MessagePayload(
-                    title="Erro ao Gerar Relatórios",
-                    message=f"Falha ao gerar relatórios para '{experiment_id}':\n{e}",
+                    title=_("Error Generating Reports"),
+                    message=_("Failed to generate reports for '{name}':\n{error}").format(
+                        name=experiment_id, error=e
+                    ),
                 ),
             )

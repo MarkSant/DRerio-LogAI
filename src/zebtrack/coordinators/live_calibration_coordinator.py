@@ -30,6 +30,7 @@ from zebtrack.coordinators.base_coordinator import (
     CoordinatorError,
 )
 from zebtrack.core.detection.aquarium_detector import AquariumDetector
+from zebtrack.i18n import _
 from zebtrack.io.camera import Camera
 from zebtrack.ui import payloads
 from zebtrack.ui.event_bus_v2 import Event, UIEvents
@@ -346,19 +347,19 @@ class LiveCalibrationCoordinator(BaseCoordinator):
                         exc_info=True,
                     )
 
-                guidance_title = "Ajustar Polígono"
-                guidance_msg = (
-                    "Polígono reutilizado. Ao fechar este aviso, a aba de "
-                    "Configuração de Zonas será aberta com TODOS os vértices já "
-                    "SELECIONADOS (em vermelho).\n\n"
-                    "Para mover o polígono INTEIRO de uma vez, clique e ARRASTE "
-                    "sobre a área ou sobre qualquer linha do polígono (ou sobre "
-                    "um dos vértices em vermelho). Todo o polígono se move junto.\n\n"
-                    "Se a seleção sumir, arraste o mouse formando um retângulo "
-                    "sobre toda a área do polígono para selecionar todos os "
-                    "vértices de novo.\n\n"
-                    "Depois clique em 'Salvar Edição' e em 'Iniciar Gravação' "
-                    "quando estiver pronto."
+                guidance_title = _("Adjust the Polygon")
+                guidance_msg = _(
+                    "Polygon reused. When you close this notice, the Zone "
+                    "Configuration tab opens with ALL vertices already SELECTED "
+                    "(in red).\n\n"
+                    "To move the WHOLE polygon at once, click and DRAG over the "
+                    "area or over any of its lines (or over one of the red "
+                    "vertices). The whole polygon moves together.\n\n"
+                    "If the selection disappears, drag the mouse to form a "
+                    "rectangle over the whole polygon area to select every vertex "
+                    "again.\n\n"
+                    "Then click 'Save Edit' and 'Start Recording' when you are "
+                    "ready."
                 )
 
                 # Aviso BLOQUEANTE primeiro: ao clicar OK, a aba é então
@@ -625,11 +626,11 @@ class LiveCalibrationCoordinator(BaseCoordinator):
                             Event(
                                 type=UIEvents.UI_SHOW_INFO,
                                 data=payloads.MessagePayload(
-                                    title="Aquário Detectado",
-                                    message=(
-                                        "Aquário detectado com sucesso!\n\n"
-                                        "Você pode ajustar os vértices ou adicionar ROIs.\n"
-                                        "Clique em 'Concluir' quando estiver pronto."
+                                    title=_("Aquarium Detected"),
+                                    message=_(
+                                        "Aquarium detected successfully!\n\n"
+                                        "You can adjust the vertices or add ROIs.\n"
+                                        "Click 'Finish' when you are ready."
                                     ),
                                 ),
                             )
@@ -654,11 +655,11 @@ class LiveCalibrationCoordinator(BaseCoordinator):
                             Event(
                                 type=UIEvents.UI_SHOW_ERROR,
                                 data=payloads.ErrorOccurredPayload(
-                                    title="Detecção Falhou",
-                                    message=(
-                                        "Não foi possível detectar o aquário automaticamente.\n\n"
-                                        "Você será levado para a aba de zonas para desenhar "
-                                        "manualmente."
+                                    title=_("Detection Failed"),
+                                    message=_(
+                                        "Could not detect the aquarium automatically.\n\n"
+                                        "You will be taken to the zones tab to draw it "
+                                        "manually."
                                     ),
                                 ),
                             )
@@ -703,10 +704,10 @@ class LiveCalibrationCoordinator(BaseCoordinator):
                         Event(
                             type=UIEvents.UI_SHOW_INFO,
                             data=payloads.MessagePayload(
-                                title="Desenhe o Aquário",
-                                message=(
-                                    "Desenhe o polígono do aquário e ROIs (se necessário).\n\n"
-                                    "Clique em 'Concluir' quando estiver pronto."
+                                title=_("Draw the Aquarium"),
+                                message=_(
+                                    "Draw the aquarium polygon and ROIs (if needed).\n\n"
+                                    "Click 'Finish' when you are ready."
                                 ),
                             ),
                         )
@@ -731,10 +732,13 @@ class LiveCalibrationCoordinator(BaseCoordinator):
                 return False
 
             response = self.view.dialog_manager.ask_ok_cancel(
-                "Arena Principal Não Definida",
-                "O polígono principal do aquário não foi definido.\n\n"
-                "É recomendado definir a arena antes de iniciar gravação.\n"
-                "Deseja definir agora?",
+                _("Main Arena Not Defined"),
+                _(
+                    "The main aquarium polygon has not been defined.\n\n"
+                    "Defining the arena before starting the recording is "
+                    "recommended.\n"
+                    "Do you want to define it now?"
+                ),
             )
 
             if response:
@@ -749,13 +753,13 @@ class LiveCalibrationCoordinator(BaseCoordinator):
                         Event(
                             type=UIEvents.UI_SHOW_INFO,
                             data=payloads.MessagePayload(
-                                title="Defina a Arena Principal",
-                                message=(
-                                    "Por favor:\n"
-                                    "1. Use a câmera ao vivo para calibrar\n"
-                                    "2. Use 'Detectar Aquário (Auto)' ou\n"
-                                    "3. Desenhe manualmente o polígono principal\n"
-                                    "4. Depois volte para iniciar a gravação"
+                                title=_("Define the Main Arena"),
+                                message=_(
+                                    "Please:\n"
+                                    "1. Use the live camera to calibrate\n"
+                                    "2. Use 'Detect Aquarium (Auto)' or\n"
+                                    "3. Draw the main polygon manually\n"
+                                    "4. Then come back to start the recording"
                                 ),
                             ),
                         )
@@ -764,9 +768,12 @@ class LiveCalibrationCoordinator(BaseCoordinator):
             else:
                 # Continue without arena defined
                 if not self.view.dialog_manager.ask_ok_cancel(
-                    "Continuar Sem Arena?",
-                    "Deseja continuar a gravação sem arena definida?\n"
-                    "(A arena padrão será o frame completo)",
+                    _("Continue Without an Arena?"),
+                    _(
+                        "Do you want to continue the recording with no arena "
+                        "defined?\n"
+                        "(The default arena will be the whole frame)"
+                    ),
                 ):
                     log.info("live_calibration_coordinator.recording.cancelled_no_arena")
                     return False
@@ -1008,11 +1015,13 @@ class LiveCalibrationCoordinator(BaseCoordinator):
                                 Event(
                                     type=UIEvents.UI_SHOW_WARNING,
                                     data=payloads.MessagePayload(
-                                        title="Erro na Detecção",
-                                        message=(
-                                            f"Erro durante a detecção automática: {e!s}\n\n"
-                                            "A imagem capturada foi carregada para desenho manual."
-                                        ),
+                                        title=_("Detection Error"),
+                                        message=_(
+                                            "Error during the automatic detection: "
+                                            "{error}\n\n"
+                                            "The captured image was loaded for manual "
+                                            "drawing."
+                                        ).format(error=e),
                                     ),
                                 )
                             )
@@ -1046,12 +1055,13 @@ class LiveCalibrationCoordinator(BaseCoordinator):
                             Event(
                                 type=UIEvents.UI_SHOW_WARNING,
                                 data=payloads.MessagePayload(
-                                    title="Detecção Automática Falhou",
-                                    message=(
-                                        "Não foi possível detectar o aquário automaticamente.\n\n"
-                                        "A imagem capturada foi carregada para desenho manual.\n"
-                                        "Por favor, use a ferramenta 'Polígono Principal' "
-                                        "para definir a arena."
+                                    title=_("Automatic Detection Failed"),
+                                    message=_(
+                                        "Could not detect the aquarium automatically.\n\n"
+                                        "The captured image was loaded for manual "
+                                        "drawing.\n"
+                                        "Please use the 'Main Polygon' tool to define "
+                                        "the arena."
                                     ),
                                 ),
                             )
@@ -1575,7 +1585,7 @@ class LiveCalibrationCoordinator(BaseCoordinator):
         import time as _time
 
         frames: list[Any] = []
-        for _ in range(5):
+        for _attempt in range(5):
             try:
                 ret, frame = self.camera.get_frame()
             except (OSError, RuntimeError) as exc:

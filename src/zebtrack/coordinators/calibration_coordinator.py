@@ -18,6 +18,7 @@ import structlog
 
 from zebtrack.coordinators.base_coordinator import BaseCoordinator
 from zebtrack.core.detection.calibration import Calibration
+from zebtrack.i18n import _
 
 if TYPE_CHECKING:
     from zebtrack.core.project.project_manager import ProjectManager
@@ -102,26 +103,30 @@ class CalibrationCoordinator(BaseCoordinator):
             is_single_video_mode = bool(getattr(gui_instance, "pending_single_video_path", None))
 
         if scope == "project":
-            label = f"Escopo: Projeto ({project_name})" if project_name else "Escopo: Projeto"
+            label = (
+                _("Scope: Project ({name})").format(name=project_name)
+                if project_name
+                else _("Scope: Project")
+            )
             if overrides_active:
-                detail = (
-                    "Este projeto usa overrides salvos. Ajustes nesta janela são "
-                    "persistidos apenas neste projeto."
+                detail = _(
+                    "This project uses saved overrides. Changes in this window are "
+                    "persisted only in this project."
                 )
             else:
-                detail = (
-                    "Este projeto está herdando os padrões globais. Ao salvar "
-                    "aqui, os valores se tornam overrides específicos."
+                detail = _(
+                    "This project inherits the global defaults. Saving here turns "
+                    "the values into project-specific overrides."
                 )
         else:
-            label = "Escopo: Configuração Global"
+            label = _("Scope: Global Configuration")
             if project_loaded:
-                detail = (
-                    "Alterações atualizam o padrão global. Use a ação de cópia para "
-                    "fixar estes valores no projeto atual."
+                detail = _(
+                    "Changes update the global default. Use the copy action to pin "
+                    "these values to the current project."
                 )
             else:
-                detail = "Nenhum projeto carregado; ajustes atualizam os padrões globais."
+                detail = _("No project loaded; changes update the global defaults.")
 
         return {
             "scope": scope,

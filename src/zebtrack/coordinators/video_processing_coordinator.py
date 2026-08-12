@@ -891,7 +891,7 @@ class VideoProcessingCoordinator(
             self._publish_event(
                 UIEvents.UI_SHOW_INFO,
                 payloads.MessagePayload(
-                    title=_("Batch Processing"),
+                    title=_("Processing Videos"),
                     message=_("No eligible video with data for analysis was found."),
                 ),
             )

@@ -31,6 +31,7 @@ from zebtrack.coordinators.base_coordinator import (
     CoordinatorValidationError,
 )
 from zebtrack.core.state_manager import StateCategory
+from zebtrack.i18n import _
 from zebtrack.ui import payloads as payloads
 from zebtrack.ui.event_bus_v2 import Event, UIEvents
 
@@ -350,7 +351,7 @@ class RecordingSessionCoordinator(BaseCoordinator):
             self.event_bus.publish(
                 Event(
                     type=UIEvents.UI_UPDATE_ANALYSIS_TASK_STATUS,
-                    data=payloads.AnalysisTaskStatusPayload(step="Iniciando gravação..."),
+                    data=payloads.AnalysisTaskStatusPayload(step=_("Starting the recording...")),
                 )
             )
 
@@ -496,7 +497,10 @@ class RecordingSessionCoordinator(BaseCoordinator):
             decide_external_trigger,
         )
 
-        _ = arduino_enabled  # ver docstring: a fonte de verdade é o gate
+        # Deliberately unused: the gate is the source of truth (see docstring).
+        # NOT named _ -- that would rebind gettext for the rest of this
+        # function, where the rejection messages call it.
+        _unused_arduino_enabled = arduino_enabled
         project_data = self.project_manager.project_data or {}
         decision = decide_external_trigger(project_data, getattr(self, "arduino_manager", None))
 
@@ -509,12 +513,14 @@ class RecordingSessionCoordinator(BaseCoordinator):
                     Event(
                         type=UIEvents.UI_SHOW_ERROR,
                         data=payloads.ErrorOccurredPayload(
-                            title="Trigger Externo Indisponível",
+                            title=_("External Trigger Unavailable"),
                             message=(
-                                "O Arduino não está conectado — verifique o cabo e "
-                                "se a porta não está em uso por outro programa."
+                                _(
+                                    "The Arduino is not connected — check the cable "
+                                    "and whether the port is in use by another program."
+                                )
                                 if decision is ExternalTriggerDecision.REJECT_ARDUINO_OFFLINE
-                                else "O modo de trigger externo exige um Arduino configurado."
+                                else _("External trigger mode requires a configured Arduino.")
                             ),
                         ),
                     )

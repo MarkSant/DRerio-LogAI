@@ -23,6 +23,7 @@ import structlog
 
 from zebtrack.coordinators.base_coordinator import BaseCoordinator
 from zebtrack.core.project.project_manager import AssetType
+from zebtrack.i18n import _
 from zebtrack.ui import payloads as payloads
 from zebtrack.ui.event_bus_v2 import UIEvents
 
@@ -378,7 +379,7 @@ class ProjectLifecycleCoordinator(BaseCoordinator):
             self._publish_event(
                 UIEvents.SHOW_ERROR,
                 payloads.MessagePayload(
-                    title="Configuração Inválida",
+                    title=_("Invalid Configuration"),
                     message=result["error_message"] or "",
                 ),
             )
@@ -412,8 +413,8 @@ class ProjectLifecycleCoordinator(BaseCoordinator):
         self._publish_event(
             UIEvents.SHOW_ERROR,
             payloads.MessagePayload(
-                title="Erro",
-                message="Falha ao configurar o detector.",
+                title=_("Error"),
+                message=_("Failed to configure the detector."),
             ),
         )
         self.logger.error("project.create.detector_setup_failed")
@@ -690,7 +691,7 @@ class ProjectLifecycleCoordinator(BaseCoordinator):
                 video=str(video_path),
                 error=str(exc),
             )
-            return False, "Não foi possível validar a remoção solicitada."
+            return False, _("Could not validate the requested removal.")
 
     def delete_project_asset(
         self,
@@ -1187,7 +1188,7 @@ class ProjectLifecycleCoordinator(BaseCoordinator):
         return {
             "scope": "global",
             "project_loaded": False,
-            "label": "Escopo: Configuração Global",
+            "label": _("Scope: Global Configuration"),
             "detail": "Delegates not available.",
         }
 

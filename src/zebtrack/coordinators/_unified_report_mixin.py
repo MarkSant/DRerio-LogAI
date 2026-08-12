@@ -22,6 +22,7 @@ from typing import TYPE_CHECKING, Any
 import pandas as pd
 import structlog
 
+from zebtrack.i18n import _
 from zebtrack.ui import payloads
 from zebtrack.ui.event_bus_v2 import UIEvents
 
@@ -72,7 +73,7 @@ class UnifiedReportMixin:
         )
         self._publish_event(
             UIEvents.UI_SET_STATUS,
-            payloads.StatusPayload(message="Gerando relatório unificado..."),
+            payloads.StatusPayload(message=_("Generating the unified report...")),
         )
 
         project_path = self.project_manager.project_path
@@ -152,15 +153,16 @@ class UnifiedReportMixin:
             if missing_ids:
                 detail = ", ".join(missing_ids[:10])
                 extra = "" if len(missing_ids) <= 10 else f" (+{len(missing_ids) - 10})"
-                message = (
-                    f"Sem sumário/trajetória para: {detail}{extra}.\n\n"
-                    "Gere as trajetórias desses vídeos antes de criar o relatório."
-                )
+                message = _(
+                    "No summary/trajectory for: {detail}{extra}.\n\n"
+                    "Generate the trajectories of those videos before creating the "
+                    "report."
+                ).format(detail=detail, extra=extra)
             else:
-                message = "Não foi possível encontrar sumários para os vídeos selecionados."
+                message = _("Could not find summaries for the selected videos.")
             self._publish_event(
                 UIEvents.UI_SHOW_WARNING,
-                payloads.MessagePayload(title="Dados insuficientes", message=message),
+                payloads.MessagePayload(title=_("Insufficient data"), message=message),
             )
             return
 
@@ -186,10 +188,10 @@ class UnifiedReportMixin:
             log.error("workflow.unified_report.failed", error=str(e), exc_info=True)
             self._publish_event(
                 UIEvents.UI_SHOW_ERROR,
-                payloads.MessagePayload(title="Erro no Relatório", message=f"{e}"),
+                payloads.MessagePayload(title=_("Report Error"), message=f"{e}"),
             )
         finally:
-            self._publish_event(UIEvents.UI_SET_STATUS, payloads.StatusPayload(message="Pronto."))
+            self._publish_event(UIEvents.UI_SET_STATUS, payloads.StatusPayload(message=_("Ready.")))
             self._publish_event(
                 UIEvents.UI_REFRESH_PROJECT_VIEWS,
                 payloads.ProjectViewsRefreshRequestedPayload(),
@@ -601,20 +603,23 @@ class UnifiedReportMixin:
         if not exported_artifacts:
             failure_details = "\n".join(f"• {item}" for item in export_failures[:3])
             raise RuntimeError(
-                "Não foi possível gerar nenhum arquivo do relatório unificado."
-                + (f"\n\nDetalhes:\n{failure_details}" if failure_details else "")
+                _("Could not generate any file of the unified report.")
+                + (
+                    _("\n\nDetails:\n{details}").format(details=failure_details)
+                    if failure_details
+                    else ""
+                )
             )
 
         if export_failures:
             self._publish_event(
                 UIEvents.UI_SHOW_WARNING,
                 payloads.MessagePayload(
-                    title="Relatório Unificado Parcial",
+                    title=_("Partial Unified Report"),
                     message=(
-                        "Alguns arquivos não puderam ser gerados.\n"
-                        "Gerados: "
+                        _("Some files could not be generated.\nGenerated: ")
                         + ", ".join(exported_artifacts)
-                        + "\n\nFalhas:\n"
+                        + _("\n\nFailures:\n")
                         + "\n".join(f"• {item}" for item in export_failures[:3])
                     ),
                 ),
@@ -639,10 +644,10 @@ class UnifiedReportMixin:
                 self._publish_event(
                     UIEvents.UI_SHOW_WARNING,
                     payloads.MessagePayload(
-                        title="ROIs Diferentes",
-                        message=(
-                            "Os vídeos selecionados possuem ROIs diferentes.\n"
-                            "Colunas ausentes foram preenchidas com valores vazios (NA)."
+                        title=_("Different ROIs"),
+                        message=_(
+                            "The selected videos have different ROIs.\n"
+                            "Missing columns were filled with empty values (NA)."
                         ),
                     ),
                 )
@@ -652,14 +657,15 @@ class UnifiedReportMixin:
                 UIEvents.UI_SHOW_INFO,
                 payloads.MessagePayload(
                     title=(
-                        "Relatório Unificado Parcial"
+                        _("Partial Unified Report")
                         if report_scope == "selected"
-                        else "Relatório Unificado"
+                        else _("Unified Report")
                     ),
-                    message=(
-                        f"Relatório unificado gerado com sucesso em:\n"
-                        f"{unified_dir}\n\n"
-                        f"Arquivos: {', '.join(exported_artifacts)}"
+                    message=_(
+                        "Unified report generated successfully in:\n{directory}\n\nFiles: {files}"
+                    ).format(
+                        directory=unified_dir,
+                        files=", ".join(exported_artifacts),
                     ),
                 ),
             )

@@ -41,7 +41,7 @@
   " {count} already existed and were skipped.": " {count} já existiam e foram ignorados.",
   "Import Finished": "Importação Concluída",
   " No imported video needs processing right now.": " Nenhum vídeo importado precisa de processamento agora.",
-  "Batch Processing": "Processamento",
+  "Processing Videos": "Processamento",
   "No eligible video with data for analysis was found.": "Nenhum vídeo elegível foi encontrado com dados para análise.",
   "Aquarium {number}": "Aquário {number}",
   "Incomplete Configuration": "Configuração Incompleta",
