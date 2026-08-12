@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING
 
 import structlog
 
+from zebtrack.i18n import _
 from zebtrack.utils.geometry_service import GeometryService
 
 if TYPE_CHECKING:
@@ -479,7 +480,7 @@ class CanvasEventHandler:
             current = inside
         self.manager.selected_vertex_indices = current
         self.manager.renderer.draw_interactive_polygon()
-        self.gui.set_status(f"{len(current)} vértice(s) selecionado(s).")
+        self.gui.set_status(_("{count} vertex(es) selected.").format(count=len(current)))
 
     # --- Context menu & Delete key -------------------------------------------
 
@@ -497,20 +498,20 @@ class CanvasEventHandler:
         handle_index = self._handle_index_under_cursor(canvas)
         if handle_index is not None:
             menu.add_command(
-                label="🗑 Apagar este vértice",
+                label=_("🗑 Delete this vertex"),
                 command=partial(zone_editor.delete_vertices, {handle_index}),
             )
             menu.add_separator()
 
         has_selection = bool(self.manager.selected_vertex_indices)
         menu.add_command(
-            label="🗑 Apagar selecionados (Del)",
+            label=_("🗑 Delete selected (Del)"),
             command=zone_editor.delete_vertices,
             state="normal" if has_selection else "disabled",
         )
         menu.add_separator()
-        menu.add_command(label="Selecionar todos", command=zone_editor.select_all_vertices)
-        menu.add_command(label="Selecionar nenhum", command=zone_editor.select_no_vertices)
+        menu.add_command(label=_("Select all"), command=zone_editor.select_all_vertices)
+        menu.add_command(label=_("Select none"), command=zone_editor.select_no_vertices)
 
         self.manager._vertex_context_menu = menu
         try:
@@ -808,13 +809,13 @@ class CanvasEventHandler:
                 if drawing_type == "arena":
                     self.gui.root.after(100, self.manager._check_prompt_second_aquarium)
             else:
-                self.gui.set_status("❌ Erro ao salvar zona.")
-                self.dialog_manager.show_error("Erro", "Não foi possível salvar a zona.")
+                self.gui.set_status(_("❌ Error saving the zone."))
+                self.dialog_manager.show_error(_("Error"), _("Could not save the zone."))
                 self.manager.stop_drawing()
 
         except Exception as e:
-            self.gui.set_status("❌ Erro durante salvamento.")
-            self.dialog_manager.show_error("Erro", str(e))
+            self.gui.set_status(_("❌ Error while saving."))
+            self.dialog_manager.show_error(_("Error"), str(e))
             self.manager.stop_drawing()
 
     def on_drawing_undo(self, event):
@@ -830,8 +831,9 @@ class CanvasEventHandler:
         if success:
             self.manager._redraw_polygon_in_progress()
             self.gui.set_status(
-                f"Último ponto desfeito. Pontos atuais: "
-                f"{self.gui.drawing_state_manager.point_count()}"
+                _("Last point undone. Current points: {count}").format(
+                    count=self.gui.drawing_state_manager.point_count()
+                )
             )
 
         return "break"
