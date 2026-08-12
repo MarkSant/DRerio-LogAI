@@ -9,7 +9,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: DRerio LogAI VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-08-12 15:58-0300\n"
+"POT-Creation-Date: 2026-08-12 16:06-0300\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -1094,10 +1094,13 @@ msgstr ""
 
 #: src/zebtrack/coordinators/ui_state_coordinator.py:588
 #: src/zebtrack/ui/components/dialog_manager.py:563
+#: src/zebtrack/ui/components/roi_template_manager.py:188
+#: src/zebtrack/ui/components/roi_template_manager.py:308
 msgid "Video not selected"
 msgstr ""
 
 #: src/zebtrack/coordinators/ui_state_coordinator.py:589
+#: src/zebtrack/ui/components/roi_template_manager.py:189
 msgid "Select a video in the list before applying the template."
 msgstr ""
 
@@ -1112,6 +1115,7 @@ msgstr ""
 
 #: src/zebtrack/coordinators/ui_state_coordinator.py:612
 #: src/zebtrack/ui/components/dialog_manager.py:658
+#: src/zebtrack/ui/components/roi_template_manager.py:247
 #, python-brace-format
 msgid "The zones were updated with template '{name}'."
 msgstr ""
@@ -1128,6 +1132,7 @@ msgid "The file linked to the template was not found."
 msgstr ""
 
 #: src/zebtrack/coordinators/ui_state_coordinator.py:638
+#: src/zebtrack/ui/components/roi_template_manager.py:267
 msgid "Error applying the template"
 msgstr ""
 
@@ -1175,6 +1180,7 @@ msgstr ""
 #: src/zebtrack/ui/components/dialog_manager.py:512
 #: src/zebtrack/ui/components/dialog_manager.py:541
 #: src/zebtrack/ui/components/global_model_configuration_panel.py:515
+#: src/zebtrack/ui/components/roi_template_manager.py:431
 msgid "All files"
 msgstr ""
 
@@ -1441,16 +1447,19 @@ msgstr ""
 
 #: src/zebtrack/ui/builders/analysis_widgets.py:385
 #: src/zebtrack/ui/components/validation_manager.py:132
+#: src/zebtrack/ui/components/validators/config_validator.py:41
 msgid "The processing interval must be greater than 0."
 msgstr ""
 
 #: src/zebtrack/ui/builders/analysis_widgets.py:387
 #: src/zebtrack/ui/components/validation_manager.py:136
+#: src/zebtrack/ui/components/validators/config_validator.py:43
 msgid "The offset must be greater than or equal to 0."
 msgstr ""
 
 #: src/zebtrack/ui/builders/analysis_widgets.py:389
 #: src/zebtrack/ui/components/validation_manager.py:138
+#: src/zebtrack/ui/components/validators/config_validator.py:45
 msgid "The flush interval must be >= 0."
 msgstr ""
 
@@ -1460,11 +1469,13 @@ msgstr ""
 
 #: src/zebtrack/ui/builders/analysis_widgets.py:393
 #: src/zebtrack/ui/components/validation_manager.py:142
+#: src/zebtrack/ui/components/validators/config_validator.py:49
 msgid "Window length must be odd and at least 3."
 msgstr ""
 
 #: src/zebtrack/ui/builders/analysis_widgets.py:395
 #: src/zebtrack/ui/components/validation_manager.py:144
+#: src/zebtrack/ui/components/validators/config_validator.py:51
 msgid "Polyorder must be at least 1."
 msgstr ""
 
@@ -2750,6 +2761,7 @@ msgid "Open a project before adjusting the specific calibration."
 msgstr ""
 
 #: src/zebtrack/ui/components/dialog_manager.py:511
+#: src/zebtrack/ui/components/roi_template_manager.py:428
 msgid "Import ROI Template into the Library"
 msgstr ""
 
@@ -2759,10 +2771,12 @@ msgid "ROI templates"
 msgstr ""
 
 #: src/zebtrack/ui/components/dialog_manager.py:521
+#: src/zebtrack/ui/components/roi_template_manager.py:441
 msgid "Import error"
 msgstr ""
 
 #: src/zebtrack/ui/components/dialog_manager.py:528
+#: src/zebtrack/ui/components/roi_template_manager.py:449
 #, python-brace-format
 msgid ""
 "Template '{name}' added to the library.\n"
@@ -2771,6 +2785,7 @@ msgid ""
 msgstr ""
 
 #: src/zebtrack/ui/components/dialog_manager.py:531
+#: src/zebtrack/ui/components/roi_template_manager.py:452
 msgid "Template imported"
 msgstr ""
 
@@ -2788,6 +2803,7 @@ msgid "Import-and-apply error"
 msgstr ""
 
 #: src/zebtrack/ui/components/dialog_manager.py:657
+#: src/zebtrack/ui/components/roi_template_manager.py:246
 msgid "Template applied"
 msgstr ""
 
@@ -3197,6 +3213,7 @@ msgid "YOLO models"
 msgstr ""
 
 #: src/zebtrack/ui/components/global_model_configuration_panel.py:531
+#: src/zebtrack/ui/components/roi_template_manager.py:278
 msgid "Confirm Deletion"
 msgstr ""
 
@@ -4260,6 +4277,76 @@ msgstr ""
 msgid "The current global settings have been copied into this project."
 msgstr ""
 
+#: src/zebtrack/ui/components/roi_template_manager.py:252
+msgid "Review the applied zones"
+msgstr ""
+
+#: src/zebtrack/ui/components/roi_template_manager.py:254
+msgid ""
+"Check the arena/ROIs on the current video before starting the analysis. "
+"Templates may need fine tuning per video."
+msgstr ""
+
+#: src/zebtrack/ui/components/roi_template_manager.py:259
+#, python-brace-format
+msgid "Template '{name}' applied to the video being edited."
+msgstr ""
+
+#: src/zebtrack/ui/components/roi_template_manager.py:279
+#, python-brace-format
+msgid "Do you really want to delete template '{name}'?"
+msgstr ""
+
+#: src/zebtrack/ui/components/roi_template_manager.py:297
+msgid "Error deleting the template"
+msgstr ""
+
+#: src/zebtrack/ui/components/roi_template_manager.py:309
+msgid "Select a video to clear the applied drawings."
+msgstr ""
+
+#: src/zebtrack/ui/components/roi_template_manager.py:314
+msgid "Clear the applied drawing"
+msgstr ""
+
+#: src/zebtrack/ui/components/roi_template_manager.py:316
+msgid ""
+"Clear the arena and the ROIs of the current video?\n"
+"\n"
+"This affects only the selected video and does not remove templates from "
+"the library."
+msgstr ""
+
+#: src/zebtrack/ui/components/roi_template_manager.py:326
+msgid "The current video's drawings were cleared."
+msgstr ""
+
+#: src/zebtrack/ui/components/roi_template_manager.py:330
+msgid "Error clearing the drawing"
+msgstr ""
+
+#: src/zebtrack/ui/components/roi_template_manager.py:430
+#: src/zebtrack/ui/components/zone_controls.py:594
+msgid "ROI Templates"
+msgstr ""
+
+#: src/zebtrack/ui/components/roi_template_manager.py:536
+msgid "Invalid template"
+msgstr ""
+
+#: src/zebtrack/ui/components/roi_template_manager.py:540
+msgid "Error saving"
+msgstr ""
+
+#: src/zebtrack/ui/components/roi_template_manager.py:546
+msgid "Template saved"
+msgstr ""
+
+#: src/zebtrack/ui/components/roi_template_manager.py:547
+#, python-brace-format
+msgid "Template '{name}' is available for use."
+msgstr ""
+
 #: src/zebtrack/ui/components/state_synchronizer.py:447
 #: src/zebtrack/ui/components/state_synchronizer.py:463
 #, python-brace-format
@@ -4353,6 +4440,7 @@ msgid "The display interval must be greater than 0."
 msgstr ""
 
 #: src/zebtrack/ui/components/validation_manager.py:140
+#: src/zebtrack/ui/components/validators/config_validator.py:47
 msgid "The flush row limit must be >= 1."
 msgstr ""
 
@@ -4486,6 +4574,7 @@ msgid ""
 msgstr ""
 
 #: src/zebtrack/ui/components/validation_manager.py:1584
+#: src/zebtrack/ui/components/validators/config_validator.py:90
 msgid "Overlap fraction must be between 0 and 1"
 msgstr ""
 
@@ -4733,10 +4822,6 @@ msgstr ""
 msgid "Display Interval (frames):"
 msgstr ""
 
-#: src/zebtrack/ui/components/zone_controls.py:594
-msgid "ROI Templates"
-msgstr ""
-
 #: src/zebtrack/ui/components/zone_controls.py:603
 #: src/zebtrack/ui/components/zone_controls.py:641
 msgid "Template:"
@@ -4894,6 +4979,63 @@ msgstr ""
 
 #: src/zebtrack/ui/components/zone_controls.py:1418
 msgid "Counts as inside if the geometric centroid is strictly inside the ROI."
+msgstr ""
+
+#: src/zebtrack/ui/components/zone_edit_guard.py:66
+msgid "switch tabs"
+msgstr ""
+
+#: src/zebtrack/ui/components/zone_edit_guard.py:117
+msgid "Zone editing in progress"
+msgstr ""
+
+#: src/zebtrack/ui/components/zone_edit_guard.py:119
+#, python-brace-format
+msgid ""
+"A zone edit/drawing is in progress. Click 'Finish Video Editing' when you"
+" are done, before {context}."
+msgstr ""
+
+#: src/zebtrack/ui/components/zone_edit_guard.py:157
+msgid "Zones not finalised"
+msgstr ""
+
+#: src/zebtrack/ui/components/zone_edit_guard.py:159
+msgid ""
+"The zones were drawn/applied but were not finalised with the 'Finish "
+"Video Editing' button.\n"
+"\n"
+"Do you want to finalise now before proceeding?\n"
+"\n"
+"• Yes: finalise and proceed\n"
+"• No: proceed without finalising\n"
+"• Cancel: stay on the current video"
+msgstr ""
+
+#: src/zebtrack/ui/components/zone_edit_guard.py:169
+msgid "Video switch cancelled."
+msgstr ""
+
+#: src/zebtrack/ui/components/zone_edit_guard.py:184
+msgid "Video switch cancelled to keep the current edit."
+msgstr ""
+
+#: src/zebtrack/ui/components/zone_edit_guard.py:192
+msgid "Edit saved. Moving on to the next video..."
+msgstr ""
+
+#: src/zebtrack/ui/components/zone_edit_guard.py:196
+msgid "Save edit"
+msgstr ""
+
+#: src/zebtrack/ui/components/zone_edit_guard.py:198
+msgid ""
+"Could not save automatically because the drawing has not been finished. "
+"Finish the drawing or use 'Finish' before switching videos."
+msgstr ""
+
+#: src/zebtrack/ui/components/zone_edit_guard.py:206
+msgid "Edit discarded. Moving on to the next video..."
 msgstr ""
 
 #: src/zebtrack/ui/components/canvas/event_handler.py:483
@@ -5616,6 +5758,10 @@ msgstr ""
 #: src/zebtrack/ui/components/project_views/video_selector_tree_manager.py:898
 #, python-brace-format
 msgid "Frame loaded: {name}"
+msgstr ""
+
+#: src/zebtrack/ui/components/validators/config_validator.py:88
+msgid "Buffer radius must be >= 0"
 msgstr ""
 
 #: src/zebtrack/utils/hardware_benchmark.py:811

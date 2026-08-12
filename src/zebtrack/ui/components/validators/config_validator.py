@@ -6,6 +6,7 @@ Handles validation of application configuration settings and UI form values.
 
 from pydantic import ValidationError
 
+from zebtrack.i18n import _
 from zebtrack.settings import Settings
 
 
@@ -37,17 +38,17 @@ class ConfigValidator:
             if fps <= 0:
                 raise ValueError("FPS deve ser maior que 0.")
             if processing_interval <= 0:
-                raise ValueError("O intervalo de processamento deve ser maior que 0.")
+                raise ValueError(_("The processing interval must be greater than 0."))
             if processing_offset < 0:
-                raise ValueError("O offset deve ser maior ou igual a 0.")
+                raise ValueError(_("The offset must be greater than or equal to 0."))
             if flush_interval < 0:
-                raise ValueError("O intervalo de flush deve ser >= 0.")
+                raise ValueError(_("The flush interval must be >= 0."))
             if flush_rows < 1:
-                raise ValueError("O limite de linhas para flush deve ser >= 1.")
+                raise ValueError(_("The flush row limit must be >= 1."))
             if window_length < 3 or window_length % 2 == 0:
-                raise ValueError("Window length deve ser ímpar e pelo menos 3.")
+                raise ValueError(_("Window length must be odd and at least 3."))
             if polyorder < 1:
-                raise ValueError("Polyorder deve ser pelo menos 1.")
+                raise ValueError(_("Polyorder must be at least 1."))
 
             return True, ""
 
@@ -84,7 +85,7 @@ class ConfigValidator:
             Tuple of (is_valid, error_message)
         """
         if buffer_radius < 0:
-            return False, "Raio de buffer deve ser >= 0"
+            return False, _("Buffer radius must be >= 0")
         if not (0 <= overlap_ratio <= 1):
-            return False, "Fração de sobreposição deve estar entre 0 e 1"
+            return False, _("Overlap fraction must be between 0 and 1")
         return True, ""

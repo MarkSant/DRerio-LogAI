@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: DRerio LogAI VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-08-12 15:58-0300\n"
+"POT-Creation-Date: 2026-08-12 16:06-0300\n"
 "PO-Revision-Date: 2026-08-08 21:41-0300\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: pt_BR <LL@li.org>\n"
@@ -1385,6 +1385,8 @@ msgstr ""
 # | msgid "No video selected"
 #: src/zebtrack/coordinators/ui_state_coordinator.py:588
 #: src/zebtrack/ui/components/dialog_manager.py:563
+#: src/zebtrack/ui/components/roi_template_manager.py:188
+#: src/zebtrack/ui/components/roi_template_manager.py:308
 msgid "Video not selected"
 msgstr "Vídeo não selecionado"
 
@@ -1392,6 +1394,7 @@ msgstr "Vídeo não selecionado"
 # | msgid "📹 Select Video for Drawing"
 # | msgid "Select a video before applying the template."
 #: src/zebtrack/coordinators/ui_state_coordinator.py:589
+#: src/zebtrack/ui/components/roi_template_manager.py:189
 msgid "Select a video in the list before applying the template."
 msgstr "Selecione um vídeo na lista antes de aplicar o template."
 
@@ -1409,6 +1412,7 @@ msgstr "Template Aplicado"
 
 #: src/zebtrack/coordinators/ui_state_coordinator.py:612
 #: src/zebtrack/ui/components/dialog_manager.py:658
+#: src/zebtrack/ui/components/roi_template_manager.py:247
 #, python-brace-format
 msgid "The zones were updated with template '{name}'."
 msgstr "As zonas foram atualizadas com o template '{name}'."
@@ -1429,6 +1433,7 @@ msgstr "O arquivo associado ao template não foi encontrado."
 # | msgid "📹 Select Video for Drawing"
 # | msgid "Select a video before applying the template."
 #: src/zebtrack/coordinators/ui_state_coordinator.py:638
+#: src/zebtrack/ui/components/roi_template_manager.py:267
 msgid "Error applying the template"
 msgstr "Erro ao aplicar template"
 
@@ -1489,6 +1494,7 @@ msgstr "Selecione Vídeos ou Pastas para Adicionar ao Projeto"
 #: src/zebtrack/ui/components/dialog_manager.py:512
 #: src/zebtrack/ui/components/dialog_manager.py:541
 #: src/zebtrack/ui/components/global_model_configuration_panel.py:515
+#: src/zebtrack/ui/components/roi_template_manager.py:431
 msgid "All files"
 msgstr "Todos os arquivos"
 
@@ -1793,16 +1799,19 @@ msgstr "FPS deve ser maior que 0."
 
 #: src/zebtrack/ui/builders/analysis_widgets.py:385
 #: src/zebtrack/ui/components/validation_manager.py:132
+#: src/zebtrack/ui/components/validators/config_validator.py:41
 msgid "The processing interval must be greater than 0."
 msgstr "O intervalo de processamento deve ser maior que 0."
 
 #: src/zebtrack/ui/builders/analysis_widgets.py:387
 #: src/zebtrack/ui/components/validation_manager.py:136
+#: src/zebtrack/ui/components/validators/config_validator.py:43
 msgid "The offset must be greater than or equal to 0."
 msgstr "O offset deve ser maior ou igual a 0."
 
 #: src/zebtrack/ui/builders/analysis_widgets.py:389
 #: src/zebtrack/ui/components/validation_manager.py:138
+#: src/zebtrack/ui/components/validators/config_validator.py:45
 msgid "The flush interval must be >= 0."
 msgstr "O intervalo de flush deve ser >= 0."
 
@@ -1812,11 +1821,13 @@ msgstr "O limite de linhas para flush deve ser >= 1."
 
 #: src/zebtrack/ui/builders/analysis_widgets.py:393
 #: src/zebtrack/ui/components/validation_manager.py:142
+#: src/zebtrack/ui/components/validators/config_validator.py:49
 msgid "Window length must be odd and at least 3."
 msgstr "Window length deve ser ímpar e pelo menos 3."
 
 #: src/zebtrack/ui/builders/analysis_widgets.py:395
 #: src/zebtrack/ui/components/validation_manager.py:144
+#: src/zebtrack/ui/components/validators/config_validator.py:51
 msgid "Polyorder must be at least 1."
 msgstr "Polyorder deve ser pelo menos 1."
 
@@ -3378,6 +3389,7 @@ msgid "Open a project before adjusting the specific calibration."
 msgstr "Abra um projeto antes de ajustar a calibração específica."
 
 #: src/zebtrack/ui/components/dialog_manager.py:511
+#: src/zebtrack/ui/components/roi_template_manager.py:428
 msgid "Import ROI Template into the Library"
 msgstr "Importar Template de ROI para Biblioteca"
 
@@ -3390,10 +3402,12 @@ msgstr "Templates de ROI"
 # | msgid "Error"
 # | msgid "Model Error"
 #: src/zebtrack/ui/components/dialog_manager.py:521
+#: src/zebtrack/ui/components/roi_template_manager.py:441
 msgid "Import error"
 msgstr "Erro ao importar"
 
 #: src/zebtrack/ui/components/dialog_manager.py:528
+#: src/zebtrack/ui/components/roi_template_manager.py:449
 #, python-brace-format
 msgid ""
 "Template '{name}' added to the library.\n"
@@ -3406,6 +3420,7 @@ msgstr ""
 
 # | msgid "Template:"
 #: src/zebtrack/ui/components/dialog_manager.py:531
+#: src/zebtrack/ui/components/roi_template_manager.py:452
 msgid "Template imported"
 msgstr "Template importado"
 
@@ -3428,6 +3443,7 @@ msgstr "Erro ao importar e aplicar"
 
 # | msgid "Template:"
 #: src/zebtrack/ui/components/dialog_manager.py:657
+#: src/zebtrack/ui/components/roi_template_manager.py:246
 msgid "Template applied"
 msgstr "Template aplicado"
 
@@ -3923,6 +3939,7 @@ msgid "YOLO models"
 msgstr "Modelos YOLO"
 
 #: src/zebtrack/ui/components/global_model_configuration_panel.py:531
+#: src/zebtrack/ui/components/roi_template_manager.py:278
 msgid "Confirm Deletion"
 msgstr "Confirmar Exclusão"
 
@@ -5021,8 +5038,8 @@ msgid "Type a name:"
 msgstr "Digite um nome:"
 
 # | msgid "Polygon"
+# | msgid "Main Polygon"
 #: src/zebtrack/ui/components/polygon_drawing_service.py:207
-#| msgid "Main Polygon"
 msgid "Incomplete Polygon"
 msgstr "Polígono Incompleto"
 
@@ -5181,6 +5198,96 @@ msgstr "Projeto atualizado"
 msgid "The current global settings have been copied into this project."
 msgstr "As configurações globais atuais foram copiadas para este projeto."
 
+#: src/zebtrack/ui/components/roi_template_manager.py:252
+msgid "Review the applied zones"
+msgstr "Revise as zonas aplicadas"
+
+#: src/zebtrack/ui/components/roi_template_manager.py:254
+msgid ""
+"Check the arena/ROIs on the current video before starting the analysis. "
+"Templates may need fine tuning per video."
+msgstr ""
+"Confira arena/ROIs no vídeo atual antes de iniciar a análise. Templates "
+"podem precisar de ajustes finos por vídeo."
+
+#: src/zebtrack/ui/components/roi_template_manager.py:259
+#, python-brace-format
+msgid "Template '{name}' applied to the video being edited."
+msgstr "Template '{name}' aplicado ao vídeo em edição."
+
+#: src/zebtrack/ui/components/roi_template_manager.py:279
+#, python-brace-format
+#| msgid "Do you really want to exit?"
+msgid "Do you really want to delete template '{name}'?"
+msgstr "Deseja realmente excluir o template '{name}'?"
+
+# | msgid "Select the Video for Diagnostics"
+# | msgid "📹 Select Video for Drawing"
+# | msgid "Select a video before applying the template."
+#: src/zebtrack/ui/components/roi_template_manager.py:297
+#| msgid "Error applying the template"
+msgid "Error deleting the template"
+msgstr "Erro ao excluir template"
+
+# | msgid "Select the Video for Diagnostics"
+#: src/zebtrack/ui/components/roi_template_manager.py:309
+#| msgid "📹 Select Video for Drawing"
+msgid "Select a video to clear the applied drawings."
+msgstr "Selecione um vídeo para limpar os desenhos aplicados."
+
+#: src/zebtrack/ui/components/roi_template_manager.py:314
+#| msgid "🧹 Clear drawing"
+msgid "Clear the applied drawing"
+msgstr "Limpar desenho aplicado"
+
+#: src/zebtrack/ui/components/roi_template_manager.py:316
+msgid ""
+"Clear the arena and the ROIs of the current video?\n"
+"\n"
+"This affects only the selected video and does not remove templates from the library."
+msgstr ""
+"Deseja limpar a arena e as ROIs do vídeo atual?\n"
+"\n"
+"Esta ação afeta somente o vídeo selecionado e não remove templates da biblioteca."
+
+#: src/zebtrack/ui/components/roi_template_manager.py:326
+msgid "The current video's drawings were cleared."
+msgstr "Desenhos do vídeo atual foram limpos."
+
+# | msgid "Error Saving to Project"
+#: src/zebtrack/ui/components/roi_template_manager.py:330
+#| msgid "Error resuming the recording"
+msgid "Error clearing the drawing"
+msgstr "Erro ao limpar desenho"
+
+#: src/zebtrack/ui/components/roi_template_manager.py:430
+#: src/zebtrack/ui/components/zone_controls.py:594
+msgid "ROI Templates"
+msgstr "Templates de ROI"
+
+# | msgid "Invalid selection"
+#: src/zebtrack/ui/components/roi_template_manager.py:536
+#| msgid "Invalid target"
+msgid "Invalid template"
+msgstr "Template inválido"
+
+# | msgid "Error Saving to Project"
+#: src/zebtrack/ui/components/roi_template_manager.py:540
+#| msgid "Error Saving"
+msgid "Error saving"
+msgstr "Erro ao salvar"
+
+# | msgid "Template:"
+#: src/zebtrack/ui/components/roi_template_manager.py:546
+#| msgid "Template applied"
+msgid "Template saved"
+msgstr "Template salvo"
+
+#: src/zebtrack/ui/components/roi_template_manager.py:547
+#, python-brace-format
+msgid "Template '{name}' is available for use."
+msgstr "Template '{name}' disponível para uso."
+
 #: src/zebtrack/ui/components/state_synchronizer.py:447
 #: src/zebtrack/ui/components/state_synchronizer.py:463
 #, python-brace-format
@@ -5303,6 +5410,7 @@ msgstr "O intervalo de exibição deve ser maior que 0."
 
 # | msgid "The flush row threshold must be >= 1."
 #: src/zebtrack/ui/components/validation_manager.py:140
+#: src/zebtrack/ui/components/validators/config_validator.py:47
 msgid "The flush row limit must be >= 1."
 msgstr "O limite de linhas para flush deve ser >= 1."
 
@@ -5475,6 +5583,7 @@ msgstr ""
 
 # | msgid "The {label} must be between 0 and 1."
 #: src/zebtrack/ui/components/validation_manager.py:1584
+#: src/zebtrack/ui/components/validators/config_validator.py:90
 msgid "Overlap fraction must be between 0 and 1"
 msgstr "Fração de sobreposição deve estar entre 0 e 1"
 
@@ -5773,10 +5882,6 @@ msgstr "Intervalo de Análise (frames):"
 msgid "Display Interval (frames):"
 msgstr "Intervalo de Exibição (frames):"
 
-#: src/zebtrack/ui/components/zone_controls.py:594
-msgid "ROI Templates"
-msgstr "Templates de ROI"
-
 #: src/zebtrack/ui/components/zone_controls.py:603
 #: src/zebtrack/ui/components/zone_controls.py:641
 msgid "Template:"
@@ -5965,52 +6070,128 @@ msgstr ""
 "Considera dentro se o centroide geométrico estiver estritamente dentro da "
 "ROI."
 
+# | msgid "Data"
+#: src/zebtrack/ui/components/zone_edit_guard.py:66
+#| msgid "With data"
+msgid "switch tabs"
+msgstr "trocar de aba"
+
+# | msgid "Analysis in Progress"
+#: src/zebtrack/ui/components/zone_edit_guard.py:117
+#| msgid "No task in progress."
+msgid "Zone editing in progress"
+msgstr "Edição de zonas em andamento"
+
+#: src/zebtrack/ui/components/zone_edit_guard.py:119
+#, python-brace-format
+msgid ""
+"A zone edit/drawing is in progress. Click 'Finish Video Editing' when you "
+"are done, before {context}."
+msgstr ""
+"Há uma edição/desenho de zona em andamento. Clique em 'Concluir Edição do "
+"Vídeo' quando terminar, antes de {context}."
+
+# | msgid "Validation Error"
+# | msgid "Validation finished"
+# | msgid "✓ Drawing Finished"
+#: src/zebtrack/ui/components/zone_edit_guard.py:157
+#| msgid "Processing Finished"
+msgid "Zones not finalised"
+msgstr "Zonas não finalizadas"
+
+#: src/zebtrack/ui/components/zone_edit_guard.py:159
+msgid ""
+"The zones were drawn/applied but were not finalised with the 'Finish Video Editing' button.\n"
+"\n"
+"Do you want to finalise now before proceeding?\n"
+"\n"
+"• Yes: finalise and proceed\n"
+"• No: proceed without finalising\n"
+"• Cancel: stay on the current video"
+msgstr ""
+"As zonas foram desenhadas/aplicadas mas não foram finalizadas com o botão 'Concluir Edição do Vídeo'.\n"
+"\n"
+"Deseja finalizar agora antes de prosseguir?\n"
+"\n"
+"• Sim: Finaliza e prossegue\n"
+"• Não: Prossegue sem finalizar\n"
+"• Cancelar: Permanece no vídeo atual"
+
+#: src/zebtrack/ui/components/zone_edit_guard.py:169
+#| msgid "The video analysis was cancelled."
+msgid "Video switch cancelled."
+msgstr "Troca de vídeo cancelada."
+
+#: src/zebtrack/ui/components/zone_edit_guard.py:184
+msgid "Video switch cancelled to keep the current edit."
+msgstr "Troca de vídeo cancelada para manter a edição atual."
+
+#: src/zebtrack/ui/components/zone_edit_guard.py:192
+msgid "Edit saved. Moving on to the next video..."
+msgstr "Edição salva. Prosseguindo para o próximo vídeo..."
+
+#: src/zebtrack/ui/components/zone_edit_guard.py:196
+#| msgid "✅ Save Edit"
+msgid "Save edit"
+msgstr "Salvar edição"
+
+#: src/zebtrack/ui/components/zone_edit_guard.py:198
+msgid ""
+"Could not save automatically because the drawing has not been finished. "
+"Finish the drawing or use 'Finish' before switching videos."
+msgstr ""
+"Não foi possível salvar automaticamente porque o desenho ainda não foi "
+"finalizado. Finalize o desenho ou use 'Concluir' antes de trocar de vídeo."
+
+#: src/zebtrack/ui/components/zone_edit_guard.py:206
+msgid "Edit discarded. Moving on to the next video..."
+msgstr "Edição descartada. Prosseguindo para o próximo vídeo..."
+
+# | msgid "{count} vertex/vertices selected."
 #: src/zebtrack/ui/components/canvas/event_handler.py:483
 #, python-brace-format
-#| msgid "{count} vertex/vertices selected."
 msgid "{count} vertex(es) selected."
 msgstr "{count} vértice(s) selecionado(s)."
 
 # | msgid "Delete {asset}"
+# | msgid "Delete Selected"
 #: src/zebtrack/ui/components/canvas/event_handler.py:501
-#| msgid "Delete Selected"
 msgid "🗑 Delete this vertex"
 msgstr "🗑 Apagar este vértice"
 
 # | msgid "Delete {asset}"
+# | msgid "Delete Selected"
 #: src/zebtrack/ui/components/canvas/event_handler.py:508
-#| msgid "Delete Selected"
 msgid "🗑 Delete selected (Del)"
 msgstr "🗑 Apagar selecionados (Del)"
 
 # | msgid "Delete ROIs"
+# | msgid "Select an ROI."
 #: src/zebtrack/ui/components/canvas/event_handler.py:513
-#| msgid "Select an ROI."
 msgid "Select all"
 msgstr "Selecionar todos"
 
 # | msgid "Delete ROIs"
+# | msgid "Select an ROI."
 #: src/zebtrack/ui/components/canvas/event_handler.py:514
-#| msgid "Select an ROI."
 msgid "Select none"
 msgstr "Selecionar nenhum"
 
+# | msgid "Error Saving to Project"
 #: src/zebtrack/ui/components/canvas/event_handler.py:812
-#| msgid "Error Saving to Project"
 msgid "❌ Error saving the zone."
 msgstr "❌ Erro ao salvar zona."
 
+# | msgid "Could not save language"
 #: src/zebtrack/ui/components/canvas/event_handler.py:813
-#| msgid "Could not save language"
 msgid "Could not save the zone."
 msgstr "Não foi possível salvar a zona."
 
 # | msgid "Settings"
 # | msgid "Apply Settings"
 # | msgid "Error applying settings: {error}"
+# | msgid "Error while saving: {error}"
 #: src/zebtrack/ui/components/canvas/event_handler.py:817
-#, python-brace-format
-#| msgid "Error while saving: {error}"
 msgid "❌ Error while saving."
 msgstr "❌ Erro durante salvamento."
 
@@ -6069,57 +6250,56 @@ msgstr ""
 "O polígono do Aquário 1 será mostrado como referência."
 
 # | msgid "🐠 Aquarium (Detection)"
+# | msgid "Aquarium 1 (Left)"
 #: src/zebtrack/ui/components/canvas/renderer.py:469
-#| msgid "Aquarium 1 (Left)"
 msgid "Aquarium 1 (reference)"
 msgstr "Aquário 1 (referência)"
 
 # | msgid "No new video file was found in the selected paths."
+# | msgid "No eligible video was found or selected."
 #: src/zebtrack/ui/components/canvas/video_frame_manager.py:109
-#| msgid "No eligible video was found or selected."
 msgid "The selected video was not found or is inaccessible."
 msgstr "O vídeo selecionado não foi encontrado ou está inacessível."
 
 # | msgid "Could not connect to the Arduino on port {port}."
 # | msgid "Could not open the video: {path}"
+# | msgid "Could not read the video dimensions"
 #: src/zebtrack/ui/components/canvas/video_frame_manager.py:138
-#| msgid "Could not read the video dimensions"
 msgid "Could not read the image."
 msgstr "Não foi possível ler a imagem."
 
 # | msgid "Could not connect to the Arduino on port {port}."
+# | msgid "Could not open the video: {path}"
 #: src/zebtrack/ui/components/canvas/video_frame_manager.py:145
-#, python-brace-format
-#| msgid "Could not open the video: {path}"
 msgid "Could not open the video."
 msgstr "Não foi possível abrir o vídeo."
 
 # | msgid "Confirm removal of the selected item?"
+# | msgid "📹 Load Frame from the Selected Video"
 #: src/zebtrack/ui/components/canvas/video_frame_manager.py:151
-#| msgid "📹 Load Frame from the Selected Video"
 msgid "Could not read a frame from the video."
 msgstr "Não foi possível ler um frame do vídeo."
 
 # | msgid "Loading model system..."
+# | msgid "Error Loading Model"
 #: src/zebtrack/ui/components/canvas/video_frame_manager.py:188
-#| msgid "Error Loading Model"
 msgid "Error Displaying Frame"
 msgstr "Erro ao Exibir Frame"
 
+# | msgid "Open Cache Folder"
 #: src/zebtrack/ui/components/canvas/video_frame_manager.py:470
-#| msgid "Open Cache Folder"
 msgid "open another video"
 msgstr "abrir outro vídeo"
 
+# | msgid "Please select a video file."
 #: src/zebtrack/ui/components/canvas/video_frame_manager.py:483
-#| msgid "Please select a video file."
 msgid "Please select a video from the list to load."
 msgstr "Por favor, selecione um vídeo da lista para carregar."
 
 # | msgid "Edit Selected Video Metadata..."
+# | msgid "Select Video..."
 #: src/zebtrack/ui/components/canvas/video_frame_manager.py:492
 #: src/zebtrack/ui/components/canvas/video_frame_manager.py:502
-#| msgid "Select Video..."
 msgid "Select a Video"
 msgstr "Selecione um Vídeo"
 
@@ -6134,9 +6314,9 @@ msgstr ""
 "Por favor, escolha um item com ícone de vídeo (🎬) para carregar o frame."
 
 # | msgid "Frame {number}:"
+# | msgid "Frame loaded: {name}"
 #: src/zebtrack/ui/components/canvas/video_frame_manager.py:513
 #, python-brace-format
-#| msgid "Frame loaded: {name}"
 msgid "✓ Frame loaded: {name}"
 msgstr "✓ Frame carregado: {name}"
 
@@ -6922,6 +7102,11 @@ msgstr ""
 #, python-brace-format
 msgid "Frame loaded: {name}"
 msgstr "Frame carregado: {name}"
+
+#: src/zebtrack/ui/components/validators/config_validator.py:88
+#| msgid "Buffer radius cannot be negative"
+msgid "Buffer radius must be >= 0"
+msgstr "Raio de buffer deve ser >= 0"
 
 #: src/zebtrack/utils/hardware_benchmark.py:811
 msgid "Step 2/6 — Testing video decoding..."
