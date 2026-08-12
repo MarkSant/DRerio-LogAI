@@ -9,7 +9,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: DRerio LogAI VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-08-12 15:25-0300\n"
+"POT-Creation-Date: 2026-08-12 15:37-0300\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -74,7 +74,8 @@ msgstr ""
 #: src/zebtrack/ui/components/model_diagnostics_panel.py:831
 #: src/zebtrack/ui/components/model_diagnostics_panel.py:838
 #: src/zebtrack/ui/components/model_diagnostics_panel.py:854
-#: src/zebtrack/ui/components/project_views/report_asset_actions.py:455
+#: src/zebtrack/ui/components/project_model_configuration_panel.py:393
+#: src/zebtrack/ui/components/project_views/report_asset_actions.py:452
 #: src/zebtrack/ui/components/project_views/video_selector_tree_manager.py:824
 #: src/zebtrack/ui/components/validation_manager.py:154
 #: src/zebtrack/ui/components/validation_manager.py:183
@@ -1112,7 +1113,7 @@ msgstr ""
 #: src/zebtrack/coordinators/ui_state_coordinator.py:626
 #: src/zebtrack/ui/components/project_views/report_asset_actions.py:345
 #: src/zebtrack/ui/components/project_views/video_selector_tree_manager.py:859
-#: src/zebtrack/ui/components/project_views/video_selector_tree_manager.py:891
+#: src/zebtrack/ui/components/project_views/video_selector_tree_manager.py:889
 msgid "File not found"
 msgstr ""
 
@@ -1499,7 +1500,7 @@ msgid "Settings Saved"
 msgstr ""
 
 #: src/zebtrack/ui/builders/analysis_widgets.py:557
-#: src/zebtrack/ui/components/project_views/report_generator_actions.py:333
+#: src/zebtrack/ui/components/project_views/report_generator_actions.py:331
 #: src/zebtrack/ui/components/validation_manager.py:1627
 msgid "Warning"
 msgstr ""
@@ -1746,7 +1747,7 @@ msgstr ""
 #: src/zebtrack/ui/components/analysis_controls.py:202
 #: src/zebtrack/ui/components/analysis_display.py:66
 #: src/zebtrack/ui/components/analysis_display.py:294
-#: src/zebtrack/ui/components/project_views/project_view_helpers.py:93
+#: src/zebtrack/ui/components/project_views/project_view_helpers.py:94
 #, python-brace-format
 msgid "Group: {value}"
 msgstr ""
@@ -1755,7 +1756,7 @@ msgstr ""
 #: src/zebtrack/ui/components/analysis_controls.py:203
 #: src/zebtrack/ui/components/analysis_display.py:69
 #: src/zebtrack/ui/components/analysis_display.py:295
-#: src/zebtrack/ui/components/project_views/project_view_helpers.py:95
+#: src/zebtrack/ui/components/project_views/project_view_helpers.py:96
 #, python-brace-format
 msgid "Day: {value}"
 msgstr ""
@@ -2158,6 +2159,110 @@ msgstr ""
 msgid "Connected"
 msgstr ""
 
+#: src/zebtrack/ui/components/behavioral_config_widget.py:123
+msgid "Behavioural Analysis Configuration"
+msgstr ""
+
+#: src/zebtrack/ui/components/behavioral_config_widget.py:142
+msgid "Aquarium Perspective *"
+msgstr ""
+
+#: src/zebtrack/ui/components/behavioral_config_widget.py:148
+msgid "Select how the camera sees the aquarium:"
+msgstr ""
+
+#: src/zebtrack/ui/components/behavioral_config_widget.py:155
+msgid "Top-Down View"
+msgstr ""
+
+#: src/zebtrack/ui/components/behavioral_config_widget.py:156
+msgid "Side View"
+msgstr ""
+
+#: src/zebtrack/ui/components/behavioral_config_widget.py:165
+msgid "Perspective:"
+msgstr ""
+
+#: src/zebtrack/ui/components/behavioral_config_widget.py:180
+msgid "Thigmotaxis (Proximity to the Walls)"
+msgstr ""
+
+#: src/zebtrack/ui/components/behavioral_config_widget.py:187
+msgid "Distance threshold for considering the fish close to the aquarium walls:"
+msgstr ""
+
+#: src/zebtrack/ui/components/behavioral_config_widget.py:196
+msgid "Distance (cm):"
+msgstr ""
+
+#: src/zebtrack/ui/components/behavioral_config_widget.py:211
+msgid "(default: 1.5 cm)"
+msgstr ""
+
+#: src/zebtrack/ui/components/behavioral_config_widget.py:216
+msgid "Geotaxis (Proximity to the Bottom) - Side View Only"
+msgstr ""
+
+#: src/zebtrack/ui/components/behavioral_config_widget.py:223
+msgid "Enable geotaxis analysis"
+msgstr ""
+
+#: src/zebtrack/ui/components/behavioral_config_widget.py:237
+msgid "Calculation mode:"
+msgstr ""
+
+#: src/zebtrack/ui/components/behavioral_config_widget.py:241
+msgid "By Distance"
+msgstr ""
+
+#: src/zebtrack/ui/components/behavioral_config_widget.py:250
+msgid "By Vertical Zones"
+msgstr ""
+
+#: src/zebtrack/ui/components/behavioral_config_widget.py:261
+msgid "Distance from the bottom (cm):"
+msgstr ""
+
+#: src/zebtrack/ui/components/behavioral_config_widget.py:285
+msgid "Split the aquarium into:"
+msgstr ""
+
+#: src/zebtrack/ui/components/behavioral_config_widget.py:298
+msgid "vertical zones"
+msgstr ""
+
+#: src/zebtrack/ui/components/behavioral_config_widget.py:304
+msgid "Consider as 'bottom':"
+msgstr ""
+
+#: src/zebtrack/ui/components/behavioral_config_widget.py:317
+msgid "lowest zone(s)"
+msgstr ""
+
+#: src/zebtrack/ui/components/behavioral_config_widget.py:503
+msgid "Thigmotaxis distance must be between 0.1 and 10.0 cm"
+msgstr ""
+
+#: src/zebtrack/ui/components/behavioral_config_widget.py:509
+msgid "Geotaxis can only be enabled for the side perspective"
+msgstr ""
+
+#: src/zebtrack/ui/components/behavioral_config_widget.py:515
+msgid "Geotaxis distance must be between 0.1 and 10.0 cm"
+msgstr ""
+
+#: src/zebtrack/ui/components/behavioral_config_widget.py:521
+msgid "The number of zones must be between 2 and 10"
+msgstr ""
+
+#: src/zebtrack/ui/components/behavioral_config_widget.py:524
+msgid "The number of bottom zones must be 1 or 2"
+msgstr ""
+
+#: src/zebtrack/ui/components/behavioral_config_widget.py:527
+msgid "Bottom zones cannot exceed the total number of zones"
+msgstr ""
+
 #: src/zebtrack/ui/components/config_editor.py:39
 msgid ""
 "⚠️ 'seg_overlap' without 'Save Masks' enabled: the analysis will degrade "
@@ -2451,12 +2556,16 @@ msgstr ""
 
 #: src/zebtrack/ui/components/config_editor.py:615
 #: src/zebtrack/ui/components/model_diagnostics_panel.py:778
+#: src/zebtrack/ui/components/project_model_configuration_panel.py:189
+#: src/zebtrack/ui/components/project_model_configuration_panel.py:380
 #: src/zebtrack/ui/components/weight_hardware_manager.py:145
 msgid "Enabled"
 msgstr ""
 
 #: src/zebtrack/ui/components/config_editor.py:615
 #: src/zebtrack/ui/components/model_diagnostics_panel.py:778
+#: src/zebtrack/ui/components/project_model_configuration_panel.py:191
+#: src/zebtrack/ui/components/project_model_configuration_panel.py:380
 #: src/zebtrack/ui/components/weight_hardware_manager.py:145
 msgid "Disabled"
 msgstr ""
@@ -3922,6 +4031,7 @@ msgid "Slot"
 msgstr ""
 
 #: src/zebtrack/ui/components/model_diagnostics_panel.py:765
+#: src/zebtrack/ui/components/project_model_configuration_panel.py:365
 msgid "None"
 msgstr ""
 
@@ -3966,6 +4076,119 @@ msgstr ""
 
 #: src/zebtrack/ui/components/model_diagnostics_panel.py:855
 msgid "Select one of the project's effective weights for diagnostics."
+msgstr ""
+
+#: src/zebtrack/ui/components/project_model_configuration_panel.py:22
+msgid "Inherit (global default)"
+msgstr ""
+
+#: src/zebtrack/ui/components/project_model_configuration_panel.py:62
+msgid "Project Model Configuration"
+msgstr ""
+
+#: src/zebtrack/ui/components/project_model_configuration_panel.py:71
+msgid ""
+"Open a project to adjust project-specific weights and OpenVINO. The "
+"preferences applied here do not affect the global default."
+msgstr ""
+
+#: src/zebtrack/ui/components/project_model_configuration_panel.py:83
+msgid ""
+"Set only this project's overrides. To edit the weight catalogue, the per-"
+"slot defaults or OpenVINO maintenance, use Global Model Configuration."
+msgstr ""
+
+#: src/zebtrack/ui/components/project_model_configuration_panel.py:93
+msgid "Weights specific to this project"
+msgstr ""
+
+#: src/zebtrack/ui/components/project_model_configuration_panel.py:114
+msgid "Inherit the global configuration"
+msgstr ""
+
+#: src/zebtrack/ui/components/project_model_configuration_panel.py:121
+msgid "Uses exactly the global OpenVINO configuration for this project."
+msgstr ""
+
+#: src/zebtrack/ui/components/project_model_configuration_panel.py:126
+msgid "Force enabled"
+msgstr ""
+
+#: src/zebtrack/ui/components/project_model_configuration_panel.py:134
+msgid "Always uses OpenVINO in this project, regardless of the global default."
+msgstr ""
+
+#: src/zebtrack/ui/components/project_model_configuration_panel.py:139
+msgid "Force disabled"
+msgstr ""
+
+#: src/zebtrack/ui/components/project_model_configuration_panel.py:147
+msgid "Prevents OpenVINO use in this project, even when it is globally enabled."
+msgstr ""
+
+#: src/zebtrack/ui/components/project_model_configuration_panel.py:153
+msgid ""
+"Choose how to apply OpenVINO in this project:\n"
+"• Inherit: follows the current global state.\n"
+"• Force enabled: always uses OpenVINO here.\n"
+"• Force disabled: keeps PyTorch even when the global state is enabled."
+msgstr ""
+
+#: src/zebtrack/ui/components/project_model_configuration_panel.py:163
+msgid "Effective Result"
+msgstr ""
+
+#: src/zebtrack/ui/components/project_model_configuration_panel.py:167
+msgid "Weights in use:"
+msgstr ""
+
+#: src/zebtrack/ui/components/project_model_configuration_panel.py:178
+msgid "Global Defaults"
+msgstr ""
+
+#: src/zebtrack/ui/components/project_model_configuration_panel.py:187
+#, python-brace-format
+msgid "Global OpenVINO: {state}"
+msgstr ""
+
+#: src/zebtrack/ui/components/project_model_configuration_panel.py:200
+msgid "Save Preferences"
+msgstr ""
+
+#: src/zebtrack/ui/components/project_model_configuration_panel.py:205
+msgid "Copy Globals to the Project"
+msgstr ""
+
+#: src/zebtrack/ui/components/project_model_configuration_panel.py:210
+msgid "Reload From Project"
+msgstr ""
+
+#: src/zebtrack/ui/components/project_model_configuration_panel.py:250
+msgid "No active project slot was identified."
+msgstr ""
+
+#: src/zebtrack/ui/components/project_model_configuration_panel.py:369
+msgid "No weight available"
+msgstr ""
+
+#: src/zebtrack/ui/components/project_model_configuration_panel.py:371
+msgid "No global default available"
+msgstr ""
+
+#: src/zebtrack/ui/components/project_model_configuration_panel.py:397
+msgid "Preferences updated"
+msgstr ""
+
+#: src/zebtrack/ui/components/project_model_configuration_panel.py:398
+msgid "The project preferences have been saved."
+msgstr ""
+
+#: src/zebtrack/ui/components/project_model_configuration_panel.py:412
+msgid "Project updated"
+msgstr ""
+
+#: src/zebtrack/ui/components/project_model_configuration_panel.py:413
+msgid "The current global settings have been copied into this project."
 msgstr ""
 
 #: src/zebtrack/ui/components/validation_manager.py:54
@@ -4823,22 +5046,22 @@ msgstr ""
 msgid "Zones deleted successfully."
 msgstr ""
 
-#: src/zebtrack/ui/components/project_views/project_view_helpers.py:34
+#: src/zebtrack/ui/components/project_views/project_view_helpers.py:35
 #, python-brace-format
 msgid "{count} video"
 msgstr ""
 
-#: src/zebtrack/ui/components/project_views/project_view_helpers.py:35
+#: src/zebtrack/ui/components/project_views/project_view_helpers.py:36
 #, python-brace-format
 msgid "{count} videos"
 msgstr ""
 
-#: src/zebtrack/ui/components/project_views/project_view_helpers.py:97
+#: src/zebtrack/ui/components/project_views/project_view_helpers.py:98
 #, python-brace-format
 msgid "Subject: {value}"
 msgstr ""
 
-#: src/zebtrack/ui/components/project_views/project_view_helpers.py:99
+#: src/zebtrack/ui/components/project_views/project_view_helpers.py:100
 msgid "No metadata"
 msgstr ""
 
@@ -4875,29 +5098,29 @@ msgid ""
 "{path}"
 msgstr ""
 
-#: src/zebtrack/ui/components/project_views/report_asset_actions.py:362
-#: src/zebtrack/ui/components/project_views/report_asset_actions.py:380
+#: src/zebtrack/ui/components/project_views/report_asset_actions.py:361
+#: src/zebtrack/ui/components/project_views/report_asset_actions.py:378
 msgid "Unavailable"
 msgstr ""
 
-#: src/zebtrack/ui/components/project_views/report_asset_actions.py:362
+#: src/zebtrack/ui/components/project_views/report_asset_actions.py:361
 msgid "No unified report found."
 msgstr ""
 
-#: src/zebtrack/ui/components/project_views/report_asset_actions.py:381
+#: src/zebtrack/ui/components/project_views/report_asset_actions.py:379
 #, python-brace-format
 msgid "No {type} report found."
 msgstr ""
 
-#: src/zebtrack/ui/components/project_views/report_asset_actions.py:435
+#: src/zebtrack/ui/components/project_views/report_asset_actions.py:433
 msgid "Reports unavailable"
 msgstr ""
 
-#: src/zebtrack/ui/components/project_views/report_asset_actions.py:436
+#: src/zebtrack/ui/components/project_views/report_asset_actions.py:434
 msgid "Generate the report for this video before opening the results folder."
 msgstr ""
 
-#: src/zebtrack/ui/components/project_views/report_asset_actions.py:455
+#: src/zebtrack/ui/components/project_views/report_asset_actions.py:452
 #, python-brace-format
 msgid "Could not open: {error}"
 msgstr ""
@@ -4937,18 +5160,18 @@ msgid ""
 "Check whether a file is still open."
 msgstr ""
 
-#: src/zebtrack/ui/components/project_views/report_generator_actions.py:319
+#: src/zebtrack/ui/components/project_views/report_generator_actions.py:318
 msgid ""
 "\n"
 "\n"
 "OneDrive may be locking files. Try again in a few moments."
 msgstr ""
 
-#: src/zebtrack/ui/components/project_views/report_generator_actions.py:323
+#: src/zebtrack/ui/components/project_views/report_generator_actions.py:321
 msgid "Deletion Error"
 msgstr ""
 
-#: src/zebtrack/ui/components/project_views/report_generator_actions.py:324
+#: src/zebtrack/ui/components/project_views/report_generator_actions.py:322
 #, python-brace-format
 msgid ""
 "{message}\n"
@@ -4956,7 +5179,7 @@ msgid ""
 "Error: {error}"
 msgstr ""
 
-#: src/zebtrack/ui/components/project_views/report_generator_actions.py:333
+#: src/zebtrack/ui/components/project_views/report_generator_actions.py:331
 msgid "There were no unified reports to delete."
 msgstr ""
 
@@ -5133,39 +5356,39 @@ msgid ""
 "{path}"
 msgstr ""
 
-#: src/zebtrack/ui/components/project_views/video_selector_tree_manager.py:871
+#: src/zebtrack/ui/components/project_views/video_selector_tree_manager.py:869
 #, python-brace-format
 msgid "Report opened: {name}"
 msgstr ""
 
-#: src/zebtrack/ui/components/project_views/video_selector_tree_manager.py:876
+#: src/zebtrack/ui/components/project_views/video_selector_tree_manager.py:874
 msgid "Error Opening"
 msgstr ""
 
-#: src/zebtrack/ui/components/project_views/video_selector_tree_manager.py:877
+#: src/zebtrack/ui/components/project_views/video_selector_tree_manager.py:875
 #, python-brace-format
 msgid ""
 "Could not open the selected report.\n"
 "{error}"
 msgstr ""
 
-#: src/zebtrack/ui/components/project_views/video_selector_tree_manager.py:892
+#: src/zebtrack/ui/components/project_views/video_selector_tree_manager.py:890
 #, python-brace-format
 msgid ""
 "The selected video could not be located:\n"
 "{path}"
 msgstr ""
 
-#: src/zebtrack/ui/components/project_views/video_selector_tree_manager.py:900
+#: src/zebtrack/ui/components/project_views/video_selector_tree_manager.py:898
 #, python-brace-format
 msgid "Frame loaded: {name}"
 msgstr ""
 
-#: src/zebtrack/ui/components/project_views/video_selector_tree_manager.py:905
+#: src/zebtrack/ui/components/project_views/video_selector_tree_manager.py:903
 msgid "Error Loading"
 msgstr ""
 
-#: src/zebtrack/ui/components/project_views/video_selector_tree_manager.py:906
+#: src/zebtrack/ui/components/project_views/video_selector_tree_manager.py:904
 #, python-brace-format
 msgid ""
 "Could not load the selected video.\n"

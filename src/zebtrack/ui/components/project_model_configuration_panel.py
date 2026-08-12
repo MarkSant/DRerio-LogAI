@@ -6,14 +6,26 @@ from tkinter import StringVar, messagebox, ttk
 
 from pydantic import ValidationError
 
+from zebtrack.i18n import _
 from zebtrack.ui.wizard.tooltip import ToolTip
+
+
+def weight_inherit_label() -> str:
+    """Dropdown entry meaning "no project override for this slot".
+
+    A function, not a class attribute: ``_()`` resolves the catalogue when it is
+    called, and a class-body call would freeze the label into whatever language
+    was installed at import time. The value doubles as the sentinel compared in
+    :meth:`ProjectModelConfigurationPanel._get_preferences_overrides`, so both
+    sides must come from this one source.
+    """
+    return _("Inherit (global default)")
 
 
 class ProjectModelConfigurationPanel(ttk.Frame):
     """Project-only overrides for model selection and OpenVINO usage."""
 
     SLOT_SEPARATOR = ":"
-    WEIGHT_INHERIT_LABEL = "Herdar (padrão global)"
     OPENVINO_INHERIT = "inherit"
     OPENVINO_ON = "on"
     OPENVINO_OFF = "off"
@@ -47,7 +59,7 @@ class ProjectModelConfigurationPanel(ttk.Frame):
 
         heading = ttk.Label(
             self,
-            text="Configuração de Modelos do Projeto",
+            text=_("Project Model Configuration"),
             font=("Segoe UI", 11, "bold"),
         )
         heading.grid(row=0, column=0, columnspan=2, sticky="w", padx=12, pady=(8, 4))
@@ -55,9 +67,9 @@ class ProjectModelConfigurationPanel(ttk.Frame):
         if not self.scope_info.get("project_loaded"):
             ttk.Label(
                 self,
-                text=(
-                    "Abra um projeto para ajustar pesos e OpenVINO específicos. "
-                    "As preferências aplicadas aqui não afetam o padrão global."
+                text=_(
+                    "Open a project to adjust project-specific weights and OpenVINO. "
+                    "The preferences applied here do not affect the global default."
                 ),
                 wraplength=640,
                 justify="left",
@@ -67,9 +79,9 @@ class ProjectModelConfigurationPanel(ttk.Frame):
 
         ttk.Label(
             self,
-            text=(
-                "Defina apenas overrides deste projeto. Para editar catálogo de pesos, "
-                "defaults por slot ou manutenção do OpenVINO, use a Configuração Global de Modelos."
+            text=_(
+                "Set only this project's overrides. To edit the weight catalogue, the "
+                "per-slot defaults or OpenVINO maintenance, use Global Model Configuration."
             ),
             wraplength=700,
             justify="left",
@@ -78,7 +90,7 @@ class ProjectModelConfigurationPanel(ttk.Frame):
 
         self.slot_controls_frame = ttk.LabelFrame(
             self,
-            text="Pesos específicos deste projeto",
+            text=_("Weights specific to this project"),
             padding=8,
         )
         self.slot_controls_frame.grid(
@@ -99,29 +111,32 @@ class ProjectModelConfigurationPanel(ttk.Frame):
 
         inherit_radio = ttk.Radiobutton(
             openvino_frame,
-            text="Herdar configuração global",
+            text=_("Inherit the global configuration"),
             value=self.OPENVINO_INHERIT,
             variable=self.openvino_choice,
             command=self._update_preferences_preview,
         )
         inherit_radio.grid(row=0, column=0, sticky="w")
         ToolTip(
-            inherit_radio, "Usa exatamente a configuração global do OpenVINO para este projeto."
+            inherit_radio, _("Uses exactly the global OpenVINO configuration for this project.")
         )
 
         force_on_radio = ttk.Radiobutton(
             openvino_frame,
-            text="Forçar ativado",
+            text=_("Force enabled"),
             value=self.OPENVINO_ON,
             variable=self.openvino_choice,
             command=self._update_preferences_preview,
         )
         force_on_radio.grid(row=1, column=0, sticky="w", pady=(2, 0))
-        ToolTip(force_on_radio, "Sempre usa OpenVINO neste projeto, independente do padrão global.")
+        ToolTip(
+            force_on_radio,
+            _("Always uses OpenVINO in this project, regardless of the global default."),
+        )
 
         force_off_radio = ttk.Radiobutton(
             openvino_frame,
-            text="Forçar desativado",
+            text=_("Force disabled"),
             value=self.OPENVINO_OFF,
             variable=self.openvino_choice,
             command=self._update_preferences_preview,
@@ -129,27 +144,27 @@ class ProjectModelConfigurationPanel(ttk.Frame):
         force_off_radio.grid(row=2, column=0, sticky="w", pady=(2, 0))
         ToolTip(
             force_off_radio,
-            "Impede o uso do OpenVINO neste projeto, mesmo se estiver ativo globalmente.",
+            _("Prevents OpenVINO use in this project, even when it is globally enabled."),
         )
 
         ttk.Label(
             openvino_frame,
-            text=(
-                "Escolha como aplicar OpenVINO neste projeto:\n"
-                "• Herdar: segue o estado global atual.\n"
-                "• Forçar ativado: sempre usa OpenVINO aqui.\n"
-                "• Forçar desativado: mantém PyTorch mesmo que o global esteja ativo."
+            text=_(
+                "Choose how to apply OpenVINO in this project:\n"
+                "• Inherit: follows the current global state.\n"
+                "• Force enabled: always uses OpenVINO here.\n"
+                "• Force disabled: keeps PyTorch even when the global state is enabled."
             ),
             justify="left",
             font=("TkDefaultFont", 9),
             foreground="#555555",
         ).grid(row=3, column=0, sticky="w", pady=(6, 0))
 
-        preview = ttk.LabelFrame(self, text="Resultado Efetivo", padding=8)
+        preview = ttk.LabelFrame(self, text=_("Effective Result"), padding=8)
         preview.grid(row=4, column=0, columnspan=2, padx=12, pady=(10, 6), sticky="ew")
         preview.columnconfigure(1, weight=1)
 
-        ttk.Label(preview, text="Pesos utilizados:").grid(row=0, column=0, sticky="nw")
+        ttk.Label(preview, text=_("Weights in use:")).grid(row=0, column=0, sticky="nw")
         ttk.Label(preview, textvariable=self.effective_weight_var, justify="left").grid(
             row=0,
             column=1,
@@ -160,7 +175,7 @@ class ProjectModelConfigurationPanel(ttk.Frame):
             row=1, column=1, sticky="w"
         )
 
-        defaults_frame = ttk.LabelFrame(self, text="Padrões Globais", padding=8)
+        defaults_frame = ttk.LabelFrame(self, text=_("Global Defaults"), padding=8)
         defaults_frame.grid(row=5, column=0, columnspan=2, padx=12, pady=(6, 4), sticky="ew")
         ttk.Label(
             defaults_frame,
@@ -169,9 +184,12 @@ class ProjectModelConfigurationPanel(ttk.Frame):
         ).pack(anchor="w")
         ttk.Label(
             defaults_frame,
-            text=(
-                "OpenVINO global: "
-                + ("Ativado" if self._get_detector_defaults().get("use_openvino") else "Desativado")
+            text=_("Global OpenVINO: {state}").format(
+                state=(
+                    _("Enabled")
+                    if self._get_detector_defaults().get("use_openvino")
+                    else _("Disabled")
+                )
             ),
         ).pack(anchor="w", pady=(4, 0))
 
@@ -179,17 +197,17 @@ class ProjectModelConfigurationPanel(ttk.Frame):
         actions.grid(row=6, column=0, columnspan=2, sticky="e", padx=12, pady=(10, 12))
         ttk.Button(
             actions,
-            text="Salvar Preferências",
+            text=_("Save Preferences"),
             command=self._save_project_preferences,
         ).pack(side="left", padx=(0, 6))
         ttk.Button(
             actions,
-            text="Copiar Globais para o Projeto",
+            text=_("Copy Globals to the Project"),
             command=self._copy_globals_to_project,
         ).pack(side="left", padx=(0, 6))
         ttk.Button(
             actions,
-            text="Recarregar do Projeto",
+            text=_("Reload From Project"),
             command=self._restore_project_preferences,
         ).pack(side="left")
 
@@ -229,7 +247,7 @@ class ProjectModelConfigurationPanel(ttk.Frame):
         if not self.project_slots:
             ttk.Label(
                 self.slot_controls_frame,
-                text="Nenhum slot ativo do projeto foi identificado.",
+                text=_("No active project slot was identified."),
                 foreground="#555555",
             ).grid(row=0, column=0, sticky="w")
             return
@@ -238,7 +256,7 @@ class ProjectModelConfigurationPanel(ttk.Frame):
             slot_key = str(slot["key"])
             slot_var = self.slot_weight_choices.setdefault(
                 slot_key,
-                StringVar(master=self, value=self.WEIGHT_INHERIT_LABEL),
+                StringVar(master=self, value=weight_inherit_label()),
             )
             ttk.Label(self.slot_controls_frame, text=f"{slot['label']}:").grid(
                 row=row,
@@ -253,7 +271,7 @@ class ProjectModelConfigurationPanel(ttk.Frame):
                 textvariable=slot_var,
             )
             dropdown.grid(row=row, column=1, sticky="ew", pady=2)
-            dropdown.bind("<<ComboboxSelected>>", lambda *_: self._update_preferences_preview())
+            dropdown.bind("<<ComboboxSelected>>", lambda *_a: self._update_preferences_preview())
             self.slot_weight_dropdowns[slot_key] = dropdown
 
         self._refresh_slot_dropdown_values()
@@ -309,7 +327,7 @@ class ProjectModelConfigurationPanel(ttk.Frame):
             else:
                 weights = self.controller.hardware_vm.get_all_weight_names()
 
-            display_values = [self.WEIGHT_INHERIT_LABEL, *weights]
+            display_values = [weight_inherit_label(), *weights]
             current_override = slot_overrides.get(slot_key)
             if current_override and current_override not in display_values:
                 display_values.append(current_override)
@@ -319,7 +337,7 @@ class ProjectModelConfigurationPanel(ttk.Frame):
         slot_overrides: dict[str, str] = {}
         for slot_key, variable in self.slot_weight_choices.items():
             selection = variable.get().strip()
-            if selection and selection != self.WEIGHT_INHERIT_LABEL:
+            if selection and selection != weight_inherit_label():
                 slot_overrides[slot_key] = selection
 
         openvino_selection = self.openvino_choice.get()
@@ -344,11 +362,12 @@ class ProjectModelConfigurationPanel(ttk.Frame):
             label = str(slot["label"])
             global_weight = slot.get("global_weight")
             effective_weight = slot_overrides.get(slot_key) or global_weight
-            effective_lines.append(f"{label}: {effective_weight or 'Nenhum'}")
-            global_lines.append(f"{label}: {global_weight or 'Nenhum'}")
+            none_label = _("None")
+            effective_lines.append(f"{label}: {effective_weight or none_label}")
+            global_lines.append(f"{label}: {global_weight or none_label}")
 
-        self.effective_weight_var.set("\n".join(effective_lines) or "Nenhum peso disponível")
-        self.defaults_summary_var.set("\n".join(global_lines) or "Nenhum padrão global disponível")
+        self.effective_weight_var.set("\n".join(effective_lines) or _("No weight available"))
+        self.defaults_summary_var.set("\n".join(global_lines) or _("No global default available"))
 
         defaults = self._get_detector_defaults()
         resolved_openvino = (
@@ -356,7 +375,7 @@ class ProjectModelConfigurationPanel(ttk.Frame):
             if openvino_override is None
             else bool(openvino_override)
         )
-        self.effective_openvino_var.set("Ativado" if resolved_openvino else "Desativado")
+        self.effective_openvino_var.set(_("Enabled") if resolved_openvino else _("Disabled"))
 
     def _save_project_preferences(self) -> None:
         if not self.scope_info.get("project_loaded"):
@@ -369,12 +388,12 @@ class ProjectModelConfigurationPanel(ttk.Frame):
                 openvino_override,
             )
         except ValidationError as exc:
-            messagebox.showerror("Erro", str(exc), parent=self)
+            messagebox.showerror(_("Error"), str(exc), parent=self)
             return
 
         messagebox.showinfo(
-            "Preferências atualizadas",
-            "As preferências do projeto foram salvas.",
+            _("Preferences updated"),
+            _("The project preferences have been saved."),
             parent=self,
         )
         self._restore_project_preferences()
@@ -388,8 +407,8 @@ class ProjectModelConfigurationPanel(ttk.Frame):
         self._restore_project_preferences()
         self._refresh_related_project_panels()
         messagebox.showinfo(
-            "Projeto atualizado",
-            "As configurações globais atuais foram copiadas para este projeto.",
+            _("Project updated"),
+            _("The current global settings have been copied into this project."),
             parent=self,
         )
 
@@ -403,7 +422,7 @@ class ProjectModelConfigurationPanel(ttk.Frame):
             variable = self.slot_weight_choices.get(slot_key)
             if variable is None:
                 continue
-            variable.set(slot_overrides.get(slot_key, self.WEIGHT_INHERIT_LABEL))
+            variable.set(slot_overrides.get(slot_key, weight_inherit_label()))
 
         overrides = self._get_current_overrides()
         openvino_override = overrides.get("use_openvino")

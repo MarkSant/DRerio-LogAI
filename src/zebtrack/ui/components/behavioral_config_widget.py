@@ -9,6 +9,7 @@ from typing import Any
 
 import structlog
 
+from zebtrack.i18n import _
 from zebtrack.ui import payloads
 from zebtrack.ui.components.base import BaseWidget
 from zebtrack.ui.event_bus_v2 import EventBusV2, UIEvents
@@ -119,7 +120,7 @@ class BehavioralConfigWidget(BaseWidget):
         # Section title
         title_label = ttk.Label(
             self,
-            text="Configuração de Análise Comportamental",
+            text=_("Behavioural Analysis Configuration"),
             font=("TkDefaultFont", 10, "bold"),
         )
         title_label.pack(fill="x", pady=(0, 10))
@@ -138,21 +139,21 @@ class BehavioralConfigWidget(BaseWidget):
 
     def _build_perspective_section(self) -> None:
         """Build the aquarium perspective selection section."""
-        perspective_frame = ttk.LabelFrame(self, text="Perspectiva do Aquário *", padding=5)
+        perspective_frame = ttk.LabelFrame(self, text=_("Aquarium Perspective *"), padding=5)
         perspective_frame.pack(fill="x", pady=(0, 10))
 
         # Description
         desc_label = ttk.Label(
             perspective_frame,
-            text="Selecione como a câmera visualiza o aquário:",
+            text=_("Select how the camera sees the aquarium:"),
             wraplength=500,
         )
         desc_label.pack(fill="x", pady=(0, 5))
 
         # Combobox for perspective selection
         perspective_values = [
-            ("Vista de Cima (Top-Down)", AquariumPerspective.TOP_DOWN.value),
-            ("Vista Lateral", AquariumPerspective.LATERAL.value),
+            (_("Top-Down View"), AquariumPerspective.TOP_DOWN.value),
+            (_("Side View"), AquariumPerspective.LATERAL.value),
         ]
         display_values = [v[0] for v in perspective_values]
         self._perspective_mapping = {v[0]: v[1] for v in perspective_values}
@@ -161,7 +162,7 @@ class BehavioralConfigWidget(BaseWidget):
         combo_frame = ttk.Frame(perspective_frame)
         combo_frame.pack(fill="x")
 
-        ttk.Label(combo_frame, text="Perspectiva:").pack(side="left", padx=(0, 5))
+        ttk.Label(combo_frame, text=_("Perspective:")).pack(side="left", padx=(0, 5))
 
         self.perspective_combo = ttk.Combobox(
             combo_frame,
@@ -176,14 +177,14 @@ class BehavioralConfigWidget(BaseWidget):
     def _build_thigmotaxis_section(self) -> None:
         """Build the thigmotaxis configuration section."""
         thigmotaxis_frame = ttk.LabelFrame(
-            self, text="Thigmotaxis (Proximidade às Paredes)", padding=5
+            self, text=_("Thigmotaxis (Proximity to the Walls)"), padding=5
         )
         thigmotaxis_frame.pack(fill="x", pady=(0, 10))
 
         # Description
         desc_label = ttk.Label(
             thigmotaxis_frame,
-            text="Distância limite para considerar o peixe próximo às paredes do aquário:",
+            text=_("Distance threshold for considering the fish close to the aquarium walls:"),
             wraplength=500,
         )
         desc_label.pack(fill="x", pady=(0, 5))
@@ -192,7 +193,7 @@ class BehavioralConfigWidget(BaseWidget):
         input_frame = ttk.Frame(thigmotaxis_frame)
         input_frame.pack(fill="x")
 
-        ttk.Label(input_frame, text="Distância (cm):").pack(side="left", padx=(0, 5))
+        ttk.Label(input_frame, text=_("Distance (cm):")).pack(side="left", padx=(0, 5))
 
         self.thigmotaxis_spinbox = ttk.Spinbox(
             input_frame,
@@ -207,19 +208,19 @@ class BehavioralConfigWidget(BaseWidget):
         self.thigmotaxis_spinbox.bind("<FocusOut>", self._on_value_changed)
         self.thigmotaxis_spinbox.bind("<Return>", self._on_value_changed)
 
-        ttk.Label(input_frame, text="(padrão: 1.5 cm)").pack(side="left", padx=(10, 0))
+        ttk.Label(input_frame, text=_("(default: 1.5 cm)")).pack(side="left", padx=(10, 0))
 
     def _build_geotaxis_section(self) -> None:
         """Build the geotaxis configuration section."""
         self.geotaxis_frame = ttk.LabelFrame(
-            self, text="Geotaxis (Proximidade ao Fundo) - Apenas Vista Lateral", padding=5
+            self, text=_("Geotaxis (Proximity to the Bottom) - Side View Only"), padding=5
         )
         self.geotaxis_frame.pack(fill="x", pady=(0, 10))
 
         # Enable checkbox
         self.geotaxis_check = ttk.Checkbutton(
             self.geotaxis_frame,
-            text="Habilitar análise de geotaxis",
+            text=_("Enable geotaxis analysis"),
             variable=self.geotaxis_enabled_var,
             command=self._on_geotaxis_toggled,
         )
@@ -233,11 +234,11 @@ class BehavioralConfigWidget(BaseWidget):
         mode_frame = ttk.Frame(self.geotaxis_options_frame)
         mode_frame.pack(fill="x", pady=(0, 5))
 
-        ttk.Label(mode_frame, text="Modo de cálculo:").pack(side="left", padx=(0, 10))
+        ttk.Label(mode_frame, text=_("Calculation mode:")).pack(side="left", padx=(0, 10))
 
         self.distance_radio = ttk.Radiobutton(
             mode_frame,
-            text="Por Distância",
+            text=_("By Distance"),
             variable=self.geotaxis_mode_var,
             value=GeotaxisMode.DISTANCE.value,
             command=self._on_mode_changed,
@@ -246,7 +247,7 @@ class BehavioralConfigWidget(BaseWidget):
 
         self.zones_radio = ttk.Radiobutton(
             mode_frame,
-            text="Por Zonas Verticais",
+            text=_("By Vertical Zones"),
             variable=self.geotaxis_mode_var,
             value=GeotaxisMode.ZONES.value,
             command=self._on_mode_changed,
@@ -257,7 +258,7 @@ class BehavioralConfigWidget(BaseWidget):
         self.distance_frame = ttk.Frame(self.geotaxis_options_frame)
         self.distance_frame.pack(fill="x", pady=(5, 0))
 
-        ttk.Label(self.distance_frame, text="Distância do fundo (cm):").pack(
+        ttk.Label(self.distance_frame, text=_("Distance from the bottom (cm):")).pack(
             side="left", padx=(0, 5)
         )
 
@@ -281,7 +282,7 @@ class BehavioralConfigWidget(BaseWidget):
         zones_row1 = ttk.Frame(self.zones_frame)
         zones_row1.pack(fill="x", pady=(0, 5))
 
-        ttk.Label(zones_row1, text="Dividir aquário em:").pack(side="left", padx=(0, 5))
+        ttk.Label(zones_row1, text=_("Split the aquarium into:")).pack(side="left", padx=(0, 5))
 
         self.num_zones_spinbox = ttk.Spinbox(
             zones_row1,
@@ -294,13 +295,13 @@ class BehavioralConfigWidget(BaseWidget):
         self.num_zones_spinbox.pack(side="left")
         self.num_zones_spinbox.bind("<FocusOut>", self._on_value_changed)
 
-        ttk.Label(zones_row1, text="zonas verticais").pack(side="left", padx=(5, 0))
+        ttk.Label(zones_row1, text=_("vertical zones")).pack(side="left", padx=(5, 0))
 
         # Bottom zones to consider
         zones_row2 = ttk.Frame(self.zones_frame)
         zones_row2.pack(fill="x")
 
-        ttk.Label(zones_row2, text="Considerar como 'fundo':").pack(side="left", padx=(0, 5))
+        ttk.Label(zones_row2, text=_("Consider as 'bottom':")).pack(side="left", padx=(0, 5))
 
         self.bottom_zones_spinbox = ttk.Spinbox(
             zones_row2,
@@ -313,7 +314,7 @@ class BehavioralConfigWidget(BaseWidget):
         self.bottom_zones_spinbox.pack(side="left")
         self.bottom_zones_spinbox.bind("<FocusOut>", self._on_value_changed)
 
-        ttk.Label(zones_row2, text="zona(s) mais baixa(s)").pack(side="left", padx=(5, 0))
+        ttk.Label(zones_row2, text=_("lowest zone(s)")).pack(side="left", padx=(5, 0))
 
         # Initial visibility
         self._update_geotaxis_visibility()
@@ -499,30 +500,30 @@ class BehavioralConfigWidget(BaseWidget):
         # Validate thigmotaxis distance
         thigmotaxis = self.thigmotaxis_distance_var.get()
         if thigmotaxis < 0.1 or thigmotaxis > 10.0:
-            errors.append("Distância de thigmotaxis deve estar entre 0.1 e 10.0 cm")
+            errors.append(_("Thigmotaxis distance must be between 0.1 and 10.0 cm"))
 
         # Validate geotaxis if enabled
         if self.geotaxis_enabled_var.get():
             perspective = self.perspective_var.get()
             if perspective != AquariumPerspective.LATERAL.value:
-                errors.append("Geotaxis só pode ser habilitado para perspectiva lateral")
+                errors.append(_("Geotaxis can only be enabled for the side perspective"))
 
             mode = self.geotaxis_mode_var.get()
             if mode == GeotaxisMode.DISTANCE.value:
                 geotaxis_dist = self.geotaxis_distance_var.get()
                 if geotaxis_dist < 0.1 or geotaxis_dist > 10.0:
-                    errors.append("Distância de geotaxis deve estar entre 0.1 e 10.0 cm")
+                    errors.append(_("Geotaxis distance must be between 0.1 and 10.0 cm"))
             else:
                 num_zones = self.geotaxis_num_zones_var.get()
                 bottom_zones = self.geotaxis_bottom_zones_var.get()
 
                 if num_zones < 2 or num_zones > 10:
-                    errors.append("Número de zonas deve estar entre 2 e 10")
+                    errors.append(_("The number of zones must be between 2 and 10"))
 
                 if bottom_zones < 1 or bottom_zones > 2:
-                    errors.append("Número de zonas de fundo deve ser 1 ou 2")
+                    errors.append(_("The number of bottom zones must be 1 or 2"))
 
                 if bottom_zones > num_zones:
-                    errors.append("Zonas de fundo não podem exceder o número total de zonas")
+                    errors.append(_("Bottom zones cannot exceed the total number of zones"))
 
         return (len(errors) == 0, errors)

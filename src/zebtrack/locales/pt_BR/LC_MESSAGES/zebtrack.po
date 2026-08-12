@@ -8,15 +8,15 @@ msgid ""
 msgstr ""
 "Project-Id-Version: DRerio LogAI VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-08-12 15:25-0300\n"
+"POT-Creation-Date: 2026-08-12 15:37-0300\n"
 "PO-Revision-Date: 2026-08-08 21:41-0300\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
-"Language: pt_BR\n"
 "Language-Team: pt_BR <LL@li.org>\n"
-"Plural-Forms: nplurals=2; plural=(n > 1);\n"
+"Language: pt_BR\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=utf-8\n"
 "Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n > 1);\n"
 "Generated-By: Babel 2.18.0\n"
 
 # | msgid "Invalid Configuration"
@@ -33,8 +33,8 @@ msgid ""
 "Aquarium {number} has no subject defined. Configure the aquariums before "
 "processing."
 msgstr ""
-"Aquário {number} não tem sujeito definido. Configure os aquários antes de"
-" processar."
+"Aquário {number} não tem sujeito definido. Configure os aquários antes de "
+"processar."
 
 # | msgid "Analyze Single Video"
 #: src/zebtrack/coordinators/_single_video_mixin.py:220
@@ -81,7 +81,8 @@ msgstr "Vídeo Único"
 #: src/zebtrack/ui/components/model_diagnostics_panel.py:831
 #: src/zebtrack/ui/components/model_diagnostics_panel.py:838
 #: src/zebtrack/ui/components/model_diagnostics_panel.py:854
-#: src/zebtrack/ui/components/project_views/report_asset_actions.py:455
+#: src/zebtrack/ui/components/project_model_configuration_panel.py:393
+#: src/zebtrack/ui/components/project_views/report_asset_actions.py:452
 #: src/zebtrack/ui/components/project_views/video_selector_tree_manager.py:824
 #: src/zebtrack/ui/components/validation_manager.py:154
 #: src/zebtrack/ui/components/validation_manager.py:183
@@ -271,8 +272,8 @@ msgid ""
 "A video analysis is already running. Please wait or cancel the current "
 "analysis."
 msgstr ""
-"Uma análise de vídeo já está em andamento. Por favor, aguarde ou cancele "
-"a análise atual."
+"Uma análise de vídeo já está em andamento. Por favor, aguarde ou cancele a "
+"análise atual."
 
 # | msgid "Project Loaded"
 # | msgid "No Project Loaded"
@@ -357,19 +358,19 @@ msgstr "Escopo: Projeto"
 
 #: src/zebtrack/coordinators/calibration_coordinator.py:113
 msgid ""
-"This project uses saved overrides. Changes in this window are persisted "
-"only in this project."
+"This project uses saved overrides. Changes in this window are persisted only"
+" in this project."
 msgstr ""
 "Este projeto usa overrides salvos. Ajustes nesta janela são persistidos "
 "apenas neste projeto."
 
 #: src/zebtrack/coordinators/calibration_coordinator.py:118
 msgid ""
-"This project inherits the global defaults. Saving here turns the values "
-"into project-specific overrides."
+"This project inherits the global defaults. Saving here turns the values into"
+" project-specific overrides."
 msgstr ""
-"Este projeto está herdando os padrões globais. Ao salvar aqui, os valores"
-" se tornam overrides específicos."
+"Este projeto está herdando os padrões globais. Ao salvar aqui, os valores se"
+" tornam overrides específicos."
 
 # | msgid "Global Model Configuration..."
 # | msgid "Model Configuration"
@@ -380,11 +381,11 @@ msgstr "Escopo: Configuração Global"
 
 #: src/zebtrack/coordinators/calibration_coordinator.py:125
 msgid ""
-"Changes update the global default. Use the copy action to pin these "
-"values to the current project."
+"Changes update the global default. Use the copy action to pin these values "
+"to the current project."
 msgstr ""
-"Alterações atualizam o padrão global. Use a ação de cópia para fixar "
-"estes valores no projeto atual."
+"Alterações atualizam o padrão global. Use a ação de cópia para fixar estes "
+"valores no projeto atual."
 
 #: src/zebtrack/coordinators/calibration_coordinator.py:129
 msgid "No project loaded; changes update the global defaults."
@@ -427,8 +428,8 @@ msgid ""
 "Every selected video already has analysis data. Do you want to reprocess "
 "them all?"
 msgstr ""
-"Todos os vídeos selecionados já possuem dados de análise. Deseja "
-"reprocessá-los todos?"
+"Todos os vídeos selecionados já possuem dados de análise. Deseja reprocessá-"
+"los todos?"
 
 # | msgid "Video not found"
 # | msgid "Main arena not found."
@@ -593,30 +594,21 @@ msgstr "Ajustar Polígono"
 
 #: src/zebtrack/coordinators/live_calibration_coordinator.py:352
 msgid ""
-"Polygon reused. When you close this notice, the Zone Configuration tab "
-"opens with ALL vertices already SELECTED (in red).\n"
+"Polygon reused. When you close this notice, the Zone Configuration tab opens with ALL vertices already SELECTED (in red).\n"
 "\n"
-"To move the WHOLE polygon at once, click and DRAG over the area or over "
-"any of its lines (or over one of the red vertices). The whole polygon "
-"moves together.\n"
+"To move the WHOLE polygon at once, click and DRAG over the area or over any of its lines (or over one of the red vertices). The whole polygon moves together.\n"
 "\n"
-"If the selection disappears, drag the mouse to form a rectangle over the "
-"whole polygon area to select every vertex again.\n"
+"If the selection disappears, drag the mouse to form a rectangle over the whole polygon area to select every vertex again.\n"
 "\n"
 "Then click 'Save Edit' and 'Start Recording' when you are ready."
 msgstr ""
-"Polígono reutilizado. Ao fechar este aviso, a aba de Configuração de "
-"Zonas será aberta com TODOS os vértices já SELECIONADOS (em vermelho).\n"
+"Polígono reutilizado. Ao fechar este aviso, a aba de Configuração de Zonas será aberta com TODOS os vértices já SELECIONADOS (em vermelho).\n"
 "\n"
-"Para mover o polígono INTEIRO de uma vez, clique e ARRASTE sobre a área "
-"ou sobre qualquer linha do polígono (ou sobre um dos vértices em "
-"vermelho). Todo o polígono se move junto.\n"
+"Para mover o polígono INTEIRO de uma vez, clique e ARRASTE sobre a área ou sobre qualquer linha do polígono (ou sobre um dos vértices em vermelho). Todo o polígono se move junto.\n"
 "\n"
-"Se a seleção sumir, arraste o mouse formando um retângulo sobre toda a "
-"área do polígono para selecionar todos os vértices de novo.\n"
+"Se a seleção sumir, arraste o mouse formando um retângulo sobre toda a área do polígono para selecionar todos os vértices de novo.\n"
 "\n"
-"Depois clique em 'Salvar Edição' e em 'Iniciar Gravação' quando estiver "
-"pronto."
+"Depois clique em 'Salvar Edição' e em 'Iniciar Gravação' quando estiver pronto."
 
 # | msgid "🐠 Aquarium (Detection)"
 #: src/zebtrack/coordinators/live_calibration_coordinator.py:629
@@ -811,7 +803,8 @@ msgstr "Análise ao vivo em andamento."
 #: src/zebtrack/coordinators/live_camera_session_coordinator.py:1885
 #, python-brace-format
 msgid "Analysing camera {camera} (analysis: {analysis}f, display: {display}f)"
-msgstr "Analisando câmera {camera} (análise: {analysis}f, exibição: {display}f)"
+msgstr ""
+"Analisando câmera {camera} (análise: {analysis}f, exibição: {display}f)"
 
 # | msgid "Analysis in Progress"
 #: src/zebtrack/coordinators/live_camera_session_coordinator.py:1899
@@ -832,38 +825,27 @@ msgstr " (porta {port})"
 #: src/zebtrack/coordinators/live_camera_session_coordinator.py:1970
 #, python-brace-format
 msgid ""
-"This project uses External Trigger Mode, but the Arduino is not "
-"connected{port}.\n"
+"This project uses External Trigger Mode, but the Arduino is not connected{port}.\n"
 "\n"
-"The recording was NOT started: it would wait forever for a signal that "
-"has no way to arrive.\n"
+"The recording was NOT started: it would wait forever for a signal that has no way to arrive.\n"
 "\n"
-"Check the cable, whether the port is in use by another program (Arduino "
-"IDE, serial monitor), and reopen the project to reconnect."
+"Check the cable, whether the port is in use by another program (Arduino IDE, serial monitor), and reopen the project to reconnect."
 msgstr ""
-"Este projeto usa Modo de Gatilho Externo, mas o Arduino não está "
-"conectado{port}.\n"
+"Este projeto usa Modo de Gatilho Externo, mas o Arduino não está conectado{port}.\n"
 "\n"
-"A gravação NÃO foi iniciada: ela ficaria esperando para sempre um sinal "
-"que não tem por onde chegar.\n"
+"A gravação NÃO foi iniciada: ela ficaria esperando para sempre um sinal que não tem por onde chegar.\n"
 "\n"
-"Verifique o cabo, se a porta não está em uso por outro programa (IDE do "
-"Arduino, monitor serial) e reabra o projeto para reconectar."
+"Verifique o cabo, se a porta não está em uso por outro programa (IDE do Arduino, monitor serial) e reabra o projeto para reconectar."
 
 #: src/zebtrack/coordinators/live_camera_session_coordinator.py:1980
 msgid ""
 "This project has External Trigger Mode on, but no Arduino configured.\n"
 "\n"
-"The recording was NOT started: starting now would ignore the external "
-"signal the protocol expects. Configure the Arduino or turn the external "
-"trigger off in the project settings."
+"The recording was NOT started: starting now would ignore the external signal the protocol expects. Configure the Arduino or turn the external trigger off in the project settings."
 msgstr ""
-"Este projeto está com o Modo de Gatilho Externo ligado, mas sem Arduino "
-"configurado.\n"
+"Este projeto está com o Modo de Gatilho Externo ligado, mas sem Arduino configurado.\n"
 "\n"
-"A gravação NÃO foi iniciada: começar agora ignoraria o sinal externo que "
-"o protocolo espera. Configure o Arduino ou desligue o gatilho externo nas"
-" configurações do projeto."
+"A gravação NÃO foi iniciada: começar agora ignoraria o sinal externo que o protocolo espera. Configure o Arduino ou desligue o gatilho externo nas configurações do projeto."
 
 # | msgid "Action unavailable"
 #: src/zebtrack/coordinators/live_camera_session_coordinator.py:1990
@@ -882,13 +864,11 @@ msgstr "Câmera não encontrada"
 msgid ""
 "The camera saved in the project ('{name}') was not detected.\n"
 "\n"
-"Connect the right device or use 'Change camera' in the recording dialog "
-"to pick another one."
+"Connect the right device or use 'Change camera' in the recording dialog to pick another one."
 msgstr ""
 "A câmera salva no projeto ('{name}') não foi detectada.\n"
 "\n"
-"Conecte o dispositivo correto ou use 'Trocar câmera' no diálogo de "
-"gravação para escolher outra."
+"Conecte o dispositivo correto ou use 'Trocar câmera' no diálogo de gravação para escolher outra."
 
 # | msgid "Loading settings..."
 # | msgid "Global Diagnostics..."
@@ -907,11 +887,11 @@ msgstr "Converter Modelo?"
 
 #: src/zebtrack/coordinators/model_diagnostics_coordinator.py:270
 msgid ""
-"The OpenVINO model was not found or is incomplete. Do you want to convert"
-" it now?"
+"The OpenVINO model was not found or is incomplete. Do you want to convert it"
+" now?"
 msgstr ""
-"O modelo OpenVINO não foi encontrado ou está incompleto. Deseja "
-"convertê-lo agora?"
+"O modelo OpenVINO não foi encontrado ou está incompleto. Deseja convertê-lo "
+"agora?"
 
 #: src/zebtrack/coordinators/model_diagnostics_coordinator.py:300
 msgid "Conversion to OpenVINO failed."
@@ -1073,8 +1053,7 @@ msgstr ", Máscara: {count} pontos"
 #: src/zebtrack/coordinators/model_diagnostics_coordinator.py:863
 #, python-brace-format
 msgid ""
-"  - Class {class_id} ('{class_name}'), Conf: {conf}, BBox: "
-"{bbox}{mask_info}"
+"  - Class {class_id} ('{class_name}'), Conf: {conf}, BBox: {bbox}{mask_info}"
 msgstr ""
 "  - Classe {class_id} ('{class_name}'), Conf: {conf}, BBox: "
 "{bbox}{mask_info}"
@@ -1082,8 +1061,8 @@ msgstr ""
 #: src/zebtrack/coordinators/model_diagnostics_coordinator.py:835
 #, python-brace-format
 msgid ""
-"  - [MASK WITHOUT BOX] Probable Aquarium, approx. BBox: [{x_min}, "
-"{y_min}, {x_max}, {y_max}], Area: {area}, Points: {points}"
+"  - [MASK WITHOUT BOX] Probable Aquarium, approx. BBox: [{x_min}, {y_min}, "
+"{x_max}, {y_max}], Area: {area}, Points: {points}"
 msgstr ""
 "  - [MÁSCARA SEM BOX] Provável Aquário, BBox aprox: [{x_min}, {y_min}, "
 "{x_max}, {y_max}], Área: {area}, Pontos: {points}"
@@ -1213,8 +1192,10 @@ msgstr "vídeo"
 
 #: src/zebtrack/coordinators/progress_tracking_coordinator.py:718
 #, python-brace-format
-msgid "Processing {name}: {done}/{total} ({pct}%) - {detected} detections{eta}"
-msgstr "Processando {name}: {done}/{total} ({pct}%) - {detected} detecções{eta}"
+msgid ""
+"Processing {name}: {done}/{total} ({pct}%) - {detected} detections{eta}"
+msgstr ""
+"Processando {name}: {done}/{total} ({pct}%) - {detected} detecções{eta}"
 
 #: src/zebtrack/coordinators/project_lifecycle_coordinator.py:382
 #: src/zebtrack/ui/project_workflow_adapter.py:178
@@ -1237,11 +1218,11 @@ msgstr "Iniciando gravação..."
 
 #: src/zebtrack/coordinators/recording_session_coordinator.py:519
 msgid ""
-"The Arduino is not connected — check the cable and whether the port is in"
-" use by another program."
+"The Arduino is not connected — check the cable and whether the port is in "
+"use by another program."
 msgstr ""
-"O Arduino não está conectado — verifique o cabo e se a porta não está em "
-"uso por outro programa."
+"O Arduino não está conectado — verifique o cabo e se a porta não está em uso"
+" por outro programa."
 
 #: src/zebtrack/coordinators/recording_session_coordinator.py:523
 msgid "External trigger mode requires a configured Arduino."
@@ -1430,7 +1411,7 @@ msgstr "As zonas foram atualizadas com o template '{name}'."
 #: src/zebtrack/coordinators/ui_state_coordinator.py:626
 #: src/zebtrack/ui/components/project_views/report_asset_actions.py:345
 #: src/zebtrack/ui/components/project_views/video_selector_tree_manager.py:859
-#: src/zebtrack/ui/components/project_views/video_selector_tree_manager.py:891
+#: src/zebtrack/ui/components/project_views/video_selector_tree_manager.py:889
 msgid "File not found"
 msgstr "Arquivo não encontrado"
 
@@ -1520,7 +1501,8 @@ msgstr "Pastas"
 #: src/zebtrack/coordinators/video_processing_coordinator.py:397
 #: src/zebtrack/coordinators/video_processing_coordinator.py:502
 msgid "No new video file was found in the selected paths."
-msgstr "Nenhum novo arquivo de vídeo foi encontrado nos caminhos selecionados."
+msgstr ""
+"Nenhum novo arquivo de vídeo foi encontrado nos caminhos selecionados."
 
 # | msgid "No videos listed"
 #: src/zebtrack/coordinators/video_processing_coordinator.py:408
@@ -1682,8 +1664,10 @@ msgid "Finalizing startup..."
 msgstr "Finalizando inicialização..."
 
 #: src/zebtrack/core/application_bootstrapper.py:425
-msgid "Recommended, but the model is not converted. Use 'Diagnostics' to convert."
-msgstr "Recomendado mas modelo não convertido. Use 'Diagnóstico' para converter."
+msgid ""
+"Recommended, but the model is not converted. Use 'Diagnostics' to convert."
+msgstr ""
+"Recomendado mas modelo não convertido. Use 'Diagnóstico' para converter."
 
 #: src/zebtrack/io/arduino_manager.py:140
 #, python-brace-format
@@ -1873,7 +1857,7 @@ msgid "Settings Saved"
 msgstr "Configurações Salvas"
 
 #: src/zebtrack/ui/builders/analysis_widgets.py:557
-#: src/zebtrack/ui/components/project_views/report_generator_actions.py:333
+#: src/zebtrack/ui/components/project_views/report_generator_actions.py:331
 #: src/zebtrack/ui/components/validation_manager.py:1627
 msgid "Warning"
 msgstr "Aviso"
@@ -1881,9 +1865,10 @@ msgstr "Aviso"
 #: src/zebtrack/ui/builders/analysis_widgets.py:559
 #, python-brace-format
 msgid ""
-"Global settings were saved, but the current project could not be updated:"
-" {error}"
-msgstr "Configuração global salva, mas erro ao atualizar projeto atual: {error}"
+"Global settings were saved, but the current project could not be updated: "
+"{error}"
+msgstr ""
+"Configuração global salva, mas erro ao atualizar projeto atual: {error}"
 
 #: src/zebtrack/ui/builders/button_factory.py:36
 msgid "Project Actions"
@@ -1945,8 +1930,8 @@ msgid ""
 "marks videos ready to generate trajectories (arena and ROIs saved). The "
 "number shows how many are still awaiting processing."
 msgstr ""
-"indica vídeos prontos para gerar trajetórias (arena e ROIs salvos). O "
-"valor mostra quantos ainda aguardam processamento."
+"indica vídeos prontos para gerar trajetórias (arena e ROIs salvos). O valor "
+"mostra quantos ainda aguardam processamento."
 
 #: src/zebtrack/ui/builders/common_widgets.py:180
 msgid "Weight Type"
@@ -2028,9 +2013,8 @@ msgstr ""
 
 #: src/zebtrack/ui/builders/zone_control_builder.py:93
 msgid ""
-"Same as centroid, but with the ROI dilated by r to capture partial "
-"entries (e.g. the head). r is in cm when calibration exists, otherwise in"
-" px."
+"Same as centroid, but with the ROI dilated by r to capture partial entries "
+"(e.g. the head). r is in cm when calibration exists, otherwise in px."
 msgstr ""
 "Igual ao centróide, porém com ROI dilatada por r para capturar entradas "
 "parciais (ex.: cabeça). r em cm se houver calibração; senão em px."
@@ -2045,13 +2029,13 @@ msgstr ""
 
 #: src/zebtrack/ui/builders/zone_control_builder.py:108
 msgid ""
-"Counts as inside when the animal's rectangle (bbox) overlaps the ROI by "
-"at least the given fraction. Captures partial entries; may overestimate "
-"at the edges."
+"Counts as inside when the animal's rectangle (bbox) overlaps the ROI by at "
+"least the given fraction. Captures partial entries; may overestimate at the "
+"edges."
 msgstr ""
-"Considera dentro quando o retângulo do animal (bbox) sobrepõe a ROI ao "
-"menos pela fração definida. Captura entradas parciais; pode superestimar "
-"em bordas."
+"Considera dentro quando o retângulo do animal (bbox) sobrepõe a ROI ao menos"
+" pela fração definida. Captura entradas parciais; pode superestimar em "
+"bordas."
 
 #: src/zebtrack/ui/builders/zone_control_builder.py:118
 msgid ""
@@ -2063,20 +2047,19 @@ msgstr ""
 
 #: src/zebtrack/ui/builders/zone_control_builder.py:124
 msgid ""
-"Counts as inside based on the overlap between the animal's mask and the "
-"ROI; more precise and more expensive. BEYOND this rule it requires: "
+"Counts as inside based on the overlap between the animal's mask and the ROI;"
+" more precise and more expensive. BEYOND this rule it requires: "
 "recorder.persist_masks enabled (writes the 3b_Mascaras_<video>.parquet "
-"sidecar, in the settings editor) and model_selection.animal_method = "
-"'seg' (a segmentation model). If either is missing, the analysis degrades"
-" to 'bbox_intersects' and says so in the report."
+"sidecar, in the settings editor) and model_selection.animal_method = 'seg' "
+"(a segmentation model). If either is missing, the analysis degrades to "
+"'bbox_intersects' and says so in the report."
 msgstr ""
-"Considera dentro com base na sobreposição da máscara do animal com a ROI;"
-" mais preciso e mais custoso. Exige, ALÉM desta regra: "
-"recorder.persist_masks ligado (grava o sidecar "
-"3b_Mascaras_<video>.parquet, no editor de configurações) e "
-"model_selection.animal_method = 'seg' (modelo de segmentação). Faltando "
-"qualquer um, a análise degrada para 'bbox_intersects' e avisa no "
-"relatório."
+"Considera dentro com base na sobreposição da máscara do animal com a ROI; "
+"mais preciso e mais custoso. Exige, ALÉM desta regra: recorder.persist_masks"
+" ligado (grava o sidecar 3b_Mascaras_<video>.parquet, no editor de "
+"configurações) e model_selection.animal_method = 'seg' (modelo de "
+"segmentação). Faltando qualquer um, a análise degrada para 'bbox_intersects'"
+" e avisa no relatório."
 
 #: src/zebtrack/ui/builders/zone_control_builder.py:316
 msgid "Editing complete. Data saved and indicators updated."
@@ -2090,13 +2073,11 @@ msgstr "Zonas Concluídas"
 msgid ""
 "Zones, ROIs and Arduino commands saved.\n"
 "\n"
-"To start the live recording, go to the \"Main Control\" tab and click "
-"\"Start Recording\"."
+"To start the live recording, go to the \"Main Control\" tab and click \"Start Recording\"."
 msgstr ""
 "Zonas, ROIs e comandos Arduino salvos.\n"
 "\n"
-"Para iniciar a gravação ao vivo, vá até a aba \"Controle Principal\" e "
-"clique em \"Iniciar Gravação\"."
+"Para iniciar a gravação ao vivo, vá até a aba \"Controle Principal\" e clique em \"Iniciar Gravação\"."
 
 #: src/zebtrack/ui/builders/zone_control_builder.py:361
 msgid "No Video Selected"
@@ -2115,8 +2096,8 @@ msgid ""
 "Only recorded videos can be sent for analysis. Planned sessions must be "
 "recorded first."
 msgstr ""
-"Apenas vídeos gravados podem ser enviados para análise. Sessões "
-"planejadas precisam ser gravadas primeiro."
+"Apenas vídeos gravados podem ser enviados para análise. Sessões planejadas "
+"precisam ser gravadas primeiro."
 
 #: src/zebtrack/ui/builders/zone_control_builder.py:382
 msgid "Recording Pending"
@@ -2151,7 +2132,7 @@ msgstr "Nenhuma análise em andamento."
 #: src/zebtrack/ui/components/analysis_controls.py:202
 #: src/zebtrack/ui/components/analysis_display.py:66
 #: src/zebtrack/ui/components/analysis_display.py:294
-#: src/zebtrack/ui/components/project_views/project_view_helpers.py:93
+#: src/zebtrack/ui/components/project_views/project_view_helpers.py:94
 #, python-brace-format
 msgid "Group: {value}"
 msgstr "Grupo: {value}"
@@ -2160,7 +2141,7 @@ msgstr "Grupo: {value}"
 #: src/zebtrack/ui/components/analysis_controls.py:203
 #: src/zebtrack/ui/components/analysis_display.py:69
 #: src/zebtrack/ui/components/analysis_display.py:295
-#: src/zebtrack/ui/components/project_views/project_view_helpers.py:95
+#: src/zebtrack/ui/components/project_views/project_view_helpers.py:96
 #, python-brace-format
 msgid "Day: {value}"
 msgstr "Dia: {value}"
@@ -2257,15 +2238,15 @@ msgstr "Cancelar Análise"
 
 #: src/zebtrack/ui/components/analysis_profile.py:18
 msgid ""
-"Shows the analysis configuration applied to this session. When no "
-"specific rule matches the group, day or individual, the project uses the "
-"default profile. When it reads 'project default (default)', that is "
-"exactly this fallback."
+"Shows the analysis configuration applied to this session. When no specific "
+"rule matches the group, day or individual, the project uses the default "
+"profile. When it reads 'project default (default)', that is exactly this "
+"fallback."
 msgstr ""
 "Mostra a configuração de análise aplicada a esta sessão. Quando nenhuma "
-"regra específica combina com grupo, dia ou indivíduo, o projeto usa o "
-"perfil padrão. Quando aparecer 'padrão do projeto (default)', isso "
-"significa exatamente esse fallback."
+"regra específica combina com grupo, dia ou indivíduo, o projeto usa o perfil"
+" padrão. Quando aparecer 'padrão do projeto (default)', isso significa "
+"exatamente esse fallback."
 
 # | msgid "Video Analysis"
 # | msgid "Single Video Analysis Options"
@@ -2283,42 +2264,40 @@ msgstr "Preparando fila de análise..."
 
 #: src/zebtrack/ui/components/arduino_bindings_panel.py:37
 msgid ""
-"DRerio only SENDS the number you choose when the animal enters or leaves "
-"the ROI. What that number triggers (LED, shock, flash, pump, any module) "
-"is the responsibility of YOUR Arduino sketch — using an Arduino presumes "
-"you know how to program it. The reference sketch uses consecutive pairs: "
-"1=channel 1 on, 2=off, 3/4=channel 2, 5/6=channel 3, 7/8=channel 4. Use "
-"'Device' to record what is actually wired to each channel."
+"DRerio only SENDS the number you choose when the animal enters or leaves the"
+" ROI. What that number triggers (LED, shock, flash, pump, any module) is the"
+" responsibility of YOUR Arduino sketch — using an Arduino presumes you know "
+"how to program it. The reference sketch uses consecutive pairs: 1=channel 1 "
+"on, 2=off, 3/4=channel 2, 5/6=channel 3, 7/8=channel 4. Use 'Device' to "
+"record what is actually wired to each channel."
 msgstr ""
-"O DRerio apenas ENVIA o número que você escolher quando o animal entra ou"
-" sai da ROI. O que o número aciona (LED, choque, flash, bomba, qualquer "
-"módulo) é responsabilidade do SEU sketch Arduino — usar Arduino pressupõe"
-" que você saiba programá-lo. O sketch de referência usa pares "
-"consecutivos: 1=canal 1 liga, 2=desliga, 3/4=canal 2, 5/6=canal 3, "
-"7/8=canal 4. Use 'Dispositivo' para registrar o que está de fato ligado "
-"em cada canal."
+"O DRerio apenas ENVIA o número que você escolher quando o animal entra ou "
+"sai da ROI. O que o número aciona (LED, choque, flash, bomba, qualquer "
+"módulo) é responsabilidade do SEU sketch Arduino — usar Arduino pressupõe "
+"que você saiba programá-lo. O sketch de referência usa pares consecutivos: "
+"1=canal 1 liga, 2=desliga, 3/4=canal 2, 5/6=canal 3, 7/8=canal 4. Use "
+"'Dispositivo' para registrar o que está de fato ligado em cada canal."
 
 #: src/zebtrack/ui/components/arduino_bindings_panel.py:48
 msgid ""
-"Arduino is not enabled in this project. Turn on 'Use Arduino' when "
-"creating the project (wizard, live configuration step) to set up per-zone"
-" commands."
+"Arduino is not enabled in this project. Turn on 'Use Arduino' when creating "
+"the project (wizard, live configuration step) to set up per-zone commands."
 msgstr ""
-"Arduino não está habilitado neste projeto. Ative 'Usar Arduino' ao criar "
-"o projeto (assistente, etapa de configuração ao vivo) para configurar "
-"comandos por zona."
+"Arduino não está habilitado neste projeto. Ative 'Usar Arduino' ao criar o "
+"projeto (assistente, etapa de configuração ao vivo) para configurar comandos"
+" por zona."
 
 #: src/zebtrack/ui/components/arduino_bindings_panel.py:55
 msgid ""
 "⚠ Ambiguous token: the same number is configured as one ROI's ENTER and "
 "another ROI's EXIT. The sketch cannot switch on and off with the same "
-"command — leaving the ROI will turn on the other zone's device, and the "
-"end-of-session shutdown will not work. Check the numbering —"
+"command — leaving the ROI will turn on the other zone's device, and the end-"
+"of-session shutdown will not work. Check the numbering —"
 msgstr ""
-"⚠ Token ambíguo: o mesmo número está configurado como ENTRADA de uma ROI "
-"e SAÍDA de outra. O sketch não consegue ligar e desligar com o mesmo "
-"comando — a saída da ROI vai acender o dispositivo da outra zona, e o "
-"desligamento no fim da sessão não vai funcionar. Confira a numeração —"
+"⚠ Token ambíguo: o mesmo número está configurado como ENTRADA de uma ROI e "
+"SAÍDA de outra. O sketch não consegue ligar e desligar com o mesmo comando —"
+" a saída da ROI vai acender o dispositivo da outra zona, e o desligamento no"
+" fim da sessão não vai funcionar. Confira a numeração —"
 
 #: src/zebtrack/ui/components/arduino_bindings_panel.py:99
 msgid "Per-Zone Arduino Commands (Optional)"
@@ -2467,11 +2446,11 @@ msgstr "{name} {edge} → {token} → (sem resposta)"
 #: src/zebtrack/ui/components/arduino_bindings_panel.py:444
 #, python-brace-format
 msgid ""
-"{count} problem(s): an ENTER must switch on and an EXIT must switch off. "
-"The reference sketch pairs 1/2, 3/4, 5/6, 7/8."
+"{count} problem(s): an ENTER must switch on and an EXIT must switch off. The"
+" reference sketch pairs 1/2, 3/4, 5/6, 7/8."
 msgstr ""
-"{count} problema(s): uma ENTRADA deve ligar e uma SAÍDA desligar. O "
-"sketch de referência pareia 1/2, 3/4, 5/6, 7/8."
+"{count} problema(s): uma ENTRADA deve ligar e uma SAÍDA desligar. O sketch "
+"de referência pareia 1/2, 3/4, 5/6, 7/8."
 
 #: src/zebtrack/ui/components/arduino_bindings_panel.py:525
 #, python-brace-format
@@ -2659,17 +2638,136 @@ msgstr "Conectado ({port})"
 msgid "Connected"
 msgstr "Conectado"
 
+#: src/zebtrack/ui/components/behavioral_config_widget.py:123
+#| msgid "Behavioural Analysis Defaults"
+msgid "Behavioural Analysis Configuration"
+msgstr "Configuração de Análise Comportamental"
+
+# | msgid "🐠 Aquarium (Detection)"
+#: src/zebtrack/ui/components/behavioral_config_widget.py:142
+#| msgid "Aquarium Detected"
+msgid "Aquarium Perspective *"
+msgstr "Perspectiva do Aquário *"
+
+#: src/zebtrack/ui/components/behavioral_config_widget.py:148
+msgid "Select how the camera sees the aquarium:"
+msgstr "Selecione como a câmera visualiza o aquário:"
+
+#: src/zebtrack/ui/components/behavioral_config_widget.py:155
+msgid "Top-Down View"
+msgstr "Vista de Cima (Top-Down)"
+
+# | msgid "Analyze Single Video"
+#: src/zebtrack/ui/components/behavioral_config_widget.py:156
+#| msgid "Single Video"
+msgid "Side View"
+msgstr "Vista Lateral"
+
+#: src/zebtrack/ui/components/behavioral_config_widget.py:165
+#| msgid "Perspective"
+msgid "Perspective:"
+msgstr "Perspectiva:"
+
+#: src/zebtrack/ui/components/behavioral_config_widget.py:180
+msgid "Thigmotaxis (Proximity to the Walls)"
+msgstr "Thigmotaxis (Proximidade às Paredes)"
+
+#: src/zebtrack/ui/components/behavioral_config_widget.py:187
+msgid ""
+"Distance threshold for considering the fish close to the aquarium walls:"
+msgstr ""
+"Distância limite para considerar o peixe próximo às paredes do aquário:"
+
+#: src/zebtrack/ui/components/behavioral_config_widget.py:196
+msgid "Distance (cm):"
+msgstr "Distância (cm):"
+
+#: src/zebtrack/ui/components/behavioral_config_widget.py:211
+msgid "(default: 1.5 cm)"
+msgstr "(padrão: 1.5 cm)"
+
+#: src/zebtrack/ui/components/behavioral_config_widget.py:216
+msgid "Geotaxis (Proximity to the Bottom) - Side View Only"
+msgstr "Geotaxis (Proximidade ao Fundo) - Apenas Vista Lateral"
+
+#: src/zebtrack/ui/components/behavioral_config_widget.py:223
+msgid "Enable geotaxis analysis"
+msgstr "Habilitar análise de geotaxis"
+
+#: src/zebtrack/ui/components/behavioral_config_widget.py:237
+#| msgid "Calibration Context"
+msgid "Calculation mode:"
+msgstr "Modo de cálculo:"
+
+#: src/zebtrack/ui/components/behavioral_config_widget.py:241
+msgid "By Distance"
+msgstr "Por Distância"
+
+#: src/zebtrack/ui/components/behavioral_config_widget.py:250
+msgid "By Vertical Zones"
+msgstr "Por Zonas Verticais"
+
+#: src/zebtrack/ui/components/behavioral_config_widget.py:261
+msgid "Distance from the bottom (cm):"
+msgstr "Distância do fundo (cm):"
+
+#: src/zebtrack/ui/components/behavioral_config_widget.py:285
+#| msgid "Select an active aquarium first."
+msgid "Split the aquarium into:"
+msgstr "Dividir aquário em:"
+
+#: src/zebtrack/ui/components/behavioral_config_widget.py:298
+msgid "vertical zones"
+msgstr "zonas verticais"
+
+#: src/zebtrack/ui/components/behavioral_config_widget.py:304
+msgid "Consider as 'bottom':"
+msgstr "Considerar como 'fundo':"
+
+#: src/zebtrack/ui/components/behavioral_config_widget.py:317
+msgid "lowest zone(s)"
+msgstr "zona(s) mais baixa(s)"
+
+#: src/zebtrack/ui/components/behavioral_config_widget.py:503
+#, python-brace-format
+#| msgid "The {label} must be between 0 and 1."
+msgid "Thigmotaxis distance must be between 0.1 and 10.0 cm"
+msgstr "Distância de thigmotaxis deve estar entre 0.1 e 10.0 cm"
+
+#: src/zebtrack/ui/components/behavioral_config_widget.py:509
+msgid "Geotaxis can only be enabled for the side perspective"
+msgstr "Geotaxis só pode ser habilitado para perspectiva lateral"
+
+#: src/zebtrack/ui/components/behavioral_config_widget.py:515
+#, python-brace-format
+#| msgid "The {label} must be between 0 and 1."
+msgid "Geotaxis distance must be between 0.1 and 10.0 cm"
+msgstr "Distância de geotaxis deve estar entre 0.1 e 10.0 cm"
+
+#: src/zebtrack/ui/components/behavioral_config_widget.py:521
+#, python-brace-format
+#| msgid "The {label} must be between 0 and 1."
+msgid "The number of zones must be between 2 and 10"
+msgstr "Número de zonas deve estar entre 2 e 10"
+
+#: src/zebtrack/ui/components/behavioral_config_widget.py:524
+#| msgid "The number of frames must be a whole number."
+msgid "The number of bottom zones must be 1 or 2"
+msgstr "Número de zonas de fundo deve ser 1 ou 2"
+
+#: src/zebtrack/ui/components/behavioral_config_widget.py:527
+msgid "Bottom zones cannot exceed the total number of zones"
+msgstr "Zonas de fundo não podem exceder o número total de zonas"
+
 #: src/zebtrack/ui/components/config_editor.py:39
 msgid ""
-"⚠️ 'seg_overlap' without 'Save Masks' enabled: the analysis will degrade "
-"to 'bbox_intersects'. Turn the option on in the 'Data Recording' section "
-"and confirm the model does segmentation (model_selection.animal_method = "
-"'seg')."
+"⚠️ 'seg_overlap' without 'Save Masks' enabled: the analysis will degrade to "
+"'bbox_intersects'. Turn the option on in the 'Data Recording' section and "
+"confirm the model does segmentation (model_selection.animal_method = 'seg')."
 msgstr ""
-"⚠️ 'seg_overlap' sem 'Salvar Máscaras' ligado: a análise vai degradar "
-"para 'bbox_intersects'. Ligue a opção na seção 'Gravação de Dados' e "
-"confirme que o modelo é de segmentação (model_selection.animal_method = "
-"'seg')."
+"⚠️ 'seg_overlap' sem 'Salvar Máscaras' ligado: a análise vai degradar para "
+"'bbox_intersects'. Ligue a opção na seção 'Gravação de Dados' e confirme que"
+" o modelo é de segmentação (model_selection.animal_method = 'seg')."
 
 #: src/zebtrack/ui/components/config_editor.py:133
 msgid "Behavioural Analysis Defaults"
@@ -2734,8 +2832,7 @@ msgstr ""
 "\n"
 "Processa 1 frame a cada N frames originais.\n"
 "• N=1: Processa TODOS os frames (máxima precisão, mais lento).\n"
-"• N=10: Processa 1 frame e pula 9 (mais rápido, ideal para vídeos "
-"longos).\n"
+"• N=10: Processa 1 frame e pula 9 (mais rápido, ideal para vídeos longos).\n"
 "• Aumentar: Reduz drasticamente o tempo de processamento.\n"
 "• Diminuir: Melhora a resolução temporal das métricas de velocidade."
 
@@ -2768,18 +2865,14 @@ msgid ""
 "Initial Offset\n"
 "\n"
 "Number of leading frames to ignore before tracking starts.\n"
-"• Use it to discard the water settling down or the experimenter's hand "
-"leaving the scene.\n"
+"• Use it to discard the water settling down or the experimenter's hand leaving the scene.\n"
 "• E.g. in a 30fps video, an offset of 90 frames skips the first 3 seconds."
 msgstr ""
 "Offset Inicial\n"
 "\n"
-"Número de frames iniciais a serem ignorados antes de começar o "
-"rastreamento.\n"
-"• Use para descartar o período de estabilização da água ou a mão do "
-"experimentador saindo de cena.\n"
-"• Ex: Em um vídeo de 30fps, um offset de 90 frames ignora os primeiros 3 "
-"segundos."
+"Número de frames iniciais a serem ignorados antes de começar o rastreamento.\n"
+"• Use para descartar o período de estabilização da água ou a mão do experimentador saindo de cena.\n"
+"• Ex: Em um vídeo de 30fps, um offset de 90 frames ignora os primeiros 3 segundos."
 
 #: src/zebtrack/ui/components/config_editor.py:266
 msgid "Trajectory Smoothing (Savitzky-Golay Filter)"
@@ -2794,16 +2887,14 @@ msgid ""
 "Smoothing Window (Window Length)\n"
 "\n"
 "Number of frames used to smooth the trajectory. MUST BE ODD.\n"
-"• Higher (e.g. 11, 15): removes more noise/jitter, but may round the "
-"curves off too much.\n"
+"• Higher (e.g. 11, 15): removes more noise/jitter, but may round the curves off too much.\n"
 "• Lower (e.g. 3, 5): keeps more detail of abrupt movements.\n"
 "• Default: 7"
 msgstr ""
 "Janela de Suavização (Window Length)\n"
 "\n"
 "Número de frames usados para suavizar a trajetória. DEVE SER ÍMPAR.\n"
-"• Aumentar (ex: 11, 15): Remove mais ruído/tremido, mas pode 'arredondar'"
-" demais as curvas.\n"
+"• Aumentar (ex: 11, 15): Remove mais ruído/tremido, mas pode 'arredondar' demais as curvas.\n"
 "• Diminuir (ex: 3, 5): Mantém mais detalhes dos movimentos bruscos.\n"
 "• Padrão: 7"
 
@@ -2815,8 +2906,7 @@ msgstr "Ordem do Polinômio:"
 msgid ""
 "Polynomial Order (Polyorder)\n"
 "\n"
-"Complexity of the curve fitted through the points. Must be SMALLER than "
-"the window.\n"
+"Complexity of the curve fitted through the points. Must be SMALLER than the window.\n"
 "• 1: straight line (aggressive smoothing).\n"
 "• 2: simple curve (parabola).\n"
 "• 3: more complex curve (recommended).\n"
@@ -2825,8 +2915,7 @@ msgid ""
 msgstr ""
 "Ordem do Polinômio (Polyorder)\n"
 "\n"
-"Complexidade da curva usada para ajustar os pontos. Deve ser MENOR que a "
-"janela.\n"
+"Complexidade da curva usada para ajustar os pontos. Deve ser MENOR que a janela.\n"
 "• 1: Linha reta (suavização agressiva).\n"
 "• 2: Curva simples (parábola).\n"
 "• 3: Curva mais complexa (recomendado).\n"
@@ -2835,8 +2924,8 @@ msgstr ""
 
 #: src/zebtrack/ui/components/config_editor.py:320
 msgid ""
-"ℹ️ This filter removes small detection jitter without losing the real "
-"track. Useful for more accurate distance and speed metrics."
+"ℹ️ This filter removes small detection jitter without losing the real track."
+" Useful for more accurate distance and speed metrics."
 msgstr ""
 "ℹ️ Este filtro remove tremidos pequenos da detecção sem perder o rastro "
 "real. Útil para métricas de distância e velocidade mais precisas."
@@ -2853,16 +2942,14 @@ msgstr "Flush Automático (s):"
 msgid ""
 "Flush Interval (Time)\n"
 "\n"
-"Every X seconds the system forces the in-memory data out to the Parquet "
-"file.\n"
+"Every X seconds the system forces the in-memory data out to the Parquet file.\n"
 "• Protects against data loss if the app crashes.\n"
 "• Low values (e.g. 1.0) increase disk usage.\n"
 "• Default: 5.0s"
 msgstr ""
 "Intervalo de Flush (Tempo)\n"
 "\n"
-"A cada X segundos, o sistema força a gravação dos dados da memória para o"
-" arquivo Parquet.\n"
+"A cada X segundos, o sistema força a gravação dos dados da memória para o arquivo Parquet.\n"
 "• Protege contra perda de dados se o app cair.\n"
 "• Valores baixos (ex: 1.0) aumentam o uso de disco.\n"
 "• Padrão: 5.0s"
@@ -2892,36 +2979,28 @@ msgstr "Salvar Máscaras (Segmentação):"
 msgid ""
 "Save Segmentation Masks\n"
 "\n"
-"Writes the 3b_Mascaras_<video>.parquet sidecar with the mask of every "
-"detection.\n"
+"Writes the 3b_Mascaras_<video>.parquet sidecar with the mask of every detection.\n"
 "• It is the ONLY source of masks for the 'seg_overlap' ROI rule.\n"
-"• Cost: an extra file on disk and mask decoding during tracking. Turned "
-"off it costs nothing.\n"
+"• Cost: an extra file on disk and mask decoding during tracking. Turned off it costs nothing.\n"
 "\n"
-"Turning this key on alone does NOT enable 'seg_overlap'. The three "
-"prerequisites must hold together:\n"
+"Turning this key on alone does NOT enable 'seg_overlap'. The three prerequisites must hold together:\n"
 "  1. recorder.persist_masks (this option)\n"
 "  2. model_selection.animal_method = 'seg' (segmentation model)\n"
 "  3. the 'seg_overlap' ROI rule selected\n"
-"If any is missing the analysis falls back to 'bbox_intersects' and "
-"records the warning in the report.\n"
+"If any is missing the analysis falls back to 'bbox_intersects' and records the warning in the report.\n"
 "• Default: off."
 msgstr ""
 "Salvar Máscaras de Segmentação\n"
 "\n"
-"Grava o sidecar 3b_Mascaras_<video>.parquet com a máscara de cada "
-"detecção.\n"
+"Grava o sidecar 3b_Mascaras_<video>.parquet com a máscara de cada detecção.\n"
 "• É a ÚNICA fonte de máscaras da regra de ROI 'seg_overlap'.\n"
-"• Custo: arquivo extra em disco e decodificação da máscara durante o "
-"rastreamento. Desligado não custa nada.\n"
+"• Custo: arquivo extra em disco e decodificação da máscara durante o rastreamento. Desligado não custa nada.\n"
 "\n"
-"Ligar só esta chave NÃO habilita 'seg_overlap'. Os três pré-requisitos "
-"precisam valer juntos:\n"
+"Ligar só esta chave NÃO habilita 'seg_overlap'. Os três pré-requisitos precisam valer juntos:\n"
 "  1. recorder.persist_masks (esta opção)\n"
 "  2. model_selection.animal_method = 'seg' (modelo de segmentação)\n"
 "  3. a regra de ROI 'seg_overlap' selecionada\n"
-"Faltando qualquer um, a análise cai para 'bbox_intersects' e registra o "
-"aviso no relatório.\n"
+"Faltando qualquer um, a análise cai para 'bbox_intersects' e registra o aviso no relatório.\n"
 "• Padrão: desligado."
 
 #: src/zebtrack/ui/components/config_editor.py:405
@@ -2946,10 +3025,7 @@ msgid ""
 "• BBox Intersection: if any part of the fish's box touches the zone.\n"
 "• Seg Overlap: based on the pixel mask (most accurate).\n"
 "\n"
-"'seg_overlap' needs two more things besides this rule: "
-"recorder.persist_masks enabled (the 'Save Masks' option above) and "
-"model_selection.animal_method = 'seg'. If either is missing the analysis "
-"degrades to 'bbox_intersects' and warns in the report."
+"'seg_overlap' needs two more things besides this rule: recorder.persist_masks enabled (the 'Save Masks' option above) and model_selection.animal_method = 'seg'. If either is missing the analysis degrades to 'bbox_intersects' and warns in the report."
 msgstr ""
 "Lógica de Inclusão em ROI\n"
 "\n"
@@ -2959,10 +3035,7 @@ msgstr ""
 "• Intersecção BBox: Se qualquer parte da caixa do peixe tocar a zona.\n"
 "• Sobreposição Seg: Baseado na máscara de pixels (mais preciso).\n"
 "\n"
-"'seg_overlap' exige mais duas coisas além desta regra: "
-"recorder.persist_masks ligado (opção 'Salvar Máscaras' acima) e "
-"model_selection.animal_method = 'seg'. Faltando qualquer uma, a análise "
-"degrada para 'bbox_intersects' e avisa no relatório."
+"'seg_overlap' exige mais duas coisas além desta regra: recorder.persist_masks ligado (opção 'Salvar Máscaras' acima) e model_selection.animal_method = 'seg'. Faltando qualquer uma, a análise degrada para 'bbox_intersects' e avisa no relatório."
 
 #: src/zebtrack/ui/components/config_editor.py:460
 msgid "Buffer Radius (r):"
@@ -2990,15 +3063,13 @@ msgid ""
 "\n"
 "Minimum area (0 to 1) that must be inside the zone to count.\n"
 "• E.g. 0.50 means half of the reference area inside the zone.\n"
-"• 0 (only in the 'BBox Intersection' rule): any real overlap counts; "
-"merely touching the border does not."
+"• 0 (only in the 'BBox Intersection' rule): any real overlap counts; merely touching the border does not."
 msgstr ""
 "Fração de Sobreposição Mínima\n"
 "\n"
 "Mínimo de área (0 a 1) que deve estar na zona para contar.\n"
 "• Ex: 0.50 significa metade da área de referência dentro da zona.\n"
-"• 0 (só na regra 'Intersecção BBox'): qualquer sobreposição real conta; "
-"encostar na borda não."
+"• 0 (só na regra 'Intersecção BBox'): qualquer sobreposição real conta; encostar na borda não."
 
 #: src/zebtrack/ui/components/config_editor.py:495
 msgid "Overlap Basis:"
@@ -3011,26 +3082,22 @@ msgid ""
 "Defines WHAT the fraction is measured against.\n"
 "• bbox: fraction of the fish's box that is in the zone (historical).\n"
 "• roi: fraction of the zone that is covered by the box.\n"
-"• max: the larger of the two — recommended for small zones, where 'bbox' "
-"underestimates (a box 4x bigger than the zone, covering it entirely, "
-"scores only 0.25)."
+"• max: the larger of the two — recommended for small zones, where 'bbox' underestimates (a box 4x bigger than the zone, covering it entirely, scores only 0.25)."
 msgstr ""
 "Base (denominador) da Fração de Sobreposição\n"
 "\n"
 "Define em relação a QUE a fração é medida.\n"
 "• bbox: fração da caixa do peixe que está na zona (histórico).\n"
 "• roi: fração da zona que está coberta pela caixa.\n"
-"• max: o maior dos dois — recomendado para zonas pequenas, onde 'bbox' "
-"subestima (uma caixa 4x maior que a zona, cobrindo-a inteira, marca só "
-"0.25)."
+"• max: o maior dos dois — recomendado para zonas pequenas, onde 'bbox' subestima (uma caixa 4x maior que a zona, cobrindo-a inteira, marca só 0.25)."
 
 #: src/zebtrack/ui/components/config_editor.py:540
 msgid ""
 "💡 Tip: these are GLOBAL settings. You can change them per project in the "
 "Zones tab."
 msgstr ""
-"💡 Dica: Estas são configurações GLOBAIS. Você pode alterá-las por projeto"
-" na aba de Zonas."
+"💡 Dica: Estas são configurações GLOBAIS. Você pode alterá-las por projeto na"
+" aba de Zonas."
 
 # | msgid "🐟 Animal (Detection)"
 #: src/zebtrack/ui/components/config_editor.py:552
@@ -3070,12 +3137,16 @@ msgstr "💡 Abre o diálogo de Calibração e Detecção."
 
 #: src/zebtrack/ui/components/config_editor.py:615
 #: src/zebtrack/ui/components/model_diagnostics_panel.py:778
+#: src/zebtrack/ui/components/project_model_configuration_panel.py:189
+#: src/zebtrack/ui/components/project_model_configuration_panel.py:380
 #: src/zebtrack/ui/components/weight_hardware_manager.py:145
 msgid "Enabled"
 msgstr "Ativado"
 
 #: src/zebtrack/ui/components/config_editor.py:615
 #: src/zebtrack/ui/components/model_diagnostics_panel.py:778
+#: src/zebtrack/ui/components/project_model_configuration_panel.py:191
+#: src/zebtrack/ui/components/project_model_configuration_panel.py:380
 #: src/zebtrack/ui/components/weight_hardware_manager.py:145
 msgid "Disabled"
 msgstr "Desativado"
@@ -3093,11 +3164,11 @@ msgstr "💾 Salvar Configurações"
 
 #: src/zebtrack/ui/components/config_editor.py:645
 msgid ""
-"The advanced validations (offset < interval, polyorder < window, etc.) "
-"are applied automatically on save."
+"The advanced validations (offset < interval, polyorder < window, etc.) are "
+"applied automatically on save."
 msgstr ""
-"As validações avançadas (offset < intervalo, polyorder < janela, etc.) "
-"são aplicadas automaticamente ao salvar."
+"As validações avançadas (offset < intervalo, polyorder < janela, etc.) são "
+"aplicadas automaticamente ao salvar."
 
 #: src/zebtrack/ui/components/dialog_manager.py:97
 #, python-brace-format
@@ -3187,8 +3258,7 @@ msgid ""
 "\n"
 "Choosing 'No' removes only the reference in the project."
 msgstr ""
-"Deseja também excluir os arquivos gerados (Parquets, relatórios) do "
-"disco?\n"
+"Deseja também excluir os arquivos gerados (Parquets, relatórios) do disco?\n"
 "\n"
 "Se escolher 'Não', apenas a referência no projeto será removida."
 
@@ -3323,11 +3393,11 @@ msgstr "Selecione uma Pasta de Projeto Existente"
 
 #: src/zebtrack/ui/components/dialog_manager.py:887
 msgid ""
-"No session selected in the list below — select a scheduled session to "
-"skip the manual picker."
+"No session selected in the list below — select a scheduled session to skip "
+"the manual picker."
 msgstr ""
-"Nenhuma sessão selecionada na lista abaixo — selecione uma sessão "
-"agendada para pular a seleção manual."
+"Nenhuma sessão selecionada na lista abaixo — selecione uma sessão agendada "
+"para pular a seleção manual."
 
 # | msgid "Recording Pending"
 #: src/zebtrack/ui/components/dialog_manager.py:899
@@ -3502,13 +3572,11 @@ msgstr "Zonas reutilizadas"
 msgid ""
 "The zones of \"{last}\" were applied to \"{current}\".\n"
 "\n"
-"Review the outlines before starting the analysis to make sure they match "
-"the current video."
+"Review the outlines before starting the analysis to make sure they match the current video."
 msgstr ""
 "As zonas de \"{last}\" foram aplicadas em \"{current}\".\n"
 "\n"
-"Revise os contornos antes de iniciar a análise para garantir que "
-"correspondem ao vídeo atual."
+"Revise os contornos antes de iniciar a análise para garantir que correspondem ao vídeo atual."
 
 # | msgid "Action unavailable"
 #: src/zebtrack/ui/components/dialog_manager.py:1375
@@ -3517,13 +3585,13 @@ msgstr "Arquivos Parquet Indisponíveis"
 
 #: src/zebtrack/ui/components/dialog_manager.py:1377
 msgid ""
-"The zones were copied, but the original Parquet files could not be found "
-"to duplicate. If needed, redraw the zones and save them manually to "
-"generate new files."
+"The zones were copied, but the original Parquet files could not be found to "
+"duplicate. If needed, redraw the zones and save them manually to generate "
+"new files."
 msgstr ""
-"As zonas foram copiadas, mas não encontramos os arquivos Parquet "
-"originais para duplicar. Caso necessário, redesenhe as zonas e salve-as "
-"manualmente para gerar novos arquivos."
+"As zonas foram copiadas, mas não encontramos os arquivos Parquet originais "
+"para duplicar. Caso necessário, redesenhe as zonas e salve-as manualmente "
+"para gerar novos arquivos."
 
 #: src/zebtrack/ui/components/dialog_manager.py:1384
 msgid "Start drawing the arena and the ROIs for this video."
@@ -3616,11 +3684,11 @@ msgstr "Pesos padrão por slot"
 
 #: src/zebtrack/ui/components/global_model_configuration_panel.py:148
 msgid ""
-"Each combination (method × target) uses a default weight. The detector "
-"looks up the right slot at runtime."
+"Each combination (method × target) uses a default weight. The detector looks"
+" up the right slot at runtime."
 msgstr ""
-"Cada combinação (método × alvo) usa um peso padrão. O detector consulta o"
-" slot correto em runtime."
+"Cada combinação (método × alvo) usa um peso padrão. O detector consulta o "
+"slot correto em runtime."
 
 #: src/zebtrack/ui/components/global_model_configuration_panel.py:162
 msgid "🐠 Aquarium (Detection)"
@@ -3711,9 +3779,8 @@ msgstr "Manutenção de caches"
 
 #: src/zebtrack/ui/components/global_model_configuration_panel.py:300
 msgid ""
-"OpenVINO caches speed detection up but stay tied to the original .pt "
-"file. Clear them when replacing weights with the same name or after "
-"retraining."
+"OpenVINO caches speed detection up but stay tied to the original .pt file. "
+"Clear them when replacing weights with the same name or after retraining."
 msgstr ""
 "Caches OpenVINO aceleram a detecção mas ficam vinculados ao arquivo .pt "
 "original. Limpe-os ao trocar pesos com o mesmo nome ou após retreino."
@@ -3740,11 +3807,11 @@ msgstr "Sistema & Hardware"
 
 #: src/zebtrack/ui/components/global_model_configuration_panel.py:343
 msgid ""
-"Re-running the benchmark recalculates the optimal OpenVINO settings "
-"(device, precision, hint) for your current hardware."
+"Re-running the benchmark recalculates the optimal OpenVINO settings (device,"
+" precision, hint) for your current hardware."
 msgstr ""
-"Reexecutar o benchmark recalcula a configuração ótima do OpenVINO "
-"(device, precisão, hint) para o seu hardware atual."
+"Reexecutar o benchmark recalcula a configuração ótima do OpenVINO (device, "
+"precisão, hint) para o seu hardware atual."
 
 #: src/zebtrack/ui/components/global_model_configuration_panel.py:358
 msgid "Re-run Hardware Benchmark"
@@ -3844,8 +3911,7 @@ msgid ""
 "\n"
 "  • "
 msgstr ""
-"Os seguintes pesos referenciam arquivos .pt que não foram encontrados em "
-"disco:\n"
+"Os seguintes pesos referenciam arquivos .pt que não foram encontrados em disco:\n"
 "\n"
 "  • "
 
@@ -3864,11 +3930,11 @@ msgstr "Nada a converter"
 
 #: src/zebtrack/ui/components/global_model_configuration_panel.py:624
 msgid ""
-"The selected weights are already converted to OpenVINO. Use 'Delete "
-"OpenVINO Cache' first to force a reconversion."
+"The selected weights are already converted to OpenVINO. Use 'Delete OpenVINO"
+" Cache' first to force a reconversion."
 msgstr ""
-"Os pesos selecionados já estão convertidos para OpenVINO. Use 'Apagar "
-"Cache OpenVINO' antes para forçar reconversão."
+"Os pesos selecionados já estão convertidos para OpenVINO. Use 'Apagar Cache "
+"OpenVINO' antes para forçar reconversão."
 
 #: src/zebtrack/ui/components/global_model_configuration_panel.py:633
 #, python-brace-format
@@ -3890,13 +3956,11 @@ msgstr "Converter '{name}' para OpenVINO agora?"
 msgid ""
 "\n"
 "\n"
-"The conversion runs in the background; the status in the 'OpenVINO' "
-"column is refreshed every ~1.5s until it finishes."
+"The conversion runs in the background; the status in the 'OpenVINO' column is refreshed every ~1.5s until it finishes."
 msgstr ""
 "\n"
 "\n"
-"A conversão roda em background; o status na coluna 'OpenVINO' será "
-"atualizado a cada ~1.5s até concluir."
+"A conversão roda em background; o status na coluna 'OpenVINO' será atualizado a cada ~1.5s até concluir."
 
 #: src/zebtrack/ui/components/global_model_configuration_panel.py:643
 #, python-brace-format
@@ -3964,14 +4028,11 @@ msgstr "Caches OpenVINO apagados"
 #: src/zebtrack/ui/components/global_model_configuration_panel.py:712
 #, python-brace-format
 msgid ""
-"OpenVINO cache {scope} removed successfully ({count} entry/entries "
-"processed).\n"
+"OpenVINO cache {scope} removed successfully ({count} entry/entries processed).\n"
 "\n"
-"The status in the list is back to '—'; the next detection will regenerate"
-" the cache."
+"The status in the list is back to '—'; the next detection will regenerate the cache."
 msgstr ""
-"Cache OpenVINO {scope} removido com sucesso ({count} entrada(s) "
-"processada(s)).\n"
+"Cache OpenVINO {scope} removido com sucesso ({count} entrada(s) processada(s)).\n"
 "\n"
 "O status na lista voltou para '—'; a próxima detecção regenerará o cache."
 
@@ -3999,24 +4060,20 @@ msgstr ""
 #: src/zebtrack/ui/components/global_model_configuration_panel.py:735
 msgid ""
 "\n"
-"Likely cause: the running detector still has the model loaded in memory "
-"(open handle), or OneDrive is syncing the files.\n"
+"Likely cause: the running detector still has the model loaded in memory (open handle), or OneDrive is syncing the files.\n"
 "\n"
 "Fixes:\n"
 "  1. Close and reopen DRerio LogAI (releases the model handle);\n"
 "  2. Pause OneDrive temporarily and try again;\n"
-"  3. Use 'poetry run zebtrack --reset-openvino-cache' before starting the"
-" app — it clears the cache while nothing is loaded."
+"  3. Use 'poetry run zebtrack --reset-openvino-cache' before starting the app — it clears the cache while nothing is loaded."
 msgstr ""
 "\n"
-"Causa provável: o detector em execução ainda tem o modelo carregado em "
-"memória (handle aberto), ou o OneDrive está sincronizando os arquivos.\n"
+"Causa provável: o detector em execução ainda tem o modelo carregado em memória (handle aberto), ou o OneDrive está sincronizando os arquivos.\n"
 "\n"
 "Soluções:\n"
 "  1. Feche e reabra o DRerio LogAI (libera o handle do modelo);\n"
 "  2. Pause o OneDrive temporariamente e tente de novo;\n"
-"  3. Use 'poetry run zebtrack --reset-openvino-cache' antes de iniciar o "
-"app — apaga o cache enquanto nada está carregado."
+"  3. Use 'poetry run zebtrack --reset-openvino-cache' antes de iniciar o app — apaga o cache enquanto nada está carregado."
 
 #: src/zebtrack/ui/components/global_model_configuration_panel.py:744
 msgid "Caches partially deleted"
@@ -4048,13 +4105,11 @@ msgstr "Reset de fábrica"
 
 #: src/zebtrack/ui/components/global_model_configuration_panel.py:774
 msgid ""
-"This action deletes 'weights_config.json' and rebuilds the registry from "
-"the settings + a scan of the 'weights/' folder.\n"
+"This action deletes 'weights_config.json' and rebuilds the registry from the settings + a scan of the 'weights/' folder.\n"
 "\n"
 "Custom defaults will be lost. Continue?"
 msgstr ""
-"Esta ação apaga 'weights_config.json' e refaz o registro a partir das "
-"configurações + scan da pasta 'weights/'.\n"
+"Esta ação apaga 'weights_config.json' e refaz o registro a partir das configurações + scan da pasta 'weights/'.\n"
 "\n"
 "Defaults personalizados serão perdidos. Continuar?"
 
@@ -4068,11 +4123,11 @@ msgstr "Reexecutar benchmark"
 
 #: src/zebtrack/ui/components/global_model_configuration_panel.py:796
 msgid ""
-"The benchmark will take ~10-30 seconds and will update the optimal "
-"OpenVINO settings. Continue?"
+"The benchmark will take ~10-30 seconds and will update the optimal OpenVINO "
+"settings. Continue?"
 msgstr ""
-"O benchmark levará ~10-30 segundos e atualizará as configurações ótimas "
-"do OpenVINO. Continuar?"
+"O benchmark levará ~10-30 segundos e atualizará as configurações ótimas do "
+"OpenVINO. Continuar?"
 
 #: src/zebtrack/ui/components/global_model_configuration_panel.py:804
 msgid "Benchmark running"
@@ -4285,10 +4340,10 @@ msgid "Remove arena"
 msgstr "Remover arena"
 
 #: src/zebtrack/ui/components/menu_manager.py:520
-msgid "Remove the arena from this video? The associated ROIs will be cleared too."
+msgid ""
+"Remove the arena from this video? The associated ROIs will be cleared too."
 msgstr ""
-"Deseja remover a arena deste vídeo? As ROIs associadas também serão "
-"limpas."
+"Deseja remover a arena deste vídeo? As ROIs associadas também serão limpas."
 
 #: src/zebtrack/ui/components/menu_manager.py:523
 msgid "Remove ROIs"
@@ -4316,8 +4371,8 @@ msgstr "Deseja remover os relatórios e sumários associados a este vídeo?"
 
 #: src/zebtrack/ui/components/menu_manager.py:537
 msgid ""
-"Remove this video from the project? Arenas, ROIs and trajectories already"
-" removed cannot be recovered automatically."
+"Remove this video from the project? Arenas, ROIs and trajectories already "
+"removed cannot be recovered automatically."
 msgstr ""
 "Deseja remover este vídeo do projeto? As arenas, ROIs e trajetórias já "
 "removidas não poderão ser recuperadas automaticamente."
@@ -4335,21 +4390,17 @@ msgstr "Confirma a remoção do item selecionado?"
 msgid ""
 "This video holds data from {count} separate aquarium(s).\n"
 "\n"
-"⚠️ WARNING: Removing the video permanently deletes ALL data and reports "
-"from ALL aquariums.\n"
+"⚠️ WARNING: Removing the video permanently deletes ALL data and reports from ALL aquariums.\n"
 "\n"
-"To keep the data from any aquarium, cancel this operation and export the "
-"reports first.\n"
+"To keep the data from any aquarium, cancel this operation and export the reports first.\n"
 "\n"
 "Continue with the removal?"
 msgstr ""
 "Este vídeo possui dados de {count} aquário(s) separados.\n"
 "\n"
-"⚠️ ATENÇÃO: Ao remover o vídeo, TODOS os dados e relatórios de TODOS os "
-"aquários serão excluídos permanentemente.\n"
+"⚠️ ATENÇÃO: Ao remover o vídeo, TODOS os dados e relatórios de TODOS os aquários serão excluídos permanentemente.\n"
 "\n"
-"Se deseja manter os dados de algum aquário, cancele esta operação e "
-"exporte os relatórios antes de prosseguir.\n"
+"Se deseja manter os dados de algum aquário, cancele esta operação e exporte os relatórios antes de prosseguir.\n"
 "\n"
 "Deseja continuar com a remoção?"
 
@@ -4386,8 +4437,8 @@ msgstr "Excluir arquivo do disco?"
 #: src/zebtrack/ui/components/menu_manager.py:581
 msgid "Also remove the video file from disk? This action cannot be undone."
 msgstr ""
-"Deseja também remover o arquivo de vídeo do disco? Essa ação não poderá "
-"ser desfeita."
+"Deseja também remover o arquivo de vídeo do disco? Essa ação não poderá ser "
+"desfeita."
 
 #: src/zebtrack/ui/components/menu_manager.py:603
 msgid "Removal not completed"
@@ -4512,8 +4563,8 @@ msgstr "Diagnóstico do Projeto"
 
 #: src/zebtrack/ui/components/model_diagnostics_panel.py:93
 msgid ""
-"Use this panel to validate weights, tune detector parameters and run "
-"quick video tests outside the context of a project."
+"Use this panel to validate weights, tune detector parameters and run quick "
+"video tests outside the context of a project."
 msgstr ""
 "Use este painel para validar pesos, ajustar parâmetros do detector e "
 "executar testes rápidos em vídeo fora do contexto de um projeto."
@@ -4523,8 +4574,8 @@ msgid ""
 "Changes made here affect only this project's detector parameters. Choose "
 "below which effective project weight you want to diagnose."
 msgstr ""
-"Ajustes feitos aqui afetam apenas os parâmetros do detector deste "
-"projeto. Escolha abaixo qual peso efetivo do projeto deseja diagnosticar."
+"Ajustes feitos aqui afetam apenas os parâmetros do detector deste projeto. "
+"Escolha abaixo qual peso efetivo do projeto deseja diagnosticar."
 
 #: src/zebtrack/ui/components/model_diagnostics_panel.py:127
 msgid "Test Model on Video..."
@@ -4538,9 +4589,9 @@ msgstr "Peso para diagnóstico:"
 
 #: src/zebtrack/ui/components/model_diagnostics_panel.py:148
 msgid ""
-"The weight chosen here is applied temporarily as the active weight for "
-"the test. The permanent global configuration is still controlled by the "
-"Global Model Configuration window."
+"The weight chosen here is applied temporarily as the active weight for the "
+"test. The permanent global configuration is still controlled by the Global "
+"Model Configuration window."
 msgstr ""
 "O peso escolhido aqui é aplicado temporariamente como peso ativo para o "
 "teste. A configuração global permanente continua sendo controlada pela "
@@ -4582,8 +4633,7 @@ msgid ""
 "Number of video frames to process in the diagnostic test.\n"
 "Use a low value (e.g. 100) for quick tests."
 msgstr ""
-"Quantidade de frames do vídeo a serem processados no teste de "
-"diagnóstico.\n"
+"Quantidade de frames do vídeo a serem processados no teste de diagnóstico.\n"
 "Use um valor baixo (ex: 100) para testes rápidos."
 
 #: src/zebtrack/ui/components/model_diagnostics_panel.py:266
@@ -4595,18 +4645,15 @@ msgid ""
 "Confidence Threshold\n"
 "\n"
 "Minimum probability (0.0 to 1.0) for a detection to count as valid.\n"
-"• Raise it (e.g. 0.50) if there are many 'false positives' "
-"(noise/ghosts).\n"
+"• Raise it (e.g. 0.50) if there are many 'false positives' (noise/ghosts).\n"
 "• Lower it (e.g. 0.15) if the fish is not detected in some frames.\n"
 "• Recommended default: 0.25"
 msgstr ""
 "Limiar de Confiança (Confidence Threshold)\n"
 "\n"
 "Probabilidade mínima (0.0 a 1.0) para considerar uma detecção válida.\n"
-"• Aumente (ex: 0.50) se houver muitos 'falsos positivos' "
-"(ruído/fantasmas).\n"
-"• Diminua (ex: 0.15) se o peixe não estiver sendo detectado em alguns "
-"frames.\n"
+"• Aumente (ex: 0.50) se houver muitos 'falsos positivos' (ruído/fantasmas).\n"
+"• Diminua (ex: 0.15) se o peixe não estiver sendo detectado em alguns frames.\n"
 "• Padrão recomendado: 0.25"
 
 #: src/zebtrack/ui/components/model_diagnostics_panel.py:283
@@ -4665,17 +4712,14 @@ msgid ""
 "\n"
 "Tolerance for associating a new detection with an existing track.\n"
 "• High values (e.g. 0.8+) are more permissive (good for fast movement).\n"
-"• Low values (<0.5) are restrictive (avoids identity swaps, but may lose "
-"the track).\n"
+"• Low values (<0.5) are restrictive (avoids identity swaps, but may lose the track).\n"
 "• Recommended default: 0.95"
 msgstr ""
 "Match Threshold\n"
 "\n"
 "Tolerância para associar uma nova detecção a um rastro existente.\n"
-"• Valores altos (ex: 0.8+) são mais permissivos (bom para movimentos "
-"rápidos).\n"
-"• Valores baixos (<0.5) são restritivos (evita troca de identidade, mas "
-"pode perder o rastro).\n"
+"• Valores altos (ex: 0.8+) são mais permissivos (bom para movimentos rápidos).\n"
+"• Valores baixos (<0.5) são restritivos (evita troca de identidade, mas pode perder o rastro).\n"
 "• Padrão recomendado: 0.95"
 
 #: src/zebtrack/ui/components/model_diagnostics_panel.py:368
@@ -4686,16 +4730,14 @@ msgstr "Track Buffer:"
 msgid ""
 "Track Buffer (Memory)\n"
 "\n"
-"How many frames the system 'remembers' a fish after it disappears "
-"(occlusion/miss).\n"
+"How many frames the system 'remembers' a fish after it disappears (occlusion/miss).\n"
 "• Raise it (e.g. 120) if the fish vanishes for a long time.\n"
 "• Lower it to drop lost tracks quickly.\n"
 "• Default: 90 frames (~3s at 30fps)"
 msgstr ""
 "Track Buffer (Memória)\n"
 "\n"
-"Quantos frames o sistema 'lembra' do peixe após ele sumir "
-"(oclusão/falha).\n"
+"Quantos frames o sistema 'lembra' do peixe após ele sumir (oclusão/falha).\n"
 "• Aumente (ex: 120) se o peixe some por muito tempo.\n"
 "• Diminua para deletar rastros perdidos rapidamente.\n"
 "• Padrão: 90 frames (~3s a 30fps)"
@@ -4732,16 +4774,14 @@ msgid ""
 "\n"
 "Minimum overlap (Intersection over Union) to associate boxes.\n"
 "• Default: 0.05 (undemanding).\n"
-"• Raise it (e.g. 0.3) to require the fish to stay in almost the same "
-"position.\n"
+"• Raise it (e.g. 0.3) to require the fish to stay in almost the same position.\n"
 "• Lower it to allow abrupt movements that change the box area."
 msgstr ""
 "IoU Threshold (Rastreamento)\n"
 "\n"
 "Sobreposição mínima (Intersection over Union) para associar caixas.\n"
 "• Padrão: 0.05 (baixa exigência).\n"
-"• Aumente (ex: 0.3) para exigir que o peixe mantenha quase a mesma "
-"posição.\n"
+"• Aumente (ex: 0.3) para exigir que o peixe mantenha quase a mesma posição.\n"
 "• Diminua para permitir movimentos bruscos que mudam a área da caixa."
 
 #: src/zebtrack/ui/components/model_diagnostics_panel.py:422
@@ -4750,15 +4790,16 @@ msgstr "Modelo(s) a Testar:"
 
 #: src/zebtrack/ui/components/model_diagnostics_panel.py:458
 msgid ""
-"ℹ️ ByteTrack disabled. Using simple (Hybrid) tracking, which relies only "
-"on 'Maximum Distance' and 'IoU Threshold' to keep the ID."
+"ℹ️ ByteTrack disabled. Using simple (Hybrid) tracking, which relies only on "
+"'Maximum Distance' and 'IoU Threshold' to keep the ID."
 msgstr ""
-"ℹ️ ByteTrack desativado. Usando rastreamento simples (Híbrido) que "
-"utiliza apenas 'Distância Máxima' e 'IoU Threshold' para manter o ID."
+"ℹ️ ByteTrack desativado. Usando rastreamento simples (Híbrido) que utiliza "
+"apenas 'Distância Máxima' e 'IoU Threshold' para manter o ID."
 
 #: src/zebtrack/ui/components/model_diagnostics_panel.py:468
 msgid "💡 ByteTrack active (Kalman filter). Recommended for greater stability."
-msgstr "💡 ByteTrack ativo (Filtro de Kalman). Recomendado para maior estabilidade."
+msgstr ""
+"💡 ByteTrack ativo (Filtro de Kalman). Recomendado para maior estabilidade."
 
 #: src/zebtrack/ui/components/model_diagnostics_panel.py:569
 msgid "No overrides"
@@ -4766,11 +4807,11 @@ msgstr "Sem overrides"
 
 #: src/zebtrack/ui/components/model_diagnostics_panel.py:571
 msgid ""
-"This project has no saved overrides yet. The current global values will "
-"be kept."
+"This project has no saved overrides yet. The current global values will be "
+"kept."
 msgstr ""
-"Este projeto ainda não possui overrides salvos. Valores globais atuais "
-"serão mantidos."
+"Este projeto ainda não possui overrides salvos. Valores globais atuais serão"
+" mantidos."
 
 #: src/zebtrack/ui/components/model_diagnostics_panel.py:593
 msgid "Enter valid numeric values for the detector parameters."
@@ -4858,6 +4899,7 @@ msgid "Slot"
 msgstr "Slot"
 
 #: src/zebtrack/ui/components/model_diagnostics_panel.py:765
+#: src/zebtrack/ui/components/project_model_configuration_panel.py:365
 msgid "None"
 msgstr "Nenhum"
 
@@ -4905,6 +4947,161 @@ msgstr "O limiar de confiança deve ser um número válido."
 msgid "Select one of the project's effective weights for diagnostics."
 msgstr "Selecione um dos pesos efetivos do projeto para diagnóstico."
 
+# | msgid "Restore Defaults"
+#: src/zebtrack/ui/components/project_model_configuration_panel.py:22
+#| msgid "Restore Global Defaults"
+msgid "Inherit (global default)"
+msgstr "Herdar (padrão global)"
+
+# | msgid "Global Model Configuration..."
+#: src/zebtrack/ui/components/project_model_configuration_panel.py:62
+#| msgid "Model Configuration"
+msgid "Project Model Configuration"
+msgstr "Configuração de Modelos do Projeto"
+
+#: src/zebtrack/ui/components/project_model_configuration_panel.py:71
+msgid ""
+"Open a project to adjust project-specific weights and OpenVINO. The "
+"preferences applied here do not affect the global default."
+msgstr ""
+"Abra um projeto para ajustar pesos e OpenVINO específicos. As preferências "
+"aplicadas aqui não afetam o padrão global."
+
+#: src/zebtrack/ui/components/project_model_configuration_panel.py:83
+msgid ""
+"Set only this project's overrides. To edit the weight catalogue, the per-"
+"slot defaults or OpenVINO maintenance, use Global Model Configuration."
+msgstr ""
+"Defina apenas overrides deste projeto. Para editar catálogo de pesos, "
+"defaults por slot ou manutenção do OpenVINO, use a Configuração Global de "
+"Modelos."
+
+#: src/zebtrack/ui/components/project_model_configuration_panel.py:93
+#| msgid "Effective weights for this project:"
+msgid "Weights specific to this project"
+msgstr "Pesos específicos deste projeto"
+
+# | msgid "Global Model Configuration..."
+# | msgid "Model Configuration"
+#: src/zebtrack/ui/components/project_model_configuration_panel.py:114
+#| msgid "Scope: Global Configuration"
+msgid "Inherit the global configuration"
+msgstr "Herdar configuração global"
+
+#: src/zebtrack/ui/components/project_model_configuration_panel.py:121
+msgid "Uses exactly the global OpenVINO configuration for this project."
+msgstr "Usa exatamente a configuração global do OpenVINO para este projeto."
+
+#: src/zebtrack/ui/components/project_model_configuration_panel.py:126
+#| msgid "Enabled"
+msgid "Force enabled"
+msgstr "Forçar ativado"
+
+#: src/zebtrack/ui/components/project_model_configuration_panel.py:134
+msgid ""
+"Always uses OpenVINO in this project, regardless of the global default."
+msgstr "Sempre usa OpenVINO neste projeto, independente do padrão global."
+
+#: src/zebtrack/ui/components/project_model_configuration_panel.py:139
+#| msgid "Disabled"
+msgid "Force disabled"
+msgstr "Forçar desativado"
+
+#: src/zebtrack/ui/components/project_model_configuration_panel.py:147
+msgid ""
+"Prevents OpenVINO use in this project, even when it is globally enabled."
+msgstr ""
+"Impede o uso do OpenVINO neste projeto, mesmo se estiver ativo globalmente."
+
+#: src/zebtrack/ui/components/project_model_configuration_panel.py:153
+msgid ""
+"Choose how to apply OpenVINO in this project:\n"
+"• Inherit: follows the current global state.\n"
+"• Force enabled: always uses OpenVINO here.\n"
+"• Force disabled: keeps PyTorch even when the global state is enabled."
+msgstr ""
+"Escolha como aplicar OpenVINO neste projeto:\n"
+"• Herdar: segue o estado global atual.\n"
+"• Forçar ativado: sempre usa OpenVINO aqui.\n"
+"• Forçar desativado: mantém PyTorch mesmo que o global esteja ativo."
+
+# | msgid "Open Existing Project"
+#: src/zebtrack/ui/components/project_model_configuration_panel.py:163
+#| msgid "Existing Results"
+msgid "Effective Result"
+msgstr "Resultado Efetivo"
+
+# | msgid "Weight Type"
+#: src/zebtrack/ui/components/project_model_configuration_panel.py:167
+#| msgid "Weight Name"
+msgid "Weights in use:"
+msgstr "Pesos utilizados:"
+
+# | msgid "Restore Defaults"
+#: src/zebtrack/ui/components/project_model_configuration_panel.py:178
+#| msgid "Restore Global Defaults"
+msgid "Global Defaults"
+msgstr "Padrões Globais"
+
+#: src/zebtrack/ui/components/project_model_configuration_panel.py:187
+#, python-brace-format
+#| msgid "OpenVINO: {status}"
+msgid "Global OpenVINO: {state}"
+msgstr "OpenVINO global: {state}"
+
+#: src/zebtrack/ui/components/project_model_configuration_panel.py:200
+#| msgid "💾 Save Current Zones"
+msgid "Save Preferences"
+msgstr "Salvar Preferências"
+
+# | msgid "Remove video from project"
+#: src/zebtrack/ui/components/project_model_configuration_panel.py:205
+#| msgid "No video found in the project"
+msgid "Copy Globals to the Project"
+msgstr "Copiar Globais para o Projeto"
+
+#: src/zebtrack/ui/components/project_model_configuration_panel.py:210
+#| msgid "Remove video from project"
+msgid "Reload From Project"
+msgstr "Recarregar do Projeto"
+
+# | msgid "Project Loaded"
+#: src/zebtrack/ui/components/project_model_configuration_panel.py:250
+#| msgid "No Project Loaded"
+msgid "No active project slot was identified."
+msgstr "Nenhum slot ativo do projeto foi identificado."
+
+#: src/zebtrack/ui/components/project_model_configuration_panel.py:369
+#| msgid "No effective weight available."
+msgid "No weight available"
+msgstr "Nenhum peso disponível"
+
+# | msgid "Restore Defaults"
+#: src/zebtrack/ui/components/project_model_configuration_panel.py:371
+#| msgid "Restore Global Defaults"
+msgid "No global default available"
+msgstr "Nenhum padrão global disponível"
+
+# | msgid "Project Settings Updated"
+#: src/zebtrack/ui/components/project_model_configuration_panel.py:397
+#| msgid "Parameters Updated"
+msgid "Preferences updated"
+msgstr "Preferências atualizadas"
+
+#: src/zebtrack/ui/components/project_model_configuration_panel.py:398
+msgid "The project preferences have been saved."
+msgstr "As preferências do projeto foram salvas."
+
+#: src/zebtrack/ui/components/project_model_configuration_panel.py:412
+#| msgid "Project Settings Updated"
+msgid "Project updated"
+msgstr "Projeto atualizado"
+
+#: src/zebtrack/ui/components/project_model_configuration_panel.py:413
+#| msgid "The detector settings were saved for this project."
+msgid "The current global settings have been copied into this project."
+msgstr "As configurações globais atuais foram copiadas para este projeto."
+
 # | msgid "Pending ROIs"
 #: src/zebtrack/ui/components/validation_manager.py:54
 msgid "Pending"
@@ -4949,7 +5146,8 @@ msgstr "Configurações salvas"
 # | msgid "Changes recorded in config.local.yaml."
 #: src/zebtrack/ui/components/validation_manager.py:199
 msgid "Changes recorded in config.local.yaml and applied to the application."
-msgstr "Alterações registradas em config.local.yaml e aplicadas ao aplicativo."
+msgstr ""
+"Alterações registradas em config.local.yaml e aplicadas ao aplicativo."
 
 # | msgid "No videos listed"
 #: src/zebtrack/ui/components/validation_manager.py:213
@@ -5096,11 +5294,11 @@ msgstr "Raio de buffer não pode ser negativo"
 
 #: src/zebtrack/ui/components/validation_manager.py:1579
 msgid ""
-"Overlap fraction must be greater than 0 and at most 1 for the "
-"segmentation rule"
+"Overlap fraction must be greater than 0 and at most 1 for the segmentation "
+"rule"
 msgstr ""
-"Fração de sobreposição deve ser maior que 0 e no máximo 1 para a regra de"
-" segmentação"
+"Fração de sobreposição deve ser maior que 0 e no máximo 1 para a regra de "
+"segmentação"
 
 # | msgid "The {label} must be between 0 and 1."
 #: src/zebtrack/ui/components/validation_manager.py:1584
@@ -5446,8 +5644,8 @@ msgid ""
 "Templates store the main polygon and every ROI so they can be reused on "
 "other videos of the project."
 msgstr ""
-"Templates armazenam o polígono principal e todas as ROIs para reutilizar "
-"em outros vídeos do projeto."
+"Templates armazenam o polígono principal e todas as ROIs para reutilizar em "
+"outros vídeos do projeto."
 
 # | msgid "Select the Video for Diagnostics"
 #: src/zebtrack/ui/components/zone_controls.py:693
@@ -5561,8 +5759,7 @@ msgid ""
 "Counts as inside if the box (bbox) overlaps the ROI above the minimum "
 "fraction."
 msgstr ""
-"Considera dentro se a caixa (bbox) sobrepuser a ROI acima da fração "
-"mínima."
+"Considera dentro se a caixa (bbox) sobrepuser a ROI acima da fração mínima."
 
 #: src/zebtrack/ui/components/zone_controls.py:1399
 msgid "0 = any real overlap."
@@ -5580,13 +5777,13 @@ msgstr "0 = qualquer sobreposição real."
 msgid ""
 "Counts as inside by the overlap of the MASK with the ROI. Also requires "
 "recorder.persist_masks enabled (settings editor) and "
-"model_selection.animal_method = 'seg'. If either is missing, the analysis"
-" degrades to bbox_intersects and warns in the report."
+"model_selection.animal_method = 'seg'. If either is missing, the analysis "
+"degrades to bbox_intersects and warns in the report."
 msgstr ""
 "Considera dentro pela sobreposição da MÁSCARA com a ROI. Exige também "
 "recorder.persist_masks ligado (editor de configurações) e "
-"model_selection.animal_method = 'seg'. Faltando um deles, a análise "
-"degrada para bbox_intersects e avisa no relatório."
+"model_selection.animal_method = 'seg'. Faltando um deles, a análise degrada "
+"para bbox_intersects e avisa no relatório."
 
 # | msgid "FPS must be greater than 0."
 #: src/zebtrack/ui/components/zone_controls.py:1411
@@ -5596,8 +5793,8 @@ msgstr "Deve ser maior que 0."
 #: src/zebtrack/ui/components/zone_controls.py:1418
 msgid "Counts as inside if the geometric centroid is strictly inside the ROI."
 msgstr ""
-"Considera dentro se o centroide geométrico estiver estritamente dentro da"
-" ROI."
+"Considera dentro se o centroide geométrico estiver estritamente dentro da "
+"ROI."
 
 # | msgid "Aquarium"
 #: src/zebtrack/ui/components/canvas/multi_aquarium_overlay.py:41
@@ -5689,8 +5886,8 @@ msgstr "Carregando frame para desenho..."
 
 #: src/zebtrack/ui/components/canvas/zone_editor.py:205
 msgid ""
-"Could not load a frame. Please load a video or use 'Detect Aquarium "
-"(Auto)' first."
+"Could not load a frame. Please load a video or use 'Detect Aquarium (Auto)' "
+"first."
 msgstr ""
 "Não foi possível carregar um frame. Por favor, carregue um vídeo ou use "
 "'Detectar Aquário (Auto)' primeiro."
@@ -5707,11 +5904,11 @@ msgstr ""
 
 #: src/zebtrack/ui/components/canvas/zone_editor.py:242
 msgid ""
-"Drawing Mode (Polygon): click to add points, double-click to finish. "
-"Ctrl+Z to undo."
+"Drawing Mode (Polygon): click to add points, double-click to finish. Ctrl+Z "
+"to undo."
 msgstr ""
-"Modo de Desenho (Polígono): Clique para adicionar pontos, clique duplo "
-"para finalizar. Ctrl+Z para desfazer."
+"Modo de Desenho (Polígono): Clique para adicionar pontos, clique duplo para "
+"finalizar. Ctrl+Z para desfazer."
 
 #: src/zebtrack/ui/components/canvas/zone_editor.py:287
 #: src/zebtrack/ui/components/canvas/zone_editor.py:307
@@ -5729,10 +5926,11 @@ msgid "Drawing: Aquarium {number} of 2"
 msgstr "Desenhando: Aquário {number} de 2"
 
 #: src/zebtrack/ui/components/canvas/zone_editor.py:316
-msgid "Please define the 'Main Polygon' first, before adding Regions of Interest."
+msgid ""
+"Please define the 'Main Polygon' first, before adding Regions of Interest."
 msgstr ""
-"Por favor, defina o 'Polígono Principal' primeiro antes de adicionar "
-"Áreas de Interesse."
+"Por favor, defina o 'Polígono Principal' primeiro antes de adicionar Áreas "
+"de Interesse."
 
 #: src/zebtrack/ui/components/canvas/zone_editor.py:334
 msgid "Drawing Mode (Circle): click and drag to set the radius."
@@ -5767,19 +5965,18 @@ msgid ""
 "Shift/Ctrl+click to select · Del / right-click to delete the selection."
 msgstr ""
 "Editando arena: arraste para mover · clique-triplo apaga · arraste um "
-"retângulo ou Shift/Ctrl+clique para selecionar · Del / botão direito para"
-" apagar a seleção."
+"retângulo ou Shift/Ctrl+clique para selecionar · Del / botão direito para "
+"apagar a seleção."
 
 #: src/zebtrack/ui/components/canvas/zone_editor.py:511
 #, python-brace-format
 msgid ""
-"Editing ROI '{name}': drag to move · triple-click deletes · drag a "
-"rectangle or Shift/Ctrl+click to select · Del / right-click to delete the"
-" selection."
+"Editing ROI '{name}': drag to move · triple-click deletes · drag a rectangle"
+" or Shift/Ctrl+click to select · Del / right-click to delete the selection."
 msgstr ""
-"Editando ROI '{name}': arraste para mover · clique-triplo apaga · arraste"
-" um retângulo ou Shift/Ctrl+clique para selecionar · Del / botão direito "
-"para apagar a seleção."
+"Editando ROI '{name}': arraste para mover · clique-triplo apaga · arraste um"
+" retângulo ou Shift/Ctrl+clique para selecionar · Del / botão direito para "
+"apagar a seleção."
 
 # | msgid "Video not found"
 #: src/zebtrack/ui/components/canvas/zone_editor.py:523
@@ -5812,7 +6009,8 @@ msgstr "Todas as arenas foram definidas."
 
 #: src/zebtrack/ui/components/canvas/zone_editor.py:642
 msgid "Failed to save the main arena. The edit was kept; try again."
-msgstr "Falha ao salvar a arena principal. A edição foi mantida; tente novamente."
+msgstr ""
+"Falha ao salvar a arena principal. A edição foi mantida; tente novamente."
 
 #: src/zebtrack/ui/components/canvas/zone_editor.py:645
 msgid "Main arena saved successfully."
@@ -5860,8 +6058,7 @@ msgstr "Não é possível apagar"
 #: src/zebtrack/ui/components/canvas/zone_editor.py:814
 #, python-brace-format
 msgid ""
-"A polygon needs at least {minimum} vertices. Only {remaining} would be "
-"left."
+"A polygon needs at least {minimum} vertices. Only {remaining} would be left."
 msgstr ""
 "Um polígono precisa de pelo menos {minimum} vértices. Restariam apenas "
 "{remaining}."
@@ -5944,7 +6141,7 @@ msgstr "Zonas excluídas com sucesso."
 # | "\" \"\n"
 # | "\" \"  … and {count} more video(s)"
 # | msgid "🧮 {count} video(s)"
-#: src/zebtrack/ui/components/project_views/project_view_helpers.py:34
+#: src/zebtrack/ui/components/project_views/project_view_helpers.py:35
 #, python-brace-format
 msgid "{count} video"
 msgstr "{count} vídeo"
@@ -5953,7 +6150,7 @@ msgstr "{count} vídeo"
 # | "\" \"\n"
 # | "\" \"  … and {count} more video(s)"
 # | msgid "🧮 {count} video(s)"
-#: src/zebtrack/ui/components/project_views/project_view_helpers.py:35
+#: src/zebtrack/ui/components/project_views/project_view_helpers.py:36
 #, python-brace-format
 msgid "{count} videos"
 msgstr "{count} vídeos"
@@ -5961,14 +6158,14 @@ msgstr "{count} vídeos"
 # | msgid "Delete {asset}"
 # | msgid "🗑️ Delete {label}…"
 # | msgid "🐟 Subject {label}"
-#: src/zebtrack/ui/components/project_views/project_view_helpers.py:97
+#: src/zebtrack/ui/components/project_views/project_view_helpers.py:98
 #, python-brace-format
 msgid "Subject: {value}"
 msgstr "Sujeito: {value}"
 
 # | msgid "No Day"
 # | msgid "No data"
-#: src/zebtrack/ui/components/project_views/project_view_helpers.py:99
+#: src/zebtrack/ui/components/project_views/project_view_helpers.py:100
 msgid "No metadata"
 msgstr "Sem metadata"
 
@@ -6020,38 +6217,39 @@ msgstr ""
 "{path}"
 
 # | msgid "Video Unavailable"
-#: src/zebtrack/ui/components/project_views/report_asset_actions.py:362
-#: src/zebtrack/ui/components/project_views/report_asset_actions.py:380
+#: src/zebtrack/ui/components/project_views/report_asset_actions.py:361
+#: src/zebtrack/ui/components/project_views/report_asset_actions.py:378
 msgid "Unavailable"
 msgstr "Indisponível"
 
 # | msgid "Remove reports"
 # | msgid "Not reported"
 # | msgid "Unified Report"
-#: src/zebtrack/ui/components/project_views/report_asset_actions.py:362
+#: src/zebtrack/ui/components/project_views/report_asset_actions.py:361
 msgid "No unified report found."
 msgstr "Nenhum relatório unificado encontrado."
 
 # | msgid "Video not found"
 # | msgid "ROI '{name}' not found."
-#: src/zebtrack/ui/components/project_views/report_asset_actions.py:381
+#: src/zebtrack/ui/components/project_views/report_asset_actions.py:379
 #, python-brace-format
 msgid "No {type} report found."
 msgstr "Nenhum relatório {type} encontrado."
 
 # | msgid "Video Unavailable"
-#: src/zebtrack/ui/components/project_views/report_asset_actions.py:435
+#: src/zebtrack/ui/components/project_views/report_asset_actions.py:433
 msgid "Reports unavailable"
 msgstr "Relatórios indisponíveis"
 
-#: src/zebtrack/ui/components/project_views/report_asset_actions.py:436
+#: src/zebtrack/ui/components/project_views/report_asset_actions.py:434
 msgid "Generate the report for this video before opening the results folder."
-msgstr "Gere o relatório para este vídeo antes de abrir a pasta de resultados."
+msgstr ""
+"Gere o relatório para este vídeo antes de abrir a pasta de resultados."
 
 # | msgid "Could not connect to the Arduino on port {port}."
 # | msgid "Could not open the video: {path}"
 # | msgid "Could not open: {path}"
-#: src/zebtrack/ui/components/project_views/report_asset_actions.py:455
+#: src/zebtrack/ui/components/project_views/report_asset_actions.py:452
 #, python-brace-format
 msgid "Could not open: {error}"
 msgstr "Não foi possível abrir: {error}"
@@ -6101,7 +6299,7 @@ msgstr ""
 "Não foi possível apagar a pasta.\n"
 "Verifique se algum arquivo está aberto."
 
-#: src/zebtrack/ui/components/project_views/report_generator_actions.py:319
+#: src/zebtrack/ui/components/project_views/report_generator_actions.py:318
 msgid ""
 "\n"
 "\n"
@@ -6114,13 +6312,13 @@ msgstr ""
 # | msgid "Invalid selection"
 # | msgid "Detection"
 # | msgid "Detection Error"
-#: src/zebtrack/ui/components/project_views/report_generator_actions.py:323
+#: src/zebtrack/ui/components/project_views/report_generator_actions.py:321
 msgid "Deletion Error"
 msgstr "Erro ao Apagar"
 
 # | msgid "{name} · method {method}"
 # | msgid "{name}: error {error}"
-#: src/zebtrack/ui/components/project_views/report_generator_actions.py:324
+#: src/zebtrack/ui/components/project_views/report_generator_actions.py:322
 #, python-brace-format
 msgid ""
 "{message}\n"
@@ -6131,7 +6329,7 @@ msgstr ""
 "\n"
 "Erro: {error}"
 
-#: src/zebtrack/ui/components/project_views/report_generator_actions.py:333
+#: src/zebtrack/ui/components/project_views/report_generator_actions.py:331
 msgid "There were no unified reports to delete."
 msgstr "Não havia relatórios unificados para apagar."
 
@@ -6237,7 +6435,8 @@ msgstr "Apagar Aquário"
 #: src/zebtrack/ui/components/project_views/reports_tree_manager.py:316
 #, python-brace-format
 msgid "Delete aquarium {number} along with its drawings and analysis data?"
-msgstr "Deseja apagar o aquário {number} com seus desenhos e dados de análise?"
+msgstr ""
+"Deseja apagar o aquário {number} com seus desenhos e dados de análise?"
 
 # | msgid "Delete file from disk?"
 # | msgid "Delete Files from Disk"
@@ -6268,7 +6467,8 @@ msgstr "Apagar Animal"
 
 #: src/zebtrack/ui/components/project_views/reports_tree_manager.py:352
 #, python-brace-format
-msgid "Delete the animal bound to aquarium {number}, keeping the drawn aquarium?"
+msgid ""
+"Delete the animal bound to aquarium {number}, keeping the drawn aquarium?"
 msgstr ""
 "Deseja apagar o animal vinculado ao aquário {number} mantendo o aquário "
 "desenhado?"
@@ -6279,8 +6479,7 @@ msgstr "Apagar Também Dados de Análise?"
 
 #: src/zebtrack/ui/components/project_views/reports_tree_manager.py:363
 msgid ""
-"Do you also want to delete this aquarium's current trajectory and "
-"reports?\n"
+"Do you also want to delete this aquarium's current trajectory and reports?\n"
 "\n"
 "If you choose 'No', only the animal binding is removed."
 msgstr ""
@@ -6314,8 +6513,8 @@ msgid ""
 "Delete only the trajectory and reports of aquarium {number}, keeping the "
 "arena and the ROIs?"
 msgstr ""
-"Deseja apagar apenas trajetória e relatórios do aquário {number}, "
-"mantendo arena e ROIs?"
+"Deseja apagar apenas trajetória e relatórios do aquário {number}, mantendo "
+"arena e ROIs?"
 
 #: src/zebtrack/ui/components/project_views/reports_tree_manager.py:439
 #, python-brace-format
@@ -6374,7 +6573,7 @@ msgstr ""
 
 # | msgid "Reports removed"
 # | msgid "Reports Generated"
-#: src/zebtrack/ui/components/project_views/video_selector_tree_manager.py:871
+#: src/zebtrack/ui/components/project_views/video_selector_tree_manager.py:869
 #, python-brace-format
 msgid "Report opened: {name}"
 msgstr "Relatório aberto: {name}"
@@ -6382,7 +6581,7 @@ msgstr "Relatório aberto: {name}"
 # | msgid "Loading model system..."
 # | msgid "Error Loading Model"
 # | msgid "Error opening folder"
-#: src/zebtrack/ui/components/project_views/video_selector_tree_manager.py:876
+#: src/zebtrack/ui/components/project_views/video_selector_tree_manager.py:874
 msgid "Error Opening"
 msgstr "Erro ao Abrir"
 
@@ -6391,7 +6590,7 @@ msgstr "Erro ao Abrir"
 # | "\" \"{path}\n"
 # | "\" \"\n"
 # | "\" \"{error}"
-#: src/zebtrack/ui/components/project_views/video_selector_tree_manager.py:877
+#: src/zebtrack/ui/components/project_views/video_selector_tree_manager.py:875
 #, python-brace-format
 msgid ""
 "Could not open the selected report.\n"
@@ -6401,7 +6600,7 @@ msgstr ""
 "{error}"
 
 # | msgid "The selected video could not be located in the project."
-#: src/zebtrack/ui/components/project_views/video_selector_tree_manager.py:892
+#: src/zebtrack/ui/components/project_views/video_selector_tree_manager.py:890
 #, python-brace-format
 msgid ""
 "The selected video could not be located:\n"
@@ -6411,20 +6610,20 @@ msgstr ""
 "{path}"
 
 # | msgid "Frame {number}:"
-#: src/zebtrack/ui/components/project_views/video_selector_tree_manager.py:900
+#: src/zebtrack/ui/components/project_views/video_selector_tree_manager.py:898
 #, python-brace-format
 msgid "Frame loaded: {name}"
 msgstr "Frame carregado: {name}"
 
 # | msgid "Loading model system..."
 # | msgid "Error Loading Model"
-#: src/zebtrack/ui/components/project_views/video_selector_tree_manager.py:905
+#: src/zebtrack/ui/components/project_views/video_selector_tree_manager.py:903
 msgid "Error Loading"
 msgstr "Erro ao Carregar"
 
 # | msgid "Could not connect to the Arduino on port {port}."
 # | msgid "Could not open the video: {path}"
-#: src/zebtrack/ui/components/project_views/video_selector_tree_manager.py:906
+#: src/zebtrack/ui/components/project_views/video_selector_tree_manager.py:904
 #, python-brace-format
 msgid ""
 "Could not load the selected video.\n"
@@ -6451,34 +6650,34 @@ msgstr "Passo 6/6 — Gerando recomendações..."
 
 #: src/zebtrack/utils/hardware_capability.py:356
 msgid ""
-"System insufficient for real-time processing. Recommended: record video "
-"only and process offline."
+"System insufficient for real-time processing. Recommended: record video only"
+" and process offline."
 msgstr ""
-"Sistema insuficiente para processamento em tempo real. Recomendado: "
-"apenas gravar vídeo e processar offline."
+"Sistema insuficiente para processamento em tempo real. Recomendado: apenas "
+"gravar vídeo e processar offline."
 
 #: src/zebtrack/utils/hardware_capability.py:362
 #, python-brace-format
 msgid ""
-"Suggested upgrade: at least 2 CPU cores and 4GB of available RAM "
-"(current: {cores} cores, {memory:.1f}GB)"
+"Suggested upgrade: at least 2 CPU cores and 4GB of available RAM (current: "
+"{cores} cores, {memory:.1f}GB)"
 msgstr ""
-"Upgrade sugerido: Mínimo 2 cores CPU e 4GB RAM disponível (atual: {cores}"
-" cores, {memory:.1f}GB)"
+"Upgrade sugerido: Mínimo 2 cores CPU e 4GB RAM disponível (atual: {cores} "
+"cores, {memory:.1f}GB)"
 
 #: src/zebtrack/utils/hardware_capability.py:370
 msgid ""
-"System limited to 1 aquarium at a time in real time. For multiple "
-"aquariums, consider offline recording."
+"System limited to 1 aquarium at a time in real time. For multiple aquariums,"
+" consider offline recording."
 msgstr ""
-"Sistema limitado a 1 aquário por vez em tempo real. Para múltiplos "
-"aquários, considere gravação offline."
+"Sistema limitado a 1 aquário por vez em tempo real. Para múltiplos aquários,"
+" considere gravação offline."
 
 #: src/zebtrack/utils/hardware_capability.py:377
 #, python-brace-format
 msgid ""
-"Limited CPU ({cores} cores). Upgrading to 4+ cores improves multi-"
-"aquarium performance."
+"Limited CPU ({cores} cores). Upgrading to 4+ cores improves multi-aquarium "
+"performance."
 msgstr ""
 "CPU limitada ({cores} cores). Upgrade para 4+ cores melhora desempenho "
 "multi-aquário."
@@ -6486,11 +6685,11 @@ msgstr ""
 #: src/zebtrack/utils/hardware_capability.py:384
 #, python-brace-format
 msgid ""
-"Limited memory ({memory:.1f}GB available). Close background applications "
-"or upgrade to 8GB+ RAM."
+"Limited memory ({memory:.1f}GB available). Close background applications or "
+"upgrade to 8GB+ RAM."
 msgstr ""
-"Memória limitada ({memory:.1f}GB disponível). Feche aplicações em segundo"
-" plano ou upgrade para 8GB+ RAM."
+"Memória limitada ({memory:.1f}GB disponível). Feche aplicações em segundo "
+"plano ou upgrade para 8GB+ RAM."
 
 #: src/zebtrack/utils/hardware_capability.py:390
 msgid "System supports up to 2 aquariums simultaneously."
@@ -6498,7 +6697,8 @@ msgstr "Sistema suporta até 2 aquários simultaneamente."
 
 #: src/zebtrack/utils/hardware_capability.py:393
 msgid "No GPU detected. Adding a GPU improves performance significantly."
-msgstr "GPU não detectada. Adicionar GPU melhora desempenho significativamente."
+msgstr ""
+"GPU não detectada. Adicionar GPU melhora desempenho significativamente."
 
 #: src/zebtrack/utils/hardware_capability.py:398
 msgid "System supports 2-3 aquariums simultaneously with good performance."
@@ -6506,29 +6706,27 @@ msgstr "Sistema suporta 2-3 aquários simultaneamente com boa performance."
 
 #: src/zebtrack/utils/hardware_capability.py:403
 msgid ""
-"Excellent system! Supports 4+ aquariums simultaneously at high "
-"performance."
+"Excellent system! Supports 4+ aquariums simultaneously at high performance."
 msgstr ""
-"Sistema excelente! Suporta 4+ aquários simultaneamente com alta "
-"performance."
+"Sistema excelente! Suporta 4+ aquários simultaneamente com alta performance."
 
 #: src/zebtrack/utils/hardware_capability.py:410
 #, python-brace-format
 msgid ""
-"CPU under heavy load ({usage:.1f}%). Close background applications before"
-" starting capture."
+"CPU under heavy load ({usage:.1f}%). Close background applications before "
+"starting capture."
 msgstr ""
-"CPU com alta carga ({usage:.1f}%). Feche aplicações em segundo plano "
-"antes de iniciar captura."
+"CPU com alta carga ({usage:.1f}%). Feche aplicações em segundo plano antes "
+"de iniciar captura."
 
 #: src/zebtrack/utils/hardware_capability.py:418
 #, python-brace-format
 msgid ""
-"Memory heavily used ({usage:.1f}%). Close background applications to free"
-" RAM."
+"Memory heavily used ({usage:.1f}%). Close background applications to free "
+"RAM."
 msgstr ""
-"Memória com alta ocupação ({usage:.1f}%). Feche aplicações em segundo "
-"plano para liberar RAM."
+"Memória com alta ocupação ({usage:.1f}%). Feche aplicações em segundo plano "
+"para liberar RAM."
 
 #: src/zebtrack/utils/hardware_capability.py:439
 msgid "⚠️ REAL-TIME PROCESSING NOT RECOMMENDED. Use record-only mode."
@@ -6546,4 +6744,5 @@ msgstr "⚠️ Memória crítica ({usage:.1f}%). Risco de travamento do sistema.
 
 #: src/zebtrack/utils/hardware_capability.py:455
 msgid "⚠️ Available memory is very low. Close other applications immediately."
-msgstr "⚠️ Memória disponível muito baixa. Feche outras aplicações imediatamente."
+msgstr ""
+"⚠️ Memória disponível muito baixa. Feche outras aplicações imediatamente."
