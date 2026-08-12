@@ -9,7 +9,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: DRerio LogAI VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-08-12 14:49-0300\n"
+"POT-Creation-Date: 2026-08-12 15:12-0300\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -51,6 +51,8 @@ msgstr ""
 #: src/zebtrack/ui/builders/analysis_widgets.py:471
 #: src/zebtrack/ui/builders/zone_widgets.py:144
 #: src/zebtrack/ui/builders/zone_widgets.py:150
+#: src/zebtrack/ui/components/arduino_dashboard.py:312
+#: src/zebtrack/ui/components/arduino_dashboard.py:319
 #: src/zebtrack/ui/components/canvas/zone_editor.py:203
 #: src/zebtrack/ui/components/canvas/zone_editor.py:315
 #: src/zebtrack/ui/components/canvas/zone_editor.py:450
@@ -424,6 +426,7 @@ msgid "Analysis Running"
 msgstr ""
 
 #: src/zebtrack/coordinators/dialog_coordinator.py:395
+#: src/zebtrack/ui/components/arduino_dashboard.py:306
 msgid "No Project Loaded"
 msgstr ""
 
@@ -1841,6 +1844,309 @@ msgstr ""
 msgid "Preparing the analysis queue..."
 msgstr ""
 
+#: src/zebtrack/ui/components/arduino_bindings_panel.py:37
+msgid ""
+"DRerio only SENDS the number you choose when the animal enters or leaves "
+"the ROI. What that number triggers (LED, shock, flash, pump, any module) "
+"is the responsibility of YOUR Arduino sketch — using an Arduino presumes "
+"you know how to program it. The reference sketch uses consecutive pairs: "
+"1=channel 1 on, 2=off, 3/4=channel 2, 5/6=channel 3, 7/8=channel 4. Use "
+"'Device' to record what is actually wired to each channel."
+msgstr ""
+
+#: src/zebtrack/ui/components/arduino_bindings_panel.py:48
+msgid ""
+"Arduino is not enabled in this project. Turn on 'Use Arduino' when "
+"creating the project (wizard, live configuration step) to set up per-zone"
+" commands."
+msgstr ""
+
+#: src/zebtrack/ui/components/arduino_bindings_panel.py:55
+msgid ""
+"⚠ Ambiguous token: the same number is configured as one ROI's ENTER and "
+"another ROI's EXIT. The sketch cannot switch on and off with the same "
+"command — leaving the ROI will turn on the other zone's device, and the "
+"end-of-session shutdown will not work. Check the numbering —"
+msgstr ""
+
+#: src/zebtrack/ui/components/arduino_bindings_panel.py:99
+msgid "Per-Zone Arduino Commands (Optional)"
+msgstr ""
+
+#: src/zebtrack/ui/components/arduino_bindings_panel.py:108
+msgid "ROI"
+msgstr ""
+
+#: src/zebtrack/ui/components/arduino_bindings_panel.py:109
+msgid "Device"
+msgstr ""
+
+#: src/zebtrack/ui/components/arduino_bindings_panel.py:110
+msgid "On Enter"
+msgstr ""
+
+#: src/zebtrack/ui/components/arduino_bindings_panel.py:111
+msgid "On Exit"
+msgstr ""
+
+#: src/zebtrack/ui/components/arduino_bindings_panel.py:122
+msgid "ROI:"
+msgstr ""
+
+#: src/zebtrack/ui/components/arduino_bindings_panel.py:127
+msgid "Enter:"
+msgstr ""
+
+#: src/zebtrack/ui/components/arduino_bindings_panel.py:131
+msgid "Exit:"
+msgstr ""
+
+#: src/zebtrack/ui/components/arduino_bindings_panel.py:138
+msgid "Device:"
+msgstr ""
+
+#: src/zebtrack/ui/components/arduino_bindings_panel.py:144
+msgid "optional — what is wired to this channel"
+msgstr ""
+
+#: src/zebtrack/ui/components/arduino_bindings_panel.py:150
+msgid "Add / Update"
+msgstr ""
+
+#: src/zebtrack/ui/components/arduino_bindings_panel.py:151
+msgid "Remove"
+msgstr ""
+
+#: src/zebtrack/ui/components/arduino_bindings_panel.py:152
+msgid "Clear"
+msgstr ""
+
+#: src/zebtrack/ui/components/arduino_bindings_panel.py:153
+msgid "🔄 ROIs"
+msgstr ""
+
+#: src/zebtrack/ui/components/arduino_bindings_panel.py:158
+msgid "🔌 Test commands"
+msgstr ""
+
+#: src/zebtrack/ui/components/arduino_bindings_panel.py:163
+msgid "Sends each token and shows what the firmware answered."
+msgstr ""
+
+#: src/zebtrack/ui/components/arduino_bindings_panel.py:224
+#, python-brace-format
+msgid "{count} ROI(s) available."
+msgstr ""
+
+#: src/zebtrack/ui/components/arduino_bindings_panel.py:226
+msgid "Define ROIs first."
+msgstr ""
+
+#: src/zebtrack/ui/components/arduino_bindings_panel.py:271
+msgid "Select an ROI."
+msgstr ""
+
+#: src/zebtrack/ui/components/arduino_bindings_panel.py:286
+msgid "Provide at least one token (Enter or Exit)."
+msgstr ""
+
+#: src/zebtrack/ui/components/arduino_bindings_panel.py:318
+msgid "Configuration saved."
+msgstr ""
+
+#: src/zebtrack/ui/components/arduino_bindings_panel.py:320
+msgid "Configuration applied (project has no path on disk)."
+msgstr ""
+
+#: src/zebtrack/ui/components/arduino_bindings_panel.py:324
+#, python-brace-format
+msgid "Error while saving: {error}"
+msgstr ""
+
+#: src/zebtrack/ui/components/arduino_bindings_panel.py:344
+msgid "Arduino not connected. Connect it before testing."
+msgstr ""
+
+#: src/zebtrack/ui/components/arduino_bindings_panel.py:350
+msgid "No token configured to test."
+msgstr ""
+
+#: src/zebtrack/ui/components/arduino_bindings_panel.py:355
+msgid "Testing… waiting for the firmware to answer."
+msgstr ""
+
+#: src/zebtrack/ui/components/arduino_bindings_panel.py:419
+#, python-brace-format
+msgid "Test failed: {error}"
+msgstr ""
+
+#: src/zebtrack/ui/components/arduino_bindings_panel.py:425
+msgid "enter"
+msgstr ""
+
+#: src/zebtrack/ui/components/arduino_bindings_panel.py:425
+msgid "exit"
+msgstr ""
+
+#: src/zebtrack/ui/components/arduino_bindings_panel.py:428
+#, python-brace-format
+msgid "{name} {edge} → {token} → (no reply)"
+msgstr ""
+
+#: src/zebtrack/ui/components/arduino_bindings_panel.py:444
+#, python-brace-format
+msgid ""
+"{count} problem(s): an ENTER must switch on and an EXIT must switch off. "
+"The reference sketch pairs 1/2, 3/4, 5/6, 7/8."
+msgstr ""
+
+#: src/zebtrack/ui/components/arduino_bindings_panel.py:525
+#, python-brace-format
+msgid "Invalid token: '{value}'. Use a whole number."
+msgstr ""
+
+#: src/zebtrack/ui/components/arduino_bindings_panel.py:529
+#, python-brace-format
+msgid "Token out of range [{minimum}, {maximum}]: {value}."
+msgstr ""
+
+#: src/zebtrack/ui/components/arduino_dashboard.py:79
+#: src/zebtrack/ui/components/arduino_dashboard.py:419
+msgid "Disconnected"
+msgstr ""
+
+#: src/zebtrack/ui/components/arduino_dashboard.py:108
+msgid "Arduino Dashboard"
+msgstr ""
+
+#: src/zebtrack/ui/components/arduino_dashboard.py:141
+msgid "Last command:"
+msgstr ""
+
+#: src/zebtrack/ui/components/arduino_dashboard.py:146
+msgid "Recent events:"
+msgstr ""
+
+#: src/zebtrack/ui/components/arduino_dashboard.py:172
+msgid "Clear Log"
+msgstr ""
+
+#: src/zebtrack/ui/components/arduino_dashboard.py:178
+msgid "🔄 Recheck Ports"
+msgstr ""
+
+#: src/zebtrack/ui/components/arduino_dashboard.py:210
+#, python-brace-format
+msgid "Arduino connected ({port})"
+msgstr ""
+
+#: src/zebtrack/ui/components/arduino_dashboard.py:212
+msgid "Arduino connected"
+msgstr ""
+
+#: src/zebtrack/ui/components/arduino_dashboard.py:234
+msgid "No Port Detected"
+msgstr ""
+
+#: src/zebtrack/ui/components/arduino_dashboard.py:236
+msgid ""
+"No serial port was detected.\n"
+"\n"
+"Check that:\n"
+"• The Arduino is connected via USB\n"
+"• The drivers are correctly installed\n"
+"• The port is not in use by another program"
+msgstr ""
+
+#: src/zebtrack/ui/components/arduino_dashboard.py:243
+msgid "✗ Recheck: no port detected"
+msgstr ""
+
+#: src/zebtrack/ui/components/arduino_dashboard.py:249
+msgid "Serial Device"
+msgstr ""
+
+#: src/zebtrack/ui/components/arduino_dashboard.py:254
+msgid "Select Arduino Port"
+msgstr ""
+
+#: src/zebtrack/ui/components/arduino_dashboard.py:255
+#, python-brace-format
+msgid ""
+"Detected {count} serial port(s).\n"
+"\n"
+"Available ports:\n"
+msgstr ""
+
+#: src/zebtrack/ui/components/arduino_dashboard.py:259
+msgid ""
+"\n"
+"\n"
+"Type the port name (e.g. COM3):"
+msgstr ""
+
+#: src/zebtrack/ui/components/arduino_dashboard.py:271
+msgid "Invalid Port"
+msgstr ""
+
+#: src/zebtrack/ui/components/arduino_dashboard.py:273
+#, python-brace-format
+msgid ""
+"Port '{port}' is not among the detected ports.\n"
+"\n"
+"Valid ports: {valid}"
+msgstr ""
+
+#: src/zebtrack/ui/components/arduino_dashboard.py:287
+#, python-brace-format
+msgid "✓ Port updated: {old} → {new}"
+msgstr ""
+
+#: src/zebtrack/ui/components/arduino_dashboard.py:288
+msgid "no port"
+msgstr ""
+
+#: src/zebtrack/ui/components/arduino_dashboard.py:291
+msgid "  Reconnecting the Arduino on the new port..."
+msgstr ""
+
+#: src/zebtrack/ui/components/arduino_dashboard.py:307
+msgid "No project is currently loaded."
+msgstr ""
+
+#: src/zebtrack/ui/components/arduino_dashboard.py:313
+msgid ""
+"The pyserial library is not installed.\n"
+"\n"
+"Run: pip install pyserial"
+msgstr ""
+
+#: src/zebtrack/ui/components/arduino_dashboard.py:315
+msgid "✗ pyserial not available"
+msgstr ""
+
+#: src/zebtrack/ui/components/arduino_dashboard.py:320
+#, python-brace-format
+msgid ""
+"An error occurred while rechecking ports:\n"
+"\n"
+"{error}"
+msgstr ""
+
+#: src/zebtrack/ui/components/arduino_dashboard.py:322
+#, python-brace-format
+msgid "✗ Error during recheck: {error}"
+msgstr ""
+
+#: src/zebtrack/ui/components/arduino_dashboard.py:421
+#, python-brace-format
+msgid "Connected ({port})"
+msgstr ""
+
+#: src/zebtrack/ui/components/arduino_dashboard.py:423
+msgid "Connected"
+msgstr ""
+
 #: src/zebtrack/ui/components/config_editor.py:39
 msgid ""
 "⚠️ 'seg_overlap' without 'Save Masks' enabled: the analysis will degrade "
@@ -2133,11 +2439,13 @@ msgstr ""
 
 #: src/zebtrack/ui/components/config_editor.py:615
 #: src/zebtrack/ui/components/model_diagnostics_panel.py:778
+#: src/zebtrack/ui/components/weight_hardware_manager.py:145
 msgid "Enabled"
 msgstr ""
 
 #: src/zebtrack/ui/components/config_editor.py:615
 #: src/zebtrack/ui/components/model_diagnostics_panel.py:778
+#: src/zebtrack/ui/components/weight_hardware_manager.py:145
 msgid "Disabled"
 msgstr ""
 
@@ -2511,10 +2819,12 @@ msgid "Zebrafish"
 msgstr ""
 
 #: src/zebtrack/ui/components/global_model_configuration_panel.py:34
+#: src/zebtrack/ui/components/weight_hardware_manager.py:86
 msgid "Segmentation"
 msgstr ""
 
 #: src/zebtrack/ui/components/global_model_configuration_panel.py:34
+#: src/zebtrack/ui/components/weight_hardware_manager.py:86
 msgid "Detection"
 msgstr ""
 
@@ -3819,6 +4129,66 @@ msgstr ""
 msgid "Error applying settings: {error}"
 msgstr ""
 
+#: src/zebtrack/ui/components/weight_hardware_manager.py:59
+msgid "Model Type"
+msgstr ""
+
+#: src/zebtrack/ui/components/weight_hardware_manager.py:61
+msgid ""
+"The model type could not be determined automatically.\n"
+"Type 'seg' for Segmentation or 'det' for Detection:"
+msgstr ""
+
+#: src/zebtrack/ui/components/weight_hardware_manager.py:89
+msgid "New Weight Found"
+msgstr ""
+
+#: src/zebtrack/ui/components/weight_hardware_manager.py:91
+#, python-brace-format
+msgid ""
+"File '{filename}' was identified as a {type} model.\n"
+"\n"
+"Do you want to set it as the new default for {type}?\n"
+"Yes: set as default\n"
+"No: only add it to the list\n"
+"Cancel: abort the operation"
+msgstr ""
+
+#: src/zebtrack/ui/components/weight_hardware_manager.py:188
+#, python-brace-format
+msgid "device: {name}"
+msgstr ""
+
+#: src/zebtrack/ui/components/weight_hardware_manager.py:240
+msgid "Model: error querying weights"
+msgstr ""
+
+#: src/zebtrack/ui/components/weight_hardware_manager.py:244
+msgid "Model (in use in this project):"
+msgstr ""
+
+#: src/zebtrack/ui/components/weight_hardware_manager.py:244
+msgid "Model (defaults):"
+msgstr ""
+
+#: src/zebtrack/ui/components/weight_hardware_manager.py:247
+msgid "No weight configured."
+msgstr ""
+
+#: src/zebtrack/ui/components/weight_hardware_manager.py:289
+msgid "CPU only"
+msgstr ""
+
+#: src/zebtrack/ui/components/weight_hardware_manager.py:323
+#, python-brace-format
+msgid "Hardware: {name}"
+msgstr ""
+
+#: src/zebtrack/ui/components/weight_hardware_manager.py:325
+#, python-brace-format
+msgid "Hardware: {name}{npu} (recommended: {backend})"
+msgstr ""
+
 #: src/zebtrack/ui/components/zone_context_panel.py:46
 msgid "Auto-detected"
 msgstr ""
@@ -4537,3 +4907,4 @@ msgstr ""
 #: src/zebtrack/utils/hardware_capability.py:455
 msgid "⚠️ Available memory is very low. Close other applications immediately."
 msgstr ""
+

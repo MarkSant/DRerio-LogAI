@@ -57,7 +57,7 @@ class TestArduinoDashboardWidget:
         tkinter_root.update_idletasks()
 
         # Verify default state
-        assert widget.status_var.get() == "Desconectado"
+        assert widget.status_var.get() == "Disconnected"
         assert widget.last_command_var.get() == "-"
 
         # Verify widget references
@@ -77,7 +77,7 @@ class TestArduinoDashboardWidget:
         tkinter_root.update_idletasks()
 
         assert widget.project_manager is None
-        assert widget.status_var.get() == "Desconectado"
+        assert widget.status_var.get() == "Disconnected"
 
     def test_widget_without_event_bus(self, tkinter_root):
         """Test widget can be created without event bus (no crashes)."""
@@ -148,12 +148,12 @@ class TestArduinoDashboardWidget:
         )
         tkinter_root.update_idletasks()
 
-        assert widget.status_var.get() == "Conectado (COM3)"
+        assert widget.status_var.get() == "Connected (COM3)"
         assert widget.status_indicator is not None
         assert widget.status_indicator.cget("foreground") == "#16a34a"
 
     def test_command_event_updates_last_command(self, tkinter_root):
-        """UI_UPDATE_ARDUINO_COMMAND must refresh the 'Último comando' label.
+        """UI_UPDATE_ARDUINO_COMMAND must refresh the 'Last command' label.
 
         Uses a real EventBusV2 so the widget's subscription actually dispatches.
         """
@@ -183,7 +183,7 @@ class TestArduinoDashboardWidget:
     def test_update_status_on_main_thread_applies_inline(self, widget):
         """On the main thread the update is applied synchronously (no pumping)."""
         widget.update_status(connected=True, port="COM9")
-        assert widget.status_var.get() == "Conectado (COM9)"
+        assert widget.status_var.get() == "Connected (COM9)"
 
     def test_run_on_ui_thread_marshals_when_off_main_thread(self, widget):
         """Off the main thread the callback is deferred to Tk via after(0, ...).
@@ -245,7 +245,7 @@ class TestArduinoDashboardWidget:
         """Test update_status with connected state."""
         widget.update_status(connected=True, port="COM5")
 
-        assert widget.status_var.get() == "Conectado (COM5)"
+        assert widget.status_var.get() == "Connected (COM5)"
         # Status indicator should be green
         assert widget.status_indicator.cget("foreground") == "#16a34a"
 
@@ -253,13 +253,13 @@ class TestArduinoDashboardWidget:
         """Test update_status with connected but no port specified."""
         widget.update_status(connected=True, port=None)
 
-        assert widget.status_var.get() == "Conectado"
+        assert widget.status_var.get() == "Connected"
 
     def test_update_status_disconnected(self, widget):
         """Test update_status with disconnected state."""
         widget.update_status(connected=False, port=None)
 
-        assert widget.status_var.get() == "Desconectado"
+        assert widget.status_var.get() == "Disconnected"
         # Status indicator should be red
         assert widget.status_indicator.cget("foreground") == "#b91c1c"
 
@@ -328,7 +328,7 @@ class TestArduinoDashboardWidget:
 
         # Should show warning
         mock_warning.assert_called_once()
-        assert "Nenhuma porta serial" in mock_warning.call_args[0][1]
+        assert "No serial port" in mock_warning.call_args[0][1]
 
     @patch("zebtrack.ui.components.arduino_dashboard.serial.tools.list_ports.comports")
     @patch("zebtrack.ui.components.arduino_dashboard.simpledialog.askstring")
@@ -370,7 +370,7 @@ class TestArduinoDashboardWidget:
 
         # Should show error
         mock_error.assert_called_once()
-        assert "não está entre as portas detectadas" in mock_error.call_args[0][1]
+        assert "is not among the detected ports" in mock_error.call_args[0][1]
 
     @patch("zebtrack.ui.components.arduino_dashboard.serial.tools.list_ports.comports")
     @patch("zebtrack.ui.components.arduino_dashboard.simpledialog.askstring")
@@ -417,7 +417,7 @@ class TestArduinoDashboardWidget:
 
         # Should show warning about no project
         mock_warning.assert_called_once()
-        assert "Nenhum projeto" in mock_warning.call_args[0][1]
+        assert "No project" in mock_warning.call_args[0][1]
 
     # --- Error Handling Tests ---
 
@@ -509,14 +509,14 @@ class TestArduinoDashboardWidget:
     def test_complete_arduino_workflow(self, widget, tkinter_root):
         """Test a complete Arduino connection workflow."""
         # Initial disconnected state
-        assert widget.status_var.get() == "Desconectado"
+        assert widget.status_var.get() == "Disconnected"
 
         # Connect
         widget.update_status(connected=True, port="COM3")
         widget.append_log("✓ Arduino conectado")
         tkinter_root.update()
 
-        assert widget.status_var.get() == "Conectado (COM3)"
+        assert widget.status_var.get() == "Connected (COM3)"
         assert "conectado" in widget.log_text.get("1.0", "end")
 
         # Send commands
@@ -537,7 +537,7 @@ class TestArduinoDashboardWidget:
         widget.append_log("✗ Arduino desconectado")
         tkinter_root.update()
 
-        assert widget.status_var.get() == "Desconectado"
+        assert widget.status_var.get() == "Disconnected"
 
     def test_log_display_formatting(self, widget, tkinter_root):
         """Test log entries are properly formatted with timestamps."""

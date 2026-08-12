@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: DRerio LogAI VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-08-12 14:49-0300\n"
+"POT-Creation-Date: 2026-08-12 15:12-0300\n"
 "PO-Revision-Date: 2026-08-08 21:41-0300\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: pt_BR <LL@li.org>\n"
@@ -58,6 +58,8 @@ msgstr "Vídeo Único"
 #: src/zebtrack/ui/builders/analysis_widgets.py:471
 #: src/zebtrack/ui/builders/zone_widgets.py:144
 #: src/zebtrack/ui/builders/zone_widgets.py:150
+#: src/zebtrack/ui/components/arduino_dashboard.py:312
+#: src/zebtrack/ui/components/arduino_dashboard.py:319
 #: src/zebtrack/ui/components/canvas/zone_editor.py:203
 #: src/zebtrack/ui/components/canvas/zone_editor.py:315
 #: src/zebtrack/ui/components/canvas/zone_editor.py:450
@@ -552,6 +554,7 @@ msgstr "Análise em Andamento"
 
 # | msgid "Project Loaded"
 #: src/zebtrack/coordinators/dialog_coordinator.py:395
+#: src/zebtrack/ui/components/arduino_dashboard.py:306
 msgid "No Project Loaded"
 msgstr "Nenhum Projeto Carregado"
 
@@ -1557,8 +1560,8 @@ msgid " No imported video needs processing right now."
 msgstr " Nenhum vídeo importado precisa de processamento agora."
 
 # | msgid "Processing and Reports"
+# | msgid "Processing Mode:"
 #: src/zebtrack/coordinators/video_processing_coordinator.py:894
-#| msgid "Processing Mode:"
 msgid "Processing Videos"
 msgstr "Processamento"
 
@@ -2247,6 +2250,382 @@ msgstr "Preparando análise..."
 msgid "Preparing the analysis queue..."
 msgstr "Preparando fila de análise..."
 
+#: src/zebtrack/ui/components/arduino_bindings_panel.py:37
+msgid ""
+"DRerio only SENDS the number you choose when the animal enters or leaves the"
+" ROI. What that number triggers (LED, shock, flash, pump, any module) is the"
+" responsibility of YOUR Arduino sketch — using an Arduino presumes you know "
+"how to program it. The reference sketch uses consecutive pairs: 1=channel 1 "
+"on, 2=off, 3/4=channel 2, 5/6=channel 3, 7/8=channel 4. Use 'Device' to "
+"record what is actually wired to each channel."
+msgstr ""
+"O DRerio apenas ENVIA o número que você escolher quando o animal entra ou "
+"sai da ROI. O que o número aciona (LED, choque, flash, bomba, qualquer "
+"módulo) é responsabilidade do SEU sketch Arduino — usar Arduino pressupõe "
+"que você saiba programá-lo. O sketch de referência usa pares consecutivos: "
+"1=canal 1 liga, 2=desliga, 3/4=canal 2, 5/6=canal 3, 7/8=canal 4. Use "
+"'Dispositivo' para registrar o que está de fato ligado em cada canal."
+
+#: src/zebtrack/ui/components/arduino_bindings_panel.py:48
+msgid ""
+"Arduino is not enabled in this project. Turn on 'Use Arduino' when creating "
+"the project (wizard, live configuration step) to set up per-zone commands."
+msgstr ""
+"Arduino não está habilitado neste projeto. Ative 'Usar Arduino' ao criar o "
+"projeto (assistente, etapa de configuração ao vivo) para configurar comandos"
+" por zona."
+
+#: src/zebtrack/ui/components/arduino_bindings_panel.py:55
+msgid ""
+"⚠ Ambiguous token: the same number is configured as one ROI's ENTER and "
+"another ROI's EXIT. The sketch cannot switch on and off with the same "
+"command — leaving the ROI will turn on the other zone's device, and the end-"
+"of-session shutdown will not work. Check the numbering —"
+msgstr ""
+"⚠ Token ambíguo: o mesmo número está configurado como ENTRADA de uma ROI e "
+"SAÍDA de outra. O sketch não consegue ligar e desligar com o mesmo comando —"
+" a saída da ROI vai acender o dispositivo da outra zona, e o desligamento no"
+" fim da sessão não vai funcionar. Confira a numeração —"
+
+#: src/zebtrack/ui/components/arduino_bindings_panel.py:99
+msgid "Per-Zone Arduino Commands (Optional)"
+msgstr "Comandos Arduino por Zona (Opcional)"
+
+#: src/zebtrack/ui/components/arduino_bindings_panel.py:108
+#| msgid "ROIs"
+msgid "ROI"
+msgstr "ROI"
+
+#: src/zebtrack/ui/components/arduino_bindings_panel.py:109
+msgid "Device"
+msgstr "Dispositivo"
+
+#: src/zebtrack/ui/components/arduino_bindings_panel.py:110
+msgid "On Enter"
+msgstr "Ao Entrar"
+
+#: src/zebtrack/ui/components/arduino_bindings_panel.py:111
+#| msgid "Exit"
+msgid "On Exit"
+msgstr "Ao Sair"
+
+#: src/zebtrack/ui/components/arduino_bindings_panel.py:122
+#| msgid "ROIs"
+msgid "ROI:"
+msgstr "ROI:"
+
+#: src/zebtrack/ui/components/arduino_bindings_panel.py:127
+msgid "Enter:"
+msgstr "Entrar:"
+
+#: src/zebtrack/ui/components/arduino_bindings_panel.py:131
+#| msgid "Exit"
+msgid "Exit:"
+msgstr "Sair:"
+
+#: src/zebtrack/ui/components/arduino_bindings_panel.py:138
+#| msgid "OpenVINO device:"
+msgid "Device:"
+msgstr "Dispositivo:"
+
+#: src/zebtrack/ui/components/arduino_bindings_panel.py:144
+msgid "optional — what is wired to this channel"
+msgstr "opcional — o que está ligado neste canal"
+
+#: src/zebtrack/ui/components/arduino_bindings_panel.py:150
+msgid "Add / Update"
+msgstr "Adicionar / Atualizar"
+
+#: src/zebtrack/ui/components/arduino_bindings_panel.py:151
+#| msgid "🗑️ Remove"
+msgid "Remove"
+msgstr "Remover"
+
+#: src/zebtrack/ui/components/arduino_bindings_panel.py:152
+#| msgid "Close"
+msgid "Clear"
+msgstr "Limpar"
+
+#: src/zebtrack/ui/components/arduino_bindings_panel.py:153
+#| msgid "ROIs"
+msgid "🔄 ROIs"
+msgstr "🔄 ROIs"
+
+#: src/zebtrack/ui/components/arduino_bindings_panel.py:158
+msgid "🔌 Test commands"
+msgstr "🔌 Testar comandos"
+
+#: src/zebtrack/ui/components/arduino_bindings_panel.py:163
+msgid "Sends each token and shows what the firmware answered."
+msgstr "Envia cada token e mostra o que o firmware respondeu."
+
+#: src/zebtrack/ui/components/arduino_bindings_panel.py:224
+#, python-brace-format
+#| msgid "Action unavailable"
+msgid "{count} ROI(s) available."
+msgstr "{count} ROI(s) disponível(is)."
+
+#: src/zebtrack/ui/components/arduino_bindings_panel.py:226
+msgid "Define ROIs first."
+msgstr "Defina ROIs primeiro."
+
+#: src/zebtrack/ui/components/arduino_bindings_panel.py:271
+#| msgid "Delete ROIs"
+msgid "Select an ROI."
+msgstr "Selecione uma ROI."
+
+#: src/zebtrack/ui/components/arduino_bindings_panel.py:286
+msgid "Provide at least one token (Enter or Exit)."
+msgstr "Informe ao menos um token (Entrar ou Sair)."
+
+# | msgid "Global Model Configuration..."
+# | msgid "Model Configuration"
+#: src/zebtrack/ui/components/arduino_bindings_panel.py:318
+#| msgid "Configuration Required"
+msgid "Configuration saved."
+msgstr "Configuração salva."
+
+#: src/zebtrack/ui/components/arduino_bindings_panel.py:320
+msgid "Configuration applied (project has no path on disk)."
+msgstr "Configuração aplicada (projeto sem caminho em disco)."
+
+# | msgid "Settings"
+# | msgid "Apply Settings"
+#: src/zebtrack/ui/components/arduino_bindings_panel.py:324
+#, python-brace-format
+#| msgid "Error applying settings: {error}"
+msgid "Error while saving: {error}"
+msgstr "Erro ao salvar: {error}"
+
+#: src/zebtrack/ui/components/arduino_bindings_panel.py:344
+msgid "Arduino not connected. Connect it before testing."
+msgstr "Arduino não conectado. Conecte antes de testar."
+
+# | msgid "Configuring detector..."
+#: src/zebtrack/ui/components/arduino_bindings_panel.py:350
+#| msgid "Failed to configure the detector."
+msgid "No token configured to test."
+msgstr "Nenhum token configurado para testar."
+
+#: src/zebtrack/ui/components/arduino_bindings_panel.py:355
+msgid "Testing… waiting for the firmware to answer."
+msgstr "Testando… aguarde as respostas do firmware."
+
+#: src/zebtrack/ui/components/arduino_bindings_panel.py:419
+#, python-brace-format
+#| msgid "Failure: {error}"
+msgid "Test failed: {error}"
+msgstr "Falha ao testar: {error}"
+
+#: src/zebtrack/ui/components/arduino_bindings_panel.py:425
+msgid "enter"
+msgstr "entrar"
+
+#: src/zebtrack/ui/components/arduino_bindings_panel.py:425
+#| msgid "Exit"
+msgid "exit"
+msgstr "sair"
+
+#: src/zebtrack/ui/components/arduino_bindings_panel.py:428
+#, python-brace-format
+msgid "{name} {edge} → {token} → (no reply)"
+msgstr "{name} {edge} → {token} → (sem resposta)"
+
+#: src/zebtrack/ui/components/arduino_bindings_panel.py:444
+#, python-brace-format
+msgid ""
+"{count} problem(s): an ENTER must switch on and an EXIT must switch off. The"
+" reference sketch pairs 1/2, 3/4, 5/6, 7/8."
+msgstr ""
+"{count} problema(s): uma ENTRADA deve ligar e uma SAÍDA desligar. O sketch "
+"de referência pareia 1/2, 3/4, 5/6, 7/8."
+
+#: src/zebtrack/ui/components/arduino_bindings_panel.py:525
+#, python-brace-format
+msgid "Invalid token: '{value}'. Use a whole number."
+msgstr "Token inválido: '{value}'. Use um número inteiro."
+
+#: src/zebtrack/ui/components/arduino_bindings_panel.py:529
+#, python-brace-format
+msgid "Token out of range [{minimum}, {maximum}]: {value}."
+msgstr "Token fora do intervalo [{minimum}, {maximum}]: {value}."
+
+#: src/zebtrack/ui/components/arduino_dashboard.py:79
+#: src/zebtrack/ui/components/arduino_dashboard.py:419
+msgid "Disconnected"
+msgstr "Desconectado"
+
+#: src/zebtrack/ui/components/arduino_dashboard.py:108
+msgid "Arduino Dashboard"
+msgstr "Dashboard Arduino"
+
+#: src/zebtrack/ui/components/arduino_dashboard.py:141
+msgid "Last command:"
+msgstr "Último comando:"
+
+#: src/zebtrack/ui/components/arduino_dashboard.py:146
+msgid "Recent events:"
+msgstr "Eventos recentes:"
+
+#: src/zebtrack/ui/components/arduino_dashboard.py:172
+msgid "Clear Log"
+msgstr "Limpar Log"
+
+#: src/zebtrack/ui/components/arduino_dashboard.py:178
+msgid "🔄 Recheck Ports"
+msgstr "🔄 Reverificar Portas"
+
+#: src/zebtrack/ui/components/arduino_dashboard.py:210
+#, python-brace-format
+msgid "Arduino connected ({port})"
+msgstr "Arduino conectado ({port})"
+
+#: src/zebtrack/ui/components/arduino_dashboard.py:212
+msgid "Arduino connected"
+msgstr "Arduino conectado"
+
+# | msgid "Remove reports"
+#: src/zebtrack/ui/components/arduino_dashboard.py:234
+#| msgid "Not reported"
+msgid "No Port Detected"
+msgstr "Nenhuma Porta Detectada"
+
+#: src/zebtrack/ui/components/arduino_dashboard.py:236
+msgid ""
+"No serial port was detected.\n"
+"\n"
+"Check that:\n"
+"• The Arduino is connected via USB\n"
+"• The drivers are correctly installed\n"
+"• The port is not in use by another program"
+msgstr ""
+"Nenhuma porta serial foi detectada.\n"
+"\n"
+"Verifique se:\n"
+"• O Arduino está conectado via USB\n"
+"• Os drivers estão instalados corretamente\n"
+"• A porta não está sendo usada por outro programa"
+
+#: src/zebtrack/ui/components/arduino_dashboard.py:243
+msgid "✗ Recheck: no port detected"
+msgstr "✗ Reverificação: Nenhuma porta detectada"
+
+#: src/zebtrack/ui/components/arduino_dashboard.py:249
+#| msgid "OpenVINO device:"
+msgid "Serial Device"
+msgstr "Dispositivo Serial"
+
+#: src/zebtrack/ui/components/arduino_dashboard.py:254
+msgid "Select Arduino Port"
+msgstr "Selecionar Porta Arduino"
+
+#: src/zebtrack/ui/components/arduino_dashboard.py:255
+#, python-brace-format
+msgid ""
+"Detected {count} serial port(s).\n"
+"\n"
+"Available ports:\n"
+msgstr ""
+"Detectadas {count} porta(s) serial.\n"
+"\n"
+"Portas disponíveis:\n"
+
+#: src/zebtrack/ui/components/arduino_dashboard.py:259
+msgid ""
+"\n"
+"\n"
+"Type the port name (e.g. COM3):"
+msgstr ""
+"\n"
+"\n"
+"Digite o nome da porta (ex: COM3):"
+
+# | msgid "Invalid selection"
+#: src/zebtrack/ui/components/arduino_dashboard.py:271
+#| msgid "Invalid target"
+msgid "Invalid Port"
+msgstr "Porta Inválida"
+
+#: src/zebtrack/ui/components/arduino_dashboard.py:273
+#, python-brace-format
+msgid ""
+"Port '{port}' is not among the detected ports.\n"
+"\n"
+"Valid ports: {valid}"
+msgstr ""
+"A porta '{port}' não está entre as portas detectadas.\n"
+"\n"
+"Portas válidas: {valid}"
+
+#: src/zebtrack/ui/components/arduino_dashboard.py:287
+#, python-brace-format
+msgid "✓ Port updated: {old} → {new}"
+msgstr "✓ Porta atualizada: {old} → {new}"
+
+# | msgid "Remove reports"
+#: src/zebtrack/ui/components/arduino_dashboard.py:288
+#| msgid "Not reported"
+msgid "no port"
+msgstr "nenhuma"
+
+#: src/zebtrack/ui/components/arduino_dashboard.py:291
+#| msgid "Serial connection to the Arduino was lost."
+msgid "  Reconnecting the Arduino on the new port..."
+msgstr "  Reconectando o Arduino na nova porta..."
+
+# | msgid "Project Loaded"
+#: src/zebtrack/ui/components/arduino_dashboard.py:307
+#| msgid "No Project Loaded"
+msgid "No project is currently loaded."
+msgstr "Nenhum projeto está carregado no momento."
+
+#: src/zebtrack/ui/components/arduino_dashboard.py:313
+msgid ""
+"The pyserial library is not installed.\n"
+"\n"
+"Run: pip install pyserial"
+msgstr ""
+"A biblioteca pyserial não está instalada.\n"
+"\n"
+"Execute: pip install pyserial"
+
+# | msgid "No effective weight available."
+#: src/zebtrack/ui/components/arduino_dashboard.py:315
+#| msgid "Project manager not available."
+msgid "✗ pyserial not available"
+msgstr "✗ pyserial não disponível"
+
+#: src/zebtrack/ui/components/arduino_dashboard.py:320
+#, python-brace-format
+msgid ""
+"An error occurred while rechecking ports:\n"
+"\n"
+"{error}"
+msgstr ""
+"Ocorreu um erro ao reverificar portas:\n"
+"\n"
+"{error}"
+
+# | msgid "Settings"
+# | msgid "Apply Settings"
+#: src/zebtrack/ui/components/arduino_dashboard.py:322
+#, python-brace-format
+#| msgid "Error applying settings: {error}"
+msgid "✗ Error during recheck: {error}"
+msgstr "✗ Erro na reverificação: {error}"
+
+#: src/zebtrack/ui/components/arduino_dashboard.py:421
+#, python-brace-format
+#| msgid "Port {port}"
+msgid "Connected ({port})"
+msgstr "Conectado ({port})"
+
+# | msgid "Zones Completed"
+#: src/zebtrack/ui/components/arduino_dashboard.py:423
+#| msgid "Completed"
+msgid "Connected"
+msgstr "Conectado"
+
 #: src/zebtrack/ui/components/config_editor.py:39
 msgid ""
 "⚠️ 'seg_overlap' without 'Save Masks' enabled: the analysis will degrade to "
@@ -2624,11 +3003,13 @@ msgstr "💡 Abre o diálogo de Calibração e Detecção."
 
 #: src/zebtrack/ui/components/config_editor.py:615
 #: src/zebtrack/ui/components/model_diagnostics_panel.py:778
+#: src/zebtrack/ui/components/weight_hardware_manager.py:145
 msgid "Enabled"
 msgstr "Ativado"
 
 #: src/zebtrack/ui/components/config_editor.py:615
 #: src/zebtrack/ui/components/model_diagnostics_panel.py:778
+#: src/zebtrack/ui/components/weight_hardware_manager.py:145
 msgid "Disabled"
 msgstr "Desativado"
 
@@ -3121,11 +3502,13 @@ msgstr "Zebrafish"
 
 # | msgid "Settings"
 #: src/zebtrack/ui/components/global_model_configuration_panel.py:34
+#: src/zebtrack/ui/components/weight_hardware_manager.py:86
 msgid "Segmentation"
 msgstr "Segmentação"
 
 # | msgid "Invalid selection"
 #: src/zebtrack/ui/components/global_model_configuration_panel.py:34
+#: src/zebtrack/ui/components/weight_hardware_manager.py:86
 msgid "Detection"
 msgstr "Detecção"
 
@@ -4650,6 +5033,95 @@ msgstr "Settings não disponível. Configurações não foram salvas."
 #, python-brace-format
 msgid "Error applying settings: {error}"
 msgstr "Erro ao aplicar configurações: {error}"
+
+# | msgid "Delete {asset}"
+#: src/zebtrack/ui/components/weight_hardware_manager.py:59
+#, python-brace-format
+#| msgid "Delete {type}"
+msgid "Model Type"
+msgstr "Tipo do Modelo"
+
+#: src/zebtrack/ui/components/weight_hardware_manager.py:61
+msgid ""
+"The model type could not be determined automatically.\n"
+"Type 'seg' for Segmentation or 'det' for Detection:"
+msgstr ""
+"O tipo do modelo não pôde ser determinado automaticamente.\n"
+"Digite 'seg' para Segmentação ou 'det' para Detecção:"
+
+#: src/zebtrack/ui/components/weight_hardware_manager.py:89
+#| msgid "No weights found."
+msgid "New Weight Found"
+msgstr "Novo Peso Encontrado"
+
+#: src/zebtrack/ui/components/weight_hardware_manager.py:91
+#, python-brace-format
+msgid ""
+"File '{filename}' was identified as a {type} model.\n"
+"\n"
+"Do you want to set it as the new default for {type}?\n"
+"Yes: set as default\n"
+"No: only add it to the list\n"
+"Cancel: abort the operation"
+msgstr ""
+"O arquivo '{filename}' foi identificado como modelo de {type}.\n"
+"\n"
+"Deseja defini-lo como o novo padrão para {type}?\n"
+"Sim: Define como padrão\n"
+"Não: Apenas adiciona à lista\n"
+"Cancelar: Aborta a operação"
+
+#: src/zebtrack/ui/components/weight_hardware_manager.py:188
+#, python-brace-format
+#| msgid ""
+#| "\" \"{message}\n"
+#| "\" \"\n"
+#| "\" \"Video: {name}"
+msgid "device: {name}"
+msgstr "dispositivo: {name}"
+
+# | msgid "Error Saving to Project"
+# | msgid "Error Starting Processing"
+#: src/zebtrack/ui/components/weight_hardware_manager.py:240
+#| msgid "Error Deleting Weight"
+msgid "Model: error querying weights"
+msgstr "Modelo: erro ao consultar pesos"
+
+# | msgid "Remove video from project"
+#: src/zebtrack/ui/components/weight_hardware_manager.py:244
+#| msgid "No video found in the project"
+msgid "Model (in use in this project):"
+msgstr "Modelo (em uso neste projeto):"
+
+# | msgid "Restore Defaults (Restart)"
+#: src/zebtrack/ui/components/weight_hardware_manager.py:244
+#| msgid "project default (default)"
+msgid "Model (defaults):"
+msgstr "Modelo (defaults):"
+
+#: src/zebtrack/ui/components/weight_hardware_manager.py:247
+#| msgid "No weights found."
+msgid "No weight configured."
+msgstr "Nenhum peso configurado."
+
+#: src/zebtrack/ui/components/weight_hardware_manager.py:289
+msgid "CPU only"
+msgstr "CPU apenas"
+
+# | msgid "Failure: {error}"
+#: src/zebtrack/ui/components/weight_hardware_manager.py:323
+#, python-brace-format
+#| msgid ""
+#| "\" \"\n"
+#| "\" \"\n"
+#| "\" \"❌ Failures: {names}"
+msgid "Hardware: {name}"
+msgstr "Hardware: {name}"
+
+#: src/zebtrack/ui/components/weight_hardware_manager.py:325
+#, python-brace-format
+msgid "Hardware: {name}{npu} (recommended: {backend})"
+msgstr "Hardware: {name}{npu} (recomendado: {backend})"
 
 # | msgid "Auto-detected polygon"
 #: src/zebtrack/ui/components/zone_context_panel.py:46

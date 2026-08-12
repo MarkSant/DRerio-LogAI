@@ -11,6 +11,8 @@ from typing import TYPE_CHECKING
 
 import structlog
 
+from zebtrack.i18n import _
+
 if TYPE_CHECKING:
     from tkinter import StringVar
 
@@ -54,18 +56,22 @@ class WeightHardwareManager:
         from tkinter import simpledialog
 
         weight_type = simpledialog.askstring(
-            "Tipo do Modelo",
-            "O tipo do modelo não pôde ser determinado automaticamente.\n"
-            "Digite 'seg' para Segmentação ou 'det' para Detecção:",
+            _("Model Type"),
+            _(
+                "The model type could not be determined automatically.\n"
+                "Type 'seg' for Segmentation or 'det' for Detection:"
+            ),
             parent=self.gui.root,
         )
 
         if weight_type:
-            # Normalize input
+            # Prefix matching rather than an exact word list: the prompt is
+            # translated, so the operator may type "segmentation", "segmentação"
+            # or "segmentacao" depending on the installed language and keyboard.
             weight_type = weight_type.lower().strip()
-            if weight_type in ["seg", "segmentation", "segmentação"]:
+            if weight_type.startswith("seg"):
                 weight_type = "seg"
-            elif weight_type in ["det", "detection", "detecção"]:
+            elif weight_type.startswith("det"):
                 weight_type = "det"
 
             # Resume workflow
@@ -77,15 +83,17 @@ class WeightHardwareManager:
         """Handle request for action on new weight."""
         from tkinter import messagebox
 
-        type_label = "Segmentação" if weight_type == "seg" else "Detecção"
+        type_label = _("Segmentation") if weight_type == "seg" else _("Detection")
 
         response = messagebox.askyesnocancel(
-            "Novo Peso Encontrado",
-            f"O arquivo '{Path(filepath).name}' foi identificado como modelo de {type_label}.\n\n"
-            f"Deseja defini-lo como o novo padrão para {type_label}?\n"
-            "Sim: Define como padrão\n"
-            "Não: Apenas adiciona à lista\n"
-            "Cancelar: Aborta a operação",
+            _("New Weight Found"),
+            _(
+                "File '{filename}' was identified as a {type} model.\n\n"
+                "Do you want to set it as the new default for {type}?\n"
+                "Yes: set as default\n"
+                "No: only add it to the list\n"
+                "Cancel: abort the operation"
+            ).format(filename=Path(filepath).name, type=type_label),
             parent=self.gui.root,
         )
 
@@ -134,7 +142,7 @@ class WeightHardwareManager:
         self._refresh_openvino_summary()
 
     def _refresh_openvino_summary(self) -> None:
-        state_text = "Ativado" if self.gui._openvino_enabled else "Desativado"
+        state_text = _("Enabled") if self.gui._openvino_enabled else _("Disabled")
         status_text = self.gui._openvino_status_message.strip()
         device_text = self._get_openvino_device_label()
 
@@ -177,7 +185,7 @@ class WeightHardwareManager:
         if settings_obj and hasattr(settings_obj, "openvino"):
             raw_device = getattr(settings_obj.openvino, "device", "")
             if isinstance(raw_device, str) and raw_device.strip():
-                return f"dispositivo: {raw_device.strip().upper()}"
+                return _("device: {name}").format(name=raw_device.strip().upper())
 
         return ""
 
@@ -229,12 +237,14 @@ class WeightHardwareManager:
         # except Exception justified: status panel must never crash on bad data.
         except Exception as exc:
             log.warning("weight_hardware_manager.summary.failed", error=str(exc))
-            self._active_display_var.set("Modelo: erro ao consultar pesos")
+            self._active_display_var.set(_("Model: error querying weights"))
             return
 
-        header = "Modelo (em uso neste projeto):" if scope == "project" else "Modelo (defaults):"
+        header = (
+            _("Model (in use in this project):") if scope == "project" else _("Model (defaults):")
+        )
         if not summary:
-            self._active_display_var.set(f"{header}\n  Nenhum peso configurado.")
+            self._active_display_var.set(f"{header}\n  " + _("No weight configured."))
             return
 
         lines = [header]
@@ -276,7 +286,11 @@ class WeightHardwareManager:
 
     def update_gpu_hardware_display(self, hardware_summary: dict) -> None:
         """Update the GPU hardware information shown in the UI."""
-        gpu_name = "CPU apenas"
+        gpu_name = _("CPU only")
+        # Tracked as a flag rather than re-read from ``gpu_name`` further down:
+        # the label is translated, so ``"CPU" in gpu_name`` would silently pick
+        # the wrong branch in any language that renames it.
+        accelerator_found = False
         recommended_backend = hardware_summary.get("recommended_backend", "pytorch")
         npu_suffix = ""
 
@@ -287,14 +301,17 @@ class WeightHardwareManager:
 
                 if torch.cuda.is_available():
                     gpu_name = torch.cuda.get_device_name(0)
+                    accelerator_found = True
             except (ImportError, RuntimeError):
                 gpu_name = "NVIDIA GPU"
+                accelerator_found = True
         # Then check for Intel/OpenVINO GPU
         elif hardware_summary.get("has_intel_gpu", False):
             openvino_devices = hardware_summary.get("openvino_devices", [])
             gpu_devices = [d for d in openvino_devices if "GPU" in d]
             if gpu_devices:
                 gpu_name = "Intel GPU"
+                accelerator_found = True
 
         # Check for NPU availability
         if hardware_summary.get("has_npu", False):
@@ -302,9 +319,11 @@ class WeightHardwareManager:
 
         # Format display string
         backend_display = "PyTorch" if recommended_backend == "pytorch" else "OpenVINO"
-        if "CPU" in gpu_name and not npu_suffix:
-            display_text = f"Hardware: {gpu_name}"
+        if not accelerator_found and not npu_suffix:
+            display_text = _("Hardware: {name}").format(name=gpu_name)
         else:
-            display_text = f"Hardware: {gpu_name}{npu_suffix} (recomendado: {backend_display})"
+            display_text = _("Hardware: {name}{npu} (recommended: {backend})").format(
+                name=gpu_name, npu=npu_suffix, backend=backend_display
+            )
 
         self._gpu_display_var.set(display_text)

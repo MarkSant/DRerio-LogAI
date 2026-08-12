@@ -343,7 +343,7 @@ class TestArduinoBindingsPanel:
         text = _nn(panel._test_output).cget("text")
         assert "⚠" in text
         assert "Green LED ON" in text
-        assert "1 problema(s)" in text
+        assert "1 problem(s)" in text
 
     def test_test_bindings_reports_missing_ack(self, tkinter_root):
         pd = {"use_arduino": True, "arduino_bindings": [{"roi": "Z1", "on_enter": 1}]}
@@ -353,7 +353,7 @@ class TestArduinoBindingsPanel:
 
         panel._finish_test([(("Z1", "enter", 1), (1, None))], None)
 
-        assert "sem resposta" in _nn(panel._test_output).cget("text")
+        assert "no reply" in _nn(panel._test_output).cget("text")
 
     def test_test_bindings_without_arduino_connected(self, tkinter_root):
         pd = {"use_arduino": True, "arduino_bindings": [{"roi": "Z1", "on_enter": 1}]}
@@ -364,7 +364,7 @@ class TestArduinoBindingsPanel:
 
         panel.test_bindings()
 
-        assert "não conectado" in _nn(panel._test_output).cget("text")
+        assert "not connected" in _nn(panel._test_output).cget("text")
         manager.probe_tokens.assert_not_called()
 
     def test_test_bindings_surfaces_probe_error(self, tkinter_root):
