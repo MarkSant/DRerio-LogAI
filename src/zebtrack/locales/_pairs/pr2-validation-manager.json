@@ -30,6 +30,7 @@
   "Draw the arena or at least one ROI before saving a template.": "Desenhe a arena ou pelo menos uma ROI antes de salvar um template.",
   "Select an active aquarium first.": "Selecione um aquário ativo primeiro.",
   "Could not read the aquarium polygon data.": "Não foi possível obter os dados do polígono do aquário.",
+  "value": "valor",
   "The {field} must be a positive integer.": "O {field} deve ser um número inteiro positivo.",
   "Select a video before applying the template.": "Selecione um vídeo antes de aplicar o template.",
   "Arena": "Arena",

@@ -186,7 +186,7 @@ def test_workflow_no_videos_found(coordinator_setup):
 
     warning_events = [evt for evt in event_bus.events if evt[0] == UIEvents.UI_SHOW_WARNING]
     assert len(warning_events) == 1
-    assert "Nenhum Vídeo Encontrado" in warning_events[0][1].title
+    assert "No Video Found" in warning_events[0][1].title
 
 
 def test_workflow_processes_videos(coordinator_setup):
@@ -218,7 +218,7 @@ def test_workflow_processes_videos(coordinator_setup):
     # Should show success message
     info_events = [evt for evt in event_bus.events if evt[0] == UIEvents.UI_SHOW_INFO]
     assert len(info_events) == 1
-    assert "Sucesso" in info_events[0][1].title
+    assert "Success" in info_events[0][1].title
 
 
 def test_workflow_adds_existing_data_without_reprocessing(coordinator_setup):
@@ -241,7 +241,7 @@ def test_workflow_adds_existing_data_without_reprocessing(coordinator_setup):
     pm.add_video_batch.assert_called_once_with(scanned)
     info_events = [evt for evt in event_bus.events if evt[0] == UIEvents.UI_SHOW_INFO]
     assert len(info_events) == 1
-    assert "Vídeos Adicionados" in info_events[0][1].title
+    assert "Videos Added" in info_events[0][1].title
 
 
 def test_import_workflow_adds_videos_without_processing(coordinator_setup):

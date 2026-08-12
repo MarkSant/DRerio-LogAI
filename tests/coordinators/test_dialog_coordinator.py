@@ -79,7 +79,9 @@ class TestConfirmExit:
         result = dialog_coordinator.confirm_exit()
 
         assert result is True
-        mock_ui_coordinator.ask_ok_cancel.assert_called_once_with("Sair", "Deseja realmente sair?")
+        mock_ui_coordinator.ask_ok_cancel.assert_called_once_with(
+            "Exit", "Do you really want to exit?"
+        )
 
     def test_confirm_exit_no(self, dialog_coordinator, mock_ui_coordinator):
         """Testa confirmação de saída quando usuário cancela."""
@@ -244,6 +246,6 @@ class TestShowProcessingSkippedInfo:
         coordinator._show_processing_skipped_info()
 
         mock_ui_coordinator.show_info.assert_called_once_with(
-            "Processamento Ignorado",
-            "Nenhum novo vídeo foi processado.",
+            "Processing Skipped",
+            "No new video was processed.",
         )
