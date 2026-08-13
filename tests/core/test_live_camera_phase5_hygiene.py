@@ -98,7 +98,7 @@ def test_publish_video_drop_status_emits_status_event(
     # carries the drop count and a hint about the disk.
     payload = event.data
     assert "7" in payload.message
-    assert "verifique" in payload.message.lower()
+    assert "check the disk" in payload.message.lower()
 
 
 def test_publish_video_drop_status_silent_without_event_bus(

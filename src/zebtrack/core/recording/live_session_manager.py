@@ -17,6 +17,8 @@ from typing import TYPE_CHECKING, Any
 
 import structlog
 
+from zebtrack.i18n import _
+
 if TYPE_CHECKING:
     from zebtrack.core.detection.multi_aquarium_detector import MultiAquariumDetector
     from zebtrack.core.main_view_model import MainViewModel
@@ -328,27 +330,27 @@ class LiveSessionManagerMixin:
 
         # Show initialization status
         if self.preview_window:
-            self.preview_window.update_status_text("⏳ Aquecendo câmera...", color="orange")
+            self.preview_window.update_status_text(_("⏳ Warming up camera..."), color="orange")
 
         # Setup camera
         if not self._setup_camera(camera_index):
             import os
 
             if os.environ.get("PYTEST_CURRENT_TEST") is None:
-                error_msg = (
-                    f"Falha ao abrir câmera {camera_index}.\n\n"
-                    f"Possíveis causas:\n"
-                    f"• Câmera está em uso por outro programa\n"
-                    f"• Hardware com defeito\n"
-                    f"• Driver incompatível\n\n"
-                    f"Tente:\n"
-                    f"• Fechar outros programas de câmera\n"
-                    f"• Reconectar o dispositivo USB\n"
-                    f"• Selecionar outra câmera"
-                )
+                error_msg = _(
+                    "Failed to open camera {index}.\n\n"
+                    "Possible causes:\n"
+                    "• The camera is in use by another program\n"
+                    "• Faulty hardware\n"
+                    "• Incompatible driver\n\n"
+                    "Try:\n"
+                    "• Closing other camera programs\n"
+                    "• Reconnecting the USB device\n"
+                    "• Selecting a different camera"
+                ).format(index=camera_index)
                 import tkinter.messagebox as messagebox
 
-                messagebox.showerror("Erro na Câmera", error_msg)
+                messagebox.showerror(_("Camera Error"), error_msg)
             return False
 
         # Store camera properties for later use (post-analysis)
@@ -454,7 +456,9 @@ class LiveSessionManagerMixin:
                     use_openvino=resolved_openvino,
                 )
 
-            success, _ = self.detector_service.initialize_detector(
+            # NOT `success, _ =`: binding `_` locally shadows the gettext alias
+            # for the WHOLE function, including the calls above it.
+            success, _detector = self.detector_service.initialize_detector(
                 animal_method=animal_method,
                 use_openvino=resolved_openvino,
                 perspective=perspective,
@@ -684,9 +688,11 @@ class LiveSessionManagerMixin:
         # Update status
         if self.preview_window:
             if self._aquarium_detection_phase:
-                self.preview_window.update_status_text("🔍 Procurando aquário...", color="yellow")
+                self.preview_window.update_status_text(
+                    _("🔍 Looking for the aquarium..."), color="yellow"
+                )
             else:
-                self.preview_window.update_status_text("⏳ Aguardando vídeo...", color="orange")
+                self.preview_window.update_status_text(_("⏳ Waiting for video..."), color="orange")
 
         log.info("live_camera_service.session_started", output_dir=str(output_dir))
         return True
@@ -1111,8 +1117,12 @@ class LiveSessionManagerMixin:
         from zebtrack.ui.payloads import StatusPayload
 
         message = (
-            f"⚠️ Vídeo: {self._dropped_frames_video} frame(s) descartado(s) — "
-            "verifique o disco / OneDrive (gravação pode ter falhas)"
+            _("⚠️ Video: 1 frame dropped — check the disk / OneDrive (the recording may have gaps)")
+            if self._dropped_frames_video == 1
+            else _(
+                "⚠️ Video: {count} frames dropped — check the disk / OneDrive "
+                "(the recording may have gaps)"
+            ).format(count=self._dropped_frames_video)
         )
         log.warning(
             "live_camera_service.video_drop_status",
@@ -1135,13 +1145,17 @@ class LiveSessionManagerMixin:
         from zebtrack.ui.payloads import StatusPayload
 
         if lag_seconds < 2.0:
-            status_msg = f"⏳ Analisando... ({lag_seconds:.1f}s atrás) - Gravação OK"
-        elif lag_seconds < 5.0:
-            status_msg = f"⏳ Análise atrasada ({lag_seconds:.1f}s) - Gravação continua normalmente"
-        else:
-            status_msg = (
-                f"⚠️ Análise muito atrasada ({lag_seconds:.1f}s) - Gravação OK, análise em fila"
+            status_msg = _("⏳ Analysing... ({seconds:.1f}s behind) - Recording OK").format(
+                seconds=lag_seconds
             )
+        elif lag_seconds < 5.0:
+            status_msg = _(
+                "⏳ Analysis is behind ({seconds:.1f}s) - Recording continues normally"
+            ).format(seconds=lag_seconds)
+        else:
+            status_msg = _(
+                "⚠️ Analysis is far behind ({seconds:.1f}s) - Recording OK, analysis queued"
+            ).format(seconds=lag_seconds)
 
         log.debug(
             "live_camera_service.analysis_lag_status",

@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: DRerio LogAI VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-08-13 13:24-0300\n"
+"POT-Creation-Date: 2026-08-13 13:37-0300\n"
 "PO-Revision-Date: 2026-08-08 21:41-0300\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: pt_BR <LL@li.org>\n"
@@ -209,6 +209,8 @@ msgstr "Vídeo Único"
 #: src/zebtrack/coordinators/model_diagnostics_coordinator.py:474
 #: src/zebtrack/coordinators/model_diagnostics_coordinator.py:619
 #: src/zebtrack/coordinators/project_lifecycle_coordinator.py:416
+#: src/zebtrack/core/recording/recording_service.py:154
+#: src/zebtrack/core/recording/recording_service.py:207
 #: src/zebtrack/ui/builders/analysis_widgets.py:240
 #: src/zebtrack/ui/builders/analysis_widgets.py:354
 #: src/zebtrack/ui/builders/analysis_widgets.py:471
@@ -1815,6 +1817,320 @@ msgid ""
 msgstr ""
 "Recomendado mas modelo não convertido. Use 'Diagnóstico' para converter."
 
+# | msgid "Analysing frame {current}/{total}..."
+# | msgid "Processing aquarium {current}/{total}..."
+#: src/zebtrack/core/recording/frame_processing_pipeline.py:684
+#, python-brace-format
+msgid "🔍 Detecting aquarium... ({current}/{total})"
+msgstr "🔍 Detectando aquário... ({current}/{total})"
+
+#: src/zebtrack/core/recording/live_analysis_post_processor.py:628
+#, python-brace-format
+msgid ""
+"✅ Camera analysis completed successfully!\n"
+"\n"
+"📊 Statistics:\n"
+"  • Frames processed: {frames}\n"
+"  • Total detections: {detections}\n"
+"  • Unique tracks: {tracks}\n"
+"\n"
+"📁 Data saved to:\n"
+"{output_dir}\n"
+"\n"
+"💡 Files generated:\n"
+"  • *_trajectory.parquet (trajectory)\n"
+"  • *_zones.parquet (zones)\n"
+"  • *.mp4/.avi (recorded video)"
+msgstr ""
+"✅ Análise de câmera concluída com sucesso!\n"
+"\n"
+"📊 Estatísticas:\n"
+"  • Frames processados: {frames}\n"
+"  • Detecções totais: {detections}\n"
+"  • Trilhas únicas: {tracks}\n"
+"\n"
+"📁 Dados salvos em:\n"
+"{output_dir}\n"
+"\n"
+"💡 Arquivos gerados:\n"
+"  • *_trajectory.parquet (trajetória)\n"
+"  • *_zones.parquet (zonas)\n"
+"  • *.mp4/.avi (vídeo gravado)"
+
+# | msgid "Zones Completed"
+#: src/zebtrack/core/recording/live_analysis_post_processor.py:644
+msgid "Analysis Completed"
+msgstr "Análise Concluída"
+
+#: src/zebtrack/core/recording/live_analysis_post_processor.py:647
+#, python-brace-format
+msgid ""
+"⚠️ Recording completed, but no detection was found.\n"
+"\n"
+"Possible causes:\n"
+"  • No detectable object in the field of view\n"
+"  • Arena too restrictive\n"
+"  • Confidence threshold too high\n"
+"\n"
+"📁 Data saved to:\n"
+"{output_dir}"
+msgstr ""
+"⚠️ Gravação concluída, mas nenhuma detecção foi encontrada.\n"
+"\n"
+"Possíveis causas:\n"
+"  • Nenhum objeto detectável no campo de visão\n"
+"  • Arena muito restritiva\n"
+"  • Limiar de confiança muito alto\n"
+"\n"
+"📁 Dados salvos em:\n"
+"{output_dir}"
+
+#: src/zebtrack/core/recording/live_analysis_post_processor.py:654
+msgid "Analysis Completed - No Detections"
+msgstr "Análise Concluída - Sem Detecções"
+
+#: src/zebtrack/core/recording/live_analysis_post_processor.py:657
+#, python-brace-format
+msgid ""
+"⚠️ Recording completed, but the automatic analysis failed.\n"
+"\n"
+"📁 Raw data saved to:\n"
+"{output_dir}\n"
+"\n"
+"You can analyse it manually through the interface."
+msgstr ""
+"⚠️ Gravação concluída, mas a análise automática falhou.\n"
+"\n"
+"📁 Dados brutos salvos em:\n"
+"{output_dir}\n"
+"\n"
+"Você pode analisar manualmente pela interface."
+
+# | msgid "Recording Pending"
+#: src/zebtrack/core/recording/live_analysis_post_processor.py:661
+msgid "Recording Completed"
+msgstr "Gravação Concluída"
+
+# | msgid "" "Excellent system! Supports 4+ aquariums simultaneously at high "
+# | "performance."
+#: src/zebtrack/core/recording/live_camera_mode.py:132
+#, python-brace-format
+msgid ""
+"The system supports {count} aquariums simultaneously. Real-time processing "
+"enabled."
+msgstr ""
+"Sistema suporta {count} aquários simultaneamente. Processamento em tempo "
+"real habilitado."
+
+#: src/zebtrack/core/recording/live_camera_mode.py:140
+msgid "Record without detection (better quality, process later)"
+msgstr "Gravar sem detecção (melhor qualidade, processar depois)"
+
+#: src/zebtrack/core/recording/live_camera_mode.py:167
+#, python-brace-format
+msgid ""
+"The system supports only {supported} of the {requested} aquariums requested "
+"for simultaneous processing. "
+msgstr ""
+"O sistema suporta apenas {supported} dos {requested} aquários solicitados "
+"para processamento simultâneo. "
+
+#: src/zebtrack/core/recording/live_camera_mode.py:172
+#, python-brace-format
+msgid "Recommended: record {count} separate sessions."
+msgstr "Recomendado: gravar {count} sessões separadas."
+
+#: src/zebtrack/core/recording/live_camera_mode.py:176
+msgid "Recommended: process only 1 aquarium in this session."
+msgstr "Recomendado: processar apenas 1 aquário nesta sessão."
+
+#: src/zebtrack/core/recording/live_camera_mode.py:183
+msgid "Process only 1 aquarium now (ignore the rest)"
+msgstr "Processar apenas 1 aquário agora (ignorar demais)"
+
+#: src/zebtrack/core/recording/live_camera_mode.py:190
+#, python-brace-format
+msgid "Split into {count} separate sessions"
+msgstr "Dividir em {count} sessões separadas"
+
+#: src/zebtrack/core/recording/live_camera_mode.py:199
+msgid "Record without detection (process offline later)"
+msgstr "Gravar sem detecção (processar offline depois)"
+
+# | msgid "System supports up to 2 aquariums simultaneously."
+#: src/zebtrack/core/recording/live_camera_mode.py:204
+#, python-brace-format
+msgid "⚠️ The system does not support {count} aquariums simultaneously."
+msgstr "⚠️ Sistema não suporta {count} aquários simultaneamente."
+
+#: src/zebtrack/core/recording/live_camera_mode.py:210
+msgid "Maximum supported: 1 aquarium."
+msgstr "Máximo suportado: 1 aquário."
+
+# | msgid "Aquarium"
+# | msgid "Next Aquarium"
+# | msgid "{name} ({count} aquariums)"
+#: src/zebtrack/core/recording/live_camera_mode.py:212
+#, python-brace-format
+msgid "Maximum supported: {count} aquariums."
+msgstr "Máximo suportado: {count} aquários."
+
+# | msgid "" "System insufficient for real-time processing. Recommended:
+# record
+# | video " "only and process offline."
+#: src/zebtrack/core/recording/live_camera_mode.py:230
+msgid ""
+"The system is not sufficient for real-time processing. Recommended: record "
+"the video and process it offline."
+msgstr ""
+"Sistema insuficiente para processamento em tempo real. Recomendado: gravar "
+"vídeo e processar offline."
+
+#: src/zebtrack/core/recording/live_camera_mode.py:235
+msgid "⚠️ INSUFFICIENT HARDWARE for real-time detection."
+msgstr "⚠️ HARDWARE INSUFICIENTE para detecção em tempo real."
+
+#: src/zebtrack/core/recording/live_camera_mode.py:236
+#, python-brace-format
+msgid "CPU: {cores} cores (minimum 2)"
+msgstr "CPU: {cores} cores (mínimo 2)"
+
+#: src/zebtrack/core/recording/live_camera_mode.py:237
+#, python-brace-format
+msgid "RAM: {gb:.1f}GB available (minimum 4GB)"
+msgstr "RAM: {gb:.1f}GB disponível (mínimo 4GB)"
+
+#: src/zebtrack/core/recording/live_camera_mode.py:246
+msgid "Record video without detection (only viable option)"
+msgstr "Gravar vídeo sem detecção (única opção viável)"
+
+# | msgid "Delete {asset}"
+# | msgid "Delete Selected"
+#: src/zebtrack/core/recording/live_camera_mode.py:266
+msgid "Default mode selected."
+msgstr "Modo padrão selecionado."
+
+#: src/zebtrack/core/recording/live_camera_mode.py:292
+#, python-brace-format
+msgid "Session {index} of {total} (individual aquarium)"
+msgstr "Sessão {index} de {total} (aquário individual)"
+
+#: src/zebtrack/core/recording/live_camera_mode.py:320
+msgid "Process multiple aquariums simultaneously in real time"
+msgstr "Processar múltiplos aquários simultaneamente em tempo real"
+
+# | msgid "Analysing frame {current}/{total}..."
+# | msgid "Processing aquarium {current}/{total}..."
+#: src/zebtrack/core/recording/live_camera_mode.py:322
+msgid "Process one aquarium in real time"
+msgstr "Processar um aquário em tempo real"
+
+#: src/zebtrack/core/recording/live_camera_mode.py:323
+msgid "Record video without detection (process offline later)"
+msgstr "Gravar vídeo sem detecção (processar offline depois)"
+
+#: src/zebtrack/core/recording/live_camera_mode.py:324
+msgid "Record multiple sessions, one per aquarium"
+msgstr "Gravar múltiplas sessões, uma por aquário"
+
+# | msgid "unknown"
+#: src/zebtrack/core/recording/live_camera_mode.py:326
+msgid "Unknown mode"
+msgstr "Modo desconhecido"
+
+#: src/zebtrack/core/recording/live_session_manager.py:333
+msgid "⏳ Warming up camera..."
+msgstr "⏳ Aquecendo câmera..."
+
+#: src/zebtrack/core/recording/live_session_manager.py:341
+#, python-brace-format
+msgid ""
+"Failed to open camera {index}.\n"
+"\n"
+"Possible causes:\n"
+"• The camera is in use by another program\n"
+"• Faulty hardware\n"
+"• Incompatible driver\n"
+"\n"
+"Try:\n"
+"• Closing other camera programs\n"
+"• Reconnecting the USB device\n"
+"• Selecting a different camera"
+msgstr ""
+"Falha ao abrir câmera {index}.\n"
+"\n"
+"Possíveis causas:\n"
+"• Câmera está em uso por outro programa\n"
+"• Hardware com defeito\n"
+"• Driver incompatível\n"
+"\n"
+"Tente:\n"
+"• Fechar outros programas de câmera\n"
+"• Reconectar o dispositivo USB\n"
+"• Selecionar outra câmera"
+
+# | msgid "Error"
+# | msgid "Model Error"
+#: src/zebtrack/core/recording/live_session_manager.py:353
+#: src/zebtrack/ui/components/project_initializer.py:396
+msgid "Camera Error"
+msgstr "Erro na Câmera"
+
+# | msgid "Select an active aquarium first."
+# | msgid "🐟 Active Aquarium"
+# | msgid "Draw the Aquarium"
+#: src/zebtrack/core/recording/live_session_manager.py:690
+msgid "🔍 Looking for the aquarium..."
+msgstr "🔍 Procurando aquário..."
+
+#: src/zebtrack/core/recording/live_session_manager.py:694
+msgid "⏳ Waiting for video..."
+msgstr "⏳ Aguardando vídeo..."
+
+#: src/zebtrack/core/recording/live_session_manager.py:1120
+msgid ""
+"⚠️ Video: 1 frame dropped — check the disk / OneDrive (the recording may "
+"have gaps)"
+msgstr ""
+"⚠️ Vídeo: 1 frame descartado — verifique o disco / OneDrive (gravação pode "
+"ter falhas)"
+
+#: src/zebtrack/core/recording/live_session_manager.py:1123
+#, python-brace-format
+msgid ""
+"⚠️ Video: {count} frames dropped — check the disk / OneDrive (the recording "
+"may have gaps)"
+msgstr ""
+"⚠️ Vídeo: {count} frames descartados — verifique o disco / OneDrive "
+"(gravação pode ter falhas)"
+
+#: src/zebtrack/core/recording/live_session_manager.py:1148
+#, python-brace-format
+msgid "⏳ Analysing... ({seconds:.1f}s behind) - Recording OK"
+msgstr "⏳ Analisando... ({seconds:.1f}s atrás) - Gravação OK"
+
+#: src/zebtrack/core/recording/live_session_manager.py:1153
+#, python-brace-format
+msgid "⏳ Analysis is behind ({seconds:.1f}s) - Recording continues normally"
+msgstr "⏳ Análise atrasada ({seconds:.1f}s) - Gravação continua normalmente"
+
+#: src/zebtrack/core/recording/live_session_manager.py:1157
+#, python-brace-format
+msgid ""
+"⚠️ Analysis is far behind ({seconds:.1f}s) - Recording OK, analysis queued"
+msgstr ""
+"⚠️ Análise muito atrasada ({seconds:.1f}s) - Gravação OK, análise em fila"
+
+#: src/zebtrack/core/recording/recording_service.py:155
+msgid "Camera configuration unavailable to start the recording."
+msgstr "Configuração da câmera indisponível para iniciar a gravação."
+
+# | msgid "Could not save language"
+# | msgid "Could not save the zone."
+#: src/zebtrack/core/recording/recording_service.py:207
+msgid "Could not start the recording."
+msgstr "Não foi possível iniciar a gravação."
+
 #: src/zebtrack/io/arduino_manager.py:140
 #, python-brace-format
 msgid "Could not connect to the Arduino on port {port}."
@@ -1834,8 +2150,8 @@ msgid "Serial connection to the Arduino was lost."
 msgstr "Conexão serial com Arduino perdida."
 
 # | msgid "unknown"
+# | msgid "Unknown error"
 #: src/zebtrack/ui/gui.py:145
-#| msgid "Unknown error"
 msgid "An unknown error occurred."
 msgstr "Ocorreu um erro desconhecido."
 
@@ -1980,22 +2296,22 @@ msgstr "Primeira execução — otimizando para seu hardware..."
 msgid "Camera reconnected (gap: {seconds:.1f}s)"
 msgstr "Câmera reconectada (gap: {seconds:.1f}s)"
 
-#: src/zebtrack/ui/ui_coordinator.py:825
+#: src/zebtrack/ui/ui_coordinator.py:823
 #, python-brace-format
 msgid "Detecting aquarium: frame {frame}/100"
 msgstr "Detectando aquário: frame {frame}/100"
 
 # | msgid "Remove the trajectory generated for this video?"
-#: src/zebtrack/ui/ui_coordinator.py:879
+# | msgid "Reports generated for {count} videos."
+#: src/zebtrack/ui/ui_coordinator.py:877
 #, python-brace-format
-#| msgid "Reports generated for {count} videos."
 msgid "Batch report generated ({count} session): {batch_id}"
 msgstr "Relatório de lote gerado ({count} sessão): {batch_id}"
 
 # | msgid "Remove the trajectory generated for this video?"
-#: src/zebtrack/ui/ui_coordinator.py:881
+# | msgid "Reports generated for {count} videos."
+#: src/zebtrack/ui/ui_coordinator.py:879
 #, python-brace-format
-#| msgid "Reports generated for {count} videos."
 msgid "Batch report generated ({count} sessions): {batch_id}"
 msgstr "Relatório de lote gerado ({count} sessões): {batch_id}"
 
@@ -5499,12 +5815,6 @@ msgstr ""
 "A câmera salva no projeto ('{name}') não foi detectada.\n"
 "\n"
 "As gravações irão falhar até você selecionar outra câmera. Use 'Trocar câmera...' no bloco do animal antes de iniciar a sessão para escolher um dispositivo conectado."
-
-# | msgid "Error"
-# | msgid "Model Error"
-#: src/zebtrack/ui/components/project_initializer.py:396
-msgid "Camera Error"
-msgstr "Erro na Câmera"
 
 # | msgid "Error"
 # | msgid "Model Error"

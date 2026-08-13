@@ -16,6 +16,8 @@ import cv2
 import numpy as np
 import structlog
 
+from zebtrack.i18n import _
+
 if TYPE_CHECKING:
     from zebtrack.core.detection.multi_aquarium_detector import MultiAquariumDetector
     from zebtrack.core.main_view_model import MainViewModel
@@ -679,16 +681,19 @@ class FrameProcessingMixin:
 
                     # Update preview status (Phase 5 / M3 — main-thread bounce)
                     if self.preview_window and frame_number % 5 == 0:
-                        status_msg = (
-                            f"🔍 Detectando aquário... "
-                            f"({self._aquarium_detection_frames}/{self._aquarium_detection_max_frames})"
+                        status_msg = _("🔍 Detecting aquarium... ({current}/{total})").format(
+                            current=self._aquarium_detection_frames,
+                            total=self._aquarium_detection_max_frames,
                         )
                         self._post_preview_status(status_msg, color="yellow")
 
                     # Run detection to find aquarium (class_id=0)
                     detector = self.detector_service.detector
                     if detector:
-                        detections, _ = detector.detect(frame, "live", conf_threshold=0.05)
+                        # NOT `detections, _ =`: binding `_` locally shadows the
+                        # gettext alias for the WHOLE function, including the
+                        # status message a few lines above.
+                        detections, _annotated = detector.detect(frame, "live", conf_threshold=0.05)
 
                     # Collect aquarium bboxes
                     if detector:

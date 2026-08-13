@@ -38,8 +38,14 @@ no topo do ratchet; depois, atualizar a seção "A migração" em
 - [x] Lote 2: `ui/gui.py` + `ui/ui_coordinator.py`, ambos no ratchet. 10 dos 16
       msgids já existiam com o português IDÊNTICO — `gui.py` duplicava diálogos e
       defaults de estado que `dialog_manager`/`analysis_controls` já possuem.
-- [ ] Lote 3: `core/**` (29 arquivos), incluindo simplificar o consumidor de
-      `progress_notifier` para só "step:" depois de migrar o produtor.
+- [x] Lote 3a: `core/recording/**` a zero e no ratchet. Dois `_` como descarte
+      sombreavam o gettext (`live_session_manager`, `frame_processing_pipeline`)
+      — pegos por ruff F823 + mypy, nenhum por leitura.
+- [ ] Lote 3b: `core/project/**` (72 literais em 7 arquivos).
+- [ ] Lote 3c: `core/services/**` (61 em 7 arquivos).
+- [ ] Lote 3d: `core/video/**`, `core/detection/**`, `core/viewmodels/**` (30 em
+      10 arquivos), incluindo simplificar o consumidor de `progress_notifier`
+      para só "step:" depois de migrar o produtor.
 - [ ] Lote 4: `ui/wizard/**` (13 arquivos) — valores de enum em models.py/enums.py
       são persistidos, traduzir só os rótulos exibidos.
 - [ ] Lote 5: `ui/dialogs/**` (26 arquivos).
