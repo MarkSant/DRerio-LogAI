@@ -10,6 +10,8 @@ from typing import TYPE_CHECKING, Any
 
 import structlog
 
+from zebtrack.i18n import _
+
 if TYPE_CHECKING:
     from zebtrack.ui.components.dialog_manager import DialogManager
     from zebtrack.ui.gui import ApplicationGUI
@@ -61,7 +63,7 @@ class ZoneEditGuard:
         )
 
         if is_leaving_zone_tab and not self.confirm_pending_zone_edit_before_navigation(
-            context="trocar de aba"
+            context=_("switch tabs")
         ):
             # Revert tab switch when user cancels navigation.
             gui.notebook.select(zone_tab_id)
@@ -112,12 +114,11 @@ class ZoneEditGuard:
         if not self.has_pending_zone_edit():
             return
         self.dialog_manager.show_warning(
-            "Edição de zonas em andamento",
-            (
-                "Há uma edição/desenho de zona em andamento. "
-                "Clique em 'Concluir Edição do Vídeo' quando terminar, "
-                f"antes de {context}."
-            ),
+            _("Zone editing in progress"),
+            _(
+                "A zone edit/drawing is in progress. Click 'Finish Video Editing' "
+                "when you are done, before {context}."
+            ).format(context=context),
         )
 
     # ------------------------------------------------------------------
@@ -153,17 +154,19 @@ class ZoneEditGuard:
             from tkinter import messagebox
 
             response = messagebox.askyesnocancel(
-                "Zonas não finalizadas",
-                "As zonas foram desenhadas/aplicadas mas não foram finalizadas "
-                "com o botão 'Concluir Edição do Vídeo'.\n\n"
-                "Deseja finalizar agora antes de prosseguir?\n\n"
-                "• Sim: Finaliza e prossegue\n"
-                "• Não: Prossegue sem finalizar\n"
-                "• Cancelar: Permanece no vídeo atual",
+                _("Zones not finalised"),
+                _(
+                    "The zones were drawn/applied but were not finalised with the "
+                    "'Finish Video Editing' button.\n\n"
+                    "Do you want to finalise now before proceeding?\n\n"
+                    "• Yes: finalise and proceed\n"
+                    "• No: proceed without finalising\n"
+                    "• Cancel: stay on the current video"
+                ),
             )
             if response is None:
                 # Cancel — stay on current video
-                gui.set_status("Troca de vídeo cancelada.")
+                gui.set_status(_("Video switch cancelled."))
                 return False
             if response is True:
                 # Auto-conclude: trigger the same logic as "Concluir"
@@ -178,7 +181,7 @@ class ZoneEditGuard:
 
         response = gui.dialog_manager.confirm_pending_zone_edit_before_navigation(context=context)
         if response is None:
-            gui.set_status("Troca de vídeo cancelada para manter a edição atual.")
+            gui.set_status(_("Video switch cancelled to keep the current edit."))
             return False
 
         if response is True:
@@ -186,19 +189,19 @@ class ZoneEditGuard:
             if gui.edited_polygon_points:
                 gui.canvas_manager.save_arena()
                 gui._zones_dirty = False
-                gui.set_status("Edição salva. Prosseguindo para o próximo vídeo...")
+                gui.set_status(_("Edit saved. Moving on to the next video..."))
                 return True
 
             self.dialog_manager.show_warning(
-                "Salvar edição",
-                (
-                    "Não foi possível salvar automaticamente porque o desenho ainda não foi "
-                    "finalizado. Finalize o desenho ou use 'Concluir' antes de trocar de vídeo."
+                _("Save edit"),
+                _(
+                    "Could not save automatically because the drawing has not been "
+                    "finished. Finish the drawing or use 'Finish' before switching videos."
                 ),
             )
             return False
 
         gui.canvas_manager.discard_arena()
         gui._zones_dirty = False
-        gui.set_status("Edição descartada. Prosseguindo para o próximo vídeo...")
+        gui.set_status(_("Edit discarded. Moving on to the next video..."))
         return True

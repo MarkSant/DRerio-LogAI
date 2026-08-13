@@ -17,6 +17,7 @@ import numpy as np
 import structlog
 from PIL import Image
 
+from zebtrack.i18n import _
 from zebtrack.ui.sentinels import all_tracks_label
 
 if TYPE_CHECKING:
@@ -104,8 +105,8 @@ class VideoFrameManager:
                 )
                 self.gui.controller.project_manager.set_active_zone_video(None)
                 self.dialog_manager.show_error(
-                    "Erro",
-                    "O vídeo selecionado não foi encontrado ou está inacessível.",
+                    _("Error"),
+                    _("The selected video was not found or is inaccessible."),
                 )
                 return
 
@@ -134,25 +135,27 @@ class VideoFrameManager:
                     frame = cv2.imread(video_path)
 
                 if frame is None:
-                    self.dialog_manager.show_error("Erro", "Não foi possível ler a imagem.")
+                    self.dialog_manager.show_error(_("Error"), _("Could not read the image."))
                     return
                 ret = True
             else:
                 # Assume it's a video
                 cap = cv2.VideoCapture(video_path)
                 if not cap.isOpened():
-                    self.dialog_manager.show_error("Erro", "Não foi possível abrir o vídeo.")
+                    self.dialog_manager.show_error(_("Error"), _("Could not open the video."))
                     return
                 ret, frame = cap.read()
                 cap.release()
                 if not ret:
                     self.dialog_manager.show_error(
-                        "Erro", "Não foi possível ler um frame do vídeo."
+                        _("Error"), _("Could not read a frame from the video.")
                     )
                     return
 
-            # Logic to display on the canvas
-            h, w, _ = frame.shape
+            # Logic to display on the canvas. NOT ``h, w, _``: ``_`` is the gettext
+            # callable in this module, and binding it here shadows every _() call
+            # above and below inside this same function.
+            h, w, _channels = frame.shape
             # Adjust the main window to a proportional size
             screen_w = self.gui.root.winfo_screenwidth()
             screen_h = self.gui.root.winfo_screenheight()
@@ -182,7 +185,7 @@ class VideoFrameManager:
             self.gui.root.after(self.BG_REPAINT_DELAY_MS, lambda: self._draw_bg_image_to_canvas())
 
         except Exception as e:
-            self.dialog_manager.show_error("Erro ao Exibir Frame", str(e))
+            self.dialog_manager.show_error(_("Error Displaying Frame"), str(e))
 
     def update_video_frame(self, frame: np.ndarray, detections: list | None = None) -> None:
         """Update the canvas with a raw video frame (numpy array).
@@ -464,7 +467,7 @@ class VideoFrameManager:
         """Load the frame from the selected video to the main canvas."""
         if hasattr(self.gui, "zone_edit_guard") and self.gui.zone_edit_guard:
             should_continue = self.gui.zone_edit_guard.confirm_pending_zone_edit_before_navigation(
-                context="abrir outro vídeo"
+                context=_("open another video")
             )
             if not should_continue:
                 return
@@ -476,8 +479,8 @@ class VideoFrameManager:
         selection = tree.selection()
         if not selection:
             self.dialog_manager.show_warning(
-                "Nenhum Vídeo Selecionado",
-                "Por favor, selecione um vídeo da lista para carregar.",
+                _("No Video Selected"),
+                _("Please select a video from the list to load."),
             )
             return
 
@@ -486,8 +489,8 @@ class VideoFrameManager:
 
         if not tags or not tags[0]:
             self.dialog_manager.show_info(
-                "Selecione um Vídeo",
-                "Por favor, escolha um item com ícone de peixe (🐟) para carregar o frame.",
+                _("Select a Video"),
+                _("Please choose an item with a fish icon (🐟) to load the frame."),
             )
             return
 
@@ -496,8 +499,8 @@ class VideoFrameManager:
         # Reject non-video hierarchy nodes (group, day, subject)
         if video_path in ("group", "day", "subject"):
             self.dialog_manager.show_info(
-                "Selecione um Vídeo",
-                "Por favor, escolha um item com ícone de vídeo (🎬) para carregar o frame.",
+                _("Select a Video"),
+                _("Please choose an item with a video icon (🎬) to load the frame."),
             )
             return
 
@@ -507,10 +510,10 @@ class VideoFrameManager:
             self.dialog_manager.offer_zone_reuse(video_path)
             self.canvas_manager.redraw_zones_from_project_data()
             filename = os.path.basename(video_path)
-            self.gui.set_status(f"✓ Frame carregado: {filename}")
+            self.gui.set_status(_("✓ Frame loaded: {name}").format(name=filename))
             log.info("gui.video_selector.frame_loaded", path=video_path)
         else:
             self.dialog_manager.show_error(
-                "Erro ao Carregar",
-                f"Não foi possível carregar o vídeo selecionado.\n{video_path}",
+                _("Error Loading"),
+                _("Could not load the selected video.\n{path}").format(path=video_path),
             )

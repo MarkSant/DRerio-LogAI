@@ -190,7 +190,7 @@ def test_update_button_states_with_selection(widget):
     assert str(widget.btn_generate_trajectories.cget("state")) == "normal"
     assert str(widget.btn_export_summaries.cget("state")) == "normal"
     assert str(widget.btn_generate_partial.cget("state")) == "normal"
-    assert "vídeo(s) selecionado(s)" in widget.selection_label.cget("text")
+    assert "video(s) selected" in widget.selection_label.cget("text")
 
 
 @pytest.mark.gui
@@ -200,7 +200,7 @@ def test_update_button_states_no_selection(widget):
     assert str(widget.btn_generate_trajectories.cget("state")) == "disabled"
     assert str(widget.btn_export_summaries.cget("state")) == "disabled"
     assert str(widget.btn_generate_partial.cget("state")) == "disabled"
-    assert widget.selection_label.cget("text") == "Nenhum vídeo selecionado"
+    assert widget.selection_label.cget("text") == "No video selected"
 
 
 @pytest.mark.gui
@@ -230,11 +230,11 @@ def test_expand_collapse_toggles(widget):
 
     widget._on_expand_collapse_clicked()
     assert widget._tree_expanded is True
-    assert widget.btn_expand_collapse.cget("text") == "⊟ Colapsar Tudo"
+    assert widget.btn_expand_collapse.cget("text") == "⊟ Collapse All"
 
     widget._on_expand_collapse_clicked()
     assert widget._tree_expanded is False
-    assert widget.btn_expand_collapse.cget("text") == "⊞ Expandir Tudo"
+    assert widget.btn_expand_collapse.cget("text") == "⊞ Expand All"
 
 
 @pytest.mark.gui

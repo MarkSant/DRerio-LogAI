@@ -93,14 +93,6 @@ STATUS_SYMBOLS = {
     "summary": "\u03a3",  # Σ
 }
 
-PROJECT_STATUS_META: dict[str, tuple[str, str]] = {
-    "pending": ("⏳", "Pendentes"),
-    "processing": ("🔁", "Processando"),
-    "processed": ("📦", "Com dados"),
-    "complete": ("✅", "Concluídos"),
-    "failed": ("⚠️", "Com falha"),
-}
-
 PROJECT_STATUS_WIDGET_ORDER: tuple[str, ...] = (
     "total",
     "pending",

@@ -48,16 +48,16 @@ def _make_manager():
 
 
 def test_format_status_label_pluralization():
-    assert format_status_label(1) == "1 vídeo"
-    assert format_status_label(2) == "2 vídeos"
+    assert format_status_label(1) == "1 video"
+    assert format_status_label(2) == "2 videos"
 
 
 def test_format_status_summary_with_zero_total():
-    assert format_status_summary(0, 0) == "0 vídeos (0%)"
+    assert format_status_summary(0, 0) == "0 videos (0%)"
 
 
 def test_format_status_summary_percentage():
-    assert format_status_summary(10, 3) == "3 vídeos (30%)"
+    assert format_status_summary(10, 3) == "3 videos (30%)"
 
 
 def test_format_status_ratio():
@@ -115,10 +115,10 @@ def test_format_data_badges_with_flags():
 
 
 def test_format_video_metadata_variants():
-    assert format_video_metadata({}) == "Sem metadata"
+    assert format_video_metadata({}) == "No metadata"
     assert (
         format_video_metadata({"metadata": {"group": "G1", "day": 2, "subject": 3}})
-        == "Grupo: G1 | Dia: 2 | Sujeito: 3"
+        == "Group: G1 | Day: 2 | Subject: 3"
     )
 
 

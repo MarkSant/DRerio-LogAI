@@ -1,6 +1,8 @@
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Any
 
+from zebtrack.i18n import _
+
 if TYPE_CHECKING:
     from zebtrack.ui.gui import ApplicationGUI
 
@@ -51,7 +53,7 @@ class ArenaCompletionStrategy(PolygonCompletionStrategy):
 
     def can_complete(self, points: list) -> tuple[bool, str | None]:
         if len(points) < 3:
-            return False, "Um polígono precisa de pelo menos 3 pontos."
+            return False, _("A polygon needs at least 3 points.")
         return True, None
 
     def complete(self, video_points: list, gui: "ApplicationGUI") -> bool:
@@ -136,14 +138,14 @@ class ROICompletionStrategy(PolygonCompletionStrategy):
 
     def can_complete(self, points: list) -> tuple[bool, str | None]:
         if len(points) < 3:
-            return False, "Um polígono precisa de pelo menos 3 pontos."
+            return False, _("A polygon needs at least 3 points.")
         return True, None
 
     def complete(self, video_points: list, gui: "ApplicationGUI") -> bool:
         # Ask for ROI name. ``ask_string`` lives on DialogManager, not on
         # ApplicationGUI — calling ``gui.ask_string`` raised
         # "'ApplicationGUI' object has no attribute 'ask_string'".
-        roi_name = gui.dialog_manager.ask_string("Nome da ROI", "Digite um nome:")
+        roi_name = gui.dialog_manager.ask_string(_("ROI Name"), _("Type a name:"))
         if not roi_name:
             return False
 
@@ -202,7 +204,7 @@ class PolygonDrawingService:
         # Validate
         can_complete, error_msg = strategy.can_complete(video_points)
         if not can_complete:
-            gui.dialog_manager.show_warning("Polígono Incompleto", error_msg or "")
+            gui.dialog_manager.show_warning(_("Incomplete Polygon"), error_msg or "")
             return False
 
         # Complete

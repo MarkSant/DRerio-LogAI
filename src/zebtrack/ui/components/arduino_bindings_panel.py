@@ -24,30 +24,40 @@ from zebtrack.core.services.arduino_bindings import (
     ArduinoBinding,
     ArduinoBindingConfig,
 )
+from zebtrack.i18n import _
 
 log = structlog.get_logger()
 
-DISCLAIMER = (
-    "O DRerio apenas ENVIA o número que você escolher quando o animal entra ou "
-    "sai da ROI. O que o número aciona (LED, choque, flash, bomba, qualquer "
-    "módulo) é responsabilidade do SEU sketch Arduino — usar Arduino pressupõe "
-    "que você saiba programá-lo. O sketch de referência usa pares consecutivos: "
-    "1=canal 1 liga, 2=desliga, 3/4=canal 2, 5/6=canal 3, 7/8=canal 4. "
-    "Use 'Dispositivo' para registrar o que está de fato ligado em cada canal."
-)
 
-NOTE_NO_ARDUINO = (
-    "Arduino não está habilitado neste projeto. Ative 'Usar Arduino' ao criar o "
-    "projeto (assistente, etapa de configuração ao vivo) para configurar comandos "
-    "por zona."
-)
+# These three were module constants. Kept as functions because ``_()`` resolves
+# the catalogue when it is called: a module-body call would freeze the text into
+# whatever language was installed at import time (see docs/guides/developer/i18n.md).
+def disclaimer() -> str:
+    return _(
+        "DRerio only SENDS the number you choose when the animal enters or "
+        "leaves the ROI. What that number triggers (LED, shock, flash, pump, any "
+        "module) is the responsibility of YOUR Arduino sketch — using an Arduino "
+        "presumes you know how to program it. The reference sketch uses consecutive "
+        "pairs: 1=channel 1 on, 2=off, 3/4=channel 2, 5/6=channel 3, 7/8=channel 4. "
+        "Use 'Device' to record what is actually wired to each channel."
+    )
 
-CONFLICT_WARNING = (
-    "⚠ Token ambíguo: o mesmo número está configurado como ENTRADA de uma ROI e "
-    "SAÍDA de outra. O sketch não consegue ligar e desligar com o mesmo comando — "
-    "a saída da ROI vai acender o dispositivo da outra zona, e o desligamento no "
-    "fim da sessão não vai funcionar. Confira a numeração —"
-)
+
+def note_no_arduino() -> str:
+    return _(
+        "Arduino is not enabled in this project. Turn on 'Use Arduino' when creating "
+        "the project (wizard, live configuration step) to set up per-zone commands."
+    )
+
+
+def conflict_warning() -> str:
+    return _(
+        "⚠ Ambiguous token: the same number is configured as one ROI's ENTER and "
+        "another ROI's EXIT. The sketch cannot switch on and off with the same "
+        "command — leaving the ROI will turn on the other zone's device, and the "
+        "end-of-session shutdown will not work. Check the numbering —"
+    )
+
 
 TOKEN_MIN = 0
 TOKEN_MAX = 255
@@ -83,22 +93,22 @@ class ArduinoBindingsPanel(ttk.Frame):
     # ------------------------------------------------------------------
     def _build(self) -> None:
         self._note = ttk.Label(
-            self, text=NOTE_NO_ARDUINO, foreground="gray", wraplength=380, justify="left"
+            self, text=note_no_arduino(), foreground="gray", wraplength=380, justify="left"
         )
 
-        frame = ttk.LabelFrame(self, text="Comandos Arduino por Zona (Opcional)", padding=8)
+        frame = ttk.LabelFrame(self, text=_("Per-Zone Arduino Commands (Optional)"), padding=8)
         self._frame = frame
 
-        ttk.Label(frame, text=DISCLAIMER, foreground="gray", wraplength=380, justify="left").pack(
+        ttk.Label(frame, text=disclaimer(), foreground="gray", wraplength=380, justify="left").pack(
             anchor="w", pady=(0, 6)
         )
 
         cols = ("roi", "label", "enter", "exit")
         tree = ttk.Treeview(frame, columns=cols, show="headings", height=4)
-        tree.heading("roi", text="ROI")
-        tree.heading("label", text="Dispositivo")
-        tree.heading("enter", text="Ao Entrar")
-        tree.heading("exit", text="Ao Sair")
+        tree.heading("roi", text=_("ROI"))
+        tree.heading("label", text=_("Device"))
+        tree.heading("enter", text=_("On Enter"))
+        tree.heading("exit", text=_("On Exit"))
         tree.column("roi", width=95, anchor="w")
         tree.column("label", width=115, anchor="w")
         tree.column("enter", width=70, anchor="center")
@@ -109,50 +119,48 @@ class ArduinoBindingsPanel(ttk.Frame):
 
         editor = ttk.Frame(frame)
         editor.pack(fill="x", pady=(6, 0))
-        ttk.Label(editor, text="ROI:").pack(side="left")
+        ttk.Label(editor, text=_("ROI:")).pack(side="left")
         self._roi_combo = ttk.Combobox(
             editor, textvariable=self.roi_choice, state="readonly", width=14
         )
         self._roi_combo.pack(side="left", padx=(2, 8))
-        ttk.Label(editor, text="Entrar:").pack(side="left")
+        ttk.Label(editor, text=_("Enter:")).pack(side="left")
         ttk.Spinbox(
             editor, from_=TOKEN_MIN, to=TOKEN_MAX, textvariable=self.enter_token, width=5
         ).pack(side="left", padx=(2, 8))
-        ttk.Label(editor, text="Sair:").pack(side="left")
+        ttk.Label(editor, text=_("Exit:")).pack(side="left")
         ttk.Spinbox(
             editor, from_=TOKEN_MIN, to=TOKEN_MAX, textvariable=self.exit_token, width=5
         ).pack(side="left", padx=(2, 8))
 
         label_row = ttk.Frame(frame)
         label_row.pack(fill="x", pady=(4, 0))
-        ttk.Label(label_row, text="Dispositivo:").pack(side="left")
+        ttk.Label(label_row, text=_("Device:")).pack(side="left")
         ttk.Entry(label_row, textvariable=self.device_label, width=22).pack(
             side="left", padx=(2, 8)
         )
         ttk.Label(
             label_row,
-            text="opcional — o que está ligado neste canal",
+            text=_("optional — what is wired to this channel"),
             foreground="gray",
         ).pack(side="left")
 
         buttons = ttk.Frame(frame)
         buttons.pack(fill="x", pady=(6, 0))
-        ttk.Button(buttons, text="Adicionar / Atualizar", command=self._add_or_update).pack(
-            side="left"
-        )
-        ttk.Button(buttons, text="Remover", command=self._remove).pack(side="left", padx=4)
-        ttk.Button(buttons, text="Limpar", command=self._clear).pack(side="left")
-        ttk.Button(buttons, text="🔄 ROIs", command=self.refresh_roi_choices).pack(side="right")
+        ttk.Button(buttons, text=_("Add / Update"), command=self._add_or_update).pack(side="left")
+        ttk.Button(buttons, text=_("Remove"), command=self._remove).pack(side="left", padx=4)
+        ttk.Button(buttons, text=_("Clear"), command=self._clear).pack(side="left")
+        ttk.Button(buttons, text=_("🔄 ROIs"), command=self.refresh_roi_choices).pack(side="right")
 
         test_row = ttk.Frame(frame)
         test_row.pack(fill="x", pady=(6, 0))
         self._test_button = ttk.Button(
-            test_row, text="🔌 Testar comandos", command=self.test_bindings
+            test_row, text=_("🔌 Test commands"), command=self.test_bindings
         )
         self._test_button.pack(side="left")
         ttk.Label(
             test_row,
-            text="Envia cada token e mostra o que o firmware respondeu.",
+            text=_("Sends each token and shows what the firmware answered."),
             foreground="gray",
         ).pack(side="left", padx=(6, 0))
 
@@ -212,7 +220,11 @@ class ArduinoBindingsPanel(ttk.Frame):
                 self.roi_choice.set(names[0])
         if self._status is not None:
             self._status.config(
-                text=(f"{len(names)} ROI(s) disponível(is)." if names else "Defina ROIs primeiro."),
+                text=(
+                    _("{count} ROI(s) available.").format(count=len(names))
+                    if names
+                    else _("Define ROIs first.")
+                ),
                 foreground="gray",
             )
 
@@ -256,7 +268,7 @@ class ArduinoBindingsPanel(ttk.Frame):
     def _add_or_update(self) -> None:
         roi = self.roi_choice.get().strip()
         if not roi:
-            self._set_status("Selecione uma ROI.", error=True)
+            self._set_status(_("Select an ROI."), error=True)
             return
         try:
             binding = ArduinoBinding(
@@ -271,7 +283,7 @@ class ArduinoBindingsPanel(ttk.Frame):
             self._set_status(str(exc), error=True)
             return
         if binding.on_enter is None and binding.on_exit is None:
-            self._set_status("Informe ao menos um token (Entrar ou Sair).", error=True)
+            self._set_status(_("Provide at least one token (Enter or Exit)."), error=True)
             return
 
         if self._tree is not None and self._tree.exists(roi):
@@ -303,13 +315,13 @@ class ArduinoBindingsPanel(ttk.Frame):
         try:
             if getattr(self.project_manager, "project_path", None):
                 self.project_manager.save_project()
-                self._set_status("Configuração salva.", error=False)
+                self._set_status(_("Configuration saved."), error=False)
             else:
-                self._set_status("Configuração aplicada (projeto sem caminho em disco).")
+                self._set_status(_("Configuration applied (project has no path on disk)."))
         # except Exception justified: disk/serialization errors must not crash the UI.
         except Exception as exc:
             log.error("arduino_bindings_panel.save_failed", error=str(exc), exc_info=True)
-            self._set_status(f"Erro ao salvar: {exc}", error=True)
+            self._set_status(_("Error while saving: {error}").format(error=exc), error=True)
         self._refresh_conflict_warning(cfg)
 
     # ------------------------------------------------------------------
@@ -328,17 +340,19 @@ class ArduinoBindingsPanel(ttk.Frame):
         """
         manager = getattr(self.controller, "arduino_manager", None)
         if manager is None or not manager.is_connected():
-            self._set_test_output("Arduino não conectado. Conecte antes de testar.", error=True)
+            self._set_test_output(
+                _("Arduino not connected. Connect it before testing."), error=True
+            )
             return
 
         probes = self._probe_plan()
         if not probes:
-            self._set_test_output("Nenhum token configurado para testar.", error=True)
+            self._set_test_output(_("No token configured to test."), error=True)
             return
 
         if self._test_button is not None:
             self._test_button.config(state="disabled")
-        self._set_test_output("Testando… aguarde as respostas do firmware.")
+        self._set_test_output(_("Testing… waiting for the firmware to answer."))
 
         def _worker() -> None:
             try:
@@ -402,28 +416,34 @@ class ArduinoBindingsPanel(ttk.Frame):
         if self._test_button is not None:
             self._test_button.config(state="normal")
         if results is None:
-            self._set_test_output(f"Falha ao testar: {error}", error=True)
+            self._set_test_output(_("Test failed: {error}").format(error=error), error=True)
             return
 
         lines: list[str] = []
         problems = 0
         for (display_name, edge, token), (_sent, ack) in results:
-            edge_pt = "entrar" if edge == "enter" else "sair"
+            edge_label = _("enter") if edge == "enter" else _("exit")
             if not ack:
-                lines.append(f"{display_name} {edge_pt} → {token} → (sem resposta)")
+                lines.append(
+                    _("{name} {edge} → {token} → (no reply)").format(
+                        name=display_name, edge=edge_label, token=token
+                    )
+                )
                 problems += 1
                 continue
             if edge_ack_is_inverted(edge, ack):
-                lines.append(f"⚠ {display_name} {edge_pt} → {token} → {ack}")
+                lines.append(f"⚠ {display_name} {edge_label} → {token} → {ack}")
                 problems += 1
             else:
-                lines.append(f"✓ {display_name} {edge_pt} → {token} → {ack}")
+                lines.append(f"✓ {display_name} {edge_label} → {token} → {ack}")
 
         if problems:
             lines.append("")
             lines.append(
-                f"{problems} problema(s): uma ENTRADA deve ligar e uma SAÍDA "
-                "desligar. O sketch de referência pareia 1/2, 3/4, 5/6, 7/8."
+                _(
+                    "{count} problem(s): an ENTER must switch on and an EXIT must "
+                    "switch off. The reference sketch pairs 1/2, 3/4, 5/6, 7/8."
+                ).format(count=problems)
             )
         self._set_test_output("\n".join(lines), error=bool(problems))
 
@@ -451,7 +471,7 @@ class ArduinoBindingsPanel(ttk.Frame):
             self._conflict_label.pack_forget()
             return
         detail = "; ".join(c.describe() for c in conflicts)
-        self._conflict_label.config(text=f"{CONFLICT_WARNING} {detail}.")
+        self._conflict_label.config(text=f"{conflict_warning()} {detail}.")
         self._conflict_label.pack(anchor="w", fill="x", pady=(4, 0))
 
     def _collect_from_tree(self) -> ArduinoBindingConfig:
@@ -501,9 +521,15 @@ class ArduinoBindingsPanel(ttk.Frame):
         try:
             token = int(text)
         except ValueError:
-            raise ValueError(f"Token inválido: '{text}'. Use um número inteiro.") from None
+            raise ValueError(
+                _("Invalid token: '{value}'. Use a whole number.").format(value=text)
+            ) from None
         if not (TOKEN_MIN <= token <= TOKEN_MAX):
-            raise ValueError(f"Token fora do intervalo [{TOKEN_MIN}, {TOKEN_MAX}]: {token}.")
+            raise ValueError(
+                _("Token out of range [{minimum}, {maximum}]: {value}.").format(
+                    minimum=TOKEN_MIN, maximum=TOKEN_MAX, value=token
+                )
+            )
         return token
 
     def _set_status(self, message: str, *, error: bool = False) -> None:

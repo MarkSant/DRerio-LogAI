@@ -211,7 +211,7 @@ class TestValidationComprehensive:
 
         assert result.is_valid is False
         assert result.error_code == "processing_already_active"
-        assert "já está em andamento" in result.error_message
+        assert "already running" in result.error_message
 
     def test_validation_fails_when_no_project_loaded(self, coordinator, mock_project_manager):
         """Test validation fails when no project is loaded."""

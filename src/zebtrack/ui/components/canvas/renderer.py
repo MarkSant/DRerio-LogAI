@@ -14,6 +14,8 @@ import numpy as np
 import structlog
 from PIL import Image, ImageTk
 
+from zebtrack.i18n import _
+
 if TYPE_CHECKING:
     from zebtrack.core.services.zone_context_service import ZoneContextService
 
@@ -256,7 +258,7 @@ class CanvasRenderer:
         canvas.create_text(
             center_x,
             center_y,
-            text=f"Aquário {aquarium.id + 1}",
+            text=_("Aquarium {number}").format(number=aquarium.id + 1),
             fill=outline_color,
             font=("Segoe UI", 10, "bold"),
             tags=("main_polygon", "aquarium_label"),
@@ -464,7 +466,7 @@ class CanvasRenderer:
                 canvas.create_text(
                     ghost_canvas_points[0],
                     ghost_canvas_points[1] - 15,
-                    text="Aquário 1 (referência)",
+                    text=_("Aquarium 1 (reference)"),
                     fill="#666666",
                     font=("Segoe UI", 9, "italic"),
                     tags="ghost_polygon",

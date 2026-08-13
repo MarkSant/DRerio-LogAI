@@ -17,6 +17,7 @@ import cv2
 import structlog
 
 from zebtrack.coordinators.base_coordinator import BaseCoordinator
+from zebtrack.i18n import _
 from zebtrack.ui import payloads as payloads
 from zebtrack.ui.event_bus_v2 import UIEvents
 
@@ -162,7 +163,11 @@ class SequentialProcessingCoordinator(BaseCoordinator):
 
         self._publish_event(
             UIEvents.UI_SET_STATUS,
-            {"message": f"Processando aquário {aq_index_display}/{total}..."},
+            {
+                "message": _("Processing aquarium {current}/{total}...").format(
+                    current=aq_index_display, total=total
+                )
+            },
         )
 
         self._start_single_aquarium_for_sequential(aquarium, ctx)
@@ -518,9 +523,11 @@ class SequentialProcessingCoordinator(BaseCoordinator):
 
         # Show summary
         total = len(completed) + len(failed)
-        msg = f"Processamento sequencial concluído: {len(completed)}/{total} aquários."
+        msg = _("Sequential processing finished: {done}/{total} aquariums.").format(
+            done=len(completed), total=total
+        )
         if failed:
-            msg += f"\n\n❌ Falhas: {', '.join(str(f) for f in failed)}"
+            msg += _("\n\n❌ Failures: {names}").format(names=", ".join(str(f) for f in failed))
 
         self._publish_event(
             UIEvents.UI_SHOW_INFO if not failed else UIEvents.UI_SHOW_WARNING,

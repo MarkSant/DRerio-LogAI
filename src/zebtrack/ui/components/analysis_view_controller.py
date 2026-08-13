@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING, Any
 import structlog
 
 from zebtrack.core.video.processing_mode import ProcessingMode, ProcessingReport
+from zebtrack.i18n import _
 from zebtrack.ui.sentinels import all_tracks_label
 
 if TYPE_CHECKING:
@@ -151,13 +152,13 @@ class AnalysisViewController:
         if is_live_session_active:
             log.info("analysis_view_controller.start.preserve_live_context")
         else:
-            msg = "Preparando análise..."
+            msg = _("Preparing the analysis...")
             self._analysis_status_var.set(msg)
             if self._analysis_display:
                 self._analysis_display.set_status(msg)
 
             if self._analysis_task_var is not None:
-                self._analysis_task_var.set("Preparando fila de análise...")
+                self._analysis_task_var.set(_("Preparing the analysis queue..."))
             self._state_synchronizer._set_analysis_metadata_defaults()
 
         self.reset_analysis_controls()
@@ -217,9 +218,9 @@ class AnalysisViewController:
         if self._analysis_display:
             self._analysis_display.disable_cancel_button()
         self.gui.hide_progress_bar()
-        self._analysis_status_var.set("Nenhuma análise em andamento.")
+        self._analysis_status_var.set(_("No analysis in progress."))
         if self._analysis_task_var is not None:
-            self._analysis_task_var.set("Nenhuma tarefa em andamento.")
+            self._analysis_task_var.set(_("No task in progress."))
         self._state_synchronizer._set_analysis_metadata_defaults()
         self.reset_analysis_controls()
         self.switch_to_zones_view()
@@ -304,7 +305,7 @@ class AnalysisViewController:
     def _set_analysis_profile_text(self, profile_name: str) -> None:
         """Apply the active analysis profile label consistently."""
         text = (profile_name or "default").strip() or "default"
-        label = f"Configuração de análise: {text}"
+        label = _("Analysis configuration: {value}").format(value=text)
         self._analysis_profile_var.set(label)
         if self._analysis_display:
             self._analysis_display.set_profile(text)

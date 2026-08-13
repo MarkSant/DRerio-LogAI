@@ -133,4 +133,4 @@ def test_save_arena_arena_branch_failure_keeps_polygon_and_reports_error():
     # Feedback reflete falha, não sucesso.
     status_msg = gui.set_status.call_args[0][0]
     assert "sucesso" not in status_msg.lower()
-    assert "falha" in status_msg.lower()
+    assert "failed" in status_msg.lower()

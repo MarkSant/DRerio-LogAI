@@ -18,6 +18,7 @@ import serial.tools.list_ports
 import structlog
 
 # Local imports
+from zebtrack.i18n import _
 from zebtrack.ui.components.base import BaseWidget
 from zebtrack.ui.event_bus_v2 import EventBusV2, UIEvents
 
@@ -75,7 +76,7 @@ class ArduinoDashboardWidget(BaseWidget):
         self.arduino_manager = arduino_manager
 
         # State variables
-        self.status_var = StringVar(value="Desconectado")
+        self.status_var = StringVar(value=_("Disconnected"))
         self.last_command_var = StringVar(value="-")
 
         # Widget references
@@ -104,7 +105,7 @@ class ArduinoDashboardWidget(BaseWidget):
     def _build_ui(self) -> None:
         """Build the Arduino dashboard widget UI."""
         # Main frame (LabelFrame)
-        main_frame = ttk.LabelFrame(self, text="Dashboard Arduino", padding=10)
+        main_frame = ttk.LabelFrame(self, text=_("Arduino Dashboard"), padding=10)
         main_frame.pack(fill="both", expand=True)
 
         # Status row
@@ -137,12 +138,12 @@ class ArduinoDashboardWidget(BaseWidget):
         ttk.Label(status_row, textvariable=self.status_var).pack(side="left", padx=(6, 12))
 
         # Last command
-        ttk.Label(status_row, text="Último comando:").pack(side="left")
+        ttk.Label(status_row, text=_("Last command:")).pack(side="left")
         ttk.Label(status_row, textvariable=self.last_command_var).pack(side="left", padx=(6, 0))
 
     def _build_log_section(self, parent) -> None:
         """Build the event log display area."""
-        ttk.Label(parent, text="Eventos recentes:").pack(anchor="w")
+        ttk.Label(parent, text=_("Recent events:")).pack(anchor="w")
 
         log_frame = ttk.Frame(parent)
         log_frame.pack(fill="both", expand=True, pady=(4, 0))
@@ -168,13 +169,13 @@ class ArduinoDashboardWidget(BaseWidget):
         controls_row = ttk.Frame(parent)
         controls_row.pack(fill="x", pady=(6, 0))
 
-        ttk.Button(controls_row, text="Limpar Log", command=self.clear_log).pack(
+        ttk.Button(controls_row, text=_("Clear Log"), command=self.clear_log).pack(
             side="right", padx=(5, 0)
         )
 
         ttk.Button(
             controls_row,
-            text="🔄 Reverificar Portas",
+            text=_("🔄 Recheck Ports"),
             command=self._on_recheck_ports_clicked,
         ).pack(side="right")
 
@@ -205,12 +206,16 @@ class ArduinoDashboardWidget(BaseWidget):
 
         self.update_status(connected=connected, port=port)
         if connected:
-            self.append_log(f"Arduino conectado ({port})" if port else "Arduino conectado")
+            self.append_log(
+                _("Arduino connected ({port})").format(port=port)
+                if port
+                else _("Arduino connected")
+            )
 
     # Event handlers
 
     def _on_recheck_ports_clicked(self) -> None:
-        """Handle the 'Reverificar Portas' button click."""
+        """Handle the 'Recheck Ports' button click."""
         self._recheck_arduino_ports()
 
     def _recheck_arduino_ports(self) -> None:
@@ -226,28 +231,30 @@ class ArduinoDashboardWidget(BaseWidget):
 
             if not ports:
                 messagebox.showwarning(
-                    "Nenhuma Porta Detectada",
-                    "Nenhuma porta serial foi detectada.\n\n"
-                    "Verifique se:\n"
-                    "• O Arduino está conectado via USB\n"
-                    "• Os drivers estão instalados corretamente\n"
-                    "• A porta não está sendo usada por outro programa",
+                    _("No Port Detected"),
+                    _(
+                        "No serial port was detected.\n\n"
+                        "Check that:\n"
+                        "• The Arduino is connected via USB\n"
+                        "• The drivers are correctly installed\n"
+                        "• The port is not in use by another program"
+                    ),
                 )
-                self.append_log("✗ Reverificação: Nenhuma porta detectada")
+                self.append_log(_("✗ Recheck: no port detected"))
                 return
 
             # Build display strings with descriptions
             port_options = []
             for port in ports:
-                description = port.description or "Dispositivo Serial"
+                description = port.description or _("Serial Device")
                 port_options.append(f"{port.device} - {description}")
 
             # Show selection dialog
             selection = simpledialog.askstring(
-                "Selecionar Porta Arduino",
-                f"Detectadas {len(ports)} porta(s) serial.\n\n"
-                f"Portas disponíveis:\n" + "\n".join(f"• {opt}" for opt in port_options) + "\n\n"
-                "Digite o nome da porta (ex: COM3):",
+                _("Select Arduino Port"),
+                _("Detected {count} serial port(s).\n\nAvailable ports:\n").format(count=len(ports))
+                + "\n".join(f"• {opt}" for opt in port_options)
+                + _("\n\nType the port name (e.g. COM3):"),
                 initialvalue=ports[0].device if ports else "",
             )
 
@@ -259,9 +266,10 @@ class ArduinoDashboardWidget(BaseWidget):
                 valid_devices = [p.device for p in ports]
                 if selected_device not in valid_devices:
                     messagebox.showerror(
-                        "Porta Inválida",
-                        f"A porta '{selected_device}' não está entre as portas detectadas.\n\n"
-                        f"Portas válidas: {', '.join(valid_devices)}",
+                        _("Invalid Port"),
+                        _(
+                            "Port '{port}' is not among the detected ports.\n\nValid ports: {valid}"
+                        ).format(port=selected_device, valid=", ".join(valid_devices)),
                     )
                     return
 
@@ -273,9 +281,11 @@ class ArduinoDashboardWidget(BaseWidget):
 
                     # Log update (no blocking dialog)
                     self.append_log(
-                        f"✓ Porta atualizada: {old_port or 'Nenhuma'} → {selected_device}"
+                        _("✓ Port updated: {old} → {new}").format(
+                            old=old_port or _("no port"), new=selected_device
+                        )
                     )
-                    self.append_log("  Reconectando o Arduino na nova porta...")
+                    self.append_log(_("  Reconnecting the Arduino on the new port..."))
 
                     log.info(
                         "arduino.port_updated",
@@ -290,23 +300,23 @@ class ArduinoDashboardWidget(BaseWidget):
                     )
                 else:
                     messagebox.showwarning(
-                        "Projeto Não Carregado",
-                        "Nenhum projeto está carregado no momento.",
+                        _("No Project Loaded"),
+                        _("No project is currently loaded."),
                     )
 
         except ImportError:
             messagebox.showerror(
-                "Erro",
-                "A biblioteca pyserial não está instalada.\n\nExecute: pip install pyserial",
+                _("Error"),
+                _("The pyserial library is not installed.\n\nRun: pip install pyserial"),
             )
-            self.append_log("✗ pyserial não disponível")
+            self.append_log(_("✗ pyserial not available"))
 
         except Exception as e:
             messagebox.showerror(
-                "Erro",
-                f"Ocorreu um erro ao reverificar portas:\n\n{e!s}",
+                _("Error"),
+                _("An error occurred while rechecking ports:\n\n{error}").format(error=str(e)),
             )
-            self.append_log(f"✗ Erro na reverificação: {e!s}")
+            self.append_log(_("✗ Error during recheck: {error}").format(error=str(e)))
             log.error("arduino.recheck_ports_failed", error=str(e))
 
     # Public API for updating widget state
@@ -403,11 +413,11 @@ class ArduinoDashboardWidget(BaseWidget):
             connected: Whether Arduino is connected
             port: Serial port name (e.g., "COM3")
         """
-        status_text = "Desconectado"
+        status_text = _("Disconnected")
         if connected and port:
-            status_text = f"Conectado ({port})"
+            status_text = _("Connected ({port})").format(port=port)
         elif connected:
-            status_text = "Conectado"
+            status_text = _("Connected")
 
         def _apply() -> None:
             try:

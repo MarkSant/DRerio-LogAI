@@ -119,7 +119,7 @@ def sample_summary_df_different_rois():
 
 
 def test_status_clears_after_unified_report_success(coordinator, sample_summary_df, tmp_path):
-    """Test that UI status clears to 'Pronto.' after successful unified report generation."""
+    """Test that UI status clears to 'Ready.' after successful unified report generation."""
     # Setup: Create temporary parquet files
     video1_results = tmp_path / "video1_results"
     video1_results.mkdir()
@@ -137,7 +137,7 @@ def test_status_clears_after_unified_report_success(coordinator, sample_summary_
     # Execute
     coordinator.generate_unified_report([str(tmp_path / "video1.mp4")])
 
-    # Verify: Check that UI_SET_STATUS was called with "Pronto."
+    # Verify: Check that UI_SET_STATUS was called with "Ready."
     status_calls = [
         call
         for call in coordinator._publish_event.call_args_list
@@ -146,13 +146,13 @@ def test_status_clears_after_unified_report_success(coordinator, sample_summary_
 
     assert len(status_calls) >= 2, "Should have at least 2 status updates (start + end)"
 
-    # Last status update should be "Pronto."
+    # Last status update should be "Ready."
     last_status_call = status_calls[-1]
-    assert last_status_call[0][1].message == "Pronto."
+    assert last_status_call[0][1].message == "Ready."
 
 
 def test_status_not_cleared_on_failure(coordinator):
-    """Test that UI status is not set to 'Pronto.' when unified report generation fails."""
+    """Test that UI status is not set to 'Ready.' when unified report generation fails."""
     # Setup: No parquet files exist
     coordinator.project_manager.find_video_entry = Mock(
         return_value={"parquet_files": {}, "metadata": {}}
@@ -168,9 +168,9 @@ def test_status_not_cleared_on_failure(coordinator):
         if call[0][0] == UIEvents.UI_SET_STATUS
     ]
 
-    # Should only have the initial status, not the final "Pronto."
+    # Should only have the initial status, not the final "Ready."
     status_messages = [call[0][1].message for call in status_calls]
-    assert "Pronto." not in status_messages
+    assert "Ready." not in status_messages
 
 
 # =============================================================================
@@ -401,12 +401,12 @@ def test_roi_mismatch_warning_shown_when_schemas_differ(
         for call in coordinator._publish_event.call_args_list
         if (
             call[0][0] == UIEvents.UI_SHOW_WARNING
-            and "ROIs Diferentes" in getattr(call[0][1], "title", "")
+            and "Different ROIs" in getattr(call[0][1], "title", "")
         )
     ]
 
     assert len(warning_calls) == 1, "Should show ROI mismatch warning once"
-    assert "ROIs diferentes" in warning_calls[0][0][1].message
+    assert "different ROIs" in warning_calls[0][0][1].message
 
 
 def test_roi_mismatch_warning_suppressed_by_setting(
@@ -445,7 +445,7 @@ def test_roi_mismatch_warning_suppressed_by_setting(
         for call in coordinator._publish_event.call_args_list
         if (
             call[0][0] == UIEvents.UI_SHOW_WARNING
-            and "ROIs Diferentes" in getattr(call[0][1], "title", "")
+            and "Different ROIs" in getattr(call[0][1], "title", "")
         )
     ]
 
@@ -517,12 +517,12 @@ def test_unified_report_full_workflow_with_different_rois(
     """Integration test: Full unified report workflow with different ROIs.
 
     This test verifies:
-    1. Status message set to "Gerando relatório unificado..."
+    1. Status message set to "Generating the unified report..."
     2. Parquets read and metadata enriched
     3. DataFrames aligned (columns padded)
     4. ROI mismatch warning shown
     5. Files generated (Word, Excel, Parquet)
-    6. Status cleared to "Pronto."
+    6. Status cleared to "Ready."
     """
     # Setup
     video1_results = tmp_path / "video1_results"
@@ -564,8 +564,8 @@ def test_unified_report_full_workflow_with_different_rois(
         if call[0][0] == UIEvents.UI_SET_STATUS
     ]
     assert len(status_calls) >= 2
-    assert status_calls[0][0][1].message == "Gerando relatório unificado..."
-    assert status_calls[-1][0][1].message == "Pronto."
+    assert status_calls[0][0][1].message == "Generating the unified report..."
+    assert status_calls[-1][0][1].message == "Ready."
 
     # 2. ROI mismatch warning
     warning_calls = [
@@ -573,7 +573,7 @@ def test_unified_report_full_workflow_with_different_rois(
         for call in coordinator._publish_event.call_args_list
         if (
             call[0][0] == UIEvents.UI_SHOW_WARNING
-            and "ROIs Diferentes" in getattr(call[0][1], "title", "")
+            and "Different ROIs" in getattr(call[0][1], "title", "")
         )
     ]
     assert len(warning_calls) == 1
@@ -583,7 +583,7 @@ def test_unified_report_full_workflow_with_different_rois(
         call
         for call in coordinator._publish_event.call_args_list
         if call[0][0] == UIEvents.UI_SHOW_INFO
-        and "Relatório Unificado" in getattr(call[0][1], "title", "")
+        and "Unified Report" in getattr(call[0][1], "title", "")
     ]
     assert len(info_calls) == 1
 
@@ -661,7 +661,7 @@ def test_unified_report_shows_error_when_all_exports_fail(
         call
         for call in coordinator._publish_event.call_args_list
         if call[0][0] == UIEvents.UI_SHOW_INFO
-        and "Relatório Unificado" in getattr(call[0][1], "title", "")
+        and "Unified Report" in getattr(call[0][1], "title", "")
     ]
     assert not success_calls, "Should not show success info when no unified files were generated"
 
@@ -706,7 +706,7 @@ def test_summary_resolved_from_disk_when_path_unregistered(
         c
         for c in coordinator._publish_event.call_args_list
         if c[0][0] == UIEvents.UI_SHOW_WARNING
-        and "Dados insuficientes" in getattr(c[0][1], "title", "")
+        and "Insufficient data" in getattr(c[0][1], "title", "")
     ]
     assert not insufficient, "Não deveria reportar 'Dados insuficientes' quando o sumário existe"
 
@@ -785,7 +785,7 @@ def test_live_session_summary_above_session_folder(coordinator, sample_summary_d
         c
         for c in coordinator._publish_event.call_args_list
         if c[0][0] == UIEvents.UI_SHOW_WARNING
-        and "Dados insuficientes" in getattr(c[0][1], "title", "")
+        and "Insufficient data" in getattr(c[0][1], "title", "")
     ]
     assert not insufficient
 
@@ -809,7 +809,7 @@ def test_warning_lists_missing_videos(coordinator, tmp_path):
         c
         for c in coordinator._publish_event.call_args_list
         if c[0][0] == UIEvents.UI_SHOW_WARNING
-        and "Dados insuficientes" in getattr(c[0][1], "title", "")
+        and "Insufficient data" in getattr(c[0][1], "title", "")
     ]
     assert warnings, "Esperava aviso de dados insuficientes"
     assert "Peixe_03" in warnings[-1][0][1].message

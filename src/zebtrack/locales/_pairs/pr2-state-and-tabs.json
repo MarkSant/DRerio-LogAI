@@ -1,0 +1,30 @@
+{
+  "_comment": "PR2: state_synchronizer, control_panel and tab_builder. Values are the Portuguese literals they replaced.",
+
+  "Values restored to reflect the current settings.": "Valores restaurados para refletir as configurações atuais.",
+  "Group: {group} | Day: {day} | Individual: {subject}": "Grupo: {group} | Dia: {day} | Indivíduo: {subject}",
+  "Social interactions: {details}": "Interações sociais: {details}",
+  "Social interactions: no grouping recorded.": "Interações sociais: nenhum agrupamento registrado.",
+  "Social interactions: not applicable in single-subject mode.": "Interações sociais: não aplicável no modo de sujeito único.",
+  "Social interactions: the current profile produces no social metrics.": "Interações sociais: perfil atual não gera métricas sociais.",
+  "Social interactions: not applicable for a single monitored animal.": "Interações sociais: não aplicável para um único animal monitorado.",
+  "Social interactions: waiting for data.": "Interações sociais: aguardando dados.",
+  "Video {current} of {total}": "Vídeo {current} de {total}",
+
+  "Recording and Processing Controls": "Controles de Gravação e Processamento",
+  "Recording": "Gravação",
+  "⏹️ Stop Recording": "⏹️ Parar Gravação",
+  "🎬 Process Video": "🎬 Processar Vídeo",
+  "Show Preview During Processing": "Mostrar Preview Durante Processamento",
+  "Processing Interval (frames):": "Intervalo de Processamento (frames):",
+
+  "Main Control": "Controle Principal",
+  "Close Project": "Fechar Projeto",
+  "Zone Configuration": "Configuração de Zonas",
+  "AI Model Config.": "Config. Modelo IA",
+  "AI Model Diagnostics": "Diagnóstico Modelo IA",
+  "Start Recording": "Iniciar Gravação",
+  "Stop Recording": "Parar Gravação",
+  "Add Videos/Folders to the Project...": "Adicionar Vídeos/Pastas ao Projeto...",
+  "Process Pending Videos...": "Processar Vídeos Pendentes..."
+}

@@ -1,0 +1,31 @@
+{
+  "_comment": "PR2: ui/components/canvas/** and polygon_drawing_service. Values are the Portuguese literals they replaced.",
+
+  "The selected video was not found or is inaccessible.": "O vídeo selecionado não foi encontrado ou está inacessível.",
+  "Could not read the image.": "Não foi possível ler a imagem.",
+  "Could not open the video.": "Não foi possível abrir o vídeo.",
+  "Could not read a frame from the video.": "Não foi possível ler um frame do vídeo.",
+  "Error Displaying Frame": "Erro ao Exibir Frame",
+  "open another video": "abrir outro vídeo",
+  "Please select a video from the list to load.": "Por favor, selecione um vídeo da lista para carregar.",
+  "Select a Video": "Selecione um Vídeo",
+  "Please choose an item with a fish icon (🐟) to load the frame.": "Por favor, escolha um item com ícone de peixe (🐟) para carregar o frame.",
+  "Please choose an item with a video icon (🎬) to load the frame.": "Por favor, escolha um item com ícone de vídeo (🎬) para carregar o frame.",
+  "✓ Frame loaded: {name}": "✓ Frame carregado: {name}",
+
+  "{count} vertex(es) selected.": "{count} vértice(s) selecionado(s).",
+  "🗑 Delete this vertex": "🗑 Apagar este vértice",
+  "🗑 Delete selected (Del)": "🗑 Apagar selecionados (Del)",
+  "Select all": "Selecionar todos",
+  "Select none": "Selecionar nenhum",
+  "❌ Error saving the zone.": "❌ Erro ao salvar zona.",
+  "Could not save the zone.": "Não foi possível salvar a zona.",
+  "❌ Error while saving.": "❌ Erro durante salvamento.",
+  "Last point undone. Current points: {count}": "Último ponto desfeito. Pontos atuais: {count}",
+
+  "Aquarium 1 (reference)": "Aquário 1 (referência)",
+
+  "A polygon needs at least 3 points.": "Um polígono precisa de pelo menos 3 pontos.",
+  "Incomplete Polygon": "Polígono Incompleto",
+  "Type a name:": "Digite um nome:"
+}

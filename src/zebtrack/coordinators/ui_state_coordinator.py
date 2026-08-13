@@ -14,6 +14,7 @@ import structlog
 
 from zebtrack.core.services.weight_manager import OpenVINOExportError
 from zebtrack.core.video.processing_mode import ProcessingMode, ProcessingReport
+from zebtrack.i18n import _
 from zebtrack.ui.event_bus_v2 import Event, UIEvents
 from zebtrack.ui.payloads import (
     MessagePayload,
@@ -186,7 +187,7 @@ class UIStateController:
             self.ui_event_bus.publish(
                 Event(
                     type=UIEvents.UI_SHOW_ERROR,
-                    data=MessagePayload(title="Erro ao Adicionar Peso", message=str(e)),
+                    data=MessagePayload(title=_("Error Adding Weight"), message=str(e)),
                 )
             )
 
@@ -221,7 +222,7 @@ class UIStateController:
             self.ui_event_bus.publish(
                 Event(
                     type=UIEvents.UI_SHOW_ERROR,
-                    data=MessagePayload(title="Erro ao Excluir Peso", message=str(e)),
+                    data=MessagePayload(title=_("Error Deleting Weight"), message=str(e)),
                 )
             )
 
@@ -390,7 +391,7 @@ class UIStateController:
                 Event(
                     type=UIEvents.UI_SET_STATUS,
                     data=StatusPayload(
-                        message=f"Convertendo {active_weight} para OpenVINO...",
+                        message=_("Converting {name} to OpenVINO...").format(name=active_weight),
                     ),
                 )
             )
@@ -404,7 +405,7 @@ class UIStateController:
                     Event(
                         type=UIEvents.UI_SET_STATUS,
                         data=StatusPayload(
-                            message="Verificação de conversão concluída. Pronto.",
+                            message=_("Conversion check finished. Ready."),
                         ),
                     )
                 )
@@ -419,13 +420,13 @@ class UIStateController:
                 self.ui_event_bus.publish(
                     Event(
                         type=UIEvents.UI_SHOW_ERROR,
-                        data=MessagePayload(title="Erro na Conversão OpenVINO", message=str(e)),
+                        data=MessagePayload(title=_("OpenVINO Conversion Error"), message=str(e)),
                     )
                 )
                 self.ui_event_bus.publish(
                     Event(
                         type=UIEvents.UI_SET_STATUS,
-                        data=StatusPayload(message="Erro na conversão OpenVINO."),
+                        data=StatusPayload(message=_("OpenVINO conversion error.")),
                     )
                 )
 
@@ -507,7 +508,7 @@ class UIStateController:
                 self.ui_event_bus.publish(
                     Event(
                         type=UIEvents.UI_SET_STATUS,
-                        data=StatusPayload(message="Parâmetros do detector atualizados."),
+                        data=StatusPayload(message=_("Detector parameters updated.")),
                     )
                 )
 
@@ -517,7 +518,7 @@ class UIStateController:
             self.ui_event_bus.publish(
                 Event(
                     type=UIEvents.UI_SHOW_ERROR,
-                    data=MessagePayload(title="Erro de Validação", message=str(e)),
+                    data=MessagePayload(title=_("Validation Error"), message=str(e)),
                 )
             )
             return False
@@ -565,10 +566,12 @@ class UIStateController:
                     Event(
                         type=UIEvents.UI_SHOW_ERROR,
                         data=MessagePayload(
-                            title="Configuração Necessária",
-                            message="Erro: A área de processamento principal (aquário) não foi "
-                            "definida. Por favor, defina-a na aba 'Configuração de Zonas' "
-                            "antes de continuar.",
+                            title=_("Configuration Required"),
+                            message=_(
+                                "Error: the main processing area (aquarium) has not "
+                                "been defined. Please define it in the 'Zone "
+                                "Configuration' tab before continuing."
+                            ),
                         ),
                     )
                 )
@@ -582,14 +585,14 @@ class UIStateController:
                 Event(
                     type=UIEvents.UI_SHOW_WARNING,
                     data=MessagePayload(
-                        title="Vídeo não selecionado",
-                        message="Selecione um vídeo na lista antes de aplicar o template.",
+                        title=_("Video not selected"),
+                        message=_("Select a video in the list before applying the template."),
                     ),
                 )
             )
             return
 
-        template_name = template.get("name") or template.get("display_name") or "Template"
+        template_name = template.get("name") or template.get("display_name") or _("Template")
         try:
             template_zone = pm.load_roi_template(
                 template_name,
@@ -605,8 +608,10 @@ class UIStateController:
                 Event(
                     type=UIEvents.UI_SHOW_INFO,
                     data=MessagePayload(
-                        title="Template Aplicado",
-                        message=f"As zonas foram atualizadas com o template '{template_name}'.",
+                        title=_("Template Applied"),
+                        message=_("The zones were updated with template '{name}'.").format(
+                            name=template_name
+                        ),
                     ),
                 )
             )
@@ -618,8 +623,8 @@ class UIStateController:
                 Event(
                     type=UIEvents.UI_SHOW_ERROR,
                     data=MessagePayload(
-                        title="Arquivo não encontrado",
-                        message="O arquivo associado ao template não foi encontrado.",
+                        title=_("File not found"),
+                        message=_("The file linked to the template was not found."),
                     ),
                 )
             )
@@ -630,7 +635,7 @@ class UIStateController:
             self.ui_event_bus.publish(
                 Event(
                     type=UIEvents.UI_SHOW_ERROR,
-                    data=MessagePayload(title="Erro ao aplicar template", message=str(exc)),
+                    data=MessagePayload(title=_("Error applying the template"), message=str(exc)),
                 )
             )
 
@@ -703,8 +708,8 @@ class UIStateController:
         # Provide immediate dialog feedback so the user knows reports won't be generated
         self.ui_coordinator.show_info(
             view,
-            "Análise cancelada",
-            "A análise de vídeo foi cancelada. Nenhum relatório será gerado.",
+            _("Analysis cancelled"),
+            _("The video analysis was cancelled. No report will be generated."),
         )
 
     # ========================================================================
@@ -726,7 +731,9 @@ class UIStateController:
         self.ui_coordinator.show_progress_bar(view)
         self.ui_coordinator.schedule_after(
             0,
-            lambda: view.set_status(f"Iniciando processamento para {total_videos} vídeos..."),
+            lambda: view.set_status(
+                _("Starting processing for {count} videos...").format(count=total_videos)
+            ),
         )
         self.project_manager.set_active_zone_video(None)
 
@@ -746,14 +753,16 @@ class UIStateController:
 
         if was_cancelled:
             self.ui_coordinator.show_info(
-                self.view, "Cancelado", "A análise de vídeo foi cancelada."
+                self.view, _("Cancelled"), _("The video analysis was cancelled.")
             )
         else:
             self.ui_coordinator.show_info(
                 self.view,
-                "Processamento Concluído",
-                f"Processamento de {len(videos_to_process)} vídeo(s) concluído com sucesso.\n"
-                f"Resultados salvos em:\n{final_output_dir}",
+                _("Processing Finished"),
+                _(
+                    "Processing of {count} video(s) finished successfully.\n"
+                    "Results saved in:\n{directory}"
+                ).format(count=len(videos_to_process), directory=final_output_dir),
             )
 
     # ========================================================================

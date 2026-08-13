@@ -11,22 +11,17 @@ from tkinter import Label, StringVar, ttk
 # Third-party imports
 import structlog
 
+from zebtrack.i18n import _
 from zebtrack.ui import payloads
 
 # Local imports
+from zebtrack.ui.components.analysis_profile import analysis_profile_tooltip
 from zebtrack.ui.components.base import BaseWidget
 from zebtrack.ui.event_bus_v2 import EventBusV2, UIEvents
 from zebtrack.ui.sentinels import all_tracks_label
 from zebtrack.ui.wizard.tooltip import ToolTip, create_help_label
 
 log = structlog.get_logger()
-
-ANALYSIS_PROFILE_TOOLTIP = (
-    "Mostra a configuração de análise aplicada a esta sessão. "
-    "Quando nenhuma regra específica combina com grupo, dia ou indivíduo, "
-    "o projeto usa o perfil padrão. Quando aparecer 'padrão do projeto (default)', "
-    "isso significa exatamente esse fallback."
-)
 
 
 class AnalysisDisplayWidget(BaseWidget):
@@ -65,22 +60,28 @@ class AnalysisDisplayWidget(BaseWidget):
         """
         # State variables for display
         stringvar_master = parent
-        self.status_var = StringVar(master=stringvar_master, value="Nenhuma análise em andamento.")
-        self.task_var = StringVar(master=stringvar_master, value="Nenhuma tarefa em andamento.")
-        self.group_var = StringVar(master=stringvar_master, value="Grupo: --")
-        self.day_var = StringVar(master=stringvar_master, value="Dia: --")
-        self.subject_var = StringVar(master=stringvar_master, value="Indivíduo: --")
+        self.status_var = StringVar(master=stringvar_master, value=_("No analysis in progress."))
+        self.task_var = StringVar(master=stringvar_master, value=_("No task in progress."))
+        self.group_var = StringVar(
+            master=stringvar_master, value=_("Group: {value}").format(value="--")
+        )
+        self.day_var = StringVar(
+            master=stringvar_master, value=_("Day: {value}").format(value="--")
+        )
+        self.subject_var = StringVar(
+            master=stringvar_master, value=_("Individual: {value}").format(value="--")
+        )
         self.profile_var = StringVar(
             master=stringvar_master,
-            value="Configuração de análise: default",
+            value=_("Analysis configuration: {value}").format(value="default"),
         )
         self.tracking_mode_var = StringVar(
             master=stringvar_master,
-            value="Modo de rastreamento: --",
+            value=_("Tracking mode: {value}").format(value="--"),
         )
         self.social_summary_var = StringVar(
             master=stringvar_master,
-            value="Interações sociais: não aplicável no momento.",
+            value=_("Social interactions: not applicable right now."),
         )
         self.track_selector_var = StringVar(master=stringvar_master, value=all_tracks_label())
 
@@ -154,9 +155,9 @@ class AnalysisDisplayWidget(BaseWidget):
 
         self.profile_label = ttk.Label(profile_frame, textvariable=self.profile_var)
         self.profile_label.pack(side="left")
-        self.profile_help_label = create_help_label(profile_frame, ANALYSIS_PROFILE_TOOLTIP)
+        self.profile_help_label = create_help_label(profile_frame, analysis_profile_tooltip())
         self.profile_help_label.pack(side="left", padx=(4, 0))
-        ToolTip(self.profile_label, ANALYSIS_PROFILE_TOOLTIP)
+        ToolTip(self.profile_label, analysis_profile_tooltip())
 
         # Tracking mode (third row)
         self.tracking_mode_label = ttk.Label(info_frame, textvariable=self.tracking_mode_var)
@@ -213,12 +214,12 @@ class AnalysisDisplayWidget(BaseWidget):
         stats_container.columnconfigure((0, 1, 2), weight=1, uniform="analysis_stats")
 
         stats_items = [
-            ("total", "Total de Frames:"),
-            ("processed", "Processados:"),
-            ("detected", "Frames Detectados:"),
-            ("percent", "Concluído:"),
-            ("elapsed", "Tempo Decorrido:"),
-            ("eta", "Tempo Estimado:"),
+            ("total", _("Total Frames:")),
+            ("processed", _("Processed:")),
+            ("detected", _("Detected Frames:")),
+            ("percent", _("Completed:")),
+            ("elapsed", _("Elapsed Time:")),
+            ("eta", _("Estimated Time:")),
         ]
 
         for idx, (key, label_text) in enumerate(stats_items):
@@ -235,7 +236,7 @@ class AnalysisDisplayWidget(BaseWidget):
         # Cancel button
         self.cancel_btn = ttk.Button(
             self.progress_frame,
-            text="Cancelar Análise",
+            text=_("Cancel Analysis"),
             command=self._on_cancel_clicked,
             state="disabled",
         )
@@ -290,19 +291,19 @@ class AnalysisDisplayWidget(BaseWidget):
             subject: Subject identifier
             profile: Optional profile name
         """
-        self.group_var.set(f"Grupo: {group}")
-        self.day_var.set(f"Dia: {day}")
-        self.subject_var.set(f"Indivíduo: {subject}")
+        self.group_var.set(_("Group: {value}").format(value=group))
+        self.day_var.set(_("Day: {value}").format(value=day))
+        self.subject_var.set(_("Individual: {value}").format(value=subject))
         if profile:
-            self.profile_var.set(f"Configuração de análise: {profile}")
+            self.profile_var.set(_("Analysis configuration: {value}").format(value=profile))
 
     def set_tracking_mode(self, mode: str) -> None:
         """Update the tracking mode display."""
-        self.tracking_mode_var.set(f"Modo de rastreamento: {mode}")
+        self.tracking_mode_var.set(_("Tracking mode: {value}").format(value=mode))
 
     def set_profile(self, profile: str) -> None:
         """Update the analysis profile display."""
-        self.profile_var.set(f"Configuração de análise: {profile}")
+        self.profile_var.set(_("Analysis configuration: {value}").format(value=profile))
 
     def set_social_summary(self, summary: str) -> None:
         """Update the social proximity summary text."""
@@ -433,12 +434,12 @@ class AnalysisDisplayWidget(BaseWidget):
 
     def reset_to_defaults(self) -> None:
         """Reset all displays to default values."""
-        self.set_status("Nenhuma análise em andamento.")
-        self.set_task("Nenhuma tarefa em andamento.")
+        self.set_status(_("No analysis in progress."))
+        self.set_task(_("No task in progress."))
         self.set_metadata("--", "--", "--")
         self.set_tracking_mode("--")
         self.set_profile("default")
-        self.set_social_summary("Interações sociais: aguardando dados.")
+        self.set_social_summary(_("Social interactions: waiting for data."))
         self.track_selector_var.set(all_tracks_label())
         self.hide_progress()
         self.disable_cancel_button()

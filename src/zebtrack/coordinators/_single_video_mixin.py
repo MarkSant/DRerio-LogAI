@@ -22,6 +22,7 @@ from zebtrack.core.video.processing_mode import ProcessingMode
 from zebtrack.core.video.processing_worker import (
     ProcessingWorker,
 )
+from zebtrack.i18n import _
 from zebtrack.ui import payloads
 from zebtrack.ui.event_bus_v2 import UIEvents
 
@@ -103,11 +104,11 @@ class SingleVideoMixin:
                         self._publish_event(
                             UIEvents.UI_SHOW_ERROR,
                             payloads.MessagePayload(
-                                title="Configuração Incompleta",
-                                message=(
-                                    f"Aquário {aq.id} não tem sujeito definido. "
-                                    "Configure os aquários antes de processar."
-                                ),
+                                title=_("Incomplete Configuration"),
+                                message=_(
+                                    "Aquarium {number} has no subject defined. "
+                                    "Configure the aquariums before processing."
+                                ).format(number=aq.id),
                             ),
                         )
                         return
@@ -216,7 +217,7 @@ class SingleVideoMixin:
                                 "config.metadata_dim.parse_skipped", key=dim_key, exc_info=True
                             )
         metadata.setdefault("group", "single_video")
-        metadata.setdefault("group_display_name", "Vídeo Único")
+        metadata.setdefault("group_display_name", _("Single Video"))
         metadata.setdefault("day", "1")
         metadata.setdefault("subject", "1")
         return metadata
@@ -360,8 +361,8 @@ class SingleVideoMixin:
             self._publish_event(
                 UIEvents.UI_SHOW_ERROR,
                 payloads.MessagePayload(
-                    title="Erro",
-                    message=f"Não foi possível abrir: {video_path}",
+                    title=_("Error"),
+                    message=_("Could not open: {path}").format(path=video_path),
                 ),
             )
             return False
@@ -377,7 +378,7 @@ class SingleVideoMixin:
         if not scanned:
             if self.view:
                 self.view.dialog_manager.show_error(
-                    "Erro", "Não foi possível identificar vídeo válido."
+                    _("Error"), _("Could not identify a valid video.")
                 )
             return
 

@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING, Any
 
 import structlog
 
+from zebtrack.i18n import _
 from zebtrack.utils.report_files import find_block_partial_report_files
 
 if TYPE_CHECKING:
@@ -209,7 +210,7 @@ class ReportTreeBuilder:
         """Insert a day node and its subjects into the tree."""
         # Flatten to get sample metadata for day label
         all_day_videos = [v for subj_videos in subjects_dict.values() for v in subj_videos]
-        day_label = f"Dia {day_id}"
+        day_label = _("Day {number}").format(number=day_id)
         if all_day_videos:
             first_video = all_day_videos[0]
             if isinstance(first_video, dict):
@@ -281,7 +282,7 @@ class ReportTreeBuilder:
             parent,
             "end",
             iid=partial_node_id,
-            text="🧾 Relatórios Parciais",
+            text=_("🧾 Partial Reports"),
             values=("", "", "", "", "", ""),
             open=True,
         )
@@ -349,7 +350,7 @@ class ReportTreeBuilder:
             parent,
             "end",
             iid=subject_node_id,
-            text=f"🐟 Sujeito {subject_label}",
+            text=_("🐟 Subject {label}").format(label=subject_label),
             values=("", "", "", "", "", ""),
             open=True,
         )
@@ -374,7 +375,7 @@ class ReportTreeBuilder:
 
         video_name = os.path.basename(video_path)
         subject = video.get("subject", "")
-        subject_label = f"Sujeito {subject}" if subject else video_name
+        subject_label = _("Subject {label}").format(label=subject) if subject else video_name
 
         # Enrich label with aquarium info for multi-subject entries to avoid
         # redundant subject + aquarium lines in the tree hierarchy.
@@ -389,16 +390,16 @@ class ReportTreeBuilder:
                     aq_display = int(raw_aq)
             if aq_display is None:
                 aq_display = multi_subject_index
-            subject_label += f" — Aq. {aq_display + 1}"
+            subject_label += " — " + _("Aq. {number}").format(number=aq_display + 1)
 
         col_arena = STATUS_SYMBOLS["arena"] if video.get("has_arena") else ""
         col_rois = STATUS_SYMBOLS["rois"] if video.get("has_rois") else ""
         col_traj = STATUS_SYMBOLS["trajectory"] if video.get("has_trajectory") else ""
         col_summary = STATUS_SYMBOLS["summary"] if video.get("has_summary") else ""
 
-        status_label = "Processado" if video.get("has_trajectory") else "Pendente"
+        status_label = _("Processed") if video.get("has_trajectory") else _("Not processed")
         if not video.get("has_arena"):
-            status_label = "Sem Arena"
+            status_label = _("No Arena")
 
         # For multi-subject entries, each row represents ONE aquarium.
         # Override video-level indicators with per-aquarium processing state
@@ -570,7 +571,7 @@ class ReportTreeBuilder:
         if aq_pf.get("trajectory"):
             col_traj = STATUS_SYMBOLS["trajectory"]
             if video.get("has_arena"):
-                status_label = "Processado"
+                status_label = _("Processed")
         if aq_pf.get("summary") or aq_pf.get("summary_excel"):
             col_summary = STATUS_SYMBOLS["summary"]
 
@@ -630,7 +631,7 @@ class ReportTreeBuilder:
             aq_col_traj = STATUS_SYMBOLS["trajectory"] if aq_has_traj else ""
             aq_col_summary = STATUS_SYMBOLS["summary"] if aq_has_summary else ""
 
-            aq_label = f"Aquário {aq_id + 1}"
+            aq_label = _("Aquarium {number}").format(number=aq_id + 1)
             # For multi-subject entries the subject/group info is already in
             # the parent node, so avoid duplicating it in the aquarium label.
             if not is_multi_subject_entry:

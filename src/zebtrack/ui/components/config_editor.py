@@ -18,6 +18,7 @@ from zebtrack.core.services.roi_rule_resolver import (
     DEFAULT_MIN_BBOX_OVERLAP_RATIO,
     DEFAULT_ROI_INCLUSION_RULE,
 )
+from zebtrack.i18n import _
 from zebtrack.ui import payloads
 from zebtrack.ui.components.base import BaseWidget
 from zebtrack.ui.components.behavioral_config_widget import BehavioralConfigWidget
@@ -26,12 +27,20 @@ from zebtrack.ui.wizard.tooltip import create_help_label
 
 log = structlog.get_logger()
 
-# Aviso mostrado ao selecionar ``seg_overlap`` sem o sidecar de máscaras ligado.
-SEG_OVERLAP_MISSING_MASKS_WARNING = (
-    "⚠️ 'seg_overlap' sem 'Salvar Máscaras' ligado: a análise vai degradar para "
-    "'bbox_intersects'. Ligue a opção na seção 'Gravação de Dados' e confirme "
-    "que o modelo é de segmentação (model_selection.animal_method = 'seg')."
-)
+
+def seg_overlap_missing_masks_warning() -> str:
+    """Warning shown when ``seg_overlap`` is picked without the mask sidecar.
+
+    A function rather than a module constant: a constant would call ``_()``
+    at import time and freeze the text in whatever language was installed
+    then -- usually none.
+    """
+    return _(
+        "⚠️ 'seg_overlap' without 'Save Masks' enabled: the analysis will "
+        "degrade to 'bbox_intersects'. Turn the option on in the 'Data "
+        "Recording' section and confirm the model does segmentation "
+        "(model_selection.animal_method = 'seg')."
+    )
 
 
 class ConfigEditorWidget(BaseWidget):
@@ -121,7 +130,7 @@ class ConfigEditorWidget(BaseWidget):
         container = parent if parent else self
         behavioral_frame = ttk.LabelFrame(
             container,
-            text="Padrões de Análise Comportamental",
+            text=_("Behavioural Analysis Defaults"),
             padding=10,
         )
         behavioral_frame.pack(fill="x", pady=6)
@@ -136,10 +145,10 @@ class ConfigEditorWidget(BaseWidget):
 
     def _build_intro(self) -> None:
         """Build introduction text."""
-        intro = (
-            "Edite parâmetros avançados do config.yaml sem sair do aplicativo. "
-            "As alterações são persistidas em config.local.yaml e recarregadas "
-            "automaticamente por settings.load_settings()."
+        intro = _(
+            "Edit advanced config.yaml parameters without leaving the application. "
+            "Changes are persisted to config.local.yaml and reloaded automatically "
+            "by settings.load_settings()."
         )
         ttk.Label(
             self,
@@ -150,9 +159,9 @@ class ConfigEditorWidget(BaseWidget):
 
         config_path_hint = ttk.Label(
             self,
-            text=(
-                f"Arquivos monitorados: {Path('config.yaml').absolute()} → "
-                f"{Path('config.local.yaml').absolute()}"
+            text=_("Monitored files: {default} → {local}").format(
+                default=Path("config.yaml").absolute(),
+                local=Path("config.local.yaml").absolute(),
             ),
             wraplength=560,
             justify="left",
@@ -165,7 +174,7 @@ class ConfigEditorWidget(BaseWidget):
         container = parent if parent else self
         video_frame = ttk.LabelFrame(
             container,
-            text="Processamento de Vídeo",
+            text=_("Video Processing"),
             padding=10,
         )
         video_frame.pack(fill="x", pady=6)
@@ -176,66 +185,74 @@ class ConfigEditorWidget(BaseWidget):
         video_frame.columnconfigure(3, weight=1)
 
         # FPS
-        ttk.Label(video_frame, text="FPS de saída (MP4):").grid(
+        ttk.Label(video_frame, text=_("Output FPS (MP4):")).grid(
             row=0, column=0, sticky="w", padx=(0, 2), pady=2
         )
         create_help_label(
             video_frame,
-            "FPS de Saída (Frames Per Second)\n\n"
-            "Define a velocidade de reprodução do vídeo .mp4 resultante da análise.\n"
-            "• Recomendado: O mesmo valor do vídeo original (ex: 30).\n"
-            "• Aumentar: O vídeo parecerá acelerado.\n"
-            "• Diminuir: O vídeo parecerá em câmera lenta.",
+            _(
+                "Output FPS (Frames Per Second)\n\n"
+                "Sets the playback speed of the .mp4 produced by the analysis.\n"
+                "• Recommended: the same value as the original video (e.g. 30).\n"
+                "• Higher: the video looks sped up.\n"
+                "• Lower: the video looks like slow motion."
+            ),
         ).grid(row=0, column=1, padx=2)
         ttk.Entry(video_frame, textvariable=self.fps_var, width=8).grid(
             row=0, column=2, sticky="w", padx=5
         )
 
         # Processing interval
-        ttk.Label(video_frame, text="Intervalo Processamento (N):").grid(
+        ttk.Label(video_frame, text=_("Processing Interval (N):")).grid(
             row=1, column=0, sticky="w", padx=(0, 2), pady=2
         )
         create_help_label(
             video_frame,
-            "Intervalo de Processamento (Análise)\n\n"
-            "Processa 1 frame a cada N frames originais.\n"
-            "• N=1: Processa TODOS os frames (máxima precisão, mais lento).\n"
-            "• N=10: Processa 1 frame e pula 9 (mais rápido, ideal para vídeos longos).\n"
-            "• Aumentar: Reduz drasticamente o tempo de processamento.\n"
-            "• Diminuir: Melhora a resolução temporal das métricas de velocidade.",
+            _(
+                "Processing Interval (Analysis)\n\n"
+                "Processes 1 frame every N original frames.\n"
+                "• N=1: processes EVERY frame (maximum precision, slowest).\n"
+                "• N=10: processes 1 frame and skips 9 (faster, ideal for long videos).\n"
+                "• Higher: cuts processing time dramatically.\n"
+                "• Lower: improves the temporal resolution of speed metrics."
+            ),
         ).grid(row=1, column=1, padx=2)
         ttk.Entry(video_frame, textvariable=self.processing_interval_var, width=8).grid(
             row=1, column=2, sticky="w", padx=5
         )
 
         # Display interval
-        ttk.Label(video_frame, text="Intervalo Exibição (N):").grid(
+        ttk.Label(video_frame, text=_("Display Interval (N):")).grid(
             row=2, column=0, sticky="w", padx=(0, 2), pady=2
         )
         create_help_label(
             video_frame,
-            "Intervalo de Exibição (UI)\n\n"
-            "Atualiza a imagem na tela a cada N frames processados.\n"
-            "• N=1: Exibição fluida (consome mais CPU/GPU).\n"
-            "• N=30: Atualiza a cada 30 frames (mais leve).\n"
-            "• Útil para acelerar a análise economizando recursos visuais.",
+            _(
+                "Display Interval (UI)\n\n"
+                "Refreshes the on-screen image every N processed frames.\n"
+                "• N=1: smooth display (uses more CPU/GPU).\n"
+                "• N=30: refreshes every 30 frames (lighter).\n"
+                "• Useful to speed the analysis up by saving visual resources."
+            ),
         ).grid(row=2, column=1, padx=2)
         ttk.Entry(video_frame, textvariable=self.display_interval_var, width=8).grid(
             row=2, column=2, sticky="w", padx=5
         )
 
         # Processing offset
-        ttk.Label(video_frame, text="Offset Inicial (frames):").grid(
+        ttk.Label(video_frame, text=_("Initial Offset (frames):")).grid(
             row=3, column=0, sticky="w", padx=(0, 2), pady=2
         )
         create_help_label(
             video_frame,
-            "Offset Inicial\n\n"
-            "Número de frames iniciais a serem ignorados antes de "
-            "começar o rastreamento.\n"
-            "• Use para descartar o período de estabilização da água ou a mão "
-            "do experimentador saindo de cena.\n"
-            "• Ex: Em um vídeo de 30fps, um offset de 90 frames ignora os primeiros 3 segundos.",
+            _(
+                "Initial Offset\n\n"
+                "Number of leading frames to ignore before tracking starts.\n"
+                "• Use it to discard the water settling down or the experimenter's "
+                "hand leaving the scene.\n"
+                "• E.g. in a 30fps video, an offset of 90 frames skips the first "
+                "3 seconds."
+            ),
         ).grid(row=3, column=1, padx=2)
         ttk.Entry(video_frame, textvariable=self.processing_offset_var, width=8).grid(
             row=3, column=2, sticky="w", padx=5
@@ -246,7 +263,7 @@ class ConfigEditorWidget(BaseWidget):
         container = parent if parent else self
         smoothing_frame = ttk.LabelFrame(
             container,
-            text="Suavização de Trajetória (Filtro Savitzky-Golay)",
+            text=_("Trajectory Smoothing (Savitzky-Golay Filter)"),
             padding=10,
         )
         smoothing_frame.pack(fill="x", pady=6)
@@ -257,35 +274,40 @@ class ConfigEditorWidget(BaseWidget):
         smoothing_frame.columnconfigure(3, weight=1)
 
         # Window Length
-        ttk.Label(smoothing_frame, text="Janela de Suavização:").grid(
+        ttk.Label(smoothing_frame, text=_("Smoothing Window:")).grid(
             row=0, column=0, sticky="w", padx=(0, 2), pady=2
         )
         create_help_label(
             smoothing_frame,
-            "Janela de Suavização (Window Length)\n\n"
-            "Número de frames usados para suavizar a trajetória. DEVE SER ÍMPAR.\n"
-            "• Aumentar (ex: 11, 15): Remove mais ruído/tremido, mas pode "
-            "'arredondar' demais as curvas.\n"
-            "• Diminuir (ex: 3, 5): Mantém mais detalhes dos movimentos bruscos.\n"
-            "• Padrão: 7",
+            _(
+                "Smoothing Window (Window Length)\n\n"
+                "Number of frames used to smooth the trajectory. MUST BE ODD.\n"
+                "• Higher (e.g. 11, 15): removes more noise/jitter, but may round "
+                "the curves off too much.\n"
+                "• Lower (e.g. 3, 5): keeps more detail of abrupt movements.\n"
+                "• Default: 7"
+            ),
         ).grid(row=0, column=1, padx=2)
         ttk.Entry(smoothing_frame, textvariable=self.window_length_var, width=8).grid(
             row=0, column=2, sticky="w", padx=5
         )
 
         # Polynomial Order
-        ttk.Label(smoothing_frame, text="Ordem do Polinômio:").grid(
+        ttk.Label(smoothing_frame, text=_("Polynomial Order:")).grid(
             row=1, column=0, sticky="w", padx=(0, 2), pady=2
         )
         create_help_label(
             smoothing_frame,
-            "Ordem do Polinômio (Polyorder)\n\n"
-            "Complexidade da curva usada para ajustar os pontos. Deve ser MENOR que a janela.\n"
-            "• 1: Linha reta (suavização agressiva).\n"
-            "• 2: Curva simples (parábola).\n"
-            "• 3: Curva mais complexa (recomendado).\n"
-            "• Aumentar: A curva segue mais de perto os pontos originais.\n"
-            "• Padrão: 3",
+            _(
+                "Polynomial Order (Polyorder)\n\n"
+                "Complexity of the curve fitted through the points. Must be SMALLER "
+                "than the window.\n"
+                "• 1: straight line (aggressive smoothing).\n"
+                "• 2: simple curve (parabola).\n"
+                "• 3: more complex curve (recommended).\n"
+                "• Higher: the curve follows the original points more closely.\n"
+                "• Default: 3"
+            ),
         ).grid(row=1, column=1, padx=2)
         ttk.Entry(smoothing_frame, textvariable=self.polyorder_var, width=8).grid(
             row=1, column=2, sticky="w", padx=5
@@ -294,9 +316,9 @@ class ConfigEditorWidget(BaseWidget):
         # Overall explanation
         ttk.Label(
             smoothing_frame,
-            text=(
-                "ℹ️ Este filtro remove tremidos pequenos da detecção sem perder o rastro real. "
-                "Útil para métricas de distância e velocidade mais precisas."
+            text=_(
+                "ℹ️ This filter removes small detection jitter without losing the real "
+                "track. Useful for more accurate distance and speed metrics."
             ),
             font=("TkDefaultFont", 8),
             foreground="#2563eb",
@@ -309,7 +331,7 @@ class ConfigEditorWidget(BaseWidget):
         container = parent if parent else self
         recorder_frame = ttk.LabelFrame(
             container,
-            text="Gravação de Dados (Recorder)",
+            text=_("Data Recording (Recorder)"),
             padding=10,
         )
         recorder_frame.pack(fill="x", pady=6)
@@ -320,61 +342,67 @@ class ConfigEditorWidget(BaseWidget):
         recorder_frame.columnconfigure(3, weight=1)
 
         # Flush interval
-        ttk.Label(recorder_frame, text="Flush Automático (s):").grid(
+        ttk.Label(recorder_frame, text=_("Automatic Flush (s):")).grid(
             row=0, column=0, sticky="w", padx=(0, 2), pady=2
         )
         create_help_label(
             recorder_frame,
-            "Intervalo de Flush (Tempo)\n\n"
-            "A cada X segundos, o sistema força a gravação dos dados da "
-            "memória para o arquivo Parquet.\n"
-            "• Protege contra perda de dados se o app cair.\n"
-            "• Valores baixos (ex: 1.0) aumentam o uso de disco.\n"
-            "• Padrão: 5.0s",
+            _(
+                "Flush Interval (Time)\n\n"
+                "Every X seconds the system forces the in-memory data out to the "
+                "Parquet file.\n"
+                "• Protects against data loss if the app crashes.\n"
+                "• Low values (e.g. 1.0) increase disk usage.\n"
+                "• Default: 5.0s"
+            ),
         ).grid(row=0, column=1, padx=2)
         ttk.Entry(recorder_frame, textvariable=self.flush_interval_var, width=8).grid(
             row=0, column=2, sticky="w", padx=5
         )
 
         # Flush rows
-        ttk.Label(recorder_frame, text="Limite de Linhas (Flush):").grid(
+        ttk.Label(recorder_frame, text=_("Row Limit (Flush):")).grid(
             row=1, column=0, sticky="w", padx=(0, 2), pady=2
         )
         create_help_label(
             recorder_frame,
-            "Limite de Linhas para Flush\n\n"
-            "Grava dados imediatamente ao atingir X linhas em memória.\n"
-            "• Padrão: 500 linhas.",
+            _(
+                "Row Limit for Flush\n\n"
+                "Writes data out as soon as X rows are held in memory.\n"
+                "• Default: 500 rows."
+            ),
         ).grid(row=1, column=1, padx=2)
         ttk.Entry(recorder_frame, textvariable=self.flush_rows_var, width=8).grid(
             row=1, column=2, sticky="w", padx=5
         )
 
         # Persistência de máscaras de segmentação
-        ttk.Label(recorder_frame, text="Salvar Máscaras (Segmentação):").grid(
+        ttk.Label(recorder_frame, text=_("Save Masks (Segmentation):")).grid(
             row=2, column=0, sticky="w", padx=(0, 2), pady=2
         )
         create_help_label(
             recorder_frame,
-            "Salvar Máscaras de Segmentação\n\n"
-            "Grava o sidecar 3b_Mascaras_<video>.parquet com a máscara de cada "
-            "detecção.\n"
-            "• É a ÚNICA fonte de máscaras da regra de ROI 'seg_overlap'.\n"
-            "• Custo: arquivo extra em disco e decodificação da máscara durante "
-            "o rastreamento. Desligado não custa nada.\n\n"
-            "Ligar só esta chave NÃO habilita 'seg_overlap'. Os três "
-            "pré-requisitos precisam valer juntos:\n"
-            "  1. recorder.persist_masks (esta opção)\n"
-            "  2. model_selection.animal_method = 'seg' (modelo de segmentação)\n"
-            "  3. a regra de ROI 'seg_overlap' selecionada\n"
-            "Faltando qualquer um, a análise cai para 'bbox_intersects' e "
-            "registra o aviso no relatório.\n"
-            "• Padrão: desligado.",
+            _(
+                "Save Segmentation Masks\n\n"
+                "Writes the 3b_Mascaras_<video>.parquet sidecar with the mask of "
+                "every detection.\n"
+                "• It is the ONLY source of masks for the 'seg_overlap' ROI rule.\n"
+                "• Cost: an extra file on disk and mask decoding during tracking. "
+                "Turned off it costs nothing.\n\n"
+                "Turning this key on alone does NOT enable 'seg_overlap'. The three "
+                "prerequisites must hold together:\n"
+                "  1. recorder.persist_masks (this option)\n"
+                "  2. model_selection.animal_method = 'seg' (segmentation model)\n"
+                "  3. the 'seg_overlap' ROI rule selected\n"
+                "If any is missing the analysis falls back to 'bbox_intersects' and "
+                "records the warning in the report.\n"
+                "• Default: off."
+            ),
         ).grid(row=2, column=1, padx=2)
         ttk.Checkbutton(
             recorder_frame,
             variable=self.persist_masks_var,
-            text="Necessário para a regra de ROI 'seg_overlap'",
+            text=_("Required for the 'seg_overlap' ROI rule"),
         ).grid(row=2, column=2, columnspan=2, sticky="w", padx=5)
 
     def _build_roi_section(self, parent=None) -> None:
@@ -382,7 +410,7 @@ class ConfigEditorWidget(BaseWidget):
         container = parent if parent else self
         roi_frame = ttk.LabelFrame(
             container,
-            text="Lógica de Inclusão em ROI (Padrão)",
+            text=_("ROI Inclusion Logic (Default)"),
             padding=10,
         )
         roi_frame.pack(fill="x", pady=6)
@@ -393,21 +421,23 @@ class ConfigEditorWidget(BaseWidget):
         roi_frame.columnconfigure(3, weight=1)
 
         # Inclusion rule
-        ttk.Label(roi_frame, text="Regra de Inclusão:").grid(
+        ttk.Label(roi_frame, text=_("Inclusion Rule:")).grid(
             row=0, column=0, sticky="w", padx=(0, 2), pady=2
         )
         create_help_label(
             roi_frame,
-            "Lógica de Inclusão em ROI\n\n"
-            "Define quando o peixe é considerado 'dentro' de uma zona.\n"
-            "• Centroide (centroid_in): Apenas se o ponto central estiver na zona.\n"
-            "• Centroide c/ Buffer: Expande a zona virtualmente para o cálculo.\n"
-            "• Intersecção BBox: Se qualquer parte da caixa do peixe tocar a zona.\n"
-            "• Sobreposição Seg: Baseado na máscara de pixels (mais preciso).\n\n"
-            "'seg_overlap' exige mais duas coisas além desta regra: "
-            "recorder.persist_masks ligado (opção 'Salvar Máscaras' acima) e "
-            "model_selection.animal_method = 'seg'. Faltando qualquer uma, a "
-            "análise degrada para 'bbox_intersects' e avisa no relatório.",
+            _(
+                "ROI Inclusion Logic\n\n"
+                "Defines when the fish counts as 'inside' a zone.\n"
+                "• Centroid (centroid_in): only if the centre point is in the zone.\n"
+                "• Centroid w/ Buffer: expands the zone virtually for the calculation.\n"
+                "• BBox Intersection: if any part of the fish's box touches the zone.\n"
+                "• Seg Overlap: based on the pixel mask (most accurate).\n\n"
+                "'seg_overlap' needs two more things besides this rule: "
+                "recorder.persist_masks enabled (the 'Save Masks' option above) and "
+                "model_selection.animal_method = 'seg'. If either is missing the "
+                "analysis degrades to 'bbox_intersects' and warns in the report."
+            ),
         ).grid(row=0, column=1, padx=2)
 
         config_roi_combo = ttk.Combobox(
@@ -427,48 +457,55 @@ class ConfigEditorWidget(BaseWidget):
         self._roi_rule_widgets.append(config_roi_combo)
 
         # Buffer radius
-        ttk.Label(roi_frame, text="Raio de Buffer (r):").grid(
+        ttk.Label(roi_frame, text=_("Buffer Radius (r):")).grid(
             row=1, column=0, sticky="w", padx=(0, 2), pady=2
         )
         create_help_label(
             roi_frame,
-            "Raio de Buffer\n\n"
-            "Distância extra para expansão da ROI na regra 'Centroide c/ Buffer'.\n"
-            "• Unidade: Centímetros (se calibrado) ou Pixels.",
+            _(
+                "Buffer Radius\n\n"
+                "Extra distance the ROI is expanded by in the 'Centroid w/ Buffer' "
+                "rule.\n"
+                "• Unit: centimetres (if calibrated) or pixels."
+            ),
         ).grid(row=1, column=1, padx=2)
         ttk.Entry(roi_frame, textvariable=self.roi_buffer_radius_var, width=8).grid(
             row=1, column=2, sticky="w", padx=5
         )
 
         # Overlap ratio
-        ttk.Label(roi_frame, text="Sobreposição Mínima:").grid(
+        ttk.Label(roi_frame, text=_("Minimum Overlap:")).grid(
             row=2, column=0, sticky="w", padx=(0, 2), pady=2
         )
         create_help_label(
             roi_frame,
-            "Fração de Sobreposição Mínima\n\n"
-            "Mínimo de área (0 a 1) que deve estar na zona para contar.\n"
-            "• Ex: 0.50 significa metade da área de referência dentro da zona.\n"
-            "• 0 (só na regra 'Intersecção BBox'): qualquer sobreposição real "
-            "conta; encostar na borda não.",
+            _(
+                "Minimum Overlap Fraction\n\n"
+                "Minimum area (0 to 1) that must be inside the zone to count.\n"
+                "• E.g. 0.50 means half of the reference area inside the zone.\n"
+                "• 0 (only in the 'BBox Intersection' rule): any real overlap counts; "
+                "merely touching the border does not."
+            ),
         ).grid(row=2, column=1, padx=2)
         ttk.Entry(roi_frame, textvariable=self.roi_overlap_ratio_var, width=8).grid(
             row=2, column=2, sticky="w", padx=5
         )
 
         # Overlap basis (denominator of the fraction above)
-        ttk.Label(roi_frame, text="Base da Sobreposição:").grid(
+        ttk.Label(roi_frame, text=_("Overlap Basis:")).grid(
             row=3, column=0, sticky="w", padx=(0, 2), pady=2
         )
         create_help_label(
             roi_frame,
-            "Base (denominador) da Fração de Sobreposição\n\n"
-            "Define em relação a QUE a fração é medida.\n"
-            "• bbox: fração da caixa do peixe que está na zona (histórico).\n"
-            "• roi: fração da zona que está coberta pela caixa.\n"
-            "• max: o maior dos dois — recomendado para zonas pequenas, onde "
-            "'bbox' subestima (uma caixa 4x maior que a zona, cobrindo-a "
-            "inteira, marca só 0.25).",
+            _(
+                "Basis (denominator) of the Overlap Fraction\n\n"
+                "Defines WHAT the fraction is measured against.\n"
+                "• bbox: fraction of the fish's box that is in the zone (historical).\n"
+                "• roi: fraction of the zone that is covered by the box.\n"
+                "• max: the larger of the two — recommended for small zones, where "
+                "'bbox' underestimates (a box 4x bigger than the zone, covering it "
+                "entirely, scores only 0.25)."
+            ),
         ).grid(row=3, column=1, padx=2)
         config_basis_combo = ttk.Combobox(
             roi_frame,
@@ -499,9 +536,9 @@ class ConfigEditorWidget(BaseWidget):
         # Hint
         ttk.Label(
             roi_frame,
-            text=(
-                "💡 Dica: Estas são configurações GLOBAIS. Você pode alterá-las "
-                "por projeto na aba de Zonas."
+            text=_(
+                "💡 Tip: these are GLOBAL settings. You can change them per project "
+                "in the Zones tab."
             ),
             font=("TkDefaultFont", 8),
             foreground="#555555",
@@ -512,7 +549,7 @@ class ConfigEditorWidget(BaseWidget):
         container = parent if parent else self
         det_frame = ttk.LabelFrame(
             container,
-            text="Modelo e Detecção",
+            text=_("Model and Detection"),
             padding=10,
         )
         det_frame.pack(fill="x", pady=6)
@@ -521,11 +558,11 @@ class ConfigEditorWidget(BaseWidget):
         # Summary labels (updated via update_detection_summary)
         self._detection_labels: dict[str, ttk.Label] = {}
         params = [
-            ("confidence", "Confiança mínima:"),
-            ("nms", "NMS threshold:"),
-            ("bytetrack", "ByteTrack:"),
-            ("track_thresh", "Track threshold:"),
-            ("match_thresh", "Match threshold:"),
+            ("confidence", _("Minimum confidence:")),
+            ("nms", _("NMS threshold:")),
+            ("bytetrack", _("ByteTrack:")),
+            ("track_thresh", _("Track threshold:")),
+            ("match_thresh", _("Match threshold:")),
         ]
         for row, (key, text) in enumerate(params):
             ttk.Label(det_frame, text=text).grid(row=row, column=0, sticky="w", padx=(0, 6), pady=1)
@@ -536,14 +573,14 @@ class ConfigEditorWidget(BaseWidget):
         # Edit button
         ttk.Button(
             det_frame,
-            text="⚙ Editar Calibração...",
+            text=_("⚙ Edit Calibration..."),
             command=self._on_open_calibration_clicked,
         ).grid(row=len(params), column=0, columnspan=2, sticky="w", pady=(8, 0))
 
         # Hint
         ttk.Label(
             det_frame,
-            text="💡 Abre o diálogo de Calibração e Detecção.",
+            text=_("💡 Opens the Calibration and Detection dialog."),
             font=("TkDefaultFont", 8),
             foreground="#555555",
         ).grid(row=len(params) + 1, column=0, columnspan=2, sticky="w", pady=(2, 0))
@@ -574,7 +611,9 @@ class ConfigEditorWidget(BaseWidget):
         )
         self._detection_labels["nms"].configure(text=str(yolo.get("nms_threshold", "—")))
         use_bt = tracking.get("use_bytetrack", True)
-        self._detection_labels["bytetrack"].configure(text="Ativado" if use_bt else "Desativado")
+        self._detection_labels["bytetrack"].configure(
+            text=_("Enabled") if use_bt else _("Disabled")
+        )
         self._detection_labels["track_thresh"].configure(text=str(bt.get("track_threshold", "—")))
         self._detection_labels["match_thresh"].configure(text=str(bt.get("match_threshold", "—")))
 
@@ -589,12 +628,12 @@ class ConfigEditorWidget(BaseWidget):
         actions_frame.pack(fill="x", pady=(12, 0))
         ttk.Button(
             actions_frame,
-            text="Recarregar valores atuais",
+            text=_("Reload current values"),
             command=self._on_reset_clicked,
         ).pack(side="left")
         self.btn_save = ttk.Button(
             actions_frame,
-            text="💾 Salvar Configurações",
+            text=_("💾 Save Settings"),
             command=self._on_save_clicked,
             style="Accent.TButton",
         ).pack(side="right")
@@ -602,9 +641,9 @@ class ConfigEditorWidget(BaseWidget):
         # Validation info
         ttk.Label(
             container,
-            text=(
-                "As validações avançadas (offset < intervalo, polyorder < janela, "
-                "etc.) são aplicadas automaticamente ao salvar."
+            text=_(
+                "The advanced validations (offset < interval, polyorder < window, "
+                "etc.) are applied automatically on save."
             ),
             wraplength=560,
             justify="left",
@@ -776,7 +815,7 @@ class ConfigEditorWidget(BaseWidget):
         )
         if self._seg_overlap_warning_label is not None:
             self._seg_overlap_warning_label.config(
-                text=SEG_OVERLAP_MISSING_MASKS_WARNING if missing_masks else ""
+                text=seg_overlap_missing_masks_warning() if missing_masks else ""
             )
 
     def _on_roi_rule_changed(self, event=None) -> None:

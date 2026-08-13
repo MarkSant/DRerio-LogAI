@@ -21,10 +21,10 @@ def test_set_status_and_metadata(widget):
     assert widget.analysis_status_var.get() == "Running"
 
     widget.set_metadata("G1", "D1", "S1", task="Task")
-    assert widget.analysis_group_var.get() == "Grupo: G1"
-    assert widget.analysis_day_var.get() == "Dia: D1"
-    assert widget.analysis_subject_var.get() == "Indivíduo: S1"
-    assert widget.analysis_task_var.get() == "Tarefa: Task"
+    assert widget.analysis_group_var.get() == "Group: G1"
+    assert widget.analysis_day_var.get() == "Day: D1"
+    assert widget.analysis_subject_var.get() == "Individual: S1"
+    assert widget.analysis_task_var.get() == "Task: Task"
 
 
 @pytest.mark.gui
@@ -33,8 +33,8 @@ def test_set_tracking_profile_social(widget):
     widget.set_profile("ProfileA")
     widget.set_social_summary("Summary")
 
-    assert widget.tracking_mode_var.get() == "Modo de rastreamento: Single"
-    assert widget.analysis_profile_var.get() == "Configuração de análise: ProfileA"
+    assert widget.tracking_mode_var.get() == "Tracking mode: Single"
+    assert widget.analysis_profile_var.get() == "Analysis configuration: ProfileA"
     assert widget.social_summary_var.get() == "Summary"
 
 

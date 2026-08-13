@@ -4,27 +4,60 @@ from __future__ import annotations
 
 import contextlib
 import os
+import unicodedata
 from collections.abc import Callable
 from pathlib import Path
 from tkinter import BooleanVar, StringVar, filedialog, messagebox, simpledialog, ttk
 
 import structlog
 
+from zebtrack.i18n import _
 from zebtrack.ui import payloads
 from zebtrack.ui.event_bus_v2 import Event, UIEvents
 
 log = structlog.get_logger()
 
-_TARGET_LABELS = {"aquarium": "Aquário", "zebrafish": "Zebrafish"}
-_METHOD_LABELS = {"seg": "Segmentação", "det": "Detecção"}
-_PERSPECTIVE_LABELS = {"lateral": "Lateral", "top_down": "Topo (top-down)"}
-_OPENVINO_STATUS_LABELS = {
-    "ready": "✓ Pronto",
-    "converting": "⏳ Convertendo",
-    "failed": "✗ Falhou",
-    "not_converted": "—",
-}
 _CONVERSION_POLL_INTERVAL_MS = 1500
+
+# The four label maps below are functions, not module constants: a dict built at
+# import time would freeze whatever language happened to be installed then --
+# usually none at all. See docs/guides/developer/i18n.md.
+
+
+def _target_labels() -> dict[str, str]:
+    """Human-readable names for the stored ``target`` tokens."""
+    return {"aquarium": _("Aquarium"), "zebrafish": _("Zebrafish")}
+
+
+def _method_labels() -> dict[str, str]:
+    """Human-readable names for the stored ``type`` tokens."""
+    return {"seg": _("Segmentation"), "det": _("Detection")}
+
+
+def _perspective_labels() -> dict[str, str]:
+    """Human-readable names for the stored ``perspective`` tokens."""
+    return {"lateral": _("Lateral"), "top_down": _("Top (top-down)")}
+
+
+def _openvino_status_labels() -> dict[str, str]:
+    """Human-readable names for the stored OpenVINO conversion states."""
+    return {
+        "ready": _("✓ Ready"),
+        "converting": _("⏳ Converting"),
+        "failed": _("✗ Failed"),
+        "not_converted": "—",
+    }
+
+
+def _strip_accents(text: str) -> str:
+    """Fold accents away so typed input matches regardless of spelling.
+
+    The target prompt accepts the word in either language; "aquário" and
+    "aquario" must both work, and comparing against a folded form avoids
+    carrying an accented literal that the i18n scanner would flag as copy.
+    """
+    decomposed = unicodedata.normalize("NFKD", text)
+    return "".join(char for char in decomposed if not unicodedata.combining(char))
 
 
 class GlobalModelConfigurationPanel(ttk.Frame):
@@ -71,7 +104,7 @@ class GlobalModelConfigurationPanel(ttk.Frame):
             self.device_combobox.configure(state=state)
 
     def _build(self) -> None:
-        model_frame = ttk.LabelFrame(self, text="Configuração do Modelo", padding=10)
+        model_frame = ttk.LabelFrame(self, text=_("Model Configuration"), padding=10)
         model_frame.pack(fill="both", expand=True, pady=5, padx=5)
 
         top_row = ttk.Frame(model_frame)
@@ -106,14 +139,14 @@ class GlobalModelConfigurationPanel(ttk.Frame):
         self._build_system_section(sys_col)
 
     def _build_default_slots_section(self, parent: ttk.Widget) -> None:
-        ttk.Label(parent, text="Pesos padrão por slot", font=("Segoe UI", 10, "bold")).pack(
+        ttk.Label(parent, text=_("Default weights per slot"), font=("Segoe UI", 10, "bold")).pack(
             anchor="w"
         )
         ttk.Label(
             parent,
-            text=(
-                "Cada combinação (método × alvo) usa um peso padrão. "
-                "O detector consulta o slot correto em runtime."
+            text=_(
+                "Each combination (method × target) uses a default weight. "
+                "The detector looks up the right slot at runtime."
             ),
             font=("Segoe UI", 8),
             foreground="#555555",
@@ -126,10 +159,10 @@ class GlobalModelConfigurationPanel(ttk.Frame):
         grid.columnconfigure(1, weight=1)
 
         slot_specs = [
-            ("🐠 Aquário (Detecção)", "det", "aquarium"),
-            ("🐠 Aquário (Segmentação)", "seg", "aquarium"),
-            ("🐟 Animal (Detecção)", "det", "zebrafish"),
-            ("🐟 Animal (Segmentação)", "seg", "zebrafish"),
+            (_("🐠 Aquarium (Detection)"), "det", "aquarium"),
+            (_("🐠 Aquarium (Segmentation)"), "seg", "aquarium"),
+            (_("🐟 Animal (Detection)"), "det", "zebrafish"),
+            (_("🐟 Animal (Segmentation)"), "seg", "zebrafish"),
         ]
         for row, (label, method, target) in enumerate(slot_specs):
             ttk.Label(grid, text=f"{label}:").grid(row=row, column=0, sticky="w", padx=4, pady=2)
@@ -148,13 +181,15 @@ class GlobalModelConfigurationPanel(ttk.Frame):
         self._populate_slot_comboboxes()
 
     def _build_weights_catalog_section(self, parent: ttk.Widget) -> None:
-        ttk.Label(parent, text="Catálogo de pesos", font=("Segoe UI", 10, "bold")).pack(anchor="w")
+        ttk.Label(parent, text=_("Weight catalogue"), font=("Segoe UI", 10, "bold")).pack(
+            anchor="w"
+        )
         ttk.Label(
             parent,
-            text=(
-                "Ctrl/Shift-clique para selecionar múltiplos. Tipo = como o modelo "
-                "opera (segmentação ou detecção); Alvo = o que ele identifica "
-                "(aquário ou zebrafish)."
+            text=_(
+                "Ctrl/Shift-click to select several. Type = how the model operates "
+                "(segmentation or detection); Target = what it identifies "
+                "(aquarium or zebrafish)."
             ),
             font=("Segoe UI", 8),
             foreground="#555555",
@@ -175,11 +210,11 @@ class GlobalModelConfigurationPanel(ttk.Frame):
             height=10,
             selectmode="extended",
         )
-        self.weights_treeview.heading("name", text="Nome do Peso")
-        self.weights_treeview.heading("type", text="Tipo")
-        self.weights_treeview.heading("target", text="Alvo")
-        self.weights_treeview.heading("perspective", text="Perspectiva")
-        self.weights_treeview.heading("defaults", text="Default?")
+        self.weights_treeview.heading("name", text=_("Weight Name"))
+        self.weights_treeview.heading("type", text=_("Type"))
+        self.weights_treeview.heading("target", text=_("Target"))
+        self.weights_treeview.heading("perspective", text=_("Perspective"))
+        self.weights_treeview.heading("defaults", text=_("Default?"))
         self.weights_treeview.heading("openvino", text="OpenVINO")
 
         self.weights_treeview.column("name", width=180, stretch=True, minwidth=120)
@@ -204,21 +239,21 @@ class GlobalModelConfigurationPanel(ttk.Frame):
         for col in range(3):
             button_grid.columnconfigure(col, weight=1, uniform="catalog_btns")
 
-        ttk.Button(button_grid, text="Adicionar Peso...", command=self._on_add_weight).grid(
+        ttk.Button(button_grid, text=_("Add Weight..."), command=self._on_add_weight).grid(
             row=0, column=0, sticky="ew", padx=2, pady=2
         )
-        ttk.Button(button_grid, text="Excluir Selecionado", command=self._on_delete_weight).grid(
+        ttk.Button(button_grid, text=_("Delete Selected"), command=self._on_delete_weight).grid(
             row=0, column=1, sticky="ew", padx=2, pady=2
         )
-        ttk.Button(button_grid, text="Alterar Alvo...", command=self._on_change_target).grid(
+        ttk.Button(button_grid, text=_("Change Target..."), command=self._on_change_target).grid(
             row=0, column=2, sticky="ew", padx=2, pady=2
         )
-        ttk.Button(button_grid, text="Validar Caminhos", command=self._on_validate_paths).grid(
+        ttk.Button(button_grid, text=_("Validate Paths"), command=self._on_validate_paths).grid(
             row=1, column=0, sticky="ew", padx=2, pady=2
         )
         ttk.Button(
             button_grid,
-            text="Converter p/ OpenVINO",
+            text=_("Convert to OpenVINO"),
             command=self._on_convert_openvino,
         ).grid(row=1, column=1, columnspan=2, sticky="ew", padx=2, pady=2)
 
@@ -228,7 +263,7 @@ class GlobalModelConfigurationPanel(ttk.Frame):
         ttk.Label(parent, text="OpenVINO", font=("Segoe UI", 10, "bold")).pack(anchor="w")
         self.openvino_checkbox = ttk.Checkbutton(
             parent,
-            text="Otimizar com OpenVINO (para hardware Intel)",
+            text=_("Optimise with OpenVINO (for Intel hardware)"),
             variable=self.use_openvino_var,
             command=self._on_openvino_toggled_local,
         )
@@ -243,7 +278,7 @@ class GlobalModelConfigurationPanel(ttk.Frame):
 
         device_row = ttk.Frame(parent)
         device_row.pack(anchor="w", padx=4, pady=2)
-        ttk.Label(device_row, text="Dispositivo OpenVINO:").pack(side="left")
+        ttk.Label(device_row, text=_("OpenVINO device:")).pack(side="left")
         self.device_combobox = ttk.Combobox(
             device_row,
             textvariable=self.device_var,
@@ -256,14 +291,15 @@ class GlobalModelConfigurationPanel(ttk.Frame):
         self.refresh_view()
 
     def _build_maintenance_section(self, parent: ttk.Widget) -> None:
-        ttk.Label(parent, text="Manutenção de caches", font=("Segoe UI", 10, "bold")).pack(
+        ttk.Label(parent, text=_("Cache maintenance"), font=("Segoe UI", 10, "bold")).pack(
             anchor="w"
         )
         ttk.Label(
             parent,
-            text=(
-                "Caches OpenVINO aceleram a detecção mas ficam vinculados ao arquivo "
-                ".pt original. Limpe-os ao trocar pesos com o mesmo nome ou após retreino."
+            text=_(
+                "OpenVINO caches speed detection up but stay tied to the original "
+                ".pt file. Clear them when replacing weights with the same name or "
+                "after retraining."
             ),
             font=("Segoe UI", 8),
             foreground="#555555",
@@ -278,32 +314,34 @@ class GlobalModelConfigurationPanel(ttk.Frame):
 
         ttk.Button(
             grid,
-            text="Apagar Cache OpenVINO (Selecionado)",
+            text=_("Delete OpenVINO Cache (Selected)"),
             command=self._on_clear_cache_selected,
         ).grid(row=0, column=0, sticky="ew", padx=2, pady=2)
         ttk.Button(
             grid,
-            text="Apagar TODOS os Caches OpenVINO",
+            text=_("Delete ALL OpenVINO Caches"),
             command=self._on_clear_cache_all,
         ).grid(row=0, column=1, sticky="ew", padx=2, pady=2)
         ttk.Button(
             grid,
-            text="Reescanear Pasta de Pesos",
+            text=_("Rescan Weights Folder"),
             command=self._on_rescan_folder,
         ).grid(row=1, column=0, sticky="ew", padx=2, pady=2)
         ttk.Button(
             grid,
-            text="Resetar Lista de Pesos (fábrica)",
+            text=_("Reset Weight List (factory)"),
             command=self._on_reset_registry,
         ).grid(row=1, column=1, sticky="ew", padx=2, pady=2)
 
     def _build_system_section(self, parent: ttk.Widget) -> None:
-        ttk.Label(parent, text="Sistema & Hardware", font=("Segoe UI", 10, "bold")).pack(anchor="w")
+        ttk.Label(parent, text=_("System & Hardware"), font=("Segoe UI", 10, "bold")).pack(
+            anchor="w"
+        )
         ttk.Label(
             parent,
-            text=(
-                "Reexecutar o benchmark recalcula a configuração ótima do OpenVINO "
-                "(device, precisão, hint) para o seu hardware atual."
+            text=_(
+                "Re-running the benchmark recalculates the optimal OpenVINO settings "
+                "(device, precision, hint) for your current hardware."
             ),
             font=("Segoe UI", 8),
             foreground="#555555",
@@ -317,12 +355,12 @@ class GlobalModelConfigurationPanel(ttk.Frame):
         grid.columnconfigure(1, weight=1, uniform="sys_btns")
         ttk.Button(
             grid,
-            text="Reexecutar Benchmark de Hardware",
+            text=_("Re-run Hardware Benchmark"),
             command=self._on_force_benchmark,
         ).grid(row=0, column=0, sticky="ew", padx=2, pady=2)
         ttk.Button(
             grid,
-            text="Abrir Pasta de Caches",
+            text=_("Open Cache Folder"),
             command=self._on_open_cache_folder,
         ).grid(row=0, column=1, sticky="ew", padx=2, pady=2)
 
@@ -339,8 +377,8 @@ class GlobalModelConfigurationPanel(ttk.Frame):
         selection = self.weights_treeview.selection()
         if not selection:
             messagebox.showwarning(
-                "Nenhuma Seleção",
-                "Por favor, selecione pelo menos um peso primeiro.",
+                _("No Selection"),
+                _("Please select at least one weight first."),
                 parent=self,
             )
             return []
@@ -358,8 +396,8 @@ class GlobalModelConfigurationPanel(ttk.Frame):
         details = wm.get_weight_details(name) if wm else None
         if not details:
             messagebox.showerror(
-                "Peso não encontrado",
-                f"Não foi possível encontrar dados para '{name}'.",
+                _("Weight not found"),
+                _("Could not find data for '{name}'.").format(name=name),
                 parent=self,
             )
             return None
@@ -374,7 +412,7 @@ class GlobalModelConfigurationPanel(ttk.Frame):
                 name for name, details in wm.weights.items() if details.get("type") == method
             ]
             combo["values"] = sorted(options)
-            current_name, _ = wm.get_default_weight_for(method, target)
+            current_name, _default_path = wm.get_default_weight_for(method, target)
             self.slot_vars[(method, target)].set(current_name or "")
 
     def _populate_weights_treeview(self) -> None:
@@ -389,6 +427,11 @@ class GlobalModelConfigurationPanel(ttk.Frame):
         weights = self.controller.hardware_vm.get_all_weight_names()
         self._weights_validation = wm.validate_weight_files()
 
+        method_labels = _method_labels()
+        target_labels = _target_labels()
+        perspective_labels = _perspective_labels()
+        status_labels = _openvino_status_labels()
+
         for name in sorted(weights):
             details = wm.get_weight_details(name)
             if not details:
@@ -397,18 +440,18 @@ class GlobalModelConfigurationPanel(ttk.Frame):
             weight_type = details.get("type", "seg")
             target = details.get("target", "zebrafish" if weight_type == "seg" else "aquarium")
             perspective = details.get("perspective")
-            type_label = _METHOD_LABELS.get(weight_type, weight_type)
-            target_label = _TARGET_LABELS.get(target, target)
-            perspective_label = _PERSPECTIVE_LABELS.get(perspective, "—") if perspective else "—"
+            type_label = method_labels.get(weight_type, weight_type)
+            target_label = target_labels.get(target, target)
+            perspective_label = perspective_labels.get(perspective, "—") if perspective else "—"
             defaults = self._format_default_slots(details, weight_type)
-            openvino_status = _OPENVINO_STATUS_LABELS.get(
+            openvino_status = status_labels.get(
                 details.get("openvino_status", "not_converted"), "—"
             )
 
             tags: tuple[str, ...] = ()
             if not self._weights_validation.get(name, True):
                 tags = ("missing",)
-                openvino_status = "⚠ Arquivo ausente"
+                openvino_status = _("⚠ File missing")
 
             self.weights_treeview.insert(
                 "",
@@ -438,9 +481,9 @@ class GlobalModelConfigurationPanel(ttk.Frame):
             slots.append("Det-Zb")
         if not slots:
             if details.get("is_default_seg") and weight_type == "seg":
-                slots.append("Seg (legado)")
+                slots.append(_("Seg (legacy)"))
             if details.get("is_default_det") and weight_type == "det":
-                slots.append("Det (legado)")
+                slots.append(_("Det (legacy)"))
         return ", ".join(slots) if slots else "—"
 
     def _refresh_weights_catalog(self) -> None:
@@ -468,8 +511,8 @@ class GlobalModelConfigurationPanel(ttk.Frame):
 
     def _on_add_weight(self) -> None:
         path = filedialog.askopenfilename(
-            title="Selecionar arquivo de peso",
-            filetypes=[("Modelos YOLO", "*.pt"), ("Todos os arquivos", "*.*")],
+            title=_("Select weight file"),
+            filetypes=[(_("YOLO models"), "*.pt"), (_("All files"), "*.*")],
             parent=self,
         )
         if not path:
@@ -485,8 +528,11 @@ class GlobalModelConfigurationPanel(ttk.Frame):
         if not name:
             return
         if not messagebox.askyesno(
-            "Confirmar Exclusão",
-            f"Excluir o registro do peso '{name}'?\n\n(O arquivo .pt em disco não será apagado.)",
+            _("Confirm Deletion"),
+            _(
+                "Delete the registry entry for weight '{name}'?\n\n"
+                "(The .pt file on disk will not be deleted.)"
+            ).format(name=name),
             parent=self,
         ):
             return
@@ -503,22 +549,26 @@ class GlobalModelConfigurationPanel(ttk.Frame):
         name, details = selected
         current = details.get("target", "zebrafish")
         new_label = simpledialog.askstring(
-            "Alterar Alvo",
-            f"Alvo atual de '{name}': {_TARGET_LABELS.get(current, current)}\n\n"
-            "Digite o novo alvo: 'aquario' ou 'zebrafish'",
+            _("Change Target"),
+            _(
+                "Current target of '{name}': {target}\n\n"
+                "Type the new target: 'aquarium' or 'zebrafish'"
+            ).format(name=name, target=_target_labels().get(current, current)),
             parent=self,
         )
         if not new_label:
             return
-        normalized = new_label.strip().lower()
-        if normalized in ("aquario", "aquário", "aquarium", "tank"):
+        normalized = _strip_accents(new_label.strip().lower())
+        if normalized in ("aquario", "aquarium", "tank"):
             new_target = "aquarium"
         elif normalized in ("zebrafish", "fish", "animal", "peixe"):
             new_target = "zebrafish"
         else:
             messagebox.showerror(
-                "Alvo inválido",
-                f"Alvo '{new_label}' não reconhecido. Use 'aquario' ou 'zebrafish'.",
+                _("Invalid target"),
+                _("Target '{value}' not recognised. Use 'aquarium' or 'zebrafish'.").format(
+                    value=new_label
+                ),
                 parent=self,
             )
             return
@@ -539,15 +589,15 @@ class GlobalModelConfigurationPanel(ttk.Frame):
         self._populate_weights_treeview()
         if missing:
             messagebox.showwarning(
-                "Pesos com arquivo ausente",
-                "Os seguintes pesos referenciam arquivos .pt que não foram "
-                "encontrados em disco:\n\n  • " + "\n  • ".join(missing),
+                _("Weights with a missing file"),
+                _("The following weights reference .pt files that were not found on disk:\n\n  • ")
+                + "\n  • ".join(missing),
                 parent=self,
             )
             return
         messagebox.showinfo(
-            "Validação concluída",
-            "Todos os arquivos .pt registrados existem em disco.",
+            _("Validation finished"),
+            _("Every registered .pt file exists on disk."),
             parent=self,
         )
 
@@ -569,27 +619,31 @@ class GlobalModelConfigurationPanel(ttk.Frame):
 
         if not candidates:
             messagebox.showinfo(
-                "Nada a converter",
-                "Os pesos selecionados já estão convertidos para OpenVINO. "
-                "Use 'Apagar Cache OpenVINO' antes para forçar reconversão.",
+                _("Nothing to convert"),
+                _(
+                    "The selected weights are already converted to OpenVINO. "
+                    "Use 'Delete OpenVINO Cache' first to force a reconversion."
+                ),
                 parent=self,
             )
             return
 
         plural = len(candidates) > 1
         msg = (
-            f"Converter {len(candidates)} pesos para OpenVINO agora?\n\n"
-            "  • " + "\n  • ".join(candidates)
+            _("Convert {count} weights to OpenVINO now?\n\n  • ").format(count=len(candidates))
+            + "\n  • ".join(candidates)
             if plural
-            else f"Converter '{candidates[0]}' para OpenVINO agora?"
+            else _("Convert '{name}' to OpenVINO now?").format(name=candidates[0])
         )
-        msg += (
-            "\n\nA conversão roda em background; o status na coluna 'OpenVINO' "
-            "será atualizado a cada ~1.5s até concluir."
+        msg += _(
+            "\n\nThe conversion runs in the background; the status in the 'OpenVINO' "
+            "column is refreshed every ~1.5s until it finishes."
         )
         if already_ready:
-            msg += f"\n\n({len(already_ready)} peso(s) já estão prontos e foram ignorados.)"
-        if not messagebox.askyesno("Conversão OpenVINO", msg, parent=self):
+            msg += _("\n\n({count} weight(s) are already ready and were skipped.)").format(
+                count=len(already_ready)
+            )
+        if not messagebox.askyesno(_("OpenVINO Conversion"), msg, parent=self):
             return
 
         for name in candidates:
@@ -605,8 +659,8 @@ class GlobalModelConfigurationPanel(ttk.Frame):
         if not name:
             return
         if not messagebox.askyesno(
-            "Apagar cache OpenVINO",
-            f"Apagar o cache OpenVINO de '{name}'?",
+            _("Delete OpenVINO cache"),
+            _("Delete the OpenVINO cache of '{name}'?").format(name=name),
             parent=self,
         ):
             return
@@ -616,16 +670,18 @@ class GlobalModelConfigurationPanel(ttk.Frame):
 
     def _on_clear_cache_all(self) -> None:
         if not messagebox.askyesno(
-            "Apagar TODOS os caches",
-            "Esta ação remove TODOS os modelos OpenVINO convertidos.\n\n"
-            "Eles serão regenerados na próxima detecção. Continuar?",
+            _("Delete ALL caches"),
+            _(
+                "This action removes ALL converted OpenVINO models.\n\n"
+                "They will be regenerated on the next detection. Continue?"
+            ),
             parent=self,
             icon="warning",
         ):
             return
         if not messagebox.askyesno(
-            "Confirmação adicional",
-            "Confirma a remoção de todos os caches OpenVINO?",
+            _("Additional confirmation"),
+            _("Confirm the removal of every OpenVINO cache?"),
             parent=self,
             icon="warning",
         ):
@@ -647,40 +703,45 @@ class GlobalModelConfigurationPanel(ttk.Frame):
         orphans_locked = report.get("orphans_locked", [])
 
         if not locked and not orphans_locked:
-            scope_label = f"do peso '{scope}'" if scope else "de todos os pesos"
+            scope_label = (
+                _("of weight '{name}'").format(name=scope) if scope else _("of every weight")
+            )
             messagebox.showinfo(
-                "Caches OpenVINO apagados",
-                f"Cache OpenVINO {scope_label} removido com sucesso "
-                f"({len(cleared)} entrada(s) processada(s)).\n\n"
-                "O status na lista voltou para '—'; a próxima detecção "
-                "regenerará o cache.",
+                _("OpenVINO caches deleted"),
+                _(
+                    "OpenVINO cache {scope} removed successfully "
+                    "({count} entry/entries processed).\n\n"
+                    "The status in the list is back to '—'; the next detection will "
+                    "regenerate the cache."
+                ).format(scope=scope_label, count=len(cleared)),
                 parent=self,
             )
             return
 
         parts: list[str] = []
         if cleared:
-            parts.append(f"✓ {len(cleared)} cache(s) apagado(s) com sucesso.")
+            parts.append(_("✓ {count} cache(s) deleted successfully.").format(count=len(cleared)))
         if locked:
             parts.append(
-                "⚠ Não foi possível apagar o cache dos seguintes pesos:\n  • "
+                _("⚠ Could not delete the cache of the following weights:\n  • ")
                 + "\n  • ".join(locked)
             )
         if orphans_locked:
             parts.append(
-                "⚠ Pastas órfãs que resistiram à remoção:\n  • " + "\n  • ".join(orphans_locked)
+                _("⚠ Orphan folders that resisted removal:\n  • ") + "\n  • ".join(orphans_locked)
             )
         parts.append(
-            "\nCausa provável: o detector em execução ainda tem o modelo "
-            "carregado em memória (handle aberto), ou o OneDrive está "
-            "sincronizando os arquivos.\n\n"
-            "Soluções:\n"
-            "  1. Feche e reabra o DRerio LogAI (libera o handle do modelo);\n"
-            "  2. Pause o OneDrive temporariamente e tente de novo;\n"
-            "  3. Use 'poetry run zebtrack --reset-openvino-cache' antes de "
-            "iniciar o app — apaga o cache enquanto nada está carregado."
+            _(
+                "\nLikely cause: the running detector still has the model loaded in "
+                "memory (open handle), or OneDrive is syncing the files.\n\n"
+                "Fixes:\n"
+                "  1. Close and reopen DRerio LogAI (releases the model handle);\n"
+                "  2. Pause OneDrive temporarily and try again;\n"
+                "  3. Use 'poetry run zebtrack --reset-openvino-cache' before starting "
+                "the app — it clears the cache while nothing is loaded."
+            )
         )
-        messagebox.showwarning("Caches parcialmente apagados", "\n\n".join(parts), parent=self)
+        messagebox.showwarning(_("Caches partially deleted"), "\n\n".join(parts), parent=self)
 
     def _on_rescan_folder(self) -> None:
         wm = self.controller.weight_manager
@@ -694,30 +755,33 @@ class GlobalModelConfigurationPanel(ttk.Frame):
         new = after - before
         if new:
             messagebox.showinfo(
-                "Reescaneamento",
-                f"{len(new)} novo(s) peso(s) detectado(s):\n  • " + "\n  • ".join(sorted(new)),
+                _("Rescan"),
+                _("{count} new weight(s) detected:\n  • ").format(count=len(new))
+                + "\n  • ".join(sorted(new)),
                 parent=self,
             )
             return
         messagebox.showinfo(
-            "Reescaneamento",
-            f"Nenhum peso novo encontrado em '{wm.weights_dir}'.",
+            _("Rescan"),
+            _("No new weight found in '{folder}'.").format(folder=wm.weights_dir),
             parent=self,
         )
 
     def _on_reset_registry(self) -> None:
         if not messagebox.askyesno(
-            "Reset de fábrica",
-            "Esta ação apaga 'weights_config.json' e refaz o registro a partir das "
-            "configurações + scan da pasta 'weights/'.\n\n"
-            "Defaults personalizados serão perdidos. Continuar?",
+            _("Factory reset"),
+            _(
+                "This action deletes 'weights_config.json' and rebuilds the registry "
+                "from the settings + a scan of the 'weights/' folder.\n\n"
+                "Custom defaults will be lost. Continue?"
+            ),
             parent=self,
             icon="warning",
         ):
             return
         if not messagebox.askyesno(
-            "Confirmação adicional",
-            "Confirma o reset da lista de pesos para o estado de fábrica?",
+            _("Additional confirmation"),
+            _("Confirm resetting the weight list to the factory state?"),
             parent=self,
             icon="warning",
         ):
@@ -727,17 +791,21 @@ class GlobalModelConfigurationPanel(ttk.Frame):
 
     def _on_force_benchmark(self) -> None:
         if not messagebox.askyesno(
-            "Reexecutar benchmark",
-            "O benchmark levará ~10-30 segundos e atualizará as configurações "
-            "ótimas do OpenVINO. Continuar?",
+            _("Re-run benchmark"),
+            _(
+                "The benchmark will take ~10-30 seconds and will update the optimal "
+                "OpenVINO settings. Continue?"
+            ),
             parent=self,
         ):
             return
         self._publish_model_event(UIEvents.MODEL_FORCE_BENCHMARK, payloads.EmptyPayload())
         messagebox.showinfo(
-            "Benchmark em execução",
-            "O benchmark está rodando em background. As configurações serão "
-            "aplicadas automaticamente ao terminar.",
+            _("Benchmark running"),
+            _(
+                "The benchmark is running in the background. The settings will be "
+                "applied automatically when it finishes."
+            ),
             parent=self,
         )
 
@@ -757,8 +825,10 @@ class GlobalModelConfigurationPanel(ttk.Frame):
                 subprocess.Popen([opener, str(cache_dir)])
         except Exception as exc:
             messagebox.showwarning(
-                "Falha ao abrir pasta",
-                f"Não foi possível abrir o explorador na pasta:\n{cache_dir}\n\n{exc}",
+                _("Failed to open folder"),
+                _("Could not open the file explorer at:\n{path}\n\n{error}").format(
+                    path=cache_dir, error=exc
+                ),
                 parent=self,
             )
 

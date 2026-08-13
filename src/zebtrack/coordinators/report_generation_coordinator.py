@@ -26,6 +26,7 @@ from zebtrack.coordinators.base_coordinator import BaseCoordinator
 from zebtrack.core.detection import MultiAquariumZoneData, ZoneData
 from zebtrack.core.detection.calibration import Calibration
 from zebtrack.core.services.roi_rule_resolver import apply_roi_rule_to_settings, resolve_roi_rule
+from zebtrack.i18n import _
 from zebtrack.ui import payloads
 from zebtrack.ui.event_bus_v2 import UIEvents
 
@@ -117,7 +118,7 @@ class ReportGenerationCoordinator(BaseCoordinator, UnifiedReportMixin):
         log.info("workflow.reports.start", count=len(video_paths))
         self._publish_event(
             UIEvents.UI_SET_STATUS,
-            payloads.StatusPayload(message="Gerando relatórios detalhados..."),
+            payloads.StatusPayload(message=_("Generating detailed reports...")),
         )
 
         entries = [self.project_manager.find_video_entry(path=p) for p in video_paths]
@@ -411,7 +412,7 @@ class ReportGenerationCoordinator(BaseCoordinator, UnifiedReportMixin):
         """Finalize report generation UI feedback."""
         self._publish_event(
             UIEvents.UI_SET_STATUS,
-            payloads.StatusPayload(message="Relatórios gerados."),
+            payloads.StatusPayload(message=_("Reports generated.")),
         )
 
         if self._is_batch_processing():
@@ -421,16 +422,16 @@ class ReportGenerationCoordinator(BaseCoordinator, UnifiedReportMixin):
             self._publish_event(
                 UIEvents.UI_SHOW_WARNING,
                 {
-                    "title": "Erros na Geração",
-                    "message": "Falhas em:\n" + "\n".join(errors[:5]),
+                    "title": _("Generation Errors"),
+                    "message": _("Failures in:\n") + "\n".join(errors[:5]),
                 },
             )
         elif count > 0:
             self._publish_event(
                 UIEvents.UI_SHOW_INFO,
                 {
-                    "title": "Relatórios Gerados",
-                    "message": f"Gerados relatórios para {count} vídeos.",
+                    "title": _("Reports Generated"),
+                    "message": _("Reports generated for {count} videos.").format(count=count),
                 },
             )
 
@@ -513,7 +514,7 @@ class ReportGenerationCoordinator(BaseCoordinator, UnifiedReportMixin):
 
         path = video.get("path")
         if not isinstance(path, str) or not path:
-            return "skipped", "Caminho do vídeo não definido.", None, False
+            return "skipped", _("Video path not defined."), None, False
 
         experiment_id = os.path.splitext(os.path.basename(path))[0]
         multi_outputs = video.get("multi_aquarium_outputs")
@@ -538,7 +539,12 @@ class ReportGenerationCoordinator(BaseCoordinator, UnifiedReportMixin):
         try:
             multi_zone = self.project_manager.get_multi_aquarium_zone_data(path)
             if not multi_zone:
-                return "skipped", f"{exp_id}: dados multi-aquário ausentes.", None, False
+                return (
+                    "skipped",
+                    _("{name}: multi-aquarium data missing.").format(name=exp_id),
+                    None,
+                    False,
+                )
 
             processed_count, summary_paths = 0, []
             for aq_id_str, output_info in multi_outputs.items():
@@ -561,14 +567,24 @@ class ReportGenerationCoordinator(BaseCoordinator, UnifiedReportMixin):
                 video["has_complete_data"] = True
                 return (
                     "completed",
-                    f"{exp_id} ({processed_count} aquários)",
+                    _("{name} ({count} aquariums)").format(name=exp_id, count=processed_count),
                     summary_paths[-1],
                     True,
                 )
-            return "skipped", f"{exp_id}: nenhum aquário processado.", None, False
+            return (
+                "skipped",
+                _("{name}: no aquarium processed.").format(name=exp_id),
+                None,
+                False,
+            )
         except Exception as e:  # except Exception justified: multi-aquarium summary pipeline
             log.error("processing.multi_summary_failed", error=str(e))
-            return "failed", f"{exp_id}: erro multi-aquário {e}", None, False
+            return (
+                "failed",
+                _("{name}: multi-aquarium error {error}").format(name=exp_id, error=e),
+                None,
+                False,
+            )
 
     def _process_one_aquarium_summary(
         self, video, exp_id, path: Path | str, aq_id, out, multi_zone, settings, expected
@@ -650,11 +666,21 @@ class ReportGenerationCoordinator(BaseCoordinator, UnifiedReportMixin):
             ]
             traj_path = next((c for c in candidates if os.path.exists(c)), None)
         if not traj_path:
-            return "skipped", f"{exp_id}: trajetória ausente.", None, False
+            return (
+                "skipped",
+                _("{name}: trajectory missing.").format(name=exp_id),
+                None,
+                False,
+            )
 
         df = self._read_trajectory(traj_path)
         if df.empty:
-            return "skipped", f"{exp_id}: trajetória vazia.", None, False
+            return (
+                "skipped",
+                _("{name}: trajectory empty.").format(name=exp_id),
+                None,
+                False,
+            )
 
         self.project_manager.set_active_zone_video(path)
         try:
@@ -700,7 +726,12 @@ class ReportGenerationCoordinator(BaseCoordinator, UnifiedReportMixin):
             video["has_complete_data"] = True
             return "completed", exp_id, s_path, True
         except Exception as e:  # except Exception justified: single-video summary I/O + transforms
-            return "failed", f"{exp_id}: erro {e}", None, False
+            return (
+                "failed",
+                _("{name}: error {error}").format(name=exp_id, error=e),
+                None,
+                False,
+            )
         finally:
             self.project_manager.set_active_zone_video(None)
 
@@ -732,7 +763,7 @@ class ReportGenerationCoordinator(BaseCoordinator, UnifiedReportMixin):
         if "group" not in metadata:
             metadata["group"] = "single_video"
         if "group_display_name" not in metadata:
-            metadata["group_display_name"] = "Vídeo Único"
+            metadata["group_display_name"] = _("Single Video")
         if "day" not in metadata:
             metadata["day"] = "1"
         if "subject" not in metadata:

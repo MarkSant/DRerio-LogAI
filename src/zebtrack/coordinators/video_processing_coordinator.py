@@ -33,6 +33,7 @@ from zebtrack.core.video.processing_worker import (
     ProcessingContext,
     ProcessingWorker,
 )
+from zebtrack.i18n import _
 from zebtrack.ui import payloads as payloads
 from zebtrack.ui.event_bus_v2 import UIEvents
 
@@ -377,11 +378,11 @@ class VideoProcessingCoordinator(
 
         paths = _ask_open_filenames_from_view(
             view,
-            "Selecione Vídeos ou Pastas para Adicionar ao Projeto",
+            _("Select Videos or Folders to Add to the Project"),
             [
-                ("Todos os arquivos", "*.*"),
-                ("Arquivos de vídeo", "*.mp4 *.avi *.mov"),
-                ("Pastas", "*/"),
+                (_("All files"), "*.*"),
+                (_("Video files"), "*.mp4 *.avi *.mov"),
+                (_("Folders"), "*/"),
             ],
         )
         if not paths:
@@ -392,10 +393,8 @@ class VideoProcessingCoordinator(
             self._publish_event(
                 UIEvents.UI_SHOW_WARNING,
                 payloads.MessagePayload(
-                    title="Nenhum Vídeo Encontrado",
-                    message=(
-                        "Nenhum novo arquivo de vídeo foi encontrado nos caminhos selecionados."
-                    ),
+                    title=_("No Video Found"),
+                    message=_("No new video file was found in the selected paths."),
                 ),
             )
             return
@@ -406,11 +405,10 @@ class VideoProcessingCoordinator(
             self._publish_event(
                 UIEvents.UI_SHOW_INFO,
                 payloads.MessagePayload(
-                    title="Vídeos Adicionados",
-                    message=(
-                        f"{len(scanned_videos)} vídeo(s) foram adicionados ao projeto sem "
-                        "reprocessamento."
-                    ),
+                    title=_("Videos Added"),
+                    message=_(
+                        "{count} video(s) were added to the project without reprocessing."
+                    ).format(count=len(scanned_videos)),
                 ),
             )
             return
@@ -418,8 +416,8 @@ class VideoProcessingCoordinator(
             self._publish_event(
                 UIEvents.UI_SHOW_INFO,
                 payloads.MessagePayload(
-                    title="Processamento Concluído",
-                    message="Nenhum novo vídeo para processar.",
+                    title=_("Processing Finished"),
+                    message=_("No new video to process."),
                 ),
             )
             return
@@ -443,8 +441,10 @@ class VideoProcessingCoordinator(
         self._publish_event(
             UIEvents.UI_SHOW_INFO,
             payloads.MessagePayload(
-                title="Sucesso",
-                message=f"{len(videos_to_process)} vídeo(s) adicionado(s) para processamento.",
+                title=_("Success"),
+                message=_("{count} video(s) added for processing.").format(
+                    count=len(videos_to_process)
+                ),
             ),
         )
         log.info("workflow.project_processing.started", videos_count=len(videos_to_process))
@@ -483,11 +483,11 @@ class VideoProcessingCoordinator(
         if not paths:
             paths = _ask_open_filenames_from_view(
                 view,
-                "Selecione Vídeos ou Pastas para Adicionar ao Projeto",
+                _("Select Videos or Folders to Add to the Project"),
                 [
-                    ("Todos os arquivos", "*.*"),
-                    ("Arquivos de vídeo", "*.mp4 *.avi *.mov"),
-                    ("Pastas", "*/"),
+                    (_("All files"), "*.*"),
+                    (_("Video files"), "*.mp4 *.avi *.mov"),
+                    (_("Folders"), "*/"),
                 ],
             )
         if not paths:
@@ -498,10 +498,8 @@ class VideoProcessingCoordinator(
             self._publish_event(
                 UIEvents.UI_SHOW_WARNING,
                 payloads.MessagePayload(
-                    title="Nenhum Vídeo Encontrado",
-                    message=(
-                        "Nenhum novo arquivo de vídeo foi encontrado nos caminhos selecionados."
-                    ),
+                    title=_("No Video Found"),
+                    message=_("No new video file was found in the selected paths."),
                 ),
             )
             return
@@ -522,8 +520,8 @@ class VideoProcessingCoordinator(
             self._publish_event(
                 UIEvents.UI_SHOW_INFO,
                 payloads.MessagePayload(
-                    title="Nenhum Vídeo Novo",
-                    message="Todos os vídeos selecionados já estão cadastrados no projeto.",
+                    title=_("No New Video"),
+                    message=_("Every selected video is already registered in the project."),
                 ),
             )
             return
@@ -555,8 +553,8 @@ class VideoProcessingCoordinator(
             self._publish_event(
                 UIEvents.UI_SHOW_INFO,
                 payloads.MessagePayload(
-                    title="Importação Cancelada",
-                    message="Nenhum vídeo foi confirmado para importação.",
+                    title=_("Import Cancelled"),
+                    message=_("No video was confirmed for import."),
                 ),
             )
             return
@@ -576,9 +574,9 @@ class VideoProcessingCoordinator(
         self.project_manager.add_video_batch(reviewed_videos)
 
         imported_count = len(reviewed_videos)
-        reason = f"{imported_count} vídeo(s) importado(s) para o projeto."
+        reason = _("{count} video(s) imported into the project.").format(count=imported_count)
         if skipped_existing:
-            reason += f" {skipped_existing} já existiam e foram ignorados."
+            reason += _(" {count} already existed and were skipped.").format(count=skipped_existing)
 
         self._publish_event(
             UIEvents.PROJECT_VIEWS_REFRESH_REQUESTED,
@@ -589,7 +587,7 @@ class VideoProcessingCoordinator(
         if process_mode == "add_only":
             self._publish_event(
                 UIEvents.UI_SHOW_INFO,
-                payloads.MessagePayload(title="Importação Concluída", message=reason),
+                payloads.MessagePayload(title=_("Import Finished"), message=reason),
             )
             return
 
@@ -608,8 +606,8 @@ class VideoProcessingCoordinator(
             self._publish_event(
                 UIEvents.UI_SHOW_INFO,
                 payloads.MessagePayload(
-                    title="Importação Concluída",
-                    message=reason + " Nenhum vídeo importado precisa de processamento agora.",
+                    title=_("Import Finished"),
+                    message=reason + _(" No imported video needs processing right now."),
                 ),
             )
             return
@@ -823,7 +821,7 @@ class VideoProcessingCoordinator(
             self._publish_event(
                 UIEvents.UI_SHOW_WARNING,
                 payloads.MessagePayload(
-                    title="Validação Falhou",
+                    title=_("Validation Failed"),
                     message=validation_result.error_message or "",
                 ),
             )
@@ -893,8 +891,8 @@ class VideoProcessingCoordinator(
             self._publish_event(
                 UIEvents.UI_SHOW_INFO,
                 payloads.MessagePayload(
-                    title="Processamento",
-                    message="Nenhum vídeo elegível foi encontrado com dados para análise.",
+                    title=_("Processing Videos"),
+                    message=_("No eligible video with data for analysis was found."),
                 ),
             )
             return
@@ -912,17 +910,22 @@ class VideoProcessingCoordinator(
             if not multi_data or not vp:
                 continue
             missing_subjects = [
-                f"Aquário {aq.id + 1}" for aq in multi_data.aquariums if not aq.subject_id
+                _("Aquarium {number}").format(number=aq.id + 1)
+                for aq in multi_data.aquariums
+                if not aq.subject_id
             ]
             if missing_subjects:
                 self._publish_event(
                     UIEvents.UI_SHOW_ERROR,
                     payloads.ErrorOccurredPayload(
-                        title="Configuração Incompleta",
-                        message=(
-                            f"O vídeo '{os.path.basename(str(vp))}' tem aquários "
-                            f"sem sujeito definido:\n\n{', '.join(missing_subjects)}\n\n"
-                            "Configure os aquários antes de processar."
+                        title=_("Incomplete Configuration"),
+                        message=_(
+                            "Video '{video}' has aquariums with no subject "
+                            "defined:\n\n{aquariums}\n\n"
+                            "Configure the aquariums before processing."
+                        ).format(
+                            video=os.path.basename(str(vp)),
+                            aquariums=", ".join(missing_subjects),
                         ),
                     ),
                 )
@@ -955,8 +958,8 @@ class VideoProcessingCoordinator(
             self._publish_event(
                 UIEvents.UI_SHOW_ERROR,
                 payloads.ErrorOccurredPayload(
-                    title="Erro ao Iniciar Processamento",
-                    message=f"Falha ao criar worker de processamento: {exc}",
+                    title=_("Error Starting Processing"),
+                    message=_("Failed to create the processing worker: {error}").format(error=exc),
                 ),
             )
             return
@@ -985,15 +988,19 @@ class VideoProcessingCoordinator(
                 self._publish_event(
                     UIEvents.UI_SET_STATUS,
                     payloads.StatusPayload(
-                        message=f"Processamento em lote iniciado: {len(final_tasks)} vídeo(s).",
+                        message=_("Batch processing started: {count} video(s).").format(
+                            count=len(final_tasks)
+                        ),
                     ),
                 )
             else:
                 self._publish_event(
                     UIEvents.UI_SHOW_INFO,
                     payloads.MessagePayload(
-                        title="Processamento Iniciado",
-                        message=f"O processamento de {len(final_tasks)} vídeo(s) foi iniciado.",
+                        title=_("Processing Started"),
+                        message=_("Processing of {count} video(s) has started.").format(
+                            count=len(final_tasks)
+                        ),
                     ),
                 )
             log.info(

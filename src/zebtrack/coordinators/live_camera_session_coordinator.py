@@ -31,9 +31,15 @@ from zebtrack.coordinators.base_coordinator import (
     CoordinatorValidationError,
 )
 from zebtrack.core.state_manager import StateCategory
+from zebtrack.i18n import _
 from zebtrack.ui import payloads
 from zebtrack.ui.event_bus_v2 import Event, UIEvents
-from zebtrack.ui.sentinels import no_day_label, no_group_label, not_reported_label
+from zebtrack.ui.sentinels import (
+    day_prefix,
+    no_day_label,
+    no_group_label,
+    not_reported_label,
+)
 from zebtrack.utils.report_files import has_summary_excel_output
 
 if TYPE_CHECKING:
@@ -49,7 +55,15 @@ if TYPE_CHECKING:
 log = structlog.get_logger()
 
 LIVE_PROFILE_TOOLTIP_FALLBACK = "default"
-LIVE_PROFILE_DISPLAY_DEFAULT = "padrão do projeto (default)"
+
+
+def live_profile_display_default() -> str:
+    """Label shown when a live session uses the project's default profile.
+
+    A function, not a module constant: a constant would translate at import
+    time, before a language has been installed.
+    """
+    return _("project default (default)")
 
 
 # =============================================================================
@@ -264,8 +278,10 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
                         Event(
                             type=UIEvents.UI_SHOW_ERROR,
                             data=payloads.MessagePayload(
-                                title="Erro ao retomar gravação",
-                                message=f"Falha ao iniciar a gravação: {exc!s}",
+                                title=_("Error resuming the recording"),
+                                message=_("Failed to start the recording: {error}").format(
+                                    error=exc
+                                ),
                             ),
                         )
                     )
@@ -374,7 +390,7 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
         if not text:
             return None
 
-        return f"Dia {text}"
+        return f"{day_prefix()} {text}"
 
     def _resolve_live_analysis_profile_name(self, metadata: dict[str, Any]) -> str:
         """Resolve the profile label that should be shown for a live session."""
@@ -407,7 +423,7 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
         if profile_name:
             return profile_name
         if fallback_text.lower() == LIVE_PROFILE_TOOLTIP_FALLBACK:
-            return LIVE_PROFILE_DISPLAY_DEFAULT
+            return live_profile_display_default()
         return fallback_text
 
     def _apply_live_analysis_metadata_to_ui(self, metadata: dict[str, Any]) -> None:
@@ -430,7 +446,7 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
                     group=str(group_value or no_group_label()),
                     day=str(day_value or no_day_label()),
                     subject=str(subject_value or not_reported_label()),
-                    profile=str(metadata.get("profile") or LIVE_PROFILE_DISPLAY_DEFAULT),
+                    profile=str(metadata.get("profile") or live_profile_display_default()),
                 )
 
         if self.root is not None:
@@ -513,9 +529,9 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
         self._publish_event(UIEvents.LIVE_SESSION_STOPPED, payloads.EmptyPayload())
 
         completion_step = (
-            "Sessão ao vivo interrompida." if cancelled else "Sessão ao vivo concluída."
+            _("Live session interrupted.") if cancelled else _("Live session finished.")
         )
-        status_text = "Análise interrompida." if cancelled else "Análise concluída."
+        status_text = _("Analysis interrupted.") if cancelled else _("Analysis finished.")
 
         self._publish_live_task_status(
             experiment_id=experiment_id,
@@ -1076,9 +1092,9 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
                 }
 
             prestart_step = (
-                "Contagem regressiva para iniciar a análise ao vivo."
+                _("Countdown to start the live analysis.")
                 if use_countdown and countdown_duration_s > 0
-                else "Iniciando análise ao vivo."
+                else _("Starting the live analysis.")
             )
             self._publish_live_analysis_metadata(
                 experiment_id=experiment_id,
@@ -1171,7 +1187,7 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
                 day=(wizard_data or {}).get("experiment_day"),
                 subject=(wizard_data or {}).get("subject_id"),
             )
-            running_step = "Análise ao vivo em andamento."
+            running_step = _("Live analysis in progress.")
             self._publish_live_task_status(
                 experiment_id=experiment_id,
                 step=running_step,
@@ -1776,9 +1792,9 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
         }
 
         prestart_step = (
-            "Contagem regressiva para iniciar a análise ao vivo."
+            _("Countdown to start the live analysis.")
             if use_countdown and countdown_duration_s > 0
-            else "Iniciando análise ao vivo."
+            else _("Starting the live analysis.")
         )
         self._publish_live_analysis_metadata(
             experiment_id=experiment_id,
@@ -1847,7 +1863,7 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
                 day=config.get("experiment_day"),
                 subject=config.get("subject_id"),
             )
-            running_step = "Análise ao vivo em andamento."
+            running_step = _("Live analysis in progress.")
             self._publish_live_task_status(
                 experiment_id=experiment_id,
                 step=running_step,
@@ -1865,10 +1881,12 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
                 Event(
                     type=UIEvents.UI_SET_STATUS,
                     data=payloads.StatusPayload(
-                        message=(
-                            f"Analisando câmera {camera_index} "
-                            f"(análise: {analysis_interval_frames}f, "
-                            f"exibição: {display_interval_frames}f)"
+                        message=_(
+                            "Analysing camera {camera} (analysis: {analysis}f, display: {display}f)"
+                        ).format(
+                            camera=camera_index,
+                            analysis=analysis_interval_frames,
+                            display=display_interval_frames,
                         )
                     ),
                 )
@@ -1878,8 +1896,10 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
                 Event(
                     type=UIEvents.UI_SHOW_ERROR,
                     data=payloads.ErrorOccurredPayload(
-                        title="Erro na Análise",
-                        message=f"Falha ao iniciar análise de câmera {camera_index}.",
+                        title=_("Analysis Error"),
+                        message=_("Failed to start the analysis of camera {camera}.").format(
+                            camera=camera_index
+                        ),
                     ),
                 )
             )
@@ -1945,28 +1965,29 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
             if self.event_bus is not None:
                 port = normalize_arduino_port((project_data or {}).get("arduino_port"))
                 if offline:
-                    message = (
-                        "Este projeto usa Modo de Gatilho Externo, mas o Arduino "
-                        f"não está conectado{f' (porta {port})' if port else ''}.\n\n"
-                        "A gravação NÃO foi iniciada: ela ficaria esperando para "
-                        "sempre um sinal que não tem por onde chegar.\n\n"
-                        "Verifique o cabo, se a porta não está em uso por outro "
-                        "programa (IDE do Arduino, monitor serial) e reabra o "
-                        "projeto para reconectar."
-                    )
+                    port_suffix = _(" (port {port})").format(port=port) if port else ""
+                    message = _(
+                        "This project uses External Trigger Mode, but the Arduino "
+                        "is not connected{port}.\n\n"
+                        "The recording was NOT started: it would wait forever for a "
+                        "signal that has no way to arrive.\n\n"
+                        "Check the cable, whether the port is in use by another "
+                        "program (Arduino IDE, serial monitor), and reopen the "
+                        "project to reconnect."
+                    ).format(port=port_suffix)
                 else:
-                    message = (
-                        "Este projeto está com o Modo de Gatilho Externo ligado, "
-                        "mas sem Arduino configurado.\n\n"
-                        "A gravação NÃO foi iniciada: começar agora ignoraria o "
-                        "sinal externo que o protocolo espera. Configure o Arduino "
-                        "ou desligue o gatilho externo nas configurações do projeto."
+                    message = _(
+                        "This project has External Trigger Mode on, but no Arduino "
+                        "configured.\n\n"
+                        "The recording was NOT started: starting now would ignore the "
+                        "external signal the protocol expects. Configure the Arduino "
+                        "or turn the external trigger off in the project settings."
                     )
                 self.event_bus.publish(
                     Event(
                         type=UIEvents.UI_SHOW_ERROR,
                         data=payloads.MessagePayload(
-                            title="Trigger Externo Indisponível",
+                            title=_("External Trigger Unavailable"),
                             message=message,
                         ),
                         source="LiveCameraSessionCoordinator._external_trigger_allows_start",
@@ -2144,13 +2165,13 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
                     Event(
                         type=UIEvents.UI_SHOW_ERROR,
                         data=payloads.MessagePayload(
-                            title="Câmera não encontrada",
-                            message=(
-                                f"A câmera salva no projeto ('{saved_camera_name}') "
-                                f"não foi detectada.\n\n"
-                                f"Conecte o dispositivo correto ou use 'Trocar câmera' "
-                                f"no diálogo de gravação para escolher outra."
-                            ),
+                            title=_("Camera not found"),
+                            message=_(
+                                "The camera saved in the project ('{name}') was not "
+                                "detected.\n\n"
+                                "Connect the right device or use 'Change camera' in "
+                                "the recording dialog to pick another one."
+                            ).format(name=saved_camera_name),
                         ),
                         source="LiveCameraSessionCoordinator.start_live_project_session",
                     )
@@ -2290,9 +2311,9 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
         }
 
         prestart_step = (
-            "Contagem regressiva para iniciar a análise ao vivo."
+            _("Countdown to start the live analysis.")
             if use_countdown and countdown_duration_s > 0
-            else "Iniciando análise ao vivo."
+            else _("Starting the live analysis.")
         )
         self._publish_live_analysis_metadata(
             experiment_id=experiment_id,
@@ -2361,7 +2382,7 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
                 day=f"Dia_{day}",
                 subject=subject,
             )
-            running_step = "Análise ao vivo em andamento."
+            running_step = _("Live analysis in progress.")
             self._publish_live_task_status(
                 experiment_id=experiment_id,
                 step=running_step,

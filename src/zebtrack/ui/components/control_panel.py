@@ -4,6 +4,7 @@ from tkinter import BooleanVar, Button, StringVar, ttk
 
 import structlog
 
+from zebtrack.i18n import _
 from zebtrack.ui import payloads
 from zebtrack.ui.components.base import BaseWidget
 from zebtrack.ui.event_bus_v2 import EventBusV2, UIEvents
@@ -54,13 +55,13 @@ class ControlPanelWidget(BaseWidget):
         # Title
         title_label = ttk.Label(
             self,
-            text="Controles de Gravação e Processamento",
+            text=_("Recording and Processing Controls"),
             font=("TkDefaultFont", 10, "bold"),
         )
         title_label.pack(pady=(0, 10))
 
         # Recording controls
-        recording_frame = ttk.LabelFrame(self, text="Gravação", padding=10)
+        recording_frame = ttk.LabelFrame(self, text=_("Recording"), padding=10)
         recording_frame.pack(fill="x", pady=5)
 
         btn_frame = ttk.Frame(recording_frame)
@@ -68,7 +69,7 @@ class ControlPanelWidget(BaseWidget):
 
         self.start_rec_btn = Button(
             btn_frame,
-            text="▶️ Iniciar Gravação",
+            text=_("▶️ Start Recording"),
             command=self._on_start_recording_clicked,
             bg="#4CAF50",
             fg="white",
@@ -80,7 +81,7 @@ class ControlPanelWidget(BaseWidget):
 
         self.stop_rec_btn = Button(
             btn_frame,
-            text="⏹️ Parar Gravação",
+            text=_("⏹️ Stop Recording"),
             command=self._on_stop_recording_clicked,
             bg="#f44336",
             fg="white",
@@ -92,24 +93,24 @@ class ControlPanelWidget(BaseWidget):
         self.stop_rec_btn.pack(side="left", fill="x", expand=True, padx=(5, 0))
 
         # Processing controls
-        processing_frame = ttk.LabelFrame(self, text="Processamento", padding=10)
+        processing_frame = ttk.LabelFrame(self, text=_("Video Processing"), padding=10)
         processing_frame.pack(fill="x", pady=5)
 
         self.process_video_btn = ttk.Button(
             processing_frame,
-            text="🎬 Processar Vídeo",
+            text=_("🎬 Process Video"),
             command=self._on_process_video_clicked,
         )
         self.process_video_btn.pack(fill="x", pady=5)
 
         # Settings
-        settings_frame = ttk.LabelFrame(self, text="Configurações", padding=10)
+        settings_frame = ttk.LabelFrame(self, text=_("Settings"), padding=10)
         settings_frame.pack(fill="x", pady=5)
 
         # Preview checkbox
         preview_check = ttk.Checkbutton(
             settings_frame,
-            text="Mostrar Preview Durante Processamento",
+            text=_("Show Preview During Processing"),
             variable=self.show_preview_var,
             command=self._on_preview_toggled,
         )
@@ -119,7 +120,7 @@ class ControlPanelWidget(BaseWidget):
         interval_frame = ttk.Frame(settings_frame)
         interval_frame.pack(fill="x", pady=(5, 0))
 
-        ttk.Label(interval_frame, text="Intervalo de Processamento (frames):").pack(
+        ttk.Label(interval_frame, text=_("Processing Interval (frames):")).pack(
             side="left", padx=(0, 5)
         )
         interval_entry = ttk.Entry(

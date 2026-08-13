@@ -70,6 +70,17 @@ def main_arena_row_label() -> str:
     return f"🏟 {main_arena_label()}"
 
 
+def both_models_label() -> str:
+    """The "test every engine" entry of the diagnostics model chooser.
+
+    ``model_diagnostics_panel`` offers it alongside the two engine names, which
+    are proper nouns and stay as they are; ``model_diagnostics_coordinator``
+    then branches on the value it gets back. Translating only the combobox would
+    silently reduce "test both" to "test neither".
+    """
+    return _("Both")
+
+
 def is_main_arena_row(label: object) -> bool:
     """True when *label* is the zone-list row for the main arena.
 

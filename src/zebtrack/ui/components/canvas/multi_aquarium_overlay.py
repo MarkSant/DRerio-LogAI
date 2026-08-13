@@ -18,6 +18,7 @@ import numpy as np
 import structlog
 
 from zebtrack.core.detection.multi_aquarium_detector import AQUARIUM_TRACK_ID_MULTIPLIER
+from zebtrack.i18n import _
 
 if TYPE_CHECKING:
     from zebtrack.core.detection import MultiAquariumZoneData
@@ -25,6 +26,26 @@ if TYPE_CHECKING:
     from zebtrack.ui.components.dialog_manager import DialogManager
 
 log = structlog.get_logger()
+
+
+def aquarium_colors() -> dict[int, dict[str, object]]:
+    """Per-aquarium overlay colours and their drawn caption.
+
+    A function, not a class-level dict: the caption is translated and a dict
+    built at import time would freeze it before a language is installed.
+    """
+    return {
+        0: {
+            "border": (0, 102, 204),
+            "fill": (0, 102, 204, 51),
+            "text": _("Aquarium 1"),
+        },
+        1: {
+            "border": (0, 204, 102),
+            "fill": (0, 204, 102, 51),
+            "text": _("Aquarium 2"),
+        },
+    }
 
 
 class MultiAquariumOverlayManager:
@@ -38,12 +59,6 @@ class MultiAquariumOverlayManager:
     - Side-by-side aquarium preview generation
     - Ghost polygon rendering for cross-aquarium reference
     """
-
-    # Distinct colors for each aquarium
-    AQUARIUM_COLORS: typing.ClassVar = {
-        0: {"border": (0, 102, 204), "fill": (0, 102, 204, 51), "text": "Aquário 1"},
-        1: {"border": (0, 204, 102), "fill": (0, 204, 102, 51), "text": "Aquário 2"},
-    }
 
     def __init__(
         self,
@@ -217,9 +232,10 @@ class MultiAquariumOverlayManager:
         self.canvas_manager.update_zone_listbox(multi_data)
 
         self.dialog_manager.show_info(
-            "Sucesso",
-            f"Detectados {len(polygons)} aquários com sucesso!\n"
-            "Verifique se as marcações estão corretas.",
+            _("Success"),
+            _(
+                "Detected {count} aquariums successfully!\nCheck that the markings are correct."
+            ).format(count=len(polygons)),
         )
 
     def _check_prompt_second_aquarium(self) -> None:
@@ -248,10 +264,12 @@ class MultiAquariumOverlayManager:
         from tkinter import messagebox
 
         result = messagebox.askyesno(
-            "Adicionar Segundo Aquário",
-            "Polígono salvo com sucesso!\n\n"
-            "Este vídeo possui dois aquários?\n"
-            "Se sim, você poderá desenhar o polígono do segundo.",
+            _("Add a Second Aquarium"),
+            _(
+                "Polygon saved successfully!\n\n"
+                "Does this video have two aquariums?\n"
+                "If so, you will be able to draw the second one."
+            ),
             icon="question",
         )
 
@@ -308,9 +326,11 @@ class MultiAquariumOverlayManager:
     def _start_second_aquarium_drawing(self) -> None:
         """Start drawing the second aquarium polygon."""
         self.dialog_manager.show_info(
-            "Informação",
-            "Desenhe o polígono do Aquário 2.\n"
-            "O polígono do Aquário 1 será mostrado como referência.",
+            _("Information"),
+            _(
+                "Draw the polygon of Aquarium 2.\n"
+                "The polygon of Aquarium 1 is shown as a reference."
+            ),
         )
         self.canvas_manager.start_main_arena_drawing()
 
@@ -414,7 +434,7 @@ class MultiAquariumOverlayManager:
         overlay = frame.copy()
 
         for aq in zone_data.aquariums:
-            colors = self.AQUARIUM_COLORS.get(aq.id, self.AQUARIUM_COLORS[0])
+            colors = aquarium_colors().get(aq.id, aquarium_colors()[0])
             # Explicit cast to ensure MyPy knows it's a color tuple,
             # not a string from the dict union
             border_color = typing.cast(tuple[int, int, int], colors["border"])
@@ -574,7 +594,7 @@ class MultiAquariumOverlayManager:
 
             # Draw detections on crop (adjusting coordinates)
             if detections_by_aquarium and aq.id in detections_by_aquarium:
-                colors = self.AQUARIUM_COLORS.get(aq.id, self.AQUARIUM_COLORS[0])
+                colors = aquarium_colors().get(aq.id, aquarium_colors()[0])
                 # Explicit cast for border color
                 border_color = typing.cast(tuple[int, int, int], colors["border"])
 
@@ -600,7 +620,7 @@ class MultiAquariumOverlayManager:
 
             # Add label
             if show_labels:
-                colors = self.AQUARIUM_COLORS.get(aq.id, self.AQUARIUM_COLORS[0])
+                colors = aquarium_colors().get(aq.id, aquarium_colors()[0])
                 # Explicit cast for text label
                 label = str(colors["text"])
                 if aq.group:

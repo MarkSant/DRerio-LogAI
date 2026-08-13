@@ -6,6 +6,7 @@ from typing import Any
 
 import structlog
 
+from zebtrack.i18n import _
 from zebtrack.ui import payloads
 from zebtrack.ui.components.base import BaseWidget
 from zebtrack.ui.event_bus_v2 import EventBusV2, UIEvents
@@ -61,7 +62,7 @@ class ProjectOverviewWidget(BaseWidget):
         """Build the project overview widget UI."""
         # Title
         title_label = ttk.Label(
-            self, text="Visão Geral do Projeto", font=("TkDefaultFont", 12, "bold")
+            self, text=_("Project Overview"), font=("TkDefaultFont", 12, "bold")
         )
         title_label.pack(pady=(0, 10))
 
@@ -78,12 +79,12 @@ class ProjectOverviewWidget(BaseWidget):
 
         # Create status cards in a grid
         status_types = [
-            ("total", "📊", "Total"),
-            ("pending", "⏳", "Pendentes"),
-            ("processing", "🔁", "Processando"),
-            ("processed", "📦", "Com Dados"),
-            ("complete", "✅", "Concluídos"),
-            ("failed", "⚠️", "Com Falha"),
+            ("total", "📊", _("Total")),
+            ("pending", "⏳", _("Pending")),
+            ("processing", "🔁", _("Processing")),
+            ("processed", "📦", _("With data")),
+            ("complete", "✅", _("Completed")),
+            ("failed", "⚠️", _("Failed")),
         ]
 
         for idx, (status_key, icon, label) in enumerate(status_types):
@@ -108,14 +109,14 @@ class ProjectOverviewWidget(BaseWidget):
 
     def _build_video_tree(self) -> None:
         """Build the video tree view."""
-        tree_frame = ttk.LabelFrame(self, text="Vídeos do Projeto", padding=10)
+        tree_frame = ttk.LabelFrame(self, text=_("Project Videos"), padding=10)
         tree_frame.pack(fill="both", expand=True)
 
         # Tree controls
         controls_frame = ttk.Frame(tree_frame)
         controls_frame.pack(fill="x", pady=(0, 5))
 
-        ttk.Button(controls_frame, text="🔄 Atualizar", command=self._on_refresh_clicked).pack(
+        ttk.Button(controls_frame, text=_("🔄 Refresh"), command=self._on_refresh_clicked).pack(
             side="right"
         )
 
@@ -132,9 +133,9 @@ class ProjectOverviewWidget(BaseWidget):
             height=12,
             selectmode="browse",
         )
-        self.project_overview_tree.heading("#0", text="Vídeos")
-        self.project_overview_tree.heading("status", text="Status")
-        self.project_overview_tree.heading("metadata", text="Metadados")
+        self.project_overview_tree.heading("#0", text=_("Videos"))
+        self.project_overview_tree.heading("status", text=_("Status"))
+        self.project_overview_tree.heading("metadata", text=_("Metadata"))
 
         self.project_overview_tree.column("#0", width=250, minwidth=150, stretch=True)
         self.project_overview_tree.column("status", width=80, minwidth=60, anchor="center")
@@ -168,11 +169,13 @@ class ProjectOverviewWidget(BaseWidget):
             "summary": "\u03a3",
         }
 
-        legend_text = (
-            f"Legenda: {symbols['arena']} Arena | "
-            f"{symbols['rois']} ROIs | "
-            f"{symbols['trajectory']} Trajetória | "
-            f"{symbols['summary']} Sumário"
+        legend_text = _(
+            "Legend: {arena} Arena | {rois} ROIs | {trajectory} Trajectory | {summary} Summary"
+        ).format(
+            arena=symbols["arena"],
+            rois=symbols["rois"],
+            trajectory=symbols["trajectory"],
+            summary=symbols["summary"],
         )
 
         ttk.Label(
@@ -394,7 +397,7 @@ class ProjectOverviewWidget(BaseWidget):
             # Add group node
             self.add_tree_item(
                 item_id=group_id,
-                text=group.get("label", f"🏷️ {group.get('display', 'Grupo')}"),
+                text=group.get("label", f"🏷️ {group.get('display', _('Group'))}"),
                 values=(group.get("status_summary", ""), group.get("data_summary", "")),
             )
             self.expand_tree_item(group_id)
@@ -423,7 +426,10 @@ class ProjectOverviewWidget(BaseWidget):
                     self.add_tree_item(
                         item_id=subject_id,
                         parent=day_id,
-                        text=subject.get("label", f"🐟 Sujeito {subject['id']}"),
+                        text=subject.get(
+                            "label",
+                            _("🐟 Subject {label}").format(label=subject["id"]),
+                        ),
                         values=(subject.get("status", ""), subject.get("data", "")),
                     )
                     self._iid_to_scope[subject_id] = {
@@ -452,7 +458,7 @@ class ProjectOverviewWidget(BaseWidget):
                     self.add_tree_item(
                         item_id=partial_node_id,
                         parent=day_id,
-                        text="🧾 Relatórios Parciais",
+                        text=_("🧾 Partial Reports"),
                         values=("", ""),
                     )
 
@@ -465,6 +471,6 @@ class ProjectOverviewWidget(BaseWidget):
                         self.add_tree_item(
                             item_id=report_id,
                             parent=partial_node_id,
-                            text=report.get("label", report.get("file_name", "Relatório Parcial")),
+                            text=report.get("label", report.get("file_name", _("Partial Report"))),
                             values=("", report.get("file_name", "")),
                         )

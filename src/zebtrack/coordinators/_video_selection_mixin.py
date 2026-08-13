@@ -23,6 +23,7 @@ import structlog
 from zebtrack.coordinators.processing_types import ValidationResult
 from zebtrack.core.project.project_manager import ProjectManager
 from zebtrack.core.services.roi_rule_resolver import apply_roi_rule_to_settings, resolve_roi_rule
+from zebtrack.i18n import _
 from zebtrack.ui.event_bus_v2 import UIEvents
 
 if TYPE_CHECKING:
@@ -69,9 +70,11 @@ class VideoSelectionMixin:
 
         if ready_traj and self.view:
             if not self.view.dialog_manager.ask_ok_cancel(
-                "Resultados Existentes",
-                f"{len(ready_traj)} vídeos já possuem trajetórias processadas.\n"
-                "Deseja reprocessá-los (sobrescrevendo os dados anteriores)?",
+                _("Existing Results"),
+                _(
+                    "{count} videos already have processed trajectories.\n"
+                    "Do you want to reprocess them (overwriting the previous data)?"
+                ).format(count=len(ready_traj)),
             ):
                 ready_traj = []
 
@@ -83,8 +86,8 @@ class VideoSelectionMixin:
                 self._publish_event(
                     UIEvents.UI_SHOW_INFO,
                     {
-                        "title": "Processamento",
-                        "message": "Nenhum dos vídeos selecionados contém arena definida.",
+                        "title": _("Processing"),
+                        "message": _("None of the selected videos has a defined arena."),
                     },
                 )
                 return None
@@ -107,8 +110,8 @@ class VideoSelectionMixin:
                 self._publish_event(
                     UIEvents.UI_SHOW_INFO,
                     {
-                        "title": "Processamento",
-                        "message": "Nenhum vídeo foi selecionado para processamento.",
+                        "title": _("Processing"),
+                        "message": _("No video was selected for processing."),
                     },
                 )
                 return None
@@ -147,9 +150,9 @@ class VideoSelectionMixin:
             else:
                 return ValidationResult.failure(
                     error_code="processing_already_active",
-                    error_message=(
-                        "Uma análise de vídeo já está em andamento. "
-                        "Por favor, aguarde ou cancele a análise atual."
+                    error_message=_(
+                        "A video analysis is already running. "
+                        "Please wait or cancel the current analysis."
                     ),
                     context={"current_video": processing_state.current_video},
                 )
@@ -157,7 +160,7 @@ class VideoSelectionMixin:
         if check_project_loaded and not self.project_manager.project_path:
             return ValidationResult.failure(
                 error_code="no_project_loaded",
-                error_message="Nenhum projeto carregado",
+                error_message=_("No project loaded"),
             )
 
         if check_zones:
@@ -165,7 +168,7 @@ class VideoSelectionMixin:
             if not zone_data or not zone_data.polygon:
                 return ValidationResult.failure(
                     error_code="no_main_arena",
-                    error_message="O polígono principal do aquário não foi definido",
+                    error_message=_("The main aquarium polygon has not been defined"),
                 )
 
         if check_videos_exist:
@@ -173,7 +176,7 @@ class VideoSelectionMixin:
             if not all_videos:
                 return ValidationResult.failure(
                     error_code="no_videos_in_project",
-                    error_message="Nenhum vídeo cadastrado no projeto atualmente",
+                    error_message=_("No video is currently registered in the project"),
                 )
 
         return ValidationResult.success()
@@ -208,7 +211,7 @@ class VideoSelectionMixin:
         """Show validation error to UI."""
         self._publish_event(
             UIEvents.UI_SHOW_WARNING,
-            {"title": "Validação Falhou", "message": val.error_message},
+            {"title": _("Validation Failed"), "message": val.error_message},
         )
 
     def _handle_targeted_selection_errors(
@@ -218,7 +221,7 @@ class VideoSelectionMixin:
         if not video_paths:
             self._publish_event(
                 UIEvents.UI_SHOW_INFO,
-                {"title": "Processamento", "message": "Nenhum vídeo selecionado."},
+                {"title": _("Processing"), "message": _("No video selected.")},
             )
             return False
         if selection_result.has_missing:
@@ -228,16 +231,17 @@ class VideoSelectionMixin:
             self._publish_event(
                 UIEvents.UI_SHOW_WARNING,
                 {
-                    "title": "Vídeos fora do projeto",
-                    "message": "Itens selecionados não pertencem ao projeto:\n" + "\n".join(sample),
+                    "title": _("Videos outside the project"),
+                    "message": _("Selected items do not belong to the project:\n")
+                    + "\n".join(sample),
                 },
             )
         if selection_result.candidate_count == 0:
             self._publish_event(
                 UIEvents.UI_SHOW_INFO,
                 {
-                    "title": "Processamento",
-                    "message": "Nenhum dos vídeos selecionados pertence ao projeto ativo.",
+                    "title": _("Processing"),
+                    "message": _("None of the selected videos belongs to the active project."),
                 },
             )
             return False
@@ -248,7 +252,10 @@ class VideoSelectionMixin:
         if selection_result.candidate_count == 0:
             self._publish_event(
                 UIEvents.UI_SHOW_INFO,
-                {"title": "Processamento", "message": "Nenhum vídeo pendente para processar."},
+                {
+                    "title": _("Processing"),
+                    "message": _("No pending video to process."),
+                },
             )
             return False
         return True
@@ -264,8 +271,8 @@ class VideoSelectionMixin:
             self._publish_event(
                 UIEvents.UI_SHOW_ERROR,
                 {
-                    "title": "Erro",
-                    "message": "Não foi possível localizar caminhos válidos para os vídeos.",
+                    "title": _("Error"),
+                    "message": _("Could not locate valid paths for the videos."),
                 },
             )
             return None
@@ -280,8 +287,8 @@ class VideoSelectionMixin:
             self._publish_event(
                 UIEvents.UI_SHOW_WARNING,
                 {
-                    "title": "Vídeos Não Encontrados",
-                    "message": "Vídeos ignorados:\n" + "\n".join(sample),
+                    "title": _("Videos Not Found"),
+                    "message": _("Videos skipped:\n") + "\n".join(sample),
                 },
             )
 

@@ -9,12 +9,19 @@ from typing import Any
 import structlog
 from pydantic import ValidationError
 
+from zebtrack.i18n import _
 from zebtrack.ui import payloads
 from zebtrack.ui.event_bus_v2 import Event, UIEvents
 from zebtrack.ui.payloads import ModelRunDiagnosticPayload, ModelSetWeightPayload
+from zebtrack.ui.sentinels import both_models_label
 from zebtrack.ui.wizard.tooltip import create_help_label
 
 log = structlog.get_logger()
+
+# The two engine names are proper nouns and are never translated; only the
+# "test both" entry is, through the shared sentinel the coordinator also reads.
+YOLO_ENGINE = "YOLO (PyTorch)"
+OPENVINO_ENGINE = "OpenVINO"
 
 
 class ModelDiagnosticsPanel(ttk.Frame):
@@ -46,8 +53,8 @@ class ModelDiagnosticsPanel(ttk.Frame):
         self.track_buffer_var = StringVar(master=self, value="90")
         self.max_center_dist_var = StringVar(master=self, value="400.0")
         self.iou_threshold_var = StringVar(master=self, value="0.05")
-        self.video_path_label_var = StringVar(master=self, value="Nenhum vídeo selecionado.")
-        self.model_test_var = StringVar(master=self, value="YOLO (PyTorch)")
+        self.video_path_label_var = StringVar(master=self, value=_("No video selected."))
+        self.model_test_var = StringVar(master=self, value=YOLO_ENGINE)
         self.project_weight_summary_var = StringVar(master=self)
         self.project_weight_options: dict[str, str] = {}
 
@@ -76,15 +83,15 @@ class ModelDiagnosticsPanel(ttk.Frame):
     def _build(self) -> None:
         self.columnconfigure(0, weight=1)
 
-        title = "Diagnóstico Global" if self.scope == "global" else "Diagnóstico do Projeto"
+        title = _("Global Diagnostics") if self.scope == "global" else _("Project Diagnostics")
         ttk.Label(self, text=title, font=("Segoe UI", 11, "bold")).pack(anchor="w")
 
         if self.scope == "global":
             ttk.Label(
                 self,
-                text=(
-                    "Use este painel para validar pesos, ajustar parâmetros do detector "
-                    "e executar testes rápidos em vídeo fora do contexto de um projeto."
+                text=_(
+                    "Use this panel to validate weights, tune detector parameters "
+                    "and run quick video tests outside the context of a project."
                 ),
                 justify="left",
                 wraplength=760,
@@ -95,9 +102,9 @@ class ModelDiagnosticsPanel(ttk.Frame):
             self._refresh_project_weight_summary()
             ttk.Label(
                 self,
-                text=(
-                    "Ajustes feitos aqui afetam apenas os parâmetros do detector deste projeto. "
-                    "Escolha abaixo qual peso efetivo do projeto deseja diagnosticar."
+                text=_(
+                    "Changes made here affect only this project's detector parameters. "
+                    "Choose below which effective project weight you want to diagnose."
                 ),
                 justify="left",
                 wraplength=760,
@@ -117,7 +124,7 @@ class ModelDiagnosticsPanel(ttk.Frame):
 
         ttk.Button(
             self,
-            text="Testar Modelo em Vídeo...",
+            text=_("Test Model on Video..."),
             command=self._run_diagnostic_test,
         ).pack(fill="x", pady=(6, 0))
 
@@ -126,7 +133,7 @@ class ModelDiagnosticsPanel(ttk.Frame):
         row.pack(fill="x", pady=(0, 6))
         row.columnconfigure(1, weight=1)
 
-        ttk.Label(row, text="Peso para diagnóstico:").grid(row=0, column=0, sticky="w")
+        ttk.Label(row, text=_("Weight for diagnostics:")).grid(row=0, column=0, sticky="w")
         self.weights_dropdown = ttk.Combobox(
             row,
             textvariable=self.active_weight_var,
@@ -137,10 +144,10 @@ class ModelDiagnosticsPanel(ttk.Frame):
 
         ttk.Label(
             self,
-            text=(
-                "O peso escolhido aqui é aplicado temporariamente como peso ativo para o teste. "
-                "A configuração global permanente continua sendo controlada pela janela de "
-                "Configuração Global de Modelos."
+            text=_(
+                "The weight chosen here is applied temporarily as the active weight for "
+                "the test. The permanent global configuration is still controlled by the "
+                "Global Model Configuration window."
             ),
             font=("Segoe UI", 8),
             foreground="#555555",
@@ -155,7 +162,7 @@ class ModelDiagnosticsPanel(ttk.Frame):
         row.pack(fill="x", pady=(0, 6))
         row.columnconfigure(1, weight=1)
 
-        ttk.Label(row, text="Peso do projeto para diagnóstico:").grid(
+        ttk.Label(row, text=_("Project weight for diagnostics:")).grid(
             row=0,
             column=0,
             sticky="w",
@@ -175,7 +182,7 @@ class ModelDiagnosticsPanel(ttk.Frame):
 
         ttk.Button(
             row,
-            text="Selecionar Vídeo...",
+            text=_("Select Video..."),
             command=self._select_diagnostic_video,
         ).grid(row=0, column=0, sticky="w")
         ttk.Label(
@@ -195,17 +202,17 @@ class ModelDiagnosticsPanel(ttk.Frame):
 
             ttk.Button(
                 actions_frame,
-                text="Salvar no Projeto",
+                text=_("Save to Project"),
                 command=self._apply_detector_parameters,
             ).grid(row=0, column=0, sticky="ew")
             ttk.Button(
                 actions_frame,
-                text="Recarregar Valores Salvos",
+                text=_("Reload Saved Values"),
                 command=self._reload_project_parameters,
             ).grid(row=0, column=1, sticky="ew", padx=8)
             ttk.Button(
                 actions_frame,
-                text="Restaurar Padrões Globais",
+                text=_("Restore Global Defaults"),
                 command=self._restore_detector_defaults,
             ).grid(row=0, column=2, sticky="ew")
             return
@@ -214,12 +221,12 @@ class ModelDiagnosticsPanel(ttk.Frame):
         actions_frame.columnconfigure(1, weight=1, uniform="diag_global_actions")
         ttk.Button(
             actions_frame,
-            text="Aplicar Parâmetros",
+            text=_("Apply Parameters"),
             command=self._apply_detector_parameters,
         ).grid(row=0, column=0, sticky="ew")
         ttk.Button(
             actions_frame,
-            text="Restaurar Padrões",
+            text=_("Restore Defaults"),
             command=self._restore_detector_defaults,
         ).grid(row=0, column=1, sticky="ew", padx=(8, 0))
 
@@ -241,44 +248,50 @@ class ModelDiagnosticsPanel(ttk.Frame):
 
         row_idx = 0
         if include_frame_count:
-            ttk.Label(params_frame, text="Nº Frames (Teste):").grid(
+            ttk.Label(params_frame, text=_("No. Frames (Test):")).grid(
                 row=row_idx, column=0, sticky="w", padx=(5, 2), pady=2
             )
             create_help_label(
                 params_frame,
-                "Quantidade de frames do vídeo a serem processados no teste de diagnóstico.\n"
-                "Use um valor baixo (ex: 100) para testes rápidos.",
+                _(
+                    "Number of video frames to process in the diagnostic test.\n"
+                    "Use a low value (e.g. 100) for quick tests."
+                ),
             ).grid(row=row_idx, column=1, padx=2)
             ttk.Entry(params_frame, textvariable=self.frames_to_analyze_var, width=8).grid(
                 row=row_idx, column=2, sticky="ew", padx=5
             )
             row_idx += 1
 
-        ttk.Label(params_frame, text="Limiar Confiança:").grid(
+        ttk.Label(params_frame, text=_("Confidence Threshold:")).grid(
             row=row_idx, column=0, sticky="w", padx=(5, 2), pady=2
         )
         create_help_label(
             params_frame,
-            "Limiar de Confiança (Confidence Threshold)\n\n"
-            "Probabilidade mínima (0.0 a 1.0) para considerar uma detecção válida.\n"
-            "• Aumente (ex: 0.50) se houver muitos 'falsos positivos' (ruído/fantasmas).\n"
-            "• Diminua (ex: 0.15) se o peixe não estiver sendo detectado em alguns frames.\n"
-            "• Padrão recomendado: 0.25",
+            _(
+                "Confidence Threshold\n\n"
+                "Minimum probability (0.0 to 1.0) for a detection to count as valid.\n"
+                "• Raise it (e.g. 0.50) if there are many 'false positives' (noise/ghosts).\n"
+                "• Lower it (e.g. 0.15) if the fish is not detected in some frames.\n"
+                "• Recommended default: 0.25"
+            ),
         ).grid(row=row_idx, column=1, padx=2)
         ttk.Entry(params_frame, textvariable=self.confidence_threshold_var, width=8).grid(
             row=row_idx, column=2, sticky="ew", padx=5
         )
 
-        ttk.Label(params_frame, text="Limiar NMS:").grid(
+        ttk.Label(params_frame, text=_("NMS Threshold:")).grid(
             row=row_idx, column=3, sticky="w", padx=(15, 2), pady=2
         )
         create_help_label(
             params_frame,
-            "Limiar NMS (Non-Maximum Suppression)\n\n"
-            "Controla a remoção de caixas duplicadas para o mesmo objeto.\n"
-            "• Valores baixos (ex: 0.4) fundem caixas sobrepostas agressivamente.\n"
-            "• Valores altos (ex: 0.7) permitem mais sobreposição.\n"
-            "• Padrão recomendado: 0.50",
+            _(
+                "NMS Threshold (Non-Maximum Suppression)\n\n"
+                "Controls the removal of duplicate boxes for the same object.\n"
+                "• Low values (e.g. 0.4) merge overlapping boxes aggressively.\n"
+                "• High values (e.g. 0.7) allow more overlap.\n"
+                "• Recommended default: 0.50"
+            ),
         ).grid(row=row_idx, column=4, padx=2)
         ttk.Entry(params_frame, textvariable=self.nms_threshold_var, width=8).grid(
             row=row_idx, column=5, sticky="ew", padx=5
@@ -288,7 +301,7 @@ class ModelDiagnosticsPanel(ttk.Frame):
 
         ttk.Checkbutton(
             params_frame,
-            text="Usar ByteTrack (Rastreamento Avançado)",
+            text=_("Use ByteTrack (Advanced Tracking)"),
             variable=self.use_bytetrack_var,
             command=self._toggle_bytetrack_options,
         ).grid(row=row_idx, column=0, columnspan=6, sticky="w", padx=5, pady=(15, 5))
@@ -317,91 +330,103 @@ class ModelDiagnosticsPanel(ttk.Frame):
         tracking_frame.columnconfigure(5, weight=1)
 
         t_row = 0
-        ttk.Label(tracking_frame, text="Track Thresh:").grid(
+        ttk.Label(tracking_frame, text=_("Track Thresh:")).grid(
             row=t_row, column=0, sticky="w", padx=(5, 2)
         )
         create_help_label(
             tracking_frame,
-            "Track Threshold (Rastreamento)\n\n"
-            "Confiança mínima para INICIAR ou MANTER um rastro.\n"
-            "• Define quão 'certo' o detector deve estar para criar um ID novo.\n"
-            "• Aumente para evitar rastros de lixo/ruído.\n"
-            "• Diminua para manter o ID de peixes difíceis de detectar.\n"
-            "• Padrão recomendado: 0.25",
+            _(
+                "Track Threshold (Tracking)\n\n"
+                "Minimum confidence to START or KEEP a track.\n"
+                "• Defines how 'sure' the detector must be to create a new ID.\n"
+                "• Raise it to avoid junk/noise tracks.\n"
+                "• Lower it to keep the ID of fish that are hard to detect.\n"
+                "• Recommended default: 0.25"
+            ),
         ).grid(row=t_row, column=1, padx=2)
         self.track_entry = ttk.Entry(tracking_frame, textvariable=self.track_threshold_var, width=8)
         self.track_entry.grid(row=t_row, column=2, sticky="ew", padx=5)
 
-        ttk.Label(tracking_frame, text="Match Thresh:").grid(
+        ttk.Label(tracking_frame, text=_("Match Thresh:")).grid(
             row=t_row, column=3, sticky="w", padx=(15, 2)
         )
         create_help_label(
             tracking_frame,
-            "Match Threshold\n\n"
-            "Tolerância para associar uma nova detecção a um rastro existente.\n"
-            "• Valores altos (ex: 0.8+) são mais permissivos (bom para movimentos rápidos).\n"
-            "• Valores baixos (<0.5) são restritivos "
-            "(evita troca de identidade, mas pode perder o rastro).\n"
-            "• Padrão recomendado: 0.95",
+            _(
+                "Match Threshold\n\n"
+                "Tolerance for associating a new detection with an existing track.\n"
+                "• High values (e.g. 0.8+) are more permissive (good for fast movement).\n"
+                "• Low values (<0.5) are restrictive "
+                "(avoids identity swaps, but may lose the track).\n"
+                "• Recommended default: 0.95"
+            ),
         ).grid(row=t_row, column=4, padx=2)
         self.match_entry = ttk.Entry(tracking_frame, textvariable=self.match_threshold_var, width=8)
         self.match_entry.grid(row=t_row, column=5, sticky="ew", padx=5)
 
         t_row += 1
-        ttk.Label(tracking_frame, text="Track Buffer:").grid(
+        ttk.Label(tracking_frame, text=_("Track Buffer:")).grid(
             row=t_row, column=0, sticky="w", padx=(5, 2), pady=5
         )
         create_help_label(
             tracking_frame,
-            "Track Buffer (Memória)\n\n"
-            "Quantos frames o sistema 'lembra' do peixe após ele sumir (oclusão/falha).\n"
-            "• Aumente (ex: 120) se o peixe some por muito tempo.\n"
-            "• Diminua para deletar rastros perdidos rapidamente.\n"
-            "• Padrão: 90 frames (~3s a 30fps)",
+            _(
+                "Track Buffer (Memory)\n\n"
+                "How many frames the system 'remembers' a fish after it disappears "
+                "(occlusion/miss).\n"
+                "• Raise it (e.g. 120) if the fish vanishes for a long time.\n"
+                "• Lower it to drop lost tracks quickly.\n"
+                "• Default: 90 frames (~3s at 30fps)"
+            ),
         ).grid(row=t_row, column=1, padx=2)
         self.buffer_entry = ttk.Entry(tracking_frame, textvariable=self.track_buffer_var, width=8)
         self.buffer_entry.grid(row=t_row, column=2, sticky="ew", padx=5)
 
-        ttk.Label(tracking_frame, text="Dist. Máx (px):").grid(
+        ttk.Label(tracking_frame, text=_("Max Dist. (px):")).grid(
             row=t_row, column=3, sticky="w", padx=(15, 2)
         )
         create_help_label(
             tracking_frame,
-            "Distância Máxima (pixels)\n\n"
-            "O quanto o centro do peixe pode se mover entre frames processados.\n"
-            "• Impede associações impossíveis (teletransporte).\n"
-            "• Aumente se o peixe é rápido ou se a taxa de frames é baixa.\n"
-            "• Diminua se houver trocas de ID entre peixes distantes.\n"
-            "• Padrão: 400.0 px",
+            _(
+                "Maximum Distance (pixels)\n\n"
+                "How far the centre of the fish may move between processed frames.\n"
+                "• Prevents impossible associations (teleporting).\n"
+                "• Raise it if the fish is fast or the frame rate is low.\n"
+                "• Lower it if IDs are swapped between distant fish.\n"
+                "• Default: 400.0 px"
+            ),
         ).grid(row=t_row, column=4, padx=2)
         self.dist_entry = ttk.Entry(tracking_frame, textvariable=self.max_center_dist_var, width=8)
         self.dist_entry.grid(row=t_row, column=5, sticky="ew", padx=5)
 
         t_row += 1
-        ttk.Label(tracking_frame, text="IoU Thresh:").grid(
+        ttk.Label(tracking_frame, text=_("IoU Thresh:")).grid(
             row=t_row, column=0, sticky="w", padx=(5, 2)
         )
         create_help_label(
             tracking_frame,
-            "IoU Threshold (Rastreamento)\n\n"
-            "Sobreposição mínima (Intersection over Union) para associar caixas.\n"
-            "• Padrão: 0.05 (baixa exigência).\n"
-            "• Aumente (ex: 0.3) para exigir que o peixe mantenha quase a mesma posição.\n"
-            "• Diminua para permitir movimentos bruscos que mudam a área da caixa.",
+            _(
+                "IoU Threshold (Tracking)\n\n"
+                "Minimum overlap (Intersection over Union) to associate boxes.\n"
+                "• Default: 0.05 (undemanding).\n"
+                "• Raise it (e.g. 0.3) to require the fish to stay in almost the same "
+                "position.\n"
+                "• Lower it to allow abrupt movements that change the box area."
+            ),
         ).grid(row=t_row, column=1, padx=2)
         self.iou_entry = ttk.Entry(tracking_frame, textvariable=self.iou_threshold_var, width=8)
         self.iou_entry.grid(row=t_row, column=2, sticky="ew", padx=5)
 
         row_idx += 1
         if include_model_test:
-            ttk.Label(params_frame, text="Modelo(s) a Testar:").grid(
+            ttk.Label(params_frame, text=_("Model(s) to Test:")).grid(
                 row=row_idx, column=0, sticky="w", padx=5, pady=(15, 2)
             )
             self.model_test_dropdown = ttk.Combobox(
                 params_frame,
                 textvariable=self.model_test_var,
                 state="readonly",
-                values=["YOLO (PyTorch)", "OpenVINO", "Ambos"],
+                values=[YOLO_ENGINE, OPENVINO_ENGINE, both_models_label()],
                 width=15,
             )
             self.model_test_dropdown.grid(
@@ -429,8 +454,10 @@ class ModelDiagnosticsPanel(ttk.Frame):
 
         if not enabled:
             self.bytetrack_hint_var.set(
-                "ℹ️ ByteTrack desativado. Usando rastreamento simples (Híbrido) que utiliza "
-                "apenas 'Distância Máxima' e 'IoU Threshold' para manter o ID."
+                _(
+                    "ℹ️ ByteTrack disabled. Using simple (Hybrid) tracking, which relies "
+                    "only on 'Maximum Distance' and 'IoU Threshold' to keep the ID."
+                )
             )
             for widget in [self.dist_entry, self.iou_entry]:
                 if widget is not None:
@@ -438,11 +465,11 @@ class ModelDiagnosticsPanel(ttk.Frame):
             return
 
         self.bytetrack_hint_var.set(
-            "💡 ByteTrack ativo (Filtro de Kalman). Recomendado para maior estabilidade."
+            _("💡 ByteTrack active (Kalman filter). Recommended for greater stability.")
         )
 
     def _prefill_detector_parameters(self) -> None:
-        resolved_params, _ = self._collect_prefill_detector_params()
+        resolved_params, _project_params = self._collect_prefill_detector_params()
         if resolved_params:
             self._set_parameter_fields(resolved_params)
 
@@ -536,12 +563,14 @@ class ModelDiagnosticsPanel(ttk.Frame):
             self._toggle_bytetrack_options()
 
     def _reload_project_parameters(self) -> None:
-        _, project_params = self._collect_prefill_detector_params()
+        _resolved_params, project_params = self._collect_prefill_detector_params()
         if not project_params:
             messagebox.showinfo(
-                "Sem overrides",
-                "Este projeto ainda não possui overrides salvos. "
-                "Valores globais atuais serão mantidos.",
+                _("No overrides"),
+                _(
+                    "This project has no saved overrides yet. "
+                    "The current global values will be kept."
+                ),
                 parent=self,
             )
             return
@@ -560,28 +589,40 @@ class ModelDiagnosticsPanel(ttk.Frame):
             iou_thresh = float(self.iou_threshold_var.get())
         except (TypeError, ValueError):
             messagebox.showerror(
-                "Erro",
-                "Insira valores numéricos válidos para os parâmetros do detector.",
+                _("Error"),
+                _("Enter valid numeric values for the detector parameters."),
                 parent=self,
             )
             return
 
         for label, value in (
-            ("limiar de confiança", conf),
-            ("limiar NMS", nms),
-            ("track threshold", track_thresh),
-            ("match threshold", match_thresh),
-            ("IoU threshold", iou_thresh),
+            (_("confidence threshold"), conf),
+            (_("NMS threshold"), nms),
+            (_("track threshold"), track_thresh),
+            (_("match threshold"), match_thresh),
+            (_("IoU threshold"), iou_thresh),
         ):
             if not 0.0 < value < 1.0:
-                messagebox.showerror("Erro", f"O {label} deve estar entre 0 e 1.", parent=self)
+                messagebox.showerror(
+                    _("Error"),
+                    _("The {label} must be between 0 and 1.").format(label=label),
+                    parent=self,
+                )
                 return
 
         if track_buffer < 1:
-            messagebox.showerror("Erro", "Track Buffer deve ser pelo menos 1 frame.", parent=self)
+            messagebox.showerror(
+                _("Error"),
+                _("Track Buffer must be at least 1 frame."),
+                parent=self,
+            )
             return
         if max_dist <= 0:
-            messagebox.showerror("Erro", "Distância Máxima deve ser maior que 0.", parent=self)
+            messagebox.showerror(
+                _("Error"),
+                _("Maximum Distance must be greater than 0."),
+                parent=self,
+            )
             return
 
         try:
@@ -599,20 +640,20 @@ class ModelDiagnosticsPanel(ttk.Frame):
                 }
             )
         except ValidationError as exc:
-            messagebox.showerror("Erro", str(exc), parent=self)
+            messagebox.showerror(_("Error"), str(exc), parent=self)
             return
 
         if updated:
             success_message = (
-                "As configurações do detector foram salvas para este projeto."
+                _("The detector settings were saved for this project.")
                 if self.scope == "project"
-                else "As configurações do detector foram aplicadas com sucesso."
+                else _("The detector settings were applied successfully.")
             )
-            messagebox.showinfo("Parâmetros Atualizados", success_message, parent=self)
+            messagebox.showinfo(_("Parameters Updated"), success_message, parent=self)
         else:
             messagebox.showwarning(
-                "Sem alterações",
-                "Os parâmetros informados já estavam em uso.",
+                _("No changes"),
+                _("The parameters given were already in use."),
                 parent=self,
             )
 
@@ -620,15 +661,15 @@ class ModelDiagnosticsPanel(ttk.Frame):
         try:
             restored = self.controller.hardware_vm.restore_detector_defaults(scope=self.scope)
         except Exception as exc:
-            messagebox.showerror("Erro", str(exc), parent=self)
+            messagebox.showerror(_("Error"), str(exc), parent=self)
             return
 
         if restored:
-            resolved_params, _ = self._collect_prefill_detector_params()
+            resolved_params, _project_params = self._collect_prefill_detector_params()
             self._set_parameter_fields(resolved_params)
             messagebox.showinfo(
-                "Parâmetros do Detector",
-                "Parâmetros padrão restaurados.",
+                _("Detector Parameters"),
+                _("Default parameters restored."),
                 parent=self,
             )
 
@@ -638,7 +679,7 @@ class ModelDiagnosticsPanel(ttk.Frame):
         weights_list = self.controller.hardware_vm.get_all_weight_names()
         self.weights_dropdown["values"] = weights_list
         if not weights_list:
-            self.active_weight_var.set("Nenhum peso encontrado.")
+            self.active_weight_var.set(_("No weights found."))
             self.weights_dropdown.config(state="disabled")
             return
 
@@ -700,7 +741,7 @@ class ModelDiagnosticsPanel(ttk.Frame):
         self.weights_dropdown["values"] = values
         if not values:
             self.weights_dropdown.config(state="disabled")
-            self.active_weight_var.set("Nenhum peso efetivo disponível.")
+            self.active_weight_var.set(_("No effective weight available."))
             return
 
         self.weights_dropdown.config(state="readonly")
@@ -718,15 +759,24 @@ class ModelDiagnosticsPanel(ttk.Frame):
         except Exception:
             resolved_openvino = False
 
-        lines = ["Pesos efetivos deste projeto:"]
+        lines = [_("Effective weights for this project:")]
         for entry in entries:
-            label = entry.get("label") or "Slot"
-            effective_weight = entry.get("effective_weight") or "Nenhum"
+            label = entry.get("label") or _("Slot")
+            effective_weight = entry.get("effective_weight") or _("None")
             if entry.get("project_override"):
-                lines.append(f"{label}: {effective_weight} (override do projeto)")
+                lines.append(
+                    _("{label}: {weight} (project override)").format(
+                        label=label, weight=effective_weight
+                    )
+                )
             else:
-                lines.append(f"{label}: {effective_weight} (padrão global)")
-        lines.append(f"OpenVINO: {'Ativado' if resolved_openvino else 'Desativado'}")
+                lines.append(
+                    _("{label}: {weight} (global default)").format(
+                        label=label, weight=effective_weight
+                    )
+                )
+        status = _("Enabled") if resolved_openvino else _("Disabled")
+        lines.append(_("OpenVINO: {status}").format(status=status))
         self.project_weight_summary_var.set("\n".join(lines))
 
     def _on_weight_selected_local(self, _event=None) -> None:
@@ -738,8 +788,8 @@ class ModelDiagnosticsPanel(ttk.Frame):
 
     def _select_diagnostic_video(self) -> None:
         path = filedialog.askopenfilename(
-            title="Selecione o Vídeo para Diagnóstico",
-            filetypes=[("Arquivos de vídeo", "*.mp4 *.avi *.mov")],
+            title=_("Select the Video for Diagnostics"),
+            filetypes=[(_("Video files"), "*.mp4 *.avi *.mov")],
             parent=self,
         )
         if not path:
@@ -750,22 +800,26 @@ class ModelDiagnosticsPanel(ttk.Frame):
 
     def _run_diagnostic_test(self) -> None:
         if not self.diagnostic_video_path:
-            messagebox.showerror("Erro", "Por favor, selecione um arquivo de vídeo.", parent=self)
+            messagebox.showerror(
+                _("Error"),
+                _("Please select a video file."),
+                parent=self,
+            )
             return
 
         try:
             frames = int(self.frames_to_analyze_var.get())
             if frames <= 0:
                 messagebox.showerror(
-                    "Erro",
-                    "O número de frames deve ser um inteiro positivo.",
+                    _("Error"),
+                    _("The number of frames must be a positive integer."),
                     parent=self,
                 )
                 return
         except ValueError:
             messagebox.showerror(
-                "Erro",
-                "O número de frames deve ser um número inteiro.",
+                _("Error"),
+                _("The number of frames must be a whole number."),
                 parent=self,
             )
             return
@@ -774,15 +828,15 @@ class ModelDiagnosticsPanel(ttk.Frame):
             conf = float(self.confidence_threshold_var.get())
             if not 0.0 <= conf <= 1.0:
                 messagebox.showerror(
-                    "Erro",
-                    "O limiar de confiança deve ser um número entre 0.0 e 1.0.",
+                    _("Error"),
+                    _("The confidence threshold must be a number between 0.0 and 1.0."),
                     parent=self,
                 )
                 return
         except ValueError:
             messagebox.showerror(
-                "Erro",
-                "O limiar de confiança deve ser um número válido.",
+                _("Error"),
+                _("The confidence threshold must be a valid number."),
                 parent=self,
             )
             return
@@ -797,8 +851,8 @@ class ModelDiagnosticsPanel(ttk.Frame):
             selected_weight = self.project_weight_options.get(self.active_weight_var.get())
             if not selected_weight:
                 messagebox.showerror(
-                    "Erro",
-                    "Selecione um dos pesos efetivos do projeto para diagnóstico.",
+                    _("Error"),
+                    _("Select one of the project's effective weights for diagnostics."),
                     parent=self,
                 )
                 return

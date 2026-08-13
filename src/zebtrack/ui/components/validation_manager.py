@@ -19,8 +19,14 @@ import yaml
 from pydantic import ValidationError
 
 from zebtrack.core.detection import ZoneData
+from zebtrack.i18n import _
 from zebtrack.settings import Settings
-from zebtrack.ui.sentinels import day_prefix, no_day_label, no_group_label
+from zebtrack.ui.sentinels import (
+    day_prefix,
+    no_day_label,
+    no_group_label,
+    not_reported_label,
+)
 from zebtrack.utils.report_files import find_block_partial_report_files
 
 if TYPE_CHECKING:
@@ -36,13 +42,21 @@ STATUS_SYMBOLS = {
     "summary": "\u03a3",  # Σ
 }
 
-PROJECT_STATUS_META: dict[str, tuple[str, str]] = {
-    "pending": ("⏳", "Pendentes"),
-    "processing": ("🔁", "Processando"),
-    "processed": ("📦", "Com dados"),
-    "complete": ("✅", "Concluídos"),
-    "failed": ("⚠️", "Com falha"),
-}
+
+def project_status_meta() -> dict[str, tuple[str, str]]:
+    """Status key -> (icon, displayed label) for the project overview.
+
+    A function, not a module constant: a dict built at import time would
+    freeze the labels before a language is installed. ``gui.py`` used to
+    carry a byte-identical copy of this table; it now imports this one.
+    """
+    return {
+        "pending": ("⏳", _("Pending")),
+        "processing": ("🔁", _("Processing")),
+        "processed": ("📦", _("With data")),
+        "complete": ("✅", _("Completed")),
+        "failed": ("⚠️", _("Failed")),
+    }
 
 
 class ValidationManager:
@@ -113,33 +127,31 @@ class ValidationManager:
 
             # Validate
             if fps <= 0:
-                raise ValueError("FPS deve ser maior que 0.")
+                raise ValueError(_("FPS must be greater than 0."))
             if processing_interval <= 0:
-                raise ValueError("O intervalo de processamento deve ser maior que 0.")
+                raise ValueError(_("The processing interval must be greater than 0."))
             if display_interval <= 0:
-                raise ValueError("O intervalo de exibição deve ser maior que 0.")
+                raise ValueError(_("The display interval must be greater than 0."))
             if processing_offset < 0:
-                raise ValueError("O offset deve ser maior ou igual a 0.")
+                raise ValueError(_("The offset must be greater than or equal to 0."))
             if flush_interval < 0:
-                raise ValueError("O intervalo de flush deve ser >= 0.")
+                raise ValueError(_("The flush interval must be >= 0."))
             if flush_rows < 1:
-                raise ValueError("O limite de linhas para flush deve ser >= 1.")
+                raise ValueError(_("The flush row limit must be >= 1."))
             if window_length < 3 or window_length % 2 == 0:
-                raise ValueError("Window length deve ser ímpar e pelo menos 3.")
+                raise ValueError(_("Window length must be odd and at least 3."))
             if polyorder < 1:
-                raise ValueError("Polyorder deve ser pelo menos 1.")
+                raise ValueError(_("Polyorder must be at least 1."))
 
         except ValueError as exc:
-            self.dialog_manager.show_error("Erro de Validação", str(exc))
+            self.dialog_manager.show_error(_("Validation Error"), str(exc))
             return
 
         update_payload: dict[str, Any] = values
 
         # Use injected settings object
         if self._settings is None:
-            self.dialog_manager.show_error(
-                "Erro", "Settings não disponível. Não foi possível salvar."
-            )
+            self.dialog_manager.show_error(_("Error"), _("Settings not available. Could not save."))
             return
 
         merged = self._deep_merge_dicts(self._settings.model_dump(), update_payload)
@@ -147,7 +159,7 @@ class ValidationManager:
         try:
             validated = Settings.model_validate(merged)
         except ValidationError as exc:
-            self.dialog_manager.show_error("Erro de Validação", str(exc))
+            self.dialog_manager.show_error(_("Validation Error"), str(exc))
             return
 
         override_path = Path("config.local.yaml")
@@ -168,7 +180,8 @@ class ValidationManager:
                 )
         except (OSError, yaml.YAMLError) as exc:
             self.dialog_manager.show_error(
-                "Erro", f"Não foi possível salvar config.local.yaml: {exc}"
+                _("Error"),
+                _("Could not save config.local.yaml: {error}").format(error=exc),
             )
             return
 
@@ -182,8 +195,8 @@ class ValidationManager:
 
         self.gui._reload_config_editor_values_widget()
         self.dialog_manager.show_info(
-            "Configurações salvas",
-            "Alterações registradas em config.local.yaml e aplicadas ao aplicativo.",
+            _("Settings saved"),
+            _("Changes recorded in config.local.yaml and applied to the application."),
         )
 
     def compose_overview_status_line(self, total: int, counts: Counter) -> str:
@@ -197,16 +210,17 @@ class ValidationManager:
             Formatted status string
         """
         if total <= 0:
-            return "Nenhum vídeo cadastrado."
+            return _("No video registered.")
 
-        parts: list[str] = [f"🧮 {total} vídeo(s)"]
+        status_meta = project_status_meta()
+        parts: list[str] = [_("🧮 {count} video(s)").format(count=total)]
         for key in ("pending", "processing", "processed", "complete", "failed"):
             value = counts.get(key, 0)
             if value:
-                icon, _ = PROJECT_STATUS_META.get(key, ("•", key.title()))
+                icon, _label = status_meta.get(key, ("•", key.title()))
                 parts.append(f"{icon} {value}")
 
-        others = sum(count for status, count in counts.items() if status not in PROJECT_STATUS_META)
+        others = sum(count for status, count in counts.items() if status not in status_meta)
         if others:
             parts.append(f"+ {others}")
 
@@ -293,7 +307,7 @@ class ValidationManager:
                     for entry in sorted(entries, key=lambda item: item.get("filename", "")):
                         path = entry.get("path") or ""
                         filename = entry.get("filename") or (
-                            os.path.basename(path) if path else "(sem arquivo)"
+                            os.path.basename(path) if path else _("(no file)")
                         )
                         metadata = entry.get("metadata") or {}
                         meta_snippet = self.format_video_metadata(metadata)
@@ -337,7 +351,7 @@ class ValidationManager:
                     subjects_list.append(
                         {
                             "id": subject_id,
-                            "label": f"🐟 Sujeito {subject_label}",
+                            "label": _("🐟 Subject {label}").format(label=subject_label),
                             "status": subj_status,
                             "data": subj_data,
                             "videos": videos_list,
@@ -409,12 +423,14 @@ class ValidationManager:
             log.info("ui.live_calibration.auto_prompt")
 
             response = self.dialog_manager.ask_ok_cancel(
-                "Calibração Automática",
-                "Nenhuma arena principal foi definida para este projeto ao vivo.\n\n"
-                "Deseja configurar a calibração automaticamente agora?\n\n"
-                "• Será aberta a aba de Configuração de Zonas\n"
-                "• Você pode usar 'Detectar Aquário (Auto)' ou desenhar manualmente\n"
-                "• A configuração será salva automaticamente",
+                _("Automatic Calibration"),
+                _(
+                    "No main arena has been defined for this live project.\n\n"
+                    "Do you want to set the calibration up automatically now?\n\n"
+                    "• The Zone Configuration tab will open\n"
+                    "• You can use 'Detect Aquarium (Auto)' or draw manually\n"
+                    "• The configuration is saved automatically"
+                ),
             )
 
             if response:
@@ -425,11 +441,13 @@ class ValidationManager:
 
                 # Show guidance message
                 self.dialog_manager.show_info(
-                    "Configuração de Arena Principal",
-                    "Configure a arena principal usando:\n\n"
-                    "1. 'Detectar Aquário (Auto)' - Para detecção automática\n"
-                    "2. 'Desenhar Polígono Principal' - Para desenho manual\n\n"
-                    "A configuração será salva automaticamente.",
+                    _("Main Arena Configuration"),
+                    _(
+                        "Set the main arena up using:\n\n"
+                        "1. 'Detect Aquarium (Auto)' - for automatic detection\n"
+                        "2. 'Draw Main Polygon' - for manual drawing\n\n"
+                        "The configuration is saved automatically."
+                    ),
                 )
             else:
                 log.info("ui.live_calibration.auto_declined")
@@ -470,11 +488,8 @@ class ValidationManager:
                 raise ValueError
         except (TypeError, ValueError):
             self.dialog_manager.show_error(
-                "Erro",
-                (
-                    "Os intervalos devem ser números inteiros positivos "
-                    "(análise, exibição e estabilização)."
-                ),
+                _("Error"),
+                _("The intervals must be positive integers (analysis, display and stabilisation)."),
             )
             return None
 
@@ -589,7 +604,7 @@ class ValidationManager:
             Tuple of (is_valid, error_message)
         """
         if not zone_data or (not zone_data.polygon and not (zone_data.roi_polygons or [])):
-            return False, "Desenhe a arena ou pelo menos uma ROI antes de salvar um template."
+            return False, _("Draw the arena or at least one ROI before saving a template.")
         return True, ""
 
     def validate_arena_for_analysis(self, arena_id: str | None) -> tuple[bool, str]:
@@ -602,7 +617,7 @@ class ValidationManager:
             Tuple of (is_valid, error_message)
         """
         if not arena_id:
-            return False, "Selecione um aquário ativo primeiro."
+            return False, _("Select an active aquarium first.")
         return True, ""
 
     def validate_arena_polygon_data(self, arena_data: dict | None) -> tuple[bool, str, dict | None]:
@@ -615,11 +630,11 @@ class ValidationManager:
             Tuple of (is_valid, error_message, arena_data)
         """
         if not arena_data or "polygon_px" not in arena_data:
-            return False, "Não foi possível obter os dados do polígono do aquário.", None
+            return False, _("Could not read the aquarium polygon data."), None
         return True, "", arena_data
 
     def validate_positive_integer(
-        self, value: Any, field_name: str = "valor"
+        self, value: Any, field_name: str | None = None
     ) -> tuple[bool, str, int | None]:
         """Validate that a value is a positive integer.
 
@@ -630,6 +645,9 @@ class ValidationManager:
         Returns:
             Tuple of (is_valid, error_message, parsed_value)
         """
+        # Default resolved here, not in the signature: a default argument is
+        # evaluated at import time, which would freeze the translation.
+        field_name = field_name or _("value")
         try:
             int_value = int(value)
             if int_value <= 0:
@@ -638,7 +656,7 @@ class ValidationManager:
         except (ValueError, TypeError):
             return (
                 False,
-                f"O {field_name} deve ser um número inteiro positivo.",
+                _("The {field} must be a positive integer.").format(field=field_name),
                 None,
             )
 
@@ -652,7 +670,7 @@ class ValidationManager:
             Tuple of (is_valid, error_message)
         """
         if not active_video:
-            return False, "Selecione um vídeo antes de aplicar o template."
+            return False, _("Select a video before applying the template.")
         return True, ""
 
     # ========================================================================
@@ -680,14 +698,14 @@ class ValidationManager:
         Returns:
             Formatted summary string
         """
+        status_meta = project_status_meta()
         parts: list[str] = []
-        for key in PROJECT_STATUS_META:
+        for key, (icon, _label) in status_meta.items():
             value = counts.get(key, 0)
             if value:
-                icon, _ = PROJECT_STATUS_META[key]
                 parts.append(f"{icon} {value}")
 
-        others = sum(count for status, count in counts.items() if status not in PROJECT_STATUS_META)
+        others = sum(count for status, count in counts.items() if status not in status_meta)
         if others:
             parts.append(f"+ {others}")
 
@@ -881,20 +899,20 @@ class ValidationManager:
 
         content_parts: list[str] = []
         if template.get("includes_arena"):
-            content_parts.append("Arena")
+            content_parts.append(_("Arena"))
         if template.get("includes_rois"):
-            content_parts.append("ROIs")
+            content_parts.append(_("ROIs"))
 
         if not content_parts:
-            content_label = "Sem dados"
+            content_label = _("No data")
         elif len(content_parts) == 2:
-            content_label = "Arena + ROIs"
+            content_label = _("Arena + ROIs")
         else:
             content_label = content_parts[0]
 
         location_label: str | None = None
         if location == "global":
-            location_label = "Global"
+            location_label = _("Global")
         elif location not in {"project", "global", None}:
             location_label = str(location)
 
@@ -907,7 +925,7 @@ class ValidationManager:
         if base_name:
             return f"{base_name}{suffix}"
 
-        return suffix.lstrip() or "Template"
+        return suffix.lstrip() or _("Template")
 
     def build_roi_template_identifier(self, template: dict[str, Any]) -> str:
         """Build unique identifier for ROI template.
@@ -980,16 +998,16 @@ class ValidationManager:
             Tuple of (icon, label)
         """
         if status_key == "total":
-            return "🧮", "Total"
+            return "🧮", _("Total")
         if status_key == "arena":
-            return STATUS_SYMBOLS["arena"], "Arena"
+            return STATUS_SYMBOLS["arena"], _("Arena")
         if status_key == "rois":
-            return STATUS_SYMBOLS["rois"], "ROIs"
+            return STATUS_SYMBOLS["rois"], _("ROIs")
         if status_key == "trajectory":
-            return STATUS_SYMBOLS["trajectory"], "Trajetória"
+            return STATUS_SYMBOLS["trajectory"], _("Trajectory")
         if status_key == "summary":
-            return STATUS_SYMBOLS["summary"], "Sumário"
-        return PROJECT_STATUS_META.get(status_key, ("•", status_key.title()))
+            return STATUS_SYMBOLS["summary"], _("Summary")
+        return project_status_meta().get(status_key, ("•", status_key.title()))
 
     @staticmethod
     def _video_sort_key(value):
@@ -1318,7 +1336,7 @@ class ValidationManager:
 
         for day_num in range(1, total_days + 1):
             day_id = f"Dia_{day_num}"
-            day_label = f"Dia {day_num:02d}"
+            day_label = f"{day_prefix()} {day_num:02d}"
 
             for group_name in groups:
                 for subject_num in range(1, subjects_per_group + 1):
@@ -1341,7 +1359,7 @@ class ValidationManager:
                     }
                     placeholder_video = {
                         "path": placeholder_id,
-                        "filename": "Sessão planejada",
+                        "filename": _("Planned session"),
                         "metadata": placeholder_metadata,
                         "status": "planejado",
                         "has_arena": planned_has_arena,
@@ -1503,7 +1521,7 @@ class ValidationManager:
                 ):
                     subject_label = self.format_subject_label(subject_id)
                     subject_entry: dict[str, Any] = {
-                        "label": f"🐟 Sujeito {subject_label}",
+                        "label": _("🐟 Subject {label}").format(label=subject_label),
                         "status_label": "",
                         "children": [],
                     }
@@ -1549,19 +1567,21 @@ class ValidationManager:
             # recusar um zero irrelevante barraria configuração legítima.
             rule = self.gui.roi_inclusion_rule_var.get()
             if rule == "centroid_in_on_buffered_roi" and buffer_radius <= 0:
-                raise ValueError("Raio de buffer deve ser maior que 0 para a regra de ROI dilatada")
+                raise ValueError(_("Buffer radius must be greater than 0 for the dilated ROI rule"))
             if buffer_radius < 0:
-                raise ValueError("Raio de buffer não pode ser negativo")
+                raise ValueError(_("Buffer radius cannot be negative"))
             # ``bbox_intersects`` aceita 0: é o limiar que pede sobreposição de
             # área não-nula sem fração mínima. ``seg_overlap`` não tem esse
             # caminho implementado e segue exigindo > 0.
             if rule == "seg_overlap" and not (0 < overlap_ratio <= 1):
                 raise ValueError(
-                    "Fração de sobreposição deve ser maior que 0 e no máximo 1 "
-                    "para a regra de segmentação"
+                    _(
+                        "Overlap fraction must be greater than 0 and at most 1 "
+                        "for the segmentation rule"
+                    )
                 )
             if not (0 <= overlap_ratio <= 1):
-                raise ValueError("Fração de sobreposição deve estar entre 0 e 1")
+                raise ValueError(_("Overlap fraction must be between 0 and 1"))
 
             # Update settings if available
             if self.gui.controller.settings:
@@ -1590,22 +1610,29 @@ class ValidationManager:
                     self.gui.controller.project_manager._save_settings_snapshot()
 
                 self.dialog_manager.show_info(
-                    "Sucesso",
-                    f"Configurações de ROI aplicadas:\n"
-                    f"Regra: {self.gui.controller.settings.roi_inclusion_rule}\n"
-                    f"Raio buffer: {self.gui.controller.settings.roi_buffer_radius_value}\n"
-                    f"Sobreposição mínima: "
-                    f"{self.gui.controller.settings.roi_min_bbox_overlap_ratio}",
+                    _("Success"),
+                    _(
+                        "ROI settings applied:\n"
+                        "Rule: {rule}\n"
+                        "Buffer radius: {radius}\n"
+                        "Minimum overlap: {overlap}"
+                    ).format(
+                        rule=self.gui.controller.settings.roi_inclusion_rule,
+                        radius=self.gui.controller.settings.roi_buffer_radius_value,
+                        overlap=self.gui.controller.settings.roi_min_bbox_overlap_ratio,
+                    ),
                 )
             else:
                 self.dialog_manager.show_warning(
-                    "Aviso", "Settings não disponível. Configurações não foram salvas."
+                    _("Warning"), _("Settings not available. Settings were not saved.")
                 )
 
         except ValueError as e:
-            self.dialog_manager.show_error("Erro de Validação", str(e))
+            self.dialog_manager.show_error(_("Validation Error"), str(e))
         except Exception as e:  # except Exception justified: multi-step settings apply pipeline
-            self.dialog_manager.show_error("Erro", f"Erro ao aplicar configurações: {e!s}")
+            self.dialog_manager.show_error(
+                _("Error"), _("Error applying settings: {error}").format(error=e)
+            )
 
     def resolve_subject_display(self, metadata: dict) -> str:
         """Resolve subject display name from various metadata fields."""
@@ -1641,4 +1668,4 @@ class ValidationManager:
                 return f"{int(text):02d}"
             return text
 
-        return "Não informado"
+        return not_reported_label()

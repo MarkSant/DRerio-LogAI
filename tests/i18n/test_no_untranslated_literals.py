@@ -28,13 +28,17 @@ from i18n_scan import load_allowlist, scan_paths  # noqa: E402
 
 # Migrated in PR1. Extend as later PRs land.
 MIGRATED_PATHS: tuple[str, ...] = (
+    "src/zebtrack/coordinators",
     "src/zebtrack/core/app_runner.py",
     "src/zebtrack/core/application_bootstrapper.py",
     "src/zebtrack/i18n.py",
     "src/zebtrack/io",
     "src/zebtrack/plugins",
     "src/zebtrack/ui/builders",
-    "src/zebtrack/ui/components/menu_manager.py",
+    # The whole package is migrated, so the per-file entries that used to grow
+    # here collapse into one path — a new file under ui/components/ is now
+    # covered by the ratchet the moment it is added.
+    "src/zebtrack/ui/components",
     "src/zebtrack/ui/language_dialog.py",
     "src/zebtrack/ui/project_workflow_adapter.py",
     "src/zebtrack/ui/splash_screen.py",

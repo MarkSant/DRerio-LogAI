@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING
 import structlog
 
 from zebtrack.core.video.video_metadata_service import VideoMetadataService
+from zebtrack.i18n import _
 from zebtrack.ui import payloads
 from zebtrack.ui.event_bus_v2 import Event, UIEvents
 
@@ -67,7 +68,7 @@ class DialogCoordinator:
         Returns:
             True if user confirmed, False otherwise.
         """
-        return self.ui_coordinator.ask_ok_cancel("Sair", "Deseja realmente sair?")
+        return self.ui_coordinator.ask_ok_cancel(_("Exit"), _("Do you really want to exit?"))
 
     def handle_mixed_data_scenario(
         self,
@@ -111,13 +112,13 @@ class DialogCoordinator:
         Returns:
             Videos to process.
         """
-        msg = (
-            f"{len(with_data)} vídeo(s) já possuem dados de análise.\n"
-            f"{len(without_data)} vídeo(s) precisam ser processados.\n\n"
-            "Deseja reprocessar os vídeos que já possuem dados?"
-        )
+        msg = _(
+            "{with_data} video(s) already have analysis data.\n"
+            "{without_data} video(s) need processing.\n\n"
+            "Do you want to reprocess the videos that already have data?"
+        ).format(with_data=len(with_data), without_data=len(without_data))
 
-        if self.ui_coordinator.ask_ok_cancel("Dados Mistos Encontrados", msg):
+        if self.ui_coordinator.ask_ok_cancel(_("Mixed Data Found"), msg):
             self.log.info(
                 "dialog.mixed_data.reprocess_all",
                 total=len(scanned_videos),
@@ -148,9 +149,8 @@ class DialogCoordinator:
             Videos to process, or None if none should be processed.
         """
         if self.ui_coordinator.ask_ok_cancel(
-            "Dados Encontrados",
-            "Todos os vídeos selecionados já possuem dados de análise. "
-            "Deseja reprocessá-los todos?",
+            _("Data Found"),
+            _("Every selected video already has analysis data. Do you want to reprocess them all?"),
         ):
             self.log.info(
                 "dialog.all_have_data.reprocess",
@@ -201,10 +201,12 @@ class DialogCoordinator:
             self.log.warning("workflow.project_processing.no_main_arena")
 
             response = self.ui_coordinator.ask_ok_cancel(
-                "Arena Principal Não Definida",
-                "O polígono principal do aquário não foi definido.\n\n"
-                "É necessário definir a arena principal para análise precisa.\n"
-                "Deseja definir agora antes de processar?",
+                _("Main Arena Not Defined"),
+                _(
+                    "The main aquarium polygon has not been defined.\n\n"
+                    "The main arena is required for an accurate analysis.\n"
+                    "Do you want to define it now, before processing?"
+                ),
             )
 
             if response:
@@ -231,11 +233,13 @@ class DialogCoordinator:
                             Event(
                                 type=UIEvents.UI_SHOW_INFO,
                                 data=payloads.MessagePayload(
-                                    title="Defina a Arena Principal",
-                                    message="Por favor:\n"
-                                    "1. Use 'Detectar Aquário (Auto)' ou\n"
-                                    "2. Desenhe manualmente o polígono principal\n"
-                                    "3. Depois volte para adicionar vídeos",
+                                    title=_("Define the Main Arena"),
+                                    message=_(
+                                        "Please:\n"
+                                        "1. Use 'Detect Aquarium (Auto)' or\n"
+                                        "2. Draw the main polygon manually\n"
+                                        "3. Then come back to add videos"
+                                    ),
                                 ),
                             )
                         )
@@ -243,9 +247,11 @@ class DialogCoordinator:
             else:
                 # Offer default arena as fallback
                 if not self.ui_coordinator.ask_ok_cancel(
-                    "Usar Arena Padrão?",
-                    "Deseja usar o frame completo como arena?\n"
-                    "(Não recomendado para análise precisa)",
+                    _("Use the Default Arena?"),
+                    _(
+                        "Do you want to use the whole frame as the arena?\n"
+                        "(Not recommended for an accurate analysis)"
+                    ),
                 ):
                     self.log.info("workflow.project_processing.cancelled_no_arena")
                     return False
@@ -257,7 +263,7 @@ class DialogCoordinator:
                         # Use VideoMetadataService to get dimensions
                         dimensions = self.video_metadata_service.get_video_dimensions(frame_video)
                         if not dimensions:
-                            self.show_error("Erro", "Não foi possível obter dimensões do vídeo")
+                            self.show_error(_("Error"), _("Could not read the video dimensions"))
                             return False
 
                         width, height = dimensions
@@ -277,29 +283,36 @@ class DialogCoordinator:
                                 Event(
                                     type=UIEvents.UI_SHOW_INFO,
                                     data=payloads.MessagePayload(
-                                        title="Arena Padrão Criada",
-                                        message=f"Arena padrão criada ({width}x{height})\n"
-                                        "Recomenda-se ajustar manualmente depois.",
+                                        title=_("Default Arena Created"),
+                                        message=_(
+                                            "Default arena created ({width}x{height})\n"
+                                            "Adjusting it manually afterwards is recommended."
+                                        ).format(width=width, height=height),
                                     ),
                                 )
                             )
                             # Trigger redraw
                             self.event_bus.publish(Event(type=UIEvents.UI_REDRAW_ZONES))
                     except Exception as e:  # except Exception justified: non-critical fallback
-                        self.show_error("Erro", f"Não foi possível criar arena padrão: {e}")
+                        self.show_error(
+                            _("Error"),
+                            _("Could not create the default arena: {error}").format(error=e),
+                        )
                         return False
                 else:
-                    self.show_error("Erro", "Nenhum vídeo encontrado no projeto")
+                    self.show_error(_("Error"), _("No video found in the project"))
                     return False
 
         # Warn about missing ROIs (optional but informative)
         if not zone_data.roi_polygons:
             if not self.ui_coordinator.ask_ok_cancel(
-                "Nenhuma ROI Definida",
-                "Nenhuma Área de Interesse (ROI) foi definida.\n\n"
-                "A análise usará apenas a arena principal.\n"
-                "Para análises detalhadas, considere definir ROIs.\n\n"
-                "Deseja continuar?",
+                _("No ROI Defined"),
+                _(
+                    "No Region of Interest (ROI) has been defined.\n\n"
+                    "The analysis will use the main arena only.\n"
+                    "For detailed analyses, consider defining ROIs.\n\n"
+                    "Do you want to continue?"
+                ),
             ):
                 self.log.info("workflow.project_processing.cancelled_by_user_no_roi")
                 return False
@@ -319,15 +332,15 @@ class DialogCoordinator:
                 Event(
                     type=UIEvents.UI_SHOW_INFO,
                     data=payloads.MessagePayload(
-                        title="Processamento Ignorado",
-                        message="Nenhum novo vídeo foi processado.",
+                        title=_("Processing Skipped"),
+                        message=_("No new video was processed."),
                     ),
                 )
             )
         else:
             self.ui_coordinator.show_info(
-                "Processamento Ignorado",
-                "Nenhum novo vídeo foi processado.",
+                _("Processing Skipped"),
+                _("No new video was processed."),
             )
 
     def show_info(self, title: str, message: str) -> None:
@@ -369,7 +382,7 @@ class DialogCoordinator:
                     Event(
                         type=UIEvents.UI_SHOW_WARNING,
                         data=payloads.MessagePayload(
-                            title="Análise em Andamento",
+                            title=_("Analysis Running"),
                             message=error_message,
                         ),
                     )
@@ -379,7 +392,7 @@ class DialogCoordinator:
                     Event(
                         type=UIEvents.UI_SHOW_ERROR,
                         data=payloads.ErrorOccurredPayload(
-                            title="Nenhum Projeto Carregado",
+                            title=_("No Project Loaded"),
                             message=error_message,
                         ),
                     )
@@ -389,7 +402,7 @@ class DialogCoordinator:
                     Event(
                         type=UIEvents.UI_SHOW_ERROR,
                         data=payloads.ErrorOccurredPayload(
-                            title="Nenhum Vídeo Encontrado",
+                            title=_("No Video Found"),
                             message=error_message,
                         ),
                     )
@@ -399,7 +412,7 @@ class DialogCoordinator:
                     Event(
                         type=UIEvents.UI_SHOW_ERROR,
                         data=payloads.ErrorOccurredPayload(
-                            title="Peso Não Selecionado",
+                            title=_("Weight Not Selected"),
                             message=error_message,
                         ),
                     )
@@ -410,7 +423,7 @@ class DialogCoordinator:
                     Event(
                         type=UIEvents.UI_SHOW_ERROR,
                         data=payloads.ErrorOccurredPayload(
-                            title="Erro de Validação",
+                            title=_("Validation Error"),
                             message=error_message,
                         ),
                     )
@@ -418,8 +431,8 @@ class DialogCoordinator:
         else:
             # Fallback to UI Coordinator direct calls if no event bus
             if error_code == "processing_already_active":
-                self.ui_coordinator.show_warning("Análise em Andamento", error_message)
+                self.ui_coordinator.show_warning(_("Analysis Running"), error_message)
             else:
-                self.ui_coordinator.show_error("Erro de Validação", error_message)
+                self.ui_coordinator.show_error(_("Validation Error"), error_message)
 
         return False

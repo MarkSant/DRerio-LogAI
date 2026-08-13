@@ -468,10 +468,8 @@ def test_live_session_publishes_metadata_profile_and_live_task_status(test_setti
     assert metadata_events[-1].metadata["day"] == "Dia_1"
     assert metadata_events[-1].metadata["subject"] == "S1"
     assert metadata_events[-1].metadata["profile"] == "live_profile"
-    assert any(
-        event.step == "Contagem regressiva para iniciar a análise ao vivo." for event in task_events
-    )
-    assert task_events[-1].step == "Análise ao vivo em andamento."
+    assert any(event.step == "Countdown to start the live analysis." for event in task_events)
+    assert task_events[-1].step == "Live analysis in progress."
 
 
 @pytest.mark.integration
@@ -919,8 +917,8 @@ def test_live_project_session_publishes_metadata_and_countdown_status(monkeypatc
     assert metadata_events[0].metadata["day"] == "Dia_1"
     assert metadata_events[0].metadata["subject"] == "1"
     assert metadata_events[0].metadata["profile"] == "project_live_profile"
-    assert task_events[0].step == "Contagem regressiva para iniciar a análise ao vivo."
-    assert task_events[-1].step == "Análise ao vivo em andamento."
+    assert task_events[0].step == "Countdown to start the live analysis."
+    assert task_events[-1].step == "Live analysis in progress."
 
 
 @pytest.mark.integration
@@ -961,12 +959,12 @@ def test_publish_live_analysis_metadata_applies_directly_to_view(test_settings):
     assert metadata["group"] == "Tratamento 1"
     assert metadata["day"] == "Dia_1"
     assert metadata["subject"] == "1"
-    assert metadata["profile"] == "padrão do projeto (default)"
+    assert metadata["profile"] == "project default (default)"
     widget.set_metadata.assert_called_once_with(
         group="Tratamento 1",
-        day="Dia 1",
+        day="Day 1",
         subject="1",
-        profile="padrão do projeto (default)",
+        profile="project default (default)",
     )
 
 
@@ -1002,23 +1000,23 @@ def test_service_stop_callback_finalizes_live_analysis_view(test_settings):
         "group": "Tratamento 1",
         "day": "Dia_1",
         "subject": "1",
-        "profile": "padrão do projeto (default)",
+        "profile": "project default (default)",
     }
 
     coordinator._on_live_service_session_stopped(cancelled=False)
 
-    controller.set_analysis_status.assert_called_once_with("Análise concluída.")
+    controller.set_analysis_status.assert_called_once_with("Analysis finished.")
     controller.update_analysis_task_status.assert_called_once_with(
         index=None,
         total=None,
         experiment_id="live_exp_01",
-        step="Sessão ao vivo concluída.",
+        step="Live session finished.",
     )
     widget.set_metadata.assert_called_once_with(
         group="Tratamento 1",
         day="Dia_1",
         subject="1",
-        profile="padrão do projeto (default)",
+        profile="project default (default)",
     )
     view.hide_progress_bar.assert_called_once()
     # Finalization must hide the progress bar, never re-show it. Re-showing it

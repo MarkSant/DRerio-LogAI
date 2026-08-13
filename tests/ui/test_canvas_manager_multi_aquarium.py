@@ -14,7 +14,10 @@ import numpy as np
 import pytest
 
 from zebtrack.core.detection import AquariumData, MultiAquariumZoneData
-from zebtrack.ui.components.canvas.multi_aquarium_overlay import MultiAquariumOverlayManager
+from zebtrack.ui.components.canvas.multi_aquarium_overlay import (
+    MultiAquariumOverlayManager,
+    aquarium_colors,
+)
 from zebtrack.ui.components.canvas_manager import CanvasManager
 
 
@@ -212,19 +215,18 @@ class TestDrawMultiAquariumOverlay:
 
 
 class TestAquariumColors:
-    """Tests for AQUARIUM_COLORS constant."""
+    """Tests for the aquarium_colors() accessor."""
 
     def test_aquarium_colors_defined(self) -> None:
-        """Test that AQUARIUM_COLORS is defined with expected keys."""
-        assert hasattr(CanvasManager, "AQUARIUM_COLORS")
-        colors = CanvasManager.AQUARIUM_COLORS
+        """Test that aquarium_colors() returns the expected keys."""
+        colors = aquarium_colors()
 
         assert 0 in colors
         assert 1 in colors
 
     def test_aquarium_colors_structure(self) -> None:
         """Test that each color entry has required fields."""
-        colors = CanvasManager.AQUARIUM_COLORS
+        colors = aquarium_colors()
 
         for aq_id, color_info in colors.items():
             assert "border" in color_info

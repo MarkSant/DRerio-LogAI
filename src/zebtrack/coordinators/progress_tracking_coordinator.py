@@ -18,6 +18,7 @@ from typing import TYPE_CHECKING, Any
 import structlog
 
 from zebtrack.coordinators.base_coordinator import BaseCoordinator
+from zebtrack.i18n import _
 from zebtrack.ui import payloads
 from zebtrack.ui.event_bus_v2 import UIEvents
 
@@ -426,9 +427,9 @@ class ProgressTrackingCoordinator(BaseCoordinator):
         """
         if self.view:
             pct = int(fraction * 100)
-            status_text = (
-                f"Processando: {processed}/{total} quadros ({pct}%) - {detected} detecções"
-            )
+            status_text = _(
+                "Processing: {done}/{total} frames ({pct}%) - {detected} detections"
+            ).format(done=processed, total=total, pct=pct, detected=detected)
             self.ui_coordinator.update_progress(self.view, fraction)
             self.ui_coordinator.set_status(self.view, status_text)
 
@@ -467,7 +468,7 @@ class ProgressTrackingCoordinator(BaseCoordinator):
 
         These errors are recoverable and processing continues.
         """
-        error_msg = error_data.get("error", "Erro desconhecido")
+        error_msg = error_data.get("error", _("Unknown error"))
         video = error_data.get("video_path", "")
         log.warning(
             "processing_coordinator.processing_error",
@@ -480,12 +481,12 @@ class ProgressTrackingCoordinator(BaseCoordinator):
         else:
             self._publish_event(
                 UIEvents.UI_SHOW_WARNING,
-                payloads.MessagePayload(title="Erro no Processamento", message=error_msg),
+                payloads.MessagePayload(title=_("Processing Error"), message=error_msg),
             )
 
     def _on_processing_fatal_error(self, error_data: dict) -> None:
         """Handle fatal processing errors that require stopping."""
-        error_msg = error_data.get("error", "Erro fatal desconhecido")
+        error_msg = error_data.get("error", _("Unknown fatal error"))
         video = error_data.get("video_path", "")
         log.error(
             "processing_coordinator.processing_fatal_error",
@@ -508,7 +509,7 @@ class ProgressTrackingCoordinator(BaseCoordinator):
 
         self._publish_event(
             UIEvents.UI_SHOW_ERROR,
-            payloads.MessagePayload(title="Erro Fatal", message=error_msg),
+            payloads.MessagePayload(title=_("Fatal Error"), message=error_msg),
         )
 
     def _update_ui_for_processing_stop(self) -> None:
@@ -580,13 +581,13 @@ class ProgressTrackingCoordinator(BaseCoordinator):
         else:
             # Single video completion
             if success:
-                msg = "Processamento concluído com sucesso."
+                msg = _("Processing finished successfully.")
                 if output_dir:
-                    msg += f"\nResultados em: {output_dir}"
+                    msg += _("\nResults in: {directory}").format(directory=output_dir)
                 self._publish_event(
                     UIEvents.UI_SHOW_INFO,
                     payloads.MessagePayload(
-                        title="Concluído",
+                        title=_("Finished"),
                         message=msg,
                     ),
                 )
@@ -618,24 +619,24 @@ class ProgressTrackingCoordinator(BaseCoordinator):
         elapsed = ctx.get("elapsed", 0)
         errors = ctx.get("errors", [])
 
-        msg_parts = [f"Processamento em lote concluído em {elapsed:.0f}s."]
-        msg_parts.append(f"\n✅ Concluídos: {completed}")
+        msg_parts = [_("Batch processing finished in {seconds}s.").format(seconds=f"{elapsed:.0f}")]
+        msg_parts.append(_("\n✅ Finished: {count}").format(count=completed))
         if failed:
-            msg_parts.append(f"❌ Falhas: {failed}")
+            msg_parts.append(_("❌ Failures: {count}").format(count=failed))
         if skipped:
-            msg_parts.append(f"⏭️ Ignorados: {skipped}")
+            msg_parts.append(_("⏭️ Skipped: {count}").format(count=skipped))
         if errors:
-            msg_parts.append("\nErros:")
+            msg_parts.append(_("\nErrors:"))
             for err in errors[:5]:
                 msg_parts.append(f"  • {err}")
             if len(errors) > 5:
-                msg_parts.append(f"  ... (+{len(errors) - 5} erros)")
+                msg_parts.append(_("  ... (+{count} errors)").format(count=len(errors) - 5))
 
         event_name = UIEvents.UI_SHOW_WARNING if failed else UIEvents.UI_SHOW_INFO
         self._publish_event(
             event_name,
             payloads.MessagePayload(
-                title="Processamento em Lote",
+                title=_("Batch Processing"),
                 message="\n".join(msg_parts),
             ),
         )
@@ -692,7 +693,7 @@ class ProgressTrackingCoordinator(BaseCoordinator):
             A callable that accepts (processed_frames, detected_frames) and updates UI
         """
         _start_time = start_time or time.time()
-        _video_name = video_name or "vídeo"
+        _video_name = video_name or _("video")
 
         def progress_callback(processed_frames: int, detected_frames: int = 0) -> None:
             if total_frames <= 0:
@@ -713,9 +714,15 @@ class ProgressTrackingCoordinator(BaseCoordinator):
                     else:
                         eta_str = f" | ETA: {eta_seconds / 60:.1f}min"
 
-            status_msg = (
-                f"Processando {_video_name}: {processed_frames}/{total_frames} "
-                f"({pct}%) - {detected_frames} detecções{eta_str}"
+            status_msg = _(
+                "Processing {name}: {done}/{total} ({pct}%) - {detected} detections{eta}"
+            ).format(
+                name=_video_name,
+                done=processed_frames,
+                total=total_frames,
+                pct=pct,
+                detected=detected_frames,
+                eta=eta_str,
             )
 
             self._on_processing_progress(

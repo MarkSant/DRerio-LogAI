@@ -20,6 +20,7 @@ import structlog
 
 from zebtrack.coordinators.base_coordinator import BaseCoordinator
 from zebtrack.core.video.processing_mode import ProcessingMode, ProcessingReport
+from zebtrack.i18n import _
 from zebtrack.ui import payloads as payloads
 from zebtrack.ui.event_bus_v2 import UIEvents
 
@@ -311,7 +312,7 @@ class MultiAquariumCoordinator(BaseCoordinator):
                         UIEvents.ZONE_MULTI_AUTO_DETECT_FAILED,
                         payloads.ZoneMultiAutoDetectFailedPayload(
                             video_path=str(video_path),
-                            reason="Detecção falhou",
+                            reason=_("Detection failed"),
                         ),
                     )
                 return None

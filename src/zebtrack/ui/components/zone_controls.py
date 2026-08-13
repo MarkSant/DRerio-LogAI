@@ -7,12 +7,23 @@ from typing import Any, ClassVar
 import structlog
 
 from zebtrack.core.services.roi_rule_resolver import RoiRuleConfig
+from zebtrack.i18n import _
 from zebtrack.ui import payloads
 from zebtrack.ui.components.base import BaseWidget
 from zebtrack.ui.dialogs.project_video_import_dialog import VideoMetadataDialog
 from zebtrack.ui.event_bus_v2 import EventBusV2, UIEvents
 
 log = structlog.get_logger()
+
+
+def _hierarchy_labels() -> dict[str, str]:
+    """Node-type -> displayed word for the tree context menu.
+
+    A function, not a class-level dict: the latter would translate at import
+    time. These are display labels only -- the stored ``Grupo_*``/``Dia_*``/
+    ``Sujeito_*`` directory tokens are built elsewhere and never translated.
+    """
+    return {"group": _("Group"), "day": _("Day"), "subject": _("Subject")}
 
 
 class ZoneControlsWidget(BaseWidget):
@@ -188,12 +199,12 @@ class ZoneControlsWidget(BaseWidget):
         # Removed unwanted section: self._build_single_analysis_options()
 
     def _build_pending_session_banner(self) -> None:
-        """Build the "Sessão pendente" banner shown above the drawing actions.
+        """Build the "pending session" banner shown above the drawing actions.
 
         Initially hidden. When ``LIVE_RECORDING_PENDING`` is published by
         ``LiveCameraSessionCoordinator``, the banner is unhidden, populated with
-        the subject/group/day, and offers "▶️ Iniciar Gravação" / "✖ Cancelar
-        Sessão" buttons. Both buttons publish back to the event bus and the
+        the subject/group/day, and offers "Start Recording" / "Cancel Session"
+        buttons. Both buttons publish back to the event bus and the
         coordinator drives the actual resume/cancel logic.
         """
         parent = (
@@ -220,14 +231,14 @@ class ZoneControlsWidget(BaseWidget):
 
         ttk.Button(
             button_row,
-            text="▶️ Iniciar Gravação",
+            text=_("▶️ Start Recording"),
             command=self._on_start_pending_recording_clicked,
             style="Accent.TButton",
         ).pack(side="left", padx=(0, 6))
 
         ttk.Button(
             button_row,
-            text="✖ Cancelar Sessão",
+            text=_("✖ Cancel Session"),
             command=self._on_cancel_pending_recording_clicked,
         ).pack(side="left")
 
@@ -241,15 +252,15 @@ class ZoneControlsWidget(BaseWidget):
         group = payload.group or "—"
         day = payload.day or "—"
         source_text = (
-            "Polígono auto-detectado"
+            _("Auto-detected polygon")
             if payload.polygon_source == "auto"
-            else "Polígono desenhado manualmente"
+            else _("Manually drawn polygon")
         )
         self.pending_session_label.config(
-            text=(
-                f"⏳ Sessão pendente: Animal {subject} / Grupo {group} / {day}.\n"
-                f"{source_text} — clique em ▶️ Iniciar Gravação quando estiver pronto."
-            )
+            text=_(
+                "⏳ Pending session: Animal {subject} / Group {group} / {day}.\n"
+                "{source} — click ▶️ Start Recording when you are ready."
+            ).format(subject=subject, group=group, day=day, source=source_text)
         )
 
         # Pack at the top of the side panel / drawing area.
@@ -328,7 +339,12 @@ class ZoneControlsWidget(BaseWidget):
             self.drawing_actions_parent if self.drawing_actions_parent else self.zone_controls_frame
         )
 
-        actions_frame = ttk.LabelFrame(parent, text="Ações de Desenho", padding=5)
+        actions_frame = ttk.LabelFrame(parent, text=_("Drawing Actions"), padding=5)
+        # Kept as an attribute so ``show_aquarium_selector`` can anchor its
+        # pack(after=...) on the widget itself. It used to search the parent's
+        # children for a LabelFrame whose text contained "Desenho" -- a branch
+        # on displayed text, which translation silently defeats.
+        self.drawing_actions_frame = actions_frame
         # If in side panel, pack vertically. If in top bar, maybe horizontal?
         # For now, let's keep packing simple.
         actions_frame.pack(fill="x", pady=5, padx=5)
@@ -340,7 +356,7 @@ class ZoneControlsWidget(BaseWidget):
         # Auto-detect button
         self.auto_detect_button = ttk.Button(
             btn_container,
-            text="Detectar Aquário (Auto)",
+            text=_("Detect Aquarium (Auto)"),
             command=self._on_auto_detect_clicked,
         )
         self.auto_detect_button.pack(side="left", fill="x", expand=True, padx=2, pady=2)
@@ -348,7 +364,7 @@ class ZoneControlsWidget(BaseWidget):
         # Manual polygon button
         self.draw_arena_button = ttk.Button(
             btn_container,
-            text="Polígono Principal",
+            text=_("Main Polygon"),
             command=self._on_draw_main_polygon_clicked,
         )
         self.draw_arena_button.pack(side="left", fill="x", expand=True, padx=2, pady=2)
@@ -356,7 +372,7 @@ class ZoneControlsWidget(BaseWidget):
         # ROI button (initially disabled)
         self.draw_roi_button = ttk.Button(
             btn_container,
-            text="Área de Interesse (ROI)",
+            text=_("Region of Interest (ROI)"),
             command=self._on_draw_roi_clicked,
             state="disabled",
         )
@@ -365,7 +381,7 @@ class ZoneControlsWidget(BaseWidget):
         # Conclude Video Button (Next to ROI button)
         self.conclude_video_btn = ttk.Button(
             btn_container,
-            text="✅ Concluir",
+            text=_("✅ Finish"),
             command=self._on_conclude_video_clicked,
             state="disabled",
             style="Accent.TButton",
@@ -376,13 +392,13 @@ class ZoneControlsWidget(BaseWidget):
         stabilization_frame = ttk.Frame(actions_frame)
         stabilization_frame.pack(fill="x", pady=2, anchor="w")
 
-        ttk.Label(stabilization_frame, text="Suavização (frames):").pack(side="left", padx=(0, 5))
+        ttk.Label(stabilization_frame, text=_("Smoothing (frames):")).pack(side="left", padx=(0, 5))
         ttk.Entry(stabilization_frame, textvariable=self.stabilization_frames_var, width=5).pack(
             side="left"
         )
         ttk.Label(
             stabilization_frame,
-            text="(reduz ruído na detecção auto)",
+            text=_("(reduces noise in auto-detection)"),
             font=("TkDefaultFont", 8),
             foreground="gray",
         ).pack(side="left", padx=(5, 0))
@@ -394,20 +410,22 @@ class ZoneControlsWidget(BaseWidget):
         the video has 2 aquariums configured.
 
         Layout:
-        ┌─ Aquário Ativo ─────────────────────────┐
-        │  ○ Aquário 1 (Esquerda)                 │
-        │  ○ Aquário 2 (Direita)                  │
+        ┌─ Active Aquarium ───────────────────────┐
+        │  ○ Aquarium 1 (Left)                    │
+        │  ○ Aquarium 2 (Right)                   │
         │  ────────────────────────────────────── │
-        │  Modo de Processamento:                 │
-        │  ○ Simultâneo (1 passagem)              │
-        │  ○ Sequencial (2 passagens)             │
+        │  Processing Mode:                       │
+        │  ○ Simultaneous (1 pass)                │
+        │  ○ Sequential (2 passes)                │
         └─────────────────────────────────────────┘
         """
         parent = (
             self.drawing_actions_parent if self.drawing_actions_parent else self.zone_controls_frame
         )
 
-        self.aquarium_selector_frame = ttk.LabelFrame(parent, text="🐟 Aquário Ativo", padding=5)
+        self.aquarium_selector_frame = ttk.LabelFrame(
+            parent, text=_("🐟 Active Aquarium"), padding=5
+        )
         # Initially hidden - shown only when 2 aquariums are detected
         # self.aquarium_selector_frame.pack(fill="x", pady=5, padx=5)
 
@@ -417,7 +435,7 @@ class ZoneControlsWidget(BaseWidget):
 
         self.aquarium_radio_1 = ttk.Radiobutton(
             radio_container,
-            text="Aquário 1 (Esquerda)",
+            text=_("Aquarium 1 (Left)"),
             variable=self.active_aquarium_var,
             value=0,
             command=self._on_aquarium_selected,
@@ -426,7 +444,7 @@ class ZoneControlsWidget(BaseWidget):
 
         self.aquarium_radio_2 = ttk.Radiobutton(
             radio_container,
-            text="Aquário 2 (Direita)",
+            text=_("Aquarium 2 (Right)"),
             variable=self.active_aquarium_var,
             value=1,
             command=self._on_aquarium_selected,
@@ -444,13 +462,13 @@ class ZoneControlsWidget(BaseWidget):
 
         ttk.Label(
             self.processing_mode_frame,
-            text="Modo de Processamento:",
+            text=_("Processing Mode:"),
             font=("TkDefaultFont", 9, "bold"),
         ).pack(anchor="w")
 
         self.parallel_radio = ttk.Radiobutton(
             self.processing_mode_frame,
-            text="Simultâneo (1 passagem, mais rápido)",
+            text=_("Simultaneous (1 pass, faster)"),
             variable=self.sequential_processing_var,
             value=False,
             command=self._on_processing_mode_changed,
@@ -459,7 +477,7 @@ class ZoneControlsWidget(BaseWidget):
 
         self.sequential_radio = ttk.Radiobutton(
             self.processing_mode_frame,
-            text="Sequencial (2 passagens, 1 aquário por vez)",
+            text=_("Sequential (2 passes, 1 aquarium at a time)"),
             variable=self.sequential_processing_var,
             value=True,
             command=self._on_processing_mode_changed,
@@ -469,7 +487,7 @@ class ZoneControlsWidget(BaseWidget):
         # Apply to all checkbox
         self.apply_to_all_checkbox = ttk.Checkbutton(
             self.processing_mode_frame,
-            text="Aplicar a todos os vídeos",
+            text=_("Apply to every video"),
             variable=self.apply_to_all_var,
         )
         self.apply_to_all_checkbox.pack(anchor="w", padx=(10, 0), pady=(5, 0))
@@ -477,7 +495,7 @@ class ZoneControlsWidget(BaseWidget):
         # Help text
         ttk.Label(
             self.processing_mode_frame,
-            text="Sequencial: processa o vídeo completo para cada aquário separadamente",
+            text=_("Sequential: processes the whole video for each aquarium separately"),
             font=("TkDefaultFont", 8),
             foreground="gray",
         ).pack(anchor="w", padx=(10, 0), pady=(2, 0))
@@ -493,14 +511,14 @@ class ZoneControlsWidget(BaseWidget):
 
         self.save_arena_btn = ttk.Button(
             self.interactive_buttons_frame,
-            text="✅ Salvar Edição",
+            text=_("✅ Save Edit"),
             command=self._on_save_arena_clicked,
         )
         self.save_arena_btn.pack(side="left", fill="x", expand=True, padx=5, pady=5)
 
         self.discard_arena_btn = ttk.Button(
             self.interactive_buttons_frame,
-            text="❌ Descartar",
+            text=_("❌ Discard"),
             command=self._on_discard_arena_clicked,
         )
         self.discard_arena_btn.pack(side="left", fill="x", expand=True, padx=5, pady=5)
@@ -508,7 +526,7 @@ class ZoneControlsWidget(BaseWidget):
         # Finish Drawing button - for completing polygon without double-click
         self.finish_drawing_btn = ttk.Button(
             self.interactive_buttons_frame,
-            text="✓ Finalizar Desenho",
+            text=_("✓ Finish Drawing"),
             command=self._on_finish_drawing_clicked,
         )
         self.finish_drawing_btn.pack(side="left", fill="x", expand=True, padx=5, pady=5)
@@ -518,34 +536,34 @@ class ZoneControlsWidget(BaseWidget):
         """Build the single analysis options section."""
         self.single_analysis_options_frame = ttk.LabelFrame(
             self.zone_controls_frame,
-            text="Opções de Análise de Vídeo Único",
+            text=_("Single Video Analysis Options"),
             padding=10,
         )
         # Initially hidden - packed on demand
 
         # ROI options
-        ttk.Label(self.single_analysis_options_frame, text="Opções de ROI:").pack(anchor="w")
+        ttk.Label(self.single_analysis_options_frame, text=_("ROI options:")).pack(anchor="w")
         ttk.Radiobutton(
             self.single_analysis_options_frame,
-            text="Não usar ROIs",
+            text=_("Do not use ROIs"),
             variable=self.roi_choice_var,
             value="none",
         ).pack(anchor="w", padx=10)
         ttk.Radiobutton(
             self.single_analysis_options_frame,
-            text="Desenhar ROIs manualmente",
+            text=_("Draw ROIs manually"),
             variable=self.roi_choice_var,
             value="manual",
         ).pack(anchor="w", padx=10)
         ttk.Radiobutton(
             self.single_analysis_options_frame,
-            text="Usar ROIs de template",
+            text=_("Use ROIs from a template"),
             variable=self.roi_choice_var,
             value="template",
         ).pack(anchor="w", padx=10)
 
         # Frame intervals
-        ttk.Label(self.single_analysis_options_frame, text="Intervalo de Análise (frames):").pack(
+        ttk.Label(self.single_analysis_options_frame, text=_("Analysis Interval (frames):")).pack(
             anchor="w", pady=(10, 0)
         )
         ttk.Entry(
@@ -554,7 +572,7 @@ class ZoneControlsWidget(BaseWidget):
             width=10,
         ).pack(anchor="w", padx=10)
 
-        ttk.Label(self.single_analysis_options_frame, text="Intervalo de Exibição (frames):").pack(
+        ttk.Label(self.single_analysis_options_frame, text=_("Display Interval (frames):")).pack(
             anchor="w", pady=(5, 0)
         )
         ttk.Entry(
@@ -573,7 +591,7 @@ class ZoneControlsWidget(BaseWidget):
         )
         is_horizontal = self.template_actions_parent is not None
 
-        template_frame = ttk.LabelFrame(parent, text="Templates de ROI", padding=5)
+        template_frame = ttk.LabelFrame(parent, text=_("ROI Templates"), padding=5)
         template_frame.pack(fill="x", pady=5, padx=5)
 
         # Container for layout
@@ -582,7 +600,7 @@ class ZoneControlsWidget(BaseWidget):
 
         if is_horizontal:
             # Compact Horizontal Layout for Bottom Panel
-            ttk.Label(container, text="Template:").pack(side="left", padx=(0, 5))
+            ttk.Label(container, text=_("Template:")).pack(side="left", padx=(0, 5))
             self.roi_template_combobox = ttk.Combobox(
                 container,
                 state="readonly",
@@ -592,25 +610,25 @@ class ZoneControlsWidget(BaseWidget):
             )
             self.roi_template_combobox.pack(side="left", padx=(0, 5))
 
-            ttk.Button(container, text="Aplicar", command=self._on_apply_template_clicked).pack(
+            ttk.Button(container, text=_("Apply"), command=self._on_apply_template_clicked).pack(
                 side="left", padx=(0, 10)
             )
 
             ttk.Button(
                 container,
-                text="🧹 Limpar desenho",
+                text=_("🧹 Clear drawing"),
                 command=self._on_clear_applied_template_clicked,
             ).pack(side="left", padx=(0, 10))
 
             ttk.Button(
                 container,
-                text="💾 Salvar",
+                text=_("💾 Save"),
                 command=self._on_save_template_clicked,
             ).pack(side="left", padx=(0, 5))
 
             ttk.Button(
                 container,
-                text="📂 Importar",
+                text=_("📂 Import"),
                 command=self._on_import_template_clicked,
             ).pack(side="left")
 
@@ -620,7 +638,7 @@ class ZoneControlsWidget(BaseWidget):
             template_selector = ttk.Frame(container)
             template_selector.pack(fill="x", pady=(0, 6))
 
-            ttk.Label(template_selector, text="Template:").pack(side="left", padx=(0, 5))
+            ttk.Label(template_selector, text=_("Template:")).pack(side="left", padx=(0, 5))
             self.roi_template_combobox = ttk.Combobox(
                 template_selector,
                 state="readonly",
@@ -631,11 +649,11 @@ class ZoneControlsWidget(BaseWidget):
             self.roi_template_combobox.pack(side="left", fill="x", expand=True)
 
             ttk.Button(
-                template_selector, text="Aplicar", command=self._on_apply_template_clicked
+                template_selector, text=_("Apply"), command=self._on_apply_template_clicked
             ).pack(side="left", padx=4)
             ttk.Button(
                 template_selector,
-                text="🧹 Limpar desenho",
+                text=_("🧹 Clear drawing"),
                 command=self._on_clear_applied_template_clicked,
             ).pack(side="left", padx=4)
 
@@ -645,21 +663,21 @@ class ZoneControlsWidget(BaseWidget):
 
             ttk.Button(
                 template_actions,
-                text="💾 Salvar Zonas Atuais",
+                text=_("💾 Save Current Zones"),
                 command=self._on_save_template_clicked,
             ).pack(side="left", padx=(0, 4))
             ttk.Button(
                 template_actions,
-                text="📂 Importar e Aplicar Arquivo...",
+                text=_("📂 Import and Apply File..."),
                 command=self._on_import_template_clicked,
             ).pack(side="left")
 
             # Help text
             ttk.Label(
                 template_frame,
-                text=(
-                    "Templates armazenam o polígono principal e todas as ROIs "
-                    "para reutilizar em outros vídeos do projeto."
+                text=_(
+                    "Templates store the main polygon and every ROI so they can be "
+                    "reused on other videos of the project."
                 ),
                 wraplength=200,
                 style="Small.TLabel",
@@ -672,7 +690,7 @@ class ZoneControlsWidget(BaseWidget):
 
         video_selector_frame = ttk.LabelFrame(
             parent,
-            text="📹 Selecionar Vídeo para Desenho",
+            text=_("📹 Select Video for Drawing"),
             padding=5,
         )
         # Allow this frame to expand vertically to fill space
@@ -682,14 +700,14 @@ class ZoneControlsWidget(BaseWidget):
         search_frame = ttk.Frame(video_selector_frame)
         search_frame.pack(fill="x", pady=(0, 5))
 
-        ttk.Label(search_frame, text="🔍 Buscar:").pack(side="left", padx=(0, 5))
+        ttk.Label(search_frame, text=_("🔍 Search:")).pack(side="left", padx=(0, 5))
         self.video_search_var.trace_add("write", lambda *_: self._on_video_search_changed())
         ttk.Entry(search_frame, textvariable=self.video_search_var, width=25).pack(
             side="left", fill="x", expand=True, padx=(0, 5)
         )
         self.video_tree_toggle_btn = ttk.Button(
             search_frame,
-            text="Recolher tudo",
+            text=_("Collapse all"),
             width=14,
             command=self._toggle_video_tree_nodes,
         )
@@ -708,9 +726,9 @@ class ZoneControlsWidget(BaseWidget):
             height=15,  # Increased height for better vertical distribution
             selectmode="browse",
         )
-        self.video_selector_tree.heading("#0", text="Hierarquia")
-        self.video_selector_tree.heading("status", text="Dados")
-        self.video_selector_tree.heading("filename", text="Arquivo")
+        self.video_selector_tree.heading("#0", text=_("Hierarchy"))
+        self.video_selector_tree.heading("status", text=_("Data"))
+        self.video_selector_tree.heading("filename", text=_("File"))
 
         self.video_selector_tree.column("#0", width=180, minwidth=140, stretch=True)
         self.video_selector_tree.column("status", width=60, anchor="center", stretch=False)
@@ -742,7 +760,7 @@ class ZoneControlsWidget(BaseWidget):
         # Load frame button
         ttk.Button(
             video_selector_frame,
-            text="📹 Carregar Frame do Vídeo Selecionado",
+            text=_("📹 Load Frame from the Selected Video"),
             command=self._on_load_video_frame_clicked,
         ).pack(pady=(5, 0))
 
@@ -778,14 +796,14 @@ class ZoneControlsWidget(BaseWidget):
             return
 
         if self._video_tree_expanded:
-            self.video_tree_toggle_btn.config(text="Recolher tudo")
+            self.video_tree_toggle_btn.config(text=_("Collapse all"))
         else:
-            self.video_tree_toggle_btn.config(text="Expandir tudo")
+            self.video_tree_toggle_btn.config(text=_("Expand all"))
 
     def _build_zone_list(self) -> None:
         """Build the zone list section."""
         zone_list_frame = ttk.LabelFrame(
-            self.zone_controls_frame, text="Zonas Definidas", padding=10
+            self.zone_controls_frame, text=_("Defined Zones"), padding=10
         )
         zone_list_frame.pack(fill="x", pady=5)
 
@@ -797,9 +815,9 @@ class ZoneControlsWidget(BaseWidget):
             show="headings",
             height=6,
         )
-        self.zone_listbox.heading("name", text="Nome")
-        self.zone_listbox.heading("type", text="Tipo")
-        self.zone_listbox.heading("color", text="Cor")
+        self.zone_listbox.heading("name", text=_("Name"))
+        self.zone_listbox.heading("type", text=_("Type"))
+        self.zone_listbox.heading("color", text=_("Colour"))
 
         # Configure column widths - Name takes ~60%, Type ~20%, Color ~20%
         self.zone_listbox.column("name", width=200, minwidth=100, stretch=True)
@@ -822,7 +840,7 @@ class ZoneControlsWidget(BaseWidget):
     def _build_roi_inclusion_panel(self) -> None:
         """Build the ROI inclusion rule configuration panel."""
         self.roi_inclusion_frame = ttk.LabelFrame(
-            self.zone_controls_frame, text="Regra de Inclusão em ROI", padding=10
+            self.zone_controls_frame, text=_("ROI Inclusion Rule"), padding=10
         )
         self.roi_inclusion_frame.pack(fill="x", pady=5)
 
@@ -830,7 +848,7 @@ class ZoneControlsWidget(BaseWidget):
         rule_frame = ttk.Frame(self.roi_inclusion_frame)
         rule_frame.pack(fill="x", pady=2)
 
-        ttk.Label(rule_frame, text="Regra:").pack(side="left", padx=(0, 5))
+        ttk.Label(rule_frame, text=_("Rule:")).pack(side="left", padx=(0, 5))
         self.roi_rule_combo = ttk.Combobox(
             rule_frame,
             textvariable=self.roi_inclusion_rule_var,
@@ -849,14 +867,14 @@ class ZoneControlsWidget(BaseWidget):
         # Buffer radius parameter (Initially hidden)
         self.radius_frame = ttk.Frame(self.roi_inclusion_frame)
         # self.radius_frame.pack(fill="x", pady=2) # Logic handles visibility
-        ttk.Label(self.radius_frame, text="Raio de buffer (r):").pack(side="left", padx=(0, 5))
+        ttk.Label(self.radius_frame, text=_("Buffer radius (r):")).pack(side="left", padx=(0, 5))
         ttk.Entry(self.radius_frame, textvariable=self.roi_buffer_radius_var, width=10).pack(
             side="left", padx=(0, 10)
         )
         # Help text below input for compact width
         ttk.Label(
             self.radius_frame,
-            text="Dilatação da ROI (cm se calibrado, senão px).",
+            text=_("ROI dilation (cm if calibrated, otherwise px)."),
             font=("TkDefaultFont", 8),
             foreground="gray",
         ).pack(side="left")
@@ -864,7 +882,7 @@ class ZoneControlsWidget(BaseWidget):
         # Overlap ratio parameter (Initially hidden)
         self.overlap_frame = ttk.Frame(self.roi_inclusion_frame)
         # self.overlap_frame.pack(fill="x", pady=2) # Logic handles visibility
-        ttk.Label(self.overlap_frame, text="Sobreposição mín (0-1):").pack(side="left", padx=(0, 5))
+        ttk.Label(self.overlap_frame, text=_("Min. overlap (0-1):")).pack(side="left", padx=(0, 5))
         ttk.Entry(self.overlap_frame, textvariable=self.roi_overlap_ratio_var, width=10).pack(
             side="left", padx=(0, 10)
         )
@@ -893,7 +911,7 @@ class ZoneControlsWidget(BaseWidget):
         save_settings_frame.pack(fill="x", pady=(5, 0))
         ttk.Button(
             save_settings_frame,
-            text="Aplicar Configurações",
+            text=_("Apply Settings"),
             command=self._on_apply_roi_settings_clicked,
         ).pack(side="right")
 
@@ -1035,18 +1053,18 @@ class ZoneControlsWidget(BaseWidget):
             self.video_selector_tree, tearoff=0, font=("TkDefaultFont", 9)
         )
         self._video_context_menu.add_command(
-            label="📋 Copiar Zonas", command=self._on_copy_zones_clicked
+            label=_("📋 Copy Zones"), command=self._on_copy_zones_clicked
         )
         self._video_context_menu.add_command(
-            label="📥 Colar Zonas", command=self._on_paste_zones_clicked
-        )
-        self._video_context_menu.add_separator()
-        self._video_context_menu.add_command(
-            label="🗑️ Excluir Zonas", command=self._on_delete_zones_clicked
+            label=_("📥 Paste Zones"), command=self._on_paste_zones_clicked
         )
         self._video_context_menu.add_separator()
         self._video_context_menu.add_command(
-            label="🔄 Editar Grupo / Dia / Sujeitos",
+            label=_("🗑️ Delete Zones"), command=self._on_delete_zones_clicked
+        )
+        self._video_context_menu.add_separator()
+        self._video_context_menu.add_command(
+            label=_("🔄 Edit Group / Day / Subjects"),
             command=self._on_reconfigure_subjects_clicked,
         )
         self._context_menu_video_path = None
@@ -1057,12 +1075,6 @@ class ZoneControlsWidget(BaseWidget):
         "group": UIEvents.PROJECT_DELETE_GROUP,
         "day": UIEvents.PROJECT_DELETE_DAY,
         "subject": UIEvents.PROJECT_DELETE_SUBJECT,
-    }
-
-    _HIERARCHY_LABEL_MAP: ClassVar[dict[str, str]] = {
-        "group": "Grupo",
-        "day": "Dia",
-        "subject": "Sujeito",
     }
 
     def _get_hierarchy_node_info(self, item_id: str) -> tuple[str, tuple[str, ...]] | None:
@@ -1090,14 +1102,14 @@ class ZoneControlsWidget(BaseWidget):
     ) -> None:
         """Build and show a context menu for a hierarchy node."""
         node_type, tag_tuple = node_info
-        label = self._HIERARCHY_LABEL_MAP.get(node_type, node_type)
+        label = _hierarchy_labels().get(node_type, node_type)
         # Derive display name from the tree item text
         item_id = self.video_selector_tree.selection()[0]  # type: ignore[union-attr]
         item_text = self.video_selector_tree.item(item_id, "text")  # type: ignore[union-attr]
 
         menu = Menu(self.video_selector_tree, tearoff=0, font=("TkDefaultFont", 9))
         menu.add_command(
-            label=f"🗑️ Excluir {label}…",
+            label=_("🗑️ Delete {label}…").format(label=label),
             command=lambda: self._on_delete_hierarchy_node(node_type, tag_tuple, item_text),
         )
         menu.post(event.x_root, event.y_root)
@@ -1286,7 +1298,7 @@ class ZoneControlsWidget(BaseWidget):
             self.emit_event(
                 UIEvents.PROJECT_VIEWS_REFRESH_REQUESTED,
                 payloads.ProjectViewsRefreshRequestedPayload(
-                    reason="Metadados do vídeo atualizados.",
+                    reason=_("Video metadata updated."),
                     immediate=True,
                 ),
             )
@@ -1347,7 +1359,7 @@ class ZoneControlsWidget(BaseWidget):
         # normal quando uma nova edição começa (show_interactive_buttons).
         if getattr(self, "finish_drawing_btn", None):
             try:
-                self.finish_drawing_btn.config(state="disabled", text="✓ Desenho Finalizado")
+                self.finish_drawing_btn.config(state="disabled", text=_("✓ Drawing Finished"))
             except tk.TclError:
                 log.debug("zone_controls.finish_drawing.feedback_suppressed", exc_info=True)
 
@@ -1369,8 +1381,8 @@ class ZoneControlsWidget(BaseWidget):
                 self.radius_frame.pack(fill="x", pady=2, after=self.roi_rule_combo.master)
             if self.overlap_frame:
                 self.overlap_frame.pack_forget()
-            help_text = (
-                "Considera dentro se o centroide estiver na ROI expandida pelo raio de buffer."
+            help_text = _(
+                "Counts as inside if the centroid is in the ROI expanded by the buffer radius."
             )
         elif rule in ("bbox_intersects", "seg_overlap"):
             if self.radius_frame:
@@ -1380,31 +1392,30 @@ class ZoneControlsWidget(BaseWidget):
             # O 0 é exclusivo de ``bbox_intersects``; em ``seg_overlap`` o
             # validador recusa e o painel não pode sugerir o contrário.
             if rule == "bbox_intersects":
-                help_text = (
-                    "Considera dentro se a caixa (bbox) sobrepuser a ROI acima da fração mínima."
+                help_text = _(
+                    "Counts as inside if the box (bbox) overlaps the ROI above the "
+                    "minimum fraction."
                 )
-                overlap_hint = "0 = qualquer sobreposição real."
+                overlap_hint = _("0 = any real overlap.")
             else:
                 # A regra é selecionável mas tem TRÊS pré-requisitos; nomear os
                 # dois que não estão neste painel evita o beco sem saída de
                 # escolher seg_overlap e só descobrir a degradação no relatório.
-                help_text = (
-                    "Considera dentro pela sobreposição da MÁSCARA com a ROI. "
-                    "Exige também recorder.persist_masks ligado (editor de "
-                    "configurações) e model_selection.animal_method = 'seg'. "
-                    "Faltando um deles, a análise degrada para bbox_intersects "
-                    "e avisa no relatório."
+                help_text = _(
+                    "Counts as inside by the overlap of the MASK with the ROI. "
+                    "Also requires recorder.persist_masks enabled (settings editor) "
+                    "and model_selection.animal_method = 'seg'. If either is "
+                    "missing, the analysis degrades to bbox_intersects and warns in "
+                    "the report."
                 )
-                overlap_hint = "Deve ser maior que 0."
+                overlap_hint = _("Must be greater than 0.")
         else:
             # centroid_in or others
             if self.radius_frame:
                 self.radius_frame.pack_forget()
             if self.overlap_frame:
                 self.overlap_frame.pack_forget()
-            help_text = (
-                "Considera dentro se o centroide geométrico estiver estritamente dentro da ROI."
-            )
+            help_text = _("Counts as inside if the geometric centroid is strictly inside the ROI.")
 
         if self.rule_help_label:
             self.rule_help_label.config(text=help_text)
@@ -1481,7 +1492,7 @@ class ZoneControlsWidget(BaseWidget):
         # (ele é esmaecido após o clique como sinal de conclusão).
         if getattr(self, "finish_drawing_btn", None):
             try:
-                self.finish_drawing_btn.config(state="normal", text="✓ Finalizar Desenho")
+                self.finish_drawing_btn.config(state="normal", text=_("✓ Finish Drawing"))
             except tk.TclError:
                 log.debug("zone_controls.finish_drawing.reset_suppressed", exc_info=True)
         if self.interactive_buttons_frame:
@@ -1581,11 +1592,12 @@ class ZoneControlsWidget(BaseWidget):
             try:
                 # Pack after drawing actions frame
                 parent = self.aquarium_selector_frame.master
-                # Find drawing actions frame to pack after it
-                for child in parent.winfo_children():
-                    if isinstance(child, ttk.LabelFrame) and "Desenho" in str(child.cget("text")):
-                        self.aquarium_selector_frame.pack(fill="x", pady=5, padx=5, after=child)
-                        return
+                # Anchor on the drawing-actions frame itself. Matching its
+                # displayed text used to work only in Portuguese.
+                anchor = getattr(self, "drawing_actions_frame", None)
+                if anchor is not None and anchor.master is parent:
+                    self.aquarium_selector_frame.pack(fill="x", pady=5, padx=5, after=anchor)
+                    return
                 # Fallback - just pack
                 self.aquarium_selector_frame.pack(fill="x", pady=5, padx=5)
             except Exception:
