@@ -455,7 +455,7 @@ def test_generate_roi_reference_plot_no_rois(behavior_analyzer, mock_settings):
     assert fig is not None
     ax = fig.get_axes()[0]
     # Should show message about no ROIs (in Portuguese)
-    assert any("sem ROIs" in text.get_text() for text in ax.texts)
+    assert any("no ROIs defined" in text.get_text() for text in ax.texts)
 
     # Clean up
     plt.close(fig)

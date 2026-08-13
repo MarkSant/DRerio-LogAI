@@ -122,7 +122,7 @@ class TestROIAnalyzerInclusionRules(unittest.TestCase):
                 inclusion_rule="bbox_intersects",
             )
 
-        self.assertIn("bbox_intersects requer colunas de bbox", str(context.exception))
+        self.assertIn("bbox_intersects rule requires the bbox columns", str(context.exception))
 
     def test_seg_overlap_without_masks_degrades_instead_of_raising(self):
         """Sem sidecar, ``seg_overlap`` cai para ``bbox_intersects`` COM aviso.

@@ -6,6 +6,43 @@ This document tracks all major agent interventions, technical debt resolutions, 
 
 ## Active Tasks
 
+### [2026-08-13] Internacionalização fase 3 de 3 — ui/dialogs, ui/wizard, core, analysis
+
+__ID:__ TASK-068
+__Agent:__ Claude Code (Opus 5)
+__Status:__ In Progress 🔄
+__Branch:__ claude/i18n-phase-3-handoff-40321d
+__Description:__
+Fase final da migração para inglês como idioma-fonte. Fases 1 (PR #461) e 2
+(PR #462) já mescladas; `coordinators/**`, `ui/components/**`, `io/`, `plugins/`,
+`utils/` e `ui/builders/` estão a zero literais e travados pelo ratchet em
+`tests/i18n/test_no_untranslated_literals.py`.
+
+Restam 942 literais acentuados em 74 arquivos (`ui/dialogs` 395, `ui/wizard` 300,
+`core` 216, `analysis` 19, `ui/gui.py` + `ui/ui_coordinator.py` 12). O volume real
+é maior: o scanner só detecta acento, e o português sem acento somou de um terço a
+metade a mais por arquivo nas fases anteriores.
+
+__Critério de pronto:__ `i18n_scan.py src/zebtrack` em `TOTAL: 0`,
+`MIGRATED_PATHS == ("src/zebtrack",)` e remoção do comentário "Migrado na PR1"
+no topo do ratchet; depois, atualizar a seção "A migração" em
+`docs/guides/developer/i18n.md` e o CHANGELOG.
+
+### Subtasks (TASK-068)
+
+- [x] Lote 1: `analysis/**` a zero e no ratchet. Domínio `zebtrack` nos quatro
+      arquivos: só `analysis/reporters/**` usa o domínio `reporter`, e o que
+      restava fora dele é prosa de UI/apêndice de validação. Dois defeitos
+      achados de quebra — cabeçalho de coluna do `.xlsx` e legenda de figura em
+      português no meio de arquivos 100% ingleses.
+- [ ] Lote 2: `ui/gui.py` + `ui/ui_coordinator.py`.
+- [ ] Lote 3: `core/**` (29 arquivos), incluindo simplificar o consumidor de
+      `progress_notifier` para só "step:" depois de migrar o produtor.
+- [ ] Lote 4: `ui/wizard/**` (13 arquivos) — valores de enum em models.py/enums.py
+      são persistidos, traduzir só os rótulos exibidos.
+- [ ] Lote 5: `ui/dialogs/**` (26 arquivos).
+- [ ] Fechamento: colapsar MIGRATED_PATHS, atualizar guia e CHANGELOG.
+
 ### [2026-06-09] Sexteto de bugs em projetos live (zonas, lote, contadores, OpenVINO, settings globais)
 
 __ID:__ TASK-067

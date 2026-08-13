@@ -674,14 +674,18 @@ class DataTransformer:
             bottom_cm = i * zone_height
             top_cm = (i + 1) * zone_height
 
+            # English like every other exported column header (see
+            # DISPLAY_COLUMN_MAPPING): a spreadsheet header that changed with
+            # ui.language would give the same analysis a different schema on
+            # each machine, breaking the researcher's downstream scripts.
             if i == 0:
-                name = "Fundo"
+                name = "Bottom"
             elif i == num_zones - 1:
-                name = "Superfície"
+                name = "Surface"
             else:
-                name = "Meio"
+                name = "Middle"
                 if num_zones > 3:
-                    name = f"Meio {i}"
+                    name = f"Middle {i}"
 
             new_name = f"{name} ({bottom_cm:.1f}-{top_cm:.1f}cm) [%]"
             rename_map[col_name] = new_name

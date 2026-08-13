@@ -339,7 +339,7 @@ def test_multi_animal_warning_points_to_the_summary_sheet():
         freezing_min_duration=2.0,
     )
 
-    multi_animal = [w for w in warnings if "animais (track_ids)" in w]
+    multi_animal = [w for w in warnings if "animals (track_ids)" in w]
     assert multi_animal, "aviso multi-animal não emitido"
     assert PER_ANIMAL_SHEET_NAME in multi_animal[0]
     assert "_summary.xlsx" in multi_animal[0]

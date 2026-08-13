@@ -24,6 +24,7 @@ from zebtrack.analysis.models import AnalysisResult, CalibrationParams
 from zebtrack.analysis.roi import ROI, ROIAnalyzer
 from zebtrack.analysis.trajectory_validator import TrajectoryQualityValidator
 from zebtrack.core.services.roi_rule_resolver import RoiRuleConfig, resolve_roi_rule
+from zebtrack.i18n import _
 from zebtrack.ui import payloads as payloads
 from zebtrack.ui.event_bus_v2 import Event, UIEvents
 
@@ -238,14 +239,15 @@ class AnalysisService:
         unique_tracks = int(validation_stats.get("unique_tracks", 1) or 1)
         if unique_tracks > 1:
             validation_warnings.append(
-                f"Trajetória com {unique_tracks} animais (track_ids). As métricas de ROI "
-                "no topo do relatório são de OCUPAÇÃO da região (semântica any_track: "
-                "a ROI conta como ocupada enquanto qualquer animal estiver dentro). "
-                "As métricas por animal estão na aba 'por_animal' da planilha de "
-                "resumo (_summary.xlsx). As métricas "
-                "de comportamento geral que dependem da ORDEM dos frames "
-                "(curvas_acentuadas) agrupam todos os animais e devem ser lidas com "
-                "cautela."
+                _(
+                    "Trajectory with {count} animals (track_ids). The ROI metrics at the "
+                    "top of the report describe region OCCUPANCY (any_track semantics: "
+                    "the ROI counts as occupied while any animal is inside). The "
+                    "per-animal metrics are in the 'por_animal' sheet of the summary "
+                    "spreadsheet (_summary.xlsx). The general behaviour metrics that "
+                    "depend on frame ORDER (curvas_acentuadas) pool every animal "
+                    "together and must be read with caution."
+                ).format(count=unique_tracks)
             )
 
         smoothing_cfg = self.settings.trajectory_smoothing
@@ -1189,7 +1191,7 @@ class AnalysisService:
         root_tk.after(
             0,
             lambda: controller.view.set_status(
-                f"Iniciando processamento para {total_videos} vídeos..."
+                _("Starting processing for {count} videos...").format(count=total_videos)
             ),
         )
         project_manager.set_active_zone_video(None)
@@ -1283,7 +1285,8 @@ class AnalysisService:
             root_tk.after(
                 0,
                 lambda e=exc: controller.view.show_error(
-                    "Erro na Análise", f"Ocorreu um erro inesperado: {e}"
+                    _("Analysis Error"),
+                    _("An unexpected error occurred: {error}").format(error=e),
                 ),
             )
         finally:
@@ -1326,13 +1329,15 @@ class AnalysisService:
         if was_cancelled:
             root_tk.after(
                 0,
-                lambda: controller.view.show_info("Cancelado", "A análise de vídeo foi cancelada."),
+                lambda: controller.view.show_info(
+                    _("Cancelled"), _("Video analysis was cancelled.")
+                ),
             )
         elif videos_to_process:
-            msg = f"Análise concluída. Resultados salvos em:\n{final_output_dir}"
-            root_tk.after(0, lambda: controller.view.show_info("Sucesso", msg))
+            msg = _("Analysis finished. Results saved to:\n{path}").format(path=final_output_dir)
+            root_tk.after(0, lambda: controller.view.show_info(_("Success"), msg))
 
-        root_tk.after(0, lambda: controller.view.set_status("Pronto."))
+        root_tk.after(0, lambda: controller.view.set_status(_("Ready.")))
         controller._publish_processing_mode(source="processing.finalize", force=True)
         controller.ui_event_bus.publish(
             Event(
