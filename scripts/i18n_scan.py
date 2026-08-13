@@ -112,6 +112,20 @@ class _LiteralVisitor(ast.NodeVisitor):
             if isinstance(first.value.value, str):
                 self._exempt.add(id(first.value))
 
+    def visit_Expr(self, node: ast.Expr) -> None:
+        """Exempt every bare string statement, not just the leading docstring.
+
+        A string that is an expression-statement is evaluated and thrown away —
+        it can never reach a widget. The only reason to write one is
+        documentation: PEP 258 attribute docstrings (the paragraph under an enum
+        member or a class attribute) are exactly this shape, and the project
+        deliberately keeps its Portuguese prose. Exempting only ``body[0]``
+        reported those as untranslated interface strings.
+        """
+        if isinstance(node.value, ast.Constant) and isinstance(node.value.value, str):
+            self._exempt.add(id(node.value))
+        self.generic_visit(node)
+
     # -- visitors -------------------------------------------------------------
     def visit_Module(self, node: ast.Module) -> None:
         self._exempt_docstring(node)
