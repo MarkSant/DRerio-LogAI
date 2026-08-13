@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: DRerio LogAI VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-08-13 13:03-0300\n"
+"POT-Creation-Date: 2026-08-13 13:24-0300\n"
 "PO-Revision-Date: 2026-08-08 21:41-0300\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: pt_BR <LL@li.org>\n"
@@ -127,7 +127,7 @@ msgstr ""
 msgid "The mask sidecar contains no valid geometry."
 msgstr "O sidecar de máscaras não contém nenhuma geometria válida."
 
-#: src/zebtrack/analysis/roi.py:1050
+#: src/zebtrack/analysis/roi.py:1049
 msgid ""
 "No mask in the sidecar matches a (frame, track_id) of the analysed "
 "trajectory."
@@ -135,7 +135,7 @@ msgstr ""
 "Nenhuma máscara do sidecar corresponde a (frame, track_id) da trajetória "
 "analisada."
 
-#: src/zebtrack/analysis/roi.py:1071
+#: src/zebtrack/analysis/roi.py:1068
 msgid ""
 "The 'seg_overlap' rule was selected but no mask sidecar "
 "(3b_Mascaras_*.parquet) was provided. Record with recorder.persist_masks "
@@ -145,11 +145,11 @@ msgstr ""
 "(3b_Mascaras_*.parquet) foi informado. Grave com recorder.persist_masks "
 "ligado e um modelo de segmentação (model_selection.animal_method='seg')."
 
-#: src/zebtrack/analysis/roi.py:1081
+#: src/zebtrack/analysis/roi.py:1078
 msgid "The mask sidecar is empty."
 msgstr "O sidecar de máscaras está vazio."
 
-#: src/zebtrack/analysis/roi.py:1090
+#: src/zebtrack/analysis/roi.py:1087
 #, python-brace-format
 msgid ""
 "The mask sidecar does not exist at '{path}'. Data recorded before this "
@@ -158,19 +158,19 @@ msgstr ""
 "O sidecar de máscaras não existe em '{path}'. Dados gravados antes desta "
 "funcionalidade, ou com recorder.persist_masks desligado, não o têm."
 
-#: src/zebtrack/analysis/roi.py:1102
+#: src/zebtrack/analysis/roi.py:1099
 #, python-brace-format
 msgid "The sidecar '{path}' could not be read: {error}"
 msgstr "O sidecar '{path}' não pôde ser lido: {error}"
 
 # | msgid "The file linked to the template was not found."
 # | msgid "The report path was not found."
-#: src/zebtrack/analysis/roi.py:1108
+#: src/zebtrack/analysis/roi.py:1104
 #, python-brace-format
 msgid "The sidecar '{path}' has no rows."
 msgstr "O sidecar '{path}' não tem linhas."
 
-#: src/zebtrack/analysis/roi.py:1117
+#: src/zebtrack/analysis/roi.py:1112
 #, python-brace-format
 msgid "ROI rule 'seg_overlap' degraded to 'bbox_intersects': {detail}"
 msgstr "Regra de ROI 'seg_overlap' degradada para 'bbox_intersects': {detail}"
@@ -256,6 +256,7 @@ msgstr "Vídeo Único"
 #: src/zebtrack/ui/components/validation_manager.py:183
 #: src/zebtrack/ui/components/validation_manager.py:491
 #: src/zebtrack/ui/components/validation_manager.py:1634
+#: src/zebtrack/ui/gui.py:144 src/zebtrack/ui/gui.py:808
 msgid "Error"
 msgstr "Erro"
 
@@ -1832,6 +1833,88 @@ msgstr "Não foi possível enviar comando: Arduino desconectado."
 msgid "Serial connection to the Arduino was lost."
 msgstr "Conexão serial com Arduino perdida."
 
+# | msgid "unknown"
+#: src/zebtrack/ui/gui.py:145
+#| msgid "Unknown error"
+msgid "An unknown error occurred."
+msgstr "Ocorreu um erro desconhecido."
+
+# | msgid "Analysis in Progress"
+#: src/zebtrack/ui/components/analysis_controls.py:48
+#: src/zebtrack/ui/components/analysis_display.py:63
+#: src/zebtrack/ui/components/analysis_display.py:437
+#: src/zebtrack/ui/components/analysis_view_controller.py:221
+#: src/zebtrack/ui/components/project_initializer.py:126
+#: src/zebtrack/ui/components/single_video_workflow.py:92
+#: src/zebtrack/ui/components/state_synchronizer.py:269
+#: src/zebtrack/ui/gui.py:358
+msgid "No analysis in progress."
+msgstr "Nenhuma análise em andamento."
+
+# | msgid "Analysis in Progress"
+#: src/zebtrack/ui/components/analysis_display.py:64
+#: src/zebtrack/ui/components/analysis_display.py:438
+#: src/zebtrack/ui/components/analysis_view_controller.py:223
+#: src/zebtrack/ui/components/state_synchronizer.py:491
+#: src/zebtrack/ui/gui.py:359
+msgid "No task in progress."
+msgstr "Nenhuma tarefa em andamento."
+
+# | msgid "Invalid Configuration"
+#: src/zebtrack/ui/components/analysis_controls.py:69
+#: src/zebtrack/ui/components/analysis_controls.py:214
+#: src/zebtrack/ui/components/analysis_display.py:76
+#: src/zebtrack/ui/components/analysis_display.py:298
+#: src/zebtrack/ui/components/analysis_display.py:306
+#: src/zebtrack/ui/components/analysis_view_controller.py:308
+#: src/zebtrack/ui/gui.py:361
+#, python-brace-format
+msgid "Analysis configuration: {value}"
+msgstr "Configuração de análise: {value}"
+
+# | msgid "Error Saving to Project"
+# | msgid "Save to Project"
+#: src/zebtrack/ui/components/dialog_manager.py:444 src/zebtrack/ui/gui.py:576
+msgid "No Project"
+msgstr "Nenhum Projeto"
+
+#: src/zebtrack/ui/components/dialog_manager.py:445 src/zebtrack/ui/gui.py:577
+msgid "Open a project before adjusting the specific calibration."
+msgstr "Abra um projeto antes de ajustar a calibração específica."
+
+#: src/zebtrack/ui/builders/analysis_widgets.py:339
+#: src/zebtrack/ui/components/state_synchronizer.py:430
+#: src/zebtrack/ui/gui.py:600
+msgid "Form reloaded"
+msgstr "Formulário recarregado"
+
+#: src/zebtrack/ui/builders/analysis_widgets.py:340
+#: src/zebtrack/ui/components/state_synchronizer.py:431
+#: src/zebtrack/ui/gui.py:601
+msgid "Values restored to reflect the current settings."
+msgstr "Valores restaurados para refletir as configurações atuais."
+
+#: src/zebtrack/ui/gui.py:809
+msgid "This project is not configured for live experimental tracking."
+msgstr ""
+"Este projeto não está configurado para rastreamento experimental ao vivo."
+
+# | msgid "Failed to open folder"
+#: src/zebtrack/ui/components/dialog_manager.py:824 src/zebtrack/ui/gui.py:840
+msgid "Failed to save camera"
+msgstr "Falha ao salvar câmera"
+
+# | msgid "Could not save config.local.yaml: {error}"
+# | msgid "Could not save the file: {error}"
+#: src/zebtrack/ui/components/dialog_manager.py:825 src/zebtrack/ui/gui.py:841
+#, python-brace-format
+msgid ""
+"Could not save the camera as the project default:\n"
+"{error}"
+msgstr ""
+"Não foi possível salvar a câmera como padrão do projeto:\n"
+"{error}"
+
 #: src/zebtrack/ui/project_workflow_adapter.py:307
 msgid "Project Loaded"
 msgstr "Projeto Carregado"
@@ -1892,6 +1975,30 @@ msgstr "Ambos"
 msgid "First run — optimizing for your hardware..."
 msgstr "Primeira execução — otimizando para seu hardware..."
 
+#: src/zebtrack/ui/ui_coordinator.py:737
+#, python-brace-format
+msgid "Camera reconnected (gap: {seconds:.1f}s)"
+msgstr "Câmera reconectada (gap: {seconds:.1f}s)"
+
+#: src/zebtrack/ui/ui_coordinator.py:825
+#, python-brace-format
+msgid "Detecting aquarium: frame {frame}/100"
+msgstr "Detectando aquário: frame {frame}/100"
+
+# | msgid "Remove the trajectory generated for this video?"
+#: src/zebtrack/ui/ui_coordinator.py:879
+#, python-brace-format
+#| msgid "Reports generated for {count} videos."
+msgid "Batch report generated ({count} session): {batch_id}"
+msgstr "Relatório de lote gerado ({count} sessão): {batch_id}"
+
+# | msgid "Remove the trajectory generated for this video?"
+#: src/zebtrack/ui/ui_coordinator.py:881
+#, python-brace-format
+#| msgid "Reports generated for {count} videos."
+msgid "Batch report generated ({count} sessions): {batch_id}"
+msgstr "Relatório de lote gerado ({count} sessões): {batch_id}"
+
 #: src/zebtrack/ui/builders/analysis_widgets.py:62
 #: src/zebtrack/ui/components/analysis_controls.py:167
 msgid "Video Analysis"
@@ -1909,16 +2016,6 @@ msgstr "Config. Avançadas"
 #: src/zebtrack/ui/builders/analysis_widgets.py:240
 msgid "Settings unavailable. Could not load."
 msgstr "Settings não disponível. Não foi possível carregar."
-
-#: src/zebtrack/ui/builders/analysis_widgets.py:339
-#: src/zebtrack/ui/components/state_synchronizer.py:430
-msgid "Form reloaded"
-msgstr "Formulário recarregado"
-
-#: src/zebtrack/ui/builders/analysis_widgets.py:340
-#: src/zebtrack/ui/components/state_synchronizer.py:431
-msgid "Values restored to reflect the current settings."
-msgstr "Valores restaurados para refletir as configurações atuais."
 
 #: src/zebtrack/ui/builders/analysis_widgets.py:354
 msgid "Settings unavailable. Could not save."
@@ -2277,17 +2374,6 @@ msgstr "Selecione um aquário ativo primeiro."
 msgid "The aquarium polygon data could not be retrieved."
 msgstr "Não foi possível obter os dados do polígono do aquário."
 
-# | msgid "Analysis in Progress"
-#: src/zebtrack/ui/components/analysis_controls.py:48
-#: src/zebtrack/ui/components/analysis_display.py:63
-#: src/zebtrack/ui/components/analysis_display.py:437
-#: src/zebtrack/ui/components/analysis_view_controller.py:221
-#: src/zebtrack/ui/components/project_initializer.py:126
-#: src/zebtrack/ui/components/single_video_workflow.py:92
-#: src/zebtrack/ui/components/state_synchronizer.py:269
-msgid "No analysis in progress."
-msgstr "Nenhuma análise em andamento."
-
 #: src/zebtrack/ui/components/analysis_controls.py:52
 #: src/zebtrack/ui/components/analysis_controls.py:202
 #: src/zebtrack/ui/components/analysis_display.py:66
@@ -2339,30 +2425,11 @@ msgstr "Modo de rastreamento: {value}"
 msgid "Multi-individual"
 msgstr "Multi-indivíduos"
 
-# | msgid "Invalid Configuration"
-#: src/zebtrack/ui/components/analysis_controls.py:69
-#: src/zebtrack/ui/components/analysis_controls.py:214
-#: src/zebtrack/ui/components/analysis_display.py:76
-#: src/zebtrack/ui/components/analysis_display.py:298
-#: src/zebtrack/ui/components/analysis_display.py:306
-#: src/zebtrack/ui/components/analysis_view_controller.py:308
-#, python-brace-format
-msgid "Analysis configuration: {value}"
-msgstr "Configuração de análise: {value}"
-
 #: src/zebtrack/ui/components/analysis_controls.py:74
 #: src/zebtrack/ui/components/analysis_display.py:442
 #: src/zebtrack/ui/components/state_synchronizer.py:589
 msgid "Social interactions: waiting for data."
 msgstr "Interações sociais: aguardando dados."
-
-# | msgid "Analysis in Progress"
-#: src/zebtrack/ui/components/analysis_display.py:64
-#: src/zebtrack/ui/components/analysis_display.py:438
-#: src/zebtrack/ui/components/analysis_view_controller.py:223
-#: src/zebtrack/ui/components/state_synchronizer.py:491
-msgid "No task in progress."
-msgstr "Nenhuma tarefa em andamento."
 
 #: src/zebtrack/ui/components/analysis_display.py:84
 msgid "Social interactions: not applicable right now."
@@ -3516,16 +3583,6 @@ msgstr ""
 "\n"
 "Se escolher 'Não', apenas a referência no projeto será removida."
 
-# | msgid "Error Saving to Project"
-# | msgid "Save to Project"
-#: src/zebtrack/ui/components/dialog_manager.py:444
-msgid "No Project"
-msgstr "Nenhum Projeto"
-
-#: src/zebtrack/ui/components/dialog_manager.py:445
-msgid "Open a project before adjusting the specific calibration."
-msgstr "Abra um projeto antes de ajustar a calibração específica."
-
 #: src/zebtrack/ui/components/dialog_manager.py:511
 #: src/zebtrack/ui/components/roi_template_manager.py:422
 msgid "Import ROI Template into the Library"
@@ -3584,22 +3641,6 @@ msgstr "Erro ao importar e aplicar"
 #: src/zebtrack/ui/components/roi_template_manager.py:246
 msgid "Template applied"
 msgstr "Template aplicado"
-
-# | msgid "Failed to open folder"
-#: src/zebtrack/ui/components/dialog_manager.py:824
-msgid "Failed to save camera"
-msgstr "Falha ao salvar câmera"
-
-# | msgid "Could not save config.local.yaml: {error}"
-# | msgid "Could not save the file: {error}"
-#: src/zebtrack/ui/components/dialog_manager.py:825
-#, python-brace-format
-msgid ""
-"Could not save the camera as the project default:\n"
-"{error}"
-msgstr ""
-"Não foi possível salvar a câmera como padrão do projeto:\n"
-"{error}"
 
 # | msgid "Open Existing Project"
 #: src/zebtrack/ui/components/dialog_manager.py:848

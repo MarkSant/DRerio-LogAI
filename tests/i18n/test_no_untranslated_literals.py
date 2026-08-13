@@ -40,9 +40,11 @@ MIGRATED_PATHS: tuple[str, ...] = (
     # here collapse into one path — a new file under ui/components/ is now
     # covered by the ratchet the moment it is added.
     "src/zebtrack/ui/components",
+    "src/zebtrack/ui/gui.py",
     "src/zebtrack/ui/language_dialog.py",
     "src/zebtrack/ui/project_workflow_adapter.py",
     "src/zebtrack/ui/splash_screen.py",
+    "src/zebtrack/ui/ui_coordinator.py",
     "src/zebtrack/utils",
 )
 

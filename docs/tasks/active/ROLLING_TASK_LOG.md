@@ -35,7 +35,9 @@ no topo do ratchet; depois, atualizar a seção "A migração" em
       restava fora dele é prosa de UI/apêndice de validação. Dois defeitos
       achados de quebra — cabeçalho de coluna do `.xlsx` e legenda de figura em
       português no meio de arquivos 100% ingleses.
-- [ ] Lote 2: `ui/gui.py` + `ui/ui_coordinator.py`.
+- [x] Lote 2: `ui/gui.py` + `ui/ui_coordinator.py`, ambos no ratchet. 10 dos 16
+      msgids já existiam com o português IDÊNTICO — `gui.py` duplicava diálogos e
+      defaults de estado que `dialog_manager`/`analysis_controls` já possuem.
 - [ ] Lote 3: `core/**` (29 arquivos), incluindo simplificar o consumidor de
       `progress_notifier` para só "step:" depois de migrar o produtor.
 - [ ] Lote 4: `ui/wizard/**` (13 arquivos) — valores de enum em models.py/enums.py

@@ -32,6 +32,7 @@ from zebtrack.core.services.roi_rule_resolver import (
 )
 from zebtrack.core.services.zone_context_service import ZoneContextService
 from zebtrack.core.video.processing_mode import ProcessingMode
+from zebtrack.i18n import _
 from zebtrack.ui.builders import ButtonFactory, PanelBuilder, ZoneControlBuilder
 from zebtrack.ui.components import (
     AnalysisDisplayWidget,
@@ -140,8 +141,8 @@ class ApplicationGUI:
                 self.root.after(
                     0,
                     lambda: self.dialog_manager.show_error(
-                        _payload_get(data, "title", "Erro"),
-                        _payload_get(data, "message", "Ocorreu um erro desconhecido."),
+                        _payload_get(data, "title", _("Error")),
+                        _payload_get(data, "message", _("An unknown error occurred.")),
                     ),
                 )
 
@@ -354,9 +355,11 @@ class ApplicationGUI:
         self._analysis_overlay_image = None
 
         # Analysis status widgets and variables
-        self.analysis_status_var = StringVar(value="Nenhuma análise em andamento.")
-        self.analysis_task_var = StringVar(value="Nenhuma tarefa em andamento.")
-        self.analysis_profile_var = StringVar(value="Perfil de análise: default")
+        self.analysis_status_var = StringVar(value=_("No analysis in progress."))
+        self.analysis_task_var = StringVar(value=_("No task in progress."))
+        self.analysis_profile_var = StringVar(
+            value=_("Analysis configuration: {value}").format(value="default")
+        )
         self.analysis_video_label: Label | None = None
 
         # User options
@@ -570,8 +573,8 @@ class ApplicationGUI:
     def _open_project_calibration_window(self):
         if not getattr(self.controller.project_manager, "project_path", None):
             self.dialog_manager.show_warning(
-                "Nenhum Projeto",
-                "Abra um projeto antes de ajustar a calibração específica.",
+                _("No Project"),
+                _("Open a project before adjusting the specific calibration."),
             )
             return
 
@@ -594,8 +597,8 @@ class ApplicationGUI:
         """Reset ConfigEditorWidget form fields to reflect current settings object."""
         self._reload_config_editor_values_widget()
         self.dialog_manager.show_info(
-            "Formulário recarregado",
-            "Valores restaurados para refletir as configurações atuais.",
+            _("Form reloaded"),
+            _("Values restored to reflect the current settings."),
         )
 
     def _reload_config_editor_values_widget(self) -> None:
@@ -802,8 +805,8 @@ class ApplicationGUI:
         pm = self.controller.project_manager
         if not pm.project_data.get("experiment_days"):
             self.dialog_manager.show_error(
-                "Error",
-                "This project is not configured for live experimental tracking.",
+                _("Error"),
+                _("This project is not configured for live experimental tracking."),
             )
             return None
 
@@ -834,8 +837,10 @@ class ApplicationGUI:
                     pm.save_project()
             except (OSError, AttributeError, ValueError) as exc:
                 self.dialog_manager.show_warning(
-                    "Falha ao salvar câmera",
-                    f"Não foi possível salvar a câmera como padrão do projeto:\n{exc}",
+                    _("Failed to save camera"),
+                    _("Could not save the camera as the project default:\n{error}").format(
+                        error=exc
+                    ),
                 )
 
         return result
@@ -862,7 +867,9 @@ class ApplicationGUI:
 
     def _handle_project_refresh_requested(self, data: dict) -> None:
         """Handle project refresh request from overview widget."""
-        self.video_selector_manager.request_overview_refresh(reason="Atualização manual")
+        # Provenance tag for the refresh debouncer, never rendered — English
+        # like every other `reason=` in the UI layer, and deliberately not _().
+        self.video_selector_manager.request_overview_refresh(reason="Manual refresh")
 
     def _handle_project_video_double_click(self, payload: payloads.ItemIdPayload) -> None:
         """Handle video double-click from overview widget."""

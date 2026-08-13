@@ -15,6 +15,7 @@ from typing import TYPE_CHECKING, Any
 
 import structlog
 
+from zebtrack.i18n import _
 from zebtrack.ui import payloads as payloads
 from zebtrack.ui.event_bus_v2 import EventBusV2, UIEvents
 
@@ -733,7 +734,7 @@ class UICoordinator:
 
                 def update_status():
                     state_synchronizer.update_status(
-                        f"Câmera reconectada (gap: {gap_duration:.1f}s)"
+                        _("Camera reconnected (gap: {seconds:.1f}s)").format(seconds=gap_duration)
                     )
 
                 self._safe_ui_call(update_status)
@@ -819,7 +820,7 @@ class UICoordinator:
 
                 def update_status():
                     state_synchronizer.update_status(
-                        f"Detectando aquário: frame {frame_number}/100"
+                        _("Detecting aquarium: frame {frame}/100").format(frame=frame_number)
                     )
 
                 self._safe_ui_call(update_status)
@@ -869,8 +870,16 @@ class UICoordinator:
                 state_synchronizer = self.state_synchronizer
 
                 def update_status():
+                    # Two plain msgids instead of ngettext: the pair files carry
+                    # no plural forms, and the Portuguese original papered over
+                    # the problem with "sessão(ões)".
+                    template = (
+                        _("Batch report generated ({count} session): {batch_id}")
+                        if session_count == 1
+                        else _("Batch report generated ({count} sessions): {batch_id}")
+                    )
                     state_synchronizer.update_status(
-                        f"Relatório de lote gerado ({session_count} sessão(ões)): {batch_id}"
+                        template.format(count=session_count, batch_id=batch_id)
                     )
 
                 self._safe_ui_call(update_status)

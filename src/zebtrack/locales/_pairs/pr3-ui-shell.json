@@ -1,0 +1,11 @@
+{
+  "_domain": "zebtrack",
+  "_comment": "Phase 3, batch 2: ui/gui.py and ui/ui_coordinator.py. Ten of the sixteen msgids this batch needs already existed with IDENTICAL Portuguese (Error, No analysis in progress., No task in progress., Analysis configuration: {value}, No Project, Open a project before adjusting the specific calibration., Form reloaded, Values restored to reflect the current settings., Failed to save camera, Could not save the camera as the project default:) because gui.py duplicates dialogs and state defaults that dialog_manager / analysis_controls / state_synchronizer already own. They are reused, not repeated here. 'This project is not configured for live experimental tracking.' was already English in the source but never wrapped, so its Portuguese is a genuine translation rather than a relocated literal.",
+
+  "An unknown error occurred.": "Ocorreu um erro desconhecido.",
+  "This project is not configured for live experimental tracking.": "Este projeto não está configurado para rastreamento experimental ao vivo.",
+  "Camera reconnected (gap: {seconds:.1f}s)": "Câmera reconectada (gap: {seconds:.1f}s)",
+  "Detecting aquarium: frame {frame}/100": "Detectando aquário: frame {frame}/100",
+  "Batch report generated ({count} session): {batch_id}": "Relatório de lote gerado ({count} sessão): {batch_id}",
+  "Batch report generated ({count} sessions): {batch_id}": "Relatório de lote gerado ({count} sessões): {batch_id}"
+}
