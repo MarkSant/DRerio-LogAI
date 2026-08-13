@@ -18,9 +18,12 @@ class AssetType(Enum):
 class ROITemplateSchema(BaseModel):
     """Schema para templates de ROI."""
 
-    version: int = Field(ge=1, le=2, description="Versão do template")
-    name: str = Field(min_length=1, max_length=200, description="Nome do template")
-    data: dict[str, Any] = Field(description="Dados do template")
+    # Field descriptions are Pydantic metadata evaluated at class-body
+    # time, so they can never be _() calls. They are developer-facing
+    # schema documentation, not interface copy.
+    version: int = Field(ge=1, le=2, description="Template version")
+    name: str = Field(min_length=1, max_length=200, description="Template name")
+    data: dict[str, Any] = Field(description="Template data")
 
     @field_validator("version")
     @classmethod
@@ -28,7 +31,9 @@ class ROITemplateSchema(BaseModel):
         """Validate that the version is supported."""
         CURRENT_VERSION = 1
         if v > CURRENT_VERSION:
-            raise ValueError(f"Template version {v} não suportado. Versão atual: {CURRENT_VERSION}")
+            raise ValueError(
+                f"Template version {v} is not supported. Current version: {CURRENT_VERSION}"
+            )
         return v
 
     @field_validator("data")
@@ -41,7 +46,7 @@ class ROITemplateSchema(BaseModel):
 
         if not has_polygon and not has_rois:
             raise ValueError(
-                "Template deve conter pelo menos arena (polygon) ou ROIs "
+                "Template must contain at least an arena (polygon) or ROIs "
                 "(roi_polygons, roi_names, roi_colors)"
             )
 

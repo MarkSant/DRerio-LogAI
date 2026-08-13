@@ -18,6 +18,7 @@ from pydantic import ValidationError
 
 from zebtrack.core.detection import ZoneData
 from zebtrack.core.project.schemas import InvalidTemplateError, ROITemplateSchema
+from zebtrack.i18n import _
 
 log = structlog.get_logger()
 
@@ -99,30 +100,32 @@ class ROITemplateManager:
         """
         # Validações
         if not name or not name.strip():
-            raise ValueError("O nome do template não pode ficar vazio.")
+            raise ValueError(_("The template name cannot be empty."))
 
         if not save_arena and not save_rois:
-            raise ValueError("Selecione ao menos arena ou ROIs para salvar.")
+            raise ValueError(_("Select at least the arena or the ROIs to save."))
 
         if not zone_data:
-            raise ValueError("Dados de zona não podem ser vazios.")
+            raise ValueError(_("Zone data cannot be empty."))
 
         if save_arena and (not zone_data.polygon or len(zone_data.polygon) < 3):
-            raise ValueError("Arena inválida: é necessário ao menos 3 pontos.")
+            raise ValueError(_("Invalid arena: at least 3 points are required."))
 
         if save_rois and not zone_data.roi_polygons:
-            raise ValueError("Nenhuma ROI disponível para salvar.")
+            raise ValueError(_("No ROI available to save."))
 
         # Determine target directory
         if save_location == "global":
             target_dir = self.global_templates_dir
         elif save_location == "project":
             if not project_path:
-                raise ValueError("Caminho do projeto é necessário para salvar template no projeto.")
+                raise ValueError(
+                    _("A project path is required to save a template into the project.")
+                )
             target_dir = Path(project_path) / "roi_templates"
         elif save_location == "custom":
             if not custom_path:
-                raise ValueError("Caminho personalizado é necessário para save_location='custom'.")
+                raise ValueError(_("A custom path is required for save_location='custom'."))
             custom_path = Path(custom_path)
             if custom_path.is_dir():
                 target_dir = custom_path
@@ -130,7 +133,9 @@ class ROITemplateManager:
                 # If custom_path is a file, use its parent directory
                 target_dir = custom_path.parent
         else:
-            raise ValueError(f"save_location inválido: {save_location}")
+            # Names a code-level parameter, never shown to the operator:
+            # English without _(), like the other developer-facing guards.
+            raise ValueError(f"Invalid save_location: {save_location}")
 
         # Create directory if it doesn't exist
         target_dir.mkdir(parents=True, exist_ok=True)
@@ -145,8 +150,9 @@ class ROITemplateManager:
         # Check if it already exists
         if template_path.exists() and not overwrite:
             raise ValueError(
-                f"Template '{name}' já existe em {target_dir}. "
-                f"Use overwrite=True para sobrescrever."
+                _("Template '{name}' already exists in {directory}.").format(
+                    name=name, directory=target_dir
+                )
             )
 
         # Prepare template data (include only selected components)
@@ -221,7 +227,7 @@ class ROITemplateManager:
         template_path = Path(template_path)
 
         if not template_path.exists():
-            raise FileNotFoundError(f"Template não encontrado: {template_path}")
+            raise FileNotFoundError(_("Template not found: {path}").format(path=template_path))
 
         try:
             with open(template_path, encoding="utf-8") as f:
@@ -239,12 +245,16 @@ class ROITemplateManager:
 
         except json.JSONDecodeError as e:
             log.error("roi_template_manager.load.json_error", file=str(template_path), error=str(e))
-            raise InvalidTemplateError(f"JSON inválido em {template_path}: {e}") from e
+            raise InvalidTemplateError(
+                _("Invalid JSON in {path}: {error}").format(path=template_path, error=e)
+            ) from e
         except ValidationError as e:
             log.error(
                 "roi_template_manager.load.validation_error", file=str(template_path), error=str(e)
             )
-            raise InvalidTemplateError(f"Template inválido em {template_path}: {e}") from e
+            raise InvalidTemplateError(
+                _("Invalid template in {path}: {error}").format(path=template_path, error=e)
+            ) from e
 
         # Reconstruir ZoneData a partir dos dados validados
         data_block = validated.data

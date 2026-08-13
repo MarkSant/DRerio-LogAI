@@ -26,6 +26,7 @@ from zebtrack.core.project.video_manager import VideoManager
 from zebtrack.core.project.zone_manager import ZoneManager
 from zebtrack.core.project.zone_orchestration_manager import ZoneOrchestrationManager
 from zebtrack.core.state_manager import StateManager
+from zebtrack.i18n import _
 
 # Re-export for backward compatibility — external code imports ProjectInvalidError from here
 __all__ = ["ProjectInvalidError", "ProjectManager"]
@@ -134,7 +135,7 @@ class ProjectManager:
         persist_callback = self.save_project if persist else None
         if save_location in (None, "project") and self.project_path is None:
             raise ValueError(
-                "Não é possível salvar o template no projeto atual: projeto não carregado."
+                _("Cannot save the template into the current project: no project loaded.")
             )
         return self.asset_manager.save_roi_template(
             project_data=self.project_data,
@@ -363,7 +364,7 @@ class ProjectManager:
         """Return a deep copy of zone data stored for another video."""
         video_path = str(Path(video_path) if isinstance(video_path, str) else video_path)
 
-        _, stored = self._resolve_zone_entry(video_path)
+        _key, stored = self._resolve_zone_entry(video_path)
         return self._zone_data_from_dict(stored)
 
     def export_zones_to_parquet(
@@ -522,7 +523,7 @@ class ProjectManager:
     def load_project(self, project_path: Path | str) -> None:
         """Load project data from disk (thread-safe). Delegates to ProjectLifecycleManager."""
         project_path = Path(project_path) if isinstance(project_path, str) else project_path
-        loaded_data, migration_applied, _ = ProjectLifecycleManager.load_project_data(
+        loaded_data, migration_applied, _fields = ProjectLifecycleManager.load_project_data(
             project_path,
             load_config_fn=self.project_service.load_project_config,
             apply_migrations_fn=self._apply_project_migrations,
@@ -825,7 +826,7 @@ class ProjectManager:
         video_path = str(Path(video_path) if isinstance(video_path, str) else video_path)
         video_entry = self.find_video_entry(path=video_path)
         if not video_entry:
-            return False, "Vídeo não encontrado no projeto."
+            return False, _("Video not found in the project.")
         return self.asset_manager.can_remove_asset(video_entry, asset)
 
     def remove_asset(

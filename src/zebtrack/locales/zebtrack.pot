@@ -9,7 +9,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: DRerio LogAI VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-08-13 13:37-0300\n"
+"POT-Creation-Date: 2026-08-13 14:19-0300\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -1452,6 +1452,367 @@ msgstr ""
 msgid "Recommended, but the model is not converted. Use 'Diagnostics' to convert."
 msgstr ""
 
+#: src/zebtrack/core/project/asset_manager.py:108
+msgid "Project not initialised for saving ROI templates."
+msgstr ""
+
+#: src/zebtrack/core/project/asset_manager.py:233
+#: src/zebtrack/core/project/roi_template_manager.py:103
+msgid "The template name cannot be empty."
+msgstr ""
+
+#: src/zebtrack/core/project/asset_manager.py:236
+msgid "Invalid zone data for saving the template."
+msgstr ""
+
+#: src/zebtrack/core/project/asset_manager.py:239
+#: src/zebtrack/core/project/roi_template_manager.py:106
+msgid "Select at least the arena or the ROIs to save."
+msgstr ""
+
+#: src/zebtrack/core/project/asset_manager.py:247
+#: src/zebtrack/core/project/project_manager.py:138
+msgid "Cannot save the template into the current project: no project loaded."
+msgstr ""
+
+#: src/zebtrack/core/project/asset_manager.py:261
+#, python-brace-format
+msgid "Template '{name}' already exists."
+msgstr ""
+
+#: src/zebtrack/core/project/asset_manager.py:381
+msgid "Invalid template file: the 'data' block is missing."
+msgstr ""
+
+#: src/zebtrack/core/project/asset_manager.py:439
+msgid "The template file is not registered in the project."
+msgstr ""
+
+#: src/zebtrack/core/project/asset_manager.py:453
+#: src/zebtrack/core/project/asset_manager.py:487
+msgid "Invalid template content."
+msgstr ""
+
+#: src/zebtrack/core/project/asset_manager.py:459
+#, python-brace-format
+msgid "ROI template '{name}' not found in the project."
+msgstr ""
+
+#: src/zebtrack/core/project/asset_manager.py:474
+#, python-brace-format
+msgid "ROI template '{name}' not found for the requested context."
+msgstr ""
+
+#: src/zebtrack/core/project/asset_manager.py:726
+msgid ""
+"Remove the reports and summaries before deleting the arena, the ROIs or "
+"the trajectory."
+msgstr ""
+
+#: src/zebtrack/core/project/asset_manager.py:736
+msgid "There is no arena recorded for this video."
+msgstr ""
+
+#: src/zebtrack/core/project/asset_manager.py:737
+msgid "There are no ROIs recorded for this video."
+msgstr ""
+
+#: src/zebtrack/core/project/asset_manager.py:738
+msgid "There is no trajectory recorded for this video."
+msgstr ""
+
+#: src/zebtrack/core/project/asset_manager.py:741
+#, python-brace-format
+msgid "There is no {asset} recorded for this video."
+msgstr ""
+
+#: src/zebtrack/core/project/asset_manager.py:745
+msgid "There are no reports or summaries to remove."
+msgstr ""
+
+#: src/zebtrack/core/project/asset_manager.py:750
+msgid "Remove the reports and summaries before deleting the video."
+msgstr ""
+
+#: src/zebtrack/core/project/asset_manager.py:759
+msgid ""
+"Remove the arena, the ROIs and the trajectory before deleting the video "
+"from the project."
+msgstr ""
+
+#: src/zebtrack/core/project/project_lifecycle_manager.py:73
+#, python-brace-format
+msgid ""
+"Project configuration file '{filename}' not found in the selected "
+"directory: {path}\n"
+"\n"
+"Please make sure you selected a valid project folder."
+msgstr ""
+
+#: src/zebtrack/core/project/project_lifecycle_manager.py:94
+#, python-brace-format
+msgid ""
+"Failed to load or parse the project configuration file: {path}\n"
+"\n"
+"The file may be corrupted or unreadable.\n"
+"\n"
+"Error: {error}"
+msgstr ""
+
+#: src/zebtrack/core/project/project_lifecycle_manager.py:121
+msgid ""
+"Cannot save the project: the project path is not set.\n"
+"\n"
+"The project must be created before it can be saved."
+msgstr ""
+
+#: src/zebtrack/core/project/project_lifecycle_manager.py:133
+#, python-brace-format
+msgid ""
+"Permission denied while saving the project: {path}\n"
+"\n"
+"Check that you have write permission on the folder.\n"
+"\n"
+"Error: {error}"
+msgstr ""
+
+#: src/zebtrack/core/project/project_lifecycle_manager.py:143
+#, python-brace-format
+msgid ""
+"I/O error while saving the project: {path}\n"
+"\n"
+"Check the disk space and the permissions.\n"
+"\n"
+"Error: {error}"
+msgstr ""
+
+#: src/zebtrack/core/project/project_lifecycle_manager.py:153
+#, python-brace-format
+msgid ""
+"Error serialising the project data: {path}\n"
+"\n"
+"The project data may be corrupted.\n"
+"\n"
+"Error: {error}"
+msgstr ""
+
+#: src/zebtrack/core/project/project_lifecycle_manager.py:164
+#, python-brace-format
+msgid ""
+"Unexpected error while saving the project: {path}\n"
+"\n"
+"Please check the folder permissions.\n"
+"\n"
+"Error: {error}"
+msgstr ""
+
+#: src/zebtrack/core/project/project_lifecycle_manager.py:398
+#, python-brace-format
+msgid ""
+"Could not create the project directory: {error}\n"
+"\n"
+"Please check the folder permissions and that the path is valid."
+msgstr ""
+
+#: src/zebtrack/core/project/project_manager.py:829
+msgid "Video not found in the project."
+msgstr ""
+
+#: src/zebtrack/core/project/project_workflow_service.py:129
+#, python-brace-format
+msgid ""
+"The detection mode (det) for animals is only compatible with 1 animal per"
+" aquarium.\n"
+"Current configuration: {count} animals per aquarium.\n"
+"\n"
+"To use multiple animals per aquarium, change the animal detection method "
+"to 'seg' (segmentation) in the settings."
+msgstr ""
+
+#: src/zebtrack/core/project/project_workflow_service.py:1184
+msgid "Default"
+msgstr ""
+
+#: src/zebtrack/core/project/project_workflow_service.py:1328
+msgid "🎉 Project created successfully!"
+msgstr ""
+
+#: src/zebtrack/core/project/project_workflow_service.py:1330
+msgid "📊 Video status:"
+msgstr ""
+
+#: src/zebtrack/core/project/project_workflow_service.py:1331
+#, python-brace-format
+msgid "  • Total videos: {count}"
+msgstr ""
+
+#: src/zebtrack/core/project/project_workflow_service.py:1332
+#, python-brace-format
+msgid "  • With arena defined: {count}"
+msgstr ""
+
+#: src/zebtrack/core/project/project_workflow_service.py:1333
+#, python-brace-format
+msgid "  • With ROIs defined: {count}"
+msgstr ""
+
+#: src/zebtrack/core/project/project_workflow_service.py:1334
+#, python-brace-format
+msgid "  • With trajectory ready: {count}"
+msgstr ""
+
+#: src/zebtrack/core/project/project_workflow_service.py:1335
+#, python-brace-format
+msgid "  • Pending processing: {count}"
+msgstr ""
+
+#: src/zebtrack/core/project/project_workflow_service.py:1337
+msgid "🚀 Recommended next steps:"
+msgstr ""
+
+#: src/zebtrack/core/project/project_workflow_service.py:1343
+#, python-brace-format
+msgid "{step}. Review and adjust the imported zones"
+msgstr ""
+
+#: src/zebtrack/core/project/project_workflow_service.py:1344
+#: src/zebtrack/core/project/project_workflow_service.py:1359
+#: src/zebtrack/core/project/project_workflow_service.py:1367
+#, python-brace-format
+msgid "   - Open the '{tab}' tab"
+msgstr ""
+
+#: src/zebtrack/core/project/project_workflow_service.py:1344
+#: src/zebtrack/ui/components/tab_builder.py:134
+msgid "Zone Configuration"
+msgstr ""
+
+#: src/zebtrack/core/project/project_workflow_service.py:1346
+#, python-brace-format
+msgid "   - Use the '{panel}' panel"
+msgstr ""
+
+#: src/zebtrack/core/project/project_workflow_service.py:1346
+#: src/zebtrack/ui/components/zone_controls.py:693
+msgid "📹 Select Video for Drawing"
+msgstr ""
+
+#: src/zebtrack/core/project/project_workflow_service.py:1349
+#, python-brace-format
+msgid "   - Double-click, or use '{button}', to review"
+msgstr ""
+
+#: src/zebtrack/core/project/project_workflow_service.py:1350
+#: src/zebtrack/ui/components/zone_controls.py:763
+msgid "📹 Load Frame from the Selected Video"
+msgstr ""
+
+#: src/zebtrack/core/project/project_workflow_service.py:1353
+msgid "   - Adjust the arena and the ROIs as needed"
+msgstr ""
+
+#: src/zebtrack/core/project/project_workflow_service.py:1358
+#, python-brace-format
+msgid "{step}. Process the pending videos"
+msgstr ""
+
+#: src/zebtrack/core/project/project_workflow_service.py:1359
+#: src/zebtrack/ui/components/tab_builder.py:61
+msgid "Main Control"
+msgstr ""
+
+#: src/zebtrack/core/project/project_workflow_service.py:1360
+msgid "   - Confirm the processing intervals"
+msgstr ""
+
+#: src/zebtrack/core/project/project_workflow_service.py:1361
+#, python-brace-format
+msgid "   - Click '{button}'"
+msgstr ""
+
+#: src/zebtrack/core/project/project_workflow_service.py:1361
+#: src/zebtrack/ui/components/tab_builder.py:326
+msgid "Process Pending Videos..."
+msgstr ""
+
+#: src/zebtrack/core/project/project_workflow_service.py:1366
+#, python-brace-format
+msgid "{step}. Generate reports"
+msgstr ""
+
+#: src/zebtrack/core/project/project_workflow_service.py:1367
+#: src/zebtrack/ui/builders/analysis_widgets.py:163
+msgid "Processing and Reports"
+msgstr ""
+
+#: src/zebtrack/core/project/project_workflow_service.py:1368
+msgid "   - Browse the hierarchy of groups, days and subjects"
+msgstr ""
+
+#: src/zebtrack/core/project/project_workflow_service.py:1369
+msgid "   - Generate individual or unified reports as needed"
+msgstr ""
+
+#: src/zebtrack/core/project/project_workflow_service.py:1372
+msgid "💡 Tips:"
+msgstr ""
+
+#: src/zebtrack/core/project/project_workflow_service.py:1373
+msgid "  • Use the search box to locate videos quickly"
+msgstr ""
+
+#: src/zebtrack/core/project/project_workflow_service.py:1375
+msgid "  • The status symbols show which arenas, ROIs and trajectories exist"
+msgstr ""
+
+#: src/zebtrack/core/project/project_workflow_service.py:1377
+msgid "  • Adjust the zones before processing if necessary"
+msgstr ""
+
+#: src/zebtrack/core/project/roi_template_manager.py:109
+msgid "Zone data cannot be empty."
+msgstr ""
+
+#: src/zebtrack/core/project/roi_template_manager.py:112
+msgid "Invalid arena: at least 3 points are required."
+msgstr ""
+
+#: src/zebtrack/core/project/roi_template_manager.py:115
+msgid "No ROI available to save."
+msgstr ""
+
+#: src/zebtrack/core/project/roi_template_manager.py:123
+msgid "A project path is required to save a template into the project."
+msgstr ""
+
+#: src/zebtrack/core/project/roi_template_manager.py:129
+msgid "A custom path is required for save_location='custom'."
+msgstr ""
+
+#: src/zebtrack/core/project/roi_template_manager.py:155
+#, python-brace-format
+msgid "Template '{name}' already exists in {directory}."
+msgstr ""
+
+#: src/zebtrack/core/project/roi_template_manager.py:233
+#, python-brace-format
+msgid "Template not found: {path}"
+msgstr ""
+
+#: src/zebtrack/core/project/roi_template_manager.py:253
+#, python-brace-format
+msgid "Invalid JSON in {path}: {error}"
+msgstr ""
+
+#: src/zebtrack/core/project/roi_template_manager.py:260
+#, python-brace-format
+msgid "Invalid template in {path}: {error}"
+msgstr ""
+
+#: src/zebtrack/core/project/zone_manager.py:587
+msgid "Project data not initialised"
+msgstr ""
+
 #: src/zebtrack/core/recording/frame_processing_pipeline.py:684
 #, python-brace-format
 msgid "🔍 Detecting aquarium... ({current}/{total})"
@@ -1549,74 +1910,74 @@ msgstr ""
 msgid "Split into {count} separate sessions"
 msgstr ""
 
-#: src/zebtrack/core/recording/live_camera_mode.py:199
+#: src/zebtrack/core/recording/live_camera_mode.py:197
 msgid "Record without detection (process offline later)"
 msgstr ""
 
-#: src/zebtrack/core/recording/live_camera_mode.py:204
+#: src/zebtrack/core/recording/live_camera_mode.py:202
 #, python-brace-format
 msgid "⚠️ The system does not support {count} aquariums simultaneously."
 msgstr ""
 
-#: src/zebtrack/core/recording/live_camera_mode.py:210
+#: src/zebtrack/core/recording/live_camera_mode.py:208
 msgid "Maximum supported: 1 aquarium."
 msgstr ""
 
-#: src/zebtrack/core/recording/live_camera_mode.py:212
+#: src/zebtrack/core/recording/live_camera_mode.py:210
 #, python-brace-format
 msgid "Maximum supported: {count} aquariums."
 msgstr ""
 
-#: src/zebtrack/core/recording/live_camera_mode.py:230
+#: src/zebtrack/core/recording/live_camera_mode.py:228
 msgid ""
 "The system is not sufficient for real-time processing. Recommended: "
 "record the video and process it offline."
 msgstr ""
 
-#: src/zebtrack/core/recording/live_camera_mode.py:235
+#: src/zebtrack/core/recording/live_camera_mode.py:233
 msgid "⚠️ INSUFFICIENT HARDWARE for real-time detection."
 msgstr ""
 
-#: src/zebtrack/core/recording/live_camera_mode.py:236
+#: src/zebtrack/core/recording/live_camera_mode.py:234
 #, python-brace-format
 msgid "CPU: {cores} cores (minimum 2)"
 msgstr ""
 
-#: src/zebtrack/core/recording/live_camera_mode.py:237
+#: src/zebtrack/core/recording/live_camera_mode.py:235
 #, python-brace-format
 msgid "RAM: {gb:.1f}GB available (minimum 4GB)"
 msgstr ""
 
-#: src/zebtrack/core/recording/live_camera_mode.py:246
+#: src/zebtrack/core/recording/live_camera_mode.py:244
 msgid "Record video without detection (only viable option)"
 msgstr ""
 
-#: src/zebtrack/core/recording/live_camera_mode.py:266
+#: src/zebtrack/core/recording/live_camera_mode.py:264
 msgid "Default mode selected."
 msgstr ""
 
-#: src/zebtrack/core/recording/live_camera_mode.py:292
+#: src/zebtrack/core/recording/live_camera_mode.py:290
 #, python-brace-format
 msgid "Session {index} of {total} (individual aquarium)"
 msgstr ""
 
-#: src/zebtrack/core/recording/live_camera_mode.py:320
+#: src/zebtrack/core/recording/live_camera_mode.py:318
 msgid "Process multiple aquariums simultaneously in real time"
 msgstr ""
 
-#: src/zebtrack/core/recording/live_camera_mode.py:322
+#: src/zebtrack/core/recording/live_camera_mode.py:320
 msgid "Process one aquarium in real time"
 msgstr ""
 
-#: src/zebtrack/core/recording/live_camera_mode.py:323
+#: src/zebtrack/core/recording/live_camera_mode.py:321
 msgid "Record video without detection (process offline later)"
 msgstr ""
 
-#: src/zebtrack/core/recording/live_camera_mode.py:324
+#: src/zebtrack/core/recording/live_camera_mode.py:322
 msgid "Record multiple sessions, one per aquarium"
 msgstr ""
 
-#: src/zebtrack/core/recording/live_camera_mode.py:326
+#: src/zebtrack/core/recording/live_camera_mode.py:324
 msgid "Unknown mode"
 msgstr ""
 
@@ -1645,11 +2006,11 @@ msgstr ""
 msgid "Camera Error"
 msgstr ""
 
-#: src/zebtrack/core/recording/live_session_manager.py:690
+#: src/zebtrack/core/recording/live_session_manager.py:692
 msgid "🔍 Looking for the aquarium..."
 msgstr ""
 
-#: src/zebtrack/core/recording/live_session_manager.py:694
+#: src/zebtrack/core/recording/live_session_manager.py:695
 msgid "⏳ Waiting for video..."
 msgstr ""
 
@@ -1849,10 +2210,6 @@ msgstr ""
 #: src/zebtrack/ui/builders/analysis_widgets.py:62
 #: src/zebtrack/ui/components/analysis_controls.py:167
 msgid "Video Analysis"
-msgstr ""
-
-#: src/zebtrack/ui/builders/analysis_widgets.py:163
-msgid "Processing and Reports"
 msgstr ""
 
 #: src/zebtrack/ui/builders/analysis_widgets.py:205
@@ -5077,16 +5434,8 @@ msgstr ""
 msgid "Video {current} of {total}"
 msgstr ""
 
-#: src/zebtrack/ui/components/tab_builder.py:61
-msgid "Main Control"
-msgstr ""
-
 #: src/zebtrack/ui/components/tab_builder.py:82
 msgid "Close Project"
-msgstr ""
-
-#: src/zebtrack/ui/components/tab_builder.py:134
-msgid "Zone Configuration"
 msgstr ""
 
 #: src/zebtrack/ui/components/tab_builder.py:237
@@ -5109,10 +5458,6 @@ msgstr ""
 
 #: src/zebtrack/ui/components/tab_builder.py:317
 msgid "Add Videos/Folders to the Project..."
-msgstr ""
-
-#: src/zebtrack/ui/components/tab_builder.py:326
-msgid "Process Pending Videos..."
 msgstr ""
 
 #: src/zebtrack/ui/components/validation_manager.py:134
@@ -5527,10 +5872,6 @@ msgid ""
 "other videos of the project."
 msgstr ""
 
-#: src/zebtrack/ui/components/zone_controls.py:693
-msgid "📹 Select Video for Drawing"
-msgstr ""
-
 #: src/zebtrack/ui/components/zone_controls.py:703
 msgid "🔍 Search:"
 msgstr ""
@@ -5546,10 +5887,6 @@ msgstr ""
 
 #: src/zebtrack/ui/components/zone_controls.py:730
 msgid "Data"
-msgstr ""
-
-#: src/zebtrack/ui/components/zone_controls.py:763
-msgid "📹 Load Frame from the Selected Video"
 msgstr ""
 
 #: src/zebtrack/ui/components/zone_controls.py:801

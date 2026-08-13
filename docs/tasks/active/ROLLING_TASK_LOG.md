@@ -41,7 +41,10 @@ no topo do ratchet; depois, atualizar a seção "A migração" em
 - [x] Lote 3a: `core/recording/**` a zero e no ratchet. Dois `_` como descarte
       sombreavam o gettext (`live_session_manager`, `frame_processing_pipeline`)
       — pegos por ruff F823 + mypy, nenhum por leitura.
-- [ ] Lote 3b: `core/project/**` (72 literais em 7 arquivos).
+- [x] Lote 3b: `core/project/**` a zero e no ratchet. O guia pós-criação citava
+      SEIS rótulos de aba/botão retipados à mão, dois deles já errados; agora
+      interpolam o msgid do próprio widget. Mais um `_` descarte quebrando o
+      gettext (asset_manager), pego só pelo mypy.
 - [ ] Lote 3c: `core/services/**` (61 em 7 arquivos).
 - [ ] Lote 3d: `core/video/**`, `core/detection/**`, `core/viewmodels/**` (30 em
       10 arquivos), incluindo simplificar o consumidor de `progress_notifier`

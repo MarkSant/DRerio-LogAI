@@ -28,12 +28,12 @@ def test_roi_template_schema_accepts_rois():
 
 
 def test_roi_template_schema_rejects_missing_data():
-    with pytest.raises(ValueError, match="Template deve conter"):
+    with pytest.raises(ValueError, match="Template must contain"):
         ROITemplateSchema(version=1, name="Test", data={})
 
 
 def test_roi_template_schema_rejects_partial_roi_keys():
-    with pytest.raises(ValueError, match="Template deve conter"):
+    with pytest.raises(ValueError, match="Template must contain"):
         ROITemplateSchema(
             version=1,
             name="Test",
@@ -42,7 +42,7 @@ def test_roi_template_schema_rejects_partial_roi_keys():
 
 
 def test_roi_template_schema_rejects_future_version():
-    with pytest.raises(ValueError, match="não suportado"):
+    with pytest.raises(ValueError, match="is not supported"):
         ROITemplateSchema(version=2, name="Test", data={"polygon": [[0, 0], [1, 0]]})
 
 

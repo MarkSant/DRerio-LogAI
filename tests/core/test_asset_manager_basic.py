@@ -21,7 +21,7 @@ def test_ensure_roi_template_dir(tmp_path):
     assert target.exists()
     assert target.name == "roi_templates"
 
-    with pytest.raises(ValueError, match="Projeto não inicializado"):
+    with pytest.raises(ValueError, match="Project not initialised"):
         AssetManager.ensure_roi_template_dir("")
 
 
@@ -116,7 +116,7 @@ def test_can_remove_asset_summary_dependency():
 
     can_remove, message = manager.can_remove_asset(video_entry, "arena")
     assert can_remove is False
-    assert "Remova os relatórios" in (message or "")
+    assert "Remove the reports and summaries" in (message or "")
 
 
 def test_remove_summary_asset(monkeypatch, tmp_path):

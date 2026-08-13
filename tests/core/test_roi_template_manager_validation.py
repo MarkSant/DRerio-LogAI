@@ -23,11 +23,11 @@ class TestROITemplateValidation:
     """Testes de validação de templates."""
 
     def test_load_template_with_invalid_json(self, roi_manager, tmp_path):
-        """Template com JSON inválido deve falhar."""
+        """A template with invalid JSON must fail."""
         invalid_file = tmp_path / "invalid.json"
         invalid_file.write_text("{invalid json}", encoding="utf-8")
 
-        with pytest.raises(InvalidTemplateError, match="JSON inválido"):
+        with pytest.raises(InvalidTemplateError, match="Invalid JSON"):
             roi_manager.load_template(invalid_file)
 
     def test_load_template_with_missing_fields(self, roi_manager, tmp_path):
@@ -78,7 +78,7 @@ class TestROITemplateValidation:
             encoding="utf-8",
         )
 
-        with pytest.raises(InvalidTemplateError, match="pelo menos arena"):
+        with pytest.raises(InvalidTemplateError, match="at least an arena"):
             roi_manager.load_template(empty_template)
 
         # Caso 2: Template com ROIs incompletas (faltam roi_names e roi_colors)
@@ -97,7 +97,7 @@ class TestROITemplateValidation:
             encoding="utf-8",
         )
 
-        with pytest.raises(InvalidTemplateError, match="pelo menos arena"):
+        with pytest.raises(InvalidTemplateError, match="at least an arena"):
             roi_manager.load_template(incomplete_rois)
 
     def test_load_valid_template_succeeds(self, roi_manager, tmp_path):
