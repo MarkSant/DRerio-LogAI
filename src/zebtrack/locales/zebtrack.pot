@@ -9,7 +9,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: DRerio LogAI VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-08-14 11:34-0300\n"
+"POT-Creation-Date: 2026-08-14 15:49-0300\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -224,7 +224,7 @@ msgstr ""
 #: src/zebtrack/ui/components/validation_manager.py:491
 #: src/zebtrack/ui/components/validation_manager.py:1634
 #: src/zebtrack/ui/gui.py:144 src/zebtrack/ui/gui.py:808
-#: src/zebtrack/ui/wizard/live_config_step.py:862
+#: src/zebtrack/ui/wizard/live_config_step.py:860
 msgid "Error"
 msgstr ""
 
@@ -381,6 +381,7 @@ msgstr ""
 
 #: src/zebtrack/coordinators/_video_selection_mixin.py:224
 #: src/zebtrack/ui/components/model_diagnostics_panel.py:56
+#: src/zebtrack/ui/wizard/detection_step.py:223
 msgid "No video selected."
 msgstr ""
 
@@ -730,19 +731,19 @@ msgstr ""
 
 #: src/zebtrack/coordinators/live_camera_session_coordinator.py:1095
 #: src/zebtrack/coordinators/live_camera_session_coordinator.py:1795
-#: src/zebtrack/coordinators/live_camera_session_coordinator.py:2316
+#: src/zebtrack/coordinators/live_camera_session_coordinator.py:2314
 msgid "Countdown to start the live analysis."
 msgstr ""
 
 #: src/zebtrack/coordinators/live_camera_session_coordinator.py:1097
 #: src/zebtrack/coordinators/live_camera_session_coordinator.py:1797
-#: src/zebtrack/coordinators/live_camera_session_coordinator.py:2318
+#: src/zebtrack/coordinators/live_camera_session_coordinator.py:2316
 msgid "Starting the live analysis."
 msgstr ""
 
 #: src/zebtrack/coordinators/live_camera_session_coordinator.py:1190
 #: src/zebtrack/coordinators/live_camera_session_coordinator.py:1866
-#: src/zebtrack/coordinators/live_camera_session_coordinator.py:2387
+#: src/zebtrack/coordinators/live_camera_session_coordinator.py:2385
 msgid "Live analysis in progress."
 msgstr ""
 
@@ -789,17 +790,17 @@ msgid "External Trigger Unavailable"
 msgstr ""
 
 #: src/zebtrack/coordinators/live_camera_session_coordinator.py:2024
-#: src/zebtrack/coordinators/recording_session_coordinator.py:551
+#: src/zebtrack/coordinators/recording_session_coordinator.py:550
 #, python-brace-format
 msgid "Waiting for external signal... (port {port})"
 msgstr ""
 
-#: src/zebtrack/coordinators/live_camera_session_coordinator.py:2170
+#: src/zebtrack/coordinators/live_camera_session_coordinator.py:2168
 #: src/zebtrack/ui/components/project_initializer.py:347
 msgid "Camera not found"
 msgstr ""
 
-#: src/zebtrack/coordinators/live_camera_session_coordinator.py:2172
+#: src/zebtrack/coordinators/live_camera_session_coordinator.py:2170
 #, python-brace-format
 msgid ""
 "The camera saved in the project ('{name}') was not detected.\n"
@@ -909,7 +910,7 @@ msgid ""
 msgstr ""
 
 #: src/zebtrack/coordinators/model_diagnostics_coordinator.py:742
-#: src/zebtrack/ui/wizard/confirmation_step.py:802
+#: src/zebtrack/ui/wizard/confirmation_step.py:794
 msgid "Error Saving"
 msgstr ""
 
@@ -1656,7 +1657,7 @@ msgid "📊 Video status:"
 msgstr ""
 
 #: src/zebtrack/core/project/project_workflow_service.py:1331
-#: src/zebtrack/ui/wizard/confirmation_step.py:558
+#: src/zebtrack/ui/wizard/confirmation_step.py:554
 #, python-brace-format
 msgid "  • Total videos: {count}"
 msgstr ""
@@ -3283,7 +3284,7 @@ msgid "No project is currently loaded."
 msgstr ""
 
 #: src/zebtrack/ui/components/arduino_dashboard.py:310
-#: src/zebtrack/ui/wizard/live_config_step.py:863
+#: src/zebtrack/ui/wizard/live_config_step.py:861
 msgid ""
 "The pyserial library is not installed.\n"
 "\n"
@@ -3717,7 +3718,8 @@ msgstr ""
 #: src/zebtrack/ui/components/project_model_configuration_panel.py:189
 #: src/zebtrack/ui/components/project_model_configuration_panel.py:378
 #: src/zebtrack/ui/components/weight_hardware_manager.py:145
-#: src/zebtrack/ui/wizard/confirmation_step.py:529
+#: src/zebtrack/ui/wizard/confirmation_step.py:525
+#: src/zebtrack/ui/wizard/detection_step.py:928
 msgid "Enabled"
 msgstr ""
 
@@ -3726,7 +3728,8 @@ msgstr ""
 #: src/zebtrack/ui/components/project_model_configuration_panel.py:191
 #: src/zebtrack/ui/components/project_model_configuration_panel.py:378
 #: src/zebtrack/ui/components/weight_hardware_manager.py:145
-#: src/zebtrack/ui/wizard/confirmation_step.py:529
+#: src/zebtrack/ui/wizard/confirmation_step.py:525
+#: src/zebtrack/ui/wizard/detection_step.py:928
 msgid "Disabled"
 msgstr ""
 
@@ -4301,6 +4304,7 @@ msgid "Optimise with OpenVINO (for Intel hardware)"
 msgstr ""
 
 #: src/zebtrack/ui/components/global_model_configuration_panel.py:281
+#: src/zebtrack/ui/wizard/model_selection_step.py:458
 msgid "OpenVINO device:"
 msgstr ""
 
@@ -5413,6 +5417,7 @@ msgstr ""
 
 #: src/zebtrack/ui/components/processing_reports.py:186
 #: src/zebtrack/ui/components/project_overview.py:137
+#: src/zebtrack/ui/wizard/detection_step.py:149
 msgid "Status"
 msgstr ""
 
@@ -7218,6 +7223,7 @@ msgid "  • Total: {sessions} recordings ({animals} animals)"
 msgstr ""
 
 #: src/zebtrack/ui/wizard/confirmation_step.py:366
+#: src/zebtrack/ui/wizard/detection_step.py:819
 #, python-brace-format
 msgid "  • Groups: {groups}"
 msgstr ""
@@ -7268,288 +7274,304 @@ msgstr ""
 msgid "  • Analysis: every {count} frames"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/confirmation_step.py:417
+#: src/zebtrack/ui/wizard/confirmation_step.py:416
 #, python-brace-format
 msgid "  • Display: every {count} frames"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/confirmation_step.py:425
+#: src/zebtrack/ui/wizard/confirmation_step.py:423
 msgid "🎯 Detection Configuration:"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/confirmation_step.py:431
-#: src/zebtrack/ui/wizard/confirmation_step.py:524
+#: src/zebtrack/ui/wizard/confirmation_step.py:428
+#: src/zebtrack/ui/wizard/confirmation_step.py:520
+#: src/zebtrack/ui/wizard/detection_step.py:923
 #, python-brace-format
 msgid "  • Aquarium weight: {weight}"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/confirmation_step.py:434
-#: src/zebtrack/ui/wizard/confirmation_step.py:526
+#: src/zebtrack/ui/wizard/confirmation_step.py:430
+#: src/zebtrack/ui/wizard/confirmation_step.py:522
+#: src/zebtrack/ui/wizard/detection_step.py:925
 #, python-brace-format
 msgid "  • Animal weight: {weight}"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/confirmation_step.py:452
+#: src/zebtrack/ui/wizard/confirmation_step.py:448
 msgid "🔍 Detected Design:"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/confirmation_step.py:461
+#: src/zebtrack/ui/wizard/confirmation_step.py:457
 #, python-brace-format
 msgid "  • Groups: {count} ({preview}{suffix})"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/confirmation_step.py:467
+#: src/zebtrack/ui/wizard/confirmation_step.py:463
 #, python-brace-format
 msgid "  • Days: {count}"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/confirmation_step.py:469
+#: src/zebtrack/ui/wizard/confirmation_step.py:465
+#: src/zebtrack/ui/wizard/detection_step.py:832
 #, python-brace-format
 msgid "  • Confidence: {value}"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/confirmation_step.py:477
+#: src/zebtrack/ui/wizard/confirmation_step.py:473
+#: src/zebtrack/ui/wizard/detection_step.py:873
 msgid "Groups"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/confirmation_step.py:478
+#: src/zebtrack/ui/wizard/confirmation_step.py:474
+#: src/zebtrack/ui/wizard/detection_step.py:874
 msgid "Days"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/confirmation_step.py:479
+#: src/zebtrack/ui/wizard/confirmation_step.py:475
+#: src/zebtrack/ui/wizard/detection_step.py:875
 msgid "Subjects"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/confirmation_step.py:483
+#: src/zebtrack/ui/wizard/confirmation_step.py:479
 msgid "🧩 Custom Regex:"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/confirmation_step.py:503
+#: src/zebtrack/ui/wizard/confirmation_step.py:499
+#: src/zebtrack/ui/wizard/detection_step.py:42
+#: src/zebtrack/ui/wizard/model_selection_step.py:40
 msgid "Segmentation (seg)"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/confirmation_step.py:504
+#: src/zebtrack/ui/wizard/confirmation_step.py:500
+#: src/zebtrack/ui/wizard/detection_step.py:43
+#: src/zebtrack/ui/wizard/model_selection_step.py:41
 msgid "Detection (det)"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/confirmation_step.py:508
+#: src/zebtrack/ui/wizard/confirmation_step.py:504
 msgid "🎯 Detection Settings:"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/confirmation_step.py:515
+#: src/zebtrack/ui/wizard/confirmation_step.py:511
+#: src/zebtrack/ui/wizard/detection_step.py:915
 #, python-brace-format
 msgid "  • Aquarium method: {method}"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/confirmation_step.py:518
+#: src/zebtrack/ui/wizard/confirmation_step.py:514
+#: src/zebtrack/ui/wizard/detection_step.py:917
 #, python-brace-format
 msgid "  • Animal method: {method}"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/confirmation_step.py:530
+#: src/zebtrack/ui/wizard/confirmation_step.py:526
+#: src/zebtrack/ui/wizard/detection_step.py:929
 #, python-brace-format
 msgid "  • OpenVINO: {status}"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/confirmation_step.py:563
+#: src/zebtrack/ui/wizard/confirmation_step.py:559
 msgid "🌳 Folder Structure (preview):"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/confirmation_step.py:570
+#: src/zebtrack/ui/wizard/confirmation_step.py:566
 msgid "  • (+ 1 additional selection)"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/confirmation_step.py:572
+#: src/zebtrack/ui/wizard/confirmation_step.py:568
 #, python-brace-format
 msgid "  • (+ {count} additional selections)"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/confirmation_step.py:577
+#: src/zebtrack/ui/wizard/confirmation_step.py:573
 msgid "📏 Physical Calibration:"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/confirmation_step.py:583
+#: src/zebtrack/ui/wizard/confirmation_step.py:579
 #, python-brace-format
 msgid "  • Aquariums: {count}"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/confirmation_step.py:585
+#: src/zebtrack/ui/wizard/confirmation_step.py:580
 #, python-brace-format
 msgid "  • Animals per aquarium: {count}"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/confirmation_step.py:588
+#: src/zebtrack/ui/wizard/confirmation_step.py:581
 #, python-brace-format
 msgid "  • Dimensions: {width} x {height} cm"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/confirmation_step.py:593
+#: src/zebtrack/ui/wizard/confirmation_step.py:585
 msgid "⚙️ Processing Plan:"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/confirmation_step.py:605
+#: src/zebtrack/ui/wizard/confirmation_step.py:597
 msgid "Skip (complete data)"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/confirmation_step.py:606
+#: src/zebtrack/ui/wizard/confirmation_step.py:598
 msgid "Import Zones + track"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/confirmation_step.py:607
+#: src/zebtrack/ui/wizard/confirmation_step.py:599
 msgid "Partial (arena only)"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/confirmation_step.py:608
+#: src/zebtrack/ui/wizard/confirmation_step.py:600
 msgid "Full (process from scratch)"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/confirmation_step.py:614
+#: src/zebtrack/ui/wizard/confirmation_step.py:606
 #, python-brace-format
 msgid "  • 1 video: {name}"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/confirmation_step.py:616
+#: src/zebtrack/ui/wizard/confirmation_step.py:608
 #, python-brace-format
 msgid "  • {count} videos: {name}"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/confirmation_step.py:628
+#: src/zebtrack/ui/wizard/confirmation_step.py:620
 #, python-brace-format
 msgid "⏱️ Estimated time: ~{minutes} minutes"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/confirmation_step.py:631
+#: src/zebtrack/ui/wizard/confirmation_step.py:623
 msgid "  (1 video to process)"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/confirmation_step.py:633
+#: src/zebtrack/ui/wizard/confirmation_step.py:625
 #, python-brace-format
 msgid "  ({count} videos to process)"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/confirmation_step.py:645
+#: src/zebtrack/ui/wizard/confirmation_step.py:637
 msgid "📦 Existing Parquets:"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/confirmation_step.py:647
+#: src/zebtrack/ui/wizard/confirmation_step.py:639
 #, python-brace-format
 msgid "  • Scope: {scope}"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/confirmation_step.py:652
+#: src/zebtrack/ui/wizard/confirmation_step.py:644
+#: src/zebtrack/ui/wizard/detection_step.py:796
 #, python-brace-format
 msgid "  • Arena: {count}"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/confirmation_step.py:653
+#: src/zebtrack/ui/wizard/confirmation_step.py:645
+#: src/zebtrack/ui/wizard/detection_step.py:797
 #, python-brace-format
 msgid "  • ROIs: {count}"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/confirmation_step.py:654
+#: src/zebtrack/ui/wizard/confirmation_step.py:646
+#: src/zebtrack/ui/wizard/detection_step.py:799
 #, python-brace-format
 msgid "  • Trajectory: {count}"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/confirmation_step.py:655
+#: src/zebtrack/ui/wizard/confirmation_step.py:647
 #, python-brace-format
 msgid "  • Complete: {count}"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/confirmation_step.py:668
+#: src/zebtrack/ui/wizard/confirmation_step.py:660
 msgid "📥 Import Configuration:"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/confirmation_step.py:672
+#: src/zebtrack/ui/wizard/confirmation_step.py:664
 msgid "  ✅ Arena: 1 video"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/confirmation_step.py:674
+#: src/zebtrack/ui/wizard/confirmation_step.py:666
 #, python-brace-format
 msgid "  ✅ Arena: {count} videos"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/confirmation_step.py:679
+#: src/zebtrack/ui/wizard/confirmation_step.py:671
 msgid "  ✅ ROIs: 1 video"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/confirmation_step.py:681
+#: src/zebtrack/ui/wizard/confirmation_step.py:673
 #, python-brace-format
 msgid "  ✅ ROIs: {count} videos"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/confirmation_step.py:686
+#: src/zebtrack/ui/wizard/confirmation_step.py:678
 msgid "  ✅ Trajectory: 1 video"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/confirmation_step.py:688
+#: src/zebtrack/ui/wizard/confirmation_step.py:680
 #, python-brace-format
 msgid "  ✅ Trajectory: {count} videos"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/confirmation_step.py:703
+#: src/zebtrack/ui/wizard/confirmation_step.py:695
 msgid "Replace existing ROIs"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/confirmation_step.py:704
+#: src/zebtrack/ui/wizard/confirmation_step.py:696
 msgid "Merge (keep both)"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/confirmation_step.py:705
+#: src/zebtrack/ui/wizard/confirmation_step.py:697
 msgid "Manual conflict resolution"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/confirmation_step.py:708
+#: src/zebtrack/ui/wizard/confirmation_step.py:700
 msgid "🔀 ROI Strategy:"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/confirmation_step.py:713
+#: src/zebtrack/ui/wizard/confirmation_step.py:705
 msgid "(selection)"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/confirmation_step.py:721
+#: src/zebtrack/ui/wizard/confirmation_step.py:713
 msgid "1 folder"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/confirmation_step.py:721
+#: src/zebtrack/ui/wizard/confirmation_step.py:713
 #, python-brace-format
 msgid "{count} folders"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/confirmation_step.py:725
+#: src/zebtrack/ui/wizard/confirmation_step.py:717
 msgid "1 file"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/confirmation_step.py:725
+#: src/zebtrack/ui/wizard/confirmation_step.py:717
 #, python-brace-format
 msgid "{count} files"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/confirmation_step.py:728
+#: src/zebtrack/ui/wizard/confirmation_step.py:720
 msgid "empty"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/confirmation_step.py:749
+#: src/zebtrack/ui/wizard/confirmation_step.py:741
 msgid "    … Preview truncated (full details in step 2)"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/confirmation_step.py:757
+#: src/zebtrack/ui/wizard/confirmation_step.py:749
 msgid "Save Template"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/confirmation_step.py:758
+#: src/zebtrack/ui/wizard/confirmation_step.py:750
 msgid "Enter a name for the template:"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/confirmation_step.py:770
+#: src/zebtrack/ui/wizard/confirmation_step.py:762
 msgid "Save Wizard Template"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/confirmation_step.py:772
+#: src/zebtrack/ui/wizard/confirmation_step.py:764
 msgid "Wizard Templates"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/confirmation_step.py:789
+#: src/zebtrack/ui/wizard/confirmation_step.py:781
 #, python-brace-format
 msgid ""
 "Template '{name}' saved successfully!\n"
@@ -7560,11 +7582,11 @@ msgid ""
 "quickly."
 msgstr ""
 
-#: src/zebtrack/ui/wizard/confirmation_step.py:795
+#: src/zebtrack/ui/wizard/confirmation_step.py:787
 msgid "Template Saved"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/confirmation_step.py:804
+#: src/zebtrack/ui/wizard/confirmation_step.py:796
 #, python-brace-format
 msgid ""
 "Could not save the template '{name}'.\n"
@@ -7572,51 +7594,245 @@ msgid ""
 "Check the logs for more details."
 msgstr ""
 
-#: src/zebtrack/ui/wizard/confirmation_step.py:821
+#: src/zebtrack/ui/wizard/confirmation_step.py:812
 msgid "Please enter a name for the project."
 msgstr ""
 
-#: src/zebtrack/ui/wizard/confirmation_step.py:826
+#: src/zebtrack/ui/wizard/confirmation_step.py:817
 msgid ""
 "The project name contains invalid characters. Use only letters, digits, "
 "spaces, '_' and '-'."
 msgstr ""
 
-#: src/zebtrack/ui/wizard/confirmation_step.py:835
+#: src/zebtrack/ui/wizard/confirmation_step.py:826
 msgid "Please select a location for the project."
 msgstr ""
 
-#: src/zebtrack/ui/wizard/confirmation_step.py:838
+#: src/zebtrack/ui/wizard/confirmation_step.py:829
 #, python-brace-format
 msgid "Location does not exist: {location}"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/confirmation_step.py:843
+#: src/zebtrack/ui/wizard/confirmation_step.py:834
 #, python-brace-format
 msgid "No write permission at the location: {location}"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/confirmation_step.py:851
-#: src/zebtrack/ui/wizard/confirmation_step.py:863
+#: src/zebtrack/ui/wizard/confirmation_step.py:842
+#: src/zebtrack/ui/wizard/confirmation_step.py:854
 msgid "The project name is too long for the file system."
 msgstr ""
 
-#: src/zebtrack/ui/wizard/confirmation_step.py:858
+#: src/zebtrack/ui/wizard/confirmation_step.py:849
 #, python-brace-format
 msgid "A file with that name already exists at: {location}"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/confirmation_step.py:874
+#: src/zebtrack/ui/wizard/confirmation_step.py:865
 #, python-brace-format
 msgid "A project with that name already exists at: {location}"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/confirmation_step.py:886
+#: src/zebtrack/ui/wizard/confirmation_step.py:877
 msgid "No video selected. Go back and select videos."
 msgstr ""
 
-#: src/zebtrack/ui/wizard/confirmation_step.py:891
+#: src/zebtrack/ui/wizard/confirmation_step.py:882
 msgid "Configure the camera in the previous step before creating the project."
+msgstr ""
+
+#: src/zebtrack/ui/wizard/detection_step.py:86
+msgid "Waiting for analysis..."
+msgstr ""
+
+#: src/zebtrack/ui/wizard/detection_step.py:96
+msgid "Automatic Design Detection"
+msgstr ""
+
+#: src/zebtrack/ui/wizard/detection_step.py:101
+msgid "Analyzing folder structure and parquet files..."
+msgstr ""
+
+#: src/zebtrack/ui/wizard/detection_step.py:125
+msgid "Detection Results"
+msgstr ""
+
+#: src/zebtrack/ui/wizard/detection_step.py:161
+msgid "Actions"
+msgstr ""
+
+#: src/zebtrack/ui/wizard/detection_step.py:166
+#: src/zebtrack/ui/wizard/detection_step.py:1211
+msgid "🔄 Re-analyze"
+msgstr ""
+
+#: src/zebtrack/ui/wizard/detection_step.py:173
+msgid "✏️ Edit Design"
+msgstr ""
+
+#: src/zebtrack/ui/wizard/detection_step.py:182
+msgid "🔧 Custom Regex"
+msgstr ""
+
+#: src/zebtrack/ui/wizard/detection_step.py:188
+msgid "💡 Tip"
+msgstr ""
+
+#: src/zebtrack/ui/wizard/detection_step.py:194
+msgid ""
+"Automatic detection identifies groups, days and subjects from the folder "
+"structure."
+msgstr ""
+
+#: src/zebtrack/ui/wizard/detection_step.py:215
+msgid "Analyzing (using custom regex)..."
+msgstr ""
+
+#: src/zebtrack/ui/wizard/detection_step.py:217
+msgid "Analyzing..."
+msgstr ""
+
+#: src/zebtrack/ui/wizard/detection_step.py:274
+msgid "Analysis complete!"
+msgstr ""
+
+#: src/zebtrack/ui/wizard/detection_step.py:286
+#, python-brace-format
+msgid "Failed to complete detection: {error}"
+msgstr ""
+
+#: src/zebtrack/ui/wizard/detection_step.py:332
+#, python-brace-format
+msgid ""
+"Experimental design detected!\n"
+"\n"
+"Groups found: {groups}\n"
+"Days: {days}\n"
+"\n"
+"Review or customize the names before continuing."
+msgstr ""
+
+#: src/zebtrack/ui/wizard/detection_step.py:340
+msgid "Design Detected"
+msgstr ""
+
+#: src/zebtrack/ui/wizard/detection_step.py:363
+msgid "Confirmation Required"
+msgstr ""
+
+#: src/zebtrack/ui/wizard/detection_step.py:364
+msgid "Confirm the group names before moving on."
+msgstr ""
+
+#: src/zebtrack/ui/wizard/detection_step.py:792
+#, python-brace-format
+msgid "📊 Videos found: {count}"
+msgstr ""
+
+#: src/zebtrack/ui/wizard/detection_step.py:795
+msgid "📦 Existing Parquet Files:"
+msgstr ""
+
+#: src/zebtrack/ui/wizard/detection_step.py:802
+#, python-brace-format
+msgid "  • Complete (all 3): {count}"
+msgstr ""
+
+#: src/zebtrack/ui/wizard/detection_step.py:808
+msgid "🎯 Experimental Design Detected:"
+msgstr ""
+
+#: src/zebtrack/ui/wizard/detection_step.py:823
+#, python-brace-format
+msgid "  • Days: {days}"
+msgstr ""
+
+#: src/zebtrack/ui/wizard/detection_step.py:828
+#, python-brace-format
+msgid "  • Pattern: {pattern}"
+msgstr ""
+
+#: src/zebtrack/ui/wizard/detection_step.py:840
+msgid "  📋 Subjects per Group:"
+msgstr ""
+
+#: src/zebtrack/ui/wizard/detection_step.py:846
+#, python-brace-format
+msgid "    - {label}: 1 subject"
+msgstr ""
+
+#: src/zebtrack/ui/wizard/detection_step.py:848
+#, python-brace-format
+msgid "    - {label}: {count} subjects"
+msgstr ""
+
+#: src/zebtrack/ui/wizard/detection_step.py:856
+msgid ""
+"⚠️ Experimental design was not detected automatically.\n"
+"\n"
+"Possible causes:\n"
+"  • The folder structure does not follow a recognized pattern\n"
+"  • Group/day names are not detectable (e.g. Grupo1, Day01)\n"
+"\n"
+"You can continue without a detected design, or reorganize the files.\n"
+msgstr ""
+
+#: src/zebtrack/ui/wizard/detection_step.py:863
+msgid "ℹ️ Design detection disabled (exploratory project)."
+msgstr ""
+
+#: src/zebtrack/ui/wizard/detection_step.py:871
+msgid "🧩 Custom regex in use:"
+msgstr ""
+
+#: src/zebtrack/ui/wizard/detection_step.py:898
+msgid "⚙️ Current Detector Configuration:"
+msgstr ""
+
+#: src/zebtrack/ui/wizard/detection_step.py:951
+msgid "Error!"
+msgstr ""
+
+#: src/zebtrack/ui/wizard/detection_step.py:954
+#, python-brace-format
+msgid "❌ Error: {message}"
+msgstr ""
+
+#: src/zebtrack/ui/wizard/detection_step.py:1005
+msgid "Custom regex applied ✓"
+msgstr ""
+
+#: src/zebtrack/ui/wizard/detection_step.py:1009
+msgid "The custom regex found no design; adjust the patterns or edit manually."
+msgstr ""
+
+#: src/zebtrack/ui/wizard/detection_step.py:1015
+msgid "Custom regex removed. Default detection reapplied ✓"
+msgstr ""
+
+#: src/zebtrack/ui/wizard/detection_step.py:1018
+msgid "Default detection reapplied, but no design was found."
+msgstr ""
+
+#: src/zebtrack/ui/wizard/detection_step.py:1136
+msgid "Design edited manually ✓ (custom regex applied)"
+msgstr ""
+
+#: src/zebtrack/ui/wizard/detection_step.py:1138
+msgid "Design edited manually ✓ (default regex)"
+msgstr ""
+
+#: src/zebtrack/ui/wizard/detection_step.py:1150
+msgid "No video was found. Go back and select valid videos."
+msgstr ""
+
+#: src/zebtrack/ui/wizard/detection_step.py:1162
+msgid "Confirm the group names in the editor before moving on."
+msgstr ""
+
+#: src/zebtrack/ui/wizard/detection_step.py:1210
+#, python-brace-format
+msgid "Previous results (use '{button}' to refresh)"
 msgstr ""
 
 #: src/zebtrack/ui/wizard/experimental_design_step.py:154
@@ -7891,77 +8107,77 @@ msgid "Hardware Detection"
 msgstr ""
 
 #: src/zebtrack/ui/wizard/live_config_step.py:695
-#: src/zebtrack/ui/wizard/live_config_step.py:742
+#: src/zebtrack/ui/wizard/live_config_step.py:740
 msgid "Detecting..."
 msgstr ""
 
-#: src/zebtrack/ui/wizard/live_config_step.py:709
+#: src/zebtrack/ui/wizard/live_config_step.py:708
 #, python-brace-format
 msgid "Camera {index}"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/live_config_step.py:720
+#: src/zebtrack/ui/wizard/live_config_step.py:718
 msgid "✓ 1 camera detected"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/live_config_step.py:722
+#: src/zebtrack/ui/wizard/live_config_step.py:720
 #, python-brace-format
 msgid "✓ {count} cameras detected"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/live_config_step.py:735
+#: src/zebtrack/ui/wizard/live_config_step.py:733
 msgid "✗ No camera detected"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/live_config_step.py:762
+#: src/zebtrack/ui/wizard/live_config_step.py:760
 msgid "✓ 1 port detected"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/live_config_step.py:764
+#: src/zebtrack/ui/wizard/live_config_step.py:762
 #, python-brace-format
 msgid "✓ {count} ports detected"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/live_config_step.py:780
+#: src/zebtrack/ui/wizard/live_config_step.py:778
 #, python-brace-format
 msgid "✓ 1 port — using {device}"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/live_config_step.py:782
+#: src/zebtrack/ui/wizard/live_config_step.py:780
 #, python-brace-format
 msgid "✓ {count} ports — using {device}"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/live_config_step.py:799
+#: src/zebtrack/ui/wizard/live_config_step.py:797
 msgid "✗ No port detected"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/live_config_step.py:804
-#: src/zebtrack/ui/wizard/live_config_step.py:860
+#: src/zebtrack/ui/wizard/live_config_step.py:802
+#: src/zebtrack/ui/wizard/live_config_step.py:858
 msgid "✗ pyserial not installed"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/live_config_step.py:814
+#: src/zebtrack/ui/wizard/live_config_step.py:812
 msgid "No Port Selected"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/live_config_step.py:815
+#: src/zebtrack/ui/wizard/live_config_step.py:813
 msgid "Please detect and select an Arduino port first."
 msgstr ""
 
-#: src/zebtrack/ui/wizard/live_config_step.py:825
+#: src/zebtrack/ui/wizard/live_config_step.py:823
 msgid "Testing..."
 msgstr ""
 
-#: src/zebtrack/ui/wizard/live_config_step.py:833
+#: src/zebtrack/ui/wizard/live_config_step.py:831
 msgid "✓ Connection OK"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/live_config_step.py:835
+#: src/zebtrack/ui/wizard/live_config_step.py:833
 msgid "Connection Test"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/live_config_step.py:837
+#: src/zebtrack/ui/wizard/live_config_step.py:835
 #, python-brace-format
 msgid ""
 "Connection to {port} established successfully!\n"
@@ -7969,15 +8185,15 @@ msgid ""
 "The port is reachable and ready to use."
 msgstr ""
 
-#: src/zebtrack/ui/wizard/live_config_step.py:845
+#: src/zebtrack/ui/wizard/live_config_step.py:843
 msgid "✗ Connection failed"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/live_config_step.py:847
+#: src/zebtrack/ui/wizard/live_config_step.py:845
 msgid "Connection Error"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/live_config_step.py:849
+#: src/zebtrack/ui/wizard/live_config_step.py:847
 #, python-brace-format
 msgid ""
 "Could not connect to port {port}.\n"
@@ -7990,15 +8206,15 @@ msgid ""
 "• You have permission to access the port"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/live_config_step.py:868
+#: src/zebtrack/ui/wizard/live_config_step.py:866
 msgid "✗ Unexpected error"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/live_config_step.py:870
+#: src/zebtrack/ui/wizard/live_config_step.py:868
 msgid "Unexpected Error"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/live_config_step.py:871
+#: src/zebtrack/ui/wizard/live_config_step.py:869
 #, python-brace-format
 msgid ""
 "An error occurred while testing the connection:\n"
@@ -8006,11 +8222,11 @@ msgid ""
 "{error}"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/live_config_step.py:905
+#: src/zebtrack/ui/wizard/live_config_step.py:903
 msgid "Aquarium Limit"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/live_config_step.py:907
+#: src/zebtrack/ui/wizard/live_config_step.py:905
 #, python-brace-format
 msgid ""
 "⚠️ Simultaneous recording is limited to 2 aquariums.\n"
@@ -8023,36 +8239,332 @@ msgid ""
 "• Process offline after recording without detection"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/live_config_step.py:918
+#: src/zebtrack/ui/wizard/live_config_step.py:916
 #, python-brace-format
 msgid ""
 "A project with {count} aquariums exceeds the limit of 2 for simultaneous "
 "recording."
 msgstr ""
 
-#: src/zebtrack/ui/wizard/live_config_step.py:928
+#: src/zebtrack/ui/wizard/live_config_step.py:926
 msgid ""
 "Mode selection cancelled. Adjust the number of aquariums or select a "
 "compatible mode."
 msgstr ""
 
-#: src/zebtrack/ui/wizard/live_config_step.py:945
+#: src/zebtrack/ui/wizard/live_config_step.py:943
 #, python-brace-format
 msgid "Error validating data: {error}"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/live_config_step.py:1050
+#: src/zebtrack/ui/wizard/live_config_step.py:1048
 #, python-brace-format
 msgid ""
 "⚠ The template's camera is unavailable — selected '{fallback}'. Please "
 "check."
 msgstr ""
 
-#: src/zebtrack/ui/wizard/live_config_step.py:1086
+#: src/zebtrack/ui/wizard/live_config_step.py:1083
 #, python-brace-format
 msgid ""
 "⚠ The template's port ({port}) is unavailable — select another one or "
 "disable the Arduino."
+msgstr ""
+
+#: src/zebtrack/ui/wizard/model_selection_step.py:54
+msgid "  ⭐ Recommended"
+msgstr ""
+
+#: src/zebtrack/ui/wizard/model_selection_step.py:349
+msgid "Models and Weights"
+msgstr ""
+
+#: src/zebtrack/ui/wizard/model_selection_step.py:355
+msgid ""
+"Adjust how ZebTrack will use each detection model.\n"
+"If you prefer, keep the recommended defaults and move on."
+msgstr ""
+
+#: src/zebtrack/ui/wizard/model_selection_step.py:399
+msgid "Methods and Weights per Role"
+msgstr ""
+
+#: src/zebtrack/ui/wizard/model_selection_step.py:409
+msgid "Aquarium (arena detection)"
+msgstr ""
+
+#: src/zebtrack/ui/wizard/model_selection_step.py:418
+msgid "Animals (tracking)"
+msgstr ""
+
+#: src/zebtrack/ui/wizard/model_selection_step.py:436
+msgid "Acceleration / OpenVINO"
+msgstr ""
+
+#: src/zebtrack/ui/wizard/model_selection_step.py:444
+msgid "Use OpenVINO (requires converting the weight)"
+msgstr ""
+
+#: src/zebtrack/ui/wizard/model_selection_step.py:451
+msgid ""
+"Enable this once the matching OpenVINO model has been converted. It "
+"allows faster inference on compatible CPUs."
+msgstr ""
+
+#: src/zebtrack/ui/wizard/model_selection_step.py:471
+msgid ""
+"AUTO lets OpenVINO choose the target automatically.\n"
+"Pick CPU/GPU/NPU to force the target, when available."
+msgstr ""
+
+#: src/zebtrack/ui/wizard/model_selection_step.py:478
+msgid "Detection Parameters (YOLO)"
+msgstr ""
+
+#: src/zebtrack/ui/wizard/model_selection_step.py:486
+msgid "Minimum confidence (0-1):"
+msgstr ""
+
+#: src/zebtrack/ui/wizard/model_selection_step.py:490
+msgid ""
+"🎯 Minimum Confidence (Confidence Threshold)\n"
+"\n"
+"Filters out detections the model is unsure about.\n"
+"\n"
+"• HIGH value (0.5-0.9): fewer detections, more precise\n"
+"  → Use when: large animals, clear contrast\n"
+"  → Downside: may lose fast-moving animals\n"
+"\n"
+"• LOW value (0.1-0.4): more detections, less precise\n"
+"  → Use when: small animals, low contrast\n"
+"  → Downside: more false positives (noise)\n"
+"\n"
+"💡 Recommended default: 0.25"
+msgstr ""
+
+#: src/zebtrack/ui/wizard/model_selection_step.py:504
+msgid "NMS (overlap, 0-1):"
+msgstr ""
+
+#: src/zebtrack/ui/wizard/model_selection_step.py:508
+msgid ""
+"🔲 NMS - Non-Maximum Suppression\n"
+"\n"
+"Removes duplicate boxes on the same object.\n"
+"\n"
+"• HIGH value (0.6-0.9): allows more overlap\n"
+"  → Use when: animals are very close together\n"
+"  → Downside: several detections on the same animal\n"
+"\n"
+"• LOW value (0.1-0.4): removes overlaps aggressively\n"
+"  → Use when: animals are well separated\n"
+"  → Downside: may merge nearby animals\n"
+"\n"
+"💡 Recommended default: 0.45"
+msgstr ""
+
+#: src/zebtrack/ui/wizard/model_selection_step.py:524
+msgid "Tracking Parameters (ByteTrack)"
+msgstr ""
+
+#: src/zebtrack/ui/wizard/model_selection_step.py:537
+msgid "Use ByteTrack (Recommended)"
+msgstr ""
+
+#: src/zebtrack/ui/wizard/model_selection_step.py:545
+msgid ""
+"Enables the ByteTrack algorithm for robust tracking with a Kalman filter."
+"\n"
+"Recommended for most experiments."
+msgstr ""
+
+#: src/zebtrack/ui/wizard/model_selection_step.py:563
+msgid "Track Threshold (0-1):"
+msgstr ""
+
+#: src/zebtrack/ui/wizard/model_selection_step.py:568
+msgid ""
+"🛤️ Track Threshold\n"
+"\n"
+"Minimum confidence to START or KEEP a trajectory.\n"
+"Low values help keep the trail of animals that are hard to detect.\n"
+"\n"
+"💡 Default: 0.25"
+msgstr ""
+
+#: src/zebtrack/ui/wizard/model_selection_step.py:577
+msgid "Match Threshold (0-1):"
+msgstr ""
+
+#: src/zebtrack/ui/wizard/model_selection_step.py:582
+msgid ""
+"🔗 Match Threshold\n"
+"\n"
+"Tolerance when associating boxes.\n"
+"HIGH values (close to 1.0) are more permissive for fast movement.\n"
+"\n"
+"💡 Default: 0.95 (for fast zebrafish)"
+msgstr ""
+
+#: src/zebtrack/ui/wizard/model_selection_step.py:592
+msgid "Track Buffer (frames):"
+msgstr ""
+
+#: src/zebtrack/ui/wizard/model_selection_step.py:597
+msgid ""
+"🧠 Track Buffer\n"
+"\n"
+"The tracker's memory: how many frames an animal may 'vanish' for before "
+"its ID is forgotten.\n"
+"\n"
+"💡 Default: 90 frames (~3 seconds at 30fps)"
+msgstr ""
+
+#: src/zebtrack/ui/wizard/model_selection_step.py:606
+#: src/zebtrack/ui/wizard/model_selection_step.py:756
+msgid "Max distance (px):"
+msgstr ""
+
+#: src/zebtrack/ui/wizard/model_selection_step.py:611
+msgid ""
+"📏 Maximum Centre Distance\n"
+"\n"
+"The furthest (in pixels) an animal may move between frames and still be "
+"considered the same one, when overlap fails.\n"
+"\n"
+"💡 Default: 200.0 px"
+msgstr ""
+
+#: src/zebtrack/ui/wizard/model_selection_step.py:621
+#: src/zebtrack/ui/wizard/model_selection_step.py:757
+msgid "IoU Threshold (0-1):"
+msgstr ""
+
+#: src/zebtrack/ui/wizard/model_selection_step.py:626
+msgid ""
+"🔳 IoU Threshold\n"
+"\n"
+"Minimum overlap to prefer a box match over a distance match.\n"
+"For small, fast fish, low values work better.\n"
+"\n"
+"💡 Default: 0.1"
+msgstr ""
+
+#: src/zebtrack/ui/wizard/model_selection_step.py:639
+msgid ""
+"📊 Quick Guide:\n"
+"• Track Thresh: ↓ to keep a weak trail\n"
+"• Match Thresh: ↑ to accept abrupt movements\n"
+"• Buffer: ↑ to 'remember' the fish for longer\n"
+"• Distance: ↑ for very fast fish"
+msgstr ""
+
+#: src/zebtrack/ui/wizard/model_selection_step.py:659
+msgid "💡 Tip: adjust ONE parameter at a time (±0.05) and test!"
+msgstr ""
+
+#: src/zebtrack/ui/wizard/model_selection_step.py:674
+#, python-brace-format
+msgid "Current YOLO defaults: confidence {confidence}, NMS {nms}."
+msgstr ""
+
+#: src/zebtrack/ui/wizard/model_selection_step.py:690
+msgid "🔄 Restore Recommended Defaults"
+msgstr ""
+
+#: src/zebtrack/ui/wizard/model_selection_step.py:702
+msgid ""
+"Restores every threshold to its recommended default value.\n"
+"\n"
+"Useful if you have made adjustments and want to start over."
+msgstr ""
+
+#: src/zebtrack/ui/wizard/model_selection_step.py:710
+msgid ""
+"Tip: keep the defaults if you are still setting up the videos. You can "
+"review these values later in the project settings."
+msgstr ""
+
+#: src/zebtrack/ui/wizard/model_selection_step.py:752
+#, python-brace-format
+msgid ""
+"ℹ️ ByteTrack disabled. The system will use a simplified hybrid tracker "
+"that relies only on '{distance}' and '{iou}' to keep the ID stable. Ideal"
+" for 1 animal per aquarium."
+msgstr ""
+
+#: src/zebtrack/ui/wizard/model_selection_step.py:768
+msgid ""
+"💡 ByteTrack uses a Kalman filter to predict positions even when the fish "
+"briefly disappears. Adjust the fields below for more stability."
+msgstr ""
+
+#: src/zebtrack/ui/wizard/model_selection_step.py:795
+msgid ""
+"Segmentation supports several animals per aquarium.\n"
+"Detection is optimized for one animal per aquarium and uses ByteTrack."
+msgstr ""
+
+#: src/zebtrack/ui/wizard/model_selection_step.py:810
+msgid "Select the weight file loaded for this role."
+msgstr ""
+
+#: src/zebtrack/ui/wizard/model_selection_step.py:881
+msgid "❌ Confidence must be between 0 and 1"
+msgstr ""
+
+#: src/zebtrack/ui/wizard/model_selection_step.py:882
+msgid "❌ NMS must be between 0 and 1"
+msgstr ""
+
+#: src/zebtrack/ui/wizard/model_selection_step.py:883
+msgid "❌ Track must be between 0 and 1"
+msgstr ""
+
+#: src/zebtrack/ui/wizard/model_selection_step.py:884
+msgid "❌ Match must be between 0 and 1"
+msgstr ""
+
+#: src/zebtrack/ui/wizard/model_selection_step.py:914
+msgid "❌ Value must be a decimal (e.g. 0.25)"
+msgstr ""
+
+#: src/zebtrack/ui/wizard/model_selection_step.py:1028
+msgid ""
+"⚠️ Detection (det) is recommended for only 1 animal per aquarium. "
+"Consider segmentation (seg) for several animals."
+msgstr ""
+
+#: src/zebtrack/ui/wizard/model_selection_step.py:1189
+msgid "Enter decimal values between 0 and 1 for the parameters."
+msgstr ""
+
+#: src/zebtrack/ui/wizard/model_selection_step.py:1192
+msgid "The confidence parameter must be between 0 and 1."
+msgstr ""
+
+#: src/zebtrack/ui/wizard/model_selection_step.py:1193
+msgid "The NMS parameter must be between 0 and 1."
+msgstr ""
+
+#: src/zebtrack/ui/wizard/model_selection_step.py:1194
+msgid "The track parameter must be between 0 and 1."
+msgstr ""
+
+#: src/zebtrack/ui/wizard/model_selection_step.py:1195
+msgid "The match parameter must be between 0 and 1."
+msgstr ""
+
+#: src/zebtrack/ui/wizard/model_selection_step.py:1203
+msgid ""
+"Select a valid weight for the aquarium. The file must match the chosen "
+"method."
+msgstr ""
+
+#: src/zebtrack/ui/wizard/model_selection_step.py:1211
+msgid ""
+"Select a valid weight for the animals. The file must match the chosen "
+"method."
 msgstr ""
 
 #: src/zebtrack/ui/wizard/templates.py:354

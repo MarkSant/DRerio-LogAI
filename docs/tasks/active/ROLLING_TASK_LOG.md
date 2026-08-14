@@ -79,7 +79,26 @@ no topo do ratchet; depois, atualizar a seção "A migração" em
         mesmo se o aviso fosse exibido. Todas ancoradas no texto real agora.
         Unificados ainda `pyserial não instalado`/`não disponível` (duas
         grafias da mesma falha) e `Total de Vídeos`/`Total de vídeos`.
-  - [ ] 4c: `model_selection_step.py` (41) + `detection_step.py` (28).
+  - [x] 4c: `model_selection_step.py` (41) + `detection_step.py` (28). Os dois
+        arquivos tinham um dict de rótulos em CORPO DE MÓDULO (`_METHOD_LABELS`,
+        `_METHOD_OPTIONS`) — traduzir no lugar congelaria o idioma no import,
+        então viraram função. Três defeitos estruturais em model_selection:
+        (1) `"  ⭐ Recomendado"` era ANEXADO para exibir e RETIRADO de volta por
+        `_strip_annotation()` e pelo `startswith`; traduzir só a exibição
+        colaria o marcador no nome do peso e o `validate()` recusaria um peso
+        escolhido na própria lista. Agora há uma definição só,
+        `_recommended_suffix()`, usada nos três pontos;
+        (2) `_refresh_weight_dropdowns` fazia `rec, _ = ...` DUAS linhas acima de
+        onde o marcador precisa de `_()` — o gettext viraria o segundo item da
+        tupla e seria chamado como função (mais três `name, _ =` em
+        `_default_weight_for_method`);
+        (3) o erro de faixa montava `f"❌ {label.capitalize()} deve estar..."`,
+        capitalizando texto traduzido; virou uma frase pronta por campo.
+        Nos testes, quatro sítios DIRIGIAM o widget com o rótulo em português
+        (`set("Detecção (det)")`); com o rótulo traduzido eles param de resolver
+        e o `hint` ficava vazio — o que fazia
+        `test_animal_method_hint_cleared_for_seg` (que exige hint vazio) passar
+        pelo motivo errado. Agora usam `_method_display()`.
   - [ ] 4d: `discovery_step` (20), `custom_regex_dialog` (19),
         `file_selection_step` (19), `import_config_step` (16),
         `calibration_step` (14), `design_editor_dialog` (9).

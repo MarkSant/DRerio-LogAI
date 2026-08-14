@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING
 import structlog
 
 from zebtrack.core.services.weight_manager import WeightManager
+from zebtrack.i18n import _
 from zebtrack.ui.wizard.base import WizardStep
 from zebtrack.ui.wizard.enums import WizardStepID
 from zebtrack.ui.wizard.templates import format_template_banner
@@ -27,10 +28,31 @@ DEFAULT_TRACK_BUFFER = 150  # Frames to keep lost tracks
 DEFAULT_MAX_CENTER_DISTANCE = 200.0  # Pixels, ~6 body lengths for 30px zebrafish
 DEFAULT_IOU_THRESHOLD = 0.1  # Low for small objects with little overlap
 
-_METHOD_OPTIONS: dict[str, str] = {
-    "seg": "Segmentação (seg)",
-    "det": "Detecção (det)",
-}
+
+def _method_options() -> dict[str, str]:
+    """Map a detector method key to the label shown in the combobox.
+
+    A module-level dict would call _() at import time and freeze the language
+    (see docs/guides/developer/i18n.md). It is also the single source for
+    _method_key_from_label(), which maps the displayed label back to the key --
+    the two must never be able to drift.
+    """
+    return {
+        "seg": _("Segmentation (seg)"),
+        "det": _("Detection (det)"),
+    }
+
+
+def _recommended_suffix() -> str:
+    """Marker appended to the perspective-recommended weight in the dropdown.
+
+    This string is BOTH displayed and parsed back off again: the combobox shows
+    "<weight><suffix>", and _strip_annotation() removes it before the name is
+    validated and stored. Translating the display without the parser would glue
+    the marker onto the weight name, so validate() would reject a weight the
+    user picked from the list. One definition, three call sites.
+    """
+    return _("  ⭐ Recommended")
 
 
 class ModelSelectionStep(WizardStep):
@@ -155,11 +177,12 @@ class ModelSelectionStep(WizardStep):
 
     def _method_display(self, method_key: str | None) -> str:
         """Format method labels for display."""
-        if method_key in _METHOD_OPTIONS:
-            return _METHOD_OPTIONS[method_key]
+        options = _method_options()
+        if method_key in options:
+            return options[method_key]
         if method_key:
             return method_key
-        return _METHOD_OPTIONS["seg"]
+        return options["seg"]
 
     def _recommended_use_bytetrack(self, animal_method: str) -> bool:
         """Return recommended ByteTrack default for current wizard context."""
@@ -282,17 +305,17 @@ class ModelSelectionStep(WizardStep):
     def _default_weight_for_method(self, method_key: str) -> str:
         perspective = self._get_active_perspective()
         if perspective:
-            name, _ = self.weight_manager.get_weight_by_perspective_and_type(
+            name, _details = self.weight_manager.get_weight_by_perspective_and_type(
                 perspective,
                 method_key,
             )
             if name:
                 return name
         if method_key == "seg":
-            name, _ = self.weight_manager.get_default_seg_weight()
+            name, _details = self.weight_manager.get_default_seg_weight()
             return name or (self.seg_weight_names[0] if self.seg_weight_names else "")
         if method_key == "det":
-            name, _ = self.weight_manager.get_default_det_weight()
+            name, _details = self.weight_manager.get_default_det_weight()
             return name or (self.det_weight_names[0] if self.det_weight_names else "")
         return ""
 
@@ -324,14 +347,14 @@ class ModelSelectionStep(WizardStep):
     def build_ui(self) -> None:
         """Build the UI for this step with model selection controls."""
         title_font = tkfont.Font(size=14, weight="bold")
-        title = Label(self, text="Modelos e Pesos", font=title_font)
+        title = Label(self, text=_("Models and Weights"), font=title_font)
         title.pack(pady=(0, 10))
 
         subtitle = Label(
             self,
-            text=(
-                "Ajuste como o ZebTrack utilizará cada modelo de detecção.\n"
-                "Se preferir, mantenha os padrões recomendados e avance."
+            text=_(
+                "Adjust how ZebTrack will use each detection model.\n"
+                "If you prefer, keep the recommended defaults and move on."
             ),
             fg="gray",
             wraplength=560,
@@ -374,7 +397,7 @@ class ModelSelectionStep(WizardStep):
 
         methods_frame = LabelFrame(
             left_column,
-            text="Métodos e Pesos por Função",
+            text=_("Methods and Weights per Role"),
             padx=10,
             pady=5,
         )
@@ -384,7 +407,7 @@ class ModelSelectionStep(WizardStep):
         self._build_method_row(
             parent=methods_frame,
             row=0,
-            title="Aquário (detecção de arena)",
+            title=_("Aquarium (arena detection)"),
             method_var=self.aquarium_method_var,
             weight_var=self.aquarium_weight_var,
             combo_attr="_aquarium_weight_combo",
@@ -393,7 +416,7 @@ class ModelSelectionStep(WizardStep):
         self._build_method_row(
             parent=methods_frame,
             row=1,
-            title="Animais (rastreamento)",
+            title=_("Animals (tracking)"),
             method_var=self.animal_method_var,
             weight_var=self.animal_weight_var,
             combo_attr="_animal_weight_combo",
@@ -411,7 +434,7 @@ class ModelSelectionStep(WizardStep):
 
         acceleration_frame = LabelFrame(
             left_column,
-            text="Aceleração / OpenVINO",
+            text=_("Acceleration / OpenVINO"),
             padx=10,
             pady=5,
         )
@@ -419,19 +442,21 @@ class ModelSelectionStep(WizardStep):
 
         openvino_check = ttk.Checkbutton(
             acceleration_frame,
-            text="Usar OpenVINO (requer conversão do peso)",
+            text=_("Use OpenVINO (requires converting the weight)"),
             variable=self.use_openvino_var,
         )
         openvino_check.pack(anchor="w")
         ToolTip(
             openvino_check,
-            "Ative quando o modelo OpenVINO correspondente já foi convertido."
-            " Permite inferência mais rápida em CPUs compatíveis.",
+            _(
+                "Enable this once the matching OpenVINO model has been converted."
+                " It allows faster inference on compatible CPUs."
+            ),
         )
 
         device_row = ttk.Frame(acceleration_frame)
         device_row.pack(fill="x", pady=(6, 0))
-        ttk.Label(device_row, text="Dispositivo OpenVINO:").pack(side="left")
+        ttk.Label(device_row, text=_("OpenVINO device:")).pack(side="left")
 
         device_combo = ttk.Combobox(
             device_row,
@@ -443,13 +468,15 @@ class ModelSelectionStep(WizardStep):
         device_combo.pack(side="left", padx=(8, 0))
         ToolTip(
             device_combo,
-            "AUTO usa seleção automática do OpenVINO.\n"
-            "Escolha CPU/GPU/NPU para forçar o alvo, quando disponível.",
+            _(
+                "AUTO lets OpenVINO choose the target automatically.\n"
+                "Pick CPU/GPU/NPU to force the target, when available."
+            ),
         )
 
         detector_frame = LabelFrame(
             left_column,
-            text="Parâmetros de Detecção (YOLO)",
+            text=_("Detection Parameters (YOLO)"),
             padx=10,
             pady=5,
         )
@@ -457,37 +484,37 @@ class ModelSelectionStep(WizardStep):
 
         self._build_detector_param_row(
             detector_frame,
-            label="Confiança mínima (0-1):",
+            label=_("Minimum confidence (0-1):"),
             var=self.confidence_var,
             column=0,
-            tooltip=(
-                "🎯 Confiança Mínima (Confidence Threshold)\n\n"
-                "Filtra detecções com baixa certeza do modelo.\n\n"
-                "• Valor ALTO (0.5-0.9): Menos detecções, mais precisas\n"
-                "  → Use quando: Animais grandes, contraste claro\n"
-                "  → Problema: Pode perder animais em movimento rápido\n\n"
-                "• Valor BAIXO (0.1-0.4): Mais detecções, menos precisas\n"
-                "  → Use quando: Animais pequenos, baixo contraste\n"
-                "  → Problema: Mais falsos positivos (ruído)\n\n"
-                "💡 Padrão recomendado: 0.25"
+            tooltip=_(
+                "🎯 Minimum Confidence (Confidence Threshold)\n\n"
+                "Filters out detections the model is unsure about.\n\n"
+                "• HIGH value (0.5-0.9): fewer detections, more precise\n"
+                "  → Use when: large animals, clear contrast\n"
+                "  → Downside: may lose fast-moving animals\n\n"
+                "• LOW value (0.1-0.4): more detections, less precise\n"
+                "  → Use when: small animals, low contrast\n"
+                "  → Downside: more false positives (noise)\n\n"
+                "💡 Recommended default: 0.25"
             ),
             param_key="confidence",
         )
         self._build_detector_param_row(
             detector_frame,
-            label="NMS (sobreposição, 0-1):",
+            label=_("NMS (overlap, 0-1):"),
             var=self.nms_var,
             column=1,
-            tooltip=(
+            tooltip=_(
                 "🔲 NMS - Non-Maximum Suppression\n\n"
-                "Elimina caixas duplicadas no mesmo objeto.\n\n"
-                "• Valor ALTO (0.6-0.9): Permite mais sobreposição\n"
-                "  → Use quando: Animais muito próximos\n"
-                "  → Problema: Múltiplas detecções no mesmo animal\n\n"
-                "• Valor BAIXO (0.1-0.4): Remove sobreposições agressivamente\n"
-                "  → Use quando: Animais bem separados\n"
-                "  → Problema: Pode unir animais próximos\n\n"
-                "💡 Padrão recomendado: 0.45"
+                "Removes duplicate boxes on the same object.\n\n"
+                "• HIGH value (0.6-0.9): allows more overlap\n"
+                "  → Use when: animals are very close together\n"
+                "  → Downside: several detections on the same animal\n\n"
+                "• LOW value (0.1-0.4): removes overlaps aggressively\n"
+                "  → Use when: animals are well separated\n"
+                "  → Downside: may merge nearby animals\n\n"
+                "💡 Recommended default: 0.45"
             ),
             param_key="nms",
         )
@@ -495,7 +522,7 @@ class ModelSelectionStep(WizardStep):
         # ByteTrack Section - positioned in right column to use the guide space
         self._bytetrack_frame = LabelFrame(
             right_column,
-            text="Parâmetros de Rastreamento (ByteTrack)",
+            text=_("Tracking Parameters (ByteTrack)"),
             padx=10,
             pady=8,
         )
@@ -508,15 +535,17 @@ class ModelSelectionStep(WizardStep):
 
         bytetrack_check = ttk.Checkbutton(
             self._bytetrack_frame,
-            text="Usar ByteTrack (Recomendado)",
+            text=_("Use ByteTrack (Recommended)"),
             variable=self.use_bytetrack_var,
             command=self._toggle_bytetrack_options,
         )
         bytetrack_check.grid(row=0, column=0, columnspan=2, sticky="w", pady=(0, 5))
         ToolTip(
             bytetrack_check,
-            "Ativa o algoritmo ByteTrack para rastreamento robusto com Filtro de Kalman.\n"
-            "Recomendado para a maioria dos experimentos.",
+            _(
+                "Enables the ByteTrack algorithm for robust tracking with a Kalman filter.\n"
+                "Recommended for most experiments."
+            ),
         )
 
         self.bytetrack_hint_var = StringVar()
@@ -532,73 +561,73 @@ class ModelSelectionStep(WizardStep):
 
         self._build_detector_param_row(
             self._bytetrack_frame,
-            label="Track Threshold (0-1):",
+            label=_("Track Threshold (0-1):"),
             var=self.track_var,
             column=0,
             row=2,
-            tooltip=(
+            tooltip=_(
                 "🛤️ Track Threshold\n\n"
-                "Confiança mínima para INICIAR ou MANTER uma trajetória.\n"
-                "Valores baixos ajudam a manter o rastro de animais difíceis de detectar.\n\n"
-                "💡 Padrão: 0.25"
+                "Minimum confidence to START or KEEP a trajectory.\n"
+                "Low values help keep the trail of animals that are hard to detect.\n\n"
+                "💡 Default: 0.25"
             ),
             param_key="track",
         )
         self._build_detector_param_row(
             self._bytetrack_frame,
-            label="Match Threshold (0-1):",
+            label=_("Match Threshold (0-1):"),
             var=self.match_var,
             column=1,
             row=2,
-            tooltip=(
+            tooltip=_(
                 "🔗 Match Threshold\n\n"
-                "Tolerância para associação de caixas.\n"
-                "Valores ALTOS (perto de 1.0) são mais permissivos para movimento rápido.\n\n"
-                "💡 Padrão: 0.95 (para zebrafish rápidos)"
+                "Tolerance when associating boxes.\n"
+                "HIGH values (close to 1.0) are more permissive for fast movement.\n\n"
+                "💡 Default: 0.95 (for fast zebrafish)"
             ),
             param_key="match",
         )
 
         self._build_detector_param_row(
             self._bytetrack_frame,
-            label="Track Buffer (frames):",
+            label=_("Track Buffer (frames):"),
             var=self.track_buffer_var,
             column=0,
             row=3,
-            tooltip=(
+            tooltip=_(
                 "🧠 Track Buffer\n\n"
-                "Memória do rastreador: quantos frames um animal pode 'sumir' "
-                "antes que seu ID seja esquecido.\n\n"
-                "💡 Padrão: 90 frames (~3 segundos a 30fps)"
+                "The tracker's memory: how many frames an animal may 'vanish' for "
+                "before its ID is forgotten.\n\n"
+                "💡 Default: 90 frames (~3 seconds at 30fps)"
             ),
             param_key="track_buffer",
         )
         self._build_detector_param_row(
             self._bytetrack_frame,
-            label="Distância Máx (px):",
+            label=_("Max distance (px):"),
             var=self.max_center_dist_var,
             column=1,
             row=3,
-            tooltip=(
-                "📏 Distância Máxima de Centro\n\n"
-                "Distância máxima (em pixels) que o animal pode se mover entre frames "
-                "para ser considerado o mesmo, quando a sobreposição falha.\n\n"
-                "💡 Padrão: 200.0 px"
+            tooltip=_(
+                "📏 Maximum Centre Distance\n\n"
+                "The furthest (in pixels) an animal may move between frames and still "
+                "be considered the same one, when overlap fails.\n\n"
+                "💡 Default: 200.0 px"
             ),
             param_key="max_center_dist",
         )
 
         self._build_detector_param_row(
             self._bytetrack_frame,
-            label="IoU Threshold (0-1):",
+            label=_("IoU Threshold (0-1):"),
             var=self.iou_thresh_var,
             column=0,
             row=4,
-            tooltip=(
+            tooltip=_(
                 "🔳 IoU Threshold\n\n"
-                "Sobreposição mínima para preferir 'Match por Caixa' em vez de distância.\n"
-                "Para peixes pequenos e rápidos, valores baixos são melhores.\n\n"
-                "💡 Padrão: 0.1"
+                "Minimum overlap to prefer a box match over a distance match.\n"
+                "For small, fast fish, low values work better.\n\n"
+                "💡 Default: 0.1"
             ),
             param_key="iou_thresh",
         )
@@ -607,12 +636,12 @@ class ModelSelectionStep(WizardStep):
         guide_separator = ttk.Separator(self._bytetrack_frame, orient="horizontal")
         guide_separator.grid(row=5, column=0, columnspan=2, sticky="ew", pady=(12, 8))
 
-        guide_text = (
-            "📊 Guia Rápido:\n"
-            "• Track Thresh: ↓ para manter rastro fraco\n"
-            "• Match Thresh: ↑ para aceitar movimentos bruscos\n"
-            "• Buffer: ↑ para 'lembrar' do peixe por mais tempo\n"
-            "• Distância: ↑ para peixes muito rápidos"
+        guide_text = _(
+            "📊 Quick Guide:\n"
+            "• Track Thresh: ↓ to keep a weak trail\n"
+            "• Match Thresh: ↑ to accept abrupt movements\n"
+            "• Buffer: ↑ to 'remember' the fish for longer\n"
+            "• Distance: ↑ for very fast fish"
         )
 
         guide_label = Label(
@@ -628,7 +657,7 @@ class ModelSelectionStep(WizardStep):
         # Footer Tip
         tip_label = Label(
             self._bytetrack_frame,
-            text="💡 Dica: Ajuste UM parâmetro por vez (±0.05) e teste!",
+            text=_("💡 Tip: adjust ONE parameter at a time (±0.05) and test!"),
             fg="#006600",
             font=("TkDefaultFont", 9, "bold"),
         )
@@ -643,8 +672,9 @@ class ModelSelectionStep(WizardStep):
 
         defaults_label = Label(
             left_column,
-            text=(
-                f"Padrões atuais YOLO: confiança {display_confidence:.2f}, NMS {display_nms:.2f}."
+            text=_("Current YOLO defaults: confidence {confidence}, NMS {nms}.").format(
+                confidence=f"{display_confidence:.2f}",
+                nms=f"{display_nms:.2f}",
             ),
             fg="#555555",
             wraplength=560,
@@ -658,7 +688,7 @@ class ModelSelectionStep(WizardStep):
 
         restore_btn = Button(
             left_column,
-            text="🔄 Restaurar Padrões Recomendados",
+            text=_("🔄 Restore Recommended Defaults"),
             command=self._restore_default_thresholds,
             bg="#E3F2FD",
             fg="#1565C0",
@@ -669,17 +699,17 @@ class ModelSelectionStep(WizardStep):
         restore_btn.pack(fill="x", padx=10, pady=(5, 0))
         ToolTip(
             restore_btn,
-            (
-                "Restaura todos os thresholds para os valores padrão recomendados.\n\n"
-                "Útil se você fez ajustes e quer voltar ao ponto de partida."
+            _(
+                "Restores every threshold to its recommended default value.\n\n"
+                "Useful if you have made adjustments and want to start over."
             ),
         )
 
         footer = Label(
             left_column,
-            text=(
-                "Dica: mantenha os padrões se ainda estiver configurando os vídeos."
-                " Você pode revisar esses valores depois nas configurações do projeto."
+            text=_(
+                "Tip: keep the defaults if you are still setting up the videos."
+                " You can review these values later in the project settings."
             ),
             fg="#555555",
             wraplength=560,
@@ -719,9 +749,14 @@ class ModelSelectionStep(WizardStep):
 
         if not enabled:
             self.bytetrack_hint_var.set(
-                "ℹ️ ByteTrack desativado. O sistema usará um rastreador híbrido simplificado "
-                "que utiliza apenas 'Distância Máxima' e 'IoU Threshold' para manter o ID estável. "
-                "Ideal para 1 animal/aquário."
+                _(
+                    "ℹ️ ByteTrack disabled. The system will use a simplified hybrid "
+                    "tracker that relies only on '{distance}' and '{iou}' to keep the ID "
+                    "stable. Ideal for 1 animal per aquarium."
+                ).format(
+                    distance=_("Max distance (px):").rstrip(":"),
+                    iou=_("IoU Threshold (0-1):").rstrip(":"),
+                )
             )
             # Re-enable distance and iou for the simple tracker
             for key in ["max_center_dist", "iou_thresh"]:
@@ -730,8 +765,10 @@ class ModelSelectionStep(WizardStep):
                     entry.configure(state="normal")
         else:
             self.bytetrack_hint_var.set(
-                "💡 O ByteTrack usa Filtro de Kalman para prever posições mesmo quando o peixe "
-                "some brevemente. Ajuste os campos abaixo para maior estabilidade."
+                _(
+                    "💡 ByteTrack uses a Kalman filter to predict positions even when the "
+                    "fish briefly disappears. Adjust the fields below for more stability."
+                )
             )
 
     def _build_method_row(
@@ -748,15 +785,17 @@ class ModelSelectionStep(WizardStep):
         method_combo = ttk.Combobox(
             parent,
             textvariable=method_var,
-            values=[label for label in _METHOD_OPTIONS.values()],
+            values=list(_method_options().values()),
             state="readonly",
             width=24,
         )
         method_combo.grid(row=row, column=1, padx=(10, 10), pady=5, sticky="w")
         ToolTip(
             method_combo,
-            "Segmentação suporta múltiplos animais por aquário.\n"
-            "Detecção é otimizada para um animal por aquário e usa ByteTrack.",
+            _(
+                "Segmentation supports several animals per aquarium.\n"
+                "Detection is optimized for one animal per aquarium and uses ByteTrack."
+            ),
         )
 
         weight_combo = ttk.Combobox(
@@ -769,7 +808,7 @@ class ModelSelectionStep(WizardStep):
         weight_combo.grid(row=row, column=2, pady=5, sticky="w")
         ToolTip(
             weight_combo,
-            "Selecione o arquivo de peso carregado para esta função.",
+            _("Select the weight file loaded for this role."),
         )
         setattr(self, combo_attr, weight_combo)
 
@@ -836,17 +875,20 @@ class ModelSelectionStep(WizardStep):
             bool: True if valid, False otherwise
         """
         # Get the StringVar and Entry widget
+        # One finished sentence per field instead of splicing a noun into a
+        # template: capitalising a translated word (the old .capitalize() call)
+        # is not safe across languages, and the Portuguese needs its own wording.
         var_map = {
-            "confidence": (self.confidence_var, "confiança"),
-            "nms": (self.nms_var, "NMS"),
-            "track": (self.track_var, "track"),
-            "match": (self.match_var, "associação"),
+            "confidence": (self.confidence_var, _("❌ Confidence must be between 0 and 1")),
+            "nms": (self.nms_var, _("❌ NMS must be between 0 and 1")),
+            "track": (self.track_var, _("❌ Track must be between 0 and 1")),
+            "match": (self.match_var, _("❌ Match must be between 0 and 1")),
         }
 
         if param_key not in var_map:
             return True
 
-        var, label = var_map[param_key]
+        var, range_error = var_map[param_key]
         entry = self._threshold_entries.get(param_key)
         error_label = self._threshold_error_labels.get(param_key)
 
@@ -870,7 +912,7 @@ class ModelSelectionStep(WizardStep):
                 entry.configure(background="#FFE0E0")  # Light red
             except TclError:
                 log.debug("model_selection.entry_highlight.error", exc_info=True)
-            error_label.configure(text="❌ Valor deve ser decimal (ex: 0.25)")
+            error_label.configure(text=_("❌ Value must be a decimal (e.g. 0.25)"))
             return False
 
         # Check range (0, 1) exclusive
@@ -879,7 +921,7 @@ class ModelSelectionStep(WizardStep):
                 entry.configure(background="#FFE0E0")  # Light red
             except TclError:
                 log.debug("model_selection.entry_highlight_range.error", exc_info=True)
-            error_label.configure(text=f"❌ {label.capitalize()} deve estar entre 0 e 1")
+            error_label.configure(text=range_error)
             return False
 
         # Valid - clear error
@@ -940,7 +982,7 @@ class ModelSelectionStep(WizardStep):
             # Annotate perspective-recommended weights
             recommended_name: str | None = None
             if perspective:
-                rec, _ = self.weight_manager.get_weight_by_perspective_and_type(
+                rec, _details = self.weight_manager.get_weight_by_perspective_and_type(
                     perspective,
                     method_key,
                 )
@@ -949,7 +991,7 @@ class ModelSelectionStep(WizardStep):
             display_options: list[str] = []
             for opt in raw_options:
                 if opt == recommended_name:
-                    display_options.insert(0, f"{opt}  ⭐ Recomendado")
+                    display_options.insert(0, f"{opt}{_recommended_suffix()}")
                 else:
                     display_options.append(opt)
 
@@ -959,7 +1001,7 @@ class ModelSelectionStep(WizardStep):
                 current_weight = weight_var.get()
                 # Check if current value is still valid (strip annotation)
                 valid = any(
-                    current_weight == opt or opt.startswith(current_weight + "  ⭐")
+                    current_weight == opt or opt == current_weight + _recommended_suffix()
                     for opt in display_options
                 )
                 if not valid:
@@ -971,7 +1013,7 @@ class ModelSelectionStep(WizardStep):
                 combo.configure(state="disabled")
 
     def _method_key_from_label(self, label_value: str) -> str:
-        for key, label in _METHOD_OPTIONS.items():
+        for key, label in _method_options().items():
             if label_value == label or label_value == key:
                 return key
         return label_value or "seg"
@@ -982,8 +1024,10 @@ class ModelSelectionStep(WizardStep):
 
         if method_key == "det" and animals_per_aquarium > 1:
             self.animal_method_hint_var.set(
-                "⚠️ Detecção (det) é recomendada para apenas 1 animal por aquário."
-                " Considere segmentação (seg) para múltiplos animais."
+                _(
+                    "⚠️ Detection (det) is recommended for only 1 animal per aquarium."
+                    " Consider segmentation (seg) for several animals."
+                )
             )
         else:
             self.animal_method_hint_var.set("")
@@ -1124,8 +1168,8 @@ class ModelSelectionStep(WizardStep):
     # ------------------------------------------------------------------
     @staticmethod
     def _strip_annotation(value: str) -> str:
-        """Remove the '⭐ Recomendado' suffix from a weight name."""
-        marker = "  ⭐ Recomendado"
+        """Remove the recommended-weight suffix from a weight name."""
+        marker = _recommended_suffix()
         if value.endswith(marker):
             return value[: -len(marker)]
         return value
@@ -1142,20 +1186,28 @@ class ModelSelectionStep(WizardStep):
             track = float(self.track_var.get())
             match = float(self.match_var.get())
         except ValueError:
-            return False, "Informe valores decimais entre 0 e 1 para os parâmetros."
+            return False, _("Enter decimal values between 0 and 1 for the parameters.")
 
-        for label, value in (
-            ("confiança", confidence),
-            ("NMS", nms),
-            ("track", track),
-            ("associação", match),
+        for message, value in (
+            (_("The confidence parameter must be between 0 and 1."), confidence),
+            (_("The NMS parameter must be between 0 and 1."), nms),
+            (_("The track parameter must be between 0 and 1."), track),
+            (_("The match parameter must be between 0 and 1."), match),
         ):
             if not 0.0 < value < 1.0:
-                return False, f"O parâmetro de {label} deve estar entre 0 e 1."
+                return False, message
 
-        for role, method_var, weight_var in (
-            ("aquário", self.aquarium_method_var, self.aquarium_weight_var),
-            ("animais", self.animal_method_var, self.animal_weight_var),
+        for role_message, method_var, weight_var in (
+            (
+                _("Select a valid weight for the aquarium. The file must match the chosen method."),
+                self.aquarium_method_var,
+                self.aquarium_weight_var,
+            ),
+            (
+                _("Select a valid weight for the animals. The file must match the chosen method."),
+                self.animal_method_var,
+                self.animal_weight_var,
+            ),
         ):
             method_key = self._method_key_from_label(method_var.get())
             if method_key == "seg":
@@ -1164,10 +1216,7 @@ class ModelSelectionStep(WizardStep):
                 options = self.det_weight_names
             weight_name = self._strip_annotation(weight_var.get())
             if options and weight_name not in options:
-                return False, (
-                    f"Selecione um peso válido para {role}."
-                    " O arquivo precisa corresponder ao método escolhido."
-                )
+                return False, role_message
 
         return True, ""
 
