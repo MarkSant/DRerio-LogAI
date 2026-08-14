@@ -59,7 +59,26 @@ no topo do ratchet; depois, atualizar a seção "A migração" em
       são persistidos, traduzir só os rótulos exibidos.
   - [x] 4a: `models.py` (inglês fixo, camada de esquema), `wizard_dialog.py`,
         `experimental_design_step.py`.
-  - [ ] 4b: `confirmation_step.py` (55) + `live_config_step.py` (49).
+  - [x] 4b: `confirmation_step.py` (55) + `live_config_step.py` (49), mais dois
+        arquivos que eles arrastaram junto. Quatro defeitos:
+        (1) o resumo obtinha a identidade do template com
+        `.replace('Template carregado: ', '')` sobre o texto RENDERIZADO —
+        traduzir o prefixo deixaria o prefixo dentro do resumo, em silêncio;
+        nasceu `format_template_banner_details()` em `templates.py`;
+        (2) `coordinators/**` já está no ratchet e mesmo assim publicava
+        "Aguardando sinal externo... (porta N)" como status de UI em DOIS
+        arquivos — a frase não tem acento, então o scanner (e o ratchet
+        construído sobre ele) nunca a viu. O tooltip do gatilho externo
+        retipava essa mesma frase como prosa; agora interpola o msgid;
+        (3) `--previous` do Babel enrolava o msgid anterior no meio da string
+        ao gerar o comentário `#|`, produzindo um `.po` que o polib se recusa
+        a ler. `--no-fuzzy-matching` resolve e alinha com o `i18n_pairs.py`,
+        que já jogava fora todo palpite fuzzy do Babel;
+        (4) quatro asserções de teste eram vácuas — `or "Template" in ...`,
+        `or "vazio" in ...` e dois `"indispon" not in ...` que passariam
+        mesmo se o aviso fosse exibido. Todas ancoradas no texto real agora.
+        Unificados ainda `pyserial não instalado`/`não disponível` (duas
+        grafias da mesma falha) e `Total de Vídeos`/`Total de vídeos`.
   - [ ] 4c: `model_selection_step.py` (41) + `detection_step.py` (28).
   - [ ] 4d: `discovery_step` (20), `custom_regex_dialog` (19),
         `file_selection_step` (19), `import_config_step` (16),

@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: DRerio LogAI VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-08-14 10:49-0300\n"
+"POT-Creation-Date: 2026-08-14 11:34-0300\n"
 "PO-Revision-Date: 2026-08-08 21:41-0300\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: pt_BR <LL@li.org>\n"
@@ -259,6 +259,7 @@ msgstr "Vídeo Único"
 #: src/zebtrack/ui/components/validation_manager.py:491
 #: src/zebtrack/ui/components/validation_manager.py:1634
 #: src/zebtrack/ui/gui.py:144 src/zebtrack/ui/gui.py:808
+#: src/zebtrack/ui/wizard/live_config_step.py:862
 msgid "Error"
 msgstr "Erro"
 
@@ -948,7 +949,7 @@ msgstr "Análise concluída."
 
 #: src/zebtrack/coordinators/live_camera_session_coordinator.py:1095
 #: src/zebtrack/coordinators/live_camera_session_coordinator.py:1795
-#: src/zebtrack/coordinators/live_camera_session_coordinator.py:2314
+#: src/zebtrack/coordinators/live_camera_session_coordinator.py:2316
 msgid "Countdown to start the live analysis."
 msgstr "Contagem regressiva para iniciar a análise ao vivo."
 
@@ -956,14 +957,14 @@ msgstr "Contagem regressiva para iniciar a análise ao vivo."
 # | msgid "Single Video Analysis Options"
 #: src/zebtrack/coordinators/live_camera_session_coordinator.py:1097
 #: src/zebtrack/coordinators/live_camera_session_coordinator.py:1797
-#: src/zebtrack/coordinators/live_camera_session_coordinator.py:2316
+#: src/zebtrack/coordinators/live_camera_session_coordinator.py:2318
 msgid "Starting the live analysis."
 msgstr "Iniciando análise ao vivo."
 
 # | msgid "Analysis in Progress"
 #: src/zebtrack/coordinators/live_camera_session_coordinator.py:1190
 #: src/zebtrack/coordinators/live_camera_session_coordinator.py:1866
-#: src/zebtrack/coordinators/live_camera_session_coordinator.py:2385
+#: src/zebtrack/coordinators/live_camera_session_coordinator.py:2387
 msgid "Live analysis in progress."
 msgstr "Análise ao vivo em andamento."
 
@@ -1015,14 +1016,20 @@ msgstr ""
 msgid "External Trigger Unavailable"
 msgstr "Trigger Externo Indisponível"
 
+#: src/zebtrack/coordinators/live_camera_session_coordinator.py:2024
+#: src/zebtrack/coordinators/recording_session_coordinator.py:551
+#, python-brace-format
+msgid "Waiting for external signal... (port {port})"
+msgstr "Aguardando sinal externo... (porta {port})"
+
 # | msgid "Video not found"
 # | msgid "ROI not found"
-#: src/zebtrack/coordinators/live_camera_session_coordinator.py:2168
+#: src/zebtrack/coordinators/live_camera_session_coordinator.py:2170
 #: src/zebtrack/ui/components/project_initializer.py:347
 msgid "Camera not found"
 msgstr "Câmera não encontrada"
 
-#: src/zebtrack/coordinators/live_camera_session_coordinator.py:2170
+#: src/zebtrack/coordinators/live_camera_session_coordinator.py:2172
 #, python-brace-format
 msgid ""
 "The camera saved in the project ('{name}') was not detected.\n"
@@ -1149,6 +1156,7 @@ msgstr ""
 
 # | msgid "Error Saving to Project"
 #: src/zebtrack/coordinators/model_diagnostics_coordinator.py:742
+#: src/zebtrack/ui/wizard/confirmation_step.py:802
 msgid "Error Saving"
 msgstr "Erro ao Salvar"
 
@@ -2080,6 +2088,7 @@ msgstr "📊 Status dos vídeos:"
 # | msgid "Failure: {error}"
 # | msgid "❌ Failures: {count}"
 #: src/zebtrack/core/project/project_workflow_service.py:1331
+#: src/zebtrack/ui/wizard/confirmation_step.py:558
 #, python-brace-format
 msgid "  • Total videos: {count}"
 msgstr "  • Total de vídeos: {count}"
@@ -4069,6 +4078,7 @@ msgid "No project is currently loaded."
 msgstr "Nenhum projeto está carregado no momento."
 
 #: src/zebtrack/ui/components/arduino_dashboard.py:310
+#: src/zebtrack/ui/wizard/live_config_step.py:863
 msgid ""
 "The pyserial library is not installed.\n"
 "\n"
@@ -4615,6 +4625,7 @@ msgstr "💡 Abre o diálogo de Calibração e Detecção."
 #: src/zebtrack/ui/components/project_model_configuration_panel.py:189
 #: src/zebtrack/ui/components/project_model_configuration_panel.py:378
 #: src/zebtrack/ui/components/weight_hardware_manager.py:145
+#: src/zebtrack/ui/wizard/confirmation_step.py:529
 msgid "Enabled"
 msgstr "Ativado"
 
@@ -4623,6 +4634,7 @@ msgstr "Ativado"
 #: src/zebtrack/ui/components/project_model_configuration_panel.py:191
 #: src/zebtrack/ui/components/project_model_configuration_panel.py:378
 #: src/zebtrack/ui/components/weight_hardware_manager.py:145
+#: src/zebtrack/ui/wizard/confirmation_step.py:529
 msgid "Disabled"
 msgstr "Desativado"
 
@@ -8861,8 +8873,516 @@ msgstr "Frame carregado: {name}"
 msgid "Buffer radius must be >= 0"
 msgstr "Raio de buffer deve ser >= 0"
 
+#: src/zebtrack/ui/wizard/confirmation_step.py:88
+msgid "Project Confirmation and Creation"
+msgstr "Confirmação e Criação do Projeto"
+
+#: src/zebtrack/ui/wizard/confirmation_step.py:96
+msgid "Review the settings and create your project."
+msgstr "Revise as configurações e crie seu projeto."
+
+#: src/zebtrack/ui/wizard/confirmation_step.py:123
+msgid "Project Name:"
+msgstr "Nome do Projeto:"
+
+#: src/zebtrack/ui/wizard/confirmation_step.py:140
+msgid "Location:"
+msgstr "Localização:"
+
+#: src/zebtrack/ui/wizard/confirmation_step.py:152
+msgid "Browse..."
+msgstr "Procurar..."
+
+#: src/zebtrack/ui/wizard/confirmation_step.py:158
+msgid "Project Summary"
+msgstr "Resumo do Projeto"
+
+#: src/zebtrack/ui/wizard/confirmation_step.py:189
+msgid "💾 Save as Template"
+msgstr "💾 Salvar como Template"
+
+#: src/zebtrack/ui/wizard/confirmation_step.py:198
+msgid ""
+"💡 Tip: Review every setting before creating the project. You can save it as "
+"a template to reuse later."
+msgstr ""
+"💡 Dica: Verifique todas as configurações antes de criar o projeto. Você pode"
+" salvar como template para reutilizar."
+
+#: src/zebtrack/ui/wizard/confirmation_step.py:243
+#, python-brace-format
+msgid "Experiment_{group}"
+msgstr "Experimento_{group}"
+
+#: src/zebtrack/ui/wizard/confirmation_step.py:245
+msgid "Experimental_Project"
+msgstr "Projeto_Experimental"
+
+#: src/zebtrack/ui/wizard/confirmation_step.py:247
+msgid "Exploratory_Project"
+msgstr "Projeto_Exploratorio"
+
+#: src/zebtrack/ui/wizard/confirmation_step.py:260
+msgid "Select the Project Folder"
+msgstr "Selecione a Pasta do Projeto"
+
+#: src/zebtrack/ui/wizard/confirmation_step.py:318
+msgid "📝 Template Loaded:"
+msgstr "📝 Template Carregado:"
+
+#: src/zebtrack/ui/wizard/confirmation_step.py:323
+#, python-brace-format
+msgid "  • Created at: {value}"
+msgstr "  • Criado em: {value}"
+
+#: src/zebtrack/ui/wizard/confirmation_step.py:326
+#, python-brace-format
+msgid "  • Template version: {value}"
+msgstr "  • Versão do template: {value}"
+
+#: src/zebtrack/ui/wizard/confirmation_step.py:331
+msgid "📋 Project Type:"
+msgstr "📋 Tipo de Projeto:"
+
+#: src/zebtrack/ui/wizard/confirmation_step.py:333
+msgid "Experimental (pre-recorded)"
+msgstr "Experimental (pré-gravado)"
+
+#: src/zebtrack/ui/wizard/confirmation_step.py:334
+msgid "Exploratory (pre-recorded)"
+msgstr "Exploratório (pré-gravado)"
+
+#: src/zebtrack/ui/wizard/confirmation_step.py:335
+msgid "Live (real time)"
+msgstr "Ao Vivo (tempo real)"
+
+#: src/zebtrack/ui/wizard/confirmation_step.py:348
+msgid "🔬 Experimental Design:"
+msgstr "🔬 Design Experimental:"
+
+#: src/zebtrack/ui/wizard/confirmation_step.py:353
+#, python-brace-format
+msgid "  • {groups} groups x {days} days x {subjects} animals/group"
+msgstr "  • {groups} grupos x {days} dias x {subjects} animais/grupo"
+
+#: src/zebtrack/ui/wizard/confirmation_step.py:360
+#, python-brace-format
+msgid "  • Total: {sessions} recordings ({animals} animals)"
+msgstr "  • Total: {sessions} gravações ({animals} animais)"
+
+#: src/zebtrack/ui/wizard/confirmation_step.py:366
+#, python-brace-format
+msgid "  • Groups: {groups}"
+msgstr "  • Grupos: {groups}"
+
+#: src/zebtrack/ui/wizard/confirmation_step.py:370
+msgid "📹 Hardware:"
+msgstr "📹 Hardware:"
+
+#: src/zebtrack/ui/wizard/confirmation_step.py:375
+#, python-brace-format
+msgid "  • Camera: {name} (index {index})"
+msgstr "  • Câmera: {name} (índice {index})"
+
+#: src/zebtrack/ui/wizard/confirmation_step.py:380
+#, python-brace-format
+msgid "  • Camera: index {index}"
+msgstr "  • Câmera: Índice {index}"
+
+#: src/zebtrack/ui/wizard/confirmation_step.py:384
+#, python-brace-format
+msgid "  • Arduino: {port}"
+msgstr "  • Arduino: {port}"
+
+#: src/zebtrack/ui/wizard/confirmation_step.py:386
+msgid "  • Mode: External Trigger ✓"
+msgstr "  • Modo: Gatilho Externo (External Trigger) ✓"
+
+#: src/zebtrack/ui/wizard/confirmation_step.py:391
+msgid "⏱️ Recording Settings:"
+msgstr "⏱️ Configurações de Gravação:"
+
+#: src/zebtrack/ui/wizard/confirmation_step.py:397
+#, python-brace-format
+msgid "  • Timed recording: {minutes}min {seconds}s"
+msgstr "  • Gravação temporizada: {minutes}min {seconds}s"
+
+#: src/zebtrack/ui/wizard/confirmation_step.py:403
+#, python-brace-format
+msgid "  • Countdown: {seconds}s"
+msgstr "  • Contagem regressiva: {seconds}s"
+
+#: src/zebtrack/ui/wizard/confirmation_step.py:410
+msgid "⚙️ Processing Intervals:"
+msgstr "⚙️ Intervalos de Processamento:"
+
+#: src/zebtrack/ui/wizard/confirmation_step.py:413
+#, python-brace-format
+msgid "  • Analysis: every {count} frames"
+msgstr "  • Análise: a cada {count} frames"
+
+#: src/zebtrack/ui/wizard/confirmation_step.py:417
+#, python-brace-format
+msgid "  • Display: every {count} frames"
+msgstr "  • Exibição: a cada {count} frames"
+
+#: src/zebtrack/ui/wizard/confirmation_step.py:425
+msgid "🎯 Detection Configuration:"
+msgstr "🎯 Configuração de Detecção:"
+
+#: src/zebtrack/ui/wizard/confirmation_step.py:431
+#: src/zebtrack/ui/wizard/confirmation_step.py:524
+#, python-brace-format
+msgid "  • Aquarium weight: {weight}"
+msgstr "  • Peso aquário: {weight}"
+
+#: src/zebtrack/ui/wizard/confirmation_step.py:434
+#: src/zebtrack/ui/wizard/confirmation_step.py:526
+#, python-brace-format
+msgid "  • Animal weight: {weight}"
+msgstr "  • Peso animais: {weight}"
+
+#: src/zebtrack/ui/wizard/confirmation_step.py:452
+msgid "🔍 Detected Design:"
+msgstr "🔍 Design Detectado / Design:"
+
+#: src/zebtrack/ui/wizard/confirmation_step.py:461
+#, python-brace-format
+msgid "  • Groups: {count} ({preview}{suffix})"
+msgstr "  • Grupos: {count} ({preview}{suffix})"
+
+#: src/zebtrack/ui/wizard/confirmation_step.py:467
+#, python-brace-format
+msgid "  • Days: {count}"
+msgstr "  • Dias: {count}"
+
+#: src/zebtrack/ui/wizard/confirmation_step.py:469
+#, python-brace-format
+msgid "  • Confidence: {value}"
+msgstr "  • Confiança: {value}"
+
+#: src/zebtrack/ui/wizard/confirmation_step.py:477
+msgid "Groups"
+msgstr "Grupos"
+
+#: src/zebtrack/ui/wizard/confirmation_step.py:478
+msgid "Days"
+msgstr "Dias"
+
+#: src/zebtrack/ui/wizard/confirmation_step.py:479
+msgid "Subjects"
+msgstr "Sujeitos"
+
+#: src/zebtrack/ui/wizard/confirmation_step.py:483
+msgid "🧩 Custom Regex:"
+msgstr "🧩 Regex Personalizada:"
+
+#: src/zebtrack/ui/wizard/confirmation_step.py:503
+msgid "Segmentation (seg)"
+msgstr "Segmentação (seg)"
+
+#: src/zebtrack/ui/wizard/confirmation_step.py:504
+msgid "Detection (det)"
+msgstr "Detecção (det)"
+
+#: src/zebtrack/ui/wizard/confirmation_step.py:508
+msgid "🎯 Detection Settings:"
+msgstr "🎯 Configurações de Detecção:"
+
+#: src/zebtrack/ui/wizard/confirmation_step.py:515
+#, python-brace-format
+msgid "  • Aquarium method: {method}"
+msgstr "  • Método aquário: {method}"
+
+#: src/zebtrack/ui/wizard/confirmation_step.py:518
+#, python-brace-format
+msgid "  • Animal method: {method}"
+msgstr "  • Método animais: {method}"
+
+#: src/zebtrack/ui/wizard/confirmation_step.py:530
+#, python-brace-format
+msgid "  • OpenVINO: {status}"
+msgstr "  • OpenVINO: {status}"
+
+#: src/zebtrack/ui/wizard/confirmation_step.py:563
+msgid "🌳 Folder Structure (preview):"
+msgstr "🌳 Estrutura de Pastas (prévia):"
+
+#: src/zebtrack/ui/wizard/confirmation_step.py:570
+msgid "  • (+ 1 additional selection)"
+msgstr "  • (+ 1 seleção adicional)"
+
+#: src/zebtrack/ui/wizard/confirmation_step.py:572
+#, python-brace-format
+msgid "  • (+ {count} additional selections)"
+msgstr "  • (+ {count} seleções adicionais)"
+
+#: src/zebtrack/ui/wizard/confirmation_step.py:577
+msgid "📏 Physical Calibration:"
+msgstr "📏 Calibração Física:"
+
+#: src/zebtrack/ui/wizard/confirmation_step.py:583
+#, python-brace-format
+msgid "  • Aquariums: {count}"
+msgstr "  • Aquários: {count}"
+
+#: src/zebtrack/ui/wizard/confirmation_step.py:585
+#, python-brace-format
+msgid "  • Animals per aquarium: {count}"
+msgstr "  • Animais por aquário: {count}"
+
+#: src/zebtrack/ui/wizard/confirmation_step.py:588
+#, python-brace-format
+msgid "  • Dimensions: {width} x {height} cm"
+msgstr "  • Dimensões: {width} x {height} cm"
+
+#: src/zebtrack/ui/wizard/confirmation_step.py:593
+msgid "⚙️ Processing Plan:"
+msgstr "⚙️ Plano de Processamento:"
+
+#: src/zebtrack/ui/wizard/confirmation_step.py:605
+msgid "Skip (complete data)"
+msgstr "Skip (dados completos)"
+
+#: src/zebtrack/ui/wizard/confirmation_step.py:606
+msgid "Import Zones + track"
+msgstr "Import Zones + rastrear"
+
+#: src/zebtrack/ui/wizard/confirmation_step.py:607
+msgid "Partial (arena only)"
+msgstr "Partial (arena apenas)"
+
+#: src/zebtrack/ui/wizard/confirmation_step.py:608
+msgid "Full (process from scratch)"
+msgstr "Full (processar do zero)"
+
+#: src/zebtrack/ui/wizard/confirmation_step.py:614
+#, python-brace-format
+msgid "  • 1 video: {name}"
+msgstr "  • 1 vídeo: {name}"
+
+#: src/zebtrack/ui/wizard/confirmation_step.py:616
+#, python-brace-format
+msgid "  • {count} videos: {name}"
+msgstr "  • {count} vídeos: {name}"
+
+#: src/zebtrack/ui/wizard/confirmation_step.py:628
+#, python-brace-format
+msgid "⏱️ Estimated time: ~{minutes} minutes"
+msgstr "⏱️ Tempo Estimado: ~{minutes} minutos"
+
+#: src/zebtrack/ui/wizard/confirmation_step.py:631
+msgid "  (1 video to process)"
+msgstr "  (1 vídeo para processar)"
+
+#: src/zebtrack/ui/wizard/confirmation_step.py:633
+#, python-brace-format
+msgid "  ({count} videos to process)"
+msgstr "  ({count} vídeos para processar)"
+
+#: src/zebtrack/ui/wizard/confirmation_step.py:645
+msgid "📦 Existing Parquets:"
+msgstr "📦 Parquets Existentes:"
+
+#: src/zebtrack/ui/wizard/confirmation_step.py:647
+#, python-brace-format
+msgid "  • Scope: {scope}"
+msgstr "  • Escopo: {scope}"
+
+#: src/zebtrack/ui/wizard/confirmation_step.py:652
+#, python-brace-format
+msgid "  • Arena: {count}"
+msgstr "  • Arena: {count}"
+
+#: src/zebtrack/ui/wizard/confirmation_step.py:653
+#, python-brace-format
+msgid "  • ROIs: {count}"
+msgstr "  • ROIs: {count}"
+
+#: src/zebtrack/ui/wizard/confirmation_step.py:654
+#, python-brace-format
+msgid "  • Trajectory: {count}"
+msgstr "  • Trajetória: {count}"
+
+#: src/zebtrack/ui/wizard/confirmation_step.py:655
+#, python-brace-format
+msgid "  • Complete: {count}"
+msgstr "  • Completos: {count}"
+
+#: src/zebtrack/ui/wizard/confirmation_step.py:668
+msgid "📥 Import Configuration:"
+msgstr "📥 Configuração de Importação:"
+
+#: src/zebtrack/ui/wizard/confirmation_step.py:672
+msgid "  ✅ Arena: 1 video"
+msgstr "  ✅ Arena: 1 vídeo"
+
+#: src/zebtrack/ui/wizard/confirmation_step.py:674
+#, python-brace-format
+msgid "  ✅ Arena: {count} videos"
+msgstr "  ✅ Arena: {count} vídeos"
+
+#: src/zebtrack/ui/wizard/confirmation_step.py:679
+msgid "  ✅ ROIs: 1 video"
+msgstr "  ✅ ROIs: 1 vídeo"
+
+#: src/zebtrack/ui/wizard/confirmation_step.py:681
+#, python-brace-format
+msgid "  ✅ ROIs: {count} videos"
+msgstr "  ✅ ROIs: {count} vídeos"
+
+#: src/zebtrack/ui/wizard/confirmation_step.py:686
+msgid "  ✅ Trajectory: 1 video"
+msgstr "  ✅ Trajetória: 1 vídeo"
+
+#: src/zebtrack/ui/wizard/confirmation_step.py:688
+#, python-brace-format
+msgid "  ✅ Trajectory: {count} videos"
+msgstr "  ✅ Trajetória: {count} vídeos"
+
+#: src/zebtrack/ui/wizard/confirmation_step.py:703
+msgid "Replace existing ROIs"
+msgstr "Substituir ROIs existentes"
+
+#: src/zebtrack/ui/wizard/confirmation_step.py:704
+msgid "Merge (keep both)"
+msgstr "Mesclar (manter ambos)"
+
+#: src/zebtrack/ui/wizard/confirmation_step.py:705
+msgid "Manual conflict resolution"
+msgstr "Resolução manual de conflitos"
+
+#: src/zebtrack/ui/wizard/confirmation_step.py:708
+msgid "🔀 ROI Strategy:"
+msgstr "🔀 Estratégia de ROIs:"
+
+#: src/zebtrack/ui/wizard/confirmation_step.py:713
+msgid "(selection)"
+msgstr "(seleção)"
+
+#: src/zebtrack/ui/wizard/confirmation_step.py:721
+msgid "1 folder"
+msgstr "1 pasta"
+
+#: src/zebtrack/ui/wizard/confirmation_step.py:721
+#, python-brace-format
+msgid "{count} folders"
+msgstr "{count} pastas"
+
+#: src/zebtrack/ui/wizard/confirmation_step.py:725
+msgid "1 file"
+msgstr "1 arquivo"
+
+#: src/zebtrack/ui/wizard/confirmation_step.py:725
+#, python-brace-format
+msgid "{count} files"
+msgstr "{count} arquivos"
+
+#: src/zebtrack/ui/wizard/confirmation_step.py:728
+msgid "empty"
+msgstr "vazio"
+
+#: src/zebtrack/ui/wizard/confirmation_step.py:749
+msgid "    … Preview truncated (full details in step 2)"
+msgstr "    … Prévia limitada (detalhes completos na etapa 2)"
+
+#: src/zebtrack/ui/wizard/confirmation_step.py:757
+msgid "Save Template"
+msgstr "Salvar Template"
+
+#: src/zebtrack/ui/wizard/confirmation_step.py:758
+msgid "Enter a name for the template:"
+msgstr "Digite um nome para o template:"
+
+#: src/zebtrack/ui/wizard/confirmation_step.py:770
+msgid "Save Wizard Template"
+msgstr "Salvar Template do Wizard"
+
+#: src/zebtrack/ui/wizard/confirmation_step.py:772
+msgid "Wizard Templates"
+msgstr "Templates do Wizard"
+
+#: src/zebtrack/ui/wizard/confirmation_step.py:789
+#, python-brace-format
+msgid ""
+"Template '{name}' saved successfully!\n"
+"\n"
+"File: {path}\n"
+"\n"
+"You will be able to load this template later to create similar projects quickly."
+msgstr ""
+"Template '{name}' salvo com sucesso!\n"
+"\n"
+"Arquivo: {path}\n"
+"\n"
+"Você poderá carregar este template no futuro para criar projetos similares rapidamente."
+
+#: src/zebtrack/ui/wizard/confirmation_step.py:795
+msgid "Template Saved"
+msgstr "Template Salvo"
+
+#: src/zebtrack/ui/wizard/confirmation_step.py:804
+#, python-brace-format
+msgid ""
+"Could not save the template '{name}'.\n"
+"\n"
+"Check the logs for more details."
+msgstr ""
+"Não foi possível salvar o template '{name}'.\n"
+"\n"
+"Verifique os logs para mais detalhes."
+
+#: src/zebtrack/ui/wizard/confirmation_step.py:821
+msgid "Please enter a name for the project."
+msgstr "Por favor, informe um nome para o projeto."
+
+#: src/zebtrack/ui/wizard/confirmation_step.py:826
+msgid ""
+"The project name contains invalid characters. Use only letters, digits, "
+"spaces, '_' and '-'."
+msgstr ""
+"Nome do projeto contém caracteres inválidos. Use apenas letras, números, "
+"espaços, '_' e '-'."
+
+#: src/zebtrack/ui/wizard/confirmation_step.py:835
+msgid "Please select a location for the project."
+msgstr "Por favor, selecione uma localização para o projeto."
+
+#: src/zebtrack/ui/wizard/confirmation_step.py:838
+#, python-brace-format
+msgid "Location does not exist: {location}"
+msgstr "Localização não existe: {location}"
+
+#: src/zebtrack/ui/wizard/confirmation_step.py:843
+#, python-brace-format
+msgid "No write permission at the location: {location}"
+msgstr "Sem permissão de escrita na localização: {location}"
+
+#: src/zebtrack/ui/wizard/confirmation_step.py:851
+#: src/zebtrack/ui/wizard/confirmation_step.py:863
+msgid "The project name is too long for the file system."
+msgstr "Nome do projeto é muito longo para o sistema de arquivos."
+
+#: src/zebtrack/ui/wizard/confirmation_step.py:858
+#, python-brace-format
+msgid "A file with that name already exists at: {location}"
+msgstr "Já existe um arquivo com esse nome em: {location}"
+
+#: src/zebtrack/ui/wizard/confirmation_step.py:874
+#, python-brace-format
+msgid "A project with that name already exists at: {location}"
+msgstr "Já existe um projeto com esse nome em: {location}"
+
+#: src/zebtrack/ui/wizard/confirmation_step.py:886
+msgid "No video selected. Go back and select videos."
+msgstr "Nenhum vídeo selecionado. Volte e selecione vídeos."
+
+#: src/zebtrack/ui/wizard/confirmation_step.py:891
+msgid "Configure the camera in the previous step before creating the project."
+msgstr "Configure a câmera na etapa anterior antes de criar o projeto."
+
+# | msgid "Invalid Configuration"
 #: src/zebtrack/ui/wizard/experimental_design_step.py:154
-#| msgid "Invalid Configuration"
 msgid "Experimental Design Configuration"
 msgstr "Configuração do Design Experimental"
 
@@ -8872,8 +9392,8 @@ msgstr "Configure a estrutura do seu experimento ao vivo"
 
 # | msgid "Global Model Configuration..."
 # | msgid "Model Configuration"
+# | msgid "Zone Configuration"
 #: src/zebtrack/ui/wizard/experimental_design_step.py:174
-#| msgid "Zone Configuration"
 msgid "Basic Configuration"
 msgstr "Configuração Básica"
 
@@ -8882,8 +9402,8 @@ msgid "Experiment Duration (days):"
 msgstr "Duração do Experimento (dias):"
 
 # | msgid "Day"
+# | msgid "day"
 #: src/zebtrack/ui/wizard/experimental_design_step.py:199
-#| msgid "day"
 msgid "days"
 msgstr "dias"
 
@@ -8914,8 +9434,8 @@ msgstr ""
 "Isso afeta a organização dos arquivos de saída."
 
 # | msgid "Analysis in Progress"
+# | msgid "Analysis Error"
 #: src/zebtrack/ui/wizard/experimental_design_step.py:218
-#| msgid "Analysis Error"
 msgid "Animals per Group:"
 msgstr "Animais por Grupo:"
 
@@ -8923,22 +9443,22 @@ msgstr "Animais por Grupo:"
 msgid "animals/group"
 msgstr "animais/grupo"
 
+# | msgid "No Group"
 #: src/zebtrack/ui/wizard/experimental_design_step.py:252
-#| msgid "No Group"
 msgid "Number of Groups:"
 msgstr "Número de Grupos:"
 
 # | msgid "No Group"
 # | msgid "Group"
+# | msgid "group"
 #: src/zebtrack/ui/wizard/experimental_design_step.py:271
-#| msgid "group"
 msgid "groups"
 msgstr "grupos"
 
 # | msgid "Weight Type"
 # | msgid "Weight Name"
+# | msgid "ROI Name"
 #: src/zebtrack/ui/wizard/experimental_design_step.py:308
-#| msgid "ROI Name"
 msgid "Group Names"
 msgstr "Nomes dos Grupos"
 
@@ -8973,24 +9493,440 @@ msgstr ""
 msgid "📊 Total: {sessions} recordings ({animals} animals x {days} days)"
 msgstr "📊 Total: {sessions} gravações ({animals} animais x {days} dias)"
 
+#: src/zebtrack/ui/wizard/live_config_step.py:159
+msgid "Live Recording Configuration"
+msgstr "Configuração de Gravação ao Vivo"
+
+#: src/zebtrack/ui/wizard/live_config_step.py:164
+msgid "Set up the camera and the recording options for the live project."
+msgstr "Configure a câmera e as opções de gravação para o projeto ao vivo."
+
+#: src/zebtrack/ui/wizard/live_config_step.py:181
+msgid "Camera Configuration"
+msgstr "Configuração de Câmera"
+
+#: src/zebtrack/ui/wizard/live_config_step.py:190
+msgid "Select Camera:"
+msgstr "Selecionar Câmera:"
+
+#: src/zebtrack/ui/wizard/live_config_step.py:204
+msgid "Select the camera for live recording."
+msgstr "Selecione a câmera para gravação ao vivo."
+
+#: src/zebtrack/ui/wizard/live_config_step.py:209
+msgid "🔍 Detect Cameras"
+msgstr "🔍 Detectar Câmeras"
+
+#: src/zebtrack/ui/wizard/live_config_step.py:219
+msgid "Arduino Configuration (Optional)"
+msgstr "Configuração de Arduino (Opcional)"
+
+#: src/zebtrack/ui/wizard/live_config_step.py:227
+msgid "Use Arduino for synchronization"
+msgstr "Usar Arduino para sincronização"
+
+#: src/zebtrack/ui/wizard/live_config_step.py:234
+msgid "Enable Arduino to synchronize external events with the recording."
+msgstr "Habilitar Arduino para sincronizar eventos externos com a gravação."
+
+#: src/zebtrack/ui/wizard/live_config_step.py:243
+msgid "Arduino Port:"
+msgstr "Porta do Arduino:"
+
+#: src/zebtrack/ui/wizard/live_config_step.py:259
+msgid "🔍 Detect"
+msgstr "🔍 Detectar"
+
+#: src/zebtrack/ui/wizard/live_config_step.py:268
+msgid "🔌 Test"
+msgstr "🔌 Testar"
+
+#: src/zebtrack/ui/wizard/live_config_step.py:281
+msgid "External Trigger Mode"
+msgstr "Modo de Gatilho Externo (External Trigger)"
+
+#: src/zebtrack/ui/wizard/live_config_step.py:289
+#, python-brace-format
+msgid ""
+"External Trigger Mode\n"
+"\n"
+"What starts the recording becomes the Arduino, not the operator.\n"
+"\n"
+"When a session starts the app does NOT record straight away: it shows '{waiting}' and stays idle until the Arduino sends code 1 over the serial line. Code 0 ends the recording.\n"
+"\n"
+"Useful to synchronize the start with a stimulus, a gate or another instrument.\n"
+"\n"
+"Requires a connected Arduino and the port selected above — without them the session is refused, not started blind."
+msgstr ""
+"Modo de Gatilho Externo\n"
+"\n"
+"Quem dá a partida na gravação passa a ser o Arduino, não o operador.\n"
+"\n"
+"Ao iniciar uma sessão, o app NÃO grava de imediato: ele exibe '{waiting}' e fica parado até o Arduino enviar o código 1 pela serial. O código 0 encerra a gravação.\n"
+"\n"
+"Útil para sincronizar o início com um estímulo, um portão ou outro equipamento.\n"
+"\n"
+"Requer Arduino conectado e a porta selecionada acima — sem isso a sessão é recusada, não iniciada às cegas."
+
+#: src/zebtrack/ui/wizard/live_config_step.py:299
+msgid "Waiting for external signal"
+msgstr "Aguardando sinal externo"
+
+#: src/zebtrack/ui/wizard/live_config_step.py:305
+msgid "Recording Settings"
+msgstr "Configurações de Gravação"
+
+#: src/zebtrack/ui/wizard/live_config_step.py:314
+msgid "Use timed recording"
+msgstr "Usar gravação temporizada"
+
+#: src/zebtrack/ui/wizard/live_config_step.py:322
+msgid ""
+"Enable recording with a fixed duration (stops automatically after the "
+"specified time)."
+msgstr ""
+"Habilitar gravação com duração fixa (desliga automaticamente após o tempo "
+"especificado)."
+
+#: src/zebtrack/ui/wizard/live_config_step.py:332
+msgid "Recording duration (seconds):"
+msgstr "Duração da gravação (segundos):"
+
+#: src/zebtrack/ui/wizard/live_config_step.py:344
+msgid "Total recording duration in seconds (e.g. 300 = 5 minutes)."
+msgstr "Duração total da gravação em segundos (ex: 300 = 5 minutos)."
+
+#: src/zebtrack/ui/wizard/live_config_step.py:350
+msgid "Use a countdown before starting"
+msgstr "Usar contagem regressiva antes de iniciar"
+
+#: src/zebtrack/ui/wizard/live_config_step.py:357
+msgid "Show a countdown before starting the recording."
+msgstr "Mostrar contagem regressiva antes de iniciar a gravação."
+
+#: src/zebtrack/ui/wizard/live_config_step.py:365
+msgid "Countdown duration (seconds):"
+msgstr "Duração da contagem (segundos):"
+
+#: src/zebtrack/ui/wizard/live_config_step.py:379
+msgid "Countdown duration in seconds."
+msgstr "Duração da contagem regressiva em segundos."
+
+#: src/zebtrack/ui/wizard/live_config_step.py:388
+msgid "⚙️ Advanced Processing Settings"
+msgstr "⚙️ Configurações Avançadas de Processamento"
+
+#: src/zebtrack/ui/wizard/live_config_step.py:397
+msgid "Preserve the real aquarium shape (segmentation)"
+msgstr "Preservar formato real do aquário (segmentação)"
+
+#: src/zebtrack/ui/wizard/live_config_step.py:404
+msgid ""
+"Preserve the real aquarium shape\n"
+"\n"
+"When enabled, keeps the real polygon (N vertices) detected by the YOLO segmentation mask instead of reducing the aquarium to a 4-corner rectangle.\n"
+"\n"
+"Recommended for circular, hexagonal or irregularly shaped aquariums. Requires a segmentation (seg) model — for detection (det) models this option is ignored."
+msgstr ""
+"Preservar formato real do aquário\n"
+"\n"
+"Quando habilitado, mantém o polígono real (N vértices) detectado pela máscara de segmentação YOLO, em vez de reduzir o aquário a um retângulo de 4 cantos.\n"
+"\n"
+"Recomendado para aquários circulares, hexagonais ou de formato irregular. Requer um modelo de segmentação (seg) — para modelos de detecção (det) esta opção é ignorada."
+
+#: src/zebtrack/ui/wizard/live_config_step.py:417
+msgid "About Live Projects"
+msgstr "Sobre Projetos ao Vivo"
+
+#: src/zebtrack/ui/wizard/live_config_step.py:426
+msgid ""
+"Live projects record straight from the camera in real time.\n"
+"\n"
+"• The camera must be connected before creating the project\n"
+"• Arduino is optional and used to synchronize external events\n"
+"• Timed recording stops automatically after the specified time\n"
+"• A countdown gives you time to prepare the experiment\n"
+"\n"
+"💡 Tip: Test the camera before starting the project to make sure it is working."
+msgstr ""
+"Projetos ao vivo gravam diretamente da câmera em tempo real.\n"
+"\n"
+"• A câmera deve estar conectada antes de criar o projeto\n"
+"• Arduino é opcional e usado para sincronizar eventos externos\n"
+"• Gravação temporizada desliga automaticamente após o tempo especificado\n"
+"• Contagem regressiva dá tempo para preparar o experimento\n"
+"\n"
+"💡 Dica: Teste a câmera antes de iniciar o projeto para garantir que está funcionando."
+
+#: src/zebtrack/ui/wizard/live_config_step.py:538
+#, python-brace-format
+msgid ""
+"Hardware detected:\n"
+"\n"
+"Capability: {capability}\n"
+"CPU: {cores} cores\n"
+"RAM: {ram} GB\n"
+"GPU: {gpu}\n"
+"\n"
+msgstr ""
+"Hardware Detectado:\n"
+"\n"
+"Capacidade: {capability}\n"
+"CPU: {cores} cores\n"
+"RAM: {ram} GB\n"
+"GPU: {gpu}\n"
+"\n"
+
+#: src/zebtrack/ui/wizard/live_config_step.py:547
+msgid "Yes"
+msgstr "Sim"
+
+#: src/zebtrack/ui/wizard/live_config_step.py:547
+msgid "No"
+msgstr "Não"
+
+#: src/zebtrack/ui/wizard/live_config_step.py:552
+#, python-brace-format
+msgid ""
+"⚠️ Your system does NOT support real-time processing.\n"
+"Recommendation: use '{mode}' mode (offline)."
+msgstr ""
+"⚠️ Seu sistema NÃO suporta processamento em tempo real.\n"
+"Recomendação: Use modo '{mode}' (offline)."
+
+#: src/zebtrack/ui/wizard/live_config_step.py:554
+msgid "Recording Only"
+msgstr "Apenas Gravação"
+
+#: src/zebtrack/ui/wizard/live_config_step.py:557
+#, python-brace-format
+msgid ""
+"Supported aquariums: {count}\n"
+"Multi-aquarium in real time may not be possible."
+msgstr ""
+"Aquários suportados: {count}\n"
+"Multi-aquário em tempo real pode não ser possível."
+
+#: src/zebtrack/ui/wizard/live_config_step.py:561
+msgid "Hardware Detection"
+msgstr "Detecção de Hardware"
+
+#: src/zebtrack/ui/wizard/live_config_step.py:695
+#: src/zebtrack/ui/wizard/live_config_step.py:742
+msgid "Detecting..."
+msgstr "Detectando..."
+
+#: src/zebtrack/ui/wizard/live_config_step.py:709
+#, python-brace-format
+msgid "Camera {index}"
+msgstr "Câmera {index}"
+
+#: src/zebtrack/ui/wizard/live_config_step.py:720
+msgid "✓ 1 camera detected"
+msgstr "✓ 1 câmera detectada"
+
+#: src/zebtrack/ui/wizard/live_config_step.py:722
+#, python-brace-format
+msgid "✓ {count} cameras detected"
+msgstr "✓ {count} câmeras detectadas"
+
+#: src/zebtrack/ui/wizard/live_config_step.py:735
+msgid "✗ No camera detected"
+msgstr "✗ Nenhuma câmera detectada"
+
+#: src/zebtrack/ui/wizard/live_config_step.py:762
+msgid "✓ 1 port detected"
+msgstr "✓ 1 porta detectada"
+
+#: src/zebtrack/ui/wizard/live_config_step.py:764
+#, python-brace-format
+msgid "✓ {count} ports detected"
+msgstr "✓ {count} portas detectadas"
+
+#: src/zebtrack/ui/wizard/live_config_step.py:780
+#, python-brace-format
+msgid "✓ 1 port — using {device}"
+msgstr "✓ 1 porta — usando {device}"
+
+#: src/zebtrack/ui/wizard/live_config_step.py:782
+#, python-brace-format
+msgid "✓ {count} ports — using {device}"
+msgstr "✓ {count} portas — usando {device}"
+
+#: src/zebtrack/ui/wizard/live_config_step.py:799
+msgid "✗ No port detected"
+msgstr "✗ Nenhuma porta detectada"
+
+#: src/zebtrack/ui/wizard/live_config_step.py:804
+#: src/zebtrack/ui/wizard/live_config_step.py:860
+msgid "✗ pyserial not installed"
+msgstr "✗ pyserial não instalado"
+
+#: src/zebtrack/ui/wizard/live_config_step.py:814
+msgid "No Port Selected"
+msgstr "Nenhuma Porta Selecionada"
+
+#: src/zebtrack/ui/wizard/live_config_step.py:815
+msgid "Please detect and select an Arduino port first."
+msgstr "Por favor, detecte e selecione uma porta Arduino primeiro."
+
+#: src/zebtrack/ui/wizard/live_config_step.py:825
+msgid "Testing..."
+msgstr "Testando..."
+
+#: src/zebtrack/ui/wizard/live_config_step.py:833
+msgid "✓ Connection OK"
+msgstr "✓ Conexão OK"
+
+#: src/zebtrack/ui/wizard/live_config_step.py:835
+msgid "Connection Test"
+msgstr "Teste de Conexão"
+
+#: src/zebtrack/ui/wizard/live_config_step.py:837
+#, python-brace-format
+msgid ""
+"Connection to {port} established successfully!\n"
+"\n"
+"The port is reachable and ready to use."
+msgstr ""
+"Conexão com {port} estabelecida com sucesso!\n"
+"\n"
+"A porta está acessível e pronta para uso."
+
+#: src/zebtrack/ui/wizard/live_config_step.py:845
+msgid "✗ Connection failed"
+msgstr "✗ Falha na conexão"
+
+#: src/zebtrack/ui/wizard/live_config_step.py:847
+msgid "Connection Error"
+msgstr "Erro de Conexão"
+
+#: src/zebtrack/ui/wizard/live_config_step.py:849
+#, python-brace-format
+msgid ""
+"Could not connect to port {port}.\n"
+"\n"
+"Error: {error}\n"
+"\n"
+"Check that:\n"
+"• The Arduino is connected\n"
+"• The port is not in use by another program\n"
+"• You have permission to access the port"
+msgstr ""
+"Não foi possível conectar à porta {port}.\n"
+"\n"
+"Erro: {error}\n"
+"\n"
+"Verifique se:\n"
+"• O Arduino está conectado\n"
+"• A porta não está em uso por outro programa\n"
+"• Você tem permissão para acessar a porta"
+
+#: src/zebtrack/ui/wizard/live_config_step.py:868
+msgid "✗ Unexpected error"
+msgstr "✗ Erro inesperado"
+
+#: src/zebtrack/ui/wizard/live_config_step.py:870
+msgid "Unexpected Error"
+msgstr "Erro Inesperado"
+
+#: src/zebtrack/ui/wizard/live_config_step.py:871
+#, python-brace-format
+msgid ""
+"An error occurred while testing the connection:\n"
+"\n"
+"{error}"
+msgstr ""
+"Ocorreu um erro ao testar a conexão:\n"
+"\n"
+"{error}"
+
+#: src/zebtrack/ui/wizard/live_config_step.py:905
+msgid "Aquarium Limit"
+msgstr "Limitação de Aquários"
+
+#: src/zebtrack/ui/wizard/live_config_step.py:907
+#, python-brace-format
+msgid ""
+"⚠️ Simultaneous recording is limited to 2 aquariums.\n"
+"\n"
+"Your project has {count} aquariums configured.\n"
+"\n"
+"Options:\n"
+"• Reduce to 2 aquariums in the zone configuration\n"
+"• Use sequential mode (process aquariums separately)\n"
+"• Process offline after recording without detection"
+msgstr ""
+"⚠️ Gravação simultânea limitada a 2 aquários.\n"
+"\n"
+"Seu projeto tem {count} aquários configurados.\n"
+"\n"
+"Opções:\n"
+"• Reduza para 2 aquários na configuração de zonas\n"
+"• Use modo sequencial (processar aquários separadamente)\n"
+"• Processe offline após gravação sem detecção"
+
+#: src/zebtrack/ui/wizard/live_config_step.py:918
+#, python-brace-format
+msgid ""
+"A project with {count} aquariums exceeds the limit of 2 for simultaneous "
+"recording."
+msgstr ""
+"Projeto com {count} aquários excede o limite de 2 para gravação simultânea."
+
+#: src/zebtrack/ui/wizard/live_config_step.py:928
+msgid ""
+"Mode selection cancelled. Adjust the number of aquariums or select a "
+"compatible mode."
+msgstr ""
+"Seleção de modo cancelada. Por favor, ajuste o número de aquários ou "
+"selecione um modo compatível."
+
+#: src/zebtrack/ui/wizard/live_config_step.py:945
+#, python-brace-format
+msgid "Error validating data: {error}"
+msgstr "Erro ao validar dados: {error}"
+
+#: src/zebtrack/ui/wizard/live_config_step.py:1050
+#, python-brace-format
+msgid ""
+"⚠ The template's camera is unavailable — selected '{fallback}'. Please "
+"check."
+msgstr ""
+"⚠ Câmera do template indisponível — selecionada '{fallback}'. Confira."
+
+#: src/zebtrack/ui/wizard/live_config_step.py:1086
+#, python-brace-format
+msgid ""
+"⚠ The template's port ({port}) is unavailable — select another one or "
+"disable the Arduino."
+msgstr ""
+"⚠ Porta do template ({port}) indisponível — selecione outra ou desative o "
+"Arduino."
+
+#: src/zebtrack/ui/wizard/templates.py:354
+#, python-brace-format
+msgid "Template loaded: {details}"
+msgstr "Template carregado: {details}"
+
 #: src/zebtrack/ui/wizard/wizard_dialog.py:199
 msgid "< Back"
 msgstr "< Voltar"
 
 # | msgid "Exit"
+# | msgid "On Exit"
 #: src/zebtrack/ui/wizard/wizard_dialog.py:203
 #: src/zebtrack/ui/wizard/wizard_dialog.py:308
-#| msgid "On Exit"
 msgid "Next >"
 msgstr "Próximo >"
 
+# | msgid "Create New Project"
 #: src/zebtrack/ui/wizard/wizard_dialog.py:306
-#| msgid "Create New Project"
 msgid "Create Project"
 msgstr "Criar Projeto"
 
+# | msgid "Validation Error"
 #: src/zebtrack/ui/wizard/wizard_dialog.py:464
-#| msgid "Validation Error"
 msgid "Validation"
 msgstr "Validação"
 

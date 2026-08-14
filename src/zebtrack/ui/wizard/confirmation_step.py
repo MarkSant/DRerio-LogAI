@@ -27,10 +27,15 @@ from tkinter import (
 
 import structlog
 
+from zebtrack.i18n import _
 from zebtrack.ui.window_utils import create_scrollbar
 from zebtrack.ui.wizard.base import WizardStep
 from zebtrack.ui.wizard.enums import ImportAction, ProjectType, WizardStepID
-from zebtrack.ui.wizard.templates import TemplateManager, format_template_banner
+from zebtrack.ui.wizard.templates import (
+    TemplateManager,
+    format_template_banner,
+    format_template_banner_details,
+)
 
 log = structlog.get_logger()
 
@@ -80,7 +85,7 @@ class ConfirmationStep(WizardStep):
         title_font = tkfont.Font(size=14, weight="bold")
         title = Label(
             self.content_container,
-            text="Confirmação e Criação do Projeto",
+            text=_("Project Confirmation and Creation"),
             font=title_font,
             bg=background_color,
         )
@@ -88,7 +93,7 @@ class ConfirmationStep(WizardStep):
 
         subtitle = Label(
             self.content_container,
-            text="Revise as configurações e crie seu projeto.",
+            text=_("Review the settings and create your project."),
             fg="gray",
             wraplength=720,
             bg=background_color,
@@ -115,7 +120,7 @@ class ConfirmationStep(WizardStep):
 
         Label(
             name_frame,
-            text="Nome do Projeto:",
+            text=_("Project Name:"),
             width=20,
             anchor="w",
         ).pack(side="left")
@@ -132,7 +137,7 @@ class ConfirmationStep(WizardStep):
 
         Label(
             location_frame,
-            text="Localização:",
+            text=_("Location:"),
             width=20,
             anchor="w",
         ).pack(side="left")
@@ -144,13 +149,13 @@ class ConfirmationStep(WizardStep):
         )
         Button(
             location_frame,
-            text="Procurar...",
+            text=_("Browse..."),
             command=self._browse_location,
         ).pack(side="left")
 
         # Summary (with controlled height to prevent button occlusion)
         summary_frame = LabelFrame(
-            self.content_container, text="Resumo do Projeto", padx=10, pady=10
+            self.content_container, text=_("Project Summary"), padx=10, pady=10
         )
         summary_frame.pack(fill="both", expand=True, pady=(0, 10), padx=4)
 
@@ -181,7 +186,7 @@ class ConfirmationStep(WizardStep):
 
         Button(
             template_btn_frame,
-            text="💾 Salvar como Template",
+            text=_("💾 Save as Template"),
             command=self._save_as_template,
             width=25,
         ).pack(side="right")
@@ -189,9 +194,9 @@ class ConfirmationStep(WizardStep):
         # Help text
         help_text = Label(
             self.content_container,
-            text=(
-                "💡 Dica: Verifique todas as configurações antes de criar o "
-                "projeto. Você pode salvar como template para reutilizar."
+            text=_(
+                "💡 Tip: Review every setting before creating the project. "
+                "You can save it as a template to reuse later."
             ),
             fg="gray",
             wraplength=720,
@@ -235,11 +240,11 @@ class ConfirmationStep(WizardStep):
             detected_design = self.wizard_data.get("detected_design")
             if detected_design and detected_design.get("groups"):
                 groups = detected_design["groups"]
-                name = f"Experimento_{groups[0]}"
+                name = _("Experiment_{group}").format(group=groups[0])
             else:
-                name = "Projeto_Experimental"
+                name = _("Experimental_Project")
         else:
-            name = "Projeto_Exploratorio"
+            name = _("Exploratory_Project")
 
         # Add timestamp to make unique
         from datetime import datetime
@@ -252,7 +257,7 @@ class ConfirmationStep(WizardStep):
     def _browse_location(self):
         """Open directory browser for project location."""
         directory = filedialog.askdirectory(
-            title="Selecione a Pasta do Projeto",
+            title=_("Select the Project Folder"),
             initialdir=self.project_location_var.get(),
         )
         if directory:
@@ -310,22 +315,24 @@ class ConfirmationStep(WizardStep):
         if not metadata:
             return
 
-        lines.append("📝 Template Carregado:")
-        banner_text = format_template_banner(metadata)
-        if banner_text:
-            lines.append(f"  • {banner_text.replace('Template carregado: ', '')}")
+        lines.append(_("📝 Template Loaded:"))
+        details = format_template_banner_details(metadata)
+        if details:
+            lines.append(f"  • {details}")
         if metadata.get("created_at"):
-            lines.append(f"  • Criado em: {metadata['created_at']}")
+            lines.append(_("  • Created at: {value}").format(value=metadata["created_at"]))
         if metadata.get("schema_version"):
-            lines.append(f"  • Versão do template: {metadata['schema_version']}")
+            lines.append(
+                _("  • Template version: {value}").format(value=metadata["schema_version"])
+            )
         lines.append("")
 
     def _append_project_type(self, lines: list[str], project_type: str) -> None:
-        lines.append("📋 Tipo de Projeto:")
+        lines.append(_("📋 Project Type:"))
         type_names = {
-            ProjectType.EXPERIMENTAL.value: "Experimental (pré-gravado)",
-            ProjectType.EXPLORATORY.value: "Exploratório (pré-gravado)",
-            ProjectType.LIVE.value: "Ao Vivo (tempo real)",
+            ProjectType.EXPERIMENTAL.value: _("Experimental (pre-recorded)"),
+            ProjectType.EXPLORATORY.value: _("Exploratory (pre-recorded)"),
+            ProjectType.LIVE.value: _("Live (real time)"),
         }
         lines.append(f"  • {type_names.get(project_type, project_type.capitalize())}")
 
@@ -338,72 +345,89 @@ class ConfirmationStep(WizardStep):
 
         if experiment_days or num_groups or subjects_per_group:
             lines.append("")
-            lines.append("🔬 Design Experimental:")
+            lines.append(_("🔬 Experimental Design:"))
             if num_groups and subjects_per_group and experiment_days:
                 total_sessions = num_groups * subjects_per_group * experiment_days
                 total_animals = num_groups * subjects_per_group
                 lines.append(
-                    f"  • {num_groups} grupos x {experiment_days} dias x "
-                    f"{subjects_per_group} animais/grupo"
+                    _("  • {groups} groups x {days} days x {subjects} animals/group").format(
+                        groups=num_groups,
+                        days=experiment_days,
+                        subjects=subjects_per_group,
+                    )
                 )
-                lines.append(f"  • Total: {total_sessions} gravações ({total_animals} animais)")
+                lines.append(
+                    _("  • Total: {sessions} recordings ({animals} animals)").format(
+                        sessions=total_sessions, animals=total_animals
+                    )
+                )
             if group_names:
                 group_list = ", ".join(group_names)
-                lines.append(f"  • Grupos: {group_list}")
+                lines.append(_("  • Groups: {groups}").format(groups=group_list))
 
         # Camera & Hardware
         lines.append("")
-        lines.append("📹 Hardware:")
+        lines.append(_("📹 Hardware:"))
         camera_index = self.wizard_data.get("camera_index", 0)
         camera_friendly_name = self.wizard_data.get("camera_friendly_name", "")
         if camera_friendly_name:
-            lines.append(f"  • Câmera: {camera_friendly_name} (índice {camera_index})")
+            lines.append(
+                _("  • Camera: {name} (index {index})").format(
+                    name=camera_friendly_name, index=camera_index
+                )
+            )
         else:
-            lines.append(f"  • Câmera: Índice {camera_index}")
+            lines.append(_("  • Camera: index {index}").format(index=camera_index))
 
         if self.wizard_data.get("use_arduino"):
             arduino_port = self.wizard_data.get("arduino_port", "N/A")
-            lines.append(f"  • Arduino: {arduino_port}")
+            lines.append(_("  • Arduino: {port}").format(port=arduino_port))
             if self.wizard_data.get("external_trigger_mode"):
-                lines.append("  • Modo: Gatilho Externo (External Trigger) ✓")
+                lines.append(_("  • Mode: External Trigger ✓"))
 
         # Recording Settings
         if self.wizard_data.get("use_timed_recording") or self.wizard_data.get("use_countdown"):
             lines.append("")
-            lines.append("⏱️ Configurações de Gravação:")
+            lines.append(_("⏱️ Recording Settings:"))
             if self.wizard_data.get("use_timed_recording"):
                 duration = self.wizard_data.get("recording_duration_s", 0)
                 minutes = int(duration // 60)
                 seconds = int(duration % 60)
-                lines.append(f"  • Gravação temporizada: {minutes}min {seconds}s")
+                lines.append(
+                    _("  • Timed recording: {minutes}min {seconds}s").format(
+                        minutes=minutes, seconds=seconds
+                    )
+                )
             if self.wizard_data.get("use_countdown"):
                 countdown = self.wizard_data.get("countdown_duration_s", 0)
-                lines.append(f"  • Contagem regressiva: {countdown}s")
+                lines.append(_("  • Countdown: {seconds}s").format(seconds=countdown))
 
         # Processing Intervals
         analysis_interval = self.wizard_data.get("analysis_interval_frames")
         display_interval = self.wizard_data.get("display_interval_frames")
         if analysis_interval or display_interval:
             lines.append("")
-            lines.append("⚙️ Intervalos de Processamento:")
+            lines.append(_("⚙️ Processing Intervals:"))
             if analysis_interval:
-                lines.append(f"  • Análise: a cada {analysis_interval} frames")
+                lines.append(
+                    _("  • Analysis: every {count} frames").format(count=analysis_interval)
+                )
             if display_interval:
-                lines.append(f"  • Exibição: a cada {display_interval} frames")
+                lines.append(_("  • Display: every {count} frames").format(count=display_interval))
 
         # Model Selection
         weight_assignments = self.wizard_data.get("weight_assignments")
         detector_params = self.wizard_data.get("detector_parameters")
         if weight_assignments or detector_params:
             lines.append("")
-            lines.append("🎯 Configuração de Detecção:")
+            lines.append(_("🎯 Detection Configuration:"))
             if weight_assignments:
                 aquarium_weight = weight_assignments.get("aquarium")
                 animal_weight = weight_assignments.get("animal")
                 if aquarium_weight:
-                    lines.append(f"  • Peso aquário: {aquarium_weight}")
+                    lines.append(_("  • Aquarium weight: {weight}").format(weight=aquarium_weight))
                 if animal_weight:
-                    lines.append(f"  • Peso animais: {animal_weight}")
+                    lines.append(_("  • Animal weight: {weight}").format(weight=animal_weight))
             if detector_params:
                 conf = detector_params.get("confidence_threshold")
                 nms = detector_params.get("nms_threshold")
@@ -421,7 +445,7 @@ class ConfirmationStep(WizardStep):
             return
 
         lines.append("")
-        lines.append("🔍 Design Detectado / Design:")
+        lines.append(_("🔍 Detected Design:"))
         groups = detected_design.get("groups", [])
         days = detected_design.get("days", [])
         confidence = detected_design.get("confidence", 0)
@@ -429,12 +453,16 @@ class ConfirmationStep(WizardStep):
         if groups:
             preview = ", ".join(groups[:3])
             suffix = "..." if len(groups) > 3 else ""
-            lines.append(f"  • Grupos: {len(groups)} ({preview}{suffix})")
+            lines.append(
+                _("  • Groups: {count} ({preview}{suffix})").format(
+                    count=len(groups), preview=preview, suffix=suffix
+                )
+            )
 
         if days:
-            lines.append(f"  • Dias: {len(days)}")
+            lines.append(_("  • Days: {count}").format(count=len(days)))
 
-        lines.append(f"  • Confiança: {confidence:.0%}")
+        lines.append(_("  • Confidence: {value}").format(value=f"{confidence:.0%}"))
 
     def _append_custom_regex_info(self, lines: list[str]) -> None:
         patterns = self.wizard_data.get("custom_regex_patterns") or {}
@@ -442,13 +470,13 @@ class ConfirmationStep(WizardStep):
             return
 
         label_map = {
-            "group_pattern": "Grupos",
-            "day_pattern": "Dias",
-            "subject_pattern": "Sujeitos",
+            "group_pattern": _("Groups"),
+            "day_pattern": _("Days"),
+            "subject_pattern": _("Subjects"),
         }
 
         lines.append("")
-        lines.append("🧩 Regex Personalizada:")
+        lines.append(_("🧩 Custom Regex:"))
         for key, label in label_map.items():
             value = patterns.get(key)
             if value:
@@ -468,34 +496,34 @@ class ConfirmationStep(WizardStep):
             return
 
         method_labels = {
-            "seg": "Segmentação (seg)",
-            "det": "Detecção (det)",
+            "seg": _("Segmentation (seg)"),
+            "det": _("Detection (det)"),
         }
 
         lines.append("")
-        lines.append("🎯 Configurações de Detecção:")
+        lines.append(_("🎯 Detection Settings:"))
 
         aquarium_method = model_selection.get("aquarium_method")
         animal_method = model_selection.get("animal_method")
         if aquarium_method or animal_method:
             if aquarium_method:
                 aquarium_label = method_labels.get(aquarium_method, aquarium_method)
-                lines.append(f"  • Método aquário: {aquarium_label}")
+                lines.append(_("  • Aquarium method: {method}").format(method=aquarium_label))
             if animal_method:
                 animal_label = method_labels.get(animal_method, animal_method)
-                lines.append(f"  • Método animais: {animal_label}")
+                lines.append(_("  • Animal method: {method}").format(method=animal_label))
 
         if weight_assignments:
             aquarium_weight = weight_assignments.get("aquarium")
             animal_weight = weight_assignments.get("animal")
             if aquarium_weight:
-                lines.append(f"  • Peso aquário: {aquarium_weight}")
+                lines.append(_("  • Aquarium weight: {weight}").format(weight=aquarium_weight))
             if animal_weight:
-                lines.append(f"  • Peso animais: {animal_weight}")
+                lines.append(_("  • Animal weight: {weight}").format(weight=animal_weight))
 
         if use_openvino is not None:
-            status = "Ativado" if use_openvino else "Desativado"
-            lines.append(f"  • OpenVINO: {status}")
+            status = _("Enabled") if use_openvino else _("Disabled")
+            lines.append(_("  • OpenVINO: {status}").format(status=status))
 
         if detector_params:
             conf = detector_params.get("confidence_threshold")
@@ -523,34 +551,38 @@ class ConfirmationStep(WizardStep):
     def _append_folder_preview(self, lines: list[str]) -> None:
         video_count = self.wizard_data.get("video_count", 0)
         if video_count > 0:
-            lines.append(f"  • Total de Vídeos: {video_count}")
+            lines.append(_("  • Total videos: {count}").format(count=video_count))
 
         folder_preview = self.wizard_data.get("folder_preview") or []
         if folder_preview:
             lines.append("")
-            lines.append("🌳 Estrutura de Pastas (prévia):")
+            lines.append(_("🌳 Folder Structure (preview):"))
             for entry in folder_preview[:2]:
                 lines.extend(self._render_folder_preview(entry))
 
             remaining = len(folder_preview) - 2
             if remaining > 0:
-                lines.append(f"  • (+ {remaining} seleção(ões) adicional(is))")
+                lines.append(
+                    _("  • (+ 1 additional selection)")
+                    if remaining == 1
+                    else _("  • (+ {count} additional selections)").format(count=remaining)
+                )
 
     def _append_calibration(self, lines: list[str]) -> None:
         lines.append("")
-        lines.append("📏 Calibração Física:")
+        lines.append(_("📏 Physical Calibration:"))
         num_aquariums = self.wizard_data.get("num_aquariums", 1)
         animals_per_aquarium = self.wizard_data.get("animals_per_aquarium", 1)
         width = self.wizard_data.get("aquarium_width_cm", 10.0)
         height = self.wizard_data.get("aquarium_height_cm", 10.0)
 
-        lines.append(f"  • Aquários: {num_aquariums}")
-        lines.append(f"  • Animais por aquário: {animals_per_aquarium}")
-        lines.append(f"  • Dimensões: {width} x {height} cm")
+        lines.append(_("  • Aquariums: {count}").format(count=num_aquariums))
+        lines.append(_("  • Animals per aquarium: {count}").format(count=animals_per_aquarium))
+        lines.append(_("  • Dimensions: {width} x {height} cm").format(width=width, height=height))
 
     def _append_processing_plan(self, lines: list[str]) -> None:
         lines.append("")
-        lines.append("⚙️ Plano de Processamento:")
+        lines.append(_("⚙️ Processing Plan:"))
         import_config = self.wizard_data.get("import_config", [])
 
         if not import_config:
@@ -562,15 +594,19 @@ class ConfirmationStep(WizardStep):
             action_counts[action] = action_counts.get(action, 0) + 1
 
         action_names = {
-            ImportAction.SKIP.value: "Skip (dados completos)",
-            ImportAction.IMPORT_ZONES.value: "Import Zones + rastrear",
-            ImportAction.PARTIAL.value: "Partial (arena apenas)",
-            ImportAction.FULL.value: "Full (processar do zero)",
+            ImportAction.SKIP.value: _("Skip (complete data)"),
+            ImportAction.IMPORT_ZONES.value: _("Import Zones + track"),
+            ImportAction.PARTIAL.value: _("Partial (arena only)"),
+            ImportAction.FULL.value: _("Full (process from scratch)"),
         }
 
         for action, count in sorted(action_counts.items()):
             name = action_names.get(action, action)
-            lines.append(f"  • {count} vídeo(s): {name}")
+            lines.append(
+                _("  • 1 video: {name}").format(name=name)
+                if count == 1
+                else _("  • {count} videos: {name}").format(count=count, name=name)
+            )
 
         # Estimate processing time (rough estimate: 5 min per video to process)
         videos_to_process = sum(
@@ -580,8 +616,14 @@ class ConfirmationStep(WizardStep):
         if videos_to_process > 0:
             estimated_minutes = videos_to_process * 5
             lines.append("")
-            lines.append(f"⏱️ Tempo Estimado: ~{estimated_minutes} minutos")
-            lines.append(f"  ({videos_to_process} vídeo(s) para processar)")
+            lines.append(
+                _("⏱️ Estimated time: ~{minutes} minutes").format(minutes=estimated_minutes)
+            )
+            lines.append(
+                _("  (1 video to process)")
+                if videos_to_process == 1
+                else _("  ({count} videos to process)").format(count=videos_to_process)
+            )
 
     def _append_parquet_summary(self, lines: list[str]) -> None:
         # Show parquet summary whenever data exists (scope optional for legacy flows)
@@ -592,17 +634,17 @@ class ConfirmationStep(WizardStep):
         parquet_import_scope = self.wizard_data.get("parquet_import_scope")
 
         lines.append("")
-        lines.append("📦 Parquets Existentes:")
+        lines.append(_("📦 Existing Parquets:"))
         if parquet_import_scope:
-            lines.append(f"  • Escopo: {parquet_import_scope}")
+            lines.append(_("  • Scope: {scope}").format(scope=parquet_import_scope))
         arena_total = parquet_summary.get("total_arena", 0)
         rois_total = parquet_summary.get("total_rois", 0)
         trajectory_total = parquet_summary.get("total_trajectory", 0)
         complete_total = parquet_summary.get("total_complete", 0)
-        lines.append(f"  • Arena: {arena_total}")
-        lines.append(f"  • ROIs: {rois_total}")
-        lines.append(f"  • Trajetória: {trajectory_total}")
-        lines.append(f"  • Completos: {complete_total}")
+        lines.append(_("  • Arena: {count}").format(count=arena_total))
+        lines.append(_("  • ROIs: {count}").format(count=rois_total))
+        lines.append(_("  • Trajectory: {count}").format(count=trajectory_total))
+        lines.append(_("  • Complete: {count}").format(count=complete_total))
 
     def _append_import_configuration(self, lines: list[str]) -> None:
         import_config = self.wizard_data.get("import_config", [])
@@ -615,16 +657,28 @@ class ConfirmationStep(WizardStep):
 
         if importing_arena or importing_rois or importing_trajectory:
             lines.append("")
-            lines.append("📥 Configuração de Importação:")
+            lines.append(_("📥 Import Configuration:"))
             if importing_arena:
                 arena_count = sum(1 for c in import_config if c.get("import_arena"))
-                lines.append(f"  ✅ Arena: {arena_count} vídeo(s)")
+                lines.append(
+                    _("  ✅ Arena: 1 video")
+                    if arena_count == 1
+                    else _("  ✅ Arena: {count} videos").format(count=arena_count)
+                )
             if importing_rois:
                 rois_count = sum(1 for c in import_config if c.get("import_rois"))
-                lines.append(f"  ✅ ROIs: {rois_count} vídeo(s)")
+                lines.append(
+                    _("  ✅ ROIs: 1 video")
+                    if rois_count == 1
+                    else _("  ✅ ROIs: {count} videos").format(count=rois_count)
+                )
             if importing_trajectory:
                 traj_count = sum(1 for c in import_config if c.get("import_trajectory"))
-                lines.append(f"  ✅ Trajetória: {traj_count} vídeo(s)")
+                lines.append(
+                    _("  ✅ Trajectory: 1 video")
+                    if traj_count == 1
+                    else _("  ✅ Trajectory: {count} videos").format(count=traj_count)
+                )
 
     def _append_roi_strategy(self, lines: list[str]) -> None:
         import_config = self.wizard_data.get("import_config", [])
@@ -638,28 +692,32 @@ class ConfirmationStep(WizardStep):
 
         roi_strategy = self.wizard_data.get("roi_merge_strategy", "replace")
         strategy_names = {
-            "replace": "Substituir ROIs existentes",
-            "merge": "Mesclar (manter ambos)",
-            "manual": "Resolução manual de conflitos",
+            "replace": _("Replace existing ROIs"),
+            "merge": _("Merge (keep both)"),
+            "manual": _("Manual conflict resolution"),
         }
         lines.append("")
-        lines.append("🔀 Estratégia de ROIs:")
+        lines.append(_("🔀 ROI Strategy:"))
         lines.append(f"  • {strategy_names.get(roi_strategy, roi_strategy)}")
 
     def _render_folder_preview(self, entry: dict) -> list[str]:
         """Convert folder preview structure into formatted summary lines."""
-        label = entry.get("label") or entry.get("path") or "(seleção)"
+        label = entry.get("label") or entry.get("path") or _("(selection)")
         counts = entry.get("counts", {})
         folders = counts.get("folders", 0)
         files = counts.get("files", 0)
 
         summary_bits: list[str] = []
         if folders:
-            summary_bits.append(f"{folders} pasta(s)")
+            summary_bits.append(
+                _("1 folder") if folders == 1 else _("{count} folders").format(count=folders)
+            )
         if files:
-            summary_bits.append(f"{files} arquivo(s)")
+            summary_bits.append(
+                _("1 file") if files == 1 else _("{count} files").format(count=files)
+            )
 
-        summary_text = ", ".join(summary_bits) if summary_bits else "vazio"
+        summary_text = ", ".join(summary_bits) if summary_bits else _("empty")
         lines = [f"  • {label}: {summary_text}"]
 
         def walk(nodes: list[dict], depth: int) -> None:
@@ -680,7 +738,7 @@ class ConfirmationStep(WizardStep):
         walk(entry.get("nodes", []), 0)
 
         if entry.get("truncated"):
-            lines.append("    … Prévia limitada (detalhes completos na etapa 2)")
+            lines.append(_("    … Preview truncated (full details in step 2)"))
 
         return lines
 
@@ -688,8 +746,8 @@ class ConfirmationStep(WizardStep):
         """Save current wizard configuration as a template."""
         # Ask for template name
         template_name = simpledialog.askstring(
-            "Salvar Template",
-            "Digite um nome para o template:",
+            _("Save Template"),
+            _("Enter a name for the template:"),
             parent=self,
         )
 
@@ -701,9 +759,9 @@ class ConfirmationStep(WizardStep):
         ) + ".json"
 
         file_path = filedialog.asksaveasfilename(
-            title="Salvar Template do Wizard",
+            title=_("Save Wizard Template"),
             defaultextension=".json",
-            filetypes=[("Templates do Wizard", "*.json"), ("JSON", "*.json")],
+            filetypes=[(_("Wizard Templates"), "*.json"), ("JSON", "*.json")],
             initialdir=str(self.template_manager.templates_dir),
             initialfile=suggested_filename,
         )
@@ -719,23 +777,24 @@ class ConfirmationStep(WizardStep):
         )
 
         if success:
-            template_message = (
-                f"Template '{template_name}' salvo com sucesso!\n\n"
-                f"Arquivo: {file_path}\n\n"
-                "Você poderá carregar este template no futuro "
-                "para criar projetos similares rapidamente."
-            )
+            template_message = _(
+                "Template '{name}' saved successfully!\n\n"
+                "File: {path}\n\n"
+                "You will be able to load this template later to create "
+                "similar projects quickly."
+            ).format(name=template_name, path=file_path)
             messagebox.showinfo(
-                "Template Salvo",
+                _("Template Saved"),
                 template_message,
                 parent=self,
             )
             log.info("wizard.template_saved", name=template_name)
         else:
             messagebox.showerror(
-                "Erro ao Salvar",
-                f"Não foi possível salvar o template '{template_name}'.\n\n"
-                f"Verifique os logs para mais detalhes.",
+                _("Error Saving"),
+                _(
+                    "Could not save the template '{name}'.\n\nCheck the logs for more details."
+                ).format(name=template_name),
                 parent=self,
             )
 
@@ -750,13 +809,13 @@ class ConfirmationStep(WizardStep):
         project_name = self.project_name_var.get().strip()
 
         if not project_name:
-            return (False, "Por favor, informe um nome para o projeto.")
+            return (False, _("Please enter a name for the project."))
 
         # Check valid characters (alphanumeric, underscore, hyphen, space)
         if not re.match(r"^[A-Za-z0-9_\- ]+$", project_name):
-            message = (
-                "Nome do projeto contém caracteres inválidos. "
-                "Use apenas letras, números, espaços, '_' e '-'."
+            message = _(
+                "The project name contains invalid characters. "
+                "Use only letters, digits, spaces, '_' and '-'."
             )
             return (False, message)
 
@@ -764,27 +823,35 @@ class ConfirmationStep(WizardStep):
         location = self.project_location_var.get().strip()
 
         if not location:
-            return (False, "Por favor, selecione uma localização para o projeto.")
+            return (False, _("Please select a location for the project."))
 
         if not os.path.exists(location):
-            return (False, f"Localização não existe: {location}")
+            return (False, _("Location does not exist: {location}").format(location=location))
 
         if not os.access(location, os.W_OK):
-            return (False, f"Sem permissão de escrita na localização: {location}")
+            return (
+                False,
+                _("No write permission at the location: {location}").format(location=location),
+            )
 
         # Check if project directory already exists
         project_path = Path(location) / project_name
         try:
             project_exists = project_path.exists()
         except OSError:
-            return (False, "Nome do projeto é muito longo para o sistema de arquivos.")
+            return (False, _("The project name is too long for the file system."))
 
         if project_exists:
             try:
                 if project_path.is_file():
-                    return (False, f"Já existe um arquivo com esse nome em: {location}")
+                    return (
+                        False,
+                        _("A file with that name already exists at: {location}").format(
+                            location=location
+                        ),
+                    )
             except OSError:
-                return (False, "Nome do projeto é muito longo para o sistema de arquivos.")
+                return (False, _("The project name is too long for the file system."))
 
             # Allow reusing an empty directory so long as it has no content
             try:
@@ -795,7 +862,9 @@ class ConfirmationStep(WizardStep):
             if has_contents:
                 return (
                     False,
-                    f"Já existe um projeto com esse nome em: {location}",
+                    _("A project with that name already exists at: {location}").format(
+                        location=location
+                    ),
                 )
 
         # Validate sources: prerecorded projects require selected videos;
@@ -805,12 +874,12 @@ class ConfirmationStep(WizardStep):
         if project_type != ProjectType.LIVE.value:
             video_count = self.wizard_data.get("video_count", 0)
             if video_count == 0:
-                return (False, "Nenhum vídeo selecionado. Volte e selecione vídeos.")
+                return (False, _("No video selected. Go back and select videos."))
         else:
             if "camera_index" not in self.wizard_data:
                 return (
                     False,
-                    "Configure a câmera na etapa anterior antes de criar o projeto.",
+                    _("Configure the camera in the previous step before creating the project."),
                 )
 
         return (True, "")

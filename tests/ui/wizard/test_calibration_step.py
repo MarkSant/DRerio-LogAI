@@ -260,7 +260,7 @@ class TestCalibrationStep:
 
         # Template info should be set
         banner_text = step.template_info_var.get()
-        assert "Template carregado" in banner_text or "Template" in banner_text
+        assert "Template loaded" in banner_text
 
     def test_template_banner_hidden_when_no_metadata(self):
         """Template banner should be hidden when no template_metadata."""

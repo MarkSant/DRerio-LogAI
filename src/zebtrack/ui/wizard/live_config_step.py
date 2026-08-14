@@ -32,6 +32,7 @@ from zebtrack.core.recording.live_camera_mode import (
     LiveCameraModeSelector,
 )
 from zebtrack.core.services.wizard_service import WizardService
+from zebtrack.i18n import _
 from zebtrack.ui.wizard.base import WizardStep
 from zebtrack.ui.wizard.enums import WizardStepID
 from zebtrack.ui.wizard.templates import format_template_banner
@@ -155,12 +156,12 @@ class LiveConfigStep(WizardStep):
         """Build live configuration UI."""
         # Title
         title_font = tkfont.Font(size=14, weight="bold")
-        title = Label(self, text="Configuração de Gravação ao Vivo", font=title_font)
+        title = Label(self, text=_("Live Recording Configuration"), font=title_font)
         title.pack(pady=(0, 10))
 
         subtitle = Label(
             self,
-            text="Configure a câmera e as opções de gravação para o projeto ao vivo.",
+            text=_("Set up the camera and the recording options for the live project."),
             fg="gray",
             wraplength=500,
         )
@@ -177,7 +178,7 @@ class LiveConfigStep(WizardStep):
             self.template_info_label.pack_forget()
 
         # Camera configuration
-        camera_frame = LabelFrame(self, text="Configuração de Câmera", padx=15, pady=10)
+        camera_frame = LabelFrame(self, text=_("Camera Configuration"), padx=15, pady=10)
         camera_frame.pack(fill="x", pady=(0, 15))
 
         # Camera selection
@@ -186,7 +187,7 @@ class LiveConfigStep(WizardStep):
 
         Label(
             camera_row,
-            text="Selecionar Câmera:",
+            text=_("Select Camera:"),
             width=25,
             anchor="w",
         ).pack(side="left")
@@ -200,12 +201,12 @@ class LiveConfigStep(WizardStep):
         self.camera_combo.pack(side="left", padx=(5, 10))
         ToolTip(
             self.camera_combo,
-            ("Selecione a câmera para gravação ao vivo."),
+            _("Select the camera for live recording."),
         )
 
         Button(
             camera_row,
-            text="🔍 Detectar Câmeras",
+            text=_("🔍 Detect Cameras"),
             command=self._detect_cameras,
         ).pack(side="left", padx=10)
 
@@ -215,7 +216,7 @@ class LiveConfigStep(WizardStep):
         # Arduino configuration
         arduino_frame = LabelFrame(
             self,
-            text="Configuração de Arduino (Opcional)",
+            text=_("Arduino Configuration (Optional)"),
             padx=15,
             pady=10,
         )
@@ -223,14 +224,14 @@ class LiveConfigStep(WizardStep):
 
         use_arduino_cb = Checkbutton(
             arduino_frame,
-            text="Usar Arduino para sincronização",
+            text=_("Use Arduino for synchronization"),
             variable=self.use_arduino_var,
             command=self._on_arduino_toggle,
         )
         use_arduino_cb.pack(anchor="w", pady=5)
         ToolTip(
             use_arduino_cb,
-            ("Habilitar Arduino para sincronizar eventos externos com a gravação."),
+            _("Enable Arduino to synchronize external events with the recording."),
         )
 
         # Arduino port selection
@@ -239,7 +240,7 @@ class LiveConfigStep(WizardStep):
 
         Label(
             self.arduino_port_frame,
-            text="Porta do Arduino:",
+            text=_("Arduino Port:"),
             width=25,
             anchor="w",
         ).pack(side="left")
@@ -255,7 +256,7 @@ class LiveConfigStep(WizardStep):
 
         self.detect_arduino_btn = Button(
             self.arduino_port_frame,
-            text="🔍 Detectar",
+            text=_("🔍 Detect"),
             command=self._detect_arduino_ports,
             state="disabled",
             width=10,
@@ -264,7 +265,7 @@ class LiveConfigStep(WizardStep):
 
         self.test_arduino_btn = Button(
             self.arduino_port_frame,
-            text="🔌 Testar",
+            text=_("🔌 Test"),
             command=self._test_arduino_connection,
             state="disabled",
             width=10,
@@ -277,31 +278,31 @@ class LiveConfigStep(WizardStep):
         # External trigger mode
         self.external_trigger_cb = Checkbutton(
             arduino_frame,
-            text="Modo de Gatilho Externo (External Trigger)",
+            text=_("External Trigger Mode"),
             variable=self.external_trigger_mode_var,
             state="disabled",
         )
         self.external_trigger_cb.pack(anchor="w", pady=5)
         ToolTip(
             self.external_trigger_cb,
-            (
-                "Modo de Gatilho Externo\n\n"
-                "Quem dá a partida na gravação passa a ser o Arduino, não o "
-                "operador.\n\n"
-                "Ao iniciar uma sessão, o app NÃO grava de imediato: ele exibe "
-                "'Aguardando sinal externo' e fica parado até o Arduino enviar "
-                "o código 1 pela serial. O código 0 encerra a gravação.\n\n"
-                "Útil para sincronizar o início com um estímulo, um portão ou "
-                "outro equipamento.\n\n"
-                "Requer Arduino conectado e a porta selecionada acima — sem "
-                "isso a sessão é recusada, não iniciada às cegas."
-            ),
+            _(
+                "External Trigger Mode\n\n"
+                "What starts the recording becomes the Arduino, not the "
+                "operator.\n\n"
+                "When a session starts the app does NOT record straight away: it "
+                "shows '{waiting}' and stays idle until the Arduino sends code 1 "
+                "over the serial line. Code 0 ends the recording.\n\n"
+                "Useful to synchronize the start with a stimulus, a gate or "
+                "another instrument.\n\n"
+                "Requires a connected Arduino and the port selected above — "
+                "without them the session is refused, not started blind."
+            ).format(waiting=_("Waiting for external signal")),
         )
 
         # Recording settings
         recording_frame = LabelFrame(
             self,
-            text="Configurações de Gravação",
+            text=_("Recording Settings"),
             padx=15,
             pady=10,
         )
@@ -310,16 +311,16 @@ class LiveConfigStep(WizardStep):
         # Timed recording
         timed_cb = Checkbutton(
             recording_frame,
-            text="Usar gravação temporizada",
+            text=_("Use timed recording"),
             variable=self.use_timed_recording_var,
             command=self._on_timed_toggle,
         )
         timed_cb.pack(anchor="w", pady=5)
         ToolTip(
             timed_cb,
-            (
-                "Habilitar gravação com duração fixa (desliga automaticamente "
-                "após o tempo especificado)."
+            _(
+                "Enable recording with a fixed duration (stops automatically "
+                "after the specified time)."
             ),
         )
 
@@ -328,7 +329,7 @@ class LiveConfigStep(WizardStep):
 
         Label(
             self.duration_frame,
-            text="Duração da gravação (segundos):",
+            text=_("Recording duration (seconds):"),
             width=30,
             anchor="w",
         ).pack(side="left")
@@ -340,20 +341,20 @@ class LiveConfigStep(WizardStep):
         duration_entry.pack(side="left", padx=(5, 0))
         ToolTip(
             duration_entry,
-            "Duração total da gravação em segundos (ex: 300 = 5 minutos).",
+            _("Total recording duration in seconds (e.g. 300 = 5 minutes)."),
         )
 
         # Countdown
         countdown_cb = Checkbutton(
             recording_frame,
-            text="Usar contagem regressiva antes de iniciar",
+            text=_("Use a countdown before starting"),
             variable=self.use_countdown_var,
             command=self._on_countdown_toggle,
         )
         countdown_cb.pack(anchor="w", pady=5)
         ToolTip(
             countdown_cb,
-            "Mostrar contagem regressiva antes de iniciar a gravação.",
+            _("Show a countdown before starting the recording."),
         )
 
         self.countdown_frame = Frame(recording_frame)
@@ -361,7 +362,7 @@ class LiveConfigStep(WizardStep):
 
         Label(
             self.countdown_frame,
-            text="Duração da contagem (segundos):",
+            text=_("Countdown duration (seconds):"),
             width=30,
             anchor="w",
         ).pack(side="left")
@@ -375,7 +376,7 @@ class LiveConfigStep(WizardStep):
         countdown_spinbox.pack(side="left", padx=(5, 0))
         ToolTip(
             countdown_spinbox,
-            "Duração da contagem regressiva em segundos.",
+            _("Countdown duration in seconds."),
         )
 
         # Advanced processing settings — only the segmentation-shape toggle
@@ -384,7 +385,7 @@ class LiveConfigStep(WizardStep):
         # pre-recorded flow.
         advanced_frame = LabelFrame(
             self,
-            text="⚙️ Configurações Avançadas de Processamento",
+            text=_("⚙️ Advanced Processing Settings"),
             padx=15,
             pady=10,
         )
@@ -393,27 +394,27 @@ class LiveConfigStep(WizardStep):
         # Preserve real aquarium shape (segmentation only)
         preserve_shape_cb = Checkbutton(
             advanced_frame,
-            text="Preservar formato real do aquário (segmentação)",
+            text=_("Preserve the real aquarium shape (segmentation)"),
             variable=self.preserve_real_aquarium_shape_var,
         )
         preserve_shape_cb.pack(anchor="w", pady=(4, 4))
         ToolTip(
             preserve_shape_cb,
-            (
-                "Preservar formato real do aquário\n\n"
-                "Quando habilitado, mantém o polígono real (N vértices) detectado "
-                "pela máscara de segmentação YOLO, em vez de reduzir o aquário a "
-                "um retângulo de 4 cantos.\n\n"
-                "Recomendado para aquários circulares, hexagonais ou de formato "
-                "irregular. Requer um modelo de segmentação (seg) — para modelos "
-                "de detecção (det) esta opção é ignorada."
+            _(
+                "Preserve the real aquarium shape\n\n"
+                "When enabled, keeps the real polygon (N vertices) detected by "
+                "the YOLO segmentation mask instead of reducing the aquarium to "
+                "a 4-corner rectangle.\n\n"
+                "Recommended for circular, hexagonal or irregularly shaped "
+                "aquariums. Requires a segmentation (seg) model — for detection "
+                "(det) models this option is ignored."
             ),
         )
 
         # Help text
         help_frame = LabelFrame(
             self,
-            text="Sobre Projetos ao Vivo",
+            text=_("About Live Projects"),
             padx=15,
             pady=10,
         )
@@ -421,15 +422,15 @@ class LiveConfigStep(WizardStep):
 
         help_text = Label(
             help_frame,
-            text=(
-                "Projetos ao vivo gravam diretamente da câmera em tempo real.\n\n"
-                "• A câmera deve estar conectada antes de criar o projeto\n"
-                "• Arduino é opcional e usado para sincronizar eventos externos\n"
-                "• Gravação temporizada desliga automaticamente após o tempo "
-                "especificado\n"
-                "• Contagem regressiva dá tempo para preparar o experimento\n\n"
-                "💡 Dica: Teste a câmera antes de iniciar o projeto para garantir "
-                "que está funcionando."
+            text=_(
+                "Live projects record straight from the camera in real time.\n\n"
+                "• The camera must be connected before creating the project\n"
+                "• Arduino is optional and used to synchronize external events\n"
+                "• Timed recording stops automatically after the specified "
+                "time\n"
+                "• A countdown gives you time to prepare the experiment\n\n"
+                "💡 Tip: Test the camera before starting the project to make "
+                "sure it is working."
             ),
             fg="gray",
             wraplength=500,
@@ -533,26 +534,31 @@ class LiveConfigStep(WizardStep):
                 MultiAquariumCapability.LIMITED,
                 MultiAquariumCapability.INSUFFICIENT,
             ]:
-                msg = (
-                    f"Hardware Detectado:\n\n"
-                    f"Capacidade: {self.hardware_report.capability.name}\n"
-                    f"CPU: {self.hardware_report.cpu_cores} cores\n"
-                    f"RAM: {self.hardware_report.available_memory_gb:.1f} GB\n"
-                    f"GPU: {'Sim' if self.hardware_report.has_gpu else 'Não'}\n\n"
+                msg = _(
+                    "Hardware detected:\n\n"
+                    "Capability: {capability}\n"
+                    "CPU: {cores} cores\n"
+                    "RAM: {ram} GB\n"
+                    "GPU: {gpu}\n\n"
+                ).format(
+                    capability=self.hardware_report.capability.name,
+                    cores=self.hardware_report.cpu_cores,
+                    ram=f"{self.hardware_report.available_memory_gb:.1f}",
+                    gpu=_("Yes") if self.hardware_report.has_gpu else _("No"),
                 )
 
                 if self.hardware_report.capability == MultiAquariumCapability.INSUFFICIENT:
-                    msg += (
-                        "⚠️ Seu sistema NÃO suporta processamento em tempo real.\n"
-                        "Recomendação: Use modo 'Apenas Gravação' (offline)."
-                    )
+                    msg += _(
+                        "⚠️ Your system does NOT support real-time processing.\n"
+                        "Recommendation: use '{mode}' mode (offline)."
+                    ).format(mode=_("Recording Only"))
                 else:
-                    msg += (
-                        f"Aquários suportados: {self.hardware_report.max_aquariums_recommended}\n"
-                        f"Multi-aquário em tempo real pode não ser possível."
-                    )
+                    msg += _(
+                        "Supported aquariums: {count}\n"
+                        "Multi-aquarium in real time may not be possible."
+                    ).format(count=self.hardware_report.max_aquariums_recommended)
 
-                messagebox.showinfo("Detecção de Hardware", msg, parent=self)
+                messagebox.showinfo(_("Hardware Detection"), msg, parent=self)
 
         except Exception as e:  # except Exception justified: hardware detection multi-library
             log.error("live_config.hardware_detection_failed", error=str(e))
@@ -686,7 +692,7 @@ class LiveConfigStep(WizardStep):
 
     def _detect_cameras(self):
         """Detect available cameras using WizardService."""
-        self.camera_status_label.config(text="Detectando...", fg="blue")
+        self.camera_status_label.config(text=_("Detecting..."), fg="blue")
         self.update_idletasks()
 
         # Use WizardService for camera detection
@@ -699,7 +705,7 @@ class LiveConfigStep(WizardStep):
             self.camera_friendly_name_map.clear()
 
             for cam in cameras:
-                description = cam.get("description", f"Câmera {cam['index']}")
+                description = cam.get("description", _("Camera {index}").format(index=cam["index"]))
                 camera_list.append(description)
                 self.camera_index_map[description] = cam["index"]
                 self.camera_friendly_name_map[description] = cam.get("friendly_name", "")
@@ -708,7 +714,11 @@ class LiveConfigStep(WizardStep):
             self.camera_combo["values"] = camera_list
 
             self.camera_status_label.config(
-                text=f"✓ {len(cameras)} câmera(s) detectada(s)",
+                text=(
+                    _("✓ 1 camera detected")
+                    if len(cameras) == 1
+                    else _("✓ {count} cameras detected").format(count=len(cameras))
+                ),
                 fg="green",
             )
 
@@ -720,14 +730,14 @@ class LiveConfigStep(WizardStep):
             self.camera_index_map.clear()
             self.camera_friendly_name_map.clear()
             self.camera_status_label.config(
-                text="✗ Nenhuma câmera detectada",
+                text=_("✗ No camera detected"),
                 fg="red",
             )
 
     def _detect_arduino_ports(self):
         """Detect available Arduino ports using WizardService."""
         try:
-            self.arduino_status_label.config(text="Detectando...", fg="blue")
+            self.arduino_status_label.config(text=_("Detecting..."), fg="blue")
             self.update_idletasks()
 
             # Use WizardService for Arduino port detection
@@ -746,7 +756,11 @@ class LiveConfigStep(WizardStep):
                 self.arduino_port_combo["values"] = display_list
 
                 self.arduino_status_label.config(
-                    text=f"✓ {len(ports_info)} porta(s) detectada(s)",
+                    text=(
+                        _("✓ 1 port detected")
+                        if len(ports_info) == 1
+                        else _("✓ {count} ports detected").format(count=len(ports_info))
+                    ),
                     fg="green",
                 )
 
@@ -760,7 +774,13 @@ class LiveConfigStep(WizardStep):
                         # Dizer QUAL porta foi escolhida — auto-seleção silenciosa
                         # parece mágica e o usuário não confere.
                         self.arduino_status_label.config(
-                            text=f"✓ {len(ports_info)} porta(s) — usando {chosen['device']}",
+                            text=(
+                                _("✓ 1 port — using {device}").format(device=chosen["device"])
+                                if len(ports_info) == 1
+                                else _("✓ {count} ports — using {device}").format(
+                                    count=len(ports_info), device=chosen["device"]
+                                )
+                            ),
                             fg="green",
                         )
                         log.info(
@@ -774,12 +794,12 @@ class LiveConfigStep(WizardStep):
                 self.arduino_port_combo["values"] = []
                 self.arduino_port_map.clear()
                 self.arduino_status_label.config(
-                    text="✗ Nenhuma porta detectada",
+                    text=_("✗ No port detected"),
                     fg="red",
                 )
         except ImportError:
             self.arduino_status_label.config(
-                text="✗ pyserial não instalado",
+                text=_("✗ pyserial not installed"),
                 fg="red",
             )
             log.warning("live_config.pyserial_not_available")
@@ -789,8 +809,8 @@ class LiveConfigStep(WizardStep):
         selected_display = self.arduino_port_var.get()
         if not selected_display:
             messagebox.showwarning(
-                "Nenhuma Porta Selecionada",
-                "Por favor, detecte e selecione uma porta Arduino primeiro.",
+                _("No Port Selected"),
+                _("Please detect and select an Arduino port first."),
             )
             return
 
@@ -800,7 +820,7 @@ class LiveConfigStep(WizardStep):
         try:
             import serial
 
-            self.arduino_status_label.config(text="Testando...", fg="blue")
+            self.arduino_status_label.config(text=_("Testing..."), fg="blue")
             self.update_idletasks()
 
             # Try to open serial connection
@@ -808,41 +828,47 @@ class LiveConfigStep(WizardStep):
             ser.close()
 
             # Success
-            self.arduino_status_label.config(text="✓ Conexão OK", fg="green")
+            self.arduino_status_label.config(text=_("✓ Connection OK"), fg="green")
             messagebox.showinfo(
-                "Teste de Conexão",
-                f"Conexão com {port_device} estabelecida com sucesso!\n\n"
-                "A porta está acessível e pronta para uso.",
+                _("Connection Test"),
+                _(
+                    "Connection to {port} established successfully!\n\n"
+                    "The port is reachable and ready to use."
+                ).format(port=port_device),
             )
 
             log.info("live_config.arduino_test_success", port=port_device)
 
         except serial.SerialException as e:
-            self.arduino_status_label.config(text="✗ Falha na conexão", fg="red")
+            self.arduino_status_label.config(text=_("✗ Connection failed"), fg="red")
             messagebox.showerror(
-                "Erro de Conexão",
-                f"Não foi possível conectar à porta {port_device}.\n\n"
-                f"Erro: {e!s}\n\n"
-                "Verifique se:\n"
-                "• O Arduino está conectado\n"
-                "• A porta não está em uso por outro programa\n"
-                "• Você tem permissão para acessar a porta",
+                _("Connection Error"),
+                _(
+                    "Could not connect to port {port}.\n\n"
+                    "Error: {error}\n\n"
+                    "Check that:\n"
+                    "• The Arduino is connected\n"
+                    "• The port is not in use by another program\n"
+                    "• You have permission to access the port"
+                ).format(port=port_device, error=str(e)),
             )
             log.error("live_config.arduino_test_failed", port=port_device, error=str(e))
 
         except ImportError:
-            self.arduino_status_label.config(text="✗ pyserial não disponível", fg="red")
+            self.arduino_status_label.config(text=_("✗ pyserial not installed"), fg="red")
             messagebox.showerror(
-                "Erro",
-                "A biblioteca pyserial não está instalada.\n\nExecute: pip install pyserial",
+                _("Error"),
+                _("The pyserial library is not installed.\n\nRun: pip install pyserial"),
             )
             log.warning("live_config.pyserial_not_available")
 
         except Exception as e:  # except Exception justified: serial port + pyserial multi-error
-            self.arduino_status_label.config(text="✗ Erro inesperado", fg="red")
+            self.arduino_status_label.config(text=_("✗ Unexpected error"), fg="red")
             messagebox.showerror(
-                "Erro Inesperado",
-                f"Ocorreu um erro ao testar a conexão:\n\n{e!s}",
+                _("Unexpected Error"),
+                _("An error occurred while testing the connection:\n\n{error}").format(
+                    error=str(e)
+                ),
             )
             log.error("live_config.arduino_test_error", error=str(e))
 
@@ -874,26 +900,32 @@ class LiveConfigStep(WizardStep):
                 import tkinter.messagebox as messagebox
 
                 messagebox.showwarning(
-                    "Limitação de Aquários",
-                    f"⚠️ Gravação simultânea limitada a 2 aquários.\n\n"
-                    f"Seu projeto tem {requested_aquariums} aquários configurados.\n\n"
-                    f"Opções:\n"
-                    f"• Reduza para 2 aquários na configuração de zonas\n"
-                    f"• Use modo sequencial (processar aquários separadamente)\n"
-                    f"• Processe offline após gravação sem detecção",
+                    _("Aquarium Limit"),
+                    _(
+                        "⚠️ Simultaneous recording is limited to 2 aquariums.\n\n"
+                        "Your project has {count} aquariums configured.\n\n"
+                        "Options:\n"
+                        "• Reduce to 2 aquariums in the zone configuration\n"
+                        "• Use sequential mode (process aquariums separately)\n"
+                        "• Process offline after recording without detection"
+                    ).format(count=requested_aquariums),
                 )
                 return (
                     False,
-                    f"Projeto com {requested_aquariums} aquários excede o "
-                    f"limite de 2 para gravação simultânea.",
+                    _(
+                        "A project with {count} aquariums exceeds the limit of 2 "
+                        "for simultaneous recording."
+                    ).format(count=requested_aquariums),
                 )
 
             # Check if hardware supports requested aquarium count
             if not self._check_mode_compatibility(requested_aquariums):
                 return (
                     False,
-                    "Seleção de modo cancelada. Por favor, ajuste o número "
-                    "de aquários ou selecione um modo compatível.",
+                    _(
+                        "Mode selection cancelled. Adjust the number of aquariums "
+                        "or select a compatible mode."
+                    ),
                 )
 
             # Store selected mode in wizard_data for later use
@@ -908,7 +940,7 @@ class LiveConfigStep(WizardStep):
             return (True, "")
 
         except (ValueError, KeyError, AttributeError) as e:
-            return (False, f"Erro ao validar dados: {e!s}")
+            return (False, _("Error validating data: {error}").format(error=str(e)))
 
     def get_data(self) -> dict:
         """
@@ -1012,7 +1044,9 @@ class LiveConfigStep(WizardStep):
             fallback = next(iter(self.camera_index_map))
             self.camera_selection_var.set(fallback)
             self.camera_status_label.config(
-                text=f"⚠ Câmera do template indisponível — selecionada '{fallback}'. Confira.",
+                text=_(
+                    "⚠ The template's camera is unavailable — selected '{fallback}'. Please check."
+                ).format(fallback=fallback),
                 fg="red",
             )
             log.warning(
@@ -1045,10 +1079,10 @@ class LiveConfigStep(WizardStep):
         # disable Arduino.
         self.arduino_port_var.set("")
         self.arduino_status_label.config(
-            text=(
-                f"⚠ Porta do template ({port_device}) indisponível — "
-                "selecione outra ou desative o Arduino."
-            ),
+            text=_(
+                "⚠ The template's port ({port}) is unavailable — select "
+                "another one or disable the Arduino."
+            ).format(port=port_device),
             fg="red",
         )
         log.warning("live_config.arduino_reconcile.port_unavailable", saved_port=port_device)

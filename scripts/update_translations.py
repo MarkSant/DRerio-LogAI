@@ -88,7 +88,15 @@ def update_or_init(domain: str, pot_path: Path) -> None:
 
     if po_path.exists():
         subcommand = "update"
-        extra = ["--previous"]
+        # --no-fuzzy-matching: without it Babel seeds each new msgid's msgstr
+        # from whatever existing entry looks similar, marks it fuzzy, and
+        # records the old text in a "#|" previous-msgid comment. i18n_pairs.py
+        # throws those guesses away regardless (it overwrites fuzzy msgstr from
+        # the _pairs files), so the only thing they produce is risk: when the
+        # guessed msgid spans several lines Babel wraps that "#|" comment in
+        # the middle of a quoted string, and polib then refuses to parse the
+        # catalogue at all.
+        extra = ["--previous", "--no-fuzzy-matching"]
     else:
         subcommand = "init"
         extra = []

@@ -189,7 +189,7 @@ class TestLiveConfigTemplateReconcile:
 
         # Saved camera absent → fall back to the only available one + warn.
         assert step.camera_selection_var.get() == "USB Cam"
-        assert "indispon" in step.camera_status_label.cget("text").lower()
+        assert "unavailable" in step.camera_status_label.cget("text").lower()
 
     def test_template_camera_available_is_selected_without_warning(self, monkeypatch):
         monkeypatch.setattr(
@@ -206,7 +206,7 @@ class TestLiveConfigTemplateReconcile:
         step.on_show()
 
         assert step.camera_selection_var.get() == "USB Cam"
-        assert "indispon" not in step.camera_status_label.cget("text").lower()
+        assert "unavailable" not in step.camera_status_label.cget("text").lower()
 
     def test_template_arduino_port_unavailable_is_cleared_and_blocks_validation(self, monkeypatch):
         monkeypatch.setattr(WizardService, "detect_available_cameras", lambda *a, **k: [])
@@ -227,7 +227,7 @@ class TestLiveConfigTemplateReconcile:
 
         # Phantom port cleared + warned, not silently carried.
         assert step.arduino_port_var.get() == ""
-        assert "indispon" in step.arduino_status_label.cget("text").lower()
+        assert "unavailable" in step.arduino_status_label.cget("text").lower()
 
         # End-to-end safety: validation blocks advancing (Arduino on, no port).
         is_valid, _msg = WizardService.validate_live_config(step.get_data())
@@ -251,7 +251,7 @@ class TestLiveConfigTemplateReconcile:
         step.on_show()
 
         assert step.arduino_port_var.get() == "COM3 - Arduino"
-        assert "indispon" not in step.arduino_status_label.cget("text").lower()
+        assert "unavailable" not in step.arduino_status_label.cget("text").lower()
 
     def test_no_template_metadata_skips_reconciliation(self, monkeypatch):
         """Normal flow (no template): must not force detection or warn."""
