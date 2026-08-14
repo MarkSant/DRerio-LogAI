@@ -30,6 +30,7 @@ if TYPE_CHECKING:
     from zebtrack.ui.event_bus_v2 import EventBusV2
 
 from zebtrack.core.services.wizard_service import WizardService
+from zebtrack.i18n import _
 from zebtrack.ui.components.behavioral_config_widget import BehavioralConfigWidget
 from zebtrack.ui.wizard.tooltip import ToolTip, create_help_label
 
@@ -150,7 +151,7 @@ class LiveAnalysisDialog(Dialog):
         self.animal_method_var = StringVar(value=animal_method_default)
         self.use_openvino_var = BooleanVar(value=use_openvino_default)
 
-        super().__init__(parent, title="Analisar Câmera ao Vivo")
+        super().__init__(parent, title=_("Analyze Live Camera"))
 
         # Set application icon
         from zebtrack.ui.icon_utils import set_window_icon
@@ -166,26 +167,26 @@ class LiveAnalysisDialog(Dialog):
         # Title
         title = Label(
             container,
-            text="Análise de Câmera ao Vivo",
+            text=_("Live Camera Analysis"),
             font=("TkDefaultFont", 12, "bold"),
         )
         title.pack(pady=(0, 5))
 
         subtitle = Label(
             container,
-            text="Configure e inicie uma sessão de análise em tempo real.",
+            text=_("Set up and start a real-time analysis session."),
             fg="gray",
         )
         subtitle.pack(pady=(0, 15))
 
         # --- Camera Selection (Top) ---
-        camera_frame = ttk.LabelFrame(container, text="Seleção de Câmera", padding=10)
+        camera_frame = ttk.LabelFrame(container, text=_("Camera Selection"), padding=10)
         camera_frame.pack(fill="x", pady=(0, 10))
 
         # Grid for camera selection
         camera_frame.columnconfigure(1, weight=1)
 
-        ttk.Label(camera_frame, text="Dispositivo:").grid(row=0, column=0, padx=5, sticky="w")
+        ttk.Label(camera_frame, text=_("Device:")).grid(row=0, column=0, padx=5, sticky="w")
 
         self.camera_combo = ttk.Combobox(
             camera_frame,
@@ -193,9 +194,9 @@ class LiveAnalysisDialog(Dialog):
             state="readonly",
         )
         self.camera_combo.grid(row=0, column=1, padx=5, sticky="ew")
-        ToolTip(self.camera_combo, "Selecione a câmera para análise ao vivo.")
+        ToolTip(self.camera_combo, _("Select the camera for live analysis."))
 
-        ttk.Button(camera_frame, text="🔍 Detectar", command=self._detect_cameras, width=10).grid(
+        ttk.Button(camera_frame, text=_("🔍 Detect"), command=self._detect_cameras, width=10).grid(
             row=0, column=2, padx=5
         )
 
@@ -213,7 +214,7 @@ class LiveAnalysisDialog(Dialog):
         left_col.grid(row=0, column=0, sticky="nsew", padx=(0, 5))
 
         # Duration Settings
-        duration_frame = ttk.LabelFrame(left_col, text="Tempo e Processamento", padding=10)
+        duration_frame = ttk.LabelFrame(left_col, text=_("Timing and Processing"), padding=10)
         duration_frame.pack(fill="x", pady=(0, 10))
 
         # Grid: Label | Help | Entry
@@ -221,15 +222,17 @@ class LiveAnalysisDialog(Dialog):
         duration_frame.columnconfigure(2, weight=1)
 
         # Duration
-        ttk.Label(duration_frame, text="Duração (s):").grid(
+        ttk.Label(duration_frame, text=_("Duration (s):")).grid(
             row=0, column=0, padx=(5, 2), pady=2, sticky="w"
         )
         create_help_label(
             duration_frame,
-            "Tempo de Gravação/Análise\n\n"
-            "Define quanto tempo a sessão ao vivo irá durar em segundos.\n"
-            "• 60s = 1 minuto.\n"
-            "• 300s = 5 minutos.",
+            _(
+                "Recording/Analysis Time\n\n"
+                "Sets how long the live session will last, in seconds.\n"
+                "• 60s = 1 minute.\n"
+                "• 300s = 5 minutes."
+            ),
         ).grid(row=0, column=1, padx=2)
         duration_spin = Spinbox(
             duration_frame,
@@ -251,15 +254,17 @@ class LiveAnalysisDialog(Dialog):
         )
 
         # Analysis Interval
-        ttk.Label(duration_frame, text="Intervalo Análise:").grid(
+        ttk.Label(duration_frame, text=_("Analysis interval:")).grid(
             row=1, column=0, padx=(5, 2), pady=2, sticky="w"
         )
         create_help_label(
             duration_frame,
-            "Intervalo de Análise (frames)\n\n"
-            "Processa 1 frame a cada N frames da câmera.\n"
-            "• Valores baixos exigem um computador potente.\n"
-            "• Recomendado para Live: 1 ou 2.",
+            _(
+                "Analysis Interval (frames)\n\n"
+                "Processes 1 frame out of every N frames from the camera.\n"
+                "• Low values require a powerful computer.\n"
+                "• Recommended for live: 1 or 2."
+            ),
         ).grid(row=1, column=1, padx=2)
         analysis_spin = Spinbox(
             duration_frame,
@@ -271,14 +276,16 @@ class LiveAnalysisDialog(Dialog):
         analysis_spin.grid(row=1, column=2, padx=5, pady=2, sticky="w")
 
         # Display Interval
-        ttk.Label(duration_frame, text="Intervalo Exibição:").grid(
+        ttk.Label(duration_frame, text=_("Display interval:")).grid(
             row=2, column=0, padx=(5, 2), pady=2, sticky="w"
         )
         create_help_label(
             duration_frame,
-            "Intervalo de Exibição (frames)\n\n"
-            "Frequência de atualização do vídeo na tela.\n"
-            "• Aumentar este valor ajuda se a interface estiver lenta.",
+            _(
+                "Display Interval (frames)\n\n"
+                "How often the video on screen is refreshed.\n"
+                "• Raising this helps if the interface feels slow."
+            ),
         ).grid(row=2, column=1, padx=2)
         display_spin = Spinbox(
             duration_frame,
@@ -294,7 +301,7 @@ class LiveAnalysisDialog(Dialog):
         right_col.grid(row=0, column=1, sticky="nsew", padx=(5, 0))
 
         # Options Settings
-        options_frame = ttk.LabelFrame(right_col, text="Opções da Sessão", padding=10)
+        options_frame = ttk.LabelFrame(right_col, text=_("Session Options"), padding=10)
         options_frame.pack(fill="x", pady=(0, 10))
 
         # Grid: Label | Help | Entry
@@ -302,14 +309,16 @@ class LiveAnalysisDialog(Dialog):
         options_frame.columnconfigure(2, weight=1)
 
         # Experiment ID
-        ttk.Label(options_frame, text="ID Experimento:").grid(
+        ttk.Label(options_frame, text=_("Experiment ID:")).grid(
             row=0, column=0, padx=(5, 2), pady=5, sticky="w"
         )
         create_help_label(
             options_frame,
-            "Identificador do Experimento\n\n"
-            "Nome usado para organizar os arquivos de saída.\n"
-            "• Se deixado em branco, o sistema gerará um nome com a data e hora.",
+            _(
+                "Experiment Identifier\n\n"
+                "Name used to organize the output files.\n"
+                "• If left blank, the system generates a name from the date and time."
+            ),
         ).grid(row=0, column=1, padx=2)
         id_entry = ttk.Entry(options_frame, textvariable=self.experiment_id_var)
         id_entry.grid(row=0, column=2, padx=5, pady=5, sticky="ew")
@@ -317,14 +326,14 @@ class LiveAnalysisDialog(Dialog):
         # Checkboxes
         ttk.Checkbutton(
             options_frame,
-            text="Gravar vídeo com overlay",
+            text=_("Record video with overlay"),
             variable=self.record_video_var,
         ).grid(row=1, column=0, columnspan=3, padx=5, pady=5, sticky="w")
 
         # OpenVINO Option
         ttk.Checkbutton(
             options_frame,
-            text="Usar aceleração OpenVINO",
+            text=_("Use OpenVINO acceleration"),
             variable=self.use_openvino_var,
         ).grid(row=2, column=0, columnspan=3, padx=5, pady=5, sticky="w")
 
@@ -333,22 +342,28 @@ class LiveAnalysisDialog(Dialog):
         output_row = ttk.Frame(options_frame)
         output_row.grid(row=3, column=0, columnspan=3, padx=5, pady=5, sticky="ew")
         output_row.columnconfigure(1, weight=1)
-        ttk.Label(output_row, text="Pasta de Saída:").grid(row=0, column=0, padx=(0, 5), sticky="w")
+        ttk.Label(output_row, text=_("Output folder:")).grid(
+            row=0, column=0, padx=(0, 5), sticky="w"
+        )
         ttk.Entry(output_row, textvariable=self.output_folder_var).grid(
             row=0, column=1, sticky="ew"
         )
         ttk.Button(
-            output_row, text="Procurar...", command=self._select_output_folder, width=11
+            output_row, text=_("Browse..."), command=self._select_output_folder, width=11
         ).grid(row=0, column=2, padx=(5, 0))
         create_help_label(
             output_row,
-            "Diretório onde os resultados serão salvos.\n"
-            "• Se deixado em branco, usa a pasta padrão "
-            "'live_analysis_sessions/'.",
+            _(
+                "Directory where the results will be saved.\n"
+                "• If left blank, uses the default folder "
+                "'live_analysis_sessions/'."
+            ),
         ).grid(row=0, column=3, padx=(5, 0))
 
         # --- Calibration & Detection (Bottom, simplified) ---
-        adv_frame = ttk.LabelFrame(container, text="Parâmetros Avançados de IA e Setup", padding=10)
+        adv_frame = ttk.LabelFrame(
+            container, text=_("Advanced AI and Setup Parameters"), padding=10
+        )
         adv_frame.pack(fill="x", pady=(0, 10))
 
         # Grid: Label | Help | Entry | Label | Help | Entry
@@ -358,12 +373,14 @@ class LiveAnalysisDialog(Dialog):
         adv_frame.columnconfigure(5, weight=1)
 
         # Row 0: Model Methods
-        ttk.Label(adv_frame, text="IA Aquário:").grid(row=0, column=0, padx=(5, 2), sticky="w")
+        ttk.Label(adv_frame, text=_("Aquarium AI:")).grid(row=0, column=0, padx=(5, 2), sticky="w")
         create_help_label(
             adv_frame,
-            "Modelo de Segmentação ou Detecção do tanque.\n"
-            "• seg: Mais lento, mas delimita melhor as bordas.\n"
-            "• det: Muito rápido.",
+            _(
+                "Segmentation or Detection model for the tank.\n"
+                "• seg: slower, but outlines the edges better.\n"
+                "• det: very fast."
+            ),
         ).grid(row=0, column=1, padx=2)
         ttk.Combobox(
             adv_frame,
@@ -373,9 +390,10 @@ class LiveAnalysisDialog(Dialog):
             state="readonly",
         ).grid(row=0, column=2, padx=5, sticky="w")
 
-        ttk.Label(adv_frame, text="IA Peixe:").grid(row=0, column=3, padx=(15, 2), sticky="w")
+        ttk.Label(adv_frame, text=_("Fish AI:")).grid(row=0, column=3, padx=(15, 2), sticky="w")
         create_help_label(
-            adv_frame, "Modelo para o peixe.\n• Use 'seg' se tiver mais de um peixe por aquário."
+            adv_frame,
+            _("Model for the fish.\n• Use 'seg' if there is more than one fish per aquarium."),
         ).grid(row=0, column=4, padx=2)
         ttk.Combobox(
             adv_frame,
@@ -386,20 +404,20 @@ class LiveAnalysisDialog(Dialog):
         ).grid(row=0, column=5, padx=5, sticky="w")
 
         # Row 1: Physical setup
-        ttk.Label(adv_frame, text="Num. Aquários:").grid(
+        ttk.Label(adv_frame, text=_("No. of aquariums:")).grid(
             row=1, column=0, padx=(5, 2), pady=5, sticky="w"
         )
-        create_help_label(adv_frame, "Quantidade de tanques no campo de visão (1 ou 2).").grid(
+        create_help_label(adv_frame, _("Number of tanks in the field of view (1 or 2).")).grid(
             row=1, column=1, padx=2
         )
         Spinbox(adv_frame, from_=1, to=10, textvariable=self.num_aquariums_var, width=8).grid(
             row=1, column=2, padx=5, sticky="w"
         )
 
-        ttk.Label(adv_frame, text="Animais/Aquário:").grid(
+        ttk.Label(adv_frame, text=_("Animals/aquarium:")).grid(
             row=1, column=3, padx=(15, 2), pady=5, sticky="w"
         )
-        create_help_label(adv_frame, "Quantidade de peixes dentro de cada aquário.").grid(
+        create_help_label(adv_frame, _("Number of fish inside each aquarium.")).grid(
             row=1, column=4, padx=2
         )
         Spinbox(
@@ -407,7 +425,7 @@ class LiveAnalysisDialog(Dialog):
         ).grid(row=1, column=5, padx=5, sticky="w")
 
         # --- Behavioral Analysis Widget (New) ---
-        behavior_frame = ttk.LabelFrame(container, text="Análise Comportamental", padding=10)
+        behavior_frame = ttk.LabelFrame(container, text=_("Behavioural Analysis"), padding=10)
         behavior_frame.pack(fill="x", pady=(0, 10))
 
         # Determine defaults
@@ -450,10 +468,10 @@ class LiveAnalysisDialog(Dialog):
         """Create custom button box with Start and Cancel."""
         box = Frame(self)
 
-        Button(box, text="Iniciar Análise", width=15, command=self.ok, default="active").pack(
+        Button(box, text=_("Start Analysis"), width=15, command=self.ok, default="active").pack(
             side="left", padx=5, pady=5
         )
-        Button(box, text="Cancelar", width=10, command=self.cancel).pack(
+        Button(box, text=_("Cancel"), width=10, command=self.cancel).pack(
             side="left", padx=5, pady=5
         )
 
@@ -468,7 +486,7 @@ class LiveAnalysisDialog(Dialog):
 
         initial = self.output_folder_var.get().strip() or None
         folder = filedialog.askdirectory(
-            title="Selecione a pasta de saída para os resultados",
+            title=_("Select the output folder for the results"),
             initialdir=initial,
             parent=self,
         )
@@ -477,7 +495,7 @@ class LiveAnalysisDialog(Dialog):
 
     def _detect_cameras(self) -> None:
         """Detect available cameras using WizardService."""
-        self.camera_status_label.config(text="Detectando...", fg="blue")
+        self.camera_status_label.config(text=_("Detecting..."), fg="blue")
         self.update_idletasks()
 
         try:
@@ -495,7 +513,7 @@ class LiveAnalysisDialog(Dialog):
                     # ``description`` que o WizardService já formata
                     # (ex.: "HD Webcam [index 0] - HD (1280x720)"). Os campos
                     # ``name``/``resolution`` não existem no dict retornado.
-                    display_name = cam.get("description", f"Câmera {index}")
+                    display_name = cam.get("description", _("Camera {index}").format(index=index))
                     display_names.append(display_name)
                     self.camera_index_map[display_name] = index
 
@@ -506,25 +524,29 @@ class LiveAnalysisDialog(Dialog):
                     self.camera_selection_var.set(display_names[0])
 
                 self.camera_status_label.config(
-                    text=f"✓ {len(cameras)} câmera(s) detectada(s)",
+                    text=(
+                        _("✓ 1 camera detected")
+                        if len(cameras) == 1
+                        else _("✓ {count} cameras detected").format(count=len(cameras))
+                    ),
                     fg="green",
                 )
             else:
                 self.camera_combo["values"] = []
                 self.camera_status_label.config(
-                    text="✗ Nenhuma câmera detectada",
+                    text=_("✗ No camera detected"),
                     fg="red",
                 )
 
         except Exception as e:
             log.error("live_analysis_dialog.camera_detection_error", error=str(e), exc_info=True)
             self.camera_status_label.config(
-                text="✗ Erro ao detectar câmeras",
+                text=_("✗ Error detecting cameras"),
                 fg="red",
             )
             messagebox.showerror(
-                "Erro de Detecção",
-                f"Falha ao detectar câmeras:\n{e}",
+                _("Detection Error"),
+                _("Failed to detect cameras:\n{error}").format(error=e),
                 parent=self,
             )
 
@@ -534,8 +556,8 @@ class LiveAnalysisDialog(Dialog):
         selected = self.camera_selection_var.get().strip()
         if not selected:
             messagebox.showwarning(
-                "Câmera Não Selecionada",
-                "Por favor, selecione uma câmera para análise.",
+                _("No Camera Selected"),
+                _("Please select a camera for the analysis."),
                 parent=self,
             )
             return False
@@ -543,8 +565,8 @@ class LiveAnalysisDialog(Dialog):
         camera_index = self.camera_index_map.get(selected)
         if camera_index is None:
             messagebox.showerror(
-                "Câmera Inválida",
-                f"Índice de câmera não encontrado para: {selected}",
+                _("Invalid Camera"),
+                _("Camera index not found for: {camera}").format(camera=selected),
                 parent=self,
             )
             return False
@@ -553,13 +575,15 @@ class LiveAnalysisDialog(Dialog):
         try:
             duration = float(self.duration_var.get())
             if duration <= 0:
-                raise ValueError("Duração deve ser positiva")
+                raise ValueError(_("Duration must be positive"))
 
             max_duration = self.settings.live_analysis.max_duration_s if self.settings else 7200.0
             if duration > max_duration:
                 messagebox.showwarning(
-                    "Duração Muito Longa",
-                    f"Duração máxima permitida: {max_duration}s\nAjustando para o máximo...",
+                    _("Duration Too Long"),
+                    _("Maximum allowed duration: {value}s\nAdjusting to the maximum...").format(
+                        value=max_duration
+                    ),
                     parent=self,
                 )
                 self.duration_var.set(max_duration)
@@ -567,8 +591,8 @@ class LiveAnalysisDialog(Dialog):
 
         except (ValueError, TypeError) as e:
             messagebox.showerror(
-                "Duração Inválida",
-                f"Duração deve ser um número positivo:\n{e}",
+                _("Invalid Duration"),
+                _("Duration must be a positive number:\n{error}").format(error=e),
                 parent=self,
             )
             return False
@@ -579,12 +603,12 @@ class LiveAnalysisDialog(Dialog):
             display_interval = int(self.display_interval_var.get())
 
             if analysis_interval < 1 or display_interval < 1:
-                raise ValueError("Intervalos devem ser >= 1")
+                raise ValueError(_("Intervals must be >= 1"))
 
         except (ValueError, TypeError) as e:
             messagebox.showerror(
-                "Intervalo Inválido",
-                f"Intervalos devem ser números inteiros positivos:\n{e}",
+                _("Invalid Interval"),
+                _("Intervals must be positive whole numbers:\n{error}").format(error=e),
                 parent=self,
             )
             return False
@@ -597,14 +621,14 @@ class LiveAnalysisDialog(Dialog):
             aquarium_height = float(self.aquarium_height_var.get())
 
             if num_aquariums < 1 or animals_per_aquarium < 1:
-                raise ValueError("Número de aquários e animais devem ser >= 1")
+                raise ValueError(_("The number of aquariums and animals must be >= 1"))
             if aquarium_width <= 0 or aquarium_height <= 0:
-                raise ValueError("Dimensões do aquário devem ser positivas")
+                raise ValueError(_("The aquarium dimensions must be positive"))
 
         except (ValueError, TypeError) as e:
             messagebox.showerror(
-                "Parâmetro de Calibração Inválido",
-                f"Erro na calibração:\n{e}",
+                _("Invalid Calibration Parameter"),
+                _("Calibration error:\n{error}").format(error=e),
                 parent=self,
             )
             return False
@@ -616,12 +640,12 @@ class LiveAnalysisDialog(Dialog):
             freeze_dur = float(self.freeze_dur_var.get())
 
             if sharp_turn < 0 or freeze_thresh < 0 or freeze_dur < 0:
-                raise ValueError("Parâmetros comportamentais devem ser não-negativos")
+                raise ValueError(_("Behavioural parameters must be non-negative"))
 
         except (ValueError, TypeError) as e:
             messagebox.showerror(
-                "Parâmetro Comportamental Inválido",
-                f"Erro nos parâmetros comportamentais:\n{e}",
+                _("Invalid Behavioural Parameter"),
+                _("Error in the behavioural parameters:\n{error}").format(error=e),
                 parent=self,
             )
             return False
@@ -632,13 +656,13 @@ class LiveAnalysisDialog(Dialog):
             smoothing_polyorder = int(self.smoothing_polyorder_var.get())
 
             if smoothing_window < 3:
-                raise ValueError("Janela de suavização deve ser >= 3")
+                raise ValueError(_("The smoothing window must be >= 3"))
             if smoothing_window % 2 == 0:
-                raise ValueError("Janela de suavização deve ser ímpar")
+                raise ValueError(_("The smoothing window must be odd"))
             if smoothing_polyorder < 1:
-                raise ValueError("Ordem do polinômio deve ser >= 1")
+                raise ValueError(_("The polynomial order must be >= 1"))
             if smoothing_polyorder >= smoothing_window:
-                raise ValueError("Ordem do polinômio deve ser menor que a janela")
+                raise ValueError(_("The polynomial order must be smaller than the window"))
 
             # Validate behavioral config
             if self.behavioral_config_widget:
@@ -648,8 +672,8 @@ class LiveAnalysisDialog(Dialog):
 
         except (ValueError, TypeError) as e:
             messagebox.showerror(
-                "Parâmetro Inválido",
-                f"Erro na validação:\n{e}",
+                _("Invalid Parameter"),
+                _("Validation error:\n{error}").format(error=e),
                 parent=self,
             )
             return False

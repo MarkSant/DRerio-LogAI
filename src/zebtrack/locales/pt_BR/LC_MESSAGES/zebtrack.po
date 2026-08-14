@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: DRerio LogAI VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-08-14 16:24-0300\n"
+"POT-Creation-Date: 2026-08-14 17:05-0300\n"
 "PO-Revision-Date: 2026-08-08 21:41-0300\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: pt_BR <LL@li.org>\n"
@@ -258,6 +258,10 @@ msgstr "Vídeo Único"
 #: src/zebtrack/ui/components/validation_manager.py:183
 #: src/zebtrack/ui/components/validation_manager.py:491
 #: src/zebtrack/ui/components/validation_manager.py:1634
+#: src/zebtrack/ui/dialogs/block_detail_dialog.py:992
+#: src/zebtrack/ui/dialogs/block_detail_dialog.py:1001
+#: src/zebtrack/ui/dialogs/block_detail_dialog.py:1473
+#: src/zebtrack/ui/dialogs/block_detail_dialog.py:1529
 #: src/zebtrack/ui/gui.py:144 src/zebtrack/ui/gui.py:808
 #: src/zebtrack/ui/wizard/live_config_step.py:860
 msgid "Error"
@@ -879,6 +883,7 @@ msgstr ""
 # | msgid "Invalid selection"
 # | msgid "Detection"
 #: src/zebtrack/coordinators/live_calibration_coordinator.py:1018
+#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:548
 msgid "Detection Error"
 msgstr "Erro na Detecção"
 
@@ -1241,6 +1246,7 @@ msgstr "  - Nenhuma detecção encontrada."
 # | msgid "Validation finished"
 # | msgid "Validation Failed"
 #: src/zebtrack/coordinators/multi_aquarium_coordinator.py:315
+#: src/zebtrack/ui/dialogs/block_detail_dialog.py:650
 msgid "Detection failed"
 msgstr "Detecção falhou"
 
@@ -1415,6 +1421,7 @@ msgstr "Falhas em:\n"
 
 # | msgid "Reports removed"
 #: src/zebtrack/coordinators/report_generation_coordinator.py:433
+#: src/zebtrack/ui/dialogs/block_detail_dialog.py:1334
 msgid "Reports Generated"
 msgstr "Relatórios Gerados"
 
@@ -3161,7 +3168,9 @@ msgstr ""
 "Este projeto não está configurado para rastreamento experimental ao vivo."
 
 # | msgid "Failed to open folder"
-#: src/zebtrack/ui/components/dialog_manager.py:824 src/zebtrack/ui/gui.py:840
+#: src/zebtrack/ui/components/dialog_manager.py:824
+#: src/zebtrack/ui/dialogs/block_detail_dialog.py:732
+#: src/zebtrack/ui/gui.py:840
 msgid "Failed to save camera"
 msgstr "Falha ao salvar câmera"
 
@@ -3366,6 +3375,8 @@ msgstr "Configurações Salvas"
 #: src/zebtrack/ui/builders/analysis_widgets.py:557
 #: src/zebtrack/ui/components/project_views/report_generator_actions.py:331
 #: src/zebtrack/ui/components/validation_manager.py:1627
+#: src/zebtrack/ui/dialogs/block_detail_dialog.py:1359
+#: src/zebtrack/ui/dialogs/block_detail_dialog.py:1374
 msgid "Warning"
 msgstr "Aviso"
 
@@ -3395,6 +3406,7 @@ msgid "Analyze Single Video"
 msgstr "Analisar Vídeo Único"
 
 #: src/zebtrack/ui/builders/button_factory.py:59
+#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:154
 msgid "Analyze Live Camera"
 msgstr "Analisar Câmera ao Vivo"
 
@@ -3460,6 +3472,7 @@ msgid "Detection (for fast bounding boxes)"
 msgstr "Detecção (para caixas delimitadoras rápidas)"
 
 #: src/zebtrack/ui/builders/common_widgets.py:223
+#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:474
 #: src/zebtrack/ui/wizard/custom_regex_dialog.py:473
 #: src/zebtrack/ui/wizard/design_editor_dialog.py:269
 #: src/zebtrack/ui/wizard/wizard_dialog.py:207
@@ -3832,6 +3845,7 @@ msgstr "Sair:"
 
 # | msgid "OpenVINO device:"
 #: src/zebtrack/ui/components/arduino_bindings_panel.py:138
+#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:189
 msgid "Device:"
 msgstr "Dispositivo:"
 
@@ -5859,6 +5873,7 @@ msgid "License: MIT"
 msgstr "Licença: MIT"
 
 #: src/zebtrack/ui/components/menu_manager.py:243
+#: src/zebtrack/ui/dialogs/block_detail_dialog.py:297
 msgid "Close"
 msgstr "Fechar"
 
@@ -8898,6 +8913,621 @@ msgstr "Frame carregado: {name}"
 msgid "Buffer radius must be >= 0"
 msgstr "Raio de buffer deve ser >= 0"
 
+#: src/zebtrack/ui/dialogs/block_detail_dialog.py:42
+#, python-brace-format
+msgid "Day {day} - {group}"
+msgstr "Dia {day} - {group}"
+
+#: src/zebtrack/ui/dialogs/block_detail_dialog.py:116
+#, python-brace-format
+msgid "Sessions: {block}"
+msgstr "Sessões: {block}"
+
+#: src/zebtrack/ui/dialogs/block_detail_dialog.py:156
+#, python-brace-format
+msgid "📊 Progress: {done}/{total} sessions"
+msgstr "📊 Progresso: {done}/{total} sessões"
+
+#: src/zebtrack/ui/dialogs/block_detail_dialog.py:169
+msgid "🏟️ Project polygon: ✅ Defined"
+msgstr "🏟️ Polígono do projeto: ✅ Definido"
+
+#: src/zebtrack/ui/dialogs/block_detail_dialog.py:171
+msgid "🏟️ Project polygon: ⚠️ Not defined"
+msgstr "🏟️ Polígono do projeto: ⚠️ Não definido"
+
+#: src/zebtrack/ui/dialogs/block_detail_dialog.py:188
+msgid "🐟 Subjects"
+msgstr "🐟 Cobaias"
+
+#: src/zebtrack/ui/dialogs/block_detail_dialog.py:218
+msgid "📷 Camera:"
+msgstr "📷 Câmera:"
+
+#: src/zebtrack/ui/dialogs/block_detail_dialog.py:232
+msgid "Change..."
+msgstr "Trocar..."
+
+#: src/zebtrack/ui/dialogs/block_detail_dialog.py:242
+msgid "⏱️ Default duration for the block:"
+msgstr "⏱️ Duração padrão do bloco:"
+
+#: src/zebtrack/ui/dialogs/block_detail_dialog.py:256
+msgid "Edit..."
+msgstr "Alterar..."
+
+#: src/zebtrack/ui/dialogs/block_detail_dialog.py:266
+msgid "🛠️ Quick Actions"
+msgstr "🛠️ Ações Rápidas"
+
+#: src/zebtrack/ui/dialogs/block_detail_dialog.py:272
+msgid "▶️ Start Next Session"
+msgstr "▶️ Iniciar Próxima Sessão"
+
+#: src/zebtrack/ui/dialogs/block_detail_dialog.py:279
+msgid "📊 Generate Partial Report"
+msgstr "📊 Gerar Relatório Parcial"
+
+#: src/zebtrack/ui/dialogs/block_detail_dialog.py:286
+msgid "📝 Add Note"
+msgstr "📝 Adicionar Nota"
+
+#: src/zebtrack/ui/dialogs/block_detail_dialog.py:303
+msgid "✅ Mark Batch as Complete"
+msgstr "✅ Marcar Lote Como Completo"
+
+#: src/zebtrack/ui/dialogs/block_detail_dialog.py:502
+#, python-brace-format
+msgid "Animal {subject}"
+msgstr "Animal {subject}"
+
+#: src/zebtrack/ui/dialogs/block_detail_dialog.py:543
+msgid "🏟️ Auto-detected"
+msgstr "🏟️ Auto-detectado"
+
+#: src/zebtrack/ui/dialogs/block_detail_dialog.py:551
+msgid "✏️ Drawn manually"
+msgstr "✏️ Desenhado manualmente"
+
+#: src/zebtrack/ui/dialogs/block_detail_dialog.py:559
+msgid "🏟️ Project polygon ready (will be reused)"
+msgstr "🏟️ Polígono do projeto pronto (será reutilizado)"
+
+#: src/zebtrack/ui/dialogs/block_detail_dialog.py:578
+#, python-brace-format
+msgid "⏱️ {duration} (its own)"
+msgstr "⏱️ {duration} (própria)"
+
+#: src/zebtrack/ui/dialogs/block_detail_dialog.py:580
+#, python-brace-format
+msgid "⏱️ {duration} (block default)"
+msgstr "⏱️ {duration} (padrão do bloco)"
+
+#: src/zebtrack/ui/dialogs/block_detail_dialog.py:603
+msgid "📊 View Results"
+msgstr "📊 Ver Resultados"
+
+#: src/zebtrack/ui/dialogs/block_detail_dialog.py:609
+msgid "▶️ Start"
+msgstr "▶️ Iniciar"
+
+#: src/zebtrack/ui/dialogs/block_detail_dialog.py:614
+msgid "⏱️ Duration"
+msgstr "⏱️ Duração"
+
+#: src/zebtrack/ui/dialogs/block_detail_dialog.py:623
+#, python-brace-format
+msgid "[Session] Index {index}{suffix}"
+msgstr "[Sessão] Índice {index}{suffix}"
+
+#: src/zebtrack/ui/dialogs/block_detail_dialog.py:635
+#, python-brace-format
+msgid "{name} (index {index})"
+msgstr "{name} (índice {index})"
+
+#: src/zebtrack/ui/dialogs/block_detail_dialog.py:636
+#, python-brace-format
+msgid "Index {index}"
+msgstr "Índice {index}"
+
+#: src/zebtrack/ui/dialogs/block_detail_dialog.py:651
+#, python-brace-format
+msgid ""
+"Could not detect cameras:\n"
+"\n"
+"{error}"
+msgstr ""
+"Não foi possível detectar câmeras:\n"
+"\n"
+"{error}"
+
+#: src/zebtrack/ui/dialogs/block_detail_dialog.py:658
+msgid "No camera"
+msgstr "Nenhuma câmera"
+
+#: src/zebtrack/ui/dialogs/block_detail_dialog.py:659
+msgid "No camera was detected on this system."
+msgstr "Nenhuma câmera foi detectada no sistema."
+
+#: src/zebtrack/ui/dialogs/block_detail_dialog.py:665
+msgid "Change the camera for this session"
+msgstr "Trocar câmera para esta sessão"
+
+#: src/zebtrack/ui/dialogs/block_detail_dialog.py:669
+msgid "Select the camera:"
+msgstr "Selecione a câmera:"
+
+#: src/zebtrack/ui/dialogs/block_detail_dialog.py:674
+#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:516
+#: src/zebtrack/ui/wizard/live_config_step.py:708
+#, python-brace-format
+msgid "Camera {index}"
+msgstr "Câmera {index}"
+
+#: src/zebtrack/ui/dialogs/block_detail_dialog.py:694
+msgid "Save as the default camera for this project"
+msgstr "Salvar como câmera padrão deste projeto"
+
+#: src/zebtrack/ui/dialogs/block_detail_dialog.py:733
+#, python-brace-format
+msgid ""
+"Could not save the camera as the default:\n"
+"{error}"
+msgstr ""
+"Não foi possível salvar a câmera como padrão:\n"
+"{error}"
+
+#: src/zebtrack/ui/dialogs/block_detail_dialog.py:792
+#: src/zebtrack/ui/dialogs/block_detail_dialog.py:800
+msgid "Invalid value"
+msgstr "Valor inválido"
+
+#: src/zebtrack/ui/dialogs/block_detail_dialog.py:793
+#, python-brace-format
+msgid "'{value}' is not a number of minutes."
+msgstr "'{value}' não é um número de minutos."
+
+#: src/zebtrack/ui/dialogs/block_detail_dialog.py:801
+msgid "The duration must be greater than zero."
+msgstr "A duração deve ser maior que zero."
+
+#: src/zebtrack/ui/dialogs/block_detail_dialog.py:818
+msgid "Project not saved"
+msgstr "Projeto não salvo"
+
+#: src/zebtrack/ui/dialogs/block_detail_dialog.py:820
+msgid ""
+"The project has no path defined, so the duration could not be written. Save "
+"the project and try again."
+msgstr ""
+"O projeto não tem um caminho definido, então a duração não pôde ser gravada."
+" Salve o projeto e tente de novo."
+
+#: src/zebtrack/ui/dialogs/block_detail_dialog.py:835
+msgid "Failed to save"
+msgstr "Falha ao salvar"
+
+#: src/zebtrack/ui/dialogs/block_detail_dialog.py:836
+#, python-brace-format
+msgid ""
+"The duration could not be written to the project:\n"
+"{error}"
+msgstr ""
+"A duração não pôde ser gravada no projeto:\n"
+"{error}"
+
+#: src/zebtrack/ui/dialogs/block_detail_dialog.py:851
+msgid "Default duration for the block"
+msgstr "Duração padrão do bloco"
+
+#: src/zebtrack/ui/dialogs/block_detail_dialog.py:853
+#, python-brace-format
+msgid ""
+"Recording duration for {block}, in minutes:\n"
+"\n"
+"Applies to every subject in this block that has no duration of its own. Sessions already recorded are not affected."
+msgstr ""
+"Duração das gravações de {block}, em minutos:\n"
+"\n"
+"Vale para todas as cobaias deste bloco que não tenham duração própria. Sessões já gravadas não são afetadas."
+
+#: src/zebtrack/ui/dialogs/block_detail_dialog.py:881
+#, python-brace-format
+msgid "Duration — Animal {subject}"
+msgstr "Duração — Animal {subject}"
+
+#: src/zebtrack/ui/dialogs/block_detail_dialog.py:883
+#, python-brace-format
+msgid ""
+"Recording duration for Animal {subject} ({block}), in minutes:\n"
+"\n"
+"Leave it equal to {default} to follow the block default."
+msgstr ""
+"Duração da gravação do Animal {subject} ({block}), em minutos:\n"
+"\n"
+"Deixe igual a {default} para seguir o padrão do bloco."
+
+#: src/zebtrack/ui/dialogs/block_detail_dialog.py:993
+#, python-brace-format
+msgid ""
+"Failed to start the session for Animal {subject}\n"
+"{block}"
+msgstr ""
+"Falha ao iniciar sessão para Animal {subject}\n"
+"{block}"
+
+#: src/zebtrack/ui/dialogs/block_detail_dialog.py:1001
+#, python-brace-format
+msgid "Error starting the session: {error}"
+msgstr "Erro ao iniciar sessão: {error}"
+
+#: src/zebtrack/ui/dialogs/block_detail_dialog.py:1013
+msgid "Complete"
+msgstr "Completo"
+
+#: src/zebtrack/ui/dialogs/block_detail_dialog.py:1013
+msgid "Every session in this block has been completed!"
+msgstr "Todas as sessões deste bloco foram concluídas!"
+
+#: src/zebtrack/ui/dialogs/block_detail_dialog.py:1025
+msgid "Folder not found"
+msgstr "Pasta não encontrada"
+
+#: src/zebtrack/ui/dialogs/block_detail_dialog.py:1026
+#, python-brace-format
+msgid ""
+"Could not find the results folder for Animal {subject}.\n"
+"{block}"
+msgstr ""
+"Não foi possível encontrar a pasta de resultados para Animal {subject}.\n"
+"{block}"
+
+#: src/zebtrack/ui/dialogs/block_detail_dialog.py:1096
+msgid "No valid data found in the summary files"
+msgstr "Nenhum dado válido encontrado nos arquivos de resumo"
+
+#: src/zebtrack/ui/dialogs/block_detail_dialog.py:1100
+msgid "No valid data found (every file was empty)"
+msgstr "Nenhum dado válido encontrado (todos os arquivos estavam vazios)"
+
+#: src/zebtrack/ui/dialogs/block_detail_dialog.py:1146
+#, python-brace-format
+msgid ""
+"The sessions in this block have different durations ({listed}).\n"
+"\n"
+"ABSOLUTE metrics — total distance, number of entries, time in ROI — grow with recording time and are NOT directly comparable across these animals. The 'video_duration_s' column is in the report so you can normalize however you prefer.\n"
+"\n"
+"Generate the report anyway?"
+msgstr ""
+"As sessões deste bloco têm durações diferentes ({listed}).\n"
+"\n"
+"Métricas ABSOLUTAS — distância total, número de entradas, tempo em ROI — crescem com o tempo de gravação e NÃO são diretamente comparáveis entre estes animais. A coluna 'video_duration_s' está no relatório para você normalizar como preferir.\n"
+"\n"
+"Deseja gerar o relatório mesmo assim?"
+
+#: src/zebtrack/ui/dialogs/block_detail_dialog.py:1202
+#, python-brace-format
+msgid "Partial Report - {block}"
+msgstr "Relatório Parcial - {block}"
+
+#: src/zebtrack/ui/dialogs/block_detail_dialog.py:1206
+#, python-brace-format
+msgid "Generated at: {timestamp}"
+msgstr "Gerado em: {timestamp}"
+
+#: src/zebtrack/ui/dialogs/block_detail_dialog.py:1210
+#, python-brace-format
+msgid "Aggregated sessions: {count}"
+msgstr "Sessões agregadas: {count}"
+
+#: src/zebtrack/ui/dialogs/block_detail_dialog.py:1211
+#, python-brace-format
+msgid "Consolidated spreadsheet: {name}"
+msgstr "Planilha consolidada: {name}"
+
+#: src/zebtrack/ui/dialogs/block_detail_dialog.py:1224
+#, python-brace-format
+msgid ""
+"WARNING — heterogeneous recording durations in this block ({listed}). "
+"Absolute metrics (total distance, number of entries, time in ROI) scale with"
+" recording time and are not directly comparable across these animals without"
+" normalization. Use the 'video_duration_s' column of the spreadsheet to "
+"normalize."
+msgstr ""
+"ATENÇÃO — durações de gravação heterogêneas neste bloco ({listed}). Métricas"
+" absolutas (distância total, número de entradas, tempo em ROI) escalam com o"
+" tempo de gravação e não são diretamente comparáveis entre estes animais sem"
+" normalização. Use a coluna 'video_duration_s' da planilha para normalizar."
+
+#: src/zebtrack/ui/dialogs/block_detail_dialog.py:1233
+msgid "Sessions included"
+msgstr "Sessões incluídas"
+
+#: src/zebtrack/ui/dialogs/block_detail_dialog.py:1236
+msgid "Animal"
+msgstr "Animal"
+
+#: src/zebtrack/ui/dialogs/block_detail_dialog.py:1237
+msgid "Source file"
+msgstr "Arquivo-fonte"
+
+#: src/zebtrack/ui/dialogs/block_detail_dialog.py:1247
+msgid "Summary per Animal"
+msgstr "Resumo por Animal"
+
+#: src/zebtrack/ui/dialogs/block_detail_dialog.py:1324
+msgid "File in use"
+msgstr "Arquivo em uso"
+
+#: src/zebtrack/ui/dialogs/block_detail_dialog.py:1326
+#, python-brace-format
+msgid ""
+"The default file was locked by another program/sync service.\n"
+"The reports were saved under new names:\n"
+"{excel}\n"
+"{word}"
+msgstr ""
+"O arquivo padrão estava bloqueado por outro programa/serviço de sincronização.\n"
+"Os relatórios foram salvos com novos nomes:\n"
+"{excel}\n"
+"{word}"
+
+#: src/zebtrack/ui/dialogs/block_detail_dialog.py:1336
+#, python-brace-format
+msgid ""
+"Partial reports generated successfully!\n"
+"\n"
+"📊 Excel: {excel}\n"
+"📝 Word: {word}\n"
+"🐟 {count} aggregated sessions"
+msgstr ""
+"Relatórios parciais gerados com sucesso!\n"
+"\n"
+"📊 Excel: {excel}\n"
+"📝 Word: {word}\n"
+"🐟 {count} sessões agregadas"
+
+#: src/zebtrack/ui/dialogs/block_detail_dialog.py:1351
+#: src/zebtrack/ui/dialogs/block_detail_dialog.py:1366
+msgid "Open Partial Report"
+msgstr "Abrir Relatório Parcial"
+
+#: src/zebtrack/ui/dialogs/block_detail_dialog.py:1352
+#, python-brace-format
+msgid ""
+"Open the partial spreadsheet in Excel?\n"
+"\n"
+"📊 {name}"
+msgstr ""
+"Deseja abrir a planilha parcial em Excel?\n"
+"\n"
+"📊 {name}"
+
+#: src/zebtrack/ui/dialogs/block_detail_dialog.py:1360
+#, python-brace-format
+msgid ""
+"The Excel report was generated, but it could not be opened:\n"
+"{path}"
+msgstr ""
+"O relatório Excel foi gerado, mas não foi possível abri-lo:\n"
+"{path}"
+
+#: src/zebtrack/ui/dialogs/block_detail_dialog.py:1367
+#, python-brace-format
+msgid ""
+"Open the partial report in Word?\n"
+"\n"
+"📝 {name}"
+msgstr ""
+"Deseja abrir o relatório parcial em Word?\n"
+"\n"
+"📝 {name}"
+
+#: src/zebtrack/ui/dialogs/block_detail_dialog.py:1375
+#, python-brace-format
+msgid ""
+"The Word report was generated, but it could not be opened:\n"
+"{path}"
+msgstr ""
+"O relatório Word foi gerado, mas não foi possível abri-lo:\n"
+"{path}"
+
+#: src/zebtrack/ui/dialogs/block_detail_dialog.py:1396
+#: src/zebtrack/ui/dialogs/block_detail_dialog.py:1569
+msgid "No Sessions"
+msgstr "Sem Sessões"
+
+#: src/zebtrack/ui/dialogs/block_detail_dialog.py:1397
+#: src/zebtrack/ui/dialogs/block_detail_dialog.py:1570
+#, python-brace-format
+msgid ""
+"No completed session found for\n"
+"{block}"
+msgstr ""
+"Nenhuma sessão concluída encontrada para\n"
+"{block}"
+
+#: src/zebtrack/ui/dialogs/block_detail_dialog.py:1407
+#: src/zebtrack/ui/dialogs/block_detail_dialog.py:1579
+msgid "No Reports"
+msgstr "Sem Relatórios"
+
+#: src/zebtrack/ui/dialogs/block_detail_dialog.py:1409
+#: src/zebtrack/ui/dialogs/block_detail_dialog.py:1581
+#, python-brace-format
+msgid ""
+"No summary file found in the sessions of\n"
+"{block}\n"
+"\n"
+"Run the session analysis first."
+msgstr ""
+"Nenhum arquivo de resumo encontrado nas sessões de\n"
+"{block}\n"
+"\n"
+"Execute a análise das sessões primeiro."
+
+#: src/zebtrack/ui/dialogs/block_detail_dialog.py:1416
+#: src/zebtrack/ui/dialogs/block_detail_dialog.py:1588
+msgid "Different durations in the block"
+msgstr "Durações diferentes no bloco"
+
+#: src/zebtrack/ui/dialogs/block_detail_dialog.py:1452
+#, python-brace-format
+msgid "Partial reports updated: {block}"
+msgstr "Relatórios parciais atualizados: {block}"
+
+#: src/zebtrack/ui/dialogs/block_detail_dialog.py:1474
+#, python-brace-format
+msgid ""
+"Failed to generate the partial report:\n"
+"{error}"
+msgstr ""
+"Falha ao gerar relatório parcial:\n"
+"{error}"
+
+#: src/zebtrack/ui/dialogs/block_detail_dialog.py:1495
+msgid "Add Experimental Note"
+msgstr "Adicionar Nota Experimental"
+
+#: src/zebtrack/ui/dialogs/block_detail_dialog.py:1496
+#, python-brace-format
+msgid ""
+"Note for {block}:\n"
+"\n"
+"(leave blank to clear)"
+msgstr ""
+"Nota para {block}:\n"
+"\n"
+"(deixe vazio para limpar)"
+
+#: src/zebtrack/ui/dialogs/block_detail_dialog.py:1515
+msgid "Note Saved"
+msgstr "Nota Salva"
+
+#: src/zebtrack/ui/dialogs/block_detail_dialog.py:1515
+msgid "Experimental note saved successfully!"
+msgstr "Nota experimental salva com sucesso!"
+
+#: src/zebtrack/ui/dialogs/block_detail_dialog.py:1521
+msgid "Note Removed"
+msgstr "Nota Removida"
+
+#: src/zebtrack/ui/dialogs/block_detail_dialog.py:1521
+msgid "Experimental note removed."
+msgstr "Nota experimental removida."
+
+#: src/zebtrack/ui/dialogs/block_detail_dialog.py:1529
+#, python-brace-format
+msgid ""
+"Failed to save the note:\n"
+"{error}"
+msgstr ""
+"Falha ao salvar nota:\n"
+"{error}"
+
+#: src/zebtrack/ui/dialogs/block_detail_dialog.py:1548
+msgid "Confirm — Mark batch as complete"
+msgstr "Confirmar — Marcar lote como completo"
+
+#: src/zebtrack/ui/dialogs/block_detail_dialog.py:1550
+#, python-brace-format
+msgid ""
+"Mark the batch of Group '{group}' on Day {day} as complete?\n"
+"\n"
+"Scope: ALL sessions already recorded for this group on this day will be consolidated into the block's partial report (Excel + Word) and the matching square in the Progress grid will turn green.\n"
+"\n"
+"This action does NOT affect other groups, other days, nor does it close the project as a whole. You can carry on recording new subjects on other days/groups normally.\n"
+"\n"
+"Continue?"
+msgstr ""
+"Marcar o lote do Grupo '{group}' no Dia {day} como completo?\n"
+"\n"
+"Escopo: TODAS as sessões já gravadas deste grupo neste dia serão consolidadas no relatório parcial do bloco (Excel + Word) e o quadrado correspondente na grade do Progresso ficará verde.\n"
+"\n"
+"Esta ação NÃO afeta outros grupos, outros dias, nem encerra o projeto como um todo. Você poderá continuar gravando novos sujeitos em outros dias/grupos normalmente.\n"
+"\n"
+"Deseja continuar?"
+
+#: src/zebtrack/ui/dialogs/block_detail_dialog.py:1640
+#, python-brace-format
+msgid "Batch complete: {block}"
+msgstr "Lote concluído: {block}"
+
+#: src/zebtrack/ui/dialogs/block_detail_dialog.py:1643
+#, python-brace-format
+msgid ""
+"Batch '{block}' marked as complete.\n"
+"\n"
+"📊 Excel: {excel}\n"
+"📝 Word: {word}\n"
+"🐟 {count} aggregated sessions\n"
+"\n"
+"Reports in: {folder}"
+msgstr ""
+"Lote '{block}' marcado como completo.\n"
+"\n"
+"📊 Excel: {excel}\n"
+"📝 Word: {word}\n"
+"🐟 {count} sessões agregadas\n"
+"\n"
+"Relatórios em: {folder}"
+
+#: src/zebtrack/ui/dialogs/block_detail_dialog.py:1657
+msgid ""
+"\n"
+"\n"
+"⚠️ The default file was in use; the reports were saved with a date/time suffix."
+msgstr ""
+"\n"
+"\n"
+"⚠️ O arquivo padrão estava em uso; os relatórios foram salvos com sufixo de data/hora."
+
+#: src/zebtrack/ui/dialogs/block_detail_dialog.py:1662
+msgid ""
+"\n"
+"\n"
+"⚠️ Could not record the completion in the project; check the log."
+msgstr ""
+"\n"
+"\n"
+"⚠️ Não foi possível registrar a completude no projeto; verifique o log."
+
+#: src/zebtrack/ui/dialogs/block_detail_dialog.py:1664
+msgid "Batch Complete"
+msgstr "Lote Completo"
+
+#: src/zebtrack/ui/dialogs/block_detail_dialog.py:1683
+msgid "Error — Batch not completed"
+msgstr "Erro — Lote não concluído"
+
+#: src/zebtrack/ui/dialogs/block_detail_dialog.py:1685
+#, python-brace-format
+msgid ""
+"Failed to generate the report for batch '{block}':\n"
+"{error}\n"
+"\n"
+"The batch was NOT marked as complete."
+msgstr ""
+"Falha ao gerar o relatório do lote '{block}':\n"
+"{error}\n"
+"\n"
+"O lote NÃO foi marcado como completo."
+
+#: src/zebtrack/ui/dialogs/block_detail_dialog.py:1696
+msgid "Batch processing"
+msgstr "Lote em processamento"
+
+#: src/zebtrack/ui/dialogs/block_detail_dialog.py:1698
+#, python-brace-format
+msgid ""
+"Batch '{block}': the consolidated report (Excel + Word) is being generated in the background.\n"
+"\n"
+"You will be notified when it finishes."
+msgstr ""
+"Lote '{block}': o relatório consolidado (Excel + Word) está sendo gerado em segundo plano.\n"
+"\n"
+"Você será avisado quando terminar."
+
 #: src/zebtrack/ui/dialogs/center_periphery_dialog.py:33
 msgid "Method:"
 msgstr "Método:"
@@ -8941,6 +9571,352 @@ msgstr "Executando Diagnóstico do Modelo"
 #: src/zebtrack/ui/dialogs/diagnostic_progress_dialog.py:59
 msgid "Status:"
 msgstr "Status:"
+
+#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:170
+msgid "Live Camera Analysis"
+msgstr "Análise de Câmera ao Vivo"
+
+#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:177
+msgid "Set up and start a real-time analysis session."
+msgstr "Configure e inicie uma sessão de análise em tempo real."
+
+#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:183
+msgid "Camera Selection"
+msgstr "Seleção de Câmera"
+
+#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:197
+msgid "Select the camera for live analysis."
+msgstr "Selecione a câmera para análise ao vivo."
+
+#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:199
+#: src/zebtrack/ui/wizard/live_config_step.py:259
+msgid "🔍 Detect"
+msgstr "🔍 Detectar"
+
+#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:217
+msgid "Timing and Processing"
+msgstr "Tempo e Processamento"
+
+#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:225
+msgid "Duration (s):"
+msgstr "Duração (s):"
+
+#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:231
+msgid ""
+"Recording/Analysis Time\n"
+"\n"
+"Sets how long the live session will last, in seconds.\n"
+"• 60s = 1 minute.\n"
+"• 300s = 5 minutes."
+msgstr ""
+"Tempo de Gravação/Análise\n"
+"\n"
+"Define quanto tempo a sessão ao vivo irá durar em segundos.\n"
+"• 60s = 1 minuto.\n"
+"• 300s = 5 minutos."
+
+#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:257
+msgid "Analysis interval:"
+msgstr "Intervalo Análise:"
+
+#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:263
+msgid ""
+"Analysis Interval (frames)\n"
+"\n"
+"Processes 1 frame out of every N frames from the camera.\n"
+"• Low values require a powerful computer.\n"
+"• Recommended for live: 1 or 2."
+msgstr ""
+"Intervalo de Análise (frames)\n"
+"\n"
+"Processa 1 frame a cada N frames da câmera.\n"
+"• Valores baixos exigem um computador potente.\n"
+"• Recomendado para Live: 1 ou 2."
+
+#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:279
+msgid "Display interval:"
+msgstr "Intervalo Exibição:"
+
+#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:285
+msgid ""
+"Display Interval (frames)\n"
+"\n"
+"How often the video on screen is refreshed.\n"
+"• Raising this helps if the interface feels slow."
+msgstr ""
+"Intervalo de Exibição (frames)\n"
+"\n"
+"Frequência de atualização do vídeo na tela.\n"
+"• Aumentar este valor ajuda se a interface estiver lenta."
+
+#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:304
+msgid "Session Options"
+msgstr "Opções da Sessão"
+
+#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:312
+msgid "Experiment ID:"
+msgstr "ID Experimento:"
+
+#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:318
+msgid ""
+"Experiment Identifier\n"
+"\n"
+"Name used to organize the output files.\n"
+"• If left blank, the system generates a name from the date and time."
+msgstr ""
+"Identificador do Experimento\n"
+"\n"
+"Nome usado para organizar os arquivos de saída.\n"
+"• Se deixado em branco, o sistema gerará um nome com a data e hora."
+
+#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:329
+msgid "Record video with overlay"
+msgstr "Gravar vídeo com overlay"
+
+#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:336
+msgid "Use OpenVINO acceleration"
+msgstr "Usar aceleração OpenVINO"
+
+#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:345
+msgid "Output folder:"
+msgstr "Pasta de Saída:"
+
+#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:352
+#: src/zebtrack/ui/wizard/confirmation_step.py:152
+msgid "Browse..."
+msgstr "Procurar..."
+
+#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:357
+msgid ""
+"Directory where the results will be saved.\n"
+"• If left blank, uses the default folder 'live_analysis_sessions/'."
+msgstr ""
+"Diretório onde os resultados serão salvos.\n"
+"• Se deixado em branco, usa a pasta padrão 'live_analysis_sessions/'."
+
+#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:365
+msgid "Advanced AI and Setup Parameters"
+msgstr "Parâmetros Avançados de IA e Setup"
+
+#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:376
+msgid "Aquarium AI:"
+msgstr "IA Aquário:"
+
+#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:380
+msgid ""
+"Segmentation or Detection model for the tank.\n"
+"• seg: slower, but outlines the edges better.\n"
+"• det: very fast."
+msgstr ""
+"Modelo de Segmentação ou Detecção do tanque.\n"
+"• seg: Mais lento, mas delimita melhor as bordas.\n"
+"• det: Muito rápido."
+
+#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:393
+msgid "Fish AI:"
+msgstr "IA Peixe:"
+
+#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:396
+msgid ""
+"Model for the fish.\n"
+"• Use 'seg' if there is more than one fish per aquarium."
+msgstr ""
+"Modelo para o peixe.\n"
+"• Use 'seg' se tiver mais de um peixe por aquário."
+
+#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:407
+msgid "No. of aquariums:"
+msgstr "Num. Aquários:"
+
+#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:410
+msgid "Number of tanks in the field of view (1 or 2)."
+msgstr "Quantidade de tanques no campo de visão (1 ou 2)."
+
+#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:417
+msgid "Animals/aquarium:"
+msgstr "Animais/Aquário:"
+
+#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:420
+msgid "Number of fish inside each aquarium."
+msgstr "Quantidade de peixes dentro de cada aquário."
+
+#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:428
+msgid "Behavioural Analysis"
+msgstr "Análise Comportamental"
+
+#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:471
+msgid "Start Analysis"
+msgstr "Iniciar Análise"
+
+#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:489
+msgid "Select the output folder for the results"
+msgstr "Selecione a pasta de saída para os resultados"
+
+#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:498
+#: src/zebtrack/ui/wizard/live_config_step.py:695
+#: src/zebtrack/ui/wizard/live_config_step.py:740
+msgid "Detecting..."
+msgstr "Detectando..."
+
+#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:528
+#: src/zebtrack/ui/wizard/live_config_step.py:718
+msgid "✓ 1 camera detected"
+msgstr "✓ 1 câmera detectada"
+
+#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:530
+#: src/zebtrack/ui/wizard/live_config_step.py:720
+#, python-brace-format
+msgid "✓ {count} cameras detected"
+msgstr "✓ {count} câmeras detectadas"
+
+#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:537
+#: src/zebtrack/ui/wizard/live_config_step.py:733
+msgid "✗ No camera detected"
+msgstr "✗ Nenhuma câmera detectada"
+
+#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:544
+msgid "✗ Error detecting cameras"
+msgstr "✗ Erro ao detectar câmeras"
+
+#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:549
+#, python-brace-format
+msgid ""
+"Failed to detect cameras:\n"
+"{error}"
+msgstr ""
+"Falha ao detectar câmeras:\n"
+"{error}"
+
+#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:559
+msgid "No Camera Selected"
+msgstr "Câmera Não Selecionada"
+
+#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:560
+msgid "Please select a camera for the analysis."
+msgstr "Por favor, selecione uma câmera para análise."
+
+#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:568
+msgid "Invalid Camera"
+msgstr "Câmera Inválida"
+
+#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:569
+#, python-brace-format
+msgid "Camera index not found for: {camera}"
+msgstr "Índice de câmera não encontrado para: {camera}"
+
+#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:578
+msgid "Duration must be positive"
+msgstr "Duração deve ser positiva"
+
+#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:583
+msgid "Duration Too Long"
+msgstr "Duração Muito Longa"
+
+#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:584
+#, python-brace-format
+msgid ""
+"Maximum allowed duration: {value}s\n"
+"Adjusting to the maximum..."
+msgstr ""
+"Duração máxima permitida: {value}s\n"
+"Ajustando para o máximo..."
+
+#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:594
+msgid "Invalid Duration"
+msgstr "Duração Inválida"
+
+#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:595
+#, python-brace-format
+msgid ""
+"Duration must be a positive number:\n"
+"{error}"
+msgstr ""
+"Duração deve ser um número positivo:\n"
+"{error}"
+
+#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:606
+msgid "Intervals must be >= 1"
+msgstr "Intervalos devem ser >= 1"
+
+#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:610
+msgid "Invalid Interval"
+msgstr "Intervalo Inválido"
+
+#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:611
+#, python-brace-format
+msgid ""
+"Intervals must be positive whole numbers:\n"
+"{error}"
+msgstr ""
+"Intervalos devem ser números inteiros positivos:\n"
+"{error}"
+
+#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:624
+msgid "The number of aquariums and animals must be >= 1"
+msgstr "Número de aquários e animais devem ser >= 1"
+
+#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:626
+msgid "The aquarium dimensions must be positive"
+msgstr "Dimensões do aquário devem ser positivas"
+
+#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:630
+msgid "Invalid Calibration Parameter"
+msgstr "Parâmetro de Calibração Inválido"
+
+#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:631
+#, python-brace-format
+msgid ""
+"Calibration error:\n"
+"{error}"
+msgstr ""
+"Erro na calibração:\n"
+"{error}"
+
+#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:643
+msgid "Behavioural parameters must be non-negative"
+msgstr "Parâmetros comportamentais devem ser não-negativos"
+
+#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:647
+msgid "Invalid Behavioural Parameter"
+msgstr "Parâmetro Comportamental Inválido"
+
+#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:648
+#, python-brace-format
+msgid ""
+"Error in the behavioural parameters:\n"
+"{error}"
+msgstr ""
+"Erro nos parâmetros comportamentais:\n"
+"{error}"
+
+#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:659
+msgid "The smoothing window must be >= 3"
+msgstr "Janela de suavização deve ser >= 3"
+
+#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:661
+msgid "The smoothing window must be odd"
+msgstr "Janela de suavização deve ser ímpar"
+
+#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:663
+msgid "The polynomial order must be >= 1"
+msgstr "Ordem do polinômio deve ser >= 1"
+
+#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:665
+msgid "The polynomial order must be smaller than the window"
+msgstr "Ordem do polinômio deve ser menor que a janela"
+
+#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:675
+msgid "Invalid Parameter"
+msgstr "Parâmetro Inválido"
+
+#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:676
+#, python-brace-format
+msgid ""
+"Validation error:\n"
+"{error}"
+msgstr ""
+"Erro na validação:\n"
+"{error}"
 
 #: src/zebtrack/ui/dialogs/model_diagnostics_dialog.py:22
 msgid "Global Model Diagnostics"
@@ -9325,10 +10301,6 @@ msgstr "Nome do Projeto:"
 #: src/zebtrack/ui/wizard/confirmation_step.py:140
 msgid "Location:"
 msgstr "Localização:"
-
-#: src/zebtrack/ui/wizard/confirmation_step.py:152
-msgid "Browse..."
-msgstr "Procurar..."
 
 #: src/zebtrack/ui/wizard/confirmation_step.py:158
 msgid "Project Summary"
@@ -10941,10 +11913,6 @@ msgstr "Habilitar Arduino para sincronizar eventos externos com a gravação."
 msgid "Arduino Port:"
 msgstr "Porta do Arduino:"
 
-#: src/zebtrack/ui/wizard/live_config_step.py:259
-msgid "🔍 Detect"
-msgstr "🔍 Detectar"
-
 #: src/zebtrack/ui/wizard/live_config_step.py:268
 msgid "🔌 Test"
 msgstr "🔌 Testar"
@@ -11118,29 +12086,6 @@ msgstr ""
 #: src/zebtrack/ui/wizard/live_config_step.py:561
 msgid "Hardware Detection"
 msgstr "Detecção de Hardware"
-
-#: src/zebtrack/ui/wizard/live_config_step.py:695
-#: src/zebtrack/ui/wizard/live_config_step.py:740
-msgid "Detecting..."
-msgstr "Detectando..."
-
-#: src/zebtrack/ui/wizard/live_config_step.py:708
-#, python-brace-format
-msgid "Camera {index}"
-msgstr "Câmera {index}"
-
-#: src/zebtrack/ui/wizard/live_config_step.py:718
-msgid "✓ 1 camera detected"
-msgstr "✓ 1 câmera detectada"
-
-#: src/zebtrack/ui/wizard/live_config_step.py:720
-#, python-brace-format
-msgid "✓ {count} cameras detected"
-msgstr "✓ {count} câmeras detectadas"
-
-#: src/zebtrack/ui/wizard/live_config_step.py:733
-msgid "✗ No camera detected"
-msgstr "✗ Nenhuma câmera detectada"
 
 #: src/zebtrack/ui/wizard/live_config_step.py:760
 msgid "✓ 1 port detected"

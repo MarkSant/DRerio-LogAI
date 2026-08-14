@@ -131,7 +131,7 @@ class TestLiveAnalysisDialog:
 
             # Verify first camera auto-selected
             assert dialog.camera_selection_var.get() != ""
-            assert dialog.camera_status_label.cget("text") == "✓ 2 câmera(s) detectada(s)"
+            assert dialog.camera_status_label.cget("text") == "✓ 2 cameras detected"
             assert dialog.camera_status_label.cget("fg") == "green"
 
     def test_camera_detection_no_cameras(self, tkinter_root, test_settings):
@@ -147,7 +147,7 @@ class TestLiveAnalysisDialog:
             # Verify empty state
             assert len(dialog.camera_index_map) == 0
             assert len(dialog.camera_combo["values"]) == 0  # Empty tuple or list
-            assert dialog.camera_status_label.cget("text") == "✗ Nenhuma câmera detectada"
+            assert dialog.camera_status_label.cget("text") == "✗ No camera detected"
             assert dialog.camera_status_label.cget("fg") == "red"
 
     def test_camera_detection_exception(self, tkinter_root, test_settings):
@@ -164,7 +164,7 @@ class TestLiveAnalysisDialog:
                     process_tk_events(tkinter_root)
 
                     # Verify error state
-                    assert dialog.camera_status_label.cget("text") == "✗ Erro ao detectar câmeras"
+                    assert dialog.camera_status_label.cget("text") == "✗ Error detecting cameras"
                     assert dialog.camera_status_label.cget("fg") == "red"
 
     def test_manual_camera_detection_refresh(self, tkinter_root, test_settings):
