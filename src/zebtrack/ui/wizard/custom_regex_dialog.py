@@ -7,6 +7,7 @@ from folder structure or filenames.
 
 import functools
 import re
+from pathlib import Path
 from tkinter import (
     Button,
     Entry,
@@ -21,7 +22,21 @@ from tkinter.simpledialog import Dialog
 
 import structlog
 
+from zebtrack.i18n import _
+
 log = structlog.get_logger()
+
+
+def _field_labels() -> dict[str, str]:
+    """Map a pattern field key to the label shown for it.
+
+    Five copies of this dict used to live in this module (the heading, the
+    per-field result line, the "waiting" placeholder, the validation error and
+    the live preview). They are never compared against stored data, but they do
+    have to agree with each other on screen, and a function is also the only way
+    to translate them without resolving the catalogue at import time.
+    """
+    return {"group": _("Group"), "day": _("Day"), "subject": _("Subject")}
 
 
 class CustomRegexDialog(Dialog):
@@ -92,7 +107,7 @@ class CustomRegexDialog(Dialog):
 
         self.test_path_var = StringVar(value=default_preview_path)
 
-        super().__init__(parent, title="Configurar Padrões Regex Personalizados")
+        super().__init__(parent, title=_("Configure Custom Regex Patterns"))
 
     def body(self, master):
         """Build dialog UI."""
@@ -106,7 +121,7 @@ class CustomRegexDialog(Dialog):
         title_font = tkfont.Font(size=10, weight="bold")
         Label(
             master,
-            text="Padrões Regex Personalizados",
+            text=_("Custom Regex Patterns"),
             font=title_font,
         ).pack(pady=(0, 2))
 
@@ -134,15 +149,15 @@ class CustomRegexDialog(Dialog):
         left_panel = Frame(content_frame)
         left_panel.grid(row=0, column=0, sticky="nsew", padx=(0, 5))
 
-        tips_frame = ttk.LabelFrame(left_panel, text="Dicas rápidas", padding=(6, 4))
+        tips_frame = ttk.LabelFrame(left_panel, text=_("Quick tips"), padding=(6, 4))
         tips_frame.pack(fill="x", pady=(0, 5))
         Label(
             tips_frame,
-            text=(
-                "• Campos vazios permanecem inalterados no design.\n"
-                "• \\d captura dígitos (0-9); \\w cobre letras, números e _.\n"
-                "• Âncoras ^ (início) e $ (fim) fixam o padrão completo.\n"
-                "• A pré-visualização calcula automaticamente após cada edição."
+            text=_(
+                "• Empty fields leave the design unchanged.\n"
+                "• \\d captures digits (0-9); \\w covers letters, digits and _.\n"
+                "• The anchors ^ (start) and $ (end) pin the whole pattern.\n"
+                "• The preview recalculates automatically after each edit."
             ),
             justify="left",
             wraplength=420,
@@ -151,31 +166,31 @@ class CustomRegexDialog(Dialog):
         ).pack(anchor="w")
 
         # Examples section
-        examples_frame = ttk.LabelFrame(left_panel, text="📚 Exemplos Comuns", padding=(6, 4))
+        examples_frame = ttk.LabelFrame(left_panel, text=_("📚 Common Examples"), padding=(6, 4))
         examples_frame.pack(fill="x", pady=(0, 5))
 
         # Define common examples
         examples = [
             {
-                "desc": "Grupo no nome do arquivo",
+                "desc": _("Group in the file name"),
                 "pattern": r"(Control|Treatment)",
                 "example": "Video_Control_Day1.mp4",
                 "field": "group",
             },
             {
-                "desc": "Dia com número",
+                "desc": _("Day with a number"),
                 "pattern": r"Day(\d+)",
                 "example": "Day01_Subject_S1.mp4",
                 "field": "day",
             },
             {
-                "desc": "Sujeito com prefixo S",
+                "desc": _("Subject with an S prefix"),
                 "pattern": r"S(\d+)",
                 "example": "Group1_Day2_S03.mp4",
                 "field": "subject",
             },
             {
-                "desc": "Grupo em pasta (qualquer palavra)",
+                "desc": _("Group in a folder (any word)"),
                 "pattern": r"(\w+)",
                 "example": "/Control/Day1/Video.mp4",
                 "field": "group",
@@ -210,7 +225,7 @@ class CustomRegexDialog(Dialog):
             # Use button
             use_btn = Button(
                 row,
-                text="Usar",
+                text=_("Use"),
                 command=functools.partial(self._apply_example_pattern, ex["field"], ex["pattern"]),
                 width=5,
                 font=("TkDefaultFont", 8),
@@ -220,7 +235,7 @@ class CustomRegexDialog(Dialog):
             # Example filename
             ex_label = Label(
                 row,
-                text=f"Ex: {ex['example']}",
+                text=_("E.g. {example}").format(example=ex["example"]),
                 fg="gray",
                 font=("TkDefaultFont", 7),
                 anchor="w",
@@ -233,12 +248,12 @@ class CustomRegexDialog(Dialog):
 
         Label(
             group_frame,
-            text="Padrão de Grupos:",
+            text=_("Group pattern:"),
             font=("TkDefaultFont", 10, "bold"),
         ).pack(anchor="w")
         Label(
             group_frame,
-            text="Ex: (Control|Treatment|Group\\d+) ou (\\w+)_Group",
+            text=_("E.g. (Control|Treatment|Group\\d+) or (\\w+)_Group"),
             fg="gray",
             font=("TkDefaultFont", 8),
         ).pack(anchor="w")
@@ -256,12 +271,12 @@ class CustomRegexDialog(Dialog):
 
         Label(
             day_frame,
-            text="Padrão de Dias:",
+            text=_("Day pattern:"),
             font=("TkDefaultFont", 10, "bold"),
         ).pack(anchor="w")
         Label(
             day_frame,
-            text="Ex: Day(\\d+) ou D(\\d+) ou (\\d{4}-\\d{2}-\\d{2})",
+            text=_("E.g. Day(\\d+) or D(\\d+) or (\\d{4}-\\d{2}-\\d{2})"),
             fg="gray",
             font=("TkDefaultFont", 8),
         ).pack(anchor="w")
@@ -279,12 +294,12 @@ class CustomRegexDialog(Dialog):
 
         Label(
             subject_frame,
-            text="Padrão de Sujeitos:",
+            text=_("Subject pattern:"),
             font=("TkDefaultFont", 10, "bold"),
         ).pack(anchor="w")
         Label(
             subject_frame,
-            text="Ex: S(\\d+) ou Subject(\\d+) ou Animal_(\\w+)",
+            text=_("E.g. S(\\d+) or Subject(\\d+) or Animal_(\\w+)"),
             fg="gray",
             font=("TkDefaultFont", 8),
         ).pack(anchor="w")
@@ -306,7 +321,7 @@ class CustomRegexDialog(Dialog):
 
         Label(
             test_frame,
-            text="Testar Padrões:",
+            text=_("Test patterns:"),
             font=("TkDefaultFont", 9, "bold"),
         ).pack(anchor="w")
 
@@ -322,7 +337,7 @@ class CustomRegexDialog(Dialog):
 
         Button(
             test_input_frame,
-            text="Testar",
+            text=_("Test"),
             command=self._test_patterns,
         ).pack(side="left")
 
@@ -334,13 +349,11 @@ class CustomRegexDialog(Dialog):
         results_container.columnconfigure(2, weight=1)
 
         self._test_result_vars: dict[str, StringVar] = {}
-        for idx, (key, label_text) in enumerate(
-            (("group", "Grupo"), ("day", "Dia"), ("subject", "Sujeito"))
-        ):
+        for idx, (key, label_text) in enumerate(_field_labels().items()):
             slot = ttk.Frame(results_container, padding=(6, 4))
             slot.grid(row=0, column=idx, sticky="nsew")
             ttk.Label(slot, text=label_text, font=("TkDefaultFont", 8, "bold")).pack(anchor="w")
-            value_var = StringVar(value=f"○ {label_text}: aguardando")
+            value_var = StringVar(value=_("○ {label}: waiting").format(label=label_text))
             Label(
                 slot,
                 textvariable=value_var,
@@ -362,7 +375,7 @@ class CustomRegexDialog(Dialog):
         ).pack(anchor="w", pady=(0, 2))
         Label(
             test_frame,
-            text="Legenda: ✓ correspondeu • ✗ falhou • ○ não definido",
+            text=_("Legend: ✓ matched • ✗ failed • ○ not defined"),
             fg="gray",
             font=("TkDefaultFont", 8),
         ).pack(anchor="w", pady=(0, 2))
@@ -373,7 +386,7 @@ class CustomRegexDialog(Dialog):
 
         Label(
             preview_frame,
-            text="Pré-visualização automática (até 15 caminhos)",
+            text=_("Automatic preview (up to 15 paths)"),
             font=("TkDefaultFont", 9, "bold"),
         ).pack(anchor="w")
 
@@ -387,9 +400,10 @@ class CustomRegexDialog(Dialog):
             height=7,
         )
         self.preview_tree.heading("path", text="Caminho")
-        self.preview_tree.heading("group", text="Grupo")
-        self.preview_tree.heading("day", text="Dia")
-        self.preview_tree.heading("subject", text="Sujeito")
+        field_labels = _field_labels()
+        self.preview_tree.heading("group", text=field_labels["group"])
+        self.preview_tree.heading("day", text=field_labels["day"])
+        self.preview_tree.heading("subject", text=field_labels["subject"])
         self.preview_tree.column("path", width=160, anchor="w")
         self.preview_tree.column("group", width=70, anchor="center")
         self.preview_tree.column("day", width=60, anchor="center")
@@ -449,20 +463,20 @@ class CustomRegexDialog(Dialog):
 
         Button(
             box,
-            text="Salvar",
+            text=_("Save"),
             width=10,
             command=self.ok,
             default="active",
         ).pack(side="left", padx=5, pady=5)
         Button(
             box,
-            text="Cancelar",
+            text=_("Cancel"),
             width=10,
             command=self.cancel,
         ).pack(side="left", padx=5, pady=5)
         Button(
             box,
-            text="Limpar Tudo",
+            text=_("Clear All"),
             width=12,
             command=self._clear_all,
         ).pack(side="left", padx=5, pady=5)
@@ -477,8 +491,8 @@ class CustomRegexDialog(Dialog):
         test_path = self.test_path_entry.get().strip()
         if not test_path:
             messagebox.showwarning(
-                "Caminho Vazio",
-                "Digite um caminho para testar.",
+                _("Empty Path"),
+                _("Enter a path to test."),
                 parent=self,
             )
             return
@@ -495,8 +509,8 @@ class CustomRegexDialog(Dialog):
         )
         self.test_path_entry.insert(0, default_preview_path)
         for key, var in self._test_result_vars.items():
-            label_name = {"group": "Grupo", "day": "Dia", "subject": "Sujeito"}.get(key, key)
-            var.set(f"○ {label_name}: aguardando")
+            label_name = _field_labels().get(key, key)
+            var.set(_("○ {label}: waiting").format(label=label_name))
         self._test_summary_var.set("")
         self._schedule_live_update(immediate=True)
 
@@ -507,18 +521,21 @@ class CustomRegexDialog(Dialog):
         subject_pattern = self.subject_pattern_var.get().strip()
 
         # Test each pattern for validity
+        field_labels = _field_labels()
         for name, pattern in [
-            ("Grupo", group_pattern),
-            ("Dia", day_pattern),
-            ("Sujeito", subject_pattern),
+            (field_labels["group"], group_pattern),
+            (field_labels["day"], day_pattern),
+            (field_labels["subject"], subject_pattern),
         ]:
             if pattern:
                 try:
                     re.compile(pattern)
                 except re.error as e:
                     messagebox.showerror(
-                        "Regex Inválido",
-                        f"Padrão de {name} inválido:\n{pattern}\n\nErro: {e}",
+                        _("Invalid Regex"),
+                        _("Invalid {label} pattern:\n{pattern}\n\nError: {error}").format(
+                            label=name, pattern=pattern, error=e
+                        ),
                         parent=self,
                     )
                     return False
@@ -656,9 +673,9 @@ class CustomRegexDialog(Dialog):
         else:
             results = preset_results
 
-        label_map = {"group": "Grupo", "day": "Dia", "subject": "Sujeito"}
+        label_map = _field_labels()
         for key, label_name in label_map.items():
-            value = results.get(key) or f"○ {label_name}: aguardando"
+            value = results.get(key) or _("○ {label}: waiting").format(label=label_name)
             var = self._test_result_vars.get(key)
             if var is not None:
                 var.set(value)
@@ -666,21 +683,24 @@ class CustomRegexDialog(Dialog):
         summary_text = results.get("summary", "")
         self._test_summary_var.set(summary_text)
 
-    def _evaluate_path(self, path: str) -> dict[str, str]:
-        label_map = {"group": "Grupo", "day": "Dia", "subject": "Sujeito"}
+    def _evaluate_path(self, path: Path | str) -> dict[str, str]:
+        path = str(path)
+        label_map = _field_labels()
         results: dict[str, str] = {}
 
-        summary = "" if path else "✗ Informe um caminho para testar"
+        summary = "" if path else _("✗ Enter a path to test")
 
         for key, label in label_map.items():
             pattern_str = getattr(self, f"{key}_pattern_var").get().strip()
             if not pattern_str:
-                results[key] = f"○ {label}: Padrão não definido"
+                results[key] = _("○ {label}: pattern not defined").format(label=label)
                 continue
 
             error = self._pattern_errors.get(key)
             if error:
-                results[key] = f"✗ {label}: Regex inválido - {error}"
+                results[key] = _("✗ {label}: invalid regex - {error}").format(
+                    label=label, error=error
+                )
                 continue
 
             pattern = self._compiled_patterns.get(key)
@@ -688,19 +708,21 @@ class CustomRegexDialog(Dialog):
                 try:
                     pattern = re.compile(pattern_str)
                 except re.error as exc:
-                    results[key] = f"✗ {label}: Regex inválido - {exc}"
+                    results[key] = _("✗ {label}: invalid regex - {error}").format(
+                        label=label, error=exc
+                    )
                     continue
 
             if not path:
-                results[key] = f"✗ {label}: Informe um caminho"
+                results[key] = _("✗ {label}: enter a path").format(label=label)
                 continue
 
             match = pattern.search(path)
             if match:
                 value = match.group(1) if match.groups() else match.group(0)
-                results[key] = f"✓ {label}: '{value}'"
+                results[key] = _("✓ {label}: '{value}'").format(label=label, value=value)
             else:
-                results[key] = f"✗ {label}: Nenhuma correspondência"
+                results[key] = _("✗ {label}: no match").format(label=label)
 
         results["summary"] = summary
         return results
@@ -714,7 +736,7 @@ class CustomRegexDialog(Dialog):
                 "",
                 "end",
                 values=(
-                    "Adicione vídeos na etapa anterior",
+                    _("Add videos in the previous step"),
                     "-",
                     "-",
                     "-",
@@ -742,16 +764,24 @@ class CustomRegexDialog(Dialog):
             self.preview_tree.insert(
                 "",
                 "end",
-                values=(f"… {remaining} caminho(s) adicionais", "", "", ""),
+                values=(
+                    _("… 1 additional path")
+                    if remaining == 1
+                    else _("… {count} additional paths").format(count=remaining),
+                    "",
+                    "",
+                    "",
+                ),
             )
 
-    def _match_path_all(self, path: str) -> list[dict[str, str]]:
+    def _match_path_all(self, path: Path | str) -> list[dict[str, str]]:
         """Match all occurrences of the patterns in the path.
 
         Returns a list of dictionaries, one per match found.
         If patterns match multiple times (e.g., G1_D1_S1--G1_D1_S2),
         returns multiple results.
         """
+        path = str(path)
         display_path = path
         if len(path) > 65:
             display_path = f"…{path[-64:]}"
@@ -827,8 +857,9 @@ class CustomRegexDialog(Dialog):
 
         return results
 
-    def _match_path(self, path: str) -> dict[str, str]:
+    def _match_path(self, path: Path | str) -> dict[str, str]:
         """Legacy method - returns first match only."""
+        path = str(path)
         results = self._match_path_all(path)
         return (
             results[0]

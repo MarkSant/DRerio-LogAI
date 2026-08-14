@@ -219,7 +219,7 @@ class TestImportConfigStep:
         is_valid, error_message = step.validate()
 
         assert not is_valid
-        assert "nenhum vídeo" in error_message.lower()
+        assert "no video to configure" in error_message.lower()
 
     def test_get_data_returns_clean_config(self):
         """get_data should return clean config without internal fields."""

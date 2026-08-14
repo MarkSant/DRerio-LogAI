@@ -99,9 +99,22 @@ no topo do ratchet; depois, atualizar a seção "A migração" em
         e o `hint` ficava vazio — o que fazia
         `test_animal_method_hint_cleared_for_seg` (que exige hint vazio) passar
         pelo motivo errado. Agora usam `_method_display()`.
-  - [ ] 4d: `discovery_step` (20), `custom_regex_dialog` (19),
+  - [x] 4d: `discovery_step` (20), `custom_regex_dialog` (19),
         `file_selection_step` (19), `import_config_step` (16),
         `calibration_step` (14), `design_editor_dialog` (9).
+        __`ui/wizard` inteiro fechado__ — o pacote foi a zero.
+        `custom_regex_dialog` guardava CINCO cópias do mesmo
+        `{"group": "Grupo", "day": "Dia", "subject": "Sujeito"}` (cabeçalho,
+        linha de resultado, placeholder "aguardando", erro de validação e
+        pré-visualização); cada uma precisaria do seu `_()` e elas têm de
+        concordar entre si na tela — viraram `_field_labels()`.
+        `file_selection_step` montava o resumo colando `"N arquivo(s)"` +
+        `" selecionado(s)"`, onde o particípio teria de concordar com um
+        sujeito que pode ser masculino, feminino ou os dois ao mesmo tempo; o
+        português agora começa por rótulo (`"Seleção: ..."`) e nada precisa
+        concordar. Os rótulos de estratégia de ROI do `import_config_step`
+        têm português diferente do resumo do `confirmation_step`, então
+        ganharam msgids próprios em vez de colidir.
 - [ ] Lote 5: `ui/dialogs/**` (26 arquivos).
 - [ ] Fechamento: colapsar MIGRATED_PATHS, atualizar guia e CHANGELOG.
 

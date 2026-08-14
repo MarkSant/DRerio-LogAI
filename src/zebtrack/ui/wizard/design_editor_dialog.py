@@ -24,6 +24,7 @@ from typing import Any
 
 import structlog
 
+from zebtrack.i18n import _
 from zebtrack.ui.window_utils import create_scrollbar
 from zebtrack.ui.wizard.custom_regex_dialog import CustomRegexDialog
 
@@ -77,14 +78,14 @@ class DesignEditorDialog(Dialog):
         for group in self.groups:
             self.group_display_names.setdefault(group, group)
 
-        super().__init__(parent, title="Editar Design Experimental")
+        super().__init__(parent, title=_("Edit Experimental Design"))
 
     def body(self, master: Frame) -> Entry:
         """Build dialog UI with friendly name controls."""
         title_font = tkfont.Font(size=12, weight="bold")
         Label(
             master,
-            text="Edição Manual do Design Experimental",
+            text=_("Manual Editing of the Experimental Design"),
             font=title_font,
         ).pack(pady=(0, 15))
 
@@ -94,13 +95,13 @@ class DesignEditorDialog(Dialog):
 
         Label(
             groups_frame,
-            text="Grupos Experimentais:",
+            text=_("Experimental Groups:"),
             font=("TkDefaultFont", 10, "bold"),
         ).pack(anchor="w")
 
         Label(
             groups_frame,
-            text="Configure o ID original e o nome descritivo para cada grupo.",
+            text=_("Set the original ID and the descriptive name for each group."),
             font=("TkDefaultFont", 8),
             foreground="gray",
         ).pack(anchor="w", pady=(0, 5))
@@ -110,7 +111,7 @@ class DesignEditorDialog(Dialog):
 
         Button(
             action_frame,
-            text="🔧 Regex Customizado",
+            text=_("🔧 Custom Regex"),
             command=self._open_custom_regex_dialog,
             width=20,
         ).pack(side="right")
@@ -121,19 +122,19 @@ class DesignEditorDialog(Dialog):
 
         Label(
             header_frame,
-            text="ID Original",
+            text=_("Original ID"),
             font=("TkDefaultFont", 9, "bold"),
             relief="ridge",
         ).grid(row=0, column=0, sticky="nsew", padx=(0, 1))
         Label(
             header_frame,
-            text="Nome para Exibição",
+            text=_("Display Name"),
             font=("TkDefaultFont", 9, "bold"),
             relief="ridge",
         ).grid(row=0, column=1, sticky="nsew", padx=(0, 1))
         Label(
             header_frame,
-            text="Ações",
+            text=_("Actions"),
             font=("TkDefaultFont", 9, "bold"),
             relief="ridge",
         ).grid(row=0, column=2, sticky="nsew")
@@ -179,7 +180,7 @@ class DesignEditorDialog(Dialog):
         add_group_frame = Frame(groups_frame)
         add_group_frame.pack(fill="x", pady=(5, 0))
 
-        Label(add_group_frame, text="Novo Grupo ID:").pack(side="left")
+        Label(add_group_frame, text=_("New group ID:")).pack(side="left")
         self.new_group_id_var = StringVar()
         self.new_group_id_entry = Entry(
             add_group_frame,
@@ -188,7 +189,7 @@ class DesignEditorDialog(Dialog):
         )
         self.new_group_id_entry.pack(side="left", padx=5)
 
-        Label(add_group_frame, text="Nome:").pack(side="left")
+        Label(add_group_frame, text=_("Name:")).pack(side="left")
         self.new_group_name_var = StringVar()
         self.new_group_name_entry = Entry(
             add_group_frame,
@@ -199,7 +200,7 @@ class DesignEditorDialog(Dialog):
 
         Button(
             add_group_frame,
-            text="+ Adicionar Grupo",
+            text=_("+ Add Group"),
             command=self._add_group,
         ).pack(side="left", padx=5)
 
@@ -209,7 +210,7 @@ class DesignEditorDialog(Dialog):
 
         Label(
             days_frame,
-            text="Dias:",
+            text=_("Days:"),
             font=("TkDefaultFont", 10, "bold"),
         ).pack(anchor="w")
 
@@ -234,20 +235,18 @@ class DesignEditorDialog(Dialog):
         Entry(days_btn_frame, textvariable=self.day_entry_var, width=20).pack(
             side="left", padx=(0, 5)
         )
-        Button(days_btn_frame, text="Adicionar Dia", command=self._add_day).pack(
-            side="left", padx=2
-        )
+        Button(days_btn_frame, text=_("Add Day"), command=self._add_day).pack(side="left", padx=2)
         Button(
             days_btn_frame,
-            text="Remover Selecionado",
+            text=_("Remove Selected"),
             command=self._remove_day,
         ).pack(side="left", padx=2)
 
         help_text = Label(
             master,
-            text=(
-                "💡 Dica: Configure os grupos com nomes amigáveis. "
-                "Os sujeitos são derivados automaticamente dos arquivos."
+            text=_(
+                "💡 Tip: give the groups friendly names. "
+                "Subjects are derived automatically from the files."
             ),
             fg="gray",
             wraplength=450,
@@ -264,10 +263,10 @@ class DesignEditorDialog(Dialog):
         """Override to add OK and Cancel buttons."""
         box = Frame(self)
 
-        Button(box, text="Salvar", width=10, command=self.ok, default="active").pack(
+        Button(box, text=_("Save"), width=10, command=self.ok, default="active").pack(
             side="left", padx=5, pady=5
         )
-        Button(box, text="Cancelar", width=10, command=self.cancel).pack(
+        Button(box, text=_("Cancel"), width=10, command=self.cancel).pack(
             side="left", padx=5, pady=5
         )
 
@@ -394,10 +393,10 @@ class DesignEditorDialog(Dialog):
 
         if new_design is None and active_patterns:
             messagebox.showwarning(
-                "Regex sem resultados",
-                (
-                    "Os padrões regex personalizados não identificaram automaticamente "
-                    "o design. Ajuste os padrões ou edite manualmente."
+                _("Regex with no results"),
+                _(
+                    "The custom regex patterns did not identify the design "
+                    "automatically. Adjust the patterns or edit it manually."
                 ),
                 parent=self,
             )
@@ -407,11 +406,15 @@ class DesignEditorDialog(Dialog):
         display_name = self.new_group_name_var.get().strip()
 
         if not group_id:
-            messagebox.showwarning("ID Vazio", "Digite um ID para o novo grupo.", parent=self)
+            messagebox.showwarning(_("Empty ID"), _("Enter an ID for the new group."), parent=self)
             return
 
         if group_id in self.groups:
-            messagebox.showwarning("ID Duplicado", f"O grupo '{group_id}' já existe.", parent=self)
+            messagebox.showwarning(
+                _("Duplicate ID"),
+                _("The group '{group}' already exists.").format(group=group_id),
+                parent=self,
+            )
             return
 
         self.groups.append(group_id)
@@ -435,8 +438,8 @@ class DesignEditorDialog(Dialog):
 
         group_id = self.groups[index]
         if not messagebox.askyesno(
-            "Confirmar Remoção",
-            f"Remover grupo '{group_id}'?",
+            _("Confirm Removal"),
+            _("Remove group '{group}'?").format(group=group_id),
             parent=self,
         ):
             return
@@ -454,14 +457,18 @@ class DesignEditorDialog(Dialog):
 
         if not day_name:
             messagebox.showwarning(
-                "Dia Vazio",
-                "Por favor, digite um nome para o dia.",
+                _("Empty Day"),
+                _("Please enter a name for the day."),
                 parent=self,
             )
             return
 
         if day_name in self.days:
-            messagebox.showwarning("Dia Duplicado", f"O dia '{day_name}' já existe.", parent=self)
+            messagebox.showwarning(
+                _("Duplicate Day"),
+                _("The day '{day}' already exists.").format(day=day_name),
+                parent=self,
+            )
             return
 
         self.days.append(day_name)
@@ -474,8 +481,8 @@ class DesignEditorDialog(Dialog):
         selection = self.days_listbox.curselection()
         if not selection:
             messagebox.showwarning(
-                "Nenhum Dia Selecionado",
-                "Selecione um dia para remover.",
+                _("No Day Selected"),
+                _("Select a day to remove."),
                 parent=self,
             )
             return
@@ -484,8 +491,8 @@ class DesignEditorDialog(Dialog):
         day_name = self.days[index]
 
         if not messagebox.askyesno(
-            "Confirmar Remoção",
-            f"Tem certeza que deseja remover o dia '{day_name}'?",
+            _("Confirm Removal"),
+            _("Are you sure you want to remove the day '{day}'?").format(day=day_name),
             parent=self,
         ):
             return
@@ -499,8 +506,8 @@ class DesignEditorDialog(Dialog):
         """Validate and persist friendly names before closing."""
         if not self.groups:
             messagebox.showerror(
-                "Erro de Validação",
-                "É necessário ter pelo menos um grupo.",
+                _("Validation Error"),
+                _("At least one group is required."),
                 parent=self,
             )
             return

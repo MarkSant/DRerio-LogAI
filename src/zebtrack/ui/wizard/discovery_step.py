@@ -23,6 +23,7 @@ from tkinter import (
     font as tkfont,
 )
 
+from zebtrack.i18n import _
 from zebtrack.ui.window_utils import create_scrollbar
 from zebtrack.ui.wizard.base import WizardStep
 from zebtrack.ui.wizard.enums import ProjectType, WizardStepID
@@ -99,14 +100,14 @@ class DiscoveryStep(WizardStep):
         title_font = tkfont.Font(size=13, weight="bold")
         title = Label(
             self.content_container,
-            text="Bem-vindo ao Assistente de Criação de Projeto",
+            text=_("Welcome to the Project Creation Wizard"),
             font=title_font,
         )
         title.pack(pady=(0, 8))
 
         subtitle = Label(
             self.content_container,
-            text="Vamos começar entendendo o contexto do seu projeto.",
+            text=_("Let's start by understanding the context of your project."),
             fg="gray",
         )
         subtitle.pack(pady=(0, 10))
@@ -116,7 +117,7 @@ class DiscoveryStep(WizardStep):
 
         Button(
             actions_frame,
-            text="📂 Carregar Template...",
+            text=_("📂 Load Template..."),
             command=self._load_template,
             width=24,
         ).pack(side="right")
@@ -152,87 +153,87 @@ class DiscoveryStep(WizardStep):
         right_col.pack(side="left", fill="both", expand=True, padx=(3, 0))
 
         # Question 1: Project Type (LEFT COLUMN)
-        self.q1_frame = LabelFrame(left_col, text="1. Tipo de Projeto", padx=10, pady=8)
+        self.q1_frame = LabelFrame(left_col, text=_("1. Project Type"), padx=10, pady=8)
         self.q1_frame.pack(fill="both", expand=True)
 
         rb1 = Radiobutton(
             self.q1_frame,
-            text="Experimental (vídeos pré-gravados com grupos, dias, sujeitos)",
+            text=_("Experimental (pre-recorded videos with groups, days, subjects)"),
             variable=self.project_type_var,
             value=ProjectType.EXPERIMENTAL.value,
             command=self._on_project_type_change,
         )
         rb1.pack(anchor="w", pady=2)
-        experimental_tip = (
-            "Projetos com design formal: grupos de tratamento, controles, séries temporais, etc."
+        experimental_tip = _(
+            "Projects with a formal design: treatment groups, controls, time series, etc."
         )
         ToolTip(rb1, experimental_tip)
 
         rb2 = Radiobutton(
             self.q1_frame,
-            text="Exploratório (vídeos pré-gravados, análise livre)",
+            text=_("Exploratory (pre-recorded videos, free-form analysis)"),
             variable=self.project_type_var,
             value=ProjectType.EXPLORATORY.value,
             command=self._on_project_type_change,
         )
         rb2.pack(anchor="w", pady=2)
-        exploratory_tip = (
-            "Para testes rápidos, validações, ou análises sem estrutura experimental definida."
+        exploratory_tip = _(
+            "For quick tests, validations, or analyses with no defined experimental structure."
         )
         ToolTip(rb2, exploratory_tip)
 
         rb_live = Radiobutton(
             self.q1_frame,
-            text="Ao Vivo (gravar diretamente da câmera em tempo real)",
+            text=_("Live (record straight from the camera in real time)"),
             variable=self.project_type_var,
             value=ProjectType.LIVE.value,
             command=self._on_project_type_change,
         )
         rb_live.pack(anchor="w", pady=2)
-        live_tip = "Gravar experimentos em tempo real usando câmera conectada ao computador."
+        live_tip = _("Record experiments in real time using a camera connected to the computer.")
         ToolTip(rb_live, live_tip)
 
         # Question 2: Folder Organization (MIDDLE COLUMN)
-        self.q2_frame = LabelFrame(middle_col, text="2. Organização de Pastas", padx=10, pady=8)
+        self.q2_frame = LabelFrame(middle_col, text=_("2. Folder Organization"), padx=10, pady=8)
         self.q2_frame.pack(fill="both", expand=True)
 
         rb3 = Radiobutton(
             self.q2_frame,
-            text="Sim - pastas representam estrutura experimental (ex: Grupo/Dia/)",
+            text=_("Yes - folders represent the experimental structure (e.g. Group/Day/)"),
             variable=self.folder_organization_var,
             value=1,
         )
         rb3.pack(anchor="w", pady=2)
-        experimental_structure_tip = (
-            "O assistente detectará automaticamente grupos, dias e sujeitos "
-            "a partir da estrutura de pastas (ex: /Control/Day01/Subject01.mp4)."
+        experimental_structure_tip = _(
+            "The wizard will detect groups, days and subjects automatically "
+            "from the folder structure (e.g. /Control/Day01/Subject01.mp4)."
         )
         ToolTip(rb3, experimental_structure_tip)
 
         rb4 = Radiobutton(
             self.q2_frame,
-            text="Sim - mas apenas para organização (nomes arbitrários)",
+            text=_("Yes - but only for organization (arbitrary names)"),
             variable=self.folder_organization_var,
             value=2,
         )
         rb4.pack(anchor="w", pady=2)
-        rb4_tip = "Pastas são usadas só para organização, sem significado experimental."
+        rb4_tip = _("Folders are used only for organization, with no experimental meaning.")
         ToolTip(rb4, rb4_tip)
 
         rb5 = Radiobutton(
             self.q2_frame,
-            text="Não - todos os vídeos estão em um único diretório",
+            text=_("No - every video is in a single directory"),
             variable=self.folder_organization_var,
             value=3,
         )
         rb5.pack(anchor="w", pady=2)
-        rb5_tip = "Todos os vídeos estão numa pasta plana, sem subpastas."
+        rb5_tip = _("Every video is in one flat folder, with no subfolders.")
         ToolTip(rb5, rb5_tip)
 
         # Question 3: Existing Parquet Files (RIGHT COLUMN)
         self.q3_frame = LabelFrame(
             right_col,
-            text="3. Arquivos Parquet Existentes",
+            text=_("3. Existing Parquet Files"),
             padx=10,
             pady=8,
         )
@@ -240,72 +241,75 @@ class DiscoveryStep(WizardStep):
 
         Label(
             self.q3_frame,
-            text="Você possui arquivos .parquet de análises anteriores?",
+            text=_("Do you have .parquet files from previous analyses?"),
             fg="gray",
         ).pack(anchor="w", pady=(0, 8))
 
         rb6 = Radiobutton(
             self.q3_frame,
-            text="Sim - quero importar apenas arena",
+            text=_("Yes - I want to import only the arena"),
             variable=self.parquet_scope_var,
             value=1,
         )
         rb6.pack(anchor="w", pady=2)
         ToolTip(
             rb6,
-            (
-                "Importar apenas a arena de arquivos *_arena.parquet. "
-                "ROIs e trajetórias serão definidas/geradas novamente."
+            _(
+                "Import only the arena from *_arena.parquet files. "
+                "ROIs and trajectories will be defined/generated again."
             ),
         )
 
         rb7 = Radiobutton(
             self.q3_frame,
-            text="Sim - quero importar zonas (arena e ROIs)",
+            text=_("Yes - I want to import zones (arena and ROIs)"),
             variable=self.parquet_scope_var,
             value=2,
         )
         rb7.pack(anchor="w", pady=2)
         ToolTip(
             rb7,
-            (
-                "Importar arena e ROIs de arquivos *_arena.parquet e *_rois.parquet. "
-                "Trajetórias serão geradas novamente."
+            _(
+                "Import the arena and ROIs from *_arena.parquet and *_rois.parquet files. "
+                "Trajectories will be generated again."
             ),
         )
 
         rb8 = Radiobutton(
             self.q3_frame,
-            text="Sim - quero importar tudo (zonas + trajetória)",
+            text=_("Yes - I want to import everything (zones + trajectory)"),
             variable=self.parquet_scope_var,
             value=3,
         )
         rb8.pack(anchor="w", pady=2)
         ToolTip(
             rb8,
-            (
-                "Importar arena, ROIs e trajetórias de arquivos *_arena.parquet, "
-                "*_rois.parquet e *_trajectory.parquet. Economiza tempo evitando "
-                "reprocessamento."
+            _(
+                "Import arenas, ROIs and trajectories from *_arena.parquet, "
+                "*_rois.parquet and *_trajectory.parquet files. Saves time by avoiding "
+                "reprocessing."
             ),
         )
 
         rb9 = Radiobutton(
             self.q3_frame,
-            text="Não - começar do zero",
+            text=_("No - start from scratch"),
             variable=self.parquet_scope_var,
             value=0,
         )
         rb9.pack(anchor="w", pady=2)
         ToolTip(
             rb9,
-            ("Processar tudo do início: desenhar arena, definir ROIs e gerar trajetórias."),
+            _(
+                "Process everything from the start: draw the arena, define ROIs "
+                "and generate trajectories."
+            ),
         )
 
         # Glossary / Help text explaining technical terms
         self.glossary_frame = LabelFrame(
             self.content_container,
-            text="O que significam esses termos?",
+            text=_("What do these terms mean?"),
             padx=15,
             pady=10,
         )
@@ -314,16 +318,16 @@ class DiscoveryStep(WizardStep):
 
         glossary_text = Label(
             glossary_frame,
-            text=(
-                "• Parquet: Formato de arquivo eficiente para armazenar dados\n\n"
-                "• Arena: Área do aquário onde os animais se movem "
-                "(polígono delimitador)\n\n"
-                "• ROI (Region of Interest): Regiões específicas como 'Centro', "
-                "'Borda', 'Zona de Escape'\n\n"
-                "• Trajetória: Coordenadas frame-a-frame do movimento dos "
-                "animais\n\n"
-                "Importar esses dados de análises anteriores evita "
-                "reprocessamento."
+            text=_(
+                "• Parquet: an efficient file format for storing data\n\n"
+                "• Arena: the area of the tank where the animals move "
+                "(a bounding polygon)\n\n"
+                "• ROI (Region of Interest): specific regions such as 'Centre', "
+                "'Edge', 'Escape Zone'\n\n"
+                "• Trajectory: frame-by-frame coordinates of the animals' "
+                "movement\n\n"
+                "Importing this data from previous analyses avoids "
+                "reprocessing."
             ),
             fg="gray",
             justify="left",
@@ -572,8 +576,8 @@ class DiscoveryStep(WizardStep):
 
     def _load_template(self):
         template_path = filedialog.askopenfilename(
-            title="Carregar Template do Wizard",
-            filetypes=[("Templates do Wizard", "*.json"), ("JSON", "*.json")],
+            title=_("Load Wizard Template"),
+            filetypes=[(_("Wizard Templates"), "*.json"), ("JSON", "*.json")],
             initialdir=str(self.template_manager.templates_dir),
         )
 
@@ -584,11 +588,8 @@ class DiscoveryStep(WizardStep):
 
         if not template:
             messagebox.showerror(
-                "Carregar Template",
-                (
-                    "Não foi possível carregar o template selecionado. "
-                    "Verifique o arquivo e tente novamente."
-                ),
+                _("Load Template"),
+                _("Could not load the selected template. Check the file and try again."),
                 parent=self,
             )
             return
@@ -596,8 +597,8 @@ class DiscoveryStep(WizardStep):
         self._apply_template_data(template, template_path)
 
         messagebox.showinfo(
-            "Template Carregado",
-            "Configurações carregadas. Revise cada etapa antes de continuar.",
+            _("Template Loaded"),
+            _("Settings loaded. Review each step before continuing."),
             parent=self,
         )
 

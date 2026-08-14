@@ -79,7 +79,7 @@ class TestFileSelectionStep:
         is_valid, error_message = step.validate()
 
         assert not is_valid
-        assert "pelo menos um arquivo" in error_message.lower()
+        assert "at least one video file" in error_message.lower()
 
     def test_file_selection_step_validate_succeeds_with_file(self):
         """Validation should succeed when at least one file is selected."""
@@ -121,7 +121,7 @@ class TestFileSelectionStep:
         is_valid, error_message = step.validate()
 
         assert not is_valid
-        assert "não exist" in error_message.lower()
+        assert "do not exist" in error_message.lower()
 
     def test_file_selection_step_get_data_with_mixed_selection(self):
         """get_data should correctly count files and folders."""
@@ -182,7 +182,7 @@ class TestFileSelectionStep:
         assert step.video_paths == []
         assert step.paths_listbox is not None
         assert step.paths_listbox.size() == 0
-        assert "Nenhum" in step.summary_var.get()
+        assert "No video/folder selected" in step.summary_var.get()
 
     def test_file_selection_step_display_update(self):
         """Display should update correctly when paths are added."""
@@ -191,14 +191,14 @@ class TestFileSelectionStep:
         step.build_ui()
 
         # Initially empty
-        assert "Nenhum" in step.summary_var.get()
+        assert "No video/folder selected" in step.summary_var.get()
 
         # Add file
         step.video_paths = [str(self.video1)]
         step._update_display()
 
-        # Summary should show 1 file
-        assert "1 arquivo(s)" in step.summary_var.get()
+        # Summary should show 1 file (singular, not the old "1 arquivo(s)")
+        assert "1 file" in step.summary_var.get()
 
         # Add folder
         step.video_paths.append(self.temp_dir)
@@ -206,8 +206,8 @@ class TestFileSelectionStep:
 
         # Summary should show 1 file + 1 folder
         summary = step.summary_var.get()
-        assert "1 arquivo(s)" in summary
-        assert "1 pasta(s)" in summary
+        assert "1 file" in summary
+        assert "1 folder" in summary
 
     def test_file_selection_step_folder_preview_tree_populates(self):
         """Folder preview tree should reflect selected directory structure."""
