@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: DRerio LogAI VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-08-14 17:05-0300\n"
+"POT-Creation-Date: 2026-08-14 17:22-0300\n"
 "PO-Revision-Date: 2026-08-08 21:41-0300\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: pt_BR <LL@li.org>\n"
@@ -262,6 +262,8 @@ msgstr "Vídeo Único"
 #: src/zebtrack/ui/dialogs/block_detail_dialog.py:1001
 #: src/zebtrack/ui/dialogs/block_detail_dialog.py:1473
 #: src/zebtrack/ui/dialogs/block_detail_dialog.py:1529
+#: src/zebtrack/ui/dialogs/single_video_config_dialog.py:509
+#: src/zebtrack/ui/dialogs/single_video_config_dialog.py:548
 #: src/zebtrack/ui/gui.py:144 src/zebtrack/ui/gui.py:808
 #: src/zebtrack/ui/wizard/live_config_step.py:860
 msgid "Error"
@@ -474,6 +476,7 @@ msgstr "Validação Falhou"
 # | msgid "No video selected"
 #: src/zebtrack/coordinators/_video_selection_mixin.py:224
 #: src/zebtrack/ui/components/model_diagnostics_panel.py:56
+#: src/zebtrack/ui/dialogs/create_project_dialog.py:62
 #: src/zebtrack/ui/wizard/detection_step.py:221
 msgid "No video selected."
 msgstr "Nenhum vídeo selecionado."
@@ -1652,6 +1655,7 @@ msgstr "Selecione Vídeos ou Pastas para Adicionar ao Projeto"
 #: src/zebtrack/ui/components/dialog_manager.py:541
 #: src/zebtrack/ui/components/global_model_configuration_panel.py:515
 #: src/zebtrack/ui/components/roi_template_manager.py:425
+#: src/zebtrack/ui/dialogs/single_video_config_dialog.py:493
 msgid "All files"
 msgstr "Todos os arquivos"
 
@@ -1659,6 +1663,8 @@ msgstr "Todos os arquivos"
 #: src/zebtrack/coordinators/video_processing_coordinator.py:384
 #: src/zebtrack/coordinators/video_processing_coordinator.py:489
 #: src/zebtrack/ui/components/model_diagnostics_panel.py:792
+#: src/zebtrack/ui/dialogs/create_project_dialog.py:285
+#: src/zebtrack/ui/dialogs/single_video_config_dialog.py:492
 #: src/zebtrack/ui/wizard/file_selection_step.py:240
 msgid "Video files"
 msgstr "Arquivos de vídeo"
@@ -3227,6 +3233,10 @@ msgstr "Não informado"
 
 #: src/zebtrack/ui/components/dialog_manager.py:284
 #: src/zebtrack/ui/components/zone_controls.py:26
+#: src/zebtrack/ui/dialogs/project_video_import_dialog.py:47
+#: src/zebtrack/ui/dialogs/project_video_import_dialog.py:175
+#: src/zebtrack/ui/dialogs/project_video_import_dialog.py:483
+#: src/zebtrack/ui/dialogs/project_video_import_dialog.py:516
 #: src/zebtrack/ui/sentinels.py:57
 #: src/zebtrack/ui/wizard/custom_regex_dialog.py:39
 msgid "Day"
@@ -3473,6 +3483,7 @@ msgstr "Detecção (para caixas delimitadoras rápidas)"
 
 #: src/zebtrack/ui/builders/common_widgets.py:223
 #: src/zebtrack/ui/dialogs/live_analysis_dialog.py:474
+#: src/zebtrack/ui/dialogs/project_video_import_dialog.py:577
 #: src/zebtrack/ui/wizard/custom_regex_dialog.py:473
 #: src/zebtrack/ui/wizard/design_editor_dialog.py:269
 #: src/zebtrack/ui/wizard/wizard_dialog.py:207
@@ -3518,11 +3529,13 @@ msgstr "Ir para Processamento e Relatórios →"
 
 #: src/zebtrack/ui/builders/project_widgets.py:338
 #: src/zebtrack/ui/components/project_initializer.py:84
+#: src/zebtrack/ui/dialogs/create_project_dialog.py:173
 msgid "Live"
 msgstr "Ao Vivo"
 
 #: src/zebtrack/ui/builders/project_widgets.py:340
 #: src/zebtrack/ui/components/project_initializer.py:86
+#: src/zebtrack/ui/dialogs/create_project_dialog.py:166
 msgid "Pre-recorded"
 msgstr "Pré-gravado"
 
@@ -4821,12 +4834,20 @@ msgstr ""
 #: src/zebtrack/ui/components/dialog_manager.py:283
 #: src/zebtrack/ui/components/project_overview.py:400
 #: src/zebtrack/ui/components/zone_controls.py:26
+#: src/zebtrack/ui/dialogs/project_video_import_dialog.py:47
+#: src/zebtrack/ui/dialogs/project_video_import_dialog.py:167
+#: src/zebtrack/ui/dialogs/project_video_import_dialog.py:476
+#: src/zebtrack/ui/dialogs/project_video_import_dialog.py:509
 #: src/zebtrack/ui/wizard/custom_regex_dialog.py:39
 msgid "Group"
 msgstr "Grupo"
 
 #: src/zebtrack/ui/components/dialog_manager.py:285
 #: src/zebtrack/ui/components/zone_controls.py:26
+#: src/zebtrack/ui/dialogs/project_video_import_dialog.py:47
+#: src/zebtrack/ui/dialogs/project_video_import_dialog.py:184
+#: src/zebtrack/ui/dialogs/project_video_import_dialog.py:491
+#: src/zebtrack/ui/dialogs/project_video_import_dialog.py:524
 #: src/zebtrack/ui/wizard/custom_regex_dialog.py:39
 msgid "Subject"
 msgstr "Sujeito"
@@ -5779,6 +5800,7 @@ msgstr ""
 
 #: src/zebtrack/ui/components/menu_manager.py:61
 #: src/zebtrack/ui/components/zone_controls.py:731
+#: src/zebtrack/ui/dialogs/project_video_import_dialog.py:455
 msgid "File"
 msgstr "Arquivo"
 
@@ -6973,6 +6995,7 @@ msgstr "Vídeos"
 # | msgid "No data"
 # | msgid "No metadata"
 #: src/zebtrack/ui/components/project_overview.py:138
+#: src/zebtrack/ui/dialogs/project_video_import_dialog.py:457
 msgid "Metadata"
 msgstr "Metadados"
 
@@ -7699,6 +7722,7 @@ msgid "Use ROIs from a template"
 msgstr "Usar ROIs de template"
 
 #: src/zebtrack/ui/components/zone_controls.py:566
+#: src/zebtrack/ui/dialogs/create_project_dialog.py:124
 msgid "Analysis Interval (frames):"
 msgstr "Intervalo de Análise (frames):"
 
@@ -7759,6 +7783,7 @@ msgid "Hierarchy"
 msgstr "Hierarquia"
 
 #: src/zebtrack/ui/components/zone_controls.py:730
+#: src/zebtrack/ui/dialogs/project_video_import_dialog.py:456
 msgid "Data"
 msgstr "Dados"
 
@@ -9244,6 +9269,7 @@ msgid "Sessions included"
 msgstr "Sessões incluídas"
 
 #: src/zebtrack/ui/dialogs/block_detail_dialog.py:1236
+#: src/zebtrack/ui/dialogs/project_video_import_dialog.py:47
 msgid "Animal"
 msgstr "Animal"
 
@@ -9552,6 +9578,216 @@ msgstr "Selecionar Cor da Área"
 msgid "Choose the colour for this region of interest:"
 msgstr "Escolha a cor para esta área de interesse:"
 
+#: src/zebtrack/ui/dialogs/create_project_dialog.py:83
+#: src/zebtrack/ui/wizard/confirmation_step.py:123
+msgid "Project Name:"
+msgstr "Nome do Projeto:"
+
+#: src/zebtrack/ui/dialogs/create_project_dialog.py:89
+msgid "Project Folder:"
+msgstr "Pasta do Projeto:"
+
+#: src/zebtrack/ui/dialogs/create_project_dialog.py:92
+#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:352
+#: src/zebtrack/ui/dialogs/single_video_config_dialog.py:152
+#: src/zebtrack/ui/wizard/confirmation_step.py:152
+msgid "Browse..."
+msgstr "Procurar..."
+
+#: src/zebtrack/ui/dialogs/create_project_dialog.py:95
+#: src/zebtrack/ui/dialogs/single_video_config_dialog.py:177
+msgid "Number of Aquariums:"
+msgstr "Número de Aquários:"
+
+#: src/zebtrack/ui/dialogs/create_project_dialog.py:102
+#: src/zebtrack/ui/dialogs/single_video_config_dialog.py:194
+msgid "Animals per Aquarium:"
+msgstr "Animais por Aquário:"
+
+#: src/zebtrack/ui/dialogs/create_project_dialog.py:109
+#: src/zebtrack/ui/dialogs/single_video_config_dialog.py:211
+msgid "Aquarium Width (cm):"
+msgstr "Largura do Aquário (cm):"
+
+#: src/zebtrack/ui/dialogs/create_project_dialog.py:116
+#: src/zebtrack/ui/dialogs/single_video_config_dialog.py:227
+msgid "Aquarium Height (cm):"
+msgstr "Altura do Aquário (cm):"
+
+#: src/zebtrack/ui/dialogs/create_project_dialog.py:138
+msgid "Method for Aquarium:"
+msgstr "Método para Aquário:"
+
+#: src/zebtrack/ui/dialogs/create_project_dialog.py:150
+msgid "Method for Animals:"
+msgstr "Método para Animais:"
+
+#: src/zebtrack/ui/dialogs/create_project_dialog.py:163
+msgid "Project Type:"
+msgstr "Tipo de Projeto:"
+
+#: src/zebtrack/ui/dialogs/create_project_dialog.py:185
+msgid "Select Videos..."
+msgstr "Selecionar Vídeos..."
+
+#: src/zebtrack/ui/dialogs/create_project_dialog.py:192
+msgid "Select Folder..."
+msgstr "Selecionar Pasta..."
+
+#: src/zebtrack/ui/dialogs/create_project_dialog.py:206
+msgid "Use timed recording?"
+msgstr "Usar gravação com tempo?"
+
+#: src/zebtrack/ui/dialogs/create_project_dialog.py:214
+msgid "minutes"
+msgstr "minutos"
+
+#: src/zebtrack/ui/dialogs/create_project_dialog.py:219
+msgid "Use a countdown?"
+msgstr "Usar contagem regressiva?"
+
+#: src/zebtrack/ui/dialogs/create_project_dialog.py:231
+msgid "Experimental Design (Live Project)"
+msgstr "Design Experimental (Projeto ao Vivo)"
+
+#: src/zebtrack/ui/dialogs/create_project_dialog.py:235
+msgid "Total Experiment Days:"
+msgstr "Total de Dias do Experimento:"
+
+#: src/zebtrack/ui/dialogs/create_project_dialog.py:241
+msgid "Subjects per Group:"
+msgstr "Cobaias por Grupo:"
+
+# | msgid "No Group"
+#: src/zebtrack/ui/dialogs/create_project_dialog.py:247
+#: src/zebtrack/ui/wizard/experimental_design_step.py:252
+msgid "Number of Groups:"
+msgstr "Número de Grupos:"
+
+# | msgid "Weight Type"
+# | msgid "Weight Name"
+# | msgid "ROI Name"
+#: src/zebtrack/ui/dialogs/create_project_dialog.py:256
+#: src/zebtrack/ui/wizard/experimental_design_step.py:308
+msgid "Group Names"
+msgstr "Nomes dos Grupos"
+
+#: src/zebtrack/ui/dialogs/create_project_dialog.py:262
+#, python-brace-format
+msgid "Group {number}:"
+msgstr "Grupo {number}:"
+
+#: src/zebtrack/ui/dialogs/create_project_dialog.py:276
+msgid "Select a Base Folder for the Project"
+msgstr "Selecione uma Pasta Principal para o Projeto"
+
+#: src/zebtrack/ui/dialogs/create_project_dialog.py:284
+#: src/zebtrack/ui/wizard/file_selection_step.py:239
+msgid "Select the Video Files"
+msgstr "Selecione os Arquivos de Vídeo"
+
+#: src/zebtrack/ui/dialogs/create_project_dialog.py:301
+#: src/zebtrack/ui/wizard/file_selection_step.py:252
+msgid "Select a Folder Containing Videos"
+msgstr "Selecione uma Pasta Contendo Vídeos"
+
+#: src/zebtrack/ui/dialogs/create_project_dialog.py:316
+#: src/zebtrack/ui/wizard/file_selection_step.py:62
+#: src/zebtrack/ui/wizard/file_selection_step.py:293
+msgid "No video/folder selected."
+msgstr "Nenhum vídeo/pasta selecionado."
+
+#: src/zebtrack/ui/dialogs/create_project_dialog.py:326
+#: src/zebtrack/ui/wizard/confirmation_step.py:717
+#: src/zebtrack/ui/wizard/file_selection_step.py:305
+#: src/zebtrack/ui/wizard/file_selection_step.py:566
+msgid "1 file"
+msgstr "1 arquivo"
+
+#: src/zebtrack/ui/dialogs/create_project_dialog.py:326
+#: src/zebtrack/ui/wizard/confirmation_step.py:717
+#: src/zebtrack/ui/wizard/file_selection_step.py:305
+#: src/zebtrack/ui/wizard/file_selection_step.py:566
+#, python-brace-format
+msgid "{count} files"
+msgstr "{count} arquivos"
+
+#: src/zebtrack/ui/dialogs/create_project_dialog.py:330
+#: src/zebtrack/ui/wizard/confirmation_step.py:713
+#: src/zebtrack/ui/wizard/file_selection_step.py:309
+#: src/zebtrack/ui/wizard/file_selection_step.py:563
+msgid "1 folder"
+msgstr "1 pasta"
+
+#: src/zebtrack/ui/dialogs/create_project_dialog.py:332
+#: src/zebtrack/ui/wizard/confirmation_step.py:713
+#: src/zebtrack/ui/wizard/file_selection_step.py:311
+#: src/zebtrack/ui/wizard/file_selection_step.py:563
+#, python-brace-format
+msgid "{count} folders"
+msgstr "{count} pastas"
+
+#: src/zebtrack/ui/dialogs/create_project_dialog.py:336
+#: src/zebtrack/ui/wizard/file_selection_step.py:314
+#, python-brace-format
+msgid "Selected: {parts}"
+msgstr "Seleção: {parts}"
+
+#: src/zebtrack/ui/dialogs/create_project_dialog.py:338
+msgid "The selection contains invalid paths."
+msgstr "Seleção contém caminhos inválidos."
+
+#: src/zebtrack/ui/dialogs/create_project_dialog.py:365
+msgid "Not applicable to live projects."
+msgstr "Não aplicável para projetos ao vivo."
+
+#: src/zebtrack/ui/dialogs/create_project_dialog.py:405
+msgid "Please select a valid base folder."
+msgstr "Por favor, selecione uma pasta principal válida."
+
+#: src/zebtrack/ui/dialogs/create_project_dialog.py:409
+msgid "The project name cannot be empty."
+msgstr "O nome do projeto não pode estar vazio."
+
+#: src/zebtrack/ui/dialogs/create_project_dialog.py:413
+msgid "A project folder with this name already exists and is not empty."
+msgstr "Uma pasta de projeto com este nome já existe e não está vazia."
+
+#: src/zebtrack/ui/dialogs/create_project_dialog.py:423
+msgid ""
+"Please select at least one video file or folder for the pre-recorded "
+"analysis."
+msgstr ""
+"Por favor, selecione pelo menos um arquivo de vídeo ou pasta para análise "
+"pré-gravada."
+
+#: src/zebtrack/ui/dialogs/create_project_dialog.py:452
+msgid "The number of groups must be between 1 and 6."
+msgstr "O número de grupos deve ser entre 1 e 6."
+
+#: src/zebtrack/ui/dialogs/create_project_dialog.py:455
+#, python-brace-format
+msgid "The name of Group {number} cannot be empty."
+msgstr "O nome do Grupo {number} não pode estar vazio."
+
+#: src/zebtrack/ui/dialogs/create_project_dialog.py:459
+msgid "The experimental design parameters must be valid positive numbers."
+msgstr ""
+"Os parâmetros do design experimental devem ser números positivos válidos."
+
+#: src/zebtrack/ui/dialogs/create_project_dialog.py:467
+msgid "The recording duration must be a positive number."
+msgstr "A duração da gravação deve ser um número positivo."
+
+#: src/zebtrack/ui/dialogs/create_project_dialog.py:475
+msgid "The countdown duration must be a positive whole number."
+msgstr "A duração da contagem regressiva deve ser um inteiro positivo."
+
+#: src/zebtrack/ui/dialogs/create_project_dialog.py:486
+msgid "The analysis and display intervals must be positive whole numbers."
+msgstr ""
+"Os intervalos de análise e exibição devem ser números inteiros positivos."
+
 #: src/zebtrack/ui/dialogs/diagnostic_progress_dialog.py:25
 msgid "Diagnostics in Progress"
 msgstr "Diagnóstico em Progresso"
@@ -9616,6 +9852,7 @@ msgstr ""
 "• 300s = 5 minutos."
 
 #: src/zebtrack/ui/dialogs/live_analysis_dialog.py:257
+#: src/zebtrack/ui/dialogs/single_video_config_dialog.py:356
 msgid "Analysis interval:"
 msgstr "Intervalo Análise:"
 
@@ -9634,6 +9871,7 @@ msgstr ""
 "• Recomendado para Live: 1 ou 2."
 
 #: src/zebtrack/ui/dialogs/live_analysis_dialog.py:279
+#: src/zebtrack/ui/dialogs/single_video_config_dialog.py:374
 msgid "Display interval:"
 msgstr "Intervalo Exibição:"
 
@@ -9681,11 +9919,6 @@ msgstr "Usar aceleração OpenVINO"
 msgid "Output folder:"
 msgstr "Pasta de Saída:"
 
-#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:352
-#: src/zebtrack/ui/wizard/confirmation_step.py:152
-msgid "Browse..."
-msgstr "Procurar..."
-
 #: src/zebtrack/ui/dialogs/live_analysis_dialog.py:357
 msgid ""
 "Directory where the results will be saved.\n"
@@ -9699,6 +9932,7 @@ msgid "Advanced AI and Setup Parameters"
 msgstr "Parâmetros Avançados de IA e Setup"
 
 #: src/zebtrack/ui/dialogs/live_analysis_dialog.py:376
+#: src/zebtrack/ui/dialogs/single_video_config_dialog.py:399
 msgid "Aquarium AI:"
 msgstr "IA Aquário:"
 
@@ -9713,6 +9947,7 @@ msgstr ""
 "• det: Muito rápido."
 
 #: src/zebtrack/ui/dialogs/live_analysis_dialog.py:393
+#: src/zebtrack/ui/dialogs/single_video_config_dialog.py:420
 msgid "Fish AI:"
 msgstr "IA Peixe:"
 
@@ -9998,6 +10233,489 @@ msgstr "Nenhum aquário encontrado — ajuste o limiar e tente novamente."
 #, python-brace-format
 msgid "Aquarium re-detected with threshold {value}"
 msgstr "Aquário re-detectado com limiar {value}"
+
+#: src/zebtrack/ui/dialogs/project_video_import_dialog.py:37
+msgid "Video Animals"
+msgstr "Animais do Vídeo"
+
+#: src/zebtrack/ui/dialogs/project_video_import_dialog.py:42
+msgid "Set the group, day and subject for each animal in the video."
+msgstr "Defina grupo, dia e sujeito para cada animal do vídeo."
+
+# | msgid "Validation Error"
+#: src/zebtrack/ui/dialogs/project_video_import_dialog.py:85
+#: src/zebtrack/ui/dialogs/project_video_import_dialog.py:92
+#: src/zebtrack/ui/dialogs/project_video_import_dialog.py:102
+#: src/zebtrack/ui/dialogs/project_video_import_dialog.py:199
+#: src/zebtrack/ui/dialogs/project_video_import_dialog.py:205
+#: src/zebtrack/ui/dialogs/project_video_import_dialog.py:209
+#: src/zebtrack/ui/dialogs/project_video_import_dialog.py:357
+#: src/zebtrack/ui/dialogs/project_video_import_dialog.py:363
+#: src/zebtrack/ui/dialogs/project_video_import_dialog.py:370
+#: src/zebtrack/ui/dialogs/project_video_import_dialog.py:373
+#: src/zebtrack/ui/dialogs/project_video_import_dialog.py:588
+#: src/zebtrack/ui/dialogs/project_video_import_dialog.py:597
+#: src/zebtrack/ui/dialogs/project_video_import_dialog.py:608
+#: src/zebtrack/ui/dialogs/project_video_import_dialog.py:620
+#: src/zebtrack/ui/wizard/wizard_dialog.py:464
+msgid "Validation"
+msgstr "Validação"
+
+#: src/zebtrack/ui/dialogs/project_video_import_dialog.py:86
+#, python-brace-format
+msgid "Enter the group for animal {index}."
+msgstr "Informe o grupo do animal {index}."
+
+#: src/zebtrack/ui/dialogs/project_video_import_dialog.py:93
+#, python-brace-format
+msgid "Enter the subject for animal {index}."
+msgstr "Informe o sujeito do animal {index}."
+
+#: src/zebtrack/ui/dialogs/project_video_import_dialog.py:103
+#, python-brace-format
+msgid "Enter a valid day for animal {index}."
+msgstr "Informe um dia válido para o animal {index}."
+
+#: src/zebtrack/ui/dialogs/project_video_import_dialog.py:154
+msgid "Edit Video Metadata"
+msgstr "Editar Metadata do Vídeo"
+
+#: src/zebtrack/ui/dialogs/project_video_import_dialog.py:162
+#, python-brace-format
+msgid "File: {name}"
+msgstr "Arquivo: {name}"
+
+#: src/zebtrack/ui/dialogs/project_video_import_dialog.py:191
+msgid "Edit Video Animals..."
+msgstr "Editar Animais do Vídeo..."
+
+#: src/zebtrack/ui/dialogs/project_video_import_dialog.py:199
+msgid "Enter the group for the video."
+msgstr "Informe o grupo do vídeo."
+
+#: src/zebtrack/ui/dialogs/project_video_import_dialog.py:205
+#: src/zebtrack/ui/dialogs/project_video_import_dialog.py:370
+msgid "Enter a valid day."
+msgstr "Informe um dia válido."
+
+#: src/zebtrack/ui/dialogs/project_video_import_dialog.py:209
+msgid "Enter the subject for the video."
+msgstr "Informe o sujeito do vídeo."
+
+#: src/zebtrack/ui/dialogs/project_video_import_dialog.py:291
+#, python-brace-format
+msgid "Apply metadata changes to {kind} '{label}' in 1 video."
+msgstr "Aplicar alterações de metadata ao {kind} '{label}' em 1 vídeo."
+
+#: src/zebtrack/ui/dialogs/project_video_import_dialog.py:295
+#, python-brace-format
+msgid "Apply metadata changes to {kind} '{label}' in {count} videos."
+msgstr "Aplicar alterações de metadata ao {kind} '{label}' em {count} vídeos."
+
+#: src/zebtrack/ui/dialogs/project_video_import_dialog.py:307
+msgid "Update group"
+msgstr "Atualizar grupo"
+
+#: src/zebtrack/ui/dialogs/project_video_import_dialog.py:321
+msgid "Update day"
+msgstr "Atualizar dia"
+
+#: src/zebtrack/ui/dialogs/project_video_import_dialog.py:339
+msgid "Update subject"
+msgstr "Atualizar sujeito"
+
+#: src/zebtrack/ui/dialogs/project_video_import_dialog.py:358
+msgid "Select at least one field to update in bulk."
+msgstr "Selecione pelo menos um campo para atualizar em lote."
+
+#: src/zebtrack/ui/dialogs/project_video_import_dialog.py:363
+msgid "Enter the group to apply."
+msgstr "Informe o grupo a aplicar."
+
+#: src/zebtrack/ui/dialogs/project_video_import_dialog.py:373
+msgid "Enter the subject to apply."
+msgstr "Informe o sujeito a aplicar."
+
+#: src/zebtrack/ui/dialogs/project_video_import_dialog.py:425
+msgid "Import Videos into the Project"
+msgstr "Importar Vídeos ao Projeto"
+
+#: src/zebtrack/ui/dialogs/project_video_import_dialog.py:437
+msgid ""
+"Review the videos found, set group, day and subject, and choose whether the "
+"batch is only added or also processed."
+msgstr ""
+"Revise os vídeos encontrados, defina grupo, dia e sujeito, e escolha se o "
+"lote será apenas adicionado ou também processado."
+
+#: src/zebtrack/ui/dialogs/project_video_import_dialog.py:444
+msgid "Videos Found"
+msgstr "Vídeos Encontrados"
+
+#: src/zebtrack/ui/dialogs/project_video_import_dialog.py:458
+msgid "Animals"
+msgstr "Animais"
+
+#: src/zebtrack/ui/dialogs/project_video_import_dialog.py:473
+msgid "Batch Defaults"
+msgstr "Padrões do Lote"
+
+#: src/zebtrack/ui/dialogs/project_video_import_dialog.py:497
+msgid "Apply to Selected"
+msgstr "Aplicar aos Selecionados"
+
+#: src/zebtrack/ui/dialogs/project_video_import_dialog.py:502
+msgid "Fill Blanks in the Batch"
+msgstr "Preencher Vazios no Lote"
+
+#: src/zebtrack/ui/dialogs/project_video_import_dialog.py:506
+msgid "Selected Video"
+msgstr "Vídeo Selecionado"
+
+#: src/zebtrack/ui/dialogs/project_video_import_dialog.py:537
+msgid "Save to This Video"
+msgstr "Salvar Neste Vídeo"
+
+#: src/zebtrack/ui/dialogs/project_video_import_dialog.py:543
+msgid "Configure Video Animals..."
+msgstr "Configurar Animais do Vídeo..."
+
+#: src/zebtrack/ui/dialogs/project_video_import_dialog.py:547
+msgid "After Importing"
+msgstr "Após Importar"
+
+#: src/zebtrack/ui/dialogs/project_video_import_dialog.py:550
+msgid "Only add to the project"
+msgstr "Apenas adicionar ao projeto"
+
+#: src/zebtrack/ui/dialogs/project_video_import_dialog.py:551
+msgid "Add and process pending items"
+msgstr "Adicionar e processar pendências"
+
+#: src/zebtrack/ui/dialogs/project_video_import_dialog.py:552
+msgid "Add and reprocess everything"
+msgstr "Adicionar e reprocessar todos"
+
+#: src/zebtrack/ui/dialogs/project_video_import_dialog.py:578
+msgid "Import"
+msgstr "Importar"
+
+#: src/zebtrack/ui/dialogs/project_video_import_dialog.py:589
+msgid "No video available to import."
+msgstr "Nenhum vídeo disponível para importação."
+
+#: src/zebtrack/ui/dialogs/project_video_import_dialog.py:598
+#, python-brace-format
+msgid "Enter the group for video {name}."
+msgstr "Informe o grupo do vídeo {name}."
+
+#: src/zebtrack/ui/dialogs/project_video_import_dialog.py:609
+#, python-brace-format
+msgid "Enter a valid day for video {name}."
+msgstr "Informe um dia válido para o vídeo {name}."
+
+#: src/zebtrack/ui/dialogs/project_video_import_dialog.py:621
+#, python-brace-format
+msgid "Enter the subject for video {name}."
+msgstr "Informe o sujeito do vídeo {name}."
+
+#: src/zebtrack/ui/dialogs/project_video_import_dialog.py:777
+#, python-brace-format
+msgid ""
+"Total: {total}\n"
+"Trajectory ready: {with_trajectory}\n"
+"Zones ready: {with_zones}\n"
+"Arena only: {arena_only}\n"
+"No arena: {without_arena}"
+msgstr ""
+"Total: {total}\n"
+"Trajetória pronta: {with_trajectory}\n"
+"Zonas prontas: {with_zones}\n"
+"Só arena: {arena_only}\n"
+"Sem arena: {without_arena}"
+
+#: src/zebtrack/ui/dialogs/project_video_import_dialog.py:854
+msgid "Trajectory ready"
+msgstr "Trajetória pronta"
+
+#: src/zebtrack/ui/dialogs/project_video_import_dialog.py:856
+msgid "Zones ready"
+msgstr "Zonas prontas"
+
+#: src/zebtrack/ui/dialogs/project_video_import_dialog.py:858
+msgid "Arena only"
+msgstr "Só arena"
+
+#: src/zebtrack/ui/dialogs/project_video_import_dialog.py:859
+msgid "No arena"
+msgstr "Sem arena"
+
+#: src/zebtrack/ui/dialogs/single_video_config_dialog.py:56
+msgid "Single Video Analysis Configuration"
+msgstr "Configuração de Análise de Vídeo Único"
+
+#: src/zebtrack/ui/dialogs/single_video_config_dialog.py:136
+msgid "Video File"
+msgstr "Arquivo de Vídeo"
+
+#: src/zebtrack/ui/dialogs/single_video_config_dialog.py:169
+msgid "Experimental Configuration"
+msgstr "Configuração Experimental"
+
+#: src/zebtrack/ui/dialogs/single_video_config_dialog.py:183
+msgid ""
+"Number of Aquariums\n"
+"\n"
+"Sets whether the video contains 1 or 2 independent tanks.\n"
+"• 1: standard analysis.\n"
+"• 2: lets you draw two arenas and process them together."
+msgstr ""
+"Número de Aquários\n"
+"\n"
+"Define se o vídeo contém 1 ou 2 tanques independentes.\n"
+"• 1: Análise padrão.\n"
+"• 2: Permite desenhar duas arenas e processá-las em conjunto."
+
+#: src/zebtrack/ui/dialogs/single_video_config_dialog.py:200
+msgid ""
+"Animals per Aquarium\n"
+"\n"
+"How many fish are in each tank.\n"
+"• 1: enables the tracker optimized for a single subject.\n"
+"• >1: requires Segmentation (seg) mode to avoid ID swaps."
+msgstr ""
+"Animais por Aquário\n"
+"\n"
+"Quantidade de peixes em cada tanque.\n"
+"• 1: Ativa o rastreador otimizado para sujeito único.\n"
+"• >1: Exige o modo de Segmentação (seg) para evitar trocas de ID."
+
+#: src/zebtrack/ui/dialogs/single_video_config_dialog.py:217
+msgid ""
+"Real Width (cm)\n"
+"\n"
+"Horizontal size of the tank in centimetres.\n"
+"• Essential to compute speed in cm/s and total distance."
+msgstr ""
+"Largura Real (cm)\n"
+"\n"
+"Dimensão horizontal do tanque em centímetros.\n"
+"• Essencial para calcular velocidade em cm/s e distância total."
+
+#: src/zebtrack/ui/dialogs/single_video_config_dialog.py:232
+msgid ""
+"Real Height (cm)\n"
+"\n"
+"Vertical size of the tank in centimetres."
+msgstr ""
+"Altura Real (cm)\n"
+"\n"
+"Dimensão vertical do tanque em centímetros."
+
+#: src/zebtrack/ui/dialogs/single_video_config_dialog.py:239
+msgid "Behaviour Metrics"
+msgstr "Métricas de Comportamento"
+
+#: src/zebtrack/ui/dialogs/single_video_config_dialog.py:247
+msgid "Sharp turn (degrees/s):"
+msgstr "Curva Acentuada (graus/s):"
+
+#: src/zebtrack/ui/dialogs/single_video_config_dialog.py:253
+msgid ""
+"Sharp Turn Threshold\n"
+"\n"
+"Minimum angular speed for an abrupt change of direction to count.\n"
+"• Raise it: makes turn detection stricter.\n"
+"• Default: 180.0 degrees/s."
+msgstr ""
+"Limiar de Curva Acentuada (Sharp Turn)\n"
+"\n"
+"Velocidade angular mínima para contar uma mudança de direção brusca.\n"
+"• Aumentar: Torna a detecção de curvas mais restritiva.\n"
+"• Padrão: 180.0 graus/s."
+
+#: src/zebtrack/ui/dialogs/single_video_config_dialog.py:264
+msgid "Freezing (cm/s):"
+msgstr "Congelamento (cm/s):"
+
+#: src/zebtrack/ui/dialogs/single_video_config_dialog.py:270
+msgid ""
+"Freezing Threshold (Speed)\n"
+"\n"
+"Speed below which the fish is considered motionless.\n"
+"• Lower it: if small breathing movements are counting as swimming.\n"
+"• Default: 0.5 cm/s."
+msgstr ""
+"Limiar de Congelamento (Velocidade)\n"
+"\n"
+"Velocidade abaixo da qual o peixe é considerado imóvel.\n"
+"• Diminuir: Se pequenos movimentos de respiração estiverem contando como nado.\n"
+"• Padrão: 0.5 cm/s."
+
+#: src/zebtrack/ui/dialogs/single_video_config_dialog.py:281
+msgid "Min. duration (s):"
+msgstr "Duração Mín. (s):"
+
+#: src/zebtrack/ui/dialogs/single_video_config_dialog.py:287
+msgid ""
+"Minimum Freezing Duration\n"
+"\n"
+"How long the fish must stay still for the event to be recorded.\n"
+"• E.g. 1.0s means brief pauses (<1s) are ignored."
+msgstr ""
+"Duração Mínima de Congelamento\n"
+"\n"
+"Tempo mínimo que o peixe deve ficar parado para registrar o evento.\n"
+"• Ex: 1.0s significa que paradas rápidas (<1s) serão ignoradas."
+
+#: src/zebtrack/ui/dialogs/single_video_config_dialog.py:299
+msgid "Trajectory Smoothing"
+msgstr "Suavização de Trajetória"
+
+#: src/zebtrack/ui/dialogs/single_video_config_dialog.py:307
+msgid "Smoothing window:"
+msgstr "Janela Suavização:"
+
+#: src/zebtrack/ui/dialogs/single_video_config_dialog.py:313
+msgid ""
+"Smoothing Window (frames)\n"
+"\n"
+"Number of frames for the moving average. MUST BE ODD.\n"
+"• Raise it: removes jitter, but over-smooths corners.\n"
+"• Default: 5 (Express) or 7 (Full)."
+msgstr ""
+"Janela de Suavização (frames)\n"
+"\n"
+"Número de frames para média móvel. DEVE SER ÍMPAR.\n"
+"• Aumentar: Remove tremidos, mas suaviza demais os cantos.\n"
+"• Padrão: 5 (Express) ou 7 (Completo)."
+
+#: src/zebtrack/ui/dialogs/single_video_config_dialog.py:324
+msgid "Polynomial order:"
+msgstr "Ordem Polinômio:"
+
+#: src/zebtrack/ui/dialogs/single_video_config_dialog.py:330
+msgid ""
+"Polynomial Order\n"
+"\n"
+"Complexity of the curve fit. Must be SMALLER than the window.\n"
+"• Default: 2."
+msgstr ""
+"Ordem do Polinômio\n"
+"\n"
+"Complexidade do ajuste de curva. Deve ser MENOR que a janela.\n"
+"• Padrão: 2."
+
+#: src/zebtrack/ui/dialogs/single_video_config_dialog.py:342
+msgid "ℹ️ Removes jitter without erasing real movement."
+msgstr "ℹ️ Remove tremidos sem apagar movimentos reais."
+
+#: src/zebtrack/ui/dialogs/single_video_config_dialog.py:348
+msgid "Processing Optimization"
+msgstr "Otimização de Processamento"
+
+#: src/zebtrack/ui/dialogs/single_video_config_dialog.py:362
+msgid ""
+"Analysis Interval (frames)\n"
+"\n"
+"Processes 1 frame out of every N frames of the video.\n"
+"• 1: analyzes everything (slow).\n"
+"• 10: skips 9 frames (fast).\n"
+"• Recommended: 5 or 10 depending on the video speed."
+msgstr ""
+"Intervalo de Análise (frames)\n"
+"\n"
+"Processa 1 frame a cada N frames do vídeo.\n"
+"• 1: Analisa tudo (lento).\n"
+"• 10: Pula 9 frames (rápido).\n"
+"• Recomendado: 5 ou 10 conforme a velocidade do vídeo."
+
+#: src/zebtrack/ui/dialogs/single_video_config_dialog.py:380
+msgid ""
+"Display Interval (frames)\n"
+"\n"
+"How often the on-screen image refreshes during processing.\n"
+"• Use high values (e.g. 30) to speed the analysis up by saving video resources."
+msgstr ""
+"Intervalo de Exibição (frames)\n"
+"\n"
+"Frequência de atualização da imagem na tela durante o processo.\n"
+"• Use valores altos (ex: 30) para acelerar a análise economizando recursos de vídeo."
+
+#: src/zebtrack/ui/dialogs/single_video_config_dialog.py:391
+msgid "AI Models"
+msgstr "Modelos de IA"
+
+#: src/zebtrack/ui/dialogs/single_video_config_dialog.py:405
+msgid ""
+"Model for Aquarium Detection\n"
+"\n"
+"• seg: segmentation (more precise at the corners).\n"
+"• det: box detection (faster)."
+msgstr ""
+"Modelo para Detecção do Aquário\n"
+"\n"
+"• seg: Segmentação (mais preciso nos cantos).\n"
+"• det: Detecção por caixa (mais rápido)."
+
+#: src/zebtrack/ui/dialogs/single_video_config_dialog.py:426
+msgid ""
+"Model for Fish Tracking\n"
+"\n"
+"• seg: recommended for several fish (avoids confusion).\n"
+"• det: recommended for 1 fish (very fast)."
+msgstr ""
+"Modelo para Rastreamento do Peixe\n"
+"\n"
+"• seg: Recomendado para múltiplos peixes (evita confusão).\n"
+"• det: Recomendado para 1 peixe (muito rápido)."
+
+#: src/zebtrack/ui/dialogs/single_video_config_dialog.py:443
+msgid "Use OpenVINO acceleration (Intel)"
+msgstr "Usar aceleração OpenVINO (Intel)"
+
+#: src/zebtrack/ui/dialogs/single_video_config_dialog.py:490
+msgid "Select a Video File"
+msgstr "Selecione um Arquivo de Vídeo"
+
+#: src/zebtrack/ui/dialogs/single_video_config_dialog.py:509
+msgid "Please select a video file before continuing."
+msgstr "Por favor, selecione um arquivo de vídeo antes de continuar."
+
+#: src/zebtrack/ui/dialogs/single_video_config_dialog.py:526
+msgid "The values must be positive."
+msgstr "Os valores devem ser positivos."
+
+#: src/zebtrack/ui/dialogs/single_video_config_dialog.py:528
+msgid "The intervals must be positive whole numbers."
+msgstr "Os intervalos devem ser números inteiros positivos."
+
+#: src/zebtrack/ui/dialogs/single_video_config_dialog.py:530
+msgid "The smoothing window must be positive."
+msgstr "A janela de suavização deve ser positiva."
+
+#: src/zebtrack/ui/dialogs/single_video_config_dialog.py:532
+msgid "The smoothing window must be an odd number."
+msgstr "A janela de suavização deve ser um número ímpar."
+
+#: src/zebtrack/ui/dialogs/single_video_config_dialog.py:534
+msgid "The polynomial order must be at least 1."
+msgstr "A ordem do polinômio deve ser pelo menos 1."
+
+#: src/zebtrack/ui/dialogs/single_video_config_dialog.py:537
+msgid "The polynomial order must be smaller than the smoothing window."
+msgstr "A ordem do polinômio deve ser menor que a janela de suavização."
+
+#: src/zebtrack/ui/dialogs/single_video_config_dialog.py:550
+#, python-brace-format
+msgid ""
+"Validation error: {error}\n"
+"\n"
+"Check that every field is filled in correctly."
+msgstr ""
+"Erro de validação: {error}\n"
+"\n"
+"Verifique se todos os campos estão preenchidos corretamente."
 
 #: src/zebtrack/ui/dialogs/subject_selection_dialog.py:61
 #, python-brace-format
@@ -10293,10 +11011,6 @@ msgstr "Confirmação e Criação do Projeto"
 #: src/zebtrack/ui/wizard/confirmation_step.py:96
 msgid "Review the settings and create your project."
 msgstr "Revise as configurações e crie seu projeto."
-
-#: src/zebtrack/ui/wizard/confirmation_step.py:123
-msgid "Project Name:"
-msgstr "Nome do Projeto:"
 
 #: src/zebtrack/ui/wizard/confirmation_step.py:140
 msgid "Location:"
@@ -10688,32 +11402,6 @@ msgstr "🔀 Estratégia de ROIs:"
 #: src/zebtrack/ui/wizard/confirmation_step.py:705
 msgid "(selection)"
 msgstr "(seleção)"
-
-#: src/zebtrack/ui/wizard/confirmation_step.py:713
-#: src/zebtrack/ui/wizard/file_selection_step.py:309
-#: src/zebtrack/ui/wizard/file_selection_step.py:563
-msgid "1 folder"
-msgstr "1 pasta"
-
-#: src/zebtrack/ui/wizard/confirmation_step.py:713
-#: src/zebtrack/ui/wizard/file_selection_step.py:311
-#: src/zebtrack/ui/wizard/file_selection_step.py:563
-#, python-brace-format
-msgid "{count} folders"
-msgstr "{count} pastas"
-
-#: src/zebtrack/ui/wizard/confirmation_step.py:717
-#: src/zebtrack/ui/wizard/file_selection_step.py:305
-#: src/zebtrack/ui/wizard/file_selection_step.py:566
-msgid "1 file"
-msgstr "1 arquivo"
-
-#: src/zebtrack/ui/wizard/confirmation_step.py:717
-#: src/zebtrack/ui/wizard/file_selection_step.py:305
-#: src/zebtrack/ui/wizard/file_selection_step.py:566
-#, python-brace-format
-msgid "{count} files"
-msgstr "{count} arquivos"
 
 #: src/zebtrack/ui/wizard/confirmation_step.py:720
 #: src/zebtrack/ui/wizard/file_selection_step.py:568
@@ -11584,23 +12272,11 @@ msgid "animals/group"
 msgstr "animais/grupo"
 
 # | msgid "No Group"
-#: src/zebtrack/ui/wizard/experimental_design_step.py:252
-msgid "Number of Groups:"
-msgstr "Número de Grupos:"
-
-# | msgid "No Group"
 # | msgid "Group"
 # | msgid "group"
 #: src/zebtrack/ui/wizard/experimental_design_step.py:271
 msgid "groups"
 msgstr "grupos"
-
-# | msgid "Weight Type"
-# | msgid "Weight Name"
-# | msgid "ROI Name"
-#: src/zebtrack/ui/wizard/experimental_design_step.py:308
-msgid "Group Names"
-msgstr "Nomes dos Grupos"
 
 #: src/zebtrack/ui/wizard/experimental_design_step.py:316
 msgid "Give each group a descriptive name:"
@@ -11632,11 +12308,6 @@ msgstr ""
 #, python-brace-format
 msgid "📊 Total: {sessions} recordings ({animals} animals x {days} days)"
 msgstr "📊 Total: {sessions} gravações ({animals} animais x {days} dias)"
-
-#: src/zebtrack/ui/wizard/file_selection_step.py:62
-#: src/zebtrack/ui/wizard/file_selection_step.py:293
-msgid "No video/folder selected."
-msgstr "Nenhum vídeo/pasta selecionado."
 
 #: src/zebtrack/ui/wizard/file_selection_step.py:74
 msgid "Video Selection"
@@ -11721,19 +12392,6 @@ msgid ""
 msgstr ""
 "💡 Dica: Ao selecionar pastas, todos os vídeos dentro delas (incluindo "
 "subpastas) serão incluídos."
-
-#: src/zebtrack/ui/wizard/file_selection_step.py:239
-msgid "Select the Video Files"
-msgstr "Selecione os Arquivos de Vídeo"
-
-#: src/zebtrack/ui/wizard/file_selection_step.py:252
-msgid "Select a Folder Containing Videos"
-msgstr "Selecione uma Pasta Contendo Vídeos"
-
-#: src/zebtrack/ui/wizard/file_selection_step.py:314
-#, python-brace-format
-msgid "Selected: {parts}"
-msgstr "Seleção: {parts}"
 
 #: src/zebtrack/ui/wizard/file_selection_step.py:319
 msgid " (videos inside folders are detected in the next step)"
@@ -12650,11 +13308,6 @@ msgstr "Próximo >"
 #: src/zebtrack/ui/wizard/wizard_dialog.py:306
 msgid "Create Project"
 msgstr "Criar Projeto"
-
-# | msgid "Validation Error"
-#: src/zebtrack/ui/wizard/wizard_dialog.py:464
-msgid "Validation"
-msgstr "Validação"
 
 #: src/zebtrack/utils/hardware_benchmark.py:811
 msgid "Step 2/6 — Testing video decoding..."
