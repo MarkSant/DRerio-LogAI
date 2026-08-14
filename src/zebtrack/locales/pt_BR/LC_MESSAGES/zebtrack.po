@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: DRerio LogAI VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-08-13 22:18-0300\n"
+"POT-Creation-Date: 2026-08-14 10:49-0300\n"
 "PO-Revision-Date: 2026-08-08 21:41-0300\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: pt_BR <LL@li.org>\n"
@@ -2961,18 +2961,18 @@ msgid "Invalid regex pattern: {error}"
 msgstr "Padrão regex inválido: {error}"
 
 # | msgid "Invalid Configuration"
+# | msgid "Incomplete Configuration"
 #: src/zebtrack/core/video/analysis_pipeline_runner.py:697
-#| msgid "Incomplete Configuration"
 msgid "Incomplete calibration data."
 msgstr "Dados de calibração incompletos."
 
+# | msgid "Could not read the aquarium polygon data."
 #: src/zebtrack/core/video/analysis_pipeline_runner.py:731
-#| msgid "Could not read the aquarium polygon data."
 msgid "Failed to prepare the calibration data."
 msgstr "Falha ao preparar dados de calibração."
 
+# | msgid "Multi-individual"
 #: src/zebtrack/core/video/processing_mode.py:29
-#| msgid "Multi-individual"
 msgid "Individual"
 msgstr "Individual"
 
@@ -2982,15 +2982,15 @@ msgid "Multi-individual"
 msgstr "Multi-indivíduos"
 
 # | msgid "Analysing frame {current}/{total}..."
+# | msgid "Processing aquarium {current}/{total}..."
 #: src/zebtrack/core/video/progress_notifier.py:81
 #, python-brace-format
-#| msgid "Processing aquarium {current}/{total}..."
 msgid "Processing {current}/{total}: {experiment_id}"
 msgstr "Processando {current}/{total}: {experiment_id}"
 
+# | msgid "OpenVINO: {status}"
 #: src/zebtrack/core/video/progress_notifier.py:84
 #, python-brace-format
-#| msgid "OpenVINO: {status}"
 msgid "Step: {status}"
 msgstr "Etapa: {status}"
 
@@ -3007,59 +3007,59 @@ msgstr "Falha ao gerar arquivo de trajetória para {experiment_id}."
 # | msgid "Could not connect to the Arduino on port {port}."
 # | msgid "Could not open the video: {path}"
 # | msgid "Could not open: {path}"
+# | msgid "Template not found: {path}"
 #: src/zebtrack/core/video/video_context_factory.py:301
 #, python-brace-format
-#| msgid "Template not found: {path}"
 msgid "File not found: {path}"
 msgstr "Arquivo não encontrado: {path}"
 
-#: src/zebtrack/core/video/video_context_factory.py:319
+#: src/zebtrack/core/video/video_context_factory.py:318
 #, python-brace-format
 msgid "Failed to read the trajectory file for {experiment_id}."
 msgstr "Falha ao ler arquivo de trajetória para {experiment_id}."
 
 # | msgid "Analysis in Progress"
+# | msgid "Live analysis in progress."
 #: src/zebtrack/core/viewmodels/analysis_control_view_model.py:216
-#| msgid "Live analysis in progress."
 msgid "Cancelling the analysis in progress..."
 msgstr "Cancelando análise em andamento..."
 
+# | msgid "Analysing frame {current}/{total}..."
 #: src/zebtrack/core/viewmodels/analysis_control_view_model.py:301
 #, python-brace-format
-#| msgid "Analysing frame {current}/{total}..."
 msgid "Generating report {current}/{total}..."
 msgstr "Gerando relatório {current}/{total}..."
 
 # | msgid "Reports removed"
+# | msgid "Reports generated."
 #: src/zebtrack/core/viewmodels/analysis_control_view_model.py:533
-#| msgid "Reports generated."
 msgid "Report generation finished."
 msgstr "Geração de relatórios concluída."
 
+# | msgid "🐠 Aquarium (Detection)"
 #: src/zebtrack/core/viewmodels/hardware_status_view_model.py:247
-#| msgid "🐠 Aquarium (Detection)"
 msgid "🐠 Aquarium (det)"
 msgstr "🐠 Aquário (det)"
 
+# | msgid "🐠 Aquarium (Segmentation)"
 #: src/zebtrack/core/viewmodels/hardware_status_view_model.py:248
-#| msgid "🐠 Aquarium (Segmentation)"
 msgid "🐠 Aquarium (seg)"
 msgstr "🐠 Aquário (seg)"
 
+# | msgid "🐟 Animal (Detection)"
 #: src/zebtrack/core/viewmodels/hardware_status_view_model.py:249
-#| msgid "🐟 Animal (Detection)"
 msgid "🐟 Animal (det)"
 msgstr "🐟 Animal (det)"
 
+# | msgid "🐟 Animal (Segmentation)"
 #: src/zebtrack/core/viewmodels/hardware_status_view_model.py:250
-#| msgid "🐟 Animal (Segmentation)"
 msgid "🐟 Animal (seg)"
 msgstr "🐟 Animal (seg)"
 
 # | msgid "Analysis in Progress"
 # | msgid "Analysis Error"
+# | msgid "Fatal Error"
 #: src/zebtrack/core/viewmodels/main_view_model_runtime.py:525
-#| msgid "Fatal Error"
 msgid "Critical Error"
 msgstr "Erro Crítico"
 
@@ -3444,6 +3444,7 @@ msgid "Detection (for fast bounding boxes)"
 msgstr "Detecção (para caixas delimitadoras rápidas)"
 
 #: src/zebtrack/ui/builders/common_widgets.py:223
+#: src/zebtrack/ui/wizard/wizard_dialog.py:207
 msgid "Cancel"
 msgstr "Cancelar"
 
@@ -8859,6 +8860,139 @@ msgstr "Frame carregado: {name}"
 #: src/zebtrack/ui/components/validators/config_validator.py:88
 msgid "Buffer radius must be >= 0"
 msgstr "Raio de buffer deve ser >= 0"
+
+#: src/zebtrack/ui/wizard/experimental_design_step.py:154
+#| msgid "Invalid Configuration"
+msgid "Experimental Design Configuration"
+msgstr "Configuração do Design Experimental"
+
+#: src/zebtrack/ui/wizard/experimental_design_step.py:161
+msgid "Set up the structure of your live experiment"
+msgstr "Configure a estrutura do seu experimento ao vivo"
+
+# | msgid "Global Model Configuration..."
+# | msgid "Model Configuration"
+#: src/zebtrack/ui/wizard/experimental_design_step.py:174
+#| msgid "Zone Configuration"
+msgid "Basic Configuration"
+msgstr "Configuração Básica"
+
+#: src/zebtrack/ui/wizard/experimental_design_step.py:183
+msgid "Experiment Duration (days):"
+msgstr "Duração do Experimento (dias):"
+
+# | msgid "Day"
+#: src/zebtrack/ui/wizard/experimental_design_step.py:199
+#| msgid "day"
+msgid "days"
+msgstr "dias"
+
+#: src/zebtrack/ui/wizard/experimental_design_step.py:204
+msgid ""
+"Experiment Duration\n"
+"\n"
+"How many days your full experiment will last.\n"
+"\n"
+"Examples:\n"
+"• 1 day: acute test\n"
+"• 7 days: 1-week treatment\n"
+"• 21 days: chronic treatment\n"
+"\n"
+"You can type directly or use the +/- buttons.\n"
+"This affects how the output files are organised."
+msgstr ""
+"Duração do Experimento\n"
+"\n"
+"Quantos dias durará seu experimento completo.\n"
+"\n"
+"Exemplos:\n"
+"• 1 dia: Teste agudo\n"
+"• 7 dias: Tratamento de 1 semana\n"
+"• 21 dias: Tratamento crônico\n"
+"\n"
+"Você pode digitar diretamente ou usar os botões +/-.\n"
+"Isso afeta a organização dos arquivos de saída."
+
+# | msgid "Analysis in Progress"
+#: src/zebtrack/ui/wizard/experimental_design_step.py:218
+#| msgid "Analysis Error"
+msgid "Animals per Group:"
+msgstr "Animais por Grupo:"
+
+#: src/zebtrack/ui/wizard/experimental_design_step.py:234
+msgid "animals/group"
+msgstr "animais/grupo"
+
+#: src/zebtrack/ui/wizard/experimental_design_step.py:252
+#| msgid "No Group"
+msgid "Number of Groups:"
+msgstr "Número de Grupos:"
+
+# | msgid "No Group"
+# | msgid "Group"
+#: src/zebtrack/ui/wizard/experimental_design_step.py:271
+#| msgid "group"
+msgid "groups"
+msgstr "grupos"
+
+# | msgid "Weight Type"
+# | msgid "Weight Name"
+#: src/zebtrack/ui/wizard/experimental_design_step.py:308
+#| msgid "ROI Name"
+msgid "Group Names"
+msgstr "Nomes dos Grupos"
+
+#: src/zebtrack/ui/wizard/experimental_design_step.py:316
+msgid "Give each group a descriptive name:"
+msgstr "Defina nomes descritivos para cada grupo:"
+
+#: src/zebtrack/ui/wizard/experimental_design_step.py:330
+msgid "ℹ️  How will this be used?"
+msgstr "ℹ️  Como isso será usado?"
+
+#: src/zebtrack/ui/wizard/experimental_design_step.py:339
+msgid ""
+"The structure you configure will be used to:\n"
+"\n"
+"• Organise recordings by Day → Group → Animal\n"
+"• Build a visual grid of experiment progress\n"
+"• Make comparative analysis between groups easier\n"
+"\n"
+"Example: 2 groups x 5 days x 3 animals = 30 organised recordings"
+msgstr ""
+"A estrutura configurada será usada para:\n"
+"\n"
+"• Organizar gravações por Dia → Grupo → Animal\n"
+"• Criar grid visual de progresso do experimento\n"
+"• Facilitar análise comparativa entre grupos\n"
+"\n"
+"Exemplo: 2 grupos x 5 dias x 3 animais = 30 gravações organizadas"
+
+#: src/zebtrack/ui/wizard/experimental_design_step.py:415
+#, python-brace-format
+msgid "📊 Total: {sessions} recordings ({animals} animals x {days} days)"
+msgstr "📊 Total: {sessions} gravações ({animals} animais x {days} dias)"
+
+#: src/zebtrack/ui/wizard/wizard_dialog.py:199
+msgid "< Back"
+msgstr "< Voltar"
+
+# | msgid "Exit"
+#: src/zebtrack/ui/wizard/wizard_dialog.py:203
+#: src/zebtrack/ui/wizard/wizard_dialog.py:308
+#| msgid "On Exit"
+msgid "Next >"
+msgstr "Próximo >"
+
+#: src/zebtrack/ui/wizard/wizard_dialog.py:306
+#| msgid "Create New Project"
+msgid "Create Project"
+msgstr "Criar Projeto"
+
+#: src/zebtrack/ui/wizard/wizard_dialog.py:464
+#| msgid "Validation Error"
+msgid "Validation"
+msgstr "Validação"
 
 #: src/zebtrack/utils/hardware_benchmark.py:811
 msgid "Step 2/6 — Testing video decoding..."

@@ -1,0 +1,25 @@
+{
+  "_domain": "zebtrack",
+  "_comment": "Phase 3, batch 4a: wizard_dialog.py and experimental_design_step.py. 'Cancel' already existed and is reused. ui/wizard/models.py is NOT here: it is the Pydantic schema layer, so its validator messages and Field(description=...) values became plain English without _() — a description evaluated in a class body can never be a _() call, and the file already carried English descriptions for its newer fields.",
+
+  "< Back": "< Voltar",
+  "Next >": "Próximo >",
+  "Create Project": "Criar Projeto",
+  "Validation": "Validação",
+
+  "Experimental Design Configuration": "Configuração do Design Experimental",
+  "Set up the structure of your live experiment": "Configure a estrutura do seu experimento ao vivo",
+  "Basic Configuration": "Configuração Básica",
+  "Experiment Duration (days):": "Duração do Experimento (dias):",
+  "days": "dias",
+  "Experiment Duration\n\nHow many days your full experiment will last.\n\nExamples:\n• 1 day: acute test\n• 7 days: 1-week treatment\n• 21 days: chronic treatment\n\nYou can type directly or use the +/- buttons.\nThis affects how the output files are organised.": "Duração do Experimento\n\nQuantos dias durará seu experimento completo.\n\nExemplos:\n• 1 dia: Teste agudo\n• 7 dias: Tratamento de 1 semana\n• 21 dias: Tratamento crônico\n\nVocê pode digitar diretamente ou usar os botões +/-.\nIsso afeta a organização dos arquivos de saída.",
+  "Animals per Group:": "Animais por Grupo:",
+  "animals/group": "animais/grupo",
+  "Number of Groups:": "Número de Grupos:",
+  "groups": "grupos",
+  "Group Names": "Nomes dos Grupos",
+  "Give each group a descriptive name:": "Defina nomes descritivos para cada grupo:",
+  "ℹ️  How will this be used?": "ℹ️  Como isso será usado?",
+  "The structure you configure will be used to:\n\n• Organise recordings by Day → Group → Animal\n• Build a visual grid of experiment progress\n• Make comparative analysis between groups easier\n\nExample: 2 groups x 5 days x 3 animals = 30 organised recordings": "A estrutura configurada será usada para:\n\n• Organizar gravações por Dia → Grupo → Animal\n• Criar grid visual de progresso do experimento\n• Facilitar análise comparativa entre grupos\n\nExemplo: 2 grupos x 5 dias x 3 animais = 30 gravações organizadas",
+  "📊 Total: {sessions} recordings ({animals} animals x {days} days)": "📊 Total: {sessions} gravações ({animals} animais x {days} dias)"
+}

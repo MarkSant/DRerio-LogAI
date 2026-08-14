@@ -22,6 +22,7 @@ from zebtrack.ui.wizard.cache import WizardCache
 
 if TYPE_CHECKING:
     from zebtrack.settings import Settings
+from zebtrack.i18n import _
 from zebtrack.ui.wizard.calibration_step import CalibrationStep
 from zebtrack.ui.wizard.confirmation_step import ConfirmationStep
 from zebtrack.ui.wizard.detection_step import DetectionStep
@@ -195,15 +196,15 @@ class WizardDialog(Dialog):
         box.grid(row=1, column=0, sticky="ew", padx=12, pady=(0, 12))
 
         # Back button (disabled on first step)
-        self.back_button = Button(box, text="< Voltar", width=10, command=self._on_back)
+        self.back_button = Button(box, text=_("< Back"), width=10, command=self._on_back)
         self.back_button.pack(side="left", padx=5)
 
         # Next / Create Project button (text changes on last step)
-        self.next_button = Button(box, text="Próximo >", width=15, command=self._on_next)
+        self.next_button = Button(box, text=_("Next >"), width=15, command=self._on_next)
         self.next_button.pack(side="left", padx=5)
 
         # Cancel button
-        cancel_button = Button(box, text="Cancelar", width=10, command=self._on_cancel)
+        cancel_button = Button(box, text=_("Cancel"), width=10, command=self._on_cancel)
         cancel_button.pack(side="right", padx=5)
 
         self._update_navigation_buttons()
@@ -302,9 +303,9 @@ class WizardDialog(Dialog):
 
         # Next button: changes to "Criar Projeto" on last step
         if self.current_step_index == len(self.active_steps) - 1:
-            self.next_button.config(text="Criar Projeto")
+            self.next_button.config(text=_("Create Project"))
         else:
-            self.next_button.config(text="Próximo >")
+            self.next_button.config(text=_("Next >"))
 
     def _initialize_geometry(self):
         """
@@ -460,7 +461,7 @@ class WizardDialog(Dialog):
         # Validate current step
         is_valid, error_message = current_step.validate()
         if not is_valid:
-            messagebox.showerror("Validação", error_message, parent=self)
+            messagebox.showerror(_("Validation"), error_message, parent=self)
             log.warning(
                 "wizard.validation_failed",
                 step=self.current_step_index + 1,

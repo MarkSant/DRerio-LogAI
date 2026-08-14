@@ -9,7 +9,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: DRerio LogAI VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-08-13 22:18-0300\n"
+"POT-Creation-Date: 2026-08-14 10:49-0300\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -2369,7 +2369,7 @@ msgstr ""
 msgid "File not found: {path}"
 msgstr ""
 
-#: src/zebtrack/core/video/video_context_factory.py:319
+#: src/zebtrack/core/video/video_context_factory.py:318
 #, python-brace-format
 msgid "Failed to read the trajectory file for {experiment_id}."
 msgstr ""
@@ -2750,6 +2750,7 @@ msgid "Detection (for fast bounding boxes)"
 msgstr ""
 
 #: src/zebtrack/ui/builders/common_widgets.py:223
+#: src/zebtrack/ui/wizard/wizard_dialog.py:207
 msgid "Cancel"
 msgstr ""
 
@@ -7107,6 +7108,102 @@ msgstr ""
 
 #: src/zebtrack/ui/components/validators/config_validator.py:88
 msgid "Buffer radius must be >= 0"
+msgstr ""
+
+#: src/zebtrack/ui/wizard/experimental_design_step.py:154
+msgid "Experimental Design Configuration"
+msgstr ""
+
+#: src/zebtrack/ui/wizard/experimental_design_step.py:161
+msgid "Set up the structure of your live experiment"
+msgstr ""
+
+#: src/zebtrack/ui/wizard/experimental_design_step.py:174
+msgid "Basic Configuration"
+msgstr ""
+
+#: src/zebtrack/ui/wizard/experimental_design_step.py:183
+msgid "Experiment Duration (days):"
+msgstr ""
+
+#: src/zebtrack/ui/wizard/experimental_design_step.py:199
+msgid "days"
+msgstr ""
+
+#: src/zebtrack/ui/wizard/experimental_design_step.py:204
+msgid ""
+"Experiment Duration\n"
+"\n"
+"How many days your full experiment will last.\n"
+"\n"
+"Examples:\n"
+"• 1 day: acute test\n"
+"• 7 days: 1-week treatment\n"
+"• 21 days: chronic treatment\n"
+"\n"
+"You can type directly or use the +/- buttons.\n"
+"This affects how the output files are organised."
+msgstr ""
+
+#: src/zebtrack/ui/wizard/experimental_design_step.py:218
+msgid "Animals per Group:"
+msgstr ""
+
+#: src/zebtrack/ui/wizard/experimental_design_step.py:234
+msgid "animals/group"
+msgstr ""
+
+#: src/zebtrack/ui/wizard/experimental_design_step.py:252
+msgid "Number of Groups:"
+msgstr ""
+
+#: src/zebtrack/ui/wizard/experimental_design_step.py:271
+msgid "groups"
+msgstr ""
+
+#: src/zebtrack/ui/wizard/experimental_design_step.py:308
+msgid "Group Names"
+msgstr ""
+
+#: src/zebtrack/ui/wizard/experimental_design_step.py:316
+msgid "Give each group a descriptive name:"
+msgstr ""
+
+#: src/zebtrack/ui/wizard/experimental_design_step.py:330
+msgid "ℹ️  How will this be used?"
+msgstr ""
+
+#: src/zebtrack/ui/wizard/experimental_design_step.py:339
+msgid ""
+"The structure you configure will be used to:\n"
+"\n"
+"• Organise recordings by Day → Group → Animal\n"
+"• Build a visual grid of experiment progress\n"
+"• Make comparative analysis between groups easier\n"
+"\n"
+"Example: 2 groups x 5 days x 3 animals = 30 organised recordings"
+msgstr ""
+
+#: src/zebtrack/ui/wizard/experimental_design_step.py:415
+#, python-brace-format
+msgid "📊 Total: {sessions} recordings ({animals} animals x {days} days)"
+msgstr ""
+
+#: src/zebtrack/ui/wizard/wizard_dialog.py:199
+msgid "< Back"
+msgstr ""
+
+#: src/zebtrack/ui/wizard/wizard_dialog.py:203
+#: src/zebtrack/ui/wizard/wizard_dialog.py:308
+msgid "Next >"
+msgstr ""
+
+#: src/zebtrack/ui/wizard/wizard_dialog.py:306
+msgid "Create Project"
+msgstr ""
+
+#: src/zebtrack/ui/wizard/wizard_dialog.py:464
+msgid "Validation"
 msgstr ""
 
 #: src/zebtrack/utils/hardware_benchmark.py:811

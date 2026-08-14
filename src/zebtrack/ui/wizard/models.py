@@ -159,7 +159,7 @@ class LiveConfigData(BaseModel):
     def validate_arduino_port(cls, v, info):
         """Arduino port is required when Arduino is enabled."""
         if info.data.get("use_arduino") and not v:
-            raise ValueError("Porta Arduino é obrigatória quando Arduino está ativado")
+            raise ValueError("The Arduino port is required when Arduino is enabled")
         return v
 
     @field_validator("countdown_duration_s")
@@ -167,7 +167,9 @@ class LiveConfigData(BaseModel):
     def validate_countdown(cls, v, info):
         """Countdown duration must be >= 1 when countdown is enabled."""
         if info.data.get("use_countdown") and v < 1:
-            raise ValueError("Duração de contagem regressiva deve ser >= 1 segundo quando ativada")
+            raise ValueError(
+                "The countdown duration must be >= 1 second when the countdown is enabled"
+            )
         return v
 
     @field_validator("recording_duration_s")
@@ -175,7 +177,7 @@ class LiveConfigData(BaseModel):
     def validate_recording_duration(cls, v, info):
         """Validate that recording duration is > 0 when timed recording is enabled."""
         if info.data.get("use_timed_recording") and v <= 0:
-            raise ValueError("Duração de gravação deve ser > 0 quando gravação temporizada ativada")
+            raise ValueError("The recording duration must be > 0 when timed recording is enabled")
         return v
 
 
@@ -217,17 +219,17 @@ class AquariumConfig(BaseModel):
     within a video containing multiple aquariums.
     """
 
-    aquarium_id: int = Field(ge=0, le=1, description="ID do aquário (0 ou 1)")
-    group: str = Field(min_length=1, description="Grupo experimental (ex: Controle, Tratamento)")
-    subject_id: str = Field(default="", description="Identificador único do sujeito")
-    day: int = Field(default=1, ge=1, description="Dia do experimento")
+    aquarium_id: int = Field(ge=0, le=1, description="Aquarium ID (0 or 1)")
+    group: str = Field(min_length=1, description="Experimental group (e.g. Control, Treatment)")
+    subject_id: str = Field(default="", description="Unique subject identifier")
+    day: int = Field(default=1, ge=1, description="Experiment day")
 
     @field_validator("group")
     @classmethod
     def validate_group_not_empty(cls, v: str) -> str:
         """Group must not be empty or contain only spaces."""
         if not v.strip():
-            raise ValueError("Nome do grupo não pode estar vazio")
+            raise ValueError("The group name cannot be empty")
         return v.strip()
 
 
@@ -238,27 +240,27 @@ class MultiAquariumData(BaseModel):
     metadata extraction configurations via regex.
     """
 
-    enabled: bool = Field(default=False, description="Se modo multi-aquário está habilitado")
+    enabled: bool = Field(default=False, description="Whether multi-aquarium mode is enabled")
     aquarium_configs: list[AquariumConfig] = Field(
         default_factory=list,
         max_length=2,
-        description="Configurações dos aquários (máximo 2)",
+        description="Aquarium configurations (maximum 2)",
     )
     regex_pattern: str = Field(
         default="",
-        description="Padrão regex para extração de metadados do nome do arquivo",
+        description="Regex pattern for extracting metadata from the file name",
     )
     regex_group_field: str = Field(
         default="group",
-        description="Nome do grupo de captura para o grupo experimental",
+        description="Capture group name for the experimental group",
     )
     regex_subject_field: str = Field(
         default="subject",
-        description="Nome do grupo de captura para o identificador do sujeito",
+        description="Capture group name for the subject identifier",
     )
     regex_day_field: str = Field(
         default="day",
-        description="Nome do grupo de captura para o dia do experimento",
+        description="Capture group name for the experiment day",
     )
 
     @staticmethod
@@ -421,7 +423,7 @@ class MultiAquariumData(BaseModel):
     def validate_configs_count(cls, v: list[AquariumConfig]) -> list[AquariumConfig]:
         """Validate that there are at most 2 configurations."""
         if len(v) > 2:
-            raise ValueError("Máximo de 2 aquários suportados")
+            raise ValueError("A maximum of 2 aquariums is supported")
         return v
 
     @field_validator("regex_pattern")
@@ -432,16 +434,14 @@ class MultiAquariumData(BaseModel):
             try:
                 re.compile(v)
             except re.error as e:
-                raise ValueError(f"Padrão regex inválido: {e}") from e
+                raise ValueError(f"Invalid regex pattern: {e}") from e
         return v
 
     @model_validator(mode="after")
     def validate_configs_when_enabled(self) -> "MultiAquariumData":
         """When enabled, must have exactly 2 configurations."""
         if self.enabled and len(self.aquarium_configs) != 2:
-            raise ValueError(
-                "Modo multi-aquário habilitado requer exatamente 2 configurações de aquário"
-            )
+            raise ValueError("Multi-aquarium mode requires exactly 2 aquarium configurations")
         return self
 
     def extract_metadata(self, filename: str) -> list[dict[str, str]]:
@@ -505,7 +505,7 @@ class CalibrationData(BaseModel):
     ] = Field(default="bbox_intersects", description="Rule for determining ROI inclusion")
     multi_aquarium: MultiAquariumData = Field(
         default_factory=MultiAquariumData,
-        description="Configurações de modo multi-aquário (2 aquários por vídeo)",
+        description="Multi-aquarium mode settings (2 aquariums per video)",
     )
     behavioral_analysis: BehavioralAnalysisData = Field(
         default_factory=BehavioralAnalysisData,
@@ -541,8 +541,8 @@ class ModelSelectionData(BaseModel):
 
             if v not in available_detectors:
                 raise ValueError(
-                    f"Detector '{v}' não encontrado.\n"
-                    f"Detectores disponíveis: {', '.join(sorted(available_detectors))}"
+                    f"Detector '{v}' not found.\n"
+                    f"Available detectors: {', '.join(sorted(available_detectors))}"
                 )
         except ImportError:
             # If plugins module not available, skip validation (e.g., during testing)
@@ -581,7 +581,7 @@ class FileSelectionData(BaseModel):
 
         # Check for empty strings
         if any(not vf.strip() for vf in v):
-            raise ValueError("Caminhos de vídeo não podem estar vazios")
+            raise ValueError("Video paths cannot be empty")
 
         missing_files = []
         invalid_formats = []
@@ -629,26 +629,30 @@ class FileSelectionData(BaseModel):
         # Task 2.4: Report forbidden paths FIRST (security priority)
         if forbidden_paths:
             errors.append(
-                "⚠️ SEGURANÇA: Caminhos bloqueados (diretórios do sistema):\n  - "
+                "⚠️ SECURITY: blocked paths (system directories):\n  - "
                 + "\n  - ".join(forbidden_paths[:5])
-                + (f"\n  ... e mais {len(forbidden_paths) - 5}" if len(forbidden_paths) > 5 else "")
+                + (
+                    f"\n  ... and {len(forbidden_paths) - 5} more"
+                    if len(forbidden_paths) > 5
+                    else ""
+                )
             )
 
         if missing_files:
             errors.append(
-                "Arquivos não encontrados:\n  - "
+                "Files not found:\n  - "
                 + "\n  - ".join(missing_files[:5])
-                + (f"\n  ... e mais {len(missing_files) - 5}" if len(missing_files) > 5 else "")
+                + (f"\n  ... and {len(missing_files) - 5} more" if len(missing_files) > 5 else "")
             )
 
         if not_files:
-            errors.append("Caminhos não são arquivos:\n  - " + "\n  - ".join(not_files[:5]))
+            errors.append("Paths are not files:\n  - " + "\n  - ".join(not_files[:5]))
 
         if invalid_formats:
             errors.append(
-                "Formatos de vídeo inválidos:\n  - "
+                "Invalid video formats:\n  - "
                 + "\n  - ".join(invalid_formats[:5])
-                + f"\n\nFormatos aceitos: {', '.join(sorted(VIDEO_EXTENSIONS))}"
+                + f"\n\nAccepted formats: {', '.join(sorted(VIDEO_EXTENSIONS))}"
             )
 
         if errors:
@@ -691,7 +695,7 @@ class WizardData(BaseModel):
     def validate_live_config_required(cls, v, info):
         """Live config is required for live projects."""
         if info.data.get("project_type") == "live" and v is None:
-            raise ValueError("Configuração ao vivo é obrigatória para projetos live")
+            raise ValueError("Live configuration is required for live projects")
         return v
 
     @field_validator("file_selection")
@@ -699,7 +703,7 @@ class WizardData(BaseModel):
     def validate_file_selection_required(cls, v, info):
         """File selection is required for pre-recorded projects."""
         if info.data.get("project_type") == "pre-recorded" and v is None:
-            raise ValueError("Seleção de arquivos é obrigatória para projetos pré-gravados")
+            raise ValueError("A file selection is required for pre-recorded projects")
         return v
 
 

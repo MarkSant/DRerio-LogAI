@@ -57,6 +57,13 @@ no topo do ratchet; depois, atualizar a seção "A migração" em
       defensiva contra nada. Só o comentário mentiroso foi corrigido.
 - [ ] Lote 4: `ui/wizard/**` (13 arquivos) — valores de enum em models.py/enums.py
       são persistidos, traduzir só os rótulos exibidos.
+  - [x] 4a: `models.py` (inglês fixo, camada de esquema), `wizard_dialog.py`,
+        `experimental_design_step.py`.
+  - [ ] 4b: `confirmation_step.py` (55) + `live_config_step.py` (49).
+  - [ ] 4c: `model_selection_step.py` (41) + `detection_step.py` (28).
+  - [ ] 4d: `discovery_step` (20), `custom_regex_dialog` (19),
+        `file_selection_step` (19), `import_config_step` (16),
+        `calibration_step` (14), `design_editor_dialog` (9).
 - [ ] Lote 5: `ui/dialogs/**` (26 arquivos).
 - [ ] Fechamento: colapsar MIGRATED_PATHS, atualizar guia e CHANGELOG.
 

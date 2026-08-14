@@ -15,6 +15,7 @@ from tkinter import Button, Entry, Frame, IntVar, Label, LabelFrame, StringVar
 import structlog
 
 from zebtrack.core.services.wizard_service import WizardService
+from zebtrack.i18n import _
 from zebtrack.ui.wizard.base import WizardStep
 from zebtrack.ui.wizard.enums import WizardStepID
 from zebtrack.ui.wizard.tooltip import ToolTip
@@ -150,14 +151,14 @@ class ExperimentalDesignStep(WizardStep):
         # Header
         title = Label(
             self,
-            text="Configuração do Design Experimental",
+            text=_("Experimental Design Configuration"),
             font=("TkDefaultFont", 13, "bold"),
         )
         title.pack(pady=(0, 10))
 
         subtitle = Label(
             self,
-            text="Configure a estrutura do seu experimento ao vivo",
+            text=_("Set up the structure of your live experiment"),
             fg="gray",
             font=("TkDefaultFont", 10),
         )
@@ -170,7 +171,7 @@ class ExperimentalDesignStep(WizardStep):
         # Left column: Basic config
         left_col = LabelFrame(
             config_container,
-            text="Configuração Básica",
+            text=_("Basic Configuration"),
             padx=15,
             pady=10,
         )
@@ -179,7 +180,7 @@ class ExperimentalDesignStep(WizardStep):
         # Days
         Label(
             left_col,
-            text="Duração do Experimento (dias):",
+            text=_("Experiment Duration (days):"),
             font=("TkDefaultFont", 10, "bold"),
         ).pack(anchor="w", pady=(0, 2))
 
@@ -195,26 +196,26 @@ class ExperimentalDesignStep(WizardStep):
         )
         days_input.pack(side="left")
 
-        Label(days_frame, text="dias", fg="gray").pack(side="left", padx=5)
+        Label(days_frame, text=_("days"), fg="gray").pack(side="left", padx=5)
 
         ToolTip(
             days_frame,
-            (
-                "Duração do Experimento\n\n"
-                "Quantos dias durará seu experimento completo.\n\n"
-                "Exemplos:\n"
-                "• 1 dia: Teste agudo\n"
-                "• 7 dias: Tratamento de 1 semana\n"
-                "• 21 dias: Tratamento crônico\n\n"
-                "Você pode digitar diretamente ou usar os botões +/-.\n"
-                "Isso afeta a organização dos arquivos de saída."
+            _(
+                "Experiment Duration\n\n"
+                "How many days your full experiment will last.\n\n"
+                "Examples:\n"
+                "• 1 day: acute test\n"
+                "• 7 days: 1-week treatment\n"
+                "• 21 days: chronic treatment\n\n"
+                "You can type directly or use the +/- buttons.\n"
+                "This affects how the output files are organised."
             ),
         )
 
         # Subjects per group
         Label(
             left_col,
-            text="Animais por Grupo:",
+            text=_("Animals per Group:"),
             font=("TkDefaultFont", 10, "bold"),
         ).pack(anchor="w", pady=(0, 2))
 
@@ -230,7 +231,7 @@ class ExperimentalDesignStep(WizardStep):
         )
         subjects_input.pack(side="left")
 
-        Label(subjects_frame, text="animais/grupo", fg="gray").pack(side="left", padx=5)
+        Label(subjects_frame, text=_("animals/group"), fg="gray").pack(side="left", padx=5)
 
         ToolTip(
             subjects_frame,
@@ -248,7 +249,7 @@ class ExperimentalDesignStep(WizardStep):
         # Number of groups
         Label(
             left_col,
-            text="Número de Grupos:",
+            text=_("Number of Groups:"),
             font=("TkDefaultFont", 10, "bold"),
         ).pack(anchor="w", pady=(0, 2))
 
@@ -267,7 +268,7 @@ class ExperimentalDesignStep(WizardStep):
         # Register callback for groups change
         self.num_groups_var.trace_add("write", lambda *args: self._on_num_groups_change())
 
-        Label(groups_frame, text="grupos", fg="gray").pack(side="left", padx=5)
+        Label(groups_frame, text=_("groups"), fg="gray").pack(side="left", padx=5)
 
         ToolTip(
             groups_frame,
@@ -304,7 +305,7 @@ class ExperimentalDesignStep(WizardStep):
         # Right column: Group names
         right_col = LabelFrame(
             config_container,
-            text="Nomes dos Grupos",
+            text=_("Group Names"),
             padx=15,
             pady=10,
         )
@@ -312,7 +313,7 @@ class ExperimentalDesignStep(WizardStep):
 
         Label(
             right_col,
-            text="Defina nomes descritivos para cada grupo:",
+            text=_("Give each group a descriptive name:"),
             fg="gray",
             font=("TkDefaultFont", 9),
         ).pack(anchor="w", pady=(0, 10))
@@ -326,7 +327,7 @@ class ExperimentalDesignStep(WizardStep):
         # Info box
         info_frame = LabelFrame(
             self,
-            text="ℹ️  Como isso será usado?",
+            text=_("ℹ️  How will this be used?"),
             padx=15,
             pady=10,
         )
@@ -334,12 +335,12 @@ class ExperimentalDesignStep(WizardStep):
 
         info_text = Label(
             info_frame,
-            text=(
-                "A estrutura configurada será usada para:\n\n"
-                "• Organizar gravações por Dia → Grupo → Animal\n"
-                "• Criar grid visual de progresso do experimento\n"
-                "• Facilitar análise comparativa entre grupos\n\n"
-                "Exemplo: 2 grupos x 5 dias x 3 animais = 30 gravações organizadas"
+            text=_(
+                "The structure you configure will be used to:\n\n"
+                "• Organise recordings by Day → Group → Animal\n"
+                "• Build a visual grid of experiment progress\n"
+                "• Make comparative analysis between groups easier\n\n"
+                "Example: 2 groups x 5 days x 3 animals = 30 organised recordings"
             ),
             justify="left",
             fg="#555",
@@ -411,7 +412,9 @@ class ExperimentalDesignStep(WizardStep):
         total_animals = num_groups * subjects
 
         self.summary_var.set(
-            f"📊 Total: {total_sessions} gravações ({total_animals} animais x {num_days} dias)"
+            _("📊 Total: {sessions} recordings ({animals} animals x {days} days)").format(
+                sessions=total_sessions, animals=total_animals, days=num_days
+            )
         )
 
     def validate(self) -> tuple[bool, str]:
