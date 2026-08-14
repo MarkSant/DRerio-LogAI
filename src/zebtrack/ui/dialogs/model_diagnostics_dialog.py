@@ -6,6 +6,7 @@ from tkinter import simpledialog, ttk
 
 import structlog
 
+from zebtrack.i18n import _
 from zebtrack.ui.components.model_diagnostics_panel import ModelDiagnosticsPanel
 from zebtrack.ui.icon_utils import set_window_icon
 from zebtrack.ui.window_utils import schedule_maximize
@@ -18,7 +19,7 @@ class ModelDiagnosticsDialog(simpledialog.Dialog):
 
     def __init__(self, parent, controller) -> None:
         self.controller = controller
-        super().__init__(parent, "Diagnóstico Global do Modelo")
+        super().__init__(parent, _("Global Model Diagnostics"))
 
         try:
             set_window_icon(self)

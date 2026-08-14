@@ -7,23 +7,26 @@ Shows real-time progress and allows user cancellation.
 
 from tkinter import Button, Frame, Label, StringVar, Toplevel, ttk
 
+from zebtrack.i18n import _
+
 
 class DiagnosticProgressDialog(Toplevel):
     """Non-modal progress dialog for diagnostic test execution."""
 
-    def __init__(self, parent, title="Diagnóstico em Progresso"):
+    def __init__(self, parent, title=None):
         """Initialize the diagnostic progress dialog.
 
         Args:
             parent: Parent widget.
-            title: Dialog window title (default: "Diagnóstico em Progresso").
+            title: Dialog window title. Defaults to the translated
+                "Diagnostics in Progress" when omitted.
         """
         super().__init__(parent)
-        self.title(title)
+        self.title(title if title is not None else _("Diagnostics in Progress"))
         self.parent = parent
         self.user_cancelled = False
-        self.progress_var = StringVar(value="Iniciando...")
-        self.status_var = StringVar(value="Aguarde...")
+        self.progress_var = StringVar(value=_("Starting..."))
+        self.status_var = StringVar(value=_("Please wait..."))
 
         # Make dialog always on top and prevent closing via X button
         self.transient(parent)
@@ -47,13 +50,13 @@ class DiagnosticProgressDialog(Toplevel):
         # Title
         title_label = Label(
             main_frame,
-            text="Executando Diagnóstico do Modelo",
+            text=_("Running Model Diagnostics"),
             font=("Arial", 12, "bold"),
         )
         title_label.grid(row=0, column=0, columnspan=2, pady=(10, 20), sticky="w")
 
         # Progress message
-        Label(main_frame, text="Status:").grid(row=1, column=0, sticky="w", padx=(10, 5))
+        Label(main_frame, text=_("Status:")).grid(row=1, column=0, sticky="w", padx=(10, 5))
         progress_label = Label(
             main_frame,
             textvariable=self.progress_var,

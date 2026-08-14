@@ -13,6 +13,8 @@ from tkinter import (
 )
 from typing import Any, ClassVar
 
+from zebtrack.i18n import _
+
 
 class PendingVideosDialog(simpledialog.Dialog):
     """Dialog to review pending videos in hierarchical format."""
@@ -51,7 +53,7 @@ class PendingVideosDialog(simpledialog.Dialog):
         # Declare result type for mypy
         self.result: dict[str, bool] | None = None
         # Must call super().__init__ before setting result, as Dialog base sets it to None
-        super().__init__(parent, "Processar Vídeos Pendentes")
+        super().__init__(parent, _("Process Pending Videos"))
         # Set default result after Dialog initialization
         if self.result is None:
             self.result = {"confirmed": False, "include_arena_only": False}
@@ -70,7 +72,7 @@ class PendingVideosDialog(simpledialog.Dialog):
 
         ttk.Label(
             master,
-            text=("Revise a lista hierárquica e confirme os itens que deseja processar."),
+            text=_("Review the hierarchical list and confirm the items you want to process."),
             wraplength=560,
             justify="left",
         ).grid(row=0, column=0, sticky="w", padx=12, pady=(12, 6))
@@ -112,16 +114,20 @@ class PendingVideosDialog(simpledialog.Dialog):
 
         legend = ttk.Frame(master)
         legend.grid(row=2, column=0, sticky="w", padx=12, pady=(8, 4))
-        ttk.Label(legend, text="Legenda:").pack(side="left", padx=(0, 6))
-        self._add_legend_chip(legend, "#d4edda", "#1e4620", "Pronto")
-        self._add_legend_chip(legend, "#fff3cd", "#5c470b", "Parcial")
-        self._add_legend_chip(legend, "#f8d7da", "#842029", "Ignorado")
+        ttk.Label(legend, text=_("Legend:")).pack(side="left", padx=(0, 6))
+        self._add_legend_chip(legend, "#d4edda", "#1e4620", _("Ready"))
+        self._add_legend_chip(legend, "#fff3cd", "#5c470b", _("Partial"))
+        self._add_legend_chip(legend, "#f8d7da", "#842029", _("Skipped"))
 
         if self.arena_only:
             ttk.Checkbutton(
                 master,
                 text=(
-                    f"Incluir {len(self.arena_only)} vídeo(s) com apenas arena no processamento."
+                    _("Include 1 video with only an arena in the processing.")
+                    if len(self.arena_only) == 1
+                    else _("Include {count} videos with only an arena in the processing.").format(
+                        count=len(self.arena_only)
+                    )
                 ),
                 variable=self.include_arena_only_var,
             ).grid(row=3, column=0, sticky="w", padx=12, pady=(0, 12))

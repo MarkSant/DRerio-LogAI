@@ -9,6 +9,7 @@ from tkinter import (
     ttk,
 )
 
+from zebtrack.i18n import _
 from zebtrack.ui.format_utils import format_day_display
 
 
@@ -56,7 +57,11 @@ class SubjectSelectionDialog(simpledialog.Dialog):
             subject_id = i + 1
             is_completed = subject_id in self.completed_subjects
 
-            status_text = f"Cobaia {subject_id}: {'Concluído' if is_completed else 'Pendente'}"
+            status_text = (
+                _("Subject {number}: done").format(number=subject_id)
+                if is_completed
+                else _("Subject {number}: pending").format(number=subject_id)
+            )
             status_color = "darkgreen" if is_completed else "black"
 
             label = ttk.Label(
