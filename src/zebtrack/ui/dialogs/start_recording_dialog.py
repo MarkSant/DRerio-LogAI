@@ -19,6 +19,8 @@ from tkinter import (
 )
 from typing import Any
 
+from zebtrack.i18n import _
+
 
 class StartRecordingDialog(simpledialog.Dialog):
     """Dialog for initiating a new recording session.
@@ -57,7 +59,7 @@ class StartRecordingDialog(simpledialog.Dialog):
         self._persist_camera_var: BooleanVar | None = None
         self._camera_label: Label | None = None
 
-        super().__init__(parent, "Iniciar Nova Sessão de Gravação")
+        super().__init__(parent, _("Start a New Recording Session"))
 
     def body(self, master):
         """Create dialog body with recording session selection options.
@@ -111,7 +113,7 @@ class StartRecordingDialog(simpledialog.Dialog):
             self.subject_var.set(subject_opts[0])
 
         # Camera section (shows project default + optional per-session override).
-        Label(master, text="Câmera:").grid(row=3, column=0, sticky="w", padx=5, pady=(10, 5))
+        Label(master, text=_("Camera:")).grid(row=3, column=0, sticky="w", padx=5, pady=(10, 5))
         self._camera_label = Label(master, text=self._format_current_camera(), anchor="w")
         self._camera_label.grid(row=3, column=1, sticky="ew", padx=5, pady=(10, 5))
 
@@ -127,13 +129,15 @@ class StartRecordingDialog(simpledialog.Dialog):
         if self._camera_index_override is not None:
             name = self._camera_friendly_name_override or ""
             suffix = f" — {name}" if name else ""
-            return f"[Sessão] Índice {self._camera_index_override}{suffix}"
+            return _("[Session] Index {index}{suffix}").format(
+                index=self._camera_index_override, suffix=suffix
+            )
 
         saved_index = self.pm.project_data.get("camera_index", 0)
         saved_name = self.pm.project_data.get("camera_friendly_name", "") or ""
         if saved_name:
-            return f"{saved_name} (índice {saved_index})"
-        return f"Índice {saved_index}"
+            return _("{name} (index {index})").format(name=saved_name, index=saved_index)
+        return _("Index {index}").format(index=saved_index)
 
     def _open_camera_chooser(self) -> None:
         """Modal sub-dialog: detect + pick a camera, with optional persistence."""
@@ -145,30 +149,32 @@ class StartRecordingDialog(simpledialog.Dialog):
         # except Exception justified: hardware probe — camera enumeration is I/O
         except Exception as exc:
             messagebox.showerror(
-                "Falha na detecção",
-                f"Não foi possível detectar câmeras:\n\n{exc}",
+                _("Detection failed"),
+                _("Could not detect cameras:\n\n{error}").format(error=exc),
                 parent=self,
             )
             return
 
         if not cameras:
             messagebox.showwarning(
-                "Nenhuma câmera",
-                "Nenhuma câmera foi detectada no sistema.",
+                _("No camera"),
+                _("No camera was detected on this system."),
                 parent=self,
             )
             return
 
         chooser = Toplevel(self)
-        chooser.title("Trocar câmera para esta sessão")
+        chooser.title(_("Change the camera for this session"))
         chooser.transient(self)
         chooser.grab_set()
 
-        Label(chooser, text="Selecione a câmera:").grid(
+        Label(chooser, text=_("Select the camera:")).grid(
             row=0, column=0, sticky="w", padx=10, pady=(10, 0)
         )
 
-        descriptions = [c.get("description", f"Câmera {c['index']}") for c in cameras]
+        descriptions = [
+            c.get("description", _("Camera {index}").format(index=c["index"])) for c in cameras
+        ]
         index_map = {desc: int(cameras[i]["index"]) for i, desc in enumerate(descriptions)}
         name_map = {
             desc: cameras[i].get("friendly_name", "") for i, desc in enumerate(descriptions)
@@ -187,7 +193,7 @@ class StartRecordingDialog(simpledialog.Dialog):
         persist_var = BooleanVar(value=False)
         Checkbutton(
             chooser,
-            text="Salvar como câmera padrão deste projeto",
+            text=_("Save as the default camera for this project"),
             variable=persist_var,
         ).grid(row=2, column=0, columnspan=2, sticky="w", padx=10, pady=5)
 
@@ -224,7 +230,7 @@ class StartRecordingDialog(simpledialog.Dialog):
             True if all selections are valid, False otherwise.
         """
         if not all([self.day_var.get(), self.group_var.get(), self.subject_var.get()]):
-            messagebox.showerror("Erro", "Todos os campos são obrigatórios.")
+            messagebox.showerror(_("Error"), _("All fields are required."))
             return False
         return True
 

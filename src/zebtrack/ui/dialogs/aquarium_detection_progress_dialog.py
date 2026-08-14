@@ -22,6 +22,8 @@ import numpy as np
 import structlog
 from PIL import Image, ImageTk
 
+from zebtrack.i18n import _
+
 if TYPE_CHECKING:
     pass
 
@@ -63,7 +65,7 @@ class AquariumDetectionProgressDialog(tk.Toplevel):
         self.invalid_detections = 0
         self._thumbnail_photo: ImageTk.PhotoImage | None = None  # Keep reference to prevent GC
 
-        self.title("Detectando Aquário")
+        self.title(_("Detecting Aquarium"))
         self.geometry("600x500")
         self.resizable(False, False)
 
@@ -94,7 +96,7 @@ class AquariumDetectionProgressDialog(tk.Toplevel):
         # Title
         title_label = ttk.Label(
             main_frame,
-            text="⏳ Detectando Aquário Automaticamente",
+            text=_("⏳ Detecting the Aquarium Automatically"),
             font=("Arial", 14, "bold"),
         )
         title_label.pack(pady=(0, 10))
@@ -102,10 +104,9 @@ class AquariumDetectionProgressDialog(tk.Toplevel):
         # Description
         desc_label = ttk.Label(
             main_frame,
-            text=(
-                f"Sessão: {self.experiment_id}\n"
-                "Analisando frames para identificar região do aquário..."
-            ),
+            text=_(
+                "Session: {experiment}\nAnalyzing frames to identify the aquarium region..."
+            ).format(experiment=self.experiment_id),
             justify=tk.CENTER,
         )
         desc_label.pack(pady=(0, 15))
@@ -137,21 +138,21 @@ class AquariumDetectionProgressDialog(tk.Toplevel):
 
         stats_label = ttk.Label(
             stats_frame,
-            text="Detecções:",
+            text=_("Detections:"),
             font=("Arial", 10, "bold"),
         )
         stats_label.pack(side=tk.LEFT, padx=(0, 10))
 
         self.valid_label = ttk.Label(
             stats_frame,
-            text="✓ Válidas: 0",
+            text=_("✓ Valid: {count}").format(count=0),
             foreground="green",
         )
         self.valid_label.pack(side=tk.LEFT, padx=5)
 
         self.invalid_label = ttk.Label(
             stats_frame,
-            text="✗ Inválidas: 0",
+            text=_("✗ Invalid: {count}").format(count=0),
             foreground="red",
         )
         self.invalid_label.pack(side=tk.LEFT, padx=5)
@@ -159,7 +160,7 @@ class AquariumDetectionProgressDialog(tk.Toplevel):
         # Thumbnail frame
         thumbnail_frame = ttk.LabelFrame(
             main_frame,
-            text="Último Frame Analisado",
+            text=_("Last Frame Analyzed"),
             padding=10,
         )
         thumbnail_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 15))
@@ -174,7 +175,7 @@ class AquariumDetectionProgressDialog(tk.Toplevel):
         # Status label
         self.status_label = ttk.Label(
             main_frame,
-            text="Iniciando detecção...",
+            text=_("Starting detection..."),
             font=("Arial", 9, "italic"),
             foreground="blue",
         )
@@ -211,8 +212,10 @@ class AquariumDetectionProgressDialog(tk.Toplevel):
             else:
                 self.invalid_detections += 1
 
-        self.valid_label.config(text=f"✓ Válidas: {self.valid_detections}")
-        self.invalid_label.config(text=f"✗ Inválidas: {self.invalid_detections}")
+        self.valid_label.config(text=_("✓ Valid: {count}").format(count=self.valid_detections))
+        self.invalid_label.config(
+            text=_("✗ Invalid: {count}").format(count=self.invalid_detections)
+        )
 
         # Update thumbnail
         if frame_image is not None:
@@ -224,12 +227,12 @@ class AquariumDetectionProgressDialog(tk.Toplevel):
         elif detected_bbox:
             if is_valid:
                 self.status_label.config(
-                    text="✓ Aquário detectado (área válida)",
+                    text=_("✓ Aquarium detected (valid area)"),
                     foreground="green",
                 )
             else:
                 self.status_label.config(
-                    text="✗ Detecção ignorada (área insuficiente)",
+                    text=_("✗ Detection ignored (insufficient area)"),
                     foreground="orange",
                 )
 
@@ -271,7 +274,7 @@ class AquariumDetectionProgressDialog(tk.Toplevel):
                 cv2.rectangle(resized, (x1_s, y1_s), (x2_s, y2_s), color, thickness)
 
                 # Add label
-                label = "VÁLIDO" if is_valid else "INVÁLIDO"
+                label = _("VALID") if is_valid else _("INVALID")
                 cv2.putText(
                     resized,
                     label,

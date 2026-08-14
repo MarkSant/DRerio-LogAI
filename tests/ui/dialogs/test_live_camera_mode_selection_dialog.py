@@ -34,7 +34,7 @@ def test_mode_display_name_defaults_to_enum_name():
 
     display_name = dialog._mode_display_name(LiveCameraMode.RECORD_ONLY)
 
-    assert display_name == "Apenas Gravação"
+    assert display_name == "Recording Only"
 
 
 def test_on_confirm_sets_mode_and_invokes_callback():

@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: DRerio LogAI VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-08-14 17:22-0300\n"
+"POT-Creation-Date: 2026-08-14 20:45-0300\n"
 "PO-Revision-Date: 2026-08-08 21:41-0300\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: pt_BR <LL@li.org>\n"
@@ -264,6 +264,7 @@ msgstr "Vídeo Único"
 #: src/zebtrack/ui/dialogs/block_detail_dialog.py:1529
 #: src/zebtrack/ui/dialogs/single_video_config_dialog.py:509
 #: src/zebtrack/ui/dialogs/single_video_config_dialog.py:548
+#: src/zebtrack/ui/dialogs/start_recording_dialog.py:233
 #: src/zebtrack/ui/gui.py:144 src/zebtrack/ui/gui.py:808
 #: src/zebtrack/ui/wizard/live_config_step.py:860
 msgid "Error"
@@ -758,6 +759,7 @@ msgstr "Peso Não Selecionado"
 #: src/zebtrack/ui/components/validation_manager.py:147
 #: src/zebtrack/ui/components/validation_manager.py:162
 #: src/zebtrack/ui/components/validation_manager.py:1631
+#: src/zebtrack/ui/dialogs/aquarium_assignment_dialog.py:579
 #: src/zebtrack/ui/wizard/design_editor_dialog.py:509
 msgid "Validation Error"
 msgstr "Erro de Validação"
@@ -1250,6 +1252,7 @@ msgstr "  - Nenhuma detecção encontrada."
 # | msgid "Validation Failed"
 #: src/zebtrack/coordinators/multi_aquarium_coordinator.py:315
 #: src/zebtrack/ui/dialogs/block_detail_dialog.py:650
+#: src/zebtrack/ui/dialogs/start_recording_dialog.py:152
 msgid "Detection failed"
 msgstr "Detecção falhou"
 
@@ -1757,6 +1760,7 @@ msgstr "Nenhum vídeo elegível foi encontrado com dados para análise."
 #: src/zebtrack/coordinators/video_processing_coordinator.py:913
 #: src/zebtrack/ui/components/canvas/renderer.py:261
 #: src/zebtrack/ui/components/project_views/report_tree_builder.py:634
+#: src/zebtrack/ui/dialogs/multi_aquarium_live_preview_window.py:184
 #, python-brace-format
 msgid "Aquarium {number}"
 msgstr "Aquário {number}"
@@ -3385,6 +3389,7 @@ msgstr "Configurações Salvas"
 #: src/zebtrack/ui/builders/analysis_widgets.py:557
 #: src/zebtrack/ui/components/project_views/report_generator_actions.py:331
 #: src/zebtrack/ui/components/validation_manager.py:1627
+#: src/zebtrack/ui/dialogs/aquarium_assignment_dialog.py:261
 #: src/zebtrack/ui/dialogs/block_detail_dialog.py:1359
 #: src/zebtrack/ui/dialogs/block_detail_dialog.py:1374
 msgid "Warning"
@@ -6967,6 +6972,8 @@ msgstr "As preferências do projeto foram salvas."
 
 # | msgid "Project Settings Updated"
 #: src/zebtrack/ui/components/project_model_configuration_panel.py:410
+#: src/zebtrack/ui/dialogs/calibration_dialog.py:323
+#: src/zebtrack/ui/dialogs/calibration_dialog.py:350
 msgid "Project updated"
 msgstr "Projeto atualizado"
 
@@ -7236,6 +7243,7 @@ msgstr "Fechar Projeto"
 # | msgid "Model Configuration"
 #: src/zebtrack/ui/components/tab_builder.py:237
 #: src/zebtrack/ui/components/tab_builder.py:276
+#: src/zebtrack/ui/dialogs/calibration_dialog.py:197
 msgid "AI Model Config."
 msgstr "Config. Modelo IA"
 
@@ -7244,6 +7252,7 @@ msgstr "Config. Modelo IA"
 # | msgid "Starting model diagnostics..."
 #: src/zebtrack/ui/components/tab_builder.py:252
 #: src/zebtrack/ui/components/tab_builder.py:281
+#: src/zebtrack/ui/dialogs/calibration_dialog.py:198
 msgid "AI Model Diagnostics"
 msgstr "Diagnóstico Modelo IA"
 
@@ -8938,6 +8947,130 @@ msgstr "Frame carregado: {name}"
 msgid "Buffer radius must be >= 0"
 msgstr "Raio de buffer deve ser >= 0"
 
+#: src/zebtrack/ui/dialogs/aquarium_assignment_dialog.py:92
+msgid "Aquarium Configuration"
+msgstr "Configuração dos Aquários"
+
+#: src/zebtrack/ui/dialogs/aquarium_assignment_dialog.py:108
+msgid "Assign groups and identifiers to each aquarium"
+msgstr "Atribua grupos e identificadores para cada aquário"
+
+#: src/zebtrack/ui/dialogs/aquarium_assignment_dialog.py:151
+msgid "Apply to every video in the batch"
+msgstr "Aplicar para todos os vídeos do batch"
+
+#: src/zebtrack/ui/dialogs/aquarium_assignment_dialog.py:241
+#: src/zebtrack/ui/dialogs/aquarium_assignment_dialog.py:323
+msgid "Auto-fill"
+msgstr "Auto-Preencher"
+
+#: src/zebtrack/ui/dialogs/aquarium_assignment_dialog.py:242
+#, python-brace-format
+msgid ""
+"No match found with the current regex pattern:\n"
+"{pattern}"
+msgstr ""
+"Nenhuma correspondência encontrada com o padrão regex atual:\n"
+"{pattern}"
+
+#: src/zebtrack/ui/dialogs/aquarium_assignment_dialog.py:263
+#, python-brace-format
+msgid ""
+"Found {count} matches in the file name,\n"
+"but only 2 aquariums are supported.\n"
+"\n"
+"Using the first 2 matches."
+msgstr ""
+"Encontradas {count} correspondências no nome do arquivo,\n"
+"mas apenas 2 aquários são suportados.\n"
+"\n"
+"Usando as 2 primeiras correspondências."
+
+#: src/zebtrack/ui/dialogs/aquarium_assignment_dialog.py:324
+#, python-brace-format
+msgid "Filled successfully ({count} matches found)."
+msgstr "Preenchido com sucesso ({count} correspondências encontradas)."
+
+#: src/zebtrack/ui/dialogs/aquarium_assignment_dialog.py:454
+msgid "Left"
+msgstr "Esquerda"
+
+#: src/zebtrack/ui/dialogs/aquarium_assignment_dialog.py:454
+msgid "Right"
+msgstr "Direita"
+
+#: src/zebtrack/ui/dialogs/aquarium_assignment_dialog.py:457
+#, python-brace-format
+msgid "Aquarium {number} ({position})"
+msgstr "Aquário {number} ({position})"
+
+#: src/zebtrack/ui/dialogs/aquarium_assignment_dialog.py:613
+#, python-brace-format
+msgid "The group of Aquarium {number} cannot be empty"
+msgstr "Grupo do Aquário {number} não pode estar vazio"
+
+#: src/zebtrack/ui/dialogs/aquarium_assignment_dialog.py:618
+#, python-brace-format
+msgid "The subject of Aquarium {number} cannot be empty"
+msgstr "Sujeito do Aquário {number} não pode estar vazio"
+
+#: src/zebtrack/ui/dialogs/aquarium_detection_progress_dialog.py:68
+msgid "Detecting Aquarium"
+msgstr "Detectando Aquário"
+
+#: src/zebtrack/ui/dialogs/aquarium_detection_progress_dialog.py:99
+msgid "⏳ Detecting the Aquarium Automatically"
+msgstr "⏳ Detectando Aquário Automaticamente"
+
+#: src/zebtrack/ui/dialogs/aquarium_detection_progress_dialog.py:108
+#, python-brace-format
+msgid ""
+"Session: {experiment}\n"
+"Analyzing frames to identify the aquarium region..."
+msgstr ""
+"Sessão: {experiment}\n"
+"Analisando frames para identificar região do aquário..."
+
+#: src/zebtrack/ui/dialogs/aquarium_detection_progress_dialog.py:141
+msgid "Detections:"
+msgstr "Detecções:"
+
+#: src/zebtrack/ui/dialogs/aquarium_detection_progress_dialog.py:148
+#: src/zebtrack/ui/dialogs/aquarium_detection_progress_dialog.py:215
+#, python-brace-format
+msgid "✓ Valid: {count}"
+msgstr "✓ Válidas: {count}"
+
+#: src/zebtrack/ui/dialogs/aquarium_detection_progress_dialog.py:155
+#: src/zebtrack/ui/dialogs/aquarium_detection_progress_dialog.py:217
+#, python-brace-format
+msgid "✗ Invalid: {count}"
+msgstr "✗ Inválidas: {count}"
+
+#: src/zebtrack/ui/dialogs/aquarium_detection_progress_dialog.py:163
+msgid "Last Frame Analyzed"
+msgstr "Último Frame Analisado"
+
+#: src/zebtrack/ui/dialogs/aquarium_detection_progress_dialog.py:178
+msgid "Starting detection..."
+msgstr "Iniciando detecção..."
+
+#: src/zebtrack/ui/dialogs/aquarium_detection_progress_dialog.py:230
+msgid "✓ Aquarium detected (valid area)"
+msgstr "✓ Aquário detectado (área válida)"
+
+#: src/zebtrack/ui/dialogs/aquarium_detection_progress_dialog.py:235
+msgid "✗ Detection ignored (insufficient area)"
+msgstr "✗ Detecção ignorada (área insuficiente)"
+
+#: src/zebtrack/ui/dialogs/aquarium_detection_progress_dialog.py:277
+msgid "VALID"
+msgstr "VÁLIDO"
+
+#: src/zebtrack/ui/dialogs/aquarium_detection_progress_dialog.py:277
+msgid "INVALID"
+msgstr "INVÁLIDO"
+
 #: src/zebtrack/ui/dialogs/block_detail_dialog.py:42
 #, python-brace-format
 msgid "Day {day} - {group}"
@@ -9041,21 +9174,25 @@ msgid "⏱️ Duration"
 msgstr "⏱️ Duração"
 
 #: src/zebtrack/ui/dialogs/block_detail_dialog.py:623
+#: src/zebtrack/ui/dialogs/start_recording_dialog.py:132
 #, python-brace-format
 msgid "[Session] Index {index}{suffix}"
 msgstr "[Sessão] Índice {index}{suffix}"
 
 #: src/zebtrack/ui/dialogs/block_detail_dialog.py:635
+#: src/zebtrack/ui/dialogs/start_recording_dialog.py:139
 #, python-brace-format
 msgid "{name} (index {index})"
 msgstr "{name} (índice {index})"
 
 #: src/zebtrack/ui/dialogs/block_detail_dialog.py:636
+#: src/zebtrack/ui/dialogs/start_recording_dialog.py:140
 #, python-brace-format
 msgid "Index {index}"
 msgstr "Índice {index}"
 
 #: src/zebtrack/ui/dialogs/block_detail_dialog.py:651
+#: src/zebtrack/ui/dialogs/start_recording_dialog.py:153
 #, python-brace-format
 msgid ""
 "Could not detect cameras:\n"
@@ -9067,29 +9204,35 @@ msgstr ""
 "{error}"
 
 #: src/zebtrack/ui/dialogs/block_detail_dialog.py:658
+#: src/zebtrack/ui/dialogs/start_recording_dialog.py:160
 msgid "No camera"
 msgstr "Nenhuma câmera"
 
 #: src/zebtrack/ui/dialogs/block_detail_dialog.py:659
+#: src/zebtrack/ui/dialogs/start_recording_dialog.py:161
 msgid "No camera was detected on this system."
 msgstr "Nenhuma câmera foi detectada no sistema."
 
 #: src/zebtrack/ui/dialogs/block_detail_dialog.py:665
+#: src/zebtrack/ui/dialogs/start_recording_dialog.py:167
 msgid "Change the camera for this session"
 msgstr "Trocar câmera para esta sessão"
 
 #: src/zebtrack/ui/dialogs/block_detail_dialog.py:669
+#: src/zebtrack/ui/dialogs/start_recording_dialog.py:171
 msgid "Select the camera:"
 msgstr "Selecione a câmera:"
 
 #: src/zebtrack/ui/dialogs/block_detail_dialog.py:674
 #: src/zebtrack/ui/dialogs/live_analysis_dialog.py:516
+#: src/zebtrack/ui/dialogs/start_recording_dialog.py:176
 #: src/zebtrack/ui/wizard/live_config_step.py:708
 #, python-brace-format
 msgid "Camera {index}"
 msgstr "Câmera {index}"
 
 #: src/zebtrack/ui/dialogs/block_detail_dialog.py:694
+#: src/zebtrack/ui/dialogs/start_recording_dialog.py:196
 msgid "Save as the default camera for this project"
 msgstr "Salvar como câmera padrão deste projeto"
 
@@ -9553,6 +9696,94 @@ msgstr ""
 "Lote '{block}': o relatório consolidado (Excel + Word) está sendo gerado em segundo plano.\n"
 "\n"
 "Você será avisado quando terminar."
+
+#: src/zebtrack/ui/dialogs/calibration_dialog.py:125
+msgid "Project Model Tools"
+msgstr "Ferramentas de Modelos do Projeto"
+
+#: src/zebtrack/ui/dialogs/calibration_dialog.py:127
+msgid "Calibration and Diagnostics"
+msgstr "Calibração e Diagnóstico"
+
+#: src/zebtrack/ui/dialogs/calibration_dialog.py:128
+msgid "Global Model Configuration"
+msgstr "Configuração Global de Modelos"
+
+#: src/zebtrack/ui/dialogs/calibration_dialog.py:132
+msgid "📐 Project Model Tools"
+msgstr "📐 Ferramentas de Modelos do Projeto"
+
+#: src/zebtrack/ui/dialogs/calibration_dialog.py:134
+msgid "📐 Calibration and Diagnostics"
+msgstr "📐 Calibração e Diagnóstico"
+
+#: src/zebtrack/ui/dialogs/calibration_dialog.py:135
+msgid "📐 Global Model Configuration"
+msgstr "📐 Configuração Global de Modelos"
+
+#: src/zebtrack/ui/dialogs/calibration_dialog.py:183
+msgid ""
+"This project's configuration and diagnostic tools were split into two "
+"dedicated tabs. This fallback reuses the same split when the main window is "
+"not available yet."
+msgstr ""
+"As ferramentas de configuração e diagnóstico deste projeto foram separadas "
+"em duas abas dedicadas. Este fallback reutiliza a mesma divisão quando a "
+"janela principal ainda não está disponível."
+
+#: src/zebtrack/ui/dialogs/calibration_dialog.py:217
+msgid "Model Performance Diagnostics"
+msgstr "Diagnóstico de Desempenho do Modelo"
+
+#: src/zebtrack/ui/dialogs/calibration_dialog.py:270
+msgid "Apply global defaults"
+msgstr "Aplicar padrões globais"
+
+#: src/zebtrack/ui/dialogs/calibration_dialog.py:277
+#, python-brace-format
+msgid ""
+"Apply the global model defaults to which project?\n"
+"\n"
+"Open project: {name}"
+msgstr ""
+"Aplicar os padrões globais de modelo a qual projeto?\n"
+"\n"
+"Projeto aberto: {name}"
+
+#: src/zebtrack/ui/dialogs/calibration_dialog.py:324
+#, python-brace-format
+msgid "The global defaults were copied to project {name}."
+msgstr "Os padrões globais foram copiados para o projeto {name}."
+
+#: src/zebtrack/ui/dialogs/calibration_dialog.py:331
+#: src/zebtrack/ui/dialogs/calibration_dialog.py:358
+msgid "Copy failed"
+msgstr "Falha ao copiar"
+
+#: src/zebtrack/ui/dialogs/calibration_dialog.py:333
+msgid ""
+"Could not apply the global defaults to the project. Check the log for "
+"details."
+msgstr ""
+"Não foi possível aplicar os padrões globais ao projeto. Verifique o log para"
+" detalhes."
+
+#: src/zebtrack/ui/dialogs/calibration_dialog.py:351
+#, python-brace-format
+msgid ""
+"The global defaults were copied to the project at:\n"
+"{path}"
+msgstr ""
+"Os padrões globais foram copiados para o projeto em:\n"
+"{path}"
+
+#: src/zebtrack/ui/dialogs/calibration_dialog.py:360
+msgid ""
+"Could not apply the global defaults to the selected project.\n"
+"Check that the folder holds a valid ZebTrack project (project_config.json)."
+msgstr ""
+"Não foi possível aplicar os padrões globais ao projeto selecionado.\n"
+"Verifique se a pasta contém um projeto ZebTrack válido (project_config.json)."
 
 #: src/zebtrack/ui/dialogs/center_periphery_dialog.py:33
 msgid "Method:"
@@ -10153,9 +10384,175 @@ msgstr ""
 "Erro na validação:\n"
 "{error}"
 
+#: src/zebtrack/ui/dialogs/live_camera_mode_selection_dialog.py:68
+msgid ""
+"Parallel Real-Time Processing\n"
+"• Detects 2-6 aquariums simultaneously\n"
+"• Requires a GPU and ≥4 CPU cores\n"
+"• Higher throughput, ideal for large experiments"
+msgstr ""
+"Processamento Paralelo em Tempo Real\n"
+"• Detecta 2-6 aquários simultaneamente\n"
+"• Requer GPU e ≥4 cores de CPU\n"
+"• Maior throughput, ideal para experimentos grandes"
+
+#: src/zebtrack/ui/dialogs/live_camera_mode_selection_dialog.py:74
+msgid ""
+"Single Aquarium in Real Time\n"
+"• Processes 1 aquarium at a time\n"
+"• Requires ≥2 CPU cores\n"
+"• Ideal for systems with limited resources"
+msgstr ""
+"Aquário Único em Tempo Real\n"
+"• Processa 1 aquário por vez\n"
+"• Requer ≥2 cores de CPU\n"
+"• Ideal para sistemas com recursos limitados"
+
+#: src/zebtrack/ui/dialogs/live_camera_mode_selection_dialog.py:80
+msgid ""
+"Sequential Sessions\n"
+"• Records N separate sessions, one at a time\n"
+"• Processes each aquarium in real time\n"
+"• Requires manual intervention between sessions"
+msgstr ""
+"Sessões Sequenciais\n"
+"• Grava N sessões separadas, uma de cada vez\n"
+"• Processa cada aquário em tempo real\n"
+"• Requer intervenção manual entre sessões"
+
+#: src/zebtrack/ui/dialogs/live_camera_mode_selection_dialog.py:86
+msgid ""
+"Recording Only (Offline)\n"
+"• Records video without real-time processing\n"
+"• Later analysis with every feature available\n"
+"• Always possible, no hardware requirements"
+msgstr ""
+"Apenas Gravação (Offline)\n"
+"• Grava vídeo sem processamento em tempo real\n"
+"• Análise posterior com todos os recursos\n"
+"• Sempre possível, sem requisitos de hardware"
+
+#: src/zebtrack/ui/dialogs/live_camera_mode_selection_dialog.py:122
+msgid "Processing Mode Selection"
+msgstr "Seleção de Modo de Processamento"
+
+#: src/zebtrack/ui/dialogs/live_camera_mode_selection_dialog.py:148
+msgid "⚠️ Processing Mode Adjustment Required"
+msgstr "⚠️ Ajuste de Modo de Processamento Necessário"
+
+#: src/zebtrack/ui/dialogs/live_camera_mode_selection_dialog.py:156
+#, python-brace-format
+msgid ""
+"Your system does not support real-time processing of {count} aquariums simultaneously.\n"
+"\n"
+"Review the options below and select a suitable mode."
+msgstr ""
+"Seu sistema não suporta processamento em tempo real de {count} aquários simultaneamente.\n"
+"\n"
+"Revise as opções abaixo e selecione o modo adequado."
+
+#: src/zebtrack/ui/dialogs/live_camera_mode_selection_dialog.py:185
+msgid "📊 Hardware Summary"
+msgstr "📊 Resumo de Hardware"
+
+#: src/zebtrack/ui/dialogs/live_camera_mode_selection_dialog.py:201
+#, python-brace-format
+msgid "Capability: {value}"
+msgstr "Capacidade: {value}"
+
+#: src/zebtrack/ui/dialogs/live_camera_mode_selection_dialog.py:212
+msgid "✗ Not detected"
+msgstr "✗ Não detectada"
+
+#: src/zebtrack/ui/dialogs/live_camera_mode_selection_dialog.py:214
+msgid "✓ Yes"
+msgstr "✓ Sim"
+
+#: src/zebtrack/ui/dialogs/live_camera_mode_selection_dialog.py:214
+msgid "✗ No"
+msgstr "✗ Não"
+
+#: src/zebtrack/ui/dialogs/live_camera_mode_selection_dialog.py:217
+#, python-brace-format, python-format
+msgid ""
+"CPU: {cores} cores ({usage}% used)\n"
+"RAM: {available} GB available of {total} GB\n"
+"GPU: {gpu}\n"
+"Supported aquariums: {aquariums}\n"
+"Real time: {realtime}"
+msgstr ""
+"CPU: {cores} cores ({usage}% uso)\n"
+"RAM: {available} GB disponível de {total} GB\n"
+"GPU: {gpu}\n"
+"Aquários Suportados: {aquariums}\n"
+"Tempo Real: {realtime}"
+
+#: src/zebtrack/ui/dialogs/live_camera_mode_selection_dialog.py:247
+msgid "🎯 Select the Processing Mode"
+msgstr "🎯 Selecione o Modo de Processamento"
+
+#: src/zebtrack/ui/dialogs/live_camera_mode_selection_dialog.py:282
+msgid "Alternatives:"
+msgstr "Alternativas:"
+
+#: src/zebtrack/ui/dialogs/live_camera_mode_selection_dialog.py:315
+msgid "✓ Confirm Selection"
+msgstr "✓ Confirmar Seleção"
+
+#: src/zebtrack/ui/dialogs/live_camera_mode_selection_dialog.py:325
+msgid "✗ Cancel"
+msgstr "✗ Cancelar"
+
+#: src/zebtrack/ui/dialogs/live_camera_mode_selection_dialog.py:333
+msgid "Parallel Multi-Aquarium"
+msgstr "Multi-Aquário Paralelo"
+
+#: src/zebtrack/ui/dialogs/live_camera_mode_selection_dialog.py:334
+msgid "Single Aquarium"
+msgstr "Aquário Único"
+
+#: src/zebtrack/ui/dialogs/live_camera_mode_selection_dialog.py:335
+msgid "Sequential Sessions"
+msgstr "Sessões Sequenciais"
+
+#: src/zebtrack/ui/dialogs/live_camera_mode_selection_dialog.py:336
+#: src/zebtrack/ui/wizard/live_config_step.py:554
+msgid "Recording Only"
+msgstr "Apenas Gravação"
+
 #: src/zebtrack/ui/dialogs/model_diagnostics_dialog.py:22
 msgid "Global Model Diagnostics"
 msgstr "Diagnóstico Global do Modelo"
+
+#: src/zebtrack/ui/dialogs/multi_aquarium_live_preview_window.py:59
+#, python-brace-format
+msgid "Multi-Aquarium Live Analysis - Camera {index}"
+msgstr "Análise ao Vivo Multi-Aquário - Câmera {index}"
+
+#: src/zebtrack/ui/dialogs/multi_aquarium_live_preview_window.py:107
+#: src/zebtrack/ui/dialogs/multi_aquarium_live_preview_window.py:222
+#, python-brace-format
+msgid "Start: {clock}"
+msgstr "Início: {clock}"
+
+#: src/zebtrack/ui/dialogs/multi_aquarium_live_preview_window.py:150
+#, python-brace-format
+msgid "Camera: {camera} | Aquariums: {count}"
+msgstr "Câmera: {camera} | Aquários: {count}"
+
+#: src/zebtrack/ui/dialogs/multi_aquarium_live_preview_window.py:202
+#: src/zebtrack/ui/dialogs/multi_aquarium_live_preview_window.py:301
+#, python-brace-format
+msgid "Detections: {count}"
+msgstr "Detecções: {count}"
+
+#: src/zebtrack/ui/dialogs/multi_aquarium_live_preview_window.py:215
+msgid "Session"
+msgstr "Sessão"
+
+#: src/zebtrack/ui/dialogs/multi_aquarium_live_preview_window.py:253
+msgid "⏹ Stop Analysis"
+msgstr "⏹ Parar Análise"
 
 #: src/zebtrack/ui/dialogs/pending_videos_dialog.py:56
 msgid "Process Pending Videos"
@@ -10716,6 +11113,18 @@ msgstr ""
 "Erro de validação: {error}\n"
 "\n"
 "Verifique se todos os campos estão preenchidos corretamente."
+
+#: src/zebtrack/ui/dialogs/start_recording_dialog.py:62
+msgid "Start a New Recording Session"
+msgstr "Iniciar Nova Sessão de Gravação"
+
+#: src/zebtrack/ui/dialogs/start_recording_dialog.py:116
+msgid "Camera:"
+msgstr "Câmera:"
+
+#: src/zebtrack/ui/dialogs/start_recording_dialog.py:233
+msgid "All fields are required."
+msgstr "Todos os campos são obrigatórios."
 
 #: src/zebtrack/ui/dialogs/subject_selection_dialog.py:61
 #, python-brace-format
@@ -12727,10 +13136,6 @@ msgid ""
 msgstr ""
 "⚠️ Seu sistema NÃO suporta processamento em tempo real.\n"
 "Recomendação: Use modo '{mode}' (offline)."
-
-#: src/zebtrack/ui/wizard/live_config_step.py:554
-msgid "Recording Only"
-msgstr "Apenas Gravação"
 
 #: src/zebtrack/ui/wizard/live_config_step.py:557
 #, python-brace-format

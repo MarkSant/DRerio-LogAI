@@ -13,7 +13,7 @@ def test_get_calibration_section_title_for_global_configuration_mode() -> None:
     dialog.scope = "global"
     dialog.show_diagnostics = False
 
-    assert dialog._get_calibration_section_title() == "📐 Configuração Global de Modelos"
+    assert dialog._get_calibration_section_title() == "📐 Global Model Configuration"
 
 
 def test_get_scope_action_text_hides_project_save_action() -> None:
@@ -45,8 +45,8 @@ def test_build_project_tools_ui_creates_split_tabs() -> None:
         dialog._build_project_tools_ui(parent)
 
     mock_label.assert_called_once()
-    assert notebook.add.call_args_list[0].kwargs["text"] == "Config. Modelo IA"
-    assert notebook.add.call_args_list[1].kwargs["text"] == "Diagnóstico Modelo IA"
+    assert notebook.add.call_args_list[0].kwargs["text"] == "AI Model Config."
+    assert notebook.add.call_args_list[1].kwargs["text"] == "AI Model Diagnostics"
     mock_config.assert_called_once_with(ANY, dialog.controller)
     mock_diag.assert_called_once_with(ANY, dialog.controller, scope="project")
 
