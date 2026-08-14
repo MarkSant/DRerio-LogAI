@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: DRerio LogAI VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-08-13 14:19-0300\n"
+"POT-Creation-Date: 2026-08-13 21:55-0300\n"
 "PO-Revision-Date: 2026-08-08 21:41-0300\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: pt_BR <LL@li.org>\n"
@@ -1820,111 +1820,111 @@ msgstr ""
 # | msgid "Select the Video for Diagnostics"
 # | msgid "📹 Select Video for Drawing"
 # | msgid "Select a video before applying the template."
-#: src/zebtrack/core/project/asset_manager.py:108
-#| msgid "Select a video in the list before applying the template."
+# | msgid "Select a video in the list before applying the template."
+#: src/zebtrack/core/project/asset_manager.py:107
 msgid "Project not initialised for saving ROI templates."
 msgstr "Projeto não inicializado para salvar templates de ROI."
 
-#: src/zebtrack/core/project/asset_manager.py:233
+# | msgid "The mask sidecar is empty."
+#: src/zebtrack/core/project/asset_manager.py:231
 #: src/zebtrack/core/project/roi_template_manager.py:103
-#| msgid "The mask sidecar is empty."
 msgid "The template name cannot be empty."
 msgstr "O nome do template não pode ficar vazio."
 
 # | msgid "Select the Video for Diagnostics"
 # | msgid "📹 Select Video for Drawing"
 # | msgid "Select a video before applying the template."
-#: src/zebtrack/core/project/asset_manager.py:236
-#| msgid "Error applying the template"
+# | msgid "Error applying the template"
+#: src/zebtrack/core/project/asset_manager.py:234
 msgid "Invalid zone data for saving the template."
 msgstr "Dados de zona inválidos para salvar o template."
 
-#: src/zebtrack/core/project/asset_manager.py:239
+#: src/zebtrack/core/project/asset_manager.py:237
 #: src/zebtrack/core/project/roi_template_manager.py:106
 msgid "Select at least the arena or the ROIs to save."
 msgstr "Selecione ao menos arena ou ROIs para salvar."
 
-#: src/zebtrack/core/project/asset_manager.py:247
+#: src/zebtrack/core/project/asset_manager.py:245
 #: src/zebtrack/core/project/project_manager.py:138
 msgid "Cannot save the template into the current project: no project loaded."
 msgstr ""
 "Não é possível salvar o template no projeto atual: projeto não carregado."
 
-#: src/zebtrack/core/project/asset_manager.py:261
+# | msgid "Template '{name}' applied to the video being edited."
+#: src/zebtrack/core/project/asset_manager.py:259
 #, python-brace-format
-#| msgid "Template '{name}' applied to the video being edited."
 msgid "Template '{name}' already exists."
 msgstr "Template '{name}' já existe."
 
-#: src/zebtrack/core/project/asset_manager.py:381
+#: src/zebtrack/core/project/asset_manager.py:378
 msgid "Invalid template file: the 'data' block is missing."
 msgstr "Arquivo de template inválido: bloco 'data' ausente."
 
 # | msgid "The selected video could not be located in the project."
 # | msgid "Every selected video is already registered in the project."
-#: src/zebtrack/core/project/asset_manager.py:439
-#| msgid "No video is currently registered in the project"
+# | msgid "No video is currently registered in the project"
+#: src/zebtrack/core/project/asset_manager.py:434
 msgid "The template file is not registered in the project."
 msgstr "Arquivo do template não registrado no projeto."
 
 # | msgid "Invalid selection"
 # | msgid "Invalid target"
-#: src/zebtrack/core/project/asset_manager.py:453
-#: src/zebtrack/core/project/asset_manager.py:487
-#| msgid "Invalid template"
+# | msgid "Invalid template"
+#: src/zebtrack/core/project/asset_manager.py:447
+#: src/zebtrack/core/project/asset_manager.py:479
 msgid "Invalid template content."
 msgstr "Conteúdo do template inválido."
 
 # | msgid "Video not found"
-#: src/zebtrack/core/project/asset_manager.py:459
+# | msgid "ROI '{name}' not found."
+#: src/zebtrack/core/project/asset_manager.py:453
 #, python-brace-format
-#| msgid "ROI '{name}' not found."
 msgid "ROI template '{name}' not found in the project."
 msgstr "Template de ROI '{name}' não encontrado no projeto."
 
-#: src/zebtrack/core/project/asset_manager.py:474
+#: src/zebtrack/core/project/asset_manager.py:468
 #, python-brace-format
 msgid "ROI template '{name}' not found for the requested context."
 msgstr "Template de ROI '{name}' não encontrado para o contexto solicitado."
 
-#: src/zebtrack/core/project/asset_manager.py:726
+#: src/zebtrack/core/project/asset_manager.py:718
 msgid ""
 "Remove the reports and summaries before deleting the arena, the ROIs or the "
 "trajectory."
 msgstr ""
 "Remova os relatórios e sumários antes de apagar arena, ROIs ou trajetórias."
 
-#: src/zebtrack/core/project/asset_manager.py:736
-#| msgid "Remove the trajectory generated for this video?"
+# | msgid "Remove the trajectory generated for this video?"
+#: src/zebtrack/core/project/asset_manager.py:728
 msgid "There is no arena recorded for this video."
 msgstr "Não há arena registrada para este vídeo."
 
-#: src/zebtrack/core/project/asset_manager.py:737
-#| msgid "Remove every ROI saved for this video?"
+# | msgid "Remove every ROI saved for this video?"
+#: src/zebtrack/core/project/asset_manager.py:729
 msgid "There are no ROIs recorded for this video."
 msgstr "Não há ROIs registradas para este vídeo."
 
-#: src/zebtrack/core/project/asset_manager.py:738
-#| msgid "Remove the trajectory generated for this video?"
+# | msgid "Remove the trajectory generated for this video?"
+#: src/zebtrack/core/project/asset_manager.py:730
 msgid "There is no trajectory recorded for this video."
 msgstr "Não há trajetória registrada para este vídeo."
 
-#: src/zebtrack/core/project/asset_manager.py:741
+#: src/zebtrack/core/project/asset_manager.py:733
 #, python-brace-format
 msgid "There is no {asset} recorded for this video."
 msgstr "Não há {asset} registrado para este vídeo."
 
-#: src/zebtrack/core/project/asset_manager.py:745
-#| msgid "There were no unified reports to delete."
+# | msgid "There were no unified reports to delete."
+#: src/zebtrack/core/project/asset_manager.py:737
 msgid "There are no reports or summaries to remove."
 msgstr "Não há relatórios ou sumários para remover."
 
-#: src/zebtrack/core/project/asset_manager.py:750
-#| msgid "Remove the reports and summaries associated with this video?"
+# | msgid "Remove the reports and summaries associated with this video?"
+#: src/zebtrack/core/project/asset_manager.py:741
 msgid "Remove the reports and summaries before deleting the video."
 msgstr "Remova relatórios e sumários antes de excluir o vídeo."
 
-#: src/zebtrack/core/project/asset_manager.py:759
+#: src/zebtrack/core/project/asset_manager.py:749
 msgid ""
 "Remove the arena, the ROIs and the trajectory before deleting the video from"
 " the project."
@@ -2038,8 +2038,8 @@ msgstr ""
 "Por favor, verifique as permissões da pasta e se o caminho é válido."
 
 # | msgid "Remove video from project"
+# | msgid "No video found in the project"
 #: src/zebtrack/core/project/project_manager.py:829
-#| msgid "No video found in the project"
 msgid "Video not found in the project."
 msgstr "Vídeo não encontrado no projeto."
 
@@ -2056,44 +2056,43 @@ msgstr ""
 "\n"
 "Para usar múltiplos animais por aquário, altere o método de detecção de animais para 'seg' (segmentação) nas configurações."
 
+# | msgid "Default?"
 #: src/zebtrack/core/project/project_workflow_service.py:1184
-#| msgid "Default?"
 msgid "Default"
 msgstr "Padrão"
 
+# | msgid "Zone saved successfully."
 #: src/zebtrack/core/project/project_workflow_service.py:1328
-#| msgid "Zone saved successfully."
 msgid "🎉 Project created successfully!"
 msgstr "🎉 Projeto criado com sucesso!"
 
+# | msgid "OpenVINO: {status}"
 #: src/zebtrack/core/project/project_workflow_service.py:1330
-#, python-brace-format
-#| msgid "OpenVINO: {status}"
 msgid "📊 Video status:"
 msgstr "📊 Status dos vídeos:"
 
 # | msgid "Failure: {error}"
+# | msgid "❌ Failures: {count}"
 #: src/zebtrack/core/project/project_workflow_service.py:1331
 #, python-brace-format
-#| msgid "❌ Failures: {count}"
 msgid "  • Total videos: {count}"
 msgstr "  • Total de vídeos: {count}"
 
 # | msgid "- Frames analysed: {count}"
+# | msgid ""
+# | "\" \"\n"
+# | "\" \"✅ Finished: {count}"
 #: src/zebtrack/core/project/project_workflow_service.py:1332
 #, python-brace-format
-#| msgid ""
-#| "\" \"\n"
-#| "\" \"✅ Finished: {count}"
 msgid "  • With arena defined: {count}"
 msgstr "  • Com arena definida: {count}"
 
 # | msgid "- Frames analysed: {count}"
+# | msgid ""
+# | "\" \"\n"
+# | "\" \"✅ Finished: {count}"
 #: src/zebtrack/core/project/project_workflow_service.py:1333
 #, python-brace-format
-#| msgid ""
-#| "\" \"\n"
-#| "\" \"✅ Finished: {count}"
 msgid "  • With ROIs defined: {count}"
 msgstr "  • Com ROIs definidas: {count}"
 
@@ -2103,9 +2102,9 @@ msgid "  • With trajectory ready: {count}"
 msgstr "  • Com trajetória pronta: {count}"
 
 # | msgid "Preparing video processing..."
+# | msgid "Recording and Processing Controls"
 #: src/zebtrack/core/project/project_workflow_service.py:1335
 #, python-brace-format
-#| msgid "Recording and Processing Controls"
 msgid "  • Pending processing: {count}"
 msgstr "  • Pendentes de processamento: {count}"
 
@@ -2154,17 +2153,17 @@ msgstr "   - Clique duas vezes, ou use '{button}', para revisar"
 msgid "📹 Load Frame from the Selected Video"
 msgstr "📹 Carregar Frame do Vídeo Selecionado"
 
+# | msgid "Start drawing the arena and the ROIs for this video."
 #: src/zebtrack/core/project/project_workflow_service.py:1353
-#| msgid "Start drawing the arena and the ROIs for this video."
 msgid "   - Adjust the arena and the ROIs as needed"
 msgstr "   - Ajuste arena e ROIs conforme necessário"
 
 # | msgid "Processing and Reports"
 # | msgid "Processing Mode:"
 # | msgid "Processing Videos"
+# | msgid "Process Pending Videos..."
 #: src/zebtrack/core/project/project_workflow_service.py:1358
 #, python-brace-format
-#| msgid "Process Pending Videos..."
 msgid "{step}. Process the pending videos"
 msgstr "{step}. Processar vídeos pendentes"
 
@@ -2173,8 +2172,8 @@ msgstr "{step}. Processar vídeos pendentes"
 msgid "Main Control"
 msgstr "Controle Principal"
 
+# | msgid "Processing Interval (N):"
 #: src/zebtrack/core/project/project_workflow_service.py:1360
-#| msgid "Processing Interval (N):"
 msgid "   - Confirm the processing intervals"
 msgstr "   - Confirme os intervalos de processamento"
 
@@ -2194,9 +2193,9 @@ msgstr "Processar Vídeos Pendentes..."
 # | msgid "Loading model system..."
 # | msgid "Error Loading Model"
 # | msgid "Error opening folder"
+# | msgid "Error Generating Reports"
 #: src/zebtrack/core/project/project_workflow_service.py:1366
 #, python-brace-format
-#| msgid "Error Generating Reports"
 msgid "{step}. Generate reports"
 msgstr "{step}. Gerar relatórios"
 
@@ -2209,8 +2208,8 @@ msgstr "Processamento e Relatórios"
 msgid "   - Browse the hierarchy of groups, days and subjects"
 msgstr "   - Navegue pela hierarquia de grupos, dias e sujeitos"
 
+# | msgid "Generating the unified report..."
 #: src/zebtrack/core/project/project_workflow_service.py:1369
-#| msgid "Generating the unified report..."
 msgid "   - Generate individual or unified reports as needed"
 msgstr "   - Gere relatórios individuais ou unificados conforme necessário"
 
@@ -2222,12 +2221,12 @@ msgstr "💡 Dicas:"
 msgid "  • Use the search box to locate videos quickly"
 msgstr "  • Use a busca para localizar vídeos rapidamente"
 
-#: src/zebtrack/core/project/project_workflow_service.py:1375
+#: src/zebtrack/core/project/project_workflow_service.py:1374
 msgid "  • The status symbols show which arenas, ROIs and trajectories exist"
 msgstr ""
 "  • Os símbolos de status indicam arenas, ROIs e trajetórias disponíveis"
 
-#: src/zebtrack/core/project/project_workflow_service.py:1377
+#: src/zebtrack/core/project/project_workflow_service.py:1375
 msgid "  • Adjust the zones before processing if necessary"
 msgstr "  • Ajuste zonas antes de processar se necessário"
 
@@ -2240,9 +2239,8 @@ msgid "Invalid arena: at least 3 points are required."
 msgstr "Arena inválida: é necessário ao menos 3 pontos."
 
 # | msgid "Action unavailable"
+# | msgid "{count} ROI(s) available."
 #: src/zebtrack/core/project/roi_template_manager.py:115
-#, python-brace-format
-#| msgid "{count} ROI(s) available."
 msgid "No ROI available to save."
 msgstr "Nenhuma ROI disponível para salvar."
 
@@ -2250,34 +2248,34 @@ msgstr "Nenhuma ROI disponível para salvar."
 msgid "A project path is required to save a template into the project."
 msgstr "Caminho do projeto é necessário para salvar template no projeto."
 
-#: src/zebtrack/core/project/roi_template_manager.py:129
+#: src/zebtrack/core/project/roi_template_manager.py:128
 msgid "A custom path is required for save_location='custom'."
 msgstr "Caminho personalizado é necessário para save_location='custom'."
 
-#: src/zebtrack/core/project/roi_template_manager.py:155
+#: src/zebtrack/core/project/roi_template_manager.py:153
 #, python-brace-format
 msgid "Template '{name}' already exists in {directory}."
 msgstr "Template '{name}' já existe em {directory}."
 
 # | msgid "Could not connect to the Arduino on port {port}."
 # | msgid "Could not open the video: {path}"
-#: src/zebtrack/core/project/roi_template_manager.py:233
+# | msgid "Could not open: {path}"
+#: src/zebtrack/core/project/roi_template_manager.py:230
 #, python-brace-format
-#| msgid "Could not open: {path}"
 msgid "Template not found: {path}"
 msgstr "Template não encontrado: {path}"
 
-#: src/zebtrack/core/project/roi_template_manager.py:253
+# | msgid "Inference failed on frame {frame}: {error}"
+#: src/zebtrack/core/project/roi_template_manager.py:249
 #, python-brace-format
-#| msgid "Inference failed on frame {frame}: {error}"
 msgid "Invalid JSON in {path}: {error}"
 msgstr "JSON inválido em {path}: {error}"
 
 # | msgid "Invalid selection"
 # | msgid "Invalid target"
-#: src/zebtrack/core/project/roi_template_manager.py:260
+# | msgid "Invalid template"
+#: src/zebtrack/core/project/roi_template_manager.py:256
 #, python-brace-format
-#| msgid "Invalid template"
 msgid "Invalid template in {path}: {error}"
 msgstr "Template inválido em {path}: {error}"
 
@@ -2285,8 +2283,8 @@ msgstr "Template inválido em {path}: {error}"
 # | msgid "Validation finished"
 # | msgid "✓ Drawing Finished"
 # | msgid "Processing Finished"
+# | msgid "Zones not finalised"
 #: src/zebtrack/core/project/zone_manager.py:587
-#| msgid "Zones not finalised"
 msgid "Project data not initialised"
 msgstr "Dados do projeto não inicializados"
 
@@ -2604,6 +2602,358 @@ msgstr "Configuração da câmera indisponível para iniciar a gravação."
 msgid "Could not start the recording."
 msgstr "Não foi possível iniciar a gravação."
 
+#: src/zebtrack/core/services/arduino_ack_semantics.py:84
+#, python-brace-format
+msgid ""
+"{roi} enter → token {token} → the firmware replied \"{ack}\", but an enter "
+"should switch it ON"
+msgstr ""
+"{roi} entrada → token {token} → o firmware respondeu \"{ack}\", mas uma "
+"entrada deveria ligar"
+
+#: src/zebtrack/core/services/arduino_ack_semantics.py:88
+#, python-brace-format
+msgid ""
+"{roi} exit → token {token} → the firmware replied \"{ack}\", but an exit "
+"should switch it OFF"
+msgstr ""
+"{roi} saída → token {token} → o firmware respondeu \"{ack}\", mas uma saída "
+"deveria desligar"
+
+#: src/zebtrack/core/services/arduino_bindings.py:54
+#, python-brace-format
+msgid "token {token}: enter for {enter_rois} and exit for {exit_rois}"
+msgstr "token {token}: entrada de {enter_rois} e saída de {exit_rois}"
+
+#: src/zebtrack/core/services/detector_service.py:132
+#, python-brace-format
+msgid "No {method} model is available for animal detection."
+msgstr "Nenhum modelo {method} está disponível para detecção de animais."
+
+# | msgid "Could not connect to the Arduino on port {port}."
+# | msgid "Could not open the video: {path}"
+#: src/zebtrack/core/services/detector_service.py:141
+#, python-brace-format
+msgid "Could not find the weight matching the path: {path}"
+msgstr "Não foi possível encontrar o peso correspondente ao caminho: {path}"
+
+# | msgid "" "The OpenVINO model directory does not contain the required .xml
+# | files. " "Please reconvert the model."
+#: src/zebtrack/core/services/detector_service.py:156
+msgid ""
+"OpenVINO model path not found or invalid. Please convert the model first."
+msgstr ""
+"Caminho do modelo OpenVINO não encontrado ou inválido. Por favor, converta o"
+" modelo primeiro."
+
+#: src/zebtrack/core/services/detector_service.py:165
+msgid "YOLO .pt model path not found or invalid."
+msgstr "Caminho do modelo YOLO .pt não encontrado ou inválido."
+
+# | msgid "Error Saving to Project"
+# | msgid "Save to Project"
+#: src/zebtrack/core/services/model_override_service.py:158
+#: src/zebtrack/core/services/model_override_service.py:354
+#: src/zebtrack/ui/components/dialog_manager.py:444 src/zebtrack/ui/gui.py:576
+msgid "No Project"
+msgstr "Nenhum Projeto"
+
+# | msgid "Open a project before adjusting the specific calibration."
+#: src/zebtrack/core/services/model_override_service.py:159
+msgid "Open a project before copying the global settings."
+msgstr "Abra um projeto antes de copiar configurações globais."
+
+# | msgid "The detector settings were saved for this project."
+# | msgid "The current global settings have been copied into this project."
+#: src/zebtrack/core/services/model_override_service.py:195
+msgid "Global settings applied to the project."
+msgstr "Configurações globais aplicadas ao projeto."
+
+# | msgid "The detector settings were saved for this project."
+# | msgid "The current global settings have been copied into this project."
+#: src/zebtrack/core/services/model_override_service.py:312
+#, python-brace-format
+msgid "Global settings applied to the project at {path}."
+msgstr "Configurações globais aplicadas ao projeto em {path}."
+
+# | msgid "Open a project before adjusting the specific calibration."
+#: src/zebtrack/core/services/model_override_service.py:355
+msgid "Open a project before saving calibration overrides."
+msgstr "Abra um projeto antes de salvar overrides de calibração."
+
+#: src/zebtrack/core/services/model_override_service.py:372
+msgid "Project overrides updated from this calibration."
+msgstr "Overrides do projeto atualizados a partir desta calibração."
+
+# | msgid "No video selected"
+# | msgid "No active weight selected."
+#: src/zebtrack/core/services/model_service.py:115
+msgid "No weight selected."
+msgstr "Nenhum peso selecionado."
+
+# | msgid "Video not found"
+# | msgid "Weight not found"
+#: src/zebtrack/core/services/model_service.py:119
+msgid "Weight details not found."
+msgstr "Detalhes do peso não encontrados."
+
+#: src/zebtrack/core/services/model_service.py:124
+msgid "The OpenVINO model is ready."
+msgstr "O modelo OpenVINO está pronto."
+
+# | msgid "Conversion to OpenVINO failed."
+#: src/zebtrack/core/services/model_service.py:126
+msgid "Conversion to OpenVINO is required."
+msgstr "Necessita de conversão para OpenVINO."
+
+# | msgid "OpenVINO caches deleted"
+#: src/zebtrack/core/services/model_service.py:128
+msgid "OpenVINO is disabled."
+msgstr "O OpenVINO está desativado."
+
+# | msgid "Video not found"
+# | msgid "ROI '{name}' not found."
+# | msgid "ROI template '{name}' not found in the project."
+#: src/zebtrack/core/services/model_service.py:491
+#, python-brace-format
+msgid "Weight '{name}' not found in the configuration."
+msgstr "Peso '{name}' não encontrado na configuração."
+
+# | msgid "Could not save config.local.yaml: {error}"
+# | msgid "Could not save the file: {error}"
+#: src/zebtrack/core/services/weight_manager.py:672
+#, python-brace-format
+msgid "Could not save the weights configuration file: {error}"
+msgstr "Não foi possível salvar o arquivo de configuração de pesos: {error}"
+
+#: src/zebtrack/core/services/weight_manager.py:875
+#, python-brace-format
+msgid ""
+"A weight file named '{name}' already exists in the weights directory.\n"
+"\n"
+"Existing file: {existing}\n"
+"File being added: {incoming}\n"
+"\n"
+"Please rename one of them before adding."
+msgstr ""
+"Um arquivo de peso com o nome '{name}' já existe no diretório de pesos.\n"
+"\n"
+"Arquivo existente: {existing}\n"
+"Arquivo sendo adicionado: {incoming}\n"
+"\n"
+"Por favor, renomeie um dos arquivos antes de adicionar."
+
+# | msgid "Failed to update the project settings: {error}"
+# | msgid "Failed to start the recording: {error}"
+# | msgid "Failed to start the analysis: {error}"
+#: src/zebtrack/core/services/weight_manager.py:897
+#, python-brace-format
+msgid "Failed to copy the external weight file: {error}"
+msgstr "Falha ao copiar o arquivo de peso externo: {error}"
+
+# | msgid "Could not connect to the Arduino on port {port}."
+# | msgid "Could not open the video: {path}"
+# | msgid "Could not open: {path}"
+# | msgid "Template not found: {path}"
+#: src/zebtrack/core/services/weight_manager.py:902
+#, python-brace-format
+msgid "The model file was not found: {path}"
+msgstr "O arquivo de modelo não foi encontrado: {path}"
+
+#: src/zebtrack/core/services/weight_manager.py:907
+#, python-brace-format
+msgid "The model path is invalid or inaccessible: {error}"
+msgstr "O caminho do modelo é inválido ou inacessível: {error}"
+
+# | msgid "Template '{name}' applied to the video being edited."
+# | msgid "Template '{name}' already exists."
+#: src/zebtrack/core/services/weight_manager.py:914
+#, python-brace-format
+msgid "A weight named '{name}' already exists."
+msgstr "Um peso com o nome '{name}' já existe."
+
+# | msgid "Video not found"
+# | msgid "ROI '{name}' not found."
+#: src/zebtrack/core/services/weight_manager.py:979
+#, python-brace-format
+msgid "Weight '{name}' not found."
+msgstr "Peso '{name}' não encontrado."
+
+#: src/zebtrack/core/services/weight_manager.py:984
+msgid "You cannot delete the last available weight."
+msgstr "Você não pode excluir o último peso disponível."
+
+#: src/zebtrack/core/services/weight_manager.py:1480
+msgid "OpenVINO model .xml file not found after the conversion."
+msgstr "Arquivo .xml do modelo OpenVINO não encontrado após a conversão."
+
+#: src/zebtrack/core/services/weight_manager.py:1621
+msgid "INT8 model .xml file not found after the conversion."
+msgstr "Arquivo .xml do modelo INT8 não encontrado após conversão."
+
+# | msgid "Live camera (idx {index})"
+#: src/zebtrack/core/services/wizard_service.py:69
+msgid "Invalid camera index"
+msgstr "Índice de câmera inválido"
+
+# | msgid "The {label} must be between 0 and 1."
+# | msgid "The number of zones must be between 2 and 10"
+#: src/zebtrack/core/services/wizard_service.py:72
+msgid "The camera index must be between 0 and 10"
+msgstr "Índice de câmera deve estar entre 0 e 10"
+
+#: src/zebtrack/core/services/wizard_service.py:80
+msgid "The Arduino port must be specified when Arduino is enabled"
+msgstr "Porta Arduino deve ser especificada quando Arduino está ativado"
+
+# | msgid "External trigger mode requires a configured Arduino."
+#: src/zebtrack/core/services/wizard_service.py:88
+msgid "External trigger mode requires Arduino to be enabled"
+msgstr "Modo de trigger externo requer Arduino ativado"
+
+# | msgid "The processing interval must be greater than 0."
+#: src/zebtrack/core/services/wizard_service.py:95
+msgid "The recording duration must be greater than zero"
+msgstr "Duração de gravação deve ser maior que zero"
+
+#: src/zebtrack/core/services/wizard_service.py:99
+msgid "The recording duration cannot exceed 2 hours (7200 seconds)"
+msgstr "Duração de gravação não pode exceder 2 horas (7200 segundos)"
+
+# | msgid "The {label} must be between 0 and 1."
+# | msgid "The number of zones must be between 2 and 10"
+#: src/zebtrack/core/services/wizard_service.py:106
+msgid "The countdown must be between 1 and 60 seconds"
+msgstr "Contagem regressiva deve estar entre 1 e 60 segundos"
+
+#: src/zebtrack/core/services/wizard_service.py:376
+#, python-brace-format
+msgid "{name} [index {index}] - {resolution}"
+msgstr "{name} [índice {index}] - {resolution}"
+
+#: src/zebtrack/core/services/wizard_service.py:383
+#, python-brace-format
+msgid "Camera #{number} [index {index}] - {resolution}"
+msgstr "Câmera #{number} [índice {index}] - {resolution}"
+
+# | msgid "The {label} must be between 0 and 1."
+# | msgid "The number of zones must be between 2 and 10"
+#: src/zebtrack/core/services/wizard_service.py:680
+msgid "The number of days must be between 1 and 365"
+msgstr "Número de dias deve estar entre 1 e 365"
+
+# | msgid "The {label} must be between 0 and 1."
+# | msgid "The number of zones must be between 2 and 10"
+#: src/zebtrack/core/services/wizard_service.py:685
+msgid "The number of groups must be between 1 and 6"
+msgstr "Número de grupos deve estar entre 1 e 6"
+
+# | msgid "The {label} must be between 0 and 1."
+# | msgid "The number of zones must be between 2 and 10"
+#: src/zebtrack/core/services/wizard_service.py:731
+msgid "The number of aquariums must be between 1 and 100"
+msgstr "Número de aquários deve estar entre 1 e 100"
+
+# | msgid "The {label} must be between 0 and 1."
+# | msgid "The number of zones must be between 2 and 10"
+#: src/zebtrack/core/services/wizard_service.py:738
+msgid "The number of animals per aquarium must be between 1 and 100"
+msgstr "Número de animais por aquário deve estar entre 1 e 100"
+
+# | msgid "FPS must be greater than 0."
+# | msgid "Maximum Distance must be greater than 0."
+#: src/zebtrack/core/services/wizard_service.py:744
+#: src/zebtrack/core/services/wizard_service.py:824
+msgid "The aquarium width must be greater than zero"
+msgstr "Largura do aquário deve ser maior que zero"
+
+# | msgid "FPS must be greater than 0."
+# | msgid "Maximum Distance must be greater than 0."
+#: src/zebtrack/core/services/wizard_service.py:748
+#: src/zebtrack/core/services/wizard_service.py:828
+msgid "The aquarium height must be greater than zero"
+msgstr "Altura do aquário deve ser maior que zero"
+
+# | msgid "The {label} must be between 0 and 1."
+# | msgid "Thigmotaxis distance must be between 0.1 and 10.0 cm"
+#: src/zebtrack/core/services/wizard_service.py:757
+msgid "The analysis interval must be between 1 and 30 frames"
+msgstr "Intervalo de análise deve estar entre 1 e 30 frames"
+
+# | msgid "The processing interval must be greater than 0."
+# | msgid "The display interval must be greater than 0."
+#: src/zebtrack/core/services/wizard_service.py:761
+msgid "The display interval must be between 1 and 30 frames"
+msgstr "Intervalo de exibição deve estar entre 1 e 30 frames"
+
+#: src/zebtrack/core/services/wizard_service.py:774
+#, python-brace-format
+msgid "Invalid ROI inclusion rule. It must be one of: {rules}"
+msgstr "Regra de inclusão ROI inválida. Deve ser uma de: {rules}"
+
+# | msgid "The number of frames must be a whole number."
+#: src/zebtrack/core/services/wizard_service.py:802
+msgid "The number of aquariums must be at least 1"
+msgstr "O número de aquários deve ser pelo menos 1"
+
+#: src/zebtrack/core/services/wizard_service.py:805
+msgid "The number of aquariums cannot exceed 100"
+msgstr "O número de aquários não pode exceder 100"
+
+# | msgid "The number of frames must be a whole number."
+#: src/zebtrack/core/services/wizard_service.py:812
+msgid "The number of animals per aquarium must be at least 1"
+msgstr "O número de animais por aquário deve ser pelo menos 1"
+
+#: src/zebtrack/core/services/wizard_service.py:818
+msgid "The number of animals per aquarium cannot exceed 100"
+msgstr "O número de animais por aquário não pode exceder 100"
+
+# | msgid "Invalid Configuration"
+#: src/zebtrack/core/services/wizard_service.py:874
+msgid "Invalid multi-aquarium configuration"
+msgstr "Configuração multi-aquário inválida"
+
+#: src/zebtrack/core/services/wizard_service.py:896
+msgid "Exactly 2 aquariums must be configured"
+msgstr "Exatamente 2 aquários devem ser configurados"
+
+#: src/zebtrack/core/services/wizard_service.py:920
+#, python-brace-format
+msgid ""
+"Aquarium {index} has a very small area ({area} px²). It may affect detection"
+" accuracy."
+msgstr ""
+"Aquário {index} tem área muito pequena ({area} px²). Pode afetar precisão da"
+" detecção."
+
+#: src/zebtrack/core/services/wizard_service.py:949
+msgid ""
+"The aquarium polygons appear to overlap. This may cause duplicate "
+"detections."
+msgstr ""
+"Polígonos dos aquários parecem se sobrepor. Isso pode causar detecções "
+"duplicadas."
+
+#: src/zebtrack/core/services/wizard_service.py:965
+#, python-brace-format
+msgid "The regex does not capture the expected fields: {fields}"
+msgstr "Regex não captura campos esperados: {fields}"
+
+#: src/zebtrack/core/services/wizard_service.py:980
+#, python-brace-format
+msgid "The regex does not match these files: {files}"
+msgstr "Regex não corresponde a arquivos: {files}"
+
+# | msgid "Invalid selection"
+# | msgid "Invalid target"
+# | msgid "Invalid template"
+# | msgid "Invalid template in {path}: {error}"
+#: src/zebtrack/core/services/wizard_service.py:987
+#, python-brace-format
+msgid "Invalid regex pattern: {error}"
+msgstr "Padrão regex inválido: {error}"
+
 #: src/zebtrack/io/arduino_manager.py:140
 #, python-brace-format
 msgid "Could not connect to the Arduino on port {port}."
@@ -2660,12 +3010,6 @@ msgstr "Nenhuma tarefa em andamento."
 #, python-brace-format
 msgid "Analysis configuration: {value}"
 msgstr "Configuração de análise: {value}"
-
-# | msgid "Error Saving to Project"
-# | msgid "Save to Project"
-#: src/zebtrack/ui/components/dialog_manager.py:444 src/zebtrack/ui/gui.py:576
-msgid "No Project"
-msgstr "Nenhum Projeto"
 
 #: src/zebtrack/ui/components/dialog_manager.py:445 src/zebtrack/ui/gui.py:577
 msgid "Open a project before adjusting the specific calibration."

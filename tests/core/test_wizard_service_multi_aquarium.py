@@ -56,7 +56,7 @@ class TestValidateMultiAquariumConfig:
         is_valid, errors, _ = WizardService.validate_multi_aquarium_config(config)
 
         assert is_valid is False
-        assert any("2 aquários" in e for e in errors)
+        assert any("2 aquariums" in e for e in errors)
 
     def test_validate_only_one_aquarium(self):
         """Test validation fails with only one aquarium."""
@@ -72,7 +72,7 @@ class TestValidateMultiAquariumConfig:
         is_valid, errors, _ = WizardService.validate_multi_aquarium_config(config)
 
         assert is_valid is False
-        assert any("2 aquários" in e for e in errors)
+        assert any("2 aquariums" in e for e in errors)
 
     def test_validate_invalid_regex_pattern(self):
         """Test validation fails for invalid regex."""
@@ -91,7 +91,7 @@ class TestValidateMultiAquariumConfig:
         is_valid, errors, _ = WizardService.validate_multi_aquarium_config(config)
 
         assert is_valid is False
-        assert any("regex inválido" in e.lower() for e in errors)
+        assert any("invalid regex pattern" in e.lower() for e in errors)
 
     def test_validate_regex_missing_groups(self):
         """Test validation fails when regex doesn't capture expected fields."""
@@ -110,7 +110,7 @@ class TestValidateMultiAquariumConfig:
         is_valid, errors, _ = WizardService.validate_multi_aquarium_config(config)
 
         assert is_valid is False
-        assert any("não captura" in e for e in errors)
+        assert any("does not capture" in e for e in errors)
 
     def test_validate_regex_with_correct_groups(self):
         """Test validation passes when regex has correct groups."""
@@ -170,7 +170,7 @@ class TestValidateMultiAquariumConfig:
         is_valid, errors, _ = WizardService.validate_multi_aquarium_config(config, sample_filenames)
 
         assert is_valid is False
-        assert any("não corresponde" in e for e in errors)
+        assert any("does not match" in e for e in errors)
 
     def test_validate_with_empty_regex(self):
         """Test validation passes with empty regex pattern."""
@@ -209,7 +209,7 @@ class TestValidateMultiAquariumConfig:
 
         # Should fail because Treatment doesn't match
         assert is_valid is False
-        assert any("não corresponde" in e for e in errors)
+        assert any("does not match" in e for e in errors)
 
 
 class TestValidateMultiAquariumConfigEdgeCases:
@@ -240,7 +240,7 @@ class TestValidateMultiAquariumConfigEdgeCases:
         is_valid, errors, _ = WizardService.validate_multi_aquarium_config(config)
 
         assert is_valid is False
-        assert any("2 aquários" in e for e in errors)
+        assert any("2 aquariums" in e for e in errors)
 
     def test_validate_with_none_sample_filenames(self):
         """Test validation works with None sample filenames."""

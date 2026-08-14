@@ -127,7 +127,7 @@ def test_wm_cannot_delete_last_weight(wm_setup):
     # Attempt to delete the last weight - should raise ValueError
     import pytest
 
-    with pytest.raises(ValueError, match="não pode excluir o último peso"):
+    with pytest.raises(ValueError, match="cannot delete the last available weight"):
         manager.delete_weight("default_weight.pt")
 
     # Check that it was not deleted

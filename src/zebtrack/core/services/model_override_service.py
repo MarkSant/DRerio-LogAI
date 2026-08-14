@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING, Any
 
 import structlog
 
+from zebtrack.i18n import _
 from zebtrack.ui import payloads
 
 if TYPE_CHECKING:
@@ -154,8 +155,8 @@ class ModelOverrideService:
             self._publish_event(
                 UIEvents.UI_SHOW_WARNING,
                 payloads.MessagePayload(
-                    title="Nenhum Projeto",
-                    message="Abra um projeto antes de copiar configurações globais.",
+                    title=_("No Project"),
+                    message=_("Open a project before copying the global settings."),
                 ),
             )
             return None
@@ -191,7 +192,7 @@ class ModelOverrideService:
         if apply_runtime_callback is not None:
             apply_runtime_callback(resolved_weight, resolved_openvino)
 
-        message = "Configurações globais aplicadas ao projeto."
+        message = _("Global settings applied to the project.")
         self._publish_event(UIEvents.UI_SET_STATUS, payloads.StatusPayload(message=message))
 
         if refresh_callback:
@@ -308,7 +309,7 @@ class ModelOverrideService:
         self._publish_event(
             UIEvents.UI_SET_STATUS,
             payloads.StatusPayload(
-                message=f"Configurações globais aplicadas ao projeto em {target}."
+                message=_("Global settings applied to the project at {path}.").format(path=target)
             ),
         )
         return resolved_weight, use_openvino
@@ -348,8 +349,8 @@ class ModelOverrideService:
             self._publish_event(
                 UIEvents.UI_SHOW_WARNING,
                 payloads.MessagePayload(
-                    title="Nenhum Projeto",
-                    message="Abra um projeto antes de salvar overrides de calibração.",
+                    title=_("No Project"),
+                    message=_("Open a project before saving calibration overrides."),
                 ),
             )
             return None
@@ -366,7 +367,7 @@ class ModelOverrideService:
             use_openvino_setter=lambda v: None,  # Will be set by caller
         )
 
-        message = "Overrides do projeto atualizados a partir desta calibração."
+        message = _("Project overrides updated from this calibration.")
         self._publish_event(UIEvents.UI_SET_STATUS, payloads.StatusPayload(message=message))
 
         if refresh_callback:

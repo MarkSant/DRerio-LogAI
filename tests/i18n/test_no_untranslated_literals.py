@@ -34,6 +34,7 @@ MIGRATED_PATHS: tuple[str, ...] = (
     "src/zebtrack/core/application_bootstrapper.py",
     "src/zebtrack/core/project",
     "src/zebtrack/core/recording",
+    "src/zebtrack/core/services",
     "src/zebtrack/i18n.py",
     "src/zebtrack/io",
     "src/zebtrack/plugins",

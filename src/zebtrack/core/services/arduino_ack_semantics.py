@@ -23,6 +23,8 @@ from __future__ import annotations
 import re
 from typing import Literal
 
+from zebtrack.i18n import _
+
 AckState = Literal["on", "off"]
 
 # Word-anchored so "ON" does not match inside "COMMAND" and, crucially, so
@@ -74,9 +76,15 @@ def edge_ack_is_inverted(edge: str | None, ack_text: str | None) -> bool:
 
 def describe_inversion(roi: str | None, edge: str | None, token: int | None, ack_text: str) -> str:
     """Human-readable one-liner for logs and the bindings panel."""
-    expected = "ligar" if edge == "enter" else "desligar"
-    edge_pt = "entrada" if edge == "enter" else "saída"
-    return (
-        f"{roi} {edge_pt} → token {token} → o firmware respondeu "
-        f'"{ack_text}", mas uma {edge_pt} deveria {expected}'
-    )
+    # Two COMPLETE sentences chosen by `edge` instead of splicing the same
+    # noun into a template twice. The Portuguese got away with it because
+    # "entrada" and "saída" are both feminine; no other language owes us that.
+    if edge == "enter":
+        return _(
+            '{roi} enter → token {token} → the firmware replied "{ack}", '
+            "but an enter should switch it ON"
+        ).format(roi=roi, token=token, ack=ack_text)
+    return _(
+        '{roi} exit → token {token} → the firmware replied "{ack}", '
+        "but an exit should switch it OFF"
+    ).format(roi=roi, token=token, ack=ack_text)

@@ -45,7 +45,9 @@ no topo do ratchet; depois, atualizar a seção "A migração" em
       SEIS rótulos de aba/botão retipados à mão, dois deles já errados; agora
       interpolam o msgid do próprio widget. Mais um `_` descarte quebrando o
       gettext (asset_manager), pego só pelo mypy.
-- [ ] Lote 3c: `core/services/**` (61 em 7 arquivos).
+- [x] Lote 3c: `core/services/**` a zero e no ratchet. Removida uma ramificação
+      pelo TEXTO da exceção em `detector_service._validate_range` — traduzir a
+      mensagem teria quebrado o `if` em silêncio, no sentido pior.
 - [ ] Lote 3d: `core/video/**`, `core/detection/**`, `core/viewmodels/**` (30 em
       10 arquivos), incluindo simplificar o consumidor de `progress_notifier`
       para só "step:" depois de migrar o produtor.

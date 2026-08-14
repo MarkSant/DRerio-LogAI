@@ -71,8 +71,8 @@ class TestFriendlyNames:
 
         assert len(cameras) == 2
         assert cameras[0]["friendly_name"] == ""
-        assert "Câmera #1" in cameras[0]["description"]
-        assert "Câmera #2" in cameras[1]["description"]
+        assert "Camera #1" in cameras[0]["description"]
+        assert "Camera #2" in cameras[1]["description"]
 
     def test_dedupe_identical_dshow_names(self):
         """Two devices with identical DirectShow names get (#2), (#3) suffixes."""

@@ -146,7 +146,7 @@ class TestDetectorService(unittest.TestCase):
         self.assertFalse(success)
         self.assertIsNotNone(error)
         assert error is not None
-        self.assertIn("Nenhum modelo", error)
+        self.assertIn("No det model is available", error)
 
     def test_initialize_detector_weight_not_found(self):
         """Test detector initialization fails when weight not found."""
@@ -165,7 +165,7 @@ class TestDetectorService(unittest.TestCase):
         self.assertFalse(success)
         self.assertIsNotNone(error)
         assert error is not None
-        self.assertIn("peso correspondente", error)
+        self.assertIn("weight matching the path", error)
 
     @patch("zebtrack.core.services.detector_service.Detector")
     def test_initialize_detector_with_openvino(self, mock_detector_class):

@@ -286,7 +286,7 @@ class TestModelInspection:
         model_service = ModelService(weight_manager)
 
         # Try to inspect non-existent model
-        with pytest.raises(ValueError, match="não encontrado"):
+        with pytest.raises(ValueError, match="not found in the configuration"):
             model_service.inspect_model("nonexistent.pt")
 
 

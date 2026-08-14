@@ -9,7 +9,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: DRerio LogAI VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-08-13 14:19-0300\n"
+"POT-Creation-Date: 2026-08-13 21:55-0300\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -1452,89 +1452,89 @@ msgstr ""
 msgid "Recommended, but the model is not converted. Use 'Diagnostics' to convert."
 msgstr ""
 
-#: src/zebtrack/core/project/asset_manager.py:108
+#: src/zebtrack/core/project/asset_manager.py:107
 msgid "Project not initialised for saving ROI templates."
 msgstr ""
 
-#: src/zebtrack/core/project/asset_manager.py:233
+#: src/zebtrack/core/project/asset_manager.py:231
 #: src/zebtrack/core/project/roi_template_manager.py:103
 msgid "The template name cannot be empty."
 msgstr ""
 
-#: src/zebtrack/core/project/asset_manager.py:236
+#: src/zebtrack/core/project/asset_manager.py:234
 msgid "Invalid zone data for saving the template."
 msgstr ""
 
-#: src/zebtrack/core/project/asset_manager.py:239
+#: src/zebtrack/core/project/asset_manager.py:237
 #: src/zebtrack/core/project/roi_template_manager.py:106
 msgid "Select at least the arena or the ROIs to save."
 msgstr ""
 
-#: src/zebtrack/core/project/asset_manager.py:247
+#: src/zebtrack/core/project/asset_manager.py:245
 #: src/zebtrack/core/project/project_manager.py:138
 msgid "Cannot save the template into the current project: no project loaded."
 msgstr ""
 
-#: src/zebtrack/core/project/asset_manager.py:261
+#: src/zebtrack/core/project/asset_manager.py:259
 #, python-brace-format
 msgid "Template '{name}' already exists."
 msgstr ""
 
-#: src/zebtrack/core/project/asset_manager.py:381
+#: src/zebtrack/core/project/asset_manager.py:378
 msgid "Invalid template file: the 'data' block is missing."
 msgstr ""
 
-#: src/zebtrack/core/project/asset_manager.py:439
+#: src/zebtrack/core/project/asset_manager.py:434
 msgid "The template file is not registered in the project."
 msgstr ""
 
-#: src/zebtrack/core/project/asset_manager.py:453
-#: src/zebtrack/core/project/asset_manager.py:487
+#: src/zebtrack/core/project/asset_manager.py:447
+#: src/zebtrack/core/project/asset_manager.py:479
 msgid "Invalid template content."
 msgstr ""
 
-#: src/zebtrack/core/project/asset_manager.py:459
+#: src/zebtrack/core/project/asset_manager.py:453
 #, python-brace-format
 msgid "ROI template '{name}' not found in the project."
 msgstr ""
 
-#: src/zebtrack/core/project/asset_manager.py:474
+#: src/zebtrack/core/project/asset_manager.py:468
 #, python-brace-format
 msgid "ROI template '{name}' not found for the requested context."
 msgstr ""
 
-#: src/zebtrack/core/project/asset_manager.py:726
+#: src/zebtrack/core/project/asset_manager.py:718
 msgid ""
 "Remove the reports and summaries before deleting the arena, the ROIs or "
 "the trajectory."
 msgstr ""
 
-#: src/zebtrack/core/project/asset_manager.py:736
+#: src/zebtrack/core/project/asset_manager.py:728
 msgid "There is no arena recorded for this video."
 msgstr ""
 
-#: src/zebtrack/core/project/asset_manager.py:737
+#: src/zebtrack/core/project/asset_manager.py:729
 msgid "There are no ROIs recorded for this video."
 msgstr ""
 
-#: src/zebtrack/core/project/asset_manager.py:738
+#: src/zebtrack/core/project/asset_manager.py:730
 msgid "There is no trajectory recorded for this video."
 msgstr ""
 
-#: src/zebtrack/core/project/asset_manager.py:741
+#: src/zebtrack/core/project/asset_manager.py:733
 #, python-brace-format
 msgid "There is no {asset} recorded for this video."
 msgstr ""
 
-#: src/zebtrack/core/project/asset_manager.py:745
+#: src/zebtrack/core/project/asset_manager.py:737
 msgid "There are no reports or summaries to remove."
 msgstr ""
 
-#: src/zebtrack/core/project/asset_manager.py:750
+#: src/zebtrack/core/project/asset_manager.py:741
 msgid "Remove the reports and summaries before deleting the video."
 msgstr ""
 
-#: src/zebtrack/core/project/asset_manager.py:759
+#: src/zebtrack/core/project/asset_manager.py:749
 msgid ""
 "Remove the arena, the ROIs and the trajectory before deleting the video "
 "from the project."
@@ -1761,11 +1761,11 @@ msgstr ""
 msgid "  • Use the search box to locate videos quickly"
 msgstr ""
 
-#: src/zebtrack/core/project/project_workflow_service.py:1375
+#: src/zebtrack/core/project/project_workflow_service.py:1374
 msgid "  • The status symbols show which arenas, ROIs and trajectories exist"
 msgstr ""
 
-#: src/zebtrack/core/project/project_workflow_service.py:1377
+#: src/zebtrack/core/project/project_workflow_service.py:1375
 msgid "  • Adjust the zones before processing if necessary"
 msgstr ""
 
@@ -1785,26 +1785,26 @@ msgstr ""
 msgid "A project path is required to save a template into the project."
 msgstr ""
 
-#: src/zebtrack/core/project/roi_template_manager.py:129
+#: src/zebtrack/core/project/roi_template_manager.py:128
 msgid "A custom path is required for save_location='custom'."
 msgstr ""
 
-#: src/zebtrack/core/project/roi_template_manager.py:155
+#: src/zebtrack/core/project/roi_template_manager.py:153
 #, python-brace-format
 msgid "Template '{name}' already exists in {directory}."
 msgstr ""
 
-#: src/zebtrack/core/project/roi_template_manager.py:233
+#: src/zebtrack/core/project/roi_template_manager.py:230
 #, python-brace-format
 msgid "Template not found: {path}"
 msgstr ""
 
-#: src/zebtrack/core/project/roi_template_manager.py:253
+#: src/zebtrack/core/project/roi_template_manager.py:249
 #, python-brace-format
 msgid "Invalid JSON in {path}: {error}"
 msgstr ""
 
-#: src/zebtrack/core/project/roi_template_manager.py:260
+#: src/zebtrack/core/project/roi_template_manager.py:256
 #, python-brace-format
 msgid "Invalid template in {path}: {error}"
 msgstr ""
@@ -2050,6 +2050,277 @@ msgstr ""
 msgid "Could not start the recording."
 msgstr ""
 
+#: src/zebtrack/core/services/arduino_ack_semantics.py:84
+#, python-brace-format
+msgid ""
+"{roi} enter → token {token} → the firmware replied \"{ack}\", but an "
+"enter should switch it ON"
+msgstr ""
+
+#: src/zebtrack/core/services/arduino_ack_semantics.py:88
+#, python-brace-format
+msgid ""
+"{roi} exit → token {token} → the firmware replied \"{ack}\", but an exit "
+"should switch it OFF"
+msgstr ""
+
+#: src/zebtrack/core/services/arduino_bindings.py:54
+#, python-brace-format
+msgid "token {token}: enter for {enter_rois} and exit for {exit_rois}"
+msgstr ""
+
+#: src/zebtrack/core/services/detector_service.py:132
+#, python-brace-format
+msgid "No {method} model is available for animal detection."
+msgstr ""
+
+#: src/zebtrack/core/services/detector_service.py:141
+#, python-brace-format
+msgid "Could not find the weight matching the path: {path}"
+msgstr ""
+
+#: src/zebtrack/core/services/detector_service.py:156
+msgid "OpenVINO model path not found or invalid. Please convert the model first."
+msgstr ""
+
+#: src/zebtrack/core/services/detector_service.py:165
+msgid "YOLO .pt model path not found or invalid."
+msgstr ""
+
+#: src/zebtrack/core/services/model_override_service.py:158
+#: src/zebtrack/core/services/model_override_service.py:354
+#: src/zebtrack/ui/components/dialog_manager.py:444 src/zebtrack/ui/gui.py:576
+msgid "No Project"
+msgstr ""
+
+#: src/zebtrack/core/services/model_override_service.py:159
+msgid "Open a project before copying the global settings."
+msgstr ""
+
+#: src/zebtrack/core/services/model_override_service.py:195
+msgid "Global settings applied to the project."
+msgstr ""
+
+#: src/zebtrack/core/services/model_override_service.py:312
+#, python-brace-format
+msgid "Global settings applied to the project at {path}."
+msgstr ""
+
+#: src/zebtrack/core/services/model_override_service.py:355
+msgid "Open a project before saving calibration overrides."
+msgstr ""
+
+#: src/zebtrack/core/services/model_override_service.py:372
+msgid "Project overrides updated from this calibration."
+msgstr ""
+
+#: src/zebtrack/core/services/model_service.py:115
+msgid "No weight selected."
+msgstr ""
+
+#: src/zebtrack/core/services/model_service.py:119
+msgid "Weight details not found."
+msgstr ""
+
+#: src/zebtrack/core/services/model_service.py:124
+msgid "The OpenVINO model is ready."
+msgstr ""
+
+#: src/zebtrack/core/services/model_service.py:126
+msgid "Conversion to OpenVINO is required."
+msgstr ""
+
+#: src/zebtrack/core/services/model_service.py:128
+msgid "OpenVINO is disabled."
+msgstr ""
+
+#: src/zebtrack/core/services/model_service.py:491
+#, python-brace-format
+msgid "Weight '{name}' not found in the configuration."
+msgstr ""
+
+#: src/zebtrack/core/services/weight_manager.py:672
+#, python-brace-format
+msgid "Could not save the weights configuration file: {error}"
+msgstr ""
+
+#: src/zebtrack/core/services/weight_manager.py:875
+#, python-brace-format
+msgid ""
+"A weight file named '{name}' already exists in the weights directory.\n"
+"\n"
+"Existing file: {existing}\n"
+"File being added: {incoming}\n"
+"\n"
+"Please rename one of them before adding."
+msgstr ""
+
+#: src/zebtrack/core/services/weight_manager.py:897
+#, python-brace-format
+msgid "Failed to copy the external weight file: {error}"
+msgstr ""
+
+#: src/zebtrack/core/services/weight_manager.py:902
+#, python-brace-format
+msgid "The model file was not found: {path}"
+msgstr ""
+
+#: src/zebtrack/core/services/weight_manager.py:907
+#, python-brace-format
+msgid "The model path is invalid or inaccessible: {error}"
+msgstr ""
+
+#: src/zebtrack/core/services/weight_manager.py:914
+#, python-brace-format
+msgid "A weight named '{name}' already exists."
+msgstr ""
+
+#: src/zebtrack/core/services/weight_manager.py:979
+#, python-brace-format
+msgid "Weight '{name}' not found."
+msgstr ""
+
+#: src/zebtrack/core/services/weight_manager.py:984
+msgid "You cannot delete the last available weight."
+msgstr ""
+
+#: src/zebtrack/core/services/weight_manager.py:1480
+msgid "OpenVINO model .xml file not found after the conversion."
+msgstr ""
+
+#: src/zebtrack/core/services/weight_manager.py:1621
+msgid "INT8 model .xml file not found after the conversion."
+msgstr ""
+
+#: src/zebtrack/core/services/wizard_service.py:69
+msgid "Invalid camera index"
+msgstr ""
+
+#: src/zebtrack/core/services/wizard_service.py:72
+msgid "The camera index must be between 0 and 10"
+msgstr ""
+
+#: src/zebtrack/core/services/wizard_service.py:80
+msgid "The Arduino port must be specified when Arduino is enabled"
+msgstr ""
+
+#: src/zebtrack/core/services/wizard_service.py:88
+msgid "External trigger mode requires Arduino to be enabled"
+msgstr ""
+
+#: src/zebtrack/core/services/wizard_service.py:95
+msgid "The recording duration must be greater than zero"
+msgstr ""
+
+#: src/zebtrack/core/services/wizard_service.py:99
+msgid "The recording duration cannot exceed 2 hours (7200 seconds)"
+msgstr ""
+
+#: src/zebtrack/core/services/wizard_service.py:106
+msgid "The countdown must be between 1 and 60 seconds"
+msgstr ""
+
+#: src/zebtrack/core/services/wizard_service.py:376
+#, python-brace-format
+msgid "{name} [index {index}] - {resolution}"
+msgstr ""
+
+#: src/zebtrack/core/services/wizard_service.py:383
+#, python-brace-format
+msgid "Camera #{number} [index {index}] - {resolution}"
+msgstr ""
+
+#: src/zebtrack/core/services/wizard_service.py:680
+msgid "The number of days must be between 1 and 365"
+msgstr ""
+
+#: src/zebtrack/core/services/wizard_service.py:685
+msgid "The number of groups must be between 1 and 6"
+msgstr ""
+
+#: src/zebtrack/core/services/wizard_service.py:731
+msgid "The number of aquariums must be between 1 and 100"
+msgstr ""
+
+#: src/zebtrack/core/services/wizard_service.py:738
+msgid "The number of animals per aquarium must be between 1 and 100"
+msgstr ""
+
+#: src/zebtrack/core/services/wizard_service.py:744
+#: src/zebtrack/core/services/wizard_service.py:824
+msgid "The aquarium width must be greater than zero"
+msgstr ""
+
+#: src/zebtrack/core/services/wizard_service.py:748
+#: src/zebtrack/core/services/wizard_service.py:828
+msgid "The aquarium height must be greater than zero"
+msgstr ""
+
+#: src/zebtrack/core/services/wizard_service.py:757
+msgid "The analysis interval must be between 1 and 30 frames"
+msgstr ""
+
+#: src/zebtrack/core/services/wizard_service.py:761
+msgid "The display interval must be between 1 and 30 frames"
+msgstr ""
+
+#: src/zebtrack/core/services/wizard_service.py:774
+#, python-brace-format
+msgid "Invalid ROI inclusion rule. It must be one of: {rules}"
+msgstr ""
+
+#: src/zebtrack/core/services/wizard_service.py:802
+msgid "The number of aquariums must be at least 1"
+msgstr ""
+
+#: src/zebtrack/core/services/wizard_service.py:805
+msgid "The number of aquariums cannot exceed 100"
+msgstr ""
+
+#: src/zebtrack/core/services/wizard_service.py:812
+msgid "The number of animals per aquarium must be at least 1"
+msgstr ""
+
+#: src/zebtrack/core/services/wizard_service.py:818
+msgid "The number of animals per aquarium cannot exceed 100"
+msgstr ""
+
+#: src/zebtrack/core/services/wizard_service.py:874
+msgid "Invalid multi-aquarium configuration"
+msgstr ""
+
+#: src/zebtrack/core/services/wizard_service.py:896
+msgid "Exactly 2 aquariums must be configured"
+msgstr ""
+
+#: src/zebtrack/core/services/wizard_service.py:920
+#, python-brace-format
+msgid ""
+"Aquarium {index} has a very small area ({area} px²). It may affect "
+"detection accuracy."
+msgstr ""
+
+#: src/zebtrack/core/services/wizard_service.py:949
+msgid ""
+"The aquarium polygons appear to overlap. This may cause duplicate "
+"detections."
+msgstr ""
+
+#: src/zebtrack/core/services/wizard_service.py:965
+#, python-brace-format
+msgid "The regex does not capture the expected fields: {fields}"
+msgstr ""
+
+#: src/zebtrack/core/services/wizard_service.py:980
+#, python-brace-format
+msgid "The regex does not match these files: {files}"
+msgstr ""
+
+#: src/zebtrack/core/services/wizard_service.py:987
+#, python-brace-format
+msgid "Invalid regex pattern: {error}"
+msgstr ""
+
 #: src/zebtrack/io/arduino_manager.py:140
 #, python-brace-format
 msgid "Could not connect to the Arduino on port {port}."
@@ -2100,10 +2371,6 @@ msgstr ""
 #: src/zebtrack/ui/gui.py:361
 #, python-brace-format
 msgid "Analysis configuration: {value}"
-msgstr ""
-
-#: src/zebtrack/ui/components/dialog_manager.py:444 src/zebtrack/ui/gui.py:576
-msgid "No Project"
 msgstr ""
 
 #: src/zebtrack/ui/components/dialog_manager.py:445 src/zebtrack/ui/gui.py:577

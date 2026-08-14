@@ -141,7 +141,7 @@ class TestCalibrationStep:
         is_valid, error_message = step.validate()
 
         assert not is_valid
-        assert "aquários" in error_message.lower() or "pelo menos 1" in error_message.lower()
+        assert "aquariums" in error_message.lower() or "at least 1" in error_message.lower()
 
     def test_validation_fails_with_zero_animals(self):
         """Validation should fail when animals_per_aquarium is 0."""
@@ -157,7 +157,7 @@ class TestCalibrationStep:
         is_valid, error_message = step.validate()
 
         assert not is_valid
-        assert "animais" in error_message.lower() or "pelo menos 1" in error_message.lower()
+        assert "animals" in error_message.lower() or "at least 1" in error_message.lower()
 
     def test_validation_fails_with_negative_dimensions(self):
         """Validation should fail with negative dimensions."""
@@ -173,7 +173,7 @@ class TestCalibrationStep:
         is_valid, error_message = step.validate()
 
         assert not is_valid
-        assert "largura" in error_message.lower() or "positiv" in error_message.lower()
+        assert "width" in error_message.lower() or "greater than zero" in error_message.lower()
 
     def test_validation_fails_with_zero_height(self):
         """Validation should fail when height is zero."""
@@ -189,7 +189,7 @@ class TestCalibrationStep:
         is_valid, error_message = step.validate()
 
         assert not is_valid
-        assert "altura" in error_message.lower() or "maior que zero" in error_message.lower()
+        assert "height" in error_message.lower() or "greater than zero" in error_message.lower()
 
     def test_on_show_restores_from_wizard_data(self):
         """on_show should restore values from wizard_data."""
