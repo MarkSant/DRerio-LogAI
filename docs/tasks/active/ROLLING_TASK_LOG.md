@@ -116,6 +116,30 @@ no topo do ratchet; depois, atualizar a seção "A migração" em
         têm português diferente do resumo do `confirmation_step`, então
         ganharam msgids próprios em vez de colidir.
 - [ ] Lote 5: `ui/dialogs/**` (26 arquivos).
+  - [x] 5a: os sete menores — `color_selection_dialog`, `center_periphery_dialog`,
+        `diagnostic_progress_dialog`, `model_diagnostics_dialog`,
+        `subject_selection_dialog`, `pending_videos_dialog`,
+        `preview_polygon_dialog`. 395 → 375 (o texto do commit diz "395 -> 356";
+        o número certo é 375). Dois defeitos: o nome da cor em
+        `color_selection_dialog` era rótulo, VALOR do radio, chave do `apply()` e
+        `result["name"]` ao mesmo tempo — traduzir deixaria
+        `StringVar(value="verde")` sem casar com nada; e os `_BADGE_*_TEXT` de
+        `preview_polygon_dialog` eram constantes de módulo. O `TAG_STYLES` de
+        `pending_videos_dialog`, apontado no handoff como sítio de import,
+        contém só cores — não há o que traduzir.
+  - [ ] 5b: `block_detail_dialog` (79) + `live_analysis_dialog` (59).
+  - [ ] 5c: `single_video_config_dialog` (40), `project_video_import_dialog` (38),
+        `create_project_dialog` (27).
+  - [ ] 5d: `live_camera_mode_selection_dialog` (17) — __`MODE_DESCRIPTIONS` é
+        `typing.ClassVar` em corpo de classe: tem de virar função antes de
+        receber `_()`__ —, `aquarium_detection_progress_dialog` (15),
+        `calibration_dialog` (13), `start_recording_dialog` (13),
+        `aquarium_assignment_dialog` (11),
+        `multi_aquarium_live_preview_window` (10).
+  - [ ] 5e: `camera_disconnect_recovery_dialog` (9), `live_config_dialog` (9),
+        `save_roi_template_dialog` (7), `live_preview_window` (6),
+        `multi_aquarium_confirm_dialog` (6), `zone_calibration_dialog` (6),
+        `zone_reuse_dialog` (6), `missing_metadata_dialog` (4).
 - [ ] Fechamento: colapsar MIGRATED_PATHS, atualizar guia e CHANGELOG.
 
 ### [2026-06-09] Sexteto de bugs em projetos live (zonas, lote, contadores, OpenVINO, settings globais)
