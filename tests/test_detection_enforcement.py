@@ -136,7 +136,5 @@ def test_single_video_detection_mode_enforcement():
         mock_event_bus.publish.assert_called_once()
         call_ev = mock_event_bus.publish.call_args[0][0]
         assert call_ev.type == UIEvents.SHOW_ERROR
-        assert "Configuração Inválida" in call_ev.data.title
-        # Producer is core/viewmodels/analysis_control_view_model.py, not yet
-        # migrated: still Portuguese on purpose.
-        assert "modo de detecção (det)" in call_ev.data.message
+        assert "Invalid Configuration" in call_ev.data.title
+        assert "detection mode (det)" in call_ev.data.message

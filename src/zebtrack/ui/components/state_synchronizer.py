@@ -820,8 +820,12 @@ class StateSynchronizer:
         if step:
             step_text = str(step).strip()
             if step_text:
-                # Both spellings: the producer (progress_notifier) prefixes the
-                # Portuguese "Etapa:" today and the English "Step:" once migrated.
+                # Defensive only: no producer puts a prefix on `step`. The values
+                # come from live_camera_session_coordinator already translated and
+                # bare; progress_notifier's "Step:" goes into the SET_STATUS
+                # message, a different field. Kept tolerant rather than matched
+                # exactly, because a prefix check on displayed text is precisely
+                # what translation breaks.
                 for prefix in ("etapa:", "step:"):
                     if step_text.lower().startswith(prefix):
                         step_text = step_text[len(prefix) :].strip()

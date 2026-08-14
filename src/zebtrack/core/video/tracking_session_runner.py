@@ -32,6 +32,7 @@ if TYPE_CHECKING:
 
 from zebtrack.core.detection import ZoneData
 from zebtrack.core.detection.calibration import Calibration
+from zebtrack.i18n import _
 from zebtrack.ui import payloads as payloads
 from zebtrack.ui.event_bus_v2 import Event, UIEvents
 
@@ -246,7 +247,11 @@ class TrackingSessionRunnerMixin:
         self.ui_event_bus.publish(
             Event(
                 type=UIEvents.SET_STATUS,
-                data=payloads.StatusPayload(message=f"Trajetória para {experiment_id} gerada."),
+                data=payloads.StatusPayload(
+                    message=_("Trajectory for {experiment_id} generated.").format(
+                        experiment_id=experiment_id
+                    )
+                ),
             )
         )
         return True, arena_polygon

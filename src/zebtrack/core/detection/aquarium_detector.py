@@ -610,7 +610,10 @@ class AquariumDetector:
             ValueError: If expected_count != 2.
         """
         if expected_count != 2:
-            raise ValueError("Apenas 2 aquários são suportados")
+            # Internal API contract, not operator copy: the wizard already
+            # validates this count with a translated message. English without
+            # _(), like the other developer-facing guards.
+            raise ValueError("Only 2 aquariums are supported")
 
         video_path_str = str(Path(video_path) if isinstance(video_path, str) else video_path)
         conf = _clamp_confidence(confidence_threshold, default=0.05)
@@ -783,7 +786,10 @@ class ContourBasedMultiAquariumDetector:
             ValueError: If expected_count != 2.
         """
         if expected_count != 2:
-            raise ValueError("Apenas 2 aquários são suportados")
+            # Internal API contract, not operator copy: the wizard already
+            # validates this count with a translated message. English without
+            # _(), like the other developer-facing guards.
+            raise ValueError("Only 2 aquariums are supported")
 
         video_path = str(Path(video_path) if isinstance(video_path, str) else video_path)
         log.info(
@@ -856,7 +862,10 @@ class ContourBasedMultiAquariumDetector:
             ValueError: If expected_count != 2.
         """
         if expected_count != 2:
-            raise ValueError("Apenas 2 aquários são suportados")
+            # Internal API contract, not operator copy: the wizard already
+            # validates this count with a translated message. English without
+            # _(), like the other developer-facing guards.
+            raise ValueError("Only 2 aquariums are supported")
 
         return self._detect_aquariums_by_contours(frame, expected_count)
 

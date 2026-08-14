@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, ClassVar
+from typing import TYPE_CHECKING, Any
 
 import structlog
+
+from zebtrack.i18n import _
 
 if TYPE_CHECKING:
     from zebtrack.core.application_bootstrapper import BootstrapResult
@@ -232,12 +234,21 @@ class HardwareStatusViewModel:
     # Returns one entry per (method, target) slot. ``scope="project"`` filters
     # to the two slots actually consumed by runtime processing of the open
     # project, picked from ``settings.model_selection.{aquarium,animal}_method``.
-    _SLOT_LABELS: ClassVar[dict[tuple[str, str], tuple[str, str, str]]] = {
-        ("det", "aquarium"): ("🐠 Aquário (det)", "det", "aquarium"),
-        ("seg", "aquarium"): ("🐠 Aquário (seg)", "seg", "aquarium"),
-        ("det", "zebrafish"): ("🐟 Animal (det)", "det", "zebrafish"),
-        ("seg", "zebrafish"): ("🐟 Animal (seg)", "seg", "zebrafish"),
-    }
+    @staticmethod
+    def _slot_labels() -> dict[tuple[str, str], tuple[str, str, str]]:
+        """Slot labels, built per call.
+
+        A method rather than the ClassVar it used to be: a dict of ``_()``
+        calls in a class body is evaluated at IMPORT time, before
+        ``i18n.install()`` has run, so every label would freeze in the source
+        language no matter what ``ui.language`` said.
+        """
+        return {
+            ("det", "aquarium"): (_("🐠 Aquarium (det)"), "det", "aquarium"),
+            ("seg", "aquarium"): (_("🐠 Aquarium (seg)"), "seg", "aquarium"),
+            ("det", "zebrafish"): (_("🐟 Animal (det)"), "det", "zebrafish"),
+            ("seg", "zebrafish"): (_("🐟 Animal (seg)"), "seg", "zebrafish"),
+        }
 
     def get_default_weights_summary(
         self, *, scope: str = "global"
@@ -253,7 +264,8 @@ class HardwareStatusViewModel:
           Falls back to the full 4-slot view when settings are unavailable.
         """
         wm = self.weight_manager
-        all_slots = list(self._SLOT_LABELS.values())
+        slot_labels = self._slot_labels()
+        all_slots = list(slot_labels.values())
 
         if scope == "project":
             try:
@@ -266,8 +278,8 @@ class HardwareStatusViewModel:
                 animal_method = None
             if aquarium_method and animal_method:
                 all_slots = [
-                    self._SLOT_LABELS[(aquarium_method, "aquarium")],
-                    self._SLOT_LABELS[(animal_method, "zebrafish")],
+                    slot_labels[(aquarium_method, "aquarium")],
+                    slot_labels[(animal_method, "zebrafish")],
                 ]
 
         result: list[tuple[str, str, str, str | None]] = []

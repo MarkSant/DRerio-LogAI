@@ -30,11 +30,7 @@ from i18n_scan import load_allowlist, scan_paths  # noqa: E402
 MIGRATED_PATHS: tuple[str, ...] = (
     "src/zebtrack/analysis",
     "src/zebtrack/coordinators",
-    "src/zebtrack/core/app_runner.py",
-    "src/zebtrack/core/application_bootstrapper.py",
-    "src/zebtrack/core/project",
-    "src/zebtrack/core/recording",
-    "src/zebtrack/core/services",
+    "src/zebtrack/core",
     "src/zebtrack/i18n.py",
     "src/zebtrack/io",
     "src/zebtrack/plugins",

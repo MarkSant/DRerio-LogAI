@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: DRerio LogAI VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-08-13 21:55-0300\n"
+"POT-Creation-Date: 2026-08-13 22:18-0300\n"
 "PO-Revision-Date: 2026-08-08 21:41-0300\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: pt_BR <LL@li.org>\n"
@@ -1248,6 +1248,10 @@ msgstr "Erro desconhecido"
 # | msgid "Video Processing"
 # | msgid "Processing"
 #: src/zebtrack/coordinators/progress_tracking_coordinator.py:484
+#: src/zebtrack/core/video/analysis_pipeline_runner.py:696
+#: src/zebtrack/core/video/analysis_pipeline_runner.py:730
+#: src/zebtrack/core/video/video_context_factory.py:297
+#: src/zebtrack/core/video/video_context_factory.py:317
 msgid "Processing Error"
 msgstr "Erro no Processamento"
 
@@ -1350,6 +1354,7 @@ msgstr ""
 "Processando {name}: {done}/{total} ({pct}%) - {detected} detecções{eta}"
 
 #: src/zebtrack/coordinators/project_lifecycle_coordinator.py:382
+#: src/zebtrack/core/viewmodels/analysis_control_view_model.py:90
 #: src/zebtrack/ui/project_workflow_adapter.py:178
 msgid "Invalid Configuration"
 msgstr "Configuração Inválida"
@@ -2044,6 +2049,7 @@ msgid "Video not found in the project."
 msgstr "Vídeo não encontrado no projeto."
 
 #: src/zebtrack/core/project/project_workflow_service.py:129
+#: src/zebtrack/core/viewmodels/analysis_control_view_model.py:92
 #, python-brace-format
 msgid ""
 "The detection mode (det) for animals is only compatible with 1 animal per aquarium.\n"
@@ -2625,14 +2631,14 @@ msgstr ""
 msgid "token {token}: enter for {enter_rois} and exit for {exit_rois}"
 msgstr "token {token}: entrada de {enter_rois} e saída de {exit_rois}"
 
-#: src/zebtrack/core/services/detector_service.py:132
+#: src/zebtrack/core/services/detector_service.py:131
 #, python-brace-format
 msgid "No {method} model is available for animal detection."
 msgstr "Nenhum modelo {method} está disponível para detecção de animais."
 
 # | msgid "Could not connect to the Arduino on port {port}."
 # | msgid "Could not open the video: {path}"
-#: src/zebtrack/core/services/detector_service.py:141
+#: src/zebtrack/core/services/detector_service.py:140
 #, python-brace-format
 msgid "Could not find the weight matching the path: {path}"
 msgstr "Não foi possível encontrar o peso correspondente ao caminho: {path}"
@@ -2646,14 +2652,14 @@ msgstr ""
 "Caminho do modelo OpenVINO não encontrado ou inválido. Por favor, converta o"
 " modelo primeiro."
 
-#: src/zebtrack/core/services/detector_service.py:165
+#: src/zebtrack/core/services/detector_service.py:164
 msgid "YOLO .pt model path not found or invalid."
 msgstr "Caminho do modelo YOLO .pt não encontrado ou inválido."
 
 # | msgid "Error Saving to Project"
 # | msgid "Save to Project"
 #: src/zebtrack/core/services/model_override_service.py:158
-#: src/zebtrack/core/services/model_override_service.py:354
+#: src/zebtrack/core/services/model_override_service.py:352
 #: src/zebtrack/ui/components/dialog_manager.py:444 src/zebtrack/ui/gui.py:576
 msgid "No Project"
 msgstr "Nenhum Projeto"
@@ -2677,11 +2683,11 @@ msgid "Global settings applied to the project at {path}."
 msgstr "Configurações globais aplicadas ao projeto em {path}."
 
 # | msgid "Open a project before adjusting the specific calibration."
-#: src/zebtrack/core/services/model_override_service.py:355
+#: src/zebtrack/core/services/model_override_service.py:353
 msgid "Open a project before saving calibration overrides."
 msgstr "Abra um projeto antes de salvar overrides de calibração."
 
-#: src/zebtrack/core/services/model_override_service.py:372
+#: src/zebtrack/core/services/model_override_service.py:370
 msgid "Project overrides updated from this calibration."
 msgstr "Overrides do projeto atualizados a partir desta calibração."
 
@@ -2767,27 +2773,27 @@ msgstr "O caminho do modelo é inválido ou inacessível: {error}"
 
 # | msgid "Template '{name}' applied to the video being edited."
 # | msgid "Template '{name}' already exists."
-#: src/zebtrack/core/services/weight_manager.py:914
+#: src/zebtrack/core/services/weight_manager.py:913
 #, python-brace-format
 msgid "A weight named '{name}' already exists."
 msgstr "Um peso com o nome '{name}' já existe."
 
 # | msgid "Video not found"
 # | msgid "ROI '{name}' not found."
-#: src/zebtrack/core/services/weight_manager.py:979
+#: src/zebtrack/core/services/weight_manager.py:976
 #, python-brace-format
 msgid "Weight '{name}' not found."
 msgstr "Peso '{name}' não encontrado."
 
-#: src/zebtrack/core/services/weight_manager.py:984
+#: src/zebtrack/core/services/weight_manager.py:980
 msgid "You cannot delete the last available weight."
 msgstr "Você não pode excluir o último peso disponível."
 
-#: src/zebtrack/core/services/weight_manager.py:1480
+#: src/zebtrack/core/services/weight_manager.py:1476
 msgid "OpenVINO model .xml file not found after the conversion."
 msgstr "Arquivo .xml do modelo OpenVINO não encontrado após a conversão."
 
-#: src/zebtrack/core/services/weight_manager.py:1621
+#: src/zebtrack/core/services/weight_manager.py:1616
 msgid "INT8 model .xml file not found after the conversion."
 msgstr "Arquivo .xml do modelo INT8 não encontrado após conversão."
 
@@ -2949,10 +2955,120 @@ msgstr "Regex não corresponde a arquivos: {files}"
 # | msgid "Invalid target"
 # | msgid "Invalid template"
 # | msgid "Invalid template in {path}: {error}"
-#: src/zebtrack/core/services/wizard_service.py:987
+#: src/zebtrack/core/services/wizard_service.py:986
 #, python-brace-format
 msgid "Invalid regex pattern: {error}"
 msgstr "Padrão regex inválido: {error}"
+
+# | msgid "Invalid Configuration"
+#: src/zebtrack/core/video/analysis_pipeline_runner.py:697
+#| msgid "Incomplete Configuration"
+msgid "Incomplete calibration data."
+msgstr "Dados de calibração incompletos."
+
+#: src/zebtrack/core/video/analysis_pipeline_runner.py:731
+#| msgid "Could not read the aquarium polygon data."
+msgid "Failed to prepare the calibration data."
+msgstr "Falha ao preparar dados de calibração."
+
+#: src/zebtrack/core/video/processing_mode.py:29
+#| msgid "Multi-individual"
+msgid "Individual"
+msgstr "Individual"
+
+#: src/zebtrack/core/video/processing_mode.py:30
+#: src/zebtrack/ui/components/analysis_controls.py:65
+msgid "Multi-individual"
+msgstr "Multi-indivíduos"
+
+# | msgid "Analysing frame {current}/{total}..."
+#: src/zebtrack/core/video/progress_notifier.py:81
+#, python-brace-format
+#| msgid "Processing aquarium {current}/{total}..."
+msgid "Processing {current}/{total}: {experiment_id}"
+msgstr "Processando {current}/{total}: {experiment_id}"
+
+#: src/zebtrack/core/video/progress_notifier.py:84
+#, python-brace-format
+#| msgid "OpenVINO: {status}"
+msgid "Step: {status}"
+msgstr "Etapa: {status}"
+
+#: src/zebtrack/core/video/tracking_session_runner.py:251
+#, python-brace-format
+msgid "Trajectory for {experiment_id} generated."
+msgstr "Trajetória para {experiment_id} gerada."
+
+#: src/zebtrack/core/video/video_context_factory.py:299
+#, python-brace-format
+msgid "Failed to generate the trajectory file for {experiment_id}."
+msgstr "Falha ao gerar arquivo de trajetória para {experiment_id}."
+
+# | msgid "Could not connect to the Arduino on port {port}."
+# | msgid "Could not open the video: {path}"
+# | msgid "Could not open: {path}"
+#: src/zebtrack/core/video/video_context_factory.py:301
+#, python-brace-format
+#| msgid "Template not found: {path}"
+msgid "File not found: {path}"
+msgstr "Arquivo não encontrado: {path}"
+
+#: src/zebtrack/core/video/video_context_factory.py:319
+#, python-brace-format
+msgid "Failed to read the trajectory file for {experiment_id}."
+msgstr "Falha ao ler arquivo de trajetória para {experiment_id}."
+
+# | msgid "Analysis in Progress"
+#: src/zebtrack/core/viewmodels/analysis_control_view_model.py:216
+#| msgid "Live analysis in progress."
+msgid "Cancelling the analysis in progress..."
+msgstr "Cancelando análise em andamento..."
+
+#: src/zebtrack/core/viewmodels/analysis_control_view_model.py:301
+#, python-brace-format
+#| msgid "Analysing frame {current}/{total}..."
+msgid "Generating report {current}/{total}..."
+msgstr "Gerando relatório {current}/{total}..."
+
+# | msgid "Reports removed"
+#: src/zebtrack/core/viewmodels/analysis_control_view_model.py:533
+#| msgid "Reports generated."
+msgid "Report generation finished."
+msgstr "Geração de relatórios concluída."
+
+#: src/zebtrack/core/viewmodels/hardware_status_view_model.py:247
+#| msgid "🐠 Aquarium (Detection)"
+msgid "🐠 Aquarium (det)"
+msgstr "🐠 Aquário (det)"
+
+#: src/zebtrack/core/viewmodels/hardware_status_view_model.py:248
+#| msgid "🐠 Aquarium (Segmentation)"
+msgid "🐠 Aquarium (seg)"
+msgstr "🐠 Aquário (seg)"
+
+#: src/zebtrack/core/viewmodels/hardware_status_view_model.py:249
+#| msgid "🐟 Animal (Detection)"
+msgid "🐟 Animal (det)"
+msgstr "🐟 Animal (det)"
+
+#: src/zebtrack/core/viewmodels/hardware_status_view_model.py:250
+#| msgid "🐟 Animal (Segmentation)"
+msgid "🐟 Animal (seg)"
+msgstr "🐟 Animal (seg)"
+
+# | msgid "Analysis in Progress"
+# | msgid "Analysis Error"
+#: src/zebtrack/core/viewmodels/main_view_model_runtime.py:525
+#| msgid "Fatal Error"
+msgid "Critical Error"
+msgstr "Erro Crítico"
+
+#: src/zebtrack/core/viewmodels/main_view_model_runtime.py:527
+msgid ""
+"The camera thread did not shut down correctly. The application will close."
+msgstr ""
+"A thread da câmera não foi finalizada corretamente. O aplicativo será "
+"encerrado."
 
 #: src/zebtrack/io/arduino_manager.py:140
 #, python-brace-format
@@ -3549,10 +3665,6 @@ msgstr "Tarefa: {value}"
 #, python-brace-format
 msgid "Tracking mode: {value}"
 msgstr "Modo de rastreamento: {value}"
-
-#: src/zebtrack/ui/components/analysis_controls.py:65
-msgid "Multi-individual"
-msgstr "Multi-indivíduos"
 
 #: src/zebtrack/ui/components/analysis_controls.py:74
 #: src/zebtrack/ui/components/analysis_display.py:442

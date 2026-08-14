@@ -45,6 +45,7 @@ from zebtrack.core.video.social_analysis_outcome import (
     DEFAULT_SOCIAL_RADIUS_CM,
     SocialAnalysisOutcome,
 )
+from zebtrack.i18n import _
 from zebtrack.ui import payloads
 from zebtrack.ui.event_bus_v2 import Event, UIEvents
 
@@ -692,8 +693,8 @@ class AnalysisPipelineRunnerMixin:
                 Event(
                     type=UIEvents.SHOW_ERROR,
                     data=payloads.ErrorOccurredPayload(
-                        title="Erro de Processamento",
-                        message="Dados de calibração incompletos.",
+                        title=_("Processing Error"),
+                        message=_("Incomplete calibration data."),
                     ),
                 )
             )
@@ -726,8 +727,8 @@ class AnalysisPipelineRunnerMixin:
                 Event(
                     type=UIEvents.SHOW_ERROR,
                     data=payloads.ErrorOccurredPayload(
-                        title="Erro de Processamento",
-                        message="Falha ao preparar dados de calibração.",
+                        title=_("Processing Error"),
+                        message=_("Failed to prepare the calibration data."),
                     ),
                 )
             )

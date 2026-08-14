@@ -48,9 +48,13 @@ no topo do ratchet; depois, atualizar a seção "A migração" em
 - [x] Lote 3c: `core/services/**` a zero e no ratchet. Removida uma ramificação
       pelo TEXTO da exceção em `detector_service._validate_range` — traduzir a
       mensagem teria quebrado o `if` em silêncio, no sentido pior.
-- [ ] Lote 3d: `core/video/**`, `core/detection/**`, `core/viewmodels/**` (30 em
-      10 arquivos), incluindo simplificar o consumidor de `progress_notifier`
-      para só "step:" depois de migrar o produtor.
+- [x] Lote 3d: `core/video/**`, `core/detection/**`, `core/viewmodels/**`.
+      __`core/` inteiro fechado__ — `MIGRATED_PATHS` colapsou cinco entradas em
+      `src/zebtrack/core`. A segunda redação da validação det/seg em
+      `analysis_control_view_model` passou a reusar o msgid do 3b.
+      O consumidor do `progress_notifier` NÃO foi simplificado: apurou-se que
+      nenhum produtor emite o prefixo no campo `step` — a tira-prefixo é
+      defensiva contra nada. Só o comentário mentiroso foi corrigido.
 - [ ] Lote 4: `ui/wizard/**` (13 arquivos) — valores de enum em models.py/enums.py
       são persistidos, traduzir só os rótulos exibidos.
 - [ ] Lote 5: `ui/dialogs/**` (26 arquivos).

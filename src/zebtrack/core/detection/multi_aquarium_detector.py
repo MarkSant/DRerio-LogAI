@@ -138,8 +138,8 @@ class MultiAquariumDetector:
                     polygon_points=polygon_count,
                 )
                 raise ValueError(
-                    f"Aquário {aq.id} possui polígono inválido: "
-                    f"mínimo 3 pontos, encontrado {polygon_count}"
+                    f"Aquarium {aq.id} has an invalid polygon: "
+                    f"minimum 3 points, found {polygon_count}"
                 )
 
         # Sync scaled polygons into ZoneScaler so delegation methods
@@ -227,7 +227,7 @@ class MultiAquariumDetector:
                 error=str(e),
                 exc_info=True,
             )
-            raise RuntimeError(f"Falha ao inicializar ByteTracker para aquário {aq.id}: {e}") from e
+            raise RuntimeError(f"Failed to initialise ByteTracker for aquarium {aq.id}: {e}") from e
 
         log.debug(
             "multi_aquarium_detector.tracker_created",
@@ -624,7 +624,7 @@ class MultiAquariumDetector:
                                 "multi_aquarium_detector.parallel.tracker_missing",
                                 aquarium_id=aq_id,
                             )
-                            errors[aq_id] = f"ByteTracker não inicializado para aquário {aq_id}"
+                            errors[aq_id] = f"ByteTracker not initialised for aquarium {aq_id}"
                             results[aq_id] = []
                             continue
 
@@ -681,8 +681,8 @@ class MultiAquariumDetector:
                             available=list(self._byte_trackers_multi.keys()),
                         )
                         raise RuntimeError(
-                            f"ByteTracker não inicializado para aquário {aq_id}. "
-                            "Chame set_multi_aquarium_zones() primeiro."
+                            f"ByteTracker not initialised for aquarium {aq_id}. "
+                            "Call set_multi_aquarium_zones() first."
                         )
                     tracked = self._apply_byte_tracking_multi(detections, tracker)
                 else:
