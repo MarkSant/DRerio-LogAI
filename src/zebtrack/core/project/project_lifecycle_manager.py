@@ -230,26 +230,26 @@ class ProjectLifecycleManager:
 
         # Validate frame intervals
         if analysis_interval_frames < 1:
-            raise ValueError("analysis_interval_frames deve ser >= 1")
+            raise ValueError("analysis_interval_frames must be >= 1")
         if analysis_interval_frames > 30:
-            raise ValueError("analysis_interval_frames deve ser <= 30")
+            raise ValueError("analysis_interval_frames must be <= 30")
 
         if display_interval_frames < 1:
-            raise ValueError("display_interval_frames deve ser >= 1")
+            raise ValueError("display_interval_frames must be >= 1")
         if display_interval_frames > 30:
-            raise ValueError("display_interval_frames deve ser <= 30")
+            raise ValueError("display_interval_frames must be <= 30")
 
         # Validate camera index
         if camera_index < 0:
-            raise ValueError("camera_index deve ser >= 0")
+            raise ValueError("camera_index must be >= 0")
         if camera_index > 10:
-            raise ValueError("camera_index deve ser <= 10 (limite de dispositivos)")
+            raise ValueError("camera_index must be <= 10 (device limit)")
 
         # Validate project type (case-insensitive)
         valid_types = ["Pre-recorded", "Live"]
         if not any(project_type.lower() == vt.lower() for vt in valid_types):
             raise ValueError(
-                f"project_type deve ser um de: {', '.join(valid_types)}\nRecebido: {project_type}"
+                f"project_type must be one of: {', '.join(valid_types)}\nGot: {project_type}"
             )
 
     # ------------------------------------------------------------------

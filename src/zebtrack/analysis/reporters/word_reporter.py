@@ -218,10 +218,13 @@ class WordReporter:
                 if col.startswith("geotaxis_zone_") and col.endswith("_pct"):
                     try:
                         idx = int(col.split("_")[2])
+                        # English, and NOT _(): an exported table header, kept
+                        # byte-identical to the same fallback in
+                        # DataTransformer.prepare_for_display().
                         if idx == 0:
-                            rename_geo[col] = "Geotaxis Zona 1 - Fundo (%)"
+                            rename_geo[col] = "Geotaxis Zone 1 - Bottom (%)"
                         else:
-                            rename_geo[col] = f"Geotaxis Zona {idx + 1} (%)"
+                            rename_geo[col] = f"Geotaxis Zone {idx + 1} (%)"
                     except (IndexError, ValueError):
                         log.debug(
                             "reporter.geotaxis_rename.parse_error",

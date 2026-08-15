@@ -127,9 +127,9 @@ class CustomRegexDialog(Dialog):
 
         subtitle = Label(
             master,
-            text=(
-                "Defina regex para detectar grupos, dias e sujeitos. "
-                "Use grupos de captura () ou nomeados (?P<nome>) para extrair os valores."
+            text=_(
+                "Define regexes to detect groups, days and subjects. "
+                "Use capture groups () or named ones (?P<name>) to extract the values."
             ),
             fg="gray",
             wraplength=760,
@@ -399,7 +399,7 @@ class CustomRegexDialog(Dialog):
             show="headings",
             height=7,
         )
-        self.preview_tree.heading("path", text="Caminho")
+        self.preview_tree.heading("path", text=_("Path"))
         field_labels = _field_labels()
         self.preview_tree.heading("group", text=field_labels["group"])
         self.preview_tree.heading("day", text=field_labels["day"])
@@ -798,7 +798,7 @@ class CustomRegexDialog(Dialog):
         ]:
             error = self._pattern_errors.get(key)
             if error:
-                match_list.append("Erro")
+                match_list.append(_("Error"))
                 continue
 
             pattern = self._compiled_patterns.get(key)

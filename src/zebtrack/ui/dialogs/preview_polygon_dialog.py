@@ -218,11 +218,11 @@ class PreviewPolygonDialog:
         # zero; "Aprovar/Ajustar" mantém o polígono — que o usuário pode ter
         # editado arrastando vértices aqui mesmo, e que ainda poderá ajustar na
         # aba de Configuração de Zonas antes de gravar.
-        reject_btn = ttk.Button(button_frame, text="Rejeitar", command=self._on_reject, width=18)
+        reject_btn = ttk.Button(button_frame, text=_("Reject"), command=self._on_reject, width=18)
         reject_btn.pack(side=tk.LEFT, padx=5)
 
         approve_btn = ttk.Button(
-            button_frame, text="Aprovar/Ajustar", command=self._on_approve, width=18
+            button_frame, text=_("Approve/Adjust"), command=self._on_approve, width=18
         )
         approve_btn.pack(side=tk.LEFT, padx=5)
 
@@ -261,7 +261,7 @@ class PreviewPolygonDialog:
 
         self._retry_button = ttk.Button(
             panel,
-            text="🔁 Tentar novamente com este limiar",
+            text=_("🔁 Try again with this threshold"),
             command=self._on_retry_click,
         )
         self._retry_button.pack(pady=(6, 2))
@@ -288,7 +288,7 @@ class PreviewPolygonDialog:
             return
 
         confidence = float(self._conf_var.get())
-        self._status_var.set("Detectando…")
+        self._status_var.set(_("Detecting…"))
         if self._retry_button is not None:
             self._retry_button.state(["disabled"])
         self.dialog.update_idletasks()
@@ -405,7 +405,7 @@ class PreviewPolygonDialog:
 
         cv2.putText(
             frame_copy,
-            "Aquario Detectado",
+            _("Aquarium Detected"),
             (10, 30),
             cv2.FONT_HERSHEY_SIMPLEX,
             1.0,

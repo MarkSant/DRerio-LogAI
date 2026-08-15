@@ -10,6 +10,8 @@ from tkinter import (
     ttk,
 )
 
+from zebtrack.i18n import _
+
 
 class TemplateDialog(simpledialog.Dialog):
     """Dialog to create ROI templates."""
@@ -33,24 +35,24 @@ class TemplateDialog(simpledialog.Dialog):
 
         ttk.Radiobutton(
             master,
-            text="Faixas Verticais",
+            text=_("Vertical Lanes"),
             variable=self.template_type,
             value="vertical",
         ).pack(anchor="w")
         ttk.Radiobutton(
             master,
-            text="Faixas Horizontais",
+            text=_("Horizontal Lanes"),
             variable=self.template_type,
             value="horizontal",
         ).pack(anchor="w")
-        ttk.Radiobutton(master, text="Grade", variable=self.template_type, value="grid").pack(
+        ttk.Radiobutton(master, text=_("Grid"), variable=self.template_type, value="grid").pack(
             anchor="w"
         )
 
-        ttk.Label(master, text="Nº de Faixas:").pack(anchor="w", pady=(5, 0))
+        ttk.Label(master, text=_("No. of Lanes:")).pack(anchor="w", pady=(5, 0))
         ttk.Entry(master, textvariable=self.num_lanes).pack(anchor="w")
 
-        ttk.Label(master, text="Grade (Linhas x Colunas):").pack(anchor="w", pady=(5, 0))
+        ttk.Label(master, text=_("Grid (Rows x Columns):")).pack(anchor="w", pady=(5, 0))
         grid_frame = ttk.Frame(master)
         grid_frame.pack(anchor="w")
         ttk.Entry(grid_frame, textvariable=self.num_rows, width=5).pack(side="left")

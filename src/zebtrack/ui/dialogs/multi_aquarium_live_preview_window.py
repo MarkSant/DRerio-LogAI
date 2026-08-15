@@ -156,7 +156,7 @@ class MultiAquariumLivePreviewWindow:
         # Timer label
         self.timer_label = ttk.Label(
             info_frame,
-            text="Tempo: Aguardando...",
+            text=_("Time: waiting..."),
             font=("Arial", 10),
         )
         self.timer_label.pack(side=tk.LEFT, padx=20)

@@ -643,7 +643,7 @@ class TestProjectWorkflowServicePostCreationGuide(unittest.TestCase):
         )
 
         assert guide is not None
-        assert guide["title"] == "Bem-vindo ao Projeto!"
+        assert guide["title"] == "Welcome to the Project!"
         assert "2" in guide["message"]  # Total videos
         assert "Recommended next steps" in guide["message"]
 

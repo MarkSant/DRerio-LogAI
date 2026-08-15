@@ -784,11 +784,13 @@ class CanvasEventHandler:
                 from zebtrack.ui.event_bus_v2 import Event, UIEvents
 
                 drawing_type = self.gui.drawing_state_manager.drawing_type
-                status_message = f"✓ {drawing_type.title()} definida com sucesso!"
+                status_message = _("✓ {type} defined successfully!").format(
+                    type=drawing_type.title()
+                )
                 self.gui.set_status(status_message)
                 self.dialog_manager.show_info(
-                    "Sucesso",
-                    f"Zona criada com {len(video_points)} pontos.",
+                    _("Success"),
+                    _("Zone created with {count} points.").format(count=len(video_points)),
                 )
 
                 if self.manager.event_bus_v2:
@@ -848,7 +850,9 @@ class CanvasEventHandler:
         if success:
             self.manager._redraw_polygon_in_progress()
             self.gui.set_status(
-                f"Ponto restaurado. Pontos atuais: {self.gui.drawing_state_manager.point_count()}"
+                _("Point restored. Current points: {count}").format(
+                    count=self.gui.drawing_state_manager.point_count()
+                )
             )
 
         return "break"

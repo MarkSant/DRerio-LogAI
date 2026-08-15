@@ -281,7 +281,7 @@ class BatchVideoMetadataDialog(simpledialog.Dialog):
         )
         self.subject_var = StringVar(value=str(self.initial_values.get("subject") or ""))
         self.result: dict[str, Any] | None = None
-        super().__init__(parent, "Editar Metadata em Lote")
+        super().__init__(parent, _("Edit Metadata in Batch"))
 
     def body(self, master):
         master.columnconfigure(1, weight=1)
@@ -873,6 +873,6 @@ class ProjectVideoImportDialog(simpledialog.Dialog):
     def _format_subject_summary(row: dict[str, Any]) -> str:
         subject_entries = row.get("subject_entries") or []
         if subject_entries:
-            return f"{len(subject_entries)} animal(is)"
+            return _("{count} animal(s)").format(count=len(subject_entries))
         subject = str(row.get("subject") or "").strip()
-        return subject or "Sem sujeito"
+        return subject or _("No subject")

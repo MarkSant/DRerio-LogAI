@@ -501,7 +501,7 @@ class TestDiagnosticProgressDialog:
         dialog.update_progress("Processando frames...")
 
         assert dialog.progress_var.get() == "Processando frames..."
-        assert dialog.status_var.get() == "Processando..."
+        assert dialog.status_var.get() == "Processing..."
 
         dialog.destroy()
 
@@ -525,7 +525,7 @@ class TestDiagnosticProgressDialog:
         dialog.update_progress("Iniciando", current=0, total=0)
 
         assert dialog.progress_var.get() == "Iniciando"
-        assert dialog.status_var.get() == "Processando..."
+        assert dialog.status_var.get() == "Processing..."
 
         dialog.destroy()
 
@@ -556,7 +556,7 @@ class TestDiagnosticProgressDialog:
         dialog.cancel()
 
         assert dialog.user_cancelled is True
-        assert dialog.progress_var.get() == "Cancelando..."
+        assert dialog.progress_var.get() == "Cancelling..."
 
         dialog.destroy()
 

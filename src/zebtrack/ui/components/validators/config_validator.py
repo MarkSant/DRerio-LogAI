@@ -36,7 +36,7 @@ class ConfigValidator:
 
             # Validate ranges
             if fps <= 0:
-                raise ValueError("FPS deve ser maior que 0.")
+                raise ValueError(_("FPS must be greater than 0."))
             if processing_interval <= 0:
                 raise ValueError(_("The processing interval must be greater than 0."))
             if processing_offset < 0:

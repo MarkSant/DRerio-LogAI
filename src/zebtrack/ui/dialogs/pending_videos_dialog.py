@@ -90,9 +90,9 @@ class PendingVideosDialog(simpledialog.Dialog):
             height=15,
             selectmode="none",
         )
-        self.tree.heading("#0", text="Hierarquia")
-        self.tree.heading("status", text="Dados")
-        self.tree.heading("arquivo", text="Arquivo")
+        self.tree.heading("#0", text=_("Hierarchy"))
+        self.tree.heading("status", text=_("Data"))
+        self.tree.heading("arquivo", text=_("File"))
         self.tree.column("#0", width=260, stretch=True)
         self.tree.column("status", width=180, anchor="center", stretch=False)
         self.tree.column("arquivo", width=220, stretch=True)
@@ -140,8 +140,8 @@ class PendingVideosDialog(simpledialog.Dialog):
         """Create custom button box with Cancel and Process buttons."""
         box = ttk.Frame(self)
         box.pack(pady=(0, 12))
-        ttk.Button(box, text="Cancelar", command=self.cancel).pack(side="right", padx=6)
-        ttk.Button(box, text="Processar", command=self.ok, default="active").pack(
+        ttk.Button(box, text=_("Cancel"), command=self.cancel).pack(side="right", padx=6)
+        ttk.Button(box, text=_("Process"), command=self.ok, default="active").pack(
             side="right", padx=6
         )
         self.bind("<Return>", self.ok)

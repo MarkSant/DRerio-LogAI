@@ -674,7 +674,7 @@ class UIStateController:
         self.ui_coordinator.update_view(view, "stop_analysis_view_mode")
         self.ui_coordinator.set_status(
             view,
-            "Cancelamento solicitado. Finalizando tarefas em segundo plano...",
+            _("Cancellation requested. Finalizing background tasks..."),
         )
 
         # Provide immediate dialog feedback so the user knows reports won't be generated

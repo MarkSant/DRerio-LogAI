@@ -1503,8 +1503,12 @@ class WeightManager:
             details["openvino_status"] = OPENVINO_STATUS_FAILED
             details["last_conversion_error"] = str(e)
             self.save_weights()
+            # Wrapped: ui_state_coordinator renders str(exc) verbatim in the
+            # "OpenVINO Conversion Error" dialog.
             raise OpenVINOExportError(
-                f"Falha ao converter '{name}' para o formato OpenVINO: {e}"
+                _("Failed to convert '{name}' to the OpenVINO format: {error}").format(
+                    name=name, error=e
+                )
             ) from e
         finally:
             # Clean up the temporary export directory if the move failed
@@ -1640,7 +1644,9 @@ class WeightManager:
             details["openvino_int8_status"] = OPENVINO_STATUS_FAILED
             details["last_conversion_error"] = str(e)
             self.save_weights()
-            raise OpenVINOExportError(f"Falha ao converter '{name}' para INT8: {e}") from e
+            raise OpenVINOExportError(
+                _("Failed to convert '{name}' to INT8: {error}").format(name=name, error=e)
+            ) from e
         finally:
             if temp_export_path and os.path.exists(temp_export_path):
                 shutil.rmtree(temp_export_path, ignore_errors=True)

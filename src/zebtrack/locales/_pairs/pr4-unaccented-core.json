@@ -1,0 +1,38 @@
+{
+  "_comment": "Unaccented-Portuguese sweep, batch 1: coordinators/, core/, io/. Found by the new wordlist pass in scripts/i18n_scan.py, which the accent heuristic was blind to. Several are twins of strings phase 3 already translated at a sibling call site (arduino_manager mixed _() and raw Portuguese in the same _notify_log stream; wizard_service.validate_experimental_design had _() on its first two returns and raw Portuguese on the next five). Two msgids used by this batch are NOT recorded here because the corpus already carries them: '● Recording' (pr3-dialogs-5e) and 'Aquarium {number}' (pr2-coordinators) -- the latter already maps to the accented 'Aquário {number}', so wrapping the source typo 'Aquario' repairs it.",
+
+  "Processing: {name}": "Processando: {name}",
+  "Processing frames: {done}/{total}": "Processando quadros: {done}/{total}",
+
+  "Welcome to the Project!": "Bem-vindo ao Projeto!",
+
+  "⏳ Stabilizing image... ({current}/{total})": "⏳ Estabilizando imagem... ({current}/{total})",
+  "● Recording: {elapsed}s / {total}s (Remaining: {remaining}s)": "● Gravando: {elapsed}s / {total}s (Restante: {remaining}s)",
+  "Recording: {elapsed}s / {total}s": "Gravando: {elapsed}s / {total}s",
+
+  "Failed to initialize the detector: {error}": "Falha ao inicializar o detector: {error}",
+  "Failed to convert '{name}' to the OpenVINO format: {error}": "Falha ao converter '{name}' para o formato OpenVINO: {error}",
+  "Failed to convert '{name}' to INT8: {error}": "Falha ao converter '{name}' para INT8: {error}",
+
+  "{device} - {description} [no handshake]": "{device} - {description} [sem handshake]",
+  "The number of subjects per group must be between 1 and 20": "Número de sujeitos por grupo deve estar entre 1 e 20",
+  "Group names must be a list": "Nomes de grupos devem ser uma lista",
+  "Expected {expected} group names, but got {actual}": "Esperado {expected} nomes de grupos, mas recebeu {actual}",
+  "Group names must be unique": "Nomes de grupos devem ser únicos",
+  "Group names cannot be empty": "Nomes de grupos não podem estar vazios",
+
+  "Starting: {name}": "Iniciando: {name}",
+  "Processing...": "Processando...",
+  "Cancellation requested for {name}.": "Cancelamento solicitado para {name}.",
+  "Starting process for {name}...": "Iniciando processo para {name}...",
+
+  "Load New Weight": "Carregar Novo Peso",
+  "YOLO/OpenVINO models": "Modelos YOLO/OpenVINO",
+
+  "Failed to initialize the Arduino on port {port}.": "Falha ao inicializar o Arduino na porta {port}.",
+  "Error connecting to the Arduino on port {port}.": "Erro ao conectar ao Arduino na porta {port}.",
+  "Arduino connected on port {port}.": "Arduino conectado na porta {port}.",
+  "Arduino disconnected.": "Arduino desconectado.",
+  "Command {command} sent to the Arduino.": "Comando {command} enviado ao Arduino.",
+  "Failed to send command {command} to the Arduino.": "Falha ao enviar comando {command} ao Arduino."
+}

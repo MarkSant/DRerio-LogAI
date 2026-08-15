@@ -352,7 +352,7 @@ class ROITemplateManager:
     def _show_template_selection_error(self):
         """Show error when no template is selected."""
         self.dialog_manager.show_warning(
-            "Nenhum Template Selecionado", "Por favor, selecione um template primeiro."
+            _("No Template Selected"), _("Please select a template first.")
         )
 
     def _update_combobox_values(self, display_names: list[str]):
@@ -490,8 +490,8 @@ class ROITemplateManager:
         zone_data = pm.get_zone_data()
         if not zone_data or (not zone_data.polygon and not (zone_data.roi_polygons or [])):
             self.dialog_manager.show_warning(
-                "Template incompleto",
-                "Desenhe a arena ou pelo menos uma ROI antes de salvar um template.",
+                _("Incomplete template"),
+                _("Draw the arena or at least one ROI before saving a template."),
             )
             return
 

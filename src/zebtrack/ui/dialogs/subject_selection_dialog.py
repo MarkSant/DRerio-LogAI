@@ -11,6 +11,7 @@ from tkinter import (
 
 from zebtrack.i18n import _
 from zebtrack.ui.format_utils import format_day_display
+from zebtrack.ui.sentinels import no_day_label
 
 
 class SubjectSelectionDialog(simpledialog.Dialog):
@@ -37,11 +38,17 @@ class SubjectSelectionDialog(simpledialog.Dialog):
         self.result = None  # This will be the selected subject_id
 
         day_display = format_day_display(day) or day
-        day_title = (
-            f"Dia {day_display}" if str(day_display).strip().lower() != "sem dia" else "Sem Dia"
-        )
+        # The comparison is against the stored spelling; only the rendered
+        # title is localized.
+        if str(day_display).strip().lower() != "sem dia":  # i18n: not-ui
+            day_title = _("Day {number}").format(number=day_display)
+        else:
+            day_title = no_day_label()
 
-        super().__init__(parent, f"Selecionar Cobaia para o {day_title} - {group_name}")
+        super().__init__(
+            parent,
+            _("Select Subject for {day} - {group}").format(day=day_title, group=group_name),
+        )
 
     def body(self, master):
         """Create dialog body with subject selection buttons.
@@ -94,7 +101,7 @@ class SubjectSelectionDialog(simpledialog.Dialog):
         """Create custom button box with Cancel button."""
         # Override to have only a cancel button, since selection closes the dialog
         box = ttk.Frame(self)
-        w = ttk.Button(box, text="Cancelar", width=10, command=self.cancel)
+        w = ttk.Button(box, text=_("Cancel"), width=10, command=self.cancel)
         w.pack(side="left", padx=5, pady=5)
         self.bind("<Escape>", self.cancel)
         box.pack()

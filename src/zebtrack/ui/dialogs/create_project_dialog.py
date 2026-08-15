@@ -40,7 +40,7 @@ class CreateProjectDialog(simpledialog.Dialog):
         self.project_path: str | None = None
         self.result: dict[str, Any] | None = None
         self.video_paths: list[str] = []
-        super().__init__(parent, "Criar Novo Projeto")
+        super().__init__(parent, _("Create New Project"))
 
     def body(self, master):
         """Create project creation dialog body with all configuration fields.
@@ -393,7 +393,7 @@ class CreateProjectDialog(simpledialog.Dialog):
         for validator in validators:
             ok, msg = validator()
             if not ok:
-                messagebox.showerror("Erro", msg)
+                messagebox.showerror(_("Error"), msg)
                 return 0
 
         return 1
@@ -434,7 +434,7 @@ class CreateProjectDialog(simpledialog.Dialog):
             if num_aquariums <= 0 or animals_per_aquarium <= 0:
                 raise ValueError
         except ValueError:
-            return False, "Os valores devem ser positivos."
+            return False, _("The values must be positive.")
 
         return True, ""
 

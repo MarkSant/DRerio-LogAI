@@ -623,7 +623,7 @@ class RecordingSessionCoordinator(BaseCoordinator):
             self.event_bus.publish(
                 Event(
                     type=UIEvents.UI_SET_STATUS,
-                    data=payloads.StatusPayload(message="Pronto."),
+                    data=payloads.StatusPayload(message=_("Ready.")),
                 )
             )
 

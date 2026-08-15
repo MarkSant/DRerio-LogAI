@@ -212,8 +212,8 @@ class ProjectWorkflowAdapter:
             self._publish_event(
                 UIEvents.SHOW_ERROR,
                 payloads.MessagePayload(
-                    title="Erro",
-                    message="Falha ao configurar o detector.",
+                    title=_("Error"),
+                    message=_("Failed to configure the detector."),
                 ),
             )
             log.error("project_workflow_adapter.create_project.detector_setup_failed")
@@ -272,7 +272,7 @@ class ProjectWorkflowAdapter:
             self._publish_event(
                 UIEvents.SHOW_ERROR,
                 payloads.MessagePayload(
-                    title="Erro",
+                    title=_("Error"),
                     message=result["error_message"],
                 ),
             )

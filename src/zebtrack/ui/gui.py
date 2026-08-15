@@ -307,11 +307,11 @@ class ApplicationGUI:
         # the 4 (method × target) default-weight slots — kept under the legacy
         # name to minimize ripple across builders/tests.
         self._available_weight_names: list[str] = []
-        self._active_weight_display_var = StringVar(value="Modelo: detectando pesos...")
-        self._openvino_display_var = StringVar(value="OpenVINO: Desativado.")
-        self._gpu_hardware_display_var = StringVar(value="Hardware: Detectando...")
+        self._active_weight_display_var = StringVar(value=_("Model: detecting weights..."))
+        self._openvino_display_var = StringVar(value=_("OpenVINO: Disabled."))
+        self._gpu_hardware_display_var = StringVar(value=_("Hardware: Detecting..."))
         self._openvino_enabled = False
-        self._openvino_status_message = "Desativado."
+        self._openvino_status_message = _("Disabled.")
 
         # ROI Tab Widgets
         self.run_analysis_btn = None

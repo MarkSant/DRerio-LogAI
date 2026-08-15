@@ -232,7 +232,7 @@ class CalibrationDialog(simpledialog.Dialog):
 
     def buttonbox(self):
         box = ttk.Frame(self)
-        button = ttk.Button(box, text="Fechar", width=10, command=self.ok, default="active")
+        button = ttk.Button(box, text=_("Close"), width=10, command=self.ok, default="active")
         button.pack(side="right", padx=5, pady=5)
         self.bind("<Return>", self.ok)
         self.bind("<Escape>", self.cancel)
@@ -242,7 +242,7 @@ class CalibrationDialog(simpledialog.Dialog):
         if not scope_info.get("project_loaded"):
             return None
         if scope_info.get("scope") == "global":
-            return "Copiar globais para o projeto"
+            return _("Copy globals to the project")
         return None
 
     def _refresh_scope_context(self) -> None:
@@ -290,15 +290,15 @@ class CalibrationDialog(simpledialog.Dialog):
 
         ttk.Button(
             btn_row,
-            text=f"Projeto atual ({project_name})",
+            text=_("Current project ({name})").format(name=project_name),
             command=lambda: _choose("current"),
         ).pack(side="left", padx=(0, 6))
         ttk.Button(
             btn_row,
-            text="Escolher outra pasta…",
+            text=_("Choose another folder…"),
             command=lambda: _choose("other"),
         ).pack(side="left", padx=(0, 6))
-        ttk.Button(btn_row, text="Cancelar", command=lambda: _choose(None)).pack(side="right")
+        ttk.Button(btn_row, text=_("Cancel"), command=lambda: _choose(None)).pack(side="right")
 
         win.protocol("WM_DELETE_WINDOW", lambda: _choose(None))
         win.grab_set()
@@ -338,7 +338,7 @@ class CalibrationDialog(simpledialog.Dialog):
         else:
             initial_dir = self.scope_info.get("project_path") or None
             target = filedialog.askdirectory(
-                title="Selecione a pasta do projeto de destino",
+                title=_("Select the destination project folder"),
                 initialdir=initial_dir,
                 parent=self,
             )

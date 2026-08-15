@@ -28,7 +28,7 @@ def format_day_display(value):
     if not value_str:
         return ""
     lower_value = value_str.lower()
-    if lower_value == "sem dia":
+    if lower_value == "sem dia":  # i18n: not-ui — stored metadata spelling
         return "Sem Dia"
     match = re.search(r"(\d+)", value_str)
     if match:

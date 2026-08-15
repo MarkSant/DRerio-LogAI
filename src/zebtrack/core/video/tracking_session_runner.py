@@ -237,7 +237,7 @@ class TrackingSessionRunnerMixin:
                 Event(
                     type=UIEvents.SET_STATUS,
                     data=payloads.StatusPayload(
-                        message=f"Cancelamento solicitado para {experiment_id}."
+                        message=_("Cancellation requested for {name}.").format(name=experiment_id)
                     ),
                 )
             )
@@ -291,7 +291,9 @@ class TrackingSessionRunnerMixin:
         self.ui_event_bus.publish(
             Event(
                 type=UIEvents.SET_STATUS,
-                data=payloads.StatusPayload(message=f"Iniciando processo para {experiment_id}..."),
+                data=payloads.StatusPayload(
+                    message=_("Starting process for {name}...").format(name=experiment_id)
+                ),
             )
         )
 

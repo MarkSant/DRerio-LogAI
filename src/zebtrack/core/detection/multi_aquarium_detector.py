@@ -17,6 +17,7 @@ from zebtrack.core.detection.detection_post_processor import DetectionPostProces
 from zebtrack.core.detection.detection_types import AquariumData, MultiAquariumZoneData, ZoneData
 from zebtrack.core.detection.single_subject_tracker import SingleSubjectTracker
 from zebtrack.core.detection.zone_scaler import ZoneScaler
+from zebtrack.i18n import _
 from zebtrack.plugins.base import DetectorPlugin
 from zebtrack.tracker.byte_tracker import BYTETracker
 
@@ -902,7 +903,7 @@ class MultiAquariumDetector:
 
                 if polygon.size > 0:
                     x, y = polygon[0]
-                    label = f"Aquario {aq.id + 1}"
+                    label = _("Aquarium {number}").format(number=aq.id + 1)
                     if aq.group:
                         label += f" ({aq.group})"
                     # Espessura 1 + LINE_AA: casa com o rótulo do animal (não fica

@@ -1429,7 +1429,7 @@ class DialogManager:
         old_name = item["values"][0].replace("📍 ", "")
 
         # Use custom color dialog
-        color_dialog = ColorSelectionDialog(self.gui.root, "Mudar Cor da ROI")
+        color_dialog = ColorSelectionDialog(self.gui.root, _("Change ROI Color"))
         if not color_dialog.result:
             return
 

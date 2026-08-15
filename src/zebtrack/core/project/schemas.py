@@ -50,14 +50,12 @@ class ROITemplateSchema(BaseModel):
                 "(roi_polygons, roi_names, roi_colors)"
             )
 
-        # Se tem ROIs, valida que as três chaves estão juntas
+        # If ROIs are present, all three keys must be present together
         roi_keys = {"roi_polygons", "roi_names", "roi_colors"}
         present_roi_keys = roi_keys & set(v.keys())
         if present_roi_keys and present_roi_keys != roi_keys:
             missing = roi_keys - present_roi_keys
-            raise ValueError(
-                f"Se incluir ROIs, todas as chaves devem estar presentes. Faltam: {missing}"
-            )
+            raise ValueError(f"If ROIs are included, every key must be present. Missing: {missing}")
 
         return v
 

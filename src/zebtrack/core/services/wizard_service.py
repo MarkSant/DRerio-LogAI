@@ -542,7 +542,9 @@ class WizardService:
                     device_id = getattr(port, "device", None)
                     if device_id:
                         description = getattr(port, "description", device_id)
-                        display_name = f"{device_id} - {description} [sem handshake]"
+                        display_name = _("{device} - {description} [no handshake]").format(
+                            device=device_id, description=description
+                        )
                         ports_info.append(
                             {
                                 "device": device_id,
@@ -687,23 +689,28 @@ class WizardService:
         # Subjects validation
         subjects = data.get("subjects_per_group")
         if not isinstance(subjects, int) or subjects < 1 or subjects > 20:
-            return (False, "Número de sujeitos por grupo deve estar entre 1 e 20")
+            return (False, _("The number of subjects per group must be between 1 and 20"))
 
         # Group names validation
         group_names = data.get("group_names", [])
         if not isinstance(group_names, list):
-            return (False, "Nomes de grupos devem ser uma lista")
+            return (False, _("Group names must be a list"))
 
         if len(group_names) != num_groups:
-            return (False, f"Esperado {num_groups} nomes de grupos, mas recebeu {len(group_names)}")
+            return (
+                False,
+                _("Expected {expected} group names, but got {actual}").format(
+                    expected=num_groups, actual=len(group_names)
+                ),
+            )
 
         # Check for unique names
         if len(set(group_names)) != len(group_names):
-            return (False, "Nomes de grupos devem ser únicos")
+            return (False, _("Group names must be unique"))
 
         # Check for empty names
         if any(not name.strip() for name in group_names):
-            return (False, "Nomes de grupos não podem estar vazios")
+            return (False, _("Group names cannot be empty"))
 
         return (True, "")
 

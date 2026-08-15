@@ -1,0 +1,72 @@
+{
+  "_comment": "Unaccented-Portuguese sweep, batch 2: ui/**, plus the two coordinator status lines and the two hardware_benchmark steps that the widened wordlist caught late. Same pattern as batch 1 -- most of these sit beside an already-translated sibling: hardware_benchmark wrapped steps 2/3/4/6 and left 1/5 in Portuguese; config_validator wrapped three of its four range checks; event_dispatcher wrapped the info title and left the warning and error defaults.",
+
+  "Welcome to DRerio LogAI": "Bem-vindo ao DRerio LogAI",
+  "Experiment Progress": "Progresso do Experimento",
+  "Refresh Grid": "Atualizar Grade",
+  "Day/Group": "Dia/Grupo",
+  "Error rendering the grid: {error}": "Erro ao renderizar grade: {error}",
+
+  "Active track ID:": "Track ID ativo:",
+  "✓ {type} defined successfully!": "✓ {type} definida com sucesso!",
+  "Zone created with {count} points.": "Zona criada com {count} pontos.",
+  "Point restored. Current points: {count}": "Ponto restaurado. Pontos atuais: {count}",
+  "Change ROI Color": "Mudar Cor da ROI",
+  "Project: {name} - Ready.": "Projeto: {name} - Pronto.",
+  "No Template Selected": "Nenhum Template Selecionado",
+  "Please select a template first.": "Por favor, selecione um template primeiro.",
+  "Incomplete template": "Template incompleto",
+
+  "Model: detecting weights...": "Modelo: detectando pesos...",
+  "OpenVINO: Disabled.": "OpenVINO: Desativado.",
+  "Hardware: Detecting...": "Hardware: Detectando...",
+  "Disabled.": "Desativado.",
+
+  "Subject:": "Sujeito:",
+  "Recorded": "Gravado",
+  "Not recorded": "Pendente",
+  "⚠️ No files": "⚠️ Sem arquivos",
+  "Failed to open the results folder:\n{error}": "Falha ao abrir pasta de resultados:\n{error}",
+
+  "Copy globals to the project": "Copiar globais para o projeto",
+  "Current project ({name})": "Projeto atual ({name})",
+  "Choose another folder…": "Escolher outra pasta…",
+  "Select the destination project folder": "Selecione a pasta do projeto de destino",
+  "Cancelling...": "Cancelando...",
+  "Wait for the current processing to finish...": "Aguarde o processamento atual terminar...",
+
+  "Process": "Processar",
+  "Reject": "Rejeitar",
+  "Approve/Adjust": "Aprovar/Ajustar",
+  "🔁 Try again with this threshold": "🔁 Tentar novamente com este limiar",
+  "Detecting…": "Detectando…",
+
+  "Edit Metadata in Batch": "Editar Metadata em Lote",
+  "{count} animal(s)": "{count} animal(is)",
+  "No subject": "Sem sujeito",
+
+  "Select the Day:": "Selecione o Dia:",
+  "Select the Group:": "Selecione o Grupo:",
+  "Select the Subject:": "Selecione a Cobaia:",
+  "Select Subject for {day} - {group}": "Selecionar Cobaia para o {day} - {group}",
+
+  "Vertical Lanes": "Faixas Verticais",
+  "Horizontal Lanes": "Faixas Horizontais",
+  "Grid": "Grade",
+  "No. of Lanes:": "Nº de Faixas:",
+  "Grid (Rows x Columns):": "Grade (Linhas x Colunas):",
+
+  "Path": "Caminho",
+  "Define regexes to detect groups, days and subjects. Use capture groups () or named ones (?P<name>) to extract the values.": "Defina regex para detectar grupos, dias e sujeitos. Use grupos de captura () ou nomeados (?P<nome>) para extrair os valores.",
+  "DRerio LogAI - New Project": "DRerio LogAI - Novo Projeto",
+  "DRerio LogAI - Project Wizard (Step {current}/{total})": "DRerio LogAI - Assistente de Projeto (Etapa {current}/{total})",
+  "Discard the project draft?": "Descartar rascunho do projeto?",
+
+  "Animals per Group\n\nHow many animals in each experimental group.\n\nExample: 5 animals/group\n• Control Group: 5 animals\n• Treatment Group: 5 animals\nTotal: 10 animals\n\nYou can type directly or use the +/- buttons.": "Animais por Grupo\n\nQuantos animais em cada grupo experimental.\n\nExemplo: 5 animais/grupo\n• Grupo Controle: 5 animais\n• Grupo Tratamento: 5 animais\nTotal: 10 animais\n\nVocê pode digitar diretamente ou usar os botões +/-.",
+  "Number of Experimental Groups\n\nHow many different groups you will have.\n\nExamples:\n• 1 group: A single treatment\n• 2 groups: Control vs. Treatment\n• 3+ groups: Multiple treatments or doses\n\nYou can type directly or use the +/- buttons.": "Número de Grupos Experimentais\n\nQuantos grupos diferentes você terá.\n\nExemplos:\n• 1 grupo: Apenas um tratamento\n• 2 grupos: Controle vs. Tratamento\n• 3+ grupos: Múltiplos tratamentos ou doses\n\nVocê pode digitar diretamente ou usar os botões +/-.",
+
+  "Finalizing...": "Finalizando...",
+  "Cancellation requested. Finalizing background tasks...": "Cancelamento solicitado. Finalizando tarefas em segundo plano...",
+  "Step 1/6 — Detecting hardware...": "Passo 1/6 — Detectando hardware...",
+  "Step 5/6 — Testing batch processing...": "Passo 5/6 — Testando processamento em lote..."
+}

@@ -728,11 +728,17 @@ class DataTransformer:
                         # Extract index
                         parts = col.split("_")
                         idx = int(parts[2])
-                        # Zone 0 = bottom, display as "Zona 1 (Fundo)"
+                        # Zone 0 = bottom, displayed as "Zone 1 - Bottom".
+                        # English, and NOT _(): this is an exported column
+                        # header, held to the same rule as the sized branch in
+                        # rename_geotaxis_columns() above. Leaving this fallback
+                        # in Portuguese gave the same analysis two different
+                        # schemas depending only on whether aquarium dimensions
+                        # happened to be known.
                         if idx == 0:
-                            rename_geo[col] = "Geotaxis Zona 1 - Fundo (%)"
+                            rename_geo[col] = "Geotaxis Zone 1 - Bottom (%)"
                         else:
-                            rename_geo[col] = f"Geotaxis Zona {idx + 1} (%)"
+                            rename_geo[col] = f"Geotaxis Zone {idx + 1} (%)"
                     except (IndexError, ValueError):
                         log.debug(
                             "data_transformer.geotaxis_rename.error",

@@ -790,7 +790,7 @@ def run_adaptive_benchmark(
             progress_callback(step, total, message)
 
     # Step 1: Detect hardware
-    report_progress(1, 6, "Passo 1/6 — Detectando hardware...")
+    report_progress(1, 6, _("Step 1/6 — Detecting hardware..."))
     profile = detect_hardware_profile()
     result.hardware = profile
 
@@ -844,7 +844,7 @@ def run_adaptive_benchmark(
     result.pipeline_live_results = {k: v.to_dict() for k, v in pipeline_live_results.items()}
 
     # Step 5: Pipeline Batch benchmark
-    report_progress(5, 6, "Passo 5/6 — Testando processamento em lote...")
+    report_progress(5, 6, _("Step 5/6 — Testing batch processing..."))
     pipeline_batch_results = {}
     if video_path and model_path and profile.openvino_available:
         available = _get_benchmark_devices(profile)

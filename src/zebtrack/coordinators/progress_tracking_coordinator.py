@@ -253,7 +253,7 @@ class ProgressTrackingCoordinator(BaseCoordinator):
                     if start_fn and callable(start_fn):
                         start_fn()
 
-            status_text = f"Processando: {video_name}"
+            status_text = _("Processing: {name}").format(name=video_name)
             self.ui_coordinator.set_status(self.view, status_text)
 
             if analysis_controller and hasattr(analysis_controller, "update_analysis_progress"):
@@ -395,7 +395,7 @@ class ProgressTrackingCoordinator(BaseCoordinator):
                     index=progress_data.get("idx"),
                     total=progress_data.get("total_videos"),
                     experiment_id=progress_data.get("exp_id"),
-                    step=f"Processando quadros: {processed}/{total}",
+                    step=_("Processing frames: {done}/{total}").format(done=processed, total=total),
                     progress_fraction=progress_fraction,
                 ),
             )
@@ -517,13 +517,13 @@ class ProgressTrackingCoordinator(BaseCoordinator):
         if self.view:
             self.ui_coordinator.update_view(self.view, "stop_analysis_view_mode")
             self.ui_coordinator.hide_progress_bar(self.view)
-            self.ui_coordinator.set_status(self.view, "Pronto.")
+            self.ui_coordinator.set_status(self.view, _("Ready."))
 
     def _finalize_progress_and_stop(self) -> None:
         """Set progress to 100%, brief pause, then reset UI (runs on main thread)."""
         if self.view:
             self.ui_coordinator.update_progress(self.view, 1.0)
-            self.ui_coordinator.set_status(self.view, "Finalizando...")
+            self.ui_coordinator.set_status(self.view, _("Finalizing..."))
         # Small delay so user sees 100% before the bar disappears
         if self.root:
             self.root.after(500, self._update_ui_for_processing_stop)

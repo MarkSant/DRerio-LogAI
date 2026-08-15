@@ -670,7 +670,9 @@ class FrameProcessingMixin:
                             # instead of calling update_status_text directly
                             # from this worker (Phase 5 / M3).
                             self._post_preview_status(
-                                f"⏳ Estabilizando imagem... ({frame_number}/30)",
+                                _("⏳ Stabilizing image... ({current}/{total})").format(
+                                    current=frame_number, total=30
+                                ),
                                 color="orange",
                             )
                         continue
@@ -833,7 +835,7 @@ class FrameProcessingMixin:
                         # Tk widget mutation must run on the main thread
                         # (Phase 5 / M3).
                         if self.preview_window:
-                            self._post_preview_status("● Gravando", color="red")
+                            self._post_preview_status(_("● Recording"), color="red")
 
                     continue
 

@@ -337,7 +337,7 @@ class EventDispatcher:
             gui.root.after(
                 0,
                 lambda: gui.dialog_manager.show_warning(
-                    _payload_get(d, "title", "Aviso"),
+                    _payload_get(d, "title", _("Warning")),
                     _payload_get(d, "message", ""),
                 ),
             )
@@ -346,7 +346,7 @@ class EventDispatcher:
             gui.root.after(
                 0,
                 lambda: gui.dialog_manager.show_error(
-                    _payload_get(d, "title", "Erro"),
+                    _payload_get(d, "title", _("Error")),
                     _payload_get(d, "message", ""),
                 ),
             )

@@ -486,10 +486,14 @@ class BlockDetailDialog(Toplevel):
         # Status indicator
         if is_completed:
             status_label = Label(row, text="✅", font=("Segoe UI", 14), bg="white")
-            status_text = "Gravado"
+            status_text = _("Recorded")
         else:
             status_label = Label(row, text="⏸️", font=("Segoe UI", 14), bg="white")
-            status_text = "Pendente"
+            # NOT _("Pending"): that msgid is the status-legend label shared by
+            # project_overview/processing_reports/validation_manager, whose
+            # pt_BR text is the plural "Pendentes" (it counts items). This is a
+            # single subject's row, so it needs its own msgid.
+            status_text = _("Not recorded")
 
         status_label.pack(side="left", padx=10, pady=10)
 
@@ -518,7 +522,7 @@ class BlockDetailDialog(Toplevel):
             if files_status.get("summary"):
                 file_icons.append("Σ")  # Summary
 
-            files_text = " ".join(file_icons) if file_icons else "⚠️ Sem arquivos"
+            files_text = " ".join(file_icons) if file_icons else _("⚠️ No files")
             status_detail = f"{status_text} | {files_text}"
         else:
             status_detail = status_text
@@ -707,7 +711,7 @@ class BlockDetailDialog(Toplevel):
         button_row = Frame(chooser)
         button_row.grid(row=3, column=0, columnspan=2, pady=(5, 10))
         Button(button_row, text="OK", command=_on_ok, width=10).pack(side="left", padx=5)
-        Button(button_row, text="Cancelar", command=_on_cancel, width=10).pack(side="left", padx=5)
+        Button(button_row, text=_("Cancel"), command=_on_cancel, width=10).pack(side="left", padx=5)
 
         chooser.wait_window()
 
@@ -1042,8 +1046,8 @@ class BlockDetailDialog(Toplevel):
         except Exception as e:
             log.error("block_detail.view_results.failed", error=str(e), exc_info=True)
             messagebox.showerror(
-                "Erro",
-                f"Falha ao abrir pasta de resultados:\n{e!s}",
+                _("Error"),
+                _("Failed to open the results folder:\n{error}").format(error=str(e)),
             )
 
     def _get_completed_subjects_for_partial_report(self) -> list[str]:
@@ -1180,12 +1184,15 @@ class BlockDetailDialog(Toplevel):
         import pandas as pd
 
         with pd.ExcelWriter(path, engine="openpyxl") as writer:
+            # Sheet names are a persistence contract, like the por_animal sheet:
+            # third-party scripts open these workbooks by sheet name, so they
+            # must not change with ui.language.
             unified_df.to_excel(writer, sheet_name="Dados Consolidados", index=False)
 
             stats_cols = self._get_partial_report_stats_columns(unified_df)
             if len(all_data) > 1 and stats_cols:
                 summary_stats = unified_df.groupby("animal")[stats_cols].mean()
-                summary_stats.to_excel(writer, sheet_name="Resumo por Animal")
+                summary_stats.to_excel(writer, sheet_name="Resumo por Animal")  # i18n: not-ui
 
     def _write_partial_report_word(
         self,

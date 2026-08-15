@@ -343,7 +343,8 @@ class HardwareStatusViewModel:
         from tkinter import filedialog
 
         file_path = filedialog.askopenfilename(
-            title="Carregar Novo Peso", filetypes=[("Modelos YOLO/OpenVINO", "*.pt *.onnx *.xml")]
+            title=_("Load New Weight"),
+            filetypes=[(_("YOLO/OpenVINO models"), "*.pt *.onnx *.xml")],
         )
         if file_path:
             self.ui_state_controller.load_new_weight(filepath=file_path)

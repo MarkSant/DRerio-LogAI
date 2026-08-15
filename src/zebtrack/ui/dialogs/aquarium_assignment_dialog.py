@@ -116,7 +116,10 @@ class AquariumAssignmentDialog(simpledialog.Dialog):
 
             filename = os.path.basename(self.video_path)
             ttk.Label(
-                master, text=f"Arquivo: {filename}", font=("Helvetica", 9), foreground="#666666"
+                master,
+                text=_("File: {name}").format(name=filename),
+                font=("Helvetica", 9),
+                foreground="#666666",
             ).pack(pady=(0, 15))
 
         # Auto-fill button (only if config and regex available)
@@ -481,7 +484,7 @@ class AquariumAssignmentDialog(simpledialog.Dialog):
         group_combo.grid(row=0, column=1, sticky=tk.W, pady=3, padx=(10, 0))
 
         # Subject ID
-        subject_label = ttk.Label(frame, text="Sujeito:")
+        subject_label = ttk.Label(frame, text=_("Subject:"))
         subject_label.grid(row=1, column=0, sticky=tk.W, pady=3)
 
         subject_var = tk.StringVar(value=f"S{aquarium_id + 1:02d}")
@@ -491,7 +494,7 @@ class AquariumAssignmentDialog(simpledialog.Dialog):
         subject_entry.grid(row=1, column=1, sticky=tk.W, pady=3, padx=(10, 0))
 
         # Day
-        day_label = ttk.Label(frame, text="Dia:")
+        day_label = ttk.Label(frame, text=_("Day:"))
         day_label.grid(row=2, column=0, sticky=tk.W, pady=3)
 
         day_var = tk.IntVar(value=1)
@@ -532,7 +535,7 @@ class AquariumAssignmentDialog(simpledialog.Dialog):
 
         confirm_btn = ttk.Button(
             box,
-            text="Confirmar",
+            text=_("Confirm"),
             width=12,
             command=self._on_confirm_click,
         )
@@ -540,7 +543,7 @@ class AquariumAssignmentDialog(simpledialog.Dialog):
 
         cancel_btn = ttk.Button(
             box,
-            text="Cancelar",
+            text=_("Cancel"),
             width=12,
             command=self.cancel,
         )
