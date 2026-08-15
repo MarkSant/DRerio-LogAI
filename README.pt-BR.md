@@ -760,7 +760,7 @@ Contribuições são muito bem-vindas! Este projeto segue práticas modernas de 
 - ✅ **Docstrings**: Google Style para funções públicas
 - ✅ **Testes**: Adicione testes para novas funcionalidades
 - ✅ **DI**: Sempre use injeção de dependências
-- ✅ **Event-Driven**: Prefira comunicação via `EventBus`
+- ✅ **Event-Driven**: Prefira comunicação via `EventBusV2`
 - ✅ **Logging**: Use `structlog` com padrão `domain.action.result`
 
 ### Áreas que Precisam de Ajuda

@@ -768,7 +768,7 @@ Contributions are very welcome! This project follows modern development practice
 - ✅ **Docstrings**: Google Style for public functions
 - ✅ **Tests**: add tests for new functionality
 - ✅ **DI**: always use dependency injection
-- ✅ **Event-Driven**: prefer communication via `EventBus`
+- ✅ **Event-Driven**: prefer communication via `EventBusV2`
 - ✅ **Logging**: use `structlog` with the `domain.action.result` pattern
 
 ### Areas That Need Help
