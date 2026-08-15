@@ -528,11 +528,17 @@ class DetectorService:
         _validate_range("iou_threshold", params_dict.get("iou_threshold"))
 
         if "track_buffer" in params_dict:
+            # Same shape as _validate_range above, and for the same reason: the
+            # `< 1` check used to sit INSIDE the try, so `except ValueError`
+            # caught the range violation it had just raised and relabelled it
+            # "must be an integer". Passing 0 — an integer — was answered with
+            # "track_buffer must be an integer".
             try:
-                if int(params_dict["track_buffer"]) < 1:
-                    raise ValueError("track_buffer must be at least 1")
+                track_buffer_value = int(params_dict["track_buffer"])
             except (TypeError, ValueError) as e:
                 raise ValueError("track_buffer must be an integer") from e
+            if track_buffer_value < 1:
+                raise ValueError(f"track_buffer must be at least 1, got {track_buffer_value}")
 
         plugin = self.detector.plugin if self.detector else None
         clear_project_overrides = scope_normalized == "project" and reset_overrides
