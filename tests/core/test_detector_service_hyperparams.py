@@ -121,3 +121,34 @@ def test_apply_hyperparams_skips_unknown_attr_on_plugin(
     detector_service._apply_project_detector_hyperparams(plugin)  # no AttributeError
 
     assert not hasattr(plugin, "conf_threshold")
+
+
+class TestTrackBufferValidationMessages:
+    """A range violation and a parse failure must not report the same cause.
+
+    The ``< 1`` check used to sit inside the ``try``, so ``except ValueError``
+    caught the range error it had itself raised and re-raised it as
+    "track_buffer must be an integer" — telling the operator to pass an integer
+    when they had passed one.
+    """
+
+    @pytest.mark.parametrize("value", [0, -5])
+    def test_out_of_range_reports_range_not_type(
+        self, detector_service: DetectorService, value: int
+    ) -> None:
+        with pytest.raises(ValueError) as exc_info:
+            detector_service.update_tracking_parameters(track_buffer=value)
+
+        message = str(exc_info.value)
+        assert "at least 1" in message
+        assert "must be an integer" not in message
+        assert str(value) in message
+
+    @pytest.mark.parametrize("value", ["abc", None, [1]])
+    def test_unparseable_still_reports_type(
+        self, detector_service: DetectorService, value: object
+    ) -> None:
+        with pytest.raises(ValueError) as exc_info:
+            detector_service.update_tracking_parameters(params={"track_buffer": value})
+
+        assert "must be an integer" in str(exc_info.value)

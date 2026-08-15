@@ -22,6 +22,7 @@ from typing import Any
 
 import structlog
 
+from zebtrack.i18n import _
 from zebtrack.ui.window_utils import schedule_maximize
 
 log = structlog.get_logger()
@@ -58,7 +59,7 @@ class CreateProjectDialog(simpledialog.Dialog):
         self.aquarium_height_var = StringVar(value="10.0")
         self.project_type_var = StringVar(value="pre-recorded")
         self.video_files = []
-        self.video_list_var = StringVar(value="Nenhum vídeo selecionado.")
+        self.video_list_var = StringVar(value=_("No video selected."))
         self.use_timed_recording_var = BooleanVar(value=False)
         self.recording_duration_var = StringVar(value="5")
         self.use_countdown_var = BooleanVar(value=False)
@@ -79,36 +80,40 @@ class CreateProjectDialog(simpledialog.Dialog):
         self.animal_method_var = StringVar(value="det")  # Default from settings
 
         # --- Project Name ---
-        Label(master, text="Nome do Projeto:").grid(row=0, column=0, sticky="w", padx=5, pady=2)
+        Label(master, text=_("Project Name:")).grid(row=0, column=0, sticky="w", padx=5, pady=2)
         Entry(master, textvariable=self.project_name_var, width=40).grid(
             row=0, column=1, columnspan=2, sticky="ew", padx=5
         )
 
         # --- Base Path ---
-        Label(master, text="Pasta do Projeto:").grid(row=1, column=0, sticky="w", padx=5, pady=2)
+        Label(master, text=_("Project Folder:")).grid(row=1, column=0, sticky="w", padx=5, pady=2)
         self.path_entry = Entry(master, width=40)
         self.path_entry.grid(row=1, column=1, columnspan=2, sticky="ew", padx=5)
-        Button(master, text="Procurar...", command=self._select_path).grid(row=1, column=3, padx=5)
+        Button(master, text=_("Browse..."), command=self._select_path).grid(row=1, column=3, padx=5)
 
         # --- Calibration ---
-        Label(master, text="Número de Aquários:").grid(row=2, column=0, sticky="w", padx=5, pady=2)
+        Label(master, text=_("Number of Aquariums:")).grid(
+            row=2, column=0, sticky="w", padx=5, pady=2
+        )
         Entry(master, textvariable=self.num_aquariums_var, width=10).grid(
             row=2, column=1, sticky="w", padx=5
         )
 
-        Label(master, text="Animais por Aquário:").grid(row=3, column=0, sticky="w", padx=5, pady=2)
+        Label(master, text=_("Animals per Aquarium:")).grid(
+            row=3, column=0, sticky="w", padx=5, pady=2
+        )
         Entry(master, textvariable=self.animals_per_aquarium_var, width=10).grid(
             row=3, column=1, sticky="w", padx=5
         )
 
-        Label(master, text="Largura do Aquário (cm):").grid(
+        Label(master, text=_("Aquarium Width (cm):")).grid(
             row=4, column=0, sticky="w", padx=5, pady=2
         )
         Entry(master, textvariable=self.aquarium_width_var, width=10).grid(
             row=4, column=1, sticky="w", padx=5
         )
 
-        Label(master, text="Altura do Aquário (cm):").grid(
+        Label(master, text=_("Aquarium Height (cm):")).grid(
             row=5, column=0, sticky="w", padx=5, pady=2
         )
         Entry(master, textvariable=self.aquarium_height_var, width=10).grid(
@@ -116,7 +121,7 @@ class CreateProjectDialog(simpledialog.Dialog):
         )
 
         # --- Frame Intervals ---
-        Label(master, text="Intervalo de Análise (frames):").grid(
+        Label(master, text=_("Analysis Interval (frames):")).grid(
             row=6, column=0, sticky="w", padx=5, pady=2
         )
         Entry(master, textvariable=self.analysis_interval_var, width=10).grid(
@@ -130,7 +135,9 @@ class CreateProjectDialog(simpledialog.Dialog):
         # Tk a colapsa sozinho).
 
         # --- Detection Methods ---
-        Label(master, text="Método para Aquário:").grid(row=8, column=0, sticky="w", padx=5, pady=2)
+        Label(master, text=_("Method for Aquarium:")).grid(
+            row=8, column=0, sticky="w", padx=5, pady=2
+        )
         aquarium_method_combo = ttk.Combobox(
             master,
             textvariable=self.aquarium_method_var,
@@ -140,7 +147,9 @@ class CreateProjectDialog(simpledialog.Dialog):
         )
         aquarium_method_combo.grid(row=8, column=1, sticky="w", padx=5)
 
-        Label(master, text="Método para Animais:").grid(row=9, column=0, sticky="w", padx=5, pady=2)
+        Label(master, text=_("Method for Animals:")).grid(
+            row=9, column=0, sticky="w", padx=5, pady=2
+        )
         animal_method_combo = ttk.Combobox(
             master,
             textvariable=self.animal_method_var,
@@ -151,17 +160,17 @@ class CreateProjectDialog(simpledialog.Dialog):
         animal_method_combo.grid(row=9, column=1, sticky="w", padx=5)
 
         # --- Project Type & Videos ---
-        Label(master, text="Tipo de Projeto:").grid(row=10, column=0, sticky="w", padx=5, pady=2)
+        Label(master, text=_("Project Type:")).grid(row=10, column=0, sticky="w", padx=5, pady=2)
         ttk.Radiobutton(
             master,
-            text="Pré-gravado",
+            text=_("Pre-recorded"),
             variable=self.project_type_var,
             value="pre-recorded",
             command=self._update_project_type_options,
         ).grid(row=10, column=1, sticky="w", padx=5)
         ttk.Radiobutton(
             master,
-            text="Ao Vivo",
+            text=_("Live"),
             variable=self.project_type_var,
             value="live",
             command=self._update_project_type_options,
@@ -173,14 +182,14 @@ class CreateProjectDialog(simpledialog.Dialog):
 
         self.video_files_button = Button(
             video_selection_frame,
-            text="Selecionar Vídeos...",
+            text=_("Select Videos..."),
             command=self._select_video_files,
         )
         self.video_files_button.pack(side="left", padx=(0, 5))
 
         self.video_folder_button = Button(
             video_selection_frame,
-            text="Selecionar Pasta...",
+            text=_("Select Folder..."),
             command=self._select_video_folder,
         )
         self.video_folder_button.pack(side="left")
@@ -194,7 +203,7 @@ class CreateProjectDialog(simpledialog.Dialog):
         self.live_options_frame.grid(row=12, column=0, columnspan=4, sticky="ew", padx=5)
         Checkbutton(
             self.live_options_frame,
-            text="Usar gravação com tempo?",
+            text=_("Use timed recording?"),
             variable=self.use_timed_recording_var,
             command=self._update_project_type_options,
         ).pack(side="left")
@@ -202,12 +211,12 @@ class CreateProjectDialog(simpledialog.Dialog):
             self.live_options_frame, textvariable=self.recording_duration_var, width=5
         )
         self.duration_entry.pack(side="left", padx=5)
-        Label(self.live_options_frame, text="minutos").pack(side="left", padx=(0, 10))
+        Label(self.live_options_frame, text=_("minutes")).pack(side="left", padx=(0, 10))
 
         # Countdown options
         Checkbutton(
             self.live_options_frame,
-            text="Usar contagem regressiva?",
+            text=_("Use a countdown?"),
             variable=self.use_countdown_var,
             command=self._update_project_type_options,
         ).pack(side="left")
@@ -219,23 +228,23 @@ class CreateProjectDialog(simpledialog.Dialog):
 
         # --- Live Project Experimental Design ---
         self.live_project_frame = ttk.LabelFrame(
-            master, text="Design Experimental (Projeto ao Vivo)", padding=10
+            master, text=_("Experimental Design (Live Project)"), padding=10
         )
         self.live_project_frame.grid(row=13, column=0, columnspan=4, sticky="ew", padx=5, pady=5)
         # Widgets inside live_project_frame
-        ttk.Label(self.live_project_frame, text="Total de Dias do Experimento:").grid(
+        ttk.Label(self.live_project_frame, text=_("Total Experiment Days:")).grid(
             row=0, column=0, sticky="w", padx=5, pady=2
         )
         ttk.Entry(self.live_project_frame, textvariable=self.total_days_var, width=10).grid(
             row=0, column=1, sticky="w", padx=5
         )
-        ttk.Label(self.live_project_frame, text="Cobaias por Grupo:").grid(
+        ttk.Label(self.live_project_frame, text=_("Subjects per Group:")).grid(
             row=1, column=0, sticky="w", padx=5, pady=2
         )
         ttk.Entry(self.live_project_frame, textvariable=self.subjects_per_group_var, width=10).grid(
             row=1, column=1, sticky="w", padx=5
         )
-        ttk.Label(self.live_project_frame, text="Número de Grupos:").grid(
+        ttk.Label(self.live_project_frame, text=_("Number of Groups:")).grid(
             row=2, column=0, sticky="w", padx=5, pady=2
         )
         num_groups_entry = ttk.Entry(
@@ -244,13 +253,13 @@ class CreateProjectDialog(simpledialog.Dialog):
         num_groups_entry.grid(row=2, column=1, sticky="w", padx=5)
         self.num_groups_var.trace_add("write", self._on_num_groups_change)
         self.group_names_frame = ttk.LabelFrame(
-            self.live_project_frame, text="Nomes dos Grupos", padding=5
+            self.live_project_frame, text=_("Group Names"), padding=5
         )
         self.group_names_frame.grid(row=3, column=0, columnspan=4, sticky="ew", padx=5, pady=5)
         self.group_name_entries = []
         for i in range(6):
             row, col = divmod(i, 2)
-            ttk.Label(self.group_names_frame, text=f"Grupo {i + 1}:").grid(
+            ttk.Label(self.group_names_frame, text=_("Group {number}:").format(number=i + 1)).grid(
                 row=row, column=col * 2, sticky="w", padx=5, pady=2
             )
             entry = ttk.Entry(
@@ -264,7 +273,7 @@ class CreateProjectDialog(simpledialog.Dialog):
         return self.path_entry  # initial focus
 
     def _select_path(self):
-        path = filedialog.askdirectory(title="Selecione uma Pasta Principal para o Projeto")
+        path = filedialog.askdirectory(title=_("Select a Base Folder for the Project"))
         if path:
             self.path_entry.delete(0, "end")
             self.path_entry.insert(0, path)
@@ -272,8 +281,8 @@ class CreateProjectDialog(simpledialog.Dialog):
     def _select_video_files(self):
         """Select individual video files."""
         files = filedialog.askopenfilenames(
-            title="Selecione os Arquivos de Vídeo",
-            filetypes=[("Arquivos de vídeo", "*.mp4 *.avi *.mov")],
+            title=_("Select the Video Files"),
+            filetypes=[(_("Video files"), "*.mp4 *.avi *.mov")],
         )
         if files:
             # Initialize if needed
@@ -289,7 +298,7 @@ class CreateProjectDialog(simpledialog.Dialog):
 
     def _select_video_folder(self):
         """Select a folder containing videos."""
-        folder = filedialog.askdirectory(title="Selecione uma Pasta Contendo Vídeos")
+        folder = filedialog.askdirectory(title=_("Select a Folder Containing Videos"))
         if folder:
             # Initialize if needed
             if not hasattr(self, "video_paths") or not isinstance(self.video_paths, list):
@@ -304,7 +313,7 @@ class CreateProjectDialog(simpledialog.Dialog):
     def _update_video_selection_display(self):
         """Update the display showing selected videos/folders."""
         if not hasattr(self, "video_paths") or not self.video_paths:
-            self.video_list_var.set("Nenhum vídeo/pasta selecionado.")
+            self.video_list_var.set(_("No video/folder selected."))
             return
 
         # Count files and folders
@@ -313,14 +322,20 @@ class CreateProjectDialog(simpledialog.Dialog):
 
         parts = []
         if files:
-            parts.append(f"{len(files)} arquivo(s)")
+            parts.append(
+                _("1 file") if len(files) == 1 else _("{count} files").format(count=len(files))
+            )
         if folders:
-            parts.append(f"{len(folders)} pasta(s)")
+            parts.append(
+                _("1 folder")
+                if len(folders) == 1
+                else _("{count} folders").format(count=len(folders))
+            )
 
         if parts:
-            self.video_list_var.set(" + ".join(parts) + " selecionado(s).")
+            self.video_list_var.set(_("Selected: {parts}").format(parts=" + ".join(parts)))
         else:
-            self.video_list_var.set("Seleção contém caminhos inválidos.")
+            self.video_list_var.set(_("The selection contains invalid paths."))
 
     def _on_num_groups_change(self, *args):
         try:
@@ -347,7 +362,7 @@ class CreateProjectDialog(simpledialog.Dialog):
         else:  # Live
             self.video_files_button.config(state="disabled")
             self.video_folder_button.config(state="disabled")
-            self.video_list_var.set("Não aplicável para projetos ao vivo.")
+            self.video_list_var.set(_("Not applicable to live projects."))
             self.live_options_frame.grid()
             self.live_project_frame.grid()  # Show the new frame
             if self.use_timed_recording_var.get():
@@ -387,15 +402,15 @@ class CreateProjectDialog(simpledialog.Dialog):
     def _validate_base_path_and_name(self) -> tuple[bool, str]:
         base_path = self.path_entry.get()
         if not base_path or not os.path.isdir(base_path):
-            return False, "Por favor, selecione uma pasta principal válida."
+            return False, _("Please select a valid base folder.")
 
         project_name = self.project_name_var.get()
         if not project_name.strip():
-            return False, "O nome do projeto não pode estar vazio."
+            return False, _("The project name cannot be empty.")
 
         self.project_path = os.path.join(base_path, project_name)
         if os.path.exists(self.project_path) and os.listdir(self.project_path):
-            return False, "Uma pasta de projeto com este nome já existe e não está vazia."
+            return False, _("A project folder with this name already exists and is not empty.")
 
         return True, ""
 
@@ -404,9 +419,8 @@ class CreateProjectDialog(simpledialog.Dialog):
             return True, ""
 
         if not hasattr(self, "video_paths") or not self.video_paths:
-            return False, (
-                "Por favor, selecione pelo menos um arquivo de vídeo ou pasta para "
-                "análise pré-gravada."
+            return False, _(
+                "Please select at least one video file or folder for the pre-recorded analysis."
             )
 
         return True, ""
@@ -435,14 +449,14 @@ class CreateProjectDialog(simpledialog.Dialog):
             if total_days <= 0 or subjects_per_group <= 0 or num_groups <= 0:
                 raise ValueError
             if not 1 <= num_groups <= 6:
-                return False, "O número de grupos deve ser entre 1 e 6."
+                return False, _("The number of groups must be between 1 and 6.")
             for i in range(num_groups):
                 if not self.group_name_vars[i].get().strip():
-                    return False, f"O nome do Grupo {i + 1} não pode estar vazio."
+                    return False, _("The name of Group {number} cannot be empty.").format(
+                        number=i + 1
+                    )
         except (ValueError, TypeError):
-            return False, (
-                "Os parâmetros do design experimental devem ser números positivos válidos."
-            )
+            return False, _("The experimental design parameters must be valid positive numbers.")
 
         if self.use_timed_recording_var.get():
             try:
@@ -450,7 +464,7 @@ class CreateProjectDialog(simpledialog.Dialog):
                 if duration <= 0:
                     raise ValueError
             except ValueError:
-                return False, "A duração da gravação deve ser um número positivo."
+                return False, _("The recording duration must be a positive number.")
 
         if self.use_countdown_var.get():
             try:
@@ -458,7 +472,7 @@ class CreateProjectDialog(simpledialog.Dialog):
                 if countdown <= 0:
                     raise ValueError
             except ValueError:
-                return False, "A duração da contagem regressiva deve ser um inteiro positivo."
+                return False, _("The countdown duration must be a positive whole number.")
 
         return True, ""
 
@@ -469,9 +483,7 @@ class CreateProjectDialog(simpledialog.Dialog):
             if analysis_interval <= 0 or display_interval <= 0:
                 raise ValueError
         except ValueError:
-            return False, (
-                "Os intervalos de análise e exibição devem ser números inteiros positivos."
-            )
+            return False, _("The analysis and display intervals must be positive whole numbers.")
 
         return True, ""
 

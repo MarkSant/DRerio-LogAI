@@ -151,7 +151,7 @@ class TestModelSelectionStep:
         is_valid, error_message = step.validate()
 
         assert not is_valid
-        assert "decimais" in error_message.lower() or "valor" in error_message.lower()
+        assert "decimal values" in error_message.lower()
 
     def test_validation_fails_with_threshold_out_of_range(self, mock_weight_manager):
         """Validation should fail when threshold is outside (0, 1) range."""
@@ -168,7 +168,7 @@ class TestModelSelectionStep:
         is_valid, error_message = step.validate()
 
         assert not is_valid
-        assert "entre 0 e 1" in error_message.lower()
+        assert "between 0 and 1" in error_message.lower()
 
     def test_validation_fails_with_threshold_at_boundary(self, mock_weight_manager):
         """Validation should fail with threshold exactly at 0 or 1."""
@@ -279,7 +279,7 @@ class TestModelSelectionStep:
         assert "-seg" in initial_animal_weight or initial_animal_weight == "yolov8n-seg.pt"
 
         # Change to det method
-        step.animal_method_var.set("Detecção (det)")
+        step.animal_method_var.set(step._method_display("det"))
         step._on_animal_method_change()
 
         # Should now have a det weight
@@ -294,13 +294,13 @@ class TestModelSelectionStep:
         step.build_ui()
 
         # Force invalid state: seg method with det weight
-        step.aquarium_method_var.set("Segmentação (seg)")
+        step.aquarium_method_var.set(step._method_display("seg"))
         step.aquarium_weight_var.set("invalid_weight_not_in_catalog.pt")
 
         is_valid, error_message = step.validate()
 
         assert not is_valid
-        assert "peso válido" in error_message.lower()
+        assert "valid weight" in error_message.lower()
 
     def test_animal_method_hint_for_multiple_animals(self, mock_weight_manager):
         """Hint should appear when using det method with multiple animals."""
@@ -311,14 +311,14 @@ class TestModelSelectionStep:
         step.build_ui()
 
         # Set to det method
-        step.animal_method_var.set("Detecção (det)")
+        step.animal_method_var.set(step._method_display("det"))
         step._update_animal_method_hint()
 
         hint = step.animal_method_hint_var.get()
 
         # Should show warning about det with multiple animals
         assert "⚠️" in hint or "det" in hint.lower()
-        assert "múltiplos animais" in hint.lower() or "1 animal" in hint.lower()
+        assert "several animals" in hint.lower() or "1 animal" in hint.lower()
 
     def test_animal_method_hint_cleared_for_seg(self, mock_weight_manager):
         """Hint should be cleared when using seg method."""
@@ -329,7 +329,7 @@ class TestModelSelectionStep:
         step.build_ui()
 
         # Set to seg method
-        step.animal_method_var.set("Segmentação (seg)")
+        step.animal_method_var.set(step._method_display("seg"))
         step._update_animal_method_hint()
 
         hint = step.animal_method_hint_var.get()

@@ -23,6 +23,8 @@ from typing import TYPE_CHECKING, Any
 
 import structlog
 
+from zebtrack.i18n import _
+
 if TYPE_CHECKING:
     from tkinter import Misc
 
@@ -149,8 +151,8 @@ class RecordingService:
 
         if camera_width is None or camera_height is None:
             self._show_error(
-                "Erro",
-                "Configuração da câmera indisponível para iniciar a gravação.",
+                _("Error"),
+                _("Camera configuration unavailable to start the recording."),
             )
             self._update_button_state("start_rec", "normal")
             return
@@ -202,7 +204,7 @@ class RecordingService:
         )
 
         if not recording_started:
-            self._show_error("Erro", "Não foi possível iniciar a gravação.")
+            self._show_error(_("Error"), _("Could not start the recording."))
             self._update_button_state("start_rec", "normal")
             self._update_button_state("stop_rec", "disabled")
             return

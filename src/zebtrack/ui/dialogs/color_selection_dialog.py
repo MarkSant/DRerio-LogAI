@@ -11,43 +11,49 @@ from tkinter import (
     ttk,
 )
 
+from zebtrack.i18n import _
+
 
 class ColorSelectionDialog(simpledialog.Dialog):
     """Diálogo para seleção de cor de áreas de interesse."""
 
-    def __init__(self, parent, title="Selecionar Cor da Área"):
+    def __init__(self, parent, title=None):
         """Initialize the color selection dialog.
 
         Args:
             parent: Parent widget.
-            title: Dialog window title (default: "Selecionar Cor da Área").
+            title: Dialog window title. Defaults to the translated
+                "Select Area Colour" when omitted.
         """
         self.result = None
-        super().__init__(parent, title)
+        super().__init__(parent, title if title is not None else _("Select Area Colour"))
 
     def body(self, master):
         """Cria o corpo do diálogo com opções de cores."""
-        # Default to first color (Verde)
-        self.selected_color = StringVar(value="verde")
+        # Default to the first colour. The radio VALUE is the stable key, never
+        # the label: the label is translated, and a translated value would stop
+        # matching this default (and apply()'s lookup) the moment the language
+        # changes.
+        self.selected_color = StringVar(value="green")
 
-        # Cores disponíveis: (nome, valor_bgr para OpenCV, cor_hex para visualização)
+        # (key, translated label, BGR value for OpenCV, hex colour for display)
         self.colors = [
-            ("Verde", (0, 128, 0), "#008000"),
-            ("Azul", (255, 0, 0), "#0000FF"),  # BGR: (255, 0, 0) = Blue
-            ("Vermelho", (0, 0, 255), "#FF0000"),  # BGR: (0, 0, 255) = Red
-            ("Amarelo", (0, 204, 204), "#CCCC00"),  # BGR: (0, 204, 204) = Darker Yellow
-            ("Magenta", (255, 0, 255), "#FF00FF"),  # BGR: (255, 0, 255) = Magenta
-            ("Ciano", (255, 255, 0), "#00FFFF"),  # BGR: (255, 255, 0) = Cyan
+            ("green", _("Green"), (0, 128, 0), "#008000"),
+            ("blue", _("Blue"), (255, 0, 0), "#0000FF"),  # BGR: (255, 0, 0) = Blue
+            ("red", _("Red"), (0, 0, 255), "#FF0000"),  # BGR: (0, 0, 255) = Red
+            ("yellow", _("Yellow"), (0, 204, 204), "#CCCC00"),  # Darker Yellow
+            ("magenta", _("Magenta"), (255, 0, 255), "#FF00FF"),  # BGR = Magenta
+            ("cyan", _("Cyan"), (255, 255, 0), "#00FFFF"),  # BGR: (255, 255, 0) = Cyan
         ]
 
-        ttk.Label(master, text="Escolha a cor para esta área de interesse:").pack(pady=5)
+        ttk.Label(master, text=_("Choose the colour for this region of interest:")).pack(pady=5)
 
         # Frame for color buttons
         colors_frame = ttk.Frame(master)
         colors_frame.pack(pady=10)
 
         # Create color buttons in two rows
-        for i, (name, _rgb, hex_color) in enumerate(self.colors):
+        for i, (key, label, _rgb, hex_color) in enumerate(self.colors):
             row = i // 3
             col = i % 3
 
@@ -57,9 +63,9 @@ class ColorSelectionDialog(simpledialog.Dialog):
             # Radiobutton para seleção
             ttk.Radiobutton(
                 color_frame,
-                text=name,
+                text=label,
                 variable=self.selected_color,
-                value=name.lower(),
+                value=key,
             ).pack()
 
             # Quadrado colorido para visualização
@@ -71,8 +77,8 @@ class ColorSelectionDialog(simpledialog.Dialog):
 
     def apply(self):
         """Apply the color selection."""
-        selected_name = self.selected_color.get()
-        for name, rgb, hex_color in self.colors:
-            if name.lower() == selected_name:
-                self.result = {"name": name, "rgb": rgb, "hex": hex_color}
+        selected_key = self.selected_color.get()
+        for key, label, rgb, hex_color in self.colors:
+            if key == selected_key:
+                self.result = {"key": key, "name": label, "rgb": rgb, "hex": hex_color}
                 break

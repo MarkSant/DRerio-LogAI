@@ -310,7 +310,7 @@ class TestSaveROITemplateDialog:
 
         assert result is False
         mock_warning.assert_called_once()
-        assert "Nome obrigatório" in mock_warning.call_args[0][0]
+        assert "Name required" in mock_warning.call_args[0][0]
 
     @patch("zebtrack.ui.dialogs.save_roi_template_dialog.messagebox.showwarning")
     def test_validate_requires_arena_or_rois(self, mock_warning, tkinter_root):
@@ -330,7 +330,7 @@ class TestSaveROITemplateDialog:
 
         assert result is False
         mock_warning.assert_called_once()
-        assert "Seleção incompleta" in mock_warning.call_args[0][0]
+        assert "Incomplete selection" in mock_warning.call_args[0][0]
 
     @patch("zebtrack.ui.dialogs.save_roi_template_dialog.messagebox.showwarning")
     def test_validate_requires_custom_path_when_custom(self, mock_warning, tkinter_root):
@@ -350,7 +350,7 @@ class TestSaveROITemplateDialog:
 
         assert result is False
         mock_warning.assert_called_once()
-        assert "Local não definido" in mock_warning.call_args[0][0]
+        assert "Location not set" in mock_warning.call_args[0][0]
 
     def test_validate_succeeds_with_valid_input(self, tkinter_root):
         """Test validation succeeds with valid input."""
@@ -599,7 +599,7 @@ class TestColorSelectionDialog:
 
         assert dialog is not None
         assert dialog.result is None
-        assert dialog.wm_title() == "Selecionar Cor da Área"
+        assert dialog.wm_title() == "Select Area Colour"
 
     def test_dialog_initialization_custom_title(self, tkinter_root):
         """Test dialog initializes with custom title."""
@@ -615,21 +615,24 @@ class TestColorSelectionDialog:
 
         # Should have 6 colors
         assert len(dialog.colors) == 6
-        # Default is verde (Portuguese for green)
-        assert dialog.selected_color.get() == "verde"
+        # The default is the stable key, not the displayed label.
+        assert dialog.selected_color.get() == "green"
 
     def test_body_has_all_expected_colors(self, tkinter_root):
         """Test body includes all expected colors."""
         dialog = ColorSelectionDialog(tkinter_root)
         tkinter_root.update_idletasks()
 
-        color_names = [name for name, _, _ in dialog.colors]
-        assert "Verde" in color_names
-        assert "Azul" in color_names
-        assert "Vermelho" in color_names
-        assert "Amarelo" in color_names
-        assert "Magenta" in color_names
-        assert "Ciano" in color_names
+        color_keys = [key for key, _label, _rgb, _hex in dialog.colors]
+        assert color_keys == ["green", "blue", "red", "yellow", "magenta", "cyan"]
+
+        color_labels = [label for _key, label, _rgb, _hex in dialog.colors]
+        assert "Green" in color_labels
+        assert "Blue" in color_labels
+        assert "Red" in color_labels
+        assert "Yellow" in color_labels
+        assert "Magenta" in color_labels
+        assert "Cyan" in color_labels
 
     # --- Color Mapping Tests ---
 
@@ -638,30 +641,30 @@ class TestColorSelectionDialog:
         dialog = ColorSelectionDialog(tkinter_root)
         tkinter_root.update_idletasks()
 
-        verde = next((c for c in dialog.colors if c[0] == "Verde"), None)
+        verde = next((c for c in dialog.colors if c[0] == "green"), None)
         assert verde is not None
-        assert verde[1] == (0, 128, 0)  # BGR for OpenCV
-        assert verde[2] == "#008000"  # Hex
+        assert verde[2] == (0, 128, 0)  # BGR for OpenCV
+        assert verde[3] == "#008000"  # Hex
 
     def test_color_azul_has_correct_values(self, tkinter_root):
         """Test Azul color has correct RGB and hex values."""
         dialog = ColorSelectionDialog(tkinter_root)
         tkinter_root.update_idletasks()
 
-        azul = next((c for c in dialog.colors if c[0] == "Azul"), None)
+        azul = next((c for c in dialog.colors if c[0] == "blue"), None)
         assert azul is not None
-        assert azul[1] == (255, 0, 0)  # BGR for OpenCV
-        assert azul[2] == "#0000FF"  # Hex
+        assert azul[2] == (255, 0, 0)  # BGR for OpenCV
+        assert azul[3] == "#0000FF"  # Hex
 
     def test_color_vermelho_has_correct_values(self, tkinter_root):
         """Test Vermelho color has correct RGB and hex values."""
         dialog = ColorSelectionDialog(tkinter_root)
         tkinter_root.update_idletasks()
 
-        vermelho = next((c for c in dialog.colors if c[0] == "Vermelho"), None)
+        vermelho = next((c for c in dialog.colors if c[0] == "red"), None)
         assert vermelho is not None
-        assert vermelho[1] == (0, 0, 255)  # BGR for OpenCV
-        assert vermelho[2] == "#FF0000"  # Hex
+        assert vermelho[2] == (0, 0, 255)  # BGR for OpenCV
+        assert vermelho[3] == "#FF0000"  # Hex
 
     # --- Apply Tests ---
 
@@ -674,7 +677,7 @@ class TestColorSelectionDialog:
         dialog.apply()
 
         assert dialog.result is not None
-        assert dialog.result["name"] == "Verde"
+        assert dialog.result["name"] == "Green"
         assert dialog.result["rgb"] == (0, 128, 0)
         assert dialog.result["hex"] == "#008000"
 
@@ -683,11 +686,11 @@ class TestColorSelectionDialog:
         dialog = ColorSelectionDialog(tkinter_root)
         tkinter_root.update_idletasks()
 
-        dialog.selected_color.set("azul")
+        dialog.selected_color.set("blue")
         dialog.apply()
 
         assert dialog.result is not None
-        assert dialog.result["name"] == "Azul"
+        assert dialog.result["name"] == "Blue"
         assert dialog.result["rgb"] == (255, 0, 0)
         assert dialog.result["hex"] == "#0000FF"
 
@@ -696,11 +699,11 @@ class TestColorSelectionDialog:
         dialog = ColorSelectionDialog(tkinter_root)
         tkinter_root.update_idletasks()
 
-        dialog.selected_color.set("vermelho")
+        dialog.selected_color.set("red")
         dialog.apply()
 
         assert dialog.result is not None
-        assert dialog.result["name"] == "Vermelho"
+        assert dialog.result["name"] == "Red"
         assert dialog.result["rgb"] == (0, 0, 255)
         assert dialog.result["hex"] == "#FF0000"
 
@@ -709,11 +712,11 @@ class TestColorSelectionDialog:
         dialog = ColorSelectionDialog(tkinter_root)
         tkinter_root.update_idletasks()
 
-        dialog.selected_color.set("amarelo")
+        dialog.selected_color.set("yellow")
         dialog.apply()
 
         assert dialog.result is not None
-        assert dialog.result["name"] == "Amarelo"
+        assert dialog.result["name"] == "Yellow"
         assert dialog.result["rgb"] == (0, 204, 204)
         assert dialog.result["hex"] == "#CCCC00"
 
@@ -735,11 +738,11 @@ class TestColorSelectionDialog:
         dialog = ColorSelectionDialog(tkinter_root)
         tkinter_root.update_idletasks()
 
-        dialog.selected_color.set("ciano")
+        dialog.selected_color.set("cyan")
         dialog.apply()
 
         assert dialog.result is not None
-        assert dialog.result["name"] == "Ciano"
+        assert dialog.result["name"] == "Cyan"
         assert dialog.result["rgb"] == (255, 255, 0)
         assert dialog.result["hex"] == "#00FFFF"
 

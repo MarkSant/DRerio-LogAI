@@ -22,6 +22,7 @@ from zebtrack.core.services.session_duration_resolver import (
     resolve_session_duration,
     set_duration_override,
 )
+from zebtrack.i18n import _
 from zebtrack.utils.report_files import find_summary_excel_file, has_summary_excel_output
 
 if TYPE_CHECKING:
@@ -29,6 +30,16 @@ if TYPE_CHECKING:
     from zebtrack.coordinators.live_camera_session_coordinator import LiveCameraSessionCoordinator
 
 log = structlog.get_logger(__name__)
+
+
+def _block_label(day_num, group_name) -> str:
+    """Human-readable name of a Day x Group block.
+
+    DISPLAY ONLY. The persisted key for the same block is built separately as
+    ``Dia_{n}_{grupo}`` (see add_note) and must stay Portuguese -- it is a
+    dictionary key inside project_data, not copy.
+    """
+    return _("Day {day} - {group}").format(day=day_num, group=group_name)
 
 
 class BlockDetailDialog(Toplevel):
@@ -102,7 +113,7 @@ class BlockDetailDialog(Toplevel):
         )
 
         # Window config
-        self.title(f"Sessões: Dia {self.day_num} - {group}")
+        self.title(_("Sessions: {block}").format(block=_block_label(self.day_num, group)))
         self.geometry("700x640")
         self.transient(parent)
         self.grab_set()
@@ -129,7 +140,7 @@ class BlockDetailDialog(Toplevel):
 
         Label(
             header,
-            text=f"📋 Dia {self.day_num} - {self.group_name}",
+            text=f"📋 {_block_label(self.day_num, self.group_name)}",
             font=("Segoe UI", 14, "bold"),
             bg="#f8f9fa",
         ).pack(side="left", padx=20, pady=20)
@@ -142,7 +153,9 @@ class BlockDetailDialog(Toplevel):
 
         Label(
             header,
-            text=f"📊 Progresso: {completed}/{len(subjects)} sessões",
+            text=_("📊 Progress: {done}/{total} sessions").format(
+                done=completed, total=len(subjects)
+            ),
             font=("Segoe UI", 11),
             bg="#f8f9fa",
             fg="#555",
@@ -153,9 +166,9 @@ class BlockDetailDialog(Toplevel):
         # projects). Helps users know whether the first session of the block
         # will trigger zone calibration or jump straight to recording.
         polygon_text = (
-            "🏟️ Polígono do projeto: ✅ Definido"
+            _("🏟️ Project polygon: ✅ Defined")
             if self._project_has_polygon
-            else "🏟️ Polígono do projeto: ⚠️ Não definido"
+            else _("🏟️ Project polygon: ⚠️ Not defined")
         )
         polygon_color = "#0a7" if self._project_has_polygon else "#a23"
         Label(
@@ -172,7 +185,7 @@ class BlockDetailDialog(Toplevel):
 
         Label(
             list_frame,
-            text="🐟 Cobaias",
+            text=_("🐟 Subjects"),
             font=("Segoe UI", 11, "bold"),
         ).pack(anchor="w", pady=(0, 10))
 
@@ -202,7 +215,7 @@ class BlockDetailDialog(Toplevel):
 
         Label(
             camera_frame,
-            text="📷 Câmera:",
+            text=_("📷 Camera:"),
             font=("Segoe UI", 10, "bold"),
         ).pack(side="left")
 
@@ -216,7 +229,7 @@ class BlockDetailDialog(Toplevel):
 
         Button(
             camera_frame,
-            text="Trocar...",
+            text=_("Change..."),
             command=self._open_camera_chooser,
         ).pack(side="left")
 
@@ -226,7 +239,7 @@ class BlockDetailDialog(Toplevel):
 
         Label(
             duration_frame,
-            text="⏱️ Duração padrão do bloco:",
+            text=_("⏱️ Default duration for the block:"),
             font=("Segoe UI", 10, "bold"),
         ).pack(side="left")
 
@@ -240,7 +253,7 @@ class BlockDetailDialog(Toplevel):
 
         Button(
             duration_frame,
-            text="Alterar...",
+            text=_("Edit..."),
             command=self._edit_block_duration,
         ).pack(side="left")
 
@@ -250,27 +263,27 @@ class BlockDetailDialog(Toplevel):
 
         Label(
             action_frame,
-            text="🛠️ Ações Rápidas",
+            text=_("🛠️ Quick Actions"),
             font=("Segoe UI", 11, "bold"),
         ).pack(anchor="w", pady=(0, 10))
 
         Button(
             action_frame,
-            text="▶️ Iniciar Próxima Sessão",
+            text=_("▶️ Start Next Session"),
             command=self.start_next_session,
             width=30,
         ).pack(fill="x", pady=5)
 
         Button(
             action_frame,
-            text="📊 Gerar Relatório Parcial",
+            text=_("📊 Generate Partial Report"),
             command=self.generate_partial_report,
             width=30,
         ).pack(fill="x", pady=5)
 
         Button(
             action_frame,
-            text="📝 Adicionar Nota",
+            text=_("📝 Add Note"),
             command=self.add_note,
             width=30,
         ).pack(fill="x", pady=5)
@@ -281,13 +294,13 @@ class BlockDetailDialog(Toplevel):
 
         Button(
             button_frame,
-            text="Fechar",
+            text=_("Close"),
             command=self.destroy,
         ).pack(side="right", padx=5)
 
         Button(
             button_frame,
-            text="✅ Marcar Lote Como Completo",
+            text=_("✅ Mark Batch as Complete"),
             command=self.mark_batch_complete,
         ).pack(side="right", padx=5)
 
@@ -486,7 +499,7 @@ class BlockDetailDialog(Toplevel):
 
         Label(
             info_frame,
-            text=f"Animal {subject}",
+            text=_("Animal {subject}").format(subject=subject),
             font=("Segoe UI", 11, "bold"),
             bg="white",
         ).pack(anchor="w")
@@ -527,7 +540,7 @@ class BlockDetailDialog(Toplevel):
             if polygon_source == "auto":
                 Label(
                     info_frame,
-                    text="🏟️ Auto-detectado",
+                    text=_("🏟️ Auto-detected"),
                     font=("Segoe UI", 8, "bold"),
                     fg="#0a7",
                     bg="white",
@@ -535,7 +548,7 @@ class BlockDetailDialog(Toplevel):
             elif polygon_source == "manual":
                 Label(
                     info_frame,
-                    text="✏️ Desenhado manualmente",
+                    text=_("✏️ Drawn manually"),
                     font=("Segoe UI", 8, "bold"),
                     fg="#666",
                     bg="white",
@@ -543,7 +556,7 @@ class BlockDetailDialog(Toplevel):
         elif self._project_has_polygon:
             Label(
                 info_frame,
-                text="🏟️ Polígono do projeto pronto (será reutilizado)",
+                text=_("🏟️ Project polygon ready (will be reused)"),
                 font=("Segoe UI", 8),
                 fg="#0a7",
                 bg="white",
@@ -562,8 +575,11 @@ class BlockDetailDialog(Toplevel):
         Label(
             info_frame,
             text=(
-                f"⏱️ {self._format_duration(duration_s)}"
-                f"{' (própria)' if has_own else ' (padrão do bloco)'}"
+                _("⏱️ {duration} (its own)").format(duration=self._format_duration(duration_s))
+                if has_own
+                else _("⏱️ {duration} (block default)").format(
+                    duration=self._format_duration(duration_s)
+                )
             ),
             font=("Segoe UI", 8, "bold" if has_own else "normal"),
             fg="#b36b00" if has_own else "#666",
@@ -584,18 +600,18 @@ class BlockDetailDialog(Toplevel):
         if is_completed:
             Button(
                 row,
-                text="📊 Ver Resultados",
+                text=_("📊 View Results"),
                 command=lambda: self.view_results(subject),
             ).pack(side="right", padx=5, pady=10)
         else:
             Button(
                 row,
-                text="▶️ Iniciar",
+                text=_("▶️ Start"),
                 command=lambda: self.start_session(subject),
             ).pack(side="right", padx=5, pady=10)
             Button(
                 row,
-                text="⏱️ Duração",
+                text=_("⏱️ Duration"),
                 command=lambda: self._edit_subject_duration(subject),
             ).pack(side="right", padx=5, pady=10)
 
@@ -604,7 +620,9 @@ class BlockDetailDialog(Toplevel):
         if self._camera_index_override is not None:
             name = self._camera_friendly_name_override or ""
             suffix = f" — {name}" if name else ""
-            return f"[Sessão] Índice {self._camera_index_override}{suffix}"
+            return _("[Session] Index {index}{suffix}").format(
+                index=self._camera_index_override, suffix=suffix
+            )
 
         project_data = (
             self.project_manager.project_data
@@ -614,8 +632,8 @@ class BlockDetailDialog(Toplevel):
         saved_index = project_data.get("camera_index", 0)
         saved_name = project_data.get("camera_friendly_name", "") or ""
         if saved_name:
-            return f"{saved_name} (índice {saved_index})"
-        return f"Índice {saved_index}"
+            return _("{name} (index {index})").format(name=saved_name, index=saved_index)
+        return _("Index {index}").format(index=saved_index)
 
     def _open_camera_chooser(self) -> None:
         """Modal sub-dialog: detect + pick a camera (and optionally persist)."""
@@ -629,30 +647,32 @@ class BlockDetailDialog(Toplevel):
         # except Exception justified: camera enumeration is hardware I/O
         except Exception as exc:
             messagebox.showerror(
-                "Falha na detecção",
-                f"Não foi possível detectar câmeras:\n\n{exc}",
+                _("Detection failed"),
+                _("Could not detect cameras:\n\n{error}").format(error=exc),
                 parent=self,
             )
             return
 
         if not cameras:
             messagebox.showwarning(
-                "Nenhuma câmera",
-                "Nenhuma câmera foi detectada no sistema.",
+                _("No camera"),
+                _("No camera was detected on this system."),
                 parent=self,
             )
             return
 
         chooser = Toplevel(self)
-        chooser.title("Trocar câmera para esta sessão")
+        chooser.title(_("Change the camera for this session"))
         chooser.transient(self)
         chooser.grab_set()
 
-        Label(chooser, text="Selecione a câmera:").grid(
+        Label(chooser, text=_("Select the camera:")).grid(
             row=0, column=0, sticky="w", padx=10, pady=(10, 0)
         )
 
-        descriptions = [c.get("description", f"Câmera {c['index']}") for c in cameras]
+        descriptions = [
+            c.get("description", _("Camera {index}").format(index=c["index"])) for c in cameras
+        ]
         index_map = {desc: int(cameras[i]["index"]) for i, desc in enumerate(descriptions)}
         name_map = {
             desc: cameras[i].get("friendly_name", "") for i, desc in enumerate(descriptions)
@@ -671,7 +691,7 @@ class BlockDetailDialog(Toplevel):
         persist_var = BooleanVar(value=False)
         Checkbutton(
             chooser,
-            text="Salvar como câmera padrão deste projeto",
+            text=_("Save as the default camera for this project"),
             variable=persist_var,
         ).grid(row=2, column=0, columnspan=2, sticky="w", padx=10, pady=5)
 
@@ -709,8 +729,8 @@ class BlockDetailDialog(Toplevel):
                 self._camera_friendly_name_override = None
             except (OSError, AttributeError, ValueError) as exc:
                 messagebox.showwarning(
-                    "Falha ao salvar câmera",
-                    f"Não foi possível salvar a câmera como padrão:\n{exc}",
+                    _("Failed to save camera"),
+                    _("Could not save the camera as the default:\n{error}").format(error=exc),
                     parent=self,
                 )
                 # Fall back to per-session override on save failure.
@@ -769,16 +789,16 @@ class BlockDetailDialog(Toplevel):
             minutes = float(answer.strip().replace(",", "."))
         except ValueError:
             messagebox.showwarning(
-                "Valor inválido",
-                f"'{answer}' não é um número de minutos.",
+                _("Invalid value"),
+                _("'{value}' is not a number of minutes.").format(value=answer),
                 parent=self,
             )
             return None
 
         if minutes <= 0:
             messagebox.showwarning(
-                "Valor inválido",
-                "A duração deve ser maior que zero.",
+                _("Invalid value"),
+                _("The duration must be greater than zero."),
                 parent=self,
             )
             return None
@@ -795,9 +815,11 @@ class BlockDetailDialog(Toplevel):
         """
         if not getattr(self.project_manager, "project_path", None):
             messagebox.showerror(
-                "Projeto não salvo",
-                "O projeto não tem um caminho definido, então a duração não pôde "
-                "ser gravada. Salve o projeto e tente de novo.",
+                _("Project not saved"),
+                _(
+                    "The project has no path defined, so the duration could not "
+                    "be written. Save the project and try again."
+                ),
                 parent=self,
             )
             return False
@@ -810,8 +832,8 @@ class BlockDetailDialog(Toplevel):
         except Exception as exc:
             log.error("block_detail.duration.save_failed", error=str(exc), exc_info=True)
             messagebox.showerror(
-                "Falha ao salvar",
-                f"A duração não pôde ser gravada no projeto:\n{exc}",
+                _("Failed to save"),
+                _("The duration could not be written to the project:\n{error}").format(error=exc),
                 parent=self,
             )
             return False
@@ -826,13 +848,12 @@ class BlockDetailDialog(Toplevel):
         )
 
         new_duration = self._ask_duration_minutes(
-            "Duração padrão do bloco",
-            (
-                f"Duração das gravações de Dia {self.day_num} - {self.group_name}, "
-                "em minutos:\n\n"
-                "Vale para todas as cobaias deste bloco que não tenham duração "
-                "própria. Sessões já gravadas não são afetadas."
-            ),
+            _("Default duration for the block"),
+            _(
+                "Recording duration for {block}, in minutes:\n\n"
+                "Applies to every subject in this block that has no duration of "
+                "its own. Sessions already recorded are not affected."
+            ).format(block=_block_label(self.day_num, self.group_name)),
             current,
         )
         if new_duration is None:
@@ -857,12 +878,15 @@ class BlockDetailDialog(Toplevel):
         )
 
         new_duration = self._ask_duration_minutes(
-            f"Duração — Animal {subject}",
-            (
-                f"Duração da gravação do Animal {subject} "
-                f"(Dia {self.day_num} - {self.group_name}), em minutos:\n\n"
-                f"Deixe igual a {self._format_duration(block_default)} para seguir "
-                "o padrão do bloco."
+            _("Duration — Animal {subject}").format(subject=subject),
+            _(
+                "Recording duration for Animal {subject} "
+                "({block}), in minutes:\n\n"
+                "Leave it equal to {default} to follow the block default."
+            ).format(
+                subject=subject,
+                block=_block_label(self.day_num, self.group_name),
+                default=self._format_duration(block_default),
             ),
             current,
         )
@@ -965,13 +989,17 @@ class BlockDetailDialog(Toplevel):
                     )
                 else:
                     messagebox.showerror(
-                        "Erro",
-                        f"Falha ao iniciar sessão para Animal {subject}\n"
-                        f"Dia {self.day_num} - {self.group_name}",
+                        _("Error"),
+                        _("Failed to start the session for Animal {subject}\n{block}").format(
+                            subject=subject,
+                            block=_block_label(self.day_num, self.group_name),
+                        ),
                     )
         except Exception as e:
             log.error("block_detail.start_session.failed", error=str(e), exc_info=True)
-            messagebox.showerror("Erro", f"Erro ao iniciar sessão: {e!s}")
+            messagebox.showerror(
+                _("Error"), _("Error starting the session: {error}").format(error=e)
+            )
 
     def start_next_session(self):
         """Start next pending session."""
@@ -982,7 +1010,7 @@ class BlockDetailDialog(Toplevel):
                 self.start_session(subject)
                 return
 
-        messagebox.showinfo("Completo", "Todas as sessões deste bloco foram concluídas!")
+        messagebox.showinfo(_("Complete"), _("Every session in this block has been completed!"))
 
     def view_results(self, subject: str):
         """View session results by opening the session folder.
@@ -994,9 +1022,10 @@ class BlockDetailDialog(Toplevel):
 
         if not session_folder or not session_folder.exists():
             messagebox.showwarning(
-                "Pasta não encontrada",
-                f"Não foi possível encontrar a pasta de resultados para Animal {subject}.\n"
-                f"Dia {self.day_num} - {self.group_name}",
+                _("Folder not found"),
+                _("Could not find the results folder for Animal {subject}.\n{block}").format(
+                    subject=subject, block=_block_label(self.day_num, self.group_name)
+                ),
             )
             return
 
@@ -1064,11 +1093,11 @@ class BlockDetailDialog(Toplevel):
                 )
 
         if not all_data:
-            raise ValueError("Nenhum dado válido encontrado nos arquivos de resumo")
+            raise ValueError(_("No valid data found in the summary files"))
 
         non_empty_dfs = [df for df in all_data if not df.empty]
         if not non_empty_dfs:
-            raise ValueError("Nenhum dado válido encontrado (todos os arquivos estavam vazios)")
+            raise ValueError(_("No valid data found (every file was empty)"))
 
         with warnings.catch_warnings():
             warnings.filterwarnings(
@@ -1113,14 +1142,14 @@ class BlockDetailDialog(Toplevel):
             return None
 
         listed = ", ".join(self._format_duration(value) for value in distinct)
-        return (
-            f"As sessões deste bloco têm durações diferentes ({listed}).\n\n"
-            "Métricas ABSOLUTAS — distância total, número de entradas, tempo em "
-            "ROI — crescem com o tempo de gravação e NÃO são diretamente "
-            "comparáveis entre estes animais. A coluna 'video_duration_s' está "
-            "no relatório para você normalizar como preferir.\n\n"
-            "Deseja gerar o relatório mesmo assim?"
-        )
+        return _(
+            "The sessions in this block have different durations ({listed}).\n\n"
+            "ABSOLUTE metrics — total distance, number of entries, time in ROI — "
+            "grow with recording time and are NOT directly comparable across "
+            "these animals. The 'video_duration_s' column is in the report so you "
+            "can normalize however you prefer.\n\n"
+            "Generate the report anyway?"
+        ).format(listed=listed)
 
     @staticmethod
     def _format_partial_report_cell_value(value) -> str:
@@ -1170,16 +1199,20 @@ class BlockDetailDialog(Toplevel):
 
         document = Document()
         document.add_heading(
-            f"Relatório Parcial - Dia {self.day_num} - {self.group_name}",
+            _("Partial Report - {block}").format(block=_block_label(self.day_num, self.group_name)),
             level=1,
         )
-        document.add_paragraph(f"Gerado em: {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}")
-        document.add_paragraph(f"Sessões agregadas: {len(all_data)}")
-        document.add_paragraph(f"Planilha consolidada: {excel_name}")
+        document.add_paragraph(
+            _("Generated at: {timestamp}").format(
+                timestamp=datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+            )
+        )
+        document.add_paragraph(_("Aggregated sessions: {count}").format(count=len(all_data)))
+        document.add_paragraph(_("Consolidated spreadsheet: {name}").format(name=excel_name))
 
         # A ressalva vai para DENTRO do documento, não só para o popup: quem lê o
         # relatório meses depois não viu a caixa de diálogo.
-        subjects_in_report = [subject for subject, _ in parsed_summary_files]
+        subjects_in_report = [subject for subject, _path in parsed_summary_files]
         durations = collect_block_durations(
             self._project_data(), self.day_num, self.group_name, subjects_in_report
         )
@@ -1187,18 +1220,21 @@ class BlockDetailDialog(Toplevel):
         if len(distinct) > 1:
             listed = ", ".join(self._format_duration(value) for value in distinct)
             document.add_paragraph(
-                f"ATENÇÃO — durações de gravação heterogêneas neste bloco ({listed}). "
-                "Métricas absolutas (distância total, número de entradas, tempo em "
-                "ROI) escalam com o tempo de gravação e não são diretamente "
-                "comparáveis entre estes animais sem normalização. Use a coluna "
-                "'video_duration_s' da planilha para normalizar."
+                _(
+                    "WARNING — heterogeneous recording durations in this block "
+                    "({listed}). Absolute metrics (total distance, number of "
+                    "entries, time in ROI) scale with recording time and are not "
+                    "directly comparable across these animals without "
+                    "normalization. Use the 'video_duration_s' column of the "
+                    "spreadsheet to normalize."
+                ).format(listed=listed)
             )
 
-        document.add_heading("Sessões incluídas", level=2)
+        document.add_heading(_("Sessions included"), level=2)
         session_table = document.add_table(rows=1, cols=2)
         session_table.style = "Table Grid"
-        session_table.rows[0].cells[0].text = "Animal"
-        session_table.rows[0].cells[1].text = "Arquivo-fonte"
+        session_table.rows[0].cells[0].text = _("Animal")
+        session_table.rows[0].cells[1].text = _("Source file")
 
         for subject, summary_path in parsed_summary_files:
             row_cells = session_table.add_row().cells
@@ -1208,14 +1244,14 @@ class BlockDetailDialog(Toplevel):
         stats_cols = self._get_partial_report_stats_columns(unified_df)
         if stats_cols:
             summary_stats = unified_df.groupby("animal")[stats_cols].mean().reset_index()
-            document.add_heading("Resumo por Animal", level=2)
+            document.add_heading(_("Summary per Animal"), level=2)
             summary_table = document.add_table(rows=1, cols=len(summary_stats.columns))
             summary_table.style = "Table Grid"
             header_cells = summary_table.rows[0].cells
             for idx, column_name in enumerate(summary_stats.columns):
                 header_cells[idx].text = str(column_name)
 
-            for _, row_data in summary_stats.iterrows():
+            for _idx, row_data in summary_stats.iterrows():
                 row_cells = summary_table.add_row().cells
                 for idx, column_name in enumerate(summary_stats.columns):
                     row_cells[idx].text = self._format_partial_report_cell_value(
@@ -1285,19 +1321,23 @@ class BlockDetailDialog(Toplevel):
     ) -> None:
         if write_fallback_used:
             messagebox.showwarning(
-                "Arquivo em uso",
-                "O arquivo padrão estava bloqueado por outro programa/serviço "
-                "de sincronização.\n"
-                "Os relatórios foram salvos com novos nomes:\n"
-                f"{excel_output_name}\n{word_output_name}",
+                _("File in use"),
+                _(
+                    "The default file was locked by another program/sync "
+                    "service.\n"
+                    "The reports were saved under new names:\n"
+                    "{excel}\n{word}"
+                ).format(excel=excel_output_name, word=word_output_name),
             )
 
         messagebox.showinfo(
-            "Relatórios Gerados",
-            f"Relatórios parciais gerados com sucesso!\n\n"
-            f"📊 Excel: {excel_output_name}\n"
-            f"📝 Word: {word_output_name}\n"
-            f"🐟 {session_count} sessões agregadas",
+            _("Reports Generated"),
+            _(
+                "Partial reports generated successfully!\n\n"
+                "📊 Excel: {excel}\n"
+                "📝 Word: {word}\n"
+                "🐟 {count} aggregated sessions"
+            ).format(excel=excel_output_name, word=word_output_name, count=session_count),
         )
 
     def _prompt_open_partial_report_files(
@@ -1308,31 +1348,33 @@ class BlockDetailDialog(Toplevel):
         word_output_name: str,
     ) -> None:
         if messagebox.askyesno(
-            "Abrir Relatório Parcial",
-            f"Deseja abrir a planilha parcial em Excel?\n\n📊 {excel_output_name}",
+            _("Open Partial Report"),
+            _("Open the partial spreadsheet in Excel?\n\n📊 {name}").format(name=excel_output_name),
         ):
             try:
                 self._open_generated_report_file(excel_output_path)
             except Exception as e:
                 log.warning("block_detail.partial_report.open_failed", error=str(e))
                 messagebox.showwarning(
-                    "Aviso",
-                    "O relatório Excel foi gerado, mas não foi possível abri-lo:\n"
-                    f"{excel_output_path}",
+                    _("Warning"),
+                    _("The Excel report was generated, but it could not be opened:\n{path}").format(
+                        path=excel_output_path
+                    ),
                 )
 
         if messagebox.askyesno(
-            "Abrir Relatório Parcial",
-            f"Deseja abrir o relatório parcial em Word?\n\n📝 {word_output_name}",
+            _("Open Partial Report"),
+            _("Open the partial report in Word?\n\n📝 {name}").format(name=word_output_name),
         ):
             try:
                 self._open_generated_report_file(word_output_path)
             except Exception as e:
                 log.warning("block_detail.partial_report.open_failed", error=str(e))
                 messagebox.showwarning(
-                    "Aviso",
-                    "O relatório Word foi gerado, mas não foi possível abri-lo:\n"
-                    f"{word_output_path}",
+                    _("Warning"),
+                    _("The Word report was generated, but it could not be opened:\n{path}").format(
+                        path=word_output_path
+                    ),
                 )
 
     def generate_partial_report(self):
@@ -1351,8 +1393,10 @@ class BlockDetailDialog(Toplevel):
 
         if not completed_in_block:
             messagebox.showwarning(
-                "Sem Sessões",
-                f"Nenhuma sessão concluída encontrada para\nDia {self.day_num} - {self.group_name}",
+                _("No Sessions"),
+                _("No completed session found for\n{block}").format(
+                    block=_block_label(self.day_num, self.group_name)
+                ),
             )
             return
 
@@ -1360,15 +1404,16 @@ class BlockDetailDialog(Toplevel):
 
         if not summary_files:
             messagebox.showwarning(
-                "Sem Relatórios",
-                f"Nenhum arquivo de resumo encontrado nas sessões de\n"
-                f"Dia {self.day_num} - {self.group_name}\n\n"
-                f"Execute a análise das sessões primeiro.",
+                _("No Reports"),
+                _(
+                    "No summary file found in the sessions of\n{block}\n\n"
+                    "Run the session analysis first."
+                ).format(block=_block_label(self.day_num, self.group_name)),
             )
             return
 
         warning = self._heterogeneous_duration_warning(completed_in_block)
-        if warning and not messagebox.askyesno("Durações diferentes no bloco", warning):
+        if warning and not messagebox.askyesno(_("Different durations in the block"), warning):
             log.info(
                 "block_detail.partial_report.cancelled_on_duration_warning",
                 day=self.day_num,
@@ -1404,7 +1449,9 @@ class BlockDetailDialog(Toplevel):
             )
 
             self._publish_project_views_refresh(
-                f"Relatórios parciais atualizados: Dia {self.day_num} - {self.group_name}"
+                _("Partial reports updated: {block}").format(
+                    block=_block_label(self.day_num, self.group_name)
+                )
             )
 
             self._notify_partial_report_success(
@@ -1423,8 +1470,8 @@ class BlockDetailDialog(Toplevel):
         except Exception as e:
             log.error("block_detail.generate_partial_report.failed", error=str(e), exc_info=True)
             messagebox.showerror(
-                "Erro",
-                f"Falha ao gerar relatório parcial:\n{e!s}",
+                _("Error"),
+                _("Failed to generate the partial report:\n{error}").format(error=e),
             )
 
     def add_note(self):
@@ -1445,8 +1492,10 @@ class BlockDetailDialog(Toplevel):
 
         # Show input dialog
         note = simpledialog.askstring(
-            "Adicionar Nota Experimental",
-            f"Nota para Dia {self.day_num} - {self.group_name}:\n\n(deixe vazio para limpar)",
+            _("Add Experimental Note"),
+            _("Note for {block}:\n\n(leave blank to clear)").format(
+                block=_block_label(self.day_num, self.group_name)
+            ),
             initialvalue=existing_note,
             parent=self,
         )
@@ -1463,13 +1512,13 @@ class BlockDetailDialog(Toplevel):
             if note.strip():
                 project_data["experiment_notes"][block_key] = note.strip()
                 log.info("block_detail.add_note.saved", block_key=block_key, note=note[:50])
-                messagebox.showinfo("Nota Salva", "Nota experimental salva com sucesso!")
+                messagebox.showinfo(_("Note Saved"), _("Experimental note saved successfully!"))
             else:
                 # Remove note if empty
                 if block_key in project_data["experiment_notes"]:
                     del project_data["experiment_notes"][block_key]
                 log.info("block_detail.add_note.cleared", block_key=block_key)
-                messagebox.showinfo("Nota Removida", "Nota experimental removida.")
+                messagebox.showinfo(_("Note Removed"), _("Experimental note removed."))
 
             # Save project
             if hasattr(self.project_manager, "save_project"):
@@ -1477,7 +1526,7 @@ class BlockDetailDialog(Toplevel):
 
         except Exception as e:
             log.error("block_detail.add_note.failed", error=str(e), exc_info=True)
-            messagebox.showerror("Erro", f"Falha ao salvar nota:\n{e!s}")
+            messagebox.showerror(_("Error"), _("Failed to save the note:\n{error}").format(error=e))
 
     def mark_batch_complete(self):
         """Mark batch as complete and generate the block partial report.
@@ -1496,18 +1545,18 @@ class BlockDetailDialog(Toplevel):
         # is all sessions of THIS group on THIS day (one row of the grid),
         # not the whole project.
         result = messagebox.askyesno(
-            "Confirmar — Marcar lote como completo",
-            (
-                f"Marcar o lote do Grupo '{self.group_name}' no Dia {self.day_num} "
-                "como completo?\n\n"
-                "Escopo: TODAS as sessões já gravadas deste grupo neste dia serão "
-                "consolidadas no relatório parcial do bloco (Excel + Word) e o "
-                "quadrado correspondente na grade do Progresso ficará verde.\n\n"
-                "Esta ação NÃO afeta outros grupos, outros dias, nem encerra o projeto "
-                "como um todo. Você poderá continuar gravando novos sujeitos em outros "
-                "dias/grupos normalmente.\n\n"
-                "Deseja continuar?"
-            ),
+            _("Confirm — Mark batch as complete"),
+            _(
+                "Mark the batch of Group '{group}' on Day {day} as complete?\n\n"
+                "Scope: ALL sessions already recorded for this group on this day "
+                "will be consolidated into the block's partial report (Excel + "
+                "Word) and the matching square in the Progress grid will turn "
+                "green.\n\n"
+                "This action does NOT affect other groups, other days, nor does it "
+                "close the project as a whole. You can carry on recording new "
+                "subjects on other days/groups normally.\n\n"
+                "Continue?"
+            ).format(group=self.group_name, day=self.day_num),
         )
         if not result:
             return
@@ -1517,23 +1566,26 @@ class BlockDetailDialog(Toplevel):
         completed_in_block = self._get_completed_subjects_for_partial_report()
         if not completed_in_block:
             messagebox.showwarning(
-                "Sem Sessões",
-                f"Nenhuma sessão concluída encontrada para\nDia {self.day_num} - {self.group_name}",
+                _("No Sessions"),
+                _("No completed session found for\n{block}").format(
+                    block=_block_label(self.day_num, self.group_name)
+                ),
             )
             return
 
         summary_files = self._collect_partial_report_summary_files(completed_in_block)
         if not summary_files:
             messagebox.showwarning(
-                "Sem Relatórios",
-                f"Nenhum arquivo de resumo encontrado nas sessões de\n"
-                f"Dia {self.day_num} - {self.group_name}\n\n"
-                f"Execute a análise das sessões primeiro.",
+                _("No Reports"),
+                _(
+                    "No summary file found in the sessions of\n{block}\n\n"
+                    "Run the session analysis first."
+                ).format(block=_block_label(self.day_num, self.group_name)),
             )
             return
 
         warning = self._heterogeneous_duration_warning(completed_in_block)
-        if warning and not messagebox.askyesno("Durações diferentes no bloco", warning):
+        if warning and not messagebox.askyesno(_("Different durations in the block"), warning):
             log.info(
                 "block_detail.mark_batch_complete.cancelled_on_duration_warning",
                 day=self.day_num,
@@ -1585,26 +1637,31 @@ class BlockDetailDialog(Toplevel):
                     # _publish_project_views_refresh só publica eventos via
                     # coordinators (não toca Tk), seguro após o destroy.
                     self._publish_project_views_refresh(
-                        f"Lote concluído: Dia {day_num} - {group_name}"
+                        _("Batch complete: {block}").format(block=_block_label(day_num, group_name))
                     )
-                    message = (
-                        f"Lote 'Dia {day_num} - {group_name}' marcado como completo.\n\n"
-                        f"📊 Excel: {excel_output_name}\n"
-                        f"📝 Word: {word_output_name}\n"
-                        f"🐟 {len(all_data)} sessões agregadas\n\n"
-                        f"Relatórios em: {reports_dir}"
+                    message = _(
+                        "Batch '{block}' marked as complete.\n\n"
+                        "📊 Excel: {excel}\n"
+                        "📝 Word: {word}\n"
+                        "🐟 {count} aggregated sessions\n\n"
+                        "Reports in: {folder}"
+                    ).format(
+                        block=_block_label(day_num, group_name),
+                        excel=excel_output_name,
+                        word=word_output_name,
+                        count=len(all_data),
+                        folder=reports_dir,
                     )
                     if write_fallback_used:
-                        message += (
-                            "\n\n⚠️ O arquivo padrão estava em uso; os relatórios "
-                            "foram salvos com sufixo de data/hora."
+                        message += _(
+                            "\n\n⚠️ The default file was in use; the reports were "
+                            "saved with a date/time suffix."
                         )
                     if not persisted:
-                        message += (
-                            "\n\n⚠️ Não foi possível registrar a completude no "
-                            "projeto; verifique o log."
+                        message += _(
+                            "\n\n⚠️ Could not record the completion in the project; check the log."
                         )
-                    messagebox.showinfo("Lote Completo", message, parent=master)
+                    messagebox.showinfo(_("Batch Complete"), message, parent=master)
 
                 master.after(0, _on_done)
             # except Exception justified: pipeline pandas/docx em thread de
@@ -1623,12 +1680,12 @@ class BlockDetailDialog(Toplevel):
 
                 def _on_error() -> None:
                     messagebox.showerror(
-                        "Erro — Lote não concluído",
-                        (
-                            f"Falha ao gerar o relatório do lote "
-                            f"'Dia {day_num} - {group_name}':\n{error_text}\n\n"
-                            "O lote NÃO foi marcado como completo."
-                        ),
+                        _("Error — Batch not completed"),
+                        _(
+                            "Failed to generate the report for batch "
+                            "'{block}':\n{error}\n\n"
+                            "The batch was NOT marked as complete."
+                        ).format(block=_block_label(day_num, group_name), error=error_text),
                         parent=master,
                     )
 
@@ -1636,11 +1693,11 @@ class BlockDetailDialog(Toplevel):
 
         threading.Thread(target=_worker, name="MarkBatchComplete", daemon=True).start()
         messagebox.showinfo(
-            "Lote em processamento",
-            (
-                f"Lote 'Dia {self.day_num} - {self.group_name}': o relatório "
-                "consolidado (Excel + Word) está sendo gerado em segundo plano.\n\n"
-                "Você será avisado quando terminar."
-            ),
+            _("Batch processing"),
+            _(
+                "Batch '{block}': the consolidated report (Excel + Word) is being "
+                "generated in the background.\n\n"
+                "You will be notified when it finishes."
+            ).format(block=_block_label(self.day_num, self.group_name)),
         )
         self.destroy()

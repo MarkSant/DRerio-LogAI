@@ -1,0 +1,42 @@
+{
+  "_domain": "zebtrack",
+  "_comment": "Phase 3, batch 5a: the small dialogs in ui/dialogs. color_selection_dialog's colour name was doing four jobs — radio label, radio VALUE (name.lower()), the key compared in apply(), and result['name'] — so translating it would have left StringVar(value='verde') matching nothing and no colour pre-selected; the table now carries a stable key beside the translated label. Only result['rgb'] is persisted and result['name'] is only rendered into a status message, so the label is safe to translate. The six colour names reuse the msgids already created for ui/components/canvas/zone_editor.py, which maps the same six BGR tuples. preview_polygon_dialog's _BADGE_AUTO_TEXT/_BADGE_MANUAL_TEXT were module constants and became functions; the _BADGE_*_BG colours stayed constants, because a colour is not language. pending_videos_dialog's TAG_STYLES ClassVar was flagged as an import-time risk in the handoff but holds only hex colours — nothing to translate there. subject_selection_dialog spliced 'Concluído'/'Pendente' into 'Cobaia N: ...'; both had to agree with the noun, so they became one finished sentence each.",
+
+  "Select Area Colour": "Selecionar Cor da Área",
+  "Choose the colour for this region of interest:": "Escolha a cor para esta área de interesse:",
+
+  "Method:": "Método:",
+  "Distance from the edge (cm)": "Distância da Borda (cm)",
+  "Area ratio (0.0-1.0)": "Razão da Área (0.0-1.0)",
+  "Value:": "Valor:",
+
+  "Diagnostics in Progress": "Diagnóstico em Progresso",
+  "Starting...": "Iniciando...",
+  "Please wait...": "Aguarde...",
+  "Running Model Diagnostics": "Executando Diagnóstico do Modelo",
+  "Status:": "Status:",
+
+  "Global Model Diagnostics": "Diagnóstico Global do Modelo",
+
+  "Subject {number}: done": "Cobaia {number}: Concluído",
+  "Subject {number}: pending": "Cobaia {number}: Pendente",
+
+  "Process Pending Videos": "Processar Vídeos Pendentes",
+  "Review the hierarchical list and confirm the items you want to process.": "Revise a lista hierárquica e confirme os itens que deseja processar.",
+  "Legend:": "Legenda:",
+  "Ready": "Pronto",
+  "Partial": "Parcial",
+  "Skipped": "Ignorado",
+  "Include 1 video with only an arena in the processing.": "Incluir 1 vídeo com apenas arena no processamento.",
+  "Include {count} videos with only an arena in the processing.": "Incluir {count} vídeos com apenas arena no processamento.",
+
+  "✓ Auto-detected": "✓ Auto-detectado",
+  "✎ Manually edited": "✎ Editado manualmente",
+  "Aquarium Detected - Confirm?": "Aquário Detectado - Confirmar?",
+  "✓ Aquarium detected successfully!": "✓ Aquário detectado com sucesso!",
+  "Approve this polygon (you will still be able to adjust it) or reject it and draw one manually?": "Aprovar este polígono (você ainda poderá ajustá-lo) ou rejeitar e desenhar manualmente?",
+  "Auto-detection confidence threshold": "Limiar de confiança da auto-detecção",
+  "Detection failed: {error}": "Falha na detecção: {error}",
+  "No aquarium found — adjust the threshold and try again.": "Nenhum aquário encontrado — ajuste o limiar e tente novamente.",
+  "Aquarium re-detected with threshold {value}": "Aquário re-detectado com limiar {value}"
+}

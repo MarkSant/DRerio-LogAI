@@ -21,6 +21,7 @@ from typing import cast
 import structlog
 
 from zebtrack.core.detection import AquariumData, MultiAquariumZoneData, ZoneData
+from zebtrack.i18n import _
 
 log = structlog.get_logger()
 
@@ -422,7 +423,7 @@ class ZoneManager:
 
         video_path = Path(video_path) if isinstance(video_path, str) else video_path
         self.ensure_zone_structures(project_data)
-        _, stored = self.resolve_zone_entry(project_data, video_path)
+        _key, stored = self.resolve_zone_entry(project_data, video_path)
 
         if not stored:
             return False
@@ -471,7 +472,7 @@ class ZoneManager:
 
         if target_video:
             normalized = self.normalize_video_path(target_video)
-            existing_key, _ = self.resolve_zone_entry(project_data, target_video)
+            existing_key, _entry = self.resolve_zone_entry(project_data, target_video)
             # Ensure store_key is always a string (not Path object) for JSON serialization
             store_key = normalized or existing_key or str(Path(target_video).as_posix())
 
@@ -502,7 +503,7 @@ class ZoneManager:
 
         self.ensure_zone_structures(project_data)
 
-        key, _ = self.resolve_zone_entry(project_data, video_path_str)
+        key, _entry = self.resolve_zone_entry(project_data, video_path_str)
         if key and key in project_data["zones_by_video"]:
             del project_data["zones_by_video"][key]
 
@@ -528,7 +529,7 @@ class ZoneManager:
         """
         video_path_str = str(Path(video_path) if isinstance(video_path, str) else video_path)
 
-        _, stored = self.resolve_zone_entry(project_data, video_path_str)
+        _key, stored = self.resolve_zone_entry(project_data, video_path_str)
         return self.zone_data_from_dict(stored)
 
     def get_zone_data(
@@ -583,7 +584,7 @@ class ZoneManager:
             # Validation
             if not project_data:
                 log.error("zone_manager.polygon.no_project_data")
-                raise ValueError("Dados do projeto não inicializados")
+                raise ValueError(_("Project data not initialised"))
 
             # Get current zone data
             zone_data = self.get_zone_data(project_data)

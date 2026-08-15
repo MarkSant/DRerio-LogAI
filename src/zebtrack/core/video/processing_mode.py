@@ -9,6 +9,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import StrEnum
 
+from zebtrack.i18n import _
+
 
 class ProcessingMode(StrEnum):
     """Enumerates the tracking pipelines available to the application."""
@@ -24,8 +26,8 @@ class ProcessingMode(StrEnum):
             Localized string representation of the processing mode.
         """
         if self is ProcessingMode.SINGLE_SUBJECT:
-            return "Individual"
-        return "Multi-indivíduos"
+            return _("Individual")
+        return _("Multi-individual")
 
 
 @dataclass(frozen=True)

@@ -111,4 +111,4 @@ def test_describe_inversion_names_roi_edge_and_token():
     assert "Z4" in text
     assert "4" in text
     assert "Blue LED OFF" in text
-    assert "ligar" in text
+    assert "switch it ON" in text

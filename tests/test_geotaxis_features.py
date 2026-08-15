@@ -12,9 +12,9 @@ class TestGeotaxisNaming:
 
         # Mapping input column -> expected output
         test_cases = {
-            "geotaxis_zone_0_pct": "Fundo (0.0-5.0cm) [%]",
-            "geotaxis_zone_1_pct": "Meio (5.0-10.0cm) [%]",
-            "geotaxis_zone_2_pct": "Superfície (10.0-15.0cm) [%]",
+            "geotaxis_zone_0_pct": "Bottom (0.0-5.0cm) [%]",
+            "geotaxis_zone_1_pct": "Middle (5.0-10.0cm) [%]",
+            "geotaxis_zone_2_pct": "Surface (10.0-15.0cm) [%]",
         }
 
         # Create DataFrame with all columns
@@ -27,16 +27,16 @@ class TestGeotaxisNaming:
             assert input_col not in result_df.columns
 
     def test_rename_geotaxis_columns_4_zones(self):
-        """Test renaming for 4 zones (Bottom, Meio 1, Meio 2, Surface)."""
+        """Test renaming for 4 zones (Bottom, Middle 1, Middle 2, Surface)."""
         dt = DataTransformer()
         height_cm = 20.0
         num_zones = 4
 
         test_cases = {
-            "geotaxis_zone_0_pct": "Fundo (0.0-5.0cm) [%]",
-            "geotaxis_zone_1_pct": "Meio 1 (5.0-10.0cm) [%]",
-            "geotaxis_zone_2_pct": "Meio 2 (10.0-15.0cm) [%]",
-            "geotaxis_zone_3_pct": "Superfície (15.0-20.0cm) [%]",
+            "geotaxis_zone_0_pct": "Bottom (0.0-5.0cm) [%]",
+            "geotaxis_zone_1_pct": "Middle 1 (5.0-10.0cm) [%]",
+            "geotaxis_zone_2_pct": "Middle 2 (10.0-15.0cm) [%]",
+            "geotaxis_zone_3_pct": "Surface (15.0-20.0cm) [%]",
         }
 
         df = pd.DataFrame(columns=list(test_cases.keys()))
@@ -52,8 +52,8 @@ class TestGeotaxisNaming:
         num_zones = 2
 
         test_cases = {
-            "geotaxis_zone_0_pct": "Fundo (0.0-5.0cm) [%]",
-            "geotaxis_zone_1_pct": "Superfície (5.0-10.0cm) [%]",
+            "geotaxis_zone_0_pct": "Bottom (0.0-5.0cm) [%]",
+            "geotaxis_zone_1_pct": "Surface (5.0-10.0cm) [%]",
         }
 
         df = pd.DataFrame(columns=list(test_cases.keys()))
@@ -66,7 +66,7 @@ class TestGeotaxisNaming:
         """Ensure non-geotaxis columns are left untouched."""
         dt = DataTransformer()
         cols = ["Total Distance", "Average Speed", "geotaxis_zone_0_pct"]
-        expected_cols = ["Total Distance", "Average Speed", "Fundo (0.0-5.0cm) [%]"]
+        expected_cols = ["Total Distance", "Average Speed", "Bottom (0.0-5.0cm) [%]"]
 
         df = pd.DataFrame(columns=cols)
         result_df = dt.rename_geotaxis_columns(df, height_cm=15.0, num_zones=3)

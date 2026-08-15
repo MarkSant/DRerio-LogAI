@@ -25,6 +25,7 @@ import structlog
 
 from zebtrack.core.exceptions import ProjectInvalidError
 from zebtrack.core.services.weight_manager import TARGET_AQUARIUM, TARGET_ZEBRAFISH, VALID_METHODS
+from zebtrack.i18n import _
 
 if TYPE_CHECKING:
     from zebtrack.core.project.project_manager import ProjectManager
@@ -124,14 +125,12 @@ class ProjectWorkflowService:
 
         # Validate detection mode compatibility
         if animal_method == "det" and animals_per_aquarium != 1:
-            error_msg = (
-                "O modo de detecção (det) para animais só é compatível com 1 "
-                f"animal por aquário.\n"
-                f"Configuração atual: {animals_per_aquarium} "
-                "animais por aquário.\n\n"
-                "Para usar múltiplos animais por aquário, altere o método de "
-                "detecção de animais para 'seg' (segmentação) nas configurações."
-            )
+            error_msg = _(
+                "The detection mode (det) for animals is only compatible with 1 animal "
+                "per aquarium.\nCurrent configuration: {count} animals per aquarium.\n\n"
+                "To use multiple animals per aquarium, change the animal detection "
+                "method to 'seg' (segmentation) in the settings."
+            ).format(count=animals_per_aquarium)
             log.warning(
                 "project_workflow_service.validation_failed",
                 reason="det_mode_incompatible_with_multi_animal",
@@ -1181,7 +1180,8 @@ class ProjectWorkflowService:
             "videos_count": videos_count,
             "zone_status": zone_status,
             "roi_count": roi_count,
-            "active_weight": resolved_weight or "Padrão",
+            # Display value pushed into StateManager, not a stored key.
+            "active_weight": resolved_weight or _("Default"),
             "use_openvino": resolved_openvino,
         }
 
@@ -1319,49 +1319,60 @@ class ProjectWorkflowService:
         )
 
         # Build message
+        # Every quoted tab/button name is interpolated from the WIDGET's own
+        # msgid instead of being retyped here. Retyping is how this guide drifted:
+        # it still told the operator to open a "Relatórios" tab (really
+        # "Processamento e Relatórios") and to click "Adicionar e Processar Novos
+        # Vídeos", a button label that exists nowhere in the codebase.
         lines: list[str] = []
-        lines.append("🎉 Projeto criado com sucesso!")
+        lines.append(_("🎉 Project created successfully!"))
         lines.append("")
-        lines.append("📊 Status dos vídeos:")
-        lines.append(f"  • Total de vídeos: {total_videos}")
-        lines.append(f"  • Com arena definida: {videos_with_arena}")
-        lines.append(f"  • Com ROIs definidas: {videos_with_rois}")
-        lines.append(f"  • Com trajetória pronta: {videos_with_trajectory}")
-        lines.append(f"  • Pendentes de processamento: {videos_pending}")
+        lines.append(_("📊 Video status:"))
+        lines.append(_("  • Total videos: {count}").format(count=total_videos))
+        lines.append(_("  • With arena defined: {count}").format(count=videos_with_arena))
+        lines.append(_("  • With ROIs defined: {count}").format(count=videos_with_rois))
+        lines.append(_("  • With trajectory ready: {count}").format(count=videos_with_trajectory))
+        lines.append(_("  • Pending processing: {count}").format(count=videos_pending))
         lines.append("")
-        lines.append("🚀 Próximos passos recomendados:")
+        lines.append(_("🚀 Recommended next steps:"))
         lines.append("")
 
         step_num = 1
 
         if videos_with_arena > 0 or videos_with_rois > 0:
-            lines.append(f"{step_num}. Visualizar e ajustar zonas importadas")
-            lines.append("   - Abra a aba 'Configuração de Zonas'")
-            lines.append("   - Use o painel 'Selecionar Vídeo para Desenho'")
-            lines.append("   - Clique duas vezes ou use 'Carregar Frame' para revisar")
-            lines.append("   - Ajuste arena e ROIs conforme necessário")
+            lines.append(_("{step}. Review and adjust the imported zones").format(step=step_num))
+            lines.append(_("   - Open the '{tab}' tab").format(tab=_("Zone Configuration")))
+            lines.append(
+                _("   - Use the '{panel}' panel").format(panel=_("📹 Select Video for Drawing"))
+            )
+            lines.append(
+                _("   - Double-click, or use '{button}', to review").format(
+                    button=_("📹 Load Frame from the Selected Video")
+                )
+            )
+            lines.append(_("   - Adjust the arena and the ROIs as needed"))
             lines.append("")
             step_num += 1
 
         if videos_pending > 0:
-            lines.append(f"{step_num}. Processar vídeos pendentes")
-            lines.append("   - Vá até a aba 'Controle Principal'")
-            lines.append("   - Confirme os intervalos de processamento")
-            lines.append("   - Clique em 'Adicionar e Processar Novos Vídeos'")
+            lines.append(_("{step}. Process the pending videos").format(step=step_num))
+            lines.append(_("   - Open the '{tab}' tab").format(tab=_("Main Control")))
+            lines.append(_("   - Confirm the processing intervals"))
+            lines.append(_("   - Click '{button}'").format(button=_("Process Pending Videos...")))
             lines.append("")
             step_num += 1
 
         if videos_with_trajectory > 0:
-            lines.append(f"{step_num}. Gerar relatórios")
-            lines.append("   - Acesse a aba 'Relatórios'")
-            lines.append("   - Navegue pela hierarquia de grupos, dias e sujeitos")
-            lines.append("   - Gere relatórios individuais ou unificados conforme necessário")
+            lines.append(_("{step}. Generate reports").format(step=step_num))
+            lines.append(_("   - Open the '{tab}' tab").format(tab=_("Processing and Reports")))
+            lines.append(_("   - Browse the hierarchy of groups, days and subjects"))
+            lines.append(_("   - Generate individual or unified reports as needed"))
             lines.append("")
 
-        lines.append("💡 Dicas:")
-        lines.append("  • Use a busca para localizar vídeos rapidamente")
-        lines.append("  • Os símbolos de status indicam arenas, ROIs e trajetórias disponíveis")
-        lines.append("  • Ajuste zonas antes de processar se necessário")
+        lines.append(_("💡 Tips:"))
+        lines.append(_("  • Use the search box to locate videos quickly"))
+        lines.append(_("  • The status symbols show which arenas, ROIs and trajectories exist"))
+        lines.append(_("  • Adjust the zones before processing if necessary"))
 
         message = "\n".join(lines)
 

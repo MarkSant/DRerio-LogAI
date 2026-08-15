@@ -13,6 +13,8 @@ from tkinter import (
     simpledialog,
 )
 
+from zebtrack.i18n import _
+
 
 class MissingMetadataDialog(simpledialog.Dialog):
     """Dialog for manually entering missing experiment metadata.
@@ -30,7 +32,7 @@ class MissingMetadataDialog(simpledialog.Dialog):
         """
         self.experiment_id = experiment_id
         self.result = None
-        super().__init__(parent, "Metadados Ausentes")
+        super().__init__(parent, _("Missing Metadata"))
 
     def body(self, master):
         """Create the dialog body with metadata input fields.
@@ -41,11 +43,9 @@ class MissingMetadataDialog(simpledialog.Dialog):
         Returns:
             The first entry widget as initial focus element.
         """
-        Label(master, text="Não foi possível encontrar metadados automaticamente para:").pack(
-            pady=5
-        )
+        Label(master, text=_("Metadata could not be found automatically for:")).pack(pady=5)
         Label(master, text=self.experiment_id, font=("Helvetica", 10, "bold")).pack(pady=(0, 10))
-        Label(master, text="Por favor, insira os detalhes manualmente:").pack(pady=5)
+        Label(master, text=_("Please enter the details manually:")).pack(pady=5)
 
         self.day_var = StringVar()
         self.group_var = StringVar()
@@ -54,13 +54,13 @@ class MissingMetadataDialog(simpledialog.Dialog):
         form_frame = Frame(master)
         form_frame.pack(padx=10, pady=10)
 
-        Label(form_frame, text="Dia:").grid(row=0, column=0, sticky="w", padx=5, pady=2)
+        Label(form_frame, text=_("Day:")).grid(row=0, column=0, sticky="w", padx=5, pady=2)
         Entry(form_frame, textvariable=self.day_var).grid(row=0, column=1, sticky="ew", padx=5)
 
-        Label(form_frame, text="Grupo:").grid(row=1, column=0, sticky="w", padx=5, pady=2)
+        Label(form_frame, text=_("Group:")).grid(row=1, column=0, sticky="w", padx=5, pady=2)
         Entry(form_frame, textvariable=self.group_var).grid(row=1, column=1, sticky="ew", padx=5)
 
-        Label(form_frame, text="Cobaia (ID):").grid(row=2, column=0, sticky="w", padx=5, pady=2)
+        Label(form_frame, text=_("Subject (ID):")).grid(row=2, column=0, sticky="w", padx=5, pady=2)
         Entry(form_frame, textvariable=self.cobaia_var).grid(row=2, column=1, sticky="ew", padx=5)
 
         return form_frame
@@ -76,12 +76,13 @@ class MissingMetadataDialog(simpledialog.Dialog):
             int(self.cobaia_var.get())
         except ValueError:
             messagebox.showerror(
-                "Erro de Validação", "Dia e Cobaia (ID) devem ser números inteiros."
+                _("Validation Error"),
+                _("Day and Subject (ID) must be whole numbers."),
             )
             return 0
 
         if not self.group_var.get().strip():
-            messagebox.showerror("Erro de Validação", "O nome do grupo não pode estar vazio.")
+            messagebox.showerror(_("Validation Error"), _("The group name cannot be empty."))
             return 0
 
         return 1

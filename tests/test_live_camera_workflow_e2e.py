@@ -153,7 +153,7 @@ class TestLiveCameraModeSelection:
 
         assert recommendation.recommended_mode == LiveCameraMode.RECORD_ONLY
         assert recommendation.can_process_realtime is False
-        assert any("HARDWARE INSUFICIENTE" in w for w in recommendation.warnings)
+        assert any("INSUFFICIENT HARDWARE" in w for w in recommendation.warnings)
 
 
 class TestRecorderPauseResume:

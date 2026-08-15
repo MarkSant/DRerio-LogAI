@@ -2021,7 +2021,7 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
                 Event(
                     type=UIEvents.UI_SET_STATUS,
                     data=payloads.StatusPayload(
-                        message=f"Aguardando sinal externo... (porta {port})"
+                        message=_("Waiting for external signal... (port {port})").format(port=port)
                     ),
                     source="LiveCameraSessionCoordinator._external_trigger_allows_start",
                 )

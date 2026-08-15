@@ -38,8 +38,8 @@ def test_detection_mode_with_multiple_animals_blocked():
 
     assert not is_valid
     assert error_msg is not None
-    assert "modo de detecção (det)" in error_msg
-    assert "1 animal por aquário" in error_msg
+    assert "detection mode (det)" in error_msg
+    assert "1 animal per aquarium" in error_msg
 
 
 def test_detection_mode_with_single_animal_allowed():
@@ -136,5 +136,5 @@ def test_single_video_detection_mode_enforcement():
         mock_event_bus.publish.assert_called_once()
         call_ev = mock_event_bus.publish.call_args[0][0]
         assert call_ev.type == UIEvents.SHOW_ERROR
-        assert "Configuração Inválida" in call_ev.data.title
-        assert "modo de detecção (det)" in call_ev.data.message
+        assert "Invalid Configuration" in call_ev.data.title
+        assert "detection mode (det)" in call_ev.data.message

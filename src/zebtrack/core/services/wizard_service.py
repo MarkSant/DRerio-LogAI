@@ -20,6 +20,7 @@ import numpy as np
 import serial.tools.list_ports
 import structlog
 
+from zebtrack.i18n import _
 from zebtrack.io.arduino import Arduino
 from zebtrack.utils.cache import TTLCache
 
@@ -65,38 +66,44 @@ class WizardService:
         # Camera validation
         camera_index = data.get("camera_index")
         if camera_index is None or not isinstance(camera_index, int):
-            return (False, "Índice de câmera inválido")
+            return (False, _("Invalid camera index"))
 
         if camera_index < 0 or camera_index > 10:
-            return (False, "Índice de câmera deve estar entre 0 e 10")
+            return (False, _("The camera index must be between 0 and 10"))
 
         # Arduino validation
         if data.get("use_arduino", False):
             arduino_port = data.get("arduino_port")
             if not arduino_port:
-                return (False, "Porta Arduino deve ser especificada quando Arduino está ativado")
+                return (
+                    False,
+                    _("The Arduino port must be specified when Arduino is enabled"),
+                )
 
         # External trigger validation
         if data.get("external_trigger_mode", False):
             if not data.get("use_arduino", False):
                 return (
                     False,
-                    "Modo de trigger externo requer Arduino ativado",
+                    _("External trigger mode requires Arduino to be enabled"),
                 )
 
         # Timed recording validation
         if data.get("use_timed_recording", False):
             duration = data.get("recording_duration_s", 0)
             if not isinstance(duration, int | float) or duration <= 0:
-                return (False, "Duração de gravação deve ser maior que zero")
+                return (False, _("The recording duration must be greater than zero"))
             if duration > 7200:  # 2 hours max
-                return (False, "Duração de gravação não pode exceder 2 horas (7200 segundos)")
+                return (
+                    False,
+                    _("The recording duration cannot exceed 2 hours (7200 seconds)"),
+                )
 
         # Countdown validation
         if data.get("use_countdown", False):
             countdown = data.get("countdown_duration_s", 0)
             if not isinstance(countdown, int) or countdown < 1 or countdown > 60:
-                return (False, "Contagem regressiva deve estar entre 1 e 60 segundos")
+                return (False, _("The countdown must be between 1 and 60 seconds"))
 
         return (True, "")
 
@@ -366,11 +373,15 @@ class WizardService:
                         friendly_name = friendly_names[i] if i < len(friendly_names) else ""
 
                         if friendly_name:
-                            description = f"{friendly_name} [índice {i}] - {resolution_desc}"
+                            description = _("{name} [index {index}] - {resolution}").format(
+                                name=friendly_name, index=i, resolution=resolution_desc
+                            )
                         else:
                             # Fallback: numbered description (non-Windows or pygrabber missing)
                             camera_count = len(cameras) + 1
-                            description = f"Câmera #{camera_count} [índice {i}] - {resolution_desc}"
+                            description = _(
+                                "Camera #{number} [index {index}] - {resolution}"
+                            ).format(number=camera_count, index=i, resolution=resolution_desc)
 
                         cameras.append(
                             {
@@ -666,12 +677,12 @@ class WizardService:
         # Days validation
         days = data.get("experiment_days")
         if not isinstance(days, int) or days < 1 or days > 365:
-            return (False, "Número de dias deve estar entre 1 e 365")
+            return (False, _("The number of days must be between 1 and 365"))
 
         # Groups validation
         num_groups = data.get("num_groups")
         if not isinstance(num_groups, int) or num_groups < 1 or num_groups > 6:
-            return (False, "Número de grupos deve estar entre 1 e 6")
+            return (False, _("The number of groups must be between 1 and 6"))
 
         # Subjects validation
         subjects = data.get("subjects_per_group")
@@ -717,21 +728,24 @@ class WizardService:
         # Aquariums validation
         num_aquariums = data.get("num_aquariums")
         if not isinstance(num_aquariums, int) or num_aquariums < 1 or num_aquariums > 100:
-            return (False, "Número de aquários deve estar entre 1 e 100")
+            return (False, _("The number of aquariums must be between 1 and 100"))
 
         # Animals per aquarium validation
         animals = data.get("animals_per_aquarium")
         if not isinstance(animals, int) or animals < 1 or animals > 100:
-            return (False, "Número de animais por aquário deve estar entre 1 e 100")
+            return (
+                False,
+                _("The number of animals per aquarium must be between 1 and 100"),
+            )
 
         # Dimensions validation
         width = data.get("aquarium_width_cm")
         if not isinstance(width, int | float) or width <= 0:
-            return (False, "Largura do aquário deve ser maior que zero")
+            return (False, _("The aquarium width must be greater than zero"))
 
         height = data.get("aquarium_height_cm")
         if not isinstance(height, int | float) or height <= 0:
-            return (False, "Altura do aquário deve ser maior que zero")
+            return (False, _("The aquarium height must be greater than zero"))
 
         # Intervals validation
         analysis_interval = data.get("analysis_interval_frames")
@@ -740,11 +754,11 @@ class WizardService:
             or analysis_interval < 1
             or analysis_interval > 30
         ):
-            return (False, "Intervalo de análise deve estar entre 1 e 30 frames")
+            return (False, _("The analysis interval must be between 1 and 30 frames"))
 
         display_interval = data.get("display_interval_frames")
         if not isinstance(display_interval, int) or display_interval < 1 or display_interval > 30:
-            return (False, "Intervalo de exibição deve estar entre 1 e 30 frames")
+            return (False, _("The display interval must be between 1 and 30 frames"))
 
         # ROI inclusion rule validation
         valid_rules = [
@@ -757,7 +771,9 @@ class WizardService:
         if roi_rule not in valid_rules:
             return (
                 False,
-                f"Regra de inclusão ROI inválida. Deve ser uma de: {', '.join(valid_rules)}",
+                _("Invalid ROI inclusion rule. It must be one of: {rules}").format(
+                    rules=", ".join(valid_rules)
+                ),
             )
 
         return (True, "")
@@ -783,27 +799,33 @@ class WizardService:
         # Aquariums validation
         num_aquariums = data.get("num_aquariums")
         if not isinstance(num_aquariums, int) or num_aquariums < 1:
-            return (False, "O número de aquários deve ser pelo menos 1")
+            return (False, _("The number of aquariums must be at least 1"))
 
         if num_aquariums > 100:
-            return (False, "O número de aquários não pode exceder 100")
+            return (False, _("The number of aquariums cannot exceed 100"))
 
         # Animals per aquarium validation
         animals = data.get("animals_per_aquarium")
         if not isinstance(animals, int) or animals < 1:
-            return (False, "O número de animais por aquário deve ser pelo menos 1")
+            return (
+                False,
+                _("The number of animals per aquarium must be at least 1"),
+            )
 
         if animals > 100:
-            return (False, "O número de animais por aquário não pode exceder 100")
+            return (
+                False,
+                _("The number of animals per aquarium cannot exceed 100"),
+            )
 
         # Dimensions validation
         width = data.get("aquarium_width_cm")
         if not isinstance(width, int | float) or width <= 0:
-            return (False, "A largura do aquário deve ser maior que zero")
+            return (False, _("The aquarium width must be greater than zero"))
 
         height = data.get("aquarium_height_cm")
         if not isinstance(height, int | float) or height <= 0:
-            return (False, "A altura do aquário deve ser maior que zero")
+            return (False, _("The aquarium height must be greater than zero"))
 
         return (True, "")
 
@@ -849,7 +871,7 @@ class WizardService:
                     else getattr(config, "enabled", False)
                 )
             except (AttributeError, TypeError):
-                errors.append("Configuração multi-aquário inválida")
+                errors.append(_("Invalid multi-aquarium configuration"))
                 return False, errors, warnings
         else:
             enabled = config.enabled
@@ -871,7 +893,7 @@ class WizardService:
             regex_subject_field = config.get("regex_subject_field", "subject")
 
         if len(aquarium_configs) != 2:
-            errors.append("Exatamente 2 aquários devem ser configurados")
+            errors.append(_("Exactly 2 aquariums must be configured"))
 
         # Phase 3.2: Check aquarium configurations for potential issues
         for i, aq_config in enumerate(aquarium_configs):
@@ -894,8 +916,10 @@ class WizardService:
                     )
                     if area < 10000:  # Less than ~100x100 pixels
                         warnings.append(
-                            f"Aquário {i} tem área muito pequena ({int(area)} px²). "
-                            "Pode afetar precisão da detecção."
+                            _(
+                                "Aquarium {index} has a very small area ({area} px²). "
+                                "It may affect detection accuracy."
+                            ).format(index=i, area=int(area))
                         )
 
         # Check for polygon overlap (only if 2 aquariums)
@@ -921,8 +945,10 @@ class WizardService:
                 # Check for intersection
                 if not (x1 + w1 < x2 or x2 + w2 < x1 or y1 + h1 < y2 or y2 + h2 < y1):
                     warnings.append(
-                        "Polígonos dos aquários parecem se sobrepor. "
-                        "Isso pode causar detecções duplicadas."
+                        _(
+                            "The aquarium polygons appear to overlap. "
+                            "This may cause duplicate detections."
+                        )
                     )
 
         # Check 2: Validate regex if provided
@@ -935,7 +961,11 @@ class WizardService:
                 expected = {regex_group_field, regex_subject_field}
                 missing = expected - groups
                 if missing:
-                    errors.append(f"Regex não captura campos esperados: {missing}")
+                    errors.append(
+                        _("The regex does not capture the expected fields: {fields}").format(
+                            fields=missing
+                        )
+                    )
 
                 # Check 3: Test against sample filenames
                 if sample_filenames:
@@ -947,11 +977,13 @@ class WizardService:
 
                     if unmatched:
                         errors.append(
-                            f"Regex não corresponde a arquivos: {', '.join(unmatched[:2])}"
+                            _("The regex does not match these files: {files}").format(
+                                files=", ".join(unmatched[:2])
+                            )
                         )
 
             except re.error as e:
-                errors.append(f"Padrão regex inválido: {e}")
+                errors.append(_("Invalid regex pattern: {error}").format(error=e))
 
         log.debug(
             "wizard_service.validate_multi_aquarium_config",

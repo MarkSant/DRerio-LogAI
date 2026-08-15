@@ -96,7 +96,7 @@ def test_start_session_shows_error_on_genuine_failure():
     args, _kwargs = mock_error.call_args
     # Body must reference the subject + day/group so the user can act on it.
     assert "Animal 1" in args[1]
-    assert "Dia 1" in args[1]
+    assert "Day 1" in args[1]
     assert "Controle" in args[1]
 
 

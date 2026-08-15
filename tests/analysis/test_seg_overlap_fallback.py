@@ -84,7 +84,7 @@ def test_missing_sidecar_matches_bbox_intersects_exactly() -> None:
     )
     assert len(degraded.degradation_warnings) == 1
     assert degraded.degradation_warnings[0].startswith(
-        "Regra de ROI 'seg_overlap' degradada para 'bbox_intersects'"
+        "ROI rule 'seg_overlap' degraded to 'bbox_intersects'"
     )
 
 
@@ -106,7 +106,7 @@ def test_nonexistent_path_degrades_without_raising(tmp_path: Path) -> None:
     analyzer = _build("seg_overlap", mask_source=tmp_path / "3b_Mascaras_inexistente.parquet")
 
     assert len(analyzer.degradation_warnings) == 1
-    assert "não existe" in analyzer.degradation_warnings[0]
+    assert "does not exist" in analyzer.degradation_warnings[0]
 
 
 def test_empty_sidecar_degrades(tmp_path: Path) -> None:
@@ -116,7 +116,7 @@ def test_empty_sidecar_degrades(tmp_path: Path) -> None:
 
     analyzer = _build("seg_overlap", mask_source=path)
     assert len(analyzer.degradation_warnings) == 1
-    assert "não tem linhas" in analyzer.degradation_warnings[0]
+    assert "has no rows" in analyzer.degradation_warnings[0]
 
 
 def test_sidecar_with_wrong_columns_degrades() -> None:
@@ -142,7 +142,7 @@ def test_sidecar_that_matches_nothing_degrades() -> None:
 
     analyzer = _build("seg_overlap", mask_source=foreign)
     assert len(analyzer.degradation_warnings) == 1
-    assert "Nenhuma máscara" in analyzer.degradation_warnings[0]
+    assert "No mask in the sidecar" in analyzer.degradation_warnings[0]
 
 
 def test_unreadable_file_degrades(tmp_path: Path) -> None:
@@ -152,7 +152,7 @@ def test_unreadable_file_degrades(tmp_path: Path) -> None:
 
     analyzer = _build("seg_overlap", mask_source=path)
     assert len(analyzer.degradation_warnings) == 1
-    assert "não pôde ser lido" in analyzer.degradation_warnings[0]
+    assert "could not be read" in analyzer.degradation_warnings[0]
 
 
 def test_warning_reaches_validation_warnings_of_the_report() -> None:

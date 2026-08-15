@@ -1,0 +1,22 @@
+{
+  "_domain": "zebtrack",
+  "_comment": "Phase 3, batch 1: analysis/roi.py and analysis/analysis_service.py. Values are the relocated Portuguese literals, not new translations. Five msgids this batch needs already exist with the SAME Portuguese and are deliberately omitted so they are reused instead of conflicting: 'Starting processing for {count} videos...', 'Analysis Error', 'Cancelled', 'Success', 'Ready.'. The seg_overlap degradation warnings are report content: they reach the reader through ROIAnalyzer.degradation_warnings -> AnalysisService.validation_warnings -> the .docx validation appendix.",
+
+  "The bbox_intersects rule requires the bbox columns: {columns}. They are not available in this dataset. Consider using 'centroid_in' or 'centroid_in_on_buffered_roi'.": "A regra bbox_intersects requer colunas de bbox: {columns}. Essas colunas não estão disponíveis no dataset. Considere usar 'centroid_in' ou 'centroid_in_on_buffered_roi'.",
+  "The pre-aligned masks do not have the same row count as the trajectory.": "As máscaras pré-alinhadas não têm o mesmo número de linhas da trajetória.",
+  "The mask sidecar is missing the columns {columns}.": "O sidecar de máscaras não tem as colunas {columns}.",
+  "The analysed trajectory has no 'frame' column, which is half of the join key with the masks.": "A trajetória analisada não tem a coluna 'frame', que é metade da chave de junção com as máscaras.",
+  "The mask sidecar contains no valid geometry.": "O sidecar de máscaras não contém nenhuma geometria válida.",
+  "No mask in the sidecar matches a (frame, track_id) of the analysed trajectory.": "Nenhuma máscara do sidecar corresponde a (frame, track_id) da trajetória analisada.",
+  "The 'seg_overlap' rule was selected but no mask sidecar (3b_Mascaras_*.parquet) was provided. Record with recorder.persist_masks enabled and a segmentation model (model_selection.animal_method='seg').": "A regra 'seg_overlap' foi selecionada mas nenhum sidecar de máscaras (3b_Mascaras_*.parquet) foi informado. Grave com recorder.persist_masks ligado e um modelo de segmentação (model_selection.animal_method='seg').",
+  "The mask sidecar is empty.": "O sidecar de máscaras está vazio.",
+  "The mask sidecar does not exist at '{path}'. Data recorded before this feature, or with recorder.persist_masks disabled, does not have one.": "O sidecar de máscaras não existe em '{path}'. Dados gravados antes desta funcionalidade, ou com recorder.persist_masks desligado, não o têm.",
+  "The sidecar '{path}' could not be read: {error}": "O sidecar '{path}' não pôde ser lido: {error}",
+  "The sidecar '{path}' has no rows.": "O sidecar '{path}' não tem linhas.",
+  "ROI rule 'seg_overlap' degraded to 'bbox_intersects': {detail}": "Regra de ROI 'seg_overlap' degradada para 'bbox_intersects': {detail}",
+
+  "Trajectory with {count} animals (track_ids). The ROI metrics at the top of the report describe region OCCUPANCY (any_track semantics: the ROI counts as occupied while any animal is inside). The per-animal metrics are in the 'por_animal' sheet of the summary spreadsheet (_summary.xlsx). The general behaviour metrics that depend on frame ORDER (curvas_acentuadas) pool every animal together and must be read with caution.": "Trajetória com {count} animais (track_ids). As métricas de ROI no topo do relatório são de OCUPAÇÃO da região (semântica any_track: a ROI conta como ocupada enquanto qualquer animal estiver dentro). As métricas por animal estão na aba 'por_animal' da planilha de resumo (_summary.xlsx). As métricas de comportamento geral que dependem da ORDEM dos frames (curvas_acentuadas) agrupam todos os animais e devem ser lidas com cautela.",
+  "An unexpected error occurred: {error}": "Ocorreu um erro inesperado: {error}",
+  "Video analysis was cancelled.": "A análise de vídeo foi cancelada.",
+  "Analysis finished. Results saved to:\n{path}": "Análise concluída. Resultados salvos em:\n{path}"
+}

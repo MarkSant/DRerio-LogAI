@@ -480,8 +480,8 @@ class TestDiagnosticProgressDialog:
         dialog = DiagnosticProgressDialog(tkinter_root)
 
         assert dialog.user_cancelled is False
-        assert dialog.progress_var.get() == "Iniciando..."
-        assert dialog.status_var.get() == "Aguarde..."
+        assert dialog.progress_var.get() == "Starting..."
+        assert dialog.status_var.get() == "Please wait..."
 
         dialog.destroy()
 

@@ -47,7 +47,7 @@ class TestMultiAquariumConfirmDialog:
         with patch.object(MultiAquariumConfirmDialog, "wait_window"):
             dialog = MultiAquariumConfirmDialog(parent=tkinter_root)
 
-        assert dialog.title() == "Configuração de Aquários"
+        assert dialog.title() == "Aquarium Setup"
 
     def test_get_result_returns_selection(self, tkinter_root):
         """Test get_result returns the selection."""

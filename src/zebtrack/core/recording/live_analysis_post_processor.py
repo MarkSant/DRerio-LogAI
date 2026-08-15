@@ -18,6 +18,7 @@ import pandas as pd
 import structlog
 
 from zebtrack.core.services.roi_rule_resolver import resolve_roi_rule
+from zebtrack.i18n import _
 
 if TYPE_CHECKING:
     from zebtrack.core.detection.multi_aquarium_detector import MultiAquariumDetector
@@ -623,36 +624,41 @@ class LiveAnalysisPostProcessorMixin:
         from zebtrack.ui.payloads import MessagePayload
 
         if analysis_success and stats:
-            message = (
-                f"✅ Análise de câmera concluída com sucesso!\n\n"
-                f"📊 Estatísticas:\n"
-                f"  • Frames processados: {stats['frames']}\n"
-                f"  • Detecções totais: {stats['detections']}\n"
-                f"  • Trilhas únicas: {stats['tracks']}\n\n"
-                f"📁 Dados salvos em:\n{output_dir}\n\n"
-                f"💡 Arquivos gerados:\n"
-                f"  • *_trajectory.parquet (trajetória)\n"
-                f"  • *_zones.parquet (zonas)\n"
-                f"  • *.mp4/.avi (vídeo gravado)"
+            message = _(
+                "✅ Camera analysis completed successfully!\n\n"
+                "📊 Statistics:\n"
+                "  • Frames processed: {frames}\n"
+                "  • Total detections: {detections}\n"
+                "  • Unique tracks: {tracks}\n\n"
+                "📁 Data saved to:\n{output_dir}\n\n"
+                "💡 Files generated:\n"
+                "  • *_trajectory.parquet (trajectory)\n"
+                "  • *_zones.parquet (zones)\n"
+                "  • *.mp4/.avi (recorded video)"
+            ).format(
+                frames=stats["frames"],
+                detections=stats["detections"],
+                tracks=stats["tracks"],
+                output_dir=output_dir,
             )
-            title = "Análise Concluída"
+            title = _("Analysis Completed")
         elif reason == "no_detections":
-            message = (
-                f"⚠️ Gravação concluída, mas nenhuma detecção foi encontrada.\n\n"
-                f"Possíveis causas:\n"
-                f"  • Nenhum objeto detectável no campo de visão\n"
-                f"  • Arena muito restritiva\n"
-                f"  • Limiar de confiança muito alto\n\n"
-                f"📁 Dados salvos em:\n{output_dir}"
-            )
-            title = "Análise Concluída - Sem Detecções"
+            message = _(
+                "⚠️ Recording completed, but no detection was found.\n\n"
+                "Possible causes:\n"
+                "  • No detectable object in the field of view\n"
+                "  • Arena too restrictive\n"
+                "  • Confidence threshold too high\n\n"
+                "📁 Data saved to:\n{output_dir}"
+            ).format(output_dir=output_dir)
+            title = _("Analysis Completed - No Detections")
         else:
-            message = (
-                f"⚠️ Gravação concluída, mas a análise automática falhou.\n\n"
-                f"📁 Dados brutos salvos em:\n{output_dir}\n\n"
-                f"Você pode analisar manualmente pela interface."
-            )
-            title = "Gravação Concluída"
+            message = _(
+                "⚠️ Recording completed, but the automatic analysis failed.\n\n"
+                "📁 Raw data saved to:\n{output_dir}\n\n"
+                "You can analyse it manually through the interface."
+            ).format(output_dir=output_dir)
+            title = _("Recording Completed")
 
         self.event_bus.publish(
             Event(

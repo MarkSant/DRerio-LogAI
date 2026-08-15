@@ -23,6 +23,7 @@ if TYPE_CHECKING:
     from zebtrack.settings import Settings
     from zebtrack.ui.event_bus_v2 import EventBusV2
 
+from zebtrack.i18n import _
 from zebtrack.ui.event_bus_v2 import Event, UIEvents
 from zebtrack.ui.payloads import (
     AnalysisMetadataPayload,
@@ -77,8 +78,10 @@ class ProgressNotifierMixin:
             if self.cancel_event.is_set():
                 return
 
-            overall_progress = f"Processando {index + 1}/{total_videos}: {experiment_id}"
-            step_status = f"Etapa: {status_message}"
+            overall_progress = _("Processing {current}/{total}: {experiment_id}").format(
+                current=index + 1, total=total_videos, experiment_id=experiment_id
+            )
+            step_status = _("Step: {status}").format(status=status_message)
 
             self.ui_event_bus.publish(
                 Event(

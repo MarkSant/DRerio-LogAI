@@ -9,6 +9,8 @@ from typing import Any
 
 import structlog
 
+from zebtrack.i18n import _
+
 log = structlog.get_logger()
 
 
@@ -32,17 +34,17 @@ class SubjectEntriesDialog(simpledialog.Dialog):
         self.default_day = default_day or 1
         self._rows: list[tuple[StringVar, IntVar, StringVar]] = []
         self.result: list[dict[str, Any]] | None = None
-        super().__init__(parent, "Animais do Vídeo")
+        super().__init__(parent, _("Video Animals"))
 
     def body(self, master):
         ttk.Label(
             master,
-            text="Defina grupo, dia e sujeito para cada animal do vídeo.",
+            text=_("Set the group, day and subject for each animal in the video."),
             wraplength=520,
             justify="left",
         ).grid(row=0, column=0, sticky="w", padx=10, pady=(10, 8), columnspan=4)
 
-        header = ("Animal", "Grupo", "Dia", "Sujeito")
+        header = (_("Animal"), _("Group"), _("Day"), _("Subject"))
         for col, title in enumerate(header):
             ttk.Label(master, text=title).grid(row=1, column=col, sticky="w", padx=6, pady=(0, 4))
 
@@ -80,15 +82,15 @@ class SubjectEntriesDialog(simpledialog.Dialog):
         for index, (group_var, day_var, subject_var) in enumerate(self._rows, start=1):
             if not group_var.get().strip():
                 messagebox.showerror(
-                    "Validação",
-                    f"Informe o grupo do animal {index}.",
+                    _("Validation"),
+                    _("Enter the group for animal {index}.").format(index=index),
                     parent=self,
                 )
                 return 0
             if not subject_var.get().strip():
                 messagebox.showerror(
-                    "Validação",
-                    f"Informe o sujeito do animal {index}.",
+                    _("Validation"),
+                    _("Enter the subject for animal {index}.").format(index=index),
                     parent=self,
                 )
                 return 0
@@ -97,8 +99,8 @@ class SubjectEntriesDialog(simpledialog.Dialog):
                     raise ValueError
             except (TypeError, ValueError):
                 messagebox.showerror(
-                    "Validação",
-                    f"Informe um dia válido para o animal {index}.",
+                    _("Validation"),
+                    _("Enter a valid day for animal {index}.").format(index=index),
                     parent=self,
                 )
                 return 0
@@ -149,7 +151,7 @@ class VideoMetadataDialog(simpledialog.Dialog):
         self.subject_var = StringVar(value=str(self.initial_metadata.get("subject") or ""))
         self.subject_entries = deepcopy(self.initial_metadata.get("subject_entries") or [])
         self.result: dict[str, Any] | None = None
-        super().__init__(parent, "Editar Metadata do Vídeo")
+        super().__init__(parent, _("Edit Video Metadata"))
 
     def body(self, master):
         master.columnconfigure(1, weight=1)
@@ -157,12 +159,12 @@ class VideoMetadataDialog(simpledialog.Dialog):
 
         ttk.Label(
             master,
-            text=f"Arquivo: {filename}",
+            text=_("File: {name}").format(name=filename),
             wraplength=460,
             justify="left",
         ).grid(row=0, column=0, columnspan=2, sticky="w", padx=10, pady=(10, 8))
 
-        ttk.Label(master, text="Grupo").grid(row=1, column=0, sticky="w", padx=10, pady=2)
+        ttk.Label(master, text=_("Group")).grid(row=1, column=0, sticky="w", padx=10, pady=2)
         ttk.Combobox(
             master,
             textvariable=self.group_var,
@@ -170,7 +172,7 @@ class VideoMetadataDialog(simpledialog.Dialog):
             state="normal",
         ).grid(row=1, column=1, sticky="ew", padx=10, pady=2)
 
-        ttk.Label(master, text="Dia").grid(row=2, column=0, sticky="w", padx=10, pady=2)
+        ttk.Label(master, text=_("Day")).grid(row=2, column=0, sticky="w", padx=10, pady=2)
         ttk.Spinbox(
             master,
             from_=1,
@@ -179,14 +181,14 @@ class VideoMetadataDialog(simpledialog.Dialog):
             width=10,
         ).grid(row=2, column=1, sticky="w", padx=10, pady=2)
 
-        ttk.Label(master, text="Sujeito").grid(row=3, column=0, sticky="w", padx=10, pady=2)
+        ttk.Label(master, text=_("Subject")).grid(row=3, column=0, sticky="w", padx=10, pady=2)
         ttk.Entry(master, textvariable=self.subject_var).grid(
             row=3, column=1, sticky="ew", padx=10, pady=2
         )
 
         ttk.Button(
             master,
-            text="Editar Animais do Vídeo...",
+            text=_("Edit Video Animals..."),
             command=self._edit_subject_entries,
         ).grid(row=4, column=0, columnspan=2, sticky="ew", padx=10, pady=(8, 10))
 
@@ -194,16 +196,18 @@ class VideoMetadataDialog(simpledialog.Dialog):
 
     def validate(self):
         if not self.group_var.get().strip():
-            messagebox.showerror("Validação", "Informe o grupo do vídeo.", parent=self)
+            messagebox.showerror(_("Validation"), _("Enter the group for the video."), parent=self)
             return 0
         try:
             if int(self.day_var.get()) <= 0:
                 raise ValueError
         except (TypeError, ValueError):
-            messagebox.showerror("Validação", "Informe um dia válido.", parent=self)
+            messagebox.showerror(_("Validation"), _("Enter a valid day."), parent=self)
             return 0
         if not self.subject_entries and not self.subject_var.get().strip():
-            messagebox.showerror("Validação", "Informe o sujeito do vídeo.", parent=self)
+            messagebox.showerror(
+                _("Validation"), _("Enter the subject for the video."), parent=self
+            )
             return 0
         return 1
 
@@ -284,8 +288,15 @@ class BatchVideoMetadataDialog(simpledialog.Dialog):
         ttk.Label(
             master,
             text=(
-                f"Aplicar alterações de metadata ao {self.target_kind} '{self.target_label}' "
-                f"em {self.affected_count} vídeo(s)."
+                _("Apply metadata changes to {kind} '{label}' in 1 video.").format(
+                    kind=self.target_kind, label=self.target_label
+                )
+                if self.affected_count == 1
+                else _("Apply metadata changes to {kind} '{label}' in {count} videos.").format(
+                    kind=self.target_kind,
+                    label=self.target_label,
+                    count=self.affected_count,
+                )
             ),
             wraplength=520,
             justify="left",
@@ -293,7 +304,7 @@ class BatchVideoMetadataDialog(simpledialog.Dialog):
 
         ttk.Checkbutton(
             master,
-            text="Atualizar grupo",
+            text=_("Update group"),
             variable=self.apply_group_var,
             command=self._update_field_states,
         ).grid(row=1, column=0, sticky="w", padx=10, pady=2)
@@ -307,7 +318,7 @@ class BatchVideoMetadataDialog(simpledialog.Dialog):
 
         ttk.Checkbutton(
             master,
-            text="Atualizar dia",
+            text=_("Update day"),
             variable=self.apply_day_var,
             command=self._update_field_states,
         ).grid(row=2, column=0, sticky="w", padx=10, pady=2)
@@ -325,7 +336,7 @@ class BatchVideoMetadataDialog(simpledialog.Dialog):
         if self.allow_subject:
             self.subject_checkbutton = ttk.Checkbutton(
                 master,
-                text="Atualizar sujeito",
+                text=_("Update subject"),
                 variable=self.apply_subject_var,
                 command=self._update_field_states,
             )
@@ -343,23 +354,23 @@ class BatchVideoMetadataDialog(simpledialog.Dialog):
             and not self.apply_subject_var.get()
         ):
             messagebox.showerror(
-                "Validação",
-                "Selecione pelo menos um campo para atualizar em lote.",
+                _("Validation"),
+                _("Select at least one field to update in bulk."),
                 parent=self,
             )
             return 0
         if self.apply_group_var.get() and not self.group_var.get().strip():
-            messagebox.showerror("Validação", "Informe o grupo a aplicar.", parent=self)
+            messagebox.showerror(_("Validation"), _("Enter the group to apply."), parent=self)
             return 0
         if self.apply_day_var.get():
             try:
                 if int(self.day_var.get()) <= 0:
                     raise ValueError
             except (TypeError, ValueError):
-                messagebox.showerror("Validação", "Informe um dia válido.", parent=self)
+                messagebox.showerror(_("Validation"), _("Enter a valid day."), parent=self)
                 return 0
         if self.apply_subject_var.get() and not self.subject_var.get().strip():
-            messagebox.showerror("Validação", "Informe o sujeito a aplicar.", parent=self)
+            messagebox.showerror(_("Validation"), _("Enter the subject to apply."), parent=self)
             return 0
         return 1
 
@@ -411,7 +422,7 @@ class ProjectVideoImportDialog(simpledialog.Dialog):
         self.result: dict[str, Any] | None = None
         self._rows = [self._normalize_video_row(video) for video in scanned_videos]
         self._selected_index = 0
-        super().__init__(parent, "Importar Vídeos ao Projeto")
+        super().__init__(parent, _("Import Videos into the Project"))
         if self.result is None:
             self.result = {"confirmed": False, "videos": [], "process_mode": "add_only"}
 
@@ -422,15 +433,15 @@ class ProjectVideoImportDialog(simpledialog.Dialog):
 
         ttk.Label(
             master,
-            text=(
-                "Revise os vídeos encontrados, defina grupo, dia e sujeito, e escolha se "
-                "o lote será apenas adicionado ou também processado."
+            text=_(
+                "Review the videos found, set group, day and subject, and choose "
+                "whether the batch is only added or also processed."
             ),
             wraplength=760,
             justify="left",
         ).grid(row=0, column=0, columnspan=2, sticky="w", padx=12, pady=(12, 8))
 
-        tree_frame = ttk.LabelFrame(master, text="Vídeos Encontrados", padding=8)
+        tree_frame = ttk.LabelFrame(master, text=_("Videos Found"), padding=8)
         tree_frame.grid(row=1, column=0, sticky="nsew", padx=(12, 6), pady=(0, 10))
         tree_frame.columnconfigure(0, weight=1)
         tree_frame.rowconfigure(0, weight=1)
@@ -441,10 +452,10 @@ class ProjectVideoImportDialog(simpledialog.Dialog):
             show="tree headings",
             height=14,
         )
-        self.tree.heading("#0", text="Arquivo")
-        self.tree.heading("status", text="Dados")
-        self.tree.heading("metadata", text="Metadata")
-        self.tree.heading("subjects", text="Animais")
+        self.tree.heading("#0", text=_("File"))
+        self.tree.heading("status", text=_("Data"))
+        self.tree.heading("metadata", text=_("Metadata"))
+        self.tree.heading("subjects", text=_("Animals"))
         self.tree.column("#0", width=260, stretch=True)
         self.tree.column("status", width=140, stretch=False, anchor="center")
         self.tree.column("metadata", width=210, stretch=True)
@@ -459,17 +470,17 @@ class ProjectVideoImportDialog(simpledialog.Dialog):
         side_frame.grid(row=1, column=1, sticky="nsew", padx=(6, 12), pady=(0, 10))
         side_frame.columnconfigure(0, weight=1)
 
-        defaults_frame = ttk.LabelFrame(side_frame, text="Padrões do Lote", padding=8)
+        defaults_frame = ttk.LabelFrame(side_frame, text=_("Batch Defaults"), padding=8)
         defaults_frame.grid(row=0, column=0, sticky="ew")
         defaults_frame.columnconfigure(1, weight=1)
-        ttk.Label(defaults_frame, text="Grupo").grid(row=0, column=0, sticky="w", pady=2)
+        ttk.Label(defaults_frame, text=_("Group")).grid(row=0, column=0, sticky="w", pady=2)
         ttk.Combobox(
             defaults_frame,
             textvariable=self.default_group_var,
             values=self.available_groups,
             state="normal",
         ).grid(row=0, column=1, sticky="ew", pady=2)
-        ttk.Label(defaults_frame, text="Dia").grid(row=1, column=0, sticky="w", pady=2)
+        ttk.Label(defaults_frame, text=_("Day")).grid(row=1, column=0, sticky="w", pady=2)
         ttk.Spinbox(
             defaults_frame,
             from_=1,
@@ -477,32 +488,32 @@ class ProjectVideoImportDialog(simpledialog.Dialog):
             textvariable=self.default_day_var,
             width=8,
         ).grid(row=1, column=1, sticky="w", pady=2)
-        ttk.Label(defaults_frame, text="Sujeito").grid(row=2, column=0, sticky="w", pady=2)
+        ttk.Label(defaults_frame, text=_("Subject")).grid(row=2, column=0, sticky="w", pady=2)
         ttk.Entry(defaults_frame, textvariable=self.default_subject_var).grid(
             row=2, column=1, sticky="ew", pady=2
         )
         ttk.Button(
             defaults_frame,
-            text="Aplicar aos Selecionados",
+            text=_("Apply to Selected"),
             command=self._apply_defaults_to_selected,
         ).grid(row=3, column=0, columnspan=2, sticky="ew", pady=(6, 2))
         ttk.Button(
             defaults_frame,
-            text="Preencher Vazios no Lote",
+            text=_("Fill Blanks in the Batch"),
             command=self._apply_defaults_to_blank_fields,
         ).grid(row=4, column=0, columnspan=2, sticky="ew", pady=2)
 
-        detail_frame = ttk.LabelFrame(side_frame, text="Vídeo Selecionado", padding=8)
+        detail_frame = ttk.LabelFrame(side_frame, text=_("Selected Video"), padding=8)
         detail_frame.grid(row=1, column=0, sticky="ew", pady=(10, 0))
         detail_frame.columnconfigure(1, weight=1)
-        ttk.Label(detail_frame, text="Grupo").grid(row=0, column=0, sticky="w", pady=2)
+        ttk.Label(detail_frame, text=_("Group")).grid(row=0, column=0, sticky="w", pady=2)
         ttk.Combobox(
             detail_frame,
             textvariable=self.group_var,
             values=self.available_groups,
             state="normal",
         ).grid(row=0, column=1, sticky="ew", pady=2)
-        ttk.Label(detail_frame, text="Dia").grid(row=1, column=0, sticky="w", pady=2)
+        ttk.Label(detail_frame, text=_("Day")).grid(row=1, column=0, sticky="w", pady=2)
         ttk.Spinbox(
             detail_frame,
             from_=1,
@@ -510,7 +521,7 @@ class ProjectVideoImportDialog(simpledialog.Dialog):
             textvariable=self.day_var,
             width=8,
         ).grid(row=1, column=1, sticky="w", pady=2)
-        ttk.Label(detail_frame, text="Sujeito").grid(row=2, column=0, sticky="w", pady=2)
+        ttk.Label(detail_frame, text=_("Subject")).grid(row=2, column=0, sticky="w", pady=2)
         ttk.Entry(detail_frame, textvariable=self.subject_var).grid(
             row=2, column=1, sticky="ew", pady=2
         )
@@ -523,22 +534,22 @@ class ProjectVideoImportDialog(simpledialog.Dialog):
         ).grid(row=3, column=0, columnspan=2, sticky="w", pady=(6, 4))
         ttk.Button(
             detail_frame,
-            text="Salvar Neste Vídeo",
+            text=_("Save to This Video"),
             command=self._save_selected_video,
         ).grid(row=4, column=0, columnspan=2, sticky="ew", pady=2)
         if self.subject_entry_count > 1:
             ttk.Button(
                 detail_frame,
-                text="Configurar Animais do Vídeo...",
+                text=_("Configure Video Animals..."),
                 command=self._configure_subject_entries,
             ).grid(row=5, column=0, columnspan=2, sticky="ew", pady=2)
 
-        processing_frame = ttk.LabelFrame(side_frame, text="Após Importar", padding=8)
+        processing_frame = ttk.LabelFrame(side_frame, text=_("After Importing"), padding=8)
         processing_frame.grid(row=2, column=0, sticky="ew", pady=(10, 0))
         options = [
-            ("Apenas adicionar ao projeto", "add_only"),
-            ("Adicionar e processar pendências", "process_pending"),
-            ("Adicionar e reprocessar todos", "reprocess_all"),
+            (_("Only add to the project"), "add_only"),
+            (_("Add and process pending items"), "process_pending"),
+            (_("Add and reprocess everything"), "reprocess_all"),
         ]
         for index, (label, value) in enumerate(options):
             ttk.Radiobutton(
@@ -563,8 +574,8 @@ class ProjectVideoImportDialog(simpledialog.Dialog):
     def buttonbox(self):
         box = ttk.Frame(self)
         box.pack(pady=(0, 12))
-        ttk.Button(box, text="Cancelar", command=self.cancel).pack(side="right", padx=6)
-        ttk.Button(box, text="Importar", command=self.ok, default="active").pack(
+        ttk.Button(box, text=_("Cancel"), command=self.cancel).pack(side="right", padx=6)
+        ttk.Button(box, text=_("Import"), command=self.ok, default="active").pack(
             side="right", padx=6
         )
         self.bind("<Return>", self.ok)
@@ -574,8 +585,8 @@ class ProjectVideoImportDialog(simpledialog.Dialog):
         self._save_selected_video()
         if not self._rows:
             messagebox.showerror(
-                "Validação",
-                "Nenhum vídeo disponível para importação.",
+                _("Validation"),
+                _("No video available to import."),
                 parent=self,
             )
             return 0
@@ -583,8 +594,10 @@ class ProjectVideoImportDialog(simpledialog.Dialog):
         for row in self._rows:
             if not str(row.get("group") or "").strip():
                 messagebox.showerror(
-                    "Validação",
-                    f"Informe o grupo do vídeo {Path(str(row.get('path', ''))).name}.",
+                    _("Validation"),
+                    _("Enter the group for video {name}.").format(
+                        name=Path(str(row.get("path", ""))).name
+                    ),
                     parent=self,
                 )
                 return 0
@@ -592,8 +605,10 @@ class ProjectVideoImportDialog(simpledialog.Dialog):
             day = self._coerce_day(row.get("day"), fallback=0)
             if day <= 0:
                 messagebox.showerror(
-                    "Validação",
-                    f"Informe um dia válido para o vídeo {Path(str(row.get('path', ''))).name}.",
+                    _("Validation"),
+                    _("Enter a valid day for video {name}.").format(
+                        name=Path(str(row.get("path", ""))).name
+                    ),
                     parent=self,
                 )
                 return 0
@@ -602,8 +617,10 @@ class ProjectVideoImportDialog(simpledialog.Dialog):
             has_subject = bool(str(row.get("subject") or "").strip())
             if not has_subject and not has_subject_entries:
                 messagebox.showerror(
-                    "Validação",
-                    f"Informe o sujeito do vídeo {Path(str(row.get('path', ''))).name}.",
+                    _("Validation"),
+                    _("Enter the subject for video {name}.").format(
+                        name=Path(str(row.get("path", ""))).name
+                    ),
                     parent=self,
                 )
                 return 0
@@ -756,11 +773,19 @@ class ProjectVideoImportDialog(simpledialog.Dialog):
         )
         without_arena = sum(1 for row in self._rows if not row.get("has_arena"))
         self.summary_var.set(
-            f"Total: {total}\n"
-            f"Trajetória pronta: {with_trajectory}\n"
-            f"Zonas prontas: {with_zones}\n"
-            f"Só arena: {arena_only}\n"
-            f"Sem arena: {without_arena}"
+            _(
+                "Total: {total}\n"
+                "Trajectory ready: {with_trajectory}\n"
+                "Zones ready: {with_zones}\n"
+                "Arena only: {arena_only}\n"
+                "No arena: {without_arena}"
+            ).format(
+                total=total,
+                with_trajectory=with_trajectory,
+                with_zones=with_zones,
+                arena_only=arena_only,
+                without_arena=without_arena,
+            )
         )
 
     def _normalize_video_row(self, video: dict[str, Any]) -> dict[str, Any]:
@@ -826,12 +851,12 @@ class ProjectVideoImportDialog(simpledialog.Dialog):
     @staticmethod
     def _format_status(row: dict[str, Any]) -> str:
         if row.get("has_trajectory"):
-            return "Trajetória pronta"
+            return _("Trajectory ready")
         if row.get("has_arena") and row.get("has_rois"):
-            return "Zonas prontas"
+            return _("Zones ready")
         if row.get("has_arena"):
-            return "Só arena"
-        return "Sem arena"
+            return _("Arena only")
+        return _("No arena")
 
     @staticmethod
     def _format_metadata(row: dict[str, Any]) -> str:

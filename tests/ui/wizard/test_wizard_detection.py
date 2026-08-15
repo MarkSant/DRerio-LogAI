@@ -128,7 +128,7 @@ class TestDetectionStep:
         is_valid, error_message = step.validate()
 
         assert not is_valid
-        assert "nenhum vídeo" in error_message.lower()
+        assert "no video was found" in error_message.lower()
 
     @patch("zebtrack.ui.wizard.detection_step.ProjectManager.scan_input_paths")
     def test_detection_step_validate_succeeds_with_videos(self, mock_scan):
@@ -276,7 +276,7 @@ class TestDetectionStep:
         assert result == new_design
         assert step.detected_design == new_design
         assert step.custom_regex_patterns is not None
-        assert "regex personalizado aplicado" in step.status_var.get().lower()
+        assert "custom regex applied" in step.status_var.get().lower()
 
         display_text = step.results_text.get("1.0", "end-1c")
         assert "Regex Group" in display_text

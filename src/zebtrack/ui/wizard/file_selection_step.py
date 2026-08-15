@@ -6,6 +6,7 @@ Provides summary of selection and validates that at least one video is chosen.
 """
 
 import os
+from pathlib import Path
 from tkinter import (
     Button,
     Frame,
@@ -20,6 +21,7 @@ from tkinter import (
     font as tkfont,
 )
 
+from zebtrack.i18n import _
 from zebtrack.ui.window_utils import create_scrollbar
 from zebtrack.ui.wizard.base import WizardStep
 from zebtrack.ui.wizard.enums import WizardStepID
@@ -57,7 +59,7 @@ class FileSelectionStep(WizardStep):
         # UI state
         # UI state
         self.video_paths: list[str] = []  # Mixed: files and folders
-        self.summary_var = StringVar(value="Nenhum vídeo/pasta selecionado.")
+        self.summary_var = StringVar(value=_("No video/folder selected."))
         self.template_info_var = StringVar(value="")
         self.template_info_label: Label | None = None
         self.folder_tree: ttk.Treeview | None = None
@@ -69,14 +71,12 @@ class FileSelectionStep(WizardStep):
         """Build file selection UI."""
         # Title
         title_font = tkfont.Font(size=14, weight="bold")
-        title = Label(self, text="Seleção de Vídeos", font=title_font)
+        title = Label(self, text=_("Video Selection"), font=title_font)
         title.pack(pady=(0, 10))
 
         subtitle = Label(
             self,
-            text=(
-                "Selecione os vídeos que deseja analisar (arquivos individuais ou pastas inteiras)."
-            ),
+            text=_("Select the videos you want to analyze (individual files or whole folders)."),
             fg="gray",
             wraplength=500,
         )
@@ -97,60 +97,60 @@ class FileSelectionStep(WizardStep):
 
         btn_files = Button(
             button_frame,
-            text="📁 Adicionar Arquivos...",
+            text=_("📁 Add Files..."),
             command=self._select_video_files,
             width=20,
         )
         btn_files.pack(side="left", padx=5)
         ToolTip(
             btn_files,
-            (
-                "Selecionar vídeos individuais (.mp4, .avi, .mov). Suporta "
-                "seleção múltipla (Ctrl+Click)."
+            _(
+                "Select individual videos (.mp4, .avi, .mov). Supports "
+                "multiple selection (Ctrl+Click)."
             ),
         )
 
         btn_folder = Button(
             button_frame,
-            text="📂 Adicionar Pasta...",
+            text=_("📂 Add Folder..."),
             command=self._select_video_folder,
             width=20,
         )
         btn_folder.pack(side="left", padx=5)
         ToolTip(
             btn_folder,
-            (
-                "Selecionar pasta contendo vídeos. O wizard fará varredura "
-                "recursiva nas subpastas automaticamente."
+            _(
+                "Select a folder containing videos. The wizard scans the "
+                "subfolders recursively and automatically."
             ),
         )
 
         btn_remove = Button(
             button_frame,
-            text="❌ Remover Selecionado",
+            text=_("❌ Remove Selected"),
             command=self._remove_selected,
             width=20,
         )
         btn_remove.pack(side="left", padx=5)
         ToolTip(
             btn_remove,
-            ("Remover o item selecionado na lista (clique no item para selecioná-lo)."),
+            _("Remove the item selected in the list (click an item to select it)."),
         )
 
         btn_clear = Button(
             button_frame,
-            text="🗑️ Limpar Tudo",
+            text=_("🗑️ Clear All"),
             command=self._clear_selection,
             width=20,
         )
         btn_clear.pack(side="left", padx=5)
         ToolTip(
             btn_clear,
-            "Remover todos os vídeos e pastas selecionados.",
+            _("Remove every selected video and folder."),
         )
 
         # Summary
-        summary_frame = LabelFrame(self, text="Resumo da Seleção", padx=10, pady=10)
+        summary_frame = LabelFrame(self, text=_("Selection Summary"), padx=10, pady=10)
         summary_frame.pack(fill="x", pady=(0, 15))
 
         Label(
@@ -166,7 +166,7 @@ class FileSelectionStep(WizardStep):
         content_container.pack(fill="both", expand=True)
 
         # LEFT: List of selected paths
-        list_frame = LabelFrame(content_container, text="Itens Selecionados", padx=10, pady=10)
+        list_frame = LabelFrame(content_container, text=_("Selected Items"), padx=10, pady=10)
         list_frame.pack(side="left", fill="both", expand=True, padx=(0, 5))
 
         # Scrollable listbox
@@ -184,7 +184,7 @@ class FileSelectionStep(WizardStep):
         # RIGHT: Folder preview tree
         tree_frame = LabelFrame(
             content_container,
-            text="Pré-visualização da Estrutura",
+            text=_("Structure Preview"),
             padx=10,
             pady=10,
         )
@@ -201,17 +201,17 @@ class FileSelectionStep(WizardStep):
         )
         self.folder_tree.column("#0", width=280, stretch=True)
         self.folder_tree.column("detalhes", width=160, stretch=True)
-        self.folder_tree.heading("#0", text="Pasta / Arquivo")
-        self.folder_tree.heading("detalhes", text="Resumo")
+        self.folder_tree.heading("#0", text=_("Folder / File"))
+        self.folder_tree.heading("detalhes", text=_("Summary"))
         self.folder_tree.pack(side="left", fill="both", expand=True)
         self.folder_tree.config(yscrollcommand=tree_scroll.set)
         tree_scroll.config(command=self.folder_tree.yview)
 
         self.folder_tree_placeholder = Label(
             tree_frame,
-            text=(
-                "Selecione pastas para visualizar a estrutura. Arquivos isolados "
-                "são listados automaticamente."
+            text=_(
+                "Select folders to preview the structure. Standalone files "
+                "are listed automatically."
             ),
             fg="#666666",
             wraplength=460,
@@ -222,9 +222,9 @@ class FileSelectionStep(WizardStep):
         # Help text
         help_text = Label(
             self,
-            text=(
-                "💡 Dica: Ao selecionar pastas, todos os vídeos dentro delas "
-                "(incluindo subpastas) serão incluídos."
+            text=_(
+                "💡 Tip: when you select folders, every video inside them "
+                "(including subfolders) is included."
             ),
             fg="gray",
             wraplength=500,
@@ -236,8 +236,8 @@ class FileSelectionStep(WizardStep):
     def _select_video_files(self):
         """Open file dialog to select video files."""
         files = filedialog.askopenfilenames(
-            title="Selecione os Arquivos de Vídeo",
-            filetypes=[("Arquivos de vídeo", "*.mp4 *.avi *.mov")],
+            title=_("Select the Video Files"),
+            filetypes=[(_("Video files"), "*.mp4 *.avi *.mov")],
         )
         if files:
             # Add new files (avoid duplicates)
@@ -249,7 +249,7 @@ class FileSelectionStep(WizardStep):
 
     def _select_video_folder(self):
         """Open folder dialog to select a directory."""
-        folder = filedialog.askdirectory(title="Selecione uma Pasta Contendo Vídeos")
+        folder = filedialog.askdirectory(title=_("Select a Folder Containing Videos"))
         if folder:
             # Add folder (avoid duplicates)
             if folder not in self.video_paths:
@@ -290,7 +290,7 @@ class FileSelectionStep(WizardStep):
 
         # Update summary
         if not self.video_paths:
-            self.summary_var.set("Nenhum vídeo/pasta selecionado.")
+            self.summary_var.set(_("No video/folder selected."))
             self.folder_preview_data = []
             self._refresh_folder_preview()
             return
@@ -301,16 +301,22 @@ class FileSelectionStep(WizardStep):
 
         parts = []
         if files:
-            parts.append(f"{len(files)} arquivo(s)")
+            parts.append(
+                _("1 file") if len(files) == 1 else _("{count} files").format(count=len(files))
+            )
         if folders:
-            parts.append(f"{len(folders)} pasta(s)")
+            parts.append(
+                _("1 folder")
+                if len(folders) == 1
+                else _("{count} folders").format(count=len(folders))
+            )
 
-        summary = " + ".join(parts) + " selecionado(s)"
+        summary = _("Selected: {parts}").format(parts=" + ".join(parts))
 
         # Estimate total videos (quick count, not recursive yet)
         # Full scan will happen in Step 3
         if folders:
-            summary += " (detecção de vídeos em pastas será feita na próxima etapa)"
+            summary += _(" (videos inside folders are detected in the next step)")
 
         self.summary_var.set(summary)
         self.folder_preview_data = self._build_folder_preview_data(files, folders)
@@ -327,7 +333,7 @@ class FileSelectionStep(WizardStep):
         if not self.video_paths:
             return (
                 False,
-                "Por favor, selecione pelo menos um arquivo de vídeo ou pasta.",
+                _("Please select at least one video file or folder."),
             )
 
         # Basic validation: check that paths exist
@@ -335,7 +341,9 @@ class FileSelectionStep(WizardStep):
         if invalid_paths:
             return (
                 False,
-                f"Os seguintes caminhos não existem:\n{chr(10).join(invalid_paths)}",
+                _("The following paths do not exist:\n{paths}").format(
+                    paths=chr(10).join(invalid_paths)
+                ),
             )
 
         return (True, "")
@@ -416,7 +424,7 @@ class FileSelectionStep(WizardStep):
                     root_id,
                     "end",
                     text="…",
-                    values=("Prévia limitada",),
+                    values=(_("Preview truncated"),),
                 )
 
     def _insert_tree_node(self, parent_id: str, node: dict):
@@ -459,7 +467,7 @@ class FileSelectionStep(WizardStep):
 
             preview.append(
                 {
-                    "label": "Arquivos Individuais",
+                    "label": _("Individual Files"),
                     "path": "files",
                     "counts": {"files": len(files), "folders": 0},
                     "nodes": file_nodes,
@@ -469,7 +477,8 @@ class FileSelectionStep(WizardStep):
 
         return preview
 
-    def _scan_folder(self, folder: str) -> dict:
+    def _scan_folder(self, folder: Path | str) -> dict:
+        folder = str(folder)
         budget = {"remaining": MAX_TREE_NODES}
         nodes, counts, truncated = self._walk_folder(folder, depth=0, budget=budget)
         label = f"📁 {os.path.basename(folder) or folder}"
@@ -483,11 +492,12 @@ class FileSelectionStep(WizardStep):
 
     def _walk_folder(
         self,
-        path: str,
+        path: Path | str,
         *,
         depth: int,
         budget: dict,
     ) -> tuple[list[dict], dict, bool]:
+        path = str(path)
         counts = {"files": 0, "folders": 0}
         if depth >= MAX_TREE_DEPTH or budget["remaining"] <= 0:
             return [], counts, True
@@ -549,11 +559,13 @@ class FileSelectionStep(WizardStep):
         folders = counts.get("folders", 0)
         parts = []
         if folders:
-            parts.append(f"{folders} pasta(s)")
+            parts.append(
+                _("1 folder") if folders == 1 else _("{count} folders").format(count=folders)
+            )
         if files:
-            parts.append(f"{files} arquivo(s)")
+            parts.append(_("1 file") if files == 1 else _("{count} files").format(count=files))
         if not parts:
-            return "vazio"
+            return _("empty")
         return ", ".join(parts)
 
     def _update_template_banner(self):

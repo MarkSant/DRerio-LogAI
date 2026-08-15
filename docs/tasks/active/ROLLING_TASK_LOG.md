@@ -6,6 +6,173 @@ This document tracks all major agent interventions, technical debt resolutions, 
 
 ## Active Tasks
 
+### [2026-08-13] Internacionalização fase 3 de 3 — ui/dialogs, ui/wizard, core, analysis
+
+__ID:__ TASK-068
+__Agent:__ Claude Code (Opus 5)
+__Status:__ Completed ✅
+__Branch:__ claude/i18n-phase-3-handoff-40321d
+__Description:__
+Fase final da migração para inglês como idioma-fonte. Fases 1 (PR #461) e 2
+(PR #462) já mescladas; `coordinators/**`, `ui/components/**`, `io/`, `plugins/`,
+`utils/` e `ui/builders/` estão a zero literais e travados pelo ratchet em
+`tests/i18n/test_no_untranslated_literals.py`.
+
+Restam 942 literais acentuados em 74 arquivos (`ui/dialogs` 395, `ui/wizard` 300,
+`core` 216, `analysis` 19, `ui/gui.py` + `ui/ui_coordinator.py` 12). O volume real
+é maior: o scanner só detecta acento, e o português sem acento somou de um terço a
+metade a mais por arquivo nas fases anteriores.
+
+__Critério de pronto:__ `i18n_scan.py src/zebtrack` em `TOTAL: 0`,
+`MIGRATED_PATHS == ("src/zebtrack",)` e remoção do comentário "Migrado na PR1"
+no topo do ratchet; depois, atualizar a seção "A migração" em
+`docs/guides/developer/i18n.md` e o CHANGELOG.
+
+### Subtasks (TASK-068)
+
+- [x] Lote 1: `analysis/**` a zero e no ratchet. Domínio `zebtrack` nos quatro
+      arquivos: só `analysis/reporters/**` usa o domínio `reporter`, e o que
+      restava fora dele é prosa de UI/apêndice de validação. Dois defeitos
+      achados de quebra — cabeçalho de coluna do `.xlsx` e legenda de figura em
+      português no meio de arquivos 100% ingleses.
+- [x] Lote 2: `ui/gui.py` + `ui/ui_coordinator.py`, ambos no ratchet. 10 dos 16
+      msgids já existiam com o português IDÊNTICO — `gui.py` duplicava diálogos e
+      defaults de estado que `dialog_manager`/`analysis_controls` já possuem.
+- [x] Lote 3a: `core/recording/**` a zero e no ratchet. Dois `_` como descarte
+      sombreavam o gettext (`live_session_manager`, `frame_processing_pipeline`)
+      — pegos por ruff F823 + mypy, nenhum por leitura.
+- [x] Lote 3b: `core/project/**` a zero e no ratchet. O guia pós-criação citava
+      SEIS rótulos de aba/botão retipados à mão, dois deles já errados; agora
+      interpolam o msgid do próprio widget. Mais um `_` descarte quebrando o
+      gettext (asset_manager), pego só pelo mypy.
+- [x] Lote 3c: `core/services/**` a zero e no ratchet. Removida uma ramificação
+      pelo TEXTO da exceção em `detector_service._validate_range` — traduzir a
+      mensagem teria quebrado o `if` em silêncio, no sentido pior.
+- [x] Lote 3d: `core/video/**`, `core/detection/**`, `core/viewmodels/**`.
+      __`core/` inteiro fechado__ — `MIGRATED_PATHS` colapsou cinco entradas em
+      `src/zebtrack/core`. A segunda redação da validação det/seg em
+      `analysis_control_view_model` passou a reusar o msgid do 3b.
+      O consumidor do `progress_notifier` NÃO foi simplificado: apurou-se que
+      nenhum produtor emite o prefixo no campo `step` — a tira-prefixo é
+      defensiva contra nada. Só o comentário mentiroso foi corrigido.
+- [ ] Lote 4: `ui/wizard/**` (13 arquivos) — valores de enum em models.py/enums.py
+      são persistidos, traduzir só os rótulos exibidos.
+  - [x] 4a: `models.py` (inglês fixo, camada de esquema), `wizard_dialog.py`,
+        `experimental_design_step.py`.
+  - [x] 4b: `confirmation_step.py` (55) + `live_config_step.py` (49), mais dois
+        arquivos que eles arrastaram junto. Quatro defeitos:
+        (1) o resumo obtinha a identidade do template com
+        `.replace('Template carregado: ', '')` sobre o texto RENDERIZADO —
+        traduzir o prefixo deixaria o prefixo dentro do resumo, em silêncio;
+        nasceu `format_template_banner_details()` em `templates.py`;
+        (2) `coordinators/**` já está no ratchet e mesmo assim publicava
+        "Aguardando sinal externo... (porta N)" como status de UI em DOIS
+        arquivos — a frase não tem acento, então o scanner (e o ratchet
+        construído sobre ele) nunca a viu. O tooltip do gatilho externo
+        retipava essa mesma frase como prosa; agora interpola o msgid;
+        (3) `--previous` do Babel enrolava o msgid anterior no meio da string
+        ao gerar o comentário `#|`, produzindo um `.po` que o polib se recusa
+        a ler. `--no-fuzzy-matching` resolve e alinha com o `i18n_pairs.py`,
+        que já jogava fora todo palpite fuzzy do Babel;
+        (4) quatro asserções de teste eram vácuas — `or "Template" in ...`,
+        `or "vazio" in ...` e dois `"indispon" not in ...` que passariam
+        mesmo se o aviso fosse exibido. Todas ancoradas no texto real agora.
+        Unificados ainda `pyserial não instalado`/`não disponível` (duas
+        grafias da mesma falha) e `Total de Vídeos`/`Total de vídeos`.
+  - [x] 4c: `model_selection_step.py` (41) + `detection_step.py` (28). Os dois
+        arquivos tinham um dict de rótulos em CORPO DE MÓDULO (`_METHOD_LABELS`,
+        `_METHOD_OPTIONS`) — traduzir no lugar congelaria o idioma no import,
+        então viraram função. Três defeitos estruturais em model_selection:
+        (1) `"  ⭐ Recomendado"` era ANEXADO para exibir e RETIRADO de volta por
+        `_strip_annotation()` e pelo `startswith`; traduzir só a exibição
+        colaria o marcador no nome do peso e o `validate()` recusaria um peso
+        escolhido na própria lista. Agora há uma definição só,
+        `_recommended_suffix()`, usada nos três pontos;
+        (2) `_refresh_weight_dropdowns` fazia `rec, _ = ...` DUAS linhas acima de
+        onde o marcador precisa de `_()` — o gettext viraria o segundo item da
+        tupla e seria chamado como função (mais três `name, _ =` em
+        `_default_weight_for_method`);
+        (3) o erro de faixa montava `f"❌ {label.capitalize()} deve estar..."`,
+        capitalizando texto traduzido; virou uma frase pronta por campo.
+        Nos testes, quatro sítios DIRIGIAM o widget com o rótulo em português
+        (`set("Detecção (det)")`); com o rótulo traduzido eles param de resolver
+        e o `hint` ficava vazio — o que fazia
+        `test_animal_method_hint_cleared_for_seg` (que exige hint vazio) passar
+        pelo motivo errado. Agora usam `_method_display()`.
+  - [x] 4d: `discovery_step` (20), `custom_regex_dialog` (19),
+        `file_selection_step` (19), `import_config_step` (16),
+        `calibration_step` (14), `design_editor_dialog` (9).
+        __`ui/wizard` inteiro fechado__ — o pacote foi a zero.
+        `custom_regex_dialog` guardava CINCO cópias do mesmo
+        `{"group": "Grupo", "day": "Dia", "subject": "Sujeito"}` (cabeçalho,
+        linha de resultado, placeholder "aguardando", erro de validação e
+        pré-visualização); cada uma precisaria do seu `_()` e elas têm de
+        concordar entre si na tela — viraram `_field_labels()`.
+        `file_selection_step` montava o resumo colando `"N arquivo(s)"` +
+        `" selecionado(s)"`, onde o particípio teria de concordar com um
+        sujeito que pode ser masculino, feminino ou os dois ao mesmo tempo; o
+        português agora começa por rótulo (`"Seleção: ..."`) e nada precisa
+        concordar. Os rótulos de estratégia de ROI do `import_config_step`
+        têm português diferente do resumo do `confirmation_step`, então
+        ganharam msgids próprios em vez de colidir.
+- [x] Lote 5: `ui/dialogs/**` (26 arquivos).
+  - [x] 5a: os sete menores — `color_selection_dialog`, `center_periphery_dialog`,
+        `diagnostic_progress_dialog`, `model_diagnostics_dialog`,
+        `subject_selection_dialog`, `pending_videos_dialog`,
+        `preview_polygon_dialog`. 395 → 375 (o texto do commit diz "395 -> 356";
+        o número certo é 375). Dois defeitos: o nome da cor em
+        `color_selection_dialog` era rótulo, VALOR do radio, chave do `apply()` e
+        `result["name"]` ao mesmo tempo — traduzir deixaria
+        `StringVar(value="verde")` sem casar com nada; e os `_BADGE_*_TEXT` de
+        `preview_polygon_dialog` eram constantes de módulo. O `TAG_STYLES` de
+        `pending_videos_dialog`, apontado no handoff como sítio de import,
+        contém só cores — não há o que traduzir.
+  - [x] 5b: `block_detail_dialog` (79) + `live_analysis_dialog` (59).
+        375 → 237. `"Dia {n} - {grupo}"` estava retipado dentro de DEZESSETE
+        mensagens deste diálogo; virou `_block_label()`. A chave PERSISTIDA do
+        mesmo bloco (`"Dia_{n}_{grupo}"`, em `add_note`) continua em português,
+        de propósito. Mais dois `_` descarte abaixo de um `_()` (ruff F823) e
+        uma colisão de msgid barrada antes de gravar (`Detection Error` /
+        `Detection failed` já existiam em `pr2-coordinators-tail.json`).
+  - [x] 5c: `single_video_config_dialog` (40), `project_video_import_dialog` (38),
+        `create_project_dialog` (27). 237 → 132. __Quatro msgids descartados__
+        depois que a checagem de corpus apontou colisão: `Number of Groups:`,
+        `Group Names`, `Validation` e `Metadata` (este último já existia como
+        "Metadados"; o cabeçalho da árvore passou a concordar com o resto do
+        app em vez de exibir "Metadata" só nesta tela).
+  - [x] 5d: `live_camera_mode_selection_dialog` (17), `aquarium_detection_progress_dialog`
+        (15), `calibration_dialog` (13), `start_recording_dialog` (13),
+        `aquarium_assignment_dialog` (11), `multi_aquarium_live_preview_window`
+        (10). `MODE_DESCRIPTIONS` era `typing.ClassVar` em corpo de classe — o
+        último sítio de tradução em tempo de import de `ui/dialogs` — e virou
+        `_mode_descriptions()`. `start_recording_dialog` duplica o seletor de
+        câmera inteiro de `block_detail_dialog`, então quase tudo reusou 5b.
+  - [x] 5e: `camera_disconnect_recovery_dialog` (9), `live_config_dialog` (9),
+        `save_roi_template_dialog` (7), `live_preview_window` (6),
+        `multi_aquarium_confirm_dialog` (6), `zone_calibration_dialog` (6),
+        `zone_reuse_dialog` (6), `missing_metadata_dialog` (4).
+        53 acentuados → 0, mas __86 msgids novos__: metade do português desses
+        arquivos não tem acento. Achados: (1) `core/recording/live_session_manager`,
+        __já dentro do ratchet__, empurrava quatro status em português sem
+        acento para o mesmo rótulo onde já havia `_()` traduzido — a linha
+        trocava de idioma no meio da sessão; (2) `start_timer` renderizava
+        "Início:  Início: 12:34:56", porque repetia no valor o rótulo da coluna
+        vizinha (`stop_time_label`, ao lado, nunca fez isso); (3) __`ui/wizard`
+        chegou a zero no 4d e nunca entrou em `MIGRATED_PATHS`__ — passou quatro
+        lotes sem guarda; (4) `"Nenhuma câmera encontrada"` era exibida E
+        gravada em `camera_var`, que `apply()` usa como chave de busca — virou
+        `_no_camera_label()`; (5) `"Porta Arduino:"` era segunda grafia do
+        `"Porta do Arduino:"` do wizard, colapsada num msgid só.
+- [x] Fechamento: `MIGRATED_PATHS == ("src/zebtrack",)`, guia e CHANGELOG
+      atualizados.
+
+__Ressalva ao critério de pronto:__ `TOTAL: 0` prova apenas que não sobrou
+português __acentuado__. O `i18n_scan.py` — e portanto o ratchet construído
+sobre ele — é cego a `Salvar`, `Nenhum video`, `Remover`, `dias`, `grupos`. Foi
+exatamente assim que `coordinators/` e `core/recording/` seguiram publicando
+texto em português depois de travados. Uma varredura dedicada a português sem
+acento continua __pendente__ e não foi feita nesta tarefa.
+
 ### [2026-06-09] Sexteto de bugs em projetos live (zonas, lote, contadores, OpenVINO, settings globais)
 
 __ID:__ TASK-067

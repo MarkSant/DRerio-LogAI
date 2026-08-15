@@ -4,7 +4,7 @@ from zebtrack.core.video.processing_mode import ProcessingMode, ProcessingReport
 
 
 def test_processing_mode_display_names():
-    assert ProcessingMode.MULTI_TRACK.display_name == "Multi-indivíduos"
+    assert ProcessingMode.MULTI_TRACK.display_name == "Multi-individual"
     assert ProcessingMode.SINGLE_SUBJECT.display_name == "Individual"
 
 

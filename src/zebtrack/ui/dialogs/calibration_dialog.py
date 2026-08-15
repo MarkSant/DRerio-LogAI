@@ -8,6 +8,7 @@ from typing import Any
 
 import structlog
 
+from zebtrack.i18n import _
 from zebtrack.ui.collapsible_frame import CollapsibleFrame
 from zebtrack.ui.components.global_model_configuration_panel import (
     GlobalModelConfigurationPanel,
@@ -121,17 +122,17 @@ class CalibrationDialog(simpledialog.Dialog):
 
     def _get_dialog_title(self) -> str:
         if self.scope_info.get("scope") == "project":
-            return "Ferramentas de Modelos do Projeto"
+            return _("Project Model Tools")
         if self.show_diagnostics:
-            return "Calibração e Diagnóstico"
-        return "Configuração Global de Modelos"
+            return _("Calibration and Diagnostics")
+        return _("Global Model Configuration")
 
     def _get_calibration_section_title(self) -> str:
         if self.scope == "project":
-            return "📐 Ferramentas de Modelos do Projeto"
+            return _("📐 Project Model Tools")
         if self.show_diagnostics:
-            return "📐 Calibração e Diagnóstico"
-        return "📐 Configuração Global de Modelos"
+            return _("📐 Calibration and Diagnostics")
+        return _("📐 Global Model Configuration")
 
     def _build_calibration_section(self) -> None:
         if self.calibration_section is None:
@@ -178,10 +179,10 @@ class CalibrationDialog(simpledialog.Dialog):
     def _build_project_tools_ui(self, master) -> None:
         ttk.Label(
             master,
-            text=(
-                "As ferramentas de configuração e diagnóstico deste projeto foram separadas "
-                "em duas abas dedicadas. Este fallback reutiliza a mesma divisão quando a "
-                "janela principal ainda não está disponível."
+            text=_(
+                "This project's configuration and diagnostic tools were split "
+                "into two dedicated tabs. This fallback reuses the same split "
+                "when the main window is not available yet."
             ),
             wraplength=760,
             justify="left",
@@ -193,8 +194,8 @@ class CalibrationDialog(simpledialog.Dialog):
 
         configuration_tab = ttk.Frame(notebook, padding=10)
         diagnostics_tab = ttk.Frame(notebook, padding=10)
-        notebook.add(configuration_tab, text="Config. Modelo IA")
-        notebook.add(diagnostics_tab, text="Diagnóstico Modelo IA")
+        notebook.add(configuration_tab, text=_("AI Model Config."))
+        notebook.add(diagnostics_tab, text=_("AI Model Diagnostics"))
 
         ProjectModelConfigurationPanel(configuration_tab, self.controller).pack(
             fill="both", expand=True
@@ -213,7 +214,7 @@ class CalibrationDialog(simpledialog.Dialog):
 
         diag_frame = ttk.LabelFrame(
             master,
-            text="Diagnóstico de Desempenho do Modelo",
+            text=_("Model Performance Diagnostics"),
             padding=10,
         )
         diag_frame.pack(fill="x", pady=10, padx=5)
@@ -266,16 +267,15 @@ class CalibrationDialog(simpledialog.Dialog):
         result: dict[str, str | None] = {"choice": None}
 
         win = tk.Toplevel(self)
-        win.title("Aplicar padrões globais")
+        win.title(_("Apply global defaults"))
         win.transient(self)
         win.resizable(False, False)
 
         ttk.Label(
             win,
-            text=(
-                "Aplicar os padrões globais de modelo a qual projeto?\n\n"
-                f"Projeto aberto: {project_name}"
-            ),
+            text=_(
+                "Apply the global model defaults to which project?\n\nOpen project: {name}"
+            ).format(name=project_name),
             justify="left",
             wraplength=440,
             padding=12,
@@ -320,15 +320,19 @@ class CalibrationDialog(simpledialog.Dialog):
             result = self.controller.project_vm.handle_calibration_copy_to_project()
             if result is not None:
                 messagebox.showinfo(
-                    "Projeto atualizado",
-                    f"Os padrões globais foram copiados para o projeto {project_name}.",
+                    _("Project updated"),
+                    _("The global defaults were copied to project {name}.").format(
+                        name=project_name
+                    ),
                     parent=self,
                 )
             else:
                 messagebox.showerror(
-                    "Falha ao copiar",
-                    "Não foi possível aplicar os padrões globais ao projeto. "
-                    "Verifique o log para detalhes.",
+                    _("Copy failed"),
+                    _(
+                        "Could not apply the global defaults to the project. "
+                        "Check the log for details."
+                    ),
                     parent=self,
                 )
         else:
@@ -343,16 +347,20 @@ class CalibrationDialog(simpledialog.Dialog):
             result = self.controller.project_vm.handle_calibration_copy_to_project_path(target)
             if result is not None:
                 messagebox.showinfo(
-                    "Projeto atualizado",
-                    f"Os padrões globais foram copiados para o projeto em:\n{target}",
+                    _("Project updated"),
+                    _("The global defaults were copied to the project at:\n{path}").format(
+                        path=target
+                    ),
                     parent=self,
                 )
             else:
                 messagebox.showerror(
-                    "Falha ao copiar",
-                    "Não foi possível aplicar os padrões globais ao projeto "
-                    "selecionado.\nVerifique se a pasta contém um projeto "
-                    "ZebTrack válido (project_config.json).",
+                    _("Copy failed"),
+                    _(
+                        "Could not apply the global defaults to the selected "
+                        "project.\nCheck that the folder holds a valid ZebTrack "
+                        "project (project_config.json)."
+                    ),
                     parent=self,
                 )
 

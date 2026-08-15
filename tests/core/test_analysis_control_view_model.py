@@ -72,7 +72,7 @@ def test_start_single_video_workflow_invalid_det_config(view_model):
     view_model.ui_event_bus.publish.assert_called_once()
     event = view_model.ui_event_bus.publish.call_args[0][0]
     assert event.type == UIEvents.SHOW_ERROR
-    assert event.data.title == "Configuração Inválida"
+    assert event.data.title == "Invalid Configuration"
 
 
 def test_start_single_video_workflow_detector_setup_failure(view_model):
@@ -172,7 +172,7 @@ def test_cancel_current_analysis_stops_live_session(view_model):
     view_model.ui_event_bus.publish.assert_called_once_with(
         Event(
             type=UIEvents.SET_STATUS,
-            data=payloads.StatusPayload(message="Cancelando análise em andamento..."),
+            data=payloads.StatusPayload(message="Cancelling the analysis in progress..."),
         )
     )
     view_model.ui_state_controller._show_cancel_feedback.assert_called_once()

@@ -1,0 +1,28 @@
+{
+  "_domain": "zebtrack",
+  "_comment": "Phase 3, batch 3d: core/detection, core/video, core/viewmodels — closes core/. Seven msgids are reused rather than repeated: 'Processing Error' (×4, whose Portuguese was 'Erro no Processamento' while these sites said 'Erro de Processamento' — one dialog title, one msgid), 'Multi-individual', 'Invalid Configuration', and the det/seg validation from pr3-core-project.json, which analysis_control_view_model carried as a SECOND, differently worded copy. Not here on purpose: the aquarium_detector and multi_aquarium_detector guards, which name internal state and stay English without _().",
+
+  "Incomplete calibration data.": "Dados de calibração incompletos.",
+  "Failed to prepare the calibration data.": "Falha ao preparar dados de calibração.",
+
+  "Individual": "Individual",
+
+  "Processing {current}/{total}: {experiment_id}": "Processando {current}/{total}: {experiment_id}",
+  "Step: {status}": "Etapa: {status}",
+  "Trajectory for {experiment_id} generated.": "Trajetória para {experiment_id} gerada.",
+  "Failed to generate the trajectory file for {experiment_id}.": "Falha ao gerar arquivo de trajetória para {experiment_id}.",
+  "File not found: {path}": "Arquivo não encontrado: {path}",
+  "Failed to read the trajectory file for {experiment_id}.": "Falha ao ler arquivo de trajetória para {experiment_id}.",
+
+  "Cancelling the analysis in progress...": "Cancelando análise em andamento...",
+  "Generating report {current}/{total}...": "Gerando relatório {current}/{total}...",
+  "Report generation finished.": "Geração de relatórios concluída.",
+
+  "🐠 Aquarium (det)": "🐠 Aquário (det)",
+  "🐠 Aquarium (seg)": "🐠 Aquário (seg)",
+  "🐟 Animal (det)": "🐟 Animal (det)",
+  "🐟 Animal (seg)": "🐟 Animal (seg)",
+
+  "Critical Error": "Erro Crítico",
+  "The camera thread did not shut down correctly. The application will close.": "A thread da câmera não foi finalizada corretamente. O aplicativo será encerrado."
+}

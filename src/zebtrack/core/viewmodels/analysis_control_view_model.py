@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Any
 import structlog
 
 from zebtrack.analysis.analysis_service import resolve_mask_sidecar
+from zebtrack.i18n import _
 from zebtrack.ui import payloads as payloads
 from zebtrack.ui.event_bus_v2 import Event, UIEvents
 from zebtrack.ui.payloads import StatusPayload
@@ -82,12 +83,18 @@ class AnalysisControlViewModel:
                     Event(
                         type=UIEvents.SHOW_ERROR,
                         data=payloads.ErrorOccurredPayload(
-                            title="Configuração Inválida",
-                            message=(
-                                f"O modo de detecção (det) suporta apenas 1 animal por aquário.\n"
-                                f"Você configurou {animals_per_aquarium} animais por aquário.\n"
-                                "Para múltiplos animais, use o modo de segmentação (seg)."
-                            ),
+                            # SAME msgid as project_workflow_service: this was a
+                            # second, differently worded copy of one validation.
+                            # Two msgids would mean the operator reads different
+                            # advice depending on which path tripped the check.
+                            title=_("Invalid Configuration"),
+                            message=_(
+                                "The detection mode (det) for animals is only compatible "
+                                "with 1 animal per aquarium.\nCurrent configuration: {count} "
+                                "animals per aquarium.\n\nTo use multiple animals per "
+                                "aquarium, change the animal detection method to 'seg' "
+                                "(segmentation) in the settings."
+                            ).format(count=animals_per_aquarium),
                         ),
                     )
                 )
@@ -205,7 +212,9 @@ class AnalysisControlViewModel:
             self.ui_event_bus.publish(
                 Event(
                     type=UIEvents.SET_STATUS,
-                    data=payloads.StatusPayload(message="Cancelando análise em andamento..."),
+                    data=payloads.StatusPayload(
+                        message=_("Cancelling the analysis in progress...")
+                    ),
                 )
             )
 
@@ -289,7 +298,9 @@ class AnalysisControlViewModel:
                     Event(
                         type=UIEvents.SET_STATUS,
                         data=payloads.StatusPayload(
-                            message=f"Gerando relatório {i + 1}/{total}..."
+                            message=_("Generating report {current}/{total}...").format(
+                                current=i + 1, total=total
+                            )
                         ),
                     )
                 )
@@ -519,7 +530,7 @@ class AnalysisControlViewModel:
         self.ui_event_bus.publish(
             Event(
                 type=UIEvents.SET_STATUS,
-                data=StatusPayload(message="Geração de relatórios concluída."),
+                data=StatusPayload(message=_("Report generation finished.")),
             )
         )
 

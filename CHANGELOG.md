@@ -9,6 +9,61 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Migração de idioma concluída (i18n — fases 2/3 e 3/3)
+
+- **A interface inteira passou para inglês como língua-fonte.** As fases 2 e 3
+  cobriram `coordinators/`, `ui/components/`, `io/`, `plugins/`, `utils/`,
+  `ui/builders/`, `analysis/`, `core/`, `ui/gui.py`, `ui/ui_coordinator.py`,
+  `ui/wizard/` e `ui/dialogs/` — cerca de 1900 msgids no total. `i18n_scan.py`
+  está em zero e o ratchet
+  (`tests/i18n/test_no_untranslated_literals.py`) passou a cobrir `src/zebtrack`
+  inteiro, arquivos futuros incluídos.
+- **A migração revelou defeitos que a tradução só tornou visíveis.** Os de maior
+  impacto:
+  - **Rótulos citados de memória em textos de ajuda.** O guia pós-criação de
+    projeto retipava seis nomes de aba/botão como prosa e **dois já estavam
+    errados antes da migração** — um deles nomeava um botão que não existe no
+    código. Agora interpolam o msgid do próprio widget.
+  - **Ramificação pelo texto de uma exceção** em
+    `detector_service._validate_range`: traduzir a mensagem teria reclassificado
+    toda violação de faixa como "não é um número". A checagem de faixa saiu do
+    `try`.
+  - **Marcador "⭐ Recomendado" anexado para exibir e retirado por
+    `_strip_annotation()`** no wizard: traduzir só a exibição colaria o marcador
+    no nome do peso e `validate()` recusaria um peso escolhido na própria lista.
+  - **Identidade de template obtida por `.replace('Template carregado: ', '')`
+    sobre o texto renderizado** — traduzir o prefixo o deixaria dentro do resumo.
+  - **Status de UI em `coordinators/` e `core/recording/`** que o scanner nunca
+    viu por não ter acento: "Aguardando sinal externo... (porta N)" e quatro
+    strings do painel ao vivo, essas últimas ao lado de chamadas `_()` já
+    traduzidas no mesmo rótulo — a linha de status trocava de idioma no meio da
+    sessão.
+  - **Cabeçalhos de coluna do `.xlsx` e uma legenda de figura em português** no
+    meio de arquivos 100% ingleses. Cabeçalhos são esquema, não texto: agora são
+    inglês fixo, sem `_()`, para que o mesmo dado não gere planilhas de esquemas
+    diferentes conforme a máquina.
+  - **Grafias duplicadas da mesma mensagem** unificadas num msgid só: duas
+    redações da validação det/seg, `pyserial não instalado`/`não disponível`,
+    `Total de Vídeos`/`Total de vídeos`, `Porta Arduino:`/`Porta do Arduino:`.
+- **Asserções de teste vácuas encontradas de passagem.** Quatro no wizard
+  (`or "Template" in ...`, dois `"indispon" not in ...`) passariam mesmo se o
+  aviso testado fosse exibido; e quatro testes dirigiam widgets pelo rótulo em
+  português, o que fazia `test_animal_method_hint_cleared_for_seg` passar pelo
+  motivo errado. Todas reancoradas.
+- **Contratos de persistência não foram traduzidos**, e isso é deliberado:
+  `Grupo_*`/`Dia_*`/`Sujeito_*`, as chaves de `session_duration_overrides`, a aba
+  `por_animal` e as chaves do dict `report`. Traduzi-los não produziria um app em
+  inglês, e sim um app incapaz de ler os projetos que ele mesmo gravou. A lista
+  vive em `scripts/i18n_allowlist.txt`.
+
+#### Limitação conhecida
+
+- **O scanner só enxerga português ACENTUADO.** `Salvar`, `Nenhum video`,
+  `Remover`, `dias` e afins passam por ele e pelo ratchet sem serem vistos —
+  foi exatamente assim que os status de `coordinators/` e `core/recording/`
+  sobreviveram dentro de pacotes já travados. Uma varredura dedicada a português
+  sem acento continua pendente.
+
 ### Interface em inglês por padrão, português selecionável (i18n — fase 1/3)
 
 - **O idioma agora é uma escolha do pesquisador, não do sistema operacional.** Na

@@ -16,6 +16,8 @@ from tkinter import (
 )
 from typing import Any
 
+from zebtrack.i18n import _
+
 
 class SaveROITemplateDialog(simpledialog.Dialog):
     """Dialog that gathers options for saving ROI/Arena templates."""
@@ -43,7 +45,7 @@ class SaveROITemplateDialog(simpledialog.Dialog):
         self._has_rois = has_rois
         self._allow_project = allow_project
         self._default_name = default_name
-        super().__init__(parent, "Salvar template de zonas")
+        super().__init__(parent, _("Save zone template"))
 
     def body(self, master):
         """Create dialog body with ROI template save options.
@@ -56,14 +58,14 @@ class SaveROITemplateDialog(simpledialog.Dialog):
         """
         master.columnconfigure(1, weight=1)
 
-        ttk.Label(master, text="Nome do template:").grid(
+        ttk.Label(master, text=_("Template name:")).grid(
             row=0, column=0, sticky="w", padx=(5, 5), pady=(5, 2)
         )
         self.name_var = StringVar(value=self._default_name)
         self.name_entry = ttk.Entry(master, textvariable=self.name_var, width=40)
         self.name_entry.grid(row=0, column=1, sticky="ew", padx=(0, 5), pady=(5, 2))
 
-        ttk.Label(master, text="Incluir no template:").grid(
+        ttk.Label(master, text=_("Include in the template:")).grid(
             row=1, column=0, sticky="nw", padx=(5, 5), pady=(8, 2)
         )
         options_frame = ttk.Frame(master)
@@ -72,7 +74,7 @@ class SaveROITemplateDialog(simpledialog.Dialog):
         self.save_arena_var = BooleanVar(value=self._has_arena)
         arena_check = ttk.Checkbutton(
             options_frame,
-            text="Arena principal",
+            text=_("Main arena"),
             variable=self.save_arena_var,
         )
         arena_check.grid(row=0, column=0, sticky="w")
@@ -83,7 +85,7 @@ class SaveROITemplateDialog(simpledialog.Dialog):
         self.save_rois_var = BooleanVar(value=self._has_rois)
         rois_check = ttk.Checkbutton(
             options_frame,
-            text="Regiões de Interesse (ROIs)",
+            text=_("Regions of Interest (ROIs)"),
             variable=self.save_rois_var,
         )
         rois_check.grid(row=1, column=0, sticky="w", pady=(3, 0))
@@ -91,7 +93,7 @@ class SaveROITemplateDialog(simpledialog.Dialog):
             self.save_rois_var.set(False)
             rois_check.state(["disabled"])
 
-        ttk.Label(master, text="Salvar em:").grid(
+        ttk.Label(master, text=_("Save to:")).grid(
             row=2, column=0, sticky="nw", padx=(5, 5), pady=(10, 2)
         )
         location_frame = ttk.Frame(master)
@@ -99,11 +101,12 @@ class SaveROITemplateDialog(simpledialog.Dialog):
 
         default_location = "project" if self._allow_project else "global"
         self.location_var = StringVar(value=default_location)
-        self.location_var.trace_add("write", lambda *_: self._update_custom_state())
+        # NOT ``lambda *_:`` -- binding ``_`` shadows the gettext alias.
+        self.location_var.trace_add("write", lambda *_args: self._update_custom_state())
 
         self._project_radio = ttk.Radiobutton(
             location_frame,
-            text="Projeto atual",
+            text=_("Current project"),
             value="project",
             variable=self.location_var,
         )
@@ -113,14 +116,14 @@ class SaveROITemplateDialog(simpledialog.Dialog):
 
         ttk.Radiobutton(
             location_frame,
-            text="Configurações globais",
+            text=_("Global settings"),
             value="global",
             variable=self.location_var,
         ).grid(row=1, column=0, sticky="w", pady=(3, 0))
 
         ttk.Radiobutton(
             location_frame,
-            text="Local personalizado",
+            text=_("Custom location"),
             value="custom",
             variable=self.location_var,
         ).grid(row=2, column=0, sticky="w", pady=(3, 0))
@@ -139,7 +142,7 @@ class SaveROITemplateDialog(simpledialog.Dialog):
 
         self.browse_button = ttk.Button(
             custom_frame,
-            text="Procurar…",
+            text=_("Browse…"),
             command=self._browse_custom_path,
             width=12,
         )
@@ -147,9 +150,9 @@ class SaveROITemplateDialog(simpledialog.Dialog):
 
         ttk.Label(
             master,
-            text=(
-                "Templates globais ficam disponíveis para todos os projetos. "
-                "Use um local personalizado para compartilhar manualmente."
+            text=_(
+                "Global templates are available to every project. "
+                "Use a custom location to share one manually."
             ),
             wraplength=360,
             foreground="#4a4a4a",
@@ -170,13 +173,13 @@ class SaveROITemplateDialog(simpledialog.Dialog):
         location = self.location_var.get()
 
         if not name:
-            messagebox.showwarning("Nome obrigatório", "Informe o nome do template.")
+            messagebox.showwarning(_("Name required"), _("Enter the template name."))
             return False
 
         if not save_arena and not save_rois:
             messagebox.showwarning(
-                "Seleção incompleta",
-                "Escolha ao menos a arena ou as ROIs para salvar no template.",
+                _("Incomplete selection"),
+                _("Choose at least the arena or the ROIs to save in the template."),
             )
             return False
 
@@ -184,8 +187,8 @@ class SaveROITemplateDialog(simpledialog.Dialog):
             path = (self.custom_path_var.get() or "").strip()
             if not path:
                 messagebox.showwarning(
-                    "Local não definido",
-                    "Selecione o arquivo onde o template será salvo.",
+                    _("Location not set"),
+                    _("Select the file where the template will be saved."),
                 )
                 return False
 
@@ -217,9 +220,9 @@ class SaveROITemplateDialog(simpledialog.Dialog):
     def _browse_custom_path(self) -> None:
         initial_slug = self._suggest_filename()
         chosen = filedialog.asksaveasfilename(
-            title="Salvar template de zonas",
+            title=_("Save zone template"),
             defaultextension=".json",
-            filetypes=[("Template de zonas", "*.json"), ("Todos os arquivos", "*.*")],
+            filetypes=[(_("Zone template"), "*.json"), (_("All files"), "*.*")],
             initialfile=f"{initial_slug}.json" if initial_slug else "",
         )
         if chosen:

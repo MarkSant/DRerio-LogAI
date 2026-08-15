@@ -207,7 +207,7 @@ class TestWizardIntegration:
         assert "Experimental" in step5.summary_text
 
         # Verify default project name generated
-        assert "Experimento" in step5.project_name_var.get()
+        assert "Experiment" in step5.project_name_var.get()
 
     @patch("zebtrack.ui.wizard.detection_step.ProjectManager.scan_input_paths")
     def test_complete_wizard_flow_experimental(self, mock_scan):
@@ -335,7 +335,7 @@ class TestWizardIntegration:
         wizard_data.update(step5.get_data())
 
         # Verify exploratory project name
-        assert "Exploratorio" in step5.project_name_var.get()
+        assert "Exploratory" in step5.project_name_var.get()
 
     def test_set_data_restores_state_across_all_steps(self):
         """Test that set_data works for all steps (back navigation)."""

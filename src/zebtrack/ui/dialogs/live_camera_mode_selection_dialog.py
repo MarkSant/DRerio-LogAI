@@ -6,7 +6,6 @@ requested aquarium count exceeds hardware capabilities.
 Version: 2.2.0
 """
 
-import typing
 from collections.abc import Callable
 from tkinter import (
     Button,
@@ -23,6 +22,7 @@ from tkinter import (
 import structlog
 
 from zebtrack.core.recording.live_camera_mode import LiveCameraMode, LiveCameraModeRecommendation
+from zebtrack.i18n import _
 from zebtrack.utils.hardware_capability import (
     HardwareCapabilityReport,
     MultiAquariumCapability,
@@ -54,33 +54,41 @@ class LiveCameraModeSelectionDialog(Toplevel):
         )
     """
 
-    # Mode descriptions (Portuguese)
-    MODE_DESCRIPTIONS: typing.ClassVar = {
-        LiveCameraMode.MULTI_AQUARIUM_REALTIME: (
-            "Processamento Paralelo em Tempo Real\n"
-            "• Detecta 2-6 aquários simultaneamente\n"
-            "• Requer GPU e ≥4 cores de CPU\n"
-            "• Maior throughput, ideal para experimentos grandes"
-        ),
-        LiveCameraMode.SINGLE_AQUARIUM_REALTIME: (
-            "Aquário Único em Tempo Real\n"
-            "• Processa 1 aquário por vez\n"
-            "• Requer ≥2 cores de CPU\n"
-            "• Ideal para sistemas com recursos limitados"
-        ),
-        LiveCameraMode.SEQUENTIAL_AQUARIUM: (
-            "Sessões Sequenciais\n"
-            "• Grava N sessões separadas, uma de cada vez\n"
-            "• Processa cada aquário em tempo real\n"
-            "• Requer intervenção manual entre sessões"
-        ),
-        LiveCameraMode.RECORD_ONLY: (
-            "Apenas Gravação (Offline)\n"
-            "• Grava vídeo sem processamento em tempo real\n"
-            "• Análise posterior com todos os recursos\n"
-            "• Sempre possível, sem requisitos de hardware"
-        ),
-    }
+    @staticmethod
+    def _mode_descriptions() -> dict[LiveCameraMode, str]:
+        """Long description shown under each processing mode.
+
+        This used to be a typing.ClassVar dict. A dict literal in a class body
+        is evaluated at IMPORT time, so wrapping these in _() there would freeze
+        them in whatever language happened to be installed at import -- see
+        docs/guides/developer/i18n.md.
+        """
+        return {
+            LiveCameraMode.MULTI_AQUARIUM_REALTIME: _(
+                "Parallel Real-Time Processing\n"
+                "• Detects 2-6 aquariums simultaneously\n"
+                "• Requires a GPU and ≥4 CPU cores\n"
+                "• Higher throughput, ideal for large experiments"
+            ),
+            LiveCameraMode.SINGLE_AQUARIUM_REALTIME: _(
+                "Single Aquarium in Real Time\n"
+                "• Processes 1 aquarium at a time\n"
+                "• Requires ≥2 CPU cores\n"
+                "• Ideal for systems with limited resources"
+            ),
+            LiveCameraMode.SEQUENTIAL_AQUARIUM: _(
+                "Sequential Sessions\n"
+                "• Records N separate sessions, one at a time\n"
+                "• Processes each aquarium in real time\n"
+                "• Requires manual intervention between sessions"
+            ),
+            LiveCameraMode.RECORD_ONLY: _(
+                "Recording Only (Offline)\n"
+                "• Records video without real-time processing\n"
+                "• Later analysis with every feature available\n"
+                "• Always possible, no hardware requirements"
+            ),
+        }
 
     def __init__(
         self,
@@ -111,7 +119,7 @@ class LiveCameraModeSelectionDialog(Toplevel):
         self.mode_var = StringVar(value=recommendation.recommended_mode.name)
 
         # Configure dialog
-        self.title("Seleção de Modo de Processamento")
+        self.title(_("Processing Mode Selection"))
         self.geometry("700x650")
         self.resizable(False, False)
 
@@ -137,18 +145,18 @@ class LiveCameraModeSelectionDialog(Toplevel):
         title_font = tkfont.Font(size=14, weight="bold")
         title = Label(
             self,
-            text="⚠️ Ajuste de Modo de Processamento Necessário",
+            text=_("⚠️ Processing Mode Adjustment Required"),
             font=title_font,
             fg="#D84315",
         )
         title.pack(pady=(15, 10))
 
         # Warning message
-        warning_msg = (
-            f"Seu sistema não suporta processamento em tempo real "
-            f"de {self.requested_aquariums} aquários simultaneamente.\n\n"
-            f"Revise as opções abaixo e selecione o modo adequado."
-        )
+        warning_msg = _(
+            "Your system does not support real-time processing of {count} "
+            "aquariums simultaneously.\n\n"
+            "Review the options below and select a suitable mode."
+        ).format(count=self.requested_aquariums)
         warning_label = Label(
             self,
             text=warning_msg,
@@ -174,7 +182,7 @@ class LiveCameraModeSelectionDialog(Toplevel):
 
         header = Label(
             frame,
-            text="📊 Resumo de Hardware",
+            text=_("📊 Hardware Summary"),
             font=tkfont.Font(size=11, weight="bold"),
             bg="#F5F5F5",
         )
@@ -190,7 +198,7 @@ class LiveCameraModeSelectionDialog(Toplevel):
         }
         capability_label = Label(
             frame,
-            text=f"Capacidade: {self.hardware_report.capability.name}",
+            text=_("Capability: {value}").format(value=self.hardware_report.capability.name),
             font=tkfont.Font(size=10, weight="bold"),
             fg=capability_colors.get(self.hardware_report.capability, "#555555"),
             bg="#F5F5F5",
@@ -201,18 +209,24 @@ class LiveCameraModeSelectionDialog(Toplevel):
         gpu_status = (
             f"✓ {self.hardware_report.gpu_name}"
             if self.hardware_report.has_gpu
-            else "✗ Não detectada"
+            else _("✗ Not detected")
         )
-        realtime_status = "✓ Sim" if self.hardware_report.can_process_realtime else "✗ Não"
+        realtime_status = _("✓ Yes") if self.hardware_report.can_process_realtime else _("✗ No")
 
-        details = (
-            f"CPU: {self.hardware_report.cpu_cores} cores "
-            f"({self.hardware_report.cpu_usage_percent:.0f}% uso)\n"
-            f"RAM: {self.hardware_report.available_memory_gb:.1f} GB disponível "
-            f"de {self.hardware_report.total_memory_gb:.1f} GB\n"
-            f"GPU: {gpu_status}\n"
-            f"Aquários Suportados: {self.hardware_report.max_aquariums_recommended}\n"
-            f"Tempo Real: {realtime_status}"
+        details = _(
+            "CPU: {cores} cores ({usage}% used)\n"
+            "RAM: {available} GB available of {total} GB\n"
+            "GPU: {gpu}\n"
+            "Supported aquariums: {aquariums}\n"
+            "Real time: {realtime}"
+        ).format(
+            cores=self.hardware_report.cpu_cores,
+            usage=f"{self.hardware_report.cpu_usage_percent:.0f}",
+            available=f"{self.hardware_report.available_memory_gb:.1f}",
+            total=f"{self.hardware_report.total_memory_gb:.1f}",
+            gpu=gpu_status,
+            aquariums=self.hardware_report.max_aquariums_recommended,
+            realtime=realtime_status,
         )
         details_label = Label(
             frame,
@@ -230,7 +244,7 @@ class LiveCameraModeSelectionDialog(Toplevel):
 
         header = Label(
             frame,
-            text="🎯 Selecione o Modo de Processamento",
+            text=_("🎯 Select the Processing Mode"),
             font=tkfont.Font(size=11, weight="bold"),
         )
         header.pack(pady=(0, 10))
@@ -253,7 +267,7 @@ class LiveCameraModeSelectionDialog(Toplevel):
 
         rec_desc = Label(
             rec_frame,
-            text=self.MODE_DESCRIPTIONS[self.recommendation.recommended_mode],
+            text=self._mode_descriptions()[self.recommendation.recommended_mode],
             justify="left",
             wraplength=620,
             bg="#E8F5E9",
@@ -265,7 +279,7 @@ class LiveCameraModeSelectionDialog(Toplevel):
         if self.recommendation.alternative_options:
             fallback_label = Label(
                 frame,
-                text="Alternativas:",
+                text=_("Alternatives:"),
                 font=tkfont.Font(size=10, weight="bold"),
             )
             fallback_label.pack(anchor="w", pady=(5, 5))
@@ -298,7 +312,7 @@ class LiveCameraModeSelectionDialog(Toplevel):
 
         Button(
             button_frame,
-            text="✓ Confirmar Seleção",
+            text=_("✓ Confirm Selection"),
             command=self._on_confirm,
             width=20,
             bg="#4CAF50",
@@ -308,7 +322,7 @@ class LiveCameraModeSelectionDialog(Toplevel):
 
         Button(
             button_frame,
-            text="✗ Cancelar",
+            text=_("✗ Cancel"),
             command=self._on_cancel,
             width=20,
         ).pack(side="left", padx=5)
@@ -316,10 +330,10 @@ class LiveCameraModeSelectionDialog(Toplevel):
     def _mode_display_name(self, mode: LiveCameraMode) -> str:
         """Get Portuguese display name for mode."""
         names = {
-            LiveCameraMode.MULTI_AQUARIUM_REALTIME: "Multi-Aquário Paralelo",
-            LiveCameraMode.SINGLE_AQUARIUM_REALTIME: "Aquário Único",
-            LiveCameraMode.SEQUENTIAL_AQUARIUM: "Sessões Sequenciais",
-            LiveCameraMode.RECORD_ONLY: "Apenas Gravação",
+            LiveCameraMode.MULTI_AQUARIUM_REALTIME: _("Parallel Multi-Aquarium"),
+            LiveCameraMode.SINGLE_AQUARIUM_REALTIME: _("Single Aquarium"),
+            LiveCameraMode.SEQUENTIAL_AQUARIUM: _("Sequential Sessions"),
+            LiveCameraMode.RECORD_ONLY: _("Recording Only"),
         }
         return names.get(mode, mode.name)
 

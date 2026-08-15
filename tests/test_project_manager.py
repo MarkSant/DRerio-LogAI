@@ -850,7 +850,7 @@ class TestProjectManager(unittest.TestCase):
         allowed, reason = pm.can_remove_asset(video_path, "arena")
 
         self.assertFalse(allowed)
-        self.assertIn("relatórios", reason or "")
+        self.assertIn("reports", reason or "")
 
     def test_remove_rois_clears_zone_and_file(self):
         pm, video_path, files = self._create_manager_with_assets(
@@ -925,7 +925,7 @@ class TestProjectManager(unittest.TestCase):
         project_path = os.path.join(self.test_dir, "nonexistent_project")
         os.makedirs(project_path, exist_ok=True)  # Create dir but no config
 
-        with pytest.raises(ProjectInvalidError, match="não encontrado"):
+        with pytest.raises(ProjectInvalidError, match="not found"):
             pm.load_project(project_path)
 
     def test_update_video_status_and_get_next(self):

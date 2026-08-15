@@ -20,6 +20,7 @@ from tkinter import (
 from typing import TYPE_CHECKING, Any
 
 from zebtrack.core.services.wizard_service import WizardService
+from zebtrack.i18n import _
 from zebtrack.ui.components.behavioral_config_widget import BehavioralConfigWidget
 from zebtrack.ui.wizard.base import WizardStep
 from zebtrack.ui.wizard.enums import ProjectType, WizardStepID
@@ -80,14 +81,12 @@ class CalibrationStep(WizardStep):
         """Build calibration UI - horizontal 2-column layout for better space usage."""
         # Title (full width)
         title_font = tkfont.Font(size=14, weight="bold")
-        title = Label(self, text="Calibração Física", font=title_font)
+        title = Label(self, text=_("Physical Calibration"), font=title_font)
         title.pack(pady=(0, 5))
 
         subtitle = Label(
             self,
-            text=(
-                "Configure as dimensões físicas da arena para conversão de pixels para centímetros."
-            ),
+            text=_("Set the physical dimensions of the arena to convert pixels into centimetres."),
             fg="gray",
             wraplength=700,
         )
@@ -115,7 +114,7 @@ class CalibrationStep(WizardStep):
 
         # Video and animal configuration
         video_frame = LabelFrame(
-            left_panel, text="Configuração de Vídeos e Animais", padx=10, pady=8
+            left_panel, text=_("Video and Animal Configuration"), padx=10, pady=8
         )
         video_frame.pack(fill="x", pady=(0, 8))
 
@@ -123,24 +122,24 @@ class CalibrationStep(WizardStep):
         aquarium_row = Frame(video_frame)
         aquarium_row.pack(fill="x", pady=3)
 
-        Label(aquarium_row, text="Número de aquários (vídeos):", width=30, anchor="w").pack(
+        Label(aquarium_row, text=_("Number of aquariums (videos):"), width=30, anchor="w").pack(
             side="left"
         )
         aquarium_entry = Entry(aquarium_row, textvariable=self.num_aquariums_var, width=10)
         aquarium_entry.pack(side="left", padx=(5, 0))
         ToolTip(
             aquarium_entry,
-            (
-                "🎬 Número de Aquários (Vídeos)\n\n"
-                "Quantos vídeos independentes serão analisados neste projeto.\n\n"
-                "• Cada aquário = 1 vídeo separado\n"
-                "• Projeto LIVE: Tipicamente 1 (gravação única)\n"
-                "• Projeto PRÉ-GRAVADO: Pode ser múltiplos vídeos\n\n"
-                "Exemplos:\n"
-                "  • 1 aquário: Um único experimento/gravação\n"
-                "  • 6 aquários: 6 gravações diferentes (ex: 3 grupos x 2 dias)\n"
-                "  • 24 aquários: Bateria completa de experimentos\n\n"
-                "💡 Dica: Se não tiver certeza, comece com 1 e adicione mais vídeos depois."
+            _(
+                "🎬 Number of Aquariums (Videos)\n\n"
+                "How many independent videos will be analyzed in this project.\n\n"
+                "• Each aquarium = 1 separate video\n"
+                "• LIVE project: typically 1 (a single recording)\n"
+                "• PRE-RECORDED project: may be several videos\n\n"
+                "Examples:\n"
+                "  • 1 aquarium: a single experiment/recording\n"
+                "  • 6 aquariums: 6 different recordings (e.g. 3 groups x 2 days)\n"
+                "  • 24 aquariums: a full battery of experiments\n\n"
+                "💡 Tip: if you are unsure, start with 1 and add more videos later."
             ),
         )
 
@@ -148,35 +147,35 @@ class CalibrationStep(WizardStep):
         animals_row = Frame(video_frame)
         animals_row.pack(fill="x", pady=3)
 
-        Label(animals_row, text="Animais por aquário:", width=30, anchor="w").pack(side="left")
+        Label(animals_row, text=_("Animals per aquarium:"), width=30, anchor="w").pack(side="left")
         animals_entry = Entry(animals_row, textvariable=self.animals_per_aquarium_var, width=10)
         animals_entry.pack(side="left", padx=(5, 0))
         ToolTip(
             animals_entry,
-            (
-                "🐟 Animais por Aquário\n\n"
-                "Quantos animais estarão presentes em CADA vídeo/aquário.\n\n"
-                "Impacto na Análise:\n"
-                "  • 1 animal: Rastreamento individual simplificado\n"
-                "    → Ideal para: Estudos comportamentais individuais\n"
-                "    → Método recomendado: Detecção (det)\n\n"
-                "  • 2-5 animais: Rastreamento multi-animal moderado\n"
-                "    → Ideal para: Interações sociais, comportamento de grupo pequeno\n"
-                "    → Método recomendado: Segmentação (seg)\n\n"
-                "  • 6+ animais: Rastreamento de cardume\n"
-                "    → Ideal para: Dinâmica de cardume, comportamento coletivo\n"
-                "    → Método recomendado: Segmentação (seg) com alta confiança\n\n"
-                "⚠️ IMPORTANTE: Este valor deve ser o MESMO para todos os vídeos do projeto.\n"
-                "Se você tem vídeos com números diferentes de animais, "
-                "crie projetos separados.\n\n"
-                "💡 Dica: Para múltiplos animais, prefira segmentação (seg) no "
-                "passo de seleção de modelo."
+            _(
+                "🐟 Animals per Aquarium\n\n"
+                "How many animals will be present in EACH video/aquarium.\n\n"
+                "Impact on the analysis:\n"
+                "  • 1 animal: simplified individual tracking\n"
+                "    → Ideal for: individual behavioural studies\n"
+                "    → Recommended method: detection (det)\n\n"
+                "  • 2-5 animals: moderate multi-animal tracking\n"
+                "    → Ideal for: social interaction, small-group behaviour\n"
+                "    → Recommended method: segmentation (seg)\n\n"
+                "  • 6+ animals: shoal tracking\n"
+                "    → Ideal for: shoal dynamics, collective behaviour\n"
+                "    → Recommended method: segmentation (seg) with high confidence\n\n"
+                "⚠️ IMPORTANT: this value must be the SAME for every video in the project.\n"
+                "If you have videos with different animal counts, "
+                "create separate projects.\n\n"
+                "💡 Tip: for several animals, prefer segmentation (seg) in the "
+                "model selection step."
             ),
         )
 
         # Physical dimensions
         dimensions_frame = LabelFrame(
-            left_panel, text="Dimensões Físicas do Aquário", padx=10, pady=8
+            left_panel, text=_("Physical Aquarium Dimensions"), padx=10, pady=8
         )
         dimensions_frame.pack(fill="x", pady=(0, 8))
 
@@ -184,30 +183,30 @@ class CalibrationStep(WizardStep):
         width_row = Frame(dimensions_frame)
         width_row.pack(fill="x", pady=3)
 
-        Label(width_row, text="Largura (cm):", width=30, anchor="w").pack(side="left")
+        Label(width_row, text=_("Width (cm):"), width=30, anchor="w").pack(side="left")
         width_entry = Entry(width_row, textvariable=self.aquarium_width_var, width=10)
         width_entry.pack(side="left", padx=(5, 0))
         ToolTip(
             width_entry,
-            (
-                "📏 Largura do Aquário (eixo horizontal)\n\n"
-                "Dimensão física REAL da arena visível no vídeo, medida em centímetros.\n\n"
-                "Como Medir:\n"
-                "  1. Identifique a área visível no vídeo (dentro do campo de visão)\n"
-                "  2. Meça a largura HORIZONTAL dessa área com régua/trena\n"
-                "  3. Meça em linha reta, do lado esquerdo ao direito\n\n"
-                "Valores Típicos:\n"
-                "  • Larvas (Petri dish): 5-10 cm\n"
-                "  • Adultos (aquário pequeno): 15-30 cm\n"
-                "  • Adultos (aquário médio): 30-50 cm\n"
-                "  • Setup experimental grande: 50-100 cm\n\n"
-                "Uso na Análise:\n"
-                "  • Converte coordenadas de pixels → centímetros\n"
-                "  • Permite calcular distâncias reais percorridas\n"
-                "  • Essencial para velocidade (cm/s) e aceleração\n"
-                "  • Necessário para comparar experimentos com câmeras diferentes\n\n"
-                "💡 Dica: Se não souber exatamente, use uma estimativa. "
-                "Você pode ajustar depois."
+            _(
+                "📏 Aquarium Width (horizontal axis)\n\n"
+                "The REAL physical size of the arena visible in the video, in centimetres.\n\n"
+                "How to measure:\n"
+                "  1. Identify the area visible in the video (inside the field of view)\n"
+                "  2. Measure the HORIZONTAL width of that area with a ruler/tape\n"
+                "  3. Measure in a straight line, from the left side to the right\n\n"
+                "Typical values:\n"
+                "  • Larvae (Petri dish): 5-10 cm\n"
+                "  • Adults (small tank): 15-30 cm\n"
+                "  • Adults (medium tank): 30-50 cm\n"
+                "  • Large experimental setup: 50-100 cm\n\n"
+                "Use in the analysis:\n"
+                "  • Converts pixel coordinates → centimetres\n"
+                "  • Allows real travelled distances to be computed\n"
+                "  • Essential for speed (cm/s) and acceleration\n"
+                "  • Required to compare experiments filmed with different cameras\n\n"
+                "💡 Tip: if you do not know exactly, use an estimate. "
+                "You can adjust it later."
             ),
         )
 
@@ -215,32 +214,32 @@ class CalibrationStep(WizardStep):
         height_row = Frame(dimensions_frame)
         height_row.pack(fill="x", pady=3)
 
-        Label(height_row, text="Altura (cm):", width=30, anchor="w").pack(side="left")
+        Label(height_row, text=_("Height (cm):"), width=30, anchor="w").pack(side="left")
         height_entry = Entry(height_row, textvariable=self.aquarium_height_var, width=10)
         height_entry.pack(side="left", padx=(5, 0))
         ToolTip(
             height_entry,
-            (
-                "📏 Altura do Aquário (eixo vertical)\n\n"
-                "Dimensão física REAL da arena visível no vídeo, medida em centímetros.\n\n"
-                "Como Medir:\n"
-                "  1. Identifique a área visível no vídeo (dentro do campo de visão)\n"
-                "  2. Meça a altura VERTICAL dessa área com régua/trena\n"
-                "  3. Meça em linha reta, de cima para baixo\n\n"
-                "Valores Típicos:\n"
-                "  • Larvas (Petri dish): 5-10 cm\n"
-                "  • Adultos (aquário pequeno): 10-20 cm\n"
-                "  • Adultos (aquário médio): 20-40 cm\n"
-                "  • Setup experimental grande: 40-80 cm\n\n"
-                "Uso na Análise:\n"
-                "  • Converte coordenadas de pixels → centímetros\n"
-                "  • Permite calcular distâncias verticais reais\n"
-                "  • Essencial para mapas de calor em escala real\n"
-                "  • Necessário para métricas espaciais (tempo em zonas, etc.)\n\n"
-                "⚠️ IMPORTANTE: Largura e altura devem corresponder à MESMA arena.\n"
-                "Use as dimensões da área VISÍVEL no vídeo, não do aquário todo.\n\n"
-                "💡 Dica: Para câmera superior (top-down), largura ≈ altura "
-                "(campo de visão quadrado/retangular)."
+            _(
+                "📏 Aquarium Height (vertical axis)\n\n"
+                "The REAL physical size of the arena visible in the video, in centimetres.\n\n"
+                "How to measure:\n"
+                "  1. Identify the area visible in the video (inside the field of view)\n"
+                "  2. Measure the VERTICAL height of that area with a ruler/tape\n"
+                "  3. Measure in a straight line, from top to bottom\n\n"
+                "Typical values:\n"
+                "  • Larvae (Petri dish): 5-10 cm\n"
+                "  • Adults (small tank): 10-20 cm\n"
+                "  • Adults (medium tank): 20-40 cm\n"
+                "  • Large experimental setup: 40-80 cm\n\n"
+                "Use in the analysis:\n"
+                "  • Converts pixel coordinates → centimetres\n"
+                "  • Allows real vertical distances to be computed\n"
+                "  • Essential for heatmaps at real scale\n"
+                "  • Required for spatial metrics (time in zones, etc.)\n\n"
+                "⚠️ IMPORTANT: width and height must describe the SAME arena.\n"
+                "Use the dimensions of the area VISIBLE in the video, not of the whole tank.\n\n"
+                "💡 Tip: for a top-down camera, width ≈ height "
+                "(a square/rectangular field of view)."
             ),
         )
 
@@ -248,7 +247,7 @@ class CalibrationStep(WizardStep):
         # projects so the intervals live in a single place in the wizard).
         advanced_frame = LabelFrame(
             left_panel,
-            text="⚙️ Configurações Avançadas",
+            text=_("⚙️ Advanced Settings"),
             padx=10,
             pady=8,
         )
@@ -258,19 +257,19 @@ class CalibrationStep(WizardStep):
         analysis_row = Frame(advanced_frame)
         analysis_row.pack(fill="x", pady=3)
 
-        Label(analysis_row, text="Intervalo de Análise (frames):", width=30, anchor="w").pack(
+        Label(analysis_row, text=_("Analysis interval (frames):"), width=30, anchor="w").pack(
             side="left"
         )
         analysis_entry = Entry(analysis_row, textvariable=self.analysis_interval_var, width=10)
         analysis_entry.pack(side="left", padx=(5, 0))
         ToolTip(
             analysis_entry,
-            (
-                "🎬 Intervalo de Análise\n\n"
-                "Processa 1 frame a cada N frames originais.\n\n"
-                "• N=1: Analisa todos os frames (máxima precisão, mais lento)\n"
-                "• N=10: Analisa 1 frame e pula 9 (mais rápido, ideal para vídeos longos)\n\n"
-                "💡 Dica: Use 5 ou 10 para um bom equilíbrio entre velocidade e precisão."
+            _(
+                "🎬 Analysis Interval\n\n"
+                "Processes 1 frame out of every N original frames.\n\n"
+                "• N=1: analyzes every frame (maximum precision, slowest)\n"
+                "• N=10: analyzes 1 frame and skips 9 (faster, ideal for long videos)\n\n"
+                "💡 Tip: use 5 or 10 for a good balance between speed and precision."
             ),
         )
 
@@ -284,7 +283,7 @@ class CalibrationStep(WizardStep):
 
         # RIGHT COLUMN: Behavioral analysis configuration (full height)
         behavioral_frame = LabelFrame(
-            content_frame, text="🧠 Análise Comportamental", padx=10, pady=8
+            content_frame, text=_("🧠 Behavioural Analysis"), padx=10, pady=8
         )
         behavioral_frame.grid(row=0, column=1, sticky="nsew")
 
@@ -319,20 +318,20 @@ class CalibrationStep(WizardStep):
         self.behavioral_config_widget.pack(fill="x", expand=True)
 
         # Help text
-        help_frame = LabelFrame(self, text="Sobre a Calibração", padx=15, pady=10)
+        help_frame = LabelFrame(self, text=_("About Calibration"), padx=15, pady=10)
         help_frame.pack(fill="x", pady=(15, 0))
 
         help_text = Label(
             help_frame,
-            text=(
-                "A calibração física permite converter coordenadas de pixels para "
-                "centímetros.\n\n"
-                "Isso é necessário para:\n"
-                "• Calcular distâncias percorridas reais\n"
-                "• Calcular velocidades em cm/s\n"
-                "• Comparar resultados entre diferentes configurações de câmera\n\n"
-                "💡 Dica: Se você não souber as dimensões exatas, pode usar "
-                "valores padrão e ajustar depois nas configurações do projeto."
+            text=_(
+                "Physical calibration makes it possible to convert pixel coordinates "
+                "into centimetres.\n\n"
+                "This is needed to:\n"
+                "• Compute real travelled distances\n"
+                "• Compute speeds in cm/s\n"
+                "• Compare results across different camera setups\n\n"
+                "💡 Tip: if you do not know the exact dimensions, you can use "
+                "the default values and adjust them later in the project settings."
             ),
             fg="gray",
             wraplength=500,
@@ -357,7 +356,7 @@ class CalibrationStep(WizardStep):
             return (is_valid, error_msg)
 
         except Exception as e:
-            return (False, f"Erro ao validar dados: {e!s}")
+            return (False, _("Error validating data: {error}").format(error=str(e)))
 
     def get_data(self) -> dict[str, Any]:
         """

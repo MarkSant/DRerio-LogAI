@@ -15,6 +15,8 @@ from typing import TYPE_CHECKING
 import structlog
 from PIL.ImageTk import PhotoImage
 
+from zebtrack.i18n import _
+
 if TYPE_CHECKING:
     import numpy as np
 
@@ -46,7 +48,7 @@ class LivePreviewWindow:
         self.on_stop_callback = on_stop_callback
 
         self.window = tk.Toplevel(parent)
-        self.window.title(f"Análise ao Vivo - Câmera {camera_index}")
+        self.window.title(_("Live Analysis - Camera {index}").format(index=camera_index))
         self.window.geometry("800x700")
         self.window.protocol("WM_DELETE_WINDOW", self._on_window_close)
 
@@ -71,7 +73,10 @@ class LivePreviewWindow:
         """Start the session timer."""
         self.start_time = time.time()
         if hasattr(self, "start_time_label"):
-            self.start_time_label.config(text=f"Início: {self._format_clock(self.start_time)}")
+            # Value only -- the "Start:" caption is already the label in the
+            # column to its left, so repeating it here rendered the row as
+            # "Start:  Start: 12:34:56". ``stop_time_label`` never did this.
+            self.start_time_label.config(text=self._format_clock(self.start_time))
         log.info("live_preview.timer_started")
 
     @staticmethod
@@ -104,14 +109,14 @@ class LivePreviewWindow:
         # Camera info
         ttk.Label(
             info_frame,
-            text=f"Câmera: {self.camera_index}",
+            text=_("Camera: {index}").format(index=self.camera_index),
             font=("Arial", 10, "bold"),
         ).pack(side=tk.LEFT, padx=5)
 
         # Timer label
         self.timer_label = ttk.Label(
             info_frame,
-            text="Tempo: Aguardando...",
+            text=_("Time: waiting..."),
             font=("Arial", 10),
         )
         self.timer_label.pack(side=tk.LEFT, padx=20)
@@ -119,7 +124,7 @@ class LivePreviewWindow:
         # Status label
         self.status_label = ttk.Label(
             info_frame,
-            text="● Gravando",
+            text=_("● Recording"),
             foreground="red",
             font=("Arial", 10, "bold"),
         )
@@ -142,27 +147,27 @@ class LivePreviewWindow:
         self.canvas.create_text(
             320,
             240,
-            text="Aguardando frames...",
+            text=_("Waiting for frames..."),
             fill="white",
             font=("Arial", 12),
             tags="waiting",
         )
 
         # Stats panel
-        stats_frame = ttk.LabelFrame(main_frame, text="Estatísticas", padding=10)
+        stats_frame = ttk.LabelFrame(main_frame, text=_("Statistics"), padding=10)
         stats_frame.pack(fill=tk.X, pady=(0, 10))
 
         # Stats labels
         stats_grid = ttk.Frame(stats_frame)
         stats_grid.pack(fill=tk.X)
 
-        ttk.Label(stats_grid, text="Frames processados:").grid(
+        ttk.Label(stats_grid, text=_("Frames processed:")).grid(
             row=0, column=0, sticky=tk.W, padx=5, pady=2
         )
         self.frames_label = ttk.Label(stats_grid, text="0")
         self.frames_label.grid(row=0, column=1, sticky=tk.W, padx=5, pady=2)
 
-        ttk.Label(stats_grid, text="Objetos detectados:").grid(
+        ttk.Label(stats_grid, text=_("Objects detected:")).grid(
             row=1, column=0, sticky=tk.W, padx=5, pady=2
         )
         self.detections_label = ttk.Label(stats_grid, text="0")
@@ -172,17 +177,17 @@ class LivePreviewWindow:
         self.fps_label = ttk.Label(stats_grid, text="0.0")
         self.fps_label.grid(row=2, column=1, sticky=tk.W, padx=5, pady=2)
 
-        ttk.Label(stats_grid, text="Frames gravados:").grid(
+        ttk.Label(stats_grid, text=_("Frames recorded:")).grid(
             row=3, column=0, sticky=tk.W, padx=5, pady=2
         )
         self.recorded_frames_label = ttk.Label(stats_grid, text="0")
         self.recorded_frames_label.grid(row=3, column=1, sticky=tk.W, padx=5, pady=2)
 
-        ttk.Label(stats_grid, text="Início:").grid(row=0, column=2, sticky=tk.W, padx=15, pady=2)
+        ttk.Label(stats_grid, text=_("Start:")).grid(row=0, column=2, sticky=tk.W, padx=15, pady=2)
         self.start_time_label = ttk.Label(stats_grid, text="--:--:--")
         self.start_time_label.grid(row=0, column=3, sticky=tk.W, padx=5, pady=2)
 
-        ttk.Label(stats_grid, text="Fim:").grid(row=1, column=2, sticky=tk.W, padx=15, pady=2)
+        ttk.Label(stats_grid, text=_("End:")).grid(row=1, column=2, sticky=tk.W, padx=15, pady=2)
         self.stop_time_label = ttk.Label(stats_grid, text="--:--:--")
         self.stop_time_label.grid(row=1, column=3, sticky=tk.W, padx=5, pady=2)
 
@@ -210,7 +215,7 @@ class LivePreviewWindow:
 
         self.stop_button = ttk.Button(
             button_frame,
-            text="⏹ Parar Gravação",
+            text=_("⏹ Stop Recording"),
             command=self._on_stop_clicked,
             style="Accent.TButton",
         )
@@ -218,7 +223,7 @@ class LivePreviewWindow:
 
         ttk.Button(
             button_frame,
-            text="Fechar",
+            text=_("Close"),
             command=self._on_window_close,
         ).pack(side=tk.RIGHT, padx=5)
 
@@ -234,14 +239,16 @@ class LivePreviewWindow:
             return
 
         if self.start_time is None:
-            self.timer_label.config(text="Tempo: Aguardando...")
+            self.timer_label.config(text=_("Time: waiting..."))
         else:
             elapsed = time.time() - self.start_time
             remaining = max(0, self.duration_s - elapsed)
 
             # Update timer label
             self.timer_label.config(
-                text=f"Tempo: {elapsed:.1f}s / {self.duration_s:.1f}s (Restante: {remaining:.1f}s)"
+                text=_("Time: {elapsed:.1f}s / {total:.1f}s (Remaining: {remaining:.1f}s)").format(
+                    elapsed=elapsed, total=self.duration_s, remaining=remaining
+                )
             )
 
             self._update_progress(elapsed, remaining)
@@ -280,7 +287,7 @@ class LivePreviewWindow:
         self.is_stopped = True
         self._freeze_stop_time()
 
-        self.status_label.config(text="● Tempo Expirado", foreground="orange")
+        self.status_label.config(text=_("● Time Expired"), foreground="orange")
         self.stop_button.config(state=tk.DISABLED)
 
         if self.on_stop_callback:
@@ -296,7 +303,7 @@ class LivePreviewWindow:
         self.is_stopped = True
         self._freeze_stop_time()
 
-        self.status_label.config(text="● Parado", foreground="gray")
+        self.status_label.config(text=_("● Stopped"), foreground="gray")
         self.stop_button.config(state=tk.DISABLED)
 
         if self.on_stop_callback:

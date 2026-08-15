@@ -15,6 +15,7 @@ from tkinter import simpledialog, ttk
 
 import structlog
 
+from zebtrack.i18n import _
 from zebtrack.ui.wizard.models import AquariumConfig, MultiAquariumData
 
 log = structlog.get_logger()
@@ -88,7 +89,7 @@ class AquariumAssignmentDialog(simpledialog.Dialog):
             groups=available_groups,
         )
 
-        super().__init__(parent, "Configuração dos Aquários")
+        super().__init__(parent, _("Aquarium Configuration"))
 
     def body(self, master: tk.Frame) -> tk.Widget | None:
         """Create dialog body with aquarium configuration forms.
@@ -104,7 +105,7 @@ class AquariumAssignmentDialog(simpledialog.Dialog):
         # Header
         header_label = ttk.Label(
             master,
-            text="Atribua grupos e identificadores para cada aquário",
+            text=_("Assign groups and identifiers to each aquarium"),
             font=("Helvetica", 11, "bold"),
         )
         header_label.pack(pady=(0, 5))
@@ -147,7 +148,7 @@ class AquariumAssignmentDialog(simpledialog.Dialog):
         self._apply_all_var = tk.BooleanVar(value=False)
         apply_all_check = ttk.Checkbutton(
             master,
-            text="Aplicar para todos os vídeos do batch",
+            text=_("Apply to every video in the batch"),
             variable=self._apply_all_var,
         )
         apply_all_check.pack(anchor=tk.W, pady=(15, 0))
@@ -237,9 +238,10 @@ class AquariumAssignmentDialog(simpledialog.Dialog):
 
         if not matches:
             messagebox.showinfo(
-                "Auto-Preencher",
-                "Nenhuma correspondência encontrada com o padrão regex atual:\n"
-                f"{self.multi_aquarium_config.regex_pattern}",
+                _("Auto-fill"),
+                _("No match found with the current regex pattern:\n{pattern}").format(
+                    pattern=self.multi_aquarium_config.regex_pattern
+                ),
                 parent=self,
             )
             return
@@ -256,10 +258,12 @@ class AquariumAssignmentDialog(simpledialog.Dialog):
         # Warn user if more matches than aquariums
         if count > 2:
             messagebox.showwarning(
-                "Aviso",
-                f"Encontradas {count} correspondências no nome do arquivo,\n"
-                "mas apenas 2 aquários são suportados.\n\n"
-                "Usando as 2 primeiras correspondências.",
+                _("Warning"),
+                _(
+                    "Found {count} matches in the file name,\n"
+                    "but only 2 aquariums are supported.\n\n"
+                    "Using the first 2 matches."
+                ).format(count=count),
                 parent=self,
             )
             log.warning(
@@ -316,8 +320,8 @@ class AquariumAssignmentDialog(simpledialog.Dialog):
                 # Don't overwrite subject of 2nd aquarium with 1st subject ID if it's specific
 
         messagebox.showinfo(
-            "Auto-Preencher",
-            f"Preenchido com sucesso ({count} correspondências encontradas).",
+            _("Auto-fill"),
+            _("Filled successfully ({count} matches found).").format(count=count),
             parent=self,
         )
 
@@ -447,8 +451,14 @@ class AquariumAssignmentDialog(simpledialog.Dialog):
         Returns:
             Tuple of (frame, group_combobox).
         """
-        position = "Esquerda" if aquarium_id == 0 else "Direita"
-        frame = ttk.LabelFrame(parent, text=f"Aquário {aquarium_id + 1} ({position})", padding=10)
+        position = _("Left") if aquarium_id == 0 else _("Right")
+        frame = ttk.LabelFrame(
+            parent,
+            text=_("Aquarium {number} ({position})").format(
+                number=aquarium_id + 1, position=position
+            ),
+            padding=10,
+        )
 
         # Group selection
         group_label = ttk.Label(frame, text="Grupo:")
@@ -566,7 +576,7 @@ class AquariumAssignmentDialog(simpledialog.Dialog):
             # Show error in dialog
             from tkinter import messagebox
 
-            messagebox.showerror("Erro de Validação", str(e), parent=self)
+            messagebox.showerror(_("Validation Error"), str(e), parent=self)
 
     def cancel(self, event=None) -> None:
         """Handle dialog cancellation.
@@ -599,10 +609,14 @@ class AquariumAssignmentDialog(simpledialog.Dialog):
             day = self._day_vars[i].get()
 
             if not group_raw:
-                raise ValueError(f"Grupo do Aquário {i + 1} não pode estar vazio")
+                raise ValueError(
+                    _("The group of Aquarium {number} cannot be empty").format(number=i + 1)
+                )
 
             if not subject:
-                raise ValueError(f"Sujeito do Aquário {i + 1} não pode estar vazio")
+                raise ValueError(
+                    _("The subject of Aquarium {number} cannot be empty").format(number=i + 1)
+                )
 
             # CRITICAL FIX: Resolve group name to match available_groups format
             # The StringVar might have '1', but we need 'G01'

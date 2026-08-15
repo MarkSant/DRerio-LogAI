@@ -25,9 +25,9 @@ from unittest.mock import MagicMock
 import numpy as np
 
 from zebtrack.ui.dialogs.preview_polygon_dialog import (
-    _BADGE_AUTO_TEXT,
-    _BADGE_MANUAL_TEXT,
     PreviewPolygonDialog,
+    _badge_auto_text,
+    _badge_manual_text,
 )
 
 # ---------------------------------------------------------------------------
@@ -136,7 +136,7 @@ def test_polygon_drag_marks_as_manual_and_updates_badge():
     assert dialog.polygon[0] == [150.0, 130.0]
 
     # Badge variable updated to manual text.
-    cast(MagicMock, dialog._badge_var).set.assert_called_with(_BADGE_MANUAL_TEXT)
+    cast(MagicMock, dialog._badge_var).set.assert_called_with(_badge_manual_text())
     # Badge label background reconfigured (color flipped to orange).
     cast(MagicMock, dialog._badge_label).config.assert_called()
     config_call_kwargs = cast(MagicMock, dialog._badge_label).config.call_args.kwargs
@@ -172,7 +172,9 @@ def test_drag_marks_edited_only_once_for_repeated_motion():
     # The badge text was set to manual at least once; subsequent drags
     # shouldn't flip-flop the badge state.
     badge_set_mock = cast(MagicMock, dialog._badge_var).set
-    manual_set_calls = [c for c in badge_set_mock.call_args_list if c.args == (_BADGE_MANUAL_TEXT,)]
+    manual_set_calls = [
+        c for c in badge_set_mock.call_args_list if c.args == (_badge_manual_text(),)
+    ]
     assert len(manual_set_calls) == 1
 
 
@@ -243,7 +245,7 @@ def test_retry_resets_manual_flag_and_badge():
     assert dialog._retried_frame is new_frame
 
     # Badge flipped back to auto (this is the latest set call).
-    cast(MagicMock, dialog._badge_var).set.assert_called_with(_BADGE_AUTO_TEXT)
+    cast(MagicMock, dialog._badge_var).set.assert_called_with(_badge_auto_text())
 
     # Approving now reports source=auto, despite the earlier drag.
     dialog._on_approve()

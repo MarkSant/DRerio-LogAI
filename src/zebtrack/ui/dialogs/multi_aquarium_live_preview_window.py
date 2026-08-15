@@ -19,6 +19,8 @@ import numpy as np
 import structlog
 from PIL import Image, ImageTk
 
+from zebtrack.i18n import _
+
 if TYPE_CHECKING:
     pass
 
@@ -53,7 +55,9 @@ class MultiAquariumLivePreviewWindow:
 
         # Window setup
         self.window = tk.Toplevel(parent)
-        self.window.title(f"Análise ao Vivo Multi-Aquário - Câmera {camera_index}")
+        self.window.title(
+            _("Multi-Aquarium Live Analysis - Camera {index}").format(index=camera_index)
+        )
 
         # Calculate window size based on aquarium count
         # Layout: 2 columns for 2-4 aquariums, 3 columns for 5-6
@@ -99,7 +103,9 @@ class MultiAquariumLivePreviewWindow:
         """Start the session timer."""
         self.start_time = time.time()
         if self.start_time_label is not None:
-            self.start_time_label.config(text=f"Início: {self._format_clock(self.start_time)}")
+            self.start_time_label.config(
+                text=_("Start: {clock}").format(clock=self._format_clock(self.start_time))
+            )
         log.info("multi_aquarium_preview.timer_started")
 
     @staticmethod
@@ -141,7 +147,9 @@ class MultiAquariumLivePreviewWindow:
         # Camera info
         ttk.Label(
             info_frame,
-            text=f"Câmera: {self.camera_index} | Aquários: {self.num_aquariums}",
+            text=_("Camera: {camera} | Aquariums: {count}").format(
+                camera=self.camera_index, count=self.num_aquariums
+            ),
             font=("Arial", 10, "bold"),
         ).pack(side=tk.LEFT, padx=5)
 
@@ -173,7 +181,7 @@ class MultiAquariumLivePreviewWindow:
 
             aq_frame = ttk.LabelFrame(
                 grid_frame,
-                text=f"Aquário {aq_id + 1}",
+                text=_("Aquarium {number}").format(number=aq_id + 1),
                 padding=5,
             )
             aq_frame.grid(row=row, column=col, padx=5, pady=5, sticky="nsew")
@@ -191,7 +199,7 @@ class MultiAquariumLivePreviewWindow:
             # Detection count label
             label = ttk.Label(
                 aq_frame,
-                text="Detecções: 0",
+                text=_("Detections: {count}").format(count=0),
                 font=("Arial", 9),
             )
             label.pack(pady=(5, 0))
@@ -204,13 +212,15 @@ class MultiAquariumLivePreviewWindow:
             grid_frame.rowconfigure(r, weight=1)
 
         # Session footer: clock labels + recorded frames + progress bar
-        footer_frame = ttk.LabelFrame(main_frame, text="Sessão", padding=8)
+        footer_frame = ttk.LabelFrame(main_frame, text=_("Session"), padding=8)
         footer_frame.pack(fill=tk.X, pady=(0, 8))
 
         clocks_row = ttk.Frame(footer_frame)
         clocks_row.pack(fill=tk.X)
 
-        self.start_time_label = ttk.Label(clocks_row, text="Início: --:--:--")
+        self.start_time_label = ttk.Label(
+            clocks_row, text=_("Start: {clock}").format(clock="--:--:--")
+        )
         self.start_time_label.pack(side=tk.LEFT, padx=(0, 15))
 
         self.stop_time_label = ttk.Label(clocks_row, text="Fim: --:--:--")
@@ -240,7 +250,7 @@ class MultiAquariumLivePreviewWindow:
         # Stop button
         self.stop_button = ttk.Button(
             control_frame,
-            text="⏹ Parar Análise",
+            text=_("⏹ Stop Analysis"),
             command=self._on_stop_clicked,
         )
         self.stop_button.pack(side=tk.RIGHT, padx=5)
@@ -287,7 +297,9 @@ class MultiAquariumLivePreviewWindow:
 
             # Update detection count
             if aquarium_id in self.aquarium_labels:
-                self.aquarium_labels[aquarium_id].config(text=f"Detecções: {num_detections}")
+                self.aquarium_labels[aquarium_id].config(
+                    text=_("Detections: {count}").format(count=num_detections)
+                )
 
         except Exception as e:
             log.error(

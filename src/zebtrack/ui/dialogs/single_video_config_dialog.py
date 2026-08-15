@@ -17,6 +17,7 @@ from typing import TYPE_CHECKING, Any, Literal, cast
 
 import structlog
 
+from zebtrack.i18n import _
 from zebtrack.ui.components.behavioral_config_widget import BehavioralConfigWidget
 from zebtrack.ui.wizard.tooltip import create_help_label
 
@@ -52,7 +53,7 @@ class SingleVideoConfigDialog(simpledialog.Dialog):
         self.settings = settings_obj
         self.event_bus = event_bus
         self._initial_video_path = str(video_path) if video_path is not None else None
-        super().__init__(parent, "Configuração de Análise de Vídeo Único")
+        super().__init__(parent, _("Single Video Analysis Configuration"))
 
     def body(self, master):
         """Create dialog body with single video configuration options.
@@ -132,7 +133,7 @@ class SingleVideoConfigDialog(simpledialog.Dialog):
         main_frame.rowconfigure(1, weight=1)
 
         # --- Video File Selection (Full Width) ---
-        source_frame = ttk.LabelFrame(main_frame, text="Arquivo de Vídeo", padding=10)
+        source_frame = ttk.LabelFrame(main_frame, text=_("Video File"), padding=10)
         source_frame.grid(row=0, column=0, columnspan=2, sticky="ew", pady=(0, 10))
         source_frame.columnconfigure(0, weight=1)
 
@@ -148,7 +149,7 @@ class SingleVideoConfigDialog(simpledialog.Dialog):
 
         self.browse_btn = ttk.Button(
             video_container,
-            text="Procurar...",
+            text=_("Browse..."),
             command=self._browse_video,
             width=12,
             state="disabled" if self._initial_video_path else "normal",
@@ -165,7 +166,7 @@ class SingleVideoConfigDialog(simpledialog.Dialog):
         # ===== LEFT COLUMN =====
 
         # --- Aquarium Dimensions ---
-        dim_frame = ttk.LabelFrame(left_column, text="Configuração Experimental", padding=10)
+        dim_frame = ttk.LabelFrame(left_column, text=_("Experimental Configuration"), padding=10)
         dim_frame.pack(fill="x", pady=(0, 5))
 
         # Grid: Label | Help | Entry
@@ -173,62 +174,69 @@ class SingleVideoConfigDialog(simpledialog.Dialog):
         dim_frame.columnconfigure(2, weight=1)
 
         # Num Aquariums
-        ttk.Label(dim_frame, text="Número de Aquários:").grid(
+        ttk.Label(dim_frame, text=_("Number of Aquariums:")).grid(
             row=0, column=0, sticky="w", padx=(5, 2), pady=2
         )
         create_help_label(
             dim_frame,
-            "Número de Aquários\n\n"
-            "Define se o vídeo contém 1 ou 2 tanques independentes.\n"
-            "• 1: Análise padrão.\n"
-            "• 2: Permite desenhar duas arenas e processá-las em conjunto.",
+            _(
+                "Number of Aquariums\n\n"
+                "Sets whether the video contains 1 or 2 independent tanks.\n"
+                "• 1: standard analysis.\n"
+                "• 2: lets you draw two arenas and process them together."
+            ),
         ).grid(row=0, column=1, padx=2)
         ttk.Entry(dim_frame, textvariable=self.num_aquariums_var, width=8).grid(
             row=0, column=2, sticky="w", padx=5
         )
 
         # Animals per aquarium
-        ttk.Label(dim_frame, text="Animais por Aquário:").grid(
+        ttk.Label(dim_frame, text=_("Animals per Aquarium:")).grid(
             row=1, column=0, sticky="w", padx=(5, 2), pady=2
         )
         create_help_label(
             dim_frame,
-            "Animais por Aquário\n\n"
-            "Quantidade de peixes em cada tanque.\n"
-            "• 1: Ativa o rastreador otimizado para sujeito único.\n"
-            "• >1: Exige o modo de Segmentação (seg) para evitar trocas de ID.",
+            _(
+                "Animals per Aquarium\n\n"
+                "How many fish are in each tank.\n"
+                "• 1: enables the tracker optimized for a single subject.\n"
+                "• >1: requires Segmentation (seg) mode to avoid ID swaps."
+            ),
         ).grid(row=1, column=1, padx=2)
         ttk.Entry(dim_frame, textvariable=self.animals_per_aquarium_var, width=8).grid(
             row=1, column=2, sticky="w", padx=5
         )
 
         # Width
-        ttk.Label(dim_frame, text="Largura Aquário (cm):").grid(
+        ttk.Label(dim_frame, text=_("Aquarium Width (cm):")).grid(
             row=2, column=0, sticky="w", padx=(5, 2), pady=2
         )
         create_help_label(
             dim_frame,
-            "Largura Real (cm)\n\n"
-            "Dimensão horizontal do tanque em centímetros.\n"
-            "• Essencial para calcular velocidade em cm/s e distância total.",
+            _(
+                "Real Width (cm)\n\n"
+                "Horizontal size of the tank in centimetres.\n"
+                "• Essential to compute speed in cm/s and total distance."
+            ),
         ).grid(row=2, column=1, padx=2)
         ttk.Entry(dim_frame, textvariable=self.aquarium_width_var, width=8).grid(
             row=2, column=2, sticky="w", padx=5
         )
 
         # Height
-        ttk.Label(dim_frame, text="Altura Aquário (cm):").grid(
+        ttk.Label(dim_frame, text=_("Aquarium Height (cm):")).grid(
             row=3, column=0, sticky="w", padx=(5, 2), pady=2
         )
         create_help_label(
-            dim_frame, "Altura Real (cm)\n\nDimensão vertical do tanque em centímetros."
+            dim_frame,
+            _("Real Height (cm)\n\nVertical size of the tank in centimetres."),
         ).grid(row=3, column=1, padx=2)
         ttk.Entry(dim_frame, textvariable=self.aquarium_height_var, width=8).grid(
             row=3, column=2, sticky="w", padx=5
         )
 
         # --- Behavior Analysis Parameters ---
-        behavior_frame = ttk.LabelFrame(left_column, text="Métricas de Comportamento", padding=10)
+        behavior_frame = ttk.LabelFrame(left_column, text=_("Behaviour Metrics"), padding=10)
         behavior_frame.pack(fill="x", pady=5)
 
         # Grid: Label | Help | Entry
@@ -236,44 +244,50 @@ class SingleVideoConfigDialog(simpledialog.Dialog):
         behavior_frame.columnconfigure(2, weight=1)
 
         # Sharp Turn
-        ttk.Label(behavior_frame, text="Curva Acentuada (graus/s):").grid(
+        ttk.Label(behavior_frame, text=_("Sharp turn (degrees/s):")).grid(
             row=0, column=0, sticky="w", padx=(5, 2), pady=2
         )
         create_help_label(
             behavior_frame,
-            "Limiar de Curva Acentuada (Sharp Turn)\n\n"
-            "Velocidade angular mínima para contar uma mudança de direção brusca.\n"
-            "• Aumentar: Torna a detecção de curvas mais restritiva.\n"
-            "• Padrão: 180.0 graus/s.",
+            _(
+                "Sharp Turn Threshold\n\n"
+                "Minimum angular speed for an abrupt change of direction to count.\n"
+                "• Raise it: makes turn detection stricter.\n"
+                "• Default: 180.0 degrees/s."
+            ),
         ).grid(row=0, column=1, padx=2)
         ttk.Entry(behavior_frame, textvariable=self.sharp_turn_var, width=8).grid(
             row=0, column=2, sticky="w", padx=5
         )
 
         # Freezing Velocity
-        ttk.Label(behavior_frame, text="Congelamento (cm/s):").grid(
+        ttk.Label(behavior_frame, text=_("Freezing (cm/s):")).grid(
             row=1, column=0, sticky="w", padx=(5, 2), pady=2
         )
         create_help_label(
             behavior_frame,
-            "Limiar de Congelamento (Velocidade)\n\n"
-            "Velocidade abaixo da qual o peixe é considerado imóvel.\n"
-            "• Diminuir: Se pequenos movimentos de respiração estiverem contando como nado.\n"
-            "• Padrão: 0.5 cm/s.",
+            _(
+                "Freezing Threshold (Speed)\n\n"
+                "Speed below which the fish is considered motionless.\n"
+                "• Lower it: if small breathing movements are counting as swimming.\n"
+                "• Default: 0.5 cm/s."
+            ),
         ).grid(row=1, column=1, padx=2)
         ttk.Entry(behavior_frame, textvariable=self.freeze_thresh_var, width=8).grid(
             row=1, column=2, sticky="w", padx=5
         )
 
         # Freezing Duration
-        ttk.Label(behavior_frame, text="Duração Mín. (s):").grid(
+        ttk.Label(behavior_frame, text=_("Min. duration (s):")).grid(
             row=2, column=0, sticky="w", padx=(5, 2), pady=2
         )
         create_help_label(
             behavior_frame,
-            "Duração Mínima de Congelamento\n\n"
-            "Tempo mínimo que o peixe deve ficar parado para registrar o evento.\n"
-            "• Ex: 1.0s significa que paradas rápidas (<1s) serão ignoradas.",
+            _(
+                "Minimum Freezing Duration\n\n"
+                "How long the fish must stay still for the event to be recorded.\n"
+                "• E.g. 1.0s means brief pauses (<1s) are ignored."
+            ),
         ).grid(row=2, column=1, padx=2)
         ttk.Entry(behavior_frame, textvariable=self.freeze_dur_var, width=8).grid(
             row=2, column=2, sticky="w", padx=5
@@ -282,7 +296,7 @@ class SingleVideoConfigDialog(simpledialog.Dialog):
         # ===== RIGHT COLUMN =====
 
         # --- Smoothing Parameters ---
-        smoothing_frame = ttk.LabelFrame(right_column, text="Suavização de Trajetória", padding=10)
+        smoothing_frame = ttk.LabelFrame(right_column, text=_("Trajectory Smoothing"), padding=10)
         smoothing_frame.pack(fill="x", pady=(0, 5))
 
         # Grid: Label | Help | Entry
@@ -290,29 +304,33 @@ class SingleVideoConfigDialog(simpledialog.Dialog):
         smoothing_frame.columnconfigure(2, weight=1)
 
         # Smoothing Window Length
-        ttk.Label(smoothing_frame, text="Janela Suavização:").grid(
+        ttk.Label(smoothing_frame, text=_("Smoothing window:")).grid(
             row=0, column=0, sticky="w", padx=(5, 2), pady=2
         )
         create_help_label(
             smoothing_frame,
-            "Janela de Suavização (frames)\n\n"
-            "Número de frames para média móvel. DEVE SER ÍMPAR.\n"
-            "• Aumentar: Remove tremidos, mas suaviza demais os cantos.\n"
-            "• Padrão: 5 (Express) ou 7 (Completo).",
+            _(
+                "Smoothing Window (frames)\n\n"
+                "Number of frames for the moving average. MUST BE ODD.\n"
+                "• Raise it: removes jitter, but over-smooths corners.\n"
+                "• Default: 5 (Express) or 7 (Full)."
+            ),
         ).grid(row=0, column=1, padx=2)
         ttk.Entry(smoothing_frame, textvariable=self.smoothing_window_var, width=8).grid(
             row=0, column=2, sticky="w", padx=5
         )
 
         # Polynomial Order
-        ttk.Label(smoothing_frame, text="Ordem Polinômio:").grid(
+        ttk.Label(smoothing_frame, text=_("Polynomial order:")).grid(
             row=1, column=0, sticky="w", padx=(5, 2), pady=2
         )
         create_help_label(
             smoothing_frame,
-            "Ordem do Polinômio\n\n"
-            "Complexidade do ajuste de curva. Deve ser MENOR que a janela.\n"
-            "• Padrão: 2.",
+            _(
+                "Polynomial Order\n\n"
+                "Complexity of the curve fit. Must be SMALLER than the window.\n"
+                "• Default: 2."
+            ),
         ).grid(row=1, column=1, padx=2)
         ttk.Entry(smoothing_frame, textvariable=self.smoothing_polyorder_var, width=8).grid(
             row=1, column=2, sticky="w", padx=5
@@ -321,15 +339,13 @@ class SingleVideoConfigDialog(simpledialog.Dialog):
         # Overall explanation (Reduced text since we have help icons)
         ttk.Label(
             smoothing_frame,
-            text="ℹ️ Remove tremidos sem apagar movimentos reais.",
+            text=_("ℹ️ Removes jitter without erasing real movement."),
             font=("TkDefaultFont", 8),
             foreground="#2563eb",
         ).grid(row=2, column=0, columnspan=3, sticky="w", padx=5, pady=(5, 0))
 
         # --- Frame Interval Settings ---
-        interval_frame = ttk.LabelFrame(
-            right_column, text="Otimização de Processamento", padding=10
-        )
+        interval_frame = ttk.LabelFrame(right_column, text=_("Processing Optimization"), padding=10)
         interval_frame.pack(fill="x", pady=5)
 
         # Grid: Label | Help | Entry
@@ -337,37 +353,42 @@ class SingleVideoConfigDialog(simpledialog.Dialog):
         interval_frame.columnconfigure(2, weight=1)
 
         # Analysis Interval
-        ttk.Label(interval_frame, text="Intervalo Análise:").grid(
+        ttk.Label(interval_frame, text=_("Analysis interval:")).grid(
             row=0, column=0, sticky="w", padx=(5, 2), pady=2
         )
         create_help_label(
             interval_frame,
-            "Intervalo de Análise (frames)\n\n"
-            "Processa 1 frame a cada N frames do vídeo.\n"
-            "• 1: Analisa tudo (lento).\n"
-            "• 10: Pula 9 frames (rápido).\n"
-            "• Recomendado: 5 ou 10 conforme a velocidade do vídeo.",
+            _(
+                "Analysis Interval (frames)\n\n"
+                "Processes 1 frame out of every N frames of the video.\n"
+                "• 1: analyzes everything (slow).\n"
+                "• 10: skips 9 frames (fast).\n"
+                "• Recommended: 5 or 10 depending on the video speed."
+            ),
         ).grid(row=0, column=1, padx=2)
         ttk.Entry(interval_frame, textvariable=self.analysis_interval_var, width=8).grid(
             row=0, column=2, sticky="w", padx=5
         )
 
         # Display Interval
-        ttk.Label(interval_frame, text="Intervalo Exibição:").grid(
+        ttk.Label(interval_frame, text=_("Display interval:")).grid(
             row=1, column=0, sticky="w", padx=(5, 2), pady=2
         )
         create_help_label(
             interval_frame,
-            "Intervalo de Exibição (frames)\n\n"
-            "Frequência de atualização da imagem na tela durante o processo.\n"
-            "• Use valores altos (ex: 30) para acelerar a análise economizando recursos de vídeo.",
+            _(
+                "Display Interval (frames)\n\n"
+                "How often the on-screen image refreshes during processing.\n"
+                "• Use high values (e.g. 30) to speed the analysis up by saving "
+                "video resources."
+            ),
         ).grid(row=1, column=1, padx=2)
         ttk.Entry(interval_frame, textvariable=self.display_interval_var, width=8).grid(
             row=1, column=2, sticky="w", padx=5
         )
 
         # --- Detection Method Settings ---
-        method_frame = ttk.LabelFrame(right_column, text="Modelos de IA", padding=10)
+        method_frame = ttk.LabelFrame(right_column, text=_("AI Models"), padding=10)
         method_frame.pack(fill="x", pady=5)
 
         # Grid: Label | Help | Entry
@@ -375,14 +396,16 @@ class SingleVideoConfigDialog(simpledialog.Dialog):
         method_frame.columnconfigure(2, weight=1)
 
         # Aquarium Method
-        ttk.Label(method_frame, text="IA Aquário:").grid(
+        ttk.Label(method_frame, text=_("Aquarium AI:")).grid(
             row=0, column=0, sticky="w", padx=(5, 2), pady=2
         )
         create_help_label(
             method_frame,
-            "Modelo para Detecção do Aquário\n\n"
-            "• seg: Segmentação (mais preciso nos cantos).\n"
-            "• det: Detecção por caixa (mais rápido).",
+            _(
+                "Model for Aquarium Detection\n\n"
+                "• seg: segmentation (more precise at the corners).\n"
+                "• det: box detection (faster)."
+            ),
         ).grid(row=0, column=1, padx=2)
         aquarium_method_combo = ttk.Combobox(
             method_frame,
@@ -394,14 +417,16 @@ class SingleVideoConfigDialog(simpledialog.Dialog):
         aquarium_method_combo.grid(row=0, column=2, sticky="w", padx=5)
 
         # Animal Method
-        ttk.Label(method_frame, text="IA Peixe:").grid(
+        ttk.Label(method_frame, text=_("Fish AI:")).grid(
             row=1, column=0, sticky="w", padx=(5, 2), pady=2
         )
         create_help_label(
             method_frame,
-            "Modelo para Rastreamento do Peixe\n\n"
-            "• seg: Recomendado para múltiplos peixes (evita confusão).\n"
-            "• det: Recomendado para 1 peixe (muito rápido).",
+            _(
+                "Model for Fish Tracking\n\n"
+                "• seg: recommended for several fish (avoids confusion).\n"
+                "• det: recommended for 1 fish (very fast)."
+            ),
         ).grid(row=1, column=1, padx=2)
         animal_method_combo = ttk.Combobox(
             method_frame,
@@ -415,7 +440,7 @@ class SingleVideoConfigDialog(simpledialog.Dialog):
         # OpenVINO option
         openvino_check = ttk.Checkbutton(
             method_frame,
-            text="Usar aceleração OpenVINO (Intel)",
+            text=_("Use OpenVINO acceleration (Intel)"),
             variable=self.use_openvino_var,
         )
         openvino_check.grid(row=2, column=0, columnspan=3, sticky="w", padx=5, pady=(10, 0))
@@ -462,8 +487,11 @@ class SingleVideoConfigDialog(simpledialog.Dialog):
         """Open file dialog to select a video file."""
         video_path = filedialog.askopenfilename(
             parent=self,
-            title="Selecione um Arquivo de Vídeo",
-            filetypes=[("Arquivos de vídeo", "*.mp4 *.avi *.mov"), ("Todos os arquivos", "*.*")],
+            title=_("Select a Video File"),
+            filetypes=[
+                (_("Video files"), "*.mp4 *.avi *.mov"),
+                (_("All files"), "*.*"),
+            ],
         )
         if video_path:
             self.video_path_var.set(video_path)
@@ -478,9 +506,7 @@ class SingleVideoConfigDialog(simpledialog.Dialog):
 
         # Check if video file was selected
         if not self.video_path_var.get():
-            messagebox.showerror(
-                "Erro", "Por favor, selecione um arquivo de vídeo antes de continuar."
-            )
+            messagebox.showerror(_("Error"), _("Please select a video file before continuing."))
             return False
 
         try:
@@ -497,17 +523,19 @@ class SingleVideoConfigDialog(simpledialog.Dialog):
             display_interval = int(self.display_interval_var.get())
 
             if num_aquariums <= 0 or animals_per_aquarium <= 0:
-                raise ValueError("Os valores devem ser positivos.")
+                raise ValueError(_("The values must be positive."))
             if analysis_interval <= 0 or display_interval <= 0:
-                raise ValueError("Os intervalos devem ser números inteiros positivos.")
+                raise ValueError(_("The intervals must be positive whole numbers."))
             if smoothing_window <= 0:
-                raise ValueError("A janela de suavização deve ser positiva.")
+                raise ValueError(_("The smoothing window must be positive."))
             if smoothing_window % 2 == 0:
-                raise ValueError("A janela de suavização deve ser um número ímpar.")
+                raise ValueError(_("The smoothing window must be an odd number."))
             if smoothing_polyorder < 1:
-                raise ValueError("A ordem do polinômio deve ser pelo menos 1.")
+                raise ValueError(_("The polynomial order must be at least 1."))
             if smoothing_polyorder >= smoothing_window:
-                raise ValueError("A ordem do polinômio deve ser menor que a janela de suavização.")
+                raise ValueError(
+                    _("The polynomial order must be smaller than the smoothing window.")
+                )
 
             # Validate behavioral config
             if self.behavioral_config_widget:
@@ -517,9 +545,10 @@ class SingleVideoConfigDialog(simpledialog.Dialog):
 
         except ValueError as e:
             messagebox.showerror(
-                "Erro",
-                f"Erro de validação: {e}\n\n"
-                "Verifique se todos os campos estão preenchidos corretamente.",
+                _("Error"),
+                _(
+                    "Validation error: {error}\n\nCheck that every field is filled in correctly."
+                ).format(error=e),
             )
             return False
 

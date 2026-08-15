@@ -20,6 +20,7 @@ from typing import Any
 import structlog
 
 from zebtrack.core.project.project_manager import ProjectManager
+from zebtrack.i18n import _
 from zebtrack.ui.window_utils import create_scrollbar
 from zebtrack.ui.wizard.base import WizardStep
 from zebtrack.ui.wizard.custom_regex_dialog import CustomRegexDialog
@@ -30,10 +31,17 @@ from zebtrack.ui.wizard.templates import format_template_banner
 log = structlog.get_logger()
 
 
-_METHOD_LABELS = {
-    "seg": "Segmentação (seg)",
-    "det": "Detecção (det)",
-}
+def _method_labels() -> dict[str, str]:
+    """Map a detector method key to the label shown to the operator.
+
+    This is a function, not a module-level dict, because a dict literal would
+    call _() at import time and freeze whatever language happened to be
+    installed then -- see docs/guides/developer/i18n.md.
+    """
+    return {
+        "seg": _("Segmentation (seg)"),
+        "det": _("Detection (det)"),
+    }
 
 
 class DetectionStep(WizardStep):
@@ -75,7 +83,7 @@ class DetectionStep(WizardStep):
         # State
         self.scanned_videos: list[dict] = []
         self.detected_design: dict[str, Any] | None = None
-        self.status_var = StringVar(value="Aguardando análise...")
+        self.status_var = StringVar(value=_("Waiting for analysis..."))
         self.custom_regex_patterns: dict[str, str] | None = None  # User-defined regex patterns
         self.design_editor_confirmed = False
         self.template_info_var = StringVar(value="")
@@ -85,12 +93,12 @@ class DetectionStep(WizardStep):
         """Build detection step UI - horizontal 2-column layout for better space usage."""
         # Title (full width)
         title_font = tkfont.Font(size=14, weight="bold")
-        title = Label(self, text="Detecção Automática de Design", font=title_font)
+        title = Label(self, text=_("Automatic Design Detection"), font=title_font)
         title.pack(pady=(0, 5))
 
         subtitle = Label(
             self,
-            text="Analisando estrutura de pastas e arquivos parquet...",
+            text=_("Analyzing folder structure and parquet files..."),
             fg="gray",
             wraplength=700,
         )
@@ -113,7 +121,7 @@ class DetectionStep(WizardStep):
         content_frame.rowconfigure(0, weight=1)
 
         # LEFT COLUMN: Detection results
-        results_frame = LabelFrame(content_frame, text="Resultados da Detecção", padx=10, pady=10)
+        results_frame = LabelFrame(content_frame, text=_("Detection Results"), padx=10, pady=10)
         results_frame.grid(row=0, column=0, sticky="nsew", padx=(0, 10))
 
         # Scrollable text widget for results (REDUCED height from 15 to 12)
@@ -136,7 +144,7 @@ class DetectionStep(WizardStep):
         right_panel.grid(row=0, column=1, sticky="nsew")
 
         # Status message (top of right panel)
-        status_label_frame = LabelFrame(right_panel, text="Status", padx=10, pady=10)
+        status_label_frame = LabelFrame(right_panel, text=_("Status"), padx=10, pady=10)
         status_label_frame.pack(fill="x", pady=(0, 10))
 
         Label(
@@ -148,19 +156,19 @@ class DetectionStep(WizardStep):
         ).pack()
 
         # Action buttons (vertical stack in right panel)
-        button_frame = LabelFrame(right_panel, text="Ações", padx=10, pady=10)
+        button_frame = LabelFrame(right_panel, text=_("Actions"), padx=10, pady=10)
         button_frame.pack(fill="x", pady=(0, 10))
 
         Button(
             button_frame,
-            text="🔄 Re-analisar",
+            text=_("🔄 Re-analyze"),
             command=self._run_detection,
             width=22,
         ).pack(pady=3, fill="x")
 
         self.edit_design_btn = Button(
             button_frame,
-            text="✏️ Editar Design",
+            text=_("✏️ Edit Design"),
             command=self._edit_design,
             width=22,
             state="disabled",
@@ -169,20 +177,20 @@ class DetectionStep(WizardStep):
 
         Button(
             button_frame,
-            text="🔧 Regex Customizado",
+            text=_("🔧 Custom Regex"),
             command=self._configure_custom_regex,
             width=22,
         ).pack(pady=3, fill="x")
 
         # Help text (bottom of right panel)
-        help_frame = LabelFrame(right_panel, text="💡 Dica", padx=10, pady=10)
+        help_frame = LabelFrame(right_panel, text=_("💡 Tip"), padx=10, pady=10)
         help_frame.pack(fill="both", expand=True)
 
         help_text = Label(
             help_frame,
-            text=(
-                "A detecção automática identifica grupos, dias e sujeitos "
-                "baseando-se na estrutura de pastas."
+            text=_(
+                "Automatic detection identifies groups, days and subjects "
+                "from the folder structure."
             ),
             fg="gray",
             wraplength=240,
@@ -202,15 +210,15 @@ class DetectionStep(WizardStep):
     def _run_detection(self):
         """Run file scanning and design detection."""
         if self.custom_regex_patterns:
-            self.status_var.set("Analisando (usando regex personalizada)...")
+            self.status_var.set(_("Analyzing (using custom regex)..."))
         else:
-            self.status_var.set("Analisando...")
+            self.status_var.set(_("Analyzing..."))
 
         # Get video paths from previous step
         video_paths = self.wizard_data.get("video_paths", [])
 
         if not video_paths:
-            self._show_error("Nenhum vídeo selecionado.")
+            self._show_error(_("No video selected."))
             return
 
         try:
@@ -261,7 +269,7 @@ class DetectionStep(WizardStep):
             # Enable edit button (available for both detected and non-detected designs)
             self.edit_design_btn.config(state="normal")
 
-            self.status_var.set("Análise concluída!")
+            self.status_var.set(_("Analysis complete!"))
             log.info(
                 "wizard.detection.completed",
                 video_count=len(self.scanned_videos),
@@ -273,7 +281,7 @@ class DetectionStep(WizardStep):
             self.detected_design = None
             self.design_editor_confirmed = False
             self.edit_design_btn.config(state="disabled")
-            self._show_error(f"Falha ao concluir a detecção: {exc}")
+            self._show_error(_("Failed to complete detection: {error}").format(error=exc))
 
     def _ensure_group_display_names(self) -> None:
         """Ensure detected design carries a friendly-name mapping."""
@@ -318,13 +326,16 @@ class DetectionStep(WizardStep):
             return
 
         if auto_invoked:
-            message = (
-                "Design experimental detectado!\n\n"
-                f"Grupos encontrados: {len(groups)}\n"
-                f"Dias: {len(self.detected_design.get('days') or [])}\n\n"
-                "Revise ou personalize os nomes antes de continuar."
+            message = _(
+                "Experimental design detected!\n\n"
+                "Groups found: {groups}\n"
+                "Days: {days}\n\n"
+                "Review or customize the names before continuing."
+            ).format(
+                groups=len(groups),
+                days=len(self.detected_design.get("days") or []),
             )
-            messagebox.showinfo("Design Detectado", message, parent=self)
+            messagebox.showinfo(_("Design Detected"), message, parent=self)
 
         editor = DesignEditorDialog(
             self,
@@ -347,8 +358,8 @@ class DetectionStep(WizardStep):
         else:
             if auto_invoked:
                 messagebox.showwarning(
-                    "Confirmação Necessária",
-                    "Confirme os nomes dos grupos antes de avançar.",
+                    _("Confirmation Required"),
+                    _("Confirm the group names before moving on."),
                     parent=self,
                 )
             self.design_editor_confirmed = False
@@ -776,18 +787,23 @@ class DetectionStep(WizardStep):
         self.results_text.delete("1.0", "end")
 
         # Video count
-        text = f"📊 Vídeos Encontrados: {len(self.scanned_videos)}\n\n"
+        text = _("📊 Videos found: {count}").format(count=len(self.scanned_videos)) + "\n\n"
 
         # Parquet summary
-        text += "📦 Arquivos Parquet Existentes:\n"
-        text += f"  • Arena: {parquet_summary['total_arena']}\n"
-        text += f"  • ROIs: {parquet_summary['total_rois']}\n"
-        text += f"  • Trajetória: {parquet_summary['total_trajectory']}\n"
-        text += f"  • Completos (todos 3): {parquet_summary['total_complete']}\n\n"
+        text += _("📦 Existing Parquet Files:") + "\n"
+        text += _("  • Arena: {count}").format(count=parquet_summary["total_arena"]) + "\n"
+        text += _("  • ROIs: {count}").format(count=parquet_summary["total_rois"]) + "\n"
+        text += (
+            _("  • Trajectory: {count}").format(count=parquet_summary["total_trajectory"]) + "\n"
+        )
+        text += (
+            _("  • Complete (all 3): {count}").format(count=parquet_summary["total_complete"])
+            + "\n\n"
+        )
 
         # Design detection
         if self.detected_design:
-            text += "🎯 Design Experimental Detectado:\n"
+            text += _("🎯 Experimental Design Detected:") + "\n"
             groups = self.detected_design.get("groups") or []
             friendly_names = self.detected_design.get("group_display_names") or {}
             group_descriptions = []
@@ -798,32 +814,51 @@ class DetectionStep(WizardStep):
                 else:
                     group_descriptions.append(group)
 
-            text += f"  • Grupos: {', '.join(group_descriptions)}\n"
+            text += _("  • Groups: {groups}").format(groups=", ".join(group_descriptions)) + "\n"
 
             if self.detected_design.get("days"):
-                text += f"  • Dias: {', '.join(self.detected_design['days'])}\n"
+                text += (
+                    _("  • Days: {days}").format(days=", ".join(self.detected_design["days"]))
+                    + "\n"
+                )
 
-            text += f"  • Padrão: {self.detected_design['pattern_used']}\n"
-            text += f"  • Confiança: {self.detected_design['confidence']:.0%}\n\n"
+            text += (
+                _("  • Pattern: {pattern}").format(pattern=self.detected_design["pattern_used"])
+                + "\n"
+            )
+            text += (
+                _("  • Confidence: {value}").format(
+                    value=f"{self.detected_design['confidence']:.0%}"
+                )
+                + "\n\n"
+            )
 
             # Subjects per group
             if self.detected_design.get("subjects_per_group"):
-                text += "  📋 Sujeitos por Grupo:\n"
+                text += _("  📋 Subjects per Group:") + "\n"
                 for group, subjects in self.detected_design["subjects_per_group"].items():
                     if subjects:
                         display = friendly_names.get(group, group)
                         label = f"{group} ({display})" if display != group else group
-                        text += f"    - {label}: {len(subjects)} sujeito(s)\n"
+                        text += (
+                            _("    - {label}: 1 subject").format(label=label)
+                            if len(subjects) == 1
+                            else _("    - {label}: {count} subjects").format(
+                                label=label, count=len(subjects)
+                            )
+                        ) + "\n"
         else:
             project_type = self.wizard_data.get("project_type")
             if project_type == ProjectType.EXPERIMENTAL.value:
-                text += "⚠️ Design experimental não detectado automaticamente.\n\n"
-                text += "Possíveis causas:\n"
-                text += "  • Estrutura de pastas não segue padrões reconhecidos\n"
-                text += "  • Nomes de grupos/dias não são detectáveis (ex: Grupo1, Day01)\n\n"
-                text += "Você pode prosseguir sem design detectado ou reorganizar os arquivos.\n"
+                text += _(
+                    "⚠️ Experimental design was not detected automatically.\n\n"
+                    "Possible causes:\n"
+                    "  • The folder structure does not follow a recognized pattern\n"
+                    "  • Group/day names are not detectable (e.g. Grupo1, Day01)\n\n"
+                    "You can continue without a detected design, or reorganize the files.\n"
+                )
             else:
-                text += "ℹ️ Detecção de design desativada (projeto exploratório).\n"
+                text += _("ℹ️ Design detection disabled (exploratory project).") + "\n"
 
         # Detector configuration snapshot (helps confirm template application)
         detection_section = self._format_detector_configuration()
@@ -831,11 +866,11 @@ class DetectionStep(WizardStep):
             text += f"\n{detection_section}\n"
 
         if self.custom_regex_patterns:
-            text += "\n🧩 Regex personalizada em uso:\n"
+            text += "\n" + _("🧩 Custom regex in use:") + "\n"
             for key, label in (
-                ("group_pattern", "Grupos"),
-                ("day_pattern", "Dias"),
-                ("subject_pattern", "Sujeitos"),
+                ("group_pattern", _("Groups")),
+                ("day_pattern", _("Days")),
+                ("subject_pattern", _("Subjects")),
             ):
                 pattern_value = self.custom_regex_patterns.get(key)
                 if pattern_value:
@@ -858,37 +893,38 @@ class DetectionStep(WizardStep):
         ):
             return ""
 
-        lines = ["⚙️ Configuração Atual do Detector:"]
+        lines = [_("⚙️ Current Detector Configuration:")]
 
         aquarium_method = model_selection.get("aquarium_method")
         animal_method = model_selection.get("animal_method")
         if aquarium_method or animal_method:
+            method_labels = _method_labels()
             aquarium_label = (
-                _METHOD_LABELS.get(aquarium_method, aquarium_method)
+                method_labels.get(aquarium_method, aquarium_method)
                 if isinstance(aquarium_method, str)
                 else None
             )
             animal_label = (
-                _METHOD_LABELS.get(animal_method, animal_method)
+                method_labels.get(animal_method, animal_method)
                 if isinstance(animal_method, str)
                 else None
             )
             if aquarium_label:
-                lines.append(f"  • Método aquário: {aquarium_label}")
+                lines.append(_("  • Aquarium method: {method}").format(method=aquarium_label))
             if animal_label:
-                lines.append(f"  • Método animais: {animal_label}")
+                lines.append(_("  • Animal method: {method}").format(method=animal_label))
 
         aquarium_weight = weight_assignments.get("aquarium")
         animal_weight = weight_assignments.get("animal")
         if aquarium_weight or animal_weight:
             if aquarium_weight:
-                lines.append(f"  • Peso aquário: {aquarium_weight}")
+                lines.append(_("  • Aquarium weight: {weight}").format(weight=aquarium_weight))
             if animal_weight:
-                lines.append(f"  • Peso animais: {animal_weight}")
+                lines.append(_("  • Animal weight: {weight}").format(weight=animal_weight))
 
         if use_openvino is not None:
-            status = "Ativado" if use_openvino else "Desativado"
-            lines.append(f"  • OpenVINO: {status}")
+            status = _("Enabled") if use_openvino else _("Disabled")
+            lines.append(_("  • OpenVINO: {status}").format(status=status))
 
         conf = detector_params.get("confidence_threshold")
         nms = detector_params.get("nms_threshold")
@@ -910,10 +946,10 @@ class DetectionStep(WizardStep):
 
     def _show_error(self, message: str):
         """Display error message."""
-        self.status_var.set("Erro!")
+        self.status_var.set(_("Error!"))
         self.results_text.config(state="normal")
         self.results_text.delete("1.0", "end")
-        self.results_text.insert("1.0", f"❌ Erro: {message}")
+        self.results_text.insert("1.0", _("❌ Error: {message}").format(message=message))
         self.results_text.config(state="disabled")
 
     def _configure_custom_regex(self):
@@ -964,17 +1000,16 @@ class DetectionStep(WizardStep):
 
         if self.custom_regex_patterns:
             if new_design:
-                self.status_var.set("Regex personalizado aplicado ✓")
+                self.status_var.set(_("Custom regex applied ✓"))
             else:
                 self.status_var.set(
-                    "Regex personalizado não encontrou design; "
-                    "ajuste os padrões ou edite manualmente."
+                    _("The custom regex found no design; adjust the patterns or edit manually.")
                 )
         else:
             if new_design:
-                self.status_var.set("Regex personalizado removido. Detecção padrão reaplicada ✓")
+                self.status_var.set(_("Custom regex removed. Default detection reapplied ✓"))
             else:
-                self.status_var.set("Detecção padrão reaplicada, mas nenhum design foi encontrado.")
+                self.status_var.set(_("Default detection reapplied, but no design was found."))
 
         return new_design
 
@@ -1091,9 +1126,9 @@ class DetectionStep(WizardStep):
             parquet_summary = self._calculate_parquet_summary()
             self._display_results(parquet_summary)
             if self.custom_regex_patterns:
-                self.status_var.set("Design editado manualmente ✓ (regex personalizado aplicado)")
+                self.status_var.set(_("Design edited manually ✓ (custom regex applied)"))
             else:
-                self.status_var.set("Design editado manualmente ✓ (regex padrão)")
+                self.status_var.set(_("Design edited manually ✓ (default regex)"))
 
     def validate(self) -> tuple[bool, str]:
         """
@@ -1105,7 +1140,7 @@ class DetectionStep(WizardStep):
         if not self.scanned_videos:
             return (
                 False,
-                "Nenhum vídeo foi encontrado. Volte e selecione vídeos válidos.",
+                _("No video was found. Go back and select valid videos."),
             )
 
         project_type = self.wizard_data.get("project_type")
@@ -1117,7 +1152,7 @@ class DetectionStep(WizardStep):
         ):
             return (
                 False,
-                "Confirme os nomes dos grupos no editor antes de avançar.",
+                _("Confirm the group names in the editor before moving on."),
             )
 
         return (True, "")
@@ -1164,7 +1199,9 @@ class DetectionStep(WizardStep):
         if self.scanned_videos:
             parquet_summary = data.get("parquet_summary", self._calculate_parquet_summary())
             self._display_results(parquet_summary)
-            self.status_var.set("Resultados anteriores (use Re-analisar para atualizar)")
+            self.status_var.set(
+                _("Previous results (use '{button}' to refresh)").format(button=_("🔄 Re-analyze"))
+            )
         self._update_template_banner()
 
     def _update_template_banner(self):

@@ -949,7 +949,7 @@ class VisualizationGenerator:
             ax.text(
                 0.5,
                 0.95,
-                "Área de processamento (sem ROIs definidas)",
+                "Processing area (no ROIs defined)",
                 ha="center",
                 va="top",
                 transform=ax.transAxes,

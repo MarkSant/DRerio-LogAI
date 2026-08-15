@@ -18,6 +18,7 @@ import structlog
 from zebtrack.core.detection import Detector, MultiAquariumZoneData, ZoneData
 from zebtrack.core.detection.detection_post_processor import DetectionPostProcessor
 from zebtrack.core.detection.zone_scaler import ZoneScaler
+from zebtrack.i18n import _
 from zebtrack.settings import save_settings
 from zebtrack.utils import IntegrityError
 
@@ -127,14 +128,18 @@ class DetectorService:
         )
 
         if not model_path:
-            error_msg = f"Nenhum modelo {animal_method} está disponível para detecção de animais."
+            error_msg = _("No {method} model is available for animal detection.").format(
+                method=animal_method
+            )
             log.error("detector_service.no_model_path", error=error_msg)
             return False, error_msg
 
         # Find weight and get correct model path
         weight_name, weight_details = self.model_service.find_weight_by_path(model_path)
         if not weight_name:
-            error_msg = f"Não foi possível encontrar o peso correspondente ao caminho: {model_path}"
+            error_msg = _("Could not find the weight matching the path: {path}").format(
+                path=model_path
+            )
             log.error("detector_service.weight_not_found", error=error_msg)
             return False, error_msg
 
@@ -147,14 +152,16 @@ class DetectorService:
                 )
                 if not final_model_path:
                     raise ValueError(
-                        "Caminho do modelo OpenVINO não encontrado ou inválido. "
-                        "Por favor, converta o modelo primeiro."
+                        _(
+                            "OpenVINO model path not found or invalid. "
+                            "Please convert the model first."
+                        )
                     )
                 model_path = final_model_path
             else:
                 plugin_name = "YOLO (Ultralytics)"
                 if not os.path.exists(model_path):
-                    raise ValueError("Caminho do modelo YOLO .pt não encontrado ou inválido.")
+                    raise ValueError(_("YOLO .pt model path not found or invalid."))
 
             # Get plugin class
             if detector_plugins is None:
@@ -500,14 +507,18 @@ class DetectorService:
             if value is not None:
                 try:
                     val = float(value)
-                    if val < min_val or val > max_val:
-                        raise ValueError(
-                            f"{param_name} deve estar entre {min_val} e {max_val}, recebido {val}"
-                        )
                 except (TypeError, ValueError) as e:
-                    if isinstance(e, ValueError) and "deve estar entre" in str(e):
-                        raise
-                    raise ValueError(f"{param_name} deve ser um número válido") from e
+                    raise ValueError(f"{param_name} must be a valid number") from e
+                # The range check lives OUTSIDE the try on purpose. It used to sit
+                # inside it, which meant the except had to tell a range violation
+                # from a parse failure by matching the message prose
+                # (`"deve estar entre" in str(e)`) — a branch that translating this
+                # very line would have broken in silence, and in the worst
+                # direction: a range error re-raised as "is not a number".
+                if val < min_val or val > max_val:
+                    raise ValueError(
+                        f"{param_name} must be between {min_val} and {max_val}, got {val}"
+                    )
 
         # Validate parameters
         _validate_range("conf_threshold", params_dict.get("conf_threshold"))
@@ -517,11 +528,17 @@ class DetectorService:
         _validate_range("iou_threshold", params_dict.get("iou_threshold"))
 
         if "track_buffer" in params_dict:
+            # Same shape as _validate_range above, and for the same reason: the
+            # `< 1` check used to sit INSIDE the try, so `except ValueError`
+            # caught the range violation it had just raised and relabelled it
+            # "must be an integer". Passing 0 — an integer — was answered with
+            # "track_buffer must be an integer".
             try:
-                if int(params_dict["track_buffer"]) < 1:
-                    raise ValueError("track_buffer deve ser pelo menos 1")
+                track_buffer_value = int(params_dict["track_buffer"])
             except (TypeError, ValueError) as e:
-                raise ValueError("track_buffer deve ser um número inteiro") from e
+                raise ValueError("track_buffer must be an integer") from e
+            if track_buffer_value < 1:
+                raise ValueError(f"track_buffer must be at least 1, got {track_buffer_value}")
 
         plugin = self.detector.plugin if self.detector else None
         clear_project_overrides = scope_normalized == "project" and reset_overrides

@@ -28,6 +28,7 @@ import structlog
 from zebtrack.core.detection import ZoneData
 from zebtrack.core.project.roi_template_manager import ROITemplateManager
 from zebtrack.core.project.types import AssetType
+from zebtrack.i18n import _
 
 log = structlog.get_logger()
 
@@ -103,7 +104,7 @@ class AssetManager:
             ValueError: If project_path is None
         """
         if not project_path:
-            raise ValueError("Projeto não inicializado para salvar templates de ROI.")
+            raise ValueError(_("Project not initialised for saving ROI templates."))
         target = Path(project_path) / "roi_templates"
         target.mkdir(parents=True, exist_ok=True)
         return target
@@ -227,13 +228,13 @@ class AssetManager:
         """
         normalized_name = (name or "").strip()
         if not normalized_name:
-            raise ValueError("O nome do template não pode ficar vazio.")
+            raise ValueError(_("The template name cannot be empty."))
 
         if zone_data is None:
-            raise ValueError("Dados de zona inválidos para salvar o template.")
+            raise ValueError(_("Invalid zone data for saving the template."))
 
         if not save_arena and not save_rois:
-            raise ValueError("Selecione ao menos arena ou ROIs para salvar.")
+            raise ValueError(_("Select at least the arena or the ROIs to save."))
 
         target_location: Literal["project", "global", "custom"]
         target_location = save_location or "project"
@@ -241,7 +242,7 @@ class AssetManager:
         if target_location == "project":
             if not project_path:
                 raise ValueError(
-                    "Não é possível salvar o template no projeto atual: projeto não carregado."
+                    _("Cannot save the template into the current project: no project loaded.")
                 )
 
             # Ensure zone structures
@@ -254,7 +255,9 @@ class AssetManager:
                 project_data, normalized_name
             )
             if existing_entry and not overwrite:
-                raise ValueError(f"Template '{normalized_name}' já existe.")
+                raise ValueError(
+                    _("Template '{name}' already exists.").format(name=normalized_name)
+                )
 
             if existing_entry:
                 slug = existing_entry.get("slug") or self._slugify(normalized_name)
@@ -372,7 +375,7 @@ class AssetManager:
 
         data_block = payload.get("data") if isinstance(payload, dict) else None
         if not isinstance(data_block, dict):
-            raise ValueError("Arquivo de template inválido: bloco 'data' ausente.")
+            raise ValueError(_("Invalid template file: the 'data' block is missing."))
 
         zone_data = zone_data_from_dict_fn(data_block)
         template_name = name or payload.get("name") or file_path.stem
@@ -424,11 +427,11 @@ class AssetManager:
             FileNotFoundError: If template file doesn't exist
         """
         if location in (None, "project"):
-            _, entry = self._resolve_roi_template_entry(project_data, name)
+            _index, entry = self._resolve_roi_template_entry(project_data, name)
             if entry:
                 relative_file = entry.get("file")
                 if not relative_file:
-                    raise ValueError("Arquivo do template não registrado no projeto.")
+                    raise ValueError(_("The template file is not registered in the project."))
 
                 template_path = (
                     Path(project_path) / relative_file if project_path else Path(relative_file)
@@ -441,12 +444,14 @@ class AssetManager:
 
                 data_block = payload.get("data") if isinstance(payload, dict) else None
                 if not isinstance(data_block, dict):
-                    raise ValueError("Conteúdo do template inválido.")
+                    raise ValueError(_("Invalid template content."))
 
                 return zone_data_from_dict_fn(data_block)
 
             if location == "project":
-                raise ValueError(f"Template de ROI '{name}' não encontrado no projeto.")
+                raise ValueError(
+                    _("ROI template '{name}' not found in the project.").format(name=name)
+                )
 
         template_path = Path(file_path) if file_path else None
 
@@ -459,7 +464,9 @@ class AssetManager:
                         break
 
         if template_path is None:
-            raise ValueError(f"Template de ROI '{name}' não encontrado para o contexto solicitado.")
+            raise ValueError(
+                _("ROI template '{name}' not found for the requested context.").format(name=name)
+            )
 
         if not template_path.exists():
             raise FileNotFoundError(str(template_path))
@@ -469,7 +476,7 @@ class AssetManager:
 
         data_block = payload.get("data") if isinstance(payload, dict) else None
         if not isinstance(data_block, dict):
-            raise ValueError("Conteúdo do template inválido.")
+            raise ValueError(_("Invalid template content."))
 
         return zone_data_from_dict_fn(data_block)
 
@@ -688,7 +695,8 @@ class AssetManager:
                 or parquet_files.get("report_docx")
             )
 
-        raise ValueError(f"Asset type '{asset}' desconhecido para aquário.")
+        # Names a code-level asset type, never shown to the operator.
+        raise ValueError(f"Unknown asset type '{asset}' for aquarium.")
 
     def can_remove_asset(self, video_entry: dict, asset: AssetType) -> tuple[bool, str | None]:
         """Check if an asset can be removed (dependency validation).
@@ -706,30 +714,41 @@ class AssetManager:
             if has_summary_outputs:
                 return (
                     False,
-                    ("Remova os relatórios e sumários antes de apagar arena, ROIs ou trajetórias."),
+                    _(
+                        "Remove the reports and summaries before deleting the arena, "
+                        "the ROIs or the trajectory."
+                    ),
                 )
             if not self.video_has_asset(video_entry, asset):
-                labels = {
-                    "arena": "arena",
-                    "rois": "ROIs",
-                    "trajectory": "trajetória",
+                # One COMPLETE sentence per asset instead of splicing a noun
+                # into a template: the Portuguese original had to agree in
+                # gender with the spliced word ("registrada"), which no
+                # substitution-based phrasing can guarantee in translation.
+                missing = {
+                    "arena": _("There is no arena recorded for this video."),
+                    "rois": _("There are no ROIs recorded for this video."),
+                    "trajectory": _("There is no trajectory recorded for this video."),
                 }
-                missing_label = labels.get(asset, asset)
-                return False, f"Não há {missing_label} registrada para este vídeo."
+                return False, missing.get(
+                    asset, _("There is no {asset} recorded for this video.").format(asset=asset)
+                )
 
         if asset == "summary" and not has_summary_outputs:
-            return False, "Não há relatórios ou sumários para remover."
+            return False, _("There are no reports or summaries to remove.")
 
         if asset == "video":
             if has_summary_outputs:
-                return False, "Remova relatórios e sumários antes de excluir o vídeo."
+                return False, _("Remove the reports and summaries before deleting the video.")
             if any(
                 self.video_has_asset(video_entry, cast(AssetType, dependency))
                 for dependency in ("trajectory", "rois", "arena")
             ):
                 return (
                     False,
-                    ("Remova arena, ROIs e trajetórias antes de excluir o vídeo do projeto."),
+                    _(
+                        "Remove the arena, the ROIs and the trajectory before deleting "
+                        "the video from the project."
+                    ),
                 )
 
         return True, None

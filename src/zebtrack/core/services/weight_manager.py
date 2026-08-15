@@ -14,6 +14,7 @@ from typing import Any
 
 import structlog
 
+from zebtrack.i18n import _
 from zebtrack.settings import Settings
 from zebtrack.utils import calculate_sha256
 
@@ -591,7 +592,7 @@ class WeightManager:
             legacy_type = self._classify_weight_type(legacy_name)
             # Add legacy path if it's not already in potential_weights
             legacy_already_added = any(
-                filename == legacy_path for _, filename, *_ in potential_weights
+                filename == legacy_path for _label, filename, *_rest in potential_weights
             )
             if not legacy_already_added:
                 potential_weights.append((legacy_type or "seg", legacy_path, None))
@@ -667,7 +668,9 @@ class WeightManager:
             log.info("weights.config.saved", path=self.config_path)
         except OSError as e:
             log.error("weights.config.save_error", error=str(e))
-            raise OSError(f"Não foi possível salvar o arquivo de configuração de pesos: {e}") from e
+            raise OSError(
+                _("Could not save the weights configuration file: {error}").format(error=e)
+            ) from e
 
     def get_all_weights(self) -> list[str]:
         """Return a list of names of all available weights."""
@@ -868,11 +871,17 @@ class WeightManager:
                             )
                         else:
                             raise ValueError(
-                                f"Um arquivo de peso com o nome '{model_path.name}' já existe "
-                                f"no diretório de pesos.\n\n"
-                                f"Arquivo existente: {target_path}\n"
-                                f"Arquivo sendo adicionado: {model_path}\n\n"
-                                f"Por favor, renomeie um dos arquivos antes de adicionar."
+                                _(
+                                    "A weight file named '{name}' already exists in the "
+                                    "weights directory.\n\n"
+                                    "Existing file: {existing}\n"
+                                    "File being added: {incoming}\n\n"
+                                    "Please rename one of them before adding."
+                                ).format(
+                                    name=model_path.name,
+                                    existing=target_path,
+                                    incoming=model_path,
+                                )
                             )
                     else:
                         shutil.copy2(model_path, target_path)
@@ -884,18 +893,24 @@ class WeightManager:
                         )
                 except OSError as e:
                     log.error("weights.add.external_file.copy_failed", error=str(e))
-                    raise ValueError(f"Falha ao copiar o arquivo de peso externo: {e}") from e
+                    raise ValueError(
+                        _("Failed to copy the external weight file: {error}").format(error=e)
+                    ) from e
         except FileNotFoundError:
             log.error("weights.add.not_found", path=new_path)
-            raise FileNotFoundError(f"O arquivo de modelo não foi encontrado: {new_path}") from None
+            raise FileNotFoundError(
+                _("The model file was not found: {path}").format(path=new_path)
+            ) from None
         except OSError as e:
             log.error("weights.add.invalid_path", path=new_path, error=str(e))
-            raise ValueError(f"O caminho do modelo é inválido ou inacessível: {e}") from e
+            raise ValueError(
+                _("The model path is invalid or inaccessible: {error}").format(error=e)
+            ) from e
         # --- End Security Check ---
 
         new_name = os.path.basename(model_path)
         if new_name in self.weights:
-            raise ValueError(f"Um peso com o nome '{new_name}' já existe.")
+            raise ValueError(_("A weight named '{name}' already exists.").format(name=new_name))
 
         # Determine weight type
         if weight_type is None:
@@ -917,7 +932,7 @@ class WeightManager:
 
         if set_as_default:
             # Unset legacy global default
-            _, current_default = self.get_default_weight()
+            _name, current_default = self.get_default_weight()
             if current_default:
                 current_default["is_default"] = False
 
@@ -958,11 +973,11 @@ class WeightManager:
         """Delete a weight from the configuration."""
         if name_to_delete not in self.weights:
             log.warning("weights.delete.not_found", name=name_to_delete)
-            raise ValueError(f"Peso '{name_to_delete}' não encontrado.")
+            raise ValueError(_("Weight '{name}' not found.").format(name=name_to_delete))
 
         if len(self.weights) <= 1:
             log.error("weights.delete.last_weight", name=name_to_delete)
-            raise ValueError("Você não pode excluir o último peso disponível.")
+            raise ValueError(_("You cannot delete the last available weight."))
 
         details = self.weights[name_to_delete]
         was_default = details.get("is_default")
@@ -1408,8 +1423,11 @@ class WeightManager:
                     "class_names": class_names,
                     "task": "segment",
                     "weight_type": "seg",
+                    # WRITTEN to metadata.json — English like every other value in
+                    # this dict. A description that changed with ui.language would
+                    # give the same converted model a different file per machine.
                     "description": (
-                        "Modelo de segmentação convertido (classes extraídas do modelo)"
+                        "Converted segmentation model (class names extracted from the model)"
                     ),
                     "original_model": os.path.basename(pt_path),
                     "conversion_date": time.strftime("%Y-%m-%d %H:%M:%S"),
@@ -1421,7 +1439,9 @@ class WeightManager:
                     "class_names": class_names,
                     "task": "detect",
                     "weight_type": "det",
-                    "description": "Modelo de detecção convertido (classes extraídas do modelo)",
+                    "description": (
+                        "Converted detection model (class names extracted from the model)"
+                    ),
                     "original_model": os.path.basename(pt_path),
                     "conversion_date": time.strftime("%Y-%m-%d %H:%M:%S"),
                 }
@@ -1445,12 +1465,15 @@ class WeightManager:
                 # Clean up the corrupted cache dir
                 shutil.rmtree(cached_model_dir, ignore_errors=True)
                 details["openvino_status"] = OPENVINO_STATUS_FAILED
+                # STORED in the weights config (English, like the rest of that
+                # file) vs. RAISED to the operator (translated). Same sentence,
+                # two different jobs.
                 details["last_conversion_error"] = (
-                    "Arquivo .xml do modelo OpenVINO não encontrado após a conversão."
+                    "OpenVINO model .xml file not found after the conversion."
                 )
                 self.save_weights()
                 raise OpenVINOExportError(
-                    "Arquivo .xml do modelo OpenVINO não encontrado após a conversão."
+                    _("OpenVINO model .xml file not found after the conversion.")
                 )
 
             xml_path = xml_files[0]
@@ -1565,7 +1588,7 @@ class WeightManager:
                 "task": "segment" if weight_type == "seg" else "detect",
                 "weight_type": weight_type,
                 "quantization": "INT8",
-                "description": f"Modelo {weight_type} convertido com quantização INT8",
+                "description": f"Converted {weight_type} model with INT8 quantisation",
                 "original_model": os.path.basename(pt_path),
                 "conversion_date": time.strftime("%Y-%m-%d %H:%M:%S"),
             }
@@ -1587,12 +1610,10 @@ class WeightManager:
                 shutil.rmtree(cached_model_dir, ignore_errors=True)
                 details["openvino_int8_status"] = OPENVINO_STATUS_FAILED
                 details["last_conversion_error"] = (
-                    "Arquivo .xml do modelo INT8 não encontrado após conversão."
+                    "INT8 model .xml file not found after the conversion."
                 )
                 self.save_weights()
-                raise OpenVINOExportError(
-                    "Arquivo .xml do modelo INT8 não encontrado após conversão."
-                )
+                raise OpenVINOExportError(_("INT8 model .xml file not found after the conversion."))
 
             xml_path = xml_files[0]
             model_hash = calculate_sha256(str(xml_path))

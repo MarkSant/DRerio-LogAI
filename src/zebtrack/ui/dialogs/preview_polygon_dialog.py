@@ -25,6 +25,8 @@ import cv2
 import numpy as np
 from PIL import Image, ImageTk
 
+from zebtrack.i18n import _
+
 if TYPE_CHECKING:
     from tkinter import Misc
 
@@ -37,10 +39,23 @@ RetryCallback = Callable[[float], RetryResult]
 # on the native frame) with extra slack to make picking comfortable.
 _VERTEX_PICK_RADIUS_PX = 14
 
-_BADGE_AUTO_TEXT = "✓ Auto-detectado"
-_BADGE_MANUAL_TEXT = "✎ Editado manualmente"
 _BADGE_AUTO_BG = "#2ecc71"
 _BADGE_MANUAL_BG = "#e67e22"
+
+
+def _badge_auto_text() -> str:
+    """Badge shown while the polygon is still the model's own output.
+
+    A module-level constant would call _() at import time and freeze the badge
+    in whatever language was installed then -- see
+    docs/guides/developer/i18n.md.
+    """
+    return _("✓ Auto-detected")
+
+
+def _badge_manual_text() -> str:
+    """Badge shown once the user has dragged a vertex."""
+    return _("✎ Manually edited")
 
 
 class PreviewPolygonDialog:
@@ -108,7 +123,7 @@ class PreviewPolygonDialog:
 
         # Create dialog window
         self.dialog = tk.Toplevel(parent)
-        self.dialog.title("Aquário Detectado - Confirmar?")
+        self.dialog.title(_("Aquarium Detected - Confirm?"))
         self.dialog.resizable(False, False)
         self.dialog.transient(parent)  # type: ignore[call-overload]
         self.dialog.grab_set()
@@ -117,7 +132,7 @@ class PreviewPolygonDialog:
         self._conf_var = tk.DoubleVar(value=clamped_initial)
         self._conf_text_var = tk.StringVar(value=f"{clamped_initial:.2f}")
         self._status_var = tk.StringVar(value="")
-        self._badge_var = tk.StringVar(value=_BADGE_AUTO_TEXT)
+        self._badge_var = tk.StringVar(value=_badge_auto_text())
 
         # UI references populated by _create_widgets
         self.photo: ImageTk.PhotoImage | None = None
@@ -146,7 +161,9 @@ class PreviewPolygonDialog:
         main_frame.pack(fill=tk.BOTH, expand=True)
 
         title_label = ttk.Label(
-            main_frame, text="Aquário Detectado - Confirmar?", font=("Segoe UI", 12, "bold")
+            main_frame,
+            text=_("Aquarium Detected - Confirm?"),
+            font=("Segoe UI", 12, "bold"),
         )
         title_label.pack(pady=(0, 6))
 
@@ -172,7 +189,7 @@ class PreviewPolygonDialog:
 
         success_label = ttk.Label(
             success_frame,
-            text="✓ Aquário detectado com sucesso!",
+            text=_("✓ Aquarium detected successfully!"),
             font=("Segoe UI", 10, "bold"),
             foreground="green",
         )
@@ -181,9 +198,9 @@ class PreviewPolygonDialog:
         # Question
         question_label = ttk.Label(
             main_frame,
-            text=(
-                "Aprovar este polígono (você ainda poderá ajustá-lo) "
-                "ou rejeitar e desenhar manualmente?"
+            text=_(
+                "Approve this polygon (you will still be able to adjust it) "
+                "or reject it and draw one manually?"
             ),
             font=("Segoe UI", 9),
         )
@@ -215,7 +232,7 @@ class PreviewPolygonDialog:
 
     def _create_confidence_panel(self, parent: ttk.Frame) -> None:
         """Build the confidence threshold slider + retry button + status."""
-        panel = ttk.LabelFrame(parent, text="Limiar de confiança da auto-detecção", padding=10)
+        panel = ttk.LabelFrame(parent, text=_("Auto-detection confidence threshold"), padding=10)
         panel.pack(fill=tk.X, pady=(0, 10))
 
         slider_row = ttk.Frame(panel)
@@ -282,12 +299,10 @@ class PreviewPolygonDialog:
         # must not let it crash the dialog.
         except Exception as exc:
             outcome = None
-            self._status_var.set(f"Falha na detecção: {exc!s}")
+            self._status_var.set(_("Detection failed: {error}").format(error=exc))
         else:
             if outcome is None:
-                self._status_var.set(
-                    "Nenhum aquário encontrado — ajuste o limiar e tente novamente."
-                )
+                self._status_var.set(_("No aquarium found — adjust the threshold and try again."))
             else:
                 new_frame, new_polygon = outcome
                 self.frame = new_frame
@@ -298,7 +313,11 @@ class PreviewPolygonDialog:
                 self._edited = False
                 self._set_badge_auto()
                 self._refresh_canvas()
-                self._status_var.set(f"Aquário re-detectado com limiar {confidence:.2f}")
+                self._status_var.set(
+                    _("Aquarium re-detected with threshold {value}").format(
+                        value=f"{confidence:.2f}"
+                    )
+                )
 
         if self._retry_button is not None:
             self._retry_button.state(["!disabled"])
@@ -479,7 +498,7 @@ class PreviewPolygonDialog:
 
     def _set_badge_auto(self) -> None:
         """Show the green ✓ Auto-detectado badge."""
-        self._badge_var.set(_BADGE_AUTO_TEXT)
+        self._badge_var.set(_badge_auto_text())
         if self._badge_label is not None:
             try:
                 self._badge_label.config(bg=_BADGE_AUTO_BG)
@@ -489,7 +508,7 @@ class PreviewPolygonDialog:
 
     def _set_badge_manual(self) -> None:
         """Show the orange ✎ Editado manualmente badge."""
-        self._badge_var.set(_BADGE_MANUAL_TEXT)
+        self._badge_var.set(_badge_manual_text())
         if self._badge_label is not None:
             try:
                 self._badge_label.config(bg=_BADGE_MANUAL_BG)

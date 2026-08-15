@@ -15,6 +15,8 @@ from typing import TYPE_CHECKING, Any
 
 import structlog
 
+from zebtrack.i18n import _
+
 if TYPE_CHECKING:
     from zebtrack.core.services.weight_manager import WeightManager
 
@@ -110,20 +112,20 @@ class ModelService:
             str: Human-readable status message
         """
         if not weight_name:
-            return "Nenhum peso selecionado."
+            return _("No weight selected.")
 
         details = self.weight_manager.get_weight_details(weight_name)
         if not details:
-            return "Detalhes do peso não encontrados."
+            return _("Weight details not found.")
 
         if use_openvino:
             openvino_path = details.get("openvino_path")
             if openvino_path and Path(openvino_path).exists():
-                return "O modelo OpenVINO está pronto."
+                return _("The OpenVINO model is ready.")
             else:
-                return "Necessita de conversão para OpenVINO."
+                return _("Conversion to OpenVINO is required.")
         else:
-            return "O OpenVINO está desativado."
+            return _("OpenVINO is disabled.")
 
     def list_available_weights(self) -> list[str]:
         """
@@ -485,7 +487,9 @@ class ModelService:
         """
         details = self.weight_manager.get_weight_details(weight_name)
         if not details:
-            raise ValueError(f"Peso '{weight_name}' não encontrado na configuração.")
+            raise ValueError(
+                _("Weight '{name}' not found in the configuration.").format(name=weight_name)
+            )
 
         model_path = details.get("path")
         weight_type = details.get("type", "unknown")

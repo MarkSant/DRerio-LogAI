@@ -28,6 +28,7 @@ if TYPE_CHECKING:
     from zebtrack.settings import Settings
     from zebtrack.ui.event_bus_v2 import EventBusV2
 
+from zebtrack.i18n import _
 from zebtrack.ui.event_bus_v2 import Event, UIEvents
 from zebtrack.ui.payloads import FrameDisplayPayload
 
@@ -293,9 +294,11 @@ class VideoContextFactoryMixin:
         if not trajectory_path.exists():
             _publish_error(
                 {
-                    "title": "Erro de Processamento",
-                    "message": (f"Falha ao gerar arquivo de trajetória para {experiment_id}."),
-                    "details": f"Arquivo não encontrado: {trajectory_path}",
+                    "title": _("Processing Error"),
+                    "message": _(
+                        "Failed to generate the trajectory file for {experiment_id}."
+                    ).format(experiment_id=experiment_id),
+                    "details": _("File not found: {path}").format(path=trajectory_path),
                 }
             )
             return None
@@ -311,8 +314,10 @@ class VideoContextFactoryMixin:
             )
             _publish_error(
                 {
-                    "title": "Erro de Processamento",
-                    "message": f"Falha ao ler arquivo de trajetória para {experiment_id}.",
+                    "title": _("Processing Error"),
+                    "message": _("Failed to read the trajectory file for {experiment_id}.").format(
+                        experiment_id=experiment_id
+                    ),
                     "details": str(exc),
                 }
             )

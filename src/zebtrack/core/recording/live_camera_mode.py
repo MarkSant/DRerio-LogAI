@@ -20,6 +20,8 @@ from typing import TYPE_CHECKING
 
 import structlog
 
+from zebtrack.i18n import _
+
 if TYPE_CHECKING:
     from zebtrack.settings import Settings
     from zebtrack.utils.hardware_capability import HardwareCapabilityReport
@@ -49,13 +51,18 @@ class LiveCameraModeRecommendation:
     warnings: list[str]
 
     def __str__(self) -> str:
-        """Human-readable summary."""
+        """Developer-facing summary for logs and debugging.
+
+        Deliberately NOT translated: no call site renders it, and the first
+        line prints ``recommended_mode.value`` — a persisted enum value that
+        must stay readable next to the raw log records.
+        """
         return (
-            f"Modo Recomendado: {self.recommended_mode.value}\n"
-            f"Aquários Solicitados: {self.requested_aquariums}\n"
-            f"Aquários Suportados: {self.max_aquariums_supported}\n"
-            f"Razão: {self.reason}\n"
-            f"Alternativas: {len(self.alternative_options)}"
+            f"Recommended mode: {self.recommended_mode.value}\n"
+            f"Aquariums requested: {self.requested_aquariums}\n"
+            f"Aquariums supported: {self.max_aquariums_supported}\n"
+            f"Reason: {self.reason}\n"
+            f"Alternatives: {len(self.alternative_options)}"
         )
 
 
@@ -121,16 +128,16 @@ class LiveCameraModeSelector:
                 if requested_aquariums > 1
                 else LiveCameraMode.SINGLE_AQUARIUM_REALTIME
             )
-            reason = (
-                f"Sistema suporta {max_supported} aquários simultaneamente. "
-                f"Processamento em tempo real habilitado."
-            )
+            reason = _(
+                "The system supports {count} aquariums simultaneously. "
+                "Real-time processing enabled."
+            ).format(count=max_supported)
 
             # Still offer record-only as alternative (for better quality)
             alternatives.append(
                 (
                     LiveCameraMode.RECORD_ONLY,
-                    "Gravar sem detecção (melhor qualidade, processar depois)",
+                    _("Record without detection (better quality, process later)"),
                 )
             )
 
@@ -152,42 +159,55 @@ class LiveCameraModeSelector:
                 else LiveCameraMode.SINGLE_AQUARIUM_REALTIME
             )
 
-            reason = (
-                f"Sistema suporta apenas {max_supported} aquário(s) simultaneamente, "
-                f"mas {requested_aquariums} foram solicitados. "
-            )
+            # Two COMPLETE sentences, never fragments: the original built this
+            # by appending half a clause, which leaves a translator unable to
+            # reorder. "aquário(s)" is gone for the same reason — see the
+            # singular/plural pair in the warnings below.
+            reason = _(
+                "The system supports only {supported} of the {requested} aquariums "
+                "requested for simultaneous processing. "
+            ).format(supported=max_supported, requested=requested_aquariums)
 
             if allow_sequential:
-                reason += f"Recomendado: gravar {requested_aquariums} sessões separadas."
+                reason += _("Recommended: record {count} separate sessions.").format(
+                    count=requested_aquariums
+                )
             else:
-                reason += "Recomendado: processar apenas 1 aquário nesta sessão."
+                reason += _("Recommended: process only 1 aquarium in this session.")
 
             # Build alternatives
             if allow_sequential:
                 alternatives.append(
                     (
                         LiveCameraMode.SINGLE_AQUARIUM_REALTIME,
-                        "Processar apenas 1 aquário agora (ignorar demais)",
+                        _("Process only 1 aquarium now (ignore the rest)"),
                     )
                 )
             else:
                 alternatives.append(
                     (
                         LiveCameraMode.SEQUENTIAL_AQUARIUM,
-                        f"Dividir em {requested_aquariums} sessões separadas",
+                        _("Split into {count} separate sessions").format(count=requested_aquariums),
                     )
                 )
 
             alternatives.append(
                 (
                     LiveCameraMode.RECORD_ONLY,
-                    "Gravar sem detecção (processar offline depois)",
+                    _("Record without detection (process offline later)"),
                 )
             )
 
             warnings = [
-                f"⚠️ Sistema não suporta {requested_aquariums} aquários simultaneamente.",
-                f"Máximo suportado: {max_supported} aquário(s).",
+                _("⚠️ The system does not support {count} aquariums simultaneously.").format(
+                    count=requested_aquariums
+                ),
+                # Two msgids instead of "aquário(s)": max_supported is 1 in the
+                # common case, which is exactly when the parenthetical reads
+                # worst. No ngettext — the pair files carry no plural forms.
+                _("Maximum supported: 1 aquarium.")
+                if max_supported == 1
+                else _("Maximum supported: {count} aquariums.").format(count=max_supported),
             ]
 
             return LiveCameraModeRecommendation(
@@ -204,22 +224,24 @@ class LiveCameraModeSelector:
         if not can_realtime:
             recommended_mode = LiveCameraMode.RECORD_ONLY
 
-            reason = (
-                "Sistema insuficiente para processamento em tempo real. "
-                "Recomendado: gravar vídeo e processar offline."
+            reason = _(
+                "The system is not sufficient for real-time processing. "
+                "Recommended: record the video and process it offline."
             )
 
             warnings = [
-                "⚠️ HARDWARE INSUFICIENTE para detecção em tempo real.",
-                f"CPU: {hardware_report.cpu_cores} cores (mínimo 2)",
-                f"RAM: {hardware_report.available_memory_gb:.1f}GB disponível (mínimo 4GB)",
+                _("⚠️ INSUFFICIENT HARDWARE for real-time detection."),
+                _("CPU: {cores} cores (minimum 2)").format(cores=hardware_report.cpu_cores),
+                _("RAM: {gb:.1f}GB available (minimum 4GB)").format(
+                    gb=hardware_report.available_memory_gb
+                ),
             ]
 
             # Only viable alternative is to abort
             alternatives.append(
                 (
                     LiveCameraMode.RECORD_ONLY,
-                    "Gravar vídeo sem detecção (única opção viável)",
+                    _("Record video without detection (only viable option)"),
                 )
             )
 
@@ -239,7 +261,7 @@ class LiveCameraModeSelector:
             requested_aquariums=requested_aquariums,
             max_aquariums_supported=max_supported,
             can_process_realtime=can_realtime,
-            reason="Modo padrão selecionado.",
+            reason=_("Default mode selected."),
             alternative_options=[],
             warnings=[],
         )
@@ -265,7 +287,9 @@ class LiveCameraModeSelector:
                 "aquarium_index": aq_idx,
                 "aquarium_count_total": total_aquariums,
                 "mode": LiveCameraMode.SINGLE_AQUARIUM_REALTIME,
-                "notes": f"Sessão {aq_idx + 1} de {total_aquariums} (aquário individual)",
+                "notes": _("Session {index} of {total} (individual aquarium)").format(
+                    index=aq_idx + 1, total=total_aquariums
+                ),
             }
             plan.append(session)
 
@@ -285,14 +309,16 @@ def get_mode_description(mode: LiveCameraMode) -> str:
         mode: Live camera mode
 
     Returns:
-        Portuguese description
+        Description in the active interface language
     """
+    # Built inside the function, never at module level: a dict of _() calls in
+    # a module body freezes the translation at import time.
     descriptions = {
-        LiveCameraMode.MULTI_AQUARIUM_REALTIME: (
-            "Processar múltiplos aquários simultaneamente em tempo real"
+        LiveCameraMode.MULTI_AQUARIUM_REALTIME: _(
+            "Process multiple aquariums simultaneously in real time"
         ),
-        LiveCameraMode.SINGLE_AQUARIUM_REALTIME: "Processar um aquário em tempo real",
-        LiveCameraMode.RECORD_ONLY: "Gravar vídeo sem detecção (processar offline depois)",
-        LiveCameraMode.SEQUENTIAL_AQUARIUM: "Gravar múltiplas sessões, uma por aquário",
+        LiveCameraMode.SINGLE_AQUARIUM_REALTIME: _("Process one aquarium in real time"),
+        LiveCameraMode.RECORD_ONLY: _("Record video without detection (process offline later)"),
+        LiveCameraMode.SEQUENTIAL_AQUARIUM: _("Record multiple sessions, one per aquarium"),
     }
-    return descriptions.get(mode, "Modo desconhecido")
+    return descriptions.get(mode, _("Unknown mode"))

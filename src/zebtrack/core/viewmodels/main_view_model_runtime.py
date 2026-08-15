@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Any
 import structlog
 
 from zebtrack.core.state_manager import StateCategory
+from zebtrack.i18n import _
 from zebtrack.ui import payloads
 from zebtrack.ui.event_bus_v2 import Event, UIEvents
 
@@ -521,10 +522,10 @@ class MainViewModelRuntime:
                     Event(
                         UIEvents.ERROR_OCCURRED,
                         payloads.ErrorOccurredPayload(
-                            title="Erro Crítico",
-                            message=(
-                                "A thread da câmera não foi finalizada corretamente. "
-                                "O aplicativo será encerrado."
+                            title=_("Critical Error"),
+                            message=_(
+                                "The camera thread did not shut down correctly. "
+                                "The application will close."
                             ),
                         ),
                     )

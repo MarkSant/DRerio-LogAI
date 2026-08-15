@@ -131,7 +131,7 @@ class TestLiveAnalysisDialog:
 
             # Verify first camera auto-selected
             assert dialog.camera_selection_var.get() != ""
-            assert dialog.camera_status_label.cget("text") == "✓ 2 câmera(s) detectada(s)"
+            assert dialog.camera_status_label.cget("text") == "✓ 2 cameras detected"
             assert dialog.camera_status_label.cget("fg") == "green"
 
     def test_camera_detection_no_cameras(self, tkinter_root, test_settings):
@@ -147,7 +147,7 @@ class TestLiveAnalysisDialog:
             # Verify empty state
             assert len(dialog.camera_index_map) == 0
             assert len(dialog.camera_combo["values"]) == 0  # Empty tuple or list
-            assert dialog.camera_status_label.cget("text") == "✗ Nenhuma câmera detectada"
+            assert dialog.camera_status_label.cget("text") == "✗ No camera detected"
             assert dialog.camera_status_label.cget("fg") == "red"
 
     def test_camera_detection_exception(self, tkinter_root, test_settings):
@@ -164,7 +164,7 @@ class TestLiveAnalysisDialog:
                     process_tk_events(tkinter_root)
 
                     # Verify error state
-                    assert dialog.camera_status_label.cget("text") == "✗ Erro ao detectar câmeras"
+                    assert dialog.camera_status_label.cget("text") == "✗ Error detecting cameras"
                     assert dialog.camera_status_label.cget("fg") == "red"
 
     def test_manual_camera_detection_refresh(self, tkinter_root, test_settings):
@@ -708,7 +708,7 @@ class TestLivePreviewWindow:
         assert callback.called is True
 
         # Verify status updated
-        assert "Parado" in window.status_label.cget("text")
+        assert "Stopped" in window.status_label.cget("text")
 
         window.destroy()
 
@@ -830,12 +830,12 @@ class TestLivePreviewWindow:
         tkinter_root.update_idletasks()
 
         # Wait for timer label to update
-        wait_for_condition(lambda: "Restante:" in window.timer_label.cget("text"), timeout=1.0)
+        wait_for_condition(lambda: "Remaining:" in window.timer_label.cget("text"), timeout=1.0)
 
         # Verify timer label contains expected text
         timer_text = window.timer_label.cget("text")
-        assert "Tempo:" in timer_text
-        assert "Restante:" in timer_text
+        assert "Time:" in timer_text
+        assert "Remaining:" in timer_text
 
         window.destroy()
 
@@ -891,10 +891,9 @@ class TestLivePreviewWindow:
         window.start_timer()
         tkinter_root.update_idletasks()
 
-        text = window.start_time_label.cget("text")
-        assert text.startswith("Início:")
-        # The clock part is the suffix after "Início: " — should match HH:MM:SS
-        clock = text.replace("Início:", "").strip()
+        # The value label holds the clock ALONE: the "Start:" caption is the
+        # separate label in the column to its left.
+        clock = window.start_time_label.cget("text")
         assert len(clock.split(":")) == 3
         h, m, s = clock.split(":")
         assert h.isdigit() and m.isdigit() and s.isdigit()

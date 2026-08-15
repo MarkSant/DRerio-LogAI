@@ -11,6 +11,7 @@ from tkinter import font as tkfont
 
 import structlog
 
+from zebtrack.i18n import _
 from zebtrack.ui.window_utils import create_scrollbar
 from zebtrack.ui.wizard.base import WizardStep
 from zebtrack.ui.wizard.enums import (
@@ -78,12 +79,12 @@ class ImportConfigStep(WizardStep):
         self.grid_rowconfigure(3, weight=1)
 
         title_font = tkfont.Font(size=14, weight="bold")
-        title = Label(self, text="Configuração de Importação", font=title_font)
+        title = Label(self, text=_("Import Configuration"), font=title_font)
         title.grid(row=0, column=0, sticky="w", pady=(0, 5))
 
         subtitle = Label(
             self,
-            text="Configure o que importar para cada vídeo.",
+            text=_("Choose what to import for each video."),
             fg="gray",
             wraplength=920,
             justify="left",
@@ -116,26 +117,26 @@ class ImportConfigStep(WizardStep):
 
         ttk.Button(
             bulk_buttons_frame,
-            text="Importar Todas Arenas",
+            text=_("Import All Arenas"),
             command=self._bulk_import_arenas,
         ).pack(side="left", padx=2)
         ttk.Button(
             bulk_buttons_frame,
-            text="Importar Todos ROIs",
+            text=_("Import All ROIs"),
             command=self._bulk_import_rois,
         ).pack(side="left", padx=2)
         ttk.Button(
             bulk_buttons_frame,
-            text="Importar Todas Trajetórias",
+            text=_("Import All Trajectories"),
             command=self._bulk_import_trajectories,
         ).pack(side="left", padx=2)
         ttk.Button(
             bulk_buttons_frame,
-            text="Importar Tudo",
+            text=_("Import Everything"),
             command=self._bulk_import_all,
         ).pack(side="left", padx=2)
 
-        table_frame = LabelFrame(left_column, text="Vídeos e Estratégias", padx=8, pady=5)
+        table_frame = LabelFrame(left_column, text=_("Videos and Strategies"), padx=8, pady=5)
         table_frame.grid(row=1, column=0, sticky="nsew")
         table_frame.grid_columnconfigure(0, weight=1)
         table_frame.grid_rowconfigure(0, weight=1)
@@ -153,11 +154,11 @@ class ImportConfigStep(WizardStep):
         self.video_tree.grid(row=0, column=0, sticky="nsew")
         tree_scroll.config(command=self.video_tree.yview)
 
-        self.video_tree.heading("video", text="Vídeo")
-        self.video_tree.heading("arena", text="Arena")
-        self.video_tree.heading("rois", text="ROIs")
-        self.video_tree.heading("trajectory", text="Trajetória")
-        self.video_tree.heading("action", text="Ação")
+        self.video_tree.heading("video", text=_("Video"))
+        self.video_tree.heading("arena", text=_("Arena"))
+        self.video_tree.heading("rois", text=_("ROIs"))
+        self.video_tree.heading("trajectory", text=_("Trajectory"))
+        self.video_tree.heading("action", text=_("Action"))
 
         self.video_tree.column("video", width=220, anchor="w")
         self.video_tree.column("arena", width=65, anchor="center")
@@ -175,7 +176,7 @@ class ImportConfigStep(WizardStep):
 
         self.roi_frame = LabelFrame(
             right_panel,
-            text="Estratégia ROIs",
+            text=_("ROI Strategy"),
             padx=8,
             pady=5,
         )
@@ -183,35 +184,35 @@ class ImportConfigStep(WizardStep):
 
         rb_replace = Radiobutton(
             self.roi_frame,
-            text="Replace (substituir)",
+            text=_("Replace (overwrite)"),
             variable=self.roi_merge_strategy_var,
             value=ROIMergeStrategy.REPLACE.value,
             font=("TkDefaultFont", 9),
         )
         rb_replace.grid(row=0, column=0, sticky="w", pady=1)
-        ToolTip(rb_replace, "ROIs importados substituem completamente as existentes.")
+        ToolTip(rb_replace, _("Imported ROIs completely replace the existing ones."))
 
         rb_merge = Radiobutton(
             self.roi_frame,
-            text="Merge (manter ambos)",
+            text=_("Merge (keep both ROIs)"),
             variable=self.roi_merge_strategy_var,
             value=ROIMergeStrategy.MERGE.value,
             font=("TkDefaultFont", 9),
         )
         rb_merge.grid(row=1, column=0, sticky="w", pady=1)
-        ToolTip(rb_merge, "Manter ambos. Conflitos serão renomeados.")
+        ToolTip(rb_merge, _("Keep both. Conflicts will be renamed."))
 
         rb_manual = Radiobutton(
             self.roi_frame,
-            text="Manual (perguntar)",
+            text=_("Manual (ask)"),
             variable=self.roi_merge_strategy_var,
             value=ROIMergeStrategy.MANUAL.value,
             font=("TkDefaultFont", 9),
         )
         rb_manual.grid(row=2, column=0, sticky="w", pady=1)
-        ToolTip(rb_manual, "Perguntar para cada conflito.")
+        ToolTip(rb_manual, _("Ask for each conflict."))
 
-        self.summary_frame = LabelFrame(right_panel, text="Resumo", padx=8, pady=5)
+        self.summary_frame = LabelFrame(right_panel, text=_("Summary"), padx=8, pady=5)
         self.summary_frame.grid(row=1, column=0, sticky="nsew", padx=(0, 8))
 
         summary_label = Label(
@@ -223,14 +224,12 @@ class ImportConfigStep(WizardStep):
         )
         summary_label.grid(row=0, column=0, sticky="w")
 
-        legend_frame = LabelFrame(right_panel, text="Legenda", padx=8, pady=5)
+        legend_frame = LabelFrame(right_panel, text=_("Legend"), padx=8, pady=5)
         legend_frame.grid(row=1, column=1, sticky="nsew")
 
         self.legend_label = Label(
             legend_frame,
-            text=(
-                "🏟 Arena | 🎯 ROIs | 🧭 Trajetória\n✓ Importar | ⏸ Não importar\n✗ Não disponível"
-            ),
+            text=_("🏟 Arena | 🎯 ROIs | 🧭 Trajectory\n✓ Import | ⏸ Do not import\n✗ Unavailable"),
             fg="gray",
             font=("TkDefaultFont", 8),
             justify="left",
@@ -239,9 +238,9 @@ class ImportConfigStep(WizardStep):
 
         info_box = Label(
             right_panel,
-            text=(
-                "💡 Dica: ajuste rapidamente clicando 2x na coluna desejada. "
-                "Use os botões de importação em lote para aplicar o mesmo padrão a todos os vídeos."
+            text=_(
+                "💡 Tip: adjust quickly by double-clicking the column you want. "
+                "Use the bulk import buttons to apply the same pattern to every video."
             ),
             fg="#555555",
             wraplength=340,
@@ -425,18 +424,22 @@ class ImportConfigStep(WizardStep):
 
         # Format summary
         action_names = {
-            ImportAction.SKIP.value: "Skip (dados completos)",
-            ImportAction.IMPORT_ZONES.value: "Import Zones + rastrear",
-            ImportAction.PARTIAL.value: "Partial (arena apenas)",
-            ImportAction.FULL.value: "Full (do zero)",
+            ImportAction.SKIP.value: _("Skip (complete data)"),
+            ImportAction.IMPORT_ZONES.value: _("Import Zones + track"),
+            ImportAction.PARTIAL.value: _("Partial (arena only)"),
+            ImportAction.FULL.value: _("Full (from scratch)"),
         }
 
         lines = []
         for action, count in sorted(action_counts.items()):
             name = action_names.get(action, action)
-            lines.append(f"• {count} vídeo(s): {name}")
+            lines.append(
+                _("• 1 video: {name}").format(name=name)
+                if count == 1
+                else _("• {count} videos: {name}").format(count=count, name=name)
+            )
 
-        self.summary_var.set("\n".join(lines) if lines else "Nenhum vídeo configurado")
+        self.summary_var.set("\n".join(lines) if lines else _("No video configured"))
 
     def _update_template_banner(self):
         banner_text = format_template_banner(self.wizard_data.get("template_metadata"))
@@ -544,13 +547,16 @@ class ImportConfigStep(WizardStep):
             tuple[bool, str]: (True, "") if all videos have valid actions
         """
         if not self.video_configs:
-            return (False, "Nenhum vídeo para configurar. Volte e selecione vídeos.")
+            return (False, _("No video to configure. Go back and select videos."))
 
         # Check that all videos have valid actions
         for config in self.video_configs:
             if "action" not in config or not config["action"]:
                 video_name = Path(config["video"]).name
-                return (False, f"Vídeo {video_name} não possui ação definida.")
+                return (
+                    False,
+                    _("Video {name} has no action defined.").format(name=video_name),
+                )
 
         return (True, "")
 

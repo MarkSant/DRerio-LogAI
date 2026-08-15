@@ -33,6 +33,7 @@ from zebtrack.core.services.roi_rule_resolver import (
     VALID_ROI_INCLUSION_RULES,
     RoiRuleConfig,
 )
+from zebtrack.i18n import _
 
 # Padrão DE-9IM "interiores se tocam": é o predicado de sobreposição de área
 # NÃO-NULA. `intersects` não serve — devolve True para tangência (contato só de
@@ -814,9 +815,11 @@ class ROIAnalyzer:
         missing_cols = [col for col in required_cols if col not in self._trajectory.columns]
         if missing_cols:
             raise ValueError(
-                f"Regra bbox_intersects requer colunas de bbox: {missing_cols}. "
-                f"Essas colunas não estão disponíveis no dataset. "
-                f"Considere usar 'centroid_in' ou 'centroid_in_on_buffered_roi'."
+                _(
+                    "The bbox_intersects rule requires the bbox columns: {columns}. "
+                    "They are not available in this dataset. Consider using "
+                    "'centroid_in' or 'centroid_in_on_buffered_roi'."
+                ).format(columns=missing_cols)
             )
 
         prepare(roi_geometry)
@@ -942,7 +945,7 @@ class ROIAnalyzer:
                 return mask_source
             self._degrade(
                 "alinhamento_invalido",
-                "As máscaras pré-alinhadas não têm o mesmo número de linhas da trajetória.",
+                _("The pre-aligned masks do not have the same row count as the trajectory."),
             )
             return None
 
@@ -955,15 +958,19 @@ class ROIAnalyzer:
         if missing:
             self._degrade(
                 "colunas_ausentes",
-                f"O sidecar de máscaras não tem as colunas {sorted(missing)}.",
+                _("The mask sidecar is missing the columns {columns}.").format(
+                    columns=sorted(missing)
+                ),
             )
             return None
 
         if "frame" not in self._trajectory.columns:
             self._degrade(
                 "trajetoria_sem_frame",
-                "A trajetória analisada não tem a coluna 'frame', que é metade "
-                "da chave de junção com as máscaras.",
+                _(
+                    "The analysed trajectory has no 'frame' column, which is half of "
+                    "the join key with the masks."
+                ),
             )
             return None
 
@@ -999,7 +1006,7 @@ class ROIAnalyzer:
         if not geometries:
             self._degrade(
                 "sidecar_vazio",
-                "O sidecar de máscaras não contém nenhuma geometria válida.",
+                _("The mask sidecar contains no valid geometry."),
             )
             return None
 
@@ -1039,8 +1046,7 @@ class ROIAnalyzer:
         if matched == 0:
             self._degrade(
                 "sem_correspondencia",
-                "Nenhuma máscara do sidecar corresponde a (frame, track_id) da "
-                "trajetória analisada.",
+                _("No mask in the sidecar matches a (frame, track_id) of the analysed trajectory."),
             )
             return None
 
@@ -1058,16 +1064,18 @@ class ROIAnalyzer:
         if mask_source is None:
             self._degrade(
                 "sidecar_ausente",
-                "A regra 'seg_overlap' foi selecionada mas nenhum sidecar de "
-                "máscaras (3b_Mascaras_*.parquet) foi informado. Grave com "
-                "recorder.persist_masks ligado e um modelo de segmentação "
-                "(model_selection.animal_method='seg').",
+                _(
+                    "The 'seg_overlap' rule was selected but no mask sidecar "
+                    "(3b_Mascaras_*.parquet) was provided. Record with "
+                    "recorder.persist_masks enabled and a segmentation model "
+                    "(model_selection.animal_method='seg')."
+                ),
             )
             return None
 
         if isinstance(mask_source, pd.DataFrame):
             if mask_source.empty:
-                self._degrade("sidecar_vazio", "O sidecar de máscaras está vazio.")
+                self._degrade("sidecar_vazio", _("The mask sidecar is empty."))
                 return None
             return mask_source
 
@@ -1075,20 +1083,25 @@ class ROIAnalyzer:
         if not path.exists():
             self._degrade(
                 "sidecar_ausente",
-                f"O sidecar de máscaras não existe em '{path}'. Dados gravados "
-                "antes desta funcionalidade, ou com recorder.persist_masks "
-                "desligado, não o têm.",
+                _(
+                    "The mask sidecar does not exist at '{path}'. Data recorded before "
+                    "this feature, or with recorder.persist_masks disabled, does not "
+                    "have one."
+                ).format(path=path),
             )
             return None
 
         try:
             masks_df = pd.read_parquet(path)
         except Exception as exc:  # except Exception justificado: degradar, nunca falhar
-            self._degrade("sidecar_ilegivel", f"O sidecar '{path}' não pôde ser lido: {exc}")
+            self._degrade(
+                "sidecar_ilegivel",
+                _("The sidecar '{path}' could not be read: {error}").format(path=path, error=exc),
+            )
             return None
 
         if masks_df.empty:
-            self._degrade("sidecar_vazio", f"O sidecar '{path}' não tem linhas.")
+            self._degrade("sidecar_vazio", _("The sidecar '{path}' has no rows.").format(path=path))
             return None
         return masks_df
 
@@ -1096,7 +1109,9 @@ class ROIAnalyzer:
         """Registra a queda de ``seg_overlap`` para ``bbox_intersects``."""
         log.warning("roi.seg_overlap.fallback", reason=reason, detail=detail)
         self._degradation_warnings.append(
-            f"Regra de ROI 'seg_overlap' degradada para 'bbox_intersects': {detail}"
+            _("ROI rule 'seg_overlap' degraded to 'bbox_intersects': {detail}").format(
+                detail=detail
+            )
         )
 
     def get_time_spent_in_rois(self) -> dict[str, dict[str, float]]:

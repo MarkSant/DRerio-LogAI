@@ -96,8 +96,8 @@ class TestProjectWorkflowServiceValidation(unittest.TestCase):
 
         assert is_valid is False
         assert error_msg is not None
-        assert "modo de detecção" in error_msg
-        assert "1 animal por aquário" in error_msg
+        assert "detection mode (det)" in error_msg
+        assert "1 animal per aquarium" in error_msg
 
     def test_validate_project_parameters_seg_multi_animal_valid(self):
         """Test validation succeeds for seg mode with multiple animals."""
@@ -422,7 +422,7 @@ class TestProjectWorkflowServiceProjectCreation(unittest.TestCase):
         )
 
         assert result["success"] is False
-        assert "modo de detecção" in result["error_message"]
+        assert "detection mode (det)" in result["error_message"]
         self.mock_project_manager.create_new_project.assert_not_called()
 
     def test_create_project_creation_failure(self):
@@ -645,7 +645,7 @@ class TestProjectWorkflowServicePostCreationGuide(unittest.TestCase):
         assert guide is not None
         assert guide["title"] == "Bem-vindo ao Projeto!"
         assert "2" in guide["message"]  # Total videos
-        assert "Próximos passos" in guide["message"]
+        assert "Recommended next steps" in guide["message"]
 
     def test_generate_guide_suppressed_by_env(self):
         """Test guide generation suppressed by environment variable."""
@@ -701,8 +701,8 @@ class TestProjectWorkflowServicePostCreationGuide(unittest.TestCase):
         )
 
         assert guide is not None
-        assert "arena definida: 1" in guide["message"]
-        assert "ROIs definidas: 1" in guide["message"]
+        assert "arena defined: 1" in guide["message"]
+        assert "ROIs defined: 1" in guide["message"]
 
 
 class TestProjectWorkflowServiceProjectLoadFailures(unittest.TestCase):
@@ -1138,7 +1138,7 @@ class TestProjectWorkflowServicePostCreationGuideEdgeCases(unittest.TestCase):
 
         # Should still generate guide
         assert guide is not None
-        assert "Total de vídeos: 1" in guide["message"]
+        assert "Total videos: 1" in guide["message"]
 
 
 if __name__ == "__main__":

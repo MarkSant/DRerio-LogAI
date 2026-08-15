@@ -11,6 +11,8 @@ from pathlib import Path
 
 import structlog
 
+from zebtrack.i18n import _
+
 log = structlog.get_logger()
 
 
@@ -313,8 +315,15 @@ class TemplateManager:
         return safe_name or "template"
 
 
-def format_template_banner(metadata: dict | None) -> str:
-    """Format banner text for loaded templates."""
+def format_template_banner_details(metadata: dict | None) -> str:
+    """Return only the template identity — name plus file — with no prefix.
+
+    ``format_template_banner`` wraps this in a translated "Template loaded:"
+    prefix. ConfirmationStep's summary wants the identity *without* that prefix
+    and used to obtain it by calling ``str.replace`` on the rendered banner,
+    which silently stops matching the moment the prefix is translated. Anything
+    that needs the bare identity must call this instead.
+    """
     if not metadata:
         return ""
 
@@ -327,9 +336,19 @@ def format_template_banner(metadata: dict | None) -> str:
     if not name:
         return ""
 
-    banner = f"Template carregado: {name}"
+    details = str(name)
 
     if path:
-        banner += f"  ({Path(path).name})"
+        details += f"  ({Path(path).name})"
 
-    return banner
+    return details
+
+
+def format_template_banner(metadata: dict | None) -> str:
+    """Format banner text for loaded templates."""
+    details = format_template_banner_details(metadata)
+
+    if not details:
+        return ""
+
+    return _("Template loaded: {details}").format(details=details)

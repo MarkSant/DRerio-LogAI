@@ -22,6 +22,8 @@ from typing import Any, NamedTuple
 import structlog
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from zebtrack.i18n import _
+
 log = structlog.get_logger()
 
 # Key under which bindings are stored inside ``project_data``.
@@ -49,9 +51,10 @@ class TokenConflict(NamedTuple):
 
     def describe(self) -> str:
         """Human-readable one-liner for logs and the UI status line."""
-        return (
-            f"token {self.token}: entrada de {', '.join(self.enter_rois)} "
-            f"e saída de {', '.join(self.exit_rois)}"
+        return _("token {token}: enter for {enter_rois} and exit for {exit_rois}").format(
+            token=self.token,
+            enter_rois=", ".join(self.enter_rois),
+            exit_rois=", ".join(self.exit_rois),
         )
 
 

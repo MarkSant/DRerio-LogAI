@@ -20,6 +20,7 @@ import structlog
 import yaml
 
 from zebtrack.core.exceptions import ProjectInvalidError
+from zebtrack.i18n import _
 from zebtrack.utils import IntegrityError, calculate_sha256
 
 if TYPE_CHECKING:
@@ -68,9 +69,11 @@ class ProjectLifecycleManager:
         if not os.path.exists(config_path):
             log_context.error("project.load.not_found")
             raise ProjectInvalidError(
-                message=f"Arquivo de configuração do projeto '{CONFIG_FILE_NAME}' não "
-                f"encontrado no diretório selecionado: {project_path}\n\n"
-                "Por favor, garanta que você selecionou uma pasta de projeto válida.",
+                message=_(
+                    "Project configuration file '{filename}' not found in the selected "
+                    "directory: {path}\n\nPlease make sure you selected a valid project "
+                    "folder."
+                ).format(filename=CONFIG_FILE_NAME, path=project_path),
                 path=project_path,
             )
 
@@ -87,8 +90,10 @@ class ProjectLifecycleManager:
         except (OSError, json.JSONDecodeError, IntegrityError) as e:
             log_context.error("project.load.error", exc_info=e)
             raise ProjectInvalidError(
-                message=f"Falha ao carregar ou analisar o arquivo de configuração do projeto: "
-                f"{config_path}\n\nO arquivo pode estar corrompido ou ilegível.\n\nErro: {e}",
+                message=_(
+                    "Failed to load or parse the project configuration file: {path}\n\n"
+                    "The file may be corrupted or unreadable.\n\nError: {error}"
+                ).format(path=config_path, error=e),
                 path=project_path,
                 cause=e,
             ) from e
@@ -112,8 +117,10 @@ class ProjectLifecycleManager:
         if not project_path:
             log.debug("project.save.no_path", reason="project not yet created")
             raise ProjectInvalidError(
-                message="Não é possível salvar o projeto: caminho do projeto não definido.\n\n"
-                "O projeto deve ser criado antes de ser salvo.",
+                message=_(
+                    "Cannot save the project: the project path is not set.\n\n"
+                    "The project must be created before it can be saved."
+                ),
             )
 
         try:
@@ -122,26 +129,30 @@ class ProjectLifecycleManager:
         except PermissionError as e:
             log.error("project.save.permission_denied", path=project_path, exc_info=e)
             raise ProjectInvalidError(
-                message=(
-                    f"Permissão negada ao salvar o projeto: {project_path}\n\n"
-                    f"Verifique se você tem permissão de escrita na pasta.\n\nErro: {e}"
-                ),
+                message=_(
+                    "Permission denied while saving the project: {path}\n\n"
+                    "Check that you have write permission on the folder.\n\nError: {error}"
+                ).format(path=project_path, error=e),
                 path=project_path,
                 cause=e,
             ) from e
         except OSError as e:
             log.error("project.save.io_error", path=project_path, exc_info=e)
             raise ProjectInvalidError(
-                message=f"Erro de I/O ao salvar o projeto: "
-                f"{project_path}\n\nVerifique o espaço em disco e permissões.\n\nErro: {e}",
+                message=_(
+                    "I/O error while saving the project: {path}\n\n"
+                    "Check the disk space and the permissions.\n\nError: {error}"
+                ).format(path=project_path, error=e),
                 path=project_path,
                 cause=e,
             ) from e
         except (json.JSONDecodeError, TypeError, ValueError) as e:
             log.error("project.save.serialization_error", path=project_path, exc_info=e)
             raise ProjectInvalidError(
-                message=f"Erro ao serializar dados do projeto: "
-                f"{project_path}\n\nDados do projeto podem estar corrompidos.\n\nErro: {e}",
+                message=_(
+                    "Error serialising the project data: {path}\n\n"
+                    "The project data may be corrupted.\n\nError: {error}"
+                ).format(path=project_path, error=e),
                 path=project_path,
                 cause=e,
             ) from e
@@ -149,8 +160,10 @@ class ProjectLifecycleManager:
         except Exception as e:
             log.error("project.save.unexpected_error", path=project_path, exc_info=e)
             raise ProjectInvalidError(
-                message=f"Erro inesperado ao salvar o projeto: "
-                f"{project_path}\n\nPor favor, verifique as permissões da pasta.\n\nErro: {e}",
+                message=_(
+                    "Unexpected error while saving the project: {path}\n\n"
+                    "Please check the folder permissions.\n\nError: {error}"
+                ).format(path=project_path, error=e),
                 path=project_path,
                 cause=e,
             ) from e
@@ -192,26 +205,28 @@ class ProjectLifecycleManager:
         """
         # Validate aquarium count
         if num_aquariums < 1:
-            raise ValueError("num_aquariums deve ser >= 1")
+            # Developer-facing guards: they name the code parameter, are
+            # raised before any dialog exists, and are English without _().
+            raise ValueError("num_aquariums must be >= 1")
         if num_aquariums > 100:
-            raise ValueError("num_aquariums deve ser <= 100 (limite prático)")
+            raise ValueError("num_aquariums must be <= 100 (practical limit)")
 
         # Validate animals per aquarium
         if animals_per_aquarium < 1:
-            raise ValueError("animals_per_aquarium deve ser >= 1")
+            raise ValueError("animals_per_aquarium must be >= 1")
         if animals_per_aquarium > 100:
-            raise ValueError("animals_per_aquarium deve ser <= 100 (limite prático)")
+            raise ValueError("animals_per_aquarium must be <= 100 (practical limit)")
 
         # Phase 1.2: Calibration dimensions — 0 means "no calibration", valid
         if aquarium_width_cm < 0:
-            raise ValueError("aquarium_width_cm deve ser >= 0 (0 = sem calibração)")
+            raise ValueError("aquarium_width_cm must be >= 0 (0 = no calibration)")
         if aquarium_width_cm > 500:
-            raise ValueError("aquarium_width_cm deve ser <= 500 cm (valor irreal)")
+            raise ValueError("aquarium_width_cm must be <= 500 cm (unrealistic value)")
 
         if aquarium_height_cm < 0:
-            raise ValueError("aquarium_height_cm deve ser >= 0 (0 = sem calibração)")
+            raise ValueError("aquarium_height_cm must be >= 0 (0 = no calibration)")
         if aquarium_height_cm > 500:
-            raise ValueError("aquarium_height_cm deve ser <= 500 cm (valor irreal)")
+            raise ValueError("aquarium_height_cm must be <= 500 cm (unrealistic value)")
 
         # Validate frame intervals
         if analysis_interval_frames < 1:
@@ -379,10 +394,10 @@ class ProjectLifecycleManager:
         except OSError as e:
             log.error("project.create.dir_error", error=str(e))
             raise ProjectInvalidError(
-                message=(
-                    f"Não foi possível criar o diretório do projeto: {e}\n\n"
-                    "Por favor, verifique as permissões da pasta e se o caminho é válido."
-                ),
+                message=_(
+                    "Could not create the project directory: {error}\n\n"
+                    "Please check the folder permissions and that the path is valid."
+                ).format(error=e),
                 path=project_path,
                 cause=e,
             ) from e
@@ -617,9 +632,13 @@ class ProjectLifecycleManager:
             default_profile = (
                 default_analysis_profile_fn()
                 if default_analysis_profile_fn
+                # STORED in project.json. Kept English and aligned with the
+                # canonical AssetManager._default_analysis_profile(), which
+                # already writes "default": a stored profile name that changed
+                # with ui.language would differ per machine for the same project.
                 else {
-                    "name": "Padrão",
-                    "description": "Perfil padrão de análise",
+                    "name": "default",
+                    "description": "Default analysis profile",
                     "settings": {},
                 }
             )

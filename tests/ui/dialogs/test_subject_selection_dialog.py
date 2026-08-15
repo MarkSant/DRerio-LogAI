@@ -40,13 +40,13 @@ def test_body_builds_labels_with_completion_status(monkeypatch):
 
     label_factory.assert_any_call(
         master,
-        text="Cobaia 1: Concluído",
+        text="Subject 1: done",
         foreground="darkgreen",
         font=("Helvetica", 10),
     )
     label_factory.assert_any_call(
         master,
-        text="Cobaia 2: Pendente",
+        text="Subject 2: pending",
         foreground="black",
         font=("Helvetica", 10),
     )

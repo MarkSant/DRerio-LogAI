@@ -100,7 +100,7 @@ class TestConfirmationStep:
         name = step.project_name_var.get()
 
         # Should contain group name and timestamp
-        assert "Experimento" in name
+        assert "Experiment" in name
         assert "Control" in name
 
     def test_default_project_name_exploratory(self):
@@ -115,7 +115,7 @@ class TestConfirmationStep:
 
         name = step.project_name_var.get()
 
-        assert "Exploratorio" in name
+        assert "Exploratory" in name
 
     def test_summary_generation_with_design(self):
         """Summary should be generated with detected design."""
@@ -149,13 +149,13 @@ class TestConfirmationStep:
 
         # Should contain design info
         assert "Experimental" in summary
-        assert "Grupos: 2" in summary
-        assert "Dias: 2" in summary
+        assert "Groups: 2" in summary
+        assert "Days: 2" in summary
         assert "85%" in summary  # Confidence
-        assert "Total de Vídeos: 10" in summary
+        assert "Total videos: 10" in summary
 
         # Should contain processing plan
-        assert "Plano de Processamento" in summary
+        assert "Processing Plan" in summary
 
         # Should contain parquet summary
         assert "Arena: 5" in summary
@@ -178,7 +178,7 @@ class TestConfirmationStep:
 
         assert "Template" in summary
         assert "Template Especial" in summary
-        assert "Template carregado" in step.template_info_var.get()
+        assert "Template loaded" in step.template_info_var.get()
 
     def test_summary_includes_folder_preview(self):
         """Summary should include folder preview details when provided."""
@@ -208,7 +208,7 @@ class TestConfirmationStep:
         step._generate_summary()
 
         summary = step.summary_text
-        assert "Estrutura de Pastas" in summary
+        assert "Folder Structure" in summary
         assert "📁 Estudo" in summary
 
     def test_validate_succeeds_with_valid_data(self):
@@ -243,7 +243,7 @@ class TestConfirmationStep:
         is_valid, error_message = step.validate()
 
         assert not is_valid
-        assert "nome" in error_message.lower()
+        assert "enter a name" in error_message.lower()
 
     def test_validate_fails_with_invalid_characters(self):
         """Validation should fail with invalid characters in name."""
@@ -260,7 +260,7 @@ class TestConfirmationStep:
         is_valid, error_message = step.validate()
 
         assert not is_valid
-        assert "caracteres inválidos" in error_message.lower()
+        assert "invalid characters" in error_message.lower()
 
     def test_validate_fails_with_nonexistent_location(self):
         """Validation should fail with non-existent location."""
@@ -277,7 +277,7 @@ class TestConfirmationStep:
         is_valid, error_message = step.validate()
 
         assert not is_valid
-        assert "não existe" in error_message.lower()
+        assert "does not exist" in error_message.lower()
 
     def test_validate_fails_with_existing_project(self):
         """Validation should fail if project directory already exists."""
@@ -304,7 +304,7 @@ class TestConfirmationStep:
         existing_project.rmdir()
 
         assert not is_valid
-        assert "já existe um projeto com esse nome" in error_message.lower()
+        assert "a project with that name already exists" in error_message.lower()
 
     def test_validate_fails_with_no_videos(self):
         """Validation should fail with no videos."""
@@ -322,7 +322,7 @@ class TestConfirmationStep:
         is_valid, error_message = step.validate()
 
         assert not is_valid
-        assert "nenhum vídeo" in error_message.lower()
+        assert "no video selected" in error_message.lower()
 
     def test_validate_allows_live_without_videos(self):
         """Live projects without prerecorded videos should still validate."""
@@ -446,7 +446,7 @@ class TestConfirmationStep:
 
         assert not is_valid
         assert error_message != ""
-        assert "nome" in error_message.lower()
+        assert "enter a name" in error_message.lower()
 
     def test_error_display_for_whitespace_only_name(self):
         """Validation should fail with whitespace-only project name."""
@@ -460,7 +460,7 @@ class TestConfirmationStep:
         is_valid, error_message = step.validate()
 
         assert not is_valid
-        assert "nome" in error_message.lower() or "vazio" in error_message.lower()
+        assert "enter a name" in error_message.lower()
 
     def test_validation_handles_unicode_characters(self):
         """Project names with Unicode characters should be handled gracefully."""
@@ -540,7 +540,7 @@ class TestConfirmationStep:
         summary = step.summary_text
 
         # Should mention model configuration
-        assert "Modelo" in summary or "Detecção" in summary or "Segmentação" in summary
+        assert "Detection Settings" in summary or "Segmentation" in summary
 
     def test_summary_displays_calibration_info(self):
         """Summary should include calibration information."""
@@ -560,7 +560,7 @@ class TestConfirmationStep:
         summary = step.summary_text
 
         # Should mention calibration details
-        assert "Calibração" in summary or "Dimensões" in summary
+        assert "Physical Calibration" in summary or "Dimensions" in summary
         assert "30" in summary  # Width
         assert "25" in summary  # Height
 
@@ -619,7 +619,7 @@ class TestConfirmationStep:
         summary = step.summary_text
 
         # Should mention live or camera
-        assert "Ao Vivo" in summary or "Live" in summary or "Câmera" in summary
+        assert "Live" in summary or "Camera" in summary
 
     def test_validation_rejects_very_long_project_names(self):
         """Validation should reject excessively long project names."""
