@@ -1309,6 +1309,14 @@ class FrameProcessingMixin:
         for event in events:
             if log_enabled:
                 self._closed_loop_event_seq += 1
+                # ``fps`` é a taxa REALMENTE alcançada, medida a partir dos
+                # timestamps de captura (mesma fonte do frame ledger) — nunca o
+                # valor configurado, que a câmera pode exceder (e às vezes
+                # excede). O configurado vai em campo próprio, sem ambiguidade.
+                frame_ledger = getattr(self, "_frame_ledger", None)
+                measured_fps = (
+                    frame_ledger.current_fps_measured() if frame_ledger is not None else None
+                )
                 context = {
                     "event_id": self._closed_loop_event_seq,
                     "frame": frame_number,
@@ -1321,7 +1329,8 @@ class FrameProcessingMixin:
                     "session_ts_s": session_ts,
                     "trigger_wall_s": wall_s,
                     "analysis_interval_frames": self.analysis_interval_frames,
-                    "fps": self._actual_fps,
+                    "fps": measured_fps,
+                    "fps_configured": self._actual_fps,
                 }
                 manager.enqueue_tracked(event.token, context)
             else:

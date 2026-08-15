@@ -163,6 +163,44 @@ def test_finalize_writes_parquet_and_anchor(tmp_path):
     assert anchor["fps_real_medio"] == pytest.approx(1.0)
 
 
+def test_current_fps_measured_matches_anchor_formula(tmp_path):
+    """``current_fps_measured`` usa a mesma fórmula de ``fps_real_medio``.
+
+    Utilizável DURANTE a sessão (não só no ``finalize``) — é a fonte que o
+    logger closed-loop consulta para não gravar a taxa configurada como se
+    fosse a alcançada.
+    """
+    ledger = _ledger(tmp_path, flush_interval_s=60.0)
+    assert ledger.current_fps_measured() is None  # sem amostras ainda
+
+    ledger.record(1, 100.0, 1_700_000_000.0, "not_recording")
+    assert ledger.current_fps_measured() is None  # 1 amostra não basta
+
+    ledger.record(2, 101.0, 1_700_000_001.0, "written", video_frame_index=0)
+    ledger.record(3, 102.0, 1_700_000_002.0, "written", video_frame_index=1)
+    # 3 amostras em 2 s de perf_counter -> 1 fps real (mesmo cálculo do anchor).
+    assert ledger.current_fps_measured() == pytest.approx(1.0)
+    ledger.finalize()
+
+
+def test_current_fps_measured_reflects_camera_exceeding_configured_rate(tmp_path):
+    """Câmera entregando mais que o configurado: a taxa medida reflete isso.
+
+    Regressão do defeito depositado no P4: sessões com 30 fps configurados
+    entregaram 41.2/39.1 fps reais. O ledger precisa medir isso corretamente
+    a partir dos timestamps de captura, não repetir o valor configurado.
+    """
+    ledger = _ledger(tmp_path, flush_interval_s=60.0)
+    # 41.2 fps configurado-excedente -> intervalo entre frames ~= 1/41.2 s.
+    interval = 1.0 / 41.2
+    for i in range(1, 11):
+        ledger.record(
+            i, 100.0 + (i - 1) * interval, 1_700_000_000.0, "written", video_frame_index=i - 1
+        )
+    assert ledger.current_fps_measured() == pytest.approx(41.2, abs=0.05)
+    ledger.finalize()
+
+
 def test_unbound_ledger_buffers_until_bind(tmp_path):
     ledger = FrameLedger(flush_interval_s=0.01)
     ledger.record(1, 1.0, 1_700_000_000.0, "not_recording")

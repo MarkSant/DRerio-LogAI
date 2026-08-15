@@ -1,7 +1,7 @@
 # DRerio LogAI Documentation Index
 
 **Last Updated:** February 2, 2026
-**Version:** 4.0.0 (Diátaxis Corrected)
+**Version:** 6.0.0 (Diátaxis Corrected)
 
 ---
 

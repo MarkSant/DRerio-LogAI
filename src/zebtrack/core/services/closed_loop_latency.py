@@ -37,6 +37,19 @@ Derived per-trigger metrics (milliseconds):
 ``camera.get_frame()`` and BEFORE any queue ``put`` — so the queue wait is
 attributed to ``queue_wait_ms`` and never smuggled into ``inference_ms``.
 
+``fps`` (and therefore ``sampling_interval_ms``) is the frame rate **actually
+achieved**, measured from capture timestamps via
+``FrameLedger.current_fps_measured()`` — the same source the frame ledger
+anchor uses for ``fps_real_medio``. It is *not* the value configured in
+settings: a USB camera routinely exceeds its configured rate, and logging the
+configured value as if it had been achieved silently contradicts the frame
+ledger for the same session. The configured (nominal) value is kept
+separately in ``fps_configured`` / ``sampling_interval_ms_configured`` —
+documented as such, never overwritten by and never overwriting the measured
+columns. ``fps`` is ``None`` until at least two captured frames carry a
+timestamp (effectively never at trigger time, since aquarium detection and
+warmup already consume dozens of frames before recording starts).
+
 Rows stream to ``5_ClosedLoop_<base>.csv`` (flushed per trigger for crash
 resilience) and are also written to ``5_ClosedLoop_<base>.parquet`` at session
 end, alongside ``3_CoordMovimento_<base>.parquet``. The two canonical columns
@@ -82,6 +95,12 @@ CSV_COLUMNS: list[str] = [
     "queue_wait_ms",
     "inference_ms",
     "dequeue_perf",
+    # fps_configured / sampling_interval_ms_configured: valor NOMINAL configurado
+    # nas settings — a câmera pode exceder esse valor, e nas sessões registradas
+    # excedeu. Nunca confundir com ``fps``/``sampling_interval_ms`` (medidos):
+    # ver docstring do módulo.
+    "fps_configured",
+    "sampling_interval_ms_configured",
 ]
 
 
@@ -90,6 +109,16 @@ def _ms(start: float | None, end: float | None) -> float | None:
     if start is None or end is None:
         return None
     return (end - start) * 1000.0
+
+
+def _sampling_interval_ms(interval: Any, fps: Any) -> float | None:
+    """``interval / fps * 1000``, or ``None`` if either operand is unusable."""
+    if not fps or not interval:
+        return None
+    try:
+        return float(interval) / float(fps) * 1000.0
+    except (TypeError, ZeroDivisionError, ValueError):
+        return None
 
 
 class ClosedLoopLatencyLog:
@@ -146,14 +175,14 @@ class ClosedLoopLatencyLog:
         frame_t0 = context.get("frame_t0")
         decision = context.get("decision_perf")
         dequeue = context.get("dequeue_perf")
-        fps = context.get("fps")
         interval = context.get("analysis_interval_frames")
-        sampling_interval_ms: float | None = None
-        if fps and interval:
-            try:
-                sampling_interval_ms = float(interval) / float(fps) * 1000.0
-            except (TypeError, ZeroDivisionError, ValueError):
-                sampling_interval_ms = None
+        # ``fps`` é a taxa MEDIDA (FrameLedger.current_fps_measured); ``fps_configured``
+        # é o valor nominal das settings. Nunca um substitui o outro — ver docstring do
+        # módulo.
+        fps = context.get("fps")
+        fps_configured = context.get("fps_configured")
+        sampling_interval_ms = _sampling_interval_ms(interval, fps)
+        sampling_interval_ms_configured = _sampling_interval_ms(interval, fps_configured)
 
         return {
             "event_id": context.get("event_id"),
@@ -180,6 +209,8 @@ class ClosedLoopLatencyLog:
             "queue_wait_ms": _ms(frame_t0, dequeue),
             "inference_ms": _ms(dequeue, decision),
             "dequeue_perf": dequeue,
+            "fps_configured": fps_configured,
+            "sampling_interval_ms_configured": sampling_interval_ms_configured,
         }
 
     def _stream_csv_row(self, row: dict[str, Any]) -> None:

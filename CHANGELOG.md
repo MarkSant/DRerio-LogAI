@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [6.0.0] - 2026-08-15
+
+Citable snapshot archived on Zenodo, in support of the manuscripts describing the platform
+(validation study) and the multi-method tracking benchmark. See `RELEASE_NOTES_v6.0.0.md` for
+the release body.
+
 ### Erros de validação do detector voltam a chegar ao usuário
 
 - **Clicar "Aplicar" com um valor fora da faixa não fazia nada.** Sem diálogo,
@@ -551,6 +557,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Hotfix**: restaurado bloco `try/except` de `live_session_manager.py`
   destruído por um autofix do Copilot aplicado via web (a aplicação não
   iniciava — `IndentationError` na importação).
+
+### Logger closed-loop gravava a taxa configurada como se fosse a alcançada
+
+- **`fps` e `sampling_interval_ms` de `5_ClosedLoop_*.csv` agora guardam a taxa
+  MEDIDA** a partir dos timestamps de captura
+  (`FrameLedger.current_fps_measured()`, mesma fonte da âncora do frame
+  ledger), em vez do valor configurado nas settings. Duas sessões depositadas
+  tinham `fps = 30` gravado quando a taxa real foi 41,2 e 39,1 fps — a câmera
+  excedeu a configuração, e o CSV citável contradizia o próprio frame ledger da
+  mesma sessão.
+- **O valor configurado não desaparece**: novas colunas `fps_configured` e
+  `sampling_interval_ms_configured` (acrescentadas ao fim de `CSV_COLUMNS`,
+  que é append-only) guardam o nominal, documentado como tal. Nenhum dos dois
+  pares se sobrescreve.
+- Coberto por teste, incluindo o caso em que a taxa medida diverge da
+  configurada e o caso em que a medição ainda não está disponível (início de
+  sessão).
+
+### Curadoria do repositório para arquivamento permanente (Zenodo)
+
+- Removido do HEAD material que não pode ser arquivado publicamente:
+  manuscritos inéditos, relatórios parciais e propostas de projeto da FAPESP, e
+  uma planilha financeira, todos sob `docs/archive/legacy/fapesp/` (os logs de
+  git em `fapesp/git/` foram mantidos). Histórico completo continua acessível a
+  quem clonar o repositório — apenas o snapshot `v6.0.0` sai limpo.
+- Removido `Zebtrack.lnk` (atalho do Windows); `.mcp.json` destraqueado
+  (permanece local, coberto por `.gitignore`).
+
+### Metadados de arquivamento
+
+- Adicionado `.zenodo.json` na raiz — metadados completos (autores, ORCID,
+  licença, INPI, FAPESP) para o Zenodo ler no momento do release.
+- `CITATION.cff` atualizado para 6.0.0, com identificador de registro INPI e
+  slot de DOI pronto para preencher após o mint.
 
 ## [4.0.0] - 2026-03-29
 

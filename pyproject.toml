@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "drerio-logai"
-version = "4.0.0"
+version = "6.0.0"
 description = "AI-powered tracking and behavioral analysis for Danio rerio (zebrafish) research. Automates video tracking, behavioral metrics, and scientific report generation."
 authors = [
     "Marco Antonio Sant'Ana Camargos <marco.sant@unesp.br>",
