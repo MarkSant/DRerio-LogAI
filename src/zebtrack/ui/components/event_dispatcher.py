@@ -11,9 +11,10 @@ from typing import TYPE_CHECKING, Any, cast
 
 import structlog
 
+from zebtrack.core.exceptions import ValidationError, ZebTrackError
 from zebtrack.i18n import _
 from zebtrack.ui import payloads as payloads
-from zebtrack.ui.event_bus_v2 import EventBusV2, UIEvents
+from zebtrack.ui.event_bus_v2 import Event, EventBusV2, UIEvents
 from zebtrack.ui.sentinels import no_day_label, no_group_label, not_reported_label
 
 if TYPE_CHECKING:
@@ -1074,14 +1075,48 @@ class EventDispatcher:
         """Handle DETECTOR_UPDATE_PARAMETERS event.
 
         Applies ROI inclusion settings via the hardware ViewModel.
+
+        The call raises on a bad parameter value. This runs inside an EventBusV2
+        subscriber, so an escaping exception would surface as a Tk callback
+        traceback on stderr and nothing else — the researcher would see the
+        click do nothing. Both failures are routed to UI_SHOW_ERROR instead.
         """
         gui = self._require_gui()
         if not gui:
             return
 
         params = _payload_to_dict(data)
-        if params and gui.controller:
+        if not params or not gui.controller:
+            return
+
+        try:
             gui.controller.hardware_vm.update_detector_parameters(params)
+        except ValidationError as exc:
+            log.info("event_dispatcher.apply_roi_settings.rejected", error=str(exc))
+            self._publish_error(gui, _("Validation Error"), str(exc))
+        except ZebTrackError:
+            log.exception("event_dispatcher.apply_roi_settings.failed")
+            self._publish_error(
+                gui,
+                _("Error"),
+                _("Could not apply the detector parameters. See the log for details."),
+            )
+
+    @staticmethod
+    def _publish_error(gui: "ApplicationGUI", title: str, message: str) -> None:
+        """Publish UI_SHOW_ERROR, falling back to the dialog manager."""
+        bus = getattr(gui.controller, "ui_event_bus", None)
+        if bus is not None:
+            bus.publish(
+                Event(
+                    type=UIEvents.UI_SHOW_ERROR,
+                    data=payloads.MessagePayload(title=title, message=message),
+                )
+            )
+            return
+        dialog_manager = getattr(gui, "dialog_manager", None)
+        if dialog_manager is not None:
+            dialog_manager.show_error(title, message)
 
     def _on_persist_roi_settings(self, data: payloads.EventPayload) -> None:
         """Handle ZONE_APPLY_ROI_SETTINGS — persist the ROI rule.

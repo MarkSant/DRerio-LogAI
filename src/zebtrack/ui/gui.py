@@ -25,6 +25,7 @@ except ImportError:  # pragma: no cover - optional dependency fallback
     ttkb = cast(Any, None)
 
 # Import custom modules
+from zebtrack.core.exceptions import ValidationError, ZebTrackError
 from zebtrack.core.services.roi_rule_resolver import (
     DEFAULT_BUFFER_RADIUS_VALUE,
     DEFAULT_MIN_BBOX_OVERLAP_RATIO,
@@ -727,9 +728,24 @@ class ApplicationGUI:
         """Apply ROI settings. Delegates to EventBusV2 / hardware ViewModel.
 
         Kept as thin stub for backward compatibility with tests.
+
+        The delegate raises on an out-of-range value, so the same boundary the
+        event-driven path has applies here; without it the exception would only
+        reach Tk's stderr traceback.
         """
-        if params and self.controller:
+        if not params or not self.controller:
+            return
+        try:
             self.controller.hardware_vm.update_detector_parameters(params)
+        except ValidationError as exc:
+            log.info("gui.apply_roi_settings.rejected", error=str(exc))
+            self.dialog_manager.show_error(_("Validation Error"), str(exc))
+        except ZebTrackError:
+            log.exception("gui.apply_roi_settings.failed")
+            self.dialog_manager.show_error(
+                _("Error"),
+                _("Could not apply the detector parameters. See the log for details."),
+            )
 
     def _remove_selected_roi_confirm(self) -> None:
         """Remove the selected ROI after user confirmation.

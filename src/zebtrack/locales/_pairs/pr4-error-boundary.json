@@ -1,0 +1,8 @@
+{
+  "_comment": "PR4: detector-parameter error boundary. These exception messages used to reach nothing but stderr, so they were never user-visible and never translated. Making them reach a dialog reclassifies them as interface text.",
+  "Invalid scope: {scope}. It must be 'global' or 'project'.": "Escopo inválido: {scope}. Deve ser 'global' ou 'project'.",
+  "Invalid detector parameter: {detail}": "Parâmetro do detector inválido: {detail}",
+  "Could not apply the detector parameters. See the log for details.": "Não foi possível aplicar os parâmetros do detector. Consulte o log para detalhes.",
+  "Unexpected Error": "Erro Inesperado",
+  "An unexpected error occurred and was recorded in the log.\n\n{error_type}: {error}": "Ocorreu um erro inesperado e ele foi registrado no log.\n\n{error_type}: {error}"
+}

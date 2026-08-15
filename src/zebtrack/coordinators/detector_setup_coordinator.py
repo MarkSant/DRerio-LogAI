@@ -17,10 +17,13 @@ import structlog
 
 from zebtrack.coordinators.base_coordinator import (
     BaseCoordinator,
+    CoordinatorError,
     CoordinatorValidationError,
 )
 from zebtrack.core.detection import MultiAquariumZoneData, ZoneData
+from zebtrack.core.exceptions import ValidationError
 from zebtrack.core.state_manager import StateCategory
+from zebtrack.i18n import _
 
 if TYPE_CHECKING:
     from zebtrack.core.services.detector_service import DetectorService
@@ -32,8 +35,19 @@ if TYPE_CHECKING:
 log = structlog.get_logger()
 
 
-class DetectorSetupCoordinatorError(Exception):
-    """Base exception for DetectorSetupCoordinator errors."""
+class DetectorSetupCoordinatorError(CoordinatorError):
+    """Operational failure of a DetectorSetupCoordinator workflow.
+
+    This is the "something broke" type: a plugin that would not load, a
+    service that raised, a state update that failed. Its message describes
+    internals and is meant for the log, so a UI boundary should answer it with
+    a generic message rather than rendering ``str(exc)`` to the researcher.
+
+    A value the user typed being out of range is NOT this — that raises
+    ``zebtrack.core.exceptions.ValidationError``, whose message is written for
+    the user. The two were the same type until this split, which is why the
+    panel had no way to tell them apart and caught neither.
+    """
 
     def __init__(self, message: str, context: dict[str, Any] | None = None):
         """Initialize exception with message and optional context.
@@ -42,8 +56,7 @@ class DetectorSetupCoordinatorError(Exception):
             message: Error message
             context: Optional context dictionary
         """
-        super().__init__(message)
-        self.context = context or {}
+        super().__init__(message, coordinator="DetectorSetupCoordinator", context=context)
 
 
 class DetectorSetupCoordinator(BaseCoordinator):
@@ -520,8 +533,12 @@ class DetectorSetupCoordinator(BaseCoordinator):
 
         Raises:
             CoordinatorValidationError: If dependencies are invalid
-            DetectorSetupCoordinatorError: If parameter update fails
-            ValueError: If scope or parameter values are invalid
+            ValidationError: If a supplied parameter value is out of range or
+                the scope is not recognised. Its message is user-facing and is
+                rendered verbatim by the panels that call this.
+            DetectorSetupCoordinatorError: If the update fails for any other
+                reason (service raised, state update failed, ...). Its message
+                describes internals and belongs in the log, not in a dialog.
         """
         # Validate dependencies
         if not self.validate_dependencies():
@@ -532,7 +549,10 @@ class DetectorSetupCoordinator(BaseCoordinator):
 
         # Validate scope
         if scope not in {"global", "project"}:
-            raise ValueError(f"Invalid scope: {scope}. Must be 'global' or 'project'")
+            raise ValidationError(
+                _("Invalid scope: {scope}. It must be 'global' or 'project'.").format(scope=scope),
+                details={"params": params, "scope": scope},
+            )
 
         # Delegate to service
         try:
@@ -582,9 +602,16 @@ class DetectorSetupCoordinator(BaseCoordinator):
                 error=str(e),
                 params=params,
             )
-            raise DetectorSetupCoordinatorError(
-                f"Parameter validation failed: {e}",
-                context={"params": params, "scope": scope},
+            # ValidationError, not DetectorSetupCoordinatorError: a value outside
+            # its range is the researcher's typo, and the panel renders this text
+            # verbatim in the dialog. Wrapping it in the operational type is what
+            # made the panel's `except` miss — pydantic's ValidationError, the
+            # coordinator's own error, and this one were three unrelated classes.
+            # The technical detail stays English on purpose: it names the
+            # parameter key as it appears in config.yaml.
+            raise ValidationError(
+                _("Invalid detector parameter: {detail}").format(detail=e),
+                details={"params": params, "scope": scope},
             ) from e
         except Exception as e:  # except Exception justified: service boundary catch-all
             log.error(

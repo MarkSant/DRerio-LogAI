@@ -7,8 +7,8 @@ from tkinter import BooleanVar, StringVar, filedialog, messagebox, ttk
 from typing import Any
 
 import structlog
-from pydantic import ValidationError
 
+from zebtrack.core.exceptions import ValidationError, ZebTrackError
 from zebtrack.i18n import _
 from zebtrack.ui import payloads
 from zebtrack.ui.event_bus_v2 import Event, UIEvents
@@ -639,8 +639,24 @@ class ModelDiagnosticsPanel(ttk.Frame):
                     "scope": self.scope,
                 }
             )
+        # Two boundaries, because the two failures need different answers.
+        # ValidationError carries a message written for the researcher; it is the
+        # one that gets rendered verbatim. Any other ZebTrackError is an internal
+        # failure whose text names services and plugins — logged in full, shown
+        # as a generic message. Before this split the panel caught pydantic's
+        # ValidationError, which nothing in this call chain ever raises, so an
+        # out-of-range value produced no dialog at all.
         except ValidationError as exc:
+            log.info("model_diagnostics.apply_parameters.rejected", error=str(exc))
             messagebox.showerror(_("Error"), str(exc), parent=self)
+            return
+        except ZebTrackError:
+            log.exception("model_diagnostics.apply_parameters.failed", scope=self.scope)
+            messagebox.showerror(
+                _("Error"),
+                _("Could not apply the detector parameters. See the log for details."),
+                parent=self,
+            )
             return
 
         if updated:
