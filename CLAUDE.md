@@ -71,6 +71,33 @@ poetry run pre-commit run --all-files
 
 > **Auto-approval**: all `poetry`, `mypy`, `ruff`, `pytest`, `pre-commit`, and `powershell -Command` calls are pre-approved. Run them with `SafeToAutoRun: true` without asking.
 
+### 🌳 Working inside a git worktree — do this FIRST
+
+```bash
+source scripts/wt-env.sh      # PowerShell: . .\scripts\wt-env.ps1
+```
+
+Run it once per shell, **before** the first `pytest`/`mypy`/`ruff` and before any
+`git commit` or `git push`. Two traps make it mandatory, and only one of them
+announces itself:
+
+- **The worktree's `.venv` is a poetry stub** — Python 3.14 with pip and nothing
+  else, while the project runs on 3.12. `mypy`, `pytest` and `ruff` are absent,
+  so every pre-commit/pre-push hook that shells out to them dies with
+  `'mypy' is not recognized`. Loud, but it hits at `git push`, after the work is
+  done. Never answer it with `--no-verify`: those hooks are the CI gates.
+- **`.venv/Lib/site-packages/drerio_logai.pth` hardcodes the MAIN repo's `src`.**
+  Borrowing the main venv without fixing `PYTHONPATH` runs *main's* code from
+  inside your worktree — the suite goes green without touching one line of your
+  branch. This one is silent, and it is the reason to source the script rather
+  than just putting the venv on `PATH` by hand.
+
+Git hooks inherit the environment of the process that launches them, so sourcing
+once makes commit and push work with the real gates running.
+
+Avoid `poetry run` inside a worktree — it selects that stub 3.14 venv. Use the
+bare tool names after sourcing.
+
 ---
 
 ## Architecture (MVVM-S + DI)
