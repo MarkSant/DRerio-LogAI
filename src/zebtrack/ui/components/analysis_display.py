@@ -168,7 +168,7 @@ class AnalysisDisplayWidget(BaseWidget):
         controls_frame = ttk.Frame(self, padding=(0, 4))
         controls_frame.pack(fill="x", pady=(4, 0))
 
-        ttk.Label(controls_frame, text="Track ID ativo:").grid(row=0, column=0, sticky="w")
+        ttk.Label(controls_frame, text=_("Active track ID:")).grid(row=0, column=0, sticky="w")
 
         self.track_selector_widget = ttk.Combobox(
             controls_frame,

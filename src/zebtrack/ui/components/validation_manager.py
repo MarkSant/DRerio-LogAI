@@ -875,7 +875,7 @@ class ValidationManager:
         lower_value = value_str.lower()
         # "sem dia" is what existing projects and metadata already contain; it is
         # recognized on input and rendered through the localized label.
-        if lower_value in ("sem dia", no_day_label().lower()):
+        if lower_value in ("sem dia", no_day_label().lower()):  # i18n: not-ui
             return no_day_label()
         match = re.search(r"(\d+)", value_str)
         if match:
@@ -1050,7 +1050,7 @@ class ValidationManager:
 
         # Handle string
         value_str = str(value).strip()
-        if not value_str or value_str.lower() == "sem dia":
+        if not value_str or value_str.lower() == "sem dia":  # i18n: not-ui — day id space
             return "Sem Dia"
 
         # Try to extract numeric day
@@ -1098,11 +1098,11 @@ class ValidationManager:
         candidate_str = str(candidate).strip()
         if not candidate_str:
             candidate_str = no_day_label()
-        if candidate_str.lower() in ("sem dia", no_day_label().lower()):
+        if candidate_str.lower() in ("sem dia", no_day_label().lower()):  # i18n: not-ui
             return no_day_label()
         # Do not prefix twice. Both spellings are checked because existing
         # metadata may already carry a Portuguese "Dia N" day_label.
-        if candidate_str.lower().startswith(("dia ", f"{day_prefix().lower()} ")):
+        if candidate_str.lower().startswith(("dia ", f"{day_prefix().lower()} ")):  # i18n: not-ui
             return candidate_str
         return f"{day_prefix()} {candidate_str}"
 
@@ -1155,7 +1155,7 @@ class ValidationManager:
             value = metadata.get(key)
             if value not in (None, "", "None"):
                 formatted = self._format_day_display(value)
-                if formatted.lower() in ("sem dia", no_day_label().lower()):
+                if formatted.lower() in ("sem dia", no_day_label().lower()):  # i18n: not-ui
                     return no_day_label()
                 return f"{day_prefix()} {formatted}"
 
@@ -1410,9 +1410,9 @@ class ValidationManager:
         # stay in their original spelling so tree grouping is stable and matches
         # what earlier versions produced; only the *_display values below are
         # localized.
-        group_id = group_override or metadata.get("group") or "Sem Grupo"
+        group_id = group_override or metadata.get("group") or "Sem Grupo"  # i18n: not-ui
         group_display = metadata.get("group_display_name") or (
-            no_group_label() if group_id == "Sem Grupo" else group_id
+            no_group_label() if group_id == "Sem Grupo" else group_id  # i18n: not-ui
         )
         raw_day = day_override or metadata.get("day") or "Sem Dia"
 

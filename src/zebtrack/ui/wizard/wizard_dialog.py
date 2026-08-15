@@ -113,7 +113,7 @@ class WizardDialog(Dialog):
         log.info("wizard.opened")
 
         # Call parent constructor (will call body())
-        super().__init__(parent, title="DRerio LogAI - Novo Projeto")
+        super().__init__(parent, title=_("DRerio LogAI - New Project"))
 
         # Set application icon
         from zebtrack.ui.icon_utils import set_window_icon
@@ -277,7 +277,9 @@ class WizardDialog(Dialog):
             # Update window title with step number
             step_number = step_index + 1
             total_steps = len(self.active_steps)
-            title_text = f"DRerio LogAI - Assistente de Projeto (Etapa {step_number}/{total_steps})"
+            title_text = _("DRerio LogAI - Project Wizard (Step {current}/{total})").format(
+                current=step_number, total=total_steps
+            )
             self.title(title_text)
 
             log.info(
@@ -498,8 +500,8 @@ class WizardDialog(Dialog):
         # Ask for confirmation if user has entered data
         if self.current_step_index > 0:
             confirm = messagebox.askyesno(
-                "Cancelar",
-                "Descartar rascunho do projeto?",
+                _("Cancel"),
+                _("Discard the project draft?"),
                 parent=self,
                 icon="warning",
             )

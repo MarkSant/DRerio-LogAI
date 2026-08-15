@@ -100,13 +100,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   inglês, e sim um app incapaz de ler os projetos que ele mesmo gravou. A lista
   vive em `scripts/i18n_allowlist.txt`.
 
-#### Limitação conhecida
+### Varredura de português sem acento (i18n — fecha a limitação da fase 3)
 
-- **O scanner só enxerga português ACENTUADO.** `Salvar`, `Nenhum video`,
-  `Remover`, `dias` e afins passam por ele e pelo ratchet sem serem vistos —
-  foi exatamente assim que os status de `coordinators/` e `core/recording/`
-  sobreviveram dentro de pacotes já travados. Uma varredura dedicada a português
-  sem acento continua pendente.
+- **O scanner deixou de ser cego a português sem acento.** `scripts/i18n_scan.py`
+  ganhou um segundo passe, por lista de palavras (`PORTUGUESE_WORDS`), que
+  encontra `Salvar projeto`, `Gravando`, `Nenhum video` e afins. Os achados são
+  rotulados `[accent]` ou `[word]` e podem ser filtrados com `--kind`. Uma
+  palavra só entra na lista se for portuguesa **e não for também inglesa** —
+  `ate`, `anterior`, `data`, `taxa` e `cores` ficam de fora de propósito, e
+  `tests/i18n/test_scanner_unaccented_pass.py` trava essa regra.
+- **123 literais apareceram** e foram migrados. Quase todos estavam **ao lado de
+  uma chamada `_()` já traduzida**, no mesmo arquivo e muitas vezes na mesma
+  função: `arduino_manager` misturava os dois no mesmo `_notify_log`;
+  `wizard_service.validate_experimental_design` tinha `_()` nos dois primeiros
+  `return` e português cru nos cinco seguintes; `hardware_benchmark` traduziu os
+  passos 2/3/4/6 e deixou 1 e 5; `config_validator` traduziu três das quatro
+  checagens de faixa.
+- **Um dos achados era inconsistência de ESQUEMA, não de idioma.** A fase 3
+  anglicizou os cabeçalhos de geotaxia no ramo dimensionado de
+  `rename_geotaxis_columns` (`Fundo`→`Bottom`) e não tocou no ramo de fallback,
+  duplicado em `data_transformer` e `word_reporter`: a mesma análise gerava
+  `Bottom (0.0-5.0cm) [%]` ou `Geotaxis Zona 1 - Fundo (%)` conforme as dimensões
+  do aquário estivessem disponíveis. Os dois fallbacks agora são inglês fixo,
+  sem `_()`, como manda a regra de cabeçalho exportado.
+- **A allowlist escondia texto de interface REAL.** Ela casa por substring, e a
+  entrada `grupo` — necessária para uma única chave de dict — isentava toda
+  frase que contivesse a palavra. Sete strings acentuadas passavam despercebidas
+  por causa disso, duas delas tooltips de vários parágrafos do wizard, enquanto o
+  scanner anunciava `TOTAL: 0`. Padrões agora podem ser escritos `=grupo` para
+  casar apenas o literal inteiro.
+- **Português que é COMPARADO, não exibido**, ganhou marcador de linha
+  `# i18n: not-ui` (grafia gravada de `"sem dia"`, prefixo `"dia "`, chave de
+  agrupamento `"Sem Grupo"`, nomes de aba do `.xlsx`, um regex de ACK). O
+  marcador é local e exige justificativa escrita na linha; alargar a allowlist
+  para isso silenciaria rótulos legítimos em todo o repositório.
+- **Duas colisões de msgid foram barradas antes de entrar no catálogo**, onde
+  `i18n_pairs.py` teria mantido a primeira e descartado a segunda em silêncio:
+  `File: {name}` (gravado com outro nome de placeholder) e `Pending`, cujo texto
+  pt_BR é o plural `Pendentes` por rotular uma contagem — a linha por sujeito do
+  bloco recebeu msgid próprio, `Not recorded`.
 
 ### Interface em inglês por padrão, português selecionável (i18n — fase 1/3)
 

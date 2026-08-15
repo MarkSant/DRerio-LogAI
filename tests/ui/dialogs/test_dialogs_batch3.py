@@ -81,7 +81,14 @@ class TestSubjectSelectionDialog:
         assert "Grupo B" in dialog.wm_title()
 
     def test_dialog_title_with_no_day(self, tkinter_root):
-        """Test dialog title formats 'sem dia' correctly."""
+        """The stored "Sem Dia" sentinel is recognised and rendered localized.
+
+        The mock returns the Portuguese spelling that existing projects carry on
+        disk; the title must show the translated label instead of leaking the
+        stored token through to the user.
+        """
+        from zebtrack.ui.sentinels import no_day_label
+
         with patch(
             "zebtrack.ui.dialogs.subject_selection_dialog.format_day_display"
         ) as mock_format:
@@ -95,7 +102,8 @@ class TestSubjectSelectionDialog:
             )
             tkinter_root.update_idletasks()
 
-            assert "Sem Dia" in dialog.wm_title()
+            assert no_day_label() in dialog.wm_title()
+            assert "Sem Dia" not in dialog.wm_title()
 
     # --- Body Tests ---
 

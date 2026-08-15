@@ -167,7 +167,7 @@ class AquariumDetectionProgressDialog(tk.Toplevel):
 
         self.thumbnail_label = ttk.Label(
             thumbnail_frame,
-            text="Aguardando frames...",
+            text=_("Waiting for frames..."),
             anchor=tk.CENTER,
         )
         self.thumbnail_label.pack(fill=tk.BOTH, expand=True)

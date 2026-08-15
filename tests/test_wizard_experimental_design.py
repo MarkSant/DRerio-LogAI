@@ -45,8 +45,8 @@ def test_experimental_design_validates_empty_group_name(step):
     valid, msg = step.validate()
 
     assert not valid
-    assert "vazio" in msg.lower()
-    # Message says "Nomes de grupos não podem estar vazios" without specifying which one
+    assert "empty" in msg.lower()
+    # Message says "Group names cannot be empty" without specifying which one
 
 
 def test_experimental_design_validates_duplicate_names(step):
@@ -58,7 +58,7 @@ def test_experimental_design_validates_duplicate_names(step):
     valid, msg = step.validate()
 
     assert not valid
-    assert "únicos" in msg.lower() or "duplicado" in msg.lower()
+    assert "unique" in msg.lower() or "duplicate" in msg.lower()
 
 
 def test_experimental_design_valid_configuration(step):
@@ -165,7 +165,7 @@ def test_experimental_design_validation_trims_before_checking(step):
 
     # Should detect as duplicates after trimming
     assert not valid
-    assert "únicos" in msg.lower()
+    assert "unique" in msg.lower()
 
     # And should have trimmed the values
     assert step.group_name_vars[0].get() == "Grupo A"

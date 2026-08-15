@@ -257,7 +257,7 @@ class DetectorService:
 
         except (ValueError, FileNotFoundError, IntegrityError) as e:
             log.error("detector_service.initialize.failed", error=str(e), exc_info=True)
-            error_msg = f"Falha ao inicializar o detector: {e}"
+            error_msg = _("Failed to initialize the detector: {error}").format(error=e)
             return False, error_msg
 
     # Detector hyperparameter overrides currently honored on the plugin

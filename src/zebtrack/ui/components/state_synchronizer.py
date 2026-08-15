@@ -826,7 +826,7 @@ class StateSynchronizer:
                 # message, a different field. Kept tolerant rather than matched
                 # exactly, because a prefix check on displayed text is precisely
                 # what translation breaks.
-                for prefix in ("etapa:", "step:"):
+                for prefix in ("etapa:", "step:"):  # i18n: not-ui — legacy prefix strip
                     if step_text.lower().startswith(prefix):
                         step_text = step_text[len(prefix) :].strip()
                         break

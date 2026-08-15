@@ -436,7 +436,7 @@ class ProjectInitializer:
                 )
             )
 
-        ready_message = f"Projeto: {pm.get_project_name()} - Pronto."
+        ready_message = _("Project: {name} - Ready.").format(name=pm.get_project_name())
         gui.set_status(ready_message)
         gui.video_selector_manager.request_overview_refresh(reason=ready_message)
 

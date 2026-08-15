@@ -1385,7 +1385,7 @@ class ProjectWorkflowService:
             pending=videos_pending,
         )
 
-        return {"title": "Bem-vindo ao Projeto!", "message": message}
+        return {"title": _("Welcome to the Project!"), "message": message}
 
     # === Wizard Data Enrichment (Moved from wizard_adapter.py) ===
 
@@ -1424,7 +1424,7 @@ class ProjectWorkflowService:
             return None
 
         lower_value = value_str.lower()
-        if lower_value == "sem dia":
+        if lower_value == "sem dia":  # i18n: not-ui — stored metadata spelling
             return "Sem Dia"
 
         match = re.search(r"(\d+)", value_str)

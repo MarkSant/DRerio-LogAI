@@ -235,14 +235,14 @@ class ExperimentalDesignStep(WizardStep):
 
         ToolTip(
             subjects_frame,
-            (
-                "Animais por Grupo\n\n"
-                "Quantos animais em cada grupo experimental.\n\n"
-                "Exemplo: 5 animais/grupo\n"
-                "• Grupo Controle: 5 animais\n"
-                "• Grupo Tratamento: 5 animais\n"
-                "Total: 10 animais\n\n"
-                "Você pode digitar diretamente ou usar os botões +/-."
+            _(
+                "Animals per Group\n\n"
+                "How many animals in each experimental group.\n\n"
+                "Example: 5 animals/group\n"
+                "• Control Group: 5 animals\n"
+                "• Treatment Group: 5 animals\n"
+                "Total: 10 animals\n\n"
+                "You can type directly or use the +/- buttons."
             ),
         )
 
@@ -272,14 +272,14 @@ class ExperimentalDesignStep(WizardStep):
 
         ToolTip(
             groups_frame,
-            (
-                "Número de Grupos Experimentais\n\n"
-                "Quantos grupos diferentes você terá.\n\n"
-                "Exemplos:\n"
-                "• 1 grupo: Apenas um tratamento\n"
-                "• 2 grupos: Controle vs. Tratamento\n"
-                "• 3+ grupos: Múltiplos tratamentos ou doses\n\n"
-                "Você pode digitar diretamente ou usar os botões +/-."
+            _(
+                "Number of Experimental Groups\n\n"
+                "How many different groups you will have.\n\n"
+                "Examples:\n"
+                "• 1 group: A single treatment\n"
+                "• 2 groups: Control vs. Treatment\n"
+                "• 3+ groups: Multiple treatments or doses\n\n"
+                "You can type directly or use the +/- buttons."
             ),
         )
 

@@ -76,7 +76,7 @@ class CommonWidgetsBuilder:
             candidate_str = no_day_label()
         # "sem dia" is what existing metadata contains; both spellings map to
         # the localized label.
-        if candidate_str.lower() in ("sem dia", no_day_label().lower()):
+        if candidate_str.lower() in ("sem dia", no_day_label().lower()):  # i18n: not-ui
             return no_day_label()
         return f"{day_prefix()} {candidate_str}"
 
@@ -267,7 +267,7 @@ class CommonWidgetsBuilder:
 
                 ttk_bootstrap.Label(
                     self.gui.welcome_frame,
-                    text="Bem-vindo ao DRerio LogAI",
+                    text=_("Welcome to DRerio LogAI"),
                     font=("Helvetica", 16),
                 ).pack(pady=(0, 15))
                 log.warning("welcome.logo.not_found", attempted_path=str(logo_path))
@@ -277,7 +277,7 @@ class CommonWidgetsBuilder:
 
             ttk_bootstrap.Label(
                 self.gui.welcome_frame,
-                text="Bem-vindo ao DRerio LogAI",
+                text=_("Welcome to DRerio LogAI"),
                 font=("Helvetica", 16),
             ).pack(pady=(0, 15))
             log.warning("welcome.logo.load_error", error=str(e))

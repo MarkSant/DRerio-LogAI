@@ -34,6 +34,7 @@ from zebtrack.core.detection.detection_post_processor import DetectionPostProces
 from zebtrack.core.detection.multi_aquarium_detector import MultiAquariumDetector
 from zebtrack.core.detection.zone_scaler import ZoneScaler
 from zebtrack.core.video.shared_frame_buffer import SharedFrameBuffer
+from zebtrack.i18n import _
 from zebtrack.io.recorder import Recorder
 
 # Settings is used at runtime in WorkerConfig
@@ -519,7 +520,11 @@ class _WorkerProcess(multiprocessing.Process):
                 )
 
                 self._send_progress(
-                    index, total_videos, 0.0, f"Iniciando: {experiment_id}", experiment_id
+                    index,
+                    total_videos,
+                    0.0,
+                    _("Starting: {name}").format(name=experiment_id),
+                    experiment_id,
                 )
 
                 try:
@@ -1323,7 +1328,7 @@ class _WorkerProcess(multiprocessing.Process):
                             index,
                             total_videos,
                             frame_num / total_frames if total_frames > 0 else 0,
-                            "Processando...",
+                            _("Processing..."),
                             experiment_id,
                             stats=stats,
                         )

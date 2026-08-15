@@ -6,6 +6,13 @@
 # the pattern (case-sensitive), so "Grupo_" covers "Grupo_{group}" and
 # "Grupo_Sem_Grupo" alike.
 #
+# A pattern written "=grupo" matches only when the literal is EXACTLY that.
+# Use it for any protected token that is also an ordinary Portuguese word:
+# as a substring, "grupo" exempted every sentence containing the word and hid
+# seven real interface strings from the scanner while it reported TOTAL: 0.
+# Prefer "=" whenever the protected value is a complete literal (a dict key, a
+# sentinel, a column name) rather than a prefix that gets formatted into.
+#
 # Everything here is a persistence contract: a value written to disk, used to
 # build a path, or used as a dictionary key that reaches Parquet/JSON/XLSX.
 # Translating one of these does not produce an English app -- it produces an app
@@ -21,6 +28,28 @@ Dia_
 Sujeito_
 Sem_Grupo
 Indefinido
+
+# Live-calibration reference frame zones live in their own directory at the
+# project root rather than under the Grupo_/Dia_/Sujeito_ fallback.
+# output_registration_manager.py:33
+Zonas_Referencia
+
+# --- Generated output file names --------------------------------------------
+# "Dia" also appears as an INFIX, which the "Dia_" pattern above does not
+# cover: batch ids (manual_{group}_Dia{n}_{stamp}), per-aquarium result folders
+# ({group}_{subject}_Dia{n}) and partial-report basenames
+# (PartialReport_Dia{n}_{group}). Renaming any of them orphans existing output
+# trees and the globs that rescan them.
+# coordinators/live_batch_coordinator.py:513, report_generation_coordinator.py:323
+# ui/dialogs/block_detail_dialog.py:1270, utils/report_files.py:93
+_Dia
+
+# Report basenames. The live and pre-recorded flows deliberately agree on this
+# prefix so the Reports tree can treat both uniformly -- see the comment at
+# core/recording/live_analysis_post_processor.py:549-552.
+# report_generation_coordinator.py:940, analysis_control_view_model.py:491
+Relatorio_
+Sumario_
 
 # --- session_duration_overrides composite keys ------------------------------
 # Built by core/services/session_duration_resolver.duration_override_key() and
@@ -74,9 +103,13 @@ curvas_acentuadas_por_minuto
 grupo_id
 
 # --- bilingual lookup keys kept for backward compatibility ------------------
-# analysis/data_transformer.py GROUP_ID_FALLBACK_KEYS, utils/report_files.py
-grupo
-resumo
+# Exact-match only. Each is a complete literal, never part of a sentence:
+#   "grupo"  data_transformer.py:161 GROUP_ID_FALLBACK_KEYS (dict key),
+#            validation_manager.py:1349 (path-safe fallback name),
+#            block_detail_dialog.py:1084 (DataFrame/XLSX column name)
+#   "resumo" utils/report_files.py:9 _PRIMARY_SUMMARY_TOKENS (filename token)
+=grupo
+=resumo
 
 # --- in-memory sentinel values compared by identity across modules ----------
 # These are NOT persisted, but they are compared with == in files far from

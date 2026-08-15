@@ -104,7 +104,7 @@ class DiagnosticProgressDialog(Toplevel):
             self.progress_bar["value"] = percentage
             self.status_var.set(f"Frame {current}/{total} ({percentage}%)")
         else:
-            self.status_var.set("Processando...")
+            self.status_var.set(_("Processing..."))
 
         self.update_idletasks()
 
@@ -119,7 +119,7 @@ class DiagnosticProgressDialog(Toplevel):
 
         cancel_btn = Button(
             box,
-            text="Cancelar",
+            text=_("Cancel"),
             width=10,
             command=self.cancel,
         )
@@ -131,8 +131,8 @@ class DiagnosticProgressDialog(Toplevel):
     def cancel(self, event=None):
         """Handle cancel action."""
         self.user_cancelled = True
-        self.progress_var.set("Cancelando...")
-        self.status_var.set("Aguarde o processamento atual terminar...")
+        self.progress_var.set(_("Cancelling..."))
+        self.status_var.set(_("Wait for the current processing to finish..."))
         # Don't destroy immediately - let the worker thread finish current frame
         # The controller will destroy this dialog when it detects cancellation
 

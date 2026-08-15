@@ -75,7 +75,7 @@ def test_arduino_manager_connect_success(mock_controller, arduino_factory, mock_
 
     mock_arduino.connect.assert_called_once()
     mock_controller.on_arduino_status_change.assert_called_with(True, "COM3")
-    mock_controller.log_arduino_event.assert_called_with("Arduino conectado na porta COM3.")
+    mock_controller.log_arduino_event.assert_called_with("Arduino connected on port COM3.")
 
     # Cleanup
     manager.disconnect()
@@ -155,7 +155,7 @@ def test_arduino_manager_disconnect(mock_controller, arduino_factory, mock_ardui
 
     mock_arduino.close.assert_called()
     mock_controller.on_arduino_status_change.assert_called_with(False, None)
-    mock_controller.log_arduino_event.assert_called_with("Arduino desconectado.")
+    mock_controller.log_arduino_event.assert_called_with("Arduino disconnected.")
 
 
 def test_arduino_manager_is_connected_when_connected(
@@ -214,7 +214,7 @@ def test_arduino_manager_send_command_success(mock_controller, arduino_factory, 
     assert manager.last_command() == 42
 
     mock_arduino.send_command.assert_called_once_with(42)
-    mock_controller.log_arduino_event.assert_any_call("Comando 42 enviado ao Arduino.")
+    mock_controller.log_arduino_event.assert_any_call("Command 42 sent to the Arduino.")
     mock_controller.on_arduino_command_sent.assert_called_with(42, True, "auto")
 
     manager.disconnect()
@@ -258,7 +258,7 @@ def test_arduino_manager_send_command_exception(mock_controller, arduino_factory
 
     assert result is False
 
-    mock_controller.log_arduino_event.assert_any_call("Falha ao enviar comando 42 ao Arduino.")
+    mock_controller.log_arduino_event.assert_any_call("Failed to send command 42 to the Arduino.")
     mock_controller.on_arduino_command_sent.assert_called_with(42, False, "auto")
 
     manager.disconnect()

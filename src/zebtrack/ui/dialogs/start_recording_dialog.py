@@ -95,17 +95,19 @@ class StartRecordingDialog(simpledialog.Dialog):
 
         # --- Layout ---
         # Day Dropdown
-        Label(master, text="Selecione o Dia:").grid(row=0, column=0, sticky="w", padx=5, pady=5)
+        Label(master, text=_("Select the Day:")).grid(row=0, column=0, sticky="w", padx=5, pady=5)
         day_menu = OptionMenu(master, self.day_var, *day_opts)
         day_menu.grid(row=0, column=1, sticky="ew", padx=5)
 
         # Group Dropdown
-        Label(master, text="Selecione o Grupo:").grid(row=1, column=0, sticky="w", padx=5, pady=5)
+        Label(master, text=_("Select the Group:")).grid(row=1, column=0, sticky="w", padx=5, pady=5)
         group_menu = OptionMenu(master, self.group_var, *groups)
         group_menu.grid(row=1, column=1, sticky="ew", padx=5)
 
         # Subject Dropdown
-        Label(master, text="Selecione a Cobaia:").grid(row=2, column=0, sticky="w", padx=5, pady=5)
+        Label(master, text=_("Select the Subject:")).grid(
+            row=2, column=0, sticky="w", padx=5, pady=5
+        )
         subject_opts = [str(s) for s in range(1, subjects + 1)]
         subject_menu = OptionMenu(master, self.subject_var, *subject_opts)
         subject_menu.grid(row=2, column=1, sticky="ew", padx=5)
@@ -209,7 +211,7 @@ class StartRecordingDialog(simpledialog.Dialog):
         button_row = ttk.Frame(chooser)
         button_row.grid(row=3, column=0, columnspan=2, pady=(5, 10))
         Button(button_row, text="OK", command=_on_ok, width=10).pack(side="left", padx=5)
-        Button(button_row, text="Cancelar", command=_on_cancel, width=10).pack(side="left", padx=5)
+        Button(button_row, text=_("Cancel"), command=_on_cancel, width=10).pack(side="left", padx=5)
 
         chooser.wait_window()
 

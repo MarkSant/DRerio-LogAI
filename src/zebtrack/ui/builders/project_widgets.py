@@ -59,14 +59,14 @@ class ProjectWidgetsBuilder:
     def create_progress_grid_tab(self) -> None:
         """Create the tab for viewing the experimental progress grid."""
         self.gui.progress_grid_frame = ttk.Frame(self.gui.notebook, padding="10")
-        self.gui.notebook.add(self.gui.progress_grid_frame, text="Progresso do Experimento")
+        self.gui.notebook.add(self.gui.progress_grid_frame, text=_("Experiment Progress"))
 
         self.gui.grid_container = ttk.Frame(self.gui.progress_grid_frame)
         self.gui.grid_container.pack(expand=True, fill="both")
 
         refresh_button = ttk.Button(
             self.gui.progress_grid_frame,
-            text="Atualizar Grade",
+            text=_("Refresh Grid"),
             command=self.render_progress_grid,
         )
         refresh_button.pack(side="bottom", pady=10)
@@ -132,7 +132,7 @@ class ProjectWidgetsBuilder:
             completed_blocks = self._get_completed_blocks(pm)
 
             ttk.Label(
-                self.gui.grid_container, text="Dia/Grupo", font=("Helvetica", 10, "bold")
+                self.gui.grid_container, text=_("Day/Group"), font=("Helvetica", 10, "bold")
             ).grid(row=0, column=0, padx=5, pady=5, sticky="nsew")
             for j, group_name in enumerate(groups):
                 ttk.Label(
@@ -202,7 +202,9 @@ class ProjectWidgetsBuilder:
             log.error("widget_factory.render_progress_grid.failed", error=str(e), exc_info=True)
             try:
                 ttk.Label(
-                    self.gui.grid_container, text=f"Erro ao renderizar grade: {e}", foreground="red"
+                    self.gui.grid_container,
+                    text=_("Error rendering the grid: {error}").format(error=e),
+                    foreground="red",
                 ).pack(pady=20)
             except tk.TclError:
                 log.debug("widget_factory.error_label.double_fault", exc_info=True)
@@ -247,7 +249,7 @@ class ProjectWidgetsBuilder:
                 log.debug("widget_factory.overview_frame_destroy.suppressed", exc_info=True)
 
         self.gui.project_overview_frame = ttk.LabelFrame(
-            parent, text="Resumo do Projeto", padding=10
+            parent, text=_("Project Summary"), padding=10
         )
         self.gui.project_overview_frame.pack(fill="both", expand=True, pady=(10, 10))
 

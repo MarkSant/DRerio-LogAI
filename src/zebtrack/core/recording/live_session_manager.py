@@ -1072,8 +1072,10 @@ class LiveSessionManagerMixin:
             from zebtrack.ui.event_bus_v2 import Event, UIEvents
             from zebtrack.ui.payloads import AnalysisTaskStatusPayload, StatusPayload
 
-            status_msg = (
-                f"● Gravando: {elapsed:.1f}s / {duration_s:.1f}s (Restante: {remaining:.1f}s)"
+            status_msg = _("● Recording: {elapsed}s / {total}s (Remaining: {remaining}s)").format(
+                elapsed=f"{elapsed:.1f}",
+                total=f"{duration_s:.1f}",
+                remaining=f"{remaining:.1f}",
             )
             self.event_bus.publish(
                 Event(type=UIEvents.UI_SET_STATUS, data=StatusPayload(message=status_msg)),
@@ -1091,7 +1093,9 @@ class LiveSessionManagerMixin:
                     type=UIEvents.UI_UPDATE_ANALYSIS_TASK_STATUS,
                     data=AnalysisTaskStatusPayload(
                         experiment_id=self._experiment_id,
-                        step=f"Gravando: {elapsed:.0f}s / {duration_s:.0f}s",
+                        step=_("Recording: {elapsed}s / {total}s").format(
+                            elapsed=f"{elapsed:.0f}", total=f"{duration_s:.0f}"
+                        ),
                         progress_fraction=fraction,
                     ),
                     source="live_session_manager.session_countdown",

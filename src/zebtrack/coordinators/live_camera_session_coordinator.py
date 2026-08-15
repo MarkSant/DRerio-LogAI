@@ -381,9 +381,11 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
             return None
 
         lower_text = text.lower()
+        # Both prefixes are the stored Portuguese spelling of a day, stripped
+        # off inherited metadata before the localized prefix is applied below.
         if lower_text.startswith("dia_"):
             text = text[4:]
-        elif lower_text.startswith("dia "):
+        elif lower_text.startswith("dia "):  # i18n: not-ui — stored metadata prefix
             text = text[4:]
 
         text = text.strip()

@@ -125,7 +125,9 @@ class ArduinoManager:
                     baud_rate=baud_rate,
                     exc_info=True,
                 )
-                self._notify_log(f"Falha ao inicializar o Arduino na porta {port}.")
+                self._notify_log(
+                    _("Failed to initialize the Arduino on port {port}.").format(port=port)
+                )
                 return False
 
             try:
@@ -150,7 +152,9 @@ class ArduinoManager:
                 )
                 candidate.close()
                 self._notify_status(False, port)
-                self._notify_log(f"Erro ao conectar ao Arduino na porta {port}.")
+                self._notify_log(
+                    _("Error connecting to the Arduino on port {port}.").format(port=port)
+                )
                 return False
 
             self.arduino = candidate
@@ -173,7 +177,7 @@ class ArduinoManager:
 
         log.info("arduino_manager.connect.success", port=port, baud_rate=baud_rate)
         self._notify_status(True, port)
-        self._notify_log(f"Arduino conectado na porta {port}.")
+        self._notify_log(_("Arduino connected on port {port}.").format(port=port))
         return True
 
     def disconnect(self) -> None:
@@ -184,7 +188,7 @@ class ArduinoManager:
             self._baud_rate = None
 
         self._notify_status(False, None)
-        self._notify_log("Arduino desconectado.")
+        self._notify_log(_("Arduino disconnected."))
 
     def is_connected(self) -> bool:
         """Checks whether the Arduino is connected and serial port is open.
@@ -248,9 +252,13 @@ class ArduinoManager:
 
         if success:
             self._last_command = command_value
-            self._notify_log(f"Comando {command_value} enviado ao Arduino.")
+            self._notify_log(
+                _("Command {command} sent to the Arduino.").format(command=command_value)
+            )
         else:
-            self._notify_log(f"Falha ao enviar comando {command_value} ao Arduino.")
+            self._notify_log(
+                _("Failed to send command {command} to the Arduino.").format(command=command_value)
+            )
 
         self._notify_command(command_value, success=success, source=source)
         return success

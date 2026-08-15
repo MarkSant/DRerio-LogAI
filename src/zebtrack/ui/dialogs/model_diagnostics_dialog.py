@@ -43,7 +43,7 @@ class ModelDiagnosticsDialog(simpledialog.Dialog):
         box = ttk.Frame(self)
         ttk.Button(
             box,
-            text="Fechar",
+            text=_("Close"),
             width=10,
             command=self.cancel,
             default="active",
