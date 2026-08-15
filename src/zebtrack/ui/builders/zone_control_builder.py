@@ -321,15 +321,15 @@ class ZoneControlBuilder:
     def _show_conclude_next_step_guidance(self) -> None:
         """Point the user to the next action after committing zone edits.
 
-        "Concluir" only saves zone/ROI/Arduino-binding data — it never starts
+        "Finish" only saves zone/ROI/Arduino-binding data — it never starts
         a recording. When a live session is already deferred waiting on this
-        confirmation, the "⏳ Sessão pendente" banner built by ``ZoneControls``
-        already tells the user to click "▶️ Iniciar Gravação" there, so we
+        confirmation, the "⏳ Pending session" banner built by ``ZoneControls``
+        already tells the user to click "▶️ Start Recording" there, so we
         skip this to avoid a redundant dialog. Otherwise (proactive zone setup
         with no pending session) there is currently no other cue in the UI, so
-        point the user at the "Controle Principal" tab. Only applies to live
-        projects — pre-recorded projects have their own explicit "Iniciar
-        Análise" / "Enviar Vídeo Selecionado para Análise" buttons.
+        point the user at the "Main Control" tab. Only applies to live
+        projects — pre-recorded projects have their own explicit "Start
+        Single-Video Analysis" button.
         """
         zone_controls = getattr(self.gui, "zone_controls", None)
         if zone_controls is not None and zone_controls.has_pending_live_session():
