@@ -485,43 +485,15 @@ class UIStateController:
             )
         )
 
-    def update_detector_parameters(
-        self,
-        params: dict[str, float],
-        *,
-        reset_overrides: bool = False,
-        scope: str = "global",
-    ) -> bool:
-        """
-        Apply detector threshold updates and persist them when possible.
-
-        Sprint 7: Delegates to DetectorCoordinator.
-        """
-        try:
-            success = self.detector_coordinator.update_detector_parameters(
-                params=params,
-                reset_overrides=reset_overrides,
-                scope=scope,
-            )
-
-            if success:
-                self.ui_event_bus.publish(
-                    Event(
-                        type=UIEvents.UI_SET_STATUS,
-                        data=StatusPayload(message=_("Detector parameters updated.")),
-                    )
-                )
-
-            return success
-        except ValueError as e:
-            logger.error("controller.detector.update.validation_failed", error=str(e))
-            self.ui_event_bus.publish(
-                Event(
-                    type=UIEvents.UI_SHOW_ERROR,
-                    data=MessagePayload(title=_("Validation Error"), message=str(e)),
-                )
-            )
-            return False
+    # ``update_detector_parameters`` used to live here, wrapping the coordinator
+    # call in ``except ValueError`` -> UI_SHOW_ERROR. It was removed rather than
+    # repaired: nothing in src/ ever called it, and the coordinator wraps the
+    # service's ValueError, so the handler could not have fired even if
+    # something had. A correct-looking boundary that never runs is worse than an
+    # absent one — it is why the missing dialog went unnoticed. The three real
+    # call sites go through ``hardware_vm.update_detector_parameters`` and each
+    # carries its own boundary now (model_diagnostics_panel, event_dispatcher,
+    # gui._on_apply_roi_settings).
 
     # ========================================================================
     # Group C: Zone UI Updates

@@ -9,6 +9,50 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Erros de validação do detector voltam a chegar ao usuário
+
+- **Clicar "Aplicar" com um valor fora da faixa não fazia nada.** Sem diálogo,
+  sem status. O painel capturava o `ValidationError` do **pydantic**, o
+  `DetectorSetupCoordinator` levantava `DetectorSetupCoordinatorError` — na
+  época uma subclasse de `Exception` pura. Tipos sem parentesco: o `except`
+  nunca casava. Um censo de `coordinators/` achou **31 pontos de `raise` e zero
+  handlers em `src/`**; todos escapavam para o `report_callback_exception`
+  padrão do Tk, que escreve num stderr que o app empacotado não tem.
+- **Uma hierarquia só.** `CoordinatorError` passa a herdar de `ZebTrackError`, e
+  `DetectorSetupCoordinatorError` de `CoordinatorError` (era o único erro de
+  coordinator ainda derivando direto de `Exception`). `except ZebTrackError` numa
+  fronteira de UI agora pega qualquer falha da aplicação.
+- **Um `ValidationError` só.** `zebtrack/exceptions.py` redefinia a hierarquia
+  inteira que `zebtrack/core/exceptions.py` já declarava — inclusive uma segunda
+  classe `ValidationError`, usada por ninguém. Duas classes de mesmo nome fazem
+  o `except` de uma ignorar a outra em silêncio: o mesmo bug em miniatura. O
+  módulo virou um shim de reexportação; `core/exceptions.py` é o canônico.
+- **Duas naturezas de falha, dois tipos.** Valor digitado fora da faixa levanta
+  `ValidationError`, cuja mensagem é escrita para o pesquisador e renderizada
+  literalmente (portanto agora com `_()` e par pt_BR). Qualquer outra falha
+  mantém `DetectorSetupCoordinatorError`, cuja mensagem cita serviços e plugins
+  e vai para o log, com um texto genérico no diálogo. Juntar as duas num tipo só
+  era o que impedia o painel de responder a qualquer uma delas.
+- **Os três pontos de chamada ganharam a mesma fronteira**:
+  `model_diagnostics_panel`, `event_dispatcher` (assinante de
+  `DETECTOR_UPDATE_PARAMETERS`, que responde com `UI_SHOW_ERROR`) e `gui.py`.
+- **Rede de segurança**: `ui/tk_exception_handler` substitui o
+  `report_callback_exception` do Tk por um handler que registra
+  `ui.callback.unhandled` via structlog e mostra um diálogo. Instalado em
+  `app_runner.run_app()` logo após a criação da janela raiz. É rede, não
+  fronteira: cada ocorrência no log é um relatório de bug contra um call site.
+- **Handler que não pode disparar é pior que handler nenhum.**
+  `UIStateController.update_detector_parameters` embrulhava o coordinator em
+  `except ValueError` → `UI_SHOW_ERROR`; nada em `src/` o chamava, e o
+  coordinator já consumia o `ValueError` antes. Inalcançável em dobro, e ainda
+  fazia o fluxo parecer coberto num grep. Removido.
+  `project_model_configuration_panel` tinha versão mais branda do mesmo problema
+  e passou a capturar `ZebTrackError`.
+- **Fora de escopo, ainda aberto:** `track_buffer` tem três faixas
+  discordantes (`settings.py` `ge=10, le=1000`; `DetectorSetupCoordinator`
+  `>= 0`; `DetectorService` `>= 1`). Escolher uma é decisão de domínio; os
+  limites ficaram intactos.
+
 ### Migração de idioma concluída (i18n — fases 2/3 e 3/3)
 
 - **A interface inteira passou para inglês como língua-fonte.** As fases 2 e 3

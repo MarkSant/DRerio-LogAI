@@ -1119,6 +1119,73 @@ automatically: changing the semantics of existing metrics would break
 comparability with already-published data, and that call belongs to the
 researcher.
 
+### 5.13. Error Boundaries: One Hierarchy, Two Kinds of Failure (August 2026)
+
+**The problem.** Clicking "Apply" in the detector settings panel with an
+out-of-range value produced nothing: no dialog, no status line. The panel caught
+**pydantic's** `ValidationError`; `DetectorSetupCoordinator` raised
+`DetectorSetupCoordinatorError`, at the time a bare `Exception` subclass. Two
+unrelated types, so the `except` never matched — and nothing else caught it
+either. A census of `coordinators/` found **31 raise sites and zero handlers in
+`src/`**. Every one of them escaped into Tk's default
+`report_callback_exception`, which writes a traceback to a stderr the packaged
+app does not have.
+
+**One hierarchy.** `CoordinatorError` now derives from `ZebTrackError`, and
+`DetectorSetupCoordinatorError` from `CoordinatorError` (it was the one
+coordinator error still deriving straight from `Exception`). `except
+ZebTrackError` at a UI boundary therefore catches any application failure,
+coordinator failures included.
+
+**One `ValidationError`.** `zebtrack/exceptions.py` used to *redefine* the whole
+hierarchy that `zebtrack/core/exceptions.py` already declared — including a
+second `ValidationError` class. Two same-named classes mean `except` on one
+silently misses the other, which is the very bug above in miniature.
+`zebtrack.exceptions` is now a re-export shim; `zebtrack.core.exceptions` is
+canonical.
+
+**Two kinds of failure, two types.** This is the part to preserve when adding
+boundaries elsewhere:
+
+| Failure                                  | Type                             | Message is for | UI shows                                       |
+| ---------------------------------------- | -------------------------------- | -------------- | ---------------------------------------------- |
+| The user typed a value out of range      | `ValidationError` (`UIError`)    | the researcher | `str(exc)` verbatim — and so it is wrapped in `_()` |
+| A service raised, a plugin failed to load | `DetectorSetupCoordinatorError`  | the log        | a generic message; the detail goes to structlog |
+
+Collapsing them into one type is what made the panel unable to answer either.
+Because `ValidationError` text is now rendered verbatim, it counts as interface
+text and needs `_()` plus a pt_BR pair — the technical tail
+(`conf_threshold must be between 0.0 and 1.0`) deliberately stays English: it
+names the key as it appears in `config.yaml`.
+
+**Three call sites, three boundaries.** `hardware_vm.update_detector_parameters`
+is reached from `ui/components/model_diagnostics_panel.py`,
+`ui/components/event_dispatcher.py` (the `DETECTOR_UPDATE_PARAMETERS`
+subscriber, which answers with `UI_SHOW_ERROR`) and `ui/gui.py`. All three carry
+the same two-clause boundary.
+
+**The net.** `ui/tk_exception_handler.install_tk_exception_handler()` replaces
+Tk's `report_callback_exception` with one that logs `ui.callback.unhandled`
+through structlog and shows a dialog. It is installed in `app_runner.run_app()`
+immediately after the root window is created, before anything is drawn. Treat
+any `ui.callback.unhandled` entry as a bug report against a call site: the net
+cannot know what the user was doing, so it cannot say anything more useful than
+"this failed".
+
+**A handler that cannot fire is worse than no handler.**
+`UIStateController.update_detector_parameters` wrapped the coordinator in
+`except ValueError` → `UI_SHOW_ERROR`. Nothing in `src/` called it, and the
+coordinator consumed the `ValueError` before it could propagate, so it was
+unreachable twice over — while making the flow look covered in a grep. It was
+deleted rather than repaired. `project_model_configuration_panel` had a milder
+version of the same (catching pydantic in a chain that validates no pydantic
+model) and now catches `ZebTrackError`.
+
+**Out of scope, still open:** `track_buffer` has three disagreeing bounds —
+`settings.py` (`ge=10, le=1000`), `DetectorSetupCoordinator` (`>= 0`) and
+`DetectorService` (`>= 1`). Picking one is a domain decision; the bounds were
+left untouched.
+
 ---
 
 ## 6. Common Pitfalls for Agents

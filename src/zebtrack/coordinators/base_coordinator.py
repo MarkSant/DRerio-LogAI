@@ -28,6 +28,8 @@ from typing import TYPE_CHECKING, Any
 
 import structlog
 
+from zebtrack.core.exceptions import ZebTrackError
+
 if TYPE_CHECKING:
     from zebtrack.core.state_manager import StateCategory, StateManager
     from zebtrack.ui.event_bus_v2 import EventBusV2
@@ -335,8 +337,14 @@ class BaseCoordinator:
 # ======================================================================
 
 
-class CoordinatorError(Exception):
+class CoordinatorError(ZebTrackError):
     """Base exception for coordinator errors.
+
+    Inherits from ``ZebTrackError`` so that a UI boundary catching the
+    application hierarchy also catches coordinator failures. When it derived
+    from bare ``Exception`` there was no type a caller could name to catch
+    "any zebtrack failure", so coordinator errors escaped every handler and
+    ended up in Tk's stderr traceback.
 
     Attributes:
         coordinator: Name of the coordinator that raised the error.

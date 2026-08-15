@@ -16,6 +16,7 @@ import structlog
 from zebtrack.constants import SPLASH_CLOSE_DELAY_MS
 from zebtrack.i18n import _
 from zebtrack.logging_config import configure_logging
+from zebtrack.ui.tk_exception_handler import install_tk_exception_handler
 
 # Suppress pkg_resources deprecation from docxcompose (setuptools pinned to <81)
 warnings.filterwarnings(
@@ -88,6 +89,11 @@ def run_app(
         # load_settings() below is what picks that value up.
         root = tk_module.Tk()
         root.withdraw()
+
+        # Installed before anything is drawn, so no callback runs uncovered.
+        # Safe to do ahead of i18n.install(): _() resolves the catalogue at call
+        # time, and the handler only calls it when an exception actually fires.
+        install_tk_exception_handler(root, messagebox_module=messagebox_module)
 
         _select_language_on_first_run(root, log=log)
 

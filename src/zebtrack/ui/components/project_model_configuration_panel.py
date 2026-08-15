@@ -4,10 +4,13 @@ from __future__ import annotations
 
 from tkinter import StringVar, messagebox, ttk
 
-from pydantic import ValidationError
+import structlog
 
+from zebtrack.core.exceptions import ZebTrackError
 from zebtrack.i18n import _
 from zebtrack.ui.wizard.tooltip import ToolTip
+
+log = structlog.get_logger()
 
 
 def weight_inherit_label() -> str:
@@ -387,7 +390,13 @@ class ProjectModelConfigurationPanel(ttk.Frame):
                 slot_overrides,
                 openvino_override,
             )
-        except ValidationError as exc:
+        # ZebTrackError, not pydantic's ValidationError: nothing in this chain
+        # (project_vm -> lifecycle coordinator -> model override service ->
+        # project workflow service) validates a pydantic model, so the old
+        # handler could never fire. What that chain CAN raise is the
+        # application hierarchy, which now includes the coordinator errors.
+        except ZebTrackError as exc:
+            log.error("project_model_config.save_preferences.failed", error=str(exc))
             messagebox.showerror(_("Error"), str(exc), parent=self)
             return
 
