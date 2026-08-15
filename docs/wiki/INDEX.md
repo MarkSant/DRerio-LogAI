@@ -1,29 +1,29 @@
-# Índice da Wiki do DRerio LogAI
+# DRerio LogAI Wiki Index
 
-Este diretório contém a documentação estruturada para ser publicada na Wiki do projeto.
+This directory contains the structured documentation to be published on the project's Wiki.
 
-## 1. Guia do Usuário
+## 1. User Guide
 
-- [Instalação e Setup](1_Installation.md) (Consulte README.md)
-- [Tutorial Completo](2_Full_Tutorial.md)
+- [Installation and Setup](1_Installation.md) (See README.md)
+- [Full Tutorial](2_Full_Tutorial.md)
 - [FAQ](3_FAQ.md)
-- [Configuração de Rastreamento](6_Configuracao_Rastreamento.md)
-- [Guia do Usuário (Resumo)](user-guide/GETTING_STARTED.md)
-- [Solução de Problemas](user-guide/TROUBLESHOOTING.md)
+- [Tracking Configuration](6_Configuracao_Rastreamento.md)
+- [User Guide (Summary)](user-guide/GETTING_STARTED.md)
+- [Troubleshooting](user-guide/TROUBLESHOOTING.md)
 
-## 2. Guia do Desenvolvedor
+## 2. Developer Guide
 
-- [Arquitetura Event-Driven](../explanation/architecture.md)
-- [Como Contribuir](../../CONTRIBUTING.md)
-- [Padrões de Código (Linting/Formatting)](../guides/developer/CHEATSHEET.md)
+- [Event-Driven Architecture](../explanation/architecture.md)
+- [How to Contribute](../../CONTRIBUTING.md)
+- [Code Standards (Linting/Formatting)](../guides/developer/CHEATSHEET.md)
 
-## 3. Documentação Científica
+## 3. Scientific Documentation
 
-- [Métricas e Definições](../reference/metrics.md)
-- [Esquema de Dados](../reference/data_schema.md)
-- [Sistemas de Coordenadas](../reference/COORDINATE_SYSTEMS.md)
-- [Citação do Projeto](../../CITATION.cff)
+- [Metrics and Definitions](../reference/metrics.md)
+- [Data Schema](../reference/data_schema.md)
+- [Coordinate Systems](../reference/COORDINATE_SYSTEMS.md)
+- [Project Citation](../../CITATION.cff)
 
 ---
 
-_Nota: Para manter a Wiki atualizada, edite os arquivos Markdown na pasta `docs/` e replique as alterações na Wiki do GitHub._
+_Note: To keep the Wiki up to date, edit the Markdown files under the `docs/` folder and replicate the changes to the GitHub Wiki._
