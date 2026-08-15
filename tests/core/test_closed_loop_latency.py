@@ -115,7 +115,61 @@ def test_canonical_columns_stay_first_and_new_ones_are_appended():
         "t_ack_perf",
     ]
     assert CSV_COLUMNS[: len(legacy)] == legacy  # append-only
-    assert CSV_COLUMNS[len(legacy) :] == ["queue_wait_ms", "inference_ms", "dequeue_perf"]
+    assert CSV_COLUMNS[len(legacy) :] == [
+        "queue_wait_ms",
+        "inference_ms",
+        "dequeue_perf",
+        "fps_configured",
+        "sampling_interval_ms_configured",
+    ]
+
+
+def test_fps_is_measured_and_fps_configured_is_kept_separate_when_they_differ(tmp_path):
+    """Câmera excede a taxa configurada: ``fps`` != ``fps_configured`` no CSV.
+
+    Regressão do defeito depositado no P4: o logger gravava a taxa CONFIGURADA
+    em ``fps`` como se fosse a alcançada. ``fps`` agora vem da taxa medida
+    (contexto construído por ``FrameProcessingMixin`` a partir do
+    ``FrameLedger``); ``fps_configured`` é o nominal, em coluna própria.
+    """
+    log = ClosedLoopLatencyLog(tmp_path, "exp")
+    # Configurado: 30 fps -> 333.33 ms de intervalo de amostragem.
+    # Medido: 41.2 fps (câmera excedeu o configurado) -> 242.7 ms.
+    log.on_sample(
+        _context(fps=41.2, fps_configured=30.0, analysis_interval_frames=10),
+        t_send=10.025,
+        t_ack=10.040,
+        ack_text="Red LED 1 ON",
+    )
+
+    row = _read_csv(tmp_path / "5_ClosedLoop_exp.csv")[0]
+    assert float(row["fps"]) == pytest.approx(41.2)
+    assert float(row["fps_configured"]) == pytest.approx(30.0)
+    assert float(row["sampling_interval_ms"]) == pytest.approx(242.7, abs=0.1)
+    assert float(row["sampling_interval_ms_configured"]) == pytest.approx(333.333, abs=1e-2)
+    # As duas taxas nunca podem coincidir por acidente de implementação neste teste.
+    assert float(row["fps"]) != float(row["fps_configured"])
+
+
+def test_fps_blank_when_measurement_not_yet_available(tmp_path):
+    """Sem taxa medida ainda (início de sessão), ``fps`` fica em branco — nunca
+
+    cai silenciosamente para o valor configurado, que reintroduziria o defeito
+    original.
+    """
+    log = ClosedLoopLatencyLog(tmp_path, "exp")
+    log.on_sample(
+        _context(fps=None, fps_configured=30.0, analysis_interval_frames=10),
+        t_send=10.025,
+        t_ack=10.040,
+        ack_text="Red LED 1 ON",
+    )
+
+    row = _read_csv(tmp_path / "5_ClosedLoop_exp.csv")[0]
+    assert row["fps"] == ""
+    assert row["sampling_interval_ms"] == ""
+    assert float(row["fps_configured"]) == pytest.approx(30.0)
+    assert float(row["sampling_interval_ms_configured"]) == pytest.approx(333.333, abs=1e-2)
 
 
 def test_unmatched_trigger_leaves_serial_metrics_empty(tmp_path):
@@ -276,14 +330,25 @@ class FakeDetector:
         self.scaled_roi_polygons = polygons
 
 
+class FakeFrameLedger:
+    """Stand-in for ``FrameLedger`` exposing only ``current_fps_measured``."""
+
+    def __init__(self, fps_measured: float | None) -> None:
+        self._fps_measured = fps_measured
+
+    def current_fps_measured(self) -> float | None:
+        return self._fps_measured
+
+
 class _Harness(FrameProcessingMixin):
-    def __init__(self, project_data, manager, detector, recorder) -> None:
+    def __init__(self, project_data, manager, detector, recorder, frame_ledger=None) -> None:
         self.controller = cast(Any, SimpleNamespace(arduino_manager=manager))
         self.project_manager = cast(Any, SimpleNamespace(project_data=project_data))
         self.detector_service = cast(Any, SimpleNamespace(detector=detector))
         self.recorder = recorder
         self.analysis_interval_frames = 10
         self._actual_fps = 30.0
+        self._frame_ledger = frame_ledger
 
 
 PROJECT = {
@@ -317,6 +382,9 @@ def test_dispatch_builds_tracked_context_and_writes_log(tmp_path):
     assert ctx["frame_t0"] == 500.0
     assert ctx["dequeue_perf"] == 500.010
     assert ctx["analysis_interval_frames"] == 10
+    # No frame ledger attached in this harness -> no measurement available yet.
+    assert ctx["fps"] is None
+    assert ctx["fps_configured"] == 30.0
 
     # A sink was registered; simulate the ACK and finalize.
     assert manager.sink is not None
@@ -326,6 +394,39 @@ def test_dispatch_builds_tracked_context_and_writes_log(tmp_path):
     rows = _read_csv(tmp_path / "5_ClosedLoop_exp.csv")
     assert rows[0]["roi"] == "A"
     assert float(rows[0]["serial_act_ms"]) == pytest.approx(15.0, abs=1e-6)
+
+
+def test_dispatch_uses_measured_fps_from_frame_ledger_not_configured(tmp_path):
+    """A câmera excedeu o configurado: o contexto deve carregar a taxa MEDIDA.
+
+    Regressão do defeito depositado no P4 (``fps`` = configurado gravado como
+    se fosse alcançado). Aqui o ledger fake simula uma câmera entregando 41.2
+    fps medidos enquanto as settings configuram 30.
+    """
+    manager = TrackingManager()
+    detector = FakeDetector(["A"], [SQUARE_A])
+    recorder = SimpleNamespace(output_folder=str(tmp_path), base_name="exp", start_time=1000.0)
+    ledger = FakeFrameLedger(fps_measured=41.2)
+    h = _Harness(PROJECT, manager, detector, recorder, frame_ledger=ledger)
+    h._reset_arduino_zone_state()
+
+    h._dispatch_arduino_zone_commands(
+        [_bbox_at(5, 5)], frame_number=100, capture_ts=500.0, dequeue_ts=500.010
+    )
+
+    token, ctx = manager.tracked[0]
+    assert ctx["fps"] == pytest.approx(41.2)
+    assert ctx["fps_configured"] == pytest.approx(30.0)
+    assert ctx["fps"] != ctx["fps_configured"]
+
+    manager.sink(ctx, 500.030, 500.045, "Red LED 1 ON")
+    h._finalize_closed_loop_log()
+
+    row = _read_csv(tmp_path / "5_ClosedLoop_exp.csv")[0]
+    assert float(row["fps"]) == pytest.approx(41.2)
+    assert float(row["fps_configured"]) == pytest.approx(30.0)
+    assert float(row["sampling_interval_ms"]) == pytest.approx(242.7, abs=0.1)
+    assert float(row["sampling_interval_ms_configured"]) == pytest.approx(333.333, abs=1e-2)
 
 
 def test_dispatch_without_capture_ts_uses_plain_enqueue(tmp_path):

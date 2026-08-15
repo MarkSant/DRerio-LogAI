@@ -490,7 +490,8 @@ It timestamps, per ROI enter/exit trigger, three moments with
   (`t_ack-t_send`) and `frame_to_ack_ms` (`t_ack-frame_t0`) keep the exact names
   used by the external `analise_latencia.py`; enrichment adds
   `capture_to_decision_ms`, `decision_to_send_ms`, `sampling_interval_ms` and —
-  since § 5.9 — `queue_wait_ms`, `inference_ms`, `dequeue_perf` (appended at the
+  since § 5.9 — `queue_wait_ms`, `inference_ms`, `dequeue_perf`, and — since
+  v6.0.0 — `fps_configured`, `sampling_interval_ms_configured` (appended at the
   end; `CSV_COLUMNS` is append-only and the first columns never move).
 - **Queue wait vs inference:** `capture_to_decision_ms` alone is an aggregate
   with no diagnostic value — it mixes the time the frame sat in `frame_queue`
@@ -505,6 +506,20 @@ It timestamps, per ROI enter/exit trigger, three moments with
   as `sampling_interval_ms`. Any `delay()` in the sketch's `loop()` is added to
   `serial_act_ms` in full — a real actuation delay the method correctly captures.
   See § 5.7 for the firmware rewrite that removed the blocking paths.
+- **Measured vs configured `fps` (v6.0.0):** `fps` (and therefore
+  `sampling_interval_ms`) is the frame rate **actually achieved**, measured from
+  capture timestamps via `FrameLedger.current_fps_measured()` — the same source
+  the frame ledger anchor uses for `fps_real_medio` (§ 5.9). It is *not* read
+  from settings: a USB camera routinely exceeds its configured rate (41.2/39.1
+  fps measured against 30 configured in the sessions that surfaced this), and
+  logging the configured value as if it had been achieved silently contradicted
+  the frame ledger for the same session. The configured (nominal) value is kept
+  separately in `fps_configured` / `sampling_interval_ms_configured`, computed
+  in `FrameProcessingMixin._dispatch_arduino_zone_commands` from `_actual_fps`
+  (itself the camera driver's reported `CAP_PROP_FPS`, which is a configured
+  property, not a measurement). `fps` is blank until the ledger has ≥2
+  timestamped frames — effectively never at trigger time, since aquarium
+  detection and warmup already consume dozens of frames first.
 
 ### 5.7. Per-Zone Command Robustness (August 2026)
 
@@ -1351,6 +1366,7 @@ Heavy imports (pandas, pyarrow, openpyxl) are deferred in:
 
 | Date | Version | Changes |
 | ---- | ------- | ------- |
+| Aug 15, 2026 | v5.1 | § 5.6 closed-loop `fps` corrected to the rate measured from capture timestamps (`FrameLedger.current_fps_measured()`), replacing the configured value that had been logged as achieved; configured value kept in new `fps_configured` / `sampling_interval_ms_configured` columns (release v6.0.0 archival snapshot) |
 | Aug 8, 2026 | v5.0 | § 5.11 external trigger reaches the Progress grid (`external_trigger_gate`, two coordinators unified, `on_arduino_event` routing); § 5.12 per-subject recording duration (`session_duration_resolver`, `session_duration_overrides`, heterogeneity warning in partial/batch reports) |
 | Aug 7, 2026 | v4.9 | § 5.10.4 `seg_overlap` made real — `3b_Mascaras_<base>.parquet` sidecar (WKB, same flush thread), opt-in mask decode gated by `should_capture_masks()`, calibration applied to mask points, dedicated `roi_min_seg_overlap_ratio`, declared degradation to `bbox_intersects` instead of the old unconditional raise |
 | Aug 6, 2026 | v4.8 | § 5.10.3 multi-animal ROI — `(timestamp, track_id)` aggregation ends the ghost centroid, track-aware diffs/smoothing/episodes, `analise_roi.por_animal` + `any_track` group semantics, multi-track validation warning |

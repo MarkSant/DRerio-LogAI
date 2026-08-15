@@ -1,0 +1,50 @@
+{
+  "upload_type": "software",
+  "title": "DRerio LogAI: an open-source, GPU-free platform for automated tracking and behavioural analysis of adult zebrafish (Danio rerio)",
+  "version": "6.0.0",
+  "publication_date": "2026-08-15",
+  "language": "eng",
+  "access_right": "open",
+  "license": "AGPL-3.0-or-later",
+  "creators": [
+    {
+      "name": "Sant'Ana Camargos, Marco Antônio",
+      "affiliation": "São Paulo State University (UNESP), Botucatu, São Paulo, Brazil",
+      "orcid": "0009-0000-0014-1485"
+    },
+    {
+      "name": "Giaquinto, Percília Cardoso",
+      "affiliation": "São Paulo State University (UNESP), Botucatu, São Paulo, Brazil"
+    }
+  ],
+  "description": "<p><strong>DRerio LogAI</strong> is an open-source desktop platform for automated tracking, closed-loop stimulation and behavioural analysis of adult zebrafish (<em>Danio rerio</em>). It combines YOLOv11 detection, BYTETracker multi-object tracking and Intel OpenVINO inference in an event-driven architecture, and runs GPU-free on integrated graphics.</p><p><strong>This archive.</strong> Snapshot of the source code at tag <code>v6.0.0</code>, deposited as the citable code object for the associated manuscripts and the version those manuscripts cite. The analysis scripts and the paired coordinate tables that regenerate every reported statistic are deposited separately (see related identifiers).</p><p><strong>Licensing.</strong> The original source code of this repository is licensed MIT, copyright Universidade Estadual Paulista (UNESP). The application <em>as distributed</em> is effectively licensed <strong>AGPL-3.0-or-later</strong>, because it packages and requires Ultralytics YOLO (AGPL-3.0). The trained YOLOv11 weights distributed with the application are Ultralytics derivatives and are likewise effectively AGPL-3.0; their training imagery derives from the ZebraFish-Detection dataset (Roboflow Universe), licensed CC BY 4.0, which requires attribution. Companion hardware designs are licensed CERN-OHL-S v2. See the <code>LICENSE</code> and <code>NOTICE</code> files in the archive.</p><p><strong>Intellectual property.</strong> Registered as a computer program with the Brazilian National Institute of Industrial Property (INPI), process BR 51 2026 005215-7 (petition 870260066857, filed 2026-07-07). Patrimonial rights are held by Universidade Estadual Paulista (UNESP), CNPJ 48.031.918/0001-24; moral rights by the authors. This is a copyright deposit under Brazilian Law 9.609/98 and does not restrict the open-source licensing above. Public release authorised by the UNESP technology transfer office (AUIN).</p><p><strong>Funding.</strong> São Paulo Research Foundation (FAPESP), grant 2023/14200-3. Animal procedures approved by the UNESP Animal Use Ethics Committee (CEUA), protocol 4806060624.</p><p><strong>Requirements.</strong> Python &ge; 3.12, &lt; 3.15; Ultralytics YOLO &ge; 8.3.179; Intel OpenVINO ~2026.0; PyTorch &ge; 2.8; NumPy ~2.2; OpenCV ~4.13. Full dependency pins in <code>pyproject.toml</code> and <code>poetry.lock</code>. Validated on Windows 11; platform-independent Python otherwise.</p>",
+  "keywords": [
+    "zebrafish",
+    "Danio rerio",
+    "animal tracking",
+    "behavioural analysis",
+    "computer vision",
+    "YOLO",
+    "YOLOv11",
+    "ByteTrack",
+    "OpenVINO",
+    "closed-loop stimulation",
+    "open-source software",
+    "reproducibility"
+  ],
+  "notes": "Funding: FAPESP grant 2023/14200-3 (Fundação de Amparo à Pesquisa do Estado de São Paulo, ROR 02ddkpn78). Titleholder of patrimonial rights: Universidade Estadual Paulista (UNESP), ROR 00987cb86. Brazilian software registration INPI BR 51 2026 005215-7. Ethics: CEUA/UNESP protocol 4806060624.",
+  "related_identifiers": [
+    {
+      "identifier": "https://github.com/MarkSant/DRerio-LogAI",
+      "relation": "isSupplementTo",
+      "resource_type": "software",
+      "scheme": "url"
+    },
+    {
+      "identifier": "https://github.com/ultralytics/ultralytics",
+      "relation": "requires",
+      "resource_type": "software",
+      "scheme": "url"
+    }
+  ]
+}

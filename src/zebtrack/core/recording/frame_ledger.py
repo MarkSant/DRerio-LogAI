@@ -80,6 +80,20 @@ VALID_OUTCOMES: frozenset[str] = frozenset(
 NO_VIDEO_INDEX = -1
 
 
+def _fps_from_timestamps(timestamps: list[float]) -> float | None:
+    """``(n-1) / intervalo`` entre o primeiro e o último ``perf_counter``.
+
+    ``None`` com menos de 2 amostras ou intervalo não-positivo (relógio parado
+    ou amostras fora de ordem).
+    """
+    if len(timestamps) < 2:
+        return None
+    span = float(timestamps[-1]) - float(timestamps[0])
+    if span <= 0:
+        return None
+    return (len(timestamps) - 1) / span
+
+
 class FrameLedger:
     """Acumulador thread-safe do mapa frame-de-pipeline ↔ frame-de-vídeo ↔ tempo.
 
@@ -321,11 +335,7 @@ class FrameLedger:
         first = timed[0] if timed else None
         video_rows = [r for r in rows if r["video_frame_index"] >= 0]
 
-        fps_real_medio: float | None = None
-        if len(timed) >= 2:
-            span = float(timed[-1]["t_capture_perf"]) - float(timed[0]["t_capture_perf"])
-            if span > 0:
-                fps_real_medio = (len(timed) - 1) / span
+        fps_real_medio = _fps_from_timestamps([r["t_capture_perf"] for r in timed])
 
         anchor.setdefault("base_name", base)
         anchor["t0_perf"] = None if first is None else first["t_capture_perf"]
@@ -372,6 +382,20 @@ class FrameLedger:
         """Cópia rasa das linhas acumuladas (para testes e inspeção)."""
         with self._lock:
             return [dict(r) for r in self._rows]
+
+    def current_fps_measured(self) -> float | None:
+        """Taxa de captura medida a partir dos timestamps já registrados.
+
+        Mesma fórmula usada na âncora (``fps_real_medio``: amostras-1 dividido
+        pelo intervalo de ``perf_counter`` entre a primeira e a última), mas
+        utilizável durante a sessão — não só no ``finalize``. É a fonte que o
+        logger closed-loop usa para não gravar a taxa configurada como se fosse
+        a alcançada (a câmera pode exceder o valor configurado, e às vezes
+        excede). ``None`` até haver pelo menos 2 frames com timestamp.
+        """
+        with self._lock:
+            timed = [r["t_capture_perf"] for r in self._rows if r["t_capture_perf"] is not None]
+        return _fps_from_timestamps(timed)
 
 
 # ----------------------------------------------------------------------

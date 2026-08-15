@@ -5,7 +5,7 @@
 
 **Plataforma Inteligente de Rastreamento e Análise Comportamental para _Danio rerio_ (Zebrafish)**
 
-![Version](https://img.shields.io/badge/version-4.0.0-blue.svg)
+![Version](https://img.shields.io/badge/version-6.0.0-blue.svg)
 ![Architecture](https://img.shields.io/badge/architecture-Event--Driven-green.svg)
 ![Python](https://img.shields.io/badge/python-3.12%2B-yellow.svg)
 ![License](https://img.shields.io/badge/license-MIT%20%2B%20AGPL--3.0--or--later%20effective-lightgrey.svg)
@@ -75,11 +75,11 @@ termos legais.
 - **🏗️ Arquitetura Event-Driven**: Sistema modular e extensível baseado em eventos
 - **📦 Formatos Padrão**: Exportação para Parquet (dados), Excel (métricas) e Word (relatórios)
 
-## 🚀 Novidades na Versão 4.0
+## 🚀 Marco Arquitetural: Versão 4.0
 
 ### Refatoração Arquitetural Completa
 
-A v4.0 representa uma reescrita fundamental do sistema com foco em estabilidade, manutenibilidade e performance:
+A v4.0 representou uma reescrita fundamental do sistema com foco em estabilidade, manutenibilidade e performance. Ela continua sendo a base arquitetural da versão atual; veja o [CHANGELOG.md](CHANGELOG.md) para o que mudou desde então, até a atual `v6.0.0`:
 
 - **🏗️ Arquitetura Event-Driven**: Refatoração completa para eliminar acoplamento direto entre componentes
   - Sistema de eventos com `EventBus` para comunicação assíncrona
@@ -138,7 +138,7 @@ Suporte avançado para análise simultânea de múltiplos aquários:
 
 ## 📚 Histórico de versões (v1–v3)
 
-O README destaca o estado atual (v4.0). Para detalhes completos por release, consulte o
+O README destaca o estado atual (v6.0.0). Para detalhes completos por release, consulte o
 [CHANGELOG.md](CHANGELOG.md). Abaixo fica um resumo (marcos principais) das versões anteriores.
 
 ### v3.0.0 (2025-01-11)
