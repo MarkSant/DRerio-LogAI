@@ -206,7 +206,7 @@ class TestLiveConfigDialog:
 
         # Should show error message
         mock_showerror.assert_called_once()
-        assert "Nenhuma câmera" in mock_showerror.call_args[0][1]
+        assert "No camera detected" in mock_showerror.call_args[0][1]
 
     @patch("zebtrack.core.services.wizard_service.WizardService.detect_available_cameras")
     @patch("zebtrack.ui.dialogs.live_config_dialog.Arduino.scan_available_ports")
@@ -230,7 +230,7 @@ class TestLiveConfigDialog:
 
         # Should show error about no ports
         mock_showerror.assert_called_once()
-        assert "nenhuma porta serial" in mock_showerror.call_args[0][1].lower()
+        assert "no serial port was found" in mock_showerror.call_args[0][1].lower()
 
     @patch("zebtrack.core.services.wizard_service.WizardService.detect_available_cameras")
     @patch("zebtrack.ui.dialogs.live_config_dialog.Arduino.scan_available_ports")

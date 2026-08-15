@@ -10,6 +10,8 @@ import tkinter as tk
 from tkinter import ttk
 from typing import TYPE_CHECKING
 
+from zebtrack.i18n import _
+
 if TYPE_CHECKING:
     pass
 
@@ -35,7 +37,7 @@ class ZoneCalibrationDialog:
 
         # Create dialog window
         self.dialog = tk.Toplevel(parent)
-        self.dialog.title("Configuração de Zonas")
+        self.dialog.title(_("Zone Configuration"))
         self.dialog.geometry("450x280")
         self.dialog.resizable(False, False)
         self.dialog.transient(parent)  # type: ignore[call-overload]
@@ -62,13 +64,17 @@ class ZoneCalibrationDialog:
 
         # Title
         title_label = ttk.Label(
-            main_frame, text="Configuração de Zonas para Gravação", font=("Segoe UI", 12, "bold")
+            main_frame,
+            text=_("Zone Configuration for Recording"),
+            font=("Segoe UI", 12, "bold"),
         )
         title_label.pack(pady=(0, 15))
 
         # Question
         question_label = ttk.Label(
-            main_frame, text="Como deseja definir a zona do aquário?", font=("Segoe UI", 10)
+            main_frame,
+            text=_("How do you want to define the aquarium zone?"),
+            font=("Segoe UI", 10),
         )
         question_label.pack(pady=(0, 20))
 
@@ -80,13 +86,16 @@ class ZoneCalibrationDialog:
         auto_frame.pack(fill=tk.X, pady=5)
 
         auto_radio = ttk.Radiobutton(
-            auto_frame, text="Auto-detecção (recomendado)", variable=self.method_var, value="auto"
+            auto_frame,
+            text=_("Auto-detection (recommended)"),
+            variable=self.method_var,
+            value="auto",
         )
         auto_radio.pack(anchor=tk.W)
 
         auto_desc = ttk.Label(
             auto_frame,
-            text="Tentará detectar automaticamente o aquário em 10 frames",
+            text=_("Will try to detect the aquarium automatically over 10 frames"),
             font=("Segoe UI", 9),
             foreground="gray",
         )
@@ -97,13 +106,16 @@ class ZoneCalibrationDialog:
         manual_frame.pack(fill=tk.X, pady=10)
 
         manual_radio = ttk.Radiobutton(
-            manual_frame, text="Desenho Manual", variable=self.method_var, value="manual"
+            manual_frame,
+            text=_("Manual Drawing"),
+            variable=self.method_var,
+            value="manual",
         )
         manual_radio.pack(anchor=tk.W)
 
         manual_desc = ttk.Label(
             manual_frame,
-            text="Você desenhará manualmente o polígono do aquário",
+            text=_("You will draw the aquarium polygon manually"),
             font=("Segoe UI", 9),
             foreground="gray",
         )
@@ -113,11 +125,11 @@ class ZoneCalibrationDialog:
         button_frame = ttk.Frame(main_frame)
         button_frame.pack(side=tk.BOTTOM, pady=(20, 0))
 
-        cancel_btn = ttk.Button(button_frame, text="Cancelar", command=self._on_cancel, width=12)
+        cancel_btn = ttk.Button(button_frame, text=_("Cancel"), command=self._on_cancel, width=12)
         cancel_btn.pack(side=tk.LEFT, padx=5)
 
         proceed_btn = ttk.Button(
-            button_frame, text="Prosseguir", command=self._on_proceed, width=12
+            button_frame, text=_("Proceed"), command=self._on_proceed, width=12
         )
         proceed_btn.pack(side=tk.LEFT, padx=5)
 

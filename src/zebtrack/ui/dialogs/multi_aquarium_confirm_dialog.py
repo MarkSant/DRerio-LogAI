@@ -7,9 +7,12 @@ aquariums are in the video.
 
 import tkinter as tk
 from collections.abc import Callable
+from pathlib import Path
 from tkinter import simpledialog, ttk
 
 import structlog
+
+from zebtrack.i18n import _
 
 log = structlog.get_logger()
 
@@ -29,7 +32,7 @@ class MultiAquariumConfirmDialog(simpledialog.Dialog):
     def __init__(
         self,
         parent: tk.Toplevel | tk.Tk,
-        video_path: str | None = None,
+        video_path: Path | str | None = None,
         on_single: Callable[[], None] | None = None,
         on_multi: Callable[[], None] | None = None,
         on_cancel: Callable[[], None] | None = None,
@@ -43,15 +46,15 @@ class MultiAquariumConfirmDialog(simpledialog.Dialog):
             on_multi: Callback when user selects 2 aquariums.
             on_cancel: Callback when user cancels.
         """
-        self.video_path = video_path
+        self.video_path = Path(video_path) if video_path is not None else None
         self._on_single = on_single
         self._on_multi = on_multi
         self._on_cancel = on_cancel
         self.result: int | None = None  # 1, 2, or None if cancelled
 
-        log.debug("multi_aquarium_confirm.dialog.init", video_path=video_path)
+        log.debug("multi_aquarium_confirm.dialog.init", video_path=str(self.video_path))
 
-        super().__init__(parent, "Configuração de Aquários")
+        super().__init__(parent, _("Aquarium Setup"))
 
     def body(self, master: tk.Frame) -> tk.Widget | None:
         """Create dialog body with aquarium count selection.
@@ -67,15 +70,15 @@ class MultiAquariumConfirmDialog(simpledialog.Dialog):
         # Header
         header_label = ttk.Label(
             master,
-            text="Quantos aquários existem neste vídeo?",
+            text=_("How many aquariums are in this video?"),
             font=("Helvetica", 12, "bold"),
         )
         header_label.pack(pady=(0, 15))
 
         # Description
-        desc_text = (
-            "Selecione a quantidade de aquários para configurar\n"
-            "a detecção automática corretamente."
+        desc_text = _(
+            "Select how many aquariums there are so that\n"
+            "automatic detection is configured correctly."
         )
         desc_label = ttk.Label(
             master,
@@ -94,7 +97,7 @@ class MultiAquariumConfirmDialog(simpledialog.Dialog):
         # Option 1: Single aquarium
         single_radio = ttk.Radiobutton(
             radio_frame,
-            text="1 aquário (padrão)",
+            text=_("1 aquarium (default)"),
             variable=self._aquarium_count,
             value=1,
         )
@@ -102,7 +105,7 @@ class MultiAquariumConfirmDialog(simpledialog.Dialog):
 
         single_desc = ttk.Label(
             radio_frame,
-            text="    Detecção padrão para vídeos com 1 aquário",
+            text=_("    Standard detection for videos with 1 aquarium"),
             foreground="gray",
             font=("Helvetica", 9),
         )
@@ -114,7 +117,7 @@ class MultiAquariumConfirmDialog(simpledialog.Dialog):
         # Option 2: Multi aquarium
         multi_radio = ttk.Radiobutton(
             radio_frame,
-            text="2 aquários",
+            text=_("2 aquariums"),
             variable=self._aquarium_count,
             value=2,
         )
@@ -122,8 +125,10 @@ class MultiAquariumConfirmDialog(simpledialog.Dialog):
 
         multi_desc = ttk.Label(
             radio_frame,
-            text="    Detecta 2 aquários separados no mesmo vídeo\n"
-            "    (cada aquário pode pertencer a grupos diferentes)",
+            text=_(
+                "    Detects 2 separate aquariums in the same video\n"
+                "    (each aquarium can belong to a different group)"
+            ),
             foreground="gray",
             font=("Helvetica", 9),
             justify=tk.LEFT,
@@ -139,7 +144,7 @@ class MultiAquariumConfirmDialog(simpledialog.Dialog):
 
         confirm_btn = ttk.Button(
             box,
-            text="Confirmar",
+            text=_("Confirm"),
             width=12,
             command=self._on_confirm,
         )
@@ -147,7 +152,7 @@ class MultiAquariumConfirmDialog(simpledialog.Dialog):
 
         cancel_btn = ttk.Button(
             box,
-            text="Cancelar",
+            text=_("Cancel"),
             width=12,
             command=self.cancel,
         )

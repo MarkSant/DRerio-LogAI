@@ -27,9 +27,20 @@ import serial.tools.list_ports
 import structlog
 
 # Local imports
+from zebtrack.i18n import _
 from zebtrack.io.arduino import Arduino
 
 log = structlog.get_logger()
+
+
+def _no_camera_label() -> str:
+    """Placeholder shown in the camera dropdown when detection found nothing.
+
+    One definition on purpose: this string is displayed AND written into
+    ``camera_var``, which ``apply()`` then looks up in ``available_cameras``.
+    Translating one site and not the other would silently break that lookup.
+    """
+    return _("No camera found")
 
 
 class LiveConfigDialog(simpledialog.Dialog):
@@ -46,7 +57,7 @@ class LiveConfigDialog(simpledialog.Dialog):
         self.available_cameras: dict[str, int] = {}
         self.available_ports: dict[str, str] = {}
         self.settings_obj = settings_obj
-        super().__init__(parent, "Configuração da Análise ao Vivo")
+        super().__init__(parent, _("Live Analysis Configuration"))
 
     def body(self, master):
         """Create dialog body with live analysis configuration controls.
@@ -69,14 +80,14 @@ class LiveConfigDialog(simpledialog.Dialog):
         camera_frame = Frame(master)
         camera_frame.grid(row=0, column=0, columnspan=3, sticky="ew", padx=5, pady=5)
 
-        Label(camera_frame, text="Selecionar Câmera:").pack(side="left", padx=(0, 5))
+        Label(camera_frame, text=_("Select Camera:")).pack(side="left", padx=(0, 5))
 
         self.camera_combo = ttk.Combobox(
             camera_frame, textvariable=self.camera_var, width=40, state="readonly"
         )
         self.camera_combo.pack(side="left", padx=5)
 
-        Button(camera_frame, text="🔍 Detectar", command=self._refresh_cameras, width=10).pack(
+        Button(camera_frame, text=_("🔍 Detect"), command=self._refresh_cameras, width=10).pack(
             side="left", padx=5
         )
 
@@ -85,13 +96,13 @@ class LiveConfigDialog(simpledialog.Dialog):
             self.camera_combo["values"] = camera_names
             self.camera_var.set(camera_names[0])
         else:
-            self.camera_combo["values"] = ["Nenhuma câmera encontrada"]
+            self.camera_combo["values"] = [_no_camera_label()]
             self.camera_combo.config(state="disabled")
 
         # --- Arduino Selection ---
         self.arduino_check = Checkbutton(
             master,
-            text="Usar Arduino",
+            text=_("Use Arduino"),
             variable=self.use_arduino_var,
             command=self._toggle_arduino_menu,
         )
@@ -100,7 +111,7 @@ class LiveConfigDialog(simpledialog.Dialog):
         arduino_frame = Frame(master)
         arduino_frame.grid(row=2, column=0, columnspan=3, sticky="ew", padx=5, pady=5)
 
-        Label(arduino_frame, text="Porta Arduino:").pack(side="left", padx=(0, 5))
+        Label(arduino_frame, text=_("Arduino Port:")).pack(side="left", padx=(0, 5))
 
         self.arduino_combo = ttk.Combobox(
             arduino_frame, textvariable=self.arduino_port_var, width=40, state="disabled"
@@ -112,7 +123,7 @@ class LiveConfigDialog(simpledialog.Dialog):
             self.arduino_combo["values"] = port_names
             self.arduino_port_var.set(port_names[0])
         else:
-            self.arduino_combo["values"] = ["Nenhuma porta encontrada"]
+            self.arduino_combo["values"] = [_("No serial port found")]
 
         self._toggle_arduino_menu()  # Set initial state
         return self.camera_combo  # Initial focus
@@ -126,7 +137,9 @@ class LiveConfigDialog(simpledialog.Dialog):
         cameras = WizardService.detect_available_cameras(use_cache=False)
 
         for camera in cameras:
-            description = camera.get("description", f"Câmera {camera['index']}")
+            description = camera.get(
+                "description", _("Camera {index}").format(index=camera["index"])
+            )
             self.available_cameras[description] = camera["index"]
 
         # Update combobox
@@ -139,9 +152,9 @@ class LiveConfigDialog(simpledialog.Dialog):
             if current not in camera_names:
                 self.camera_var.set(camera_names[0])
         else:
-            self.camera_combo["values"] = ["Nenhuma câmera encontrada"]
+            self.camera_combo["values"] = [_no_camera_label()]
             self.camera_combo.config(state="disabled")
-            self.camera_var.set("Nenhuma câmera encontrada")
+            self.camera_var.set(_no_camera_label())
 
         log.info("device_detection.camera.refreshed", cameras=self.available_cameras)
 
@@ -155,7 +168,9 @@ class LiveConfigDialog(simpledialog.Dialog):
         cameras = WizardService.detect_available_cameras(use_cache=False)
 
         for camera in cameras:
-            description = camera.get("description", f"Câmera {camera['index']}")
+            description = camera.get(
+                "description", _("Camera {index}").format(index=camera["index"])
+            )
             self.available_cameras[description] = camera["index"]
 
         log.info("device_detection.camera.found", cameras=self.available_cameras)
@@ -176,7 +191,7 @@ class LiveConfigDialog(simpledialog.Dialog):
                 description = getattr(info, "description", device_id)
                 suffix = " [Arduino]" if handshake else ""
                 if handshake_ports and not handshake:
-                    suffix = " [sem handshake]"
+                    suffix = _(" [no handshake]")
                 label = f"{description} ({device_id}){suffix}"
                 self.available_ports[label] = device_id
 
@@ -218,16 +233,20 @@ class LiveConfigDialog(simpledialog.Dialog):
         """Validate the inputs before closing the dialog."""
         if not self.available_cameras:
             messagebox.showerror(
-                "Erro",
-                "Nenhuma câmera detectada. Não é possível iniciar uma sessão ao vivo.",
+                _("Error"),
+                _("No camera detected. A live session cannot be started."),
             )
             return 0
         if self.use_arduino_var.get() and not self.available_ports:
+            # The quoted option name interpolates the checkbox's own msgid so
+            # the two can never drift apart.
             messagebox.showerror(
-                "Erro",
-                "O Arduino está ativado, mas nenhuma porta serial foi "
-                "encontrada. Por favor, verifique a conexão ou desative a "
-                "opção 'Usar Arduino'.",
+                _("Error"),
+                _(
+                    "Arduino is enabled, but no serial port was found. "
+                    "Please check the connection or turn off the "
+                    "'{option}' option."
+                ).format(option=_("Use Arduino")),
             )
             return 0
         return 1

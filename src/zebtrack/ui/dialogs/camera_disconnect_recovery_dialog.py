@@ -20,6 +20,8 @@ from typing import TYPE_CHECKING, Literal
 
 import structlog
 
+from zebtrack.i18n import _
+
 if TYPE_CHECKING:
     pass
 
@@ -64,7 +66,7 @@ class CameraDisconnectRecoveryDialog(tk.Toplevel):
         self.countdown_remaining = 30  # 30 second countdown
         self.countdown_active = False
 
-        self.title("Câmera Desconectada")
+        self.title(_("Camera Disconnected"))
         self.geometry("500x300")
         self.resizable(False, False)
 
@@ -106,17 +108,17 @@ class CameraDisconnectRecoveryDialog(tk.Toplevel):
 
         title_label = ttk.Label(
             title_frame,
-            text="Câmera Desconectada",
+            text=_("Camera Disconnected"),
             font=("Arial", 14, "bold"),
         )
         title_label.pack(side=tk.LEFT, anchor=tk.W)
 
         # Description
-        desc_text = (
-            f"A câmera foi desconectada durante a sessão '{self.experiment_id}'.\n\n"
-            f"Gap detectado após {self.gap_duration:.1f}s sem frames válidos.\n"
-            f"A gravação foi pausada automaticamente para evitar dados inválidos."
-        )
+        desc_text = _(
+            "The camera was disconnected during session '{experiment}'.\n\n"
+            "Gap detected after {seconds:.1f}s without valid frames.\n"
+            "Recording was paused automatically to avoid invalid data."
+        ).format(experiment=self.experiment_id, seconds=self.gap_duration)
         desc_label = ttk.Label(
             main_frame,
             text=desc_text,
@@ -128,7 +130,7 @@ class CameraDisconnectRecoveryDialog(tk.Toplevel):
         # Countdown label
         self.countdown_label = ttk.Label(
             main_frame,
-            text=f"Tentando reconectar automaticamente em {self.countdown_remaining}s...",
+            text=self._countdown_text(),
             font=("Arial", 10, "italic"),
             foreground="blue",
         )
@@ -150,7 +152,7 @@ class CameraDisconnectRecoveryDialog(tk.Toplevel):
         # Wait button (auto-enabled)
         self.wait_btn = ttk.Button(
             button_frame,
-            text="⏱️ Aguardar Reconexão (30s)",
+            text=_("⏱️ Wait for Reconnection (30s)"),
             command=self._on_wait,
             state=tk.DISABLED,  # Countdown is automatic
         )
@@ -159,7 +161,7 @@ class CameraDisconnectRecoveryDialog(tk.Toplevel):
         # Resume button
         resume_btn = ttk.Button(
             button_frame,
-            text="🔌 Retomar Manualmente",
+            text=_("🔌 Resume Manually"),
             command=self._on_resume,
         )
         resume_btn.pack(side=tk.LEFT, padx=5, expand=True, fill=tk.X)
@@ -167,17 +169,17 @@ class CameraDisconnectRecoveryDialog(tk.Toplevel):
         # Stop button
         stop_btn = ttk.Button(
             button_frame,
-            text="⏹️ Parar Sessão",
+            text=_("⏹️ Stop Session"),
             command=self._on_stop,
         )
         stop_btn.pack(side=tk.LEFT, padx=5, expand=True, fill=tk.X)
 
         # Instructions
-        instructions_text = (
-            "\nOpções:\n"
-            "• Aguardar: Tenta reconectar automaticamente (30s)\n"
-            "• Retomar: Continue gravação após reconectar câmera manualmente\n"
-            "• Parar: Finaliza sessão e salva dados coletados até agora"
+        instructions_text = _(
+            "\nOptions:\n"
+            "• Wait: tries to reconnect automatically (30s)\n"
+            "• Resume: carry on recording after reconnecting the camera manually\n"
+            "• Stop: ends the session and saves the data collected so far"
         )
         instructions_label = ttk.Label(
             main_frame,
@@ -191,6 +193,12 @@ class CameraDisconnectRecoveryDialog(tk.Toplevel):
 
         # Handle window close
         self.protocol("WM_DELETE_WINDOW", self._on_stop)
+
+    def _countdown_text(self) -> str:
+        """Countdown caption. One definition: it is rendered from two sites."""
+        return _("Trying to reconnect automatically in {seconds}s...").format(
+            seconds=self.countdown_remaining
+        )
 
     def _start_countdown(self) -> None:
         """Start automatic countdown timer."""
@@ -208,9 +216,7 @@ class CameraDisconnectRecoveryDialog(tk.Toplevel):
             return
 
         # Update UI
-        self.countdown_label.config(
-            text=f"Tentando reconectar automaticamente em {self.countdown_remaining}s..."
-        )
+        self.countdown_label.config(text=self._countdown_text())
         self.progress.config(value=self.countdown_remaining)
 
         # Decrement and schedule next update
@@ -231,7 +237,7 @@ class CameraDisconnectRecoveryDialog(tk.Toplevel):
         )
 
         self.countdown_label.config(
-            text="Aguardando reconexão da câmera...",
+            text=_("Waiting for the camera to reconnect..."),
             foreground="orange",
         )
 

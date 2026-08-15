@@ -708,7 +708,7 @@ class TestLivePreviewWindow:
         assert callback.called is True
 
         # Verify status updated
-        assert "Parado" in window.status_label.cget("text")
+        assert "Stopped" in window.status_label.cget("text")
 
         window.destroy()
 
@@ -830,12 +830,12 @@ class TestLivePreviewWindow:
         tkinter_root.update_idletasks()
 
         # Wait for timer label to update
-        wait_for_condition(lambda: "Restante:" in window.timer_label.cget("text"), timeout=1.0)
+        wait_for_condition(lambda: "Remaining:" in window.timer_label.cget("text"), timeout=1.0)
 
         # Verify timer label contains expected text
         timer_text = window.timer_label.cget("text")
-        assert "Tempo:" in timer_text
-        assert "Restante:" in timer_text
+        assert "Time:" in timer_text
+        assert "Remaining:" in timer_text
 
         window.destroy()
 
@@ -891,10 +891,9 @@ class TestLivePreviewWindow:
         window.start_timer()
         tkinter_root.update_idletasks()
 
-        text = window.start_time_label.cget("text")
-        assert text.startswith("Início:")
-        # The clock part is the suffix after "Início: " — should match HH:MM:SS
-        clock = text.replace("Início:", "").strip()
+        # The value label holds the clock ALONE: the "Start:" caption is the
+        # separate label in the column to its left.
+        clock = window.start_time_label.cget("text")
         assert len(clock.split(":")) == 3
         h, m, s = clock.split(":")
         assert h.isdigit() and m.isdigit() and s.isdigit()

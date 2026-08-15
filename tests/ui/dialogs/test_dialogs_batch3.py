@@ -310,7 +310,7 @@ class TestSaveROITemplateDialog:
 
         assert result is False
         mock_warning.assert_called_once()
-        assert "Nome obrigatório" in mock_warning.call_args[0][0]
+        assert "Name required" in mock_warning.call_args[0][0]
 
     @patch("zebtrack.ui.dialogs.save_roi_template_dialog.messagebox.showwarning")
     def test_validate_requires_arena_or_rois(self, mock_warning, tkinter_root):
@@ -330,7 +330,7 @@ class TestSaveROITemplateDialog:
 
         assert result is False
         mock_warning.assert_called_once()
-        assert "Seleção incompleta" in mock_warning.call_args[0][0]
+        assert "Incomplete selection" in mock_warning.call_args[0][0]
 
     @patch("zebtrack.ui.dialogs.save_roi_template_dialog.messagebox.showwarning")
     def test_validate_requires_custom_path_when_custom(self, mock_warning, tkinter_root):
@@ -350,7 +350,7 @@ class TestSaveROITemplateDialog:
 
         assert result is False
         mock_warning.assert_called_once()
-        assert "Local não definido" in mock_warning.call_args[0][0]
+        assert "Location not set" in mock_warning.call_args[0][0]
 
     def test_validate_succeeds_with_valid_input(self, tkinter_root):
         """Test validation succeeds with valid input."""

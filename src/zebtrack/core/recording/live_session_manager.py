@@ -389,7 +389,7 @@ class LiveSessionManagerMixin:
 
         # Show detector setup status
         if self.preview_window:
-            self.preview_window.update_status_text("⏳ Carregando detector...", color="orange")
+            self.preview_window.update_status_text(_("⏳ Loading detector..."), color="orange")
 
         resolved_weight, resolved_openvino, resolution_source = (
             self._resolve_session_detector_config()
@@ -581,7 +581,7 @@ class LiveSessionManagerMixin:
             countdown_seconds = int(countdown_duration_s)
             if self.preview_window:
                 self.preview_window.update_status_text(
-                    f"⏳ Iniciando em {countdown_seconds}s...",
+                    _("⏳ Starting in {seconds}s...").format(seconds=countdown_seconds),
                     color="yellow",
                 )
 
@@ -612,7 +612,7 @@ class LiveSessionManagerMixin:
 
         # Show thread startup status
         if self.preview_window:
-            self.preview_window.update_status_text("⏳ Iniciando captura...", color="orange")
+            self.preview_window.update_status_text(_("⏳ Starting capture..."), color="orange")
 
         # Start threads before recording service
         if not self._start_threads():
@@ -1028,7 +1028,7 @@ class LiveSessionManagerMixin:
 
             if self.preview_window:
                 self.preview_window.start_timer()
-                self.preview_window.update_status_text("● Gravando", color="red")
+                self.preview_window.update_status_text(_("● Recording"), color="red")
         else:
             log.info(
                 "live_camera_service.timer_delayed_for_aquarium_detection",

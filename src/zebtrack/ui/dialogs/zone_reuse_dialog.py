@@ -10,6 +10,8 @@ import tkinter as tk
 from tkinter import ttk
 from typing import TYPE_CHECKING
 
+from zebtrack.i18n import _
+
 if TYPE_CHECKING:
     from tkinter import Misc
 
@@ -42,7 +44,7 @@ class ZoneReuseDialog:
 
         # Create dialog window
         self.dialog = tk.Toplevel(parent)
-        self.dialog.title("Reutilizar Zonas Existentes?")
+        self.dialog.title(_("Reuse Existing Zones?"))
         self.dialog.transient(parent.winfo_toplevel())
         self.dialog.grab_set()
 
@@ -73,17 +75,17 @@ class ZoneReuseDialog:
 
         # Title
         title_label = ttk.Label(
-            main_frame, text="Reutilizar Zonas Existentes?", font=("Segoe UI", 12, "bold")
+            main_frame, text=_("Reuse Existing Zones?"), font=("Segoe UI", 12, "bold")
         )
         title_label.pack(pady=(0, 15))
 
         # Message
         message_label = ttk.Label(
             main_frame,
-            text=(
-                "Zonas já foram definidas anteriormente.\n\n"
-                "Deseja reutilizar para esta gravação?\n"
-                "(Use se o aquário não foi movido)"
+            text=_(
+                "Zones have already been defined.\n\n"
+                "Do you want to reuse them for this recording?\n"
+                "(Use this if the aquarium has not been moved)"
             ),
             font=("Segoe UI", 10),
             justify=tk.CENTER,
@@ -91,7 +93,7 @@ class ZoneReuseDialog:
         message_label.pack(pady=(0, 15))
 
         # Zone info frame
-        info_frame = ttk.LabelFrame(main_frame, text="Informações das Zonas", padding=10)
+        info_frame = ttk.LabelFrame(main_frame, text=_("Zone Information"), padding=10)
         info_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 15))
 
         # Zone details
@@ -104,11 +106,11 @@ class ZoneReuseDialog:
         button_frame.pack(side=tk.BOTTOM, pady=(15, 0))
 
         redefine_btn = ttk.Button(
-            button_frame, text="Redefinir", command=self._on_redefine, width=15
+            button_frame, text=_("Redefine"), command=self._on_redefine, width=15
         )
         redefine_btn.pack(side=tk.LEFT, padx=5)
 
-        reuse_btn = ttk.Button(button_frame, text="Reutilizar", command=self._on_reuse, width=15)
+        reuse_btn = ttk.Button(button_frame, text=_("Reuse"), command=self._on_reuse, width=15)
         reuse_btn.pack(side=tk.LEFT, padx=5)
 
         # Bind keys
@@ -126,14 +128,18 @@ class ZoneReuseDialog:
         num_vertices = len(polygon) if polygon else 0
 
         arena_label = ttk.Label(
-            parent_frame, text=f"✓ Arena Principal: {num_vertices} vértices", font=("Segoe UI", 9)
+            parent_frame,
+            text=_("✓ Main Arena: {count} vertices").format(count=num_vertices),
+            font=("Segoe UI", 9),
         )
         arena_label.pack(anchor=tk.W, pady=2)
 
         # ROI count - use roi_polygons attribute
         roi_count = len(self.zone_data.roi_polygons) if self.zone_data.roi_polygons else 0
         roi_label = ttk.Label(
-            parent_frame, text=f"✓ ROIs definidas: {roi_count}", font=("Segoe UI", 9)
+            parent_frame,
+            text=_("✓ ROIs defined: {count}").format(count=roi_count),
+            font=("Segoe UI", 9),
         )
         roi_label.pack(anchor=tk.W, pady=2)
 
@@ -146,9 +152,11 @@ class ZoneReuseDialog:
             height_cm = calibration.get("aquarium_height_cm")
 
         if width_cm and height_cm:
-            calib_text = f"✓ Calibrado: {width_cm:.1f} x {height_cm:.1f} cm"
+            calib_text = _("✓ Calibrated: {width:.1f} x {height:.1f} cm").format(
+                width=width_cm, height=height_cm
+            )
         else:
-            calib_text = "○ Calibração métrica: Não definida"
+            calib_text = _("○ Metric calibration: not defined")
 
         calib_label = ttk.Label(parent_frame, text=calib_text, font=("Segoe UI", 9))
         calib_label.pack(anchor=tk.W, pady=2)
@@ -157,11 +165,15 @@ class ZoneReuseDialog:
         metadata = getattr(self.zone_data, "metadata", {})
         if metadata:
             method = metadata.get("detection_method", "manual")
-            method_text = "Auto-detectado" if method == "auto" else "Desenhado manualmente"
+            # One msgid per complete sentence: Portuguese inflects the participle
+            # for the method, which a spliced fragment cannot guarantee.
+            method_text = (
+                _("• Method: auto-detected") if method == "auto" else _("• Method: drawn manually")
+            )
 
             method_label = ttk.Label(
                 parent_frame,
-                text=f"• Método: {method_text}",
+                text=method_text,
                 font=("Segoe UI", 9),
                 foreground="gray",
             )
@@ -171,7 +183,7 @@ class ZoneReuseDialog:
         if not (width_cm and height_cm):
             warning_label = ttk.Label(
                 parent_frame,
-                text="⚠ Recomenda-se calibração métrica para análises precisas",
+                text=_("⚠ Metric calibration is recommended for accurate analyses"),
                 font=("Segoe UI", 8),
                 foreground="orange",
             )
