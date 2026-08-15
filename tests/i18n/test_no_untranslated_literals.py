@@ -1,12 +1,14 @@
-"""Ratchet: packages already migrated must not gain new Portuguese literals.
+"""Ratchet: the package must not gain new Portuguese literals.
 
-The list below grows one PR at a time. A global check would be red for the whole
-migration and would therefore be switched off, which is the same as not having
-it. Scoping it to what is already done keeps it green and meaningful from day
-one.
+The migration is finished, so the list is simply ``src/zebtrack``: every file,
+including files that do not exist yet.
 
-When a package is migrated, add it here in the same PR. The final PR replaces
-the list with ``src/zebtrack`` and this comment goes away.
+Note what this does and does not prove. ``i18n_scan`` detects Portuguese by its
+ACCENTED characters, so unaccented Portuguese — ``Salvar``, ``Nenhum video``,
+``Remover``, ``dias`` — passes straight through it and through this test. Batch
+5e found four such strings inside ``core/recording/``, a package that had been
+listed here since batch 3a. Green here means "no accented Portuguese"; it does
+not mean "no Portuguese".
 """
 
 from __future__ import annotations
@@ -26,30 +28,7 @@ if str(SCRIPTS_DIR) not in sys.path:
 
 from i18n_scan import load_allowlist, scan_paths  # noqa: E402
 
-# Migrated in PR1. Extend as later PRs land.
-MIGRATED_PATHS: tuple[str, ...] = (
-    "src/zebtrack/analysis",
-    "src/zebtrack/coordinators",
-    "src/zebtrack/core",
-    "src/zebtrack/i18n.py",
-    "src/zebtrack/io",
-    "src/zebtrack/plugins",
-    "src/zebtrack/ui/builders",
-    # The whole package is migrated, so the per-file entries that used to grow
-    # here collapse into one path — a new file under ui/components/ is now
-    # covered by the ratchet the moment it is added.
-    "src/zebtrack/ui/components",
-    "src/zebtrack/ui/dialogs",
-    "src/zebtrack/ui/gui.py",
-    "src/zebtrack/ui/language_dialog.py",
-    "src/zebtrack/ui/project_workflow_adapter.py",
-    "src/zebtrack/ui/splash_screen.py",
-    "src/zebtrack/ui/ui_coordinator.py",
-    # ui/wizard reached zero back in batch 4d but was never listed here, so it
-    # spent four batches unguarded.
-    "src/zebtrack/ui/wizard",
-    "src/zebtrack/utils",
-)
+MIGRATED_PATHS: tuple[str, ...] = ("src/zebtrack",)
 
 
 @pytest.mark.parametrize("target", MIGRATED_PATHS)

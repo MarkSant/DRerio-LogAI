@@ -10,7 +10,7 @@ This document tracks all major agent interventions, technical debt resolutions, 
 
 __ID:__ TASK-068
 __Agent:__ Claude Code (Opus 5)
-__Status:__ In Progress 🔄
+__Status:__ Completed ✅
 __Branch:__ claude/i18n-phase-3-handoff-40321d
 __Description:__
 Fase final da migração para inglês como idioma-fonte. Fases 1 (PR #461) e 2
@@ -115,7 +115,7 @@ no topo do ratchet; depois, atualizar a seção "A migração" em
         concordar. Os rótulos de estratégia de ROI do `import_config_step`
         têm português diferente do resumo do `confirmation_step`, então
         ganharam msgids próprios em vez de colidir.
-- [ ] Lote 5: `ui/dialogs/**` (26 arquivos).
+- [x] Lote 5: `ui/dialogs/**` (26 arquivos).
   - [x] 5a: os sete menores — `color_selection_dialog`, `center_periphery_dialog`,
         `diagnostic_progress_dialog`, `model_diagnostics_dialog`,
         `subject_selection_dialog`, `pending_videos_dialog`,
@@ -127,20 +127,51 @@ no topo do ratchet; depois, atualizar a seção "A migração" em
         `preview_polygon_dialog` eram constantes de módulo. O `TAG_STYLES` de
         `pending_videos_dialog`, apontado no handoff como sítio de import,
         contém só cores — não há o que traduzir.
-  - [ ] 5b: `block_detail_dialog` (79) + `live_analysis_dialog` (59).
-  - [ ] 5c: `single_video_config_dialog` (40), `project_video_import_dialog` (38),
-        `create_project_dialog` (27).
-  - [ ] 5d: `live_camera_mode_selection_dialog` (17) — __`MODE_DESCRIPTIONS` é
-        `typing.ClassVar` em corpo de classe: tem de virar função antes de
-        receber `_()`__ —, `aquarium_detection_progress_dialog` (15),
-        `calibration_dialog` (13), `start_recording_dialog` (13),
-        `aquarium_assignment_dialog` (11),
-        `multi_aquarium_live_preview_window` (10).
-  - [ ] 5e: `camera_disconnect_recovery_dialog` (9), `live_config_dialog` (9),
+  - [x] 5b: `block_detail_dialog` (79) + `live_analysis_dialog` (59).
+        375 → 237. `"Dia {n} - {grupo}"` estava retipado dentro de DEZESSETE
+        mensagens deste diálogo; virou `_block_label()`. A chave PERSISTIDA do
+        mesmo bloco (`"Dia_{n}_{grupo}"`, em `add_note`) continua em português,
+        de propósito. Mais dois `_` descarte abaixo de um `_()` (ruff F823) e
+        uma colisão de msgid barrada antes de gravar (`Detection Error` /
+        `Detection failed` já existiam em `pr2-coordinators-tail.json`).
+  - [x] 5c: `single_video_config_dialog` (40), `project_video_import_dialog` (38),
+        `create_project_dialog` (27). 237 → 132. __Quatro msgids descartados__
+        depois que a checagem de corpus apontou colisão: `Number of Groups:`,
+        `Group Names`, `Validation` e `Metadata` (este último já existia como
+        "Metadados"; o cabeçalho da árvore passou a concordar com o resto do
+        app em vez de exibir "Metadata" só nesta tela).
+  - [x] 5d: `live_camera_mode_selection_dialog` (17), `aquarium_detection_progress_dialog`
+        (15), `calibration_dialog` (13), `start_recording_dialog` (13),
+        `aquarium_assignment_dialog` (11), `multi_aquarium_live_preview_window`
+        (10). `MODE_DESCRIPTIONS` era `typing.ClassVar` em corpo de classe — o
+        último sítio de tradução em tempo de import de `ui/dialogs` — e virou
+        `_mode_descriptions()`. `start_recording_dialog` duplica o seletor de
+        câmera inteiro de `block_detail_dialog`, então quase tudo reusou 5b.
+  - [x] 5e: `camera_disconnect_recovery_dialog` (9), `live_config_dialog` (9),
         `save_roi_template_dialog` (7), `live_preview_window` (6),
         `multi_aquarium_confirm_dialog` (6), `zone_calibration_dialog` (6),
         `zone_reuse_dialog` (6), `missing_metadata_dialog` (4).
-- [ ] Fechamento: colapsar MIGRATED_PATHS, atualizar guia e CHANGELOG.
+        53 acentuados → 0, mas __86 msgids novos__: metade do português desses
+        arquivos não tem acento. Achados: (1) `core/recording/live_session_manager`,
+        __já dentro do ratchet__, empurrava quatro status em português sem
+        acento para o mesmo rótulo onde já havia `_()` traduzido — a linha
+        trocava de idioma no meio da sessão; (2) `start_timer` renderizava
+        "Início:  Início: 12:34:56", porque repetia no valor o rótulo da coluna
+        vizinha (`stop_time_label`, ao lado, nunca fez isso); (3) __`ui/wizard`
+        chegou a zero no 4d e nunca entrou em `MIGRATED_PATHS`__ — passou quatro
+        lotes sem guarda; (4) `"Nenhuma câmera encontrada"` era exibida E
+        gravada em `camera_var`, que `apply()` usa como chave de busca — virou
+        `_no_camera_label()`; (5) `"Porta Arduino:"` era segunda grafia do
+        `"Porta do Arduino:"` do wizard, colapsada num msgid só.
+- [x] Fechamento: `MIGRATED_PATHS == ("src/zebtrack",)`, guia e CHANGELOG
+      atualizados.
+
+__Ressalva ao critério de pronto:__ `TOTAL: 0` prova apenas que não sobrou
+português __acentuado__. O `i18n_scan.py` — e portanto o ratchet construído
+sobre ele — é cego a `Salvar`, `Nenhum video`, `Remover`, `dias`, `grupos`. Foi
+exatamente assim que `coordinators/` e `core/recording/` seguiram publicando
+texto em português depois de travados. Uma varredura dedicada a português sem
+acento continua __pendente__ e não foi feita nesta tarefa.
 
 ### [2026-06-09] Sexteto de bugs em projetos live (zonas, lote, contadores, OpenVINO, settings globais)
 
