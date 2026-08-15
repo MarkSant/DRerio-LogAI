@@ -4,7 +4,6 @@ Zone Control Builder for creating zone configuration and drawing widgets.
 Extracted from WidgetFactory to separate concern of zone control construction.
 """
 
-import os
 from datetime import datetime
 from tkinter import BooleanVar
 from typing import TYPE_CHECKING
@@ -329,7 +328,7 @@ class ZoneControlBuilder:
         with no pending session) there is currently no other cue in the UI, so
         point the user at the "Controle Principal" tab. Only applies to live
         projects — pre-recorded projects have their own explicit "Iniciar
-        Análise" / "Enviar Vídeo Selecionado para Análise" buttons.
+        Análise" button.
         """
         zone_controls = getattr(self.gui, "zone_controls", None)
         if zone_controls is not None and zone_controls.has_pending_live_session():
@@ -351,45 +350,3 @@ class ZoneControlBuilder:
                 'and click "Start Recording".'
             ),
         )
-
-    def _on_send_selected_video_to_analysis(self) -> None:
-        """Open analysis configuration for the real video selected in the zone tree."""
-        tree = getattr(self.gui, "video_selector_tree", None)
-        selection = tree.selection() if tree is not None else ()
-        if tree is None or not selection:
-            self.gui.dialog_manager.show_warning(
-                _("No Video Selected"),
-                _("Select a recorded video from the list before sending it for analysis."),
-            )
-            return
-
-        tags = tree.item(selection[0], "tags") or ()
-        video_path = str(tags[0]) if tags else ""
-        is_video_entry = video_path and video_path not in {"group", "day", "subject"}
-        if not is_video_entry or not os.path.isfile(video_path):
-            self.gui.dialog_manager.show_info(
-                _("Video Unavailable"),
-                _(
-                    "Only recorded videos can be sent for analysis. Planned sessions "
-                    "must be recorded first."
-                ),
-            )
-            return
-
-        zone_controls = getattr(self.gui, "zone_controls", None)
-        if zone_controls and zone_controls.has_pending_live_session():
-            self.gui.dialog_manager.show_info(
-                _("Recording Pending"),
-                _(
-                    "Start or cancel the pending recording before sending another "
-                    "video for analysis."
-                ),
-            )
-            return
-
-        event_dispatcher = getattr(self.gui, "event_dispatcher", None)
-        if event_dispatcher is None:
-            log.error("zone_control_builder.send_to_analysis.no_event_dispatcher")
-            return
-
-        event_dispatcher.handle_analyze_single_video_clicked(video_path=video_path)

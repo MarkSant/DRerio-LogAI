@@ -134,24 +134,3 @@ def test_conclude_video_pre_recorded_project_skips_guidance_dialog():
     builder._on_conclude_video()
 
     gui.dialog_manager.show_info.assert_not_called()
-
-
-def test_send_selected_video_to_analysis_uses_selected_file(tmp_path):
-    """The explicit action sends the selected recorded file to the config dialog."""
-    video_path = tmp_path / "recorded.mp4"
-    video_path.touch()
-    tree = Mock()
-    tree.selection.return_value = ("video-item",)
-    tree.item.return_value = (str(video_path),)
-    gui = _conclude_gui(editing_zone=None, edited_points=[])
-    gui.video_selector_tree = tree
-    gui.zone_controls = SimpleNamespace(has_pending_live_session=lambda: False)
-    gui.event_dispatcher = Mock()
-    gui.dialog_manager = Mock()
-    builder = ZoneControlBuilder(gui, event_bus_v2=Mock())
-
-    builder._on_send_selected_video_to_analysis()
-
-    gui.event_dispatcher.handle_analyze_single_video_clicked.assert_called_once_with(
-        video_path=str(video_path)
-    )
