@@ -114,8 +114,8 @@ analysis time.
 
 | Situation | Message | What to do |
 | --------- | ------- | ---------- |
-| Trigger on, **"Use Arduino for synchronization" off** | "…requires a configured Arduino." | Enable the Arduino in the project, or turn the trigger off |
-| Trigger on, Arduino on, **port not connected** | "…the Arduino is not connected (port COMx)" | Check the cable and that no other program holds the port; reopen the project |
+| Trigger on, **"Use Arduino for synchronization" off** | "External trigger mode requires a configured Arduino." | Enable the Arduino in the project, or turn the trigger off |
+| Trigger on, Arduino on, **port not connected** | "The Arduino is not connected — check the cable and whether the port is in use by another program." | Check the cable and that no other program holds the port; reopen the project |
 
 The second case is common and quiet: if the cable is loose when you open the
 project, a "Could not connect to the Arduino on port {port}. Running in
