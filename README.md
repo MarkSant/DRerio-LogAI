@@ -74,11 +74,76 @@ terms.
 - **🏗️ Event-Driven Architecture**: modular, extensible system built on events
 - **📦 Standard Formats**: export to Parquet (data), Excel (metrics), and Word (reports)
 
-## 🚀 Architecture Milestone: Version 4.0
+## 🚀 What's New in Version 6.0
+
+Citable archival snapshot prepared for permanent deposit on Zenodo (DOI), in support of the
+manuscripts describing the platform's validation and a multi-method tracking benchmark:
+
+- **📡 Closed-Loop Logger Correctness**: `fps` and `sampling_interval_ms` in
+  `5_ClosedLoop_<base>.csv` now hold the frame rate **measured** from capture timestamps
+  (`FrameLedger.current_fps_measured()`), not the value configured in settings — a USB camera
+  routinely exceeds its configured rate. The configured (nominal) value is kept separately in
+  new `fps_configured` / `sampling_interval_ms_configured` columns.
+- **📦 Archival Readiness**: `.zenodo.json` with complete metadata (authors, ORCID, licence,
+  INPI registration, funding); `CITATION.cff` updated to `6.0.0`; internal grant-agency material
+  (unpublished manuscripts, partial reports, proposals, a finance spreadsheet) curated out of the
+  publicly archived tree.
+- **🌐 i18n & Docs Polish**: `README.md` split into an English source plus a Portuguese
+  translation (`README.pt-BR.md`); stale UI-label references fixed post-i18n; unused
+  `_on_send_selected_video_to_analysis` removed.
+
+## 🏗️ Milestone: Version 5.0
+
+Roughly 4.5 months of work between the `v4.0.0` architectural rewrite and the `v6.0.0` archival
+snapshot: a full ROI overhaul, closed-loop hardware stimulation, and the interface's move to
+English as its source language.
+
+### Region-of-Interest Overhaul
+
+- **🎯 Canonical ROI Inclusion Rule**: a single resolver (`roi_rule_resolver`, project → global →
+  default) now backs report generation, live Arduino triggers, and the UI alike, replacing
+  divergent per-consumer logic. Modes: `centroid_in`, `centroid_in_on_buffered_roi`,
+  `bbox_intersects`, `seg_overlap`.
+- **🔬 Multi-Animal ROI**: `(timestamp, track_id)` aggregation ends the "ghost centroid" bug;
+  per-animal (`por_animal`) and any-track group semantics; track-aware smoothing and episode
+  detection.
+- **🎭 Real Segmentation-Overlap ROI**: `seg_overlap` reads recorded masks
+  (`3b_Mascaras_<base>.parquet`) and degrades gracefully — never raises — to `bbox_intersects`
+  with a logged and reported warning when masks are unavailable.
+
+### Closed-Loop Stimulation & Hardware Robustness
+
+- **⚡ Per-Zone Arduino Command Bindings**: edge-triggered `on_enter`/`on_exit` tokens per ROI,
+  with binding-conflict detection and ACK-based inversion detection (the firmware's own reply
+  proves whether a binding is wired backwards).
+- **📊 Closed-Loop Latency Logging**: software-only, ACK-timestamp characterization of the
+  ROI-trigger → LED-actuation pipeline (`5_ClosedLoop_<base>.csv`), plus a non-blocking reference
+  firmware.
+- **🗂️ Frame Ledger & Timeline Reconstruction**: `6_FrameLedger_<base>` maps pipeline frame ↔
+  real MP4 frame ↔ capture instant, recording every frame-loss mode (queue-full drop, write
+  failure, not-recording).
+- **🔌 External Trigger Mode**: Arduino-gated recording start now reaches both the legacy panel
+  and the Progress-grid live flow through one decision gate (`external_trigger_gate`).
+
+### Per-Subject Duration & Live-Session Hardening
+
+- **⏱️ Per-Subject Recording Duration**: `session_duration_resolver` (subject override → block
+  default → project default → 300 s fallback), with a heterogeneous-duration warning on
+  partial/batch reports.
+- **🐟 Multi-Aquarium & Live-Session Fixes**: zone-reuse detection, "Mark Batch as Complete" now
+  generates real reports, OpenVINO global-setting inheritance, corrected processing-tab counters.
+
+### Internationalization
+
+- **🌐 English as the Interface Source Language**: full Portuguese (pt-BR) locale catalogue;
+  translations resolved at call time, never at import time; an unaccented-Portuguese scanner in
+  CI to prevent regressions.
+
+## 🏗️ Architecture Milestone: Version 4.0
 
 ### Complete Architectural Refactor
 
-v4.0 represented a fundamental rewrite of the system, focused on stability, maintainability, and performance. It remains the architectural foundation of the current release; see [CHANGELOG.md](CHANGELOG.md) for what changed since then, through the current `v6.0.0`:
+v4.0 represented a fundamental rewrite of the system, focused on stability, maintainability, and performance. It remains the architectural foundation of the versions above and of the current release; see [CHANGELOG.md](CHANGELOG.md) for the full per-change history:
 
 - **🏗️ Event-Driven Architecture**: complete refactor to eliminate direct coupling between components
   - Event system with `EventBus` for asynchronous communication
