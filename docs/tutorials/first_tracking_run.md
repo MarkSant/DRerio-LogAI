@@ -1,85 +1,99 @@
-# Wizard de Criação de Projetos - Guia do Usuário
+# Project Wizard Walkthrough: Your First Tracking Run
 
-**Versão:** 1.7
-**Última Atualização:** 2025-10-12
+**Last updated:** 2026-08-15
 
-## Visão Geral
+## Overview
 
-O Wizard de Criação de Projetos é um assistente inteligente de 5 etapas que automatiza a criação de projetos no DRerio LogAI. Desde a versão 1.6 ele é a experiência padrão (a flag `ui_features.use_wizard_for_project_creation` deve permanecer habilitada). Ele detecta automaticamente o design experimental, importa zonas de arquivos Parquet existentes e configura estratégias de processamento otimizadas para cada vídeo.
+The Project Creation Wizard is the smart, multi-step assistant that automates
+project creation in DRerio LogAI. It is the standard experience (the
+`ui_features.use_wizard_for_project_creation` flag should stay enabled). It
+detects the experimental design automatically, imports zones from existing
+Parquet files, and configures a processing strategy for every video.
 
-**Novidade v1.7:** A janela do wizard agora usa tamanho fixo largo (1150x550px) com layout de 3 colunas. Todas as perguntas da primeira etapa são exibidas lado a lado, maximizando o uso do espaço horizontal e minimizando a altura. Espaçamentos compactos e 220px de margem inferior garantem que os botões de navegação fiquem sempre visíveis. Compatível com telas 1366x768+.
+The wizard window targets **1050×780 px**, is resizable down to **900×650 px**,
+and centers itself on the screen while leaving room for the taskbar.
 
-### Benefícios
+### Benefits
 
-- ✅ **Detecção Automática de Design**: Identifica grupos, dias e estrutura experimental
-- ✅ **Importação Inteligente de Parquets**: Reaproveita arenas, ROIs e trajetórias já processadas
-- ✅ **Configuração Granular**: Controle individual por vídeo do que importar
-- ✅ **Economia de Tempo**: Evita reprocessamento desnecessário
-- ✅ **Validação Inteligente**: Previne erros antes da criação do projeto
+- ✅ **Automatic Design Detection** — identifies groups, days, and experimental structure
+- ✅ **Smart Parquet Import** — reuses arenas, ROIs, and trajectories already processed
+- ✅ **Granular Configuration** — per-video control over what to import
+- ✅ **Time Savings** — avoids unnecessary reprocessing
+- ✅ **Smart Validation** — catches errors before project creation
 
-## As 5 Etapas
+## The steps differ by project type
 
-### Etapa 1: Descoberta - Entendendo Seu Contexto
+The wizard shows a different sequence of steps depending on what you picked in
+Discovery:
 
-**Objetivo:** Definir o tipo de projeto e intenções de importação.
+- **Pre-recorded (Experimental / Exploratory)** — 7 steps: Discovery → File
+  Selection → Physical Calibration → Automatic Design Detection → Models and
+  Weights → Import Configuration → Project Confirmation and Creation.
+- **Live** — 6 steps: Discovery → Experimental Design → Live Recording
+  Configuration → Physical Calibration → Models and Weights → Project
+  Confirmation and Creation. There is no folder scan, so File Selection,
+  Automatic Design Detection, and Import Configuration are skipped; camera and
+  optional Arduino setup replace them. See
+  [`arduino-bindings.md`](../guides/user/arduino-bindings.md) and
+  [`external-trigger.md`](../guides/user/external-trigger.md) for that path.
 
-#### Configurações
-
-##### 1.1 Tipo de Projeto
-
-- **Experimental**: Para estudos com grupos de tratamento, controles, design temporal
-  - Exemplo: Comparar efeito de drogas em grupos Control vs Treatment ao longo de 5 dias
-
-- **Exploratório**: Para análises abertas, testes rápidos, projetos sem design formal
-  - Exemplo: Testar configuração de câmera, validar parâmetros de detecção
-
-**1.2 Organização de Pastas** (somente para projetos experimentais)
-
-- **Não tenho estrutura de pastas**: Todos os vídeos estão numa pasta única
-- **Pastas = Design Experimental**: Pastas representam grupos/dias (ex: `/Control/Day01/`)
-- **Pastas = Organização**: Pastas são apenas organizacionais, sem significado experimental
-
-##### 1.3 Arquivos Parquet Existentes
-
-- **Não possuo arquivos Parquet**: Processar tudo do zero
-- **Importar somente zonas** (arena + ROIs): Gerar apenas trajetórias
-- **Importar tudo disponível**: Usar todos os dados existentes
-
-💡 **Dica**: Se você já processou vídeos antes, selecione a importação de Parquets para economizar tempo!
+This tutorial walks through the **pre-recorded** flow, which covers the common
+case of tracking videos you already have on disk.
 
 ---
 
-### Etapa 2: Seleção de Arquivos
+## Step 1 · Discovery
 
-**Objetivo:** Selecionar os vídeos e/ou pastas para o projeto.
+**Goal:** Define the project type and import intentions.
 
-#### Opções de Seleção
+### 1. Project Type
 
-##### 2.1 Adicionar Vídeos Individuais
+- **Experimental (pre-recorded videos with groups, days, subjects)** — studies
+  with treatment groups, controls, a time design
+  - Example: comparing drug effect across Control vs. Treatment groups over 5 days
+- **Exploratory (pre-recorded videos, free-form analysis)** — open-ended
+  analyses, quick tests, projects with no formal design
+  - Example: testing camera setup, validating detection parameters
+- **Live (record straight from the camera in real time)** — recording
+  experiments live using a camera connected to the computer
 
-- Clique em "Adicionar Vídeos..."
-- Selecione arquivos `.mp4`, `.avi`, ou `.mov`
-- Suporta seleção múltipla (Ctrl+Click ou Shift+Click)
+### 2. Folder Organization (experimental projects only)
 
-##### 2.2 Adicionar Pastas
+- **Yes - folders represent the experimental structure (e.g. Group/Day/)**
+- **Yes - but only for organization (arbitrary names)**
+- **No - every video is in a single directory**
 
-- Clique em "Adicionar Pasta..."
-- Selecione pasta raiz contendo vídeos
-- Scan recursivo: encontra vídeos em subpastas automaticamente
+### 3. Existing Parquet Files
 
-##### 2.3 Remover Seleções
+- **No - start from scratch** — process everything from zero
+- **Yes - I want to import only the arena**
+- **Yes - I want to import zones (arena and ROIs)** — import arena/ROIs, regenerate trajectories
+- **Yes - I want to import everything (zones + trajectory)**
 
-- Selecione item na lista
-- Clique em "Remover Selecionado"
+Use **📂 Load Template...** at the top of the step to reload a previously
+saved wizard template (see [Templates](#templates) below) instead of
+answering these questions from scratch.
 
-##### 2.4 Pré-visualização da Estrutura
+💡 **Tip:** if you already processed videos before, pick a Parquet import
+option to save time.
 
-- A árvore "Pré-visualização da Estrutura" mostra as primeiras pastas/arquivos detectados
-- Útil para validar se escolheu a raiz correta antes de avançar
-- Prévia limitada a três níveis e 120 nós para manter a interface responsiva
-- Arquivos soltos aparecem agrupados em "Arquivos Individuais"
+---
 
-#### Exemplo de Estrutura
+## Step 2 · File Selection
+
+**Goal:** Select the videos and/or folders for the project.
+
+- **📁 Add Files...** — pick individual `.mp4`, `.avi`, or `.mov` files (supports multi-select)
+- **📂 Add Folder...** — pick a root folder; the scan is recursive and finds videos in subfolders automatically
+- **❌ Remove Selected** — removes the item currently selected in the list
+- **🗑️ Clear All** — removes every selected video and folder
+- The **Selection Summary** panel shows a running count of files/folders selected
+- The **Selected Items** list and the **Structure Preview** tree (columns
+  **Folder / File** and **Summary**) show the first folders/files detected —
+  useful to confirm you picked the right root before advancing. Loose files
+  are grouped under **Individual Files**.
+
+### Example structure
 
 ```text
 Experimento_Canabidiol/
@@ -96,240 +110,241 @@ Experimento_Canabidiol/
         └── Subject02.mp4
 ```
 
-💡 **Dica**: Para projetos com estrutura de pastas, use "Adicionar Pasta..." na raiz - a árvore mostrará a hierarquia e o wizard detectará o design automaticamente!
+💡 **Tip:** for folder-structured projects, use **📂 Add Folder...** on the
+experiment root — the preview tree shows the hierarchy and the wizard detects
+the design automatically in the next steps.
 
 ---
 
-### Etapa 3: Detecção Automática
+## Step 3 · Physical Calibration
 
-**Objetivo:** Analisar vídeos e detectar design experimental automaticamente.
+**Goal:** Set the physical dimensions of the arena to convert pixels into
+centimetres, and the detection/tracking cadence.
 
-#### O que é Detectado
+- **Video and Animal Configuration**: **Number of aquariums (videos)** and **Animals per aquarium**
+- **Physical Aquarium Dimensions**: **Width (cm)** and **Height (cm)**
+- **⚙️ Advanced Settings**: **Analysis interval (frames)** — how often detection runs
+- **🧠 Behavioural Analysis** section for related settings
 
-**3.1 Design Experimental** (somente projetos experimentais)
-
-- **Grupos**: Control, Treatment, Dose_Low, Dose_High, etc.
-- **Dias**: Day01, Day02, D1, D2, etc.
-- **Sujeitos**: Subject01, S01, Fish_01, etc.
-- **Confiança**: Percentual de certeza da detecção (0-100%)
-
-##### 3.2 Análise de Parquets
-
-- **Arena**: `*_arena.parquet` (coordenadas do tanque)
-- **ROIs**: `*_rois.parquet` (regiões de interesse)
-- **Trajetória**: `*_trajectory.parquet` (dados de rastreamento)
-- **Status por Vídeo**: Quais arquivos existem para cada vídeo
-
-##### 3.3 Regex Personalizado (Pré-visualização ao Vivo)
-
-- Clique em "Regex Customizado" para editar padrões de grupos/dias/sujeitos
-- A tabela de pré-visualização atualiza automaticamente conforme você digita
-- Erros de regex aparecem em linha (sem pop-ups interruptivos)
-- O campo de teste também avalia automaticamente o caminho digitado
-
-#### Padrões de Detecção
-
-1. **Grupos como Pastas**: `/Control/Day01/video.mp4`
-2. **Dias como Pastas**: `/Day01/Control/video.mp4`
-3. **Pastas Mistas**: `/Control_Day01/video.mp4`
-4. **Baseado em Nome**: `Control_Day01_Subject01.mp4`
-
-💡 **Dica**: A confiança de detecção indica a consistência do padrão. Valores acima de 70% são confiáveis. Se a tabela de pré-visualização destacar "Erro", ajuste os padrões antes de confirmar.
+See [`COORDINATE_SYSTEMS.md`](../reference/COORDINATE_SYSTEMS.md) for how
+these values map onto the arena/ROI coordinate system.
 
 ---
 
-## Templates curados e QA contínuo
+## Step 4 · Automatic Design Detection
 
-- O repositório distribui templates base (`resources/wizard_templates/*.json`) empacotados automaticamente por `scripts/build_templates.py`. O arquivo final `dist/wizard_templates.zip` é anexado pelo pipeline CI.
-- Antes de publicar um release execute `python tests/manual/wizard_release_check.py` para validar os templates, conferir traduções e seguir o checklist manual.
-- Use `scripts/compile_translations.py` para garantir que os relatórios Word/Excel gerados pelo wizard utilizem os catálogos atualizados (`pt_BR`).
-- Qualquer ajuste no wizard deve atualizar a documentação, rodar a suíte `tests/test_wizard*.py` e revisitar os scripts manuais descritos acima.
+**Goal:** Analyze videos and existing Parquet files, and detect the
+experimental design automatically (skipped for Exploratory projects).
 
----
+The **Detection Results** panel reports:
 
-### Etapa 4: Configuração de Importação
+- **📊 Videos found**
+- **📦 Existing Parquet Files** — counts for Arena, ROIs, Trajectory, and videos that are Complete (all three)
+- **🎯 Experimental Design Detected** — Groups, Days, subjects per group, the pattern used, and a **Confidence** percentage (higher is more reliable; treat values below ~70% with caution)
+- **⚙️ Current Detector Configuration** — aquarium/animal method and weight, OpenVINO status
 
-**Objetivo:** Definir estratégia de processamento individual para cada vídeo.
+Actions available in this step:
 
-#### Padrões Inteligentes Pré-Configurados
+- **🔄 Re-analyze** — rerun detection (e.g. after changing files)
+- **✏️ Edit Design** — manually correct groups/days/subjects when detection gets it wrong
+- **🔧 Custom Regex** — supply your own group/day/subject patterns; the preview updates live as you type, and errors show inline instead of as interruptive pop-ups
 
-O wizard aplica automaticamente uma configuração inicial baseada em suas escolhas da Etapa 1:
-
-| Escolha na Etapa 1       | Vídeo com Arena | Vídeo com ROIs | Vídeo com Trajetória | Ação Sugerida                |
-| ------------------------ | --------------- | -------------- | -------------------- | ---------------------------- |
-| Importar tudo disponível | ✅              | ✅             | ✅                   | **SKIP** (dados completos)   |
-| Importar tudo disponível | ✅              | ✅             | ❌                   | **IMPORT_ZONES** (rastrear)  |
-| Importar tudo disponível | ✅              | ❌             | ❌                   | **PARTIAL** (importar arena) |
-| Importar somente zonas   | ✅              | ✅             | ❌/✅                | **IMPORT_ZONES** (rastrear)  |
-| Não importar Parquets    | ❌/✅           | ❌/✅          | ❌/✅                | **FULL** (do zero)           |
-
-#### Opções de Importação (por vídeo)
-
-##### Colunas Interativas
-
-- **Arena**: ✅ Importar coordenadas do tanque de `*_arena.parquet`
-- **ROIs**: ✅ Importar regiões de interesse de `*_rois.parquet`
-- **Trajetória**: ✅ Importar dados de rastreamento de `*_trajectory.parquet`
-
-##### Ação Derivada Automaticamente
-
-- **SKIP**: Todos os dados existem - pular processamento
-- **IMPORT_ZONES**: Importar arena + ROIs, gerar nova trajetória
-- **PARTIAL**: Importar somente arena
-- **FULL**: Processar tudo do zero (sem importação)
-
-#### Como Personalizar
-
-1. **Duplo-clique** na célula da tabela para alternar ✅ ⟷ ❌
-2. A coluna "Ação" atualiza automaticamente
-3. Resumo no rodapé mostra contagem por ação
-
-💡 **Dica**: Use SKIP para vídeos já processados e IMPORT_ZONES para reaproveitar zonas desenhadas!
+The wizard recognizes folder-based patterns (groups and/or days as folders,
+mixed folder layouts) as well as filename-based patterns
+(`Control_Day01_Subject01.mp4`-style names).
 
 ---
 
-### Etapa 5: Confirmação
+## Step 5 · Models and Weights
 
-**Objetivo:** Revisar todas as configurações e criar o projeto.
+**Goal:** Choose detection methods, weights, and tracking parameters — this
+step did not exist in older wizard versions and is new since the OpenVINO
+integration.
 
-#### Informações Exibidas
+- **Methods and Weights per Role**: separate **Aquarium (arena detection)**
+  and **Animals (tracking)** roles, each with its own method
+  (**Segmentation (seg)** / **Detection (det)**) and weight file
+- **Acceleration / OpenVINO**: **Use OpenVINO (requires converting the weight)** toggle plus an **OpenVINO device** selector
+- **Detection Parameters (YOLO)**: **Minimum confidence (0-1)** and **NMS (overlap, 0-1)**
+- **Tracking Parameters (ByteTrack)**: **Use ByteTrack (Recommended)**, **Track Threshold (0-1)**, **Match Threshold (0-1)**, **Track Buffer (frames)**, **Max distance (px)**, **IoU Threshold (0-1)**
+- **🔄 Restore Recommended Defaults** resets all of the above
 
-##### 5.1 Resumo do Design
-
-- Tipo de projeto (Experimental / Exploratório)
-- Grupos detectados e confiança
-- Total de vídeos selecionados
-
-##### 5.2 Plano de Processamento
-
-- Quantidade de vídeos por ação (SKIP, IMPORT_ZONES, PARTIAL, FULL)
-- Estimativa de tempo (5 minutos por vídeo a processar)
-
-##### 5.3 Parquets Existentes
-
-- Total de arquivos arena, ROIs, trajetória, completos
-
-##### 5.4 Estratégia de ROIs
-
-- Como resolver conflitos entre ROIs existentes e novos (Substituir / Mesclar / Manual)
-
-#### Configurações Finais
-
-##### Nome do Projeto
-
-- Gerado automaticamente com base no design detectado
-- Editável manualmente
-- Regras: Somente letras, números, espaços, `_` e `-`
-
-##### Localização
-
-- Padrão: `Documentos`
-- Clique em "Procurar..." para alterar
-- Validação: Pasta deve existir e ter permissão de escrita
-
-#### Validações Finais
-
-✅ Nome do projeto não pode estar vazio
-✅ Nome não pode conter caracteres especiais (`@`, `#`, `$`, `/`, etc.)
-✅ Localização deve existir e ser acessível
-✅ Não pode existir projeto com mesmo nome na localização
-✅ Pelo menos 1 vídeo deve estar selecionado
-
-💡 **Dica**: Revise cuidadosamente todas as configurações - não será possível alterar após criar o projeto!
+💡 **Tip shown in the app:** adjust ONE parameter at a time (±0.05) and test.
 
 ---
 
-## Fluxo Recomendado por Cenário
+## Step 6 · Import Configuration
 
-### Cenário 1: Projeto Novo (sem Parquets)
+**Goal:** Define the per-video processing strategy.
 
-1. **Etapa 1**: Experimental + Pastas = Design Experimental + Não possuo Parquets
-2. **Etapa 2**: Adicionar Pasta... (raiz do experimento)
-3. **Etapa 3**: Verificar design detectado (grupos e dias)
-4. **Etapa 4**: Todos os vídeos em FULL (processar do zero)
-5. **Etapa 5**: Confirmar e criar
+### Bulk actions
 
-**Resultado**: Projeto criado com design detectado, todos os vídeos serão processados.
+- **Import All Arenas**
+- **Import All ROIs**
+- **Import All Trajectories**
+- **Import Everything**
 
----
+### Videos and Strategies table
 
-### Cenário 2: Importar Zonas de Projeto Anterior
+Columns: **Video**, **Arena**, **ROIs**, **Trajectory**, **Action**. Double-click
+a cell to toggle it; the **Action** column recomputes automatically:
 
-1. **Etapa 1**: Experimental + Pastas = Design Experimental + **Importar somente zonas**
-2. **Etapa 2**: Adicionar vídeos com `*_arena.parquet` e `*_rois.parquet` adjacentes
-3. **Etapa 3**: Wizard detecta arenas e ROIs existentes
-4. **Etapa 4**: Vídeos com arena+ROIs → **IMPORT_ZONES** (rastrear novamente)
-5. **Etapa 5**: Confirmar
+| Arena | ROIs | Trajectory | Action (internal code)        | Label shown             |
+| ----- | ---- | ---------- | ------------------------------ | ------------------------ |
+| ✅    | ✅   | ✅         | `SKIP`                          | Skip (complete data)     |
+| ✅    | ✅   | ❌         | `IMPORT_ZONES`                  | Import Zones + track     |
+| ✅    | ❌   | ❌         | `PARTIAL`                       | Partial (arena only)     |
+| ❌/✅ | ❌/✅| ❌/✅      | `FULL`                          | Full (from scratch)      |
 
-**Resultado**: Arena e ROIs importadas, novas trajetórias geradas sem redesenhar zonas.
+- **🏟 Arena \| 🎯 ROIs \| 🧭 Trajectory** legend: **✓** import, **⏸** do not import, **✗** unavailable (no Parquet found)
+- **ROI Strategy** for conflicts between imported and newly drawn ROIs:
+  **Replace (overwrite)**, **Merge (keep both ROIs)** (conflicts are renamed),
+  or **Manual (ask)** (ask for each conflict)
 
----
-
-### Cenário 3: Reaproveitar Processamento Completo
-
-1. **Etapa 1**: Experimental + **Importar tudo disponível**
-2. **Etapa 2**: Adicionar vídeos com `*_trajectory.parquet` adjacentes
-3. **Etapa 3**: Wizard detecta dados completos
-4. **Etapa 4**: Vídeos completos → **SKIP**, novos vídeos → **FULL**
-5. **Etapa 5**: Confirmar
-
-**Resultado**: Vídeos já processados são pulados, apenas novos são processados.
+💡 **Tip:** use Skip for already-processed videos and Import Zones + track to
+reuse drawn zones while regenerating trajectories.
 
 ---
 
-### Cenário 4: Projeto Exploratório Rápido
+## Step 7 · Project Confirmation and Creation
 
-1. **Etapa 1**: **Exploratório** + Não possuo Parquets
-2. **Etapa 2**: Adicionar 1-2 vídeos de teste
-3. **Etapa 3**: Sem detecção de design (exploratory não detecta)
-4. **Etapa 4**: FULL para todos
-5. **Etapa 5**: Nome automático "Projeto_Exploratorio_20251004"
+**Goal:** Review every setting and create the project.
 
-**Resultado**: Projeto simples criado rapidamente para testes.
+The **Project Summary** panel reflects everything chosen in the previous
+steps: project type, detected design (groups/days/confidence), hardware
+(camera/Arduino, for live projects), calibration, detector configuration,
+folder structure preview, processing plan (estimated at **~5 minutes per
+video** to process; Skip is instant), and existing/imported Parquet counts.
+
+Final fields:
+
+- **Project Name:** — auto-suggested (e.g. `Experiment_Control` for the
+  first detected group, or `Experimental_Project` / `Exploratory_Project`
+  otherwise); editable
+- **Location:** — defaults to `Documents`; use **Browse...** to change it
+- **💾 Save as Template** — stores every answer from this run (see
+  [Templates](#templates) below) so a future project can start from the same
+  configuration
+
+The wizard validates the project name and location before letting you finish
+— it will not allow an empty name, special characters, a non-writable
+location, or a duplicate project name in the same location.
 
 ---
 
-## Perguntas Frequentes
+## Templates
 
-### 1. O que acontece se eu não tiver estrutura de pastas?
+Two independent template mechanisms exist:
 
-O wizard funcionará normalmente, mas não detectará design automaticamente. Você poderá configurar manualmente as ações por vídeo na Etapa 4.
+- **Curated baseline templates** shipped with the repo under
+  `resources/wizard_templates/*.json`, packaged by `scripts/build_templates.py`
+  into `dist/wizard_templates.zip` in CI. Use `scripts/compile_translations.py`
+  to make sure Word/Excel reports generated by the wizard use the up-to-date
+  `pt_BR` catalog.
+- **User-saved templates**, created with **💾 Save as Template** on the
+  Confirmation step and reloaded with **📂 Load Template...** on the
+  Discovery step (file filter: **Wizard Templates** `*.json`). Loading one
+  pre-fills every step; review each step before continuing.
 
-### 2. Posso editar a detecção de design?
+Any wizard change should update this documentation, run the `tests/test_wizard*.py`
+suite, and review the developer guide at
+[`docs/guides/developer/wizard.md`](../guides/developer/wizard.md).
 
-Na versão 1.6, a detecção é automática e não editável. Se a confiança for baixa (<70%), considere reorganizar pastas ou renomear arquivos para seguir um dos 4 padrões suportados.
+---
 
-### 3. O que é a "confiança" de detecção?
+## Recommended Flow by Scenario
 
-É um percentual calculado com base em:
+### Scenario 1: New Project (no Parquets)
 
-- **Consistência** do padrão (50%)
-- **Cobertura** dos vídeos (30%)
-- **Ausência de outliers** (20%)
+1. **Discovery**: Experimental + "folders represent the experimental structure" + "start from scratch"
+2. **File Selection**: Add Folder... (experiment root)
+3. **Automatic Design Detection**: verify the detected design (groups and days)
+4. **Import Configuration**: all videos default to `FULL` (process from scratch)
+5. **Confirmation**: confirm and create
 
-Valores acima de 70% são confiáveis.
+**Result:** project created with the detected design; every video gets processed.
 
-### 4. Posso voltar para etapas anteriores?
+---
 
-Sim! Use o botão "< Voltar" a qualquer momento. Seus dados serão preservados.
+### Scenario 2: Import Zones from a Previous Project
 
-### 5. Posso cancelar o wizard?
+1. **Discovery**: Experimental + folder structure + **"Yes - I want to import zones (arena and ROIs)"**
+2. **File Selection**: add videos with adjacent `*_arena.parquet` and `*_rois.parquet` files
+3. **Automatic Design Detection**: the wizard detects the existing arenas/ROIs
+4. **Import Configuration**: videos with arena+ROIs → `IMPORT_ZONES` (track again)
+5. **Confirmation**: confirm
 
-Sim. Clique em "Cancelar" a qualquer momento. O wizard pedirá confirmação se você já tiver preenchido dados.
+**Result:** arena and ROIs imported; new trajectories generated without redrawing zones.
 
-### 6. O que acontece se eu escolher SKIP mas o vídeo não tiver todos os dados?
+---
 
-O wizard não permite SKIP sem dados completos. A validação na Etapa 4 garante que SKIP só seja aplicado a vídeos com arena + ROIs + trajetória.
+### Scenario 3: Reuse a Fully Processed Run
 
-### 7. Quanto tempo demora o processamento?
+1. **Discovery**: Experimental + **"Yes - I want to import everything (zones + trajectory)"**
+2. **File Selection**: add videos with adjacent `*_trajectory.parquet` files
+3. **Automatic Design Detection**: the wizard detects complete data
+4. **Import Configuration**: complete videos → `SKIP`; new videos → `FULL`
+5. **Confirmation**: confirm
 
-Estimativa: **~5 minutos por vídeo** para processamento FULL. IMPORT_ZONES é mais rápido (~2-3 min). SKIP é instantâneo.
+**Result:** already-processed videos are skipped; only new videos are processed.
 
-### 8. Os arquivos Parquet devem estar na mesma pasta que os vídeos?
+---
 
-Sim. O wizard busca arquivos com padrão `{video_name}_arena.parquet`, `{video_name}_rois.parquet`, `{video_name}_trajectory.parquet` na mesma pasta do vídeo correspondente.
+### Scenario 4: Quick Exploratory Project
 
-Exemplo:
+1. **Discovery**: **Exploratory** + "start from scratch"
+2. **File Selection**: add one or two test videos
+3. **Automatic Design Detection**: skipped (exploratory projects don't detect a design)
+4. **Import Configuration**: `FULL` for everything
+5. **Confirmation**: the project name auto-suggests `Exploratory_Project`
+
+**Result:** a simple project created quickly for testing.
+
+---
+
+## Frequently Asked Questions
+
+### 1. What happens if I have no folder structure?
+
+The wizard still works, but it won't auto-detect a design. Configure each
+video's action manually in Import Configuration.
+
+### 2. Can I edit the detected design?
+
+Yes. Use **✏️ Edit Design** on the Automatic Design Detection step to correct
+groups/days/subjects by hand, or **🔧 Custom Regex** to supply your own
+detection patterns. If confidence is low (below ~70%), consider reorganizing
+folders/filenames first.
+
+### 3. What is detection "Confidence"?
+
+A percentage reflecting how consistent the detected pattern is across your
+videos. Higher values are more reliable; treat anything clearly below 70%
+with caution and double-check the detected design before continuing.
+
+### 4. Can I go back to previous steps?
+
+Yes — the **< Back** button is available at any time; your data is preserved.
+
+### 5. Can I cancel the wizard?
+
+Yes. Click **Cancel** at any time.
+
+### 6. What if I choose Skip but the video is missing data?
+
+The wizard won't allow `SKIP` without complete data — Import Configuration
+only allows it when arena + ROIs + trajectory all exist.
+
+### 7. How long does processing take?
+
+Estimate: **~5 minutes per video** for `FULL` processing. `IMPORT_ZONES` is
+faster (only trajectory generation runs). `SKIP` is instant.
+
+### 8. Do the Parquet files need to be in the same folder as the videos?
+
+Yes. The wizard looks for `{video_name}_arena.parquet`,
+`{video_name}_rois.parquet`, and `{video_name}_trajectory.parquet` next to
+the matching video:
 
 ```text
 /Videos/
@@ -341,95 +356,76 @@ Exemplo:
 
 ---
 
-## Solução de Problemas
+## Troubleshooting
 
-### Problema: "Nenhum design detectado" mesmo com estrutura de pastas
+### "No design detected" despite a folder structure
 
-**Causa**: Estrutura não segue um dos 4 padrões suportados.
+**Cause:** the structure doesn't follow one of the recognized patterns.
 
-**Solução**:
+**Solution:**
 
-1. Verifique se pastas/nomes seguem padrões consistentes
-2. Use palavras-chave reconhecidas: Control, Treatment, Day, D, Subject, S
-3. Considere reorganizar pastas ou usar projeto Exploratório
-
----
-
-### Problema: Wizard não encontra arquivos Parquet existentes
-
-**Causa**: Arquivos não seguem convenção de nomenclatura.
-
-**Solução**:
-
-1. Renomeie Parquets para `{video_name}_arena.parquet`, etc.
-2. Certifique-se de que estão na mesma pasta do vídeo
-3. Verifique extensão: `.parquet` (não `.pq` ou `.parq`)
+1. Check that folders/names follow a consistent pattern.
+2. Use recognizable keywords: Control, Treatment, Day, D, Subject, S.
+3. Try **🔧 Custom Regex** to describe your own naming pattern, or reorganize
+   into an Exploratory project.
 
 ---
 
-### Problema: Confiança de detecção muito baixa (<50%)
+### The wizard doesn't find existing Parquet files
 
-**Causa**: Inconsistência na estrutura de pastas/nomes.
+**Cause:** files don't follow the naming convention.
 
-**Solução**:
+**Solution:**
 
-1. Revise estrutura e identifique outliers (vídeos fora do padrão)
-2. Renomeie pastas/arquivos para seguir padrão consistente
-3. Ou use projeto Exploratório e configure manualmente
-
----
-
-### Problema: "Projeto já existe" ao criar
-
-**Causa**: Já existe pasta com mesmo nome na localização.
-
-**Solução**:
-
-1. Escolha nome diferente
-2. Ou selecione localização diferente
-3. Ou remova/renomeie projeto existente
+1. Rename Parquets to `{video_name}_arena.parquet`, etc.
+2. Make sure they sit in the same folder as the video.
+3. Check the extension is `.parquet` (not `.pq` or `.parq`).
 
 ---
 
-## Atalhos de Teclado
+### Detection confidence is very low
 
-| Atalho   | Ação                       |
-| -------- | -------------------------- |
-| `Enter`  | Avançar para próxima etapa |
-| `Esc`    | Cancelar wizard            |
-| `Alt+V`  | Voltar para etapa anterior |
-| `Alt+P`  | Próxima etapa              |
-| `Ctrl+A` | Adicionar vídeos (Etapa 2) |
-| `Ctrl+F` | Adicionar pasta (Etapa 2)  |
-| `Delete` | Remover seleção (Etapa 2)  |
+**Cause:** inconsistent folder/name structure.
+
+**Solution:**
+
+1. Review the structure and identify outliers (videos that don't fit the pattern).
+2. Rename folders/files to follow a consistent pattern.
+3. Or switch to an Exploratory project and configure manually.
 
 ---
 
-## Glossário
+### "Project already exists" when creating
 
-- **Arena**: Coordenadas do tanque de experimentação
-- **ROI**: Região de Interesse (zones dentro do tanque)
-- **Trajetória**: Dados de rastreamento (posições dos animais ao longo do tempo)
-- **Parquet**: Formato de arquivo colunar usado para armazenar dados de tracking
-- **SKIP**: Pular processamento (dados completos já existem)
-- **IMPORT_ZONES**: Importar arena e ROIs, gerar nova trajetória
-- **PARTIAL**: Importar somente arena
-- **FULL**: Processar tudo do zero (sem importação)
-- **Design Experimental**: Estrutura formal do experimento (grupos, dias, sujeitos)
-- **Confiança de Detecção**: Percentual de certeza na detecção automática de design
+**Cause:** a folder with the same name already exists at that location.
+
+**Solution:**
+
+1. Choose a different name.
+2. Or pick a different location.
+3. Or remove/rename the existing project.
 
 ---
 
-## Suporte
+## Glossary
 
-Para reportar problemas ou sugerir melhorias:
+- **Arena**: the experimental tank's coordinates
+- **ROI**: Region of Interest (zones inside the tank)
+- **Trajectory**: tracking data (animal positions over time)
+- **Parquet**: the columnar file format used to store tracking data
+- **SKIP** (`Skip (complete data)`): skip processing — complete data already exists
+- **IMPORT_ZONES** (`Import Zones + track`): import arena and ROIs, generate a new trajectory
+- **PARTIAL** (`Partial (arena only)`): import only the arena
+- **FULL** (`Full (from scratch)`): process everything from zero (no import)
+- **Experimental Design**: the study's formal structure (groups, days, subjects)
+- **Detection Confidence**: percentage reflecting how certain the automatic design detection is
+
+---
+
+## Support
+
+To report problems or suggest improvements:
 
 - GitHub Issues: <https://github.com/MarkSant/DRerio-LogAI/issues>
-- Documentação técnica complementar: `docs/guides/developer/wizard.md`
-- Arquitetura: `docs/explanation/architecture.md`
-
----
-
-**Versão do Wizard:** 1.7
-**Schema Version:** 1
-**Última Atualização:** 2025-10-14
+- Complementary developer docs: `docs/guides/developer/wizard.md`
+- Architecture: `docs/explanation/architecture.md`
