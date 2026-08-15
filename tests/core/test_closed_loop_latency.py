@@ -419,6 +419,7 @@ def test_dispatch_uses_measured_fps_from_frame_ledger_not_configured(tmp_path):
     assert ctx["fps_configured"] == pytest.approx(30.0)
     assert ctx["fps"] != ctx["fps_configured"]
 
+    assert manager.sink is not None
     manager.sink(ctx, 500.030, 500.045, "Red LED 1 ON")
     h._finalize_closed_loop_log()
 
