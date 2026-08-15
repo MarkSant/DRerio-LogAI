@@ -908,20 +908,6 @@ class VideoSelectorTreeManager:
     # Misc
     # ==================================================================
 
-    def update_delete_template_button_state(self) -> None:
-        """Update state of delete template button."""
-        if not hasattr(self.gui, "delete_template_btn"):
-            return
-
-        has_selection = False
-        if hasattr(self.gui, "roi_template_var"):
-            current = self.gui.roi_template_var.get()
-            has_selection = bool(current and current != "Nenhum")
-
-        if hasattr(self.gui, "delete_template_btn"):
-            state = "normal" if has_selection else "disabled"
-            self.gui.delete_template_btn.config(state=state)
-
     def refresh_openvino_summary(self) -> None:
         """Refresh OpenVINO model summary display."""
         if not hasattr(self.gui, "_openvino_display_var"):
