@@ -75,11 +75,78 @@ termos legais.
 - **🏗️ Arquitetura Event-Driven**: Sistema modular e extensível baseado em eventos
 - **📦 Formatos Padrão**: Exportação para Parquet (dados), Excel (métricas) e Word (relatórios)
 
-## 🚀 Marco Arquitetural: Versão 4.0
+## 🚀 Novidades na Versão 6.0
+
+Snapshot citável preparado para depósito permanente no Zenodo (DOI), em apoio aos manuscritos
+que descrevem a validação da plataforma e um benchmark multi-método de rastreamento:
+
+- **📡 Correção do Logger Closed-Loop**: `fps` e `sampling_interval_ms` em
+  `5_ClosedLoop_<base>.csv` agora guardam a taxa **medida** a partir dos timestamps de captura
+  (`FrameLedger.current_fps_measured()`), não mais o valor configurado nas settings — uma câmera
+  USB costuma exceder a taxa configurada. O valor configurado (nominal) fica em colunas próprias,
+  `fps_configured` / `sampling_interval_ms_configured`.
+- **📦 Pronto para Arquivamento**: `.zenodo.json` com metadados completos (autores, ORCID,
+  licença, registro INPI, financiamento); `CITATION.cff` atualizado para `6.0.0`; material
+  interno da agência de fomento (manuscritos inéditos, relatórios parciais, propostas, planilha
+  financeira) removido da árvore publicamente arquivada.
+- **🌐 Polimento de i18n e Docs**: `README.md` dividido em fonte em inglês mais tradução em
+  português (`README.pt-BR.md`); referências de rótulos de UI desatualizadas corrigidas
+  pós-i18n; `_on_send_selected_video_to_analysis` (não utilizado) removido.
+
+## 🏗️ Marco: Versão 5.0
+
+Cerca de 4,5 meses de trabalho entre a reescrita arquitetural da `v4.0.0` e o snapshot de
+arquivamento `v6.0.0`: uma revisão completa de ROI, estimulação por hardware em malha fechada, e
+a migração da interface para o inglês como língua-fonte.
+
+### Revisão de Região de Interesse (ROI)
+
+- **🎯 Regra Canônica de Inclusão de ROI**: um resolvedor único (`roi_rule_resolver`, projeto →
+  global → padrão) passa a valer para geração de relatórios, gatilhos ao vivo do Arduino e a UI,
+  substituindo lógica divergente por consumidor. Modos: `centroid_in`,
+  `centroid_in_on_buffered_roi`, `bbox_intersects`, `seg_overlap`.
+- **🔬 ROI Multi-Animal**: agregação por `(timestamp, track_id)` acaba com o bug do "centroide
+  fantasma"; semântica de grupo `por_animal` e `any_track`; suavização e detecção de episódios
+  cientes da trilha.
+- **🎭 ROI de Sobreposição de Segmentação Real**: `seg_overlap` lê máscaras gravadas
+  (`3b_Mascaras_<base>.parquet`) e degrada graciosamente — nunca levanta exceção — para
+  `bbox_intersects`, com aviso registrado em log e reportado quando as máscaras não existem.
+
+### Estimulação Closed-Loop e Robustez de Hardware
+
+- **⚡ Comandos Arduino por Zona**: tokens `on_enter`/`on_exit` por ROI, disparados por borda,
+  com detecção de conflito de tokens e detecção de inversão via ACK (a resposta do próprio
+  firmware prova quando um binding está ligado ao contrário).
+- **📊 Log de Latência Closed-Loop**: caracterização por software, baseada em timestamps de ACK,
+  do caminho gatilho-de-ROI → acionamento do LED (`5_ClosedLoop_<base>.csv`), mais um firmware de
+  referência não-bloqueante.
+- **🗂️ Ledger de Frames e Reconstrução da Linha do Tempo**: `6_FrameLedger_<base>` mapeia frame
+  do pipeline ↔ frame real do MP4 ↔ instante de captura, registrando todo modo de perda de frame
+  (descarte por fila cheia, falha de escrita, fora de gravação).
+- **🔌 Modo de Gatilho Externo**: o início de gravação condicionado ao Arduino agora chega tanto
+  ao painel legado quanto ao fluxo ao vivo da grade de Progresso por um único portão de decisão
+  (`external_trigger_gate`).
+
+### Duração por Sujeito e Robustez de Sessões Ao Vivo
+
+- **⏱️ Duração de Gravação por Sujeito**: `session_duration_resolver` (override do sujeito →
+  padrão do bloco → padrão do projeto → 300 s de fallback), com aviso de duração heterogênea em
+  relatórios parciais/em lote.
+- **🐟 Correções Multi-Aquário e de Sessão Ao Vivo**: detecção de reuso de zonas, "Marcar Lote
+  Como Completo" agora gera relatórios de verdade, herança do OpenVINO global, contadores da aba
+  de processamento corrigidos.
+
+### Internacionalização
+
+- **🌐 Inglês como Língua-Fonte da Interface**: catálogo completo em português (pt-BR);
+  traduções resolvidas no momento da chamada, nunca no import; varredura de português sem
+  acento no CI para prevenir regressões.
+
+## 🏗️ Marco Arquitetural: Versão 4.0
 
 ### Refatoração Arquitetural Completa
 
-A v4.0 representou uma reescrita fundamental do sistema com foco em estabilidade, manutenibilidade e performance. Ela continua sendo a base arquitetural da versão atual; veja o [CHANGELOG.md](CHANGELOG.md) para o que mudou desde então, até a atual `v6.0.0`:
+A v4.0 representou uma reescrita fundamental do sistema com foco em estabilidade, manutenibilidade e performance. Ela continua sendo a base arquitetural das versões acima e da versão atual; veja o [CHANGELOG.md](CHANGELOG.md) para o histórico completo por mudança:
 
 - **🏗️ Arquitetura Event-Driven**: Refatoração completa para eliminar acoplamento direto entre componentes
   - Sistema de eventos com `EventBus` para comunicação assíncrona
