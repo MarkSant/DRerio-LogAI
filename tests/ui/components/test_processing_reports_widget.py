@@ -240,26 +240,26 @@ def test_expand_collapse_toggles(widget):
 @pytest.mark.gui
 def test_right_click_emits_event(widget):
     _insert_video_item(widget, "video1", "/path/to/video1.mp4")
-    bbox = widget.tree.bbox("video1")
-    if not bbox:
-        pytest.skip("Tree item not visible in this environment.")
+    widget.tree.identify_row = Mock(return_value="video1")
+    widget.tree.identify_column = Mock(return_value="#1")
 
     event = Mock()
-    event.y = bbox[1] + 1
-    event.x = bbox[0] + 1
+    event.x = 10
+    event.y = 10
     event.x_root = 100
     event.y_root = 200
 
     widget._on_item_right_click(event)
 
-    widget.event_bus.publish.assert_called_once()
-    call_args = widget.event_bus.publish.call_args
-    event_obj = call_args[0][0]  # First positional arg
-    assert event_obj.type == UIEvents.PROCESSING_REPORTS_ITEM_RIGHT_CLICK
-    assert event_obj.data.item_id == "video1"
-    assert event_obj.data.column_id == "#1"
-    assert event_obj.data.x == 100
-    assert event_obj.data.y == 200
+    widget.event_bus.publish.assert_called_once_with(
+        UIEvents.PROCESSING_REPORTS_ITEM_RIGHT_CLICK,
+        payloads.ProjectContextMenuClickPayload(
+            item_id="video1",
+            x=100,
+            y=200,
+            column_id="#1",
+        ),
+    )
 
 
 @pytest.mark.gui

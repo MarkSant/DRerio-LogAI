@@ -103,3 +103,6 @@ gha-creds-*.json
 # Test/runtime artifacts
 .hypothesis/
 kernel.errors.txt
+
+# Windows shortcuts
+*.lnk
