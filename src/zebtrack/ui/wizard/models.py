@@ -13,6 +13,8 @@ from typing import Literal
 import structlog
 from pydantic import BaseModel, Field, field_validator, model_validator
 
+from zebtrack.i18n import _
+
 log = structlog.get_logger()
 
 # =============================================================================
@@ -151,7 +153,7 @@ class LiveConfigData(BaseModel):
     def validate_external_trigger(cls, v, info):
         """External trigger requires Arduino to be enabled."""
         if v and not info.data.get("use_arduino"):
-            raise ValueError("External trigger mode requires Arduino to be enabled")
+            raise ValueError(_("External trigger mode requires Arduino to be enabled"))
         return v
 
     @field_validator("arduino_port")
@@ -199,7 +201,11 @@ class ExperimentalDesignData(BaseModel):
 
         # Check length matches
         if num_groups and len(v) != num_groups:
-            raise ValueError(f"Expected {num_groups} group names, but got {len(v)}")
+            raise ValueError(
+                _("Expected {expected} group names, but got {actual}").format(
+                    expected=num_groups, actual=len(v)
+                )
+            )
 
         # Check uniqueness
         if len(v) != len(set(v)):
