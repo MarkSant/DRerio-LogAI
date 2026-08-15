@@ -12,13 +12,13 @@ independent and can be used together.
 ## Do I need this? (short answer: probably not)
 
 **No. The mode is OPT-IN and ships disabled.** If you leave the box unticked
-nothing changes: recording starts when you click "Iniciar", exactly as before.
+nothing changes: recording starts when you click "▶️ Start", exactly as before.
 No Arduino is required, nothing blocks, no warning appears.
 
-Ticking **"Usar Arduino"** does **not** enable the trigger either — they are two
-separate checkboxes. You can use the Arduino purely for per-zone commands and
-keep starting recordings by hand. Unticking "Usar Arduino" clears and disables
-the trigger checkbox along with it.
+Ticking **"Use Arduino for synchronization"** does **not** enable the trigger
+either — they are two separate checkboxes. You can use the Arduino purely for
+per-zone commands and keep starting recordings by hand. Unticking "Use Arduino
+for synchronization" clears and disables the trigger checkbox along with it.
 
 ## The contract: your sketch must SPEAK
 
@@ -77,16 +77,16 @@ To stop from hardware, send `Serial.println(0)` the same way. If you never send
 
 ## Step by step
 
-1. **In the wizard** (step 3, "Configuração de Gravação ao Vivo"):
-   - tick **"Usar Arduino para sincronização"** — the port is detected and
+1. **In the wizard** (step 3, "Live Recording Configuration"):
+   - tick **"Use Arduino for synchronization"** — the port is detected and
      preselected automatically (the app prefers the one that answers the
      handshake and has "Arduino" in its description);
-   - click **"Testar"** to confirm the port opens;
-   - tick **"Modo de Gatilho Externo (External Trigger)"**.
+   - click **"🔌 Test"** to confirm the port opens;
+   - tick **"External Trigger Mode"**.
 2. **Finish the wizard** and open the project. The port is opened at load time.
-3. **In the Progress grid**, click a subject and then **"▶️ Iniciar"**.
+3. **In the Progress grid**, click a subject and then **"▶️ Start"**.
    - Recording does **not** start. The notice
-     **"Aguardando sinal externo... (porta COMx)"** appears.
+     **"Waiting for external signal... (port COMx)"** appears.
    - Zones are requested BEFORE this wait — the polygon must be ready before we
      sit waiting for a signal.
 4. **Fire the trigger.** On receiving `1`, recording begins.
@@ -114,24 +114,24 @@ analysis time.
 
 | Situation | Message | What to do |
 | --------- | ------- | ---------- |
-| Trigger on, **"Usar Arduino" off** | "…exige um Arduino configurado" | Enable the Arduino in the project, or turn the trigger off |
-| Trigger on, Arduino on, **port not connected** | "…o Arduino não está conectado (porta COMx)" | Check the cable and that no other program holds the port; reopen the project |
+| Trigger on, **"Use Arduino for synchronization" off** | "External trigger mode requires a configured Arduino." | Enable the Arduino in the project, or turn the trigger off |
+| Trigger on, Arduino on, **port not connected** | "The Arduino is not connected — check the cable and whether the port is in use by another program." | Check the cable and that no other program holds the port; reopen the project |
 
 The second case is common and quiet: if the cable is loose when you open the
-project, a "modo offline" warning appears and the project opens anyway. Without
-this refusal the session would arm and wait for a signal that has no way to
-arrive.
+project, a "Could not connect to the Arduino on port {port}. Running in
+offline mode." warning appears and the project opens anyway. Without this
+refusal the session would arm and wait for a signal that has no way to arrive.
 
 ## Troubleshooting
 
 | Symptom | Likely cause |
 | ------- | ------------ |
-| Stuck on "Aguardando sinal externo" forever | The sketch is not sending a bare number. `Serial.println("1")` with quotes is text, not a trigger — check in the IDE's Serial Monitor |
-| Nothing happens and no notice appears | The trigger is not enabled in the project; check "Config. Avançadas" / the project JSON |
-| "Não foi possível conectar" when opening the project | Port held by the Arduino IDE's Serial Monitor — close it (one program per port) |
+| Stuck on "Waiting for external signal... (port COMx)" forever | The sketch is not sending a bare number. `Serial.println("1")` with quotes is text, not a trigger — check in the IDE's Serial Monitor |
+| Nothing happens and no notice appears | The trigger is not enabled in the project; check the "Advanced Settings" tab / the project JSON |
+| "Could not connect to the Arduino on port {port}. Running in offline mode." when opening the project | Port held by the Arduino IDE's Serial Monitor — close it (one program per port) |
 | Fires on its own, untouched | Button pin declared as `INPUT` instead of `INPUT_PULLUP` — a floating pin oscillates |
 | Fires with a long delay | `delay()` inside `loop()`. Use `millis()` |
-| DRerio logs the event but does not record | No session armed. The `1` only counts after "▶️ Iniciar"; before that it is logged and ignored |
+| DRerio logs the event but does not record | No session armed. The `1` only counts after "▶️ Start"; before that it is logged and ignored |
 
 ## References
 

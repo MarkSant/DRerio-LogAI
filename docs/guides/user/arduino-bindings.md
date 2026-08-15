@@ -17,10 +17,10 @@ sends every configured *exit* token once, as a "turn everything off" sweep.
 
 ## Prerequisites
 
-- A **live** project created with **"Usar Arduino"** enabled in the wizard
+- A **live** project created with **"Use Arduino for synchronization"** enabled in the wizard
   (live configuration step), with the correct serial **port** selected.
 - The Arduino connected and flashed with your sketch.
-- At least one **ROI** defined in the **"Configuração de Zonas"** tab.
+- At least one **ROI** defined in the **"Zone Configuration"** tab.
 
 The serial port (and baud rate) is a per-machine setting in
 [`config.local.yaml`](../../../config.local.yaml):
@@ -39,14 +39,14 @@ command.
 
 ## Configure bindings
 
-1. Open the project and go to the **"Configuração de Zonas"** tab.
+1. Open the project and go to the **"Zone Configuration"** tab.
 2. Define your ROIs as usual.
-3. In the **"Comandos Arduino por Zona"** panel (bottom of the left column):
+3. In the **"Per-Zone Arduino Commands (Optional)"** panel (bottom of the left column):
    - Click **🔄 ROIs** to load the ROI names you just defined.
    - Pick a ROI from the **ROI** dropdown.
-   - Type the integer to send in **Entrar** (on enter) and/or **Sair** (on exit).
-   - Click **Adicionar / Atualizar**. The row appears in the table and is saved.
-4. Repeat for each ROI. Use **Remover** / **Limpar** to edit the table.
+   - Type the integer to send in **Enter** (on enter) and/or **Exit** (on exit).
+   - Click **Add / Update**. The row appears in the table and is saved.
+4. Repeat for each ROI. Use **Remove** / **Clear** to edit the table.
 
 You only ever *type* the short integer token — everything else is a selection.
 
@@ -62,7 +62,7 @@ The bundled `Program_Final.ino` maps integers to LED on/off pairs:
 | `7`   | Red LED 2 ON    | `8`   | Red LED 2 OFF    |
 
 To light Red LED 1 while a fish is in the ROI named `Direita`, set that ROI's
-binding to **Entrar = 1**, **Sair = 2**. The LED turns on when the fish enters,
+binding to **Enter = 1**, **Exit = 2**. The LED turns on when the fish enters,
 stays on while it remains, and turns off when it leaves — and the end-of-session
 sweep guarantees it is off after recording stops.
 
@@ -81,8 +81,8 @@ sweep guarantees it is off after recording stops.
 
 ## Troubleshooting
 
-- **Panel not visible** — the project is not live, or **"Usar Arduino"** was not
-  enabled at creation. A note in the panel explains this.
+- **Panel not visible** — the project is not live, or **"Use Arduino for
+  synchronization"** was not enabled at creation. A note in the panel explains this.
 - **ROI dropdown empty** — define ROIs first, then click **🔄 ROIs**.
 - **Nothing happens on the device** — check the port in `config.local.yaml`
   matches the connected Arduino, and that your sketch acts on the integers you

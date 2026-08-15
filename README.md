@@ -3,7 +3,7 @@
 
 # DRerio LogAI
 
-**Plataforma Inteligente de Rastreamento e Análise Comportamental para _Danio rerio_ (Zebrafish)**
+**Intelligent Tracking and Behavioral Analysis Platform for _Danio rerio_ (Zebrafish)**
 
 ![Version](https://img.shields.io/badge/version-4.0.0-blue.svg)
 ![Architecture](https://img.shields.io/badge/architecture-Event--Driven-green.svg)
@@ -13,463 +13,472 @@
 [![CI](https://github.com/MarkSant/DRerio-LogAI/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/MarkSant/DRerio-LogAI/actions/workflows/ci.yml)
 [![Codecov](https://codecov.io/gh/MarkSant/DRerio-LogAI/branch/main/graph/badge.svg?token=XH937YKEOU)](https://codecov.io/gh/MarkSant/DRerio-LogAI)
 
-[Documentação](docs/) | [Guia de Contribuição](docs/guides/developer/DEVELOPER_GUIDE.md) | [Arquitetura](docs/architecture/ARCHITECTURE.md) | [Changelog](CHANGELOG.md)
+**🇧🇷 [Ler em Português](README.pt-BR.md)**
+
+[Documentation](docs/) | [Contributing Guide](docs/guides/developer/DEVELOPER_GUIDE.md) | [Architecture](docs/architecture/ARCHITECTURE.md) | [Changelog](CHANGELOG.md)
 
 </div>
 
 ---
 
-## 📋 Sobre o Projeto
+## 📋 About the Project
 
-O **DRerio LogAI** é uma solução completa e de código aberto para análise automatizada de comportamento de peixes zebrafish (_Danio rerio_) em experimentos científicos. Desenvolvido com foco em **reprodutibilidade**, **precisão** e **facilidade de uso**, o sistema combina técnicas avançadas de visão computacional com Deep Learning para rastreamento multi-objeto em tempo real.
+**DRerio LogAI** is a complete, open-source solution for automated behavioral analysis of zebrafish (_Danio rerio_) in scientific experiments. Built with a focus on **reproducibility**, **precision**, and **ease of use**, the system combines advanced computer vision techniques with Deep Learning for real-time multi-object tracking.
 
-### 🎯 Motivação
+### 🎯 Motivation
 
-Pesquisadores em neurociência, farmacologia e toxicologia frequentemente utilizam zebrafish como modelo animal devido à sua transparência óptica, rápido desenvolvimento e alta homologia genética com humanos (~70%). No entanto, a análise manual de vídeos comportamentais é:
+Researchers in neuroscience, pharmacology, and toxicology frequently use zebrafish as an animal model due to their optical transparency, rapid development, and high genetic homology with humans (~70%). However, manual analysis of behavioral videos is:
 
-- **Demorada**: Horas de trabalho para analisar minutos de vídeo
-- **Subjetiva**: Variabilidade entre observadores
-- **Limitada**: Impossibilidade de rastrear múltiplos indivíduos simultaneamente
+- **Time-consuming**: hours of work to analyze minutes of video
+- **Subjective**: variability between observers
+- **Limited**: impossible to track multiple individuals simultaneously
 
-O **DRerio LogAI** resolve esses problemas oferecendo análise automatizada, objetiva e escalável.
+**DRerio LogAI** solves these problems by offering automated, objective, and scalable analysis.
 
-> **Não confunda com o PyZebArdYolo.** O **PyZebArdYolo** é um repositório
-> irmão, mais simples, focado em uma unidade de aquisição em tempo real
-> (webcam + YOLO11 + Arduino, closed-loop) usada em um paper de hardware
-> separado. Ele **não** está coberto pelo registro INPI descrito abaixo e
-> não tem a exigência de titularidade UNESP presente nos arquivos de
-> licença deste repositório — lá, os próprios autores figuram como
-> titulares. Os dois projetos são independentes.
+> **Do not confuse with PyZebArdYolo.** **PyZebArdYolo** is a sibling
+> repository, simpler in scope, focused on a real-time acquisition unit
+> (webcam + YOLO11 + Arduino, closed-loop) used in a separate hardware
+> paper. It is **not** covered by the INPI registration described below
+> and does not carry the UNESP ownership requirement present in this
+> repository's license files — there, the authors themselves are the
+> rights holders. The two projects are independent.
 
-## 🏛️ Titularidade e Registro
+## 🏛️ Ownership and Registration
 
-O **DRerio LogAI** possui **Registro de Programa de
-Computador concedido pelo INPI** (Instituto Nacional da Propriedade
-Industrial, Brasil), sob a Lei 9.609/98 (direito autoral de software —
-**não** se trata de patente):
+**DRerio LogAI** has a **Computer Program Registration granted by
+INPI** (Instituto Nacional da Propriedade Industrial, Brazil), under Law
+9.609/98 (software copyright — **not** a patent):
 
-- **Processo**: BR 51 2026 005215-7
-- **Petição**: 870260066857
-- **Data de depósito**: 07/07/2026
-- **Data de criação declarada**: 22/10/2025
+- **Process**: BR 51 2026 005215-7
+- **Petition**: 870260066857
+- **Filing date**: 07/07/2026
+- **Declared creation date**: 22/10/2025
 
-O **titular** dos direitos patrimoniais (dono dos direitos econômicos) é a
-**Universidade Estadual Paulista "Júlio de Mesquita Filho" (UNESP)**, CNPJ
-48.031.918/0001-24. Os **autores/inventores** (direitos morais) são
-**Marco Antônio Sant'Ana Camargos** e **Percília Cardoso Giaquinto**,
-ambos com afiliação UNESP.
+The **holder** of the economic rights (owner of the pecuniary rights) is
+the **Universidade Estadual Paulista "Júlio de Mesquita Filho" (UNESP)**,
+CNPJ 48.031.918/0001-24. The **authors/inventors** (moral rights) are
+**Marco Antônio Sant'Ana Camargos** and **Percília Cardoso Giaquinto**,
+both affiliated with UNESP.
 
-Veja [NOTICE](NOTICE) para o detalhamento completo (copyright,
-dependências de terceiros e suas licenças) e [LICENSE](LICENSE) para os
-termos legais.
+See [NOTICE](NOTICE) for the full breakdown (copyright, third-party
+dependencies, and their licenses) and [LICENSE](LICENSE) for the legal
+terms.
 
-### ✨ Diferenciais
+### ✨ Highlights
 
-- **🤖 Deep Learning Otimizado**: Ultralytics YOLO (detecção e segmentação) com opção de aceleração via OpenVINO
-- **📊 Métricas Científicas**: Cálculo automático de velocidade, distância percorrida, tempo em zonas, imobilidade, proximidade social
-- **🎨 Interface Intuitiva**: Wizard dinâmico (6–7 etapas) para criação de projetos (pré-gravado ou ao vivo) sem necessidade de programação
-- **🔬 Reprodutibilidade**: Todas as configurações e parâmetros de análise são salvos junto com os dados
-- **📹 Análise ao Vivo**: Captura e análise em tempo real com câmeras USB/webcams
-- **🏗️ Arquitetura Event-Driven**: Sistema modular e extensível baseado em eventos
-- **📦 Formatos Padrão**: Exportação para Parquet (dados), Excel (métricas) e Word (relatórios)
+- **🤖 Optimized Deep Learning**: Ultralytics YOLO (detection and segmentation) with optional OpenVINO acceleration
+- **📊 Scientific Metrics**: automatic calculation of speed, distance traveled, time in zones, immobility, social proximity
+- **🎨 Intuitive Interface**: dynamic Wizard (6–7 steps) for creating projects (pre-recorded or live) without any programming required
+- **🔬 Reproducibility**: all configurations and analysis parameters are saved alongside the data
+- **📹 Live Analysis**: real-time capture and analysis with USB cameras/webcams
+- **🏗️ Event-Driven Architecture**: modular, extensible system built on events
+- **📦 Standard Formats**: export to Parquet (data), Excel (metrics), and Word (reports)
 
-## 🚀 Novidades na Versão 4.0
+## 🚀 What's New in Version 4.0
 
-### Refatoração Arquitetural Completa
+### Complete Architectural Refactor
 
-A v4.0 representa uma reescrita fundamental do sistema com foco em estabilidade, manutenibilidade e performance:
+v4.0 represents a fundamental rewrite of the system, focused on stability, maintainability, and performance:
 
-- **🏗️ Arquitetura Event-Driven**: Refatoração completa para eliminar acoplamento direto entre componentes
-  - Sistema de eventos com `EventBus` para comunicação assíncrona
-  - Padrão Mediator (`UICoordinator`) para orquestração da UI
-  - Eliminação de 90+ linhas de código legado de threads
-- **🎨 Interface Otimizada**: Nova aba unificada de "Processamento e Relatórios"
-  - Redução de 50% no uso de memória durante renderização
-  - Eliminação de race conditions em atualizações de UI
-  - Preview em tempo real com `LivePreviewWindow`
-- **⚡ Performance**: Melhorias significativas de velocidade
-  - Startup 67% mais rápido (6.0s → 2.0s) com lazy loading
-  - `RecorderFactory` para carregamento sob demanda de pandas/pyarrow
-  - Cache de hardware com TTL de 30s (5x mais rápido)
-- **🔒 Confiabilidade**: Sistema de testes robusto
-  - ~3700 testes (~48% de cobertura)
-  - Testes E2E para fluxos críticos
-  - Timeout automático para prevenir travamentos (pytest-timeout)
-- **🐛 Correções Críticas**: Resolução de bugs de câmera ao vivo
-  - Seleção correta de `camera_index` em projetos live
-  - Respeito a intervalos de análise configurados
-  - Unificação de `LiveCameraService` para ambos os contextos
-- **💡 Ajuda Contextual**: Novo sistema de ícones de informação (ⓘ)
-  - Tooltips detalhados para todos os parâmetros de IA e calibração
-  - Explicações claras sobre o impacto de aumentar ou diminuir valores
-  - Sincronização em tempo real entre diálogos de configuração e o `Settings` global
+- **🏗️ Event-Driven Architecture**: complete refactor to eliminate direct coupling between components
+  - Event system with `EventBus` for asynchronous communication
+  - Mediator pattern (`UICoordinator`) for UI orchestration
+  - Elimination of 90+ lines of legacy thread code
+- **🎨 Optimized Interface**: new unified "Processing and Reports" tab
+  - 50% reduction in memory usage during rendering
+  - Elimination of UI-update race conditions
+  - Real-time preview with `LivePreviewWindow`
+- **⚡ Performance**: significant speed improvements
+  - 67% faster startup (6.0s → 2.0s) via lazy loading
+  - `RecorderFactory` for on-demand loading of pandas/pyarrow
+  - Hardware cache with a 30s TTL (5x faster)
+- **🔒 Reliability**: robust test system
+  - ~3700 tests (~48% coverage)
+  - E2E tests for critical flows
+  - Automatic timeout to prevent hangs (pytest-timeout)
+- **🐛 Critical Fixes**: resolved live-camera bugs
+  - Correct `camera_index` selection in live projects
+  - Configured analysis intervals now respected
+  - Unified `LiveCameraService` for both contexts
+- **💡 Contextual Help**: new information-icon system (ⓘ)
+  - Detailed tooltips for all AI and calibration parameters
+  - Clear explanations of the impact of increasing or decreasing values
+  - Real-time synchronization between configuration dialogs and global `Settings`
 
-### Multi-Aquarium v2 (Novo!)
+### Multi-Aquarium v2 (New!)
 
-Suporte avançado para análise simultânea de múltiplos aquários:
+Advanced support for simultaneous analysis of multiple aquariums:
 
-- **🔄 Detecção Paralela**: `detect_partitioned_parallel()` com ThreadPoolExecutor (~30-40% speedup)
-- **📦 Inferência em Lote**: `detect_batch()` para processamento offline otimizado
-- **✂️ Recorte ROI**: `_crop_aquarium_region()` para extração individual por aquário
-- **📊 Métricas de Incerteza**: Colunas `uncertainty` e `bbox_iou` no Parquet para análise de qualidade
-- **🔬 Thigmotaxis**: Métricas de preferência de borda por aquário
-- **✅ Validação Avançada**: `validate_multi_aquarium_config()` retorna erros e avisos
-- **🔍 Detecção de Gaps**: `_detect_per_aquarium_gaps()` para lacunas de trajetória por aquário
-- **🛡️ Recuperação de Erros**: Fallback automático quando detecção em aquário individual falha
-- **📤 Exportação R/Python**: Scripts prontos para análise estatística em R ou Python
-- **🖼️ Preview Lado-a-lado**: `create_side_by_side_preview()` para comparação visual
-- **📝 Relatórios por Aquário (Word/Excel)**: artefatos separados por `aquarium_0/`, `aquarium_1/` e exibição correta na aba de Relatórios
+- **🔄 Parallel Detection**: `detect_partitioned_parallel()` with ThreadPoolExecutor (~30-40% speedup)
+- **📦 Batch Inference**: `detect_batch()` for optimized offline processing
+- **✂️ ROI Cropping**: `_crop_aquarium_region()` for per-aquarium extraction
+- **📊 Uncertainty Metrics**: `uncertainty` and `bbox_iou` columns in the Parquet for quality analysis
+- **🔬 Thigmotaxis**: wall-preference metrics per aquarium
+- **✅ Advanced Validation**: `validate_multi_aquarium_config()` returns errors and warnings
+- **🔍 Gap Detection**: `_detect_per_aquarium_gaps()` for per-aquarium trajectory gaps
+- **🛡️ Error Recovery**: automatic fallback when detection fails on an individual aquarium
+- **📤 R/Python Export**: ready-made scripts for statistical analysis in R or Python
+- **🖼️ Side-by-Side Preview**: `create_side_by_side_preview()` for visual comparison
+- **📝 Per-Aquarium Reports (Word/Excel)**: separate artifacts under `aquarium_0/`, `aquarium_1/`, with correct display in the Reports tab
 
-### Análise Comportamental Expandida
+### Expanded Behavioral Analysis
 
-- **🧠 Geotaxia (Novel Tank Test)**: Suporte nativo para perspectiva lateral com zonas verticais (Fundo/Meio/Superfície)
-- **📏 Demarcação Visual**: Linhas de zona automáticas em plots de trajetória e heatmaps para visualização clara de preferência de altura
-- **📄 Relatórios Contextuais**: Nomenclatura adaptativa de colunas baseada na perspectiva da câmera
+- **🧠 Geotaxis (Novel Tank Test)**: native support for lateral perspective with vertical zones (Bottom/Middle/Surface)
+- **📏 Visual Demarcation**: automatic zone lines on trajectory plots and heatmaps for clear visualization of height preference
+- **📄 Contextual Reports**: adaptive column naming based on camera perspective
 
-### Suporte a NPU e Hardware Heterogêneo (Novo!)
+### NPU and Heterogeneous Hardware Support (New!)
 
-- **🔌 Intel NPU**: Suporte a Neural Processing Unit em processadores Intel Core Ultra via OpenVINO
-- **📦 Variantes de Modelo**: `standard`, `lite` e `nano` com seleção automática conforme capacidade do hardware
-- **📈 Benchmark Automático**: Medição de throughput (FPS) entre CPU, GPU e NPU para recomendação ideal
-- **⚡ Fallback Inteligente**: Downgrade automático de variante quando hardware detectado é insuficiente
-- **🔧 CI Robustecido**: Badge dinâmico, trigger manual, mocks cross-platform para Linux
+- **🔌 Intel NPU**: Neural Processing Unit support on Intel Core Ultra processors via OpenVINO
+- **📦 Model Variants**: `standard`, `lite`, and `nano`, with automatic selection based on hardware capability
+- **📈 Automatic Benchmark**: throughput (FPS) measurement across CPU, GPU, and NPU for the ideal recommendation
+- **⚡ Smart Fallback**: automatic variant downgrade when detected hardware is insufficient
+- **🔧 Hardened CI**: dynamic badge, manual trigger, cross-platform mocks for Linux
 
-## 📚 Histórico de versões (v1–v3)
+## 📚 Version History (v1–v3)
 
-O README destaca o estado atual (v4.0). Para detalhes completos por release, consulte o
-[CHANGELOG.md](CHANGELOG.md). Abaixo fica um resumo (marcos principais) das versões anteriores.
+This README highlights the current state (v4.0). For full per-release details, see the
+[CHANGELOG.md](CHANGELOG.md). Below is a summary (main milestones) of earlier versions.
 
 ### v3.0.0 (2025-01-11)
 
-- Remoção completa do sistema legado de threads para projetos ao vivo.
-- Fluxo de câmera ao vivo passa a ser exclusivamente via `LiveCameraService`.
-- Limpeza e simplificação do carregamento de projetos Live (separação mais clara entre vídeo e
-   câmera).
+- Complete removal of the legacy thread system for live projects.
+- Live camera flow now goes exclusively through `LiveCameraService`.
+- Cleanup and simplification of Live project loading (clearer separation between video and
+   camera).
 
 ### v2.x (2025)
 
 #### v2.1.0 (2025-01-11)
 
-- Migração de projetos Live para arquitetura unificada do `LiveCameraService`.
-- Correções críticas: `camera_index` respeitado (não força câmera 0) e intervalos de análise/display
-   respeitados.
-- Redução de threads e memória (de 4 → 2 threads; buffer menor).
+- Migration of Live projects to the unified `LiveCameraService` architecture.
+- Critical fixes: `camera_index` respected (no longer forces camera 0), and analysis/display
+   intervals respected.
+- Reduced threads and memory (from 4 → 2 threads; smaller buffer).
 
 #### v2.0.0 (2025-10-XX)
 
-- Camada de serviço do Wizard (`zebtrack.core.wizard_service`) com lógica de negócio testável e
-   centralizada (hardware, validação, utilitários e sugestões).
-- Modelos Pydantic para validação tipada (`LiveConfigData`, `ExperimentalDesignData`, etc.).
-- Modularização de UI: extração de diálogos do `gui.py` para `zebtrack.ui.dialogs/` e melhoria de
-   testabilidade/manutenibilidade.
-- Cache de detecção de hardware (TTL 30s) para reduzir latência na navegação do Wizard.
-- Evolução do Wizard (Express/Advanced, trigger externo, templates, regras de inclusão em ROI).
+- Wizard service layer (`zebtrack.core.wizard_service`) with testable, centralized business
+   logic (hardware, validation, utilities, and suggestions).
+- Pydantic models for typed validation (`LiveConfigData`, `ExperimentalDesignData`, etc.).
+- UI modularization: dialogs extracted from `gui.py` into `zebtrack.ui.dialogs/`, improving
+   testability/maintainability.
+- Hardware-detection cache (30s TTL) to reduce latency while navigating the Wizard.
+- Wizard evolution (Express/Advanced, external trigger, templates, ROI inclusion rules).
 
 ### v1.x (baseline)
 
 #### v1.6.0 (previous release)
 
-- Criação de projetos via Wizard (fluxo em etapas) e suporte a projetos Live com câmera/Arduino.
-- Campos de desenho experimental (grupos/dias/sujeitos) e persistência de templates.
-- Diálogos legados mantidos por compatibilidade.
+- Project creation via the Wizard (step-based flow) and support for Live projects with
+   camera/Arduino.
+- Experimental-design fields (groups/days/subjects) and template persistence.
+- Legacy dialogs kept for backward compatibility.
 
-## 🛠️ Instalação
+## 🛠️ Installation
 
-### Requisitos do Sistema
+### System Requirements
 
-| Componente | Versão Mínima            | Recomendado                         |
-| ---------- | ------------------------ | ----------------------------------- |
-| Python     | 3.11                     | 3.12+                               |
-| RAM        | 4 GB                     | 8 GB+                               |
-| CPU        | Dual-core                | Quad-core+ (Intel Core Ultra p/ NPU)|
-| GPU        | Não requerida            | NVIDIA com CUDA (opcional)          |
-| NPU        | Não requerido            | Intel Core Ultra (via OpenVINO)     |
-| SO         | Windows 10, Linux, macOS | Ubuntu 22.04+                       |
+| Component | Minimum Version           | Recommended                          |
+| --------- | -------------------------- | ------------------------------------- |
+| Python    | 3.11                       | 3.12+                                 |
+| RAM       | 4 GB                        | 8 GB+                                 |
+| CPU       | Dual-core                  | Quad-core+ (Intel Core Ultra for NPU) |
+| GPU       | Not required                | NVIDIA with CUDA (optional)           |
+| NPU       | Not required                 | Intel Core Ultra (via OpenVINO)      |
+| OS        | Windows 10, Linux, macOS   | Ubuntu 22.04+                         |
 
-### Instalação Rápida
+### Quick Install
 
-1. **Pré-requisitos**: Certifique-se de ter Python 3.11+ e Poetry instalados
+1. **Prerequisites**: make sure you have Python 3.11+ and Poetry installed
 
    ```bash
-   # Verificar versão do Python
+   # Check Python version
    python --version
 
-   # Instalar Poetry (se necessário)
+   # Install Poetry (if needed)
    curl -sSL https://install.python-poetry.org | python3 -
    ```
 
-2. **Clone o repositório**:
+2. **Clone the repository**:
 
    ```bash
    git clone https://github.com/MarkSant/DRerio-LogAI.git
    cd DRerio-LogAI
    ```
 
-3. **Instale as dependências**:
+3. **Install dependencies**:
 
    ```bash
    poetry install
    ```
 
-4. **(Opcional) Configure parâmetros locais**:
+4. **(Optional) Configure local parameters**:
 
    ```bash
-   # Copie o template de configuração local
+   # Copy the local configuration template
    cp config.yaml config.local.yaml
 
-   # Edite config.local.yaml com suas preferências
-   # (índice da câmera, porta Arduino, parâmetros de detecção, etc.)
+   # Edit config.local.yaml with your preferences
+   # (camera index, Arduino port, detection parameters, etc.)
    ```
 
-### Instalação para Desenvolvimento
+### Development Install
 
-Se você pretende contribuir ou modificar o código:
+If you intend to contribute to or modify the code:
 
 ```bash
-# Clone e instale com dependências de desenvolvimento
+# Clone and install with development dependencies
 git clone https://github.com/MarkSant/DRerio-LogAI.git
 cd DRerio-LogAI
 poetry install --with dev
 
-# Instale os hooks de pré-commit
+# Install pre-commit hooks
 poetry run pre-commit install
 
-# Execute os testes para verificar a instalação
+# Run the tests to verify the installation
 poetry run pytest -q
 ```
 
-### 🧩 Extensões VS Code (Desenvolvimento)
+### 🧩 VS Code Extensions (Development)
 
-Para consistência no ambiente local, siga estas boas práticas com as extensões instaladas:
+For consistency in the local environment, follow these best practices with the installed
+extensions:
 
-- **Python / Pylance**: use o interpretador do Poetry (venv) no editor e no terminal.
-- **Ruff**: use como **único** formatter/linter Python; evite Black/Pylint/Flake8 no VS Code.
-- **Mypy (Matan Gover)**: extensão única de daemon Mypy; prefira `mypy.runUsingActiveInterpreter=true`;
-  alinhe com `mypy.ini`/`pyproject.toml`.
-- **Python Debugger**: depure e gerencie ambientes usando o mesmo interpretador do Poetry.
-- **PowerShell**: use para scripts e automação; mantenha comandos no terminal PowerShell.
-- **GitHub Copilot / Chat / PRs / Actions**: faça mudanças incrementais e sempre com impacto analisado.
-- **GitLens (GitKraken)**: ferramenta Git principal — blame inline, histórico e comparação.
-- **Error Lens**: exibe erros/warnings inline; CSpell excluído.
-- **TODO Tree**: rastreia tags TODO, FIXME, HACK, BUG, XXX, DEPRECATED.
-- **YAML / markdownlint / Code Spell Checker**: mantenha lint ativo e corrija avisos.
+- **Python / Pylance**: use the Poetry interpreter (venv) in the editor and the terminal.
+- **Ruff**: use as the **only** Python formatter/linter; avoid Black/Pylint/Flake8 in VS Code.
+- **Mypy (Matan Gover)**: the single Mypy daemon extension; prefer
+  `mypy.runUsingActiveInterpreter=true`; align with `mypy.ini`/`pyproject.toml`.
+- **Python Debugger**: debug and manage environments using the same Poetry interpreter.
+- **PowerShell**: use for scripts and automation; keep commands in the PowerShell terminal.
+- **GitHub Copilot / Chat / PRs / Actions**: make incremental changes, always with impact
+  analyzed.
+- **GitLens (GitKraken)**: primary Git tool — inline blame, history, and comparisons.
+- **Error Lens**: shows errors/warnings inline; CSpell is excluded.
+- **TODO Tree**: tracks TODO, FIXME, HACK, BUG, DEPRECATED tags.
+- **YAML / markdownlint / Code Spell Checker**: keep linting active and fix warnings.
 
-Checklist rápido:
+Quick checklist:
 
-- [ ] Interpretador ativo é o venv do Poetry.
-- [ ] Ruff é o único formatter Python (Black/Pylint/Flake8 desativados).
-- [ ] Apenas `matangover.mypy` instalado (NÃO `ms-python.mypy-type-checker`).
-- [ ] Linters de YAML/Markdown estão ativos.
+- [ ] The active interpreter is the Poetry venv.
+- [ ] Ruff is the only Python formatter (Black/Pylint/Flake8 disabled).
+- [ ] Only `matangover.mypy` is installed (NOT `ms-python.mypy-type-checker`).
+- [ ] YAML/Markdown linters are active.
 
-Como configurar no VS Code:
+How to configure in VS Code:
 
-- Use "Python: Select Interpreter" para escolher o venv do Poetry.
-- Prefira `python.analysis.typeCheckingMode=basic` e use `strict` apenas em arquivos alvo.
-- Mypy: mantenha config em `mypy.ini`/pyproject e prefira `mypy.runUsingActiveInterpreter=true`.
-- Ruff: `editor.defaultFormatter=charliermarsh.ruff`, `editor.formatOnSave=true` e `editor.codeActionsOnSave` com `source.fixAll.ruff` e `source.organizeImports.ruff`.
-- GitLens: habilitado por padrão; blame inline e CodeLens ativos.
+- Use "Python: Select Interpreter" to choose the Poetry venv.
+- Prefer `python.analysis.typeCheckingMode=basic` and use `strict` only in targeted files.
+- Mypy: keep the config in `mypy.ini`/pyproject and prefer `mypy.runUsingActiveInterpreter=true`.
+- Ruff: `editor.defaultFormatter=charliermarsh.ruff`, `editor.formatOnSave=true`, and
+  `editor.codeActionsOnSave` with `source.fixAll.ruff` and `source.organizeImports.ruff`.
+- GitLens: enabled by default; inline blame and CodeLens active.
 
-> Nota para agentes: as instruções de agentes têm **fonte de verdade** em AGENTS.md e mudanças devem começar por lá.
+> Note for agents: agent instructions have their **source of truth** in AGENTS.md, and changes
+> should start there.
 
-## ▶️ Execução
+## ▶️ Running the App
 
-### Modo Gráfico (GUI)
+### GUI Mode
 
-Para iniciar a interface gráfica:
+To launch the graphical interface:
 
 ```bash
 poetry run zebtrack
 ```
 
-### Modo Linha de Comando (CLI)
+### Command-Line Mode (CLI)
 
-Atualmente o entrypoint `zebtrack` é focado na execução da aplicação (GUI) e expõe apenas
-opções de diagnóstico/log via argumentos.
+Currently the `zebtrack` entry point is focused on running the application (GUI) and only
+exposes diagnostic/logging options via arguments.
 
 ```bash
-# Exemplo: aumentar verbosidade de um módulo específico
+# Example: increase verbosity for a specific module
 poetry run zebtrack --log-level zebtrack.core.detector=DEBUG
 ```
 
-### Primeira Execução
+### First Run
 
-Na primeira execução, o sistema irá:
+On first run, the system will:
 
-1. **Baixar modelos YOLO**: Os modelos de detecção (~6 MB) serão baixados automaticamente
-2. **Criar diretórios**: Estrutura de pastas para projetos, templates e cache
-3. **Exibir Wizard**: Interface guiada para criar seu primeiro projeto
+1. **Download YOLO models**: detection models (~6 MB) are downloaded automatically
+2. **Create directories**: folder structure for projects, templates, and cache
+3. **Show the Wizard**: guided interface for creating your first project
 
-## 🎬 Guia Rápido de Uso
+## 🎬 Quick Usage Guide
 
-### Fluxo de Trabalho Típico
+### Typical Workflow
 
-1. **Criar Projeto** (Wizard dinâmico: 6 etapas ao vivo, 7 etapas pré-gravado)
-    - **Discovery**: tipo de projeto (experimental/exploratório/ao vivo), organização de pastas e
-       escopo de importação de parquets (quando aplicável); suporte a templates
-    - **Pré-gravado**: seleção de arquivos/pastas → calibração física → detecção/validação de
-       design (auto-detecção por estrutura de pastas, regex customizada e editor de design)
-       → seleção de modelo/pesos/parâmetros → configuração de importação por vídeo
-       (arena/ROIs/trajetória + estratégia de merge de ROIs) → confirmação
-    - **Ao vivo**: design experimental (grupos/dias/sujeitos) → configuração de câmera/Arduino e
-       gravação (inclui modo de gatilho externo) → calibração física → seleção de modelo/pesos/
-       parâmetros → confirmação
-    - O **modo de gatilho externo** (Arduino dá a partida na gravação) é opt-in e vem
-       desligado; exige um sketch que envie `1`/`0` pela serial — o sketch de referência
-       do repositório **não** faz isso. Ver
+1. **Create a Project** (dynamic Wizard: 6 steps for live, 7 steps for pre-recorded)
+    - **Discovery**: project type (experimental/exploratory/live), folder organization, and
+       parquet-import scope (when applicable); template support
+    - **Pre-recorded**: file/folder selection → physical calibration → design
+       detection/validation (auto-detection via folder structure, custom regex, and a design
+       editor) → model/weights/parameter selection → per-video import configuration
+       (arena/ROIs/trajectory + ROI merge strategy) → confirmation
+    - **Live**: experimental design (groups/days/subjects) → camera/Arduino and recording
+       configuration (including external trigger mode) → physical calibration → model/weights/
+       parameter selection → confirmation
+    - **External trigger mode** (the Arduino starts the recording) is opt-in and ships
+       disabled; it requires a sketch that sends `1`/`0` over serial — the repository's
+       reference sketch does **not** do this. See
        [`docs/guides/user/external-trigger.md`](docs/guides/user/external-trigger.md).
 
-2. **Processar Vídeos**
-   - Detecção automática de peixes com YOLO
-   - Rastreamento multi-objeto com BYTETracker
-   - Filtragem de trajetórias (Savitzky-Golay)
-   - Cálculo de métricas comportamentais
+2. **Process Videos**
+   - Automatic fish detection with YOLO
+   - Multi-object tracking with BYTETracker
+   - Trajectory filtering (Savitzky-Golay)
+   - Behavioral metrics calculation
 
-3. **Analisar Resultados**
-   - Visualizar trajetórias e heatmaps
-   - Revisar métricas por ROI e zona
-   - Exportar dados para análise estatística
+3. **Analyze Results**
+   - View trajectories and heatmaps
+   - Review metrics per ROI and zone
+   - Export data for statistical analysis
 
-4. **Gerar Relatórios**
-   - Relatórios automatizados em Word
-   - Planilhas Excel com métricas agregadas
-   - Gráficos de velocidade, distância e ocupação
+4. **Generate Reports**
+   - Automated Word reports
+   - Excel spreadsheets with aggregated metrics
+   - Speed, distance, and occupancy charts
 
-## 🧩 Tour da Interface (abas do projeto)
+## 🧩 Interface Tour (project tabs)
 
-Após criar/abrir um projeto, a janela principal organiza o fluxo operacional em abas:
+After creating/opening a project, the main window organizes the operational flow into tabs:
 
-- **Controle Principal**: ações por tipo de projeto (ao vivo: iniciar/parar gravação; pré-gravado:
-   adicionar e processar novos vídeos/pastas), fechar projeto, visão geral hierárquica
-   (grupo/dia/sujeito/vídeo), e painel de estado do modelo (peso ativo e OpenVINO)
-- **Configuração de Zonas**: definição de arena e ROIs com desenho por polígono, desfazer/refazer,
-   estabilização (ignorar frames iniciais), regras de inclusão em zona (centroide/intersecção/sobreposição)
-   e suporte a templates/reuso
-- **Análise de Vídeo**: acompanhamento de análise e seleção de `track_id` (todos ou específicos)
-- **Processamento e Relatórios**: centraliza geração de trajetórias, exportação de sumários e
-   geração de relatórios (parciais e unificado), com árvore de status por vídeo e abertura por duplo clique
-- **Config. Avançadas**: editor in-app para parâmetros do `config.yaml` com persistência em
-   `config.local.yaml` e sincronização por eventos
-- **Progresso do Experimento** (ao vivo): grade visual de progresso e atualização sob demanda
+- **Main Control**: actions by project type (live: start/stop recording; pre-recorded: add and
+   process new videos/folders), close project, hierarchical overview (group/day/subject/video),
+   and a model-status panel (active weight and OpenVINO)
+- **Zone Configuration**: arena and ROI definition with polygon drawing, undo/redo,
+   stabilization (ignore initial frames), zone-inclusion rules (centroid/intersection/overlap),
+   and template/reuse support
+- **Video Analysis**: analysis tracking and `track_id` selection (all or specific)
+- **Processing and Reports**: centralizes trajectory generation, summary export, and report
+   generation (partial and unified), with a per-video status tree and double-click to open
+- **Advanced Settings**: in-app editor for `config.yaml` parameters, persisted to
+   `config.local.yaml` and synchronized via events
+- **Experiment Progress** (live): visual progress grid with on-demand refresh
 
-Em projetos ao vivo, o **Arduino Dashboard** também é integrado ao fluxo para status de conexão,
-comandos e rechecagem de portas.
+In live projects, the **Arduino Dashboard** is also integrated into the flow for connection
+status, commands, and port re-checking.
 
-## 🔬 Funcionalidades Científicas
+## 🔬 Scientific Features
 
-### Detecção e Rastreamento
+### Detection and Tracking
 
-- **Modelos**: Ultralytics YOLO (detecção e/ou segmentação conforme o objetivo)
-- **Aceleração**: OpenVINO para CPUs Intel (3-5x mais rápido), suporte a NPU (Intel Core Ultra)
-- **Variantes de Modelo**: `standard`, `lite`, `nano` — seleção automática por hardware
-- **Multi-objeto**: Rastreamento simultâneo de até 96 peixes
-- **Filtragem**: Savitzky-Golay para suavização de trajetórias
-- **Persistência**: Manutenção de IDs através de oclusões temporárias
+- **Models**: Ultralytics YOLO (detection and/or segmentation, depending on the goal)
+- **Acceleration**: OpenVINO for Intel CPUs (3-5x faster), NPU support (Intel Core Ultra)
+- **Model Variants**: `standard`, `lite`, `nano` — automatic selection by hardware
+- **Multi-object**: simultaneous tracking of up to 96 fish
+- **Filtering**: Savitzky-Golay for trajectory smoothing
+- **Persistence**: ID retention across temporary occlusions
 
-### Pesos, backends e reprodutibilidade de modelo
+### Weights, Backends, and Model Reproducibility
 
-- **Catálogo persistente de pesos**: gerenciamento via `weights_config.json`
-- **Tipos de peso**: separação explícita entre segmentação (`seg`) e detecção (`det`)
-- **Padrões independentes por tipo**: um peso padrão para segmentação e outro para detecção
-- **Seleção por tarefa**: no Wizard, método/peso podem ser definidos separadamente para “aquário”
-   e “animal”
-- **OpenVINO**: conversão/caching com estados explícitos (não convertido, convertendo, pronto, falhou)
+- **Persistent weight catalog**: managed via `weights_config.json`
+- **Weight types**: explicit separation between segmentation (`seg`) and detection (`det`)
+- **Independent defaults per type**: one default weight for segmentation and another for
+   detection
+- **Task-based selection**: in the Wizard, method/weight can be set separately for "aquarium"
+   and "animal"
+- **OpenVINO**: conversion/caching with explicit states (not converted, converting, ready,
+   failed)
 
-### Detecção (det) vs Segmentação (seg): quando usar
+### Detection (det) vs. Segmentation (seg): when to use which
 
-- **Detecção (det)**: representa o alvo como _bounding box_; tende a ser mais leve e adequada quando
-   a localização aproximada é suficiente
-- **Segmentação (seg)**: representa o alvo como máscara; tende a ser mais adequada quando a análise
-   depende de precisão espacial (bordas/ROIs pequenas) e/ou quando há múltiplos animais
+- **Detection (det)**: represents the target as a _bounding box_; tends to be lighter and
+   suitable when approximate location is enough
+- **Segmentation (seg)**: represents the target as a mask; tends to be more suitable when the
+   analysis depends on spatial precision (edges/small ROIs) and/or when there are multiple
+   animals
 
-O DRerio LogAI expõe na UI os parâmetros críticos (confiança/NMS e ByteTrack) para documentar e
-reproduzir o trade-off escolhido em cada experimento.
+DRerio LogAI exposes the critical parameters (confidence/NMS and ByteTrack) in the UI to
+document and reproduce the trade-off chosen for each experiment.
 
-### Métricas Comportamentais
+### Behavioral Metrics
 
 <!-- EN: Complete behavioral metrics reference with formulas and column names.
      PT: Referência completa de métricas com fórmulas e nomes de colunas. -->
 
-#### Métricas Locomotoras / Locomotor Metrics
+#### Locomotor Metrics
 
-| Métrica / Metric | Coluna / Column | Fórmula / Formula |
+| Metric | Column | Formula |
 | --- | --- | --- |
-| Distância Total / Total Distance | `total_distance_cm` | $D = \sum_{i=1}^{N-1} \sqrt{(x_{i+1}-x_i)^2 + (y_{i+1}-y_i)^2}$ |
-| Velocidade Média / Mean Speed | `mean_speed_cm_s` | $\bar{v} = \text{mean}(v_i)$ onde $v_i = d_i \times FPS$ |
-| Velocidade Máxima / Max Speed | `max_speed_cm_s` | $v_{\max} = \max(v_i)$ |
-| Desvio Padrão Vel. / Speed Std Dev | `std_speed_cm_s` | $\sigma_v = \text{std}(v_i)$ |
-| Tortuosidade / Tortuosity | `tortuosity` | $T = D_{\text{path}} / D_{\text{net}}$ (≥ 1.0; 1.0 = reta perfeita) |
+| Total Distance | `total_distance_cm` | $D = \sum_{i=1}^{N-1} \sqrt{(x_{i+1}-x_i)^2 + (y_{i+1}-y_i)^2}$ |
+| Mean Speed | `mean_speed_cm_s` | $\bar{v} = \text{mean}(v_i)$ where $v_i = d_i \times FPS$ |
+| Max Speed | `max_speed_cm_s` | $v_{\max} = \max(v_i)$ |
+| Speed Std Dev | `std_speed_cm_s` | $\sigma_v = \text{std}(v_i)$ |
+| Tortuosity | `tortuosity` | $T = D_{\text{path}} / D_{\text{net}}$ (≥ 1.0; 1.0 = perfect straight line) |
 
-#### Velocidade Angular / Angular Velocity
+#### Angular Velocity
 
-| Métrica / Metric | Coluna / Column | Fórmula / Formula |
+| Metric | Column | Formula |
 | --- | --- | --- |
-| Vel. Angular Média / Mean Angular Vel. | `mean_angular_velocity_deg_s` | $\bar{\omega} = \text{mean}(\|\omega_i\|)$ |
-| Vel. Angular Máx. / Max Angular Vel. | `max_angular_velocity_deg_s` | $\omega_{\max} = \max(\|\omega_i\|)$ |
-| Desvio Padrão / Angular Vel. Std Dev | `angular_velocity_std_dev_deg_s` | $\sigma_\omega = \text{std}(\|\omega_i\|)$ |
-| Curvas Acentuadas / Sharp Turns | `sharp_turns_count` | Frames onde $\|\omega_i\| >$ threshold |
-| Curvas por Minuto / Turns per Minute | `sharp_turns_per_minute` | $\text{count} \times 60 / T_{\text{total}}$ |
+| Mean Angular Vel. | `mean_angular_velocity_deg_s` | $\bar{\omega} = \text{mean}(\|\omega_i\|)$ |
+| Max Angular Vel. | `max_angular_velocity_deg_s` | $\omega_{\max} = \max(\|\omega_i\|)$ |
+| Angular Vel. Std Dev | `angular_velocity_std_dev_deg_s` | $\sigma_\omega = \text{std}(\|\omega_i\|)$ |
+| Sharp Turns | `sharp_turns_count` | Frames where $\|\omega_i\| >$ threshold |
+| Turns per Minute | `sharp_turns_per_minute` | $\text{count} \times 60 / T_{\text{total}}$ |
 
-Onde $\omega_i = \arctan2(\vec{v}_i \times \vec{v}_{i-1},\; \vec{v}_i \cdot \vec{v}_{i-1}) \times FPS$ — signed angle between consecutive displacement vectors.
+Where $\omega_i = \arctan2(\vec{v}_i \times \vec{v}_{i-1},\; \vec{v}_i \cdot \vec{v}_{i-1}) \times FPS$ — signed angle between consecutive displacement vectors.
 
-#### Episódios Comportamentais / Behavioral Episodes
+#### Behavioral Episodes
 
-| Métrica / Metric | Coluna / Column | Descrição / Description |
+| Metric | Column | Description |
 | --- | --- | --- |
-| Rajadas de Velocidade / Speed Bursts | `speed_bursts_count`, `speed_bursts_total_duration_s` | Episódios com $v > $ threshold |
-| Periodos de Inatividade / Inactivity | `inactivity_count`, `inactivity_total_duration_s`, `inactivity_percentage_of_recording` | $v <$ threshold por duração mínima |
+| Speed Bursts | `speed_bursts_count`, `speed_bursts_total_duration_s` | Episodes with $v > $ threshold |
+| Inactivity | `inactivity_count`, `inactivity_total_duration_s`, `inactivity_percentage_of_recording` | $v <$ threshold for a minimum duration |
 
-#### Métricas Espaciais / Spatial Metrics
+#### Spatial Metrics
 
-| Métrica / Metric | Coluna / Column | Descrição / Description |
+| Metric | Column | Description |
 | --- | --- | --- |
-| Tigmotaxia (parede) / Thigmotaxis | `thigmotaxis_time_near_wall_pct` | % tempo próximo à parede |
-| Distância Média da Parede / Avg Wall Dist | `thigmotaxis_avg_wall_distance_cm` | Distância média ao contorno da arena |
-| Ocupação Geotaxia / Geotaxis Zones | `geotaxis_zone_{i}_pct` | % tempo em cada zona vertical (vista lateral) |
+| Thigmotaxis (wall) | `thigmotaxis_time_near_wall_pct` | % of time near the wall |
+| Avg Wall Distance | `thigmotaxis_avg_wall_distance_cm` | Average distance to the arena outline |
+| Geotaxis Occupancy | `geotaxis_zone_{i}_pct` | % of time in each vertical zone (side view) |
 
-Para cada ROI definida pelo usuário, métricas adicionais são geradas: tempo, entradas, saídas, latência, distância e velocidade dentro da ROI.
+For each user-defined ROI, additional metrics are generated: time, entries, exits, latency, distance, and speed within the ROI.
 
-> **Aquários poligonais (N lados) / Polygonal arenas.** A distância à parede
-> (tigmotaxia) é a distância euclidiana exata até a aresta mais próxima do
-> polígono do aquário, válida para qualquer número de lados (≥3), convexo ou
-> côncavo — não só retângulos. Logo, o gráfico de tigmotaxia do relatório é
-> confiável para aquários de 8+ lados. Detalhes (e a ressalva da geotaxia, que
-> usa o piso da _bounding-box_): [docs/reference/metrics.md](docs/reference/metrics.md).
+> **Polygonal arenas (N sides).** The wall distance
+> (thigmotaxis) is the exact Euclidean distance to the nearest edge of the
+> aquarium polygon, valid for any number of sides (≥3), convex or
+> concave — not just rectangles. So the report's thigmotaxis chart is
+> reliable for 8+ sided aquariums. Details (and the geotaxis caveat, which
+> uses the bounding-box floor): [docs/reference/metrics.md](docs/reference/metrics.md).
 >
-> **Referência completa**: [docs/reference/metrics.md](docs/reference/metrics.md) — [Full reference with all column names and formulas]
+> **Full reference**: [docs/reference/metrics.md](docs/reference/metrics.md) — Full reference with all column names and formulas.
 
-#### Metadados de Sessão / Session Metadata
+#### Session Metadata
 
-| Coluna / Column | Descrição / Description |
+| Column | Description |
 | --- | --- |
-| `experiment_id` | Identificador do vídeo/experimento |
-| `group_id` | Grupo experimental |
-| `day` | Dia experimental |
-| `video_duration_s` | Duração do vídeo em segundos |
-| `total_frames_analyzed` | Total de frames processados |
+| `experiment_id` | Video/experiment identifier |
+| `group_id` | Experimental group |
+| `day` | Experimental day |
+| `video_duration_s` | Video duration in seconds |
+| `total_frames_analyzed` | Total frames processed |
 
-### Schema Parquet (Trajetória) / Parquet Schema (Trajectory)
+### Parquet Schema (Trajectory)
 
-O schema de colunas do arquivo de trajetória (`3_CoordMovimento_*.parquet`) é imutável:
+The column schema of the trajectory file (`3_CoordMovimento_*.parquet`) is immutable:
 
 ```text
 timestamp, frame, track_id, x1, y1, x2, y2, confidence
-[x_center_px, y_center_px, x_cm, y_cm]*  — quando calibração disponível
+[x_center_px, y_center_px, x_cm, y_cm]*  — when calibration is available
 ```
 
-### Estrutura de Saída / Output Directory Structure
+### Output Directory Structure
 
-Cada vídeo processado gera uma pasta de resultados:
+Each processed video generates a results folder:
 
 ```text
 <video>_results/
-├── 1_ArenaROI_<video>.parquet       # Definições Arena/ROI
-├── 2_Zones_<video>.parquet          # Metadados de zonas
-├── 3_CoordMovimento_<video>.parquet # Trajetória (schema imutável)
-├── <video>_summary.xlsx             # Resumo por ROI
-└── <video>_report.docx              # Relatório Word com gráficos
+├── 1_ArenaROI_<video>.parquet       # Arena/ROI definitions
+├── 2_Zones_<video>.parquet          # Zone metadata
+├── 3_CoordMovimento_<video>.parquet # Trajectory (immutable schema)
+├── <video>_summary.xlsx             # Summary per ROI
+└── <video>_report.docx              # Word report with charts
 ```
 
-Multi-aquário adiciona subpastas por aquário:
+Multi-aquarium adds per-aquarium subfolders:
 
 ```text
 <video>_results/
@@ -485,173 +494,174 @@ Multi-aquário adiciona subpastas por aquário:
     └── 4_Relatorio_<video>_aq1.xlsx
 ```
 
-### Relatório Unificado / Unified Report
+### Unified Report
 
-Ao gerar relatórios unificados para o projeto, os seguintes arquivos são criados:
+When generating unified reports for the project, the following files are created:
 
 ```text
 <project>/unified_reports/
-├── project_summary_<run_id>.parquet   # Dados brutos (colunas EN internas)
-├── project_summary_<run_id>.xlsx      # Excel com 2 abas: "Data" + "Descriptive Stats"
-├── project_summary_<run_id>.csv       # CSV idêntico à aba "Data" do Excel
-├── project_summary_<run_id>.docx      # Word: boxplots comparativos + tabela descritiva
-└── project_summary_<run_id>.json      # Manifesto com metadados do run
+├── project_summary_<run_id>.parquet   # Raw data (internal EN columns)
+├── project_summary_<run_id>.xlsx      # Excel with 2 sheets: "Data" + "Descriptive Stats"
+├── project_summary_<run_id>.csv       # CSV identical to the Excel "Data" sheet
+├── project_summary_<run_id>.docx      # Word: comparative boxplots + descriptive table
+└── project_summary_<run_id>.json      # Manifest with run metadata
 ```
 
-O Excel e CSV utilizam nomes de colunas traduzidos (display names). A aba "Descriptive Stats" contém estatísticas descritivas (mean, std, count, min, max) agrupadas por grupo e dia.
+The Excel and CSV files use translated column names (display names). The "Descriptive Stats" sheet contains descriptive statistics (mean, std, count, min, max) grouped by group and day.
 
-### Calibração e Coordenadas
+### Calibration and Coordinates
 
-- **Calibração Espacial**: Conversão pixels → cm via dimensões físicas informadas (largura/altura em cm)
-- **Sistemas de Coordenadas**: Referência (original) e display (redimensionado)
-- **Geometria de ROIs**: Suporte a polígonos, círculos e retângulos
-- **Buffer de ROIs**: Expansão/contração de regiões para análises de proximidade
+- **Spatial Calibration**: pixel → cm conversion via provided physical dimensions
+   (width/height in cm)
+- **Coordinate Systems**: reference (original) and display (resized)
+- **ROI Geometry**: support for polygons, circles, and rectangles
+- **ROI Buffer**: expansion/contraction of regions for proximity analyses
 
-### Reprodutibilidade
+### Reproducibility
 
-- **Formato Parquet**: Dados tabulares compactados e eficientes
-- **Schema Imutável**: Garantia de compatibilidade entre versões
-- **Metadados YAML**: Todas as configurações salvas junto com os dados
-- **Versionamento**: Rastreabilidade de modelos e parâmetros usados
-- **Timestamps**: Sincronização precisa entre eventos
+- **Parquet Format**: compact, efficient tabular data
+- **Immutable Schema**: guaranteed compatibility across versions
+- **YAML Metadata**: all configurations saved alongside the data
+- **Versioning**: traceability of models and parameters used
+- **Timestamps**: precise synchronization between events
 
-## 📖 Documentação Completa
+## 📖 Full Documentation
 
-A documentação técnica está disponível na pasta `docs/`:
+Technical documentation is available under the `docs/` folder:
 
-### Guias Essenciais
+### Essential Guides
 
-- 📚 [**CHEATSHEET.md**](docs/guides/developer/CHEATSHEET.md) - Referência rápida de comandos e padrões
+- 📚 [**CHEATSHEET.md**](docs/guides/developer/CHEATSHEET.md) - Quick reference for commands and patterns
 
-- 🏗️ [**ARCHITECTURE.md**](docs/architecture/ARCHITECTURE.md) - Arquitetura Event-Driven e Mediator
-- 👨‍💻 [**DEVELOPER_GUIDE.md**](docs/guides/developer/DEVELOPER_GUIDE.md) - Guia completo para contribuidores
-- 🧙 [**DEVELOPER_GUIDE_WIZARD.md**](docs/guides/developer/DEVELOPER_GUIDE_WIZARD.md) - Desenvolvimento do Wizard
-- 🧪 [**README_TESTS.md**](README_TESTS.md) - Guia completo de testes (~3700 testes)
+- 🏗️ [**ARCHITECTURE.md**](docs/architecture/ARCHITECTURE.md) - Event-Driven architecture and Mediator pattern
+- 👨‍💻 [**DEVELOPER_GUIDE.md**](docs/guides/developer/DEVELOPER_GUIDE.md) - Full guide for contributors
+- 🧙 [**DEVELOPER_GUIDE_WIZARD.md**](docs/guides/developer/DEVELOPER_GUIDE_WIZARD.md) - Wizard development
+- 🧪 [**README_TESTS.md**](README_TESTS.md) - Complete testing guide (~3700 tests)
 
-### Guias Técnicos
+### Technical Guides
 
-- 🔌 [**DEPENDENCY_INJECTION_GUIDE.md**](docs/architecture/DEPENDENCY_INJECTION_GUIDE.md) - Padrões de DI
+- 🔌 [**DEPENDENCY_INJECTION_GUIDE.md**](docs/architecture/DEPENDENCY_INJECTION_GUIDE.md) - DI patterns
 
-- 📡 [**EVENT_BUS_GUIDE.md**](docs/architecture/EVENT_BUS_GUIDE.md) - Sistema de eventos
-- 🗺️ [**COORDINATE_SYSTEMS.md**](docs/reference/COORDINATE_SYSTEMS.md) - Sistemas de coordenadas
-- 🎯 [**STATE_MANAGEMENT_GUIDE.md**](docs/architecture/STATE_MANAGEMENT_GUIDE.md) - Gerenciamento de estado
-- 🚀 [**PERFORMANCE_TUNING.md**](docs/performance/PERFORMANCE_TUNING.md) - Otimizações
-- 🔌 [**HARDWARE_OPTIMIZATION_GUIDE.md**](docs/performance/HARDWARE_OPTIMIZATION_GUIDE.md) - NPU e hardware
-- 💻 [**NPU_SETUP_GUIDE.md**](docs/performance/NPU_SETUP_GUIDE.md) - Configuração de NPU Intel
+- 📡 [**EVENT_BUS_GUIDE.md**](docs/architecture/EVENT_BUS_GUIDE.md) - Event system
+- 🗺️ [**COORDINATE_SYSTEMS.md**](docs/reference/COORDINATE_SYSTEMS.md) - Coordinate systems
+- 🎯 [**STATE_MANAGEMENT_GUIDE.md**](docs/architecture/STATE_MANAGEMENT_GUIDE.md) - State management
+- 🚀 [**PERFORMANCE_TUNING.md**](docs/performance/PERFORMANCE_TUNING.md) - Optimizations
+- 🔌 [**HARDWARE_OPTIMIZATION_GUIDE.md**](docs/performance/HARDWARE_OPTIMIZATION_GUIDE.md) - NPU and hardware
+- 💻 [**NPU_SETUP_GUIDE.md**](docs/performance/NPU_SETUP_GUIDE.md) - Intel NPU setup
 
-### Guias Operacionais
+### Operational Guides
 
-- 📋 [**REFERENCE_GUIDE.md**](docs/reference/REFERENCE_GUIDE.md) - Guia operacional completo
-- 📊 [**metrics.md**](docs/reference/metrics.md) - Referência canônica de métricas comportamentais
-- 🔄 [**WORKFLOWS.md**](docs/guides/developer/WORKFLOWS.md) - Fluxos de trabalho detalhados
-- 🐛 [**QUICK_DEBUG_GUIDE.md**](docs/guides/developer/QUICK_DEBUG_GUIDE.md) - Solução de problemas
-- ⚠️ [**KNOWN_ISSUES.md**](docs/reference/KNOWN_ISSUES.md) - Problemas conhecidos e soluções
-- 📝 [**CHANGELOG.md**](CHANGELOG.md) - Histórico de versões
+- 📋 [**REFERENCE_GUIDE.md**](docs/reference/REFERENCE_GUIDE.md) - Full operational guide
+- 📊 [**metrics.md**](docs/reference/metrics.md) - Canonical reference for behavioral metrics
+- 🔄 [**WORKFLOWS.md**](docs/guides/developer/WORKFLOWS.md) - Detailed workflows
+- 🐛 [**QUICK_DEBUG_GUIDE.md**](docs/guides/developer/QUICK_DEBUG_GUIDE.md) - Troubleshooting
+- ⚠️ [**KNOWN_ISSUES.md**](docs/reference/KNOWN_ISSUES.md) - Known issues and workarounds
+- 📝 [**CHANGELOG.md**](CHANGELOG.md) - Version history
 
-### Documentos Históricos
+### Historical Documents
 
-- 📦 [**archive/**](docs/archive/) - Documentação de versões anteriores
+- 📦 [**archive/**](docs/archive/) - Documentation from earlier versions
 
-## 🏗️ Estrutura do Projeto
+## 🏗️ Project Structure
 
-### Organização de Diretórios
+### Directory Layout
 
 ```text
 DRerio-LogAI/
-├── src/zebtrack/               # Código-fonte principal
-│   ├── __main__.py            # Entry point (DI delegada a ApplicationBootstrapper)
-│   ├── core/                   # Camada de negócios (6 sub-packages)
-│   │   ├── state_manager.py   # Gerenciamento de estado (thread-safe)
-│   │   ├── main_view_model.py # Orquestrador principal (MVVM)
+├── src/zebtrack/               # Main source code
+│   ├── __main__.py            # Entry point (DI delegated to ApplicationBootstrapper)
+│   ├── core/                   # Business layer (6 sub-packages)
+│   │   ├── state_manager.py   # State management (thread-safe)
+│   │   ├── main_view_model.py # Main orchestrator (MVVM)
 │   │   ├── application_bootstrapper.py # Composition Root (DI)
-│   │   ├── dependency_container.py     # Container DI com LazyRef[T]
-│   │   ├── detection/          # Detecção AI (9 módulos)
-│   │   │   ├── single_detector.py      # Detecção single-aquarium
-│   │   │   ├── multi_aquarium_detector.py # Detecção multi-aquário
-│   │   │   ├── zone_scaler.py          # Escalonamento de zonas
+│   │   ├── dependency_container.py     # DI container with LazyRef[T]
+│   │   ├── detection/          # AI detection (9 modules)
+│   │   │   ├── single_detector.py      # Single-aquarium detection
+│   │   │   ├── multi_aquarium_detector.py # Multi-aquarium detection
+│   │   │   ├── zone_scaler.py          # Zone scaling
 │   │   │   └── detection_types.py      # ZoneData, MultiAquariumZoneData
-│   │   ├── project/            # Gerenciamento de projetos (14 módulos)
-│   │   │   ├── project_manager.py      # Gerenciador principal
-│   │   │   └── zone_manager.py         # Zonas e parquets
-│   │   ├── video/              # Processamento de vídeo (8 módulos)
-│   │   │   ├── processing_worker.py    # Worker em background
+│   │   ├── project/            # Project management (14 modules)
+│   │   │   ├── project_manager.py      # Main manager
+│   │   │   └── zone_manager.py         # Zones and parquets
+│   │   ├── video/              # Video processing (8 modules)
+│   │   │   ├── processing_worker.py    # Background worker
 │   │   │   └── video_processing_service.py
-│   │   ├── recording/          # Gravação e câmera ao vivo (5 módulos)
-│   │   │   ├── live_camera_service.py  # Análise ao vivo
-│   │   │   └── recording_service.py    # Gravação de sessões
-│   │   └── services/           # Serviços de domínio (5 módulos)
+│   │   ├── recording/          # Recording and live camera (5 modules)
+│   │   │   ├── live_camera_service.py  # Live analysis
+│   │   │   └── recording_service.py    # Session recording
+│   │   └── services/           # Domain services (5 modules)
 │   │       ├── detector_service.py
-│   │       ├── weight_manager.py       # Pesos + variantes (standard/lite/nano)
+│   │       ├── weight_manager.py       # Weights + variants (standard/lite/nano)
 │   │       └── wizard_service.py
-│   ├── coordinators/           # Coordinators decompostos (24 arquivos)
+│   ├── coordinators/           # Decomposed coordinators (24 files)
 │   │   ├── video_processing_coordinator.py
 │   │   ├── report_generation_coordinator.py
 │   │   ├── multi_aquarium_coordinator.py
 │   │   ├── sequential_processing_coordinator.py
 │   │   └── ...
-│   ├── io/                     # Camada de I/O
-│   │   ├── recorder.py         # Persistência Parquet (thread-safe, atomic writes)
-│   │   ├── recorder_factory.py # Lazy loading de recorder
-│   │   ├── video_source.py     # Fonte de frames (vídeos)
-│   │   ├── camera.py           # Captura de câmera
-│   │   └── frame_source_factory.py # Factory de fontes
-│   ├── ui/                     # Interface gráfica
-│   │   ├── gui.py              # Janela principal (865 linhas)
-│   │   ├── event_bus_v2.py     # EventBusV2 (único sistema de eventos)
-│   │   ├── components/         # Componentes UI decompostos
-│   │   │   ├── canvas/         # Sub-package canvas (5 módulos)
-│   │   │   ├── project_views/  # Sub-package reports/tree (3 módulos)
+│   ├── io/                     # I/O layer
+│   │   ├── recorder.py         # Parquet persistence (thread-safe, atomic writes)
+│   │   ├── recorder_factory.py # Lazy loading for the recorder
+│   │   ├── video_source.py     # Frame source (videos)
+│   │   ├── camera.py           # Camera capture
+│   │   └── frame_source_factory.py # Frame-source factory
+│   ├── ui/                     # Graphical interface
+│   │   ├── gui.py              # Main window (865 lines)
+│   │   ├── event_bus_v2.py     # EventBusV2 (the sole event system)
+│   │   ├── components/         # Decomposed UI components
+│   │   │   ├── canvas/         # Canvas sub-package (5 modules)
+│   │   │   ├── project_views/  # Reports/tree sub-package (3 modules)
 │   │   │   ├── event_dispatcher.py
 │   │   │   └── ...
-│   │   ├── dialogs/            # Diálogos extraídos (26 diálogos)
-│   │   └── wizard/             # Wizard de 5 etapas + models Pydantic
-│   ├── analysis/               # Análise comportamental
+│   │   ├── dialogs/            # Extracted dialogs (26 dialogs)
+│   │   └── wizard/             # 5-step wizard + Pydantic models
+│   ├── analysis/               # Behavioral analysis
 │   │   ├── analysis_service.py
-│   │   ├── behavior.py         # Métricas (velocidade, angular, thigmotaxis)
-│   │   ├── roi.py              # Análise de ROIs
-│   │   └── reporters/          # Sub-package de relatórios (8 módulos)
+│   │   ├── behavior.py         # Metrics (speed, angular, thigmotaxis)
+│   │   ├── roi.py              # ROI analysis
+│   │   └── reporters/          # Reporting sub-package (8 modules)
 │   │       ├── word_reporter.py
 │   │       ├── excel_reporter.py
 │   │       ├── parquet_reporter.py
 │   │       └── script_exporter.py
-│   ├── plugins/                # Sistema de plugins
-│   │   ├── base.py             # Interface de plugins (detect_batch ABC)
+│   ├── plugins/                # Plugin system
+│   │   ├── base.py             # Plugin interface (detect_batch ABC)
 │   │   ├── yolov8_detector.py  # Ultralytics YOLO (CPU/GPU)
 │   │   └── openvino_detector.py # OpenVINO (CPU/GPU/NPU)
-│   └── utils/                  # Utilitários
-│       ├── hardware_detection.py # Detecção CPU/GPU/NPU
-│       ├── hardware_benchmark.py # Benchmark automático
-│       ├── geometry.py         # Cálculos geométricos
-│       └── cache.py            # TTLCache thread-safe
-├── tests/                      # Suíte de testes (~3700 testes)
-│   ├── conftest.py            # Fixtures e hooks pytest
-│   ├── unit/                  # Testes unitários (~2806)
-│   ├── integration/           # Testes de integração (~891 GUI)
-│   └── e2e/                   # Testes end-to-end (~35)
-├── docs/                       # Documentação técnica
+│   └── utils/                  # Utilities
+│       ├── hardware_detection.py # CPU/GPU/NPU detection
+│       ├── hardware_benchmark.py # Automatic benchmark
+│       ├── geometry.py         # Geometric calculations
+│       └── cache.py            # Thread-safe TTLCache
+├── tests/                      # Test suite (~3700 tests)
+│   ├── conftest.py            # Pytest fixtures and hooks
+│   ├── unit/                  # Unit tests (~2806)
+│   ├── integration/           # Integration tests (~891 GUI)
+│   └── e2e/                   # End-to-end tests (~35)
+├── docs/                       # Technical documentation
 │   ├── ARCHITECTURE.md
 │   ├── DEVELOPER_GUIDE.md
 │   ├── CHEATSHEET.md
-│   └── archive/               # Documentação histórica
-├── config.yaml                 # Configuração padrão
-├── config.local.yaml          # Configuração local (git-ignored)
-├── pyproject.toml             # Configuração Poetry
-└── README.md                  # Este arquivo
+│   └── archive/               # Historical documentation
+├── config.yaml                 # Default configuration
+├── config.local.yaml          # Local configuration (git-ignored)
+├── pyproject.toml             # Poetry configuration
+└── README.md                  # This file
 ```
 
-### Arquitetura (MVVM-S + Event-Driven)
+### Architecture (MVVM-S + Event-Driven)
 
-#### Camadas Principais
+#### Main Layers
 
-| Camada         | Responsabilidade   | Componentes Chave                                           |
-| -------------- | ------------------ | ----------------------------------------------------------- |
-| **Model**      | Estado e dados     | `StateManager`, `ProjectManager`, `DetectorService`         |
-| **View**       | Interface Tkinter  | `ApplicationGUI`, `Dialogs`, `Wizard`                       |
-| **ViewModel**  | Orquestração       | `MainViewModel`, `DependencyContainer`                      |
-| **Coordinators** | Fluxos de domínio | 24 coordinators decompostos (Video, Reports, MultiAq, etc.) |
-| **Services**   | Lógica de negócios | `WizardService`, `AnalysisService`, `LiveCameraService`     |
+| Layer            | Responsibility        | Key Components                                               |
+| ---------------- | ---------------------- | ------------------------------------------------------------ |
+| **Model**        | State and data         | `StateManager`, `ProjectManager`, `DetectorService`          |
+| **View**         | Tkinter interface       | `ApplicationGUI`, `Dialogs`, `Wizard`                        |
+| **ViewModel**    | Orchestration           | `MainViewModel`, `DependencyContainer`                       |
+| **Coordinators** | Domain flows            | 24 decomposed coordinators (Video, Reports, MultiAq, etc.)   |
+| **Services**     | Business logic          | `WizardService`, `AnalysisService`, `LiveCameraService`      |
 
-#### Fluxo de Dados (Event-Driven)
+#### Data Flow (Event-Driven)
 
 ```text
 User → UI Event → EventBusV2 → Coordinator/Handler → StateManager → UI Update (root.after)
@@ -659,200 +669,200 @@ User → UI Event → EventBusV2 → Coordinator/Handler → StateManager → UI
                               Services/Model
 ```
 
-**Benefícios**:
+**Benefits**:
 
-- ✅ Desacoplamento total entre componentes
-- ✅ Testabilidade (injeção de dependências)
-- ✅ Thread-safety (comunicação assíncrona)
-- ✅ Manutenibilidade (responsabilidades claras)
+- ✅ Full decoupling between components
+- ✅ Testability (dependency injection)
+- ✅ Thread-safety (asynchronous communication)
+- ✅ Maintainability (clear responsibilities)
 
-## 🧪 Testes
+## 🧪 Tests
 
-### Executar Testes
+### Running Tests
 
 ```bash
-# Testes rápidos (excluindo GUI/slow) - ~2806 testes
+# Fast tests (excluding GUI/slow) - ~2806 tests
 poetry run pytest
 
-# Todos os testes - ~3700 testes (6-7 min)
+# All tests - ~3700 tests (6-7 min)
 poetry run pytest -m "" -n0
 
-# Testes de GUI (sequencial) - ~891 testes
+# GUI tests (sequential) - ~891 tests
 poetry run pytest -m gui -n0
 
-# Testes lentos - ~35 testes
+# Slow tests - ~35 tests
 poetry run pytest -m slow
 
-# Com cobertura
+# With coverage
 poetry run pytest --cov=src/zebtrack --cov-report=html
 ```
 
-### Estatísticas de Testes
+### Test Statistics
 
-| Categoria                | Quantidade | Tempo       |
-| ------------------------ | ---------- | ----------- |
-| **Testes Rápidos**       | ~2806      | ~3 min      |
-| **Testes de GUI**        | ~891       | ~3 min      |
-| **Testes Lentos**        | ~35        | ~1 min      |
-| **TOTAL**                | **~3700**  | **6-7 min** |
+| Category                 | Count      | Time        |
+| ------------------------- | ---------- | ----------- |
+| **Fast Tests**            | ~2806      | ~3 min      |
+| **GUI Tests**              | ~891       | ~3 min      |
+| **Slow Tests**             | ~35        | ~1 min      |
+| **TOTAL**                  | **~3700**  | **6-7 min** |
 
-### Cobertura
+### Coverage
 
-- **Cobertura Global**: ~48%
+- **Overall Coverage**: ~48%
 - **CI Gates**: Linux core 45%, Linux GUI 32%, Windows core 28%
-- **Meta**: OpenSSF Silver 80% (roadmap em progresso)
+- **Target**: OpenSSF Silver 80% (roadmap in progress)
 
-### Marcadores de Teste
+### Test Markers
 
 ```python
-@pytest.mark.unit         # Teste unitário rápido
-@pytest.mark.integration  # Teste de integração
-@pytest.mark.gui          # Teste de interface Tkinter
-@pytest.mark.slow         # Teste lento (>5s)
-@pytest.mark.e2e          # Teste end-to-end
+@pytest.mark.unit         # Fast unit test
+@pytest.mark.integration  # Integration test
+@pytest.mark.gui          # Tkinter interface test
+@pytest.mark.slow         # Slow test (>5s)
+@pytest.mark.e2e          # End-to-end test
 ```
 
-Para mais detalhes, consulte [README_TESTS.md](README_TESTS.md).
+For more details, see [README_TESTS.md](README_TESTS.md).
 
-## 🤝 Contribuição
+## 🤝 Contributing
 
-Contribuições são muito bem-vindas! Este projeto segue práticas modernas de desenvolvimento:
+Contributions are very welcome! This project follows modern development practices:
 
-### Como Contribuir
+### How to Contribute
 
-1. **Fork** o repositório
-2. **Clone** seu fork localmente
-3. **Crie uma branch** para sua feature/fix:
+1. **Fork** the repository
+2. **Clone** your fork locally
+3. **Create a branch** for your feature/fix:
 
    ```bash
-   git checkout -b feature/minha-feature
+   git checkout -b feature/my-feature
    ```
 
-4. **Instale dependências de desenvolvimento**:
+4. **Install development dependencies**:
 
    ```bash
    poetry install --with dev
    poetry run pre-commit install
    ```
 
-5. **Faça suas alterações** seguindo os padrões do projeto
-6. **Execute os testes**:
+5. **Make your changes** following the project's conventions
+6. **Run the tests**:
 
    ```bash
    poetry run pytest -q
    poetry run ruff check .
    ```
 
-7. **Commit** suas mudanças com mensagens claras:
+7. **Commit** your changes with clear messages:
 
    ```bash
-   git commit -m "feat: adiciona suporte para YOLO v12"
+   git commit -m "feat: add support for YOLO v12"
    ```
 
-8. **Push** para seu fork e abra um **Pull Request**
+8. **Push** to your fork and open a **Pull Request**
 
-### Diretrizes de Código
+### Code Guidelines
 
-- ✅ **Python 3.11+**: Use type hints e recursos modernos
-- ✅ **Ruff**: Linter e formatador (linha máxima: 100 caracteres)
-- ✅ **Docstrings**: Google Style para funções públicas
-- ✅ **Testes**: Adicione testes para novas funcionalidades
-- ✅ **DI**: Sempre use injeção de dependências
-- ✅ **Event-Driven**: Prefira comunicação via `EventBus`
-- ✅ **Logging**: Use `structlog` com padrão `domain.action.result`
+- ✅ **Python 3.11+**: use type hints and modern features
+- ✅ **Ruff**: linter and formatter (max line length: 100 characters)
+- ✅ **Docstrings**: Google Style for public functions
+- ✅ **Tests**: add tests for new functionality
+- ✅ **DI**: always use dependency injection
+- ✅ **Event-Driven**: prefer communication via `EventBusV2`
+- ✅ **Logging**: use `structlog` with the `domain.action.result` pattern
 
-### Áreas que Precisam de Ajuda
+### Areas That Need Help
 
-- 🐛 **Correção de bugs** listados em [KNOWN_ISSUES.md](docs/KNOWN_ISSUES.md)
-- 📝 **Documentação**: Tradução, tutoriais, exemplos
-- 🧪 **Testes**: Aumentar cobertura para 70%+
-- 🎨 **UI/UX**: Melhorias na interface gráfica
-- 🚀 **Performance**: Otimizações de processamento
-- 🔌 **Plugins**: Novos detectores ou exportadores
+- 🐛 **Bug fixes** listed in [KNOWN_ISSUES.md](docs/KNOWN_ISSUES.md)
+- 📝 **Documentation**: translation, tutorials, examples
+- 🧪 **Tests**: increase coverage to 70%+
+- 🎨 **UI/UX**: improvements to the graphical interface
+- 🚀 **Performance**: processing optimizations
+- 🔌 **Plugins**: new detectors or exporters
 
-Consulte o [DEVELOPER_GUIDE.md](docs/DEVELOPER_GUIDE.md) para diretrizes completas.
+See [DEVELOPER_GUIDE.md](docs/DEVELOPER_GUIDE.md) for the complete guidelines.
 
-## 📊 Casos de Uso
+## 📊 Use Cases
 
-### Pesquisa Acadêmica
+### Academic Research
 
-- **Farmacologia**: Screening de drogas (canabidiol, antidepressivos)
-- **Toxicologia**: Testes de toxicidade ambiental
-- **Neurociência**: Estudos de ansiedade e memória
-- **Genética**: Análise de mutantes e transgênicos
+- **Pharmacology**: drug screening (cannabidiol, antidepressants)
+- **Toxicology**: environmental toxicity testing
+- **Neuroscience**: anxiety and memory studies
+- **Genetics**: analysis of mutants and transgenics
 
-### Publicações Científicas
+### Scientific Publications
 
-Este software foi desenvolvido para suportar pesquisas científicas com zebrafish. Se você usar o DRerio LogAI em suas publicações, por favor cite-o conforme a seção "📖 Citation" abaixo.
+This software was developed to support scientific research with zebrafish. If you use DRerio LogAI in your publications, please cite it as described in the "📖 Citation" section below.
 
 ## 👥 Authors
 
 - **Marco Antônio Sant'Ana Camargos** — São Paulo State University (UNESP), Botucatu, Brazil
 - **Percília Cardoso Giaquinto** — São Paulo State University (UNESP), Botucatu, Brazil
 
-Copyright patrimonial: **Universidade Estadual Paulista (UNESP)**. Veja a seção "🏛️ Titularidade e Registro" acima e o arquivo [NOTICE](NOTICE).
+Economic copyright: **Universidade Estadual Paulista (UNESP)**. See the "🏛️ Ownership and Registration" section above and the [NOTICE](NOTICE) file.
 
 ## 📖 Citation
 
-Se você usar o DRerio LogAI em pesquisa, cite-o usando os metadados em [CITATION.cff](CITATION.cff) (formato Citation File Format 1.2.0 — reconhecido pelo GitHub como "Cite this repository").
+If you use DRerio LogAI in research, please cite it using the metadata in [CITATION.cff](CITATION.cff) (Citation File Format 1.2.0 — recognized by GitHub as "Cite this repository").
 
-## 📄 Licença
+## 📄 License
 
-O código-fonte original deste repositório (de titularidade da UNESP) é licenciado sob a **MIT License** — veja o arquivo [LICENSE](LICENSE) para detalhes.
+The original source code in this repository (owned by UNESP) is licensed under the **MIT License** — see the [LICENSE](LICENSE) file for details.
 
-⚠️ **Licença efetiva da distribuição**: este projeto depende do
+⚠️ **Effective distribution license**: this project depends on
 [Ultralytics YOLO](https://github.com/ultralytics/ultralytics)
-(`ultralytics`), licenciado sob **AGPL-3.0-or-later**. Pelas condições de
-copyleft da AGPL-3.0-or-later, a obra combinada distribuída (este código +
-a dependência `ultralytics`) fica sujeita aos termos da
-AGPL-3.0-or-later, a menos que uma licença comercial/enterprise da
-Ultralytics seja obtida. Ou seja, a
-licença MIT cobre o código original da UNESP, mas **não** cobre sozinha o
-pacote distribuído como um todo. Veja [NOTICE](NOTICE) para o
-levantamento completo de licenças de dependências de terceiros.
+(`ultralytics`), licensed under **AGPL-3.0-or-later**. Due to the
+copyleft conditions of AGPL-3.0-or-later, the resulting combined work
+distributed (this code + the `ultralytics` dependency) is subject to
+the terms of AGPL-3.0-or-later, unless a commercial/enterprise license
+from Ultralytics is obtained. In other words, the MIT license covers
+UNESP's original code, but it does **not** by itself cover the
+distributed package as a whole. See [NOTICE](NOTICE) for the complete
+survey of third-party dependency licenses.
 
-**Em resumo** (para o código original sob MIT), você pode:
+**In summary** (for the original code under MIT), you may:
 
-- ✅ Usar comercialmente
-- ✅ Modificar
-- ✅ Distribuir
-- ✅ Uso privado
+- ✅ Use commercially
+- ✅ Modify
+- ✅ Distribute
+- ✅ Use privately
 
-**Condições**:
+**Conditions**:
 
-- 📋 Manter a licença e copyright
-- ⚠️ Sem garantias
-- ⚠️ Observar as obrigações da AGPL-3.0-or-later da dependência `ultralytics` na distribuição do conjunto (veja acima)
+- 📋 Keep the license and copyright notice
+- ⚠️ No warranties
+- ⚠️ Observe the AGPL-3.0-or-later obligations of the `ultralytics` dependency when distributing the combined work (see above)
 
-## 🙏 Agradecimentos
+## 🙏 Acknowledgments
 
-### Instituições
+### Institutions
 
 - **UNESP** - Universidade Estadual Paulista
-- **Laboratório de Fisiologia e Comportamento de Peixes** (Depto. de Fisiologia - IBB/UNESP)
+- **Fish Physiology and Behavior Laboratory** (Dept. of Physiology - IBB/UNESP)
 
-### Tecnologias Open Source
+### Open Source Technologies
 
-- [Ultralytics YOLO](https://github.com/ultralytics/ultralytics) - Detecção de objetos
-- [OpenVINO](https://github.com/openvinotoolkit/openvino) - Aceleração de inferência
-- [BYTETracker](https://github.com/ifzhang/ByteTrack) - Rastreamento multi-objeto
-- [Tkinter](https://docs.python.org/3/library/tkinter.html) - Interface gráfica
-- [Poetry](https://python-poetry.org/) - Gerenciamento de dependências
-- [Pydantic](https://pydantic.dev/) - Validação de dados
-- [structlog](https://www.structlog.org/) - Logging estruturado
+- [Ultralytics YOLO](https://github.com/ultralytics/ultralytics) - Object detection
+- [OpenVINO](https://github.com/openvinotoolkit/openvino) - Inference acceleration
+- [BYTETracker](https://github.com/ifzhang/ByteTrack) - Multi-object tracking
+- [Tkinter](https://docs.python.org/3/library/tkinter.html) - Graphical interface
+- [Poetry](https://python-poetry.org/) - Dependency management
+- [Pydantic](https://pydantic.dev/) - Data validation
+- [structlog](https://www.structlog.org/) - Structured logging
 
-### Comunidade
+### Community
 
-Agradecimentos especiais a todos os contribuidores e à comunidade open source que tornou este projeto possível.
+Special thanks to all the contributors and to the open source community that made this project possible.
 
 ---
 
 <div align="center">
 
-<h4>Desenvolvido com ❤️ para pesquisa científica</h4>
+<h4>Built with ❤️ for scientific research</h4>
 
-<h4>UNESP - Laboratório de Fisiologia e Comportamento de Peixes (Depto. de Fisiologia - IBB/UNESP)</h4>
+<h4>UNESP - Fish Physiology and Behavior Laboratory (Dept. of Physiology - IBB/UNESP)</h4>
 
-[⬆ Voltar ao topo](#drerio-logai)
+[⬆ Back to top](#drerio-logai)
 
 </div>
