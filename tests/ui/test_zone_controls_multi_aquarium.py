@@ -12,24 +12,14 @@ import pytest
 
 from zebtrack.ui.components.zone_controls import ZoneControlsWidget
 
-
-@pytest.fixture
-def root():
-    """Create and yield a Tk root window for testing, then destroy it."""
-    root = tk.Tk()
-    root.withdraw()
-    yield root
-    try:
-        root.destroy()
-    except tk.TclError:
-        pass
+pytestmark = pytest.mark.gui
 
 
 @pytest.fixture
-def zone_controls(root):
+def zone_controls(tkinter_root):
     """Create a ZoneControlsWidget for testing."""
     event_bus = MagicMock()
-    widget = ZoneControlsWidget(root, event_bus=event_bus)
+    widget = ZoneControlsWidget(tkinter_root, event_bus=event_bus)
     return widget
 
 
@@ -231,15 +221,17 @@ class TestUpdateAquariumCount:
     """
 
     @pytest.fixture
-    def zone_controls_with_unpacked_anchor(self, root):
+    def zone_controls_with_unpacked_anchor(self, tkinter_root):
         """ZoneControls cujo drawing_actions_parent tem 1º filho NÃO empacotado."""
-        drawing_parent = ttk.Frame(root)
+        drawing_parent = ttk.Frame(tkinter_root)
         drawing_parent.pack(fill="x")
         # Primeiro filho criado-mas-não-empacotado: é exatamente o cenário que
         # disparava o 'isn't packed' no pack(after=...) da versão defeituosa.
         ttk.Frame(drawing_parent)  # intencionalmente não empacotado
         event_bus = MagicMock()
-        return ZoneControlsWidget(root, event_bus=event_bus, drawing_actions_parent=drawing_parent)
+        return ZoneControlsWidget(
+            tkinter_root, event_bus=event_bus, drawing_actions_parent=drawing_parent
+        )
 
     def test_update_count_2_does_not_raise_with_unpacked_anchor(
         self, zone_controls_with_unpacked_anchor

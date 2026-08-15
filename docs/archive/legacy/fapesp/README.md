@@ -1,30 +1,20 @@
 # FAPESP historical archive (legacy)
 
-This folder centralizes historical artifacts related to the FAPESP reporting/proposal process.
-These files are kept for traceability and to avoid cluttering the repository root.
+This folder holds git-history evidence from the FAPESP-funded development period, kept for
+traceability without exposing agency-internal material in the public archive.
 
 ## Contents
 
-- `reports/`
-  - Prior partial report drafts (Markdown).
-
-- `proposals/`
-  - Historical proposal drafts (Markdown).
-
-- `manuscripts/`
-  - Working manuscript drafts used to support the reports (e.g., TEPT validation, CBD).
-
-- `finance/`
-  - Spending tables and financial annex exports (e.g., CSV exports).
-
-- `notebooks/`
-  - Training/experimentation notebooks used during development.
-
 - `git/`
-  - Git history evidence exports used for traceability (e.g., logs, counts, tags).
+  - Git history evidence exports used for traceability (e.g., logs, counts, tags). No
+    sensitive content — commit metadata only.
 
-## Notes
+## Removed before the v6.0.0 archival snapshot
 
-- The current canonical third partial report remains at repository root: `Relat Parcial 3.md`.
-- The canonical prorrogação document remains at repository root:
-  `Cópia de Projeto_Prorrogacao_Excepcional_Aceita_v1.md`.
+The following subfolders existed here and were removed from the repository HEAD ahead of the
+Zenodo-archived release, because their contents are not appropriate for a permanent public
+archive: unpublished manuscript drafts (`manuscripts/`), FAPESP partial-report drafts
+(`reports/`), grant proposal drafts (`proposals/`), and a financial spending spreadsheet
+(`finance/`). They remain reachable in the git history predating the removal commit for anyone
+who clones the full repository; they are simply excluded from the `v6.0.0` tarball and DOI
+snapshot.
