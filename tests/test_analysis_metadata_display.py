@@ -1,9 +1,18 @@
+"""Metadata/task strings shown on the analysis panel.
+
+These assertions cover the REAL ``StateSynchronizer`` formatters. ``state_synchronizer``
+used to be a ``Mock`` whose ``side_effect`` re-implemented both format strings, so the
+tests asserted that the stub matched the expectation the same stub was written from —
+they would have passed with the production methods deleted.
+"""
+
 from types import SimpleNamespace
 from typing import Any, cast
 from unittest.mock import Mock
 
 from zebtrack.ui import gui
 from zebtrack.ui.components.state_synchronizer import StateSynchronizer
+from zebtrack.ui.sentinels import no_day_label, no_group_label, not_reported_label
 
 
 class DummyVar:
@@ -27,20 +36,25 @@ def _make_gui_instance() -> gui.ApplicationGUI:
     inst_any.root = SimpleNamespace(after=lambda *args, **kwargs: None)
     inst_any.controller = SimpleNamespace()
 
-    # Mock validation_manager with resolve methods
+    # validation_manager stays a stub: resolving raw metadata into display strings
+    # is its own unit's job, tested in tests/ui/components/test_validation_manager.py.
+    # Its fallbacks come from the real sentinel helpers so this file holds no second
+    # copy of them.
     inst_any.validation_manager = Mock()
     inst_any.validation_manager.resolve_group_display.side_effect = lambda metadata: metadata.get(
-        "group_display_name", "No Group"
+        "group_display_name", no_group_label()
     )
     inst_any.validation_manager.resolve_day_display.side_effect = (
-        lambda metadata: f"Day {metadata['day']:02d}" if "day" in metadata else "No Day"
+        lambda metadata: f"Day {metadata['day']:02d}" if "day" in metadata else no_day_label()
     )
     inst_any.validation_manager.resolve_subject_display.side_effect = (
-        lambda metadata: f"{metadata['subject']:02d}" if "subject" in metadata else "Not reported"
+        lambda metadata: f"{metadata['subject']:02d}"
+        if "subject" in metadata
+        else not_reported_label()
     )
 
-    # Mock state_synchronizer with actual StateSynchronizer implementation
-    inst_any.state_synchronizer = Mock()
+    # The real formatter under test -- not a stand-in for it.
+    inst_any.state_synchronizer = StateSynchronizer(instance)
 
     # Phase 4.4: analysis_view_controller delegates back to gui methods;
     # wire it so the delegation chain works in unit tests.
@@ -49,42 +63,6 @@ def _make_gui_instance() -> gui.ApplicationGUI:
     avc = AnalysisViewController.__new__(AnalysisViewController)
     avc.gui = instance
     inst_any.analysis_view_controller = avc
-
-    def apply_metadata_strings(group: str, day: str, subject: str) -> None:
-        combined = f"Group: {group} | Day: {day} | Individual: {subject}"
-        inst_any.analysis_metadata_var.set(combined)
-
-    inst_any.state_synchronizer._apply_analysis_metadata_strings.side_effect = (
-        apply_metadata_strings
-    )
-
-    def update_task_status(
-        index: int,
-        total: int,
-        experiment_id: str | None = None,
-        step: str | None = None,
-    ) -> None:
-        total_videos = max(int(total) if total is not None else 0, 1)
-        current_index = max(int(index) if index is not None else 0, 0) + 1
-
-        parts: list[str] = [f"Video {current_index} of {total_videos}"]
-
-        if experiment_id:
-            exp_text = str(experiment_id).strip()
-            if exp_text:
-                parts.append(f"— {exp_text}")
-
-        if step:
-            step_text = str(step).strip()
-            if step_text:
-                if step_text.lower().startswith("etapa:"):
-                    step_text = step_text[6:].strip()
-                if step_text:
-                    parts.append(f"• {step_text}")
-
-        inst_any.analysis_task_var.set(" ".join(parts))
-
-    inst_any.state_synchronizer.update_analysis_task_status.side_effect = update_task_status
 
     return instance
 
