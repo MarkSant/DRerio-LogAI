@@ -137,6 +137,32 @@ class RecordingSessionCoordinator(BaseCoordinator):
         if self.event_bus:
             self._setup_event_listeners()
 
+    def _on_project_manager_replaced(self, data: Any) -> None:
+        """Adopt the new ProjectManager and drop the deferred-recording state.
+
+        ``_on_zone_saved`` resumes a deferred recording whenever
+        ``_pending_recording_context`` is set. If a project is closed while a
+        recording is deferred, that context still points at the old project's paths
+        and zone data — saving an arena in an unrelated flow would then resume a
+        recording that should never start. Same reasoning for the armed external
+        trigger: it belongs to the closed project's session.
+        """
+        new_manager = (
+            data.get("new_manager")
+            if isinstance(data, dict)
+            else getattr(data, "new_manager", None)
+        )
+        if not new_manager:
+            return
+
+        self.project_manager = new_manager
+        self._pending_external_trigger = None
+        self._pending_recording_context = None
+        self._pending_recording_trigger_source = None
+        self._pending_recording_project_data = None
+
+        log.info("recording_session_coordinator.project_manager_replaced")
+
     def validate_dependencies(self) -> bool:
         """Validate that required dependencies are present.
 

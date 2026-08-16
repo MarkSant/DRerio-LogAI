@@ -194,13 +194,34 @@ class MultiAquariumCoordinator(BaseCoordinator):
             detection_method = method if method != "auto" else "det"
             model_path = None
 
-            # Resolve perspective from project config for weight selection
+            # Resolve perspective for weight selection — SAME precedence as
+            # ``LiveCalibrationCoordinator.run_live_calibration``: canonical
+            # ``behavioral_config`` first, then the legacy nested
+            # ``calibration.behavioral_analysis``, then global settings.
+            #
+            # This used to read ONLY the legacy nested key, which the wizard
+            # never writes (``ProjectWorkflowService._persist_project_data``
+            # stores ``behavioral_config``). The effect was that for EVERY
+            # wizard-created project the perspective resolved to None here, so
+            # pre-recorded auto-detection silently used a generic aquarium
+            # weight instead of the perspective-specific one.
             perspective: str | None = None
-            project_data = self.project_manager.project_data if self.project_manager else {}
-            if project_data:
-                cal_data = (project_data or {}).get("calibration") or {}
+            project_data = (self.project_manager.project_data if self.project_manager else {}) or {}
+            bc_data = project_data.get("behavioral_config") or {}
+            perspective = bc_data.get("aquarium_perspective") or None
+            if perspective is None:
+                cal_data = project_data.get("calibration") or {}
                 ba_data = cal_data.get("behavioral_analysis") or {}
                 perspective = ba_data.get("aquarium_perspective") or None
+            if perspective is None:
+                perspective = (
+                    getattr(
+                        getattr(self.settings, "behavioral_analysis", None),
+                        "aquarium_perspective",
+                        None,
+                    )
+                    or None
+                )
 
             if self.weight_manager:
                 model_path = self.weight_manager.get_weight_path_by_method(

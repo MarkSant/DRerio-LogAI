@@ -30,6 +30,14 @@ from zebtrack.coordinators.base_coordinator import (
     CoordinatorError,
 )
 from zebtrack.core.detection.aquarium_detector import AquariumDetector
+from zebtrack.core.detection.aquarium_retry import (
+    RETRY_REASON_CAPTURE_ERROR,
+    RETRY_REASON_NO_CAMERA,
+    RETRY_REASON_NO_FRAMES,
+    RETRY_REASON_NO_POLYGON,
+    RETRY_REASON_OK,
+    AquariumRetryOutcome,
+)
 from zebtrack.i18n import _
 from zebtrack.io.camera import Camera
 from zebtrack.ui import payloads
@@ -146,6 +154,51 @@ class LiveCalibrationCoordinator(BaseCoordinator):
         self._adhoc_zone_dir: str | None = None
 
         log.info("live_calibration_coordinator.initialized")
+
+    def _on_project_manager_replaced(self, data: Any) -> None:
+        """Adopt the new ProjectManager and drop all project-scoped session state.
+
+        ``close_project`` does not mutate the existing manager — it builds a brand
+        new empty one (``project_workflow_adapter.py``) and announces it via
+        ``PROJECT_MANAGER_REPLACED``. A coordinator that keeps its constructor-time
+        reference therefore still sees the CLOSED project as open, and that is not a
+        cosmetic staleness:
+
+        - ``ensure_zones_before_recording`` reads ``project_path`` (non-empty) and
+          ``get_zone_data()`` (the closed project's arena), so an ad-hoc single-video
+          live analysis is asked to "reuse zones" that belong to an unrelated project.
+        - ``_reference_frame_path`` writes the live reference PNG **into the closed
+          project's directory** instead of the ad-hoc tempdir.
+
+        The pending/session fields are cleared for the same reason: they describe a
+        handshake with a project that no longer exists. Leaving
+        ``_pending_zone_confirmation`` set would make the next session believe it is
+        still waiting on a zone confirmation that can never arrive.
+        """
+        new_manager = (
+            data.get("new_manager")
+            if isinstance(data, dict)
+            else getattr(data, "new_manager", None)
+        )
+        if not new_manager:
+            return
+
+        self.project_manager = new_manager
+
+        # Project-scoped handshake state — meaningless against a different project.
+        self._pending_zone_confirmation = False
+        self._session_count = 0
+        self._last_calibration_cancelled = False
+        self._calibration_detector = None
+        self._calibration_preserve_real_shape = False
+        # Publishes LIVE_POLYGON_SOURCE_CHANGED so the Zone tab context panel
+        # stops advertising the closed project's polygon provenance.
+        self._set_last_polygon_source(None)
+        # Drop the ad-hoc tempdir handle so the next no-project session gets a
+        # fresh one instead of reusing a directory keyed to the previous run.
+        self._adhoc_zone_dir = None
+
+        log.info("live_calibration_coordinator.project_manager_replaced")
 
     def _release_calibration_camera(self, reason: str) -> None:
         """Tear down ``self.camera`` and signal its background thread to stop.
@@ -906,27 +959,40 @@ class LiveCalibrationCoordinator(BaseCoordinator):
 
         # Auto-detect aquarium using configured model
 
-        # Determine detection method (det/seg) from configuration
+        # Determine detection method (det/seg) from configuration.
+        #
+        # Precedence: project ``model_selection.aquarium_method`` > global
+        # settings > "det". NOT an if/elif on key PRESENCE: a project carrying a
+        # ``model_selection`` dict WITHOUT ``aquarium_method`` used to pin the
+        # method to "det" and never consult the settings, so the same camera and
+        # the same tank resolved to different model families depending on which
+        # flow opened them.
         method = "det"  # Default fallback
-
-        # 1. Try project config
         project_data = self.project_manager.project_data or {}
-        if "model_selection" in project_data:
-            method = project_data["model_selection"].get("aquarium_method", method)
-
-        # 2. Try global settings
-        elif self.settings and hasattr(self.settings, "model_selection"):
-            method = self.settings.model_selection.aquarium_method
+        settings_method = None
+        if self.settings and hasattr(self.settings, "model_selection"):
+            settings_method = self.settings.model_selection.aquarium_method
+        project_method = (project_data.get("model_selection") or {}).get("aquarium_method")
+        method = project_method or settings_method or method
 
         log.info("live_calibration_coordinator.live_calibration.method_selected", method=method)
 
-        # Resolve perspective from project config for weight selection.
-        # The wizard persists behavioral data under ``project_data["behavioral_config"]``
-        # via ``ProjectWorkflowService._persist_project_data`` — that's the
-        # canonical location. The nested ``calibration.behavioral_analysis``
-        # layout is only used by some legacy project files / templates and
-        # is kept as a fallback so older saved projects still resolve their
-        # perspective correctly here.
+        # Resolve perspective for weight selection.
+        #
+        # Precedence: project ``behavioral_config`` (canonical, written by
+        # ``ProjectWorkflowService._persist_project_data``) > legacy nested
+        # ``calibration.behavioral_analysis`` (older project files/templates) >
+        # ``settings.behavioral_analysis`` (the session-scoped value).
+        #
+        # The settings fallback is what makes the AD-HOC single-video live flow
+        # behave like a live project. That flow has no project, so
+        # ``project_data`` is ``{}`` and perspective resolved to None — yet the
+        # user DID pick a perspective in LiveAnalysisDialog /
+        # SingleVideoConfigDialog, which writes it into
+        # ``settings.behavioral_analysis.aquarium_perspective``. Ignoring it made
+        # ``get_weight_path_by_method`` fall through to a generic aquarium weight
+        # (possibly lateral-trained) on a top-down scene — the single biggest
+        # reason auto-detection was visibly worse here than in a live project.
         perspective: str | None = None
         bc_data = project_data.get("behavioral_config") or {}
         perspective = bc_data.get("aquarium_perspective") or None
@@ -934,6 +1000,21 @@ class LiveCalibrationCoordinator(BaseCoordinator):
             cal_data = project_data.get("calibration") or {}
             ba_data = cal_data.get("behavioral_analysis") or {}
             perspective = ba_data.get("aquarium_perspective") or None
+        if perspective is None:
+            perspective = (
+                getattr(
+                    getattr(self.settings, "behavioral_analysis", None),
+                    "aquarium_perspective",
+                    None,
+                )
+                or None
+            )
+
+        log.info(
+            "live_calibration_coordinator.live_calibration.perspective_resolved",
+            perspective=perspective,
+            has_project=bool(self.project_manager.project_path),
+        )
 
         # Get model path for aquarium detection (perspective-aware)
         model_path = self.weight_manager.get_weight_path_by_method(
@@ -962,7 +1043,25 @@ class LiveCalibrationCoordinator(BaseCoordinator):
         # Cache references for retry callback (re-captures + re-detects with new conf).
         self._calibration_detector = detector
         self._calibration_initial_confidence = initial_confidence
-        preserve_real_shape = bool(project_data.get("preserve_real_aquarium_shape", False))
+        # Project value wins; otherwise fall back to the global setting.
+        #
+        # Without the fallback this was hard-False for the ad-hoc single-video
+        # live flow (no project ⇒ empty ``project_data``), so the arena was
+        # ALWAYS collapsed to a 4-corner rectangle there even with a
+        # segmentation model loaded — visibly worse than the live-project flow
+        # on circular / hexagonal / perspective-skewed tanks. The setting
+        # ``detection_zones.preserve_real_aquarium_shape`` existed but had no
+        # reader at all.
+        if "preserve_real_aquarium_shape" in project_data:
+            preserve_real_shape = bool(project_data["preserve_real_aquarium_shape"])
+        else:
+            preserve_real_shape = bool(
+                getattr(
+                    getattr(self.settings, "detection_zones", None),
+                    "preserve_real_aquarium_shape",
+                    False,
+                )
+            )
         self._calibration_preserve_real_shape = preserve_real_shape
 
         # Audit Erro 4 (2026-05-25): if the user previously opted into
@@ -1452,6 +1551,12 @@ class LiveCalibrationCoordinator(BaseCoordinator):
             )
             return [[int(p[0]), int(p[1])] for p in raw_polygon]
 
+    # Fallback confidence for the second detection pass, mirroring
+    # ``AquariumDetector.detect_aquariums``' own ``fallback_confidence``. The
+    # live path used to have no fallback at all, so a threshold that was one
+    # notch too high returned nothing instead of degrading to a weak detection.
+    _BURST_FALLBACK_CONFIDENCE = 0.01
+
     def _detect_polygon_on_burst(
         self,
         *,
@@ -1463,8 +1568,26 @@ class LiveCalibrationCoordinator(BaseCoordinator):
         """Run aquarium detection over a captured frame burst.
 
         Returns a one-element list (compatible with the existing call sites)
-        containing the largest valid polygon, or ``[]`` if none meet the
-        area-ratio + confidence gates.
+        containing the consensus polygon, or ``[]`` when nothing passes the
+        area-ratio gate at either confidence pass.
+
+        Selection matches the PRE-RECORDED pipeline
+        (``AquariumDetector._extract_polygon_from_detection`` /
+        ``_find_consensus_polygon``) on three points that used to diverge and
+        made live auto-detection measurably worse:
+
+        1. **Within a frame, the winner is the highest-CONFIDENCE box that passes
+           the area gate — not the largest one.** Picking by area made the
+           confidence slider almost inert: the same oversized box kept winning
+           until the threshold got high enough to erase every box at once, which
+           is why raising the threshold appeared to do nothing and then suddenly
+           "failed". Iterating in confidence order also means a frame whose
+           largest box fails the area gate can still contribute a valid smaller
+           box, instead of being discarded whole.
+        2. **Across frames, the answer is the IoU consensus**, not the first
+           accepted polygon. One unlucky first frame no longer decides the arena.
+        3. **A low-confidence fallback pass** runs when the requested threshold
+           yields nothing, exactly as the pre-recorded path does.
 
         When the underlying YOLO model is a segmentation model (``task == "segment"``)
         AND ``preserve_real_shape`` is True, the mask polygon (N vertices) is kept;
@@ -1481,9 +1604,95 @@ class LiveCalibrationCoordinator(BaseCoordinator):
         if not frames:
             return []
 
+        clamped_conf = max(0.01, min(0.95, float(confidence)))
+        polygons = self._burst_pass(
+            detector=detector,
+            frames=frames,
+            conf=clamped_conf,
+            preserve_real_shape=preserve_real_shape,
+        )
+
+        if not polygons and clamped_conf > self._BURST_FALLBACK_CONFIDENCE:
+            log.info(
+                "live_calibration_coordinator.burst_detect.fallback_pass",
+                requested_confidence=clamped_conf,
+                fallback_confidence=self._BURST_FALLBACK_CONFIDENCE,
+            )
+            polygons = self._burst_pass(
+                detector=detector,
+                frames=frames,
+                conf=self._BURST_FALLBACK_CONFIDENCE,
+                preserve_real_shape=preserve_real_shape,
+            )
+
+        if not polygons:
+            log.info(
+                "live_calibration_coordinator.burst_detect.no_polygon",
+                confidence=clamped_conf,
+                frames_analyzed=len(frames),
+            )
+            return []
+
+        return self._consensus_polygon(detector, polygons)
+
+    @staticmethod
+    def _consensus_polygon(
+        detector: AquariumDetector, polygons: list[list[list[int]]]
+    ) -> list[Any]:
+        """Pick the most stable polygon of the burst via ``_find_consensus_polygon``.
+
+        Reuses the pre-recorded detector's own consensus so both flows agree on
+        what "the arena" means. ``source=None`` is safe here: that argument is
+        only touched on the empty-input branch, and this is never called with an
+        empty list.
+        """
+        import numpy as np
+
+        if len(polygons) == 1:
+            return [polygons[0]]
+
+        try:
+            arrays = [np.asarray(poly, dtype=np.int32) for poly in polygons]
+            best = detector._find_consensus_polygon(arrays, None)
+            winner = [[int(p[0]), int(p[1])] for p in best[0]] if best else []
+        # except Exception justified: consensus is a quality refinement over a
+        # result we already have — a shapely/geometry failure must degrade to
+        # the first candidate, never lose the detection.
+        except Exception as exc:
+            log.warning(
+                "live_calibration_coordinator.burst_detect.consensus_failed",
+                error=str(exc),
+            )
+            return [polygons[0]]
+
+        # Consensus must never TURN a successful detection into nothing. If it
+        # hands back an empty or degenerate outline, keep a candidate we already
+        # know is valid — losing the arena here would send the user to manual
+        # drawing despite the model having found the tank.
+        if len(winner) < 3:
+            log.warning(
+                "live_calibration_coordinator.burst_detect.consensus_degenerate",
+                points=len(winner),
+                candidates=len(polygons),
+            )
+            return [polygons[0]]
+        return [winner]
+
+    def _burst_pass(
+        self,
+        *,
+        detector: AquariumDetector,
+        frames: list[Any],
+        conf: float,
+        preserve_real_shape: bool,
+    ) -> list[list[list[int]]]:
+        """One detection pass over the burst at a fixed confidence.
+
+        Returns every accepted polygon (one per frame at most), in frame order.
+        """
         good_polygons: list[list[list[int]]] = []
         frame_height, frame_width = frames[0].shape[:2]
-        clamped_conf = max(0.01, min(0.95, float(confidence)))
+        clamped_conf = conf
         is_seg_model = getattr(getattr(detector, "model", None), "task", "") == "segment"
         use_masks = preserve_real_shape and is_seg_model
 
@@ -1505,26 +1714,21 @@ class LiveCalibrationCoordinator(BaseCoordinator):
                 continue
 
             boxes = results[0].boxes.xyxy.cpu().numpy()  # type: ignore[union-attr]
-            areas = [(x2 - x1) * (y2 - y1) for x1, y1, x2, y2 in boxes]
-            if not areas:
+            if len(boxes) == 0:
                 continue
 
-            max_idx = areas.index(max(areas))
-            x1, y1, x2, y2 = boxes[max_idx]
-            box_area = (x2 - x1) * (y2 - y1)
-            frame_area = frame_width * frame_height
-            area_ratio = (box_area / frame_area) if frame_area > 0 else 0
-
-            if not (0.1 <= area_ratio <= 0.98):
+            best_idx = self._select_box_index(results[0], boxes, frame_width, frame_height)
+            if best_idx is None:
                 continue
 
+            x1, y1, x2, y2 = boxes[best_idx]
             polygon_pts: list[list[int]] | None = None
 
             if use_masks:
                 masks = getattr(results[0], "masks", None)
                 mask_xy = getattr(masks, "xy", None) if masks is not None else None
-                if mask_xy is not None and len(mask_xy) > max_idx:
-                    raw_polygon = mask_xy[max_idx]
+                if mask_xy is not None and len(mask_xy) > best_idx:
+                    raw_polygon = mask_xy[best_idx]
                     if raw_polygon is not None and len(raw_polygon) >= 3:
                         # Audit Erro 8 round 4 (2026-05-25): apply
                         # Douglas-Peucker (cv2.approxPolyDP) to the raw mask
@@ -1561,9 +1765,61 @@ class LiveCalibrationCoordinator(BaseCoordinator):
             used_segmentation_masks=use_masks,
         )
 
-        return good_polygons[:1] if good_polygons else []
+        return good_polygons
 
-    def _retry_aquarium_detection(self, confidence: float) -> tuple[Any, list[list[float]]] | None:
+    # Area gate shared with ``AquariumDetector._extract_polygon_from_detection``
+    # (min_area_ratio / max_area_ratio). Below the floor the box is a fish, not a
+    # tank; above the ceiling it is the whole field of view.
+    _BURST_MIN_AREA_RATIO = 0.1
+    _BURST_MAX_AREA_RATIO = 0.98
+
+    @classmethod
+    def _select_box_index(
+        cls, result: Any, boxes: Any, frame_width: int, frame_height: int
+    ) -> int | None:
+        """Index of the best box in one frame, or ``None`` when none qualifies.
+
+        Boxes are considered in DESCENDING CONFIDENCE and the first one inside
+        the area gate wins — the same rule the pre-recorded detector applies.
+        Trying every box in turn (rather than only the largest) means a frame
+        where the top box is a spurious full-frame detection still yields its
+        next-best, genuinely aquarium-sized candidate.
+
+        Falls back to descending area only when confidences are unavailable, so
+        a model/stub that exposes no ``conf`` still detects something.
+        """
+        frame_area = frame_width * frame_height
+        if frame_area <= 0:
+            return None
+
+        confidences: list[float] | None = None
+        try:
+            conf_attr = getattr(getattr(result, "boxes", None), "conf", None)
+            if conf_attr is not None:
+                confidences = [float(c) for c in conf_attr.cpu().numpy()]
+        # except Exception justified: ``conf`` shape/backing varies across
+        # Ultralytics versions and test doubles — degrade to area ordering.
+        except Exception:
+            confidences = None
+
+        if confidences is not None and len(confidences) == len(boxes):
+            order = sorted(range(len(boxes)), key=lambda i: confidences[i], reverse=True)
+        else:
+            order = sorted(
+                range(len(boxes)),
+                key=lambda i: (boxes[i][2] - boxes[i][0]) * (boxes[i][3] - boxes[i][1]),
+                reverse=True,
+            )
+
+        for idx in order:
+            x1, y1, x2, y2 = boxes[idx]
+            area_ratio = ((x2 - x1) * (y2 - y1)) / frame_area
+            if cls._BURST_MIN_AREA_RATIO <= area_ratio <= cls._BURST_MAX_AREA_RATIO:
+                return idx
+
+        return None
+
+    def _retry_aquarium_detection(self, confidence: float) -> AquariumRetryOutcome:
         """Retry aquarium auto-detection with a user-chosen confidence threshold.
 
         Invoked by the PreviewPolygonDialog "🔁 Tentar novamente" button. Captures
@@ -1571,8 +1827,12 @@ class LiveCalibrationCoordinator(BaseCoordinator):
         supplied confidence. Pure compute — must NOT touch UI; the dialog owns
         rendering.
 
-        Returns:
-            ``(frame, polygon)`` if detection succeeds, otherwise ``None``.
+        Returns an :class:`AquariumRetryOutcome` that always carries a ``reason``.
+        A bare ``None`` used to be returned from four distinct failure paths, and
+        since the dialog leaves the canvas untouched on failure, all four looked
+        identical on screen — the app appeared to simply re-show the previous
+        picture. Tagging the reason lets the dialog say whether the threshold
+        found nothing or the camera dropped out.
         """
         if self.camera is None or self._calibration_detector is None:
             log.warning(
@@ -1580,7 +1840,7 @@ class LiveCalibrationCoordinator(BaseCoordinator):
                 has_camera=self.camera is not None,
                 has_detector=self._calibration_detector is not None,
             )
-            return None
+            return AquariumRetryOutcome(reason=RETRY_REASON_NO_CAMERA)
 
         import time as _time
 
@@ -1593,14 +1853,14 @@ class LiveCalibrationCoordinator(BaseCoordinator):
                     "live_calibration_coordinator.retry.frame_capture_error",
                     error=str(exc),
                 )
-                return None
+                return AquariumRetryOutcome(reason=RETRY_REASON_CAPTURE_ERROR)
             if ret and frame is not None:
                 frames.append(frame)
             _time.sleep(0.05)
 
         if not frames:
             log.warning("live_calibration_coordinator.retry.no_frames")
-            return None
+            return AquariumRetryOutcome(reason=RETRY_REASON_NO_FRAMES)
 
         detected = self._detect_polygon_on_burst(
             detector=self._calibration_detector,
@@ -1613,7 +1873,7 @@ class LiveCalibrationCoordinator(BaseCoordinator):
                 "live_calibration_coordinator.retry.no_polygon",
                 confidence=confidence,
             )
-            return None
+            return AquariumRetryOutcome(reason=RETRY_REASON_NO_POLYGON)
 
         polygon = [[float(p[0]), float(p[1])] for p in detected[0]]
         log.info(
@@ -1621,7 +1881,7 @@ class LiveCalibrationCoordinator(BaseCoordinator):
             confidence=confidence,
             polygon_points=len(polygon),
         )
-        return (frames[-1], polygon)
+        return AquariumRetryOutcome(polygon=polygon, frame=frames[-1], reason=RETRY_REASON_OK)
 
     def _wait_for_zone_confirmation(self) -> bool:
         """Wait for user to conclude zone definition."""

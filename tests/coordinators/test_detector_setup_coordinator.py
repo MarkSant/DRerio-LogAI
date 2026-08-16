@@ -1031,3 +1031,60 @@ class TestDetectorSetupCoordinatorIntegration:
         # Both coordinators should see the same state
         assert coordinator1.is_detector_initialized() is True
         assert coordinator2.is_detector_initialized() is True
+
+
+class TestConfigureZonesAndParamUpdates:
+    def test_configure_zones_missing_deps_raises(self, detector_setup_coordinator):
+        detector_setup_coordinator.detector_service = None
+        with pytest.raises(CoordinatorValidationError, match="DetectorService is required"):
+            detector_setup_coordinator.configure_zones([{"type": "arena"}])
+
+    def test_configure_zones_legacy_dict_list(self, detector_setup_coordinator):
+        legacy_zones = [
+            {"type": "arena", "polygon": [[0, 0], [10, 0], [10, 10], [0, 10]]},
+            {
+                "type": "roi",
+                "polygon": [[2, 2], [4, 2], [4, 4], [2, 4]],
+                "name": "ROI1",
+                "color": "#ff0000",
+            },
+        ]
+        success = detector_setup_coordinator.configure_zones(
+            legacy_zones, video_width=640, video_height=480
+        )
+        assert success is True
+
+    def test_update_detector_parameters_invalid_scope(self, detector_setup_coordinator):
+        from zebtrack.core.exceptions import ValidationError
+
+        with pytest.raises(ValidationError, match="Invalid scope"):
+            detector_setup_coordinator.update_detector_parameters(
+                {"conf_threshold": 0.5}, scope="invalid_scope"
+            )
+
+    def test_update_detector_parameters_value_error_raises_validation_error(
+        self, detector_setup_coordinator
+    ):
+        from zebtrack.core.exceptions import ValidationError
+
+        detector_setup_coordinator.detector_service.update_tracking_parameters.side_effect = (
+            ValueError("Out of range")
+        )
+        with pytest.raises(ValidationError, match="Invalid detector parameter"):
+            detector_setup_coordinator.update_detector_parameters({"conf_threshold": 99.0})
+
+    def test_update_detector_parameters_generic_error_raises_coordinator_error(
+        self, detector_setup_coordinator
+    ):
+        detector_setup_coordinator.detector_service.update_tracking_parameters.side_effect = (
+            RuntimeError("Crash")
+        )
+        with pytest.raises(
+            DetectorSetupCoordinatorError, match="Failed to update detector parameters"
+        ):
+            detector_setup_coordinator.update_detector_parameters({"conf_threshold": 0.5})
+
+    def test_update_detector_parameters_maps_keys(self, detector_setup_coordinator):
+        params = {"confidence_threshold": 0.6, "track_buffer": 40}
+        success = detector_setup_coordinator.update_detector_parameters(params)
+        assert success is True

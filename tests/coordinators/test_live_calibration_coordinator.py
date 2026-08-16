@@ -25,6 +25,7 @@ import pytest
 from zebtrack.coordinators.live_calibration_coordinator import (
     LiveCalibrationCoordinator,
 )
+from zebtrack.ui.event_bus_v2 import UIEvents
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -1218,3 +1219,101 @@ def test_capture_reference_frame_uses_passed_camera_index_without_project(tmp_pa
     assert 3 in captured_indices, "Camera deve ser criada com o índice ad-hoc (3)"
     # settings global restaurado após a construção.
     assert coordinator.settings.camera.index == 0
+
+
+class TestPrepareZonesForLiveSession:
+    def test_ensure_zones_auto_detect_success(self):
+        coordinator: Any = _make_coordinator()
+        coordinator.root = MagicMock()
+        coordinator.project_manager.get_project_type.return_value = "live"
+        coordinator.project_manager.get_zone_data.return_value = None
+        coordinator.run_live_calibration = MagicMock(return_value=True)
+        coordinator._wait_for_zone_confirmation = MagicMock(return_value=True)
+
+        mock_dialog = MagicMock()
+        mock_dialog.show.return_value = {"method": "auto"}
+
+        with patch(
+            "zebtrack.ui.dialogs.zone_calibration_dialog.ZoneCalibrationDialog",
+            return_value=mock_dialog,
+        ):
+            res = coordinator.ensure_zones_before_recording(camera_index=0)
+
+        assert res is True
+        coordinator.run_live_calibration.assert_called_once()
+        coordinator._wait_for_zone_confirmation.assert_called_once()
+        coordinator.event_bus.publish.assert_called()
+
+    def test_ensure_zones_auto_detect_user_cancelled(self):
+        coordinator: Any = _make_coordinator()
+        coordinator.root = MagicMock()
+        coordinator.project_manager.get_project_type.return_value = "live"
+        coordinator.project_manager.get_zone_data.return_value = None
+        coordinator.run_live_calibration = MagicMock(return_value=False)
+        coordinator._last_calibration_cancelled = True
+
+        mock_dialog = MagicMock()
+        mock_dialog.show.return_value = {"method": "auto"}
+
+        with patch(
+            "zebtrack.ui.dialogs.zone_calibration_dialog.ZoneCalibrationDialog",
+            return_value=mock_dialog,
+        ):
+            res = coordinator.ensure_zones_before_recording(camera_index=0)
+
+        assert res is False
+
+    def test_ensure_zones_auto_detect_failed_fallback_to_manual(self):
+        coordinator: Any = _make_coordinator()
+        coordinator.root = MagicMock()
+        coordinator.project_manager.get_project_type.return_value = "live"
+        coordinator.project_manager.get_zone_data.return_value = None
+        coordinator.run_live_calibration = MagicMock(return_value=False)
+        coordinator._last_calibration_cancelled = False
+        coordinator._capture_reference_frame_for_zones = MagicMock(return_value=True)
+        coordinator._wait_for_zone_confirmation = MagicMock(return_value=True)
+
+        mock_dialog = MagicMock()
+        mock_dialog.show.return_value = {"method": "auto"}
+
+        with patch(
+            "zebtrack.ui.dialogs.zone_calibration_dialog.ZoneCalibrationDialog",
+            return_value=mock_dialog,
+        ):
+            res = coordinator.ensure_zones_before_recording(camera_index=0)
+
+        assert res is True
+        coordinator._capture_reference_frame_for_zones.assert_called_once()
+        coordinator._wait_for_zone_confirmation.assert_called_once()
+        event_types = [c[0][0].type for c in coordinator.event_bus.publish.call_args_list]
+        assert UIEvents.UI_SELECT_TAB in event_types
+        assert UIEvents.UI_UPDATE_ZONE_LIST in event_types
+
+    def test_ensure_zones_calibration_dialog_cancelled(self):
+        coordinator: Any = _make_coordinator()
+        coordinator.root = MagicMock()
+        coordinator.project_manager.get_project_type.return_value = "live"
+        coordinator.project_manager.get_zone_data.return_value = None
+
+        mock_dialog = MagicMock()
+        mock_dialog.show.return_value = None  # user cancelled dialog
+
+        with patch(
+            "zebtrack.ui.dialogs.zone_calibration_dialog.ZoneCalibrationDialog",
+            return_value=mock_dialog,
+        ):
+            res = coordinator.ensure_zones_before_recording(camera_index=0)
+
+        assert res is False
+
+
+class TestPolygonSourceManagement:
+    def test_source_lifecycle(self):
+        coordinator = _make_coordinator()
+        assert coordinator.last_polygon_source is None
+
+        coordinator._set_last_polygon_source("auto")
+        assert coordinator.last_polygon_source == "auto"
+
+        coordinator.clear_last_polygon_source()
+        assert coordinator.last_polygon_source is None

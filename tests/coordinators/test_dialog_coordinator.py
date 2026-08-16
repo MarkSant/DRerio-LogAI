@@ -249,3 +249,208 @@ class TestShowProcessingSkippedInfo:
             "Processing Skipped",
             "No new video was processed.",
         )
+
+
+class TestShowWarning:
+    def test_show_warning(self, dialog_coordinator, mock_ui_coordinator):
+        dialog_coordinator.show_warning("Warning Title", "Warning Message")
+        mock_ui_coordinator.show_warning.assert_called_once_with("Warning Title", "Warning Message")
+
+
+class TestValidateZonesWithUiExtended:
+    def test_no_project_manager(self, mock_ui_coordinator, mock_event_bus, mock_state_manager):
+        coord = DialogCoordinator(mock_ui_coordinator, mock_event_bus, mock_state_manager, None)
+        assert coord.validate_zones_with_ui() is False
+
+    def test_no_main_arena_user_defines_now(
+        self, dialog_coordinator, mock_project_manager, mock_ui_coordinator, mock_event_bus
+    ):
+        mock_project_manager.get_active_zone_video.return_value = "video.mp4"
+        mock_project_manager.get_multi_aquarium_zone_data.return_value = None
+        mock_project_manager.get_zone_data.return_value = SimpleNamespace(
+            polygon=[], roi_polygons=[]
+        )
+        mock_project_manager.get_next_video.return_value = "video.mp4"
+
+        # User chooses to define now
+        mock_ui_coordinator.ask_ok_cancel.return_value = True
+
+        result = dialog_coordinator.validate_zones_with_ui()
+        assert result is False
+        assert mock_event_bus.publish.call_count >= 2
+
+    def test_no_main_arena_user_declines_default_arena(
+        self, dialog_coordinator, mock_project_manager, mock_ui_coordinator
+    ):
+        mock_project_manager.get_active_zone_video.return_value = "video.mp4"
+        mock_project_manager.get_multi_aquarium_zone_data.return_value = None
+        mock_project_manager.get_zone_data.return_value = SimpleNamespace(
+            polygon=[], roi_polygons=[]
+        )
+
+        # First ask: define now? -> False. Second ask: use default? -> False.
+        mock_ui_coordinator.ask_ok_cancel.side_effect = [False, False]
+
+        result = dialog_coordinator.validate_zones_with_ui()
+        assert result is False
+
+    def test_no_main_arena_creates_default_arena_success(
+        self, dialog_coordinator, mock_project_manager, mock_ui_coordinator, mock_event_bus
+    ):
+        mock_project_manager.get_active_zone_video.return_value = "video.mp4"
+        mock_project_manager.get_multi_aquarium_zone_data.return_value = None
+        zone_data = SimpleNamespace(polygon=[], roi_polygons=[[[0, 0], [10, 0], [10, 10]]])
+        mock_project_manager.get_zone_data.return_value = zone_data
+        mock_project_manager.get_next_video.return_value = "video.mp4"
+
+        # First ask: define now? -> False. Second ask: use default? -> True.
+        mock_ui_coordinator.ask_ok_cancel.side_effect = [False, True]
+
+        dialog_coordinator.video_metadata_service.get_video_dimensions = MagicMock(
+            return_value=(640, 480)
+        )
+
+        result = dialog_coordinator.validate_zones_with_ui()
+        assert result is True
+        assert zone_data.polygon == [[0, 0], [640, 0], [640, 480], [0, 480]]
+        mock_project_manager.save_zone_data.assert_called_once_with(
+            zone_data, video_path="video.mp4"
+        )
+
+    def test_no_main_arena_creates_default_arena_no_dimensions(
+        self, dialog_coordinator, mock_project_manager, mock_ui_coordinator
+    ):
+        mock_project_manager.get_active_zone_video.return_value = "video.mp4"
+        mock_project_manager.get_multi_aquarium_zone_data.return_value = None
+        mock_project_manager.get_zone_data.return_value = SimpleNamespace(
+            polygon=[], roi_polygons=[]
+        )
+        mock_project_manager.get_next_video.return_value = "video.mp4"
+
+        mock_ui_coordinator.ask_ok_cancel.side_effect = [False, True]
+        dialog_coordinator.video_metadata_service.get_video_dimensions = MagicMock(
+            return_value=None
+        )
+
+        result = dialog_coordinator.validate_zones_with_ui()
+        assert result is False
+        mock_ui_coordinator.show_error.assert_called_once()
+
+    def test_no_main_arena_creates_default_arena_no_video(
+        self, dialog_coordinator, mock_project_manager, mock_ui_coordinator
+    ):
+        mock_project_manager.get_active_zone_video.return_value = None
+        mock_project_manager.get_multi_aquarium_zone_data.return_value = None
+        mock_project_manager.get_zone_data.return_value = SimpleNamespace(
+            polygon=[], roi_polygons=[]
+        )
+        mock_project_manager.get_next_video.return_value = None
+
+        mock_ui_coordinator.ask_ok_cancel.side_effect = [False, True]
+
+        result = dialog_coordinator.validate_zones_with_ui()
+        assert result is False
+        mock_ui_coordinator.show_error.assert_called_once()
+
+    def test_no_rois_user_declines(
+        self, dialog_coordinator, mock_project_manager, mock_ui_coordinator
+    ):
+        mock_project_manager.get_active_zone_video.return_value = "video.mp4"
+        mock_project_manager.get_multi_aquarium_zone_data.return_value = None
+        mock_project_manager.get_zone_data.return_value = SimpleNamespace(
+            polygon=[[0, 0], [10, 0], [10, 10]], roi_polygons=[]
+        )
+
+        # Prompt for no ROI: user cancels -> False
+        mock_ui_coordinator.ask_ok_cancel.return_value = False
+
+        result = dialog_coordinator.validate_zones_with_ui()
+        assert result is False
+
+    def test_multi_aquarium_zones_valid(
+        self, dialog_coordinator, mock_project_manager, mock_ui_coordinator
+    ):
+        aq1 = SimpleNamespace(polygon=[(0, 0), (10, 0), (10, 10)])
+        aq2 = SimpleNamespace(polygon=[(20, 0), (30, 0), (30, 10)])
+        mock_project_manager.get_active_zone_video.return_value = "video.mp4"
+        mock_project_manager.get_multi_aquarium_zone_data.return_value = SimpleNamespace(
+            aquariums=[aq1, aq2]
+        )
+        mock_project_manager.get_zone_data.return_value = SimpleNamespace(
+            polygon=[], roi_polygons=[[[0, 0], [1, 1], [2, 2]]]
+        )
+
+        result = dialog_coordinator.validate_zones_with_ui()
+        assert result is True
+
+
+class TestHandleValidationError:
+    def test_validation_is_valid(self, dialog_coordinator):
+        val = SimpleNamespace(is_valid=True)
+        assert dialog_coordinator.handle_validation_error(val) is True
+
+    def test_error_processing_already_active_with_event_bus(
+        self, dialog_coordinator, mock_event_bus
+    ):
+        val = SimpleNamespace(
+            is_valid=False,
+            error_code="processing_already_active",
+            error_message="Already running",
+        )
+        assert dialog_coordinator.handle_validation_error(val) is False
+        mock_event_bus.publish.assert_called_once()
+
+    def test_error_no_project_loaded(self, dialog_coordinator, mock_event_bus):
+        val = SimpleNamespace(
+            is_valid=False,
+            error_code="no_project_loaded",
+            error_message="No project",
+        )
+        assert dialog_coordinator.handle_validation_error(val) is False
+        mock_event_bus.publish.assert_called_once()
+
+    def test_error_no_videos(self, dialog_coordinator, mock_event_bus):
+        val = SimpleNamespace(
+            is_valid=False,
+            error_code="no_videos",
+            error_message="No videos",
+        )
+        assert dialog_coordinator.handle_validation_error(val) is False
+        mock_event_bus.publish.assert_called_once()
+
+    def test_error_no_weight_selected(self, dialog_coordinator, mock_event_bus):
+        val = SimpleNamespace(
+            is_valid=False,
+            error_code="no_weight_selected",
+            error_message="No weight",
+        )
+        assert dialog_coordinator.handle_validation_error(val) is False
+        mock_event_bus.publish.assert_called_once()
+
+    def test_error_generic(self, dialog_coordinator, mock_event_bus):
+        val = SimpleNamespace(
+            is_valid=False,
+            error_code="other_code",
+            error_message="Generic error",
+        )
+        assert dialog_coordinator.handle_validation_error(val) is False
+        mock_event_bus.publish.assert_called_once()
+
+    def test_error_without_event_bus(self, mock_ui_coordinator, mock_state_manager):
+        coord = DialogCoordinator(mock_ui_coordinator, None, mock_state_manager)
+
+        val_active = SimpleNamespace(
+            is_valid=False,
+            error_code="processing_already_active",
+            error_message="Already running",
+        )
+        assert coord.handle_validation_error(val_active) is False
+        mock_ui_coordinator.show_warning.assert_called_once()
+
+        val_other = SimpleNamespace(
+            is_valid=False,
+            error_code="other_code",
+            error_message="Other error",
+        )
+        assert coord.handle_validation_error(val_other) is False
+        mock_ui_coordinator.show_error.assert_called_once()

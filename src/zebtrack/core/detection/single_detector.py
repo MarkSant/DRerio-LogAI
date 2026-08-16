@@ -12,6 +12,7 @@ import cv2
 import numpy as np
 import structlog
 
+from zebtrack.core.detection.bbox_area_gate import BboxAreaGate
 from zebtrack.core.detection.detection_post_processor import DetectionPostProcessor
 from zebtrack.core.detection.detection_types import MultiAquariumZoneData, ZoneData
 from zebtrack.core.detection.single_subject_tracker import SingleSubjectTracker
@@ -92,6 +93,22 @@ class SingleDetector:
         # (o rastreador reemite a bbox ORIGINAL, não a do Kalman). Uma lista
         # paralela, ao contrário, se desalinharia no primeiro filtro.
         self._frame_mask_index: dict[tuple[int, int, int, int], np.ndarray] = {}
+
+        # Rolling window of accepted animal bbox AREAS, feeding the runaway-bbox
+        # gate (``_reject_runaway_boxes``).
+        #
+        # Deliberately GLOBAL rather than per-track: at the point the gate runs,
+        # ``track()`` has not assigned track ids yet, so a per-track history is a
+        # chicken-and-egg. It is also the right statistic — the animals in one
+        # session are the same species at the same camera distance, so their
+        # apparent areas form one population. ``maxlen`` is set on first use from
+        # settings.
+        # Runaway-bbox gate. Global (not per-track) on purpose: when it runs,
+        # ``track()`` has not assigned track ids yet, so a per-track history
+        # would be a chicken-and-egg. It is also the right statistic — the
+        # animals in one session are the same species at the same camera
+        # distance, so their apparent areas form a single population.
+        self._bbox_area_gate = BboxAreaGate.from_settings(settings_obj, label="single")
 
         # Dynamic class ID resolution
         self.aquarium_class_id, self.animal_class_id = DetectionPostProcessor.resolve_class_ids(
@@ -272,6 +289,9 @@ class SingleDetector:
         self._last_width = actual_width
         self._last_height = actual_height
         self._single_subject_tracker.reset()
+        # New zones mean a new video/session geometry: areas measured under the
+        # previous framing are not comparable and must not gate the new one.
+        self._reset_bbox_area_history()
 
     def set_context(self, context: str) -> None:
         """Set the detection context.
@@ -291,6 +311,10 @@ class SingleDetector:
         """
         self._aquarium_region_defined = bool(defined)
         log.info("single_detector.aquarium_region_defined.set", defined=defined)
+
+    # =========================================================================
+    # Runaway-bbox gate
+    # =========================================================================
 
     # =========================================================================
     # Detection
@@ -374,6 +398,12 @@ class SingleDetector:
         )
         if self.animal_class_id is not None:
             predictions = [det for det in predictions if det[6] == self.animal_class_id]
+
+        # Runaway-bbox gate runs HERE — after class filtering (so only real
+        # animal boxes feed the median) and BEFORE ``track()``, so the tracker
+        # never latches onto an exploded box and the downstream Arduino ROI
+        # dispatch never fires on one.
+        predictions = self._bbox_area_gate.filter(predictions)
 
         if self.settings is None and not self._single_subject_mode and len(predictions) > 1:
             from zebtrack.tracker.basetrack import BaseTrack
@@ -504,12 +534,17 @@ class SingleDetector:
         self._single_subject_tracker.reset()
         self._byte_tracker = None
         self._byte_tracker_params = None
+        self._reset_bbox_area_history()
 
         # Reset global track ID counter so new videos start with ID=1
         from zebtrack.tracker.basetrack import BaseTrack
 
         BaseTrack.reset_id_counter()
         log.debug("single_detector.reset_tracking_state.id_counter_reset")
+
+    def _reset_bbox_area_history(self) -> None:
+        """Forget accepted-area history so the next video re-learns its own baseline."""
+        self._bbox_area_gate.reset()
 
     def clear_cache(self) -> None:
         """Clear the internal scaling cache to free memory."""

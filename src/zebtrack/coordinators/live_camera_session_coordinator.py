@@ -185,6 +185,36 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
             has_live_camera_service=live_camera_service is not None,
         )
 
+    def _on_project_manager_replaced(self, data: Any) -> None:
+        """Adopt the new ProjectManager and drop the pending-session handshakes.
+
+        Without this the coordinator keeps its constructor-time manager after a
+        project close, and ``_resolve_session_paths`` lands the next live session's
+        output inside the CLOSED project's directory.
+
+        The pending contexts are cleared because they reference a project that is
+        gone: resuming them would start a recording against stale paths and stale
+        zone data. A handshake that can no longer be honoured must not survive into
+        the next session — an armed trigger from the previous project would fire on
+        the wrong run.
+        """
+        new_manager = (
+            data.get("new_manager")
+            if isinstance(data, dict)
+            else getattr(data, "new_manager", None)
+        )
+        if not new_manager:
+            return
+
+        self.project_manager = new_manager
+        self._pending_live_context = None
+        self._pending_live_kind = None
+        self._pending_trigger_context = None
+        self._active_live_session_id = None
+        self._active_wizard_data = None
+
+        log.info("live_camera_session_coordinator.project_manager_replaced")
+
     # =============================================================================
     # PENDING-SESSION HANDSHAKE (zone-tab "Iniciar Gravação" button)
     # =============================================================================

@@ -296,6 +296,56 @@ class YOLOModelSettings(BaseModel):
         ),
     )
 
+    # Runaway-bbox gate. When the tracker loses the animal, YOLO frequently
+    # keeps emitting a box that grows to cover reflections, shadows or the whole
+    # tank. Nothing rejected it: the live pipeline calls ``detect`` with a
+    # deliberately permissive ``conf_threshold=0.05`` and there was no size
+    # limit anywhere in the animal path. The oversized box then poisons the
+    # trajectory parquet, the derived kinematics, and — worst — the edge-triggered
+    # Arduino ROI dispatch, which can fire a stimulus for an animal that is not
+    # there. Compared against a ROLLING MEDIAN of recently accepted areas rather
+    # than an absolute size, so it adapts to species, zoom and camera distance.
+    bbox_area_gate_enabled: bool = Field(
+        True,
+        description=(
+            "Reject animal detections whose bbox area exceeds "
+            "``bbox_area_median_ratio_max`` times the rolling median of recently "
+            "accepted areas. Guards against the detection box exploding after the "
+            "animal is lost. Set False to restore the previous unfiltered behaviour."
+        ),
+    )
+    bbox_area_median_ratio_max: float = Field(
+        3.0,
+        gt=1.0,
+        le=100.0,
+        description=(
+            "Maximum bbox area as a multiple of the rolling median of accepted "
+            "areas. 3.0 is conservative: it catches runaway boxes while leaving "
+            "room for genuine apparent-size change (an animal approaching the "
+            "camera). Lower it to react sooner, at the risk of dropping valid "
+            "detections in scenes with large real size variation."
+        ),
+    )
+    bbox_area_history_window: int = Field(
+        30,
+        ge=2,
+        le=1000,
+        description=(
+            "How many recently accepted bbox areas feed the rolling median used "
+            "by the runaway-bbox gate."
+        ),
+    )
+    bbox_area_gate_warmup: int = Field(
+        10,
+        ge=1,
+        le=1000,
+        description=(
+            "Minimum number of accepted areas before the runaway-bbox gate starts "
+            "rejecting. Below this the median is not yet trustworthy, so every "
+            "detection passes — never let a cold statistic discard real data."
+        ),
+    )
+
     # OPTIMIZATION: Inference performance settings
     use_half_precision: bool = Field(
         True,
