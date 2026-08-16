@@ -267,3 +267,60 @@ def test_persist_session_to_project_data_existing(coordinator):
     # Status should be updated, and metadata merged
     assert batch["videos"][0]["status"] == "recorded"
     assert batch["videos"][0]["metadata"]["group"] == "G1"
+
+
+class TestUnifiedReportGeneration:
+    def test_generate_unified_report_no_videos(self, coordinator):
+        batch = BatchMetadata(batch_id="b1", group="G", day="1", subject_id="S", session_paths=[])
+        assert coordinator._generate_unified_report(batch) is False
+
+    def test_generate_unified_report_no_project_root(self, coordinator):
+        coordinator.project_manager.project_root = None
+        coordinator.project_manager.project_path = None
+        batch = BatchMetadata(
+            batch_id="b1", group="G", day="1", subject_id="S", session_paths=[Path("v1.mp4")]
+        )
+        assert coordinator._generate_unified_report(batch) is False
+
+    def test_generate_unified_report_no_summaries(self, coordinator, tmp_path):
+        coordinator.project_manager.project_root = tmp_path
+        coordinator.project_manager.find_video_entry.return_value = None
+        batch = BatchMetadata(
+            batch_id="b1", group="G", day="1", subject_id="S", session_paths=[Path("v1.mp4")]
+        )
+        assert coordinator._generate_unified_report(batch) is False
+
+    def test_generate_unified_report_success(self, coordinator, tmp_path):
+        coordinator.project_manager.project_root = tmp_path
+        coordinator.project_manager.find_video_entry.return_value = {
+            "summary_excel": str(tmp_path / "summary.xlsx")
+        }
+        batch = BatchMetadata(
+            batch_id="b1", session_paths=[Path("v1.mp4")], group="G1", day="1", subject_id="S1"
+        )
+
+        with patch.object(
+            coordinator, "_resolve_summary_excel_path", return_value=tmp_path / "summary.xlsx"
+        ):
+            ok = coordinator._generate_unified_report(batch)
+            assert ok is True
+            coordinator.analysis_service.aggregate_session_summaries.assert_called_once()
+            coordinator.project_manager.register_batch_outputs.assert_called_once()
+
+
+class TestCollectMultiAquariumOutputs:
+    def test_collect_none_or_missing_dir(self):
+        assert LiveBatchCoordinator._collect_multi_aquarium_outputs(None, {}) == {}
+        assert LiveBatchCoordinator._collect_multi_aquarium_outputs(Path("/nonexistent"), {}) == {}
+
+    def test_collect_with_aquarium_subdirectories(self, tmp_path):
+        aq1 = tmp_path / "aquarium_1"
+        aq1.mkdir()
+        (aq1 / "1_ProcessingArea_test.parquet").write_text("data")
+
+        outputs = LiveBatchCoordinator._collect_multi_aquarium_outputs(
+            tmp_path, {"group": "G1", "subject_id": "S1", "day": 1}
+        )
+        assert 0 in outputs
+        assert outputs[0]["group"] == "G1"
+        assert outputs[0]["subject_id"] == "S1"

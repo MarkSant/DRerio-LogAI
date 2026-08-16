@@ -446,3 +446,51 @@ def test_copy_global_with_apply_runtime_false_skips_defaults():
     assert call_kwargs["active_weight_setter"] is None
     assert call_kwargs["use_openvino_setter"] is None
     assert call_kwargs["apply_runtime_callback"] is None
+
+
+class TestCalibrationSessionsAndDefaults:
+    def test_global_calibration_session_with_and_without_coordinator(self, coordinator):
+        # Without calibration coordinator
+        with coordinator.global_calibration_session(lambda: "w", lambda: True):
+            pass
+
+        # With calibration coordinator
+        mock_calib = MagicMock()
+        mock_cm = MagicMock()
+        mock_calib.global_calibration_session.return_value = mock_cm
+        coordinator._calibration_coordinator = mock_calib
+
+        with coordinator.global_calibration_session(lambda: "w", lambda: True):
+            pass
+        mock_calib.global_calibration_session.assert_called_once()
+
+    def test_project_calibration_session_with_and_without_coordinator(self, coordinator):
+        # Without calibration coordinator
+        with coordinator.project_calibration_session():
+            pass
+
+        # With calibration coordinator
+        mock_calib = MagicMock()
+        mock_cm = MagicMock()
+        mock_calib.project_calibration_session.return_value = mock_cm
+        coordinator._calibration_coordinator = mock_calib
+
+        with coordinator.project_calibration_session():
+            pass
+        mock_calib.project_calibration_session.assert_called_once()
+
+    def test_setup_zones_from_project_no_callback(self, coordinator):
+        coordinator._setup_zones_from_project(None)  # Should log warning and return
+
+    def test_restore_global_model_defaults_fallback(self, coordinator):
+        mock_state = MagicMock()
+        mock_state.active_weight_name = "test_weight.pt"
+        mock_state.use_openvino = True
+        coordinator.state_manager.get_detector_state.return_value = mock_state
+        coordinator._model_override_service = None
+
+        coordinator._restore_global_model_defaults()
+
+        assert coordinator._global_model_defaults["active_weight"] == "test_weight.pt"
+        assert coordinator._global_model_defaults["use_openvino"] is True
+        assert coordinator._using_project_overrides is False

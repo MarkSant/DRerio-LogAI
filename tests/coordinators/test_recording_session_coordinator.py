@@ -276,3 +276,53 @@ def test_on_zone_saved(coordinator):
     coordinator._on_zone_saved()
 
     coordinator.recording_service.schedule_recording.assert_called_once()
+
+
+class TestStartRecordingDetailsAndExplicitPath:
+    def test_start_recording_no_params_no_view_raises(self, coordinator):
+        from zebtrack.coordinators.recording_session_coordinator import (
+            RecordingSessionCoordinatorError,
+        )
+
+        coordinator.view = None
+        with pytest.raises(
+            RecordingSessionCoordinatorError, match="Cannot request recording details"
+        ):
+            coordinator.start_recording()
+
+    def test_start_recording_dialog_cancelled(self, coordinator):
+        coordinator.view = MagicMock()
+        coordinator.view.ask_recording_details_unified.return_value = None
+
+        res = coordinator.start_recording()
+        assert res is False
+
+    def test_start_recording_dialog_confirmed(self, coordinator, tmp_path):
+        coordinator.view = MagicMock()
+        coordinator.view.ask_recording_details_unified.return_value = {
+            "day": 1,
+            "group": "G1",
+            "cobaia": "S1",
+        }
+        coordinator.project_manager.project_path = str(tmp_path)
+        coordinator._handle_external_trigger = MagicMock(return_value=False)
+        coordinator._schedule_recording = MagicMock()
+
+        res = coordinator.start_recording()
+        assert res is True
+        coordinator.project_manager.save_last_session_details.assert_called_once_with(1, "G1")
+        coordinator._schedule_recording.assert_called_once()
+
+    def test_start_recording_explicit_path_missing_params_raises(self, coordinator):
+        with pytest.raises(ValueError, match="experiment_id is required"):
+            coordinator.start_recording(
+                context=None, day=None, output_path="out.mp4", experiment_id=None
+            )
+
+    def test_on_arduino_event_disarm_on_zero(self, coordinator):
+        coordinator._pending_external_trigger = {"dummy": True}
+        recording_state = MagicMock(is_recording=False)
+        coordinator.state_manager.get_recording_state.return_value = recording_state
+
+        coordinator.on_arduino_event(0)
+        assert coordinator._pending_external_trigger is None

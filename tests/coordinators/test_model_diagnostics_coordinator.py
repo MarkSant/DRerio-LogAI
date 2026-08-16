@@ -1,4 +1,5 @@
 import threading
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -493,3 +494,87 @@ class TestRunModelDiagnosticEdgeCases:
         }
         coordinator.run_model_diagnostic(config)
         mock_thread.assert_called_once()
+
+
+class TestOpenVINODiagnosticsAndFormatting:
+    def test_load_openvino_model_plugin_missing(self, coordinator):
+        with patch.dict(
+            "zebtrack.coordinators.model_diagnostics_coordinator.DETECTOR_PLUGINS", {}, clear=True
+        ):
+            with patch(
+                "zebtrack.coordinators.model_diagnostics_coordinator._is_valid_openvino_directory",
+                return_value=True,
+            ):
+                with pytest.raises(DiagnosticAbortError):
+                    coordinator._initialize_diagnostic_openvino_model(
+                        "OpenVINO", {"openvino_path": "/valid/path"}, {}, MagicMock()
+                    )
+
+    def test_load_openvino_model_missing_predict(self, coordinator):
+        dummy_cls = MagicMock(return_value=object())  # instance has no predict
+        with patch.dict(
+            "zebtrack.coordinators.model_diagnostics_coordinator.DETECTOR_PLUGINS",
+            {"OpenVINO": dummy_cls},
+            clear=True,
+        ):
+            with patch(
+                "zebtrack.coordinators.model_diagnostics_coordinator._is_valid_openvino_directory",
+                return_value=True,
+            ):
+                with pytest.raises(DiagnosticAbortError):
+                    coordinator._initialize_diagnostic_openvino_model(
+                        "OpenVINO", {"openvino_path": "/valid/path"}, {}, MagicMock()
+                    )
+
+    def test_load_openvino_model_success(self, coordinator):
+        mock_model = MagicMock()
+        mock_model.predict = MagicMock()
+        mock_model.set_context = MagicMock()
+        dummy_cls = MagicMock(return_value=mock_model)
+        results: dict[str, Any] = {}
+
+        with patch.dict(
+            "zebtrack.coordinators.model_diagnostics_coordinator.DETECTOR_PLUGINS",
+            {"OpenVINO": dummy_cls},
+            clear=True,
+        ):
+            with patch(
+                "zebtrack.coordinators.model_diagnostics_coordinator._is_valid_openvino_directory",
+                return_value=True,
+            ):
+                loaded = coordinator._initialize_diagnostic_openvino_model(
+                    "OpenVINO", {"openvino_path": "/valid/path"}, results, MagicMock()
+                )
+                assert loaded is mock_model
+                assert "OpenVINO" in results
+                mock_model.set_context.assert_called_with("diagnostic")
+
+    def test_format_single_model_results_with_masks_and_orphans(self, coordinator):
+        import numpy as np
+
+        mock_box = MagicMock()
+        mock_box.cls = 0
+        mock_box.conf = 0.95
+        mock_box.xyxy = [[10, 20, 30, 40]]
+
+        mock_preds = MagicMock()
+        mock_preds.boxes = [mock_box]
+        mock_preds.names = {0: "fish"}
+        mock_preds.masks = MagicMock()
+        mock_preds.masks.xy = [
+            np.array([[10, 20], [30, 20], [30, 40], [10, 40]]),
+            np.array([[50, 50], [100, 50], [100, 100], [50, 100]]),  # orphan mask
+        ]
+
+        config = {
+            "video_path": "video.mp4",
+            "frames_to_analyze": 1,
+            "confidence_threshold": 0.5,
+        }
+        results = {"YOLO (PyTorch)": [mock_preds]}
+
+        text = coordinator._format_diagnostic_report(config, results)
+
+        assert "Class 0 ('fish')" in text
+        assert "[MASK WITHOUT BOX]" in text
+        assert "YOLO (PYTORCH) RESULTS" in text
