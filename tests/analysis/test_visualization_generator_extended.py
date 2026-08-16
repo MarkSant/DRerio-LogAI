@@ -91,3 +91,41 @@ class TestVisualizationGeneratorExtended:
         )
         assert fig is not None
         plt.close(fig)
+
+    def test_generate_trajectory_plot(self, sample_behavior_analyzer: ConcreteBehavioralAnalyzer):
+        gen = VisualizationGenerator(
+            b_analyzer=sample_behavior_analyzer,
+            metadata={"experiment_id": "EXP_1"},
+            pixelcm_x=10.0,
+            pixelcm_y=10.0,
+            video_height_px=100,
+        )
+        fig = gen.generate_trajectory_plot()
+        assert fig is not None
+        plt.close(fig)
+
+    def test_generate_heatmap(self, sample_behavior_analyzer: ConcreteBehavioralAnalyzer):
+        gen = VisualizationGenerator(
+            b_analyzer=sample_behavior_analyzer,
+            metadata={"experiment_id": "EXP_1"},
+            pixelcm_x=10.0,
+            pixelcm_y=10.0,
+            video_height_px=100,
+        )
+        fig = gen.generate_heatmap()
+        assert fig is not None
+        plt.close(fig)
+
+    def test_generate_angular_velocity_plot(
+        self, sample_behavior_analyzer: ConcreteBehavioralAnalyzer
+    ):
+        gen = VisualizationGenerator(
+            b_analyzer=sample_behavior_analyzer,
+            metadata={"experiment_id": "EXP_1"},
+            pixelcm_x=10.0,
+            pixelcm_y=10.0,
+            video_height_px=100,
+        )
+        fig = gen.generate_angular_velocity_plot()
+        assert fig is not None
+        plt.close(fig)

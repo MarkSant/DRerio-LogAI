@@ -58,6 +58,28 @@ class TestConcreteBehavioralAnalyzerExtended:
                 polyorder=5,
             )
 
+    def test_init_empty_dataframe_raises(self, arena_polygon: list[list[float]]):
+        empty_df = pd.DataFrame()
+        with pytest.raises(ValueError, match="Input DataFrame is empty"):
+            ConcreteBehavioralAnalyzer(
+                empty_df,
+                pixelcm_x=10.0,
+                pixelcm_y=10.0,
+                video_height_px=500,
+                arena_polygon_px=arena_polygon,
+            )
+
+    def test_init_missing_timestamp_raises(self, arena_polygon: list[list[float]]):
+        df_no_ts = pd.DataFrame({"x_center_px": [1.0, 2.0], "y_center_px": [3.0, 4.0]})
+        with pytest.raises(ValueError, match="Input DataFrame must include a 'timestamp' column"):
+            ConcreteBehavioralAnalyzer(
+                df_no_ts,
+                pixelcm_x=10.0,
+                pixelcm_y=10.0,
+                video_height_px=500,
+                arena_polygon_px=arena_polygon,
+            )
+
     def test_thigmotaxis_index_methods(
         self, sample_trajectory_data: pd.DataFrame, arena_polygon: list[list[float]]
     ):
@@ -189,3 +211,21 @@ class TestConcreteBehavioralAnalyzerExtended:
         turns = analyzer.calculate_sharp_turns(threshold_deg_s=45.0)
         assert "sharp_turns_count" in turns
         assert "sharp_turns_per_minute" in turns
+
+    def test_track_properties_and_diff(
+        self, sample_trajectory_data: pd.DataFrame, arena_polygon: list[list[float]]
+    ):
+        analyzer = ConcreteBehavioralAnalyzer(
+            sample_trajectory_data,
+            pixelcm_x=10.0,
+            pixelcm_y=10.0,
+            video_height_px=500,
+            arena_polygon_px=arena_polygon,
+        )
+        assert analyzer.is_multi_track is False
+        assert len(analyzer.track_positions) == 1
+        assert analyzer.arena_polygon_cm is not None
+
+        series = pd.Series([10.0, 20.0, 30.0], index=sample_trajectory_data.index[:3])
+        diff_res = analyzer.diff_by_track(series)
+        assert diff_res.iloc[1] == 10.0

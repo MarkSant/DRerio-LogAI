@@ -87,3 +87,20 @@ class TestFrameProcessingPipelineExtended:
     def test_adjust_fps_dynamically(self):
         pipeline = DummyPipeline()
         assert pipeline._adjust_fps_dynamically(1, 0.01) is True
+
+    def test_adjust_fps_slow_down_triggers_skip(self):
+        pipeline = DummyPipeline()
+        pipeline._target_fps = 30.0
+        # Feed 15 slow frames (e.g. 100ms each = 10 FPS, below target * 0.7 = 21 FPS)
+        for i in range(1, 16):
+            pipeline._adjust_fps_dynamically(i, 0.10)
+        assert pipeline._frame_skip_count >= 1
+
+    def test_adjust_fps_speed_up_reduces_skip(self):
+        pipeline = DummyPipeline()
+        pipeline._target_fps = 30.0
+        pipeline._frame_skip_count = 2
+        # Feed 15 fast frames (e.g. 10ms each = 100 FPS, above target * 1.2 = 36 FPS)
+        for i in range(1, 16):
+            pipeline._adjust_fps_dynamically(i, 0.01)
+        assert pipeline._frame_skip_count <= 1
