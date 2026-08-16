@@ -7,6 +7,7 @@ and UI-side dispatching (routing UI updates to widgets).
 from collections.abc import Callable
 from dataclasses import fields, is_dataclass
 from pathlib import Path
+from tkinter import TclError
 from typing import TYPE_CHECKING, Any, cast
 
 import structlog
@@ -1029,6 +1030,33 @@ class EventDispatcher:
             if hasattr(gui, "set_status"):
                 gui.set_status(_("✓ Drawing finished. Click 'Save Edit' to confirm."))
 
+        def _handle_open_roi_settings(_d):
+            """Send the user to the ROI section of the Advanced Settings tab.
+
+            The Zone tab only SUMMARISES the effective rule now; this is the
+            single editor for the rule and all of its parameters.
+            """
+            widget = getattr(gui, "config_editor_widget", None)
+            notebook = getattr(gui, "notebook", None)
+            if widget is None or notebook is None:
+                # The Advanced Settings tab is not built in every layout (e.g.
+                # a live project before the analysis widgets are mounted). Say
+                # so instead of silently doing nothing on a click.
+                gui.set_status(_("Advanced Settings tab is not available yet."))
+                return
+            try:
+                notebook.select(widget)
+            # except TclError justified: the tab may not be attached to this
+            # notebook; fall back to a status message rather than crashing the
+            # Tk callback.
+            except TclError:
+                gui.set_status(_("Advanced Settings tab is not available yet."))
+                return
+            focus = getattr(widget, "focus_roi_section", None)
+            if callable(focus):
+                focus()
+
+        event_bus.subscribe(UIEvents.ZONE_OPEN_ROI_SETTINGS, _handle_open_roi_settings)
         event_bus.subscribe(UIEvents.ZONE_FINISH_DRAWING, _handle_finish_drawing)
         event_bus.subscribe(
             UIEvents.ZONE_CONCLUDE_VIDEO,
