@@ -65,6 +65,7 @@ class TestVideoValidationServiceExtended:
         assert "missing.mp4" in result.missing_files
 
         norm_path = VideoManager.normalize_path("video1.mp4")
+        assert norm_path is not None
         info = result.info_by_norm[norm_path]
         assert info["has_arena"] is True
         assert info["has_rois"] is True
@@ -89,6 +90,7 @@ class TestVideoValidationServiceExtended:
 
         assert result.scan_count == 1
         norm_path = VideoManager.normalize_path("multi_video.mp4")
+        assert norm_path is not None
         info = result.info_by_norm[norm_path]
         assert info["is_multi_aquarium"] is True
         assert 0 in info["aquarium_flags"]

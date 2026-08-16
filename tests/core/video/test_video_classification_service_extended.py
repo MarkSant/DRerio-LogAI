@@ -29,8 +29,9 @@ class TestVideoClassificationServiceExtended:
         norm_zones = VideoManager.normalize_path("v_zones.mp4")
         norm_arena = VideoManager.normalize_path("v_arena.mp4")
         norm_none = VideoManager.normalize_path("v_none.mp4")
+        assert norm_traj and norm_zones and norm_arena and norm_none
 
-        info_by_norm = {
+        info_by_norm: dict[str, dict] = {
             norm_traj: {
                 "has_arena": True,
                 "has_rois": True,
