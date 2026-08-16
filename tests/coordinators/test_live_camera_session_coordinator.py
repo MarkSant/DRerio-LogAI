@@ -4,7 +4,8 @@ Focuses on the live camera session lifecycle and configuration.
 """
 
 from pathlib import Path
-from unittest.mock import Mock
+from typing import Any
+from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 
@@ -642,3 +643,225 @@ class TestFindVideoInLiveSession:
     def test_find_video_when_dir_missing(self, coordinator):
         coordinator.live_camera_service.current_output_dir = None
         assert coordinator._find_video_in_live_session() is None
+
+
+class TestStartLiveAnalysisAndSessionFromConfig:
+    def test_start_live_analysis_with_camera_index(self, coordinator):
+        coordinator.start_session_from_config = Mock(return_value=True)
+        coordinator.settings.live_analysis = Mock(default_duration_s=180.0)
+
+        coordinator.start_live_camera_analysis(camera_index=1)
+
+        coordinator.start_session_from_config.assert_called_once()
+        cfg = coordinator.start_session_from_config.call_args[0][0]
+        assert cfg["camera_index"] == 1
+        assert cfg["duration_s"] == 180.0
+        assert cfg["experiment_id"] == "camera_1"
+
+    def test_start_live_analysis_no_root_returns_early(self, coordinator):
+        coordinator.root = None
+        coordinator.start_session_from_config = Mock()
+
+        coordinator.start_live_camera_analysis(camera_index=None)
+
+        coordinator.start_session_from_config.assert_not_called()
+
+    def test_start_session_from_config_updates_settings_and_starts(self, coordinator):
+        coordinator.settings.model_selection = Mock()
+        coordinator.detector_service.detector = Mock()
+        coordinator.live_calibration_coordinator.ensure_zones_before_recording.return_value = True
+        coordinator.live_camera_service.start_session.return_value = True
+
+        config = {
+            "camera_index": 0,
+            "duration_s": 120.0,
+            "experiment_id": "test_exp",
+            "animal_method": "det",
+            "aquarium_method": "seg",
+            "use_openvino": True,
+            "use_single_subject_tracker": True,
+        }
+
+        success = coordinator.start_session_from_config(config, zones_validated=True)
+
+        assert success is True
+        assert coordinator.settings.model_selection.animal_method == "det"
+        assert coordinator.settings.model_selection.aquarium_method == "seg"
+        assert coordinator.settings.model_selection.use_openvino is True
+        coordinator.detector_service.detector.set_single_subject_mode.assert_called_once_with(True)
+        coordinator.live_camera_service.start_session.assert_called_once()
+
+    def test_start_session_from_config_zones_deferred(self, coordinator):
+        coordinator.live_calibration_coordinator.ensure_zones_before_recording.return_value = False
+        coordinator.live_calibration_coordinator.pending_zone_confirmation = True
+
+        config = {
+            "camera_index": 0,
+            "experiment_id": "deferred_exp",
+        }
+
+        success = coordinator.start_session_from_config(config, zones_validated=False)
+
+        assert success is False
+        assert coordinator._pending_live_kind == "config"
+        assert coordinator._pending_live_context["experiment_id"] == "deferred_exp"
+
+    def test_start_session_from_config_service_fails(self, coordinator):
+        coordinator.live_calibration_coordinator.ensure_zones_before_recording.return_value = True
+        coordinator.live_camera_service.start_session.return_value = False
+
+        config = {"camera_index": 0, "experiment_id": "fail_exp"}
+
+        success = coordinator.start_session_from_config(config, zones_validated=True)
+
+        assert success is False
+        assert coordinator._active_live_session_id is None
+
+
+class TestStartLiveProjectSessionExtended:
+    def test_start_live_project_session_wrong_type(self, coordinator):
+        coordinator.project_manager.get_project_type.return_value = "standard"
+        success = coordinator.start_live_project_session(day=1, group="Ctrl", subject="F1")
+        assert success is False
+
+    def test_start_live_project_session_camera_missing_shows_error(
+        self, coordinator, mock_event_bus
+    ):
+        coordinator.project_manager.get_project_type.return_value = "live"
+        coordinator.project_manager.project_data = {
+            "camera_index": 99,
+            "camera_friendly_name": "GhostCam",
+        }
+
+        from unittest.mock import patch
+
+        with patch(
+            "zebtrack.core.services.wizard_service.WizardService.resolve_camera_index",
+            return_value=(-1, "MISSING"),
+        ):
+            success = coordinator.start_live_project_session(day=1, group="Ctrl", subject="F1")
+
+        assert success is False
+        mock_event_bus.publish.assert_called()
+
+    def test_start_live_project_session_zones_deferred(self, coordinator):
+        coordinator.project_manager.get_project_type.return_value = "live"
+        coordinator.project_manager.project_data = {"camera_index": 0}
+        coordinator.live_calibration_coordinator.ensure_zones_before_recording.return_value = False
+        coordinator.live_calibration_coordinator.pending_zone_confirmation = True
+
+        success = coordinator.start_live_project_session(
+            day=1, group="Ctrl", subject="F1", camera_index_override=0, zones_validated=False
+        )
+
+        assert success is False
+        assert coordinator._pending_live_kind == "project"
+        assert coordinator._pending_live_context["experiment_id"] == "day1_Ctrl_F1"
+
+
+class TestSessionPersistenceAndTriggers:
+    def test_persist_live_session_skipped_cancelled(self, coordinator, tmp_path):
+        coordinator_any: Any = coordinator
+        results_dir = tmp_path / "results"
+        results_dir.mkdir()
+        (results_dir / ".cancelled").touch()
+        video_path = results_dir / "vid.mp4"
+
+        coordinator.project_manager.project_data = {"batches": []}
+        coordinator_any._persist_session_to_project_data_fallback(
+            video_path=video_path,
+            experiment_id="exp1",
+            metadata={"group": "G1", "day": "1", "subject_id": "S1"},
+        )
+
+        assert len(coordinator.project_manager.project_data["batches"]) == 0
+
+    def test_persist_live_session_new_entry(self, coordinator, tmp_path):
+        coordinator_any: Any = coordinator
+        results_dir = tmp_path / "results"
+        results_dir.mkdir()
+        video_path = results_dir / "vid.mp4"
+
+        coordinator.project_manager.project_data = {"batches": []}
+        coordinator_any._persist_session_to_project_data_fallback(
+            video_path=video_path,
+            experiment_id="exp1",
+            metadata={"group": "G1", "day": "1", "subject_id": "S1"},
+        )
+
+        batches = coordinator.project_manager.project_data["batches"]
+        assert len(batches) == 1
+        assert batches[0]["videos"][0]["filename"] == "vid.mp4"
+        coordinator.project_manager.save_project.assert_called_once()
+
+    def test_find_video_in_live_session(self, coordinator, tmp_path):
+        coordinator_any: Any = coordinator
+        coordinator.live_camera_service.current_output_dir = str(tmp_path)
+        vid_file = tmp_path / "test_run.mp4"
+        vid_file.touch()
+
+        found = coordinator_any._find_video_in_live_session()
+        assert found == vid_file
+
+    def test_external_trigger_allows_start_rejected(self, coordinator, mock_event_bus):
+        coordinator_any: Any = coordinator
+        from zebtrack.core.services.external_trigger_gate import ExternalTriggerDecision
+
+        with patch(
+            "zebtrack.core.services.external_trigger_gate.decide_external_trigger",
+            return_value=ExternalTriggerDecision.REJECT_ARDUINO_OFFLINE,
+        ):
+            allowed = coordinator_any._external_trigger_allows_start(
+                context={"experiment_id": "exp1"},
+                project_data={"arduino_port": "COM3"},
+            )
+
+        assert allowed is False
+        mock_event_bus.publish.assert_called_once()
+
+    def test_external_trigger_allows_start_armed(self, coordinator, mock_event_bus):
+        coordinator_any: Any = coordinator
+        from zebtrack.core.services.external_trigger_gate import ExternalTriggerDecision
+
+        with patch(
+            "zebtrack.core.services.external_trigger_gate.decide_external_trigger",
+            return_value=ExternalTriggerDecision.ARM_AND_WAIT,
+        ):
+            allowed = coordinator_any._external_trigger_allows_start(
+                context={
+                    "experiment_id": "exp1",
+                    "folder_name": "fold",
+                    "day_int": 1,
+                    "group": "G1",
+                },
+                project_data={"arduino_port": "COM3"},
+            )
+
+        assert allowed is False
+        assert coordinator_any._pending_trigger_context["experiment_id"] == "exp1"
+        assert mock_event_bus.publish.call_count == 2
+
+    def test_start_live_project_session_success_ui_updates(self, coordinator):
+        coordinator_any: Any = coordinator
+        coordinator.project_manager.get_project_type.return_value = "live"
+        coordinator.project_manager.project_data = {"camera_index": 0}
+        coordinator_any._build_live_experiment_context = MagicMock(
+            return_value={
+                "experiment_id": "day1_G1_S1",
+                "folder_name": "day1_G1_S1",
+                "output_dir": "out",
+                "day_int": 1,
+                "group": "G1",
+                "subject": "S1",
+                "camera_index": 0,
+            }
+        )
+        coordinator_any._external_trigger_allows_start = MagicMock(return_value=True)
+        coordinator.live_camera_service.start_session.return_value = True
+
+        res = coordinator.start_live_project_session(
+            day=1, group="G1", subject="S1", zones_validated=True
+        )
+
+        assert res is True
+        coordinator.live_calibration_coordinator.clear_last_polygon_source.assert_called_once()
