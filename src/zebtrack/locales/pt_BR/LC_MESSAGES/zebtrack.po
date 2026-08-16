@@ -11254,6 +11254,29 @@ msgstr "Falha na detecção: {error}"
 msgid "No aquarium found — adjust the threshold and try again."
 msgstr "Nenhum aquário encontrado — ajuste o limiar e tente novamente."
 
+#: src/zebtrack/ui/dialogs/preview_polygon_dialog.py:47
+msgid "Camera unavailable — detection could not run. Reconnect it and try again."
+msgstr ""
+"Câmera indisponível — a detecção não chegou a rodar. Reconecte-a e tente "
+"novamente."
+
+#: src/zebtrack/ui/dialogs/preview_polygon_dialog.py:49
+msgid "No frame could be captured from the camera. Check the connection."
+msgstr "Nenhum quadro pôde ser capturado da câmera. Verifique a conexão."
+
+#: src/zebtrack/ui/dialogs/preview_polygon_dialog.py:51
+msgid "Error reading from the camera — detection did not run."
+msgstr "Erro ao ler da câmera — a detecção não rodou."
+
+#: src/zebtrack/ui/dialogs/preview_polygon_dialog.py:52
+msgid "No aquarium found at this threshold. Lower it and try again."
+msgstr "Nenhum aquário encontrado neste limiar. Diminua-o e tente novamente."
+
+#: src/zebtrack/ui/dialogs/preview_polygon_dialog.py:311
+#, python-brace-format
+msgid "{detail} (threshold {value})"
+msgstr "{detail} (limiar {value})"
+
 #: src/zebtrack/ui/dialogs/preview_polygon_dialog.py:317
 #, python-brace-format
 msgid "Aquarium re-detected with threshold {value}"

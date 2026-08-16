@@ -145,3 +145,77 @@ def test_non_live_project_without_video_does_not_route_to_camera():
 
     calib.run_live_calibration.assert_not_called()
     gui.event_dispatcher.publish_event.assert_called_once()
+
+
+# ---------------------------------------------------------------------------
+# Ad-hoc live (single-video live analysis, NO project)
+# ---------------------------------------------------------------------------
+
+
+def _adhoc_live_gui(*, calibration_coordinator, active_zone_video=None):
+    """gui stub para a análise ao vivo de vídeo único: NÃO há projeto.
+
+    ``project_data`` vazio faz ``get_project_type()`` devolver ``None`` e
+    ``project_path`` é ``None`` — é isso que distingue este fluxo de um projeto
+    live e o que fazia o botão de auto-detectar virar um no-op silencioso.
+    """
+    pm = Mock()
+    pm.get_active_zone_video.return_value = active_zone_video
+    pm.get_project_type.return_value = None
+    pm.project_path = None
+    controller = SimpleNamespace(
+        project_manager=pm,
+        live_calibration_coordinator=calibration_coordinator,
+    )
+    return SimpleNamespace(
+        analysis_active=False,
+        stabilization_frames_var=SimpleNamespace(get=lambda: "10", set=lambda _v: None),
+        canvas_manager=SimpleNamespace(clear_interactive_polygon=lambda: None),
+        controller=controller,
+        pending_single_video_path=None,
+        pending_single_video_config=None,
+        settings=SimpleNamespace(analysis_config=SimpleNamespace(num_aquariums=1)),
+        event_dispatcher=Mock(),
+    )
+
+
+def test_adhoc_live_without_project_routes_auto_detect_to_camera():
+    """Sem projeto (vídeo único ao vivo) a auto-detecção TEM de ir para a câmera.
+
+    Regressão: o guard exigia ``project_type == "live"``, mas nesse fluxo não há
+    projeto, então o tipo é ``None``. O clique caía em ZONE_AUTO_DETECT com
+    ``video_path=""``, que o VideoProcessingCoordinator descarta com um ``return``
+    silencioso — sem detecção, sem diálogo e sem erro.
+    """
+    calib = Mock()
+    calib.run_live_calibration.return_value = True
+    gui = _adhoc_live_gui(calibration_coordinator=calib)
+    workflow = SingleVideoWorkflow(gui, dialog_manager=Mock())
+
+    workflow.on_auto_detect_clicked()
+
+    calib.run_live_calibration.assert_called_once()
+    assert UIEvents.ZONE_AUTO_DETECT not in _published_event_types(gui)
+
+
+def test_redetect_over_live_reference_frame_returns_to_camera():
+    """Redetectar após a 1ª calibração não pode tentar abrir o PNG como vídeo.
+
+    Depois da primeira calibração o coordinator define
+    ``live_camera_reference_frame.png`` como ``active_zone_video`` (é a chave
+    estável de ``zones_by_video``), então ``video_path`` deixa de ser vazio. Sem
+    tratar o reference-frame como "sem vídeo", o segundo clique cairia no caminho
+    de arquivo e o AquariumDetector tentaria abrir uma imagem como vídeo.
+    """
+    calib = Mock()
+    calib.run_live_calibration.return_value = True
+    gui = _adhoc_live_gui(
+        calibration_coordinator=calib,
+        active_zone_video="C:/tmp/zebtrack_live_adhoc_x/live_camera_reference_frame.png",
+    )
+    workflow = SingleVideoWorkflow(gui, dialog_manager=Mock())
+
+    workflow.on_auto_detect_clicked()
+
+    calib.run_live_calibration.assert_called_once()
+    assert UIEvents.ZONE_AUTO_DETECT not in _published_event_types(gui)
