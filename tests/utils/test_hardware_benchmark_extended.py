@@ -120,19 +120,41 @@ class TestHardwareBenchmarkExtended:
     def test_cache_save_and_load(self, tmp_path):
         cache_file = tmp_path / "system_benchmark.json"
         target = "zebtrack.utils.hardware_benchmark.get_benchmark_cache_path"
-        with patch(target, return_value=cache_file):
-            profile = detect_hardware_profile()
+        mock_profile = HardwareProfile(
+            cpu_name="Test CPU",
+            cpu_cores=4,
+            fingerprint="fixed1234567",
+        )
+        with (
+            patch(target, return_value=cache_file),
+            patch(
+                "zebtrack.utils.hardware_benchmark.detect_hardware_profile",
+                return_value=mock_profile,
+            ),
+        ):
             sys_res = SystemBenchmarkResult(
                 benchmark_version="1.0.0",
                 benchmark_date="2026-08-16",
-                hardware=profile,
+                hardware=mock_profile,
             )
             save_benchmark_cache(sys_res)
             assert cache_file.exists()
 
             loaded = load_cached_benchmark()
             assert loaded is not None
-            assert loaded.hardware.fingerprint == profile.fingerprint
+            assert loaded.hardware.fingerprint == "fixed1234567"
+
+            # Invalidate cache when hardware fingerprint differs
+            mismatched_profile = HardwareProfile(
+                cpu_name="New CPU",
+                cpu_cores=8,
+                fingerprint="different999",
+            )
+            with patch(
+                "zebtrack.utils.hardware_benchmark.detect_hardware_profile",
+                return_value=mismatched_profile,
+            ):
+                assert load_cached_benchmark() is None
 
     def test_load_cached_benchmark_missing_or_corrupt(self, tmp_path):
         missing_file = tmp_path / "missing.json"
