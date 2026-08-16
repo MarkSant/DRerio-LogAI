@@ -17,7 +17,7 @@ from zebtrack.settings import load_settings
 
 
 class TestDetectorServiceExtended:
-    """Test DetectorService tracker preference, config building, and parameter updates."""
+    """Test DetectorService tracker preference, config building, hyperparams, and definitions."""
 
     @pytest.fixture
     def service(self) -> DetectorService:
@@ -77,3 +77,35 @@ class TestDetectorServiceExtended:
         success, err = service.initialize_detector(animal_method="det")
         assert success is False
         assert "available" in str(err)
+
+    def test_apply_project_detector_hyperparams(self, service: DetectorService):
+        service.project_manager.project_data = {
+            "model_overrides": {
+                "confidence_threshold": 0.45,
+                "nms_threshold": 0.65,
+            }
+        }
+        plugin_mock = MagicMock()
+        plugin_mock.conf_threshold = 0.25
+        plugin_mock.nms_threshold = 0.45
+
+        service._apply_project_detector_hyperparams(plugin_mock)
+        assert plugin_mock.conf_threshold == 0.45
+        assert plugin_mock.nms_threshold == 0.65
+
+    def test_get_parameter_definitions(self, service: DetectorService):
+        defs = service.get_parameter_definitions()
+        assert "conf_threshold" in defs
+        assert "nms_threshold" in defs
+        assert "track_threshold" in defs
+        assert defs["conf_threshold"] == "float"
+        assert defs["use_bytetrack"] == "bool"
+        assert defs["track_buffer"] == "int"
+
+    def test_get_active_config(self, service: DetectorService):
+        assert service.get_active_config() is None
+
+        mock_detector = MagicMock()
+        mock_detector.plugin.name = "best_seg.pt"
+        service.detector = mock_detector
+        assert service.get_active_config() == "best_seg.pt"
