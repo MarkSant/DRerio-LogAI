@@ -87,53 +87,51 @@ def test_toggle_video_tree_label(widget):
 
 
 @pytest.mark.gui
-def test_on_roi_rule_changed_only_updates_the_help_text(widget, event_bus):
-    """Trocar o combo é feedback visual; nada é aplicado até o "Aplicar".
+def test_roi_shortcut_emits_open_advanced_settings(widget, event_bus):
+    """A aba de Zonas só RESUME a regra; editar é na aba Advanced Settings.
 
-    O evento que este handler publicava (``DETECTOR_UPDATE_PARAMETERS``) tem um
-    pipeline que descarta as chaves de ROI e loga sucesso — um no-op enganoso.
+    Duas UIs editando ``project_data["roi_settings"]`` é como as duas divergem —
+    e a cópia daqui era a pior: omitia ``roi_bbox_overlap_basis`` (deixando o
+    denominador do "Min. overlap" ambíguo) e o pré-requisito ``persist_masks``
+    do ``seg_overlap``.
     """
-    widget.roi_inclusion_rule_var.set("centroid_in_on_buffered_roi")
-    widget._on_roi_rule_changed(None)
-
-    assert "centroid" in widget.rule_help_label.cget("text")
-    event_bus.publish.assert_not_called()
-
-
-@pytest.mark.gui
-def test_apply_roi_settings_emits_persisting_event(widget, event_bus):
-    """O botão "Aplicar" precisa emitir o evento QUE PERSISTE, não o do detector.
-
-    ``DETECTOR_UPDATE_PARAMETERS`` descarta ``rule``/``buffer_radius``/
-    ``overlap_ratio`` em silêncio e ainda loga sucesso.
-    """
-    widget.roi_inclusion_rule_var.set("bbox_intersects")
-    widget.roi_buffer_radius_var.set("1.2")
-    widget.roi_overlap_ratio_var.set("0.25")
-
-    widget._on_apply_roi_settings_clicked()
+    widget._on_open_roi_settings_clicked()
 
     event_bus.publish.assert_called_with(
-        UIEvents.ZONE_APPLY_ROI_SETTINGS,
-        payloads.RoiSettingsApplyPayload(
-            rule="bbox_intersects", buffer_radius="1.2", overlap_ratio="0.25"
-        ),
+        UIEvents.ZONE_OPEN_ROI_SETTINGS,
+        payloads.EmptyPayload(),
     )
 
 
 @pytest.mark.gui
-def test_apply_roi_settings_with_invalid_text_does_not_raise(widget, event_bus):
-    """``float()`` no callback do Tk mataria o clique com texto inválido."""
-    widget.roi_inclusion_rule_var.set("centroid_in")
-    widget.roi_buffer_radius_var.set("abc")
-    widget.roi_overlap_ratio_var.set("")
-
-    widget._on_apply_roi_settings_clicked()  # não pode levantar
-
-    event_bus.publish.assert_called_with(
-        UIEvents.ZONE_APPLY_ROI_SETTINGS,
-        payloads.RoiSettingsApplyPayload(rule="centroid_in", buffer_radius="abc", overlap_ratio=""),
+def test_roi_summary_shows_only_the_parameter_the_rule_uses(tkinter_root, event_bus):
+    """Mostrar todo parâmetro em toda regra era o que tornava o painel enganoso."""
+    widget = ZoneControlsWidget(
+        tkinter_root,
+        event_bus=event_bus,
+        roi_rule_config=RoiRuleConfig(rule="centroid_in"),
     )
+    tkinter_root.update_idletasks()
+
+    # ``centroid_in`` ignora buffer e overlap — nenhum dos dois pode aparecer.
+    params = widget.roi_rule_params_var.get()
+    assert "overlap" not in params.lower()
+    assert "buffer" not in params.lower()
+
+
+@pytest.mark.gui
+def test_roi_summary_names_seg_overlap_prerequisites(tkinter_root, event_bus):
+    """``seg_overlap`` degrada silenciosamente sem máscaras — o resumo tem de avisar."""
+    widget = ZoneControlsWidget(
+        tkinter_root,
+        event_bus=event_bus,
+        roi_rule_config=RoiRuleConfig(rule="seg_overlap"),
+    )
+    tkinter_root.update_idletasks()
+
+    params = widget.roi_rule_params_var.get()
+    assert "seg" in params.lower()
+    assert "bbox_intersects" in params
 
 
 @pytest.mark.gui
@@ -207,25 +205,25 @@ def test_roi_panel_shows_the_effective_settings_not_literals(tkinter_root, event
     widget = ZoneControlsWidget(tkinter_root, event_bus=event_bus, roi_rule_config=config)
     tkinter_root.update_idletasks()
 
-    assert widget.roi_inclusion_rule_var.get() == "centroid_in_on_buffered_roi"
-    assert widget.roi_buffer_radius_var.get() == "2.5"
-    assert widget.roi_overlap_ratio_var.get() == "0.42"
+    assert "centroid_in_on_buffered_roi" in widget.roi_rule_summary_var.get()
+    # A regra bufferizada usa o RAIO; o overlap não participa dela.
+    assert "2.5" in widget.roi_rule_params_var.get()
 
 
 @pytest.mark.gui
 def test_roi_panel_without_config_uses_the_canonical_defaults(widget):
     """Sem config injetada, os defaults vêm do resolvedor — não de literais."""
-    assert widget.roi_inclusion_rule_var.get() == DEFAULT_ROI_INCLUSION_RULE
-    assert float(widget.roi_buffer_radius_var.get()) == DEFAULT_BUFFER_RADIUS_VALUE
-    assert float(widget.roi_overlap_ratio_var.get()) == DEFAULT_MIN_BBOX_OVERLAP_RATIO
+    assert DEFAULT_ROI_INCLUSION_RULE in widget.roi_rule_summary_var.get()
+    assert widget._roi_rule_config.buffer_radius_value == DEFAULT_BUFFER_RADIUS_VALUE
+    assert widget._roi_rule_config.min_bbox_overlap_ratio == DEFAULT_MIN_BBOX_OVERLAP_RATIO
 
 
 @pytest.mark.gui
 def test_set_roi_rule_config_reseeds_the_panel(widget):
     widget.set_roi_rule_config(RoiRuleConfig("bbox_intersects", 1.0, 0.0))
 
-    assert widget.roi_inclusion_rule_var.get() == "bbox_intersects"
-    assert widget.roi_overlap_ratio_var.get() == "0"
+    assert "bbox_intersects" in widget.roi_rule_summary_var.get()
+    assert "0" in widget.roi_rule_params_var.get()
 
 
 def test_tab_builder_resolves_the_effective_rule_for_the_panel():
@@ -252,39 +250,10 @@ def test_tab_builder_resolves_the_effective_rule_for_the_panel():
     assert config.bbox_overlap_basis == "max"  # global preenche o resto
 
 
-@pytest.mark.gui
-@pytest.mark.parametrize(
-    ("rule", "expected"),
-    [
-        ("bbox_intersects", "0 = any real overlap."),
-        ("seg_overlap", "Must be greater than 0."),
-    ],
-)
-def test_overlap_hint_depends_on_the_selected_rule(widget, rule, expected):
-    """O 0 vale só em ``bbox_intersects``; em ``seg_overlap`` o validador recusa.
-
-    Um texto fixo "0 = qualquer sobreposição real" induzia ao erro com
-    ``seg_overlap`` selecionada.
-    """
-    widget.roi_inclusion_rule_var.set(rule)
-    widget._on_roi_rule_changed(None)
-
-    assert widget.overlap_hint_label.cget("text") == expected
-
-
-@pytest.mark.gui
-def test_seg_overlap_help_names_the_two_missing_prerequisites(widget):
-    """A ajuda de ``seg_overlap`` nomeia as chaves que faltam, não só "requer máscaras".
-
-    Dizer "requer dados de máscara" deixava o operador num beco sem saída: a
-    regra é selecionável, mas sem ``recorder.persist_masks`` e sem um modelo de
-    segmentação a análise degrada para ``bbox_intersects`` toda vez.
-    """
-    widget.roi_inclusion_rule_var.set("seg_overlap")
-    widget._on_roi_rule_changed(None)
-
-    help_text = widget.rule_help_label.cget("text")
-    assert "persist_masks" in help_text
-    assert "animal_method" in help_text
-    assert "seg" in help_text
-    assert "bbox_intersects" in help_text
+# NOTA: os testes do hint de overlap por regra e da ajuda do ``seg_overlap``
+# saíram daqui junto com o editor duplicado. Esse comportamento agora pertence à
+# aba Advanced Settings, o editor único, e está coberto em
+# ``tests/ui/components/test_config_editor.py``
+# (``test_seg_overlap_warning_appears_only_when_masks_are_off`` e o teste de
+# ajuda que exige ``persist_masks`` + ``animal_method``). O lado do resumo desta
+# aba está em ``test_roi_summary_names_seg_overlap_prerequisites``.

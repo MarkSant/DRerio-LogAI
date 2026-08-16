@@ -106,6 +106,9 @@ class UIEvents(Enum):
     ZONE_CHANGE_ROI_COLOR = auto()
     ZONE_REMOVE_SELECTED_ROI = auto()
     ZONE_APPLY_ROI_SETTINGS = auto()
+    # Zone tab asks to open the ROI section of the Advanced Settings tab, which
+    # is the single place where the rule AND all its parameters are editable.
+    ZONE_OPEN_ROI_SETTINGS = auto()
 
     # ── Zone Widget Component Events ──────────────────────────────────
     ZONE_DRAW_ARENA = auto()
@@ -350,6 +353,7 @@ _PAYLOAD_TYPES: dict[UIEvents, type[Any]] = {
     UIEvents.ZONE_CHANGE_ROI_COLOR: payloads.EmptyPayload,
     UIEvents.ZONE_REMOVE_SELECTED_ROI: payloads.EmptyPayload,
     UIEvents.ZONE_APPLY_ROI_SETTINGS: payloads.RoiSettingsApplyPayload,
+    UIEvents.ZONE_OPEN_ROI_SETTINGS: payloads.EmptyPayload,
     # Zone Widget Component Events
     UIEvents.ZONE_DRAW_ARENA: payloads.EmptyPayload,
     UIEvents.ZONE_DRAW_ROI: payloads.EmptyPayload,

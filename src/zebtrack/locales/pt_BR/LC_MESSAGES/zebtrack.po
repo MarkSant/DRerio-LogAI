@@ -8040,6 +8040,59 @@ msgstr "Sequencial: processa o vídeo completo para cada aquário separadamente"
 msgid "✅ Save Edit"
 msgstr "✅ Salvar Edição"
 
+#: src/zebtrack/ui/components/zone_controls.py:546
+msgid "💾 Save This Area"
+msgstr "💾 Salvar Esta Área"
+
+#: src/zebtrack/ui/components/zone_controls.py:539
+msgid "✓ Close Polygon"
+msgstr "✓ Fechar Polígono"
+
+#: src/zebtrack/ui/components/zone_controls.py:1357
+msgid "✓ Polygon Closed"
+msgstr "✓ Polígono Fechado"
+
+#: src/zebtrack/ui/components/zone_controls.py:388
+msgid "✅ Finish and Save Project"
+msgstr "✅ Concluir e Salvar Projeto"
+
+#: src/zebtrack/ui/components/zone_controls.py:900
+msgid "Configure in Advanced Settings →"
+msgstr "Configurar em Configurações Avançadas →"
+
+#: src/zebtrack/ui/components/zone_controls.py:1370
+#, python-brace-format
+msgid "Rule: {rule}"
+msgstr "Regra: {rule}"
+
+#: src/zebtrack/ui/components/zone_controls.py:1373
+#, python-brace-format
+msgid "Buffer radius: {value} (cm if calibrated, otherwise px)"
+msgstr "Raio do buffer: {value} (cm se calibrado, senão px)"
+
+#: src/zebtrack/ui/components/zone_controls.py:1377
+#, python-brace-format
+msgid "Min. bbox overlap: {value}"
+msgstr "Sobreposição mín. da bbox: {value}"
+
+#: src/zebtrack/ui/components/zone_controls.py:1384
+#, python-brace-format
+msgid ""
+"Min. mask overlap: {value} — also needs Save Masks enabled and animal_method "
+"= 'seg', otherwise it degrades to bbox_intersects and warns in the report."
+msgstr ""
+"Sobreposição mín. da máscara: {value} — também exige Salvar Máscaras ativado "
+"e animal_method = 'seg'; caso contrário degrada para bbox_intersects e avisa "
+"no relatório."
+
+#: src/zebtrack/ui/components/zone_controls.py:1390
+msgid "Centroid strictly inside the ROI. No extra parameters."
+msgstr "Centroide estritamente dentro da ROI. Sem parâmetros extras."
+
+#: src/zebtrack/ui/components/event_dispatcher.py:1046
+msgid "Advanced Settings tab is not available yet."
+msgstr "A aba Configurações Avançadas ainda não está disponível."
+
 #: src/zebtrack/ui/components/zone_controls.py:521
 msgid "❌ Discard"
 msgstr "❌ Descartar"

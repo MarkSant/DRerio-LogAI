@@ -213,12 +213,14 @@ class AnalysisWidgetsBuilder:
             def reset_handler(_: payloads.EmptyPayload) -> None:
                 return self.on_reset_global_config_form_widget()
 
-            def roi_rule_handler(data: payloads.ConfigRoiRuleChangedPayload) -> None:
-                return self.common.update_roi_rule_ui(data.rule)
-
             self.gui.event_bus.subscribe(UIEvents.CONFIG_SAVE_REQUESTED, save_handler)
             self.gui.event_bus.subscribe(UIEvents.CONFIG_RESET_REQUESTED, reset_handler)
-            self.gui.event_bus.subscribe(UIEvents.CONFIG_ROI_RULE_CHANGED, roi_rule_handler)
+            # CONFIG_ROI_RULE_CHANGED had a subscriber here that toggled
+            # ``gui.radius_frame`` / ``gui.overlap_frame`` — attributes never
+            # assigned on ``gui`` (they lived on ZoneControlsWidget), so the
+            # handler was a silent no-op. The ROI rule now has exactly one
+            # editor (the Advanced Settings tab), which owns its own parameter
+            # visibility via ``ConfigEditorWidget._on_roi_rule_changed``.
 
             def calibration_handler(_: payloads.EmptyPayload) -> None:
                 self.gui._open_global_model_configuration_window()
@@ -229,7 +231,6 @@ class AnalysisWidgetsBuilder:
 
             self.gui._event_bus_handlers["config.save_requested"] = save_handler
             self.gui._event_bus_handlers["config.reset_requested"] = reset_handler
-            self.gui._event_bus_handlers["config.roi_rule_changed"] = roi_rule_handler
             self.gui._event_bus_handlers["config.open_calibration_dialog"] = calibration_handler
 
         self.reload_config_editor_values_widget()

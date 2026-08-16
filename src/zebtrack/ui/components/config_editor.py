@@ -7,7 +7,7 @@ smoothing, recorder settings, and ROI parameters.
 """
 
 from pathlib import Path
-from tkinter import BooleanVar, StringVar, ttk
+from tkinter import BooleanVar, StringVar, TclError, ttk
 from typing import Any
 
 import structlog
@@ -455,6 +455,9 @@ class ConfigEditorWidget(BaseWidget):
         config_roi_combo.grid(row=0, column=2, sticky="w", padx=5)
         config_roi_combo.bind("<<ComboboxSelected>>", self._on_roi_rule_changed)
         self._roi_rule_widgets.append(config_roi_combo)
+        # Kept so the Zone tab's "Configure in Advanced Settings" shortcut can
+        # land the user directly on the control they came for.
+        self._roi_rule_combo = config_roi_combo
 
         # Buffer radius
         ttk.Label(roi_frame, text=_("Buffer Radius (r):")).grid(
@@ -543,6 +546,24 @@ class ConfigEditorWidget(BaseWidget):
             font=("TkDefaultFont", 8),
             foreground="#555555",
         ).grid(row=5, column=0, columnspan=4, sticky="w", pady=(6, 0))
+
+    def focus_roi_section(self) -> None:
+        """Give keyboard focus to the ROI inclusion-rule combobox.
+
+        Target of the Zone tab's shortcut. The Advanced Settings tab is not
+        scrollable, so "go to the ROI section" means focusing its first control;
+        without this the user lands on a dense two-column page and has to hunt
+        for the setting they explicitly asked to edit.
+        """
+        combo = getattr(self, "_roi_rule_combo", None)
+        if combo is None:
+            return
+        try:
+            combo.focus_set()
+        # except TclError justified: the widget may be torn down mid-navigation;
+        # failing to focus must never break tab switching.
+        except TclError:
+            log.debug("config_editor.focus_roi_section.failed", exc_info=True)
 
     def _build_detection_summary_section(self, parent=None) -> None:
         """Build read-only summary of detection/model parameters with edit button."""
