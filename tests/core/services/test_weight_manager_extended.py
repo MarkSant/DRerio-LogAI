@@ -8,24 +8,23 @@ runtime slot overrides, and weight addition validation.
 from __future__ import annotations
 
 from pathlib import Path
-from types import SimpleNamespace
-from typing import Any, cast
 from unittest.mock import MagicMock
 
 from zebtrack.core.services.weight_manager import WeightManager
+from zebtrack.settings import load_settings
 
 
 class TestWeightManagerExtended:
     """Test extended WeightManager operations."""
 
     def _create_weight_manager(self, tmp_path: Path) -> WeightManager:
-        settings = SimpleNamespace(
-            weights=SimpleNamespace(source_dir=str(tmp_path / "weights")),
-            model=SimpleNamespace(weights_dir=str(tmp_path / "weights")),
-            hardware=SimpleNamespace(openvino=SimpleNamespace(device="AUTO")),
-        )
+        settings = load_settings()
         (tmp_path / "weights").mkdir(parents=True, exist_ok=True)
-        return WeightManager(settings_obj=cast(Any, settings))
+        return WeightManager(
+            settings_obj=settings,
+            config_dir=tmp_path,
+            weights_dir=tmp_path / "weights",
+        )
 
     def test_get_weight_by_perspective_and_type(self, tmp_path: Path):
         wm = self._create_weight_manager(tmp_path)
