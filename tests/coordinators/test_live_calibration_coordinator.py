@@ -1317,3 +1317,14 @@ class TestPolygonSourceManagement:
 
         coordinator.clear_last_polygon_source()
         assert coordinator.last_polygon_source is None
+
+
+class TestPendingZoneConfirmation:
+    def test_pending_zone_confirmation_property_and_wait(self):
+        coordinator: Any = _make_coordinator()
+        coordinator.pending_zone_confirmation = False
+        assert coordinator.pending_zone_confirmation is False
+
+        res = coordinator._wait_for_zone_confirmation()
+        assert res is False
+        assert coordinator.pending_zone_confirmation is True

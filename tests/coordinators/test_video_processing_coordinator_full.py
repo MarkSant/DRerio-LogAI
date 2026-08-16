@@ -318,3 +318,53 @@ class TestProcessPendingProjectVideos:
         deps["event_bus"].publish.assert_called()
         call_type = deps["event_bus"].publish.call_args[0][0].type
         assert call_type == UIEvents.UI_SHOW_ERROR
+
+    def test_process_pending_project_videos_successful_launch(self, mock_deps):
+        coord, deps = mock_deps
+        coord.validate_can_start_processing = MagicMock(return_value=SimpleNamespace(is_valid=True))
+        deps["project_manager"].get_all_videos.return_value = [{"path": "v1.mp4"}]
+        deps["video_selection_service"].select_candidates.return_value = SimpleNamespace(
+            selection_mode="targeted", candidate_entries=[{"path": "v1.mp4"}]
+        )
+        coord._handle_targeted_selection_errors = MagicMock(return_value=True)
+        coord._extract_and_validate_candidate_paths = MagicMock(return_value=["v1.mp4"])
+        deps["video_validation_service"].scan_and_validate_paths.return_value = SimpleNamespace(
+            info_by_norm={}, has_missing=False
+        )
+
+        # multi_aquarium recovery from without_arena
+        without_video = {"path": "v1.mp4"}
+        deps["video_classification_service"].classify_videos.return_value = SimpleNamespace(
+            ready_with_trajectory=[],
+            ready_with_zones=[],
+            arena_only=[],
+            without_arena=[without_video],
+            data_changed=True,
+        )
+        deps["project_manager"].project_path = "/fake/project"
+        aq_valid = SimpleNamespace(id=0, subject_id="Fish1")
+        deps["project_manager"].get_multi_aquarium_zone_data.return_value = SimpleNamespace(
+            aquariums=[aq_valid]
+        )
+        coord.select_eligible_videos = MagicMock(return_value=[without_video])
+        coord._load_zones_for_eligible_videos = MagicMock()
+        coord._explode_sequential_tasks = MagicMock(return_value=[without_video])
+        coord.create_processing_callbacks = MagicMock(return_value=MagicMock())
+        coord.create_processing_context = MagicMock(return_value=MagicMock())
+
+        mock_worker = MagicMock()
+        mock_thread = MagicMock()
+        mock_worker.start_in_thread.return_value = mock_thread
+
+        from unittest.mock import patch
+
+        with patch(
+            "zebtrack.coordinators.video_processing_coordinator.ProcessingWorker",
+            return_value=mock_worker,
+        ):
+            coord.process_pending_project_videos(["v1.mp4"])
+
+        deps["project_manager"].save_project.assert_called_once()
+        mock_worker.start_in_thread.assert_called_once()
+        deps["state_manager"].update_processing_state.assert_called_once()
+        deps["project_manager"].update_video_status.assert_called_once_with("v1.mp4", "processing")

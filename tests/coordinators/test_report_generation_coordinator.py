@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock, patch
 
+import numpy as np
 import pandas as pd
 import pytest
 
@@ -474,3 +475,93 @@ class TestProcessOneAquariumSummary:
                 video_entry["multi_aquarium_outputs"]["0"]["parquet_files"]["summary"]
                 == expected_summary_path
             )
+
+
+class TestReportHelpersAndOutputs:
+    def test_collect_rois_for_aquarium(self, coordinator):
+        mock_aq = MagicMock(
+            id=0,
+            roi_polygons=[[[10, 20], [30, 20], [30, 40], [10, 40]]],
+            roi_names=["ZoneA"],
+            roi_colors=["#ff0000"],
+        )
+        mock_zone_data = MagicMock(aquariums=[mock_aq])
+
+        rois, colors = coordinator._collect_rois_for_aquarium(mock_zone_data, 0, 10.0, 20.0)
+
+        assert len(rois) == 1
+        assert rois[0].name == "ZoneA"
+        assert colors["ZoneA"] == "#ff0000"
+
+    def test_collect_rois_for_standard(self, coordinator):
+        mock_zone_data = MagicMock(
+            roi_polygons=[[[15, 25], [35, 25], [35, 45], [15, 45]]],
+            roi_names=["StandardZone"],
+            roi_colors=["#00ff00"],
+        )
+
+        rois, colors = coordinator._collect_rois_for_standard(mock_zone_data, 5.0, 5.0)
+
+        assert len(rois) == 1
+        assert rois[0].name == "StandardZone"
+        assert colors["StandardZone"] == "#00ff00"
+
+    def test_resolve_pixel_cm(self, coordinator):
+        meta = {"aquarium_width_cm": 20.0, "aquarium_height_cm": 10.0}
+        calib: dict[str, Any] = {}
+        px_x, px_y = coordinator._resolve_pixel_cm(meta, calib, loc_w=200.0, loc_h=100.0)
+
+        assert px_x == 10.0
+        assert px_y == 10.0
+
+    def test_prepare_background_image_success(self, coordinator, tmp_path):
+        dummy_frame = np.zeros((100, 100, 3), dtype=np.uint8)
+        coordinator._extract_cropped_background_frame = MagicMock(return_value=dummy_frame)
+        coordinator._frame_extractor = MagicMock()
+
+        bg_path = coordinator._prepare_background_image(
+            "video.mp4", "exp1", str(tmp_path), crop_box=(0, 0, 100, 100)
+        )
+
+        assert bg_path == str(tmp_path / "exp1_bg.png")
+        coordinator._frame_extractor.save_frame.assert_called_once()
+
+    def test_prepare_background_image_oserror_fallback(self, coordinator, tmp_path):
+        dummy_frame = np.zeros((100, 100, 3), dtype=np.uint8)
+        coordinator._extract_cropped_background_frame = MagicMock(return_value=dummy_frame)
+        coordinator._frame_extractor = MagicMock()
+        coordinator._frame_extractor.save_frame.side_effect = OSError("Disk full")
+
+        bg_path = coordinator._prepare_background_image(
+            "video.mp4", "exp1", str(tmp_path), crop_box=(0, 0, 100, 100)
+        )
+
+        assert bg_path == "video.mp4"
+
+    def test_export_individual_outputs(self, coordinator, tmp_path):
+        mock_analysis = MagicMock()
+        mock_word = MagicMock()
+        mock_excel = MagicMock()
+
+        with (
+            patch(
+                "zebtrack.analysis.reporters.ReporterContext.from_analysis",
+                return_value=MagicMock(),
+            ),
+            patch("zebtrack.analysis.reporters.WordReporter", return_value=mock_word),
+            patch("zebtrack.analysis.reporters.ExcelReporter", return_value=mock_excel),
+        ):
+            out = coordinator._export_individual_outputs(mock_analysis, str(tmp_path), "exp1")
+            assert "docx" in out
+            assert "xlsx" in out
+            mock_word.export_individual_report.assert_called_once()
+            mock_excel.export_summary.assert_called_once()
+
+    def test_probe_video_dimensions(self, coordinator):
+        coordinator._video_metadata_service = MagicMock()
+        coordinator._video_metadata_service.get_video_dimensions.return_value = (1920, 1080)
+
+        assert coordinator._probe_video_dimensions("v.mp4") == (1920, 1080)
+
+        coordinator._video_metadata_service.get_video_dimensions.return_value = None
+        assert coordinator._probe_video_dimensions("v.mp4") == (0, 0)

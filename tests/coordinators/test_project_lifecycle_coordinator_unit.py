@@ -493,4 +493,67 @@ class TestCalibrationSessionsAndDefaults:
 
         assert coordinator._global_model_defaults["active_weight"] == "test_weight.pt"
         assert coordinator._global_model_defaults["use_openvino"] is True
+
+    def test_default_callbacks_and_getters(self, coordinator):
+        # Setters
+        coordinator._default_set_active_weight("w_new.pt")
+        coordinator.state_manager.update_detector_state.assert_called_with(
+            source="project_lifecycle_coordinator.create_project",
+            active_weight_name="w_new.pt",
+        )
+
+        coordinator._default_set_openvino_usage(True)
+        coordinator.state_manager.update_detector_state.assert_called_with(
+            source="project_lifecycle_coordinator.create_project",
+            use_openvino=True,
+        )
+
+        assert coordinator._default_update_openvino_status() is None
+
+        # Getters with state_manager
+        mock_state = MagicMock(active_weight_name="active.pt", use_openvino=True)
+        coordinator.state_manager.get_detector_state.return_value = mock_state
+        assert coordinator._default_get_active_weight_name() == "active.pt"
+        assert coordinator._default_get_use_openvino() is True
+
+        # Getters without state_manager
+        coordinator.state_manager = None
+        coordinator.settings.get_default_det_filename.return_value = "default.pt"
+        coordinator.settings.model_selection.use_openvino = False
+        assert coordinator._default_get_active_weight_name() == "default.pt"
+        assert coordinator._default_get_use_openvino() is False
+
+    def test_default_apply_wizard_overrides(self, coordinator):
+        coordinator.detector_service = MagicMock()
+
+        # Success path
+        coordinator._default_apply_wizard_overrides({"detector_parameters": {"conf": 0.5}})
+        coordinator.detector_service.update_tracking_parameters.assert_called_once_with(
+            params={"conf": 0.5}, scope="project"
+        )
+
+        # Exception path
+        coordinator.detector_service.update_tracking_parameters.side_effect = RuntimeError("err")
+        coordinator._default_apply_wizard_overrides({"detector_parameters": {"conf": 0.5}})
+
+    def test_apply_detector_zones_from_active_video(self, coordinator):
+        # Detector not ready
+        coordinator.detector_service = None
+        coordinator._apply_detector_zones_from_active_video()
+
+        # Detector ready
+        coordinator.detector_service = MagicMock(detector=MagicMock())
+        coordinator.project_manager.get_active_zone_video.return_value = "v1.mp4"
+        coordinator.project_manager.get_zone_data.return_value = MagicMock()
+
+        coordinator._apply_detector_zones_from_active_video()
+        coordinator.detector_service.configure_zones.assert_called_once()
+
+    def test_setup_detector_for_project_exception_returns_false(self, coordinator):
+        coordinator.detector_service.initialize_detector.side_effect = RuntimeError(
+            "inference error"
+        )
+        res = coordinator._default_setup_detector("det")
+        assert res is False
+
         assert coordinator._using_project_overrides is False
