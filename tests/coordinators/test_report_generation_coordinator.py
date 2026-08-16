@@ -257,3 +257,131 @@ def test_process_single_aquarium_in_multi_success(
     mock_build.assert_called_once()
     coordinator.analysis_service.run_full_analysis_as_dto.assert_called_once()
     mock_export.assert_called_once()
+
+
+class TestGenerateStandardReport:
+    def test_missing_trajectory(self, coordinator, mock_project_manager):
+        mock_project_manager.resolve_results_directory.return_value = "nonexistent_dir"
+        with patch("os.path.exists", return_value=False):
+            coordinator._generate_standard_report("video.mp4", "exp1", {}, {})
+            mock_project_manager.register_processing_outputs.assert_not_called()
+
+    @patch("os.path.exists", return_value=True)
+    @patch("os.makedirs")
+    def test_standard_report_success(
+        self, mock_mkdirs, mock_exists, coordinator, mock_project_manager
+    ):
+        coordinator._read_trajectory = MagicMock(
+            return_value=pd.DataFrame({"x": [10.0], "y": [20.0]})
+        )
+        mock_zone = MagicMock(
+            polygon=[[0, 0], [100, 0], [100, 100], [0, 100]],
+            roi_polygons=[],
+            roi_names=[],
+            roi_colors=[],
+        )
+        mock_project_manager.get_zone_data.return_value = mock_zone
+        mock_project_manager.resolve_results_directory.return_value = "/results"
+        coordinator._probe_video_dimensions = MagicMock(return_value=(100, 100))
+        coordinator._compute_local_space_geometry = MagicMock(return_value=(0, 0, 100, 100))
+        coordinator._collect_rois_for_standard = MagicMock(return_value=({}, {}))
+        coordinator._normalize_df_to_local_space = MagicMock(
+            return_value=pd.DataFrame({"x": [10.0], "y": [20.0]})
+        )
+        coordinator._resolve_pixel_cm = MagicMock(return_value=(10.0, 10.0))
+        coordinator._prepare_background_image = MagicMock(return_value="bg.png")
+
+        mock_analysis_service = MagicMock()
+        mock_analysis_service.run_full_analysis_as_dto.return_value = MagicMock()
+        coordinator.analysis_service = mock_analysis_service
+
+        coordinator._export_individual_outputs = MagicMock(
+            return_value={"docx": "rep.docx", "xlsx": "rep.xlsx"}
+        )
+
+        coordinator._generate_standard_report("video.mp4", "exp1", {}, {"group": "G1"})
+
+        mock_analysis_service.run_full_analysis_as_dto.assert_called_once()
+        mock_project_manager.register_processing_outputs.assert_called_once_with(
+            video_path="video.mp4",
+            report_path="rep.docx",
+            summary_excel="rep.xlsx",
+        )
+
+
+class TestGeometryAndMetadataHelpers:
+    def test_extract_metadata_from_config(self, coordinator):
+        config = {
+            "group": "Control",
+            "group_display_name": "Control Group",
+            "day": "1",
+            "subject": "Fish1",
+            "aquarium_width_cm": 30.0,
+            "aquarium_height_cm": 15.0,
+        }
+        meta = coordinator._extract_metadata_from_config(config)
+        assert meta["group"] == "Control"
+        assert meta["group_display_name"] == "Control Group"
+        assert meta["day"] == "1"
+        assert meta["subject"] == "Fish1"
+        assert meta["aquarium_width_cm"] == 30.0
+        assert meta["aquarium_height_cm"] == 15.0
+
+    def test_compute_local_space_geometry(self, coordinator):
+        poly = [[10, 20], [110, 20], [110, 120], [10, 120]]
+        off_x, off_y, loc_w, loc_h = coordinator._compute_local_space_geometry(poly, 200, 200)
+        assert off_x == 10
+        assert off_y == 20
+        assert loc_w == 100
+        assert loc_h == 100
+
+    def test_normalize_df_to_local_space(self, coordinator):
+        df = pd.DataFrame(
+            {
+                "x_center_px": [15.0, 5.0, 150.0],
+                "y_center_px": [25.0, 5.0, 150.0],
+                "x_cm": [1.0, 2.0, 3.0],
+            }
+        )
+        res_df = coordinator._normalize_df_to_local_space(
+            df, offset_x=10.0, offset_y=20.0, w=100.0, h=100.0
+        )
+        # x_cm should be dropped
+        assert "x_cm" not in res_df.columns
+        # Shifted by (10, 20) and clamped to [0, 100]
+        assert res_df["x_center_px"].iloc[0] == 5.0
+        assert res_df["x_center_px"].iloc[1] == 0.0
+        assert res_df["x_center_px"].iloc[2] == 100.0
+        assert res_df["y_center_px"].iloc[0] == 5.0
+        assert res_df["y_center_px"].iloc[1] == 0.0
+        assert res_df["y_center_px"].iloc[2] == 100.0
+
+
+class TestMultiSummaryProcessing:
+    def test_process_multi_summary_video_no_zone_data(self, coordinator, mock_project_manager):
+        mock_project_manager.get_multi_aquarium_zone_data.return_value = None
+        status, msg, path, changed = coordinator._process_multi_summary_video(
+            {}, "exp1", "video.mp4", {"0": {}}, coordinator.settings, []
+        )
+        assert status == "skipped"
+        assert "multi-aquarium data missing" in msg
+
+    def test_process_multi_summary_video_completed(self, coordinator, mock_project_manager):
+        mock_project_manager.get_multi_aquarium_zone_data.return_value = MagicMock()
+        coordinator._process_one_aquarium_summary = MagicMock(return_value="/results/sum.parquet")
+        video_entry: dict[str, Any] = {}
+        status, msg, path, changed = coordinator._process_multi_summary_video(
+            video_entry, "exp1", "video.mp4", {"0": {}}, coordinator.settings, []
+        )
+        assert status == "completed"
+        assert path == "/results/sum.parquet"
+        assert changed is True
+        assert video_entry["has_complete_data"] is True
+
+    def test_process_multi_summary_video_exception(self, coordinator, mock_project_manager):
+        mock_project_manager.get_multi_aquarium_zone_data.side_effect = RuntimeError("DB error")
+        status, msg, path, changed = coordinator._process_multi_summary_video(
+            {}, "exp1", "video.mp4", {"0": {}}, coordinator.settings, []
+        )
+        assert status == "failed"
+        assert "DB error" in msg
