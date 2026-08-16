@@ -60,3 +60,27 @@ class TestVideoFrameExtractorExtended:
                 crop_box=(10, 10, 0, 0),
             )
             assert invalid_cropped is None
+
+            # Out of bounds crop adjusted to frame boundary
+            adjusted_cropped = VideoFrameExtractor.extract_and_crop_frame(
+                "/path/to/video.mp4",
+                crop_box=(-10, -10, 800, 600),
+            )
+            assert adjusted_cropped is not None
+            assert adjusted_cropped.shape == (480, 640, 3)
+
+        with patch.object(VideoFrameExtractor, "extract_frame", return_value=None):
+            res = VideoFrameExtractor.extract_and_crop_frame("/path/to/video.mp4", (0, 0, 10, 10))
+            assert res is None
+
+    def test_save_frame(self):
+        dummy_frame = np.zeros((10, 10, 3), dtype=np.uint8)
+        with patch("cv2.imwrite", return_value=True) as mock_imwrite:
+            assert VideoFrameExtractor.save_frame(dummy_frame, "/path/to/out.png") is True
+            mock_imwrite.assert_called_once_with("/path/to/out.png", dummy_frame)
+
+        with patch("cv2.imwrite", return_value=False):
+            assert VideoFrameExtractor.save_frame(dummy_frame, "/path/to/out.png") is False
+
+        with patch("cv2.imwrite", side_effect=OSError("Disk error")):
+            assert VideoFrameExtractor.save_frame(dummy_frame, "/path/to/out.png") is False

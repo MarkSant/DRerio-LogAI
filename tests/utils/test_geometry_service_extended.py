@@ -42,3 +42,23 @@ class TestGeometryServiceExtended:
         clamped = GeometryService.clamp_point_to_polygon(point, poly)
         assert clamped[0] == pytest.approx(100.0)
         assert clamped[1] == pytest.approx(50.0)
+
+    def test_apply_snapping_vertex_and_edge(self):
+        poly = [[(0.0, 0.0), (100.0, 0.0), (100.0, 100.0), (0.0, 100.0)]]
+
+        # Near vertex (0, 0) - axis snap to horizontal axis through anchor
+        snapped_vertex = GeometryService.apply_snapping(1.0, 1.0, poly, threshold=3.0)
+        assert snapped_vertex == (1.0, 0.0)
+
+        # Near edge y=0 between x=20 and x=80 (away from center x=50)
+        snapped_edge = GeometryService.apply_snapping(60.0, 2.0, poly, threshold=3.0)
+        assert snapped_edge is not None
+        assert snapped_edge[0] == pytest.approx(60.0)
+        assert snapped_edge[1] == pytest.approx(0.0)
+
+    def test_point_to_segment_distance_degenerate_segment(self):
+        res = GeometryService._point_to_segment_distance(10.0, 10.0, 0.0, 0.0, 0.0, 0.0)
+        assert res is not None
+        assert res["x"] == 0.0
+        assert res["y"] == 0.0
+        assert res["distance"] == pytest.approx(14.142, 0.01)
