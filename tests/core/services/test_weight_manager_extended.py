@@ -20,6 +20,7 @@ class TestWeightManagerExtended:
 
     def _create_weight_manager(self, tmp_path: Path) -> WeightManager:
         settings = SimpleNamespace(
+            weights=SimpleNamespace(source_dir=str(tmp_path / "weights")),
             model=SimpleNamespace(weights_dir=str(tmp_path / "weights")),
             hardware=SimpleNamespace(openvino=SimpleNamespace(device="AUTO")),
         )
