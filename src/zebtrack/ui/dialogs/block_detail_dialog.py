@@ -12,7 +12,7 @@ import threading
 from datetime import datetime
 from pathlib import Path
 from tkinter import Button, Canvas, Frame, Label, Toplevel, messagebox, simpledialog, ttk
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import structlog
 
@@ -1251,21 +1251,127 @@ class BlockDetailDialog(Toplevel):
         stats_cols = self._get_partial_report_stats_columns(unified_df)
         if stats_cols:
             summary_stats = unified_df.groupby("animal")[stats_cols].mean().reset_index()
-            document.add_heading(_("Summary per Animal"), level=2)
-            summary_table = document.add_table(rows=1, cols=len(summary_stats.columns))
-            summary_table.style = "Table Grid"
-            header_cells = summary_table.rows[0].cells
-            for idx, column_name in enumerate(summary_stats.columns):
-                header_cells[idx].text = str(column_name)
-
-            for _idx, row_data in summary_stats.iterrows():
-                row_cells = summary_table.add_row().cells
-                for idx, column_name in enumerate(summary_stats.columns):
-                    row_cells[idx].text = self._format_partial_report_cell_value(
-                        row_data[column_name]
-                    )
+            self._render_partial_summary_table(document, summary_stats, stats_cols)
 
         document.save(str(path))
+
+    # Beyond this many columns a Word table stops being readable: each column
+    # collapses to a few millimetres and every header wraps one character per
+    # line. Counted INCLUDING the leading label column.
+    _MAX_REPORT_TABLE_COLUMNS = 12
+
+    @staticmethod
+    def _humanize_column(name: str) -> str:
+        """``total_distance_cm`` → ``total distance cm``.
+
+        Word does not treat ``_`` as a break opportunity, so raw DataFrame
+        column names force a wide minimum column width and defeat autofit —
+        which is a large part of why the table rendered as a smear.
+        """
+        return str(name).replace("_", " ")
+
+    @staticmethod
+    def _repeat_header_row(table: Any) -> None:
+        """Mark row 0 as a header so it repeats on every page.
+
+        Without it a block spanning a page break loses its header and the
+        second page is a wall of unlabelled numbers.
+        """
+        from docx.oxml import OxmlElement
+        from docx.oxml.ns import qn
+
+        tr_pr = table.rows[0]._tr.get_or_add_trPr()
+        tbl_header = OxmlElement("w:tblHeader")
+        tbl_header.set(qn("w:val"), "true")
+        tr_pr.append(tbl_header)
+
+    def _render_partial_summary_table(self, document: Any, summary_stats, stats_cols) -> None:
+        """Render "Summary per Animal" so it stays readable as ROIs multiply.
+
+        Three things used to break this table at once:
+
+        1. **Unbounded columns.** ``stats_cols`` comes from a keyword substring
+           match, so it grows roughly LINEARLY with the number of ROIs
+           (``time_in_ROI{i}_s``, ``entries_ROI{i}``, ``time_in_ROI{i}_pct``…).
+           Four ROIs already pushes past 20 columns.
+        2. **Portrait Letter with 1-inch margins** (bare ``Document()``): about
+           6.5 inches of usable width for those 20+ columns.
+        3. **Underscored headers** that Word cannot wrap.
+
+        Fixes, mirroring ``project_reporter._render_descriptive_stats_table``
+        which already does this for its own wide pivot: landscape section,
+        narrow margins, humanized headers, repeating header row — plus an
+        orientation chosen from the DATA. Metrics grow with ROI count while
+        animals per block stay small, so putting the larger dimension on rows
+        keeps the table narrow either way instead of assuming which is which.
+        """
+        from docx.enum.section import WD_ORIENT
+        from docx.shared import Mm
+
+        animals = [str(value) for value in summary_stats["animal"].tolist()]
+        metrics = list(stats_cols)
+        if not animals or not metrics:
+            return
+
+        section = document.add_section()
+        section.orientation = WD_ORIENT.LANDSCAPE
+        section.page_width, section.page_height = section.page_height, section.page_width
+        section.left_margin = Mm(15)
+        section.right_margin = Mm(15)
+        section.top_margin = Mm(15)
+        section.bottom_margin = Mm(15)
+
+        document.add_heading(_("Summary per Animal"), level=2)
+
+        # Put the LARGER dimension on rows; rows are cheap, columns are not.
+        metrics_as_rows = len(metrics) >= len(animals)
+        if metrics_as_rows:
+            corner = _("Metric")
+            headers, row_keys = animals, metrics
+        else:
+            corner = _("Animal")
+            headers, row_keys = [self._humanize_column(m) for m in metrics], animals
+
+        dropped = 0
+        if len(headers) + 1 > self._MAX_REPORT_TABLE_COLUMNS:
+            keep = self._MAX_REPORT_TABLE_COLUMNS - 1
+            dropped = len(headers) - keep
+            headers = headers[:keep]
+
+        table = document.add_table(rows=1, cols=len(headers) + 1)
+        table.style = "Table Grid"
+        header_cells = table.rows[0].cells
+        header_cells[0].text = corner
+        for idx, title in enumerate(headers):
+            header_cells[idx + 1].text = str(title)
+        self._repeat_header_row(table)
+
+        indexed = summary_stats.set_index("animal")
+        for row_key in row_keys:
+            cells = table.add_row().cells
+            for idx, title in enumerate(headers):
+                if metrics_as_rows:
+                    cells[0].text = self._humanize_column(row_key)
+                    value = indexed.loc[title, row_key]
+                else:
+                    cells[0].text = str(row_key)
+                    value = indexed.loc[row_key, metrics[idx]]
+                cells[idx + 1].text = self._format_partial_report_cell_value(value)
+
+        if dropped:
+            # Truncating in silence would read as "these are all the metrics".
+            log.warning(
+                "block_detail_dialog.partial_report.table_truncated",
+                dropped_columns=dropped,
+                max_columns=self._MAX_REPORT_TABLE_COLUMNS,
+            )
+            document.add_paragraph(
+                _(
+                    "NOTE — {dropped} additional column(s) were omitted here to keep "
+                    "the table readable. The complete data is in the accompanying "
+                    "spreadsheet."
+                ).format(dropped=dropped)
+            )
 
     def _write_partial_report_outputs(
         self,

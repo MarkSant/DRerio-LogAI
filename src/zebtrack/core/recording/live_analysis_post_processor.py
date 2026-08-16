@@ -609,6 +609,45 @@ class LiveAnalysisPostProcessorMixin:
         analysis_thread.start()
         log.info("live_camera_service.post_analysis_thread_started")
 
+    @staticmethod
+    def _format_generated_files(output_dir: Path) -> str:
+        """Render the files this session ACTUALLY wrote, read from disk.
+
+        The old message hardcoded three bullets, two of which named files that
+        are never written (``*_trajectory.parquet`` — the real name is
+        ``3_CoordMovimento_<base>.parquet`` — and ``*_zones.parquet``, which is
+        really two files) plus an extension the recorder never produces
+        (``.avi``). It also omitted everything the researcher actually needs:
+        the ``4_Relatorio_*.xlsx/.docx`` written 80 lines earlier, the
+        ``5_ClosedLoop_*`` latency audit trail, and the ``6_FrameLedger_*``
+        timeline that makes ``3_CoordMovimento.timestamp`` interpretable.
+
+        Listing the directory also settles the conditional outputs
+        (``2_AreasOfInterest`` only with ROIs, ``3b_Mascaras`` only with
+        ``persist_masks`` + a seg model, ``5_ClosedLoop`` only with Arduino):
+        no static list can be right for every session.
+        """
+        from zebtrack.utils.report_files import describe_session_output, list_session_outputs
+
+        try:
+            files = list_session_outputs(output_dir)
+        # except OSError justified: the completion dialog must still show the
+        # stats and the output path even if the directory cannot be listed
+        # (permissions, network share dropped, folder already moved).
+        except OSError as exc:
+            log.warning(
+                "live_camera_service.completion_files.listing_failed",
+                output_dir=str(output_dir),
+                error=str(exc),
+            )
+            return ""
+
+        if not files:
+            return ""
+
+        lines = "\n".join(f"  • {describe_session_output(path)}" for path in files)
+        return _("\n💡 Files generated:\n{lines}\n").format(lines=lines)
+
     def _show_completion_message(
         self,
         output_dir: Path,
@@ -623,6 +662,8 @@ class LiveAnalysisPostProcessorMixin:
         from zebtrack.ui.event_bus_v2 import Event, UIEvents
         from zebtrack.ui.payloads import MessagePayload
 
+        files_block = self._format_generated_files(output_dir)
+
         if analysis_success and stats:
             message = _(
                 "✅ Camera analysis completed successfully!\n\n"
@@ -630,16 +671,14 @@ class LiveAnalysisPostProcessorMixin:
                 "  • Frames processed: {frames}\n"
                 "  • Total detections: {detections}\n"
                 "  • Unique tracks: {tracks}\n\n"
-                "📁 Data saved to:\n{output_dir}\n\n"
-                "💡 Files generated:\n"
-                "  • *_trajectory.parquet (trajectory)\n"
-                "  • *_zones.parquet (zones)\n"
-                "  • *.mp4/.avi (recorded video)"
+                "📁 Data saved to:\n{output_dir}\n"
+                "{files}"
             ).format(
                 frames=stats["frames"],
                 detections=stats["detections"],
                 tracks=stats["tracks"],
                 output_dir=output_dir,
+                files=files_block,
             )
             title = _("Analysis Completed")
         elif reason == "no_detections":
@@ -649,15 +688,17 @@ class LiveAnalysisPostProcessorMixin:
                 "  • No detectable object in the field of view\n"
                 "  • Arena too restrictive\n"
                 "  • Confidence threshold too high\n\n"
-                "📁 Data saved to:\n{output_dir}"
-            ).format(output_dir=output_dir)
+                "📁 Data saved to:\n{output_dir}\n"
+                "{files}"
+            ).format(output_dir=output_dir, files=files_block)
             title = _("Analysis Completed - No Detections")
         else:
             message = _(
                 "⚠️ Recording completed, but the automatic analysis failed.\n\n"
-                "📁 Raw data saved to:\n{output_dir}\n\n"
+                "📁 Raw data saved to:\n{output_dir}\n"
+                "{files}\n"
                 "You can analyse it manually through the interface."
-            ).format(output_dir=output_dir)
+            ).format(output_dir=output_dir, files=files_block)
             title = _("Recording Completed")
 
         self.event_bus.publish(

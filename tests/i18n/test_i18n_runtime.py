@@ -89,9 +89,17 @@ class TestTranslation:
 class TestDomains:
     def test_ui_and_reporter_catalogues_are_separate_but_share_the_language(self):
         i18n.install("pt_BR")
-        # "Metric" lives only in the reporter domain.
-        assert i18n.translate("Metric", domain=i18n.REPORTER_DOMAIN) == "Métrica"
-        assert i18n.translate("Metric", domain=i18n.UI_DOMAIN) == "Metric"
+        # The witness must be a msgid that exists ONLY in the reporter domain,
+        # so the UI lookup demonstrably falls back to the msgid itself.
+        # "Angular Velocity" is a plot/report axis label with no UI counterpart.
+        # (It replaced "Metric", which stopped being exclusive once the partial
+        # Word report's table gained a "Metric" column header in the UI domain —
+        # the same word legitimately living in both catalogues is exactly what
+        # this test must NOT depend on.)
+        assert i18n.translate("Angular Velocity", domain=i18n.REPORTER_DOMAIN) == (
+            "Velocidade angular"
+        )
+        assert i18n.translate("Angular Velocity", domain=i18n.UI_DOMAIN) == "Angular Velocity"
 
     def test_reporter_module_follows_the_installed_language(self):
         """Reports used to follow the OS locale and freeze at import time."""

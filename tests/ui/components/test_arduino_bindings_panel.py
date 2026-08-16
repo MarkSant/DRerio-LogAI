@@ -274,9 +274,11 @@ class TestArduinoBindingsPanel:
         panel = ArduinoBindingsPanel(tkinter_root, controller)
         tkinter_root.update_idletasks()
 
+        # The DEVICE leads and the ROI qualifies it: the operator reads the
+        # line looking for what is physically wired, not for the zone id.
         assert panel._probe_plan() == [
-            ("Z1 (Choque)", "enter", 1),
-            ("Z1 (Choque)", "exit", 2),
+            ("Choque [Z1]", "enter", 1),
+            ("Choque [Z1]", "exit", 2),
             ("Z2", "enter", 3),
         ]
 
@@ -322,6 +324,43 @@ class TestArduinoBindingsPanel:
         assert "✓" in text
         assert "⚠" not in text
         assert "Red LED 1 ON" in text
+
+    def test_result_line_leads_with_the_device_not_the_firmware_name(self, tkinter_root):
+        """The operator's "Dispositivo" must name the channel, not the sketch.
+
+        "Red LED 1 ON" is printed by the sketch (Program_Final.ino) and is wrong
+        the moment that pin drives a relay or a pump. It used to be appended
+        bare, sitting exactly where a device name goes — and with an empty
+        Device field it was the ONLY name on the line.
+        """
+        pd = {
+            "use_arduino": True,
+            "arduino_bindings": [{"roi": "Z1", "on_enter": 1, "label": "Choque"}],
+        }
+        controller, _pm = _make_controller(pd, ["Z1"], arduino_manager=_fake_manager(SKETCH_ACKS))
+        panel = ArduinoBindingsPanel(tkinter_root, controller)
+        tkinter_root.update_idletasks()
+
+        panel._finish_test([(("Choque [Z1]", "enter", 1), (1, "Red LED 1 ON"))], None)
+
+        text = _nn(panel._test_output).cget("text")
+        # Device leads; the ACK is still shown but explicitly attributed.
+        assert text.index("Choque") < text.index("Red LED 1 ON")
+        assert "firmware" in text.lower()
+        assert '"Red LED 1 ON"' in text
+
+    def test_result_explains_where_the_quoted_name_comes_from(self, tkinter_root):
+        """Otherwise the operator keeps expecting the Device field to change it."""
+        pd = {"use_arduino": True, "arduino_bindings": [{"roi": "Z1", "on_enter": 1}]}
+        controller, _pm = _make_controller(pd, ["Z1"], arduino_manager=_fake_manager(SKETCH_ACKS))
+        panel = ArduinoBindingsPanel(tkinter_root, controller)
+        tkinter_root.update_idletasks()
+
+        panel._finish_test([(("Z1", "enter", 1), (1, "Red LED 1 ON"))], None)
+
+        text = _nn(panel._test_output).cget("text")
+        assert "sketch" in text.lower()
+        assert "Device" in text
 
     def test_test_bindings_flags_the_inverted_layout(self, tkinter_root):
         """Regression: Z1=1/5 — the exit token answers 'Green LED ON'."""

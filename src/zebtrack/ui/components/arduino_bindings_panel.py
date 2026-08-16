@@ -379,7 +379,13 @@ class ArduinoBindingsPanel(ttk.Frame):
         cfg = ArduinoBindingConfig.from_project_data(self._project_data())
         plan: list[tuple[str, str, int]] = []
         for binding in cfg.bindings:
-            display_name = f"{binding.roi} ({binding.label})" if binding.label else binding.roi
+            # ``display_name()`` is the canonical "what did the operator call
+            # this?" helper on the model. Leading with the DEVICE name (and
+            # keeping the ROI as the qualifier) is what makes the result line
+            # read as the operator's own wiring rather than the sketch's.
+            display_name = (
+                f"{binding.display_name()} [{binding.roi}]" if binding.label else binding.roi
+            )
             if binding.on_enter is not None:
                 plan.append((display_name, "enter", binding.on_enter))
             if binding.on_exit is not None:
@@ -431,11 +437,24 @@ class ArduinoBindingsPanel(ttk.Frame):
                 )
                 problems += 1
                 continue
-            if edge_ack_is_inverted(edge, ack):
-                lines.append(f"⚠ {display_name} {edge_label} → {token} → {ack}")
+            # The ACK is quoted and explicitly attributed to the firmware.
+            # Appending it bare made "Red LED 1 ON" sit where a device name
+            # goes, so it read as the app's name for the channel — and with an
+            # empty Device field it was the ONLY name on the line. The sketch
+            # prints whatever it was written to print; it has no idea the pin
+            # now drives a relay or a pump.
+            status = "⚠" if edge_ack_is_inverted(edge, ack) else "✓"
+            if status == "⚠":
                 problems += 1
-            else:
-                lines.append(f"✓ {display_name} {edge_label} → {token} → {ack}")
+            lines.append(
+                _('{status} {name} {edge} → {token} → firmware replied: "{ack}"').format(
+                    status=status,
+                    name=display_name,
+                    edge=edge_label,
+                    token=token,
+                    ack=ack,
+                )
+            )
 
         if problems:
             lines.append("")
@@ -445,6 +464,14 @@ class ArduinoBindingsPanel(ttk.Frame):
                     "switch off. The reference sketch pairs 1/2, 3/4, 5/6, 7/8."
                 ).format(count=problems)
             )
+        lines.append("")
+        lines.append(
+            _(
+                "Note: the quoted text comes from the Arduino sketch, not from the "
+                "Device field — it keeps the sketch's own channel names even when "
+                "the pin drives something else."
+            )
+        )
         self._set_test_output("\n".join(lines), error=bool(problems))
 
     def _set_test_output(self, message: str, *, error: bool = False) -> None:
