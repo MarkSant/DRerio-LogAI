@@ -4,12 +4,15 @@ Extended unit tests for ROI behavioral analysis in analysis/roi.py.
 
 from __future__ import annotations
 
+import numpy as np
 import pandas as pd
 import pytest
 from shapely.geometry import Polygon
 
+from zebtrack.analysis.behavior import ConcreteBehavioralAnalyzer
 from zebtrack.analysis.roi import (
     ROI,
+    ROIAnalyzer,
     _assign_stable_roi,
     _distance_in_rois,
     _entry_counts,
@@ -102,8 +105,6 @@ class TestROIExtended:
                 "in_ZoneA_stable": [False, True, True, False],
             }
         )
-        # Distance at index 1 is sqrt(3^2 + 4^2) = 5.0
-        # Distance at index 2 is 0.0
         dist = _distance_in_rois(df, ["ZoneA"])
         assert dist["ZoneA"] == pytest.approx(5.0)
 
@@ -113,3 +114,39 @@ class TestROIExtended:
         assert roi.name == "Arena1"
         assert roi.geometry == poly
         assert roi.coordinate_space == "cm"
+
+    def test_roi_analyzer_initialization(self):
+        n = 20
+        timestamps = pd.timedelta_range(start="0s", periods=n, freq="100ms")
+        x = np.linspace(10.0, 50.0, n)
+        y = np.linspace(20.0, 60.0, n)
+        df = pd.DataFrame(
+            {
+                "timestamp": timestamps,
+                "x_center_px": x,
+                "y_center_px": y,
+                "x1": x - 5.0,
+                "y1": y - 5.0,
+                "x2": x + 5.0,
+                "y2": y + 5.0,
+            },
+            index=timestamps,
+        )
+        arena = [[0.0, 0.0], [100.0, 0.0], [100.0, 100.0], [0.0, 100.0]]
+        ba = ConcreteBehavioralAnalyzer(
+            trajectory_df=df,
+            pixelcm_x=10.0,
+            pixelcm_y=10.0,
+            video_height_px=100,
+            arena_polygon_px=arena,
+            fps=10.0,
+        )
+        roi_poly = Polygon([(1, 1), (5, 1), (5, 5), (1, 5)])
+        roi_obj = ROI(name="Center", geometry=roi_poly, coordinate_space="cm")
+        analyzer = ROIAnalyzer(
+            behavior_analyzer=ba,
+            rois=[roi_obj],
+            inclusion_rule="centroid_in",
+        )
+        assert "Center" in analyzer._rois
+        assert analyzer._inclusion_rule == "centroid_in"
