@@ -13,7 +13,7 @@ class TestUISchedulerExtended:
     """Test UIScheduler scheduling, convenience methods, and fallback logic."""
 
     def test_schedule_with_no_root_falls_back_to_direct_call(self):
-        called = []
+        called: list[str] = []
         scheduler = UIScheduler(root=None)
         scheduler.schedule(called.append, "hello")
         assert called == ["hello"]
@@ -34,7 +34,7 @@ class TestUISchedulerExtended:
         import tkinter as tk
 
         mock_root.after.side_effect = tk.TclError("dead window")
-        called = []
+        called: list[str] = []
         scheduler = UIScheduler(root=mock_root)
         scheduler.schedule(called.append, "fallback")
         assert called == ["fallback"]

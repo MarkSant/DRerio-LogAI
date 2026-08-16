@@ -108,13 +108,15 @@ class TestProjectConfigSchema:
             )
 
     def test_extra_fields_allowed(self):
-        cfg = ProjectConfigSchema(
-            project_name="Compat",
-            project_type="live",
-            timestamp="2025-01-01T00:00:00",
-            calibration={},
-            videos=[],
-            some_future_field="hello",
+        cfg = ProjectConfigSchema.model_validate(
+            {
+                "project_name": "Compat",
+                "project_type": "live",
+                "timestamp": "2025-01-01T00:00:00",
+                "calibration": {},
+                "videos": [],
+                "some_future_field": "hello",
+            }
         )
         assert cfg.project_name == "Compat"
 
