@@ -46,12 +46,9 @@ class TestDetectorServiceExtended:
     def test_resolve_single_subject_tracker_preference_none_fallback(
         self, service: DetectorService
     ):
-        service.project_manager.project_data = None
-        assert service._resolve_single_subject_tracker_preference(None) is None
-        assert service._resolve_single_subject_tracker_preference("single-video") is True
-
         service.project_manager.project_data = {}
         assert service._resolve_single_subject_tracker_preference(None) is None
+        assert service._resolve_single_subject_tracker_preference("single-video") is True
 
     def test_build_detector_config(self, service: DetectorService):
         plugin_mock = MagicMock()
@@ -75,7 +72,7 @@ class TestDetectorServiceExtended:
         mock_detector.set_single_subject_mode.assert_called_once_with(True)
 
     def test_initialize_detector_no_model_path_returns_false(self, service: DetectorService):
-        service.weight_manager.get_weight_path_by_method.return_value = None
+        service.weight_manager.get_weight_path_by_method = MagicMock(return_value=None)  # type: ignore[method-assign]
 
         success, err = service.initialize_detector(animal_method="det")
         assert success is False

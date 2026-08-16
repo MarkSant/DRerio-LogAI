@@ -5,6 +5,7 @@ Extended unit tests for DI container registrations in core/di_registrations.py.
 from __future__ import annotations
 
 import threading
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -62,7 +63,7 @@ class TestDiRegistrationsExtended:
         ui_scheduler = UIScheduler(event_bus=event_bus)
         recorder_factory = RecorderFactory(settings_obj=settings_obj)
         cancel_event = threading.Event()
-        controller_ref = LazyRef()
+        controller_ref: LazyRef[Any] = LazyRef()
 
         return ContainerContext(
             root=MagicMock(),

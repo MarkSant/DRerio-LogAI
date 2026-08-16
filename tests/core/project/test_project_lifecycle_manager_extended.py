@@ -5,6 +5,7 @@ Extended unit tests for ProjectLifecycleManager in core/project/project_lifecycl
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
@@ -142,7 +143,11 @@ class TestProjectLifecycleManagerExtended:
         (tmp_path / "project_config.json").write_text("{}")
 
         mock_load = MagicMock(return_value={"version": "3.3", "project_name": "MyProj"})
-        migrated_ret = ({"version": "3.3", "project_name": "MyProj"}, False, [])
+        migrated_ret: tuple[dict[str, Any], bool, list[str]] = (
+            {"version": "3.3", "project_name": "MyProj"},
+            False,
+            [],
+        )
         mock_migrate = MagicMock(return_value=migrated_ret)
 
         data, migrated, fields = ProjectLifecycleManager.load_project_data(

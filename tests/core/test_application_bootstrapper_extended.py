@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import queue
 import threading
+from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
@@ -39,8 +40,8 @@ class TestBootstrapDTOsExtended:
         assert hw.arduino_manager is None
 
     def test_runtime_bootstrap_fields(self):
-        fq = queue.Queue()
-        vq = queue.Queue()
+        fq: queue.Queue[Any] = queue.Queue()
+        vq: queue.Queue[Any] = queue.Queue()
         exit_ev = threading.Event()
         cancel_ev = threading.Event()
 
