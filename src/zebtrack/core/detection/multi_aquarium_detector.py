@@ -13,6 +13,7 @@ import cv2
 import numpy as np
 import structlog
 
+from zebtrack.core.detection.bbox_area_gate import BboxAreaGate
 from zebtrack.core.detection.detection_post_processor import DetectionPostProcessor
 from zebtrack.core.detection.detection_types import AquariumData, MultiAquariumZoneData, ZoneData
 from zebtrack.core.detection.single_subject_tracker import SingleSubjectTracker
@@ -82,6 +83,12 @@ class MultiAquariumDetector:
         self._scaled_aquarium_roi_polygons: dict[int, list[np.ndarray]] = {}
         self._multi_tracker_params: tuple | None = None
 
+        # Runaway-bbox gate, one PER AQUARIUM. Each aquarium is cropped
+        # separately and may sit at a different distance/scale in the frame, so
+        # their bbox areas are not comparable — a shared median would let a
+        # large aquarium's boxes mask a small one's runaway, and vice versa.
+        self._bbox_area_gates: dict[int, BboxAreaGate] = {}
+
         # Frame tracking
         self._zones_configured = False
         self._last_width: int | None = None
@@ -124,6 +131,9 @@ class MultiAquariumDetector:
 
         self._multi_aquarium_mode = True
         self._aquariums = aquariums
+        # New zones mean a new video/session geometry: areas measured under the
+        # previous framing are not comparable and must not gate the new one.
+        self._reset_bbox_area_gates()
 
         # Calculate scaling factors
         scale_x = actual_width / self.base_width
@@ -658,6 +668,23 @@ class MultiAquariumDetector:
     # Shared tracking helpers
     # =========================================================================
 
+    def _area_gate_for(self, aquarium_id: int) -> BboxAreaGate:
+        """Lazily create this aquarium's runaway-bbox gate."""
+        gate = self._bbox_area_gates.get(aquarium_id)
+        if gate is None:
+            gate = BboxAreaGate.from_settings(self.settings, label=f"aquarium_{aquarium_id}")
+            self._bbox_area_gates[aquarium_id] = gate
+        return gate
+
+    def _reset_bbox_area_gates(self) -> None:
+        """Forget every aquarium's accepted-area history.
+
+        Dropped wholesale rather than reset in place: the aquarium set itself
+        may change between sessions, and a stale id's history would otherwise
+        linger and gate a differently-framed region.
+        """
+        self._bbox_area_gates.clear()
+
     def _track_partitioned(self, partitioned: dict[int, list]) -> dict[int, list[tuple]]:
         """Apply independent tracking per aquarium and offset track IDs.
 
@@ -670,6 +697,14 @@ class MultiAquariumDetector:
         pp = DetectionPostProcessor
         use_bytetrack = pp.should_use_bytetrack(self.settings)
         results: dict[int, list[tuple]] = {}
+
+        # Runaway-bbox gate applied HERE because all three ``detect_partitioned*``
+        # variants funnel through this method, and it sits before tracking — so
+        # the tracker never latches onto an exploded box and the box never
+        # reaches the recorder or the Arduino ROI dispatch.
+        partitioned = {
+            aq_id: self._area_gate_for(aq_id).filter(dets) for aq_id, dets in partitioned.items()
+        }
 
         for aq_id, detections in partitioned.items():
             if detections:

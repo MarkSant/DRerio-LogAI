@@ -452,6 +452,27 @@ class MainViewModelRuntime:
             ("recording_service", self._vm.recording_service),
             ("processing_coordinator", self._vm.processing_coordinator),
             ("live_camera_service", getattr(self._vm, "live_camera_service", None)),
+            # Os tres coordinators de live/gravacao guardam ``project_manager``
+            # como atributo simples desde a construcao (``di_registrations``) e
+            # NAO assinam ``PROJECT_MANAGER_REPLACED``. Sem estas entradas eles
+            # continuam enxergando o projeto FECHADO como aberto, e a
+            # consequencia nao e cosmetica: ``ensure_zones_before_recording`` ve
+            # ``project_path`` preenchido e a arena antiga, entao uma analise ao
+            # vivo de video unico (sem projeto) e interrogada com "reutilizar
+            # zonas?" de um projeto sem relacao, e a saida da sessao vai parar
+            # dentro do diretorio do projeto fechado.
+            (
+                "live_calibration_coordinator",
+                getattr(self._vm, "live_calibration_coordinator", None),
+            ),
+            (
+                "live_camera_session_coordinator",
+                getattr(self._vm, "live_camera_session_coordinator", None),
+            ),
+            (
+                "recording_session_coordinator",
+                getattr(self._vm, "recording_session_coordinator", None),
+            ),
         ]
 
         orchestrators_to_update: list[tuple[str, Any]] = [
