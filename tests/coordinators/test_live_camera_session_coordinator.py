@@ -292,3 +292,145 @@ class TestLiveCameraSessionCoordinatorLifecycle:
         assert res is True
         assert not coordinator.is_live_session_active()
         mock_live_camera_service.stop_session.assert_called_once_with(cancelled=True)
+
+
+class TestValidateDependencies:
+    def test_missing_live_camera_service(self, coordinator):
+        from zebtrack.coordinators.base_coordinator import CoordinatorValidationError
+
+        coordinator.live_camera_service = None
+        with pytest.raises(CoordinatorValidationError, match="LiveCameraService is required"):
+            coordinator.validate_dependencies()
+
+    def test_missing_project_manager(self, coordinator):
+        from zebtrack.coordinators.base_coordinator import CoordinatorValidationError
+
+        coordinator.project_manager = None
+        with pytest.raises(CoordinatorValidationError, match="ProjectManager is required"):
+            coordinator.validate_dependencies()
+
+    def test_all_present(self, coordinator):
+        assert coordinator.validate_dependencies() is True
+
+
+class TestResolveLiveProcessingMode:
+    def test_flag_single_animal(self, coordinator, mock_project_manager):
+        from zebtrack.core.video.processing_mode import ProcessingMode
+
+        mock_project_manager.project_data = {"single_animal_per_aquarium": True}
+        assert coordinator._resolve_live_processing_mode() == ProcessingMode.SINGLE_SUBJECT
+
+        mock_project_manager.project_data = {"single_animal_per_aquarium": False}
+        assert coordinator._resolve_live_processing_mode() == ProcessingMode.MULTI_TRACK
+
+    def test_top_animals_per_aquarium(self, coordinator, mock_project_manager):
+        from zebtrack.core.video.processing_mode import ProcessingMode
+
+        mock_project_manager.project_data = {"animals_per_aquarium": 1}
+        assert coordinator._resolve_live_processing_mode() == ProcessingMode.SINGLE_SUBJECT
+
+        mock_project_manager.project_data = {"animals_per_aquarium": 3}
+        assert coordinator._resolve_live_processing_mode() == ProcessingMode.MULTI_TRACK
+
+    def test_tracking_use_single_subject_tracker(self, coordinator, mock_project_manager):
+        from zebtrack.core.video.processing_mode import ProcessingMode
+
+        mock_project_manager.project_data = {"tracking": {"use_single_subject_tracker": True}}
+        assert coordinator._resolve_live_processing_mode() == ProcessingMode.SINGLE_SUBJECT
+
+    def test_calibration_animals_per_aquarium(self, coordinator, mock_project_manager):
+        from zebtrack.core.video.processing_mode import ProcessingMode
+
+        mock_project_manager.project_data = {"calibration": {"animals_per_aquarium": 1}}
+        assert coordinator._resolve_live_processing_mode() == ProcessingMode.SINGLE_SUBJECT
+
+    def test_animals_per_aquarium_list(self, coordinator, mock_project_manager):
+        from zebtrack.core.video.processing_mode import ProcessingMode
+
+        mock_project_manager.project_data = {
+            "calibration": {"animals_per_aquarium_list": [1, 1, 1]}
+        }
+        assert coordinator._resolve_live_processing_mode() == ProcessingMode.SINGLE_SUBJECT
+
+        mock_project_manager.project_data = {
+            "calibration": {"animals_per_aquarium_list": [1, 2, 1]}
+        }
+        assert coordinator._resolve_live_processing_mode() == ProcessingMode.MULTI_TRACK
+
+    def test_no_keys_match(self, coordinator, mock_project_manager):
+        mock_project_manager.project_data = {}
+        assert coordinator._resolve_live_processing_mode() is None
+
+
+class TestPublishLiveTaskStatus:
+    def test_publish_with_event_bus(self, coordinator, mock_event_bus):
+        coordinator._publish_live_task_status(
+            experiment_id="exp1", step="Recording", progress_fraction=0.5
+        )
+        mock_event_bus.publish.assert_called_once()
+        call_event = mock_event_bus.publish.call_args[0][0]
+        assert call_event.type == UIEvents.UI_UPDATE_ANALYSIS_TASK_STATUS
+        assert call_event.data.step == "Recording"
+        assert call_event.data.progress_fraction == 0.5
+
+    def test_publish_none_event_bus(self, coordinator):
+        coordinator.event_bus = None
+        coordinator._publish_live_task_status(step="Recording")  # Should not raise
+
+
+class TestSetLiveAnalysisUIState:
+    def test_set_live_analysis_ui_state_all_flags(self, coordinator):
+        mock_controller = Mock()
+        mock_widget = Mock()
+        coordinator.view = Mock(
+            analysis_view_controller=mock_controller,
+            analysis_display_widget=mock_widget,
+        )
+        coordinator._last_live_analysis_metadata = {"group": "G1"}
+
+        coordinator._set_live_analysis_ui_state(
+            status_text="Running",
+            experiment_id="exp1",
+            task_step="Step 1",
+            switch_to_analysis=True,
+            show_progress=True,
+            disable_cancel=True,
+            restore_metadata=True,
+        )
+
+        mock_controller.switch_to_analysis_view.assert_called_once()
+        mock_controller.set_analysis_status.assert_called_once_with("Running")
+        mock_controller.update_analysis_task_status.assert_called_once_with(
+            index=None, total=None, experiment_id="exp1", step="Step 1"
+        )
+        mock_controller.update_analysis_metadata.assert_called_once_with(metadata={"group": "G1"})
+        mock_widget.show_progress.assert_called_once()
+        mock_widget.disable_cancel_button.assert_called_once()
+
+    def test_set_live_analysis_ui_state_no_view(self, coordinator):
+        coordinator.view = None
+        coordinator._set_live_analysis_ui_state(status_text="Running")  # Should not raise
+
+
+class TestOnLiveServiceSessionStopped:
+    def test_suppressed(self, coordinator):
+        coordinator._suppress_service_stop_callback = True
+        coordinator._finalize_live_session_ui = Mock()
+        coordinator._on_live_service_session_stopped(cancelled=False)
+        coordinator._finalize_live_session_ui.assert_not_called()
+
+    def test_not_active(self, coordinator):
+        coordinator._suppress_service_stop_callback = False
+        coordinator._active_live_session_id = None
+        coordinator._finalize_live_session_ui = Mock()
+        coordinator._on_live_service_session_stopped(cancelled=False)
+        coordinator._finalize_live_session_ui.assert_not_called()
+
+    def test_active_finalizes(self, coordinator):
+        coordinator._suppress_service_stop_callback = False
+        coordinator._active_live_session_id = "sess1"
+        coordinator._finalize_live_session_ui = Mock()
+        coordinator._on_live_service_session_stopped(cancelled=False)
+        coordinator._finalize_live_session_ui.assert_called_once_with(
+            cancelled=False, publish_refresh=True, service_success=True
+        )
