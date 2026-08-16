@@ -86,10 +86,12 @@ class ZoneControlsWidget(BaseWidget):
         self.stabilization_frames_var = StringVar(value="10")
         self.roi_template_var = StringVar(value="")
         self.video_search_var = StringVar()
-        roi_config = roi_rule_config or RoiRuleConfig()
-        self.roi_inclusion_rule_var = StringVar(value=roi_config.rule)
-        self.roi_buffer_radius_var = StringVar(value=f"{roi_config.buffer_radius_value:g}")
-        self.roi_overlap_ratio_var = StringVar(value=f"{roi_config.min_bbox_overlap_ratio:g}")
+        # Effective ROI rule, resolved upstream by ``resolve_roi_rule``. Held
+        # whole (not split across entry widgets) because this panel only
+        # DISPLAYS it now — Advanced Settings is the single editor.
+        self._roi_rule_config = roi_rule_config or RoiRuleConfig()
+        self.roi_rule_summary_var = StringVar(value="")
+        self.roi_rule_params_var = StringVar(value="")
 
         # Multi-aquarium state variables
         self.aquarium_count_var = tk.IntVar(value=1)
@@ -116,11 +118,8 @@ class ZoneControlsWidget(BaseWidget):
         self.discard_arena_btn: ttk.Button | None = None
         self.interactive_buttons_frame: ttk.Frame | None = None
         self.controls_canvas_window: int | None = None
-        self.roi_rule_combo: ttk.Combobox | None = None
-        self.radius_frame: ttk.Frame | None = None
-        self.overlap_frame: ttk.Frame | None = None
-        self.rule_help_label: ttk.Label | None = None
-        self.overlap_hint_label: ttk.Label | None = None
+        self.roi_rule_summary_label: ttk.Label | None = None
+        self.roi_rule_params_label: ttk.Label | None = None
         self._video_tree_expanded = True
 
         # Multi-aquarium widget references
@@ -378,10 +377,16 @@ class ZoneControlsWidget(BaseWidget):
         )
         self.draw_roi_button.pack(side="left", fill="x", expand=True, padx=2, pady=2)
 
-        # Conclude Video Button (Next to ROI button)
+        # Conclude Video Button (Next to ROI button).
+        #
+        # Label names the project write explicitly: this is the only control in
+        # the whole zone flow that calls ``save_project()``, and it already
+        # re-emits ZONE_SAVE_ARENA, so it subsumes "Save This Area". Calling it
+        # just "Finish" made it look interchangeable with the two buttons in the
+        # interactive strip.
         self.conclude_video_btn = ttk.Button(
             btn_container,
-            text=_("✅ Finish"),
+            text=_("✅ Finish and Save Project"),
             command=self._on_conclude_video_clicked,
             state="disabled",
             style="Accent.TButton",
@@ -501,7 +506,27 @@ class ZoneControlsWidget(BaseWidget):
         ).pack(anchor="w", padx=(10, 0), pady=(2, 0))
 
     def _build_interactive_buttons(self) -> None:
-        """Build the interactive editing buttons (initially hidden)."""
+        """Build the interactive editing buttons (initially hidden).
+
+        Layout order follows the actual workflow, left to right:
+
+        ``✓ Close Polygon`` → ``💾 Save This Area`` → ``❌ Discard``
+
+        The three buttons in this strip plus ``✅ Finish and Save Project`` in
+        the Drawing Actions bar used to read as four ways to do the same thing.
+        They are not interchangeable, so the labels now state what each one
+        actually commits:
+
+        - **Close Polygon** only closes the outline being drawn freehand (it
+          stands in for the double-click). It commits nothing, and during vertex
+          editing it is a genuine no-op — ``_finish_drawing_is_interactive_edit``
+          makes its handler return early — so it is disabled with a reason there
+          instead of silently doing nothing.
+        - **Save This Area** is the only real commit of the polygon itself, and
+          it keeps you in the tab to define more ROIs.
+        - **Finish and Save Project** writes ``project.json`` and ends the step;
+          it re-emits ``ZONE_SAVE_ARENA`` first, so it is a superset of Save.
+        """
         # If drawing_actions_parent is provided, these buttons likely go there too
         parent = (
             self.drawing_actions_parent if self.drawing_actions_parent else self.zone_controls_frame
@@ -509,27 +534,29 @@ class ZoneControlsWidget(BaseWidget):
 
         self.interactive_buttons_frame = ttk.Frame(parent)
 
+        # Finish Drawing button - closes the freehand polygon without double-click
+        self.finish_drawing_btn = ttk.Button(
+            self.interactive_buttons_frame,
+            text=_("✓ Close Polygon"),
+            command=self._on_finish_drawing_clicked,
+        )
+        self.finish_drawing_btn.pack(side="left", fill="x", expand=True, padx=5, pady=5)
+
         self.save_arena_btn = ttk.Button(
             self.interactive_buttons_frame,
-            text=_("✅ Save Edit"),
+            text=_("💾 Save This Area"),
             command=self._on_save_arena_clicked,
         )
         self.save_arena_btn.pack(side="left", fill="x", expand=True, padx=5, pady=5)
 
+        # Packed EXACTLY once. It used to be packed twice (before and after the
+        # Finish Drawing button), which silently re-positioned Discard to the far
+        # right of the strip.
         self.discard_arena_btn = ttk.Button(
             self.interactive_buttons_frame,
             text=_("❌ Discard"),
             command=self._on_discard_arena_clicked,
         )
-        self.discard_arena_btn.pack(side="left", fill="x", expand=True, padx=5, pady=5)
-
-        # Finish Drawing button - for completing polygon without double-click
-        self.finish_drawing_btn = ttk.Button(
-            self.interactive_buttons_frame,
-            text=_("✓ Finish Drawing"),
-            command=self._on_finish_drawing_clicked,
-        )
-        self.finish_drawing_btn.pack(side="left", fill="x", expand=True, padx=5, pady=5)
         self.discard_arena_btn.pack(side="left", fill="x", expand=True, padx=5, pady=5)
 
     def _build_single_analysis_options(self) -> None:
@@ -838,85 +865,53 @@ class ZoneControlsWidget(BaseWidget):
         self.zone_listbox.bind("<Double-Button-1>", self._on_zone_double_click)
 
     def _build_roi_inclusion_panel(self) -> None:
-        """Build the ROI inclusion rule configuration panel."""
+        """Build the ROI inclusion rule SUMMARY (read-only) plus a shortcut.
+
+        This used to be a second, WORSE editor for the same settings.
+
+        Both this panel and the Advanced Settings tab wrote the same destination
+        (``project_data["roi_settings"]``, read back by the canonical
+        ``resolve_roi_rule``), but this copy was a strict subset: it omitted
+        ``roi_bbox_overlap_basis`` — so its "Min. overlap" number was ambiguous
+        about its denominator — and it omitted the ``recorder.persist_masks``
+        prerequisite that ``seg_overlap`` actually requires, compensating with a
+        6-8 line wrapped help paragraph that dominated a 420 px side panel.
+
+        Now it states the EFFECTIVE rule and sends the user to the one place
+        where the rule and every parameter live together. Read-only by design:
+        two editors for one value is how the two drift apart.
+        """
         self.roi_inclusion_frame = ttk.LabelFrame(
             self.zone_controls_frame, text=_("ROI Inclusion Rule"), padding=10
         )
         self.roi_inclusion_frame.pack(fill="x", pady=5)
 
-        # Rule selection
-        rule_frame = ttk.Frame(self.roi_inclusion_frame)
-        rule_frame.pack(fill="x", pady=2)
-
-        ttk.Label(rule_frame, text=_("Rule:")).pack(side="left", padx=(0, 5))
-        self.roi_rule_combo = ttk.Combobox(
-            rule_frame,
-            textvariable=self.roi_inclusion_rule_var,
-            values=[
-                "centroid_in",
-                "centroid_in_on_buffered_roi",
-                "bbox_intersects",
-                "seg_overlap",
-            ],
-            state="readonly",
-            width=18,
-        )
-        self.roi_rule_combo.pack(side="left", fill="x", expand=True)
-        self.roi_rule_combo.bind("<<ComboboxSelected>>", self._on_roi_rule_changed)
-
-        # Buffer radius parameter (Initially hidden)
-        self.radius_frame = ttk.Frame(self.roi_inclusion_frame)
-        # self.radius_frame.pack(fill="x", pady=2) # Logic handles visibility
-        ttk.Label(self.radius_frame, text=_("Buffer radius (r):")).pack(side="left", padx=(0, 5))
-        ttk.Entry(self.radius_frame, textvariable=self.roi_buffer_radius_var, width=10).pack(
-            side="left", padx=(0, 10)
-        )
-        # Help text below input for compact width
-        ttk.Label(
-            self.radius_frame,
-            text=_("ROI dilation (cm if calibrated, otherwise px)."),
-            font=("TkDefaultFont", 8),
-            foreground="gray",
-        ).pack(side="left")
-
-        # Overlap ratio parameter (Initially hidden)
-        self.overlap_frame = ttk.Frame(self.roi_inclusion_frame)
-        # self.overlap_frame.pack(fill="x", pady=2) # Logic handles visibility
-        ttk.Label(self.overlap_frame, text=_("Min. overlap (0-1):")).pack(side="left", padx=(0, 5))
-        ttk.Entry(self.overlap_frame, textvariable=self.roi_overlap_ratio_var, width=10).pack(
-            side="left", padx=(0, 10)
-        )
-        # O texto depende da regra: 0 só vale em ``bbox_intersects``. Fixo, ele
-        # induziria ao erro com ``seg_overlap`` selecionada, onde 0 é recusado.
-        self.overlap_hint_label = ttk.Label(
-            self.overlap_frame,
-            text="",
-            font=("TkDefaultFont", 8),
-            foreground="gray",
-        )
-        self.overlap_hint_label.pack(side="left")
-
-        # Help text
-        self.rule_help_label = ttk.Label(
+        self.roi_rule_summary_label = ttk.Label(
             self.roi_inclusion_frame,
-            text="",
-            font=("TkDefaultFont", 8),
-            wraplength=200,  # Adjusted for narrower panel
+            textvariable=self.roi_rule_summary_var,
+            font=("TkDefaultFont", 9, "bold"),
+            wraplength=200,
             justify="left",
         )
-        self.rule_help_label.pack(fill="x", pady=(5, 0))
+        self.roi_rule_summary_label.pack(fill="x", anchor="w")
 
-        # Apply button
-        save_settings_frame = ttk.Frame(self.roi_inclusion_frame)
-        save_settings_frame.pack(fill="x", pady=(5, 0))
+        self.roi_rule_params_label = ttk.Label(
+            self.roi_inclusion_frame,
+            textvariable=self.roi_rule_params_var,
+            font=("TkDefaultFont", 8),
+            foreground="gray",
+            wraplength=200,
+            justify="left",
+        )
+        self.roi_rule_params_label.pack(fill="x", anchor="w", pady=(2, 0))
+
         ttk.Button(
-            save_settings_frame,
-            text=_("Apply Settings"),
-            command=self._on_apply_roi_settings_clicked,
-        ).pack(side="right")
+            self.roi_inclusion_frame,
+            text=_("Configure in Advanced Settings →"),
+            command=self._on_open_roi_settings_clicked,
+        ).pack(fill="x", pady=(6, 0))
 
-        # Force update visibility based on default value
-        self._on_roi_rule_changed(None)
+        self._refresh_roi_rule_summary()
 
     # Event handlers that emit events to the event bus
 
@@ -1359,89 +1354,45 @@ class ZoneControlsWidget(BaseWidget):
         # normal quando uma nova edição começa (show_interactive_buttons).
         if getattr(self, "finish_drawing_btn", None):
             try:
-                self.finish_drawing_btn.config(state="disabled", text=_("✓ Drawing Finished"))
+                self.finish_drawing_btn.config(state="disabled", text=_("✓ Polygon Closed"))
             except tk.TclError:
                 log.debug("zone_controls.finish_drawing.feedback_suppressed", exc_info=True)
 
-    def _on_roi_rule_changed(self, event) -> None:
-        """Handle ROI rule change — apenas feedback visual.
+    def _on_open_roi_settings_clicked(self) -> None:
+        """Open the ROI section of the Advanced Settings tab."""
+        self.emit_event(UIEvents.ZONE_OPEN_ROI_SETTINGS, payloads.EmptyPayload())
 
-        Trocar a seleção do combo mostra/esconde o parâmetro daquela regra e
-        atualiza a ajuda; nada é aplicado até o botão "Aplicar". Este handler
-        publicava ``DETECTOR_UPDATE_PARAMETERS``, cujo pipeline descarta as
-        chaves de ROI e ainda loga sucesso — o mesmo no-op que este PR remove
-        do "Aplicar", e que aqui não tinha sequer o que fazer.
+    def _refresh_roi_rule_summary(self) -> None:
+        """Render the EFFECTIVE rule and only the parameter that rule actually uses.
+
+        Showing every parameter regardless of rule is what made the old panel
+        misleading: a "Min. overlap" box sat there under ``centroid_in``, which
+        ignores it entirely.
         """
-        rule = self.roi_inclusion_rule_var.get()
-        overlap_hint = ""
+        rule = self._roi_rule_config.rule
+        self.roi_rule_summary_var.set(_("Rule: {rule}").format(rule=rule))
 
-        # Update visibility based on rule
         if rule == "centroid_in_on_buffered_roi":
-            if self.radius_frame and self.roi_rule_combo:
-                self.radius_frame.pack(fill="x", pady=2, after=self.roi_rule_combo.master)
-            if self.overlap_frame:
-                self.overlap_frame.pack_forget()
-            help_text = _(
-                "Counts as inside if the centroid is in the ROI expanded by the buffer radius."
+            detail = _("Buffer radius: {value} (cm if calibrated, otherwise px)").format(
+                value=f"{self._roi_rule_config.buffer_radius_value:g}"
             )
-        elif rule in ("bbox_intersects", "seg_overlap"):
-            if self.radius_frame:
-                self.radius_frame.pack_forget()
-            if self.overlap_frame and self.roi_rule_combo:
-                self.overlap_frame.pack(fill="x", pady=2, after=self.roi_rule_combo.master)
-            # O 0 é exclusivo de ``bbox_intersects``; em ``seg_overlap`` o
-            # validador recusa e o painel não pode sugerir o contrário.
-            if rule == "bbox_intersects":
-                help_text = _(
-                    "Counts as inside if the box (bbox) overlaps the ROI above the "
-                    "minimum fraction."
-                )
-                overlap_hint = _("0 = any real overlap.")
-            else:
-                # A regra é selecionável mas tem TRÊS pré-requisitos; nomear os
-                # dois que não estão neste painel evita o beco sem saída de
-                # escolher seg_overlap e só descobrir a degradação no relatório.
-                help_text = _(
-                    "Counts as inside by the overlap of the MASK with the ROI. "
-                    "Also requires recorder.persist_masks enabled (settings editor) "
-                    "and model_selection.animal_method = 'seg'. If either is "
-                    "missing, the analysis degrades to bbox_intersects and warns in "
-                    "the report."
-                )
-                overlap_hint = _("Must be greater than 0.")
+        elif rule == "bbox_intersects":
+            detail = _("Min. bbox overlap: {value}").format(
+                value=f"{self._roi_rule_config.min_bbox_overlap_ratio:g}"
+            )
+        elif rule == "seg_overlap":
+            # Names the OTHER two prerequisites: the rule is selectable but
+            # degrades to bbox_intersects without them, and that is only
+            # discovered in the report otherwise.
+            detail = _(
+                "Min. mask overlap: {value} — also needs Save Masks enabled "
+                "and animal_method = 'seg', otherwise it degrades to "
+                "bbox_intersects and warns in the report."
+            ).format(value=f"{self._roi_rule_config.min_seg_overlap_ratio:g}")
         else:
-            # centroid_in or others
-            if self.radius_frame:
-                self.radius_frame.pack_forget()
-            if self.overlap_frame:
-                self.overlap_frame.pack_forget()
-            help_text = _("Counts as inside if the geometric centroid is strictly inside the ROI.")
+            detail = _("Centroid strictly inside the ROI. No extra parameters.")
 
-        if self.rule_help_label:
-            self.rule_help_label.config(text=help_text)
-        if self.overlap_hint_label:
-            self.overlap_hint_label.config(text=overlap_hint)
-
-    def _on_apply_roi_settings_clicked(self) -> None:
-        """Handle apply ROI settings button click.
-
-        Emite ``ZONE_APPLY_ROI_SETTINGS`` (persistido em
-        ``project_data["roi_settings"]``) — e não mais
-        ``DETECTOR_UPDATE_PARAMETERS``, que descartava as três chaves em
-        silêncio e ainda logava sucesso.
-
-        Os campos vão CRUS: ``float()`` aqui estoura com texto inválido dentro
-        do callback do Tk e o botão morre sem dizer nada. A validação (e o
-        descarte logado) é do ``resolve_roi_rule``.
-        """
-        self.emit_event(
-            UIEvents.ZONE_APPLY_ROI_SETTINGS,
-            payloads.RoiSettingsApplyPayload(
-                rule=self.roi_inclusion_rule_var.get(),
-                buffer_radius=self.roi_buffer_radius_var.get(),
-                overlap_ratio=self.roi_overlap_ratio_var.get(),
-            ),
-        )
+        self.roi_rule_params_var.set(detail)
 
     # Public API for controlling widget state
 
@@ -1451,11 +1402,8 @@ class ZoneControlsWidget(BaseWidget):
         Recebe a config já resolvida — o painel não conhece a precedência
         projeto > global > default, só mostra o resultado dela.
         """
-        self.roi_inclusion_rule_var.set(config.rule)
-        self.roi_buffer_radius_var.set(f"{config.buffer_radius_value:g}")
-        self.roi_overlap_ratio_var.set(f"{config.min_bbox_overlap_ratio:g}")
-        # Mostra/esconde o parâmetro da regra recém-exibida.
-        self._on_roi_rule_changed(None)
+        self._roi_rule_config = config
+        self._refresh_roi_rule_summary()
 
     def set_draw_roi_enabled(self, enabled: bool) -> None:
         """Enable or disable the draw ROI button."""
@@ -1486,13 +1434,31 @@ class ZoneControlsWidget(BaseWidget):
         if hasattr(self, "single_analysis_options_frame"):
             self.single_analysis_options_frame.pack_forget()
 
-    def show_interactive_buttons(self) -> None:
-        """Show the interactive editing buttons."""
-        # Reinicia o botão "Finalizar Desenho" para uma nova sessão de edição
-        # (ele é esmaecido após o clique como sinal de conclusão).
+    def show_interactive_buttons(self, *, freehand_drawing: bool = False) -> None:
+        """Show the interactive editing buttons.
+
+        Args:
+            freehand_drawing: True when the user is drawing a NEW polygon
+                point-by-point, False when adjusting the vertices of a polygon
+                that already exists (auto-detected, reused, or being re-edited).
+
+        "Close Polygon" only means something while drawing freehand — there it
+        stands in for the closing double-click. During vertex editing the
+        polygon is already closed, so the button is disabled instead of sitting
+        there enabled and doing nothing. That is not cosmetic: its handler only
+        short-circuits once ``edited_polygon_points`` is non-empty, so clicking
+        it after entering edit mode but BEFORE dragging a vertex would fall
+        through to ``on_canvas_double_click``, which operates on the
+        in-progress-drawing state and can revert the polygon.
+        """
         if getattr(self, "finish_drawing_btn", None):
             try:
-                self.finish_drawing_btn.config(state="normal", text=_("✓ Finish Drawing"))
+                if freehand_drawing:
+                    # Fresh drawing session: re-arm (the button greys itself out
+                    # after a click as completion feedback).
+                    self.finish_drawing_btn.config(state="normal", text=_("✓ Close Polygon"))
+                else:
+                    self.finish_drawing_btn.config(state="disabled", text=_("✓ Close Polygon"))
             except tk.TclError:
                 log.debug("zone_controls.finish_drawing.reset_suppressed", exc_info=True)
         if self.interactive_buttons_frame:

@@ -225,20 +225,6 @@ class CommonWidgetsBuilder:
         dialog.wait_window()
         return result[0]
 
-    def update_roi_rule_ui(self, rule: str) -> None:
-        """Handle ROI inclusion rule change and update UI accordingly."""
-        if hasattr(self.gui, "radius_frame") and self.gui.radius_frame:
-            self.gui.radius_frame.pack_forget()
-        if hasattr(self.gui, "overlap_frame") and self.gui.overlap_frame:
-            self.gui.overlap_frame.pack_forget()
-
-        if rule == "centroid_in_on_buffered_roi":
-            if hasattr(self.gui, "radius_frame") and self.gui.radius_frame:
-                self.gui.radius_frame.pack(fill="x", pady=2)
-        elif rule in ("bbox_intersects", "seg_overlap"):
-            if hasattr(self.gui, "overlap_frame") and self.gui.overlap_frame:
-                self.gui.overlap_frame.pack(fill="x", pady=2)
-
     def display_welcome_logo(self) -> None:
         """Display the DRerio LogAI logo in the welcome frame."""
         try:
