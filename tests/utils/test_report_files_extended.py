@@ -8,10 +8,12 @@ from pathlib import Path
 
 from zebtrack.utils.report_files import (
     describe_session_output,
+    find_block_partial_report_files,
     find_summary_excel_file,
     has_summary_excel_output,
     is_summary_excel_file,
     list_session_outputs,
+    normalize_day_number,
 )
 
 
@@ -82,3 +84,35 @@ class TestReportFilesExtended:
         # Should be ordered by pipeline prefix:
         # 1_ProcessingArea, 3_CoordMovimento, 4_RelatorioSumario
         assert listed == [f_arena, f_traj, f_sum]
+
+    def test_normalize_day_number(self):
+        assert normalize_day_number(1) == 1
+        assert normalize_day_number("Dia_2") == 2
+        assert normalize_day_number("D03") == 3
+        assert normalize_day_number("4") == 4
+        assert normalize_day_number("") is None
+        assert normalize_day_number(None) is None
+        assert normalize_day_number("NoDigits") is None
+
+    def test_find_block_partial_report_files(self, tmp_path: Path):
+        assert find_block_partial_report_files(None, day_id=1, group_candidates=["Control"]) == []
+        assert (
+            find_block_partial_report_files(tmp_path, day_id=1, group_candidates=["Control"]) == []
+        )
+
+        reports_dir = tmp_path / "partial_reports"
+        reports_dir.mkdir()
+
+        f_xlsx = reports_dir / "PartialReport_Dia1_Control_summary.xlsx"
+        f_xlsx.touch()
+        f_docx = reports_dir / "PartialReport_Dia1_Control_doc.docx"
+        f_docx.touch()
+        f_other = reports_dir / "PartialReport_Dia2_Treatment.xlsx"
+        f_other.touch()
+
+        found = find_block_partial_report_files(
+            tmp_path, day_id="Dia_1", group_candidates=["Control"]
+        )
+        assert len(found) == 2
+        assert found[0] == f_xlsx
+        assert found[1] == f_docx
