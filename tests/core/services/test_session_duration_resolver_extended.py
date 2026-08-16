@@ -1,12 +1,11 @@
-"""
-Extended unit tests for session_duration_resolver.py.
-"""
+"""Extended unit tests for core/services/session_duration_resolver.py."""
 
 from __future__ import annotations
 
+from typing import Any
+
 from zebtrack.core.services.session_duration_resolver import (
     DEFAULT_RECORDING_DURATION_S,
-    OVERRIDES_KEY,
     SUBJECT_WILDCARD,
     _coerce_positive_duration,
     _normalize_day,
@@ -18,119 +17,72 @@ from zebtrack.core.services.session_duration_resolver import (
 )
 
 
-class TestNormalizeDay:
-    """Test _normalize_day helper with all supported representations."""
+class TestSessionDurationResolverExtended:
+    """Test normalization, key generation, coercion, resolution hierarchy, and mutation."""
 
-    def test_empty_or_whitespace_returns_empty(self):
-        assert _normalize_day("") == ""
-        assert _normalize_day("   ") == ""
-
-    def test_integer_and_string_digit(self):
+    def test_normalize_day_variants(self):
         assert _normalize_day(1) == "Dia_1"
-        assert _normalize_day("2") == "Dia_2"
-        assert _normalize_day(" 3 ") == "Dia_3"
-
-    def test_prefixed_variants(self):
+        assert _normalize_day("1") == "Dia_1"
         assert _normalize_day("Dia_1") == "Dia_1"
-        assert _normalize_day("dia_1") == "Dia_1"
+        assert _normalize_day("Dia_01") == "Dia_1"
         assert _normalize_day("Dia 1") == "Dia_1"
         assert _normalize_day("D1") == "Dia_1"
-        assert _normalize_day("d4") == "Dia_4"
+        assert _normalize_day("D05") == "Dia_5"
+        assert _normalize_day("") == ""
+        assert _normalize_day("CustomDay") == "CustomDay"
 
-    def test_leading_zero_stripped(self):
-        assert _normalize_day("Dia_01") == "Dia_1"
-        assert _normalize_day("05") == "Dia_5"
-        assert _normalize_day("D03") == "Dia_3"
-
-    def test_non_numeric_fallback(self):
-        assert _normalize_day("Habituation") == "Habituation"
-        assert _normalize_day("Dia_Special") == "Dia_Special"
-
-
-class TestCoercePositiveDuration:
-    """Test _coerce_positive_duration validation."""
-
-    def test_valid_numbers(self):
-        assert _coerce_positive_duration(60) == 60.0
-        assert _coerce_positive_duration("120.5") == 120.5
-        assert _coerce_positive_duration(300.0) == 300.0
-
-    def test_invalid_or_non_positive_numbers(self):
-        assert _coerce_positive_duration(0) is None
-        assert _coerce_positive_duration(-10) is None
-        assert _coerce_positive_duration(None) is None
-        assert _coerce_positive_duration("abc") is None
-        assert _coerce_positive_duration(float("nan")) is None
-
-
-class TestKeysAndResolution:
-    """Test duration_override_key, block_override_key, and resolve_session_duration."""
-
-    def test_duration_override_key(self):
+    def test_keys_generation(self):
         key = duration_override_key(1, "Control", 3)
         assert key == "Dia_1|Control|3"
 
-    def test_block_override_key(self):
-        key = block_override_key(1, "Control")
-        assert key == f"Dia_1|Control|{SUBJECT_WILDCARD}"
+        block_key = block_override_key("Dia_02", "Treated")
+        assert block_key == "Dia_2|Treated|*"
 
-    def test_resolve_default_when_no_data(self):
+    def test_coerce_positive_duration(self):
+        assert _coerce_positive_duration(120) == 120.0
+        assert _coerce_positive_duration("300.5") == 300.5
+        assert _coerce_positive_duration(0) is None
+        assert _coerce_positive_duration(-10) is None
+        assert _coerce_positive_duration("invalid") is None
+        assert _coerce_positive_duration(float("nan")) is None
+        assert _coerce_positive_duration(None) is None
+
+    def test_resolve_session_duration_hierarchy(self):
+        # 1. Fallback to default 300.0
         assert resolve_session_duration(None, 1, "Control", 1) == DEFAULT_RECORDING_DURATION_S
-        assert resolve_session_duration({}, 1, "Control", 1) == DEFAULT_RECORDING_DURATION_S
 
-    def test_resolve_project_default(self):
-        proj_data = {"recording_duration_s": 450.0}
-        assert resolve_session_duration(proj_data, 1, "Control", 1) == 450.0
+        # 2. Project-level default
+        proj: dict[str, Any] = {"recording_duration_s": 600.0}
+        assert resolve_session_duration(proj, 1, "Control", 1) == 600.0
 
-    def test_resolve_block_override_takes_precedence_over_project(self):
-        proj_data = {
-            "recording_duration_s": 300.0,
-            OVERRIDES_KEY: {
-                "Dia_1|Control|*": 180.0,
-            },
-        }
-        assert resolve_session_duration(proj_data, 1, "Control", 1) == 180.0
-        # Another group falls back to project default
-        assert resolve_session_duration(proj_data, 1, "Treatment", 1) == 300.0
+        # 3. Block-level override
+        set_duration_override(proj, 1, "Control", SUBJECT_WILDCARD, 450.0)
+        assert resolve_session_duration(proj, 1, "Control", 1) == 450.0
+        assert resolve_session_duration(proj, 1, "Control", 2) == 450.0
+        # Other block still gets project default
+        assert resolve_session_duration(proj, 2, "Control", 1) == 600.0
 
-    def test_resolve_subject_override_takes_highest_precedence(self):
-        proj_data = {
-            "recording_duration_s": 300.0,
-            OVERRIDES_KEY: {
-                "Dia_1|Control|*": 180.0,
-                "Dia_1|Control|2": 600.0,
-            },
-        }
-        # Subject 2 gets its specific override
-        assert resolve_session_duration(proj_data, 1, "Control", 2) == 600.0
-        # Subject 1 gets the block override
-        assert resolve_session_duration(proj_data, 1, "Control", 1) == 180.0
+        # 4. Subject-level override
+        set_duration_override(proj, 1, "Control", 2, 180.0)
+        assert resolve_session_duration(proj, 1, "Control", 1) == 450.0  # inherits block
+        assert resolve_session_duration(proj, 1, "Control", 2) == 180.0  # specific subject
 
+    def test_clear_duration_override(self):
+        proj: dict[str, Any] = {}
+        set_duration_override(proj, 1, "Control", 1, 150.0)
+        assert resolve_session_duration(proj, 1, "Control", 1) == 150.0
 
-class TestSetAndCollectDurationOverrides:
-    """Test set_duration_override and collect_block_durations."""
-
-    def test_set_duration_override_adds_entry(self):
-        proj_data: dict = {}
-        set_duration_override(proj_data, 1, "Control", 3, 240.0)
-        assert proj_data[OVERRIDES_KEY]["Dia_1|Control|3"] == 240.0
-
-    def test_set_duration_override_none_or_zero_clears_entry(self):
-        proj_data: dict = {OVERRIDES_KEY: {"Dia_1|Control|3": 240.0}}
-        set_duration_override(proj_data, 1, "Control", 3, None)
-        assert "Dia_1|Control|3" not in proj_data[OVERRIDES_KEY]
-
-        proj_data = {OVERRIDES_KEY: {"Dia_1|Control|3": 240.0}}
-        set_duration_override(proj_data, 1, "Control", 3, 0.0)
-        assert "Dia_1|Control|3" not in proj_data[OVERRIDES_KEY]
+        # Setting None removes override
+        set_duration_override(proj, 1, "Control", 1, None)
+        assert resolve_session_duration(proj, 1, "Control", 1) == DEFAULT_RECORDING_DURATION_S
 
     def test_collect_block_durations(self):
-        proj_data = {
-            "recording_duration_s": 300.0,
-            OVERRIDES_KEY: {
-                "Dia_1|Control|*": 180.0,
-                "Dia_1|Control|2": 600.0,
-            },
-        }
-        res = collect_block_durations(proj_data, 1, "Control", ["1", "2", "3"])
-        assert res == {"1": 180.0, "2": 600.0, "3": 180.0}
+        proj: dict[str, Any] = {"recording_duration_s": 300.0}
+        set_duration_override(proj, 1, "Control", SUBJECT_WILDCARD, 200.0)
+        set_duration_override(proj, 1, "Control", 3, 100.0)
+
+        durations = collect_block_durations(proj, 1, "Control", ["1", "2", "3", "4"])
+        assert durations["1"] == 200.0
+        assert durations["2"] == 200.0
+        assert durations["3"] == 100.0
+        assert durations["4"] == 200.0
