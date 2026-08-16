@@ -1,6 +1,4 @@
-"""
-Extended unit tests for core exception hierarchy.
-"""
+"""Extended unit tests for core/exceptions.py custom exception hierarchy."""
 
 from __future__ import annotations
 
@@ -12,13 +10,16 @@ from zebtrack.core.exceptions import (
     AnalysisError,
     ArduinoConnectionError,
     ArduinoError,
+    CameraAccessError,
     CameraConnectionError,
     CameraError,
+    CameraNotFoundError,
     ConfigurationError,
     DetectorError,
     FileOperationError,
     FrameProcessingError,
     HardwareError,
+    ModelError,
     ModelLoadError,
     ParquetError,
     ProcessingError,
@@ -42,90 +43,109 @@ from zebtrack.core.exceptions import (
 )
 
 
-class TestExceptionHierarchy:
-    """Test that exception inheritance tree is correct."""
+class TestExceptionsExtended:
+    """Test full exception inheritance hierarchy and custom constructor fields."""
 
-    def test_base_exception_hierarchy(self):
-        assert issubclass(ZebTrackError, Exception)
+    def test_base_zebtrack_error_with_details(self):
+        err = ZebTrackError("base failure", details={"step": 1, "code": "E001"})
+        assert str(err) == "base failure"
+        assert err.details == {"step": 1, "code": "E001"}
 
-    def test_file_operation_errors(self):
-        assert issubclass(FileOperationError, ZebTrackError)
-        assert issubclass(VideoNotFoundError, FileOperationError)
-        assert issubclass(VideoReadError, FileOperationError)
-        assert issubclass(VideoSourceError, FileOperationError)
-        assert issubclass(VideoWriteError, FileOperationError)
-        assert issubclass(CameraError, FileOperationError)
-        assert issubclass(CameraConnectionError, CameraError)
-        assert issubclass(RecorderError, FileOperationError)
-        assert issubclass(ParquetError, FileOperationError)
+    def test_base_zebtrack_error_default_details(self):
+        err = ZebTrackError("simple failure")
+        assert err.details == {}
 
-    def test_detection_errors(self):
-        assert issubclass(DetectorError, ZebTrackError)
-        assert issubclass(ModelLoadError, DetectorError)
+    def test_file_operation_error_hierarchy(self):
+        for exc_cls in [
+            VideoNotFoundError,
+            VideoReadError,
+            VideoSourceError,
+            VideoWriteError,
+            CameraError,
+            CameraNotFoundError,
+            CameraAccessError,
+            CameraConnectionError,
+            RecorderError,
+            ParquetError,
+        ]:
+            instance = exc_cls("file op error")
+            assert isinstance(instance, FileOperationError)
+            assert isinstance(instance, ZebTrackError)
+
+    def test_camera_error_hierarchy(self):
+        for exc_cls in [CameraNotFoundError, CameraAccessError, CameraConnectionError]:
+            instance = exc_cls("camera error")
+            assert isinstance(instance, CameraError)
+            assert isinstance(instance, FileOperationError)
+
+    def test_detector_error_hierarchy(self):
+        for exc_cls in [ModelLoadError, ModelError]:
+            instance = exc_cls("detector error")
+            assert isinstance(instance, DetectorError)
+            assert isinstance(instance, ZebTrackError)
+
         assert issubclass(TrackingError, ZebTrackError)
         assert issubclass(ZoneError, ZebTrackError)
 
-    def test_processing_errors(self):
-        assert issubclass(ProcessingError, ZebTrackError)
-        assert issubclass(FrameProcessingError, ProcessingError)
+    def test_processing_error_hierarchy(self):
+        for exc_cls in [FrameProcessingError]:
+            instance = exc_cls("processing error")
+            assert isinstance(instance, ProcessingError)
+            assert isinstance(instance, ZebTrackError)
+
         assert issubclass(AnalysisError, ZebTrackError)
 
-    def test_hardware_errors(self):
-        assert issubclass(HardwareError, ZebTrackError)
-        assert issubclass(ArduinoError, HardwareError)
-        assert issubclass(ArduinoConnectionError, ArduinoError)
+    def test_hardware_error_hierarchy(self):
+        instance = ArduinoConnectionError("arduino connect failure")
+        assert isinstance(instance, ArduinoError)
+        assert isinstance(instance, HardwareError)
+        assert isinstance(instance, ZebTrackError)
 
-    def test_ui_errors(self):
-        assert issubclass(UIError, ZebTrackError)
-        assert issubclass(ValidationError, UIError)
-        assert issubclass(WizardError, UIError)
+    def test_ui_error_hierarchy(self):
+        for exc_cls in [ValidationError, WizardError]:
+            instance = exc_cls("ui error")
+            assert isinstance(instance, UIError)
+            assert isinstance(instance, ZebTrackError)
 
-    def test_configuration_errors(self):
-        assert issubclass(ConfigurationError, ZebTrackError)
-        assert issubclass(SettingsError, ConfigurationError)
-        assert issubclass(ProjectError, ConfigurationError)
-        assert issubclass(ProjectNotFoundError, ProjectError)
-        assert issubclass(ProjectLoadError, ProjectError)
-        assert issubclass(ProjectSaveError, ProjectError)
-        assert issubclass(ProjectInvalidError, ProjectError)
+    def test_configuration_error_hierarchy(self):
+        for exc_cls in [
+            SettingsError,
+            ProjectError,
+            ProjectNotFoundError,
+            ProjectLoadError,
+            ProjectSaveError,
+            ProjectInvalidError,
+        ]:
+            instance = exc_cls("config error")
+            assert isinstance(instance, ConfigurationError)
+            assert isinstance(instance, ZebTrackError)
 
+    def test_project_invalid_error_full_constructor(self):
+        cause_exc = OSError("Disk read failure")
+        err = ProjectInvalidError(
+            "Project structure invalid",
+            path="C:/Projects/test_proj",
+            cause=cause_exc,
+            details={"corrupted_file": "meta.json"},
+        )
+        assert str(err) == "Project structure invalid"
+        assert err.path == Path("C:/Projects/test_proj")
+        assert err.cause is cause_exc
+        assert err.details == {"corrupted_file": "meta.json"}
 
-class TestZebTrackErrorDetails:
-    """Test ZebTrackError details dict behavior."""
-
-    def test_details_default_empty(self):
-        err = ZebTrackError("oops")
-        assert err.details == {}
-
-    def test_details_stored(self):
-        err = ZebTrackError("bad", details={"code": 404})
-        assert err.details["code"] == 404
-
-    def test_can_catch_as_base(self):
-        with pytest.raises(ZebTrackError):
-            raise VideoNotFoundError("missing.mp4")
-
-
-class TestProjectInvalidError:
-    """Test ProjectInvalidError structured error."""
-
-    def test_message_stored(self):
-        err = ProjectInvalidError("Project corrupt")
-        assert "Project corrupt" in str(err)
-
-    def test_path_coerced_to_path(self):
-        err = ProjectInvalidError("bad", path="/some/path")
-        assert err.path == Path("/some/path")
-
-    def test_path_none(self):
-        err = ProjectInvalidError("bad")
+    def test_project_invalid_error_path_none(self):
+        err = ProjectInvalidError("Invalid project", path=None)
         assert err.path is None
+        assert err.cause is None
 
-    def test_cause_stored(self):
-        cause = ValueError("inner")
-        err = ProjectInvalidError("bad", cause=cause)
-        assert err.cause is cause
+    def test_project_invalid_error_path_already_path_instance(self):
+        p = Path("C:/Projects/exp1")
+        err = ProjectInvalidError("Error with path", path=p)
+        assert err.path == p
 
-    def test_details_forwarded(self):
-        err = ProjectInvalidError("bad", details={"hint": "check file"})
-        assert err.details["hint"] == "check file"
+    def test_raising_and_catching_custom_exceptions(self):
+        with pytest.raises(ZebTrackError, match="Video not found"):
+            raise VideoNotFoundError("Video not found at path")
+
+        with pytest.raises(ProjectError, match="Cannot save"):
+            raise ProjectSaveError("Cannot save project")
