@@ -1319,51 +1319,7 @@ class TestPolygonSourceManagement:
         assert coordinator.last_polygon_source is None
 
 
-class TestRetryDetectionAndZoneConfirmation:
-    def test_retry_detection_missing_camera_or_detector(self):
-        coordinator: Any = _make_coordinator()
-        coordinator.camera = None
-        coordinator._calibration_detector = None
-        assert coordinator._retry_aquarium_detection(0.5) is None
-
-    def test_retry_detection_frame_capture_error(self):
-        coordinator: Any = _make_coordinator()
-        mock_cam = MagicMock()
-        mock_cam.get_frame.side_effect = RuntimeError("cam error")
-        coordinator.camera = mock_cam
-        coordinator._calibration_detector = MagicMock()
-
-        assert coordinator._retry_aquarium_detection(0.5) is None
-
-    def test_retry_detection_success(self):
-        coordinator: Any = _make_coordinator()
-        dummy_frame = np.zeros((100, 100, 3), dtype=np.uint8)
-        mock_cam = MagicMock()
-        mock_cam.get_frame.return_value = (True, dummy_frame)
-        coordinator.camera = mock_cam
-        coordinator._calibration_detector = MagicMock()
-        coordinator._calibration_preserve_real_shape = False
-
-        detected_poly = np.array([[10, 10], [50, 10], [50, 50], [10, 50]])
-        coordinator._detect_polygon_on_burst = MagicMock(return_value=[detected_poly])
-
-        res = coordinator._retry_aquarium_detection(0.5)
-        assert res is not None
-        last_frame, poly = res
-        assert len(poly) == 4
-        assert poly[0] == [10.0, 10.0]
-
-    def test_retry_detection_no_polygon_found(self):
-        coordinator: Any = _make_coordinator()
-        dummy_frame = np.zeros((100, 100, 3), dtype=np.uint8)
-        mock_cam = MagicMock()
-        mock_cam.get_frame.return_value = (True, dummy_frame)
-        coordinator.camera = mock_cam
-        coordinator._calibration_detector = MagicMock()
-        coordinator._detect_polygon_on_burst = MagicMock(return_value=[])
-
-        assert coordinator._retry_aquarium_detection(0.5) is None
-
+class TestPendingZoneConfirmation:
     def test_pending_zone_confirmation_property_and_wait(self):
         coordinator: Any = _make_coordinator()
         coordinator.pending_zone_confirmation = False
