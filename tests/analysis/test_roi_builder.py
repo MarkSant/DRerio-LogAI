@@ -1,97 +1,51 @@
-"""Tests for roi_builder (Phase 5.6c)."""
+"""
+Unit tests for zebtrack.analysis.roi_builder.
+"""
 
 from __future__ import annotations
-
-import pytest
-from shapely.geometry import Polygon
 
 from zebtrack.analysis.roi import ROI
 from zebtrack.analysis.roi_builder import build_roi_from_polygon, build_rois_from_zone_polygons
 
 
-# ---------------------------------------------------------------------------
-# build_roi_from_polygon
-# ---------------------------------------------------------------------------
-class TestBuildRoiFromPolygon:
-    """Tests for build_roi_from_polygon."""
-
-    def test_valid_triangle(self) -> None:
-        """Triangle (3 vertices) produces a valid ROI."""
-        roi = build_roi_from_polygon("tri", [(0, 0), (10, 0), (5, 10)])
-        assert roi is not None
-        assert isinstance(roi, ROI)
-        assert roi.name == "tri"
-        assert isinstance(roi.geometry, Polygon)
-        assert roi.coordinate_space == "px"
-
-    def test_valid_rectangle(self) -> None:
-        """Rectangle (4 vertices) produces a valid ROI."""
-        roi = build_roi_from_polygon("rect", [(0, 0), (10, 0), (10, 10), (0, 10)])
-        assert roi is not None
-        assert roi.name == "rect"
-        assert roi.geometry.area == pytest.approx(100.0)
-
-    def test_custom_coordinate_space(self) -> None:
-        """Custom coordinate_space is preserved."""
-        roi = build_roi_from_polygon("r", [(0, 0), (1, 0), (1, 1), (0, 1)], coordinate_space="cm")
-        assert roi is not None
-        assert roi.coordinate_space == "cm"
-
-    def test_degenerate_polygon_two_points(self) -> None:
-        """Polygon with < 3 vertices returns None."""
-        assert build_roi_from_polygon("bad", [(0, 0), (1, 1)]) is None
-
-    def test_degenerate_polygon_empty(self) -> None:
-        """Empty vertex list returns None."""
-        assert build_roi_from_polygon("empty", []) is None
+def test_build_roi_from_polygon_invalid_coordinates():
+    # Empty
+    assert build_roi_from_polygon("ROI_1", []) is None
+    # Less than 3 vertices
+    assert build_roi_from_polygon("ROI_1", [(0.0, 0.0), (10.0, 10.0)]) is None
 
 
-# ---------------------------------------------------------------------------
-# build_rois_from_zone_polygons
-# ---------------------------------------------------------------------------
-class TestBuildRoisFromZonePolygons:
-    """Tests for build_rois_from_zone_polygons."""
+def test_build_roi_from_polygon_valid():
+    coords = [(0.0, 0.0), (10.0, 0.0), (10.0, 10.0), (0.0, 10.0)]
+    roi = build_roi_from_polygon("Zone_A", coords, coordinate_space="cm")
+    assert roi is not None
+    assert isinstance(roi, ROI)
+    assert roi.name == "Zone_A"
+    assert roi.coordinate_space == "cm"
+    assert roi.geometry.area == 100.0
 
-    def test_multiple_polygons(self) -> None:
-        """Builds ROIs from multiple polygons."""
-        polys: list[list[tuple[float, float]]] = [
-            [(0.0, 0.0), (10.0, 0.0), (10.0, 10.0), (0.0, 10.0)],
-            [(20.0, 20.0), (30.0, 20.0), (30.0, 30.0), (20.0, 30.0)],
-        ]
-        names = ["Zone A", "Zone B"]
-        rois = build_rois_from_zone_polygons(polys, names)
-        assert len(rois) == 2
-        assert rois[0].name == "Zone A"
-        assert rois[1].name == "Zone B"
 
-    def test_with_offset(self) -> None:
-        """Offset is subtracted from all vertex coordinates."""
-        poly: list[list[tuple[float, float]]] = [
-            [(100.0, 200.0), (110.0, 200.0), (110.0, 210.0), (100.0, 210.0)]
-        ]
-        names = ["Shifted"]
-        rois = build_rois_from_zone_polygons(poly, names, offset=(100.0, 200.0))
-        assert len(rois) == 1
-        # After offset: (0,0), (10,0), (10,10), (0,10)
-        assert rois[0].geometry.area == pytest.approx(100.0)
+def test_build_rois_from_zone_polygons_empty():
+    assert build_rois_from_zone_polygons([], []) == []
 
-    def test_fallback_names(self) -> None:
-        """When names list is shorter, ROI_<i> fallback is used."""
-        polys: list[list[tuple[float, float]]] = [
-            [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)],
-            [(2.0, 2.0), (3.0, 2.0), (3.0, 3.0), (2.0, 3.0)],
-        ]
-        rois = build_rois_from_zone_polygons(polys, names=["First"])
-        assert len(rois) == 2
-        assert rois[0].name == "First"
-        assert rois[1].name == "ROI_1"
 
-    def test_skips_degenerate(self) -> None:
-        """Degenerate polygons (< 3 vertices) are silently skipped."""
-        polys: list[list[tuple[float, float]]] = [
-            [(0.0, 0.0), (10.0, 0.0), (10.0, 10.0)],
-            [(5.0, 5.0)],  # degenerate
-        ]
-        rois = build_rois_from_zone_polygons(polys, names=["Good", "Bad"])
-        assert len(rois) == 1
-        assert rois[0].name == "Good"
+def test_build_rois_from_zone_polygons_with_offset_and_fallback_names():
+    poly1 = [(10.0, 10.0), (20.0, 10.0), (20.0, 20.0), (10.0, 20.0)]
+    poly2 = [(30.0, 30.0), (40.0, 30.0), (40.0, 40.0), (30.0, 40.0)]
+    poly_degenerate = [(50.0, 50.0), (51.0, 51.0)]
+
+    polygons = [poly1, poly2, poly_degenerate]
+    names = ["Custom_1"]  # Only 1 name provided; second should fallback to ROI_1
+
+    offset = (10.0, 10.0)
+    rois = build_rois_from_zone_polygons(polygons, names, offset=offset)
+
+    assert len(rois) == 2
+    assert rois[0].name == "Custom_1"
+    # Translated by (-10, -10): vertices become (0,0), (10,0), (10,10), (0,10)
+    bounds = rois[0].geometry.bounds
+    assert bounds == (0.0, 0.0, 10.0, 10.0)
+
+    assert rois[1].name == "ROI_1"
+    bounds2 = rois[1].geometry.bounds
+    assert bounds2 == (20.0, 20.0, 30.0, 30.0)
