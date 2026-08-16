@@ -25,14 +25,33 @@ import cv2
 import numpy as np
 from PIL import Image, ImageTk
 
+from zebtrack.core.detection.aquarium_retry import (
+    RETRY_REASON_CAPTURE_ERROR,
+    RETRY_REASON_NO_CAMERA,
+    RETRY_REASON_NO_FRAMES,
+    AquariumRetryOutcome,
+    normalize_retry_outcome,
+)
 from zebtrack.i18n import _
 
 if TYPE_CHECKING:
     from tkinter import Misc
 
 
-RetryResult = tuple[np.ndarray, list[list[float]]] | None
+RetryResult = tuple[np.ndarray, list[list[float]]] | AquariumRetryOutcome | None
 RetryCallback = Callable[[float], RetryResult]
+
+
+def _retry_failure_message(reason: str) -> str:
+    """Translate a failure tag into an actionable sentence for the operator."""
+    if reason == RETRY_REASON_NO_CAMERA:
+        return _("Camera unavailable — detection could not run. Reconnect it and try again.")
+    if reason == RETRY_REASON_NO_FRAMES:
+        return _("No frame could be captured from the camera. Check the connection.")
+    if reason == RETRY_REASON_CAPTURE_ERROR:
+        return _("Error reading from the camera — detection did not run.")
+    return _("No aquarium found at this threshold. Lower it and try again.")
+
 
 # Pick radius (canvas pixels) for selecting a vertex with the mouse. Matches
 # the visible vertex marker drawn by ``_draw_polygon_on_frame`` (radius 5 px
@@ -294,19 +313,29 @@ class PreviewPolygonDialog:
         self.dialog.update_idletasks()
 
         try:
-            outcome = self._on_retry(confidence)
+            outcome = normalize_retry_outcome(self._on_retry(confidence))
         # except Exception justified: callback may invoke ML inference; we
         # must not let it crash the dialog.
         except Exception as exc:
-            outcome = None
             self._status_var.set(_("Detection failed: {error}").format(error=exc))
         else:
-            if outcome is None:
-                self._status_var.set(_("No aquarium found — adjust the threshold and try again."))
+            if not outcome.succeeded:
+                # The canvas is deliberately left untouched (the previous
+                # polygon is still the best candidate), so the message is the
+                # ONLY feedback the operator gets — it has to name the cause and
+                # the threshold that produced it, otherwise a failed retry is
+                # indistinguishable from a button that did nothing.
+                self._status_var.set(
+                    _("{detail} (threshold {value})").format(
+                        detail=_retry_failure_message(outcome.reason),
+                        value=f"{confidence:.2f}",
+                    )
+                )
             else:
-                new_frame, new_polygon = outcome
-                self.frame = new_frame
-                self._retried_frame = new_frame
+                new_polygon = outcome.polygon or []
+                if outcome.frame is not None:
+                    self.frame = outcome.frame
+                    self._retried_frame = outcome.frame
                 self.polygon = new_polygon
                 # Successful retry replaces the polygon with a fresh model
                 # output → clear any prior manual-edit flag and reset badge.

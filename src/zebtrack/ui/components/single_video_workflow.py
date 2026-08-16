@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING
 
 import structlog
 
+from zebtrack.core.project.output_registration_manager import LIVE_REFERENCE_FRAME_FILENAME
 from zebtrack.i18n import _
 from zebtrack.ui import payloads
 from zebtrack.ui.decorators import public_api
@@ -196,13 +197,22 @@ class SingleVideoWorkflow:
             ),
         )
 
-        # Projetos LIVE não têm arquivo de vídeo para auto-detectar — a arena
+        # Fluxos LIVE não têm arquivo de vídeo para auto-detectar — a arena
         # precisa ser detectada a partir do feed da câmera ao vivo. Roteia para
         # o fluxo de calibração pela câmera (mesmo caminho do
         # ZoneCalibrationDialog → "auto") em vez de publicar ZONE_AUTO_DETECT
         # com um path vazio, que cascateia no ``AquariumDetector`` tentando
         # abrir ``.`` como vídeo e falhando com "Cannot open video file: .".
-        if not video_path and self._route_live_auto_detect(gui, stabilization_frames_int):
+        #
+        # O reference-frame PNG conta como "sem vídeo": depois da PRIMEIRA
+        # calibração ao vivo o coordinator o define como ``active_zone_video``
+        # (é a chave estável de ``zones_by_video``), então um segundo clique em
+        # auto-detectar via ``video_path`` truthy cairia no caminho de arquivo e
+        # o ``AquariumDetector`` tentaria abrir um PNG como vídeo. Redetectar ao
+        # vivo tem de voltar para a câmera, não para a imagem congelada.
+        if (
+            not video_path or Path(str(video_path)).name == LIVE_REFERENCE_FRAME_FILENAME
+        ) and self._route_live_auto_detect(gui, stabilization_frames_int):
             return
 
         # Read num_aquariums para a auto-detecção multi-aquário.
@@ -235,20 +245,35 @@ class SingleVideoWorkflow:
         )
 
     def _route_live_auto_detect(self, gui: ApplicationGUI, stabilization_frames: int) -> bool:
-        """Route auto-detect to the live camera when the project is LIVE.
+        """Route auto-detect to the live camera when the flow is LIVE-like.
 
         Returns ``True`` when the request was handled here (the caller must then
-        stop), ``False`` when this is not a live project and the caller should
-        fall through to the pre-recorded video path.
+        stop), ``False`` when this is a pre-recorded video and the caller should
+        fall through to the video-file path.
 
-        Live projects have no video file: the arena is detected from the camera
+        Live flows have no video file: the arena is detected from the camera
         via ``LiveCalibrationCoordinator.run_live_calibration`` — the same call
         the ``ZoneCalibrationDialog`` "auto" option makes. 30 stabilization
         frames give the camera time to adjust exposure before detection.
+
+        "Live-like" means a live PROJECT **or** no project at all. The ad-hoc
+        single-video live analysis (LiveAnalysisDialog from the main window) has
+        no project, so ``project_data`` is ``{}`` and ``get_project_type()``
+        returns ``None``. Gating on ``== "live"`` alone therefore fell through to
+        ``ZONE_AUTO_DETECT`` with an empty ``video_path``, which
+        ``video_processing_coordinator`` drops with a bare ``return`` — the
+        button looked dead: no detection, no dialog, no error. This mirrors the
+        ``is_live_like`` rule ``LiveCalibrationCoordinator.ensure_zones_before_recording``
+        already uses for exactly the same distinction.
         """
         controller = getattr(gui, "controller", None)
         project_manager = getattr(controller, "project_manager", None) if controller else None
-        if project_manager is None or project_manager.get_project_type() != "live":
+        if project_manager is None:
+            return False
+        is_live_like = project_manager.get_project_type() == "live" or not getattr(
+            project_manager, "project_path", None
+        )
+        if not is_live_like:
             return False
 
         calibration_coordinator = getattr(controller, "live_calibration_coordinator", None)

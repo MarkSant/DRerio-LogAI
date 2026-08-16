@@ -105,6 +105,26 @@ yolo_model:
   # Typical: 0.3-0.7
   nms_threshold: 0.5
 
+  # Runaway-bbox gate: rejects an animal detection whose area is far above the
+  # rolling median of recently accepted areas. Without it, a box that explodes
+  # after the tracker loses the animal is written to the trajectory parquet and
+  # can trigger the Arduino ROI dispatch for an animal that is not there.
+  # Compared against a rolling median (not an absolute size) so it adapts to
+  # species, zoom and camera distance.
+  bbox_area_gate_enabled: true
+
+  # Max area as a multiple of the rolling median. 3.0 is conservative — it
+  # catches obvious explosions while leaving room for an animal genuinely
+  # approaching the camera. Lower it to react sooner (more false rejections).
+  bbox_area_median_ratio_max: 3.0
+
+  # How many recently accepted areas feed the rolling median.
+  bbox_area_history_window: 30
+
+  # Accepted areas required before the gate starts rejecting. Below this the
+  # median is not trustworthy yet, so everything passes.
+  bbox_area_gate_warmup: 10
+
   # OPTIMIZATION: Performance settings for inference
   # Enable FP16 (half precision) inference on GPU
   # Auto-disabled if CUDA is not available; provides ~2x speedup on NVIDIA GPUs
