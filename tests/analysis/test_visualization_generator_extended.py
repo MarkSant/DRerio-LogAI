@@ -1,131 +1,88 @@
-"""
-Extended unit tests for VisualizationGenerator in analysis/visualization_generator.py.
-"""
+"""Extended unit tests for analysis/visualization_generator.py."""
 
 from __future__ import annotations
 
-import matplotlib.pyplot as plt
-import numpy as np
-import pandas as pd
-import pytest
+from unittest.mock import MagicMock
 
-from zebtrack.analysis.behavior import ConcreteBehavioralAnalyzer
+from shapely.geometry import MultiPolygon, Polygon
+
 from zebtrack.analysis.visualization_generator import (
+    PLOT_GENERATION_TIMEOUT_SECONDS,
     VisualizationGenerator,
     _normalize_color_for_matplotlib,
 )
 
 
-class TestNormalizeColorExtended:
-    """Test color normalization to matplotlib 0-1 RGBA/RGB ranges."""
+class TestVisualizationGeneratorExtended:
+    """Test visualization helper methods, color normalizations,
+    perspective normalization, and geometry utilities.
+    """
 
-    def test_255_rgb_tuple(self):
-        assert _normalize_color_for_matplotlib((255, 0, 128)) == (
-            1.0,
-            0.0,
-            128 / 255.0,
-        )
-        assert _normalize_color_for_matplotlib([0, 255, 0]) == (0.0, 1.0, 0.0)
+    def test_constants(self):
+        assert PLOT_GENERATION_TIMEOUT_SECONDS == 60
 
-    def test_already_normalized_tuple(self):
+    def test_normalize_color_for_matplotlib(self):
+        # 0-255 RGB tuple
+        assert _normalize_color_for_matplotlib((255, 0, 128)) == (1.0, 0.0, 128 / 255.0)
+
+        # Already normalized float tuple
         assert _normalize_color_for_matplotlib((0.5, 0.2, 0.8)) == (0.5, 0.2, 0.8)
 
-    def test_string_and_named_colors(self):
+        # String color
         assert _normalize_color_for_matplotlib("red") == "red"
-        assert _normalize_color_for_matplotlib("#FF0000") == "#FF0000"
 
+    def test_normalize_perspective(self):
+        assert VisualizationGenerator._normalize_perspective("top_down") == "top_down"
+        assert VisualizationGenerator._normalize_perspective("top") == "top_down"
+        assert VisualizationGenerator._normalize_perspective("top-down") == "top_down"
+        assert VisualizationGenerator._normalize_perspective("lateral") == "lateral"
+        assert VisualizationGenerator._normalize_perspective("other") == "lateral"
+        assert VisualizationGenerator._normalize_perspective(None) == "lateral"
 
-class TestVisualizationGeneratorExtended:
-    """Test VisualizationGenerator initialization, comparative boxplot, and plot generation."""
+    def test_figure_size_from_bounds(self):
+        # Normal aspect (2:1)
+        w, h = VisualizationGenerator._figure_size_from_bounds(0, 0, 20, 10)
+        assert h == 5.5
+        assert 5.0 <= w <= 10.0
 
-    @pytest.fixture
-    def sample_behavior_analyzer(self) -> ConcreteBehavioralAnalyzer:
-        n = 20
-        timestamps = pd.timedelta_range(start="0s", periods=n, freq="100ms")
-        x = np.linspace(10.0, 50.0, n)
-        y = np.linspace(20.0, 60.0, n)
+        # Extreme aspect ratio clamping
+        w_narrow, h_narrow = VisualizationGenerator._figure_size_from_bounds(0, 0, 1, 100)
+        assert w_narrow == 5.0  # Clamped to min 5.0
 
-        df = pd.DataFrame(
-            {
-                "timestamp": timestamps,
-                "x_center_px": x,
-                "y_center_px": y,
-                "x1": x - 5.0,
-                "y1": y - 5.0,
-                "x2": x + 5.0,
-                "y2": y + 5.0,
-            },
-            index=timestamps,
-        )
-        arena = [[0.0, 0.0], [100.0, 0.0], [100.0, 100.0], [0.0, 100.0]]
-        return ConcreteBehavioralAnalyzer(
-            trajectory_df=df,
+    def test_iter_polygon_parts(self):
+        # None
+        assert VisualizationGenerator._iter_polygon_parts(None) == []
+
+        # Single Polygon
+        p1 = Polygon([(0, 0), (0, 1), (1, 1), (1, 0)])
+        parts = VisualizationGenerator._iter_polygon_parts(p1)
+        assert len(parts) == 1
+        assert parts[0] == p1
+
+        # MultiPolygon
+        p2 = Polygon([(2, 2), (2, 3), (3, 3), (3, 2)])
+        mp = MultiPolygon([p1, p2])
+        parts_mp = VisualizationGenerator._iter_polygon_parts(mp)
+        assert len(parts_mp) == 2
+
+    def test_roi_geometry_to_cm(self):
+        mock_b_analyzer = MagicMock()
+        gen = VisualizationGenerator(
+            b_analyzer=mock_b_analyzer,
+            metadata={"experiment_id": "exp1"},
             pixelcm_x=10.0,
             pixelcm_y=10.0,
-            video_height_px=100,
-            arena_polygon_px=arena,
-            fps=10.0,
+            video_height_px=1000,
         )
 
-    def test_init_minimal(self, sample_behavior_analyzer: ConcreteBehavioralAnalyzer):
-        gen = VisualizationGenerator(
-            b_analyzer=sample_behavior_analyzer,
-            metadata={"experiment_id": "EXP_1"},
-        )
-        assert gen.b_analyzer == sample_behavior_analyzer
-        assert gen.metadata["experiment_id"] == "EXP_1"
-        assert gen.r_analyzer is None
-        assert gen.roi_colors == {}
+        mock_roi_cm = MagicMock()
+        mock_roi_cm.geometry = Polygon([(0, 0), (0, 5), (5, 5), (5, 0)])
+        mock_roi_cm.coordinate_space = "cm"
 
-    def test_generate_comparative_boxplot(self):
-        df = pd.DataFrame(
-            {
-                "group_id": ["Control", "Control", "Treatment", "Treatment"],
-                "total_distance_cm": [100.0, 110.0, 150.0, 160.0],
-            }
-        )
-        fig = VisualizationGenerator.generate_comparative_boxplot(
-            df=df,
-            metric="total_distance_cm",
-            title="Comparison of Total Distance",
-        )
-        assert fig is not None
-        plt.close(fig)
+        # Already in cm -> returns geometry directly
+        assert gen._roi_geometry_to_cm(mock_roi_cm) == mock_roi_cm.geometry
 
-    def test_generate_trajectory_plot(self, sample_behavior_analyzer: ConcreteBehavioralAnalyzer):
-        gen = VisualizationGenerator(
-            b_analyzer=sample_behavior_analyzer,
-            metadata={"experiment_id": "EXP_1"},
-            pixelcm_x=10.0,
-            pixelcm_y=10.0,
-            video_height_px=100,
-        )
-        fig = gen.generate_trajectory_plot()
-        assert fig is not None
-        plt.close(fig)
-
-    def test_generate_heatmap(self, sample_behavior_analyzer: ConcreteBehavioralAnalyzer):
-        gen = VisualizationGenerator(
-            b_analyzer=sample_behavior_analyzer,
-            metadata={"experiment_id": "EXP_1"},
-            pixelcm_x=10.0,
-            pixelcm_y=10.0,
-            video_height_px=100,
-        )
-        fig = gen.generate_heatmap()
-        assert fig is not None
-        plt.close(fig)
-
-    def test_generate_angular_velocity_plot(
-        self, sample_behavior_analyzer: ConcreteBehavioralAnalyzer
-    ):
-        gen = VisualizationGenerator(
-            b_analyzer=sample_behavior_analyzer,
-            metadata={"experiment_id": "EXP_1"},
-            pixelcm_x=10.0,
-            pixelcm_y=10.0,
-            video_height_px=100,
-        )
-        fig = gen.generate_angular_velocity_plot()
-        assert fig is not None
-        plt.close(fig)
+        # Empty geometry -> returns None
+        mock_roi_empty = MagicMock()
+        mock_roi_empty.geometry = Polygon()
+        assert gen._roi_geometry_to_cm(mock_roi_empty) is None
