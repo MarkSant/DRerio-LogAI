@@ -307,3 +307,58 @@ def test_temporary_single_animal_mode(coordinator):
         assert coordinator.settings.video_processing.single_animal_per_aquarium is False
         assert coordinator.settings.tracking.use_single_subject_tracker is False
         assert mock_publish.call_count == 2
+
+
+class TestRelocateResultsFolders:
+    def test_relocate_no_outputs(self, coordinator):
+        coordinator._relocate_multi_aquarium_folders("v.mp4", {}, [])  # Should not raise
+
+    def test_relocate_with_files(self, coordinator, tmp_path):
+        video_path = str(tmp_path / "video.mp4")
+        old_dir = tmp_path / "old_results"
+        old_dir.mkdir()
+        dummy_file = old_dir / "3_CoordMovimento_video_aq1.parquet"
+        dummy_file.write_text("data")
+
+        new_dir = tmp_path / "new_results"
+
+        coordinator.project_manager.project_path = str(tmp_path)
+        coordinator.project_manager.resolve_results_directory.return_value = new_dir
+
+        entry = {
+            "multi_aquarium_outputs": {
+                "0": {
+                    "results_dir": str(old_dir),
+                    "parquet_files": {"trajectory": str(dummy_file)},
+                }
+            }
+        }
+        configs = [{"aquarium_id": 0, "group": "G_new", "subject_id": "S_new", "day": "1"}]
+
+        coordinator._relocate_multi_aquarium_folders(video_path, entry, configs)
+
+        assert not old_dir.exists()
+        assert new_dir.exists()
+        assert (new_dir / "3_CoordMovimento_video_aq1.parquet").exists()
+        assert entry["multi_aquarium_outputs"]["0"]["results_dir"] == str(new_dir)
+
+
+class TestResolveSingleAnimalMode:
+    def test_from_top_level_flag(self, coordinator):
+        coordinator.project_manager.project_data = {"single_animal_per_aquarium": True}
+        assert coordinator._resolve_single_animal_mode() is True
+
+        coordinator.project_manager.project_data = {"single_animal_per_aquarium": False}
+        assert coordinator._resolve_single_animal_mode() is False
+
+    def test_from_config(self, coordinator):
+        assert coordinator._resolve_single_animal_mode({"single_animal_per_aquarium": True}) is True
+        assert coordinator._resolve_single_animal_mode({"animals_per_aquarium": 1}) is True
+        assert coordinator._resolve_single_animal_mode({"animals_per_aquarium": 3}) is False
+
+    def test_from_calibration_animals_per_aquarium(self, coordinator):
+        coordinator.project_manager.project_data = {"calibration": {"animals_per_aquarium": 1}}
+        assert coordinator._resolve_single_animal_mode() is True
+
+        coordinator.project_manager.project_data = {"calibration": {"animals_per_aquarium": 4}}
+        assert coordinator._resolve_single_animal_mode() is False

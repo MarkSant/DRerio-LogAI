@@ -376,3 +376,73 @@ class TestUserFeedback:
             controller.view, "stop_analysis_view_mode"
         )
         controller.ui_coordinator.set_status.assert_called_once()
+
+
+class TestProcessingUIAndDiagnostics:
+    def test_activate_analysis_view_mode(self, controller):
+        controller.activate_analysis_view_mode()
+        event_obj = controller.ui_event_bus.publish.call_args[0][0]
+        assert event_obj.type == UIEvents.UI_NAVIGATE_TO_ANALYSIS_VIEW
+
+    def test_activate_analysis_view_mode_no_event_bus(self, controller):
+        controller.ui_event_bus = None
+        controller.view = Mock()
+        controller.activate_analysis_view_mode()
+        controller.ui_coordinator.update_view.assert_called_once_with(
+            controller.view, "start_analysis_view_mode"
+        )
+
+    def test_prepare_processing_ui(self, controller):
+        controller.view = Mock()
+        controller._prepare_processing_ui(5)
+        controller.ui_coordinator.show_progress_bar.assert_called_once_with(controller.view)
+        controller.project_manager.set_active_zone_video.assert_called_once_with(None)
+
+    def test_finalize_processing_success_and_cancelled(self, controller):
+        controller.view = Mock()
+
+        # Cancelled
+        controller._finalize_processing(
+            was_cancelled=True, videos_to_process=[{}], final_output_dir="/out"
+        )
+        controller.ui_coordinator.hide_progress_bar.assert_called_with(controller.view)
+
+        # Success
+        controller._finalize_processing(
+            was_cancelled=False, videos_to_process=[{}], final_output_dir="/out"
+        )
+        assert controller.ui_coordinator.show_info.call_count == 2
+
+    def test_diagnostic_progress_helpers(self, controller):
+        mock_dialog = Mock()
+
+        # Update without current/total
+        controller._update_diagnostic_progress(mock_dialog, "working")
+        controller.root.after.assert_called_with(0, mock_dialog.update_progress, "working")
+
+        # Update with current/total
+        controller._update_diagnostic_progress(mock_dialog, "working", 1, 10)
+        controller.root.after.assert_called_with(0, mock_dialog.update_progress, "working", 1, 10)
+
+        # Finish dialog
+        controller._finish_progress_dialog(mock_dialog)
+        controller.root.after.assert_called_with(0, mock_dialog.finish)
+
+
+class TestSetActiveWeightExtended:
+    def test_set_active_weight_with_openvino_conversion(self, controller):
+        controller.main_view_model.get_all_weight_names.return_value = ["model.pt"]
+        controller.main_view_model.use_openvino = True
+        controller.convert_active_weight_to_openvino = Mock()
+
+        controller.set_active_weight("model.pt")
+
+        assert controller.main_view_model.active_weight_name == "model.pt"
+        controller.convert_active_weight_to_openvino.assert_called_once()
+
+    def test_set_active_weight_not_found(self, controller):
+        controller.main_view_model.get_all_weight_names.return_value = ["model.pt"]
+
+        controller.set_active_weight("unknown.pt")
+
+        assert controller.main_view_model.active_weight_name == ""

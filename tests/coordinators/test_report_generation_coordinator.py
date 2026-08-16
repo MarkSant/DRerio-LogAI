@@ -385,3 +385,92 @@ class TestMultiSummaryProcessing:
         )
         assert status == "failed"
         assert "DB error" in msg
+
+
+class TestProcessOneAquariumSummary:
+    def test_trajectory_file_missing_returns_none(self, coordinator):
+        res = coordinator._process_one_aquarium_summary(
+            {}, "exp1", "v.mp4", 0, {"parquet_files": {}}, MagicMock(), coordinator.settings, []
+        )
+        assert res is None
+
+    def test_aquarium_not_in_multi_zone(self, coordinator, tmp_path):
+        traj_p = tmp_path / "traj.parquet"
+        traj_p.write_text("data")
+        multi_zone = MagicMock(aquariums=[])
+
+        res = coordinator._process_one_aquarium_summary(
+            {},
+            "exp1",
+            "v.mp4",
+            0,
+            {"parquet_files": {"trajectory": str(traj_p)}},
+            multi_zone,
+            coordinator.settings,
+            [],
+        )
+        assert res is None
+
+    def test_empty_dataframe_returns_none(self, coordinator, tmp_path):
+        traj_p = tmp_path / "traj.parquet"
+        traj_p.write_text("data")
+        mock_aq = MagicMock(id=0)
+        multi_zone = MagicMock(aquariums=[mock_aq])
+        coordinator._read_trajectory = MagicMock(return_value=pd.DataFrame())
+
+        res = coordinator._process_one_aquarium_summary(
+            {},
+            "exp1",
+            "v.mp4",
+            0,
+            {"parquet_files": {"trajectory": str(traj_p)}},
+            multi_zone,
+            coordinator.settings,
+            [],
+        )
+        assert res is None
+
+    def test_process_one_aquarium_summary_success(self, coordinator, tmp_path):
+        traj_p = tmp_path / "traj.parquet"
+        traj_p.write_text("data")
+        mock_aq = MagicMock(
+            id=0,
+            polygon=[[0, 0], [10, 0], [10, 10], [0, 10]],
+            roi_polygons=[],
+            roi_names=[],
+            roi_colors=[],
+        )
+        multi_zone = MagicMock(aquariums=[mock_aq])
+        df = pd.DataFrame({"x": [1, 2], "y": [3, 4], "time": [0.1, 0.2]})
+        coordinator.project_manager.project_data = {"calibration": {}}
+        coordinator._read_trajectory = MagicMock(return_value=df)
+        coordinator._prepare_summary_geometry = MagicMock(
+            return_value=(10.0, 10.0, [[0, 0], [10, 10]], 480, [], [], {})
+        )
+
+        mock_reporter = MagicMock()
+        mock_reporter.generate_reports.return_value = {
+            "summary_parquet": str(tmp_path / "sum.parquet")
+        }
+
+        with (
+            patch("zebtrack.analysis.reporters.ReporterContext", return_value=MagicMock()),
+            patch("zebtrack.analysis.reporters.ParquetSummaryReporter", return_value=mock_reporter),
+        ):
+            out_info = {
+                "results_dir": str(tmp_path),
+                "parquet_files": {"trajectory": str(traj_p)},
+                "group": "G1",
+                "subject_id": "S1",
+                "day": "1",
+            }
+            video_entry: dict[str, Any] = {"multi_aquarium_outputs": {"0": {"parquet_files": {}}}}
+            res = coordinator._process_one_aquarium_summary(
+                video_entry, "exp1", "v.mp4", 0, out_info, multi_zone, coordinator.settings, []
+            )
+            expected_summary_path = str(tmp_path / "exp1_aq1_summary.parquet")
+            assert res == expected_summary_path
+            assert (
+                video_entry["multi_aquarium_outputs"]["0"]["parquet_files"]["summary"]
+                == expected_summary_path
+            )

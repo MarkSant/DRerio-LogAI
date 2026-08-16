@@ -434,3 +434,211 @@ class TestOnLiveServiceSessionStopped:
         coordinator._finalize_live_session_ui.assert_called_once_with(
             cancelled=False, publish_refresh=True, service_success=True
         )
+
+
+class TestPendingAndResumeFlows:
+    def test_publish_pending_with_calibration_source(
+        self, coordinator, mock_live_calibration_coordinator, mock_event_bus
+    ):
+        mock_live_calibration_coordinator.last_polygon_source = "auto"
+        ctx = {"experiment_id": "exp_1", "group": "G1", "day": "D1", "subject": "S1"}
+
+        coordinator._publish_pending(ctx)
+
+        mock_event_bus.publish.assert_called_once()
+        event_obj = mock_event_bus.publish.call_args[0][0]
+        assert event_obj.type == UIEvents.LIVE_RECORDING_PENDING
+        assert event_obj.data.polygon_source == "auto"
+
+    def test_publish_pending_no_event_bus(self, coordinator):
+        coordinator.event_bus = None
+        coordinator._publish_pending({})  # Should not raise
+
+    def test_on_resume_requested_no_pending_context(self, coordinator):
+        coordinator._pending_live_context = None
+        coordinator._pending_live_kind = None
+        coordinator._on_resume_requested()  # Should return safely
+
+    def test_on_resume_requested_project_kind(self, coordinator):
+        coordinator._pending_live_context = {
+            "day_int": 1,
+            "group": "G1",
+            "subject": "S1",
+            "duration_s": 60.0,
+            "camera_index_override": 0,
+            "camera_friendly_name_override": "Cam1",
+        }
+        coordinator._pending_live_kind = "project"
+        coordinator.start_live_project_session = Mock()
+
+        coordinator._on_resume_requested()
+
+        coordinator.start_live_project_session.assert_called_once_with(
+            day=1,
+            group="G1",
+            subject="S1",
+            duration_s=60.0,
+            camera_index_override=0,
+            camera_friendly_name_override="Cam1",
+            zones_validated=True,
+        )
+
+    def test_on_resume_requested_config_kind(self, coordinator):
+        coordinator._pending_live_context = {"config": {"key": "val"}}
+        coordinator._pending_live_kind = "config"
+        coordinator.start_session_from_config = Mock()
+
+        coordinator._on_resume_requested()
+
+        coordinator.start_session_from_config.assert_called_once_with(
+            config={"key": "val"},
+            zones_validated=True,
+        )
+
+    def test_on_resume_requested_exception_shows_error(self, coordinator, mock_event_bus):
+        coordinator._pending_live_context = {"day_int": 1, "group": "G", "subject": "S"}
+        coordinator._pending_live_kind = "project"
+        coordinator.start_live_project_session = Mock(side_effect=RuntimeError("Hardware issue"))
+
+        coordinator._on_resume_requested()
+
+        mock_event_bus.publish.assert_called_once()
+        event_obj = mock_event_bus.publish.call_args[0][0]
+        assert event_obj.type == UIEvents.UI_SHOW_ERROR
+
+
+class TestSessionInfo:
+    def test_get_live_session_info_not_active(self, coordinator):
+        coordinator._active_live_session_id = None
+        assert coordinator.get_live_session_info() is None
+
+    def test_get_live_session_info_active(self, coordinator, mock_state_manager):
+        coordinator._active_live_session_id = "sess_123"
+        mock_proc = Mock(camera_index=0, experiment_id="exp_1", duration_s=100.0)
+        mock_state_manager.get_processing_state.return_value = mock_proc
+
+        info = coordinator.get_live_session_info()
+        assert info is not None
+        assert info["session_id"] == "sess_123"
+        assert info["is_active"] is True
+        assert info["camera_index"] == 0
+
+
+class TestBatchSessionRegistration:
+    def test_register_batch_session_no_wizard_data(self, coordinator):
+        coordinator._active_wizard_data = None
+        coordinator._register_batch_session()  # Should not raise
+
+    def test_register_batch_session_incomplete_fields(self, coordinator):
+        coordinator._active_wizard_data = {"experimental_group": "G1"}  # missing day and subject
+        coordinator._register_batch_session()
+        assert coordinator._active_wizard_data is None
+
+    def test_register_batch_session_with_batch_coordinator(self, coordinator):
+        coordinator._active_wizard_data = {
+            "experimental_group": "G1",
+            "experiment_day": "D1",
+            "subject_id": "S1",
+            "recording_duration_s": 60.0,
+            "camera_index": 0,
+            "is_batch_last_session": True,
+        }
+        coordinator._active_live_session_id = "exp_batch"
+        coordinator._find_video_in_live_session = Mock(return_value=Path("/tmp/live.mp4"))
+
+        mock_batch_coord = Mock()
+        mock_batch_coord.register_session.return_value = "batch_001"
+        coordinator.live_batch_coordinator = mock_batch_coord
+
+        coordinator._register_batch_session()
+
+        mock_batch_coord.register_session.assert_called_once()
+        mock_batch_coord.mark_batch_complete.assert_called_once_with("batch_001")
+        assert coordinator._active_wizard_data is None
+
+
+class TestArduinoExternalTriggerFlows:
+    def test_on_arduino_event_start_with_pending_context(self, coordinator, mock_event_bus):
+        coordinator._pending_trigger_context = {
+            "experiment_id": "exp_arduino_1",
+            "day_int": 1,
+            "group": "Control",
+            "subject": "Fish1",
+            "duration_s": 120.0,
+            "camera_index_override": 0,
+            "camera_friendly_name_override": "Cam 0",
+        }
+        coordinator.start_live_project_session = Mock()
+
+        coordinator.on_arduino_event(1)
+
+        assert coordinator._pending_trigger_context is None
+        coordinator.start_live_project_session.assert_called_once_with(
+            day=1,
+            group="Control",
+            subject="Fish1",
+            duration_s=120.0,
+            camera_index_override=0,
+            camera_friendly_name_override="Cam 0",
+            zones_validated=True,
+            external_trigger_armed=True,
+        )
+
+    def test_on_arduino_event_start_without_context(self, coordinator):
+        coordinator._pending_trigger_context = None
+        coordinator.start_live_project_session = Mock()
+
+        coordinator.on_arduino_event(1)
+
+        coordinator.start_live_project_session.assert_not_called()
+
+    def test_on_arduino_event_stop_with_pending_context(self, coordinator):
+        coordinator._pending_trigger_context = {"dummy": True}
+        coordinator.clear_pending_external_trigger = Mock()
+
+        coordinator.on_arduino_event(0)
+
+        coordinator.clear_pending_external_trigger.assert_called_once()
+
+    def test_on_arduino_event_stop_active_session(self, coordinator):
+        coordinator._pending_trigger_context = None
+        coordinator.is_live_session_active = Mock(return_value=True)
+        coordinator.stop_live_session = Mock()
+
+        coordinator.on_arduino_event(0)
+
+        coordinator.stop_live_session.assert_called_once()
+
+    def test_on_arduino_event_other_code_ignored(self, coordinator):
+        coordinator.start_live_project_session = Mock()
+        coordinator.stop_live_session = Mock()
+
+        coordinator.on_arduino_event(42)
+
+        coordinator.start_live_project_session.assert_not_called()
+        coordinator.stop_live_session.assert_not_called()
+
+    def test_clear_pending_external_trigger(self, coordinator, mock_event_bus):
+        coordinator._pending_trigger_context = {"dummy": True}
+        coordinator.clear_pending_external_trigger()
+
+        assert coordinator._pending_trigger_context is None
+        mock_event_bus.publish.assert_called()
+
+
+class TestFindVideoInLiveSession:
+    def test_find_video_when_present(self, coordinator, tmp_path):
+        session_dir = tmp_path / "live_session"
+        session_dir.mkdir()
+        video_file = session_dir / "recorded.mp4"
+        video_file.write_text("dummy")
+
+        coordinator.live_camera_service.current_output_dir = str(session_dir)
+        found = coordinator._find_video_in_live_session()
+
+        assert found is not None
+        assert found.name == "recorded.mp4"
+
+    def test_find_video_when_dir_missing(self, coordinator):
+        coordinator.live_camera_service.current_output_dir = None
+        assert coordinator._find_video_in_live_session() is None
