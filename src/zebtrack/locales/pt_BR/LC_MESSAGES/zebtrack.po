@@ -4236,6 +4236,55 @@ msgstr "sair"
 msgid "{name} {edge} → {token} → (no reply)"
 msgstr "{name} {edge} → {token} → (sem resposta)"
 
+#: src/zebtrack/ui/components/arduino_bindings_panel.py:447
+#, python-brace-format
+msgid "{status} {name} {edge} → {token} → firmware replied: \"{ack}\""
+msgstr "{status} {name} {edge} → {token} → firmware respondeu: \"{ack}\""
+
+#: src/zebtrack/ui/components/arduino_bindings_panel.py:466
+msgid ""
+"Note: the quoted text comes from the Arduino sketch, not from the Device "
+"field — it keeps the sketch's own channel names even when the pin drives "
+"something else."
+msgstr ""
+"Nota: o texto entre aspas vem do sketch do Arduino, não do campo Dispositivo "
+"— ele mantém os nomes de canal do próprio sketch mesmo quando o pino aciona "
+"outra coisa."
+
+#: src/zebtrack/core/viewmodels/hardware_status_view_model.py:186
+#, python-brace-format
+msgid "Command {command} sent ({source})"
+msgstr "Comando {command} enviado ({source})"
+
+#: src/zebtrack/core/viewmodels/hardware_status_view_model.py:188
+#, python-brace-format
+msgid "Command {command} failed ({source})"
+msgstr "Comando {command} falhou ({source})"
+
+#: src/zebtrack/core/recording/live_analysis_post_processor.py:648
+#, python-brace-format
+msgid ""
+"\n"
+"💡 Files generated:\n"
+"{lines}\n"
+msgstr ""
+"\n"
+"💡 Arquivos gerados:\n"
+"{lines}\n"
+
+#: src/zebtrack/ui/dialogs/block_detail_dialog.py:1396
+#, python-brace-format
+msgid ""
+"NOTE — {dropped} additional column(s) were omitted here to keep the table "
+"readable. The complete data is in the accompanying spreadsheet."
+msgstr ""
+"NOTA — {dropped} coluna(s) adicional(is) foram omitidas aqui para manter a "
+"tabela legível. Os dados completos estão na planilha que acompanha."
+
+#: src/zebtrack/ui/dialogs/block_detail_dialog.py:1341
+msgid "Metric"
+msgstr "Métrica"
+
 #: src/zebtrack/ui/components/arduino_bindings_panel.py:444
 #, python-brace-format
 msgid ""

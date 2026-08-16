@@ -179,10 +179,17 @@ class HardwareStatusViewModel:
             UIEvents.UI_UPDATE_ARDUINO_COMMAND,
             UIUpdateArduinoCommandPayload(command=command, success=success, source=source),
         )
-        status = "enviado" if success else "falhou"
+        # Was hardcoded Portuguese outside ``_()`` ("Comando {n} enviado"),
+        # which the i18n contract forbids: English is the source language and
+        # pt_BR lives in the catalogue.
+        message = (
+            _("Command {command} sent ({source})")
+            if success
+            else _("Command {command} failed ({source})")
+        ).format(command=command, source=source)
         self._publish_arduino_ui(
             UIEvents.UI_APPEND_ARDUINO_LOG,
-            UIAppendArduinoLogPayload(message=f"Comando {command} {status} ({source})"),
+            UIAppendArduinoLogPayload(message=message),
         )
 
     def _get_arduino_manager(self):

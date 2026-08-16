@@ -49,6 +49,81 @@ def has_summary_excel_output(results_dir: Path | str | None) -> bool:
     return find_summary_excel_file(results_dir) is not None
 
 
+# Human labels for the session outputs, keyed by the filename prefix the
+# writers actually use. Ordered: the list is rendered in this order so the
+# researcher reads the outputs in pipeline order rather than alphabetically.
+#
+# Deliberately keyed on PREFIX rather than an exhaustive filename: several
+# outputs are conditional (``2_AreasOfInterest`` only with ROIs,
+# ``3b_Mascaras`` only with ``recorder.persist_masks`` + a seg model,
+# ``5_ClosedLoop`` only with Arduino), so any static list is wrong for some
+# fraction of sessions. The caller lists the real directory and looks each
+# entry up here.
+# The trailing underscore is part of the contract: every writer emits
+# ``<prefix>_<base>``. Keeping it makes the match exact-by-construction (a
+# hypothetical ``4_RelatorioX`` cannot be mistaken for ``4_Relatorio_``) and
+# keeps these strings recognisable as the persistence contract they are —
+# i18n: not-ui, they are filenames, never translated.
+_SESSION_OUTPUT_LABELS: tuple[tuple[str, str], ...] = (
+    ("1_ProcessingArea_", "arena / processing area"),
+    ("2_AreasOfInterest_", "ROIs"),
+    ("3_CoordMovimento_", "trajectory"),
+    ("3b_Mascaras_", "segmentation masks"),
+    ("4_Relatorio_", "report"),
+    ("4_RelatorioSumario_", "summary"),
+    ("5_RelatorioIndividual_", "individual report"),
+    ("5_ClosedLoop_", "closed-loop latency (frame -> LED)"),
+    ("6_FrameLedger_", "frame ledger (real capture timeline)"),
+    ("_recording_metadata", "recording metadata"),
+)
+
+
+def describe_session_output(path: Path) -> str:
+    """Return ``"<filename> (<what it is>)"`` for a session output file.
+
+    Unknown files degrade to the bare filename: listing something without a
+    label beats hiding it, because the directory listing is the ground truth
+    the researcher will compare against.
+    """
+    name = path.name
+    # Longest prefix first so ``3b_Mascaras`` is not shadowed by ``3_`` style
+    # prefixes and ``4_RelatorioSumario`` is not shadowed by ``4_Relatorio``.
+    for prefix, label in sorted(_SESSION_OUTPUT_LABELS, key=lambda kv: -len(kv[0])):
+        if name.startswith(prefix):
+            return f"{name} ({label})"
+    if path.suffix.lower() in {".mp4", ".avi"}:
+        return f"{name} (recorded video)"
+    return name
+
+
+def list_session_outputs(results_dir: Path | str | None) -> list[Path]:
+    """Return the files a live session actually produced, in pipeline order.
+
+    Built by listing the directory instead of hardcoding names. The previous
+    hardcoded completion message named two files that do not exist
+    (``*_trajectory.parquet``, ``*_zones.parquet``) and an extension never
+    written (``.avi``), while omitting the reports, the closed-loop log and the
+    frame ledger.
+    """
+    if results_dir is None:
+        return []
+
+    folder = Path(results_dir)
+    if not folder.exists() or not folder.is_dir():
+        return []
+
+    order = {prefix: index for index, (prefix, _label) in enumerate(_SESSION_OUTPUT_LABELS)}
+
+    def _sort_key(path: Path) -> tuple[int, str]:
+        for prefix, index in sorted(order.items(), key=lambda kv: -len(kv[0])):
+            if path.name.startswith(prefix):
+                return (index, path.name.lower())
+        # Unknown files (including the recorded video) go last, alphabetically.
+        return (len(order), path.name.lower())
+
+    return sorted((p for p in folder.iterdir() if p.is_file()), key=_sort_key)
+
+
 def normalize_day_number(day_id: str | int | None) -> int | None:
     """Normalize ``1``, ``Dia_1`` or ``D1`` to an integer day number."""
     if isinstance(day_id, int):
