@@ -37,6 +37,7 @@ def controller():
         active_weight_name="w1",
         use_openvino=False,
         _using_project_overrides=False,
+        get_openvino_status=Mock(return_value="status"),
     )
 
     return UIStateController(
@@ -173,5 +174,99 @@ def test_set_openvino_usage_publishes_and_updates(controller):
             data=UIUpdateOpenVinoCheckboxPayload(is_checked=True),
         )
     )
+    controller.convert_active_weight_to_openvino.assert_called_once_with("dlg")
+    controller.update_openvino_status.assert_called_once_with("dlg")
+
+
+def test__schedule_on_ui(controller):
+    from unittest.mock import Mock
+
+    func = Mock()
+    controller._schedule_on_ui(func, 1, a=2)
+    controller.ui_coordinator.schedule.assert_called_once_with(func, 1, a=2)
+
+
+def test_refresh_project_views_no_view(controller):
+    controller.view = None
+    controller.refresh_project_views()
+
+
+def test_refresh_project_views_with_view(controller):
+    from unittest.mock import Mock
+
+    mock_view = Mock()
+    controller.view = mock_view
+    controller.refresh_project_views(reason="test", append_summary=True, immediate=False)
+    controller.ui_coordinator.schedule.assert_called_once_with(
+        mock_view.refresh_project_views, "test", append_summary=True, immediate=False
+    )
+
+
+def test__publish_processing_mode_override(controller):
+    from zebtrack.core.video.processing_mode import ProcessingMode
+    from zebtrack.ui.event_bus_v2 import UIEvents
+
+    controller._publish_processing_mode(mode_override=ProcessingMode.SINGLE_SUBJECT)
+    calls = controller.ui_event_bus.publish.call_args_list
+    assert len(calls) == 1
+    event_obj = calls[0].args[0]
+    assert event_obj.type == UIEvents.UI_UPDATE_PROCESSING_MODE
+    assert event_obj.data.report.mode == ProcessingMode.SINGLE_SUBJECT
+
+
+def test__publish_processing_mode_fallback(controller):
+    from zebtrack.core.video.processing_mode import ProcessingMode
+
+    controller.main_view_model.processing_coordinator = None
+    controller.main_view_model._active_processing_mode = ProcessingMode.MULTI_TRACK
+    controller._publish_processing_mode()
+    calls = controller.ui_event_bus.publish.call_args_list
+    assert calls[0].args[0].data.report.mode == ProcessingMode.MULTI_TRACK
+
+
+def test_convert_active_weight_to_openvino_success(controller):
+    controller.main_view_model.active_weight_name = "w1"
+    controller.convert_active_weight_to_openvino(None)
+    controller.model_service.convert_to_openvino.assert_called_once_with("w1")
+    calls = controller.ui_event_bus.publish.call_args_list
+    # Should publish 'Converting...' then 'Conversion check finished...'
+    assert len(calls) == 3  # includes update_openvino_status
+
+
+def test_convert_active_weight_to_openvino_error(controller):
+    from zebtrack.core.services.weight_manager import OpenVINOExportError
+    from zebtrack.ui.event_bus_v2 import UIEvents
+
+    controller.main_view_model.active_weight_name = "w1"
+    controller.model_service.convert_to_openvino.side_effect = OpenVINOExportError("err")
+    controller.convert_active_weight_to_openvino(None)
+    calls = controller.ui_event_bus.publish.call_args_list
+    assert any(c.args[0].type == UIEvents.UI_SHOW_ERROR for c in calls)
+
+
+def test_update_openvino_status(controller):
+    from unittest.mock import Mock
+
+    controller.main_view_model.get_openvino_status.return_value = "status"
+    dialog = Mock()
+    controller.update_openvino_status(dialog)
+    dialog.update_openvino_status_label.assert_called_once_with("status")
+
+
+def test_set_openvino_usage_updates_device_and_config(controller):
+    from unittest.mock import Mock
+
+    controller.main_view_model.use_openvino = False
+    controller.main_view_model.active_weight_name = "w1"
+    settings_obj = Mock()
+    controller.main_view_model.settings_obj = settings_obj
+    controller.convert_active_weight_to_openvino = Mock()
+    controller.update_openvino_status = Mock()
+
+    controller.set_openvino_usage(True, dialog="dlg", device="GPU")
+
+    assert controller.main_view_model.use_openvino is True
+    assert settings_obj.openvino.device == "GPU"
+    assert settings_obj.openvino.device_batch == "GPU"
     controller.convert_active_weight_to_openvino.assert_called_once_with("dlg")
     controller.update_openvino_status.assert_called_once_with("dlg")
