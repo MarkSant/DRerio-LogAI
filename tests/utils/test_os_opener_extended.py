@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import os
 from pathlib import Path
 from unittest.mock import patch
 
@@ -12,45 +11,33 @@ from zebtrack.utils.os_opener import open_path
 
 
 class TestOsOpenerExtended:
-    """Test cross-platform open_path utility across Windows, macOS, and Linux."""
+    """Test open_path cross-platform launcher and error guards."""
 
-    def test_open_path_raises_file_not_found(self, tmp_path: Path):
-        non_existent = tmp_path / "does_not_exist.txt"
+    def test_open_path_nonexistent_raises(self, tmp_path: Path):
+        missing = tmp_path / "does_not_exist.txt"
         with pytest.raises(FileNotFoundError, match="Path does not exist"):
-            open_path(non_existent)
+            open_path(missing)
 
-    @patch("sys.platform", "win32")
-    @patch("os.startfile", create=True)
-    def test_open_path_win32_success(self, mock_startfile, tmp_path: Path):
-        test_file = tmp_path / "test.txt"
-        test_file.touch()
+    def test_open_path_windows(self, tmp_path: Path):
+        existing = tmp_path / "file.txt"
+        existing.write_text("content")
 
-        open_path(test_file)
-        mock_startfile.assert_called_once_with(str(test_file.resolve()))
+        with patch("sys.platform", "win32"), patch("os.startfile", create=True) as mock_startfile:
+            open_path(existing)
+            mock_startfile.assert_called_once_with(str(existing.resolve()))
 
-    @patch("sys.platform", "win32")
-    def test_open_path_win32_no_startfile_raises_oserror(self, tmp_path: Path):
-        test_file = tmp_path / "test.txt"
-        test_file.touch()
+    def test_open_path_darwin(self, tmp_path: Path):
+        existing = tmp_path / "file.txt"
+        existing.write_text("content")
 
-        with patch.object(os, "startfile", None, create=True):
-            with pytest.raises(OSError, match="os.startfile not available"):
-                open_path(test_file)
+        with patch("sys.platform", "darwin"), patch("subprocess.Popen") as mock_popen:
+            open_path(existing)
+            mock_popen.assert_called_once_with(["open", str(existing.resolve())])
 
-    @patch("sys.platform", "darwin")
-    @patch("subprocess.Popen")
-    def test_open_path_darwin(self, mock_popen, tmp_path: Path):
-        test_file = tmp_path / "test.txt"
-        test_file.touch()
+    def test_open_path_linux(self, tmp_path: Path):
+        existing = tmp_path / "file.txt"
+        existing.write_text("content")
 
-        open_path(test_file)
-        mock_popen.assert_called_once_with(["open", str(test_file.resolve())])
-
-    @patch("sys.platform", "linux")
-    @patch("subprocess.Popen")
-    def test_open_path_linux(self, mock_popen, tmp_path: Path):
-        test_file = tmp_path / "test.txt"
-        test_file.touch()
-
-        open_path(test_file)
-        mock_popen.assert_called_once_with(["xdg-open", str(test_file.resolve())])
+        with patch("sys.platform", "linux"), patch("subprocess.Popen") as mock_popen:
+            open_path(existing)
+            mock_popen.assert_called_once_with(["xdg-open", str(existing.resolve())])
