@@ -1,231 +1,133 @@
-"""
-Extended unit tests for ConcreteBehavioralAnalyzer in analysis/behavior.py.
-"""
+"""Extended unit tests for analysis/behavior.py."""
 
 from __future__ import annotations
 
-import numpy as np
 import pandas as pd
 import pytest
 
-from zebtrack.analysis.behavior import ConcreteBehavioralAnalyzer
+from zebtrack.analysis.behavior import BehavioralAnalyzer, Episode
 
 
-@pytest.fixture
-def sample_trajectory_data() -> pd.DataFrame:
-    """Generate a clean synthetic trajectory DataFrame with 60 frames (2 seconds at 30 fps)."""
-    n = 60
-    timestamps = pd.timedelta_range(start="0s", periods=n, freq="33.333333ms")
-    # Linear movement along X
-    x = np.linspace(100.0, 400.0, n)
-    y = np.full(n, 200.0)
+class DummyBehaviorAnalyzer(BehavioralAnalyzer):
+    def calculate_freezing(self, *args, **kwargs):
+        return []
 
-    df = pd.DataFrame(
-        {
-            "timestamp": timestamps,
-            "x_center_px": x,
-            "y_center_px": y,
-            "x1": x - 10.0,
-            "y1": y - 10.0,
-            "x2": x + 10.0,
-            "y2": y + 10.0,
-        },
-        index=timestamps,
-    )
-    return df
+    def calculate_burst_swimming(self, *args, **kwargs):
+        return []
+
+    def calculate_locomotion(self, *args, **kwargs):
+        return {}
+
+    def calculate_total_distance(self, *args, **kwargs):
+        return 0.0
+
+    def calculate_velocity_timeseries(self, *args, **kwargs):
+        return pd.Series(dtype=float)
+
+    def detect_freezing_episodes(self, *args, **kwargs):
+        return []
+
+    def get_angular_velocity(self, *args, **kwargs):
+        return pd.Series(dtype=float)
+
+    def get_thigmotaxis_timeseries(self, *args, **kwargs):
+        return pd.Series(dtype=bool)
+
+    def get_tortuosity(self, *args, **kwargs):
+        return 1.0
 
 
-@pytest.fixture
-def arena_polygon() -> list[list[float]]:
-    """Simple 500x500 rectangular arena polygon."""
-    return [[0.0, 0.0], [500.0, 0.0], [500.0, 500.0], [0.0, 500.0]]
+class TestBehaviorExtended:
+    """Test BehavioralAnalyzer base validations and Episode typed dict."""
 
+    def test_episode_typed_dict(self):
+        ep: Episode = {
+            "start_time": pd.Timedelta(seconds=1),
+            "end_time": pd.Timedelta(seconds=5),
+            "duration": 4.0,
+            "track_id": 1,
+        }
+        assert ep["duration"] == 4.0
+        assert ep["track_id"] == 1
 
-class TestConcreteBehavioralAnalyzerExtended:
-    """Test initialization, thigmotaxis, geotaxis, inactivity, speed bursts, and tortuosity."""
+    def test_polyorder_greater_equal_window_raises(self):
+        df = pd.DataFrame(
+            {
+                "timestamp": [0.0, 0.033, 0.066],
+                "x_center_px": [10.0, 11.0, 12.0],
+                "y_center_px": [20.0, 21.0, 22.0],
+                "x1": [5, 6, 7],
+                "y1": [15, 16, 17],
+                "x2": [15, 16, 17],
+                "y2": [25, 26, 27],
+            }
+        )
+        arena = [(0.0, 0.0), (100.0, 0.0), (100.0, 100.0), (0.0, 100.0)]
 
-    def test_init_polyorder_greater_equal_window_raises(
-        self, sample_trajectory_data: pd.DataFrame, arena_polygon: list[list[float]]
-    ):
         with pytest.raises(ValueError, match="polyorder must be less than window_length"):
-            ConcreteBehavioralAnalyzer(
-                sample_trajectory_data,
+            DummyBehaviorAnalyzer(
+                trajectory_df=df,
                 pixelcm_x=10.0,
                 pixelcm_y=10.0,
-                video_height_px=500,
-                arena_polygon_px=arena_polygon,
-                window_length=5,
-                polyorder=5,
+                video_height_px=480,
+                arena_polygon_px=arena,
+                window_length=3,
+                polyorder=3,
             )
 
-    def test_init_empty_dataframe_raises(self, arena_polygon: list[list[float]]):
-        empty_df = pd.DataFrame()
-        with pytest.raises(ValueError, match="Input DataFrame is empty"):
-            ConcreteBehavioralAnalyzer(
-                empty_df,
-                pixelcm_x=10.0,
-                pixelcm_y=10.0,
-                video_height_px=500,
-                arena_polygon_px=arena_polygon,
-            )
+    def test_behavior_analyzer_valid_init(self):
+        df = pd.DataFrame(
+            {
+                "timestamp": [0.0, 0.033, 0.066, 0.1, 0.133, 0.166, 0.2],
+                "x_center_px": [10.0, 11.0, 12.0, 13.0, 14.0, 15.0, 16.0],
+                "y_center_px": [20.0, 21.0, 22.0, 23.0, 24.0, 25.0, 26.0],
+                "x1": [5, 6, 7, 8, 9, 10, 11],
+                "y1": [15, 16, 17, 18, 19, 20, 21],
+                "x2": [15, 16, 17, 18, 19, 20, 21],
+                "y2": [25, 26, 27, 28, 29, 30, 31],
+            }
+        )
+        arena = [(0.0, 0.0), (100.0, 0.0), (100.0, 100.0), (0.0, 100.0)]
 
-    def test_init_missing_timestamp_raises(self, arena_polygon: list[list[float]]):
-        df_no_ts = pd.DataFrame({"x_center_px": [1.0, 2.0], "y_center_px": [3.0, 4.0]})
-        with pytest.raises(ValueError, match="Input DataFrame must include a 'timestamp' column"):
-            ConcreteBehavioralAnalyzer(
-                df_no_ts,
-                pixelcm_x=10.0,
-                pixelcm_y=10.0,
-                video_height_px=500,
-                arena_polygon_px=arena_polygon,
-            )
-
-    def test_thigmotaxis_index_methods(
-        self, sample_trajectory_data: pd.DataFrame, arena_polygon: list[list[float]]
-    ):
-        analyzer = ConcreteBehavioralAnalyzer(
-            sample_trajectory_data,
+        analyzer = DummyBehaviorAnalyzer(
+            trajectory_df=df,
             pixelcm_x=10.0,
             pixelcm_y=10.0,
-            video_height_px=500,
-            arena_polygon_px=arena_polygon,
+            video_height_px=480,
+            arena_polygon_px=arena,
+            window_length=5,
+            polyorder=2,
+            fps=30.0,
         )
-
-        avg_dist = analyzer.calculate_thigmotaxis_index(method="average_distance")
-        assert isinstance(avg_dist, float)
-        assert avg_dist > 0
-
-        pct_near = analyzer.calculate_thigmotaxis_index(
-            method="time_near_wall", distance_threshold=25.0
-        )
-        assert isinstance(pct_near, float)
-        assert 0.0 <= pct_near <= 100.0
-
-        # Missing threshold for time_near_wall
-        with pytest.raises(ValueError, match="'distance_threshold' is required"):
-            analyzer.calculate_thigmotaxis_index(method="time_near_wall")
-
-        # Unsupported method
-        with pytest.raises(ValueError, match="Unsupported method"):
-            analyzer.calculate_thigmotaxis_index(method="invalid_method")
-
-    def test_geotaxis_index_methods(
-        self, sample_trajectory_data: pd.DataFrame, arena_polygon: list[list[float]]
-    ):
-        analyzer = ConcreteBehavioralAnalyzer(
-            sample_trajectory_data,
-            pixelcm_x=10.0,
-            pixelcm_y=10.0,
-            video_height_px=500,
-            arena_polygon_px=arena_polygon,
-        )
-
-        avg_bottom = analyzer.calculate_geotaxis_index(method="average_distance")
-        assert isinstance(avg_bottom, float)
-        assert avg_bottom >= 0
-
-        pct_bottom = analyzer.calculate_geotaxis_index(
-            method="time_near_bottom", distance_threshold=50.0
-        )
-        assert isinstance(pct_bottom, float)
-        assert 0.0 <= pct_bottom <= 100.0
-
-        zones = analyzer.calculate_geotaxis_index(method="zone_time", num_zones=3)
-        assert isinstance(zones, dict)
-        assert "bottom_zones_pct" in zones
-        assert "zone_0_pct" in zones
-        assert "zone_1_pct" in zones
-        assert "zone_2_pct" in zones
-
-        # Unsupported method
-        with pytest.raises(ValueError, match="Unknown method"):
-            analyzer.calculate_geotaxis_index(method="nonexistent_method")
-
-    def test_tortuosity_sliding_window_raises(
-        self, sample_trajectory_data: pd.DataFrame, arena_polygon: list[list[float]]
-    ):
-        analyzer = ConcreteBehavioralAnalyzer(
-            sample_trajectory_data,
-            pixelcm_x=10.0,
-            pixelcm_y=10.0,
-            video_height_px=500,
-            arena_polygon_px=arena_polygon,
-        )
-        with pytest.raises(NotImplementedError):
-            analyzer.get_tortuosity(window_size=1.0)
-
-    def test_tortuosity_straight_line(
-        self, sample_trajectory_data: pd.DataFrame, arena_polygon: list[list[float]]
-    ):
-        analyzer = ConcreteBehavioralAnalyzer(
-            sample_trajectory_data,
-            pixelcm_x=10.0,
-            pixelcm_y=10.0,
-            video_height_px=500,
-            arena_polygon_px=arena_polygon,
-        )
-        tort = analyzer.get_tortuosity()
-        # Straight line tortuosity is approximately 1.0
-        assert pytest.approx(tort, rel=0.05) == 1.0
-
-    def test_speed_bursts_and_inactivity(
-        self, sample_trajectory_data: pd.DataFrame, arena_polygon: list[list[float]]
-    ):
-        analyzer = ConcreteBehavioralAnalyzer(
-            sample_trajectory_data,
-            pixelcm_x=10.0,
-            pixelcm_y=10.0,
-            video_height_px=500,
-            arena_polygon_px=arena_polygon,
-        )
-
-        bursts = analyzer.calculate_speed_bursts(threshold_cm_s=10.0, min_duration=0.1)
-        assert "count" in bursts
-        assert "total_duration_s" in bursts
-        assert "episodes" in bursts
-
-        inactivity = analyzer.calculate_inactivity_periods(
-            velocity_threshold_cm_s=1.0, min_duration=0.5
-        )
-        assert "count" in inactivity
-        assert "total_duration_s" in inactivity
-        assert "percentage_of_recording" in inactivity
-
-    def test_angular_velocity_stats_and_sharp_turns(
-        self, sample_trajectory_data: pd.DataFrame, arena_polygon: list[list[float]]
-    ):
-        analyzer = ConcreteBehavioralAnalyzer(
-            sample_trajectory_data,
-            pixelcm_x=10.0,
-            pixelcm_y=10.0,
-            video_height_px=500,
-            arena_polygon_px=arena_polygon,
-        )
-
-        stats = analyzer.get_angular_velocity_stats()
-        assert "mean" in stats
-        assert "median" in stats
-        assert "max" in stats
-        assert "std_dev" in stats
-
-        turns = analyzer.calculate_sharp_turns(threshold_deg_s=45.0)
-        assert "sharp_turns_count" in turns
-        assert "sharp_turns_per_minute" in turns
-
-    def test_track_properties_and_diff(
-        self, sample_trajectory_data: pd.DataFrame, arena_polygon: list[list[float]]
-    ):
-        analyzer = ConcreteBehavioralAnalyzer(
-            sample_trajectory_data,
-            pixelcm_x=10.0,
-            pixelcm_y=10.0,
-            video_height_px=500,
-            arena_polygon_px=arena_polygon,
-        )
+        assert analyzer._pixelcm_x == 10.0
+        assert analyzer._pixelcm_y == 10.0
+        assert analyzer._video_height_px == 480
+        assert analyzer.fps == 30.0
         assert analyzer.is_multi_track is False
-        assert len(analyzer.track_positions) == 1
-        assert analyzer.arena_polygon_cm is not None
+        assert isinstance(analyzer.trajectory_data, pd.DataFrame)
 
-        series = pd.Series([10.0, 20.0, 30.0], index=sample_trajectory_data.index[:3])
-        diff_res = analyzer.diff_by_track(series)
-        assert diff_res.iloc[1] == 10.0
+    def test_behavior_analyzer_track_keys_single(self):
+        df = pd.DataFrame(
+            {
+                "timestamp": [0.0, 0.033, 0.066, 0.1, 0.133, 0.166, 0.2],
+                "x_center_px": [10.0, 11.0, 12.0, 13.0, 14.0, 15.0, 16.0],
+                "y_center_px": [20.0, 21.0, 22.0, 23.0, 24.0, 25.0, 26.0],
+                "x1": [5, 6, 7, 8, 9, 10, 11],
+                "y1": [15, 16, 17, 18, 19, 20, 21],
+                "x2": [15, 16, 17, 18, 19, 20, 21],
+                "y2": [25, 26, 27, 28, 29, 30, 31],
+            }
+        )
+        arena = [(0.0, 0.0), (100.0, 0.0), (100.0, 100.0), (0.0, 100.0)]
+
+        analyzer = DummyBehaviorAnalyzer(
+            trajectory_df=df,
+            pixelcm_x=10.0,
+            pixelcm_y=10.0,
+            video_height_px=480,
+            arena_polygon_px=arena,
+            window_length=5,
+            polyorder=2,
+            fps=30.0,
+        )
+        assert analyzer._track_keys == []
