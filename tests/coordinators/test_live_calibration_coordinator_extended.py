@@ -1,4 +1,4 @@
-"""Extended unit tests for LiveCalibrationCoordinator."""
+"""Extended unit tests for coordinators/live_calibration_coordinator.py."""
 
 from __future__ import annotations
 
@@ -8,71 +8,69 @@ from zebtrack.coordinators.live_calibration_coordinator import (
     LiveCalibrationCoordinator,
     LiveCalibrationCoordinatorError,
 )
-from zebtrack.settings import load_settings
+from zebtrack.ui.event_bus_v2 import EventBusV2, UIEvents
 
 
 class TestLiveCalibrationCoordinatorExtended:
-    """Test exception hierarchy, coordinator initialization, and project replacement."""
+    """Test LiveCalibrationCoordinator exceptions, state resets, polygon source
+    updates, and camera release.
+    """
 
-    def test_exception_hierarchy(self):
-        err = LiveCalibrationCoordinatorError("calibration failed")
+    def test_coordinator_error_inheritance(self):
+        err = LiveCalibrationCoordinatorError("Calibration failed")
         assert isinstance(err, Exception)
-        assert str(err) == "calibration failed"
+        assert str(err) == "Calibration failed"
 
-    def test_coordinator_initialization(self):
-        state_mgr = MagicMock()
-        proj_mgr = MagicMock()
-        det_svc = MagicMock()
-        weight_mgr = MagicMock()
-        settings = load_settings()
-        event_bus = MagicMock()
-
-        coord = LiveCalibrationCoordinator(
-            state_manager=state_mgr,
-            project_manager=proj_mgr,
-            detector_service=det_svc,
-            weight_manager=weight_mgr,
-            settings_obj=settings,
-            event_bus=event_bus,
-        )
-
-        assert coord.state_manager is state_mgr
-        assert coord.project_manager is proj_mgr
-        assert coord.detector_service is det_svc
-        assert coord.weight_manager is weight_mgr
-        assert coord.settings is settings
-        assert coord.event_bus is event_bus
-        assert coord._pending_zone_confirmation is False
-        assert coord._session_count == 0
-        assert coord._last_polygon_source is None
-
-    def test_on_project_manager_replaced_drops_session_state(self):
-        state_mgr = MagicMock()
-        old_proj_mgr = MagicMock()
-        new_proj_mgr = MagicMock()
-        det_svc = MagicMock()
-        weight_mgr = MagicMock()
-        settings = load_settings()
-        event_bus = MagicMock()
-
-        coord = LiveCalibrationCoordinator(
-            state_manager=state_mgr,
-            project_manager=old_proj_mgr,
-            detector_service=det_svc,
-            weight_manager=weight_mgr,
-            settings_obj=settings,
-            event_bus=event_bus,
-        )
-
+    def test_on_project_manager_replaced_state_clearance(self):
+        coord = object.__new__(LiveCalibrationCoordinator)
         coord._pending_zone_confirmation = True
         coord._session_count = 5
         coord._last_calibration_cancelled = True
+        coord._last_polygon_source = "auto"
+        coord._set_last_polygon_source = MagicMock()  # type: ignore[assignment]
         coord._adhoc_zone_dir = "/tmp/adhoc"
 
-        coord._on_project_manager_replaced({"new_manager": new_proj_mgr})
+        new_mgr = MagicMock()
+        coord._on_project_manager_replaced({"new_manager": new_mgr})
 
-        assert coord.project_manager is new_proj_mgr
+        assert coord.project_manager is new_mgr
         assert coord._pending_zone_confirmation is False
         assert coord._session_count == 0
         assert coord._last_calibration_cancelled is False
+        coord._set_last_polygon_source.assert_called_once_with(None)
         assert coord._adhoc_zone_dir is None
+
+    def test_set_last_polygon_source_emits_event(self):
+        event_bus = EventBusV2()
+        coord = object.__new__(LiveCalibrationCoordinator)
+        coord.event_bus = event_bus
+        coord._last_polygon_source = None
+
+        events_received = []
+        event_bus.subscribe(
+            UIEvents.LIVE_POLYGON_SOURCE_CHANGED,
+            lambda e: events_received.append(e),
+        )
+
+        coord._set_last_polygon_source("auto")
+        assert coord._last_polygon_source == "auto"
+        assert len(events_received) == 1
+
+    def test_release_calibration_camera(self):
+        coord = object.__new__(LiveCalibrationCoordinator)
+        mock_camera = MagicMock()
+        mock_stopped = MagicMock()
+        mock_camera._stopped = mock_stopped
+        coord.camera = mock_camera
+
+        coord._release_calibration_camera("dialog_rejected")
+        mock_stopped.set.assert_called_once()
+        mock_camera.release.assert_called_once()
+        assert coord.camera is None
+
+    def test_release_calibration_camera_when_none(self):
+        coord = object.__new__(LiveCalibrationCoordinator)
+        coord.camera = None
+        # Should not throw
+        coord._release_calibration_camera("no_op")
+        assert coord.camera is None
