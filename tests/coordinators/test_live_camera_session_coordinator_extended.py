@@ -1,4 +1,4 @@
-"""Extended unit tests for LiveCameraSessionCoordinator."""
+"""Extended unit tests for coordinators/live_camera_session_coordinator.py."""
 
 from __future__ import annotations
 
@@ -13,39 +13,43 @@ from zebtrack.coordinators.live_camera_session_coordinator import (
 
 
 class TestLiveCameraSessionCoordinatorExtended:
-    """Test live profile display fallback, error hierarchy, and coordinator properties."""
+    """Test LiveCameraSessionCoordinator constants, labels, state updates, and path resolution."""
 
-    def test_live_profile_display_default_and_fallback(self):
+    def test_constants_and_labels(self):
         assert LIVE_PROFILE_TOOLTIP_FALLBACK == "default"
         label = live_profile_display_default()
-        assert "default" in label.lower()
+        assert "default" in label
 
-    def test_live_camera_session_coordinator_error(self):
-        err = LiveCameraSessionCoordinatorError("camera disconnected")
+    def test_error_class(self):
+        err = LiveCameraSessionCoordinatorError("Session failed")
         assert isinstance(err, Exception)
-        assert str(err) == "camera disconnected"
+        assert str(err) == "Session failed"
 
-    def test_coordinator_initial_state(self):
-        state_manager = MagicMock()
-        live_service = MagicMock()
-        live_service.is_session_active = False
-        project_manager = MagicMock()
-        detector_service = MagicMock()
-        settings_obj = MagicMock()
-        live_calib = MagicMock()
-        event_bus = MagicMock()
+    def test_resolve_session_paths_override_and_no_project(self):
+        coord = object.__new__(LiveCameraSessionCoordinator)
+        coord.project_manager = MagicMock()
+        coord.project_manager.project_path = None
 
-        coord = LiveCameraSessionCoordinator(
-            state_manager=state_manager,
-            live_camera_service=live_service,
-            project_manager=project_manager,
-            detector_service=detector_service,
-            settings_obj=settings_obj,
-            live_calibration_coordinator=live_calib,
-            event_bus=event_bus,
-        )
+        # 1. Explicit override
+        out_dir, folder = coord._resolve_session_paths(override="/custom/out")
+        assert out_dir == "/custom/out"
+        assert folder is None
 
-        assert coord.state_manager is state_manager
-        assert coord.live_camera_service is live_service
+        # 2. No project path
+        out_none, folder_none = coord._resolve_session_paths()
+        assert out_none is None
+        assert folder_none is None
+
+    def test_on_project_manager_replaced(self):
+        coord = object.__new__(LiveCameraSessionCoordinator)
+        coord._pending_live_context = {"exp": 1}
+        coord._pending_live_kind = "project"
+        coord._active_live_session_id = "session_1"
+
+        new_proj_mgr = MagicMock()
+        coord._on_project_manager_replaced({"new_manager": new_proj_mgr})
+
+        assert coord.project_manager is new_proj_mgr
         assert coord._pending_live_context is None
-        assert coord._pending_trigger_context is None
+        assert coord._pending_live_kind is None
+        assert coord._active_live_session_id is None
