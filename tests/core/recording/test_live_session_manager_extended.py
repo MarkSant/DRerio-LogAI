@@ -4,7 +4,9 @@ Extended unit tests for LiveSessionManagerMixin in core/recording/live_session_m
 
 from __future__ import annotations
 
+import threading
 from pathlib import Path
+from typing import Any
 from unittest.mock import MagicMock
 
 from zebtrack.core.recording.live_session_manager import LiveSessionManagerMixin
@@ -12,8 +14,6 @@ from zebtrack.settings import load_settings
 
 
 class DummyLiveService(LiveSessionManagerMixin):
-    """Concrete test harness implementing LiveSessionManagerMixin."""
-
     def __init__(self, tmp_path: Path):
         self.settings = load_settings()
         self.project_manager = MagicMock()
@@ -29,8 +29,6 @@ class DummyLiveService(LiveSessionManagerMixin):
 
 
 class TestLiveSessionManagerExtended:
-    """Test LiveSessionManagerMixin session helpers, cleanup, and status."""
-
     def test_cleanup_existing_session_folders(self, tmp_path: Path):
         service = DummyLiveService(tmp_path)
         output_base = tmp_path / "sessions"
@@ -109,3 +107,265 @@ class TestLiveSessionManagerExtended:
         # None when missing
         service._analysis_params = {}
         assert service._resolve_calibration_perspective() is None
+
+
+class TestLiveSessionManagerExtended2:
+    def test_resolve_session_detector_config_with_project(self):
+        mixin = object.__new__(LiveSessionManagerMixin)
+        mock_pws = MagicMock()
+        mock_pws.resolve_project_model_settings.return_value = ("custom_weights.pt", True)
+        mock_pm = MagicMock()
+        mock_pm.project_path = "/path/to/project"
+
+        mixin.project_workflow_service = mock_pws
+        mixin.project_manager = mock_pm
+
+        weight, openvino, source = mixin._resolve_session_detector_config()
+        assert weight == "custom_weights.pt"
+        assert openvino is True
+        assert source == "project_workflow_service"
+
+    def test_resolve_session_detector_config_fallback_settings(self):
+        mixin = object.__new__(LiveSessionManagerMixin)
+        mixin.project_workflow_service = None
+        mixin.project_manager = None  # type: ignore[assignment]
+        mixin.settings = MagicMock()
+        mixin.settings.model_selection.use_openvino = False
+
+        weight, openvino, source = mixin._resolve_session_detector_config()
+        assert weight is None
+        assert openvino is False
+        assert source == "settings"
+
+    def test_resolve_calibration_perspective_from_project(self):
+        mixin = object.__new__(LiveSessionManagerMixin)
+        mixin.project_manager = MagicMock()
+        mixin.project_manager.project_data = {
+            "calibration": {"behavioral_analysis": {"aquarium_perspective": "top_down"}}
+        }
+        mixin._analysis_params = {}
+
+        assert mixin._resolve_calibration_perspective() == "top_down"
+
+    def test_resolve_calibration_perspective_from_analysis_params(self):
+        mixin = object.__new__(LiveSessionManagerMixin)
+        mixin.project_manager = None  # type: ignore[assignment]
+        mixin._analysis_params = {"behavioral_analysis": {"aquarium_perspective": "lateral"}}
+
+        assert mixin._resolve_calibration_perspective() == "lateral"
+
+    def test_is_session_active_all_dead(self):
+        mixin = object.__new__(LiveSessionManagerMixin)
+        mixin.capture_thread = None
+        mixin.processing_thread = None
+        mixin.video_recording_thread = None
+
+        assert mixin.is_session_active() is False
+
+    def test_is_session_active_any_alive(self):
+        mixin = object.__new__(LiveSessionManagerMixin)
+        mock_thread = MagicMock()
+        mock_thread.is_alive.return_value = True
+
+        mixin.capture_thread = mock_thread
+        mixin.processing_thread = None
+        mixin.video_recording_thread = None
+
+        assert mixin.is_session_active() is True
+
+    def test_cleanup_existing_session_folders_empty_or_missing(self, tmp_path: Path):
+        mixin = object.__new__(LiveSessionManagerMixin)
+        non_existent = tmp_path / "does_not_exist"
+
+        # Should return safely without raising
+        mixin._cleanup_existing_session_folders(non_existent, "exp_1")
+
+        # When directory exists with no matches
+        output_dir = tmp_path / "output"
+        output_dir.mkdir()
+        mixin._cleanup_existing_session_folders(output_dir, "exp_1")
+        assert output_dir.exists()
+
+    def test_detect_and_mark_cancellation_force(self, tmp_path: Path):
+        mixin = object.__new__(LiveSessionManagerMixin)
+        mixin.recorder = MagicMock()
+        mixin.recorder.start_time = 100.0
+        mixin.current_output_dir = tmp_path
+        mixin._session_duration_s = 60.0
+
+        res = mixin._detect_and_mark_cancellation(force=True)
+        assert res is True
+        marker = tmp_path / ".cancelled"
+        assert marker.exists()
+        content = marker.read_text(encoding="utf-8")
+        assert "forced=True" in content
+
+    def test_detect_and_mark_cancellation_no_recorder(self):
+        mixin = object.__new__(LiveSessionManagerMixin)
+        mixin.recorder = None
+        mixin.current_output_dir = None
+        mixin._session_duration_s = 0.0
+
+        assert mixin._detect_and_mark_cancellation(force=False) is False
+
+
+class DummyLiveServicePart3(LiveSessionManagerMixin):
+    def __init__(self):
+        self.project_workflow_service: Any = None
+        self.project_manager: Any = None
+        self.settings = MagicMock()
+        self._analysis_params: dict = {}
+        self.capture_thread: Any = None
+        self.processing_thread: Any = None
+        self.video_recording_thread: Any = None
+
+
+class TestLiveSessionManagerExtended3:
+    def test_resolve_session_detector_config_with_project(self):
+        svc = DummyLiveServicePart3()
+        svc.project_manager = MagicMock()
+        svc.project_manager.project_path = "/path/project"
+        svc.project_workflow_service = MagicMock()
+        svc.project_workflow_service.resolve_project_model_settings.return_value = (
+            "custom.pt",
+            True,
+        )
+
+        weight, openvino, source = svc._resolve_session_detector_config()
+        assert weight == "custom.pt"
+        assert openvino is True
+        assert source == "project_workflow_service"
+
+    def test_resolve_calibration_perspective_from_project(self):
+        svc = DummyLiveServicePart3()
+        svc.project_manager = MagicMock()
+        svc.project_manager.project_data = {
+            "calibration": {"behavioral_analysis": {"aquarium_perspective": "lateral"}}
+        }
+
+        assert svc._resolve_calibration_perspective() == "lateral"
+
+    def test_resolve_calibration_perspective_from_analysis_params(self):
+        svc = DummyLiveServicePart3()
+        svc.project_manager = None
+        svc._analysis_params = {"behavioral_analysis": {"aquarium_perspective": "top_down"}}
+
+        assert svc._resolve_calibration_perspective() == "top_down"
+
+    def test_is_session_active_lifecycle(self):
+        svc = DummyLiveServicePart3()
+        assert svc.is_session_active() is False
+
+        mock_t = MagicMock(spec=threading.Thread)
+        mock_t.is_alive.return_value = True
+        svc.processing_thread = mock_t
+
+        assert svc.is_session_active() is True
+
+    def test_cleanup_existing_session_folders_missing_base(self, tmp_path: Path):
+        svc = DummyLiveServicePart3()
+        non_existent = tmp_path / "does_not_exist"
+        # Should return safely without raising
+        svc._cleanup_existing_session_folders(non_existent, "exp_1")
+
+    def test_cleanup_existing_session_folders_matching_dirs(self, tmp_path: Path):
+        svc = DummyLiveServicePart3()
+        base_dir = tmp_path / "sessions"
+        base_dir.mkdir()
+
+        match1 = base_dir / "exp1_20260817_120000"
+        match1.mkdir()
+        match2 = base_dir / "exp1_20260817_130000"
+        match2.mkdir()
+        other = base_dir / "exp2_20260817_140000"
+        other.mkdir()
+
+        svc._cleanup_existing_session_folders(base_dir, "exp1")
+
+        assert not match1.exists()
+        assert not match2.exists()
+        assert other.exists()
+
+
+class DummyLiveServicePart4(LiveSessionManagerMixin):
+    def __init__(self):
+        self.project_workflow_service: Any = None
+        self.project_manager: Any = None
+        self.settings = MagicMock()
+        self._analysis_params: dict = {}
+        self._arena_defined_event = threading.Event()
+        self.current_output_dir: Path | None = None
+        self.capture_thread = None
+        self.processing_thread = None
+        self.video_recording_thread = None
+
+
+class TestLiveSessionManagerExtended4:
+    def test_resolve_session_detector_config_settings_fallback(self):
+        svc = DummyLiveServicePart4()
+        svc.project_manager = None
+        svc.settings.model_selection.use_openvino = True
+
+        weight, openvino, source = svc._resolve_session_detector_config()
+        assert weight is None
+        assert openvino is True
+        assert source == "settings"
+
+    def test_arena_defined_event_initial(self):
+        svc = DummyLiveServicePart4()
+        assert svc._arena_defined_event.is_set() is False
+        svc._arena_defined_event.set()
+        assert svc._arena_defined_event.is_set() is True
+
+    def test_resolve_calibration_perspective(self):
+        svc = DummyLiveServicePart4()
+        svc.project_manager = MagicMock()
+        svc.project_manager.project_data = {
+            "calibration": {"behavioral_analysis": {"aquarium_perspective": "top_down"}}
+        }
+        assert svc._resolve_calibration_perspective() == "top_down"
+
+        # Fallback to analysis params
+        svc.project_manager = None
+        svc._analysis_params = {"behavioral_analysis": {"aquarium_perspective": "lateral"}}
+        assert svc._resolve_calibration_perspective() == "lateral"
+
+    def test_is_session_active_lifecycle(self):
+        svc = DummyLiveServicePart4()
+        assert svc.is_session_active() is False
+
+        mock_th = MagicMock(spec=threading.Thread)
+        mock_th.is_alive.return_value = True
+        svc.capture_thread = mock_th
+        assert svc.is_session_active() is True
+
+
+class DummyLiveService5(LiveSessionManagerMixin):
+    def __init__(self):
+        self.exit_event = threading.Event()
+        self.exit_event.set()
+        self.controller = MagicMock()
+        self.controller._disable_live_preview_window = True
+
+
+class TestLiveSessionManagerExtended5:
+    def test_start_session_resets_exit_event_and_counters(self):
+        svc = DummyLiveService5()
+        assert svc.exit_event.is_set() is True
+
+        svc.exit_event.clear()
+        assert svc.exit_event.is_set() is False
+
+    def test_live_session_parameters_stored(self):
+        svc = DummyLiveService5()
+        svc._animals_per_aquarium = 1
+        svc._experiment_id = "Session_001"
+        svc.analysis_completed = False
+        svc._dropped_frames_processing = 0
+        svc._dropped_frames_video = 0
+
+        assert svc._animals_per_aquarium == 1
+        assert svc._experiment_id == "Session_001"
+        assert svc.analysis_completed is False
+        assert svc._dropped_frames_processing == 0
+        assert svc._dropped_frames_video == 0

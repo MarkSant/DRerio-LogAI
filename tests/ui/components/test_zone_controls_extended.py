@@ -15,8 +15,6 @@ from zebtrack.ui.payloads import (
 
 
 class TestZoneControlsExtended:
-    """Test ZoneControls helper functions, hierarchy labels, banner state, and event emissions."""
-
     def test_hierarchy_labels(self):
         labels = _hierarchy_labels()
         assert "group" in labels
@@ -109,3 +107,22 @@ class TestZoneControlsExtended:
         # Clear applied template
         widget._on_clear_applied_template_clicked()
         assert widget.emit_event.call_args[0][0] == UIEvents.ZONE_TEMPLATE_CLEAR_APPLIED
+
+
+class TestZoneControlsExtended2:
+    def test_hierarchy_labels(self):
+        labels = _hierarchy_labels()
+        assert "group" in labels
+        assert "day" in labels
+        assert "subject" in labels
+        assert labels["group"] == "Group" or "Grupo" in labels["group"]
+        assert labels["day"] == "Day" or "Dia" in labels["day"]
+        assert labels["subject"] == "Subject" or "Sujeito" in labels["subject"]
+
+
+class TestZoneControlsExtended3:
+    def test_hierarchy_labels(self):
+        labels = _hierarchy_labels()
+        assert "group" in labels
+        assert "day" in labels
+        assert "subject" in labels

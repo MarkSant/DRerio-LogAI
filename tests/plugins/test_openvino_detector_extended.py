@@ -10,6 +10,8 @@ import numpy as np
 import pytest
 
 from zebtrack.plugins.openvino_detector import (
+    OPENVINO_AVAILABLE,
+    TORCH_AVAILABLE,
     OpenVINOPlugin,
     _resolve_openvino_cache_dir,
     _scale_image,
@@ -18,8 +20,6 @@ from zebtrack.utils import IntegrityError
 
 
 class TestOpenVINOHelpersExtended:
-    """Test OpenVINO helper functions."""
-
     def test_resolve_openvino_cache_dir_none(self):
         assert _resolve_openvino_cache_dir(None) is None
         assert _resolve_openvino_cache_dir("") is None
@@ -43,8 +43,6 @@ class TestOpenVINOHelpersExtended:
 
 
 class TestOpenVINOPluginExtended:
-    """Test OpenVINOPlugin initialization, integrity checks, and properties."""
-
     def test_missing_xml_file_raises_file_not_found(self, tmp_path):
         with pytest.raises(FileNotFoundError, match="Could not find a .xml model file"):
             OpenVINOPlugin(tmp_path)
@@ -60,3 +58,23 @@ class TestOpenVINOPluginExtended:
 
     def test_get_name_static_method(self):
         assert OpenVINOPlugin.get_name() == "OpenVINO"
+
+
+class TestOpenvinoDetectorExtended2:
+    def test_availability_flags_boolean(self):
+        assert isinstance(OPENVINO_AVAILABLE, bool)
+        assert isinstance(TORCH_AVAILABLE, bool)
+
+    def test_resolve_openvino_cache_dir_none(self):
+        assert _resolve_openvino_cache_dir(None) is None
+        assert _resolve_openvino_cache_dir("") is None
+
+    def test_resolve_openvino_cache_dir_relative(self):
+        resolved = _resolve_openvino_cache_dir("openvino_model_cache")
+        assert resolved is not None
+        assert "openvino_model_cache" in resolved
+
+    def test_scale_image_resizing(self):
+        mask = np.zeros((64, 64), dtype=np.float32)
+        scaled = _scale_image(mask, (128, 128))
+        assert scaled.shape == (128, 128)

@@ -4,13 +4,14 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock
 
+import pytest
+
 from zebtrack.core.state_manager import StateCategory
+from zebtrack.core.video.processing_mode import ProcessingMode
 from zebtrack.ui.components.state_synchronizer import StateSynchronizer
 
 
 class TestStateSynchronizerExtended:
-    """Test StateSynchronizer state subscriptions, button state updates, and UI synchronization."""
-
     def test_init_and_dialog_manager_fallback(self):
         mock_gui = MagicMock()
         mock_gui.dialog_manager = MagicMock()
@@ -105,3 +106,162 @@ class TestStateSynchronizerExtended:
         sync = StateSynchronizer(mock_gui)
         sync._update_arduino_ui(True)
         mock_gui.arduino_dashboard_widget.update_status.assert_called_once_with(True, None)
+
+
+class TestStateSynchronizerExtended2:
+    def test_dialog_manager_property_injected_and_fallback(self):
+        gui = MagicMock()
+        gui.dialog_manager = MagicMock()
+
+        # Injected directly
+        mock_dm = MagicMock()
+        sync_injected = StateSynchronizer(gui, dialog_manager=mock_dm)
+        assert sync_injected.dialog_manager is mock_dm
+
+        # Fallback to gui
+        sync_fallback = StateSynchronizer(gui, dialog_manager=None)
+        assert sync_fallback.dialog_manager is gui.dialog_manager
+
+    def test_update_social_summary_single_subject_mode(self):
+        gui = MagicMock()
+        gui._active_processing_mode = ProcessingMode.SINGLE_SUBJECT
+        gui.analysis_display_widget = MagicMock()
+
+        sync = StateSynchronizer(gui)
+        sync.update_social_summary(profile="standard", stats=None, tracks=["1"])
+
+        gui.analysis_display_widget.set_social_summary.assert_called_once()
+        msg = gui.analysis_display_widget.set_social_summary.call_args[0][0]
+        assert "not applicable" in msg or "não aplicável" in msg or "single-subject" in msg
+
+    def test_update_social_summary_with_percentages(self):
+        gui = MagicMock()
+        gui._active_processing_mode = ProcessingMode.MULTI_TRACK
+        gui.analysis_display_widget = MagicMock()
+
+        sync = StateSynchronizer(gui)
+        stats = {"social_time_percentage": {"1": 45.5, "2": 54.5}}
+        sync.update_social_summary(profile="social_interaction", stats=stats, tracks=["1", "2"])
+
+        gui.analysis_display_widget.set_social_summary.assert_called_once()
+        msg = gui.analysis_display_widget.set_social_summary.call_args[0][0]
+        assert "ID 1: 45.5%" in msg
+        assert "ID 2: 54.5%" in msg
+
+    def test_update_social_summary_profile_mismatch(self):
+        gui = MagicMock()
+        gui._active_processing_mode = ProcessingMode.MULTI_TRACK
+        gui.analysis_display_widget = MagicMock()
+
+        sync = StateSynchronizer(gui)
+        sync.update_social_summary(profile="open_field", stats=None, tracks=["1", "2"])
+
+        gui.analysis_display_widget.set_social_summary.assert_called_once()
+        msg = gui.analysis_display_widget.set_social_summary.call_args[0][0]
+        assert "profile produces no social metrics" in msg or "perfil atual" in msg
+
+
+class TestStateSynchronizerExtended4:
+    def test_on_recording_state_changed_is_recording(self):
+        gui = MagicMock()
+        sync = object.__new__(StateSynchronizer)
+        sync.gui = gui
+
+        sync._on_recording_state_changed(StateCategory.RECORDING, "is_recording", False, True)
+        gui.root.after.assert_called_once_with(0, sync._update_recording_ui, True)
+
+    def test_on_processing_state_changed_is_processing(self):
+        gui = MagicMock()
+        sync = object.__new__(StateSynchronizer)
+        sync.gui = gui
+
+        sync._on_processing_state_changed(StateCategory.PROCESSING, "is_processing", False, True)
+        gui.root.after.assert_called_once_with(0, sync._update_processing_ui, True)
+
+    def test_on_detector_state_changed_initialized(self):
+        gui = MagicMock()
+        sync = object.__new__(StateSynchronizer)
+        sync.gui = gui
+
+        sync._on_detector_state_changed(StateCategory.DETECTOR, "detector_initialized", False, True)
+        gui.root.after.assert_called_once_with(0, sync._update_detector_ui, True)
+
+
+class TestStateSynchronizerExtended5:
+    def test_update_recording_ui_is_recording(self):
+        gui = MagicMock()
+        sync = StateSynchronizer(gui)
+
+        sync._update_recording_ui(True)
+        gui.start_rec_btn.config.assert_called_once_with(state="disabled")
+        gui.stop_rec_btn.config.assert_called_once_with(state="normal")
+
+    def test_update_recording_ui_stopped(self):
+        gui = MagicMock()
+        sync = StateSynchronizer(gui)
+
+        sync._update_recording_ui(False)
+        gui.start_rec_btn.config.assert_called_once_with(state="normal")
+        gui.stop_rec_btn.config.assert_called_once_with(state="disabled")
+
+    def test_on_recording_state_changed_dispatches_ui(self):
+        gui = MagicMock()
+        sync = StateSynchronizer(gui)
+
+        sync._on_recording_state_changed(None, "is_recording", False, True)
+        gui.root.after.assert_called_once_with(0, sync._update_recording_ui, True)
+
+
+class TestStateSynchronizerExtended6:
+    def test_on_processing_state_changed_dispatches_ui(self):
+        gui = MagicMock()
+        sync = StateSynchronizer(gui)
+
+        sync._on_processing_state_changed(None, "is_processing", False, True)
+        gui.root.after.assert_called_once_with(0, sync._update_processing_ui, True)
+
+    def test_update_processing_ui_active(self):
+        gui = MagicMock()
+        sync = StateSynchronizer(gui)
+
+        sync._update_processing_ui(True)
+        gui.process_video_btn.config.assert_called_once_with(state="disabled")
+
+    def test_update_processing_ui_inactive(self, monkeypatch: pytest.MonkeyPatch):
+        gui = MagicMock()
+        gui.analysis_view_controller = MagicMock()
+        sync = StateSynchronizer(gui)
+        monkeypatch.setattr(sync, "_is_live_session_active", lambda: False)
+
+        sync._update_processing_ui(False)
+        gui.process_video_btn.config.assert_called_once_with(state="normal")
+        gui.analysis_view_controller.stop_analysis_view_mode.assert_called_once()
+
+
+class TestStateSynchronizerExtended7:
+    def test_state_synchronizer_init(self):
+        gui = MagicMock()
+        dialog_mgr = MagicMock()
+        state_mgr = MagicMock()
+
+        sync = StateSynchronizer(
+            gui,
+            dialog_manager=dialog_mgr,
+            state_manager=state_mgr,
+        )
+
+        assert sync.gui is gui
+        assert sync.dialog_manager is dialog_mgr
+        assert sync._state_manager is state_mgr
+
+    def test_state_synchronizer_dialog_manager_fallback(self):
+        gui = MagicMock()
+        gui.dialog_manager = MagicMock()
+
+        sync = StateSynchronizer(gui)
+        assert sync.dialog_manager is gui.dialog_manager
+
+    def test_state_synchronizer_gui_reference(self):
+        gui = MagicMock()
+        sync = StateSynchronizer(gui)
+        assert sync.gui is gui

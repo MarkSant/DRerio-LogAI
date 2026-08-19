@@ -130,8 +130,6 @@ modules:
     source: src/zebtrack/core/services/weight_manager.py
     tests:
       - tests/core/services/test_weight_manager_extended.py
-      - tests/core/services/test_weight_manager_extended2.py
-      - tests/core/services/test_weight_manager_extended3.py
     mutations:
       - id: default-target-inverted
         description: "alvo padrao seg/det invertido"
