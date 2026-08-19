@@ -213,9 +213,26 @@ jobs:
 
       - name: Install system dependencies (Linux)
         if: runner.os == 'Linux'
+        env:
+          # Without this a package that wants to prompt (debconf/needrestart)
+          # blocks forever instead of failing -- the job just sits there until
+          # the 45-minute timeout.
+          DEBIAN_FRONTEND: noninteractive
         run: |
           sudo apt-get update
-          sudo apt-get install -y xvfb libavcodec-extra ffmpeg libopencv-dev python3-opencv
+          # NOT installed: libopencv-dev / python3-opencv. The venv imports cv2
+          # from the `opencv-python` wheel (pyproject), which is self-contained
+          # and bundles its own FFmpeg -- it never links against system OpenCV,
+          # so those two packages were pulled in (with a large -dev dependency
+          # tree) for nothing.
+          #
+          # ffmpeg + libavcodec-extra are kept deliberately: tests read video
+          # files and `tests/test_integration.py` already treats missing codecs
+          # as a known failure mode. They are cheap next to the OpenCV tree.
+          sudo apt-get install -y --no-install-recommends \
+            xvfb \
+            ffmpeg \
+            libavcodec-extra
 
       - name: Install system dependencies (Windows)
         if: runner.os == 'Windows'
@@ -270,14 +287,22 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-pip-poetry-
 
-      - name: Cache in-project virtualenv (Windows only)
-        if: runner.os == 'Windows'
+      # Cached on BOTH platforms. Caching only the pip/poetry *downloads*
+      # still made every Linux job rebuild the virtualenv from scratch on top of
+      # them; caching .venv skips the install itself. Safe because
+      # `virtualenvs.in-project true` puts it at a stable absolute path, and the
+      # `poetry install` below still runs and reconciles any drift.
+      #
+      # The key carries the Python version: a venv is bound to the interpreter
+      # that created it, and without this a future Python bump would restore an
+      # incompatible one.
+      - name: Cache in-project virtualenv
         uses: actions/cache@v5
         with:
           path: .venv
-          key: ${{ runner.os }}-venv-${{ hashFiles('**/poetry.lock') }}
+          key: ${{ runner.os }}-py3.12-venv-${{ hashFiles('**/poetry.lock') }}
           restore-keys: |
-            ${{ runner.os }}-venv-
+            ${{ runner.os }}-py3.12-venv-
 
       - name: Install dependencies
         run: |
