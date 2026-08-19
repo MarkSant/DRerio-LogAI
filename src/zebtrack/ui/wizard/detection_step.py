@@ -63,7 +63,7 @@ class DetectionStep(WizardStep):
                 "subjects_per_group": dict[str, list[str]],
                 "confidence": float,  # 0.0 to 1.0
                 "pattern_used": str,  # e.g., "groups_as_folders"
-            } | None,  # None if detection failed or exploratory project
+            } | None,  # None when detection failed or was not run
             "video_count": int,
             "parquet_summary": {
                 "total_arena": int,
@@ -858,7 +858,7 @@ class DetectionStep(WizardStep):
                     "You can continue without a detected design, or reorganize the files.\n"
                 )
             else:
-                text += _("ℹ️ Design detection disabled (exploratory project).") + "\n"
+                text += _("ℹ️ Automatic design detection was not run.") + "\n"
 
         # Detector configuration snapshot (helps confirm template application)
         detection_section = self._format_detector_configuration()

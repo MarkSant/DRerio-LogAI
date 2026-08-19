@@ -73,7 +73,7 @@ class ProjectService:
         Args:
             project_path: Path where project should be created
             project_name: Name of the project
-            project_type: Type of project (e.g., "project", "exploratory")
+            project_type: Type of project ("pre-recorded" or "live")
             initial_data: Optional initial project data dictionary
 
         Returns:

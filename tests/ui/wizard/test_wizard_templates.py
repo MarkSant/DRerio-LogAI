@@ -40,6 +40,13 @@ class TestTemplateManager:
         assert data["project_type"] == "experimental"
 
     def test_load_template_from_path(self):
+        """The raw loader returns the file verbatim -- including legacy values.
+
+        ``"exploratory"`` is a project type this wizard no longer offers, but
+        the loader must not silently rewrite a user's file. Normalization to a
+        selectable type happens later, in ``DiscoveryStep`` (see
+        ``ProjectType.normalize``).
+        """
         template_path = self.templates_dir / "externo.json"
         template_path.write_text(
             json.dumps({"name": "Externo", "project_type": "exploratory"}),

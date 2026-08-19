@@ -674,7 +674,7 @@ class WizardData(BaseModel):
     This is the top-level model that aggregates all step data.
     """
 
-    project_type: Literal["live", "pre-recorded", "exploratory"] = Field(
+    project_type: Literal["live", "pre-recorded"] = Field(
         description="Type of project being created"
     )
     wizard_mode: Literal["express", "advanced"] = Field(

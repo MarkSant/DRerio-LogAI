@@ -315,8 +315,12 @@ class TestDetectionStep:
         assert len(data["scanned_videos"]) == 1
 
     @patch("zebtrack.ui.wizard.detection_step.ProjectManager.scan_input_paths")
-    def test_detection_step_exploratory_skips_design_detection(self, mock_scan):
-        """Exploratory projects should skip design detection."""
+    def test_detection_step_non_experimental_skips_design_detection(self, mock_scan):
+        """Design detection only runs for experimental (pre-recorded) projects.
+
+        Covered the "exploratory" type before it was removed; the guard itself
+        still matters as a defence against a missing/unknown project_type.
+        """
         mock_scan.return_value = [
             {
                 "path": str(self.video1),
@@ -328,7 +332,7 @@ class TestDetectionStep:
         ]
 
         wizard_data = {
-            "project_type": ProjectType.EXPLORATORY.value,
+            "project_type": "unknown-type",
             "video_paths": [str(self.video1)],
         }
 
@@ -336,7 +340,6 @@ class TestDetectionStep:
         step.build_ui()
         step.on_show()
 
-        # Design detection should be None for exploratory
         assert step.detected_design is None
 
     @patch("zebtrack.ui.wizard.detection_step.ProjectManager.scan_input_paths")

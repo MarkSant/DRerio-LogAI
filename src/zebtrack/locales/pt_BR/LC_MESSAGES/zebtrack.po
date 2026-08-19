@@ -12405,6 +12405,14 @@ msgstr "Experimento_{group}"
 msgid "Experimental_Project"
 msgstr "Projeto_Experimental"
 
+#: src/zebtrack/ui/wizard/confirmation_step.py:238
+msgid "Live_Project"
+msgstr "Projeto_AoVivo"
+
+#: src/zebtrack/ui/wizard/detection_step.py:861
+msgid "ℹ️ Automatic design detection was not run."
+msgstr "ℹ️ A detecção automática de desenho não foi executada."
+
 #: src/zebtrack/ui/wizard/confirmation_step.py:247
 msgid "Exploratory_Project"
 msgstr "Projeto_Exploratorio"
