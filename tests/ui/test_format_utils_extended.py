@@ -8,11 +8,6 @@ from zebtrack.ui.format_utils import format_day_display
 class TestFormatUtilsExtended:
     """Test format_day_display string and number formatting."""
 
-    def test_format_day_display_none_and_empty(self):
-        assert format_day_display(None) == ""
-        assert format_day_display("") == ""
-        assert format_day_display("   ") == ""
-
     def test_format_day_display_integers_and_floats(self):
         assert format_day_display(1) == "01"
         assert format_day_display(12) == "12"

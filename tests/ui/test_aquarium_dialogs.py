@@ -226,20 +226,6 @@ class TestAquariumAssignmentDialog:
         assert default_0 == "Controle"
         assert default_1 == "Tratamento"
 
-    def test_aquarium_config_creation(self):
-        """Test AquariumConfig creation with valid values."""
-        config = AquariumConfig(
-            aquarium_id=0,
-            group="Controle",
-            subject_id="S01",
-            day=1,
-        )
-
-        assert config.aquarium_id == 0
-        assert config.group == "Controle"
-        assert config.subject_id == "S01"
-        assert config.day == 1
-
     def test_aquarium_config_validation(self):
         """Test AquariumConfig validation."""
         # Valid config

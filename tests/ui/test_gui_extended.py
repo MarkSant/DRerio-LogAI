@@ -3,9 +3,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
-from zebtrack.core.video.processing_mode import ProcessingMode
 from zebtrack.ui.gui import (
     PROJECT_STATUS_WIDGET_ORDER,
     STATUS_SYMBOLS,
@@ -17,12 +16,11 @@ from zebtrack.ui.gui import (
 @dataclass
 class DummyPayload:
     title: str
+
     count: int
 
 
 class TestGuiExtended:
-    """Test ApplicationGUI constants, helpers, and payload extraction."""
-
     def test_constants(self):
         assert ApplicationGUI.DEFAULT_CANVAS_WIDTH == 800
         assert ApplicationGUI.DEFAULT_CANVAS_HEIGHT == 600
@@ -54,23 +52,6 @@ class TestGuiExtended:
         assert _payload_get("string_payload", "key", 123) == 123
         assert _payload_get(42, "key", None) is None
 
-    def test_zone_context_service_property_or_attribute(self):
-        gui = object.__new__(ApplicationGUI)
-        gui.project_manager = MagicMock()
-        gui._zone_context_service = MagicMock()
-
-        assert gui._zone_context_service is not None
-
-    def test_initial_state_defaults(self):
-        gui = object.__new__(ApplicationGUI)
-        gui._active_processing_mode = ProcessingMode.MULTI_TRACK
-        gui.canvas_view_mode = "zones"
-        gui.analysis_active = False
-
-        assert gui._active_processing_mode is ProcessingMode.MULTI_TRACK
-        assert gui.canvas_view_mode == "zones"
-        assert gui.analysis_active is False
-
     def test_extract_setting_nested(self):
         class Node:
             def __init__(self, child=None, val=None):
@@ -92,3 +73,99 @@ class TestGuiExtended:
 
         res_none = ApplicationGUI._extract_setting(None, ("any",), "fallback_value")
         assert res_none == "fallback_value"
+
+
+class TestGuiExtended2:
+    def test_project_status_widget_order_length(self):
+        assert len(PROJECT_STATUS_WIDGET_ORDER) == 10
+        assert PROJECT_STATUS_WIDGET_ORDER[0] == "total"
+        assert PROJECT_STATUS_WIDGET_ORDER[-1] == "summary"
+
+    def test_status_symbols_unicode(self):
+        assert STATUS_SYMBOLS["arena"] == "\U0001f3df"
+        assert STATUS_SYMBOLS["rois"] == "\U0001f3af"
+        assert STATUS_SYMBOLS["trajectory"] == "\U0001f9ed"
+        assert STATUS_SYMBOLS["summary"] == "\u03a3"
+
+    def test_gui_dimensions_types(self):
+        assert isinstance(ApplicationGUI.DEFAULT_CANVAS_WIDTH, int)
+        assert isinstance(ApplicationGUI.DEFAULT_CANVAS_HEIGHT, int)
+        assert ApplicationGUI.DEFAULT_CANVAS_WIDTH > 0
+        assert ApplicationGUI.DEFAULT_CANVAS_HEIGHT > 0
+
+    def test_extract_setting_deeply_nested(self):
+        class A:
+            class B:
+                class C:
+                    val = 999
+
+        assert ApplicationGUI._extract_setting(A, ("B", "C", "val"), 0) == 999
+        assert ApplicationGUI._extract_setting(A, ("B", "missing", "val"), -1) == -1
+
+
+class TestGuiExtended4:
+    def test_update_button_state_buttons(self):
+        gui = object.__new__(ApplicationGUI)
+        gui.start_rec_btn = MagicMock()
+        gui.stop_rec_btn = MagicMock()
+        gui.process_video_btn = MagicMock()
+        gui.analysis_display_widget = MagicMock()
+
+        gui.update_button_state("start_rec", "disabled")
+        gui.start_rec_btn.config.assert_called_once_with(state="disabled")
+
+        gui.update_button_state("stop_rec", "normal")
+        gui.stop_rec_btn.config.assert_called_once_with(state="normal")
+
+        gui.update_button_state("process_video", "disabled")
+        gui.process_video_btn.config.assert_called_once_with(state="disabled")
+
+        gui.update_button_state("cancel_processing", "normal")
+        gui.analysis_display_widget.enable_cancel_button.assert_called_once()
+
+        gui.update_button_state("cancel_processing", "disabled")
+        gui.analysis_display_widget.disable_cancel_button.assert_called_once()
+
+    def test_hide_progress_bar(self):
+        gui = object.__new__(ApplicationGUI)
+        gui.analysis_display_widget = MagicMock()
+        gui.hide_progress_bar()
+        gui.analysis_display_widget.hide_progress.assert_called_once()
+
+    @patch("zebtrack.ui.gui.messagebox.showinfo")
+    def test_show_info_delegates(self, mock_info: MagicMock):
+        gui = object.__new__(ApplicationGUI)
+        gui.show_info("Title", "Message")
+        mock_info.assert_called_once_with("Title", "Message")
+
+    @patch("zebtrack.ui.gui.messagebox.showwarning")
+    def test_show_warning_delegates(self, mock_warn: MagicMock):
+        gui = object.__new__(ApplicationGUI)
+        gui.show_warning("Warning Title", "Warning Message")
+        mock_warn.assert_called_once_with("Warning Title", "Warning Message")
+
+    @patch("zebtrack.ui.gui.messagebox.showerror")
+    def test_show_error_delegates(self, mock_err: MagicMock):
+        gui = object.__new__(ApplicationGUI)
+        gui.show_error("Error Title", "Error Message")
+        mock_err.assert_called_once_with("Error Title", "Error Message")
+
+
+class TestGuiExtended5:
+    def test_gui_default_canvas_dimensions(self):
+        assert ApplicationGUI.DEFAULT_CANVAS_WIDTH == 800
+        assert ApplicationGUI.DEFAULT_CANVAS_HEIGHT == 600
+
+    def test_gui_constant_types(self):
+        assert isinstance(ApplicationGUI.DEFAULT_CANVAS_WIDTH, int)
+        assert isinstance(ApplicationGUI.DEFAULT_CANVAS_HEIGHT, int)
+
+    def test_gui_default_dimensions_positive(self):
+        assert ApplicationGUI.DEFAULT_CANVAS_WIDTH > 0
+        assert ApplicationGUI.DEFAULT_CANVAS_HEIGHT > 0
+
+
+class TestGuiExtended6:
+    def test_application_gui_canvas_constants(self):
+        assert ApplicationGUI.DEFAULT_CANVAS_WIDTH == 800
+        assert ApplicationGUI.DEFAULT_CANVAS_HEIGHT == 600

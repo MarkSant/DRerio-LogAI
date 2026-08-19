@@ -16,8 +16,6 @@ from zebtrack.ui.components.global_model_configuration_panel import (
 
 
 class TestGlobalModelConfigurationPanelExtended:
-    """Test GlobalModelConfigurationPanel helper mappings, accent folding, and callbacks."""
-
     def test_constants_and_target_labels(self):
         assert _CONVERSION_POLL_INTERVAL_MS == 1500
 
@@ -54,3 +52,38 @@ class TestGlobalModelConfigurationPanelExtended:
         mock_cb = MagicMock()
         panel.set_weight_refresh_callback(mock_cb)
         assert panel._refresh_weight_choices is mock_cb
+
+
+class TestGlobalModelConfigurationPanelExtended6:
+    def test_strip_accents_folds_accents(self):
+        assert _strip_accents("aquário") == "aquario"
+        assert _strip_accents("configuração") == "configuracao"
+        assert _strip_accents("teste") == "teste"
+
+    def test_strip_accents_empty_string(self):
+        assert _strip_accents("") == ""
+        assert _strip_accents("   ") == "   "
+
+    def test_strip_accents_no_accents(self):
+        assert _strip_accents("zebrafish") == "zebrafish"
+
+
+class TestGlobalModelConfigurationPanelExtended7:
+    def test_conversion_poll_interval_constant(self):
+        assert _CONVERSION_POLL_INTERVAL_MS == 1500
+
+    def test_openvino_status_labels_keys(self):
+        labels = _openvino_status_labels()
+        assert set(labels.keys()) == {"ready", "converting", "failed", "not_converted"}
+
+    def test_perspective_labels_keys(self):
+        labels = _perspective_labels()
+        assert set(labels.keys()) == {"lateral", "top_down"}
+
+    def test_target_labels_keys(self):
+        labels = _target_labels()
+        assert set(labels.keys()) == {"aquarium", "zebrafish"}
+
+    def test_method_labels_keys(self):
+        labels = _method_labels()
+        assert set(labels.keys()) == {"seg", "det"}

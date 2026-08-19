@@ -8,12 +8,11 @@ from zebtrack.coordinators.multi_aquarium_coordinator import (
     MultiAquariumCoordinator,
     _payload_get,
 )
+from zebtrack.core.video.processing_mode import ProcessingMode
 from zebtrack.ui.payloads import ZoneProcessingModeChangedPayload
 
 
 class TestMultiAquariumCoordinatorExtended:
-    """Test MultiAquariumCoordinator state reset, payload get helper, and mode changes."""
-
     def test_payload_get_dict_and_object(self):
         # Dict
         d = {"key": "val", "num": 10}
@@ -106,3 +105,41 @@ class TestMultiAquariumCoordinatorExtended:
             payload = {"sequential": False}
             coord._on_processing_mode_changed(payload)
             mock_apply_all.assert_called_once_with(sequential=False)
+
+
+class TestMultiAquariumCoordinatorExtended6:
+    def test_payload_get_dict_and_object(self):
+        d = {"video_path": "/path/v1.mp4", "count": 2}
+        assert _payload_get(d, "video_path") == "/path/v1.mp4"
+        assert _payload_get(d, "count") == 2
+        assert _payload_get(d, "nonexistent", 0) == 0
+
+    def test_multi_aquarium_coordinator_init_state(self):
+        state_mgr = MagicMock()
+        pm = MagicMock()
+        det_svc = MagicMock()
+        settings = MagicMock()
+        ui_coord = MagicMock()
+        ui_ctrl = MagicMock()
+        cancel_evt = MagicMock()
+        vid_cls = MagicMock()
+
+        coord = MultiAquariumCoordinator(
+            state_manager=state_mgr,
+            project_manager=pm,
+            detector_service=det_svc,
+            settings_obj=settings,
+            ui_coordinator=ui_coord,
+            ui_state_controller=ui_ctrl,
+            cancel_event=cancel_evt,
+            video_classification_service=vid_cls,
+        )
+
+        assert coord.state_manager is state_mgr
+        assert coord.project_manager is pm
+        assert coord.detector_service is det_svc
+        assert coord.settings is settings
+        assert coord._active_processing_mode == ProcessingMode.MULTI_TRACK
+        assert coord._is_detecting_aquarium is False
+        assert coord._auto_assign_aquariums is False
+        assert coord._assigned_videos == set()
