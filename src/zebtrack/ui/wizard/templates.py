@@ -26,7 +26,7 @@ class TemplateManager:
     Templates are saved as JSON files in the user's config directory.
     Each template tracks a schema version and contains the key wizard
     preferences:
-    - Project type (experimental/exploratory/live)
+    - Project type (experimental/live)
     - Calibration settings (dimensions, animal count)
     - Analysis interval configuration
     - Design information (groups, days)

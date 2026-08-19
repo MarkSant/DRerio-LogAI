@@ -280,8 +280,13 @@ class TestWizardIntegration:
         assert len(wizard_data["import_config"]) == 2
 
     @patch("zebtrack.ui.wizard.detection_step.ProjectManager.scan_input_paths")
-    def test_complete_wizard_flow_exploratory(self, mock_scan):
-        """Test complete wizard flow for exploratory project."""
+    def test_complete_wizard_flow_prerecorded_without_design(self, mock_scan):
+        """End-to-end pre-recorded flow when no experimental design is detected.
+
+        This was the "exploratory" flow before that type was removed. The path
+        survives it: a filename that matches no pattern leaves
+        ``detected_design`` None and the wizard must still reach Confirmation.
+        """
         mock_scan.return_value = [
             {
                 "path": str(self.video1),
@@ -294,17 +299,16 @@ class TestWizardIntegration:
 
         wizard_data: dict[str, Any] = {}
 
-        # Step 1: Discovery (exploratory)
+        # Step 1: Discovery (pre-recorded, no folder structure)
         step1 = DiscoveryStep(self.root, wizard_data)
         step1.build_ui()
-        step1.project_type_var.set(ProjectType.EXPLORATORY.value)
+        step1.project_type_var.set(ProjectType.EXPERIMENTAL.value)
+        step1.folder_organization_var.set(3)  # 3 = no folder structure
         step1.parquet_scope_var.set(0)  # no parquets
         wizard_data.update(step1.get_data())
 
-        # Verify folder fields NOT in data for exploratory
-        assert wizard_data["project_type"] == ProjectType.EXPLORATORY.value
-        assert "has_folder_structure" not in wizard_data
-        assert "folder_meaning" not in wizard_data
+        assert wizard_data["project_type"] == ProjectType.EXPERIMENTAL.value
+        assert wizard_data["has_folder_structure"] is False
 
         # Step 2: File Selection
         step2 = FileSelectionStep(self.root, wizard_data)
@@ -317,7 +321,7 @@ class TestWizardIntegration:
         step3.build_ui()
         step3.on_show()
         wizard_data.update(step3.get_data())
-        # Should NOT have detected design for exploratory
+        # The single unstructured filename matches no pattern.
         assert step3.detected_design is None
 
         # Step 4: Import Config
@@ -334,8 +338,8 @@ class TestWizardIntegration:
         step5.on_show()
         wizard_data.update(step5.get_data())
 
-        # Verify exploratory project name
-        assert "Exploratory" in step5.project_name_var.get()
+        # Falls back to the generic experimental name (no groups detected).
+        assert "Experimental" in step5.project_name_var.get()
 
     def test_set_data_restores_state_across_all_steps(self):
         """Test that set_data works for all steps (back navigation)."""

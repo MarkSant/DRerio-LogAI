@@ -303,7 +303,8 @@ class ProgressTrackingCoordinator(BaseCoordinator):
                     combined[key] = value
 
         # Fallback: project-level metadata from wizard when per-video metadata
-        # is missing (e.g. exploratory projects or unmatched filename patterns).
+        # is missing (e.g. unmatched filename patterns, or a project whose
+        # design was never detected).
         project_data = getattr(project_manager, "project_data", None) or {}
         if not combined.get("group"):
             last_group = project_data.get("last_selected_group")

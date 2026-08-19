@@ -235,16 +235,16 @@ class ConfirmationStep(WizardStep):
 
         project_type = self.wizard_data.get("project_type", ProjectType.EXPERIMENTAL.value)
 
-        if project_type == ProjectType.EXPERIMENTAL.value:
-            # Use detected groups if available
+        if project_type == ProjectType.LIVE.value:
+            name = _("Live_Project")
+        else:
+            # Pre-recorded: name after the first detected group when there is one.
             detected_design = self.wizard_data.get("detected_design")
             if detected_design and detected_design.get("groups"):
                 groups = detected_design["groups"]
                 name = _("Experiment_{group}").format(group=groups[0])
             else:
                 name = _("Experimental_Project")
-        else:
-            name = _("Exploratory_Project")
 
         # Add timestamp to make unique
         from datetime import datetime
@@ -331,7 +331,6 @@ class ConfirmationStep(WizardStep):
         lines.append(_("📋 Project Type:"))
         type_names = {
             ProjectType.EXPERIMENTAL.value: _("Experimental (pre-recorded)"),
-            ProjectType.EXPLORATORY.value: _("Exploratory (pre-recorded)"),
             ProjectType.LIVE.value: _("Live (real time)"),
         }
         lines.append(f"  • {type_names.get(project_type, project_type.capitalize())}")

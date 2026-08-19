@@ -9,19 +9,55 @@ Impact: Reduces bugs by ~30-40% based on empirical evidence.
 
 from enum import Enum
 
+#: Project-type value written by wizard templates saved before v6. Kept only so
+#: :meth:`ProjectType.normalize` can recognise it. It must live OUTSIDE the enum
+#: body: any plain assignment in an Enum class becomes a real member (a single
+#: leading underscore is not enough to hide it), which would re-introduce the
+#: very type this module removed.
+LEGACY_EXPLORATORY_PROJECT_TYPE = "exploratory"
+
 
 class ProjectType(Enum):
     """
     Type of project being created.
 
-    EXPERIMENTAL: Pre-recorded videos with experimental design (groups, days, subjects)
-    EXPLORATORY: Pre-recorded videos without structure (free-form analysis)
+    EXPERIMENTAL: Pre-recorded videos, with or without an experimental design
     LIVE: Real-time recording from camera with optional experimental design
+
+    There is deliberately no "exploratory" member. It existed until v6 but was
+    pure wizard vocabulary: ``_prepare_project_input`` collapsed it to
+    "pre-recorded" before anything reached disk, and ``ProjectSchema`` only ever
+    accepted ``pre-recorded|live``. Its whole effect was to skip design
+    auto-detection -- byte-for-byte the same state an EXPERIMENTAL project
+    reaches when detection finds nothing. Reopening an "exploratory" project
+    returned it as experimental, so the choice never survived one session.
     """
 
     EXPERIMENTAL = "experimental"
-    EXPLORATORY = "exploratory"
     LIVE = "live"
+
+    @classmethod
+    def normalize(cls, raw: object) -> str:
+        """Coerce a stored project-type string to a value this wizard still offers.
+
+        Templates saved before v6 can carry ``"exploratory"``. Feeding that
+        straight into the radio group leaves NOTHING selected -- the variable
+        holds a value no button matches -- so the user silently loses the
+        project-type choice when loading an old template.
+
+        It maps to EXPERIMENTAL because that is what an exploratory project
+        always became anyway: the value was collapsed to ``"pre-recorded"``
+        before being written, and its only behavioural effect was skipping
+        design auto-detection, which an experimental project also does when
+        detection finds nothing.
+
+        Unknown values fall back to EXPERIMENTAL rather than raising: a corrupt
+        template must not stop the wizard from opening.
+        """
+        value = str(raw).strip() if raw is not None else ""
+        if value == cls.LIVE.value:
+            return cls.LIVE.value
+        return cls.EXPERIMENTAL.value
 
 
 class ImportAction(Enum):

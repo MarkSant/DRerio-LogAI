@@ -36,13 +36,13 @@ class DiscoveryStep(WizardStep):
     Discovery step - understand user's context.
 
     Questions:
-        1. Project type: Experimental vs Exploratory
+        1. Project type: Experimental (pre-recorded) vs Live
         2. Folder organization (if experimental)
         3. Existing parquet files
 
     Output:
         {
-            "project_type": "experimental" | "exploratory",
+            "project_type": "experimental" | "live",
             "has_folder_structure": bool,
             "folder_meaning": "experimental" | "organizational" | None,
             "has_parquets": bool,
@@ -168,19 +168,6 @@ class DiscoveryStep(WizardStep):
             "Projects with a formal design: treatment groups, controls, time series, etc."
         )
         ToolTip(rb1, experimental_tip)
-
-        rb2 = Radiobutton(
-            self.q1_frame,
-            text=_("Exploratory (pre-recorded videos, free-form analysis)"),
-            variable=self.project_type_var,
-            value=ProjectType.EXPLORATORY.value,
-            command=self._on_project_type_change,
-        )
-        rb2.pack(anchor="w", pady=2)
-        exploratory_tip = _(
-            "For quick tests, validations, or analyses with no defined experimental structure."
-        )
-        ToolTip(rb2, exploratory_tip)
 
         rb_live = Radiobutton(
             self.q1_frame,
@@ -461,15 +448,14 @@ class DiscoveryStep(WizardStep):
             # Live projects: hide both folder organization and parquets questions
             self.q2_frame.pack_forget()
             self.q3_frame.pack_forget()
-        elif project_type == ProjectType.EXPERIMENTAL.value:
-            # Experimental: show both questions (all in their columns)
+        else:
+            # Pre-recorded (experimental): show both questions.
+            # There used to be a third branch here for "exploratory", which hid
+            # the folder-organization question. That type is gone: it never
+            # survived to disk and produced the same project as an experimental
+            # one whose design was not detected.
             if not self.q2_frame.winfo_ismapped():
                 self.q2_frame.pack(fill="both", expand=True)
-            if not self.q3_frame.winfo_ismapped():
-                self.q3_frame.pack(fill="both", expand=True)
-        else:  # Exploratory
-            # Hide folder organization, show parquets
-            self.q2_frame.pack_forget()
             if not self.q3_frame.winfo_ismapped():
                 self.q3_frame.pack(fill="both", expand=True)
 
@@ -535,7 +521,7 @@ class DiscoveryStep(WizardStep):
             data: Previously collected discovery data
         """
         if "project_type" in data:
-            self.project_type_var.set(data["project_type"])
+            self.project_type_var.set(ProjectType.normalize(data["project_type"]))
 
         if "folder_meaning" in data:
             folder_meaning = data["folder_meaning"]
@@ -617,7 +603,7 @@ class DiscoveryStep(WizardStep):
         self.wizard_data["template_metadata"] = metadata
 
         mappings = {
-            "project_type": template.get("project_type"),
+            "project_type": ProjectType.normalize(template.get("project_type")),
             "num_aquariums": template.get("num_aquariums"),
             "animals_per_aquarium": template.get("animals_per_aquarium"),
             "aquarium_width_cm": template.get("aquarium_width_cm"),

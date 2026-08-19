@@ -51,7 +51,7 @@ class WizardDialog(Dialog):
         - Navigation via Back/Next buttons (validated transitions)
         - Conditional navigation: steps shown/hidden based on project type
 
-    Steps (Pre-recorded: Experimental/Exploratory):
+    Steps (Pre-recorded):
         1. Discovery: Project type, folder structure, parquet import scope
         2. File Selection: Select videos and folders
         3. Calibration: Physical dimensions and animal configuration
@@ -238,7 +238,7 @@ class WizardDialog(Dialog):
                 step_count=6,
             )
         else:
-            # Pre-recorded flow (experimental or exploratory):
+            # Pre-recorded flow:
             # Discovery -> File Selection -> Calibration -> Detection ->
             # Model Selection -> Import Config -> Confirmation
             self.active_steps = [

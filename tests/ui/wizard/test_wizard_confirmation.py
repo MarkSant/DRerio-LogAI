@@ -103,10 +103,10 @@ class TestConfirmationStep:
         assert "Experiment" in name
         assert "Control" in name
 
-    def test_default_project_name_exploratory(self):
-        """Default name should be generated for exploratory projects."""
+    def test_default_project_name_live(self):
+        """Live projects get their own default name."""
         wizard_data = {
-            "project_type": ProjectType.EXPLORATORY.value,
+            "project_type": ProjectType.LIVE.value,
         }
 
         step = ConfirmationStep(self.root, wizard_data)
@@ -115,7 +115,23 @@ class TestConfirmationStep:
 
         name = step.project_name_var.get()
 
-        assert "Exploratory" in name
+        assert "Live" in name
+
+    def test_default_project_name_without_detected_design(self):
+        """A pre-recorded project with no detected design still gets a name.
+
+        This is the state the removed "exploratory" type produced, and it is
+        reachable today whenever design detection finds no pattern.
+        """
+        wizard_data = {
+            "project_type": ProjectType.EXPERIMENTAL.value,
+        }
+
+        step = ConfirmationStep(self.root, wizard_data)
+        step.build_ui()
+        step._generate_default_project_name()
+
+        assert "Experimental" in step.project_name_var.get()
 
     def test_summary_generation_with_design(self):
         """Summary should be generated with detected design."""

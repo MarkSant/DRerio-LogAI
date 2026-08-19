@@ -15,6 +15,7 @@ import pytest
 
 from zebtrack.ui.wizard.discovery_step import DiscoveryStep
 from zebtrack.ui.wizard.enums import (
+    LEGACY_EXPLORATORY_PROJECT_TYPE,
     ImportAction,
     ProjectType,
     WizardStepID,
@@ -111,17 +112,20 @@ class TestWizardFoundation:
         assert not data["has_parquets"]
         assert data["parquet_import_scope"] is None
 
-    def test_discovery_step_exploratory_excludes_folder_fields(self):
-        """Exploratory projects should not have folder organization fields."""
+    def test_discovery_step_live_excludes_folder_fields(self):
+        """Live projects have no folders to organise, so those keys stay absent.
+
+        This used to cover the "exploratory" type, whose only real effect was
+        omitting these same keys. Live is now the sole type that does so.
+        """
         wizard_data: dict[str, Any] = {}
         step = DiscoveryStep(self.root, wizard_data)
         step.build_ui()
 
-        # Change to exploratory
-        step.project_type_var.set(ProjectType.EXPLORATORY.value)
+        step.project_type_var.set(ProjectType.LIVE.value)
         data = step.get_data()
 
-        assert data["project_type"] == ProjectType.EXPLORATORY.value
+        assert data["project_type"] == ProjectType.LIVE.value
         assert "has_folder_structure" not in data
         assert "folder_meaning" not in data
 
@@ -185,7 +189,7 @@ class TestWizardFoundation:
 
         # Simulate previous data
         previous_data = {
-            "project_type": ProjectType.EXPLORATORY.value,
+            "project_type": ProjectType.LIVE.value,
             "has_parquets": True,
             "parquet_import_scope": "zones",
         }
@@ -193,8 +197,24 @@ class TestWizardFoundation:
         step.set_data(previous_data)
 
         # Verify UI restored
-        assert step.project_type_var.get() == ProjectType.EXPLORATORY.value
+        assert step.project_type_var.get() == ProjectType.LIVE.value
         assert step.parquet_scope_var.get() == 2  # 2 = zones
+
+    def test_discovery_step_set_data_normalizes_legacy_exploratory(self):
+        """A pre-v6 template must not leave the radio group with nothing selected.
+
+        ``project_type_var`` is bound to the radio buttons; setting it to a value
+        no button offers silently deselects them all, so the user loses the
+        project-type choice on load. "exploratory" maps to EXPERIMENTAL because
+        that is what such a project always became on disk anyway.
+        """
+        wizard_data: dict[str, Any] = {}
+        step = DiscoveryStep(self.root, wizard_data)
+        step.build_ui()
+
+        step.set_data({"project_type": LEGACY_EXPLORATORY_PROJECT_TYPE})
+
+        assert step.project_type_var.get() == ProjectType.EXPERIMENTAL.value
 
     def test_discovery_step_template_banner(self):
         """Template metadata should surface in the discovery banner."""
@@ -233,7 +253,26 @@ class TestEnums:
     def test_project_type_enum_values(self):
         """ProjectType enum should have correct values."""
         assert ProjectType.EXPERIMENTAL.value == "experimental"
-        assert ProjectType.EXPLORATORY.value == "exploratory"
+        assert ProjectType.LIVE.value == "live"
+
+    def test_project_type_has_exactly_two_members(self):
+        """Guards against "exploratory" creeping back in.
+
+        A plain assignment anywhere in an Enum body becomes a real member -- a
+        single leading underscore does NOT hide it -- which is exactly how the
+        removed type could return unnoticed. Hence the legacy value lives as a
+        module-level constant, and this test pins the member list.
+        """
+        assert [m.name for m in ProjectType] == ["EXPERIMENTAL", "LIVE"]
+
+    def test_normalize_maps_legacy_and_unknown_to_experimental(self):
+        """A corrupt or pre-v6 template must not stop the wizard from opening."""
+        assert ProjectType.normalize(LEGACY_EXPLORATORY_PROJECT_TYPE) == "experimental"
+        assert ProjectType.normalize("garbage") == "experimental"
+        assert ProjectType.normalize(None) == "experimental"
+        # The surviving types round-trip untouched.
+        assert ProjectType.normalize("live") == "live"
+        assert ProjectType.normalize("experimental") == "experimental"
 
     def test_import_action_enum_values(self):
         """ImportAction enum should have correct values."""

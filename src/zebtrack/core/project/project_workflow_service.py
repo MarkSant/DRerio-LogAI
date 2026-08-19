@@ -623,7 +623,6 @@ class ProjectWorkflowService:
 
         project_type_value = kwargs.get("project_type", ProjectType.EXPERIMENTAL.value)
         is_live = project_type_value == ProjectType.LIVE.value
-        is_exploratory = project_type_value == ProjectType.EXPLORATORY.value
 
         if "project_type" in kwargs:
             kwargs["project_type"] = "live" if is_live else "pre-recorded"
@@ -666,7 +665,11 @@ class ProjectWorkflowService:
                 video_files.append(converted)
             kwargs["video_files"] = video_files
 
-        if not is_exploratory and detected_design:
+        # Guarded on ``detected_design`` alone. The former ``not is_exploratory``
+        # half was dead: an exploratory project always arrived with
+        # ``detected_design is None`` (detection_step skips it), so the guard
+        # could never be the reason this block was skipped.
+        if detected_design:
             groups = detected_design.get("groups", [])
             days = detected_design.get("days", [])
             subjects_dict = detected_design.get("subjects_per_group", {})
