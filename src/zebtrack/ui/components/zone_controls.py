@@ -520,8 +520,9 @@ class ZoneControlsWidget(BaseWidget):
         - **Close Polygon** only closes the outline being drawn freehand (it
           stands in for the double-click). It commits nothing, and during vertex
           editing it is a genuine no-op — ``_finish_drawing_is_interactive_edit``
-          makes its handler return early — so it is disabled with a reason there
-          instead of silently doing nothing.
+          makes its handler return early — so it is HIDDEN there rather than
+          shown greyed out. It is built unpacked and packed on demand by
+          ``show_interactive_buttons(freehand_drawing=True)``.
         - **Save This Area** is the only real commit of the polygon itself, and
           it keeps you in the tab to define more ROIs.
         - **Finish and Save Project** writes ``project.json`` and ends the step;
@@ -534,13 +535,16 @@ class ZoneControlsWidget(BaseWidget):
 
         self.interactive_buttons_frame = ttk.Frame(parent)
 
-        # Finish Drawing button - closes the freehand polygon without double-click
+        # Finish Drawing button - closes the freehand polygon without double-click.
+        # Deliberately NOT packed here: it is only meaningful while drawing
+        # freehand, and every current caller of ``show_interactive_buttons`` is
+        # a vertex-editing entry point. ``_show_finish_drawing_button`` packs it
+        # ahead of "Save This Area" when a drawing session actually starts.
         self.finish_drawing_btn = ttk.Button(
             self.interactive_buttons_frame,
             text=_("✓ Close Polygon"),
             command=self._on_finish_drawing_clicked,
         )
-        self.finish_drawing_btn.pack(side="left", fill="x", expand=True, padx=5, pady=5)
 
         self.save_arena_btn = ttk.Button(
             self.interactive_buttons_frame,
@@ -1444,23 +1448,17 @@ class ZoneControlsWidget(BaseWidget):
 
         "Close Polygon" only means something while drawing freehand — there it
         stands in for the closing double-click. During vertex editing the
-        polygon is already closed, so the button is disabled instead of sitting
-        there enabled and doing nothing. That is not cosmetic: its handler only
-        short-circuits once ``edited_polygon_points`` is non-empty, so clicking
-        it after entering edit mode but BEFORE dragging a vertex would fall
-        through to ``on_canvas_double_click``, which operates on the
-        in-progress-drawing state and can revert the polygon.
+        polygon is already closed, so the button is HIDDEN rather than shown
+        greyed out: a permanently disabled control is still clutter, and this
+        one was visible only in the mode where it cannot work.
+
+        Hiding is also the safe state. Its handler only short-circuits once
+        ``edited_polygon_points`` is non-empty, so clicking it after entering
+        edit mode but BEFORE dragging a vertex used to fall through to
+        ``on_canvas_double_click``, which operates on the in-progress-drawing
+        state and can revert the polygon.
         """
-        if getattr(self, "finish_drawing_btn", None):
-            try:
-                if freehand_drawing:
-                    # Fresh drawing session: re-arm (the button greys itself out
-                    # after a click as completion feedback).
-                    self.finish_drawing_btn.config(state="normal", text=_("✓ Close Polygon"))
-                else:
-                    self.finish_drawing_btn.config(state="disabled", text=_("✓ Close Polygon"))
-            except tk.TclError:
-                log.debug("zone_controls.finish_drawing.reset_suppressed", exc_info=True)
+        self._show_finish_drawing_button(freehand_drawing)
         if self.interactive_buttons_frame:
             try:
                 if self.interactive_buttons_frame.master == self.roi_inclusion_frame.master:
@@ -1474,6 +1472,38 @@ class ZoneControlsWidget(BaseWidget):
             except Exception:
                 # Fallback to simple pack
                 self.interactive_buttons_frame.pack(fill="x", pady=5)
+
+    def _show_finish_drawing_button(self, visible: bool) -> None:
+        """Pack or unpack "Close Polygon", keeping it left of "Save This Area".
+
+        ``before=save_arena_btn`` is what preserves the workflow order
+        (close → save → discard) when the button comes back for a later drawing
+        session; a bare ``pack()`` would append it to the right of Discard.
+        """
+        button = getattr(self, "finish_drawing_btn", None)
+        if button is None:
+            return
+        try:
+            if not visible:
+                button.pack_forget()
+                return
+            # Fresh drawing session: re-arm (the button greys itself out after a
+            # click as completion feedback) and restore its label.
+            button.config(state="normal", text=_("✓ Close Polygon"))
+            if not button.winfo_manager():
+                if self.save_arena_btn is not None:
+                    button.pack(
+                        side="left",
+                        fill="x",
+                        expand=True,
+                        padx=5,
+                        pady=5,
+                        before=self.save_arena_btn,
+                    )
+                else:
+                    button.pack(side="left", fill="x", expand=True, padx=5, pady=5)
+        except tk.TclError:
+            log.debug("zone_controls.finish_drawing.visibility_suppressed", exc_info=True)
 
     def hide_interactive_buttons(self) -> None:
         """Hide the interactive editing buttons."""

@@ -82,25 +82,69 @@ class TestShortcutHandler:
         widget.focus_roi_section.assert_not_called()
 
 
+def _is_packed(widget) -> bool:
+    """True when the widget is currently managed by a geometry manager.
+
+    ``winfo_ismapped()`` is useless here: nothing is gridded into a visible
+    toplevel in tests, so every widget reports unmapped. The geometry manager
+    reflects pack()/pack_forget() exactly.
+    """
+    return bool(widget.winfo_manager())
+
+
 @pytest.mark.gui
 class TestClosePolygonButtonGating:
-    """ "Close Polygon" only means something while drawing freehand."""
+    """ "Close Polygon" only means something while drawing freehand.
 
-    def test_disabled_when_editing_existing_vertices(self, tkinter_root):
+    Every caller of ``show_interactive_buttons`` today is a vertex-editing
+    entry point, so the button was visible only where it cannot work. It is
+    hidden there rather than greyed out -- a permanently disabled control is
+    still clutter.
+    """
+
+    def test_hidden_when_editing_existing_vertices(self, tkinter_root):
         widget = ZoneControlsWidget(tkinter_root, event_bus=MagicMock())
         tkinter_root.update_idletasks()
 
         widget.show_interactive_buttons()  # default: vertex editing
 
-        assert str(widget.finish_drawing_btn.cget("state")) == "disabled"
+        assert not _is_packed(widget.finish_drawing_btn)
+        # The two controls that DO act here stay visible.
+        assert _is_packed(widget.save_arena_btn)
+        assert _is_packed(widget.discard_arena_btn)
 
-    def test_enabled_for_a_freehand_drawing_session(self, tkinter_root):
+    def test_shown_for_a_freehand_drawing_session(self, tkinter_root):
         widget = ZoneControlsWidget(tkinter_root, event_bus=MagicMock())
         tkinter_root.update_idletasks()
 
         widget.show_interactive_buttons(freehand_drawing=True)
 
+        assert _is_packed(widget.finish_drawing_btn)
         assert str(widget.finish_drawing_btn.cget("state")) == "normal"
+
+    def test_reappears_left_of_save_after_an_editing_session(self, tkinter_root):
+        """Workflow order must survive the hide/show cycle.
+
+        A bare ``pack()`` on the way back would append the button to the RIGHT
+        of Discard, silently reordering the strip.
+        """
+        widget = ZoneControlsWidget(tkinter_root, event_bus=MagicMock())
+        tkinter_root.update_idletasks()
+
+        widget.show_interactive_buttons()  # hides it
+        widget.show_interactive_buttons(freehand_drawing=True)  # brings it back
+        tkinter_root.update_idletasks()
+
+        frame = widget.interactive_buttons_frame
+        close_polygon = widget.finish_drawing_btn
+        save = widget.save_arena_btn
+        discard = widget.discard_arena_btn
+        assert frame is not None
+        assert close_polygon is not None and save is not None and discard is not None
+
+        packed = list(frame.pack_slaves())
+        assert packed.index(close_polygon) < packed.index(save)
+        assert packed.index(save) < packed.index(discard)
 
     def test_discard_button_is_packed_exactly_once(self, tkinter_root):
         """It used to be packed twice, silently re-ordering the strip."""
@@ -110,12 +154,9 @@ class TestClosePolygonButtonGating:
         frame = widget.interactive_buttons_frame
         discard = widget.discard_arena_btn
         save = widget.save_arena_btn
-        close_polygon = widget.finish_drawing_btn
         assert frame is not None
-        assert discard is not None and save is not None and close_polygon is not None
+        assert discard is not None and save is not None
 
-        children = frame.winfo_children()
-        assert children.count(discard) == 1
-        # Workflow order: close the outline, then save it, then discard.
-        assert children.index(close_polygon) < children.index(save)
-        assert children.index(save) < children.index(discard)
+        packed = list(frame.pack_slaves())
+        assert packed.count(discard) == 1
+        assert packed.index(save) < packed.index(discard)
