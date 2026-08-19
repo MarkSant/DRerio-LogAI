@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
-import threading
 from unittest.mock import MagicMock
 
-from zebtrack.core.video.processing_worker import ProcessingWorker, WorkerConfig
+from zebtrack.core.video.processing_worker import WorkerConfig
 
 
 class TestProcessingWorkerExtended4:
@@ -26,13 +25,3 @@ class TestProcessingWorkerExtended4:
         assert cfg.single_video_mode is True
         assert cfg.model_type == "openvino"
         assert cfg.analysis_interval_frames == 10
-
-    def test_processing_worker_is_running(self):
-        worker = object.__new__(ProcessingWorker)
-        worker._monitor_thread = None
-        assert worker.is_running is False
-
-        mock_thread = MagicMock(spec=threading.Thread)
-        mock_thread.is_alive.return_value = True
-        worker._monitor_thread = mock_thread
-        assert worker.is_running is True

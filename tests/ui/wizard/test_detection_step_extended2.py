@@ -5,31 +5,11 @@ from __future__ import annotations
 from pathlib import Path
 from unittest.mock import MagicMock
 
-from zebtrack.ui.wizard.detection_step import DetectionStep, _method_labels
-from zebtrack.ui.wizard.enums import WizardStepID
+from zebtrack.ui.wizard.detection_step import DetectionStep
 
 
 class TestDetectionStepExtended2:
     """Test DetectionStep labels, step id, custom regex extraction, and empty path handling."""
-
-    def test_method_labels(self):
-        labels = _method_labels()
-        assert "seg" in labels
-        assert "det" in labels
-        assert "Segmentation" in labels["seg"]
-        assert "Detection" in labels["det"]
-
-    def test_step_id_and_initial_state(self):
-        step = object.__new__(DetectionStep)
-        step.step_id = WizardStepID.DETECTION_VALIDATION
-        step.scanned_videos = []
-        step.detected_design = None
-        step.custom_regex_patterns = None
-        step.design_editor_confirmed = False
-
-        assert step.step_id == WizardStepID.DETECTION_VALIDATION
-        assert step.scanned_videos == []
-        assert step.detected_design is None
 
     def test_run_detection_empty_video_paths(self):
         step = object.__new__(DetectionStep)

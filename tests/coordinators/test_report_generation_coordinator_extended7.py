@@ -56,15 +56,3 @@ class TestReportGenerationCoordinatorExtended7:
         df = coord._read_trajectory(Path("/data/traj.parquet"))
         assert df == "dummy_df"
         traj_svc.load_trajectory.assert_called_once_with(str(Path("/data/traj.parquet")))
-
-    def test_progress_coordinator_setter(self):
-        coord = object.__new__(ReportGenerationCoordinator)
-        progress = MagicMock()
-        coord._progress_coordinator = progress
-        assert coord._progress_coordinator is progress
-
-    def test_report_generation_coordinator_settings_injection(self):
-        coord = object.__new__(ReportGenerationCoordinator)
-        settings = MagicMock()
-        coord.settings = settings
-        assert coord.settings is settings

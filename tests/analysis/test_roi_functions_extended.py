@@ -7,7 +7,6 @@ from shapely.geometry import Polygon
 
 from zebtrack.analysis.roi import (
     ROI,
-    _assign_stable_roi,
     _distance_in_rois,
     _entry_counts,
     _exit_counts,
@@ -32,16 +31,6 @@ class TestRoiHelpersExtended:
         assert _to_seconds(td) == 12.5
         assert _to_seconds(42) == 42.0
         assert _to_seconds(3.14) == 3.14
-
-    def test_assign_stable_roi(self):
-        df = pd.DataFrame(
-            {
-                "in_Center_stable": [False, True, False],
-                "in_Periphery_stable": [True, False, False],
-            }
-        )
-        _assign_stable_roi(df, ["Center", "Periphery"])
-        assert df["stable_roi"].tolist() == ["Periphery", "Center", "Outside"]
 
     def test_time_spent_in_rois(self):
         df = pd.DataFrame(

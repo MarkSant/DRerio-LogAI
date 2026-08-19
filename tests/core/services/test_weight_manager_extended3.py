@@ -16,17 +16,11 @@ from zebtrack.core.services.weight_manager import (
     OpenVINOExportError,
     WeightManager,
     _default_flag_key,
-    _default_target_for_type,
 )
 
 
 class TestWeightManagerTaxonomyAndExceptions:
     """Test weight targets, flag keys, and OpenVINOExportError."""
-
-    def test_default_target_for_type(self):
-        assert _default_target_for_type("seg") == TARGET_ZEBRAFISH
-        assert _default_target_for_type("det") == TARGET_AQUARIUM
-        assert _default_target_for_type("other") == TARGET_AQUARIUM
 
     def test_default_flag_key(self):
         assert _default_flag_key("det", "aquarium") == "is_default_det_aquarium"

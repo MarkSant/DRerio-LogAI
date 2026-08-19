@@ -57,6 +57,19 @@ Obrigado por querer contribuir com o DRerio LogAI! Este guia descreve o fluxo de
   ```
 
 - Adicione testes para novas funcionalidades ou coberturas regressivas.
+- **Um PR de teste é avaliado pelo _mutation score_, não pela contagem de testes.** Cobertura diz
+  que a linha EXECUTOU; só uma asserção que falha prova que ela é VERIFICADA. Antes de abrir um PR
+  que mexa num módulo do catálogo ou nos testes que o cobrem:
+
+  ```powershell
+  poetry run python scripts/mutation_check.py --all
+  ```
+
+  Mutação sobrevivente = teste faltando. Adicione o teste; não remova a mutação.
+- Testes que não exercitam código de produção são recusados automaticamente por
+  `tests/quality/test_no_hollow_tests.py` (tautologias com `object.__new__`, instâncias ocas e
+  corpos duplicados entre arquivos). A allowlist de casos legados só encolhe.
+- **Um arquivo de teste por módulo.** Nada de `test_x_extended2.py`, `_extended3.py`, …
 - Atualize cenários críticos:
   - `tests/test_overlay_integration.py` para mudanças em overlays/GUI.
   - `tests/test_interval_frames_config.py` para persistência de intervalos.
@@ -163,7 +176,10 @@ References:
 1. **Checklist antes do PR**:
 
    - [ ] Lint (`poetry run ruff check .`)
+   - [ ] Tipos (`poetry run mypy .` — o CI roda no repositório inteiro, `tests/` incluído)
    - [ ] Testes (`poetry run pytest -q`)
+   - [ ] Testes de GUI (`poetry run pytest -m gui -n0`) se tocou `tests/ui/**` ou algum diálogo
+   - [ ] Mutação sem sobreviventes (`poetry run python scripts/mutation_check.py --all`)
    - [ ] Documentação atualizada
    - [ ] Capturas de tela/GIF quando relevante à UI
 

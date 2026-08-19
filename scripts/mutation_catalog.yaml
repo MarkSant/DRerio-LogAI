@@ -1,0 +1,155 @@
+# Curated mutation catalogue for scripts/mutation_check.py
+#
+# Each mutation is a literal, single-occurrence source substitution that changes
+# BEHAVIOUR in a way a competent test must notice. The point is not to be
+# exhaustive -- it is to prove that the tests guarding the contracts CLAUDE.md
+# calls critical actually fail when those contracts break.
+#
+# Choosing a mutation:
+#   - It must change an observable outcome, not a log message or a comment.
+#   - `find` must appear EXACTLY ONCE in the file (the runner enforces this).
+#   - Prefer inverting a decision over deleting a branch: a deleted branch often
+#     fails to import, which any test would "catch" for the wrong reason.
+#
+# A surviving mutation is a real hole. Fix it by adding the missing test, not by
+# deleting the mutation.
+
+modules:
+  mask_capture:
+    source: src/zebtrack/core/services/mask_capture.py
+    tests:
+      - tests/core/detection/test_mask_capture.py
+      - tests/core/services/test_mask_capture_extended.py
+    mutations:
+      - id: no-settings-returns-true
+        description: "settings_obj None passa a habilitar captura em vez de recusar"
+        find: |-
+          if settings_obj is None:
+                  return False
+        replace: |-
+          if settings_obj is None:
+                  return True
+      - id: persist-masks-ignored
+        description: "recorder.persist_masks desligado deixa de bloquear a captura"
+        find: 'if not bool(getattr(recorder_settings, "persist_masks", False)):'
+        replace: 'if False:'
+      - id: det-model-accepted
+        description: "modelo det passa a ser aceito para captura de mascara"
+        find: '!= "seg":'
+        replace: '== "seg":'
+      - id: rule-not-checked
+        description: "regra de ROI diferente de seg_overlap deixa de bloquear"
+        find: 'if rule != "seg_overlap":'
+        replace: 'if False:'
+
+  external_trigger_gate:
+    source: src/zebtrack/core/services/external_trigger_gate.py
+    tests:
+      - tests/core/services/test_external_trigger_gate.py
+      - tests/core/services/test_external_trigger_gate_extended.py
+    mutations:
+      - id: trigger-off-arms
+        description: "gatilho desligado passa a armar em vez de gravar direto"
+        find: |-
+          if not trigger_requested:
+                  return ExternalTriggerDecision.PROCEED
+        replace: |-
+          if not trigger_requested:
+                  return ExternalTriggerDecision.ARM_AND_WAIT
+      - id: no-arduino-proceeds
+        description: "gatilho ligado sem use_arduino GRAVA as cegas em vez de recusar"
+        find: 'return ExternalTriggerDecision.REJECT_NO_ARDUINO'
+        replace: 'return ExternalTriggerDecision.PROCEED'
+      - id: offline-arduino-arms
+        description: "Arduino desconectado passa a armar e esperar sinal que nao chega"
+        find: 'return ExternalTriggerDecision.REJECT_ARDUINO_OFFLINE'
+        replace: 'return ExternalTriggerDecision.ARM_AND_WAIT'
+      - id: port-normalizer-drops-strip
+        description: "normalize_arduino_port deixa de limpar espacos"
+        find: |-
+          return str(value).strip()
+        replace: |-
+          return str(value)
+
+  session_duration_resolver:
+    source: src/zebtrack/core/services/session_duration_resolver.py
+    tests:
+      - tests/core/services/test_session_duration_resolver.py
+      - tests/core/services/test_session_duration_resolver_extended.py
+    mutations:
+      - id: override-key-order-swapped
+        description: "chave de override troca a ordem grupo/sujeito"
+        find: 'return f"{_normalize_day(day)}|{str(group).strip()}|{str(subject).strip()}"'
+        replace: 'return f"{_normalize_day(day)}|{str(subject).strip()}|{str(group).strip()}"'
+      - id: zero-duration-accepted
+        description: "duracao zero/negativa deixa de ser rejeitada e perde a gravacao"
+        find: 'if duration <= 0 or duration != duration:  # NaN != NaN'
+        replace: 'if duration != duration:  # NaN != NaN'
+      - id: day-digits-not-normalized
+        description: "dia numerico deixa de virar Dia_N, quebrando o casamento da chave"
+        find: 'return f"Dia_{int(core)}"'
+        replace: 'return core'
+
+  arduino_bindings:
+    source: src/zebtrack/core/services/arduino_bindings.py
+    tests:
+      - tests/core/services/test_arduino_bindings_extended.py
+    mutations:
+      - id: token-conflict-never-detected
+        description: "token usado como on_enter e on_exit deixa de ser reportado (trava dispositivo ligado)"
+        find: 'for token in sorted(set(enter_by_token) & set(exit_by_token))'
+        replace: 'for token in sorted(set(enter_by_token) & set(exit_by_token) & set())'
+      - id: exit-tokens-not-indexed
+        description: "on_exit deixa de entrar no indice, cegando a varredura de fim de sessao"
+        find: |-
+          if b.on_exit is not None:
+                          exit_by_token.setdefault(b.on_exit, []).append(b.roi)
+        replace: |-
+          if b.on_exit is None:
+                          exit_by_token.setdefault(b.on_exit, []).append(b.roi)
+
+  roi_rule_resolver:
+    source: src/zebtrack/core/services/roi_rule_resolver.py
+    tests:
+      - tests/core/services/test_roi_rule_resolver.py
+    mutations:
+      - id: default-rule-changed
+        description: "regra padrao deixa de ser bbox_intersects"
+        find: 'DEFAULT_ROI_INCLUSION_RULE: Final[str] = "bbox_intersects"'
+        replace: 'DEFAULT_ROI_INCLUSION_RULE: Final[str] = "centroid_in"'
+      - id: seg-and-bbox-thresholds-conflated
+        description: "limiar de seg_overlap cai para o de bbox (denominadores diferentes)"
+        find: 'DEFAULT_MIN_SEG_OVERLAP_RATIO: Final[float] = 0.3'
+        replace: 'DEFAULT_MIN_SEG_OVERLAP_RATIO: Final[float] = 0.10'
+      - id: flutter-enter-exit-swapped
+        description: "frames de histerese de entrada e saida trocados"
+        find: 'DEFAULT_ROI_FLUTTER_ENTER_FRAMES: Final[int] = 2'
+        replace: 'DEFAULT_ROI_FLUTTER_ENTER_FRAMES: Final[int] = 3'
+
+  weight_manager:
+    source: src/zebtrack/core/services/weight_manager.py
+    tests:
+      - tests/core/services/test_weight_manager_extended.py
+      - tests/core/services/test_weight_manager_extended2.py
+      - tests/core/services/test_weight_manager_extended3.py
+    mutations:
+      - id: default-target-inverted
+        description: "alvo padrao seg/det invertido"
+        find: 'return TARGET_ZEBRAFISH if weight_type == "seg" else TARGET_AQUARIUM'
+        replace: 'return TARGET_AQUARIUM if weight_type == "seg" else TARGET_ZEBRAFISH'
+      - id: default-flag-key-swapped
+        description: "chave is_default_{method}_{target} com ordem trocada"
+        find: 'return f"is_default_{method}_{target}"'
+        replace: 'return f"is_default_{target}_{method}"'
+      - id: fish-alias-dropped
+        description: 'alias "fish" deixa de resolver para zebrafish'
+        find: 'if task in ("animal", "zebrafish", "fish"):'
+        replace: 'if task in ("animal", "zebrafish"):'
+      - id: lateral-perspective-broken
+        description: "perspectiva lateral deixa de ser reconhecida no nome do arquivo"
+        find: 'if "_lateral" in filename_lower:'
+        replace: 'if "_lateralXX" in filename_lower:'
+      - id: oi-suffix-classification-broken
+        description: "sufixo _oi.pt deixa de classificar como det"
+        find: 'if filename_lower.endswith("_oi.pt"):'
+        replace: 'if filename_lower.endswith("_oiXX.pt"):'

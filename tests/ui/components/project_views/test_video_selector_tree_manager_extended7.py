@@ -23,9 +23,3 @@ class TestVideoSelectorTreeManagerExtended7:
         event_bus = MagicMock()
         VideoSelectorTreeManager(gui, event_bus_v2=event_bus)
         assert event_bus.subscribe.call_count >= 3
-
-    def test_video_selector_tree_manager_overview_state_defaults(self):
-        gui = MagicMock()
-        mgr = VideoSelectorTreeManager(gui)
-        assert mgr._overview_refresh_pending is False
-        assert mgr._overview_refresh_after_id is None

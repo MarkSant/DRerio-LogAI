@@ -49,18 +49,3 @@ class TestMultiAquariumCoordinatorExtended6:
         assert coord._is_detecting_aquarium is False
         assert coord._auto_assign_aquariums is False
         assert coord._assigned_videos == set()
-
-    def test_assigned_videos_tracking(self):
-        coord = object.__new__(MultiAquariumCoordinator)
-        coord._assigned_videos = set()
-        coord._assigned_videos.add("/videos/v1.mp4")
-        coord._assigned_videos.add("/videos/v2.mp4")
-
-        assert len(coord._assigned_videos) == 2
-        assert "/videos/v1.mp4" in coord._assigned_videos
-
-    def test_multi_aquarium_coordinator_cancel_event_binding(self):
-        coord = object.__new__(MultiAquariumCoordinator)
-        cancel_evt = MagicMock()
-        coord.cancel_event = cancel_evt
-        assert coord.cancel_event is cancel_evt

@@ -50,8 +50,3 @@ class TestLiveCameraSessionCoordinatorExtended7:
     def test_live_camera_session_coordinator_error_inheritance(self):
         err = LiveCameraSessionCoordinatorError("Session failed")
         assert str(err) == "Session failed"
-
-    def test_live_camera_session_coordinator_pending_kind_assignment(self):
-        coord = object.__new__(LiveCameraSessionCoordinator)
-        coord._pending_live_kind = "grid"
-        assert coord._pending_live_kind == "grid"

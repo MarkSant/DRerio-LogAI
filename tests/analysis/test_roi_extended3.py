@@ -9,7 +9,6 @@ from zebtrack.analysis.roi import (
     _assign_stable_roi,
     _first_not_none,
     _time_spent_in_rois,
-    _to_seconds,
 )
 
 
@@ -24,11 +23,6 @@ class TestRoiExtended3:
         assert _first_not_none(None, 0.0, 10.0) == 0.0
         assert _first_not_none(None, None, "value") == "value"
         assert _first_not_none(None, None) is None
-
-    def test_to_seconds(self):
-        assert _to_seconds(15.5) == 15.5
-        td = pd.Timedelta(seconds=42.5)
-        assert _to_seconds(td) == 42.5
 
     def test_assign_stable_roi(self):
         df = pd.DataFrame(

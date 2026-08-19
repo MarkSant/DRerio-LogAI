@@ -79,12 +79,6 @@ class TestDialogManagerExtended2:
         manager.ask_yes_no_cancel = MagicMock(return_value=None)  # type: ignore[method-assign]
         assert manager.choose_processing_reports_delete_mode("video1.mp4") is None
 
-    def test_node_type_labels(self):
-        labels = DialogManager._node_type_labels()
-        assert "group" in labels
-        assert "day" in labels
-        assert "subject" in labels
-
     def test_confirm_delete_processing_data_cancelled(self):
         gui = MagicMock()
         manager = DialogManager(gui)

@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from pathlib import Path
-
 import numpy as np
 
 from zebtrack.plugins.openvino_detector import (
@@ -24,12 +22,6 @@ class TestOpenvinoDetectorExtended2:
     def test_resolve_openvino_cache_dir_none(self):
         assert _resolve_openvino_cache_dir(None) is None
         assert _resolve_openvino_cache_dir("") is None
-
-    def test_resolve_openvino_cache_dir_absolute(self, tmp_path: Path):
-        cache_dir = tmp_path / "ov_cache"
-        resolved = _resolve_openvino_cache_dir(cache_dir)
-        assert resolved == str(cache_dir)
-        assert cache_dir.exists()
 
     def test_resolve_openvino_cache_dir_relative(self):
         resolved = _resolve_openvino_cache_dir("openvino_model_cache")

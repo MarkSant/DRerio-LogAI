@@ -8,15 +8,6 @@ from zebtrack.utils.hardware_benchmark import GPUType, HardwareProfile
 class TestHardwareBenchmarkExtended5:
     """Test HardwareProfile dataclass attributes and GPUType enum values."""
 
-    def test_gpu_type_enum_values(self):
-        assert GPUType.NONE.value == "none"
-        assert GPUType.INTEL_IGPU.value == "intel_igpu"
-        assert GPUType.INTEL_ARC.value == "intel_arc"
-        assert GPUType.INTEL_NPU.value == "intel_npu"
-        assert GPUType.NVIDIA.value == "nvidia"
-        assert GPUType.AMD.value == "amd"
-        assert GPUType.UNKNOWN.value == "unknown"
-
     def test_hardware_profile_defaults(self):
         profile = HardwareProfile()
         assert profile.cpu_name == ""

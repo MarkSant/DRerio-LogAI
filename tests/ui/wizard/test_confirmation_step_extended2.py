@@ -3,17 +3,10 @@
 from __future__ import annotations
 
 from zebtrack.ui.wizard.confirmation_step import ConfirmationStep
-from zebtrack.ui.wizard.enums import WizardStepID
 
 
 class TestConfirmationStepExtended2:
     """Test ConfirmationStep summaries, step id, calibration, and custom regex formatting."""
-
-    def test_step_id_and_initial_state(self):
-        step = object.__new__(ConfirmationStep)
-        step.step_id = WizardStepID.CONFIRMATION
-        step.summary_text = ""
-        assert step.step_id == WizardStepID.CONFIRMATION
 
     def test_append_custom_regex_info(self):
         step = object.__new__(ConfirmationStep)

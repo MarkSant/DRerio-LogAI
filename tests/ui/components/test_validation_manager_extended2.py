@@ -6,7 +6,6 @@ from collections import Counter
 from unittest.mock import MagicMock
 
 from zebtrack.ui.components.validation_manager import (
-    STATUS_SYMBOLS,
     ValidationManager,
     project_status_meta,
 )
@@ -14,12 +13,6 @@ from zebtrack.ui.components.validation_manager import (
 
 class TestValidationManagerExtended2:
     """Test ValidationManager constants, metadata helpers, status line, and deep merge utility."""
-
-    def test_status_symbols_constants(self):
-        assert "arena" in STATUS_SYMBOLS
-        assert "rois" in STATUS_SYMBOLS
-        assert "trajectory" in STATUS_SYMBOLS
-        assert "summary" in STATUS_SYMBOLS
 
     def test_project_status_meta(self):
         meta = project_status_meta()

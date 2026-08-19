@@ -19,7 +19,6 @@ from zebtrack.core.services.weight_manager import (
     OpenVINOExportError,
     WeightManager,
     _default_flag_key,
-    _default_target_for_type,
 )
 
 
@@ -43,11 +42,6 @@ class TestWeightManagerExtended2:
         assert OPENVINO_STATUS_CONVERTING == "converting"
         assert OPENVINO_STATUS_READY == "ready"
         assert OPENVINO_STATUS_FAILED == "failed"
-
-    def test_default_target_for_type(self):
-        assert _default_target_for_type("seg") == TARGET_ZEBRAFISH
-        assert _default_target_for_type("det") == TARGET_AQUARIUM
-        assert _default_target_for_type("other") == TARGET_AQUARIUM
 
     def test_default_flag_key(self):
         assert _default_flag_key("seg", "zebrafish") == "is_default_seg_zebrafish"

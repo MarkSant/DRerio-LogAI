@@ -1,0 +1,7 @@
+# Legacy offenders from the coverage mega-batches (PRs #482-#509).
+# This file must shrink to nothing. Never add a new entry: fix the test instead.
+# Format: <path>::<test_name>   (exact match, not substring)
+
+# --- hollow tests (0) ---
+
+# --- duplicate bodies: redundant copies kept for now (0) ---

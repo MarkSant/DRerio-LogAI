@@ -286,20 +286,6 @@ class TestZonesUpdatedEvent:
 class TestZonesUpdatedEventEdgeCases:
     """Edge case tests for ZONES_UPDATED event."""
 
-    def test_event_bus_v2_none_does_not_crash(self):
-        """Components handle event_bus_v2=None gracefully (backward compatibility)."""
-        # Arrange
-        gui_mock = MagicMock()
-        gui_mock.event_bus_v2 = None
-
-        from zebtrack.ui.components.dialog_manager import DialogManager
-
-        # Act - should not crash
-        dialog_manager = DialogManager(gui_mock, event_bus_v2=None)
-
-        # Assert
-        assert dialog_manager.event_bus_v2 is None
-
     def test_multiple_subscribers_receive_event(self):
         """Multiple subscribers can listen to ZONES_UPDATED."""
         # Arrange

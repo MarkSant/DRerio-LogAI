@@ -3,9 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from unittest.mock import MagicMock
 
-from zebtrack.core.video.processing_mode import ProcessingMode
 from zebtrack.ui.gui import (
     PROJECT_STATUS_WIDGET_ORDER,
     STATUS_SYMBOLS,
@@ -53,23 +51,6 @@ class TestGuiExtended:
         assert _payload_get(None, "key", "default") == "default"
         assert _payload_get("string_payload", "key", 123) == 123
         assert _payload_get(42, "key", None) is None
-
-    def test_zone_context_service_property_or_attribute(self):
-        gui = object.__new__(ApplicationGUI)
-        gui.project_manager = MagicMock()
-        gui._zone_context_service = MagicMock()
-
-        assert gui._zone_context_service is not None
-
-    def test_initial_state_defaults(self):
-        gui = object.__new__(ApplicationGUI)
-        gui._active_processing_mode = ProcessingMode.MULTI_TRACK
-        gui.canvas_view_mode = "zones"
-        gui.analysis_active = False
-
-        assert gui._active_processing_mode is ProcessingMode.MULTI_TRACK
-        assert gui.canvas_view_mode == "zones"
-        assert gui.analysis_active is False
 
     def test_extract_setting_nested(self):
         class Node:

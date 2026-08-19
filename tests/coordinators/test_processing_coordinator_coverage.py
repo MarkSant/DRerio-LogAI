@@ -832,15 +832,6 @@ class TestSummaryVideoProcessing:
 class TestValidationResultDataclass:
     """Test ValidationResult dataclass."""
 
-    def test_validation_result_success_is_valid(self):
-        """Test success() creates valid result."""
-        result = ValidationResult.success()
-
-        assert result.is_valid is True
-        assert result.error_code is None
-        assert result.error_message is None
-        assert result.context == {}
-
     def test_validation_result_failure_has_error_info(self):
         """Test failure() creates invalid result with error info."""
         result = ValidationResult.failure(

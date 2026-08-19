@@ -22,14 +22,3 @@ class TestLiveCalibrationCoordinatorExtended3:
 
         assert coord.project_manager is new_pm
         assert coord._last_polygon_source is None
-
-    def test_live_calibration_coordinator_dialog_none(self):
-        coord: Any = object.__new__(LiveCalibrationCoordinator)
-        coord._dialog = None
-        assert coord._dialog is None
-
-    def test_live_calibration_coordinator_settings_obj(self):
-        coord: Any = object.__new__(LiveCalibrationCoordinator)
-        settings = MagicMock()
-        coord.settings = settings
-        assert coord.settings is settings

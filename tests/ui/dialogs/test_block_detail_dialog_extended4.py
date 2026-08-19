@@ -2,16 +2,11 @@
 
 from __future__ import annotations
 
-from zebtrack.ui.dialogs.block_detail_dialog import BlockDetailDialog, _block_label
+from zebtrack.ui.dialogs.block_detail_dialog import BlockDetailDialog
 
 
 class TestBlockDetailDialogExtended4:
     """Test BlockDetailDialog subject enumerations and helper methods."""
-
-    def test_block_label_formatting(self):
-        label = _block_label(1, "Control")
-        assert "1" in label
-        assert "Control" in label
 
     def test_subjects_enumeration_from_count(self):
         dialog = object.__new__(BlockDetailDialog)

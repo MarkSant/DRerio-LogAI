@@ -12,13 +12,6 @@ from zebtrack.ui.components.event_dispatcher import EventDispatcher
 class TestEventDispatcherExtended4:
     """Test EventDispatcher context detection, modes, and require_gui guard."""
 
-    def test_modes_constants(self):
-        assert EventDispatcher.MODE_NO_PARAMS == "no_params"
-        assert EventDispatcher.MODE_KWARGS_ALL == "kwargs_all"
-        assert EventDispatcher.MODE_KWARGS_GET == "kwargs_get"
-        assert EventDispatcher.MODE_POSITIONAL == "positional"
-        assert EventDispatcher.MODE_POSITIONAL_OPTIONAL == "positional_optional"
-
     def test_context_detection_gui(self):
         gui = MagicMock()
         gui.event_bus = MagicMock()

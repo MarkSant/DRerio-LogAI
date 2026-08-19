@@ -9,9 +9,7 @@ from zebtrack.ui.window_utils import (
     _clear_ttkbootstrap_style,
     _try_actions,
     _ttkbootstrap_style_needs_reset,
-    maximize_window,
     reset_geometry_if_not_maximized,
-    schedule_maximize,
     set_geometry_if_not_maximized,
 )
 
@@ -40,17 +38,6 @@ class TestWindowUtilsExtended2:
         act2 = MagicMock(side_effect=RuntimeError("fail2"))
         res = _try_actions(None, (act1, act2))
         assert res is False
-
-    def test_maximize_window_state_zoomed(self):
-        mock_win = MagicMock()
-        maximize_window(mock_win)
-        mock_win.update_idletasks.assert_called_once()
-        mock_win.state.assert_called_with("zoomed")
-
-    def test_schedule_maximize(self):
-        mock_win = MagicMock()
-        schedule_maximize(mock_win)
-        mock_win.after.assert_called_once()
 
     def test_reset_geometry_if_not_maximized(self):
         mock_win = MagicMock()

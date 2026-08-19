@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from zebtrack.ui.wizard.model_selection_step import (
-    DEFAULT_IOU_THRESHOLD,
     DEFAULT_MATCH_THRESHOLD,
     DEFAULT_MAX_CENTER_DISTANCE,
     DEFAULT_TRACK_BUFFER,
@@ -15,13 +14,6 @@ from zebtrack.ui.wizard.model_selection_step import (
 
 class TestModelSelectionStepExtended3:
     """Test ModelSelectionStep constants and method options."""
-
-    def test_bytetrack_defaults(self):
-        assert DEFAULT_TRACK_THRESHOLD == 0.25
-        assert DEFAULT_MATCH_THRESHOLD == 0.95
-        assert DEFAULT_TRACK_BUFFER == 150
-        assert DEFAULT_MAX_CENTER_DISTANCE == 200.0
-        assert DEFAULT_IOU_THRESHOLD == 0.1
 
     def test_method_options(self):
         opts = _method_options()

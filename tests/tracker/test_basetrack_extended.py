@@ -22,16 +22,6 @@ class ConcreteTrack(BaseTrack):
         pass
 
 
-class TestTrackState:
-    """Test TrackState enumeration values."""
-
-    def test_state_values(self):
-        assert TrackState.New == 0
-        assert TrackState.Tracked == 1
-        assert TrackState.Lost == 2
-        assert TrackState.Removed == 3
-
-
 class TestBaseTrack:
     """Test BaseTrack id counters, state transitions, and abstract methods."""
 

@@ -27,9 +27,3 @@ class TestLiveCalibrationCoordinatorExtended2:
         coord._set_last_polygon_source("manual")
         assert coord._last_polygon_source == "manual"
         coord.event_bus.publish.assert_called_once()
-
-    def test_calibration_preserve_real_shape_toggle(self):
-        coord: Any = object.__new__(LiveCalibrationCoordinator)
-        coord._calibration_preserve_real_shape = False
-        coord._calibration_preserve_real_shape = True
-        assert coord._calibration_preserve_real_shape is True

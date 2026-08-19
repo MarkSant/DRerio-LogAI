@@ -340,18 +340,47 @@ use it for latency or to date an event. See
 
 ## Testing Requirements
 
-- **Coverage gates**: 50% Linux core, 32% Linux GUI, 44% Windows core.
+- **Coverage gates**: a **ratchet** — current values in
+  [`docs/testing/COVERAGE_BASELINE.md`](docs/testing/COVERAGE_BASELINE.md), enforced only in
+  [`.github/workflows/ci.yml`](.github/workflows/ci.yml). A PR that raises coverage raises the gate
+  in the same PR. `--cov-fail-under` must **never** go back into `pytest.ini`: there it fires on
+  every partial local run, which is how 28 consecutive test PRs shipped without the number moving.
 - **Markers**: `@pytest.mark.{gui,slow,integration,unit}`.
 - **Fixtures**: `tests/conftest.py`.
 - **Source → tests lookup**: [`docs/testing/TEST_MAP.md`](docs/testing/TEST_MAP.md).
+
+### 🧪 What counts as a test
+
+**A test PR is judged by mutation score, not by test count.** Coverage says a line RAN; only a
+failing assertion proves the line is CHECKED. Run
+`poetry run python scripts/mutation_check.py --all` — a surviving mutation is a missing test.
+Baseline in [`docs/testing/MUTATION_BASELINE.md`](docs/testing/MUTATION_BASELINE.md).
+
+Three shapes are rejected automatically by `tests/quality/test_no_hollow_tests.py`:
+
+- **Tautology** — building an instance with `object.__new__`, assigning attributes, and asserting
+  those same attributes back. It is a round trip through `setattr`; the class never runs.
+- **Hollow stub** — an `object.__new__` instance no method is ever called on.
+- **Duplicate body** — the same statements as a test in another file.
+
+`object.__new__` is fine for Tk widgets that cannot be built headless, **as long as a real method
+is driven on the instance**. Legacy offenders live in `tests/quality/hollow_tests_allowlist.txt`;
+that file only ever shrinks — never add to it.
+
+**One test file per module.** No `test_x_extended2.py`, `_extended3.py`, … — the fragmentation is
+what produced 47 byte-identical duplicates and made it impossible to see what was already covered.
 
 ### Pre-Merge Checklist
 
 1. Read relevant test files before modifying.
 2. `poetry run pytest -q` (all pass).
-3. `poetry run ruff check .` (no errors).
-4. Update docs if user-facing changes.
-5. Verify no wizard regressions.
+3. `poetry run pytest -m gui -n0` if `tests/ui/**` or any dialog changed — the fast suite skips GUI.
+4. `poetry run python scripts/mutation_check.py --all` (no survivors) when touching a module in the
+   catalogue or the tests that cover it.
+5. `poetry run ruff check .` (no errors) and `poetry run mypy .` (CI runs it repo-wide, `tests/`
+   included).
+6. Update docs if user-facing changes.
+7. Verify no wizard regressions.
 
 ---
 
@@ -411,6 +440,8 @@ Connector plugins (Slack, Linear, Notion, Jira, BigQuery, Datadog, Enterprise Se
 | ---------------------------- | ------------------------------------------------------------- |
 | **Domain glossary**          | [`docs/reference/DOMAIN_GLOSSARY.md`](docs/reference/DOMAIN_GLOSSARY.md) |
 | **Source → tests map**       | [`docs/testing/TEST_MAP.md`](docs/testing/TEST_MAP.md)        |
+| **Coverage ratchet**         | [`docs/testing/COVERAGE_BASELINE.md`](docs/testing/COVERAGE_BASELINE.md) |
+| **Mutation baseline**        | [`docs/testing/MUTATION_BASELINE.md`](docs/testing/MUTATION_BASELINE.md) |
 | **Cheatsheet**               | [`docs/guides/developer/CHEATSHEET.md`](docs/guides/developer/CHEATSHEET.md) |
 | **Workflows**                | [`docs/guides/developer/WORKFLOWS.md`](docs/guides/developer/WORKFLOWS.md) |
 | **System integration map**   | [`docs/reference/system_integration.md`](docs/reference/system_integration.md) |

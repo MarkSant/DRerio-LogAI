@@ -22,10 +22,3 @@ class TestLiveCameraSessionCoordinatorExtended4:
         coord = object.__new__(LiveCameraSessionCoordinator)
         coord._active_live_session_id = None
         assert coord.get_live_session_info() is None
-
-    def test_pending_trigger_context_initial(self):
-        coord = object.__new__(LiveCameraSessionCoordinator)
-        coord._pending_trigger_context = None
-        coord._pending_live_context = None
-        assert coord._pending_trigger_context is None
-        assert coord._pending_live_context is None

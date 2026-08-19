@@ -20,6 +20,26 @@ except ImportError:
     tk = None  # type: ignore[assignment]
     _TK_AVAILABLE = False
 
+# Import cv2 eagerly, before any zebtrack module can pull in `cv2.typing`.
+#
+# cv2/typing/__init__.py evaluates `cv2.dnn.DictValue` at import time, and that
+# attribute only exists once the parent `cv2` package has finished its own lazy
+# binding. Normally cv2 is imported first and the order works out. Under
+# `--cov=zebtrack.<submodule>` it does not: narrowing the measured scope changes
+# which module coverage imports first, `cv2.typing` wins the race, and collection
+# dies with `AttributeError: module 'cv2.dnn' has no attribute 'DictValue'`.
+#
+# The practical cost of not doing this is that per-module coverage -- the one
+# command that answers "did this batch of tests actually cover anything?" -- is
+# unusable, which is how 28 test PRs shipped without anyone measuring their
+# effect. Kept defensive because headless/minimal environments may lack cv2.
+try:
+    import cv2  # noqa: F401
+
+    _CV2_AVAILABLE = True
+except ImportError:  # pragma: no cover - cv2 is a hard runtime dependency
+    _CV2_AVAILABLE = False
+
 os.environ.setdefault("ZEBTRACK_SUPPRESS_POST_CREATION_GUIDE", "1")
 os.environ.setdefault("ZEBTRACK_SUPPRESS_WIZARD_DIALOGS", "1")
 # Suppress console logs during tests - this env var is checked by logging_config.py
