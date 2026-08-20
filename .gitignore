@@ -106,3 +106,6 @@ kernel.errors.txt
 
 # Windows shortcuts
 *.lnk
+
+# Local git worktrees (also created by some agent tooling). Never shared.
+.worktrees/

@@ -11,6 +11,14 @@
 *.txt text eol=lf
 *.sh text eol=lf
 
+# Dotfiles git itself reads. Marked text EXPLICITLY, not via `text=auto`:
+# auto-detection classifies a file as binary the moment it contains a NUL,
+# so a bad append (PowerShell's Set-Content defaults to UTF-16LE) turns the
+# diff into "Bin 1606 -> 1633 bytes" and the breakage becomes invisible in
+# review. That is exactly how a corrupted `.worktrees/` rule reached main.
+.gitignore text eol=lf diff
+.gitattributes text eol=lf diff
+
 # Binary files (should not be normalized)
 *.pt binary
 *.png binary
