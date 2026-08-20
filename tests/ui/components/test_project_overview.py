@@ -569,3 +569,83 @@ def test_update_tree_builds_video_index(overview_widget):
 
     assert "/path/video.mp4" in overview_widget._video_index
     assert overview_widget._iid_to_path["V1"] == "/path/video.mp4"
+
+
+# ======================================================================
+# Canonical selection resolution
+# ======================================================================
+#
+# These pin the bug that made "Load video" a no-op: rows are inserted with
+# (status, metadata) values and NO tags, so any resolver reading tags or
+# values[5] silently found nothing.
+
+
+def test_rows_carry_no_tags_so_tag_based_resolution_cannot_work(overview_widget):
+    """Guards the premise the resolvers depend on."""
+    overview_widget.add_tree_item(item_id="V1", text="video.mp4", values=("pending", ""))
+
+    assert overview_widget.project_overview_tree.item("V1", "tags") == ""
+    assert len(overview_widget.project_overview_tree.item("V1", "values")) == 2
+
+
+def test_resolve_video_path_uses_the_iid_map(overview_widget):
+    overview_widget.add_tree_item(item_id="V1", text="video.mp4", values=("pending", ""))
+    overview_widget._iid_to_path["V1"] = "/path/video.mp4"
+
+    assert overview_widget.resolve_video_path("V1") == "/path/video.mp4"
+
+
+def test_resolve_video_path_returns_none_for_a_non_video_row(overview_widget):
+    overview_widget.add_tree_item(item_id="GROUP", text="Control", values=("", ""))
+
+    assert overview_widget.resolve_video_path("GROUP") is None
+
+
+def test_resolve_video_path_handles_empty_item_id(overview_widget):
+    assert overview_widget.resolve_video_path("") is None
+
+
+def test_resolve_selected_video_paths_returns_the_selected_video(overview_widget):
+    overview_widget.add_tree_item(item_id="V1", text="a.mp4", values=("pending", ""))
+    overview_widget._iid_to_path["V1"] = "/path/a.mp4"
+    overview_widget.project_overview_tree.selection_set("V1")
+
+    assert overview_widget.resolve_selected_video_paths() == ["/path/a.mp4"]
+
+
+def test_resolve_selected_video_paths_expands_a_parent_row(overview_widget):
+    """Selecting a subject must analyse every video under it, not nothing."""
+    overview_widget.add_tree_item(item_id="S1", text="Subject 1", values=("", ""))
+    overview_widget.add_tree_item(item_id="V1", parent="S1", text="a.mp4", values=("", ""))
+    overview_widget.add_tree_item(item_id="V2", parent="S1", text="b.mp4", values=("", ""))
+    overview_widget._iid_to_path.update({"V1": "/path/a.mp4", "V2": "/path/b.mp4"})
+    overview_widget.project_overview_tree.selection_set("S1")
+
+    assert overview_widget.resolve_selected_video_paths() == ["/path/a.mp4", "/path/b.mp4"]
+
+
+def test_resolve_selected_video_paths_deduplicates_parent_and_child(overview_widget):
+    overview_widget.add_tree_item(item_id="S1", text="Subject 1", values=("", ""))
+    overview_widget.add_tree_item(item_id="V1", parent="S1", text="a.mp4", values=("", ""))
+    overview_widget._iid_to_path["V1"] = "/path/a.mp4"
+    overview_widget.project_overview_tree.selection_set("S1", "V1")
+
+    assert overview_widget.resolve_selected_video_paths() == ["/path/a.mp4"]
+
+
+def test_resolve_selected_video_paths_is_empty_without_selection(overview_widget):
+    overview_widget.add_tree_item(item_id="V1", text="a.mp4", values=("", ""))
+    overview_widget._iid_to_path["V1"] = "/path/a.mp4"
+
+    assert overview_widget.resolve_selected_video_paths() == []
+
+
+def test_tree_allows_multiple_selection(overview_widget):
+    """ "Analyse Selected Video(s)" is plural; "browse" would cap it at one."""
+    overview_widget.add_tree_item(item_id="V1", text="a.mp4", values=("", ""))
+    overview_widget.add_tree_item(item_id="V2", text="b.mp4", values=("", ""))
+    overview_widget._iid_to_path.update({"V1": "/path/a.mp4", "V2": "/path/b.mp4"})
+
+    overview_widget.project_overview_tree.selection_set("V1", "V2")
+
+    assert overview_widget.resolve_selected_video_paths() == ["/path/a.mp4", "/path/b.mp4"]

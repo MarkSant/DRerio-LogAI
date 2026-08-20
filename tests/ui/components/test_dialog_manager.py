@@ -1582,3 +1582,167 @@ class TestEdgeCases:
         mock_gui.weight_hardware_manager.update_openvino_status_display.assert_called_once_with(
             "enabled"
         )
+
+
+# ======================================================================
+# "Analyse Selected Video(s)" — pre-recorded counterpart of Start Recording
+# ======================================================================
+
+
+def _readiness(path, *, arena=True, rois=True):
+    from zebtrack.core.services.zone_readiness import ZoneReadiness
+
+    return ZoneReadiness(video_path=path, has_arena=arena, has_rois=rois)
+
+
+def _published(dialog_manager):
+    """Return the (event, payload) pairs published through the dispatcher."""
+    return [c.args for c in dialog_manager.gui.event_dispatcher.publish_event.call_args_list]
+
+
+@pytest.fixture
+def selection(dialog_manager):
+    """Wire the overview widget so a chosen list of videos reads as selected."""
+
+    def _select(*paths):
+        dialog_manager.gui.project_overview_widget = SimpleNamespace(
+            resolve_selected_video_paths=lambda: list(paths)
+        )
+        return patch("os.path.exists", return_value=True)
+
+    return _select
+
+
+class TestAnalyseSelectedVideos:
+    def test_without_a_project_it_asks_for_one_and_publishes_nothing(self, dialog_manager):
+        dialog_manager.gui.controller.project_manager.project_path = None
+
+        with patch.object(dialog_manager, "show_info") as info:
+            dialog_manager.handle_analyze_selected_videos_click()
+
+        info.assert_called_once()
+        assert _published(dialog_manager) == []
+
+    def test_empty_selection_guides_the_user_instead_of_processing_everything(
+        self, dialog_manager, selection
+    ):
+        """The whole point of this button is that it does NOT fall back to "all"."""
+        with selection(), patch.object(dialog_manager, "show_info") as info:
+            dialog_manager.handle_analyze_selected_videos_click()
+
+        info.assert_called_once()
+        assert _published(dialog_manager) == []
+
+    def test_ready_videos_are_published_as_an_explicit_path_list(self, dialog_manager, selection):
+        with (
+            selection("/v/a.mp4", "/v/b.mp4"),
+            patch(
+                "zebtrack.core.services.zone_readiness.resolve_zone_readiness",
+                side_effect=lambda pm, p: _readiness(p),
+            ),
+        ):
+            dialog_manager.handle_analyze_selected_videos_click()
+
+        published = _published(dialog_manager)
+        assert len(published) == 1
+        event, payload = published[0]
+        assert event == UIEvents.PROJECT_PROCESS_VIDEOS
+        assert tuple(payload.video_paths) == ("/v/a.mp4", "/v/b.mp4")
+
+    def test_single_video_without_arena_routes_to_aquarium_detection(
+        self, dialog_manager, selection
+    ):
+        """Mirrors the live button: no arena means detect first, not fail later."""
+        with (
+            selection("/v/a.mp4"),
+            patch(
+                "zebtrack.core.services.zone_readiness.resolve_zone_readiness",
+                side_effect=lambda pm, p: _readiness(p, arena=False, rois=False),
+            ),
+        ):
+            dialog_manager.handle_analyze_selected_videos_click()
+
+        events = [event for event, _payload in _published(dialog_manager)]
+        assert events == [UIEvents.ZONE_AUTO_DETECT]
+        dialog_manager.gui.canvas_manager.load_video_frame_to_canvas.assert_called_once_with(
+            "/v/a.mp4", frame_number=0
+        )
+
+    def test_mixed_selection_skips_the_arenaless_videos_once_confirmed(
+        self, dialog_manager, selection
+    ):
+        ready = {"/v/a.mp4"}
+        with (
+            selection("/v/a.mp4", "/v/b.mp4"),
+            patch(
+                "zebtrack.core.services.zone_readiness.resolve_zone_readiness",
+                side_effect=lambda pm, p: _readiness(p, arena=p in ready),
+            ),
+            patch.object(dialog_manager, "ask_yes_no", return_value=True),
+        ):
+            dialog_manager.handle_analyze_selected_videos_click()
+
+        published = _published(dialog_manager)
+        assert len(published) == 1
+        event, payload = published[0]
+        assert event == UIEvents.PROJECT_PROCESS_VIDEOS
+        assert tuple(payload.video_paths) == ("/v/a.mp4",)
+
+    def test_mixed_selection_declined_publishes_nothing(self, dialog_manager, selection):
+        ready = {"/v/a.mp4"}
+        with (
+            selection("/v/a.mp4", "/v/b.mp4"),
+            patch(
+                "zebtrack.core.services.zone_readiness.resolve_zone_readiness",
+                side_effect=lambda pm, p: _readiness(p, arena=p in ready),
+            ),
+            patch.object(dialog_manager, "ask_yes_no", return_value=False),
+        ):
+            dialog_manager.handle_analyze_selected_videos_click()
+
+        assert _published(dialog_manager) == []
+
+    def test_multiple_videos_all_without_arena_warns_and_publishes_nothing(
+        self, dialog_manager, selection
+    ):
+        with (
+            selection("/v/a.mp4", "/v/b.mp4"),
+            patch(
+                "zebtrack.core.services.zone_readiness.resolve_zone_readiness",
+                side_effect=lambda pm, p: _readiness(p, arena=False),
+            ),
+            patch.object(dialog_manager, "show_warning") as warn,
+        ):
+            dialog_manager.handle_analyze_selected_videos_click()
+
+        warn.assert_called_once()
+        assert _published(dialog_manager) == []
+
+    def test_missing_rois_only_warns_and_still_allows_the_run(self, dialog_manager, selection):
+        """ROIs gate ROI metrics, not detection — so this must be a choice, not a block."""
+        with (
+            selection("/v/a.mp4"),
+            patch(
+                "zebtrack.core.services.zone_readiness.resolve_zone_readiness",
+                side_effect=lambda pm, p: _readiness(p, arena=True, rois=False),
+            ),
+            patch.object(dialog_manager, "ask_yes_no", return_value=True) as ask,
+        ):
+            dialog_manager.handle_analyze_selected_videos_click()
+
+        ask.assert_called_once()
+        events = [event for event, _payload in _published(dialog_manager)]
+        assert events == [UIEvents.PROJECT_PROCESS_VIDEOS]
+
+    def test_missing_rois_declined_publishes_nothing(self, dialog_manager, selection):
+        with (
+            selection("/v/a.mp4"),
+            patch(
+                "zebtrack.core.services.zone_readiness.resolve_zone_readiness",
+                side_effect=lambda pm, p: _readiness(p, arena=True, rois=False),
+            ),
+            patch.object(dialog_manager, "ask_yes_no", return_value=False),
+        ):
+            dialog_manager.handle_analyze_selected_videos_click()
+
+        assert _published(dialog_manager) == []

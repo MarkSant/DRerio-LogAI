@@ -903,6 +903,149 @@ class DialogManager:
             )
         self.gui.widget_factory.render_progress_grid()
 
+    def handle_analyze_selected_videos_click(self) -> None:
+        """Handle "Analyse Selected Video(s)" on the pre-recorded main control tab.
+
+        The pre-recorded counterpart of ``handle_start_recording_button_click``.
+        Until this existed the tab offered only "Process Pending Videos...", which
+        publishes ``video_paths=()`` and therefore processes every pending video,
+        ignoring whatever the user had highlighted in the tree just below.
+
+        Routes exactly like the live button: a selection that is missing its arena
+        goes to aquarium detection first instead of failing later inside the
+        worker, because a video with no arena has no detection region at all.
+        """
+        from zebtrack.core.services.zone_readiness import resolve_zone_readiness
+        from zebtrack.ui import payloads
+        from zebtrack.ui.event_bus_v2 import UIEvents
+
+        controller = getattr(self.gui, "controller", None)
+        pm = getattr(controller, "project_manager", None)
+        if pm is None or not getattr(pm, "project_path", None):
+            self.show_info(
+                _("No project open"),
+                _("Open or create a project before starting an analysis."),
+            )
+            return
+
+        video_paths = self._resolve_selected_project_videos()
+        if not video_paths:
+            self.show_info(
+                _("No video selected"),
+                _(
+                    "Select one or more videos in the list below and click again. "
+                    "Selecting a group, day or subject picks every video under it."
+                ),
+            )
+            return
+
+        readiness = [resolve_zone_readiness(pm, path) for path in video_paths]
+        without_arena = [item for item in readiness if not item.can_analyse]
+
+        if without_arena:
+            if len(video_paths) == 1:
+                self._start_arena_detection_for(video_paths[0])
+                return
+            names = "\n".join(f"  • {os.path.basename(item.video_path)}" for item in without_arena)
+            ready_paths = [item.video_path for item in readiness if item.can_analyse]
+            if not ready_paths:
+                self.show_warning(
+                    _("Arena not defined"),
+                    _(
+                        "None of the selected videos has an arena yet:\n{names}\n\n"
+                        "Select a single video to detect its arena, or define one in "
+                        "the Zone Configuration tab."
+                    ).format(names=names),
+                )
+                return
+            proceed = self.ask_yes_no(
+                _("Some videos have no arena"),
+                _(
+                    "These videos have no arena and will be skipped:\n{names}\n\n"
+                    "Analyse the remaining {count} video(s)?"
+                ).format(names=names, count=len(ready_paths)),
+                icon="warning",
+            )
+            if not proceed:
+                return
+            video_paths = ready_paths
+            readiness = [item for item in readiness if item.can_analyse]
+
+        without_rois = [item for item in readiness if not item.has_rois]
+        if without_rois:
+            names = "\n".join(f"  • {os.path.basename(item.video_path)}" for item in without_rois)
+            proceed = self.ask_yes_no(
+                _("No ROIs defined"),
+                _(
+                    "These videos have an arena but no ROIs:\n{names}\n\n"
+                    "The trajectory is still recorded, but every ROI metric will "
+                    "come out empty. Continue anyway?"
+                ).format(names=names),
+                icon="warning",
+            )
+            if not proceed:
+                return
+
+        self.gui.event_dispatcher.publish_event(
+            UIEvents.PROJECT_PROCESS_VIDEOS,
+            payloads.ProjectProcessVideosPayload(video_paths=tuple(video_paths)),
+        )
+        if hasattr(self.gui, "set_status"):
+            self.gui.set_status(
+                _("Starting analysis of {count} selected video(s)...").format(
+                    count=len(video_paths)
+                )
+            )
+
+    def _resolve_selected_project_videos(self) -> list[str]:
+        """Return the videos selected in the Project Overview tree."""
+        widget = getattr(self.gui, "project_overview_widget", None)
+        resolver = getattr(widget, "resolve_selected_video_paths", None)
+        if not callable(resolver):
+            return []
+        resolved = resolver()
+        if not isinstance(resolved, list):
+            return []
+        return [p for p in resolved if isinstance(p, str) and os.path.exists(p)]
+
+    def _start_arena_detection_for(self, video_path: Path | str) -> None:
+        """Load ``video_path`` onto the canvas and run aquarium auto-detection.
+
+        The frame is loaded first so the detection result is drawn over the video
+        the user actually picked; ``expected_count`` is left unset so the
+        coordinator applies its own ``analysis_config.num_aquariums`` fallback
+        rather than this button holding a second copy of that rule.
+        """
+        from zebtrack.ui import payloads
+        from zebtrack.ui.event_bus_v2 import UIEvents
+
+        # The caller's own text is passed through unchanged rather than
+        # ``str(Path(...))``: on Windows ``Path`` rewrites "/" to "\", and this
+        # string is the key the zone entry is stored under. ``Path`` is used only
+        # for the display name.
+        video_text = str(video_path)
+        display_name = Path(video_path).name
+
+        canvas_manager = getattr(self.gui, "canvas_manager", None)
+        if canvas_manager is not None:
+            try:
+                canvas_manager.load_video_frame_to_canvas(video_text, frame_number=0)
+            except (OSError, ValueError) as exc:
+                log.warning(
+                    "dialog_manager.analyze_selected.frame_load_failed",
+                    video=video_text,
+                    error=str(exc),
+                )
+
+        self.gui.event_dispatcher.publish_event(
+            UIEvents.ZONE_AUTO_DETECT,
+            payloads.ZoneAutoDetectPayload(video_path=video_text),
+        )
+        if hasattr(self.gui, "set_status"):
+            self.gui.set_status(
+                _("No arena for {name} — detecting the aquarium first...").format(name=display_name)
+            )
+
     def _open_recording_details_picker(self) -> None:
         """Fall back to the legacy Day/Group/Sujeito picker via RECORDING_START."""
         from zebtrack.ui import payloads
