@@ -418,7 +418,7 @@ class MultiAquariumDetector:
 
         for raw_det in raw_detections:
             det = DetectionPostProcessor.ensure_track_tuple(raw_det)
-            x1, y1, x2, y2, conf, _, _class_id = det
+            x1, y1, x2, y2, conf, _track_id, _class_id = det
             centroid = ((x1 + x2) / 2, (y1 + y2) / 2)
 
             for aq in self._aquariums:
@@ -498,7 +498,7 @@ class MultiAquariumDetector:
             adjusted: list[tuple] = []
             for raw_det in raw_detections:
                 det = DetectionPostProcessor.ensure_track_tuple(raw_det)
-                x1, y1, x2, y2, conf, _, class_id = det
+                x1, y1, x2, y2, conf, _track_id, class_id = det
 
                 x1_g = x1 + offset_x
                 y1_g = y1 + offset_y
@@ -573,11 +573,12 @@ class MultiAquariumDetector:
                         f"Aquarium {aq_id} not found in configuration",
                     )
 
-                cropped, (offset_x, offset_y, _, _) = self.zone_scaler.crop_aquarium_region(
+                cropped, crop_box = self.zone_scaler.crop_aquarium_region(
                     frame,
                     aq_id,
                     padding=10,
                 )
+                offset_x, offset_y = crop_box[0], crop_box[1]
 
                 if cropped is None or cropped.size == 0:
                     return aq_id, [], f"Aquarium {aq_id}: Empty crop region"
@@ -589,7 +590,7 @@ class MultiAquariumDetector:
 
                 for raw_det in raw_detections:
                     det = DetectionPostProcessor.ensure_track_tuple(raw_det)
-                    x1_f, y1_f, x2_f, y2_f, conf, _, class_id = det
+                    x1_f, y1_f, x2_f, y2_f, conf, _track_id, class_id = det
                     x1 = int(x1_f) + offset_x
                     y1 = int(y1_f) + offset_y
                     x2 = int(x2_f) + offset_x

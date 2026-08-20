@@ -997,5 +997,5 @@ class LiveAnalysisPostProcessorMixin:
                 error=str(e),
                 exc_info=True,
             )
-            detections, _ = detector.detect(frame, "live")
+            detections, _annotated = detector.detect(frame, "live")
             return detections

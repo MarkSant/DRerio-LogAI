@@ -351,7 +351,7 @@ class DetectorService:
 
     def set_active_config(self, weight_name: str) -> bool:
         """Switch the active detector configuration."""
-        success, _ = self.initialize_detector(active_weight_name=weight_name)
+        success, _weight_name = self.initialize_detector(active_weight_name=weight_name)
         return success
 
     def set_context(self, context: str) -> None:

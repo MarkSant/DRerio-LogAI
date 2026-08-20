@@ -75,7 +75,7 @@ class HardwareStatusViewModel:
         if not self.detector_setup_coordinator:
             return False
 
-        success, _ = self.detector_setup_coordinator.setup_detector(
+        success, _weight_name = self.detector_setup_coordinator.setup_detector(
             animal_method=temp_animal_method,
             use_openvino=self.use_openvino,
             active_weight_name=self.active_weight_name,
@@ -298,10 +298,10 @@ class HardwareStatusViewModel:
                 # chosen weights into the override map at load time, so the
                 # status panel must surface those, not the catalog defaults.
                 if hasattr(wm, "get_runtime_slot_override"):
-                    got, _ = wm.get_runtime_slot_override(method, target)
+                    got, _override_meta = wm.get_runtime_slot_override(method, target)
                     name = got
                 if not name:
-                    got, _ = wm.get_default_weight_for(method, target)
+                    got, _weight_meta = wm.get_default_weight_for(method, target)
                     name = got
             result.append((label, method, target, name))
         return result

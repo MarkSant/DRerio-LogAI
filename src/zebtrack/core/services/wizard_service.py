@@ -271,7 +271,7 @@ class WizardService:
                                 last_frame = None
                                 # Read warmup+1 frames; the final one is what we validate.
                                 # Each individual read still benefits from the outer 2s timeout.
-                                for _ in range(warmup + 1):
+                                for _warmup_frame in range(warmup + 1):
                                     ret, frame = capture.read()
                                     if ret and frame is not None:
                                         last_ret = True
