@@ -131,7 +131,10 @@ class ProjectOverviewWidget(BaseWidget):
             columns=("status", "metadata"),
             show="tree headings",
             height=12,
-            selectmode="browse",
+            # "extended" (not "browse") so Ctrl/Shift-click can queue several
+            # videos for one analysis run. Callers that only want one row still
+            # read ``selection()[0]`` and are unaffected.
+            selectmode="extended",
         )
         self.project_overview_tree.heading("#0", text=_("Videos"))
         self.project_overview_tree.heading("status", text=_("Status"))
@@ -189,6 +192,80 @@ class ProjectOverviewWidget(BaseWidget):
         self.emit_event(
             UIEvents.PROJECT_REFRESH_REQUESTED, payloads.ProjectRefreshRequestedPayload()
         )
+
+    # ==================================================================
+    # Canonical selection resolution
+    # ==================================================================
+    #
+    # ``_iid_to_path`` is the ONLY authoritative map from a tree row to a video
+    # file. ``add_tree_item`` never sets Treeview tags, and the ``values`` tuple
+    # holds just (status, metadata) -- so any caller that reads tags or values to
+    # find a path silently resolves nothing. Two callers used to do exactly that,
+    # which is why "Load video" did nothing and no button could tell what was
+    # selected. Everything that needs a path goes through these two methods.
+
+    def resolve_video_path(self, item_id: str) -> str | None:
+        """Return the video path behind one row, or ``None`` if it is not a video.
+
+        Group, day, subject and partial-report rows legitimately have no video, so
+        ``None`` is an ordinary answer here, not a failure.
+        """
+        if not item_id:
+            return None
+
+        video_path = self._iid_to_path.get(item_id)
+        if video_path:
+            return str(video_path)
+
+        # Legacy fallback: some trees (and older tests) carry the path in a tag.
+        tree = self.project_overview_tree
+        if tree is not None:
+            try:
+                tags = tree.item(item_id, "tags") or ()
+            except tk.TclError:
+                return None
+            for tag in tags:
+                if tag and not str(tag).startswith("status_"):
+                    return str(tag)
+        return None
+
+    def resolve_selected_video_paths(self) -> list[str]:
+        """Return the videos covered by the current selection, in tree order.
+
+        Selecting a group, day or subject row resolves to every video beneath it.
+        Returning nothing for a parent row would reproduce the exact "I clicked
+        and nothing happened" failure this method exists to fix. Duplicates are
+        collapsed so that selecting both a parent and one of its children does not
+        queue the same video twice.
+        """
+        tree = self.project_overview_tree
+        if tree is None:
+            return []
+
+        try:
+            selection = tree.selection()
+        except tk.TclError:
+            return []
+
+        paths: list[str] = []
+        seen: set[str] = set()
+
+        def _collect(item_id: str) -> None:
+            video_path = self.resolve_video_path(item_id)
+            if video_path and video_path not in seen:
+                seen.add(video_path)
+                paths.append(video_path)
+            try:
+                children = tree.get_children(item_id)
+            except tk.TclError:
+                return
+            for child in children:
+                _collect(child)
+
+        for item_id in selection:
+            _collect(item_id)
+
+        return paths
 
     def _on_video_selected(self, event) -> None:
         """Handle video selection in tree."""

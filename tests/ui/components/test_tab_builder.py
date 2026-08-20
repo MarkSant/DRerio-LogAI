@@ -146,3 +146,53 @@ def test_build_project_model_tabs_adds_notebook_tabs(mock_app):
     tab_texts = [mock_app.notebook.tab(tab_id, "text") for tab_id in mock_app.notebook.tabs()]
     assert "AI Model Config." in tab_texts
     assert "AI Model Diagnostics" in tab_texts
+
+
+# ======================================================================
+# Pre-recorded main control: selection-aware start button
+# ======================================================================
+
+
+def _button_texts(frame):
+    """Collect the text of every ttk.Button in a frame subtree."""
+    texts = []
+    for child in frame.winfo_children():
+        if isinstance(child, ttk.Button):
+            texts.append(str(child.cget("text")))
+        texts.extend(_button_texts(child))
+    return texts
+
+
+class TestAnalyseSelectedButton:
+    def test_pre_recorded_tab_offers_a_selection_aware_start_button(self, mock_app, tkinter_root):
+        """Before this button the tab could only process EVERY pending video."""
+        mock_app.project_manager.get_project_type.return_value = "pre-recorded"
+        builder = TabBuilder(mock_app)
+
+        frame = builder.build_main_controls_tab()
+        tkinter_root.update_idletasks()
+
+        assert any("Selected" in text for text in _button_texts(frame))
+
+    def test_the_button_calls_the_selection_aware_handler(self, mock_app, tkinter_root):
+        """Wiring it to PROJECT_PROCESS_VIDEOS directly would ignore the selection."""
+        mock_app.project_manager.get_project_type.return_value = "pre-recorded"
+        # Not on the ApplicationGUI spec (it is set in __init__), so the
+        # MagicMock(spec=...) will not auto-create it.
+        mock_app.dialog_manager = MagicMock()
+        builder = TabBuilder(mock_app)
+        builder.build_main_controls_tab()
+        tkinter_root.update_idletasks()
+
+        mock_app.analyze_selected_btn.invoke()
+
+        mock_app.dialog_manager.handle_analyze_selected_videos_click.assert_called_once()
+
+    def test_live_tab_does_not_grow_the_pre_recorded_button(self, mock_app, tkinter_root):
+        mock_app.project_manager.get_project_type.return_value = "live"
+        builder = TabBuilder(mock_app)
+
+        frame = builder.build_main_controls_tab()
+        tkinter_root.update_idletasks()
+
+        assert not any("Selected" in text for text in _button_texts(frame))

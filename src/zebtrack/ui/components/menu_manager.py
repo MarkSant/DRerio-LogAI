@@ -302,22 +302,40 @@ class MenuManager:
         self._edit_video_metadata(video_path)
 
     def _resolve_project_overview_video_path(self, item_id: str) -> str | None:
-        """Resolve a video path for a project overview tree item."""
+        """Resolve a video path for a project overview tree item.
+
+        Thin delegation to ``ProjectOverviewWidget.resolve_video_path``, which is
+        the single place that knows a row's path lives in ``_iid_to_path`` and not
+        in tags or values. This method kept its own copy of that knowledge while
+        two sibling callers kept different, wrong copies.
+        """
         tree = self.gui.project_overview_tree
         if not tree or not tree.winfo_exists():
             return None
 
-        tags = tree.item(item_id, "tags") or ()
-        for tag in tags:
-            if tag and not tag.startswith("status_"):
-                return str(tag)
-
         overview_widget = getattr(self.gui, "project_overview_widget", None)
+        resolver = getattr(overview_widget, "resolve_video_path", None)
+        if callable(resolver):
+            resolved = resolver(item_id)
+            # Type-checked rather than truth-checked: ``project_overview_widget``
+            # is a Mock in several tests, and a Mock attribute is both callable
+            # and truthy, so a bare check would "resolve" every row to a Mock.
+            if isinstance(resolved, str) and resolved:
+                return resolved
+
+        # Widget stand-ins expose the mapping without the method.
         iid_to_path = getattr(overview_widget, "_iid_to_path", None)
         if isinstance(iid_to_path, dict):
             video_path = iid_to_path.get(item_id)
             if video_path:
                 return str(video_path)
+
+        # Fallback for trees not backed by the widget (and for older rows that
+        # carried the path in a tag).
+        tags = tree.item(item_id, "tags") or ()
+        for tag in tags:
+            if tag and not str(tag).startswith("status_"):
+                return str(tag)
 
         return None
 

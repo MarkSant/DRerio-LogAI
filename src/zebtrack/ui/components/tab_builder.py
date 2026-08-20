@@ -321,6 +321,17 @@ class TabBuilder:
             ),
         ).pack(side="left", padx=5)
 
+        # Acts on the tree selection, unlike "Process Pending Videos..." below,
+        # which deliberately passes an empty tuple to mean "everything pending".
+        # The live tab has had a selection-aware start button for a while; this is
+        # its pre-recorded counterpart.
+        self.gui.analyze_selected_btn = ttk.Button(
+            parent,
+            text=_("Analyse Selected Video(s)"),
+            command=lambda: self.gui.dialog_manager.handle_analyze_selected_videos_click(),
+        )
+        self.gui.analyze_selected_btn.pack(side="left", padx=5)
+
         ttk.Button(
             parent,
             text=_("Process Pending Videos..."),

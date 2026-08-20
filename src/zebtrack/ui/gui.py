@@ -380,6 +380,7 @@ class ApplicationGUI:
         self.start_rec_btn: Button | None = None
         self.stop_rec_btn: Button | None = None
         self.process_video_btn: ttk.Button | None = None
+        self.analyze_selected_btn: ttk.Button | None = None
 
         # Interactive arena editing state
         self.stabilization_frames_var = StringVar(value="10")

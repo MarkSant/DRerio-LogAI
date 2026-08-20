@@ -741,39 +741,24 @@ class VideoSelectorTreeManager:
         return list(paths), aquarium_filter
 
     def _resolve_selection_from_project_overview(self) -> list[str]:
-        """Resolve selected video paths from Project Overview tree."""
-        if not hasattr(self.gui, "project_overview_widget"):
+        """Resolve selected video paths from the Project Overview tree.
+
+        Delegates to the widget that owns ``_iid_to_path``. This used to read
+        ``values[5]`` and then ``tags[0]`` directly -- neither of which the tree
+        builder populates (rows carry two values, status and metadata, and no
+        tags at all), so it returned an empty list for every selection and every
+        feature built on it looked dead.
+        """
+        widget = getattr(self.gui, "project_overview_widget", None)
+        resolver = getattr(widget, "resolve_selected_video_paths", None)
+        if not callable(resolver):
             return []
-        if not self.gui.project_overview_widget:
+
+        resolved = resolver()
+        if not isinstance(resolved, list):
             return []
-
-        tree = self.gui.project_overview_widget.tree
-        if not tree:
-            return []
-
-        selection = tree.selection()
-        video_paths: list[str] = []
-
-        for item_id in selection:
-            values = tree.item(item_id, "values")
-            log.warning("debug.selection_resolution", item_id=item_id, values=values)
-
-            if values and len(values) >= 6:
-                path_candidate = values[5]
-                if path_candidate and os.path.exists(path_candidate):
-                    video_paths.append(path_candidate)
-                    continue
-                else:
-                    log.warning("debug.selection.invalid_path", path=path_candidate)
-
-            tags = tree.item(item_id, "tags")
-            if tags:
-                path_candidate = tags[0]
-                if path_candidate and os.path.exists(path_candidate):
-                    video_paths.append(path_candidate)
-                    continue
-
-        log.warning("debug.resolved_paths", count=len(video_paths), paths=video_paths)
+        video_paths = [p for p in resolved if isinstance(p, str) and os.path.exists(p)]
+        log.debug("project_overview.selection.resolved", count=len(video_paths))
         return video_paths
 
     # ==================================================================
@@ -876,12 +861,13 @@ class VideoSelectorTreeManager:
                 )
             return
 
-        tags = self.gui.project_overview_tree.item(item_id, "tags") or ()
-        if not tags:
-            return
-
-        video_path = tags[0]
-        if not video_path or video_path.startswith("status_"):
+        # Resolve through the widget that owns ``_iid_to_path``. Reading
+        # ``tags[0]`` here returned early on EVERY row -- ``add_tree_item`` never
+        # sets tags -- so "Load video" in the context menu silently did nothing.
+        resolver = getattr(overview_widget, "resolve_video_path", None)
+        video_path = resolver(item_id) if callable(resolver) else None
+        if not video_path:
+            log.debug("project_overview.load_video.not_a_video_row", item_id=item_id)
             return
 
         if not os.path.exists(video_path):
