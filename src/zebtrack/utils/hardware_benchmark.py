@@ -387,7 +387,7 @@ def _benchmark_video_decode(video_path: Path, num_frames: int = 50) -> dict[str,
                 continue
 
             times = []
-            for _ in range(num_frames):
+            for _frame_index in range(num_frames):
                 cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
                 start = time.perf_counter()
                 ret, _frame = cap.read()
@@ -473,12 +473,12 @@ def _benchmark_openvino_inference(
             infer_request = compiled.create_infer_request()
 
             # Warmup
-            for _ in range(5):
+            for _warmup_iteration in range(5):
                 infer_request.infer({0: blob})
 
             # Benchmark
             times = []
-            for _ in range(num_iterations):
+            for _iteration in range(num_iterations):
                 start = time.perf_counter()
                 infer_request.infer({0: blob})
                 times.append((time.perf_counter() - start) * 1000)
@@ -533,17 +533,17 @@ def _benchmark_pytorch_cuda(
 
         # Warmup
         with torch.no_grad():
-            for _ in range(10):
-                _ = model(tensor)
+            for _warmup_iteration in range(10):
+                _warmup_output = model(tensor)
         torch.cuda.synchronize()
 
         # Benchmark
         times = []
         with torch.no_grad():
-            for _ in range(num_iterations):
+            for _iteration in range(num_iterations):
                 torch.cuda.synchronize()
                 start = time.perf_counter()
-                _ = model(tensor)
+                _output = model(tensor)
                 torch.cuda.synchronize()
                 times.append((time.perf_counter() - start) * 1000)
 
@@ -592,7 +592,7 @@ def _benchmark_pipeline_complete(
         input_size = 640
 
         # Warmup
-        for _ in range(3):
+        for _warmup_iteration in range(3):
             ret, frame = cap.read()
             if not ret:
                 cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
@@ -606,7 +606,7 @@ def _benchmark_pipeline_complete(
 
         # Benchmark
         times = []
-        for _ in range(num_frames):
+        for _frame_index in range(num_frames):
             start = time.perf_counter()
 
             ret, frame = cap.read()

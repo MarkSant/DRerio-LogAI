@@ -1382,7 +1382,7 @@ class LiveCalibrationCoordinator(BaseCoordinator):
             )
 
             successful_warmup = 0
-            for _ in range(warmup_frames):
+            for _warmup_frame in range(warmup_frames):
                 ret, frame = self.camera.get_frame()
                 if ret and frame is not None:
                     successful_warmup += 1

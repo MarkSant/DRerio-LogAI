@@ -209,7 +209,10 @@ class UIStateController:
                         ),
                     )
                 )
-            default_name, _ = self.weight_manager.get_default_weight()
+            # NOT `default_name, _ =`: binding `_` locally shadows the gettext
+            # alias for the WHOLE function, including the error message the
+            # `except` block below builds.
+            default_name, _weight_meta = self.weight_manager.get_default_weight()
             self.ui_event_bus.publish(
                 Event(
                     type=UIEvents.UI_SET_ACTIVE_WEIGHT,

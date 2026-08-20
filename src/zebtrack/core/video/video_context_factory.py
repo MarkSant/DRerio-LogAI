@@ -142,7 +142,7 @@ class VideoContextFactoryMixin:
             return True
         elif gap < skip_threshold:
             # Small gap - use grab() for sequential advance
-            for _ in range(gap):
+            for _skipped_frame in range(gap):
                 if not cap.grab():
                     return False
             return True

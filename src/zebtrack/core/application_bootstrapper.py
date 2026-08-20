@@ -244,7 +244,7 @@ class ApplicationBootstrapper:
     def _init_hardware_and_models(self):
         """Initialize hardware detection and model configuration."""
         # New state variables for model management (must exist before view)
-        default_weight, _ = self._safe_get_default_weight()
+        default_weight, _weight_meta = self._safe_get_default_weight()
 
         # Raise exception if no valid weight is available
         if not isinstance(default_weight, str) or not default_weight:

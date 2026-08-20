@@ -1199,7 +1199,10 @@ class _WorkerProcess(multiprocessing.Process):
                         for aq_dets in partitioned_detections.values():
                             detections.extend(aq_dets)
                     else:
-                        detections, _ = detector.detect(frame, project_type="pre-recorded")
+                        # NOT `detections, _ =`: binding `_` locally shadows the
+                        # gettext alias for the WHOLE function, including the
+                        # _("Processing...") progress message further down.
+                        detections, _annotated = detector.detect(frame, project_type="pre-recorded")
 
                     processed_frames += 1  # Count actually processed frames
 

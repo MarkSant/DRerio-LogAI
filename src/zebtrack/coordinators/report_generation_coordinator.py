@@ -1032,7 +1032,7 @@ class ReportGenerationCoordinator(BaseCoordinator, UnifiedReportMixin):
         w_cm = calib.get("aquarium_width_cm", 0)
         h_cm = calib.get("aquarium_height_cm", 0)
         cal = Calibration(_np.array(poly), w_cm, h_cm)
-        _, video_h = cal.target_dims_px
+        _video_w, video_h = cal.target_dims_px
         px_x, px_y = cal.pixel_per_cm_ratio
         poly_warped = cal.transform_points(poly)
 
