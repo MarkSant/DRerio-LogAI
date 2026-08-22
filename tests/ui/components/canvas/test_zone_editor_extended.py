@@ -182,3 +182,85 @@ class TestZoneEditorExtended5:
         mock_service = MagicMock()
         editor = ZoneEditor(cm, zone_context_service=mock_service)
         assert editor.zone_context_service is mock_service
+
+
+class TestZoneEditorNoVideoSelected:
+    """The Zones sidebar when the tab is rendered before a video is chosen.
+
+    ``get_zone_data_for_active_context`` falls back to the project-global
+    ``detection_zones``. In a pre-recorded project that global entry is just
+    whatever video was touched last, so listing it labels one video's arena as
+    another's. The sidebar shows nothing instead, and the canvas shows the app
+    logo.
+    """
+
+    @staticmethod
+    def _editor(*, project_type="pre-recorded", active_video=None, pending=None):
+        from zebtrack.core.detection import ZoneData
+
+        manager = MagicMock()
+        editor = ZoneEditor(manager)
+
+        pm = manager.gui.controller.project_manager
+        pm.get_project_type.return_value = project_type
+        pm.get_active_zone_video.return_value = active_video
+
+        manager.gui.pending_single_video_path = pending
+
+        zcs = MagicMock()
+        zcs.get_zone_data_for_active_context.return_value = ZoneData(
+            polygon=[[0, 0], [10, 0], [10, 10]]
+        )
+        editor._zone_context_service = zcs
+        return editor, manager
+
+    def test_empty_state_clears_list_and_shows_logo(self):
+        editor, manager = self._editor()
+
+        editor.update_zone_listbox()
+
+        controls = manager.gui.zone_controls
+        controls.clear_zone_list.assert_called_once()
+        controls.add_zone_to_list.assert_not_called()
+        controls.set_draw_roi_enabled.assert_called_once_with(False)
+        manager.renderer.draw_placeholder_logo.assert_called_once()
+        manager.renderer.redraw_zones.assert_not_called()
+
+    def test_selected_video_lists_its_arena(self):
+        editor, manager = self._editor(active_video="C:/videos/CECT_4.mp4")
+
+        editor.update_zone_listbox()
+
+        controls = manager.gui.zone_controls
+        listed = [call.args[0] for call in controls.add_zone_to_list.call_args_list]
+        assert listed == ["arena"]
+        manager.renderer.draw_placeholder_logo.assert_not_called()
+
+    def test_pending_single_video_is_a_selection(self):
+        """The single-video flow selects by ``pending_single_video_path``."""
+        editor, manager = self._editor(pending="C:/videos/solo.mp4")
+
+        editor.update_zone_listbox()
+
+        assert manager.gui.zone_controls.add_zone_to_list.call_count == 1
+        manager.renderer.draw_placeholder_logo.assert_not_called()
+
+    def test_live_project_keeps_its_global_arena(self):
+        """Live zones are project-wide, so no video selection is expected."""
+        editor, manager = self._editor(project_type="live")
+
+        editor.update_zone_listbox()
+
+        assert manager.gui.zone_controls.add_zone_to_list.call_count == 1
+        manager.renderer.draw_placeholder_logo.assert_not_called()
+
+    def test_explicit_zone_data_is_never_blanked(self):
+        """Callers passing zone_data (e.g. ZONES_UPDATED) describe a context."""
+        from zebtrack.core.detection import ZoneData
+
+        editor, manager = self._editor()
+
+        editor.update_zone_listbox(ZoneData(polygon=[[0, 0], [5, 0], [5, 5]]))
+
+        assert manager.gui.zone_controls.add_zone_to_list.call_count == 1
+        manager.renderer.draw_placeholder_logo.assert_not_called()

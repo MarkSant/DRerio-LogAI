@@ -9,6 +9,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Aba de Zonas: arena importada volta a aparecer na lista
+
+- **Projeto criado importando uma pasta com arenas prontas abria a aba de Zonas
+  com a lista de áreas vazia e o botão "Desenhar ROI" desabilitado**, embora a
+  árvore de vídeos exibisse o ícone da arena. As duas leituras são
+  independentes: a árvore lê `video_entry["has_arena"]`, a barra lateral lê
+  `project_data`. A importação estava certa; a barra lateral é que nunca era
+  desenhada.
+- **A barra lateral só era redesenhada por `ZONES_UPDATED`**, publicado quando o
+  usuário **salva** zonas. Carregar o frame de um vídeo trocava o vídeo ativo e
+  redesenhava o canvas, mas não a lista — e o botão "Desenhar ROI" nasce
+  `state="disabled"`. Quem desenha a arena à mão nunca percebeu; quem a importou
+  ficava travado. Agora `load_selected_video_frame` e `display_roi_video_frame`
+  atualizam a barra (o segundo adiado além do repaint de fundo que ele mesmo
+  agenda, senão o overlay seria apagado).
+- **Abrir ou criar um projeto já renderiza a barra lateral**, via
+  `ProjectInitializer.load_project_view`.
+- **Sem vídeo selecionado o canvas mostra o logo do app** e a lista fica vazia,
+  em vez de listar a arena de um vídeo qualquer vinda do `detection_zones`
+  global. Só vale para projetos pré-gravados: em live a arena é do projeto
+  inteiro e continua sendo exibida sem vídeo algum selecionado.
+- **Exibir ou redimensionar a aba não escolhe mais um vídeo sozinho.**
+  `redraw_zones` reage a um canvas sem fundo auto-carregando o primeiro vídeo do
+  projeto — o que também define o vídeo ativo. O `<Configure>` agora
+  recentraliza o placeholder enquanto não há seleção.
+
 ## [6.0.0] - 2026-08-15
 
 Citable snapshot archived on Zenodo, in support of the manuscripts describing the platform

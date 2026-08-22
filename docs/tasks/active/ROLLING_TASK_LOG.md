@@ -6,6 +6,57 @@ This document tracks all major agent interventions, technical debt resolutions, 
 
 ## Active Tasks
 
+### [2026-08-22] Aba de Zonas nunca redesenhava a barra lateral (arena importada some da lista)
+
+__ID:__ TASK-069
+__Agent:__ Claude Code (Opus 5)
+__Status:__ Completed ✅
+__Branch:__ claude/arena-roi-list-bug-0c2ab8
+__Description:__
+Uso real: projeto pré-gravado criado importando uma pasta cujos vídeos já tinham
+arena (`1_ProcessingArea_*.parquet`) e nenhuma ROI. A importação funciona — o
+polígono chega a `zones_by_video` e sobrevive ao reload (confirmado com repro
+sobre `scan_input_paths` → `import_parquets_from_wizard`). O defeito é de UI: a
+barra lateral da aba de Zonas só é redesenhada por `ZONES_UPDATED`, publicado
+quando o usuário __salva__ zonas. Carregar o frame de um vídeo trocava o vídeo
+ativo e redesenhava o canvas, mas nunca chamava `update_zone_listbox()`. Como o
+botão "Desenhar ROI" nasce `state="disabled"`, quem importou a arena (em vez de
+desenhá-la) ficava com lista vazia e botão morto para sempre. A árvore mostrava
+o ícone da arena porque lê `video_entry["has_arena"]`, caminho independente —
+daí a divergência que o usuário viu.
+
+__Critério de pronto:__ selecionar/carregar um vídeo com arena importada lista a
+arena e habilita "Desenhar ROI"; abrir o projeto já renderiza a barra lateral;
+sem vídeo selecionado o canvas mostra o logo do app.
+
+### Subtasks (TASK-069)
+
+- [x] `VideoFrameManager._refresh_zone_list_for_active_video()` chamado nos dois
+      caminhos que carregam frame: inline em `load_selected_video_frame`
+      (fundo pintado sincronamente) e adiado em `display_roi_video_frame` por
+      `BG_REPAINT_DELAY_MS + 50` — derivado da constante, porque o repaint que
+      esse método agenda apagaria um overlay redesenhado antes dele.
+- [x] `ProjectInitializer.refresh_zone_sidebar()` no fim de `load_project_view`,
+      único ponto por onde passam criação e abertura, live e pré-gravado.
+- [x] `CanvasRenderer.draw_placeholder_logo()` — logo + legenda quando não há
+      vídeo selecionado. NÃO escreve `_raw_bg_image`/`_bg_scale`/`_bg_offset`:
+      preenchê-los faria `_has_background_geometry()` afirmar que há frame e o
+      desenho de zonas projetaria polígonos sobre o logo. Retry LIMITADO
+      (20 × 100 ms) porque aba oculta de `ttk.Notebook` nunca ganha geometria.
+- [x] `ZoneEditor.is_awaiting_video_selection()` — estado vazio só em projeto
+      PRÉ-GRAVADO sem vídeo ativo nem `pending_single_video_path`. Em live a
+      arena é project-wide e vem do `detection_zones` global sem vídeo nenhum;
+      apagá-la esconderia calibração real.
+- [x] `on_canvas_configure` deixa de chamar `redraw_zones_from_project_data()`
+      sem vídeo selecionado: `redraw_zones` reage a canvas sem fundo
+      auto-carregando o PRIMEIRO vídeo do projeto (`_ensure_background` →
+      `load_video_frame_to_canvas`), ou seja, exibir/redimensionar a aba
+      escolhia um vídeo em silêncio. Demais gatilhos de `redraw_zones` intactos.
+- [x] Testes novos: 12 (placeholder, estado vazio incluindo live e `zone_data`
+      explícito, `<Configure>` nos dois ramos, refresh na abertura, refresh ao
+      carregar frame). GUI 1135 e suíte rápida 6148 verdes; ruff + mypy limpos.
+- [x] i18n: nova string traduzida no catálogo pt_BR e conferida em runtime.
+
 ### [2026-08-13] Internacionalização fase 3 de 3 — ui/dialogs, ui/wizard, core, analysis
 
 __ID:__ TASK-068
