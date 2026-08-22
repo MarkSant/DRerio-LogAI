@@ -547,6 +547,15 @@ class VideoManager:
     ) -> dict | None:
         """Return the project entry for a given video path or experiment id.
 
+        The two criteria are scanned in SEPARATE passes, and ``path`` always wins.
+        A path identifies exactly one entry; ``experiment_id`` (the video stem) does
+        not — a longitudinal project legitimately repeats a basename across days
+        (``Dia_1/CECT_4.mp4``, ``Dia_2/CECT_4.mp4``). Testing both criteria in the
+        same pass let the stem match an earlier day and return before the scan ever
+        reached the requested path, so callers asking for day 2 silently received
+        day 1's entry — which sent day 2's summary into day 1's results folder and
+        overwrote it.
+
         Args:
             project_data: The project data dictionary to search
             path: Video file path to search for
@@ -560,16 +569,21 @@ class VideoManager:
 
         normalized_target = VideoManager.normalize_path(path)
 
-        for _batch, video in VideoManager.iter_project_videos(project_data):
-            candidate_path = video.get("path")
-            if candidate_path and normalized_target:
+        if normalized_target:
+            for _batch, video in VideoManager.iter_project_videos(project_data):
+                candidate_path = video.get("path")
+                if not candidate_path:
+                    continue
                 if VideoManager.normalize_path(candidate_path) == normalized_target:
                     return video
 
-            if experiment_id:
-                candidate_name = os.path.basename(candidate_path or "")
-                candidate_id = os.path.splitext(candidate_name)[0]
-                if candidate_id == experiment_id:
+        # Fallback by stem, reached only when the path is unknown to the project
+        # (single-video flows, live sessions not registered yet, stale paths after
+        # a project move). Ambiguous by nature: returns the first homonym.
+        if experiment_id:
+            for _batch, video in VideoManager.iter_project_videos(project_data):
+                candidate_name = os.path.basename(video.get("path") or "")
+                if os.path.splitext(candidate_name)[0] == experiment_id:
                     return video
 
         return None

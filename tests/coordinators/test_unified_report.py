@@ -985,3 +985,130 @@ class TestCSVExport:
             csv_df = pd.read_csv(csv_files[0])
             xlsx_df = pd.read_excel(xlsx_files[0], sheet_name="Data")
             assert set(csv_df.columns) == set(xlsx_df.columns)
+
+
+class TestLongitudinalSubjectCollisions:
+    """Regressões do relatório parcial com o MESMO basename em dias diferentes.
+
+    Projeto longitudinal grava ``Dia_1/CECT_4.mp4`` e ``Dia_2/CECT_4.mp4``. Quando a
+    resolução de pasta colidia, os dois dias liam o MESMO ``_summary.parquet`` e o
+    ``drop_duplicates`` por todas as colunas apagava a segunda linha em silêncio: o
+    relatório saía com metade dos animais e o n do grupo pela metade.
+    """
+
+    @staticmethod
+    def _one_row(experiment_id: str, group: str, distance: float) -> pd.DataFrame:
+        return pd.DataFrame(
+            {
+                "experiment_id": [experiment_id],
+                "group_id": [group],
+                "total_distance_cm": [distance],
+                "mean_speed_cm_s": [5.2],
+            }
+        )
+
+    def test_two_days_of_same_subject_both_reach_the_report(self, coordinator, tmp_path):
+        """Dois dias do mesmo sujeito têm sumários próprios e ambos entram."""
+        summaries = {}
+        for day in ("Dia_01", "Dia_02"):
+            d = tmp_path / "Grupo_CEC" / day / "Sujeito_S04"
+            d.mkdir(parents=True)
+            p = d / "CECT_4_summary.parquet"
+            self._one_row("CECT_4", "CEC", 100.0).to_parquet(p, index=False)
+            summaries[day] = p
+
+        paths = {
+            str(tmp_path / "Dia_1" / "CECT_4.mp4"): ("Day01", summaries["Dia_01"]),
+            str(tmp_path / "Dia_2" / "CECT_4.mp4"): ("Day02", summaries["Dia_02"]),
+        }
+
+        coordinator.project_manager.find_video_entry = Mock(
+            side_effect=lambda path=None, **kw: {
+                "parquet_files": {"summary": str(paths[str(path)][1])},
+                "experiment_id": "CECT_4",
+            }
+        )
+        coordinator.project_manager.get_metadata_for_experiment = Mock(
+            side_effect=lambda exp_id, video_path=None: {
+                "group_id": "CEC",
+                "subject": "S04",
+                "day": paths[str(video_path)][0],
+                "experiment_id": f"CECT_4_{paths[str(video_path)][0]}",
+            }
+        )
+        coordinator.generate_parquet_summaries = Mock()
+
+        with patch.object(coordinator.project_manager, "project_path", tmp_path):
+            coordinator.generate_unified_report(list(paths), report_scope="selected")
+
+        out = list((tmp_path / "unified_reports" / "selecionados").glob("*.parquet"))
+        assert out, "Deveria exportar o parquet unificado"
+        final = pd.read_parquet(out[0])
+        assert len(final) == 2, f"Os dois dias devem aparecer, veio {len(final)}"
+        assert set(final["day"]) == {"Day01", "Day02"}
+
+    def test_shared_summary_file_warns_instead_of_silently_halving(self, coordinator, tmp_path):
+        """Dois vídeos apontando para o MESMO sumário: avisa e não duplica a linha."""
+        d = tmp_path / "Grupo_CEC" / "Dia_01" / "Sujeito_S04"
+        d.mkdir(parents=True)
+        shared = d / "CECT_4_summary.parquet"
+        self._one_row("CECT_4", "CEC", 100.0).to_parquet(shared, index=False)
+
+        paths = [
+            str(tmp_path / "Dia_1" / "CECT_4.mp4"),
+            str(tmp_path / "Dia_2" / "CECT_4.mp4"),
+        ]
+
+        coordinator.project_manager.find_video_entry = Mock(
+            return_value={
+                "parquet_files": {"summary": str(shared)},
+                "experiment_id": "CECT_4",
+            }
+        )
+        coordinator.project_manager.get_metadata_for_experiment = Mock(
+            return_value={"group_id": "CEC", "subject": "S04", "day": "Day01"}
+        )
+        coordinator.generate_parquet_summaries = Mock()
+
+        with patch.object(coordinator.project_manager, "project_path", tmp_path):
+            coordinator.generate_unified_report(paths, report_scope="selected")
+
+        collision_warnings = [
+            c
+            for c in coordinator._publish_event.call_args_list
+            if c[0][0] == UIEvents.UI_SHOW_WARNING
+            and "same summary" in getattr(c[0][1], "title", "").lower()
+        ]
+        assert collision_warnings, "A colisão de sumário precisa ser reportada ao usuário"
+
+        out = list((tmp_path / "unified_reports" / "selecionados").glob("*.parquet"))
+        assert len(pd.read_parquet(out[0])) == 1
+
+    def test_identical_metrics_across_distinct_animals_are_both_kept(self, coordinator):
+        """Métricas idênticas em animais distintos NÃO são duplicata."""
+        a = self._one_row("CECT_4", "CEC", 100.0)
+        a["subject"] = "S04"
+        a["day"] = "Day01"
+        b = self._one_row("CECT_8", "CEC", 100.0)
+        b["subject"] = "S08"
+        b["day"] = "Day01"
+
+        final_df, _mismatch, _cols = coordinator._align_and_concatenate_unified_dfs([a, b])
+
+        assert len(final_df) == 2, "Dois animais distintos devem sobreviver ao dedup"
+        assert set(final_df["subject"]) == {"S04", "S08"}
+
+    def test_concatenation_never_silently_drops_rows(self, coordinator):
+        """A deduplicação mora no dedup de CAMINHO, não na concatenação.
+
+        Mesmo linhas byte-idênticas sobrevivem aqui: a concatenação não tem como
+        saber se vieram do mesmo arquivo ou de dois animais distintos, e apagar
+        na dúvida foi o que sumiu com metade dos animais do relatório.
+        """
+        a = self._one_row("CECT_4", "CEC", 100.0)
+        a["subject"] = "S04"
+        a["day"] = "Day01"
+
+        final_df, _mismatch, _cols = coordinator._align_and_concatenate_unified_dfs([a, a.copy()])
+
+        assert len(final_df) == 2

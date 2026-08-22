@@ -45,6 +45,76 @@ def test_find_video_entry_by_experiment_id():
     assert entry["path"] == "/data/exp1.mp4"
 
 
+def _longitudinal_project():
+    """Same subject filmed on two days — one basename, two entries."""
+    return {
+        "batches": [
+            {
+                "videos": [
+                    {
+                        "path": "/vids/Dia_1/CECT_4/CECT_4.mp4",
+                        "metadata": {"group": "CEC", "day": "Day01", "subject": "S04"},
+                    },
+                    {
+                        "path": "/vids/Dia_2/CECT_4/CECT_4.mp4",
+                        "metadata": {"group": "CEC", "day": "Day02", "subject": "S04"},
+                    },
+                ]
+            }
+        ]
+    }
+
+
+def test_find_video_entry_path_wins_over_repeated_experiment_id():
+    """A matching path must beat the stem fallback, even for a later batch entry.
+
+    Longitudinal projects reuse the video basename across days, so the stem is
+    ambiguous. Resolving day 2 to day 1's entry is what sent day 2's summary into
+    day 1's results folder and overwrote it.
+    """
+    entry = VideoManager.find_video_entry(
+        _longitudinal_project(),
+        path="/vids/Dia_2/CECT_4/CECT_4.mp4",
+        experiment_id="CECT_4",
+    )
+
+    assert entry is not None
+    assert entry["metadata"]["day"] == "Day02"
+
+
+def test_find_video_entry_first_day_still_resolves_with_experiment_id():
+    entry = VideoManager.find_video_entry(
+        _longitudinal_project(),
+        path="/vids/Dia_1/CECT_4/CECT_4.mp4",
+        experiment_id="CECT_4",
+    )
+
+    assert entry is not None
+    assert entry["metadata"]["day"] == "Day01"
+
+
+def test_find_video_entry_falls_back_to_stem_when_path_unknown():
+    """Unregistered paths (single-video and live flows) still use the stem."""
+    entry = VideoManager.find_video_entry(
+        _longitudinal_project(),
+        path="/somewhere/else/CECT_4.mp4",
+        experiment_id="CECT_4",
+    )
+
+    assert entry is not None
+    assert entry["metadata"]["day"] == "Day01"
+
+
+def test_find_video_entry_returns_none_when_nothing_matches():
+    entry = VideoManager.find_video_entry(
+        _longitudinal_project(),
+        path="/somewhere/else/OTHER.mp4",
+        experiment_id="OTHER",
+    )
+
+    assert entry is None
+
+
 def test_get_next_video():
     project_data = {
         "batches": [

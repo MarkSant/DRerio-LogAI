@@ -98,7 +98,12 @@ class OutputRegistrationManager:
             meta_lookup = metadata or {}
 
             if not meta_lookup and get_metadata_for_experiment_fn:
-                meta_lookup = get_metadata_for_experiment_fn(experiment_id) or {}
+                # video_path MUST be forwarded: the experiment_id alone is the video
+                # stem, which repeats across days in a longitudinal project. Looking
+                # up metadata without the path resolves to whichever day comes first,
+                # and this directory is where the summary parquet gets written — the
+                # day-2 summary would land in (and overwrite) the day-1 folder.
+                meta_lookup = get_metadata_for_experiment_fn(experiment_id, video_path) or {}
 
             if not meta_lookup and video_path and derive_processing_metadata_fn:
                 meta_lookup = derive_processing_metadata_fn(
