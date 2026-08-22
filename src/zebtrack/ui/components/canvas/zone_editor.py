@@ -113,6 +113,10 @@ class ZoneEditor:
             if _lb is not None and hasattr(_lb, "winfo_exists") and not _lb.winfo_exists():
                 return
 
+        if zone_data is None and self.is_awaiting_video_selection():
+            self._show_no_video_selected()
+            return
+
         self.canvas_manager.renderer.redraw_zones(zone_data)
 
         # Update the listbox widget via ZoneControls (Restored Logic)
@@ -154,6 +158,50 @@ class ZoneEditor:
                     )
 
         self.update_roi_button_state()
+
+    def is_awaiting_video_selection(self) -> bool:
+        """Whether the Zones tab has no video to describe yet.
+
+        True only for PRE-RECORDED projects with neither an active zone video
+        nor a pending single-video selection. The project-type check is the
+        whole point: a live project keeps ONE project-wide arena in the global
+        ``detection_zones``, which ``get_zone_data_for_active_context`` returns
+        with no video involved — blanking that would hide a calibration the
+        user really has. In a pre-recorded project zones are per video, so the
+        same global fallback shows some *other* video's arena, which is worse
+        than showing nothing.
+
+        Degrades to False (i.e. keep the previous behaviour) whenever the
+        project manager cannot be reached.
+        """
+        pm = getattr(getattr(self.gui, "controller", None), "project_manager", None)
+        if pm is None:
+            return False
+
+        try:
+            if pm.get_project_type() == "live":
+                return False
+            if pm.get_active_zone_video():
+                return False
+        except (AttributeError, KeyError, TypeError):
+            log.debug("zone_editor.await_selection.probe_failed", exc_info=True)
+            return False
+
+        return not getattr(self.gui, "pending_single_video_path", None)
+
+    def _show_no_video_selected(self) -> None:
+        """Empty the sidebar and put the app logo on the canvas.
+
+        Reached when the Zones tab is (re)built for a project before any video
+        is chosen. Everything the sidebar can say is per-video, so it says
+        nothing — and the canvas shows the logo instead of a blank rectangle.
+        """
+        controls = getattr(self.gui, "zone_controls", None)
+        if controls:
+            controls.clear_zone_list()
+            controls.set_draw_roi_enabled(False)
+
+        self.canvas_manager.renderer.draw_placeholder_logo()
 
     def update_processing_mode(self, sequential: bool) -> None:
         """Update the processing mode (parallel vs sequential) for multi-aquarium.

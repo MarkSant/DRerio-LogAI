@@ -84,6 +84,15 @@ class VideoFrameManager:
         """Handle canvas resize events. Delegates to renderer logic."""
         self.canvas_manager.renderer.draw_bg_image()
         if hasattr(self.gui, "controller") and self.gui.controller:
+            # With no video chosen there is nothing to redraw — and asking for
+            # it anyway is not neutral: ``redraw_zones`` reacts to a missing
+            # background by auto-loading the project's FIRST video, so merely
+            # showing or resizing the tab would silently pick a video for the
+            # user. Recenter the placeholder instead. This is also what draws
+            # it at all when the tab was still hidden at project-open time.
+            if self.canvas_manager.zone_editor.is_awaiting_video_selection():
+                self.canvas_manager.renderer.draw_placeholder_logo()
+                return
             self.canvas_manager.redraw_zones_from_project_data()
 
     def display_roi_video_frame(self, video_path: Path | str) -> None:
@@ -184,8 +193,46 @@ class VideoFrameManager:
             # Schedule another redraw to ensure canvas is fully ready.
             self.gui.root.after(self.BG_REPAINT_DELAY_MS, lambda: self._draw_bg_image_to_canvas())
 
+            # The active zone video just changed: the sidebar list and the
+            # "Draw ROI" button still describe the PREVIOUS context. Deferred
+            # past the repaint above, which would otherwise wipe the overlay
+            # ``update_zone_listbox`` redraws.
+            self._refresh_zone_list_for_active_video(
+                delay_ms=self.BG_REPAINT_DELAY_MS + 50,
+            )
+
         except Exception as e:
             self.dialog_manager.show_error(_("Error Displaying Frame"), str(e))
+
+    def _refresh_zone_list_for_active_video(self, *, delay_ms: int = 0) -> None:
+        """Re-render the zone sidebar (list + "Draw ROI" state) for the active video.
+
+        Loading a frame changes the active zone video, but nothing else in the
+        pre-recorded flow re-renders the sidebar: it is refreshed only by
+        ``ZONES_UPDATED``, which fires when the user *saves* zones. A user who
+        draws the arena by hand therefore never notices, while a project whose
+        arenas came from imported parquets opened the Zones tab with an empty
+        list and a permanently disabled "Draw ROI" button — the arena existed in
+        ``project_data`` and in the video tree, only the sidebar never asked.
+
+        ``update_zone_listbox`` also calls ``update_roi_button_state``, so this
+        single call fixes both halves. Never raises: a sidebar refresh must not
+        turn a loaded frame into a crash.
+        """
+
+        def _refresh() -> None:
+            try:
+                self.canvas_manager.update_zone_listbox()
+            # except Exception justified: pure UI refresh — a failure here must
+            # not propagate into the frame-loading path that called it.
+            except Exception as exc:
+                log.warning("gui.zone_list.refresh_failed", error=str(exc), exc_info=True)
+
+        root = getattr(self.gui, "root", None)
+        if delay_ms > 0 and root is not None and hasattr(root, "after"):
+            root.after(delay_ms, _refresh)
+            return
+        _refresh()
 
     def update_video_frame(self, frame: np.ndarray, detections: list | None = None) -> None:
         """Update the canvas with a raw video frame (numpy array).
@@ -509,6 +556,9 @@ class VideoFrameManager:
         if success:
             self.dialog_manager.offer_zone_reuse(video_path)
             self.canvas_manager.redraw_zones_from_project_data()
+            # ``load_video_frame_to_canvas`` paints the background synchronously
+            # (no deferred repaint to wait for), so refresh the sidebar inline.
+            self._refresh_zone_list_for_active_video()
             filename = os.path.basename(video_path)
             self.gui.set_status(_("✓ Frame loaded: {name}").format(name=filename))
             log.info("gui.video_selector.frame_loaded", path=video_path)

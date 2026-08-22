@@ -7,6 +7,8 @@ zones (arena/ROIs), detection overlays, and interactive polygons.
 
 from __future__ import annotations
 
+from functools import lru_cache
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import cv2
@@ -22,8 +24,45 @@ if TYPE_CHECKING:
 log = structlog.get_logger()
 
 
+@lru_cache(maxsize=1)
+def _load_placeholder_logo() -> Image.Image | None:
+    """Return the welcome logo as a PIL image, or ``None`` when unavailable.
+
+    Cached: the placeholder is redrawn on every canvas resize, and re-reading a
+    PNG from disk each time would make resizing the window visibly stutter.
+    Degrades to ``None`` (caption only) rather than raising — a missing
+    decoration must never break the Zones tab.
+    """
+    candidates = (
+        Path(__file__).resolve().parents[2] / "assets" / "logo_welcome.png",
+        Path("src/zebtrack/ui/assets/logo_welcome.png"),
+    )
+    for path in candidates:
+        if not path.exists():
+            continue
+        try:
+            image = Image.open(path)
+            image.load()
+            return image
+        except OSError as exc:
+            log.warning("canvas.placeholder_logo.load_failed", path=str(path), error=str(exc))
+            return None
+
+    log.debug("canvas.placeholder_logo.not_found", attempted=[str(p) for p in candidates])
+    return None
+
+
 class CanvasRenderer:
     """Handles drawing operations on the canvas."""
+
+    #: Canvas tag for every item of the "no video selected" placeholder, so it
+    #: can be removed as a unit without disturbing zones or the background.
+    PLACEHOLDER_TAG = "placeholder_logo"
+
+    #: Bounded wait for the canvas to gain geometry before the placeholder is
+    #: drawn (~2 s in total). See ``draw_placeholder_logo`` for why it is capped.
+    PLACEHOLDER_RETRY_DELAY_MS = 100
+    PLACEHOLDER_RETRY_LIMIT = 20
 
     def __init__(self, canvas_manager, *, zone_context_service: ZoneContextService | None = None):
         """Initialize CanvasRenderer.
@@ -57,6 +96,98 @@ class CanvasRenderer:
         except Exception:
             return None
         return canvas
+
+    def draw_placeholder_logo(self, *, _attempt: int = 0) -> None:
+        """Paint the app logo on the zone canvas while no video is selected.
+
+        Purely decorative: it deliberately does NOT touch ``_raw_bg_image``,
+        ``_bg_scale`` or ``_bg_offset``. Those describe the mapping between
+        video and canvas coordinates, and a placeholder has none — writing them
+        would make ``_has_background_geometry`` claim a frame is displayed and
+        let zone drawing project polygons onto a logo.
+
+        No-ops when a real frame is already on the canvas, so a stale call can
+        never wipe the live preview or a loaded frame.
+        """
+        canvas = self._get_canvas()
+        if canvas is None:
+            return
+
+        if self._has_background_geometry():
+            return
+
+        canvas_width = canvas.winfo_width()
+        canvas_height = canvas.winfo_height()
+        if canvas_width <= 1 or canvas_height <= 1:
+            # The canvas has no geometry until the layout settles. Unlike
+            # draw_bg_image this retry is BOUNDED: the placeholder is drawn at
+            # project-open time, when the Zones tab may not be the selected one
+            # — and a hidden notebook tab never gains geometry, so an unbounded
+            # retry would spin for the whole session. Giving up is harmless:
+            # the canvas <Configure> that fires when the tab is finally shown
+            # asks again.
+            if _attempt < self.PLACEHOLDER_RETRY_LIMIT:
+                self.gui.root.after(
+                    self.PLACEHOLDER_RETRY_DELAY_MS,
+                    lambda: self.draw_placeholder_logo(_attempt=_attempt + 1),
+                )
+            else:
+                log.debug("canvas.placeholder_logo.canvas_never_sized")
+            return
+
+        canvas.delete(self.PLACEHOLDER_TAG)
+
+        logo = _load_placeholder_logo()
+        center_x = canvas_width // 2
+        center_y = canvas_height // 2
+        caption_y = center_y
+
+        if logo is not None:
+            # Keep the logo comfortably inside the canvas; never upscale it.
+            scale = min(
+                canvas_width * 0.45 / logo.width,
+                canvas_height * 0.45 / logo.height,
+                1.0,
+            )
+            resampling: Any
+            if hasattr(Image, "Resampling"):
+                resampling = Image.Resampling.LANCZOS
+            else:
+                resampling = getattr(Image, "NEAREST", 0)
+            scaled = logo.resize(
+                (max(1, int(logo.width * scale)), max(1, int(logo.height * scale))),
+                resampling,
+            )
+            # Held on the manager: Tk keeps no reference of its own and would
+            # garbage-collect the image into a blank rectangle.
+            self.manager._canvas_placeholder_image = ImageTk.PhotoImage(scaled)
+            logo_y = center_y - scaled.height // 6
+            canvas.create_image(
+                center_x,
+                logo_y,
+                anchor="center",
+                image=self.manager._canvas_placeholder_image,
+                tags=self.PLACEHOLDER_TAG,
+            )
+            caption_y = logo_y + scaled.height // 2 + 24
+
+        canvas.create_text(
+            center_x,
+            caption_y,
+            text=_("Select a video in the list to configure its zones."),
+            anchor="center",
+            fill="#888888",
+            font=("Arial", 11),
+            tags=self.PLACEHOLDER_TAG,
+        )
+
+    def clear_placeholder_logo(self) -> None:
+        """Remove the placeholder, if any. Safe to call when none is drawn."""
+        canvas = self._get_canvas()
+        if canvas is None:
+            return
+        canvas.delete(self.PLACEHOLDER_TAG)
+        self.manager._canvas_placeholder_image = None
 
     def draw_bg_image(self):
         """Draw the background image to canvas with proper scaling and centering."""
@@ -107,6 +238,9 @@ class CanvasRenderer:
 
         # Clear canvas and display centered image
         canvas.delete("all")
+        # The wipe above already took the placeholder off screen; drop our
+        # reference too so the logo does not linger in memory for the session.
+        self.manager._canvas_placeholder_image = None
         self.manager._canvas_bg_image = ImageTk.PhotoImage(image)
 
         # Store positioning for later restoration
