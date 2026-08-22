@@ -74,6 +74,48 @@ class TestOutputRegistrationManagerExtended:
         expected = tmp_path / "Grupo_CBD" / "Dia_01" / "Sujeito_03"
         assert res == expected
 
+    def test_resolve_results_directory_forwards_video_path_to_metadata_lookup(
+        self, manager: OutputRegistrationManager, tmp_path: Path
+    ):
+        """The lookup must receive video_path, not just the (ambiguous) stem.
+
+        The stem repeats across days in a longitudinal project, so a lookup by id
+        alone resolves to whichever day comes first — and this directory is where
+        the summary parquet is written, so day 2 would overwrite day 1.
+        """
+        by_path = {
+            "/vids/Dia_1/CECT_4/CECT_4.mp4": {"group": "CEC", "day": 1, "subject": 4},
+            "/vids/Dia_2/CECT_4/CECT_4.mp4": {"group": "CEC", "day": 2, "subject": 4},
+        }
+
+        def lookup(experiment_id, video_path=None):
+            return by_path.get(str(video_path), by_path["/vids/Dia_1/CECT_4/CECT_4.mp4"])
+
+        res = manager.resolve_results_directory(
+            "CECT_4",
+            project_path=tmp_path,
+            video_path="/vids/Dia_2/CECT_4/CECT_4.mp4",
+            get_metadata_for_experiment_fn=lookup,
+        )
+
+        assert res == tmp_path / "Grupo_CEC" / "Dia_02" / "Sujeito_04"
+
+    def test_resolve_results_directory_explicit_metadata_skips_lookup(
+        self, manager: OutputRegistrationManager, tmp_path: Path
+    ):
+        """Live sessions pass metadata explicitly; the lookup must not run."""
+        lookup = MagicMock()
+
+        res = manager.resolve_results_directory(
+            "exp1",
+            project_path=tmp_path,
+            metadata={"group": "CBD", "day": 3, "subject": 7},
+            get_metadata_for_experiment_fn=lookup,
+        )
+
+        lookup.assert_not_called()
+        assert res == tmp_path / "Grupo_CBD" / "Dia_03" / "Sujeito_07"
+
     def test_resolve_results_directory_no_project_path(
         self, manager: OutputRegistrationManager, tmp_path: Path
     ):

@@ -181,6 +181,24 @@ timestamp, frame, track_id, x1, y1, x2, y2, confidence,
 - Sequential vs parallel processing toggle: `MultiAquariumZoneData.sequential_processing` (UI in `ui/components/zone_controls.py`).
 - See [`docs/reference/DOMAIN_GLOSSARY.md`](docs/reference/DOMAIN_GLOSSARY.md) and [`docs/archive/PHASES.md`](docs/archive/PHASES.md) for full data model.
 
+### 🔑 Identidade do vídeo: o caminho, nunca o basename
+
+- **`experiment_id` NÃO é chave única.** Ele cai no stem do arquivo, e um projeto
+  longitudinal grava o mesmo sujeito todo dia: `Dia_1/CECT_4/CECT_4.mp4` e
+  `Dia_2/CECT_4/CECT_4.mp4` compartilham o id `CECT_4`. Só o `path` identifica um entry.
+- **`VideoManager.find_video_entry` varre em DUAS passadas, `path` primeiro.** O fallback
+  por stem existe só para caminhos que o projeto não conhece (vídeo único, sessão live não
+  registrada, caminho defasado após mover o projeto) e é ambíguo por natureza — devolve o
+  primeiro homônimo. Nunca reintroduza os dois critérios no mesmo laço.
+- **Quem resolve pasta de saída passa `metadata=` ou `video_path=`, jamais só o id.**
+  `resolve_results_directory()` decide `Grupo_X/Dia_Y/Sujeito_Z/`; resolver pelo stem manda
+  o sumário do dia 2 para a pasta do dia 1 e **sobrescreve** o dia 1 em silêncio — a
+  trajetória e o `.docx` continuam certos, então o estrago só aparece no relatório agregado.
+- **Nunca deduplique linhas de sumário por conteúdo.** `drop_duplicates()` sobre todas as
+  colunas não distingue "mesmo arquivo lido duas vezes" de "dois animais com métricas
+  iguais". A deduplicação mora no **caminho do sumário** (`_append_entry_summaries`), que
+  recusa o segundo vídeo e **avisa**. Histórico: [`docs/archive/fixes/2026-08.md`](docs/archive/fixes/2026-08.md).
+
 ### ⏱️ Duração da sessão ao vivo
 
 - **`core/services/session_duration_resolver.resolve_session_duration()` é a fonte única.**
@@ -455,6 +473,7 @@ Connector plugins (Slack, Linear, Notion, Jira, BigQuery, Datadog, Enterprise Se
 | **Contributing guide**       | [`CONTRIBUTING.md`](CONTRIBUTING.md)                          |
 | **VS Code setup**            | [`docs/guides/developer/VSCODE.md`](docs/guides/developer/VSCODE.md) |
 | **Phase history (v2.x–v3.x)**| [`docs/archive/PHASES.md`](docs/archive/PHASES.md)            |
+| **Recent fixes (Aug 2026)**  | [`docs/archive/fixes/2026-08.md`](docs/archive/fixes/2026-08.md) |
 | **Recent fixes (Dec 2025)**  | [`docs/archive/fixes/2025-12.md`](docs/archive/fixes/2025-12.md) |
 | **Changelog**                | [`CHANGELOG.md`](CHANGELOG.md)                                |
 

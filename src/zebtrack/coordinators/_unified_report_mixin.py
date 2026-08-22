@@ -64,6 +64,19 @@ class UnifiedReportMixin:
         if not video_paths:
             return
 
+        # O mesmo vídeo listado duas vezes é seleção redundante, não anomalia:
+        # remove aqui em silêncio para que o aviso de colisão de sumário fique
+        # reservado a vídeos DIFERENTES que resolvem para o mesmo arquivo.
+        seen_paths: set[str] = set()
+        deduped_paths: list[str] = []
+        for candidate in video_paths:
+            key = os.path.normcase(os.path.abspath(str(candidate)))
+            if key in seen_paths:
+                continue
+            seen_paths.add(key)
+            deduped_paths.append(candidate)
+        video_paths = deduped_paths
+
         scope = "selected" if report_scope == "selected" else "all"
         log.info(
             "workflow.unified_report.start",
@@ -98,6 +111,12 @@ class UnifiedReportMixin:
 
         dfs: list[pd.DataFrame] = []
         roi_colors_map: dict = {}
+        # Normalized summary path -> label of the video that claimed it first. Two
+        # videos resolving to the same summary file means their results directories
+        # collided on disk, so one animal's data is standing in for another's; the
+        # second read is refused and reported instead of quietly doubling a row.
+        seen_summaries: dict[str, str] = {}
+        collided_summaries: list[str] = []
 
         for path in video_paths:
             entry = self.project_manager.find_video_entry(path=path)
@@ -147,7 +166,13 @@ class UnifiedReportMixin:
                     }
                 )
 
-            self._append_entry_summaries(entries_to_process, path, dfs)
+            self._append_entry_summaries(
+                entries_to_process,
+                path,
+                dfs,
+                seen_summaries=seen_summaries,
+                collided=collided_summaries,
+            )
 
         if not dfs:
             if missing_ids:
@@ -171,6 +196,24 @@ class UnifiedReportMixin:
                 "workflow.unified_report.partial_missing",
                 missing=missing_ids,
                 included=len(dfs),
+            )
+
+        if collided_summaries:
+            # Silenciar isto é o que transforma "faltam animais" num relatório que
+            # parece completo: o n do grupo cai pela metade sem nenhum aviso.
+            detail = "\n".join(f"- {pair}" for pair in collided_summaries[:10])
+            extra = "" if len(collided_summaries) <= 10 else f"\n(+{len(collided_summaries) - 10})"
+            self._publish_event(
+                UIEvents.UI_SHOW_WARNING,
+                payloads.MessagePayload(
+                    title=_("Animals sharing the same summary"),
+                    message=_(
+                        "These videos resolved to the SAME summary file, so only the "
+                        "first of each pair is in the report:\n\n{detail}{extra}\n\n"
+                        "Re-generate the analysis of those videos so each one writes "
+                        "its own summary."
+                    ).format(detail=detail, extra=extra),
+                ),
             )
 
         try:
@@ -215,9 +258,21 @@ class UnifiedReportMixin:
             log.debug("workflow.unified_report.color_collection_failed", path=path, error=str(e))
 
     def _append_entry_summaries(
-        self, entries_to_process: list[dict], path: Path | str, dfs: list
+        self,
+        entries_to_process: list[dict],
+        path: Path | str,
+        dfs: list,
+        *,
+        seen_summaries: dict[str, str] | None = None,
+        collided: list[str] | None = None,
     ) -> None:
-        """Lê o sumário de cada process_entry (com fallback em disco) e acumula em ``dfs``."""
+        """Lê o sumário de cada process_entry (com fallback em disco) e acumula em ``dfs``.
+
+        ``seen_summaries`` mapeia caminho normalizado -> rótulo do primeiro vídeo que
+        o reivindicou. Um caminho repetido indica que dois vídeos compartilham a mesma
+        pasta de resultados: o segundo é recusado (senão a linha do primeiro animal
+        entraria duas vezes, no lugar do segundo) e o par vai para ``collided``.
+        """
         for process_entry in entries_to_process:
             summary_path = process_entry.get("parquet_files", {}).get("summary")
             entry_meta = process_entry.get("metadata", {})
@@ -225,15 +280,34 @@ class UnifiedReportMixin:
             # Caminho registrado pode estar defasado (sync OneDrive) ou apontar para
             # um local inexistente (re-resolução de saídas em sessões live). Resolve
             # no disco antes de desistir.
+            fallback_id = (
+                process_entry.get("experiment_id") or os.path.splitext(os.path.basename(path))[0]
+            )
             if not (summary_path and os.path.exists(summary_path)):
-                fallback_id = (
-                    process_entry.get("experiment_id")
-                    or os.path.splitext(os.path.basename(path))[0]
-                )
                 summary_path = self._summary_candidate_on_disk(fallback_id, path)
 
             if not (summary_path and os.path.exists(summary_path)):
                 continue
+
+            if seen_summaries is not None:
+                label = str(
+                    entry_meta.get("experiment_id")
+                    or process_entry.get("experiment_id")
+                    or fallback_id
+                )
+                key = os.path.normcase(os.path.abspath(str(summary_path)))
+                owner = seen_summaries.get(key)
+                if owner is not None:
+                    log.warning(
+                        "workflow.unified_report.summary_path_collision",
+                        summary=str(summary_path),
+                        claimed_by=owner,
+                        also_claimed_by=label,
+                    )
+                    if collided is not None:
+                        collided.append(f"{owner} / {label}")
+                    continue
+                seen_summaries[key] = label
 
             try:
                 df = pd.read_parquet(summary_path)
@@ -410,17 +484,24 @@ class UnifiedReportMixin:
                 )
                 final_df = pd.concat(non_empty_dfs, ignore_index=True)
 
-            # Row-level deduplication: remove exact duplicate rows that arise when
-            # multi-aquarium entries cause the same summary to be loaded twice.
-            before_count = len(final_df)
-            final_df = final_df.drop_duplicates(keep="last")
+            # NÃO deduplicar por conteúdo aqui. Duas linhas idênticas só podem vir
+            # do mesmo arquivo lido duas vezes, e isso agora é barrado na origem
+            # (``_append_entry_summaries`` recusa um caminho de sumário repetido e
+            # avisa). Um ``drop_duplicates`` por todas as colunas não distingue
+            # "mesmo arquivo" de "dois animais com métricas iguais": quando uma
+            # colisão de pastas fez dois dias do mesmo sujeito lerem o mesmo
+            # sumário, ele apagou metade dos animais do relatório em silêncio.
             final_df = final_df.reset_index(drop=True)
-            after_count = len(final_df)
-            if before_count != after_count:
-                log.info(
-                    "workflow.unified_report.duplicates_removed",
-                    before=before_count,
-                    after=after_count,
+
+            # Detecta, sem apagar: linhas byte-idênticas que sobrevivem ao dedup de
+            # caminho indicam dois sumários DIFERENTES com o mesmo conteúdo — quase
+            # sempre um erro de pasta a montante. O pesquisador precisa ver isso.
+            duplicated = int(final_df.duplicated().sum())
+            if duplicated:
+                log.warning(
+                    "workflow.unified_report.identical_rows_kept",
+                    duplicated=duplicated,
+                    total=len(final_df),
                 )
 
         return final_df, schema_mismatch, all_columns
