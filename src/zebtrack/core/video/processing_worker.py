@@ -453,6 +453,46 @@ class _WorkerProcess(multiprocessing.Process):
             return str(value)
 
     @staticmethod
+    def _aquarium_dimensions_cm(video_metadata: dict) -> tuple[float, float]:
+        """Read the tank's real dimensions from a task descriptor.
+
+        Reads the TOP level of the task descriptor only, and no production
+        caller populates it: the single-video flow puts the dimensions under the
+        video entry's nested ``metadata`` (``_extract_metadata_from_config``),
+        project entries do the same, and the sequential coordinator spreads only
+        group/day/subject. The removed fallback probed ``settings.calibration``,
+        an attribute ``Settings`` does not declare and cannot grow at runtime
+        because it is ``extra="forbid"``. Both lookups therefore missed, and no
+        ``Calibration`` has ever been built by this worker in any flow.
+
+        THE NESTED LOOKUP IS OMITTED ON PURPOSE — it is a coordinate-space
+        change disguised as a bug fix. ``Calibration`` warps coordinates into a
+        rectified 600 px-wide space, whereas the report pipeline subtracts an
+        arena offset measured in RAW video pixels
+        (``_normalize_df_to_local_space``) and the ROIs are stored in raw pixels
+        too. Reading the nested dict would quietly switch project batch runs —
+        whose entries DO carry the dimensions — into rectified coordinates, and
+        every distance, speed and ROI membership would be wrong while the run
+        still looked successful. The live pipeline passes no calibration either,
+        so raw pixels are the one coordinate contract both pipelines share.
+
+        Writing the ``x_cm``/``y_cm`` columns is a separate decision: it needs
+        ``pixel_per_cm_ratio`` WITHOUT ``calibration``, plus the matching change
+        on the live side and in ``tests/test_recorder.py``.
+
+        Returns:
+            ``(width_cm, height_cm)``; zeros when unavailable, which is normal.
+        """
+
+        def _read(key: str) -> float:
+            try:
+                return float(video_metadata.get(key) or 0)
+            except (TypeError, ValueError):
+                return 0.0
+
+        return _read("aquarium_width_cm"), _read("aquarium_height_cm")
+
+    @staticmethod
     def _format_subject(value) -> str:
         """Format subject component for folder name."""
         if not value:
@@ -1025,16 +1065,12 @@ class _WorkerProcess(multiprocessing.Process):
         calibration = None
         pixel_ratio = None
 
-        # Try to get measurements from metadata (preferred) or settings
-        width_cm = float(video_metadata.get("aquarium_width_cm") or 0)
-        height_cm = float(video_metadata.get("aquarium_height_cm") or 0)
-
-        # Fallback to project settings if available
-        if (width_cm <= 0 or height_cm <= 0) and hasattr(self.config.settings, "calibration"):
-            calib = self.config.settings.calibration
-            if calib:
-                width_cm = float(getattr(calib, "aquarium_width_cm", 0) or 0)
-                height_cm = float(getattr(calib, "aquarium_height_cm", 0) or 0)
+        width_cm, height_cm = self._aquarium_dimensions_cm(video_metadata)
+        if width_cm <= 0 or height_cm <= 0:
+            # Not an error: no production caller supplies these, so this is the
+            # normal path. Reports derive cm from the arena bbox and the video
+            # entry's metadata instead — see ReportGenerationCoordinator.
+            log.info("worker.calibration.absent", video=experiment_id)
 
         calibration_by_aquarium = {}
 

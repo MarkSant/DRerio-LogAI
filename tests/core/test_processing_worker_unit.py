@@ -342,3 +342,66 @@ def test_frame_loop_polls_cancellation_without_blocking():
         assert isinstance(waits[0], ast.Constant) and waits[0].value == 0.0, (
             "frame-loop cancel poll must pass wait_s=0.0"
         )
+
+
+# ---------------------------------------------------------------------------
+# Calibration lookup — raw pixels are the contract both pipelines share.
+# ---------------------------------------------------------------------------
+
+
+def test_aquarium_dimensions_read_from_the_task_top_level():
+    assert _WorkerProcess._aquarium_dimensions_cm(
+        {"aquarium_width_cm": 12.5, "aquarium_height_cm": 8}
+    ) == (12.5, 8.0)
+
+
+@pytest.mark.parametrize(
+    "descriptor",
+    [
+        {},
+        {"aquarium_width_cm": 0, "aquarium_height_cm": 0},
+        {"aquarium_width_cm": None, "aquarium_height_cm": None},
+        {"aquarium_width_cm": "", "aquarium_height_cm": ""},
+        {"aquarium_width_cm": "abc", "aquarium_height_cm": "abc"},
+    ],
+)
+def test_aquarium_dimensions_absent_degrade_to_zero(descriptor):
+    """Missing or unparseable dimensions must return zeros, never raise.
+
+    This is the NORMAL path: no production caller puts these keys at the top
+    level of a task descriptor.
+    """
+    assert _WorkerProcess._aquarium_dimensions_cm(descriptor) == (0.0, 0.0)
+
+
+def test_aquarium_dimensions_ignore_the_nested_metadata():
+    """Nested ``metadata`` is deliberately NOT consulted.
+
+    Project entries DO carry the dimensions there. Reading them would build a
+    ``Calibration``, whose homography warps coordinates into a rectified 600 px
+    space — while the report pipeline subtracts an arena offset measured in raw
+    video pixels and the ROIs are stored in raw pixels. Every distance, speed
+    and ROI membership would be wrong, and the run would still look successful.
+
+    If someone wants the ``x_cm``/``y_cm`` columns, the way in is
+    ``pixel_per_cm_ratio`` WITHOUT ``calibration`` — not this lookup.
+    """
+    descriptor = {
+        "path": "C:/videos/exp.mp4",
+        "metadata": {"aquarium_width_cm": 20.0, "aquarium_height_cm": 10.0},
+    }
+
+    assert _WorkerProcess._aquarium_dimensions_cm(descriptor) == (0.0, 0.0)
+
+
+def test_settings_has_no_calibration_attribute():
+    """The removed fallback probed an attribute that cannot exist.
+
+    ``Settings`` is a Pydantic model with ``extra="forbid"``, so ``calibration``
+    is not merely absent — it can never be added at runtime either. The old
+    ``hasattr(settings, "calibration")`` branch was unreachable by construction.
+    """
+    from zebtrack.settings import Settings
+
+    assert "calibration" not in Settings.model_fields
+    assert Settings.model_config.get("extra") == "forbid"
