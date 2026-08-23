@@ -17,6 +17,7 @@ fazendo a detecção cair em modo single mesmo com o usuário pedindo 2 aquário
 """
 
 from types import SimpleNamespace
+from typing import Any, cast
 from unittest.mock import Mock
 
 from zebtrack.ui.components.single_video_workflow import SingleVideoWorkflow
@@ -231,6 +232,74 @@ def test_redetect_over_live_reference_frame_returns_to_camera():
 
 
 # ---------------------------------------------------------------------------
+# The pre-recorded single-video flow ALSO has no project — and must stay on file
+# ---------------------------------------------------------------------------
+
+
+def test_prerecorded_single_video_never_opens_the_camera():
+    """No project + a real video file must auto-detect from the FILE.
+
+    This is the load-bearing half of the ``_route_live_auto_detect`` guard, and
+    the easiest one to lose. ``is_live_like`` is TRUE here — it is satisfied by
+    "no project at all", which the pre-recorded single-video flow also is — so
+    the only thing keeping the camera shut is the ``not video_path`` test in
+    front of it. Collapse that condition and every single-video auto-detect
+    starts grabbing camera frames to look for an aquarium that lives in a file.
+    """
+    calib = Mock()
+    gui = _adhoc_live_gui(
+        calibration_coordinator=calib,
+        active_zone_video="C:/videos/exp.mp4",
+    )
+    gui.pending_single_video_path = "C:/videos/exp.mp4"
+    gui.pending_single_video_config = {"num_aquariums": 1}
+    workflow = SingleVideoWorkflow(gui, dialog_manager=Mock())
+
+    workflow.on_auto_detect_clicked()
+
+    calib.run_live_calibration.assert_not_called()
+    assert UIEvents.ZONE_AUTO_DETECT in _published_event_types(gui)
+
+
+def test_prerecorded_single_video_publishes_the_real_path():
+    """The published path must be the file, not an empty string.
+
+    ``VideoProcessingCoordinator`` drops a blank or ``"."`` path with a bare
+    ``return``, which is the silent no-op this whole guard exists to prevent.
+    """
+    gui = _adhoc_live_gui(
+        calibration_coordinator=Mock(),
+        active_zone_video="C:/videos/exp.mp4",
+    )
+    gui.pending_single_video_path = "C:/videos/exp.mp4"
+    workflow = SingleVideoWorkflow(gui, dialog_manager=Mock())
+
+    workflow.on_auto_detect_clicked()
+
+    payload = gui.event_dispatcher.publish_event.call_args.args[1]
+    assert payload.video_path == "C:/videos/exp.mp4"
+    assert payload.video_path not in ("", ".")
+
+
+def test_pending_path_carries_auto_detect_before_zones_are_saved():
+    """Falls back to ``pending_single_video_path`` when no active zone video yet.
+
+    Right after the config dialog the video is pending but not yet the active
+    zone video, and auto-detect is the very first thing most operators click.
+    """
+    calib = Mock()
+    gui = _adhoc_live_gui(calibration_coordinator=calib, active_zone_video=None)
+    gui.pending_single_video_path = "C:/videos/exp.mp4"
+    workflow = SingleVideoWorkflow(gui, dialog_manager=Mock())
+
+    workflow.on_auto_detect_clicked()
+
+    calib.run_live_calibration.assert_not_called()
+    payload = gui.event_dispatcher.publish_event.call_args.args[1]
+    assert payload.video_path == "C:/videos/exp.mp4"
+
+
+# ---------------------------------------------------------------------------
 # ``_start_single_video_processing`` — the start button must survive a failure.
 # ---------------------------------------------------------------------------
 
@@ -295,8 +364,9 @@ def test_start_keeps_button_usable_when_coordinator_aborts():
     workflow = SingleVideoWorkflow(
         gui,
         dialog_manager=Mock(),
-        zone_context_service=SimpleNamespace(
-            get_zone_data_for_active_context=lambda **_kw: _drawn_zone_data()
+        zone_context_service=cast(
+            Any,
+            SimpleNamespace(get_zone_data_for_active_context=lambda **_kw: _drawn_zone_data()),
         ),
     )
 
@@ -314,8 +384,9 @@ def test_start_clears_pending_state_once_worker_is_running():
     workflow = SingleVideoWorkflow(
         gui,
         dialog_manager=Mock(),
-        zone_context_service=SimpleNamespace(
-            get_zone_data_for_active_context=lambda **_kw: _drawn_zone_data()
+        zone_context_service=cast(
+            Any,
+            SimpleNamespace(get_zone_data_for_active_context=lambda **_kw: _drawn_zone_data()),
         ),
     )
 
@@ -339,8 +410,9 @@ def test_start_ignores_worker_left_over_from_a_previous_run():
     workflow = SingleVideoWorkflow(
         gui,
         dialog_manager=Mock(),
-        zone_context_service=SimpleNamespace(
-            get_zone_data_for_active_context=lambda **_kw: _drawn_zone_data()
+        zone_context_service=cast(
+            Any,
+            SimpleNamespace(get_zone_data_for_active_context=lambda **_kw: _drawn_zone_data()),
         ),
     )
 

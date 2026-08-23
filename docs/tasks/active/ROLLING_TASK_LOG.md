@@ -120,7 +120,7 @@ sem vídeo selecionado o canvas mostra o logo do app.
 
 __ID:__ TASK-070
 __Agent:__ Claude Code (Opus 5)
-__Status:__ In Progress
+__Status:__ Completed ✅
 __Branch:__ claude/video-pregravado-fluxo-bd8074
 __Description:__
 Auditoria completa do fluxo iniciado pelo botao "Analise de Video Unico" da tela
@@ -132,23 +132,23 @@ __Criterio de pronto:__ `ruff check .`, `mypy .`, `pytest -q` (baseline
 
 ### Subtasks (TASK-070)
 
-- [ ] Fase 1 — `_check_cancellation` custa 15,7 ms por frame no Windows
+- [x] Fase 1 — `_check_cancellation` custa 15,7 ms por frame no Windows
       (`mp.Queue.get(timeout=0.005)` bate na granularidade do timer). Parametrizar
       `wait_s`, com `0.0` nos dois sitios do laco de frames. Default preservado
       para nao tocar em `test_check_cancellation_sets_flag`.
-- [ ] Fase 2 — botao "Iniciar Analise de Video Unico" fica morto apos qualquer
+- [x] Fase 2 — botao "Iniciar Analise de Video Unico" fica morto apos qualquer
       falha (4 `return` tratados + excecao engolida pelo EventBusV2), sem caminho
       de volta a tela inicial. Confirmar inicio do worker por identidade antes de
       limpar `pending_*`; adicionar botao "Analisar outro video".
-- [ ] Fase 3 — `_determine_processing_intervals` deixa `project_data` sobrescrever
+- [x] Fase 3 — `_determine_processing_intervals` deixa `project_data` sobrescrever
       o config explicito, entao o 2o video da sessao ignora o intervalo novo.
       Alinhar com `AnalysisService.determine_processing_intervals` (config ganha).
-- [ ] Fase 4 — `UI_SET_STATUS` e `UI_REFRESH_PROJECT_VIEWS` mutam Tk direto da
+- [x] Fase 4 — `UI_SET_STATUS` e `UI_REFRESH_PROJECT_VIEWS` mutam Tk direto da
       thread do monitor. Marshalar via `_run_on_ui_thread` (corrige o live junto).
-- [ ] Fase 6 — residuos: `worker.stop()` inexistente, `results_dir` implicito na
+- [x] Fase 6 — residuos: `worker.stop()` inexistente, `results_dir` implicito na
       tarefa de video unico, string sem `_()`, "Projeto: N/A (None)", radio
       `roi_choice` morto.
-- [ ] Fase 5A — lookup de calibracao inalcancavel (`Settings` nao tem
+- [x] Fase 5A — lookup de calibracao inalcancavel (`Settings` nao tem
       `.calibration`). Remover ramo morto e corrigir a nota de schema do
       CLAUDE.md. NAO ligar a homografia: `transform_bbox` reescreveria as
       coordenadas para o espaco retificado de 600 px e quebraria

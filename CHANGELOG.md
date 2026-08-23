@@ -9,6 +9,80 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fluxo de vídeo único pré-gravado: gargalo, beco sem saída e controles que mentiam
+
+Auditoria do botão "Análise de Vídeo Único" da tela inicial, do clique até o
+`.docx`. O fluxo funcionava ponta a ponta; engasgava em três pontos medidos.
+
+- **A análise passava a maior parte do tempo dormindo.** `_check_cancellation`
+  lia a fila de comandos com `get_nowait()` e, no `queue.Empty` inevitável (a
+  fila carrega um único `"cancel"` na vida da sessão), caía num
+  `get(timeout=0.005)`. No Windows essa espera resolve contra o timer do
+  sistema, de granularidade ~15,6 ms: medido, `get_nowait` custa **0,008 ms** e
+  o fallback custa **15,7 ms** — e ele disparava em 100% das chamadas. O laço
+  chama isso uma vez por frame **de vídeo** (inclusive nos pulados por
+  `cap.grab()`) e outra por frame analisado: num vídeo de 10 min a 30 fps com
+  intervalo 10 são ~19.800 chamadas, **~5 minutos só esperando**. Como o custo
+  era por frame de vídeo e não por frame analisado, aumentar o "Intervalo de
+  análise" para acelerar quase não ajudava, e a otimização do `cap.grab()`
+  logo abaixo ficava anulada. Os dois sítios do laço passam `wait_s=0.0`; o
+  default segue `0.005` para quem checa uma vez só e não pode perder um comando
+  recém-enfileirado. Não alcança o fluxo ao vivo, que usa `LiveCameraService`.
+- **Qualquer falha ao iniciar matava o botão até reiniciar o app.** O clique
+  desabilitava o botão, publicava o evento e já limpava o estado pendente — mas
+  o EventBusV2 engole exceção de handler, e o coordinator ainda tem quatro
+  `return` tratados que só mostram diálogo (aquário sem sujeito, validação
+  reprovada, vídeo ilegível, nenhum vídeo válido). Como nada leva de volta à
+  tela inicial — único lugar que recria o botão, e o menu Arquivo só tem
+  "Sair" — o usuário ficava preso. O estado pendente agora só é descartado
+  depois de confirmar, **por identidade**, que um worker novo existe.
+- **Botão "Analisar outro vídeo..."**, que reentra no fluxo já idempotente.
+  Antes, mesmo uma análise bem-sucedida exigia reiniciar o app para analisar o
+  segundo vídeo. O overlay de zonas passa a ser repintado na reentrada, senão o
+  polígono do vídeo anterior ficava desenhado sobre o frame do novo.
+- **Reanalisar o mesmo vídeo com dimensões corrigidas usava as antigas.** Com
+  a entrada já registrada, o registro retornava sem tocar nos metadados — e o
+  relatório lê a escala em cm justamente dali (`_resolve_pixel_cm`). A largura
+  corrigida era aceita, ignorada, e toda distância e velocidade saíam
+  reescaladas pelos números originais, sem aviso.
+- **O 2º vídeo da sessão ignorava em silêncio o intervalo escolhido.**
+  `_determine_processing_intervals` deixava `project_data` sobrescrever o config
+  sem condição, e o próprio fluxo grava o intervalo resolvido lá. Passa a ser
+  config > project_data > settings — a precedência que
+  `AnalysisService.determine_processing_intervals` já documenta ("overrides
+  project") e que o coordinator sequencial já implementa. Lote de projeto
+  inalterado: chama com `config=None`.
+- **Duas assinaturas do bus mutavam Tk da thread worker.** `UI_SET_STATUS` e
+  `UI_REFRESH_PROJECT_VIEWS` chegam da thread ProcessingMonitor no fim do fluxo;
+  `StringVar.set` é chamada Tcl e `refresh_project_views` reconstrói Treeview de
+  forma síncrona. Ambas passam por `root.after`. **Corrige o fluxo ao vivo
+  junto**, que publica `UI_SET_STATUS` de thread worker em três pontos.
+- **O radio "Opções de ROI" não fazia nada.** A escolha era escrita no config
+  como `roi_choice` e lida por ninguém: marcar "Não usar ROIs" com ROIs
+  desenhadas analisava as ROIs assim mesmo. Removido — as duas ações reais já
+  têm botão próprio.
+- **`cancel_processing` chamava `worker.stop()`**, método que `ProcessingWorker`
+  nunca teve. O `hasattr` pulava a chamada em toda execução real e o
+  join/terminate pretendido nunca acontecia. O teste ficava verde porque um
+  MagicMock aceita qualquer atributo; agora usa `spec=ProcessingWorker`.
+- **A barra de status lia "Project: N/A (None)"** no fluxo sem projeto: os dois
+  placeholders vinham de sentinelas, anunciando um projeto quebrado a quem nunca
+  abriu um.
+
+### Espaço de coordenadas do Parquet, documentado
+
+`x1..y2` são **pixels crus de vídeo** em todas as pipelines: live e pré-gravado
+chamam `start_recording()` sem `calibration=`, então `transform_bbox` nunca roda.
+O worker sondava `settings.calibration`, atributo que `Settings` não declara e
+não pode ganhar em runtime (`extra="forbid"`) — ramo inalcançável, removido.
+
+Ligar a homografia **não** é a correção: ela retifica para um espaço de 600 px,
+enquanto `_normalize_df_to_local_space` subtrai um offset medido em pixels crus e
+as ROIs também estão em pixels crus. Toda distância, velocidade e pertinência a
+ROI sairia errada com a execução ainda parecendo bem-sucedida. Há teste travando
+isso. As colunas `*_cm`, que CLAUDE.md e `data_schema.md` prometiam, nunca são
+escritas — os centímetros são derivados no relatório.
+
 ### Análise ao vivo de vídeo único: escala, parada e saída
 
 Auditoria do fluxo que começa no botão "Analisar Câmera ao Vivo" da tela

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from typing import Any
 from unittest.mock import MagicMock, Mock
 
 import pytest
@@ -353,3 +354,91 @@ class TestExecuteSingleVideoAnalysis:
 
         coordinator.process_videos.assert_not_called()
         coordinator.view.dialog_manager.show_error.assert_called_once()
+
+
+# =====================================================================
+# _ensure_single_video_registered — re-running the same video
+# =====================================================================
+
+
+class TestReRegisterExistingVideo:
+    """Re-analysing one video is routine now that "Analyse Another Video" exists.
+
+    The report reads the cm scale from the entry's metadata
+    (``ReportGenerationCoordinator._resolve_pixel_cm``), so a stale width or
+    height there silently rescales every distance, speed and freezing decision.
+    """
+
+    @staticmethod
+    def _existing(entry):
+        return {"w": 20.0, "h": 12.0, "n": 1}, entry
+
+    def test_corrected_dimensions_overwrite_the_stored_ones(self, coordinator):
+        entry: dict[str, Any] = {
+            "path": "C:/videos/exp.mp4",
+            "metadata": {"aquarium_width_cm": 10.0, "aquarium_height_cm": 8.0},
+        }
+        coordinator.project_manager.find_video_entry.return_value = entry
+
+        coordinator._ensure_single_video_registered(
+            "C:/videos/exp.mp4", {}, None, {"w": 20.0, "h": 12.0, "n": 1}
+        )
+
+        assert entry["metadata"]["aquarium_width_cm"] == 20.0
+        assert entry["metadata"]["aquarium_height_cm"] == 12.0
+
+    def test_animal_identity_metadata_is_not_touched(self, coordinator):
+        """Group/day/subject identify the animal; this dialog does not edit them."""
+        entry: dict[str, Any] = {
+            "path": "C:/videos/exp.mp4",
+            "metadata": {
+                "aquarium_width_cm": 10.0,
+                "group": "Controle",
+                "day": "3",
+                "subject": "7",
+            },
+        }
+        coordinator.project_manager.find_video_entry.return_value = entry
+
+        coordinator._ensure_single_video_registered(
+            "C:/videos/exp.mp4", {}, None, {"w": 20.0, "h": 12.0, "n": 1}
+        )
+
+        assert entry["metadata"]["group"] == "Controle"
+        assert entry["metadata"]["day"] == "3"
+        assert entry["metadata"]["subject"] == "7"
+
+    def test_a_run_without_dimensions_keeps_the_previous_measurement(self, coordinator):
+        """No new numbers must not blank the old ones — stale beats absent."""
+        entry: dict[str, Any] = {
+            "path": "C:/videos/exp.mp4",
+            "metadata": {"aquarium_width_cm": 10.0, "aquarium_height_cm": 8.0},
+        }
+        coordinator.project_manager.find_video_entry.return_value = entry
+
+        coordinator._ensure_single_video_registered(
+            "C:/videos/exp.mp4", {}, None, {"w": None, "h": None, "n": 1}
+        )
+
+        assert entry["metadata"]["aquarium_width_cm"] == 10.0
+        assert entry["metadata"]["aquarium_height_cm"] == 8.0
+
+    def test_existing_entry_is_never_re_added(self, coordinator):
+        entry: dict[str, Any] = {"path": "C:/videos/exp.mp4", "metadata": {}}
+        coordinator.project_manager.find_video_entry.return_value = entry
+
+        coordinator._ensure_single_video_registered(
+            "C:/videos/exp.mp4", {}, None, {"w": 20.0, "h": 12.0, "n": 1}
+        )
+
+        coordinator.project_manager.add_video_batch.assert_not_called()
+
+    def test_entry_without_metadata_dict_gains_one(self, coordinator):
+        entry: dict[str, Any] = {"path": "C:/videos/exp.mp4"}
+        coordinator.project_manager.find_video_entry.return_value = entry
+
+        coordinator._ensure_single_video_registered(
+            "C:/videos/exp.mp4", {}, None, {"w": 20.0, "h": 12.0, "n": 1}
+        )
+
+        assert entry["metadata"]["aquarium_width_cm"] == 20.0

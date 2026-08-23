@@ -2,6 +2,7 @@ import multiprocessing as mp
 import queue
 import typing
 from types import SimpleNamespace
+from typing import Any, cast
 from unittest.mock import patch
 
 import pytest
@@ -279,7 +280,7 @@ def test_check_cancellation_hot_path_never_blocks(worker_config):
     of dead time per video.
     """
     command_queue = _RecordingQueue()
-    worker = _WorkerProcess(worker_config, mp.Queue(), command_queue)
+    worker = _WorkerProcess(worker_config, mp.Queue(), cast(Any, command_queue))
 
     assert worker._check_cancellation(wait_s=0.0) is False
 
@@ -291,7 +292,7 @@ def test_check_cancellation_hot_path_never_blocks(worker_config):
 def test_check_cancellation_default_still_waits(worker_config):
     """The default keeps the bounded wait that closes the feeder-thread window."""
     command_queue = _RecordingQueue()
-    worker = _WorkerProcess(worker_config, mp.Queue(), command_queue)
+    worker = _WorkerProcess(worker_config, mp.Queue(), cast(Any, command_queue))
 
     assert worker._check_cancellation() is False
 
@@ -303,7 +304,7 @@ def test_check_cancellation_default_still_waits(worker_config):
 def test_check_cancellation_hot_path_still_observes_cancel(worker_config):
     """A cancel missed by one non-blocking read is caught by the next one."""
     command_queue = _RecordingQueue(payload="cancel")
-    worker = _WorkerProcess(worker_config, mp.Queue(), command_queue)
+    worker = _WorkerProcess(worker_config, mp.Queue(), cast(Any, command_queue))
 
     # get_nowait always misses on this stub, mimicking the feeder-thread race.
     assert worker._check_cancellation(wait_s=0.0) is False
