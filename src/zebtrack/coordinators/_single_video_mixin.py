@@ -334,9 +334,14 @@ class SingleVideoMixin:
         if meta:
             v_dict["metadata"] = meta
         self.project_manager.add_video_batch([v_dict], save_project=False)
+        # ``immediate``, not ``imm``: the payload carries both names but every
+        # reader — including the UI_REFRESH_PROJECT_VIEWS subscription — looks
+        # up ``immediate``, so this was the one call site silently passing a
+        # field nobody reads. Every other publisher in the codebase spells it
+        # ``immediate``.
         self._publish_event(
             UIEvents.UI_REFRESH_PROJECT_VIEWS,
-            payloads.ProjectViewsRefreshRequestedPayload(reason="reg", imm=True),
+            payloads.ProjectViewsRefreshRequestedPayload(reason="reg", immediate=True),
         )
 
     def _ensure_single_video_zones_saved(self, video_path: Path | str, zone_data) -> None:

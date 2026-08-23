@@ -393,21 +393,26 @@ class EventDispatcher:
             lambda d: gui.dialog_manager.clear_external_trigger_notice(),
         )
 
-        # Status updates
-        event_bus.subscribe(
-            UIEvents.UI_SET_STATUS,
-            lambda d: gui.status_var.set(_payload_get(d, "message", "")),
-        )
-        # Mesmo alias dos ``SHOW_*`` acima: progress_notifier,
-        # tracking_session_runner e analysis_control_view_model publicam
-        # ``SET_STATUS`` com o mesmo ``StatusPayload``. Sem esta linha a barra
-        # de status ficava parada durante a análise pré-gravada — inclusive no
-        # aviso de "Cancelamento solicitado", que é justamente quando o
-        # operador precisa de confirmação na tela.
-        event_bus.subscribe(
-            UIEvents.SET_STATUS,
-            lambda d: gui.status_var.set(_payload_get(d, "message", "")),
-        )
+        # Status updates.
+        #
+        # Marshalled: this arrives from WORKER threads on both pipelines — the
+        # ProcessingMonitor thread while ReportGenerationCoordinator builds the
+        # .docx, and LiveSessionManager during a live session. ``StringVar.set``
+        # is a Tcl call, and Tcl is single-threaded, so writing it off the main
+        # thread is undefined behaviour, not a style nit.
+        #
+        # BOTH names get the SAME marshalled handler. ``SET_STATUS`` (no ``UI_``
+        # prefix) is the alias published by progress_notifier,
+        # tracking_session_runner and analysis_control_view_model — and those
+        # are worker-thread call sites too, so leaving the alias on a raw
+        # ``status_var.set`` would let the unsafe write back in through the
+        # side door while the prefixed name looked fixed.
+        def _on_set_status(d: payloads.EventPayload) -> None:
+            message = _payload_get(d, "message", "")
+            self._run_on_ui_thread(lambda: gui.status_var.set(message))
+
+        event_bus.subscribe(UIEvents.UI_SET_STATUS, _on_set_status)
+        event_bus.subscribe(UIEvents.SET_STATUS, _on_set_status)
 
         # View navigation
         event_bus.subscribe(
@@ -627,14 +632,27 @@ class EventDispatcher:
                 _payload_get(d, "snapshot", [])
             ),
         )
-        event_bus.subscribe(
-            UIEvents.UI_REFRESH_PROJECT_VIEWS,
-            lambda d: gui.video_selector_manager.refresh_project_views(
-                reason=_payload_get(d, "reason"),
-                append_summary=_payload_get(d, "append_summary", False),
-                immediate=_payload_get(d, "immediate", False),
-            ),
-        )
+
+        # Marshalled: ``refresh_project_views`` rebuilds Treeview rows
+        # synchronously, and the video-completion path publishes this from the
+        # ProcessingMonitor thread (output registration, then completion).
+        def _on_refresh_project_views(d: payloads.EventPayload) -> None:
+            reason = _payload_get(d, "reason")
+            # ``bool(...)``, not the _payload_get default: the payload declares
+            # these as ``bool | None = None``, so the attribute always exists
+            # and the default never applies — an omitted flag arrived as None
+            # and was forwarded into a parameter typed ``bool``.
+            append_summary = bool(_payload_get(d, "append_summary", False))
+            immediate = bool(_payload_get(d, "immediate", False))
+            self._run_on_ui_thread(
+                lambda: gui.video_selector_manager.refresh_project_views(
+                    reason=reason,
+                    append_summary=append_summary,
+                    immediate=immediate,
+                )
+            )
+
+        event_bus.subscribe(UIEvents.UI_REFRESH_PROJECT_VIEWS, _on_refresh_project_views)
 
         # Weight Management
         event_bus.subscribe(
