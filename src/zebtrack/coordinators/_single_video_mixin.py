@@ -391,6 +391,19 @@ class SingleVideoMixin:
         out_dir = self.project_manager.resolve_results_directory(
             video_stem, video_path=str(video_path)
         )
+
+        # State the output directory ON THE TASK instead of relying on the
+        # worker's fallback. ``scan_input_paths`` returns bare descriptors with
+        # no ``results_dir``, and ``single_video_config`` is not forwarded to the
+        # context either, so the worker was rebuilding the path from scratch as
+        # ``<video_dir>/<experiment_id>_results``. That happens to equal what
+        # ``resolve_results_directory`` returns without a project — a coincidence
+        # held together by a comment in ``OutputRegistrationManager`` and nothing
+        # else. The project batch path already passes ``results_dir`` this way
+        # (``_load_zones_for_eligible_videos``), so this is the proven branch.
+        for task in scanned:
+            task["results_dir"] = str(out_dir)
+
         self.process_videos(scanned, out_dir, zone_data=zone_data)
 
     def process_videos(

@@ -261,7 +261,6 @@ class ApplicationGUI:
         self._raw_bg_image: Any | None = None
         self._canvas_bg_image: Any | None = None
         self._roi_templates_cache: list[dict[str, Any]] = []
-        self.roi_choice_var = StringVar(value="none")
         self.video_path: str | None = None
         self.video_display: Any | None = None
         self.controls_canvas: Any | None = None

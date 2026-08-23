@@ -393,11 +393,38 @@ class TestCancellation:
         coordinator.state_manager.update_processing_state.assert_called()
 
     def test_cancel_processing_with_worker(self, coordinator):
+        """The worker must be cancelled through the API it actually has.
+
+        ``spec=ProcessingWorker`` is the whole point: this used to assert
+        ``worker.stop()``, which a bare MagicMock happily accepts because it
+        auto-creates every attribute. Production ``ProcessingWorker`` has no
+        ``stop`` — only ``cancel`` — so the ``hasattr(worker, "stop")`` guard in
+        ``cancel_processing`` skipped the call on every real run while the test
+        stayed green. A spec'd double raises AttributeError instead.
+        """
+        from zebtrack.core.video.processing_worker import ProcessingWorker
+
         vpc = MagicMock()
-        vpc.processing_worker = MagicMock()
+        vpc.processing_worker = MagicMock(spec=ProcessingWorker)
         coordinator._video_processing_coordinator = vpc
+
         coordinator.cancel_processing()
-        vpc.processing_worker.stop.assert_called_once()
+
+        vpc.processing_worker.cancel.assert_called_once()
+        _args, kwargs = vpc.processing_worker.cancel.call_args
+        assert kwargs.get("timeout") == coordinator.WORKER_CANCEL_TIMEOUT_S, (
+            "cancel must be bounded — it runs on the Tk main thread"
+        )
+
+    def test_cancel_processing_survives_worker_without_cancel(self, coordinator):
+        """A worker double lacking the API must degrade, not raise."""
+        vpc = MagicMock()
+        vpc.processing_worker = object()
+        coordinator._video_processing_coordinator = vpc
+
+        coordinator.cancel_processing()
+
+        assert coordinator.cancel_event.is_set()
 
     def test_update_ui_for_cancel(self, coordinator):
         coordinator._update_ui_for_cancel()

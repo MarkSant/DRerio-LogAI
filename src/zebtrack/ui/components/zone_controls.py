@@ -80,7 +80,6 @@ class ZoneControlsWidget(BaseWidget):
         self.template_actions_parent = template_actions_parent
 
         # State variables
-        self.roi_choice_var = StringVar(value="none")
         self.analysis_interval_var = StringVar(value="10")
         self.display_interval_var = StringVar(value="10")
         self.stabilization_frames_var = StringVar(value="10")
@@ -592,26 +591,14 @@ class ZoneControlsWidget(BaseWidget):
         )
         # Initially hidden - packed on demand
 
-        # ROI options
-        ttk.Label(self.single_analysis_options_frame, text=_("ROI options:")).pack(anchor="w")
-        ttk.Radiobutton(
-            self.single_analysis_options_frame,
-            text=_("Do not use ROIs"),
-            variable=self.roi_choice_var,
-            value="none",
-        ).pack(anchor="w", padx=10)
-        ttk.Radiobutton(
-            self.single_analysis_options_frame,
-            text=_("Draw ROIs manually"),
-            variable=self.roi_choice_var,
-            value="manual",
-        ).pack(anchor="w", padx=10)
-        ttk.Radiobutton(
-            self.single_analysis_options_frame,
-            text=_("Use ROIs from a template"),
-            variable=self.roi_choice_var,
-            value="template",
-        ).pack(anchor="w", padx=10)
+        # No "ROI options" radio group here. It offered "Do not use ROIs" /
+        # "Draw ROIs manually" / "Use ROIs from a template" and drove NOTHING:
+        # the choice was written into the run config as ``roi_choice`` and no
+        # consumer ever read it, so picking "Do not use ROIs" with ROIs drawn
+        # still analysed them. What actually decides is the zone data on the
+        # canvas. A control that lies about the analysis is worse than no
+        # control, and the two real actions (draw, load template) already have
+        # their own buttons.
 
         # Frame intervals
         ttk.Label(self.single_analysis_options_frame, text=_("Analysis Interval (frames):")).pack(

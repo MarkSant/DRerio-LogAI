@@ -21,6 +21,37 @@ if TYPE_CHECKING:
 log = structlog.get_logger()
 
 
+def build_main_frame_status_text(project_manager: Any) -> str:
+    """Return the status-bar label for the main control frame.
+
+    ``create_main_control_frame`` is built by TWO flows, not one: opening a
+    project, and the single-video analysis started from the welcome screen. The
+    second has no project at all, so ``get_project_name()`` returns its "N/A"
+    sentinel and ``get_project_type()`` returns ``None`` — and the bar read
+    "Project: N/A (None)", announcing a broken project instead of the mode the
+    user is actually in. ``project_path`` is what distinguishes them: it is the
+    same signal ``register_processing_outputs`` and ``save_project`` gate on.
+
+    Lives outside the class, and returns instead of assigning, so the decision
+    can be checked without standing up a Tk tree.
+    """
+    if not getattr(project_manager, "project_path", None):
+        return _("Single-video analysis (no project)")
+
+    project_type = project_manager.get_project_type()
+    if project_type == "live":
+        project_type_display = _("Live")
+    elif project_type == "pre-recorded":
+        project_type_display = _("Pre-recorded")
+    else:
+        project_type_display = project_type
+
+    return _("Project: {name} ({type})").format(
+        name=project_manager.get_project_name(),
+        type=project_type_display,
+    )
+
+
 class ProjectInitializer:
     """Orchestrates project loading and the welcome → project view transition.
 
@@ -79,19 +110,7 @@ class ProjectInitializer:
         gui._last_selected_tab_id = gui.notebook.select()
 
         # Status frame below the notebook
-        project_type_str = gui.controller.project_manager.get_project_type()
-        if project_type_str == "live":
-            project_type_display = _("Live")
-        elif project_type_str == "pre-recorded":
-            project_type_display = _("Pre-recorded")
-        else:
-            project_type_display = project_type_str
-
-        status_text = _("Project: {name} ({type})").format(
-            name=gui.controller.project_manager.get_project_name(),
-            type=project_type_display,
-        )
-        gui.status_var.set(status_text)
+        gui.status_var.set(build_main_frame_status_text(gui.controller.project_manager))
         status_frame = ttk.Frame(gui.root)
         gui.status_frame = status_frame
         status_frame.pack(pady=5, fill="x", padx=10, side="bottom")
