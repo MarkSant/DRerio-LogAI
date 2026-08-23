@@ -1,4 +1,5 @@
 import multiprocessing as mp
+import queue
 import typing
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -244,3 +245,100 @@ def test_send_progress_puts_message(worker_config):
     assert msg["message"] == "Processing"
     assert msg["experiment_id"] == "exp1"
     assert msg["stats"] == {"fps": 30}
+
+
+# ---------------------------------------------------------------------------
+# Cancellation polling cost — the frame loop must never take the blocking path.
+# ---------------------------------------------------------------------------
+
+
+class _RecordingQueue:
+    """Queue stub that records how each read was attempted."""
+
+    def __init__(self, payload=None):
+        self.payload = payload
+        self.calls: list[float | None] = []
+
+    def get_nowait(self):
+        self.calls.append(None)
+        raise queue.Empty
+
+    def get(self, timeout=None):
+        self.calls.append(timeout)
+        if self.payload is None:
+            raise queue.Empty
+        payload, self.payload = self.payload, None
+        return payload
+
+
+def test_check_cancellation_hot_path_never_blocks(worker_config):
+    """``wait_s=0.0`` must stop at ``get_nowait`` and never issue a timed read.
+
+    The timed read costs ~15.7 ms on Windows (system timer granularity), and the
+    frame loop runs this once per video frame, so a blocking read here is minutes
+    of dead time per video.
+    """
+    command_queue = _RecordingQueue()
+    worker = _WorkerProcess(worker_config, mp.Queue(), command_queue)
+
+    assert worker._check_cancellation(wait_s=0.0) is False
+
+    assert command_queue.calls == [None], (
+        f"wait_s=0.0 must issue exactly one non-blocking read; got {command_queue.calls}"
+    )
+
+
+def test_check_cancellation_default_still_waits(worker_config):
+    """The default keeps the bounded wait that closes the feeder-thread window."""
+    command_queue = _RecordingQueue()
+    worker = _WorkerProcess(worker_config, mp.Queue(), command_queue)
+
+    assert worker._check_cancellation() is False
+
+    assert command_queue.calls == [None, 0.005], (
+        f"default must fall back to a bounded blocking read; got {command_queue.calls}"
+    )
+
+
+def test_check_cancellation_hot_path_still_observes_cancel(worker_config):
+    """A cancel missed by one non-blocking read is caught by the next one."""
+    command_queue = _RecordingQueue(payload="cancel")
+    worker = _WorkerProcess(worker_config, mp.Queue(), command_queue)
+
+    # get_nowait always misses on this stub, mimicking the feeder-thread race.
+    assert worker._check_cancellation(wait_s=0.0) is False
+    # A real queue hands the payload over once flushed; the default path reads it.
+    assert worker._check_cancellation() is True
+    # And the flag latches, so later polls short-circuit.
+    assert worker._check_cancellation(wait_s=0.0) is True
+
+
+def test_frame_loop_polls_cancellation_without_blocking():
+    """Both ``_process_single_video`` cancel polls must pass ``wait_s=0.0``.
+
+    Guards the actual regression: the function-level default is deliberately
+    still blocking, so a call site that forgets the keyword silently reinstates
+    ~15.7 ms per frame with no test failing anywhere else.
+    """
+    import ast
+    import inspect
+    import textwrap
+
+    source = textwrap.dedent(inspect.getsource(_WorkerProcess._process_single_video))
+    tree = ast.parse(source)
+
+    polls = [
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and node.func.attr == "_check_cancellation"
+    ]
+
+    assert len(polls) == 2, f"expected 2 cancel polls in the frame loop, found {len(polls)}"
+    for call in polls:
+        waits = [kw.value for kw in call.keywords if kw.arg == "wait_s"]
+        assert waits, "frame-loop cancel poll must pass wait_s explicitly"
+        assert isinstance(waits[0], ast.Constant) and waits[0].value == 0.0, (
+            "frame-loop cancel poll must pass wait_s=0.0"
+        )
