@@ -300,6 +300,7 @@ class ApplicationGUI:
         self.pending_single_video_path: str | None = None
         self.pending_single_video_config: dict[str, Any] | None = None
         self.start_single_analysis_btn: ttk.Button | None = None
+        self.new_single_video_btn: ttk.Button | None = None
         self._zone_prompt_history: set[str] = set()
 
         # Model management state (reflected across welcome + project views).

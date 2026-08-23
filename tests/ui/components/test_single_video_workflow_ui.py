@@ -1,4 +1,13 @@
-"""Regression tests for SingleVideoWorkflow.on_auto_detect_clicked.
+"""UI-level regression tests for SingleVideoWorkflow.
+
+Two topics live here, both driven through stub GUIs rather than a real Tk tree.
+
+``_start_single_video_processing`` must leave the start button clickable when
+the coordinator refuses the run — the event bus swallows handler exceptions and
+the coordinator has four handled early returns, and nothing navigates back to
+the welcome screen that would recreate the button.
+
+``on_auto_detect_clicked``
 
 Garante que a auto-detecção multi-aquário no fluxo de vídeo único usa o número
 de aquários do CONFIG submetido pelo usuário (``pending_single_video_config``),
@@ -219,3 +228,123 @@ def test_redetect_over_live_reference_frame_returns_to_camera():
 
     calib.run_live_calibration.assert_called_once()
     assert UIEvents.ZONE_AUTO_DETECT not in _published_event_types(gui)
+
+
+# ---------------------------------------------------------------------------
+# ``_start_single_video_processing`` — the start button must survive a failure.
+# ---------------------------------------------------------------------------
+
+
+class _FakeButton:
+    """Minimal ttk.Button stand-in that records its state transitions."""
+
+    def __init__(self) -> None:
+        self.state = "normal"
+        self.history: list[str] = []
+
+    def config(self, **kwargs) -> None:
+        if "state" in kwargs:
+            self.state = kwargs["state"]
+            self.history.append(kwargs["state"])
+
+
+def _start_gui(*, worker_after_publish, button):
+    """gui stub for _start_single_video_processing, no Tk involved.
+
+    ``worker_after_publish`` is what ``processing_coordinator.processing_worker``
+    holds once the (synchronous) publish returns — the coordinator sets it just
+    before starting the thread on both success paths.
+    """
+    coordinator = SimpleNamespace(processing_worker=None)
+
+    def _publish(*_args, **_kwargs):
+        coordinator.processing_worker = worker_after_publish
+        return True
+
+    return SimpleNamespace(
+        edited_polygon_points=None,
+        pending_single_video_path="C:/videos/exp.mp4",
+        pending_single_video_config={"num_aquariums": 1},
+        start_single_analysis_btn=button,
+        controller=SimpleNamespace(processing_coordinator=coordinator),
+        validation_manager=SimpleNamespace(
+            compose_single_video_runtime_config=lambda: {"num_aquariums": 1}
+        ),
+        event_dispatcher=SimpleNamespace(publish_event=_publish),
+        dialog_manager=Mock(),
+    )
+
+
+def _drawn_zone_data():
+    from zebtrack.core.detection import ZoneData
+
+    return ZoneData(polygon=[[0, 0], [10, 0], [10, 10], [0, 10]])
+
+
+def test_start_keeps_button_usable_when_coordinator_aborts():
+    """A handled abort must not strand the user with a dead button.
+
+    The coordinator has several early returns that only show a dialog (no
+    subject on an aquarium, failed validation, unreadable video, no valid video)
+    and the event bus swallows any exception raised inside the handler. Before
+    this guard, all of them left the button disabled AND the pending state
+    cleared, and nothing navigates back to the welcome screen that recreates it.
+    """
+    button = _FakeButton()
+    gui = _start_gui(worker_after_publish=None, button=button)
+    workflow = SingleVideoWorkflow(
+        gui,
+        dialog_manager=Mock(),
+        zone_context_service=SimpleNamespace(
+            get_zone_data_for_active_context=lambda **_kw: _drawn_zone_data()
+        ),
+    )
+
+    workflow._start_single_video_processing()
+
+    assert button.state == "normal", "start button must be clickable again after an abort"
+    assert gui.pending_single_video_path == "C:/videos/exp.mp4"
+    assert gui.pending_single_video_config is not None
+
+
+def test_start_clears_pending_state_once_worker_is_running():
+    """The happy path still hands the run over and drops the pending state."""
+    button = _FakeButton()
+    gui = _start_gui(worker_after_publish=object(), button=button)
+    workflow = SingleVideoWorkflow(
+        gui,
+        dialog_manager=Mock(),
+        zone_context_service=SimpleNamespace(
+            get_zone_data_for_active_context=lambda **_kw: _drawn_zone_data()
+        ),
+    )
+
+    workflow._start_single_video_processing()
+
+    assert button.state == "disabled"
+    assert gui.pending_single_video_path is None
+    assert gui.pending_single_video_config is None
+
+
+def test_start_ignores_worker_left_over_from_a_previous_run():
+    """Identity, not truthiness: a stale worker is not proof this run started.
+
+    Two single-video runs in one session are now reachable via "Analyse Another
+    Video...", so ``processing_worker`` is routinely non-None on entry.
+    """
+    stale = object()
+    button = _FakeButton()
+    gui = _start_gui(worker_after_publish=stale, button=button)
+    gui.controller.processing_coordinator.processing_worker = stale
+    workflow = SingleVideoWorkflow(
+        gui,
+        dialog_manager=Mock(),
+        zone_context_service=SimpleNamespace(
+            get_zone_data_for_active_context=lambda **_kw: _drawn_zone_data()
+        ),
+    )
+
+    workflow._start_single_video_processing()
+
+    assert button.state == "normal"
+    assert gui.pending_single_video_path == "C:/videos/exp.mp4"

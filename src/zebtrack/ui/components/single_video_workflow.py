@@ -133,10 +133,34 @@ class SingleVideoWorkflow:
             btn.pack(side="bottom", fill="x", pady=5)
             gui.start_single_analysis_btn = btn
 
+        # Companion button: pick ANOTHER video without restarting the app.
+        # The welcome screen is the only place that offers the single-video
+        # entry point, and nothing navigates back to it (the File menu only has
+        # "Exit"), so without this a finished — or failed — run stranded the
+        # user. It re-enters ``on_analyze_single_video_clicked``, and this very
+        # method is idempotent: the notebook is reused, the start button is
+        # re-enabled below, and ``prepare_single_video_ui_state`` re-seeds the
+        # zone-tab fields from the new config.
+        if not gui.new_single_video_btn:
+            another = ttk.Button(
+                gui.fixed_button_frame,
+                text=_("Analyse Another Video..."),
+                command=self.on_analyze_single_video_clicked,
+            )
+            another.pack(side="bottom", fill="x", pady=(0, 5))
+            gui.new_single_video_btn = another
+
         if gui.start_single_analysis_btn:
             gui.start_single_analysis_btn.config(state="normal")
 
         gui.state_synchronizer.prepare_single_video_ui_state(config)
+
+        # Repaint the zone overlay for the video that just became active.
+        # ``display_roi_video_frame`` only repaints the BACKGROUND, so on a
+        # second run the previous video's polygon stayed drawn on the canvas
+        # over the new frame — the same trap documented in
+        # ``_refresh_zone_tab_overlay``.
+        self._refresh_zone_tab_overlay(gui)
 
     # ------------------------------------------------------------------
     # Auto-detect
@@ -302,12 +326,14 @@ class SingleVideoWorkflow:
             return True
 
         if success:
-            self._refresh_zone_tab_after_live_detection(gui)
+            self._refresh_zone_tab_overlay(gui)
         return True
 
     @staticmethod
-    def _refresh_zone_tab_after_live_detection(gui: ApplicationGUI) -> None:
-        """Redraw the Zones tab after a successful live auto-detection.
+    def _refresh_zone_tab_overlay(gui: ApplicationGUI) -> None:
+        """Redraw the Zones tab overlay for the currently active video.
+
+        Two callers, one trap: nothing repaints the zone overlay on its own.
 
         ``run_live_calibration`` saves the polygon in memory and pushes the
         reference frame (UI_DISPLAY_VIDEO_FRAME), but does NOT redraw the
@@ -421,6 +447,8 @@ class SingleVideoWorkflow:
         # 2. Disable the button and publish the event
         if gui.start_single_analysis_btn:
             gui.start_single_analysis_btn.config(state="disabled")
+
+        worker_before = self._current_processing_worker()
         gui.event_dispatcher.publish_event(
             UIEvents.VIDEO_START_SINGLE_PROCESSING,
             payloads.VideoStartSingleProcessingPayload(
@@ -430,6 +458,41 @@ class SingleVideoWorkflow:
             ),
         )
 
-        # 3. Clear the pending state
+        # 3. Clear the pending state — ONLY once the worker is confirmed running.
+        if not self._processing_worker_started(worker_before):
+            log.warning("single_video_workflow.start.worker_not_started")
+            if gui.start_single_analysis_btn:
+                gui.start_single_analysis_btn.config(state="normal")
+            return
+
         gui.pending_single_video_path = None
         gui.pending_single_video_config = None
+
+    def _current_processing_worker(self) -> object | None:
+        """Return the coordinator's current ``ProcessingWorker``, if reachable."""
+        coordinator = getattr(self.gui.controller, "processing_coordinator", None)
+        return getattr(coordinator, "processing_worker", None) if coordinator else None
+
+    def _processing_worker_started(self, worker_before: object | None) -> bool:
+        """Did publishing VIDEO_START_SINGLE_PROCESSING actually start a worker?
+
+        The event bus dispatches synchronously but SWALLOWS handler exceptions
+        (``event_bus_v2.publish`` logs and moves on), so the error boundary
+        around this click never sees a failure raised inside the coordinator.
+        The coordinator also has several *handled* early returns — no subject on
+        an aquarium, failed pre-flight validation, unreadable video, no valid
+        video found — that show a dialog and return normally.
+
+        In every one of those cases the old code went on to clear
+        ``pending_single_video_*`` with the start button already disabled, and
+        since nothing navigates back to the welcome screen that recreates it,
+        the user was stuck until they restarted the app.
+
+        Identity, not truthiness: a worker left over from an earlier run is not
+        proof that this one started. Both success paths — the direct one in
+        ``SingleVideoMixin.process_videos`` and the sequential multi-aquarium
+        one in ``SequentialProcessingCoordinator`` — assign
+        ``processing_worker`` synchronously before returning, so by the time
+        ``publish_event`` comes back the new object is already visible.
+        """
+        return self._current_processing_worker() is not worker_before
