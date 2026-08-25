@@ -1201,6 +1201,86 @@ model) and now catches `ZebTrackError`.
 `DetectorService` (`>= 1`). Picking one is a domain decision; the bounds were
 left untouched.
 
+### 5.14. Ad-hoc Live Session: Scale, Stop Intent and Output (August 2026)
+
+The "Analyze Live Camera" button on the main window starts a live session with
+**no project behind it** (`LiveAnalysisDialog` → `start_session_from_config`).
+That flow shares almost every component with the live-project flow, and the
+places where it silently diverged were where the data was lost.
+
+**1. The scale (px→cm).** `_resolve_post_analysis_scale()` is the single
+resolver, in this order:
+
+1. `project_data["calibration"]["pixelcm_*"]` — a live PROJECT is calibrated by
+   the wizard and that value is authoritative.
+2. `aquarium_width_cm` / `aquarium_height_cm` from `analysis_config`, against
+   the confirmed arena polygon, via
+   `core/services/live_calibration_scale.resolve_live_pixel_per_cm()`. This is
+   the AD-HOC path — only the dialog knows the real size.
+3. `1.0`, plus a **validation warning appended before**
+   `ReporterContext.from_analysis`, so the `.docx` states that the "cm" are
+   pixels.
+
+Only the ad-hoc call site puts the cm keys into `analysis_config`; adding them
+on the project paths would make `_define_arena_from_detections` overwrite the
+wizard's calibration. Never use `Calibration.pixel_per_cm_ratio` here: it is
+computed in the rectified 600 px image and is only comparable when the frames
+were warped by its homography.
+
+**2. Stopping ≠ discarding.** `stop_session` takes an explicit intent:
+
+| Call | Meaning | On disk |
+| ---- | ------- | ------- |
+| `stop_session()` | unknown (timer, automatic stop) | 50 % heuristic decides |
+| `stop_session(cancelled=True)` | user pressed "Cancel" | folder deleted |
+| `stop_session(keep_data=True)` | "Finish and Save", external trigger stop | preserved + post-analysis |
+
+`keep_data` beats `cancelled`: under contradictory instructions, preserving is
+the only reversible error. `LiveCameraSessionCoordinator.stop_live_session()`
+keeps `discard=True` as its default (the Cancel button), and
+`finish_session_early()` routes the keep path through the SAME
+`_on_session_complete` the timer uses. The Arduino "stop" code (`0`) now calls
+`discard=False` — a firmware stop is end-of-protocol, not a cancellation.
+
+**3. The Analysis tab owns the live controls.** `UIEvents.LIVE_SESSION_FINISH_REQUESTED`
+(payload `EmptyPayload`) is published by `AnalysisDisplayWidget`'s "⏹ Finish and
+Save" and handled by `AnalysisWidgetsBuilder.handle_live_finish_requested`.
+`ANALYSIS_CANCEL_REQUESTED` now asks for confirmation **only** when a live
+session is active. `_set_live_analysis_ui_state(live_controls=...)` shows the
+pair on confirmed start and removes it on finalize. Before this, an ad-hoc
+session had no stop control at all: the cancel button is only enabled by
+`start_analysis_view_mode` (the pre-recorded entry point) and "Stop Recording"
+is built only for live projects.
+
+**4. Frames are drawn on the Tk thread.** `EventBusV2.publish` is synchronous on
+the caller's thread, and `UI_UPDATE_LIVE_FRAME` is published by the processing
+worker. `CanvasManager._on_live_frame_update` therefore stashes the frame and
+schedules `_render_pending_live_frame` via `root.after(0, ...)`, **drop-latest**
+(a newer frame replaces an undrawn one; only one redraw is ever queued).
+
+**5. Output folder.** With no project and no chosen folder, the session lands in
+`core/recording/live_output_paths.default_live_sessions_dir()`
+(`~/ZebTrack/live_analysis_sessions`) — never in the CWD-relative
+`live_analysis_sessions/` it used before, which depended on how the app was
+launched. `_cleanup_existing_session_folders` now matches the exact
+`{experiment_id}_YYYYMMDD_HHMMSS` pattern and **only deletes folders with no
+video and no trajectory** (or an explicit `.cancelled` marker): a longitudinal
+protocol reuses experiment ids, and the prefix glob used to destroy the previous
+day's recording at the start of the next one.
+
+**6. One aquarium.** Live analysis without a project is single-arena end to end
+(`get_zone_data()` is the legacy shim and always returns a plain `ZoneData`), so
+the dialog's aquarium count is disabled with an on-screen note. Multi-aquarium
+requires a live project.
+
+**7. Ad-hoc inside an external-trigger project.** `external_trigger_gate`
+governs the two PROJECT recording paths. An ad-hoc session is different in kind
+— no subject, no block, nothing to resume into — so it is not armed; but it is
+no longer started in silence either:
+`_confirm_adhoc_under_external_trigger()` asks for confirmation when the open
+project declares `external_trigger_mode`, and is a no-op otherwise (including
+with no project at all).
+
 ---
 
 ## 6. Common Pitfalls for Agents
@@ -1366,6 +1446,7 @@ Heavy imports (pandas, pyarrow, openpyxl) are deferred in:
 
 | Date | Version | Changes |
 | ---- | ------- | ------- |
+| Aug 23, 2026 | v5.2 | § 5.14 ad-hoc live session — `live_calibration_scale` px→cm resolver (dialog dimensions were dropped, reports read pixels as cm), `stop_session(keep_data=...)` + `stop_live_session(discard=...)` + `finish_session_early()`, new `LIVE_SESSION_FINISH_REQUESTED` event and the "⏹ Finish and Save" / confirmed-Cancel pair, live frames marshalled to the Tk thread (drop-latest), `live_output_paths.default_live_sessions_dir()`, non-destructive session-folder cleanup |
 | Aug 15, 2026 | v5.1 | § 5.6 closed-loop `fps` corrected to the rate measured from capture timestamps (`FrameLedger.current_fps_measured()`), replacing the configured value that had been logged as achieved; configured value kept in new `fps_configured` / `sampling_interval_ms_configured` columns (release v6.0.0 archival snapshot) |
 | Aug 8, 2026 | v5.0 | § 5.11 external trigger reaches the Progress grid (`external_trigger_gate`, two coordinators unified, `on_arduino_event` routing); § 5.12 per-subject recording duration (`session_duration_resolver`, `session_duration_overrides`, heterogeneity warning in partial/batch reports) |
 | Aug 7, 2026 | v4.9 | § 5.10.4 `seg_overlap` made real — `3b_Mascaras_<base>.parquet` sidecar (WKB, same flush thread), opt-in mask decode gated by `should_capture_masks()`, calibration applied to mask points, dedicated `roi_min_seg_overlap_ratio`, declared degradation to `bbox_intersects` instead of the old unconditional raise |

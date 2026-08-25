@@ -19,6 +19,8 @@ This file retains:
 
 from __future__ import annotations
 
+import threading
+import tkinter as tk
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
@@ -104,6 +106,15 @@ class CanvasManager:
 
         # Live session tracking
         self._live_frame_subscription = None  # Track subscription for cleanup
+        # Último frame ao vivo ainda não desenhado + se já há um desenho
+        # agendado no laço do Tk (ver ``_on_live_frame_update``). Escritos pela
+        # thread de processamento e lidos pela thread do Tk, portanto sob lock:
+        # sem ele, um frame publicado no exato instante em que o desenho começa
+        # cai no vão entre "peguei o pendente" e "zerei o pendente" e nada
+        # reagenda — o preview congelaria até o frame seguinte.
+        self._live_frame_lock = threading.Lock()
+        self._pending_live_frame: tuple[Any, Any] | None = None
+        self._live_frame_render_scheduled = False
 
         # Initialize sub-components (Phase 4.1-4.2 originals)
         self.renderer = CanvasRenderer(self)
@@ -230,15 +241,68 @@ class CanvasManager:
     def _on_live_frame_update(self, data: payloads.EventPayload):
         """Handle UI_UPDATE_LIVE_FRAME event from LiveCameraService.
 
+        Runs on the LIVE PROCESSING THREAD. ``EventBusV2.publish`` executes its
+        handlers synchronously on the calling thread, and the publisher here is
+        ``frame_processing_pipeline._processing_loop`` — a worker. Drawing from
+        it would build ``ImageTk.PhotoImage`` objects and reconfigure a Label
+        off the Tk main thread, which is the project rule this file used to
+        break (an old comment claimed the dispatcher had already marshalled the
+        call; it had not). That is the classic source of sporadic freezes and
+        interpreter-level crashes during long sessions.
+
+        So: stash the frame and let the Tk loop draw it.
+
+        **Drop-latest**, deliberately: a newer frame REPLACES an undrawn one and
+        only one redraw is ever queued. Queueing every frame would pile up
+        ``root.after`` callbacks whenever rendering is slower than capture (~30
+        fps), and the preview would drift further behind real time with each
+        second — the stale frames would be drawn only to be immediately
+        overwritten anyway.
+
         Args:
             data: Payload with 'frame' (np.ndarray) and 'detections'.
         """
         frame = _payload_get(data, "frame")
+        if frame is None:
+            return
+
         detections = _payload_get(data, "detections")
 
-        if frame is not None:
-            # We are already on the main thread here via EventDispatcher polling
-            self.update_video_frame(frame, detections)
+        root = getattr(self.gui, "root", None)
+        if root is None or not hasattr(root, "after"):
+            # Headless / tests: no Tk loop to marshal through.
+            with self._live_frame_lock:
+                self._pending_live_frame = (frame, detections)
+            self._render_pending_live_frame()
+            return
+
+        with self._live_frame_lock:
+            self._pending_live_frame = (frame, detections)
+            if self._live_frame_render_scheduled:
+                return
+            self._live_frame_render_scheduled = True
+
+        try:
+            root.after(0, self._render_pending_live_frame)
+        except tk.TclError:
+            # Root destroyed mid-session: nothing left to draw on.
+            with self._live_frame_lock:
+                self._live_frame_render_scheduled = False
+                self._pending_live_frame = None
+            log.debug("canvas_manager.live_frame.schedule_suppressed", exc_info=True)
+
+    def _render_pending_live_frame(self) -> None:
+        """Draw the most recent live frame. Always on the Tk main thread."""
+        with self._live_frame_lock:
+            self._live_frame_render_scheduled = False
+            pending = self._pending_live_frame
+            self._pending_live_frame = None
+
+        if pending is None:
+            return
+
+        frame, detections = pending
+        self.update_video_frame(frame, detections)
 
     def subscribe_to_live_frames(self):
         """(Re)subscribe to live frame updates for the current session.
@@ -266,6 +330,11 @@ class CanvasManager:
             has_subscription=hasattr(self, "_live_frame_subscription"),
             has_event_bus_v2=self.event_bus_v2 is not None,
         )
+
+        # Descarta o frame que ficou na fila de desenho: a sessão acabou e um
+        # callback pendente só repintaria o preview DEPOIS do estado final.
+        with self._live_frame_lock:
+            self._pending_live_frame = None
 
         if self.event_bus_v2:
             try:

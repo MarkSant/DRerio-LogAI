@@ -60,6 +60,11 @@ broader suite:
 | `coordinators/report_generation_coordinator.py` | `tests/coordinators/test_*report*.py`, `tests/analysis/test_reporter*.py` |
 | `core/recording/live_camera_service.py` | `tests/core/test_live_camera*.py`, `tests/integration/test_live_camera*.py` |
 | `core/recording/frame_processing_pipeline.py`, `core/recording/frame_ledger.py` | `tests/core/recording/`, `tests/core/test_closed_loop_latency.py`, `tests/core/test_arduino_zone_dispatch.py` |
+| `core/recording/live_session_manager.py` (parada, limpeza de pastas, status de start) | `tests/core/recording/test_live_session_manager_extended.py`, `tests/core/recording/test_live_session_stop_intent.py` (intenção de parada: descartar × preservar) |
+| `core/recording/live_analysis_post_processor.py` (escala px→cm, pós-análise) | `tests/core/recording/test_live_analysis_post_processor.py`, `tests/core/services/test_live_calibration_scale.py` |
+| `core/services/live_calibration_scale.py` (px→cm ao vivo) | `tests/core/services/test_live_calibration_scale.py` + `scripts/mutation_check.py --module live_calibration_scale` |
+| `core/recording/live_output_paths.py` (pasta padrão sem projeto) | `tests/core/recording/test_live_output_paths.py`, `tests/test_live_analysis_ui.py` |
+| `ui/builders/analysis_widgets.py` (cancelar × encerrar-e-salvar) | `tests/ui/builders/test_analysis_widgets.py` |
 | `core/services/closed_loop_latency.py` | `tests/core/test_closed_loop_latency.py` (CSV columns are append-only!) |
 | `core/services/wizard_service.py` | `tests/test_wizard_*.py`, `tests/ui/wizard/`, `tests/integration/test_wizard*` |
 | `core/state_manager.py` | `tests/test_state_manager*.py` (4 files) |

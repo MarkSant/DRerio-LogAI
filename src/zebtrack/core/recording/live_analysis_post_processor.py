@@ -17,6 +17,7 @@ import numpy as np
 import pandas as pd
 import structlog
 
+from zebtrack.core.services.live_calibration_scale import resolve_live_pixel_per_cm
 from zebtrack.core.services.roi_rule_resolver import resolve_roi_rule
 from zebtrack.i18n import _
 
@@ -75,7 +76,9 @@ class LiveAnalysisPostProcessorMixin:
     current_output_dir: Path | None
 
     # Methods from other mixins
-    def stop_session(self) -> bool: ...  # type: ignore[empty-body]
+    def stop_session(  # type: ignore[empty-body]
+        self, *, cancelled: bool = False, keep_data: bool = False
+    ) -> bool: ...
     def _setup_session_timer(self, duration_s: float, output_dir: Path) -> None: ...
 
     def _build_post_analysis_service(self) -> Any:
@@ -99,6 +102,78 @@ class LiveAnalysisPostProcessorMixin:
             if candidates:
                 return candidates[0]
         return output_dir / "live_recording.mp4"
+
+    def _resolve_post_analysis_scale(self) -> tuple[float, float, bool]:
+        """Resolve ``(pixelcm_x, pixelcm_y, is_calibrated)`` for the post-analysis.
+
+        Three levels, in this order — the first that answers wins:
+
+        1. ``project_data["calibration"]`` — a live PROJECT is calibrated by the
+           wizard, and that value is authoritative. Recomputing over it here
+           would silently replace a homography-based scale with a bounding-box
+           approximation.
+        2. The aquarium dimensions the operator typed in ``LiveAnalysisDialog``,
+           against the confirmed arena polygon. This is the AD-HOC path: it has
+           no project, so level 1 is empty and only the dialog knows the real
+           size.
+        3. ``1.0`` — unknown scale. The caller MUST surface this to the user:
+           every distance/velocity then comes out in pixels under a cm label,
+           which is indistinguishable from a real measurement in the report.
+        """
+        project_data = getattr(self.project_manager, "project_data", None) or {}
+        calib_data = project_data.get("calibration") or {}
+
+        pixelcm_x = calib_data.get("pixelcm_x")
+        pixelcm_y = calib_data.get("pixelcm_y")
+        if pixelcm_x and pixelcm_y:
+            return float(pixelcm_x), float(pixelcm_y), True
+
+        params = self._analysis_params or {}
+        zone_data = self.project_manager.get_zone_data() if self.project_manager else None
+        polygon = getattr(zone_data, "polygon", None)
+        scale = resolve_live_pixel_per_cm(
+            polygon,
+            params.get("aquarium_width_cm"),
+            params.get("aquarium_height_cm"),
+        )
+        if scale is not None:
+            log.info(
+                "live_camera_service.post_analysis.scale_from_dialog",
+                pixelcm_x=f"{scale[0]:.2f}",
+                pixelcm_y=f"{scale[1]:.2f}",
+            )
+            return scale[0], scale[1], True
+
+        log.warning(
+            "live_camera_service.post_analysis.uncalibrated",
+            has_polygon=bool(polygon),
+            width_cm=params.get("aquarium_width_cm"),
+            height_cm=params.get("aquarium_height_cm"),
+        )
+        return 1.0, 1.0, False
+
+    def _publish_post_analysis_status(self, message: str) -> None:
+        """Show a status line while the post-analysis thread runs.
+
+        Best-effort: a missing bus never blocks the analysis itself.
+        """
+        if not self.event_bus:
+            return
+        try:
+            from zebtrack.ui import payloads
+            from zebtrack.ui.event_bus_v2 import Event, UIEvents
+
+            self.event_bus.publish(
+                Event(
+                    type=UIEvents.UI_SET_STATUS,
+                    data=payloads.StatusPayload(message=message),
+                    source="LiveAnalysisPostProcessor",
+                )
+            )
+        # except Exception justified: status feedback must never abort the
+        # post-analysis that is about to produce the researcher's data.
+        except Exception:
+            log.debug("live_camera_service.post_analysis_status.failed", exc_info=True)
 
     def _resolve_live_reference_frame_path(self) -> Path | None:
         """Resolve the temporary live reference frame used by the zone editor."""
@@ -339,10 +414,19 @@ class LiveAnalysisPostProcessorMixin:
             "tracks": total_tracks,
         }
 
-    def _on_session_complete(self, output_dir: Path) -> None:  # noqa: C901
+    def _on_session_complete(self, output_dir: Path, *, keep_data: bool = False) -> None:  # noqa: C901
         """Handle session completion and trigger post-processing analysis.
 
         Task 1.4: Thread-safe check-and-set pattern to prevent race conditions.
+
+        Args:
+            keep_data: ``True`` quando o encerramento foi pedido de propósito
+                antes do fim ("Encerrar e Salvar"). Sem isso, a heurística dos
+                50% dentro de ``stop_session`` gravaria um marcador
+                ``.cancelled`` e apagaria o polígono DEPOIS de já termos passado
+                pela checagem do marcador logo abaixo: os relatórios sairiam,
+                mas a sessão ficaria marcada como cancelada em disco e sumiria
+                da grade de Progresso.
         """
         with self._lock:
             if self._analysis_completed:
@@ -370,9 +454,19 @@ class LiveAnalysisPostProcessorMixin:
             return
 
         # Stop threads and cleanup
-        self.stop_session()
+        self.stop_session(keep_data=keep_data)
 
-        log.info("live_camera_service.starting_post_analysis", output_dir=str(output_dir))
+        log.info(
+            "live_camera_service.starting_post_analysis",
+            output_dir=str(output_dir),
+            keep_data=keep_data,
+        )
+
+        # ``stop_session`` já levou a aba Análise a "Análise finalizada", mas os
+        # relatórios só existem depois da thread abaixo — uma janela silenciosa
+        # de vários segundos em que a UI afirma ter terminado e a pasta ainda
+        # não tem ``.xlsx``/``.docx``. Diz o que está acontecendo.
+        self._publish_post_analysis_status(_("Generating the reports for the live session..."))
 
         def _run_post_analysis() -> None:  # noqa: C901
             """Background thread worker for post-processing analysis."""
@@ -444,9 +538,7 @@ class LiveAnalysisPostProcessorMixin:
                         )
 
                 # Get calibration and zone data
-                calib_data = self.project_manager.project_data.get("calibration", {})
-                pixelcm_x = calib_data.get("pixelcm_x", 1.0)
-                pixelcm_y = calib_data.get("pixelcm_y", 1.0)
+                pixelcm_x, pixelcm_y, is_calibrated = self._resolve_post_analysis_scale()
                 video_height = self._actual_height
                 fps = self._actual_fps
                 video_path = self._resolve_live_session_video_path(output_dir)
@@ -542,6 +634,22 @@ class LiveAnalysisPostProcessorMixin:
                     behavioral_config=params["behavioral_config"],
                     video_path=str(video_path),
                 )
+
+                # Escala desconhecida: o aviso precisa entrar ANTES de
+                # ``ReporterContext.from_analysis`` — ``validation_warnings`` e
+                # ``report["validacao"]["avisos"]`` são o MESMO objeto, e é o
+                # relatório que o pesquisador lê. Sem isto, "distância total:
+                # 4213 cm" seria indistinguível de uma medida real.
+                if not is_calibrated:
+                    analysis_result.validation_warnings.append(
+                        _(
+                            "Session WITHOUT calibration: the aquarium dimensions were not "
+                            "available, so 1 pixel was treated as 1 cm. Every metric in "
+                            "centimetres (total distance, velocity, freezing threshold) is "
+                            "therefore expressed in PIXELS and is NOT comparable with "
+                            "calibrated recordings."
+                        )
+                    )
 
                 # Generate Reports
                 ctx = ReporterContext.from_analysis(analysis_result)
@@ -852,35 +960,30 @@ class LiveAnalysisPostProcessorMixin:
 
         zone_data = ZoneData(polygon=arena_polygon)
 
-        # Calculate pixel-to-cm ratio if dimensions provided
+        # Calculate pixel-to-cm ratio if dimensions provided.
+        # Escala via ``resolve_live_pixel_per_cm`` (fonte única, compartilhada
+        # com a pós-análise) — a conta manual daqui era a única cópia e não
+        # tolerava ``None`` nas dimensões.
         if self._analysis_params:
-            width_cm = self._analysis_params.get("aquarium_width_cm", 0)
-            height_cm = self._analysis_params.get("aquarium_height_cm", 0)
+            width_cm = self._analysis_params.get("aquarium_width_cm")
+            height_cm = self._analysis_params.get("aquarium_height_cm")
+            scale = resolve_live_pixel_per_cm(arena_polygon, width_cm, height_cm)
 
-            if width_cm > 0 and height_cm > 0:
-                pts = np.array(arena_polygon)
-                min_x, min_y = np.min(pts, axis=0)
-                max_x, max_y = np.max(pts, axis=0)
-                width_px = max_x - min_x
-                height_px = max_y - min_y
+            if scale is not None and width_cm is not None and height_cm is not None:
+                pixelcm_x, pixelcm_y = scale
+                calib = self.project_manager.project_data.setdefault("calibration", {})
+                calib["pixelcm_x"] = pixelcm_x
+                calib["pixelcm_y"] = pixelcm_y
+                calib["aquarium_width_cm"] = float(width_cm)
+                calib["aquarium_height_cm"] = float(height_cm)
 
-                if width_px > 0 and height_px > 0:
-                    pixelcm_x = width_px / width_cm
-                    pixelcm_y = height_px / height_cm
-
-                    calib = self.project_manager.project_data.setdefault("calibration", {})
-                    calib["pixelcm_x"] = pixelcm_x
-                    calib["pixelcm_y"] = pixelcm_y
-                    calib["aquarium_width_cm"] = width_cm
-                    calib["aquarium_height_cm"] = height_cm
-
-                    log.info(
-                        "live_camera_service.calibration_calculated",
-                        pixelcm_x=f"{pixelcm_x:.2f}",
-                        pixelcm_y=f"{pixelcm_y:.2f}",
-                        width_cm=width_cm,
-                        height_cm=height_cm,
-                    )
+                log.info(
+                    "live_camera_service.calibration_calculated",
+                    pixelcm_x=f"{pixelcm_x:.2f}",
+                    pixelcm_y=f"{pixelcm_y:.2f}",
+                    width_cm=width_cm,
+                    height_cm=height_cm,
+                )
 
         should_persist = bool(self.project_manager.project_path)
         self.project_manager.save_zone_data(zone_data, video_path=None, persist=should_persist)

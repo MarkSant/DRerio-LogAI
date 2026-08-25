@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import datetime
 import os
+import re
 import shutil
 import threading
 import time
@@ -17,6 +18,7 @@ from typing import TYPE_CHECKING, Any
 
 import structlog
 
+from zebtrack.core.recording.live_output_paths import default_live_sessions_dir
 from zebtrack.i18n import _
 
 if TYPE_CHECKING:
@@ -107,7 +109,7 @@ class LiveSessionManagerMixin:
         def _setup_camera(self, camera_index: int) -> bool: ...
         def _start_threads(self) -> bool: ...
         def _clear_queues(self) -> None: ...
-        def _on_session_complete(self, output_dir: Path) -> None: ...
+        def _on_session_complete(self, output_dir: Path, *, keep_data: bool = False) -> None: ...
         def _finalize_frame_ledger(self) -> None: ...
 
     def _resolve_session_detector_config(self) -> tuple[str | None, bool, str]:
@@ -184,11 +186,26 @@ class LiveSessionManagerMixin:
         output_base: Path,
         experiment_id: str,
     ) -> None:
-        """Cleanup existing session folders for the same experiment_id.
+        """Remove LEFTOVER session folders of the same experiment, never data.
 
-        v2.3.2: When re-recording a live session, remove all existing folders
-        matching the experiment_id pattern to prevent folder accumulation.
-        This ensures that recording again overwrites previous data.
+        v2.3.2 introduced this to stop folders piling up when the operator
+        re-records the same subject. What it actually did was ``rmtree`` every
+        folder starting with the experiment id — so recording "peixe1" on Tuesday
+        destroyed Monday's "peixe1" (MP4, trajectory and reports included) the
+        instant the new session started, with no prompt and no undo. A
+        longitudinal protocol reuses ids by design, which made that the normal
+        case rather than the corner case.
+
+        Two guards, both necessary:
+
+        * **Exact pattern** (``{experiment_id}_YYYYMMDD_HHMMSS``) instead of the
+          ``{experiment_id}_*`` glob. The glob matched by PREFIX, so cleaning
+          "CTRL" also swept "CTRL_1_20260101_100000" — another experiment
+          entirely.
+        * **Only folders with nothing to lose**: empty, or holding neither a
+          video nor a trajectory, or explicitly marked ``.cancelled``. That
+          still clears the aborted/empty takes this cleanup was written for,
+          which are the ones that actually accumulate.
 
         Args:
             output_base: Base directory where session folders are created.
@@ -197,9 +214,13 @@ class LiveSessionManagerMixin:
         if not output_base.exists():
             return
 
-        # Find folders matching pattern: experiment_id_YYYYMMDD_HHMMSS
-        pattern = f"{experiment_id}_*"
-        matching_folders = list(output_base.glob(pattern))
+        # Folders created by this flow are named ``{experiment_id}_YYYYMMDD_HHMMSS``.
+        session_pattern = re.compile(rf"^{re.escape(experiment_id)}_\d{{8}}_\d{{6}}$")
+        matching_folders = [
+            item
+            for item in output_base.iterdir()
+            if item.is_dir() and session_pattern.match(item.name)
+        ]
 
         if not matching_folders:
             log.debug(
@@ -217,19 +238,54 @@ class LiveSessionManagerMixin:
         )
 
         for folder in matching_folders:
-            if folder.is_dir():
-                try:
-                    shutil.rmtree(folder)
-                    log.info(
-                        "live_camera_service.cleanup.folder_removed",
-                        folder=str(folder),
-                    )
-                except OSError as e:
-                    log.warning(
-                        "live_camera_service.cleanup.folder_remove_failed",
-                        folder=str(folder),
-                        error=str(e),
-                    )
+            if self._session_folder_has_data(folder):
+                # Preserved, not overwritten: the new session gets its own
+                # timestamped folder, so nothing collides.
+                log.warning(
+                    "live_camera_service.cleanup.folder_preserved",
+                    folder=str(folder),
+                    reason="contains recorded data",
+                )
+                continue
+            try:
+                shutil.rmtree(folder)
+                log.info(
+                    "live_camera_service.cleanup.folder_removed",
+                    folder=str(folder),
+                )
+            except OSError as e:
+                log.warning(
+                    "live_camera_service.cleanup.folder_remove_failed",
+                    folder=str(folder),
+                    error=str(e),
+                )
+
+    @staticmethod
+    def _session_folder_has_data(folder: Path) -> bool:
+        """True when the folder holds a recording worth keeping.
+
+        "Worth keeping" is a video or a trajectory parquet — the two artefacts
+        that cannot be regenerated once deleted. A folder the user explicitly
+        cancelled is disposable regardless of what is inside it.
+        """
+        try:
+            if (folder / ".cancelled").exists():
+                return False
+
+            for pattern in ("*.mp4", "*.avi", "*.mkv", "3_CoordMovimento_*.parquet"):
+                if any(folder.glob(pattern)):
+                    return True
+        # except OSError justified: an unreadable folder must never be assumed
+        # empty — refusing to delete is the recoverable outcome.
+        except OSError:
+            log.warning(
+                "live_camera_service.cleanup.inspect_failed",
+                folder=str(folder),
+                exc_info=True,
+            )
+            return True
+
+        return False
 
     def start_session(  # noqa: C901
         self,
@@ -328,9 +384,10 @@ class LiveSessionManagerMixin:
                 else "explicitly_disabled",
             )
 
-        # Show initialization status
-        if self.preview_window:
-            self.preview_window.update_status_text(_("⏳ Warming up camera..."), color="orange")
+        # Show initialization status. Vai para a barra de status TAMBEM (nao so
+        # para a janela de preview, que o fluxo de canvas integrado nem cria) —
+        # os proximos passos bloqueiam a thread do Tk por segundos.
+        self._publish_startup_status(_("⏳ Warming up camera..."))
 
         # Setup camera
         if not self._setup_camera(camera_index):
@@ -368,7 +425,11 @@ class LiveSessionManagerMixin:
         if output_base_dir:
             output_base = Path(output_base_dir)
         else:
-            output_base = Path("live_analysis_sessions")
+            # Sem projeto e sem pasta escolhida. NAO usar o caminho relativo
+            # ``Path("live_analysis_sessions")``: ele resolve contra o diretorio
+            # de trabalho do processo, que depende de como o app foi iniciado —
+            # a gravacao ia parar em lugar nenhum, ou em pasta sem permissao.
+            output_base = default_live_sessions_dir()
 
         output_base.mkdir(parents=True, exist_ok=True)
 
@@ -387,9 +448,9 @@ class LiveSessionManagerMixin:
         # Store output_dir for post-analysis when session stops
         self.current_output_dir = output_dir
 
-        # Show detector setup status
-        if self.preview_window:
-            self.preview_window.update_status_text(_("⏳ Loading detector..."), color="orange")
+        # Show detector setup status. Carregar YOLO/OpenVINO e o trecho mais
+        # longo do start (segundos) e roda sincrono aqui.
+        self._publish_startup_status(_("⏳ Loading detector..."))
 
         resolved_weight, resolved_openvino, resolution_source = (
             self._resolve_session_detector_config()
@@ -611,8 +672,7 @@ class LiveSessionManagerMixin:
                 time.sleep(countdown_seconds)
 
         # Show thread startup status
-        if self.preview_window:
-            self.preview_window.update_status_text(_("⏳ Starting capture..."), color="orange")
+        self._publish_startup_status(_("⏳ Starting capture..."))
 
         # Start threads before recording service
         if not self._start_threads():
@@ -697,7 +757,7 @@ class LiveSessionManagerMixin:
         log.info("live_camera_service.session_started", output_dir=str(output_dir))
         return True
 
-    def _detect_and_mark_cancellation(self, *, force: bool = False) -> bool:
+    def _detect_and_mark_cancellation(self, *, force: bool = False, keep: bool = False) -> bool:
         """Audit Erro 1 round 4 (2026-05-25): detect early user stop.
 
         Returns True if the session is treated as cancelled. Writes a
@@ -711,7 +771,19 @@ class LiveSessionManagerMixin:
         heurística dos 50% (``elapsed < 50%`` da duração planejada) só se aplica
         à detecção automática de stop precoce (``force=False``); um cancelamento
         manual sempre descarta, mesmo perto do fim da gravação.
+
+        ``keep=True`` é a intenção OPOSTA e explícita: "encerrar agora e SALVAR"
+        (botão "Encerrar e Salvar", parada pelo gatilho externo). Aí a
+        heurística não pode opinar — parar aos 30% de propósito não torna a
+        gravação descartável, e deixar o marcador ``.cancelled`` para trás faria
+        a grade de Progresso ignorar uma sessão que tem MP4 e trajetória.
+        ``keep`` vence ``force`` se ambos forem passados (contradição só
+        possível por erro de call site; preservar é a escolha segura).
         """
+        if keep:
+            log.info("live_camera_service.cancel_detection.skipped_keep_requested")
+            return False
+
         elapsed_s = 0.0
         if force:
             try:
@@ -796,7 +868,30 @@ class LiveSessionManagerMixin:
 
         return True
 
-    def stop_session(self, *, cancelled: bool = False) -> bool:  # noqa: C901
+    def finish_session_early(self) -> bool:
+        """End the session NOW and keep everything, as if the timer had expired.
+
+        This is the "Encerrar e Salvar" path. It deliberately goes through
+        ``_on_session_complete`` — the very same entry point the duration timer
+        uses — so the recording gets its trajectory, ``.xlsx`` and ``.docx``
+        exactly like a session that ran to the end. The only difference is that
+        ``keep_data`` silences the 50 % heuristic, which would otherwise read an
+        intentional early stop as an abandoned take and delete it.
+
+        Returns:
+            True when the completion path was entered (or the session stopped
+            cleanly with nothing to analyse).
+        """
+        output_dir = self.current_output_dir
+        if output_dir is None:
+            log.info("live_camera_service.finish_early.no_output_dir")
+            return self.stop_session(keep_data=True)
+
+        log.info("live_camera_service.finish_early", output_dir=str(output_dir))
+        self._on_session_complete(Path(output_dir), keep_data=True)
+        return True
+
+    def stop_session(self, *, cancelled: bool = False, keep_data: bool = False) -> bool:  # noqa: C901
         """Stop the current live camera analysis session.
 
         Args:
@@ -807,13 +902,22 @@ class LiveSessionManagerMixin:
                 estava (sem a heurística dos 50%). ``False`` (default) preserva
                 o comportamento anterior: conclusão normal por timer mantém os
                 dados; stop precoce automático ainda usa a heurística dos 50%.
+            keep_data: intenção EXPLÍCITA de encerrar mantendo tudo ("Encerrar e
+                Salvar", parada vinda do gatilho externo). Desliga a heurística
+                dos 50%, que existe para adivinhar a intenção quando ela é
+                desconhecida — e adivinha errado quando o usuário parou cedo de
+                propósito, apagando uma gravação boa. Ignora ``cancelled``:
+                entre descartar e preservar sob instruções contraditórias,
+                preservar é o único erro reversível.
         """
-        log.info("live_camera_service.stop_session", cancelled=cancelled)
+        log.info("live_camera_service.stop_session", cancelled=cancelled, keep_data=keep_data)
 
         # Audit Erro 1 round 4 (2026-05-25): detect user cancellation and
         # mark the session with .cancelled marker + clear ghost polygon.
         # ``force=cancelled`` garante que o cancelamento manual descarte sempre.
-        cancelled_session = self._detect_and_mark_cancellation(force=cancelled)
+        cancelled_session = self._detect_and_mark_cancellation(
+            force=cancelled and not keep_data, keep=keep_data
+        )
 
         # Cancel timer if it exists
         if hasattr(self, "timer_id") and self.timer_id and self.root:
@@ -923,7 +1027,7 @@ class LiveSessionManagerMixin:
         # clica "Cancelar" (``cancelled=True``); o stop automático precoce
         # mantém os arquivos (apenas não registra o lote). O recorder já foi
         # encerrado acima, então nenhuma thread está mais escrevendo na pasta.
-        if cancelled and self.current_output_dir is not None:
+        if cancelled and not keep_data and self.current_output_dir is not None:
             discarded_dir = self.current_output_dir
             try:
                 shutil.rmtree(discarded_dir)
@@ -1103,6 +1207,47 @@ class LiveSessionManagerMixin:
             )
 
             self.root.after(1000, self._update_session_countdown, duration_s)
+
+    def _publish_startup_status(self, message: str) -> None:
+        """Say what the session start is doing, and force a repaint.
+
+        ``start_session`` runs on the Tk main thread and blocks it for seconds:
+        opening the camera and loading the YOLO/OpenVINO weights are both
+        synchronous. The window simply stopped responding, with no clue whether
+        it had crashed. Moving that work off-thread would reorder detector
+        initialisation for all three live entry points, so the fix here is
+        honest feedback rather than a restructure: publish the step, then pump
+        the event loop ONCE so the label actually paints before we block again.
+
+        ``update_idletasks`` (not ``update``) on purpose: it redraws without
+        processing input events, so a stray click cannot re-enter the start
+        flow while it is mid-way.
+        """
+        if self.event_bus:
+            try:
+                from zebtrack.ui.event_bus_v2 import Event, UIEvents
+                from zebtrack.ui.payloads import StatusPayload
+
+                self.event_bus.publish(
+                    Event(
+                        type=UIEvents.UI_SET_STATUS,
+                        data=StatusPayload(message=message),
+                        source="live_camera_service.start_session",
+                    )
+                )
+            # except Exception justified: feedback must never block the start.
+            except Exception:
+                log.debug("live_camera_service.startup_status.publish_failed", exc_info=True)
+
+        if self.preview_window:
+            self.preview_window.update_status_text(message, color="orange")
+
+        root = self.root
+        if root is not None and hasattr(root, "update_idletasks"):
+            try:
+                root.update_idletasks()
+            except tk.TclError:
+                log.debug("live_camera_service.startup_status.repaint_failed", exc_info=True)
 
     def _publish_video_drop_status(self) -> None:
         """Surface accumulated video-frame drops to the UI status bar.

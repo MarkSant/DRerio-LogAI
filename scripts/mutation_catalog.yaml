@@ -151,3 +151,26 @@ modules:
         description: "sufixo _oi.pt deixa de classificar como det"
         find: 'if filename_lower.endswith("_oi.pt"):'
         replace: 'if filename_lower.endswith("_oiXX.pt"):'
+
+  live_calibration_scale:
+    source: src/zebtrack/core/services/live_calibration_scale.py
+    tests:
+      - tests/core/services/test_live_calibration_scale.py
+      - tests/core/recording/test_live_analysis_post_processor.py
+    mutations:
+      - id: axes-swapped
+        description: "px/cm dos eixos X e Y trocados (relatorio em cm errado nos dois eixos)"
+        find: 'return (width_px / real_width, height_px / real_height)'
+        replace: 'return (height_px / real_height, width_px / real_width)'
+      - id: nonpositive-dimensions-accepted
+        description: "dimensao <= 0 deixa de ser recusada e vira divisao invalida"
+        find: 'if real_width <= 0 or real_height <= 0:'
+        replace: 'if False:'
+      - id: degenerate-bbox-accepted
+        description: "poligono degenerado (span zero) passa a devolver escala 0"
+        find: 'if width_px <= 0 or height_px <= 0:'
+        replace: 'if False:'
+      - id: two-vertex-polygon-accepted
+        description: "poligono com menos de 3 vertices deixa de ser recusado"
+        find: 'if len(points) < 3:'
+        replace: 'if False:'

@@ -247,20 +247,40 @@ class ZoneControlsWidget(BaseWidget):
             return
         self._pending_session_payload = payload
 
-        subject = payload.subject_id or "—"
-        group = payload.group or "—"
-        day = payload.day or "—"
         source_text = (
             _("Auto-detected polygon")
             if payload.polygon_source == "auto"
             else _("Manually drawn polygon")
         )
-        self.pending_session_label.config(
-            text=_(
+
+        # Uma sessão ad-hoc (vídeo único ao vivo, sem projeto) não tem
+        # grupo/dia/sujeito — o diálogo nem pede. Renderizar "Animal — /
+        # Grupo — / —" fazia o banner parecer quebrado; nesse caso o
+        # experiment_id é a única identificação que existe, e basta.
+        #
+        # Duas msgids COMPLETAS (não um cabeçalho interpolado numa moldura):
+        # é a regra do guia de i18n, e mantém intacta a tradução já existente
+        # do caso com metadados.
+        if payload.subject_id or payload.group or payload.day:
+            text = _(
                 "⏳ Pending session: Animal {subject} / Group {group} / {day}.\n"
                 "{source} — click ▶️ Start Recording when you are ready."
-            ).format(subject=subject, group=group, day=day, source=source_text)
-        )
+            ).format(
+                subject=payload.subject_id or "—",
+                group=payload.group or "—",
+                day=payload.day or "—",
+                source=source_text,
+            )
+        else:
+            text = _(
+                "⏳ Pending session: {experiment}.\n"
+                "{source} — click ▶️ Start Recording when you are ready."
+            ).format(
+                experiment=payload.experiment_id or _("live analysis"),
+                source=source_text,
+            )
+
+        self.pending_session_label.config(text=text)
 
         # Pack at the top of the side panel / drawing area.
         try:

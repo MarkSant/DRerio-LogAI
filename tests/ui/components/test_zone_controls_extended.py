@@ -44,6 +44,54 @@ class TestZoneControlsExtended:
         assert widget.has_pending_live_session() is False
         widget.pending_session_frame.pack_forget.assert_called_once()
 
+    def test_banner_with_metadata_shows_group_day_subject(self):
+        widget = object.__new__(ZoneControlsWidget)
+        widget._pending_session_payload = None
+        widget.pending_session_frame = MagicMock()
+        widget.pending_session_label = MagicMock()
+
+        widget._show_pending_session_banner(
+            LiveRecordingPendingPayload(
+                experiment_id="exp1", group="G1", day="Dia_1", subject_id="Sub_1"
+            )
+        )
+
+        text = widget.pending_session_label.config.call_args.kwargs["text"]
+        assert "Sub_1" in text
+        assert "G1" in text
+        assert "Dia_1" in text
+
+    def test_banner_without_metadata_uses_the_experiment_id(self):
+        """Sessao ad-hoc nao tem grupo/dia/sujeito; "— / — / —" parecia defeito."""
+        widget = object.__new__(ZoneControlsWidget)
+        widget._pending_session_payload = None
+        widget.pending_session_frame = MagicMock()
+        widget.pending_session_label = MagicMock()
+
+        widget._show_pending_session_banner(
+            LiveRecordingPendingPayload(experiment_id="camera_20260822_101500")
+        )
+
+        text = widget.pending_session_label.config.call_args.kwargs["text"]
+        assert "camera_20260822_101500" in text
+        # Sem placeholders vazios do formato hierarquico ("... / — / —").
+        assert "/ —" not in text
+
+    def test_banner_with_partial_metadata_still_shows_the_hierarchy(self):
+        """Um so campo preenchido ainda e informacao de projeto — mantem o formato."""
+        widget = object.__new__(ZoneControlsWidget)
+        widget._pending_session_payload = None
+        widget.pending_session_frame = MagicMock()
+        widget.pending_session_label = MagicMock()
+
+        widget._show_pending_session_banner(
+            LiveRecordingPendingPayload(experiment_id="exp1", group="G1")
+        )
+
+        text = widget.pending_session_label.config.call_args.kwargs["text"]
+        assert "G1" in text
+        assert "—" in text
+
     def test_pending_session_actions_emit_events(self):
         widget = object.__new__(ZoneControlsWidget)
         widget.emit_event = MagicMock()  # type: ignore[assignment]

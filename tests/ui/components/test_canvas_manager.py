@@ -393,14 +393,108 @@ class TestCanvasAccessAndEvents:
 
         canvas_manager.update_video_frame.assert_not_called()
 
-    def test_on_live_frame_update_calls_update(self, canvas_manager):
-        """Forward valid frame and detections to update."""
+    def test_on_live_frame_update_defers_drawing_to_the_tk_thread(self, canvas_manager, mock_gui):
+        """O publisher e a thread de processamento; desenhar ali viola o Tk.
+
+        O handler nao pode chamar ``update_video_frame`` na hora: ele agenda
+        via ``root.after(0, ...)``. Desenhar direto criava PhotoImage fora da
+        main thread (fonte de travamentos esporadicos em sessoes longas).
+        """
         canvas_manager.update_video_frame = Mock()
         frame = np.zeros((2, 2, 3), dtype=np.uint8)
 
         canvas_manager._on_live_frame_update({"frame": frame, "detections": [1, 2]})
 
+        canvas_manager.update_video_frame.assert_not_called()
+        mock_gui.root.after.assert_called_once()
+        delay, callback = mock_gui.root.after.call_args[0]
+        assert delay == 0
+
+        callback()  # o laco do Tk executa
         canvas_manager.update_video_frame.assert_called_once_with(frame, [1, 2])
+
+    def test_live_frames_drop_latest_instead_of_queueing(self, canvas_manager, mock_gui):
+        """Frame novo SUBSTITUI o nao desenhado; so um redraw fica agendado."""
+        canvas_manager.update_video_frame = Mock()
+        first = np.zeros((2, 2, 3), dtype=np.uint8)
+        second = np.ones((2, 2, 3), dtype=np.uint8)
+        third = np.full((2, 2, 3), 2, dtype=np.uint8)
+
+        canvas_manager._on_live_frame_update({"frame": first, "detections": []})
+        canvas_manager._on_live_frame_update({"frame": second, "detections": []})
+        canvas_manager._on_live_frame_update({"frame": third, "detections": [7]})
+
+        # Um unico ``after`` para os tres frames.
+        assert mock_gui.root.after.call_count == 1
+
+        mock_gui.root.after.call_args[0][1]()
+
+        canvas_manager.update_video_frame.assert_called_once_with(third, [7])
+
+    def test_live_frame_reschedules_after_rendering(self, canvas_manager, mock_gui):
+        """Depois de desenhar, o proximo frame precisa agendar de novo."""
+        canvas_manager.update_video_frame = Mock()
+        frame = np.zeros((2, 2, 3), dtype=np.uint8)
+
+        canvas_manager._on_live_frame_update({"frame": frame, "detections": []})
+        mock_gui.root.after.call_args[0][1]()
+        canvas_manager._on_live_frame_update({"frame": frame, "detections": []})
+
+        assert mock_gui.root.after.call_count == 2
+
+    def test_frame_arriving_during_a_render_is_not_orphaned(self, canvas_manager, mock_gui):
+        """A worker publica no meio do desenho: o frame novo tem de reagendar.
+
+        Sem o lock (ou com a ordem errada) esse frame cairia no vao entre "peguei
+        o pendente" e "zerei o pendente": ninguem reagenda e o preview congela
+        ate o proximo frame.
+        """
+        first = np.zeros((2, 2, 3), dtype=np.uint8)
+        late = np.ones((2, 2, 3), dtype=np.uint8)
+        drawn = []
+
+        def draw(frame, detections):
+            drawn.append(frame)
+            if len(drawn) == 1:
+                # Chega enquanto o primeiro esta sendo desenhado.
+                canvas_manager._on_live_frame_update({"frame": late, "detections": []})
+
+        canvas_manager.update_video_frame = Mock(side_effect=draw)
+
+        canvas_manager._on_live_frame_update({"frame": first, "detections": []})
+        mock_gui.root.after.call_args[0][1]()  # desenha o primeiro
+
+        assert mock_gui.root.after.call_count == 2
+        mock_gui.root.after.call_args[0][1]()  # desenha o retardatario
+        assert drawn[1] is late
+
+    def test_render_pending_without_frame_is_a_noop(self, canvas_manager):
+        canvas_manager.update_video_frame = Mock()
+
+        canvas_manager._render_pending_live_frame()
+
+        canvas_manager.update_video_frame.assert_not_called()
+
+    def test_on_live_frame_update_without_root_draws_directly(self, canvas_manager, mock_gui):
+        """Headless (sem root Tk): nao ha laco para agendar, desenha na hora."""
+        canvas_manager.update_video_frame = Mock()
+        mock_gui.root = None
+        frame = np.zeros((2, 2, 3), dtype=np.uint8)
+
+        canvas_manager._on_live_frame_update({"frame": frame, "detections": []})
+
+        canvas_manager.update_video_frame.assert_called_once_with(frame, [])
+
+    def test_unsubscribe_discards_the_pending_frame(self, canvas_manager, mock_gui):
+        """Um frame pendente nao pode repintar o preview APOS o fim da sessao."""
+        canvas_manager.update_video_frame = Mock()
+        frame = np.zeros((2, 2, 3), dtype=np.uint8)
+        canvas_manager._on_live_frame_update({"frame": frame, "detections": []})
+
+        canvas_manager.unsubscribe_from_live_frames()
+        mock_gui.root.after.call_args[0][1]()
+
+        canvas_manager.update_video_frame.assert_not_called()
 
     def test_setup_interactive_polygon_updates_gui(self, canvas_manager, mock_gui):
         """Populate edited points and show interactive controls."""

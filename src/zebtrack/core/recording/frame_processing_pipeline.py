@@ -899,7 +899,10 @@ class FrameProcessingMixin:
                     # Cache detections for persistent overlay
                     self.set_last_detections(detections)
 
-                    log.info(
+                    # DEBUG, nao INFO: isto dispara a CADA frame analisado
+                    # (~6/s com intervalo 5). Em INFO o proprio logging vira
+                    # I/O dentro do laco quente da sessao.
+                    log.debug(
                         "live_camera_service.detection_result",
                         frame_number=frame_number,
                         num_detections=len(detections),
@@ -922,14 +925,14 @@ class FrameProcessingMixin:
                             # isso a correção é feita no consumo.
                             timestamp = time.time() - self.recorder.start_time
                             self.recorder.write_detection_data(timestamp, frame_number, detections)
-                            log.info(
+                            log.debug(
                                 "live_camera_service.detection_written",
                                 frame_number=frame_number,
                                 num_detections=len(detections),
                                 timestamp=timestamp,
                             )
                         else:
-                            log.info(
+                            log.debug(
                                 "live_camera_service.detection_skipped_empty",
                                 frame_number=frame_number,
                             )

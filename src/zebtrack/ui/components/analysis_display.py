@@ -6,7 +6,7 @@ track selection, progress tracking, and video display area.
 """
 
 # Standard library imports
-from tkinter import Label, StringVar, ttk
+from tkinter import Label, StringVar, TclError, ttk
 
 # Third-party imports
 import structlog
@@ -104,6 +104,7 @@ class AnalysisDisplayWidget(BaseWidget):
         self.progress_frame: ttk.Frame | None = None
         self.progress_bar: ttk.Progressbar | None = None
         self.cancel_btn: ttk.Button | None = None
+        self.finish_btn: ttk.Button | None = None
         self.video_container: ttk.Frame | None = None
         self.video_label: Label | None = None
 
@@ -233,14 +234,28 @@ class AnalysisDisplayWidget(BaseWidget):
             ttk.Label(cell, textvariable=var, font=("Arial", 9, "bold")).pack(anchor="w")
             self.progress_labels[key] = var
 
-        # Cancel button
+        # Session controls. In a LIVE session the two are NOT synonyms:
+        # "Finish and Save" ends early and keeps the recording (post-analysis
+        # runs), "Cancel" throws the session away. Pre-recorded analysis has
+        # nothing to keep, so only the cancel button is ever shown there.
+        buttons_frame = ttk.Frame(self.progress_frame)
+        buttons_frame.grid(row=1, column=1, sticky="ne", padx=(12, 0))
+
+        self.finish_btn = ttk.Button(
+            buttons_frame,
+            text=_("⏹ Finish and Save"),
+            command=self._on_finish_clicked,
+            state="disabled",
+        )
+        # Packed only while a live session is running (see set_live_session_controls).
+
         self.cancel_btn = ttk.Button(
-            self.progress_frame,
+            buttons_frame,
             text=_("Cancel Analysis"),
             command=self._on_cancel_clicked,
             state="disabled",
         )
-        self.cancel_btn.grid(row=1, column=1, sticky="ne", padx=(12, 0))
+        self.cancel_btn.pack(side="right")
 
         # Hide progress frame until analysis starts
         self.progress_frame.pack_forget()
@@ -270,6 +285,10 @@ class AnalysisDisplayWidget(BaseWidget):
     def _on_cancel_clicked(self) -> None:
         """Handle cancel button click."""
         self.emit_event(UIEvents.ANALYSIS_CANCEL_REQUESTED, payloads.EmptyPayload())
+
+    def _on_finish_clicked(self) -> None:
+        """Handle "Finish and Save" click (live sessions only)."""
+        self.emit_event(UIEvents.LIVE_SESSION_FINISH_REQUESTED, payloads.EmptyPayload())
 
     # Public API for updating widget state
 
@@ -400,6 +419,30 @@ class AnalysisDisplayWidget(BaseWidget):
         """Disable the cancel button."""
         if self.cancel_btn:
             self.cancel_btn.config(state="disabled")
+
+    def set_live_session_controls(self, active: bool) -> None:
+        """Show/hide the live-session controls and set their enabled state.
+
+        A live recording is the only case where the user needs BOTH "end it now
+        and keep what was recorded" and "throw it away". Until this existed the
+        ad-hoc live flow had no stop control at all: the cancel button is only
+        enabled by ``start_analysis_view_mode`` (the pre-recorded entry point)
+        and the "Stop Recording" button is built only for live PROJECTS, so an
+        ad-hoc session could only be ended by closing the app.
+        """
+        if self.finish_btn:
+            if active:
+                self.finish_btn.pack(side="right", padx=(0, 6))
+                self.finish_btn.config(state="normal")
+            else:
+                self.finish_btn.config(state="disabled")
+                try:
+                    self.finish_btn.pack_forget()
+                except TclError:
+                    log.debug("analysis_display.finish_btn.hide_suppressed", exc_info=True)
+
+        if self.cancel_btn and active:
+            self.cancel_btn.config(state="normal")
 
     def clear_video_display(self) -> None:
         """Clear the video display."""

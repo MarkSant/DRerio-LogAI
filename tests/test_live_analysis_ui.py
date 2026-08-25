@@ -7,6 +7,7 @@ These tests cover the UI components for live camera analysis (v2.0 feature):
 """
 
 import time
+from pathlib import Path
 from unittest.mock import Mock, patch
 
 import numpy as np
@@ -456,7 +457,8 @@ class TestLiveAnalysisDialog:
                 dialog.record_video_var.set(False)
                 dialog.experiment_id_var.set("test_exp")
 
-                # Call apply (sem pasta de saída escolhida)
+                # Campo de pasta em branco (o usuario apagou o default).
+                dialog.output_folder_var.set("")
                 dialog.apply()
 
                 # Verify result structure
@@ -474,6 +476,127 @@ class TestLiveAnalysisDialog:
                 dialog.output_folder_var.set("D:/saidas/ao_vivo")
                 dialog.apply()
                 assert dialog.result["output_folder"] == "D:/saidas/ao_vivo"
+
+    def test_aquarium_count_is_locked_to_one(self, tkinter_root, test_settings):
+        """Ao vivo e single-arena: aceitar 2 seria um campo que nao muda nada."""
+        with patch.object(LiveAnalysisDialog, "wait_window"):
+            with patch(
+                "zebtrack.core.services.wizard_service.WizardService.detect_available_cameras"
+            ) as mock_detect:
+                mock_detect.return_value = []
+                dialog = LiveAnalysisDialog(tkinter_root, settings_obj=test_settings)
+                tkinter_root.update_idletasks()
+
+                assert dialog.num_aquariums_var.get() == 1
+
+                def walk(widget):
+                    yield widget
+                    for child in widget.winfo_children():
+                        yield from walk(child)
+
+                target = str(dialog.num_aquariums_var)
+                locked = [
+                    w
+                    for w in walk(dialog)
+                    if w.winfo_class() == "Spinbox" and str(w.cget("textvariable")) == target
+                ]
+                assert locked, "spinbox de numero de aquarios nao encontrado"
+                assert str(locked[0].cget("state")) == "disabled"
+
+    def test_countdown_is_opt_in_and_reaches_the_result(self, tkinter_root, test_settings):
+        """O servico ja sabia fazer countdown; este fluxo nunca mandava a flag."""
+        with patch.object(LiveAnalysisDialog, "wait_window"):
+            with patch(
+                "zebtrack.core.services.wizard_service.WizardService.detect_available_cameras"
+            ) as mock_detect:
+                mock_detect.return_value = [{"index": 0, "description": "Cam 0"}]
+                dialog = LiveAnalysisDialog(tkinter_root, settings_obj=test_settings)
+                tkinter_root.update_idletasks()
+                tkinter_root.update()
+                wait_for_condition(lambda: len(dialog.camera_index_map) >= 1, timeout=1.0)
+                dialog.camera_combo.current(0)
+
+                # Default: desligado (o laco de contagem bombeia o event loop).
+                assert dialog.use_countdown_var.get() is False
+                dialog.apply()
+                assert dialog.result is not None
+                assert dialog.result["use_countdown"] is False
+
+                dialog.use_countdown_var.set(True)
+                dialog.apply()
+                assert dialog.result is not None
+                assert dialog.result["use_countdown"] is True
+                assert dialog.result["countdown_duration_s"] > 0
+
+    def test_output_folder_defaults_to_a_writable_absolute_path(self, tkinter_root, test_settings):
+        """Campo em branco mandava a gravacao para o CWD do processo."""
+        from zebtrack.core.recording.live_output_paths import default_live_sessions_dir
+
+        with patch.object(LiveAnalysisDialog, "wait_window"):
+            with patch(
+                "zebtrack.core.services.wizard_service.WizardService.detect_available_cameras"
+            ) as mock_detect:
+                mock_detect.return_value = []
+                dialog = LiveAnalysisDialog(tkinter_root, settings_obj=test_settings)
+                tkinter_root.update_idletasks()
+
+                value = dialog.output_folder_var.get()
+
+                assert value == str(default_live_sessions_dir())
+                assert Path(value).is_absolute()
+
+    def test_validate_rejects_an_unwritable_output_folder(
+        self, tkinter_root, test_settings, tmp_path
+    ):
+        """O erro precisa aparecer ANTES da gravacao, nao depois dela."""
+        with patch.object(LiveAnalysisDialog, "wait_window"):
+            with patch(
+                "zebtrack.core.services.wizard_service.WizardService.detect_available_cameras"
+            ) as mock_detect:
+                mock_detect.return_value = []
+                dialog = LiveAnalysisDialog(tkinter_root, settings_obj=test_settings)
+                tkinter_root.update_idletasks()
+
+                # Um ARQUIVO no lugar da pasta: mkdir falha com OSError.
+                blocker = tmp_path / "not_a_folder"
+                blocker.write_text("x", encoding="utf-8")
+                dialog.output_folder_var.set(str(blocker))
+
+                with patch(
+                    "zebtrack.ui.dialogs.live_analysis_dialog.messagebox.showerror"
+                ) as mock_error:
+                    assert dialog._validate_output_folder() is False
+                    mock_error.assert_called_once()
+
+    def test_validate_creates_a_missing_output_folder(self, tkinter_root, test_settings, tmp_path):
+        with patch.object(LiveAnalysisDialog, "wait_window"):
+            with patch(
+                "zebtrack.core.services.wizard_service.WizardService.detect_available_cameras"
+            ) as mock_detect:
+                mock_detect.return_value = []
+                dialog = LiveAnalysisDialog(tkinter_root, settings_obj=test_settings)
+                tkinter_root.update_idletasks()
+
+                target = tmp_path / "nova" / "pasta"
+                dialog.output_folder_var.set(str(target))
+
+                assert dialog._validate_output_folder() is True
+                assert target.is_dir()
+                # A sonda de escrita nao pode deixar lixo para tras.
+                assert list(target.iterdir()) == []
+
+    def test_blank_output_folder_stays_valid(self, tkinter_root, test_settings):
+        """Em branco = "use o padrao"; nao e erro de validacao."""
+        with patch.object(LiveAnalysisDialog, "wait_window"):
+            with patch(
+                "zebtrack.core.services.wizard_service.WizardService.detect_available_cameras"
+            ) as mock_detect:
+                mock_detect.return_value = []
+                dialog = LiveAnalysisDialog(tkinter_root, settings_obj=test_settings)
+                tkinter_root.update_idletasks()
+                dialog.output_folder_var.set("   ")
+
+                assert dialog._validate_output_folder() is True
 
     def test_quick_duration_buttons(self, tkinter_root, test_settings):
         """Test quick duration preset buttons."""

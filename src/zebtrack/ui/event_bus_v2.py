@@ -246,6 +246,7 @@ class UIEvents(Enum):
     VIDEO_METADATA_UPDATED = auto()
     ANALYSIS_TRACK_SELECTED = auto()
     ANALYSIS_CANCEL_REQUESTED = auto()
+    LIVE_SESSION_FINISH_REQUESTED = auto()
     VIDEO_RECONFIGURE_SUBJECTS = auto()
     SETUP_ZONE_DEFINITION_FOR_SINGLE_VIDEO = auto()
 
@@ -478,6 +479,7 @@ _PAYLOAD_TYPES: dict[UIEvents, type[Any]] = {
     UIEvents.VIDEO_METADATA_UPDATED: payloads.VideoMetadataUpdatedPayload,
     UIEvents.ANALYSIS_TRACK_SELECTED: payloads.TrackIdPayload,
     UIEvents.ANALYSIS_CANCEL_REQUESTED: payloads.EmptyPayload,
+    UIEvents.LIVE_SESSION_FINISH_REQUESTED: payloads.EmptyPayload,
     UIEvents.VIDEO_RECONFIGURE_SUBJECTS: payloads.VideoReconfigureSubjectsPayload,
     UIEvents.SETUP_ZONE_DEFINITION_FOR_SINGLE_VIDEO: payloads.SetupZoneDefinitionPayload,
     # V2 Legacy
