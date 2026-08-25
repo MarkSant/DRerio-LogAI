@@ -8,6 +8,7 @@ This dialog allows users to:
 - Start immediate analysis from camera feed
 """
 
+from pathlib import Path
 from tkinter import (
     BooleanVar,
     Button,
@@ -29,6 +30,7 @@ if TYPE_CHECKING:
     from zebtrack.settings import Settings
     from zebtrack.ui.event_bus_v2 import EventBusV2
 
+from zebtrack.core.recording.live_output_paths import default_live_sessions_dir
 from zebtrack.core.services.wizard_service import WizardService
 from zebtrack.i18n import _
 from zebtrack.ui.components.behavioral_config_widget import BehavioralConfigWidget
@@ -58,6 +60,9 @@ class LiveAnalysisDialog(Dialog):
             - analysis_interval_frames: int
             - display_interval_frames: int
             - record_video: bool
+            - use_countdown: bool
+            - countdown_duration_s: int
+            - output_folder: str | None  (None = the default sessions folder)
             - experiment_id: str
             - num_aquariums: int
             - animals_per_aquarium: int
@@ -104,10 +109,20 @@ class LiveAnalysisDialog(Dialog):
         self.analysis_interval_var = IntVar(value=5)
         self.display_interval_var = IntVar(value=5)
         self.record_video_var = BooleanVar(value=True)
+        # Contagem regressiva antes de gravar: OPT-IN (default desligado). O
+        # laco de contagem bombeia o event loop do Tk enquanto espera, entao e
+        # oferecido, nao imposto. A duracao vem das settings.
+        self.use_countdown_var = BooleanVar(value=False)
+        self._countdown_seconds = int(
+            getattr(getattr(settings_obj, "live_analysis", None), "countdown_duration_s", 5) or 5
+        )
         self.experiment_id_var = StringVar(value="")
-        # Pasta de saída escolhida pelo usuário (vazia = padrão
-        # ``live_analysis_sessions/`` no diretório de trabalho).
-        self.output_folder_var = StringVar(value="")
+        # Pasta de saída escolhida pelo usuário. Nasce PREENCHIDA com o padrão
+        # (``~/ZebTrack/live_analysis_sessions``) em vez de vazia: um campo em
+        # branco não dizia onde a gravação ia parar, e a resposta era "no
+        # diretório de trabalho do processo" — imprevisível e, num app
+        # instalado, às vezes sem permissão de escrita.
+        self.output_folder_var = StringVar(value=str(default_live_sessions_dir()))
 
         # Calibration parameters
         self.num_aquariums_var = IntVar(value=1)
@@ -337,6 +352,18 @@ class LiveAnalysisDialog(Dialog):
             variable=self.use_openvino_var,
         ).grid(row=2, column=0, columnspan=3, padx=5, pady=5, sticky="w")
 
+        # Countdown before recording. Opt-in: the countdown loop pumps the Tk
+        # event loop while it waits, so it is offered rather than imposed. The
+        # service side already supported it — this flow simply never sent the
+        # flag, leaving working code unreachable.
+        ttk.Checkbutton(
+            options_frame,
+            text=_("Countdown of {seconds}s before starting").format(
+                seconds=self._countdown_seconds
+            ),
+            variable=self.use_countdown_var,
+        ).grid(row=3, column=0, columnspan=3, padx=5, pady=(0, 5), sticky="w")
+
         # Output folder selection (mesma ideia do fluxo de projeto: o usuário
         # escolhe ONDE salvar; vazio = pasta padrão ``live_analysis_sessions/``).
         output_row = ttk.Frame(options_frame)
@@ -356,7 +383,7 @@ class LiveAnalysisDialog(Dialog):
             _(
                 "Directory where the results will be saved.\n"
                 "• If left blank, uses the default folder "
-                "'live_analysis_sessions/'."
+                "'~/ZebTrack/live_analysis_sessions'."
             ),
         ).grid(row=0, column=3, padx=(5, 0))
 
@@ -404,15 +431,32 @@ class LiveAnalysisDialog(Dialog):
         ).grid(row=0, column=5, padx=5, sticky="w")
 
         # Row 1: Physical setup
+        #
+        # Nº de aquários fica DESABILITADO neste fluxo. A análise ao vivo sem
+        # projeto é single-arena de ponta a ponta: a calibração ao vivo detecta
+        # UM polígono, ``ProjectManager.get_zone_data()`` (o shim legado que o
+        # pipeline consulta) devolve sempre ``ZoneData`` simples, e o ramo
+        # multi-aquário do pipeline nunca é alcançado. Aceitar "2" aqui
+        # produzia um campo validado que não mudava nada — pior que dizer que
+        # a função não existe. Multi-aquário requer um projeto.
         ttk.Label(adv_frame, text=_("No. of aquariums:")).grid(
             row=1, column=0, padx=(5, 2), pady=5, sticky="w"
         )
-        create_help_label(adv_frame, _("Number of tanks in the field of view (1 or 2).")).grid(
-            row=1, column=1, padx=2
-        )
-        Spinbox(adv_frame, from_=1, to=10, textvariable=self.num_aquariums_var, width=8).grid(
-            row=1, column=2, padx=5, sticky="w"
-        )
+        create_help_label(
+            adv_frame,
+            _(
+                "Live analysis handles ONE aquarium at a time.\n"
+                "For multiple aquariums, create a live project."
+            ),
+        ).grid(row=1, column=1, padx=2)
+        Spinbox(
+            adv_frame,
+            from_=1,
+            to=1,
+            textvariable=self.num_aquariums_var,
+            width=8,
+            state="disabled",
+        ).grid(row=1, column=2, padx=5, sticky="w")
 
         ttk.Label(adv_frame, text=_("Animals/aquarium:")).grid(
             row=1, column=3, padx=(15, 2), pady=5, sticky="w"
@@ -423,6 +467,18 @@ class LiveAnalysisDialog(Dialog):
         Spinbox(
             adv_frame, from_=1, to=100, textvariable=self.animals_per_aquarium_var, width=8
         ).grid(row=1, column=5, padx=5, sticky="w")
+
+        # Aviso VISÍVEL (não só no tooltip): o campo desabilitado sozinho parece
+        # defeito. Vários animais no MESMO aquário continuam suportados.
+        Label(
+            adv_frame,
+            text=_(
+                "ℹ️ Live analysis covers ONE aquarium at a time. "
+                "To record several aquariums at once, create a live project."
+            ),
+            fg="gray",
+            justify="left",
+        ).grid(row=2, column=0, columnspan=6, padx=5, pady=(0, 5), sticky="w")
 
         # --- Behavioral Analysis Widget (New) ---
         behavior_frame = ttk.LabelFrame(container, text=_("Behavioural Analysis"), padding=10)
@@ -550,6 +606,76 @@ class LiveAnalysisDialog(Dialog):
                 parent=self,
             )
 
+    def _validate_output_folder(self) -> bool:
+        """Ensure the chosen output folder exists and accepts writes.
+
+        Blank stays valid: the service then applies the same default this
+        dialog shows. What must not happen is discovering at the END of a
+        recording that the destination was never writable.
+        """
+        raw = self.output_folder_var.get().strip()
+        if not raw:
+            return True
+
+        folder = Path(raw)
+        try:
+            folder.mkdir(parents=True, exist_ok=True)
+            probe = folder / ".zebtrack_write_test"
+            probe.write_text("", encoding="utf-8")
+            probe.unlink()
+        except OSError as exc:
+            log.warning(
+                "live_analysis_dialog.output_folder_unusable",
+                folder=str(folder),
+                error=str(exc),
+            )
+            messagebox.showerror(
+                _("Invalid Output Folder"),
+                _(
+                    "Cannot write to the output folder:\n{folder}\n\n{error}\n\n"
+                    "Pick another folder before starting the recording."
+                ).format(folder=folder, error=exc),
+                parent=self,
+            )
+            return False
+
+        return True
+
+    def _validate_smoothing_parameters(self) -> bool:
+        """Validate Savitzky-Golay window/order and the behavioural config.
+
+        Extracted verbatim from ``validate`` — same checks, same messages —
+        only so the caller stays under the complexity gate.
+        """
+        try:
+            smoothing_window = int(self.smoothing_window_var.get())
+            smoothing_polyorder = int(self.smoothing_polyorder_var.get())
+
+            if smoothing_window < 3:
+                raise ValueError(_("The smoothing window must be >= 3"))
+            if smoothing_window % 2 == 0:
+                raise ValueError(_("The smoothing window must be odd"))
+            if smoothing_polyorder < 1:
+                raise ValueError(_("The polynomial order must be >= 1"))
+            if smoothing_polyorder >= smoothing_window:
+                raise ValueError(_("The polynomial order must be smaller than the window"))
+
+            # Validate behavioral config
+            if self.behavioral_config_widget:
+                is_valid, errors = self.behavioral_config_widget.validate()
+                if not is_valid:
+                    raise ValueError("\n".join(errors))
+
+        except (ValueError, TypeError) as e:
+            messagebox.showerror(
+                _("Invalid Parameter"),
+                _("Validation error:\n{error}").format(error=e),
+                parent=self,
+            )
+            return False
+
+        return True
+
     def validate(self) -> bool:
         """Validate inputs before accepting."""
         # Check camera selection
@@ -595,6 +721,12 @@ class LiveAnalysisDialog(Dialog):
                 _("Duration must be a positive number:\n{error}").format(error=e),
                 parent=self,
             )
+            return False
+
+        # Validate the output folder BEFORE the camera opens. A folder that
+        # cannot be created (or written to) used to surface only after the
+        # recording had already run, with the data gone.
+        if not self._validate_output_folder():
             return False
 
         # Validate intervals
@@ -650,32 +782,7 @@ class LiveAnalysisDialog(Dialog):
             )
             return False
 
-        # Validate smoothing parameters
-        try:
-            smoothing_window = int(self.smoothing_window_var.get())
-            smoothing_polyorder = int(self.smoothing_polyorder_var.get())
-
-            if smoothing_window < 3:
-                raise ValueError(_("The smoothing window must be >= 3"))
-            if smoothing_window % 2 == 0:
-                raise ValueError(_("The smoothing window must be odd"))
-            if smoothing_polyorder < 1:
-                raise ValueError(_("The polynomial order must be >= 1"))
-            if smoothing_polyorder >= smoothing_window:
-                raise ValueError(_("The polynomial order must be smaller than the window"))
-
-            # Validate behavioral config
-            if self.behavioral_config_widget:
-                is_valid, errors = self.behavioral_config_widget.validate()
-                if not is_valid:
-                    raise ValueError("\n".join(errors))
-
-        except (ValueError, TypeError) as e:
-            messagebox.showerror(
-                _("Invalid Parameter"),
-                _("Validation error:\n{error}").format(error=e),
-                parent=self,
-            )
+        if not self._validate_smoothing_parameters():
             return False
         return True
 
@@ -750,6 +857,8 @@ class LiveAnalysisDialog(Dialog):
             "analysis_interval_frames": analysis_interval,
             "display_interval_frames": display_interval,
             "record_video": bool(self.record_video_var.get()),
+            "use_countdown": bool(self.use_countdown_var.get()),
+            "countdown_duration_s": self._countdown_seconds,
             "experiment_id": experiment_id,
             # Calibration parameters
             "num_aquariums": num_aquariums,

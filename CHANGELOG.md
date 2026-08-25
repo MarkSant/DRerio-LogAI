@@ -9,6 +9,54 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Análise ao vivo de vídeo único: escala, parada e saída
+
+Auditoria do fluxo que começa no botão "Analisar Câmera ao Vivo" da tela
+inicial. O caminho funcionava de ponta a ponta, mas divergia em silêncio do
+fluxo de projeto exatamente onde o dado se perdia.
+
+- **As dimensões em cm digitadas no diálogo eram descartadas — o relatório
+  trazia PIXELS rotulados como cm.** `aquarium_width_cm`/`height_cm` nunca
+  entravam no `analysis_config`, e o único ponto que convertia px→cm
+  (`_define_arena_from_detections`) é inalcançável quando o polígono já foi
+  confirmado. A pós-análise caía em `pixelcm = 1.0`: distância total,
+  velocidade e limiar de *freezing* saíam em pixels. Agora
+  `core/services/live_calibration_scale.resolve_live_pixel_per_cm()` é o
+  resolvedor único, aplicado **como fallback** — a calibração do wizard de um
+  projeto live continua tendo precedência — e uma sessão sem escala conhecida
+  carimba o aviso dentro do `.docx`.
+- **"Cancelar Análise" apagava a gravação inteira, sem confirmação — e era o
+  único controle existente.** Pior: no fluxo avulso o botão sequer era
+  habilitado (só o caminho pré-gravado o habilita) e "Parar Gravação" só existe
+  em projetos live, então a sessão só terminava fechando o app. A aba Análise
+  agora mostra **"⏹ Encerrar e Salvar"** (encerra antes do tempo preservando
+  tudo, com pós-análise normal) ao lado do cancelar, que passa a confirmar antes
+  de descartar. `stop_session` ganhou intenção explícita (`keep_data`), que
+  desliga a heurística dos 50% — ela lia uma parada intencional como take
+  abandonado e apagava a gravação.
+- **O código 0 do Arduino apagava a sessão do projeto live.** Um "pare" do
+  firmware é fim de protocolo, não cancelamento: agora preserva.
+- **Iniciar uma sessão apagava as anteriores de mesmo `experiment_id`.** O
+  `rmtree` casava por PREFIXO (`CTRL` levava junto `CTRL_1`) e não olhava o
+  conteúdo — num protocolo longitudinal, que reusa ids por definição, gravar
+  hoje destruía ontem. Agora o padrão é exato (`{id}_AAAAMMDD_HHMMSS`) e só
+  pastas sem vídeo e sem trajetória (ou marcadas `.cancelled`) são removidas.
+- **Sem projeto, os resultados iam para o diretório de trabalho do processo.**
+  O padrão passa a ser `~/ZebTrack/live_analysis_sessions`, já preenchido no
+  diálogo, e a pasta é validada (criação + escrita) **antes** de a câmera abrir.
+- **Os frames eram desenhados na thread de processamento.** `EventBusV2.publish`
+  é síncrono na thread chamadora, então `ImageTk.PhotoImage` e `winfo_width()`
+  rodavam fora da main thread do Tk a ~30 fps — origem de travamentos
+  esporádicos. O canvas agora agenda o desenho com `root.after(0, ...)` em
+  regime *drop-latest*.
+- **Menores:** status durante o start (abrir câmera / carregar detector bloqueiam
+  a UI por segundos) e durante a geração de relatórios; banner de sessão
+  pendente sem "— / — / —" no fluxo avulso; contagem regressiva agora
+  disponível (opt-in); campo "nº de aquários" desabilitado com aviso (ao vivo é
+  um aquário por vez — multi-aquário exige projeto); aviso ao iniciar sessão
+  avulsa com um projeto de gatilho externo aberto; logs por frame rebaixados de
+  INFO para DEBUG.
+
 ## [6.0.0] - 2026-08-15
 
 Citable snapshot archived on Zenodo, in support of the manuscripts describing the platform

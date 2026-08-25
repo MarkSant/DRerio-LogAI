@@ -336,6 +336,57 @@ class TestAnalysisDisplayWidget:
         # Should not raise exceptions
         widget._on_track_selection_changed()
         widget._on_cancel_clicked()
+        widget._on_finish_clicked()
+
+    def test_finish_button_emits_live_finish_event(self, widget, event_bus):
+        """ "Encerrar e Salvar" nao pode compartilhar o evento do cancelar."""
+        widget._on_finish_clicked()
+
+        event_bus.publish.assert_called_once_with(
+            UIEvents.LIVE_SESSION_FINISH_REQUESTED,
+            payloads.EmptyPayload(),
+        )
+
+    # --- Live session controls ---
+
+    def test_live_controls_hidden_by_default(self, widget):
+        """Pre-recorded analysis has nothing to "save early" — no finish button."""
+        assert widget.finish_btn is not None
+        assert widget.finish_btn.winfo_manager() == ""
+        assert str(widget.finish_btn["state"]) == "disabled"
+
+    def test_live_controls_enable_both_buttons(self, widget, tkinter_root):
+        widget.set_live_session_controls(True)
+        tkinter_root.update_idletasks()
+
+        assert widget.finish_btn.winfo_manager() == "pack"
+        assert str(widget.finish_btn["state"]) == "normal"
+        # Sem isto o fluxo ad-hoc ao vivo ficava SEM nenhum controle de parada:
+        # o cancelar so e habilitado pelo caminho pre-gravado.
+        assert str(widget.cancel_btn["state"]) == "normal"
+
+    def test_live_controls_are_removed_when_the_session_ends(self, widget, tkinter_root):
+        widget.set_live_session_controls(True)
+        tkinter_root.update_idletasks()
+
+        widget.set_live_session_controls(False)
+        tkinter_root.update_idletasks()
+
+        assert widget.finish_btn.winfo_manager() == ""
+        assert str(widget.finish_btn["state"]) == "disabled"
+
+    def test_live_controls_toggle_is_idempotent(self, widget, tkinter_root):
+        for _ in range(3):
+            widget.set_live_session_controls(True)
+        tkinter_root.update_idletasks()
+
+        assert widget.finish_btn.winfo_manager() == "pack"
+
+        widget.set_live_session_controls(False)
+        widget.set_live_session_controls(False)
+        tkinter_root.update_idletasks()
+
+        assert widget.finish_btn.winfo_manager() == ""
 
     # --- Error Handling Tests ---
 

@@ -21,7 +21,7 @@ class DummyLiveService(LiveSessionManagerMixin):
         self.state_manager = MagicMock()
         self.detector_service = MagicMock()
         self.recording_service = MagicMock()
-        self.event_bus = MagicMock()
+        self.event_bus: Any = MagicMock()
         self.capture_thread = None
         self.processing_thread = None
         self.video_recording_thread = None
@@ -51,6 +51,104 @@ class TestLiveSessionManagerExtended:
     def test_cleanup_non_existent_folder_noop(self, tmp_path: Path):
         service = DummyLiveService(tmp_path)
         service._cleanup_existing_session_folders(tmp_path / "non_existent", "exp123")
+
+    def test_cleanup_preserves_folders_holding_a_recording(self, tmp_path: Path):
+        """Gravar de novo com o mesmo id NAO pode apagar a sessao anterior."""
+        service = DummyLiveService(tmp_path)
+        output_base = tmp_path / "sessions"
+        output_base.mkdir()
+
+        with_video = output_base / "exp123_20260816_100000"
+        with_video.mkdir()
+        (with_video / "exp123_20260816_100000.mp4").write_bytes(b"video")
+
+        with_trajectory = output_base / "exp123_20260816_110000"
+        with_trajectory.mkdir()
+        (with_trajectory / "3_CoordMovimento_exp123.parquet").write_bytes(b"parquet")
+
+        leftover = output_base / "exp123_20260816_120000"
+        leftover.mkdir()
+
+        service._cleanup_existing_session_folders(output_base, "exp123")
+
+        assert with_video.exists()
+        assert with_trajectory.exists()
+        assert not leftover.exists()
+
+    def test_cleanup_removes_cancelled_folder_even_with_video(self, tmp_path: Path):
+        service = DummyLiveService(tmp_path)
+        output_base = tmp_path / "sessions"
+        output_base.mkdir()
+
+        cancelled = output_base / "exp123_20260816_100000"
+        cancelled.mkdir()
+        (cancelled / "exp123_20260816_100000.mp4").write_bytes(b"partial")
+        (cancelled / ".cancelled").write_text("forced=True", encoding="utf-8")
+
+        service._cleanup_existing_session_folders(output_base, "exp123")
+
+        assert not cancelled.exists()
+
+    def test_cleanup_does_not_match_by_prefix(self, tmp_path: Path):
+        """``CTRL`` nao pode varrer as pastas de ``CTRL_1`` (glob por prefixo)."""
+        service = DummyLiveService(tmp_path)
+        output_base = tmp_path / "sessions"
+        output_base.mkdir()
+
+        other_experiment = output_base / "CTRL_1_20260816_100000"
+        other_experiment.mkdir()
+        own_leftover = output_base / "CTRL_20260816_100000"
+        own_leftover.mkdir()
+
+        service._cleanup_existing_session_folders(output_base, "CTRL")
+
+        assert other_experiment.exists()
+        assert not own_leftover.exists()
+
+    def test_cleanup_ignores_folders_not_named_like_a_session(self, tmp_path: Path):
+        service = DummyLiveService(tmp_path)
+        output_base = tmp_path / "sessions"
+        output_base.mkdir()
+
+        manual_folder = output_base / "exp123_backup"
+        manual_folder.mkdir()
+
+        service._cleanup_existing_session_folders(output_base, "exp123")
+
+        assert manual_folder.exists()
+
+    def test_startup_status_publishes_and_repaints(self, tmp_path: Path):
+        """Start bloqueia a thread do Tk por segundos; sem repaint a janela "morre"."""
+        service = DummyLiveService(tmp_path)
+        service.root = MagicMock()
+        service.preview_window = None
+
+        service._publish_startup_status("carregando detector")
+
+        service.event_bus.publish.assert_called_once()
+        event = service.event_bus.publish.call_args[0][0]
+        assert event.data.message == "carregando detector"
+        # ``update_idletasks`` e nao ``update``: repinta sem processar cliques,
+        # que poderiam reentrar no proprio start.
+        service.root.update_idletasks.assert_called_once()
+        service.root.update.assert_not_called()
+
+    def test_startup_status_also_feeds_the_preview_window(self, tmp_path: Path):
+        service = DummyLiveService(tmp_path)
+        service.root = None
+        service.preview_window = MagicMock()
+
+        service._publish_startup_status("abrindo camera")
+
+        service.preview_window.update_status_text.assert_called_once()
+
+    def test_startup_status_survives_a_broken_bus(self, tmp_path: Path):
+        service = DummyLiveService(tmp_path)
+        service.root = None
+        service.preview_window = None
+        service.event_bus.publish.side_effect = RuntimeError("bus down")
+
+        service._publish_startup_status("abrindo camera")  # nao pode abortar o start
 
     def test_is_session_active(self, tmp_path: Path):
         service = DummyLiveService(tmp_path)

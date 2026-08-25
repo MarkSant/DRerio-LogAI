@@ -578,6 +578,7 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
             show_progress=False,
             disable_cancel=True,
             restore_metadata=True,
+            live_controls=False,
         )
 
         if self._last_live_analysis_metadata:
@@ -708,8 +709,14 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
         show_progress: bool = False,
         disable_cancel: bool = False,
         restore_metadata: bool = False,
+        live_controls: bool | None = None,
     ) -> None:
-        """Apply live-session UI state on the Tk thread using legacy view refs."""
+        """Apply live-session UI state on the Tk thread using legacy view refs.
+
+        ``live_controls`` liga/desliga o par "Encerrar e Salvar" / "Cancelar" da
+        aba Análise. ``None`` = não mexer (usado nos estados de pré-início, em
+        que a sessão ainda pode falhar ao arrancar).
+        """
         controller = getattr(self.view, "analysis_view_controller", None) if self.view else None
         widget = getattr(self.view, "analysis_display_widget", None) if self.view else None
 
@@ -736,6 +743,8 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
                     widget.show_progress()
                 if disable_cancel:
                     widget.disable_cancel_button()
+                if live_controls is not None and hasattr(widget, "set_live_session_controls"):
+                    widget.set_live_session_controls(live_controls)
 
         if self.root is not None:
             if restore_metadata:
@@ -1229,6 +1238,7 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
                 experiment_id=experiment_id,
                 task_step=running_step,
                 show_progress=True,
+                live_controls=True,
             )
 
             return True
@@ -1266,19 +1276,32 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
                 experiment_id=experiment_id,
             ) from e
 
-    def stop_live_session(self) -> bool:
+    def stop_live_session(self, *, discard: bool = True) -> bool:
         """Stop the current live camera session.
+
+        Args:
+            discard: ``True`` (default, comportamento histórico do botão
+                "Cancelar") descarta a sessão — pasta apagada, lote não
+                registrado, sem pós-análise. ``False`` encerra ANTES do tempo
+                mas PRESERVA tudo: a gravação segue para a pós-análise normal
+                (trajetória, ``.xlsx``, ``.docx``) como se o timer tivesse
+                expirado. É o caminho de "Encerrar e Salvar" e o da parada
+                pedida pelo gatilho externo — um "pare" do firmware é fim de
+                protocolo, não descarte.
 
         Returns:
             True if session stopped successfully, False otherwise
         """
-        log.info("live_camera_session_coordinator.stop_live_session.begin")
+        log.info("live_camera_session_coordinator.stop_live_session.begin", discard=discard)
 
         try:
             # Check if session active
             if not self.is_live_session_active():
                 log.warning("live_camera_session_coordinator.stop_live_session.no_active_session")
                 return False
+
+            if not discard:
+                return self._finish_live_session_keeping_data()
 
             # Delegate to service. Manual cancel/stop should not double-run the
             # service callback, so suppress it for this path and finalize here.
@@ -1303,6 +1326,80 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
                 error=str(e),
                 exc_info=True,
             )
+            return False
+
+    def _confirm_adhoc_under_external_trigger(self) -> bool:
+        """Ask before starting an ad-hoc session inside an external-trigger project.
+
+        ``external_trigger_gate`` governs the two PROJECT recording paths; this
+        one is different in kind — an ad-hoc session has no subject, no block
+        and no protocol slot, so arming it and waiting for the Arduino would
+        have nothing to resume into. The failure mode worth closing is the
+        SILENT one: the session used to start the instant the button was
+        clicked, ignoring a trigger the project declares, with nothing said.
+
+        Returns ``True`` when there is no external trigger configured (the
+        overwhelmingly common case, including "no project at all") or when the
+        operator confirms.
+        """
+        project_data = getattr(self.project_manager, "project_data", None) or {}
+        if not project_data.get("external_trigger_mode"):
+            return True
+
+        dialog_manager = getattr(getattr(self, "view", None), "dialog_manager", None)
+        ask = getattr(dialog_manager, "ask_yes_no", None)
+        if not callable(ask):
+            # Sem UI para perguntar, seguir é o comportamento histórico; o log
+            # deixa o rastro de que o gatilho foi ignorado.
+            log.warning("live_camera_session_coordinator.adhoc_external_trigger.no_dialog")
+            return True
+
+        return bool(
+            ask(
+                _("External Trigger Configured"),
+                _(
+                    "The open project uses External Trigger Mode, but this is a "
+                    "standalone live analysis: it starts recording NOW and does "
+                    "not wait for the Arduino signal.\n\n"
+                    "To record following the protocol, use the Progress grid "
+                    "instead.\n\n"
+                    "Start the standalone recording anyway?"
+                ),
+                icon="warning",
+            )
+        )
+
+    def _finish_live_session_keeping_data(self) -> bool:
+        """Encerrar agora, PRESERVANDO a gravação (botão "Encerrar e Salvar").
+
+        Delega ao serviço, que entra no MESMO ``_on_session_complete`` do timer:
+        threads paradas, recorder fechado, pós-análise disparada, relatórios
+        gerados. O callback ``on_session_stopped`` NÃO é suprimido aqui — é ele
+        que leva a aba Análise ao estado final, exatamente como numa conclusão
+        natural. Suprimi-lo (como faz o caminho de descarte) deixaria a UI presa
+        em "Análise em andamento" com a sessão já encerrada.
+        """
+        log.info("live_camera_session_coordinator.stop_live_session.keeping_data")
+        try:
+            return bool(self.live_camera_service.finish_session_early())
+        # except Exception justified: encerramento toca câmera, threads e I/O.
+        except Exception as exc:
+            log.error(
+                "live_camera_session_coordinator.finish_keeping_data.failed",
+                error=str(exc),
+                exc_info=True,
+            )
+            if self.event_bus is not None:
+                self.event_bus.publish(
+                    Event(
+                        type=UIEvents.UI_SHOW_ERROR,
+                        data=payloads.MessagePayload(
+                            title=_("Error ending the recording"),
+                            message=_("Failed to end the recording: {error}").format(error=exc),
+                        ),
+                        source="LiveCameraSessionCoordinator._finish_live_session_keeping_data",
+                    )
+                )
             return False
 
     def is_live_session_active(self) -> bool:
@@ -1763,6 +1860,15 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
             ):
                 project_initializer.create_main_control_frame()
 
+        # Projeto de gatilho externo aberto + sessão AD-HOC: a sessão avulsa não
+        # espera sinal nenhum, então começaria a gravar no instante do clique,
+        # em silêncio, ignorando o protocolo que o projeto declara. Não recusamos
+        # (a sessão avulsa é legítima — teste de câmera, ajuste de arena), mas
+        # também não deixamos passar calado: o operador confirma.
+        if not zones_validated and not self._confirm_adhoc_under_external_trigger():
+            log.info("live_camera_session_coordinator.start_from_config.declined_external_trigger")
+            return False
+
         # Ad-hoc flow (LiveAnalysisDialog) — gate through the same zone-validation
         # handshake as the live project flow so the user always gets a chance to
         # review/adjust the polygon before recording begins. When deferred, the
@@ -1821,6 +1927,14 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
             # perspectiva escolhida (ex.: top_down) e o relatório caía no default
             # lateral (dividindo em geotaxia indevidamente).
             "behavioral_analysis": config.get("behavioral_analysis"),
+            # Dimensões reais do aquário digitadas no LiveAnalysisDialog. Só o
+            # fluxo AD-HOC (sem projeto) as propaga: um projeto live já tem
+            # ``project_data["calibration"]`` vinda do wizard, e mandar estas
+            # chaves adiante faria a pós-análise recalcular por cima dela.
+            # Sem elas, ``pixelcm`` caía no default 1.0 e toda distância/
+            # velocidade saía em PIXELS com rótulo de cm.
+            "aquarium_width_cm": config.get("aquarium_width_cm"),
+            "aquarium_height_cm": config.get("aquarium_height_cm"),
         }
 
         prestart_step = (
@@ -1905,6 +2019,7 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
                 experiment_id=experiment_id,
                 task_step=running_step,
                 show_progress=True,
+                live_controls=True,
             )
 
         # UI feedback
@@ -2115,8 +2230,11 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
                 log.info("live_camera_session_coordinator.arduino.disarming")
                 self.clear_pending_external_trigger()
             elif self.is_live_session_active():
+                # ``discard=False``: o código 0 do firmware é FIM DE PROTOCOLO,
+                # não cancelamento. Descartar aqui apagaria a gravação que o
+                # próprio protocolo acabou de encerrar.
                 log.info("live_camera_session_coordinator.arduino.stopping_recording")
-                self.stop_live_session()
+                self.stop_live_session(discard=False)
         else:
             log.info("live_camera_session_coordinator.arduino.event.ignored", code=event_code)
 
@@ -2424,6 +2542,7 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
                 experiment_id=experiment_id,
                 task_step=running_step,
                 show_progress=True,
+                live_controls=True,
             )
 
         return success

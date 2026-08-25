@@ -44,6 +44,65 @@ class AnalysisWidgetsBuilder:
     def dialog_manager(self):
         return self._dialog_manager or self.gui.dialog_manager
 
+    def handle_cancel_requested(self, _data: Any = None) -> Any:
+        """Handle "Cancel Analysis" from the Analysis tab.
+
+        In a LIVE session cancelling DISCARDS the recording:
+        ``stop_live_session`` deletes the session folder from disk. The button
+        label does not say so, hence the confirmation — and only here: the
+        pre-recorded flow has nothing to lose (the source video stays put), so
+        an extra dialog there would be pure friction.
+        """
+        if self._is_live_session_active():
+            confirmed = self.gui.dialog_manager.ask_yes_no(
+                _("Discard the recording?"),
+                _(
+                    "Cancelling DISCARDS this live session: the video, the "
+                    "trajectory and the session folder are deleted, and no "
+                    "report is generated.\n\n"
+                    "To end the recording now and KEEP the data, use "
+                    "'⏹ Finish and Save'.\n\n"
+                    "Discard the recording?"
+                ),
+                icon="warning",
+            )
+            if not confirmed:
+                log.info("analysis_widgets.cancel_live.declined")
+                return None
+
+        return self.gui.event_dispatcher.publish_event(
+            UIEvents.VIDEO_CANCEL_ANALYSIS,
+            payloads.VideoCancelAnalysisPayload(),
+        )
+
+    def handle_live_finish_requested(self, _data: Any = None) -> Any:
+        """Handle "Finish and Save": stop now, keep the recording."""
+        coordinator = getattr(self.gui.controller, "live_camera_session_coordinator", None)
+        if coordinator is None:
+            log.warning("analysis_widgets.finish_live.no_coordinator")
+            return None
+        return coordinator.stop_live_session(discard=False)
+
+    def _is_live_session_active(self) -> bool:
+        """Delegate to ``AnalysisViewController`` — never re-derive this rule.
+
+        The predicate already combines the StateManager flag with the
+        coordinator's own view of the session; a second implementation here
+        would be one more place to drift out of sync.
+        """
+        controller = getattr(self.gui, "analysis_view_controller", None)
+        checker = getattr(controller, "_is_live_session_active", None)
+        if not callable(checker):
+            return False
+        try:
+            return bool(checker())
+        # except Exception justified: this only gates a confirmation dialog;
+        # failing closed (no dialog) would silently discard a recording, so we
+        # fail OPEN — treat an unreadable state as "live" and ask the user.
+        except Exception:
+            log.debug("analysis_widgets.live_session_probe.failed", exc_info=True)
+            return True
+
     def create_analysis_tab_widget(self) -> None:
         """Create the analysis tab using the AnalysisDisplayWidget."""
         if not self.gui.notebook:
@@ -83,11 +142,8 @@ class AnalysisWidgetsBuilder:
             def track_handler(data):
                 return self.gui.canvas_manager._render_last_analysis_frame()
 
-            def cancel_handler(data):
-                return self.gui.event_dispatcher.publish_event(
-                    UIEvents.VIDEO_CANCEL_ANALYSIS,
-                    payloads.VideoCancelAnalysisPayload(),
-                )
+            cancel_handler = self.handle_cancel_requested
+            finish_handler = self.handle_live_finish_requested
 
             def video_selected_handler(data) -> None:
                 """Refresh analysis-tab metadata (group/day/subject/profile)
@@ -136,10 +192,12 @@ class AnalysisWidgetsBuilder:
 
             self.gui.event_bus_v2.subscribe(UIEvents.ANALYSIS_TRACK_SELECTED, track_handler)
             self.gui.event_bus_v2.subscribe(UIEvents.ANALYSIS_CANCEL_REQUESTED, cancel_handler)
+            self.gui.event_bus_v2.subscribe(UIEvents.LIVE_SESSION_FINISH_REQUESTED, finish_handler)
             self.gui.event_bus_v2.subscribe(UIEvents.PROJECT_VIDEO_SELECTED, video_selected_handler)
 
             self.gui._event_bus_handlers["analysis.track_selected"] = track_handler
             self.gui._event_bus_handlers["analysis.cancel_requested"] = cancel_handler
+            self.gui._event_bus_handlers["analysis.finish_requested"] = finish_handler
             self.gui._event_bus_handlers["analysis.video_selected_metadata"] = (
                 video_selected_handler
             )

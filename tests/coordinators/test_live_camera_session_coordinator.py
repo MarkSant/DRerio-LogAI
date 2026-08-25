@@ -294,6 +294,115 @@ class TestLiveCameraSessionCoordinatorLifecycle:
         assert not coordinator.is_live_session_active()
         mock_live_camera_service.stop_session.assert_called_once_with(cancelled=True)
 
+    def test_stop_live_session_keeping_data_finishes_instead_of_discarding(
+        self, coordinator, mock_live_camera_service
+    ):
+        """ "Encerrar e Salvar" nao pode passar pelo caminho que apaga a pasta."""
+        coordinator._active_live_session_id = "test_exp"
+        mock_live_camera_service.finish_session_early.return_value = True
+
+        res = coordinator.stop_live_session(discard=False)
+
+        assert res is True
+        mock_live_camera_service.finish_session_early.assert_called_once_with()
+        mock_live_camera_service.stop_session.assert_not_called()
+
+    def test_stop_live_session_keeping_data_reports_failure(
+        self, coordinator, mock_live_camera_service
+    ):
+        coordinator._active_live_session_id = "test_exp"
+        mock_live_camera_service.finish_session_early.side_effect = RuntimeError("camera gone")
+
+        assert coordinator.stop_live_session(discard=False) is False
+
+    def test_stop_live_session_without_active_session_is_a_noop(
+        self, coordinator, mock_live_camera_service
+    ):
+        coordinator._active_live_session_id = None
+
+        assert coordinator.stop_live_session(discard=False) is False
+        mock_live_camera_service.finish_session_early.assert_not_called()
+
+
+class TestAdhocUnderExternalTrigger:
+    """Sessao avulsa dentro de um projeto de gatilho externo: avisar, nao gravar calado."""
+
+    def test_without_external_trigger_proceeds_silently(self, coordinator, mock_project_manager):
+        mock_project_manager.project_data = {}
+        coordinator.view = Mock()
+
+        assert coordinator._confirm_adhoc_under_external_trigger() is True
+        coordinator.view.dialog_manager.ask_yes_no.assert_not_called()
+
+    def test_external_trigger_asks_before_starting(self, coordinator, mock_project_manager):
+        mock_project_manager.project_data = {"external_trigger_mode": True, "use_arduino": True}
+        coordinator.view = Mock()
+        coordinator.view.dialog_manager.ask_yes_no.return_value = True
+
+        assert coordinator._confirm_adhoc_under_external_trigger() is True
+        coordinator.view.dialog_manager.ask_yes_no.assert_called_once()
+
+    def test_declining_blocks_the_session(self, coordinator, mock_project_manager):
+        mock_project_manager.project_data = {"external_trigger_mode": True, "use_arduino": True}
+        coordinator.view = Mock()
+        coordinator.view.dialog_manager.ask_yes_no.return_value = False
+
+        assert coordinator._confirm_adhoc_under_external_trigger() is False
+
+    def test_without_a_dialog_manager_keeps_historic_behaviour(
+        self, coordinator, mock_project_manager
+    ):
+        """Headless: seguir e o comportamento historico; o log guarda o rastro."""
+        mock_project_manager.project_data = {"external_trigger_mode": True}
+        coordinator.view = None
+
+        assert coordinator._confirm_adhoc_under_external_trigger() is True
+
+
+class TestLiveAnalysisUiState:
+    """O par de botoes da aba Analise segue o ciclo de vida da sessao."""
+
+    def _with_view(self, coordinator):
+        coordinator.view = Mock()
+        coordinator.root = None
+        return coordinator.view.analysis_display_widget
+
+    def test_live_controls_are_enabled_when_the_session_starts(self, coordinator):
+        widget = self._with_view(coordinator)
+
+        coordinator._set_live_analysis_ui_state(
+            status_text="rodando", show_progress=True, live_controls=True
+        )
+
+        widget.set_live_session_controls.assert_called_once_with(True)
+
+    def test_live_controls_are_removed_when_the_session_finishes(self, coordinator):
+        widget = self._with_view(coordinator)
+
+        coordinator._set_live_analysis_ui_state(
+            status_text="fim", disable_cancel=True, live_controls=False
+        )
+
+        widget.set_live_session_controls.assert_called_once_with(False)
+        widget.disable_cancel_button.assert_called_once()
+
+    def test_prestart_states_leave_the_controls_untouched(self, coordinator):
+        """A sessao ainda pode falhar ao arrancar; nao mostrar parada antes disso."""
+        widget = self._with_view(coordinator)
+
+        coordinator._set_live_analysis_ui_state(status_text="iniciando", show_progress=True)
+
+        widget.set_live_session_controls.assert_not_called()
+
+    def test_widget_without_the_method_is_tolerated(self, coordinator):
+        """Widget legado/parcial nao pode derrubar o start da sessao."""
+        coordinator.view = Mock()
+        coordinator.root = None
+        widget = Mock(spec=["show_progress", "disable_cancel_button"])
+        coordinator.view.analysis_display_widget = widget
+
+        coordinator._set_live_analysis_ui_state(status_text="rodando", live_controls=True)
+
 
 class TestValidateDependencies:
     def test_missing_live_camera_service(self, coordinator):
@@ -608,7 +717,9 @@ class TestArduinoExternalTriggerFlows:
 
         coordinator.on_arduino_event(0)
 
-        coordinator.stop_live_session.assert_called_once()
+        # O codigo 0 e FIM DE PROTOCOLO: precisa preservar a gravacao.
+        # Com o default (discard=True) a pasta da sessao seria apagada.
+        coordinator.stop_live_session.assert_called_once_with(discard=False)
 
     def test_on_arduino_event_other_code_ignored(self, coordinator):
         coordinator.start_live_project_session = Mock()
