@@ -6,6 +6,116 @@ This document tracks all major agent interventions, technical debt resolutions, 
 
 ## Active Tasks
 
+### [2026-08-23] Análise ao vivo de vídeo único: escala, intenção de parada e pasta de saída
+
+__ID:__ TASK-070
+__Agent:__ Claude Code (Opus 5)
+__Status:__ Completed ✅
+__Branch:__ claude/live-video-flow-analysis-454af1
+__Description:__
+Auditoria do fluxo que começa no botão "Analisar Câmera ao Vivo" da tela
+inicial, do clique até o `.docx`. O caminho funcionava de ponta a ponta, mas
+divergia em silêncio do fluxo de projeto exatamente onde o dado se perdia: as
+dimensões em cm do diálogo nunca chegavam à pós-análise (relatório em PIXELS
+rotulados como cm), "Cancelar" apagava a gravação sem confirmar sendo o ÚNICO
+controle de parada existente, e iniciar uma sessão apagava as anteriores de
+mesmo `experiment_id` por casamento de PREFIXO.
+
+__Critério de pronto:__ métricas em cm reais (ou aviso explícito no relatório);
+encerrar cedo preservando os dados; nenhuma pasta com vídeo/trajetória removida
+sem o usuário pedir; preview desenhado na thread do Tk; projetos ao vivo e
+pré-gravado inalterados.
+
+### Subtasks (TASK-070)
+
+- [x] `core/services/live_calibration_scale.resolve_live_pixel_per_cm()` —
+      resolvedor único px→cm, aplicado como FALLBACK: `project_data.calibration`
+      (wizard) continua tendo precedência, e sem escala conhecida o aviso entra
+      em `validation_warnings` ANTES do `ReporterContext`. Não usa
+      `Calibration.pixel_per_cm_ratio`: aquele valor vive na imagem retificada
+      (600 px) e só é comparável se o frame for warpado pela homografia.
+- [x] Intenção de parada explícita: `stop_session(keep_data=)`,
+      `stop_live_session(discard=)` e `finish_session_early()`, que entra no
+      MESMO `_on_session_complete` do timer. `keep_data` vence `cancelled` —
+      entre descartar e preservar sob instruções contraditórias, preservar é o
+      único erro reversível. Código 0 do Arduino passa a preservar.
+- [x] "⏹ Encerrar e Salvar" + cancelar com confirmação (novo evento
+      `LIVE_SESSION_FINISH_REQUESTED`), habilitados por
+      `_set_live_analysis_ui_state(live_controls=)`. Antes o fluxo avulso não
+      tinha controle de parada nenhum.
+- [x] `_cleanup_existing_session_folders`: padrão exato
+      `{id}_AAAAMMDD_HHMMSS` (o glob casava `CTRL` com `CTRL_1`) e só remove
+      pasta sem vídeo e sem trajetória, ou marcada `.cancelled`.
+- [x] `core/recording/live_output_paths.default_live_sessions_dir()` —
+      `~/ZebTrack/live_analysis_sessions` no lugar do caminho relativo ao CWD do
+      processo; pasta validada (criação + escrita) antes de a câmera abrir.
+- [x] `CanvasManager._on_live_frame_update` marshala para a thread do Tk via
+      `root.after(0, ...)` em regime drop-latest, sob lock. `EventBusV2.publish`
+      é síncrono na thread chamadora: PhotoImage e `winfo_width()` rodavam fora
+      da main thread a ~30 fps.
+- [x] Menores: status durante start e geração de relatórios; banner sem
+      "— / — / —"; countdown opt-in; nº de aquários travado em 1 com aviso;
+      confirmação ao iniciar avulsa sob projeto de gatilho externo; logs por
+      frame INFO → DEBUG.
+- [x] Testes novos: 79 (incl. os primeiros de `analysis_widgets`,
+      `live_analysis_post_processor`, `live_output_paths`,
+      `live_calibration_scale`). Rápida 6214 e GUI 1147 verdes; ruff + mypy
+      limpos; mutação 25/25 sem sobreviventes (novo módulo no catálogo).
+- [x] i18n: 17 msgids novos traduzidos; `.po`/`.mo`/`.pot` recompilados.
+- [ ] Roteiros manuais com hardware (avulso, projeto ao vivo, pré-gravado) —
+      nenhum teste automatizado toca câmera real.
+
+### [2026-08-22] Aba de Zonas nunca redesenhava a barra lateral (arena importada some da lista)
+
+__ID:__ TASK-069
+__Agent:__ Claude Code (Opus 5)
+__Status:__ Completed ✅
+__Branch:__ claude/arena-roi-list-bug-0c2ab8
+__Description:__
+Uso real: projeto pré-gravado criado importando uma pasta cujos vídeos já tinham
+arena (`1_ProcessingArea_*.parquet`) e nenhuma ROI. A importação funciona — o
+polígono chega a `zones_by_video` e sobrevive ao reload (confirmado com repro
+sobre `scan_input_paths` → `import_parquets_from_wizard`). O defeito é de UI: a
+barra lateral da aba de Zonas só é redesenhada por `ZONES_UPDATED`, publicado
+quando o usuário __salva__ zonas. Carregar o frame de um vídeo trocava o vídeo
+ativo e redesenhava o canvas, mas nunca chamava `update_zone_listbox()`. Como o
+botão "Desenhar ROI" nasce `state="disabled"`, quem importou a arena (em vez de
+desenhá-la) ficava com lista vazia e botão morto para sempre. A árvore mostrava
+o ícone da arena porque lê `video_entry["has_arena"]`, caminho independente —
+daí a divergência que o usuário viu.
+
+__Critério de pronto:__ selecionar/carregar um vídeo com arena importada lista a
+arena e habilita "Desenhar ROI"; abrir o projeto já renderiza a barra lateral;
+sem vídeo selecionado o canvas mostra o logo do app.
+
+### Subtasks (TASK-069)
+
+- [x] `VideoFrameManager._refresh_zone_list_for_active_video()` chamado nos dois
+      caminhos que carregam frame: inline em `load_selected_video_frame`
+      (fundo pintado sincronamente) e adiado em `display_roi_video_frame` por
+      `BG_REPAINT_DELAY_MS + 50` — derivado da constante, porque o repaint que
+      esse método agenda apagaria um overlay redesenhado antes dele.
+- [x] `ProjectInitializer.refresh_zone_sidebar()` no fim de `load_project_view`,
+      único ponto por onde passam criação e abertura, live e pré-gravado.
+- [x] `CanvasRenderer.draw_placeholder_logo()` — logo + legenda quando não há
+      vídeo selecionado. NÃO escreve `_raw_bg_image`/`_bg_scale`/`_bg_offset`:
+      preenchê-los faria `_has_background_geometry()` afirmar que há frame e o
+      desenho de zonas projetaria polígonos sobre o logo. Retry LIMITADO
+      (20 × 100 ms) porque aba oculta de `ttk.Notebook` nunca ganha geometria.
+- [x] `ZoneEditor.is_awaiting_video_selection()` — estado vazio só em projeto
+      PRÉ-GRAVADO sem vídeo ativo nem `pending_single_video_path`. Em live a
+      arena é project-wide e vem do `detection_zones` global sem vídeo nenhum;
+      apagá-la esconderia calibração real.
+- [x] `on_canvas_configure` deixa de chamar `redraw_zones_from_project_data()`
+      sem vídeo selecionado: `redraw_zones` reage a canvas sem fundo
+      auto-carregando o PRIMEIRO vídeo do projeto (`_ensure_background` →
+      `load_video_frame_to_canvas`), ou seja, exibir/redimensionar a aba
+      escolhia um vídeo em silêncio. Demais gatilhos de `redraw_zones` intactos.
+- [x] Testes novos: 12 (placeholder, estado vazio incluindo live e `zone_data`
+      explícito, `<Configure>` nos dois ramos, refresh na abertura, refresh ao
+      carregar frame). GUI 1135 e suíte rápida 6148 verdes; ruff + mypy limpos.
+- [x] i18n: nova string traduzida no catálogo pt_BR e conferida em runtime.
+
 ### [2026-08-13] Internacionalização fase 3 de 3 — ui/dialogs, ui/wizard, core, analysis
 
 __ID:__ TASK-068

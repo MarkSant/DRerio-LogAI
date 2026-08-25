@@ -8,6 +8,7 @@ import numpy as np
 import pytest
 from PIL import Image
 
+from zebtrack.ui.components.canvas.video_frame_manager import VideoFrameManager
 from zebtrack.ui.components.canvas_manager import CanvasManager
 from zebtrack.ui.event_bus_v2 import UIEvents
 
@@ -744,6 +745,142 @@ class TestBackgroundImageDrawing:
         result = canvas_manager.load_video_frame_to_canvas("/path/to/video.mp4")
 
         assert result is False
+
+
+def _arm_zone_sidebar(mock_gui, polygon):
+    """Point the mocked GUI at a ZoneData with *polygon* as its active context.
+
+    Returns the ``zone_controls`` mock the sidebar writes into.
+    """
+    from zebtrack.core.detection import ZoneData
+
+    service = Mock()
+    service.get_zone_data_for_active_context = Mock(return_value=ZoneData(polygon=list(polygon)))
+    mock_gui._zone_context_service = service
+
+    controls = mock_gui.zone_controls
+    controls.clear_zone_list = Mock()
+    controls.add_zone_to_list = Mock()
+    controls.set_draw_roi_enabled = Mock()
+    return controls
+
+
+@pytest.mark.gui
+class TestZoneSidebarRefreshOnFrameLoad:
+    """The Zones sidebar must follow the video whose frame was just loaded.
+
+    Regression: a project whose arenas came from imported parquets opened the
+    Zones tab with an empty area list and a disabled "Draw ROI" button. The
+    arena was in ``project_data`` (the video tree drew its badge), but the
+    sidebar is only refreshed by ``ZONES_UPDATED`` — published when the user
+    SAVES zones — so an arena nobody drew by hand never reached it.
+    """
+
+    def test_load_selected_video_frame_populates_sidebar(self, canvas_manager, mock_gui):
+        from zebtrack.ui.sentinels import main_arena_row_label
+
+        controls = _arm_zone_sidebar(mock_gui, [[0, 0], [10, 0], [10, 10]])
+        mock_gui.zone_edit_guard = None
+
+        tree = controls.video_selector_tree
+        tree.selection = Mock(return_value=("item0",))
+        tree.item = Mock(return_value=("C:/videos/CECT_4.mp4",))
+
+        canvas_manager.video_frame.load_video_frame_to_canvas = Mock(return_value=True)
+
+        canvas_manager.load_selected_video_frame()
+
+        listed = [call.args[0] for call in controls.add_zone_to_list.call_args_list]
+        assert "arena" in listed
+        arena_call = next(
+            c for c in controls.add_zone_to_list.call_args_list if c.args[0] == "arena"
+        )
+        assert arena_call.args[1] == main_arena_row_label()
+        controls.set_draw_roi_enabled.assert_called_with(True)
+
+    def test_load_selected_video_frame_disables_draw_roi_without_arena(
+        self, canvas_manager, mock_gui
+    ):
+        controls = _arm_zone_sidebar(mock_gui, [])
+        mock_gui.zone_edit_guard = None
+
+        tree = controls.video_selector_tree
+        tree.selection = Mock(return_value=("item0",))
+        tree.item = Mock(return_value=("C:/videos/CECT_4.mp4",))
+
+        canvas_manager.video_frame.load_video_frame_to_canvas = Mock(return_value=True)
+
+        canvas_manager.load_selected_video_frame()
+
+        assert controls.add_zone_to_list.call_count == 0
+        controls.set_draw_roi_enabled.assert_called_with(False)
+
+    def test_canvas_resize_with_no_selection_never_auto_picks_a_video(self):
+        """``redraw_zones`` auto-loads the project's FIRST video when the canvas
+        has no background. Showing or resizing the Zones tab must not do that
+        on the user's behalf — it would silently make video #1 the active one.
+        """
+        canvas_manager = Mock()
+        canvas_manager.zone_editor.is_awaiting_video_selection.return_value = True
+        canvas_manager.gui = Mock()
+
+        VideoFrameManager(canvas_manager).on_canvas_configure()
+
+        canvas_manager.renderer.draw_placeholder_logo.assert_called_once()
+        canvas_manager.redraw_zones_from_project_data.assert_not_called()
+
+    def test_canvas_resize_with_a_selection_redraws_zones(self):
+        canvas_manager = Mock()
+        canvas_manager.zone_editor.is_awaiting_video_selection.return_value = False
+        canvas_manager.gui = Mock()
+
+        VideoFrameManager(canvas_manager).on_canvas_configure()
+
+        canvas_manager.redraw_zones_from_project_data.assert_called_once()
+        canvas_manager.renderer.draw_placeholder_logo.assert_not_called()
+
+    @patch("zebtrack.ui.components.canvas.video_frame_manager.cv2")
+    @patch("zebtrack.ui.components.canvas.video_frame_manager.Image")
+    @patch("os.path.exists")
+    def test_display_roi_video_frame_defers_sidebar_past_bg_repaint(
+        self, mock_exists, mock_pil, mock_cv2, canvas_manager, mock_gui
+    ):
+        """The refresh must run AFTER the deferred background repaint.
+
+        ``display_roi_video_frame`` schedules its own repaint, which wipes any
+        overlay drawn before it — a synchronous refresh would redraw the zones
+        just in time to have them erased.
+        """
+        from zebtrack.ui.components.canvas.video_frame_manager import VideoFrameManager
+
+        mock_exists.return_value = True
+        controls = _arm_zone_sidebar(mock_gui, [[0, 0], [10, 0], [10, 10]])
+
+        mock_cap = Mock()
+        mock_cap.isOpened.return_value = True
+        mock_cap.read.return_value = (True, np.zeros((480, 640, 3), dtype=np.uint8))
+        mock_cv2.VideoCapture.return_value = mock_cap
+        mock_cv2.cvtColor.return_value = np.zeros((480, 640, 3), dtype=np.uint8)
+        mock_pil.fromarray.return_value = Mock(spec=Image.Image)
+        canvas_manager.video_frame._draw_bg_image_to_canvas = Mock()
+
+        canvas_manager.display_roi_video_frame("C:/videos/CECT_4.mp4")
+
+        assert mock_gui.dialog_manager.show_error.call_args_list == []
+        delays = [call.args[0] for call in mock_gui.root.after.call_args_list]
+        expected = VideoFrameManager.BG_REPAINT_DELAY_MS + 50
+        assert expected in delays
+        assert max(delays) == expected
+
+        # Nothing touched the sidebar yet — it is queued, not executed.
+        controls.set_draw_roi_enabled.assert_not_called()
+
+        deferred = next(
+            call.args[1] for call in mock_gui.root.after.call_args_list if call.args[0] == expected
+        )
+        deferred()
+
+        controls.set_draw_roi_enabled.assert_called_with(True)
 
 
 @pytest.mark.gui

@@ -9,7 +9,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: DRerio LogAI VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-08-23 03:30-0300\n"
+"POT-Creation-Date: 2026-08-25 16:42-0300\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -67,7 +67,7 @@ msgstr ""
 #: src/zebtrack/coordinators/video_processing_coordinator.py:444
 #: src/zebtrack/ui/components/canvas/event_handler.py:792
 #: src/zebtrack/ui/components/canvas/multi_aquarium_overlay.py:235
-#: src/zebtrack/ui/components/canvas/zone_editor.py:902
+#: src/zebtrack/ui/components/canvas/zone_editor.py:950
 #: src/zebtrack/ui/components/dialog_manager.py:1597
 #: src/zebtrack/ui/components/dialog_manager.py:1658
 #: src/zebtrack/ui/components/project_views/report_generator_actions.py:307
@@ -79,7 +79,7 @@ msgstr ""
 #: src/zebtrack/coordinators/_unified_report_mixin.py:237
 #: src/zebtrack/coordinators/progress_tracking_coordinator.py:521
 #: src/zebtrack/coordinators/recording_session_coordinator.py:652
-#: src/zebtrack/ui/components/canvas/zone_editor.py:273
+#: src/zebtrack/ui/components/canvas/zone_editor.py:321
 msgid "Ready."
 msgstr ""
 
@@ -188,16 +188,16 @@ msgstr ""
 #: src/zebtrack/ui/components/arduino_dashboard.py:316
 #: src/zebtrack/ui/components/canvas/event_handler.py:815
 #: src/zebtrack/ui/components/canvas/event_handler.py:820
-#: src/zebtrack/ui/components/canvas/video_frame_manager.py:108
-#: src/zebtrack/ui/components/canvas/video_frame_manager.py:138
-#: src/zebtrack/ui/components/canvas/video_frame_manager.py:145
-#: src/zebtrack/ui/components/canvas/video_frame_manager.py:151
-#: src/zebtrack/ui/components/canvas/zone_editor.py:203
-#: src/zebtrack/ui/components/canvas/zone_editor.py:315
-#: src/zebtrack/ui/components/canvas/zone_editor.py:450
-#: src/zebtrack/ui/components/canvas/zone_editor.py:523
-#: src/zebtrack/ui/components/canvas/zone_editor.py:874
-#: src/zebtrack/ui/components/canvas/zone_editor.py:927
+#: src/zebtrack/ui/components/canvas/video_frame_manager.py:117
+#: src/zebtrack/ui/components/canvas/video_frame_manager.py:147
+#: src/zebtrack/ui/components/canvas/video_frame_manager.py:154
+#: src/zebtrack/ui/components/canvas/video_frame_manager.py:160
+#: src/zebtrack/ui/components/canvas/zone_editor.py:251
+#: src/zebtrack/ui/components/canvas/zone_editor.py:363
+#: src/zebtrack/ui/components/canvas/zone_editor.py:498
+#: src/zebtrack/ui/components/canvas/zone_editor.py:571
+#: src/zebtrack/ui/components/canvas/zone_editor.py:922
+#: src/zebtrack/ui/components/canvas/zone_editor.py:975
 #: src/zebtrack/ui/components/dialog_manager.py:1622
 #: src/zebtrack/ui/components/dialog_manager.py:1624
 #: src/zebtrack/ui/components/dialog_manager.py:1683
@@ -874,7 +874,7 @@ msgid "Waiting for external signal... (port {port})"
 msgstr ""
 
 #: src/zebtrack/coordinators/live_camera_session_coordinator.py:2318
-#: src/zebtrack/ui/components/project_initializer.py:347
+#: src/zebtrack/ui/components/project_initializer.py:372
 msgid "Camera not found"
 msgstr ""
 
@@ -1120,7 +1120,7 @@ msgid ""
 msgstr ""
 
 #: src/zebtrack/coordinators/progress_tracking_coordinator.py:591
-#: src/zebtrack/ui/components/canvas/zone_editor.py:577
+#: src/zebtrack/ui/components/canvas/zone_editor.py:625
 msgid "Finished"
 msgstr ""
 
@@ -1489,7 +1489,7 @@ msgstr ""
 
 #: src/zebtrack/coordinators/video_processing_coordinator.py:913
 #: src/zebtrack/core/detection/multi_aquarium_detector.py:942
-#: src/zebtrack/ui/components/canvas/renderer.py:261
+#: src/zebtrack/ui/components/canvas/renderer.py:395
 #: src/zebtrack/ui/components/project_views/report_tree_builder.py:634
 #: src/zebtrack/ui/dialogs/multi_aquarium_live_preview_window.py:184
 #, python-brace-format
@@ -1948,16 +1948,16 @@ msgid "🔍 Detecting aquarium... ({current}/{total})"
 msgstr ""
 
 #: src/zebtrack/core/recording/frame_processing_pipeline.py:838
-#: src/zebtrack/core/recording/live_session_manager.py:1137
+#: src/zebtrack/core/recording/live_session_manager.py:1135
 #: src/zebtrack/ui/dialogs/live_preview_window.py:127
 msgid "● Recording"
 msgstr ""
 
-#: src/zebtrack/core/recording/live_analysis_post_processor.py:470
+#: src/zebtrack/core/recording/live_analysis_post_processor.py:469
 msgid "Generating the reports for the live session..."
 msgstr ""
 
-#: src/zebtrack/core/recording/live_analysis_post_processor.py:648
+#: src/zebtrack/core/recording/live_analysis_post_processor.py:646
 msgid ""
 "Session WITHOUT calibration: the aquarium dimensions were not available, "
 "so 1 pixel was treated as 1 cm. Every metric in centimetres (total "
@@ -1965,7 +1965,7 @@ msgid ""
 "and is NOT comparable with calibrated recordings."
 msgstr ""
 
-#: src/zebtrack/core/recording/live_analysis_post_processor.py:759
+#: src/zebtrack/core/recording/live_analysis_post_processor.py:757
 #, python-brace-format
 msgid ""
 "\n"
@@ -1973,7 +1973,7 @@ msgid ""
 "{lines}\n"
 msgstr ""
 
-#: src/zebtrack/core/recording/live_analysis_post_processor.py:779
+#: src/zebtrack/core/recording/live_analysis_post_processor.py:777
 #, python-brace-format
 msgid ""
 "✅ Camera analysis completed successfully!\n"
@@ -1988,11 +1988,11 @@ msgid ""
 "{files}"
 msgstr ""
 
-#: src/zebtrack/core/recording/live_analysis_post_processor.py:793
+#: src/zebtrack/core/recording/live_analysis_post_processor.py:791
 msgid "Analysis Completed"
 msgstr ""
 
-#: src/zebtrack/core/recording/live_analysis_post_processor.py:796
+#: src/zebtrack/core/recording/live_analysis_post_processor.py:794
 #, python-brace-format
 msgid ""
 "⚠️ Recording completed, but no detection was found.\n"
@@ -2007,11 +2007,11 @@ msgid ""
 "{files}"
 msgstr ""
 
-#: src/zebtrack/core/recording/live_analysis_post_processor.py:804
+#: src/zebtrack/core/recording/live_analysis_post_processor.py:802
 msgid "Analysis Completed - No Detections"
 msgstr ""
 
-#: src/zebtrack/core/recording/live_analysis_post_processor.py:807
+#: src/zebtrack/core/recording/live_analysis_post_processor.py:805
 #, python-brace-format
 msgid ""
 "⚠️ Recording completed, but the automatic analysis failed.\n"
@@ -2022,7 +2022,7 @@ msgid ""
 "You can analyse it manually through the interface."
 msgstr ""
 
-#: src/zebtrack/core/recording/live_analysis_post_processor.py:812
+#: src/zebtrack/core/recording/live_analysis_post_processor.py:810
 msgid "Recording Completed"
 msgstr ""
 
@@ -2154,7 +2154,7 @@ msgid ""
 msgstr ""
 
 #: src/zebtrack/core/recording/live_session_manager.py:410
-#: src/zebtrack/ui/components/project_initializer.py:396
+#: src/zebtrack/ui/components/project_initializer.py:421
 msgid "Camera Error"
 msgstr ""
 
@@ -2179,40 +2179,40 @@ msgstr ""
 msgid "⏳ Waiting for video..."
 msgstr ""
 
-#: src/zebtrack/core/recording/live_session_manager.py:1181
+#: src/zebtrack/core/recording/live_session_manager.py:1179
 #, python-brace-format
 msgid "● Recording: {elapsed}s / {total}s (Remaining: {remaining}s)"
 msgstr ""
 
-#: src/zebtrack/core/recording/live_session_manager.py:1202
+#: src/zebtrack/core/recording/live_session_manager.py:1200
 #, python-brace-format
 msgid "Recording: {elapsed}s / {total}s"
 msgstr ""
 
-#: src/zebtrack/core/recording/live_session_manager.py:1271
+#: src/zebtrack/core/recording/live_session_manager.py:1269
 msgid ""
 "⚠️ Video: 1 frame dropped — check the disk / OneDrive (the recording may "
 "have gaps)"
 msgstr ""
 
-#: src/zebtrack/core/recording/live_session_manager.py:1274
+#: src/zebtrack/core/recording/live_session_manager.py:1272
 #, python-brace-format
 msgid ""
 "⚠️ Video: {count} frames dropped — check the disk / OneDrive (the "
 "recording may have gaps)"
 msgstr ""
 
-#: src/zebtrack/core/recording/live_session_manager.py:1299
+#: src/zebtrack/core/recording/live_session_manager.py:1297
 #, python-brace-format
 msgid "⏳ Analysing... ({seconds:.1f}s behind) - Recording OK"
 msgstr ""
 
-#: src/zebtrack/core/recording/live_session_manager.py:1304
+#: src/zebtrack/core/recording/live_session_manager.py:1302
 #, python-brace-format
 msgid "⏳ Analysis is behind ({seconds:.1f}s) - Recording continues normally"
 msgstr ""
 
-#: src/zebtrack/core/recording/live_session_manager.py:1308
+#: src/zebtrack/core/recording/live_session_manager.py:1306
 #, python-brace-format
 msgid "⚠️ Analysis is far behind ({seconds:.1f}s) - Recording OK, analysis queued"
 msgstr ""
@@ -2730,7 +2730,7 @@ msgstr ""
 
 #: src/zebtrack/ui/components/analysis_controls.py:48
 #: src/zebtrack/ui/components/analysis_display.py:63
-#: src/zebtrack/ui/components/analysis_display.py:481
+#: src/zebtrack/ui/components/analysis_display.py:480
 #: src/zebtrack/ui/components/analysis_view_controller.py:221
 #: src/zebtrack/ui/components/project_initializer.py:126
 #: src/zebtrack/ui/components/single_video_workflow.py:93
@@ -2740,7 +2740,7 @@ msgid "No analysis in progress."
 msgstr ""
 
 #: src/zebtrack/ui/components/analysis_display.py:64
-#: src/zebtrack/ui/components/analysis_display.py:482
+#: src/zebtrack/ui/components/analysis_display.py:481
 #: src/zebtrack/ui/components/analysis_view_controller.py:223
 #: src/zebtrack/ui/components/state_synchronizer.py:491
 #: src/zebtrack/ui/gui.py:360
@@ -2750,8 +2750,8 @@ msgstr ""
 #: src/zebtrack/ui/components/analysis_controls.py:69
 #: src/zebtrack/ui/components/analysis_controls.py:214
 #: src/zebtrack/ui/components/analysis_display.py:76
-#: src/zebtrack/ui/components/analysis_display.py:318
-#: src/zebtrack/ui/components/analysis_display.py:326
+#: src/zebtrack/ui/components/analysis_display.py:317
+#: src/zebtrack/ui/components/analysis_display.py:325
 #: src/zebtrack/ui/components/analysis_view_controller.py:308
 #: src/zebtrack/ui/gui.py:362
 #, python-brace-format
@@ -3224,7 +3224,7 @@ msgstr ""
 #: src/zebtrack/ui/components/analysis_controls.py:52
 #: src/zebtrack/ui/components/analysis_controls.py:202
 #: src/zebtrack/ui/components/analysis_display.py:66
-#: src/zebtrack/ui/components/analysis_display.py:314
+#: src/zebtrack/ui/components/analysis_display.py:313
 #: src/zebtrack/ui/components/project_views/project_view_helpers.py:94
 #: src/zebtrack/ui/components/state_synchronizer.py:474
 #: src/zebtrack/ui/components/state_synchronizer.py:482
@@ -3235,7 +3235,7 @@ msgstr ""
 #: src/zebtrack/ui/components/analysis_controls.py:55
 #: src/zebtrack/ui/components/analysis_controls.py:203
 #: src/zebtrack/ui/components/analysis_display.py:69
-#: src/zebtrack/ui/components/analysis_display.py:315
+#: src/zebtrack/ui/components/analysis_display.py:314
 #: src/zebtrack/ui/components/project_views/project_view_helpers.py:96
 #: src/zebtrack/ui/components/state_synchronizer.py:476
 #: src/zebtrack/ui/components/state_synchronizer.py:484
@@ -3246,7 +3246,7 @@ msgstr ""
 #: src/zebtrack/ui/components/analysis_controls.py:58
 #: src/zebtrack/ui/components/analysis_controls.py:204
 #: src/zebtrack/ui/components/analysis_display.py:72
-#: src/zebtrack/ui/components/analysis_display.py:316
+#: src/zebtrack/ui/components/analysis_display.py:315
 #: src/zebtrack/ui/components/state_synchronizer.py:478
 #: src/zebtrack/ui/components/state_synchronizer.py:486
 #, python-brace-format
@@ -3262,13 +3262,13 @@ msgstr ""
 #: src/zebtrack/ui/components/analysis_controls.py:65
 #: src/zebtrack/ui/components/analysis_controls.py:210
 #: src/zebtrack/ui/components/analysis_display.py:80
-#: src/zebtrack/ui/components/analysis_display.py:322
+#: src/zebtrack/ui/components/analysis_display.py:321
 #, python-brace-format
 msgid "Tracking mode: {value}"
 msgstr ""
 
 #: src/zebtrack/ui/components/analysis_controls.py:74
-#: src/zebtrack/ui/components/analysis_display.py:486
+#: src/zebtrack/ui/components/analysis_display.py:485
 #: src/zebtrack/ui/components/state_synchronizer.py:589
 msgid "Social interactions: waiting for data."
 msgstr ""
@@ -4272,7 +4272,7 @@ msgid "Template applied"
 msgstr ""
 
 #: src/zebtrack/ui/components/dialog_manager.py:848
-#: src/zebtrack/ui/components/project_initializer.py:533
+#: src/zebtrack/ui/components/project_initializer.py:558
 msgid "Select an Existing Project Folder"
 msgstr ""
 
@@ -5755,7 +5755,7 @@ msgstr ""
 msgid "A polygon needs at least 3 points."
 msgstr ""
 
-#: src/zebtrack/ui/components/canvas/zone_editor.py:375
+#: src/zebtrack/ui/components/canvas/zone_editor.py:423
 #: src/zebtrack/ui/components/polygon_drawing_service.py:148
 msgid "ROI Name"
 msgstr ""
@@ -5897,16 +5897,16 @@ msgstr ""
 msgid "{count} video(s) selected"
 msgstr ""
 
-#: src/zebtrack/ui/components/project_initializer.py:321
+#: src/zebtrack/ui/components/project_initializer.py:346
 msgid "Arduino Warning"
 msgstr ""
 
-#: src/zebtrack/ui/components/project_initializer.py:323
+#: src/zebtrack/ui/components/project_initializer.py:348
 #, python-brace-format
 msgid "Could not connect to the Arduino on port {port}. Running in offline mode."
 msgstr ""
 
-#: src/zebtrack/ui/components/project_initializer.py:349
+#: src/zebtrack/ui/components/project_initializer.py:374
 #, python-brace-format
 msgid ""
 "The camera saved in the project ('{name}') was not detected.\n"
@@ -5916,16 +5916,16 @@ msgid ""
 "connected device."
 msgstr ""
 
-#: src/zebtrack/ui/components/project_initializer.py:439
+#: src/zebtrack/ui/components/project_initializer.py:464
 #, python-brace-format
 msgid "Project: {name} - Ready."
 msgstr ""
 
-#: src/zebtrack/ui/components/project_initializer.py:507
+#: src/zebtrack/ui/components/project_initializer.py:532
 msgid "Wizard Error"
 msgstr ""
 
-#: src/zebtrack/ui/components/project_initializer.py:508
+#: src/zebtrack/ui/components/project_initializer.py:533
 #, python-brace-format
 msgid "Missing required fields: {fields}"
 msgstr ""
@@ -6184,8 +6184,8 @@ msgstr ""
 msgid "Start Single-Video Analysis"
 msgstr ""
 
-#: src/zebtrack/ui/components/canvas/zone_editor.py:287
-#: src/zebtrack/ui/components/canvas/zone_editor.py:307
+#: src/zebtrack/ui/components/canvas/zone_editor.py:335
+#: src/zebtrack/ui/components/canvas/zone_editor.py:355
 #: src/zebtrack/ui/components/single_video_workflow.py:152
 msgid "Analysis in Progress"
 msgstr ""
@@ -6946,66 +6946,70 @@ msgid ""
 "The polygon of Aquarium 1 is shown as a reference."
 msgstr ""
 
-#: src/zebtrack/ui/components/canvas/renderer.py:469
+#: src/zebtrack/ui/components/canvas/renderer.py:177
+msgid "Select a video in the list to configure its zones."
+msgstr ""
+
+#: src/zebtrack/ui/components/canvas/renderer.py:603
 msgid "Aquarium 1 (reference)"
 msgstr ""
 
-#: src/zebtrack/ui/components/canvas/video_frame_manager.py:109
+#: src/zebtrack/ui/components/canvas/video_frame_manager.py:118
 msgid "The selected video was not found or is inaccessible."
 msgstr ""
 
-#: src/zebtrack/ui/components/canvas/video_frame_manager.py:138
+#: src/zebtrack/ui/components/canvas/video_frame_manager.py:147
 msgid "Could not read the image."
 msgstr ""
 
-#: src/zebtrack/ui/components/canvas/video_frame_manager.py:145
+#: src/zebtrack/ui/components/canvas/video_frame_manager.py:154
 msgid "Could not open the video."
 msgstr ""
 
-#: src/zebtrack/ui/components/canvas/video_frame_manager.py:151
+#: src/zebtrack/ui/components/canvas/video_frame_manager.py:160
 msgid "Could not read a frame from the video."
 msgstr ""
 
-#: src/zebtrack/ui/components/canvas/video_frame_manager.py:188
+#: src/zebtrack/ui/components/canvas/video_frame_manager.py:205
 msgid "Error Displaying Frame"
 msgstr ""
 
-#: src/zebtrack/ui/components/canvas/video_frame_manager.py:470
+#: src/zebtrack/ui/components/canvas/video_frame_manager.py:517
 msgid "open another video"
 msgstr ""
 
-#: src/zebtrack/ui/components/canvas/video_frame_manager.py:482
+#: src/zebtrack/ui/components/canvas/video_frame_manager.py:529
 msgid "No Video Selected"
 msgstr ""
 
-#: src/zebtrack/ui/components/canvas/video_frame_manager.py:483
+#: src/zebtrack/ui/components/canvas/video_frame_manager.py:530
 msgid "Please select a video from the list to load."
 msgstr ""
 
-#: src/zebtrack/ui/components/canvas/video_frame_manager.py:492
-#: src/zebtrack/ui/components/canvas/video_frame_manager.py:502
+#: src/zebtrack/ui/components/canvas/video_frame_manager.py:539
+#: src/zebtrack/ui/components/canvas/video_frame_manager.py:549
 msgid "Select a Video"
 msgstr ""
 
-#: src/zebtrack/ui/components/canvas/video_frame_manager.py:493
+#: src/zebtrack/ui/components/canvas/video_frame_manager.py:540
 msgid "Please choose an item with a fish icon (🐟) to load the frame."
 msgstr ""
 
-#: src/zebtrack/ui/components/canvas/video_frame_manager.py:503
+#: src/zebtrack/ui/components/canvas/video_frame_manager.py:550
 msgid "Please choose an item with a video icon (🎬) to load the frame."
 msgstr ""
 
-#: src/zebtrack/ui/components/canvas/video_frame_manager.py:513
+#: src/zebtrack/ui/components/canvas/video_frame_manager.py:563
 #, python-brace-format
 msgid "✓ Frame loaded: {name}"
 msgstr ""
 
-#: src/zebtrack/ui/components/canvas/video_frame_manager.py:517
+#: src/zebtrack/ui/components/canvas/video_frame_manager.py:567
 #: src/zebtrack/ui/components/project_views/video_selector_tree_manager.py:889
 msgid "Error Loading"
 msgstr ""
 
-#: src/zebtrack/ui/components/canvas/video_frame_manager.py:518
+#: src/zebtrack/ui/components/canvas/video_frame_manager.py:568
 #: src/zebtrack/ui/components/project_views/video_selector_tree_manager.py:890
 #, python-brace-format
 msgid ""
@@ -7043,78 +7047,78 @@ msgstr ""
 msgid "Cyan"
 msgstr ""
 
-#: src/zebtrack/ui/components/canvas/zone_editor.py:140
+#: src/zebtrack/ui/components/canvas/zone_editor.py:144
 msgid "Polygon"
 msgstr ""
 
-#: src/zebtrack/ui/components/canvas/zone_editor.py:140
+#: src/zebtrack/ui/components/canvas/zone_editor.py:144
 msgid "Teal"
 msgstr ""
 
-#: src/zebtrack/ui/components/canvas/zone_editor.py:200
+#: src/zebtrack/ui/components/canvas/zone_editor.py:248
 msgid "Loading frame for drawing..."
 msgstr ""
 
-#: src/zebtrack/ui/components/canvas/zone_editor.py:205
+#: src/zebtrack/ui/components/canvas/zone_editor.py:253
 msgid ""
 "Could not load a frame. Please load a video or use 'Detect Aquarium "
 "(Auto)' first."
 msgstr ""
 
-#: src/zebtrack/ui/components/canvas/zone_editor.py:229
+#: src/zebtrack/ui/components/canvas/zone_editor.py:277
 msgid ""
 "Click to add points.\n"
 "Double-click to finish.\n"
 "Ctrl+Z: Undo | Ctrl+Y: Redo"
 msgstr ""
 
-#: src/zebtrack/ui/components/canvas/zone_editor.py:242
+#: src/zebtrack/ui/components/canvas/zone_editor.py:290
 msgid ""
 "Drawing Mode (Polygon): click to add points, double-click to finish. "
 "Ctrl+Z to undo."
 msgstr ""
 
-#: src/zebtrack/ui/components/canvas/zone_editor.py:288
-#: src/zebtrack/ui/components/canvas/zone_editor.py:308
+#: src/zebtrack/ui/components/canvas/zone_editor.py:336
+#: src/zebtrack/ui/components/canvas/zone_editor.py:356
 msgid "Zones cannot be edited while a video is being analysed."
 msgstr ""
 
-#: src/zebtrack/ui/components/canvas/zone_editor.py:300
+#: src/zebtrack/ui/components/canvas/zone_editor.py:348
 #, python-brace-format
 msgid "Drawing: Aquarium {number} of 2"
 msgstr ""
 
-#: src/zebtrack/ui/components/canvas/zone_editor.py:316
+#: src/zebtrack/ui/components/canvas/zone_editor.py:364
 msgid "Please define the 'Main Polygon' first, before adding Regions of Interest."
 msgstr ""
 
-#: src/zebtrack/ui/components/canvas/zone_editor.py:334
+#: src/zebtrack/ui/components/canvas/zone_editor.py:382
 msgid "Drawing Mode (Circle): click and drag to set the radius."
 msgstr ""
 
-#: src/zebtrack/ui/components/canvas/zone_editor.py:376
+#: src/zebtrack/ui/components/canvas/zone_editor.py:424
 msgid "Type a name for this new Region of Interest (Circle):"
 msgstr ""
 
-#: src/zebtrack/ui/components/canvas/zone_editor.py:440
+#: src/zebtrack/ui/components/canvas/zone_editor.py:488
 msgid "Drawing Mode Active"
 msgstr ""
 
-#: src/zebtrack/ui/components/canvas/zone_editor.py:441
+#: src/zebtrack/ui/components/canvas/zone_editor.py:489
 msgid "Finish the current drawing before editing another zone's vertices."
 msgstr ""
 
-#: src/zebtrack/ui/components/canvas/zone_editor.py:450
+#: src/zebtrack/ui/components/canvas/zone_editor.py:498
 msgid "Main arena not found."
 msgstr ""
 
-#: src/zebtrack/ui/components/canvas/zone_editor.py:473
+#: src/zebtrack/ui/components/canvas/zone_editor.py:521
 msgid ""
 "Editing arena: drag to move · triple-click deletes · drag a rectangle or "
 "Shift/Ctrl+click to select · Del / right-click to delete the selection."
 msgstr ""
 
-#: src/zebtrack/ui/components/canvas/zone_editor.py:511
+#: src/zebtrack/ui/components/canvas/zone_editor.py:559
 #, python-brace-format
 msgid ""
 "Editing ROI '{name}': drag to move · triple-click deletes · drag a "
@@ -7122,141 +7126,141 @@ msgid ""
 " selection."
 msgstr ""
 
-#: src/zebtrack/ui/components/canvas/zone_editor.py:523
+#: src/zebtrack/ui/components/canvas/zone_editor.py:571
 #, python-brace-format
 msgid "ROI '{name}' not found."
 msgstr ""
 
-#: src/zebtrack/ui/components/canvas/zone_editor.py:558
+#: src/zebtrack/ui/components/canvas/zone_editor.py:606
 #, python-brace-format
 msgid "Arena of Aquarium {number} saved successfully."
 msgstr ""
 
-#: src/zebtrack/ui/components/canvas/zone_editor.py:567
+#: src/zebtrack/ui/components/canvas/zone_editor.py:615
 msgid "Next Aquarium"
 msgstr ""
 
-#: src/zebtrack/ui/components/canvas/zone_editor.py:569
+#: src/zebtrack/ui/components/canvas/zone_editor.py:617
 #, python-brace-format
 msgid ""
 "Arena of Aquarium {saved} saved.\n"
 "Now draw the arena of Aquarium {next}."
 msgstr ""
 
-#: src/zebtrack/ui/components/canvas/zone_editor.py:577
+#: src/zebtrack/ui/components/canvas/zone_editor.py:625
 msgid "Every arena has been defined."
 msgstr ""
 
-#: src/zebtrack/ui/components/canvas/zone_editor.py:642
+#: src/zebtrack/ui/components/canvas/zone_editor.py:690
 msgid "Failed to save the main arena. The edit was kept; try again."
 msgstr ""
 
-#: src/zebtrack/ui/components/canvas/zone_editor.py:645
+#: src/zebtrack/ui/components/canvas/zone_editor.py:693
 msgid "Main arena saved successfully."
 msgstr ""
 
-#: src/zebtrack/ui/components/canvas/zone_editor.py:672
+#: src/zebtrack/ui/components/canvas/zone_editor.py:720
 #, python-brace-format
 msgid "ROI '{name}' saved successfully."
 msgstr ""
 
-#: src/zebtrack/ui/components/canvas/zone_editor.py:689
+#: src/zebtrack/ui/components/canvas/zone_editor.py:737
 msgid "Zone saved successfully."
 msgstr ""
 
-#: src/zebtrack/ui/components/canvas/zone_editor.py:730
+#: src/zebtrack/ui/components/canvas/zone_editor.py:778
 msgid "Arena edit discarded."
 msgstr ""
 
-#: src/zebtrack/ui/components/canvas/zone_editor.py:733
+#: src/zebtrack/ui/components/canvas/zone_editor.py:781
 #, python-brace-format
 msgid "Edit of ROI '{name}' discarded."
 msgstr ""
 
-#: src/zebtrack/ui/components/canvas/zone_editor.py:735
+#: src/zebtrack/ui/components/canvas/zone_editor.py:783
 msgid "Edit discarded."
 msgstr ""
 
-#: src/zebtrack/ui/components/canvas/zone_editor.py:777
+#: src/zebtrack/ui/components/canvas/zone_editor.py:825
 #, python-brace-format
 msgid "{count} vertex/vertices selected."
 msgstr ""
 
-#: src/zebtrack/ui/components/canvas/zone_editor.py:783
+#: src/zebtrack/ui/components/canvas/zone_editor.py:831
 msgid "Vertex selection cleared."
 msgstr ""
 
-#: src/zebtrack/ui/components/canvas/zone_editor.py:812
+#: src/zebtrack/ui/components/canvas/zone_editor.py:860
 msgid "Cannot delete"
 msgstr ""
 
-#: src/zebtrack/ui/components/canvas/zone_editor.py:814
+#: src/zebtrack/ui/components/canvas/zone_editor.py:862
 #, python-brace-format
 msgid ""
 "A polygon needs at least {minimum} vertices. Only {remaining} would be "
 "left."
 msgstr ""
 
-#: src/zebtrack/ui/components/canvas/zone_editor.py:827
+#: src/zebtrack/ui/components/canvas/zone_editor.py:875
 #, python-brace-format
 msgid "{count} vertex/vertices deleted. Click 'Save Edit'."
 msgstr ""
 
-#: src/zebtrack/ui/components/canvas/zone_editor.py:874
+#: src/zebtrack/ui/components/canvas/zone_editor.py:922
 msgid "Invalid or out-of-sync ROI index."
 msgstr ""
 
-#: src/zebtrack/ui/components/canvas/zone_editor.py:900
+#: src/zebtrack/ui/components/canvas/zone_editor.py:948
 #, python-brace-format
 msgid "ROI '{name}' removed successfully."
 msgstr ""
 
-#: src/zebtrack/ui/components/canvas/zone_editor.py:927
+#: src/zebtrack/ui/components/canvas/zone_editor.py:975
 #, python-brace-format
 msgid "Failed to remove ROI: {error}"
 msgstr ""
 
-#: src/zebtrack/ui/components/canvas/zone_editor.py:968
+#: src/zebtrack/ui/components/canvas/zone_editor.py:1016
 msgid "No video selected to copy zones from."
 msgstr ""
 
-#: src/zebtrack/ui/components/canvas/zone_editor.py:974
-#: src/zebtrack/ui/components/canvas/zone_editor.py:1016
-#: src/zebtrack/ui/components/canvas/zone_editor.py:1070
+#: src/zebtrack/ui/components/canvas/zone_editor.py:1022
+#: src/zebtrack/ui/components/canvas/zone_editor.py:1064
+#: src/zebtrack/ui/components/canvas/zone_editor.py:1118
 msgid "Project manager not available."
 msgstr ""
 
-#: src/zebtrack/ui/components/canvas/zone_editor.py:980
+#: src/zebtrack/ui/components/canvas/zone_editor.py:1028
 msgid "No zone found to copy."
 msgstr ""
 
-#: src/zebtrack/ui/components/canvas/zone_editor.py:992
+#: src/zebtrack/ui/components/canvas/zone_editor.py:1040
 #, python-brace-format
 msgid "Zones copied: 1 arena + {count} ROI(s)."
 msgstr ""
 
-#: src/zebtrack/ui/components/canvas/zone_editor.py:1006
+#: src/zebtrack/ui/components/canvas/zone_editor.py:1054
 msgid "No video selected to paste zones into."
 msgstr ""
 
-#: src/zebtrack/ui/components/canvas/zone_editor.py:1010
+#: src/zebtrack/ui/components/canvas/zone_editor.py:1058
 msgid "No zone on the clipboard."
 msgstr ""
 
-#: src/zebtrack/ui/components/canvas/zone_editor.py:1036
+#: src/zebtrack/ui/components/canvas/zone_editor.py:1084
 #, python-brace-format
 msgid "Zones pasted: 1 arena + {count} ROI(s)."
 msgstr ""
 
-#: src/zebtrack/ui/components/canvas/zone_editor.py:1064
+#: src/zebtrack/ui/components/canvas/zone_editor.py:1112
 msgid "No video selected to delete zones from."
 msgstr ""
 
-#: src/zebtrack/ui/components/canvas/zone_editor.py:1076
+#: src/zebtrack/ui/components/canvas/zone_editor.py:1124
 msgid "No zone to delete."
 msgstr ""
 
-#: src/zebtrack/ui/components/canvas/zone_editor.py:1101
+#: src/zebtrack/ui/components/canvas/zone_editor.py:1149
 msgid "Zones deleted successfully."
 msgstr ""
 

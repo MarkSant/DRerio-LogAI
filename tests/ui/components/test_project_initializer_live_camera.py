@@ -300,3 +300,41 @@ def test_restore_persisted_project_settings_parses_string_false_preview_flag():
     initializer.restore_persisted_project_settings(pm)
 
     gui.show_preview_var.set.assert_called_once_with(False)
+
+
+def test_load_project_view_renders_zone_sidebar():
+    """Opening a project must draw the Zones sidebar once, unprompted.
+
+    Regression: the sidebar was refreshed only by ``ZONES_UPDATED`` (published
+    when the user SAVES zones), so a project whose arenas came from imported
+    parquets opened with an empty area list and a disabled "Draw ROI" button
+    even though the arenas were already in ``project_data``.
+    """
+    gui = MagicMock()
+    pm = MagicMock()
+    pm.get_project_type.return_value = "pre-recorded"
+    pm.get_project_name.return_value = "TestProject"
+    gui.controller.project_manager = pm
+
+    initializer = ProjectInitializer(gui)
+
+    with (
+        patch.object(initializer, "initialize_live_components"),
+        patch.object(initializer, "initialize_prerecorded_components"),
+        patch.object(initializer, "create_main_control_frame"),
+        patch.object(initializer, "update_window_title"),
+        patch.object(initializer, "restore_persisted_project_settings"),
+    ):
+        initializer.load_project_view()
+
+    gui.canvas_manager.update_zone_listbox.assert_called_once_with()
+
+
+def test_zone_sidebar_refresh_survives_a_broken_canvas():
+    """A cosmetic refresh must never abort project loading."""
+    gui = MagicMock()
+    gui.canvas_manager.update_zone_listbox.side_effect = RuntimeError("canvas is gone")
+
+    ProjectInitializer(gui).refresh_zone_sidebar()
+
+    gui.canvas_manager.update_zone_listbox.assert_called_once_with()

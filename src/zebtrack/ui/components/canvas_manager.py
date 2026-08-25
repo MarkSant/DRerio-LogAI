@@ -78,6 +78,9 @@ class CanvasManager:
         self._raw_bg_image = None
         self._canvas_bg_image = None
         self._canvas_bg_position = None
+        # Tk holds no reference to canvas images; without this one the
+        # "no video selected" logo is collected into a blank rectangle.
+        self._canvas_placeholder_image = None
 
         # Interactive editing state
         self.dragged_handle_index = None

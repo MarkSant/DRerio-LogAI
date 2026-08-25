@@ -1,5 +1,5 @@
 from types import SimpleNamespace
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 from zebtrack.ui.components.canvas.renderer import CanvasRenderer
 
@@ -131,3 +131,112 @@ def test_restore_background_image_uses_position():
         tags="background_image",
     )
     canvas.tag_lower.assert_called_once_with("background_image")
+
+
+def _placeholder_renderer(canvas_size=(800, 600), **manager_overrides):
+    """Renderer over a mocked canvas with no frame displayed."""
+    canvas = Mock()
+    canvas.winfo_width.return_value = canvas_size[0]
+    canvas.winfo_height.return_value = canvas_size[1]
+    video_display = SimpleNamespace(canvas=canvas)
+    base = {
+        "_canvas_bg_image": None,
+        "_raw_bg_image": None,
+        "_bg_scale": None,
+        "_bg_offset": None,
+        "_canvas_placeholder_image": None,
+    }
+    base.update(manager_overrides)
+    renderer = _make_renderer(
+        gui_overrides={"video_display": video_display, "root": Mock()},
+        manager_overrides=base,
+    )
+    return renderer, canvas
+
+
+def test_draw_placeholder_logo_draws_logo_and_caption():
+    renderer, canvas = _placeholder_renderer()
+
+    with patch("zebtrack.ui.components.canvas.renderer.ImageTk"):
+        renderer.draw_placeholder_logo()
+
+    tags = [call.kwargs.get("tags") for call in canvas.create_image.call_args_list]
+    assert tags == [CanvasRenderer.PLACEHOLDER_TAG]
+    assert canvas.create_text.call_count == 1
+    assert canvas.create_text.call_args.kwargs["tags"] == CanvasRenderer.PLACEHOLDER_TAG
+    assert renderer.manager._canvas_placeholder_image is not None
+
+
+def test_draw_placeholder_logo_leaves_coordinate_mapping_unset():
+    """The placeholder must not masquerade as a displayed frame.
+
+    ``_has_background_geometry`` gates zone drawing on these attributes; if the
+    logo filled them in, ROI polygons would be projected onto it using a scale
+    that belongs to no video.
+    """
+    renderer, _canvas = _placeholder_renderer()
+
+    with patch("zebtrack.ui.components.canvas.renderer.ImageTk"):
+        renderer.draw_placeholder_logo()
+
+    assert renderer.manager._raw_bg_image is None
+    assert renderer.manager._canvas_bg_image is None
+    assert renderer.manager._bg_scale is None
+    assert renderer.manager._bg_offset is None
+    assert renderer._has_background_geometry() is False
+
+
+def test_draw_placeholder_logo_never_wipes_a_displayed_frame():
+    renderer, canvas = _placeholder_renderer(
+        _canvas_bg_image=object(),
+        _raw_bg_image=object(),
+        _bg_scale=1.0,
+        _bg_offset=(0, 0),
+    )
+
+    with patch("zebtrack.ui.components.canvas.renderer.ImageTk"):
+        renderer.draw_placeholder_logo()
+
+    canvas.create_image.assert_not_called()
+    canvas.create_text.assert_not_called()
+    canvas.delete.assert_not_called()
+
+
+def test_draw_placeholder_logo_retries_before_canvas_has_geometry():
+    renderer, canvas = _placeholder_renderer(canvas_size=(1, 1))
+
+    with patch("zebtrack.ui.components.canvas.renderer.ImageTk"):
+        renderer.draw_placeholder_logo()
+
+    canvas.create_image.assert_not_called()
+    assert renderer.gui.root.after.call_args.args[0] == CanvasRenderer.PLACEHOLDER_RETRY_DELAY_MS
+
+
+def test_draw_placeholder_logo_gives_up_on_a_canvas_that_never_sizes():
+    """A hidden notebook tab never gains geometry.
+
+    An unbounded retry would then reschedule itself for the whole session; the
+    canvas <Configure> fired when the tab is finally shown asks again anyway.
+    """
+    renderer, _canvas = _placeholder_renderer(canvas_size=(1, 1))
+    root = renderer.gui.root
+    # Drive the retry chain the way Tk would: run whatever `after` scheduled.
+    with patch("zebtrack.ui.components.canvas.renderer.ImageTk"):
+        renderer.draw_placeholder_logo()
+        for _ in range(CanvasRenderer.PLACEHOLDER_RETRY_LIMIT + 5):
+            if not root.after.call_args_list:
+                break
+            scheduled = root.after.call_args.args[1]
+            root.after.reset_mock()
+            scheduled()
+
+    assert root.after.call_args_list == []
+
+
+def test_clear_placeholder_logo_drops_tag_and_reference():
+    renderer, canvas = _placeholder_renderer(_canvas_placeholder_image=object())
+
+    renderer.clear_placeholder_logo()
+
+    canvas.delete.assert_called_once_with(CanvasRenderer.PLACEHOLDER_TAG)
+    assert renderer.manager._canvas_placeholder_image is None

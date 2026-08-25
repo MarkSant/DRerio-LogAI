@@ -160,6 +160,8 @@ class ProjectInitializer:
         elif project_type == "pre-recorded":
             self.initialize_prerecorded_components(pm)
 
+        self.refresh_zone_sidebar()
+
         # Note: live projects no longer auto-prompt for arena calibration at
         # project-open time. The previous behaviour scheduled
         # ``validation_manager.check_live_project_calibration`` 1 second after
@@ -172,6 +174,29 @@ class ProjectInitializer:
         # user clicks "Iniciar Sessão" on a specific subject in the batch
         # grid. The ``check_live_project_calibration`` method is preserved
         # for explicit invocation but no longer scheduled automatically.
+
+    def refresh_zone_sidebar(self) -> None:
+        """Render the Zones sidebar for the project that was just loaded.
+
+        The sidebar is otherwise only refreshed by ``ZONES_UPDATED``, published
+        when the user SAVES zones. A project whose arenas came from imported
+        parquets therefore opened with an empty area list and a disabled
+        "Draw ROI" button even though the arenas were right there in
+        ``project_data`` — the sidebar had simply never been asked to draw
+        itself. With no video selected yet this paints the placeholder logo
+        instead (see ``ZoneEditor._show_no_video_selected``).
+
+        Never raises: a cosmetic refresh must not abort project loading.
+        """
+        canvas_manager = getattr(self.gui, "canvas_manager", None)
+        if canvas_manager is None:
+            return
+        try:
+            canvas_manager.update_zone_listbox()
+        # except Exception justified: pure UI refresh at the tail of project
+        # loading — a failure here must not leave the project half-opened.
+        except Exception as exc:
+            log.warning("project_initializer.zone_sidebar_refresh_failed", error=str(exc))
 
     # ------------------------------------------------------------------
     # Settings restoration
