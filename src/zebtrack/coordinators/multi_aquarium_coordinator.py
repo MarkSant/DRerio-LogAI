@@ -916,6 +916,24 @@ class MultiAquariumCoordinator(BaseCoordinator):
     def _determine_processing_intervals(self, config: dict | None = None) -> tuple[int, int]:
         """Determine analysis and display intervals.
 
+        Precedence: explicit per-run ``config`` > project default > settings.
+
+        ``config`` WINS over ``project_data``; it used to be the other way round.
+        The single-video flow writes the resolved interval back into
+        ``project_data`` (``_persist_single_video_calibration``), so from the
+        second video of a session onwards the stale value silently overrode
+        whatever the user had just typed in the dialog or the Zones tab — and
+        without so much as a warning in the log.
+
+        This is the precedence the rest of the codebase already documents and
+        implements: ``AnalysisService.determine_processing_intervals`` reads
+        "single_video_config: Single video configuration (overrides project)"
+        and branches ``if config: ... elif project_data:``, and
+        ``SequentialProcessingCoordinator`` resolves it inline the same way.
+
+        The project batch path is untouched: it calls this with ``config=None``,
+        so the project branch stays the only reachable one there.
+
         Args:
             config: Optional single-video config dict.
 
@@ -924,17 +942,17 @@ class MultiAquariumCoordinator(BaseCoordinator):
         """
         analysis = self.settings.video_processing.processing_interval
         display = self.settings.video_processing.display_interval
-
-        if config:
-            if "analysis_interval_frames" in config:
-                analysis = int(config["analysis_interval_frames"])
-            if "display_interval_frames" in config:
-                display = int(config["display_interval_frames"])
-
+        config = config or {}
         project_data = getattr(self.project_manager, "project_data", {}) or {}
-        if "analysis_interval_frames" in project_data:
+
+        if "analysis_interval_frames" in config:
+            analysis = int(config["analysis_interval_frames"])
+        elif "analysis_interval_frames" in project_data:
             analysis = int(project_data["analysis_interval_frames"])
-        if "display_interval_frames" in project_data:
+
+        if "display_interval_frames" in config:
+            display = int(config["display_interval_frames"])
+        elif "display_interval_frames" in project_data:
             display = int(project_data["display_interval_frames"])
 
         return analysis, display

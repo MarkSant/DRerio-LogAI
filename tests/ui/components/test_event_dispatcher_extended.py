@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import pytest
 
+from zebtrack.ui import payloads
 from zebtrack.ui.components.event_dispatcher import (
     EventDispatcher,
     _payload_get,
@@ -417,3 +419,115 @@ class TestEventDispatcherExtended10:
         data = {"key": "value"}
         assert _payload_get(data, "key") == "value"
         assert _payload_get(data, "missing", default=123) == 123
+
+
+# ---------------------------------------------------------------------------
+# Worker-thread safety: these two events arrive off the Tk main thread.
+# ---------------------------------------------------------------------------
+
+
+class _DeferringRoot:
+    """Tk root stub that QUEUES ``after`` callbacks instead of running them.
+
+    A MagicMock root would swallow the difference: ``root.after(0, cb)`` records
+    the call and never runs ``cb``, so a handler that mutates Tk directly and one
+    that marshals correctly look identical. Queuing makes the distinction
+    observable — nothing may happen before ``run_pending``.
+    """
+
+    def __init__(self) -> None:
+        self.pending: list = []
+
+    def after(self, _delay, callback):
+        self.pending.append(callback)
+        return "after#1"
+
+    def run_pending(self) -> None:
+        pending, self.pending = self.pending, []
+        for callback in pending:
+            callback()
+
+
+def _marshalling_gui():
+    return SimpleNamespace(
+        root=_DeferringRoot(),
+        status_var=MagicMock(),
+        video_selector_manager=MagicMock(),
+    )
+
+
+def _dispatcher_with(gui):
+    """Wire a real EventBusV2 into a stub GUI and subscribe the UI table."""
+    bus = EventBusV2()
+    gui.event_bus = bus
+    dispatcher = EventDispatcher(gui)
+    dispatcher.subscribe_to_ui_events()
+    return dispatcher, bus
+
+
+def test_set_status_is_marshalled_to_the_tk_thread():
+    """``StringVar.set`` is a Tcl call; Tcl is single-threaded.
+
+    Published from the ProcessingMonitor thread while reports are generated, and
+    from LiveSessionManager during a live session.
+    """
+    gui = _marshalling_gui()
+    _dispatcher, bus = _dispatcher_with(gui)
+
+    bus.publish(UIEvents.UI_SET_STATUS, payloads.StatusPayload(message="Generating..."))
+
+    gui.status_var.set.assert_not_called()
+    gui.root.run_pending()
+    gui.status_var.set.assert_called_once_with("Generating...")
+
+
+def test_set_status_alias_is_marshalled_too():
+    """``SET_STATUS`` (no ``UI_`` prefix) must get the SAME marshalled handler.
+
+    The alias is published by progress_notifier, tracking_session_runner and
+    analysis_control_view_model — all worker-thread call sites. Wiring it to a
+    raw ``status_var.set`` would let the unsafe Tcl write back in through the
+    side door while the prefixed name still looked fixed.
+    """
+    gui = _marshalling_gui()
+    _dispatcher, bus = _dispatcher_with(gui)
+
+    bus.publish(UIEvents.SET_STATUS, payloads.StatusPayload(message="Cancelling..."))
+
+    gui.status_var.set.assert_not_called()
+    gui.root.run_pending()
+    gui.status_var.set.assert_called_once_with("Cancelling...")
+
+
+def test_refresh_project_views_is_marshalled_to_the_tk_thread():
+    """``refresh_project_views`` rebuilds Treeview rows synchronously."""
+    gui = _marshalling_gui()
+    _dispatcher, bus = _dispatcher_with(gui)
+
+    bus.publish(
+        UIEvents.UI_REFRESH_PROJECT_VIEWS,
+        payloads.ProjectViewsRefreshRequestedPayload(reason="reg", immediate=True),
+    )
+
+    gui.video_selector_manager.refresh_project_views.assert_not_called()
+    gui.root.run_pending()
+    gui.video_selector_manager.refresh_project_views.assert_called_once_with(
+        reason="reg", append_summary=False, immediate=True
+    )
+
+
+def test_refresh_payload_uses_immediate_not_imm():
+    """``imm`` is a dead alias on the payload — nothing reads it.
+
+    ``_ensure_single_video_registered`` was the lone publisher spelling it that
+    way, so its "refresh now" request silently arrived as ``immediate=False``.
+    """
+    payload = payloads.ProjectViewsRefreshRequestedPayload(reason="reg", imm=True)
+    gui = _marshalling_gui()
+    _dispatcher, bus = _dispatcher_with(gui)
+
+    bus.publish(UIEvents.UI_REFRESH_PROJECT_VIEWS, payload)
+    gui.root.run_pending()
+
+    _args, kwargs = gui.video_selector_manager.refresh_project_views.call_args
+    assert kwargs["immediate"] is False, "imm= must not be mistaken for immediate="

@@ -443,16 +443,21 @@ class AnalysisViewController:
     # ------------------------------------------------------------------
 
     def cleanup_single_analysis_button(self) -> None:
-        """Destroys the single analysis button if it exists."""
+        """Destroys the single-video buttons if they exist.
+
+        Both live in ``fixed_button_frame``, which the project flows also use,
+        so leaving either behind would surface a single-video control inside a
+        project view.
+        """
         from tkinter import TclError
 
-        if (
-            hasattr(self.gui, "start_single_analysis_btn")
-            and self.gui.start_single_analysis_btn is not None
-        ):
-            if self.gui.start_single_analysis_btn.winfo_exists():
-                self.gui.start_single_analysis_btn.destroy()
-            self.gui.start_single_analysis_btn = None
+        for attr in ("start_single_analysis_btn", "new_single_video_btn"):
+            button = getattr(self.gui, attr, None)
+            if button is None:
+                continue
+            if button.winfo_exists():
+                button.destroy()
+            setattr(self.gui, attr, None)
 
         zone_controls = getattr(self.gui, "zone_controls", None)
         if zone_controls:

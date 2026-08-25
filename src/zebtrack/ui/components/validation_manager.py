@@ -470,12 +470,10 @@ class ValidationManager:
         if zone_controls:
             analysis_var = zone_controls.analysis_interval_var.get()
             display_var = zone_controls.display_interval_var.get()
-            roi_choice = zone_controls.roi_choice_var.get()
             stabilization_var = zone_controls.stabilization_frames_var.get()
         else:
             analysis_var = self.gui.analysis_interval_var.get()
             display_var = self.gui.display_interval_var.get()
-            roi_choice = config.get("roi_choice", "none")
             stabilization_var = self.gui.stabilization_frames_var.get()
 
         try:
@@ -495,7 +493,6 @@ class ValidationManager:
 
         config["analysis_interval_frames"] = analysis_interval
         config["display_interval_frames"] = display_interval
-        config["roi_choice"] = roi_choice
         config["stabilization_frames"] = stabilization_frames
 
         return config

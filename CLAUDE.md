@@ -147,7 +147,23 @@ timestamp, frame, track_id, x1, y1, x2, y2, confidence,
 [x_center_px, y_center_px, x_cm, y_cm]?, [uncertainty, bbox_iou]?
 ```
 
-- Column order is **FIXED** in `io/recorder.py`. Calibration columns (`*_cm`) appear only when calibration exists. Multi-aquarium adds `uncertainty` and `bbox_iou`.
+- Column order is **FIXED** in `io/recorder.py`. Multi-aquarium adds `uncertainty` and `bbox_iou`.
+- **`x1..y2` are RAW VIDEO PIXELS, and every pipeline agrees on that.** Live and
+  pre-recorded both call `start_recording()` **without** `calibration=`, so
+  `Calibration.transform_bbox` never runs. That is not an oversight to fix in
+  passing: the homography warps coordinates into a rectified 600 px-wide space,
+  while `ReportGenerationCoordinator._normalize_df_to_local_space` subtracts an
+  arena offset measured in raw pixels and the ROIs are stored in raw pixels too.
+  Passing a calibration would corrupt every distance, speed and ROI membership
+  while the run still looked successful. Guarded by
+  `test_aquarium_dimensions_ignore_the_nested_metadata`.
+- **The `*_cm` columns are currently never written.** They need
+  `pixel_per_cm_ratio` on `start_recording()`, and no production caller supplies
+  it — `_WorkerProcess` reads the tank dimensions from the task descriptor's top
+  level, where nothing puts them. cm values are derived at REPORT time instead,
+  from the arena bbox and the video entry's metadata (`_resolve_pixel_cm`).
+  Adding the columns is a deliberate schema change: pass `pixel_per_cm_ratio`
+  **without** `calibration`, on the live side too, and update `tests/test_recorder.py`.
 - Any schema change requires updates to `tests/test_recorder.py`.
 
 ### ⚙️ Configuration

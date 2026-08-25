@@ -305,10 +305,21 @@ class SingleVideoMixin:
         self, video_path: Path | str, config, zone_data, calib
     ) -> None:
         """Ensure single video is registered in project."""
+        w_cm, h_cm = calib["w"], calib["h"]
+
         v_entry = self.project_manager.find_video_entry(path=video_path)
         if v_entry:
+            # Registered already — but REFRESH the tank dimensions before
+            # bailing out. Re-analysing the same video is routine now that the
+            # Zones tab offers "Analyse Another Video...", and the report reads
+            # the cm scale from this entry's metadata
+            # (``ReportGenerationCoordinator._resolve_pixel_cm``). Returning
+            # untouched meant a corrected width/height in the dialog was
+            # accepted, ignored, and the report re-derived every distance and
+            # speed from the ORIGINAL numbers — wrong metrics, successful run,
+            # no warning.
+            self._refresh_entry_calibration(v_entry, w_cm, h_cm)
             return
-        w_cm, h_cm = calib["w"], calib["h"]
         meta = self._extract_metadata_from_config(config)
         if w_cm:
             meta.setdefault("aquarium_width_cm", w_cm)
@@ -334,10 +345,48 @@ class SingleVideoMixin:
         if meta:
             v_dict["metadata"] = meta
         self.project_manager.add_video_batch([v_dict], save_project=False)
+        # ``immediate``, not ``imm``: the payload carries both names but every
+        # reader — including the UI_REFRESH_PROJECT_VIEWS subscription — looks
+        # up ``immediate``, so this was the one call site silently passing a
+        # field nobody reads. Every other publisher in the codebase spells it
+        # ``immediate``.
         self._publish_event(
             UIEvents.UI_REFRESH_PROJECT_VIEWS,
-            payloads.ProjectViewsRefreshRequestedPayload(reason="reg", imm=True),
+            payloads.ProjectViewsRefreshRequestedPayload(reason="reg", immediate=True),
         )
+
+    @staticmethod
+    def _refresh_entry_calibration(
+        video_entry: dict, w_cm: float | None, h_cm: float | None
+    ) -> None:
+        """Overwrite an existing entry's tank dimensions with the new ones.
+
+        Overwrite, not ``setdefault``: the whole point is that the operator
+        corrected a measurement, so the stored value is the stale one. Only the
+        two calibration keys are touched — group, day and subject stay put,
+        because those identify the animal and are not what this dialog edits.
+
+        A run that supplies no dimensions leaves the entry alone rather than
+        blanking it; the previous measurement is still better than none.
+        """
+        if not w_cm and not h_cm:
+            return
+
+        metadata = video_entry.setdefault("metadata", {})
+        if not isinstance(metadata, dict):
+            return
+
+        for key, value in (("aquarium_width_cm", w_cm), ("aquarium_height_cm", h_cm)):
+            if not value:
+                continue
+            if metadata.get(key) != value:
+                log.info(
+                    "workflow.single_video.calibration_refreshed",
+                    key=key,
+                    previous=metadata.get(key),
+                    current=value,
+                )
+            metadata[key] = value
 
     def _ensure_single_video_zones_saved(self, video_path: Path | str, zone_data) -> None:
         """Ensure zones are saved for single video."""
@@ -386,6 +435,19 @@ class SingleVideoMixin:
         out_dir = self.project_manager.resolve_results_directory(
             video_stem, video_path=str(video_path)
         )
+
+        # State the output directory ON THE TASK instead of relying on the
+        # worker's fallback. ``scan_input_paths`` returns bare descriptors with
+        # no ``results_dir``, and ``single_video_config`` is not forwarded to the
+        # context either, so the worker was rebuilding the path from scratch as
+        # ``<video_dir>/<experiment_id>_results``. That happens to equal what
+        # ``resolve_results_directory`` returns without a project — a coincidence
+        # held together by a comment in ``OutputRegistrationManager`` and nothing
+        # else. The project batch path already passes ``results_dir`` this way
+        # (``_load_zones_for_eligible_videos``), so this is the proven branch.
+        for task in scanned:
+            task["results_dir"] = str(out_dir)
+
         self.process_videos(scanned, out_dir, zone_data=zone_data)
 
     def process_videos(

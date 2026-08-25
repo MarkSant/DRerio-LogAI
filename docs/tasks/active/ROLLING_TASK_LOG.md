@@ -116,6 +116,46 @@ sem vídeo selecionado o canvas mostra o logo do app.
       carregar frame). GUI 1135 e suíte rápida 6148 verdes; ruff + mypy limpos.
 - [x] i18n: nova string traduzida no catálogo pt_BR e conferida em runtime.
 
+### [2026-08-22] Fluxo de video unico pre-gravado — gargalo, beco sem saida e correcoes de UI
+
+__ID:__ TASK-071
+__Agent:__ Claude Code (Opus 5)
+__Status:__ Completed ✅
+__Branch:__ claude/video-pregravado-fluxo-bd8074
+__Description:__
+Auditoria completa do fluxo iniciado pelo botao "Analise de Video Unico" da tela
+inicial, do clique ate o `.docx`. O fluxo funciona ponta a ponta, mas engasga em
+tres pontos medidos e verificados em runtime.
+
+__Criterio de pronto:__ `ruff check .`, `mypy .`, `pytest -q` (baseline
+6135 passed) e `pytest -m gui -n0` verdes; ensaios manuais 1-6 do plano.
+
+### Subtasks (TASK-071)
+
+- [x] Fase 1 — `_check_cancellation` custa 15,7 ms por frame no Windows
+      (`mp.Queue.get(timeout=0.005)` bate na granularidade do timer). Parametrizar
+      `wait_s`, com `0.0` nos dois sitios do laco de frames. Default preservado
+      para nao tocar em `test_check_cancellation_sets_flag`.
+- [x] Fase 2 — botao "Iniciar Analise de Video Unico" fica morto apos qualquer
+      falha (4 `return` tratados + excecao engolida pelo EventBusV2), sem caminho
+      de volta a tela inicial. Confirmar inicio do worker por identidade antes de
+      limpar `pending_*`; adicionar botao "Analisar outro video".
+- [x] Fase 3 — `_determine_processing_intervals` deixa `project_data` sobrescrever
+      o config explicito, entao o 2o video da sessao ignora o intervalo novo.
+      Alinhar com `AnalysisService.determine_processing_intervals` (config ganha).
+- [x] Fase 4 — `UI_SET_STATUS` e `UI_REFRESH_PROJECT_VIEWS` mutam Tk direto da
+      thread do monitor. Marshalar via `_run_on_ui_thread` (corrige o live junto).
+- [x] Fase 6 — residuos: `worker.stop()` inexistente, `results_dir` implicito na
+      tarefa de video unico, string sem `_()`, "Projeto: N/A (None)", radio
+      `roi_choice` morto.
+- [x] Fase 5A — lookup de calibracao inalcancavel (`Settings` nao tem
+      `.calibration`). Remover ramo morto e corrigir a nota de schema do
+      CLAUDE.md. NAO ligar a homografia: `transform_bbox` reescreveria as
+      coordenadas para o espaco retificado de 600 px e quebraria
+      `_normalize_df_to_local_space`.
+
+---
+
 ### [2026-08-13] Internacionalização fase 3 de 3 — ui/dialogs, ui/wizard, core, analysis
 
 __ID:__ TASK-068

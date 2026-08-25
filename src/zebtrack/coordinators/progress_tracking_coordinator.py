@@ -46,6 +46,11 @@ class ProgressTrackingCoordinator(BaseCoordinator):
     Phase 4: All methods moved from ProcessingCoordinator without logic changes.
     """
 
+    #: How long ``cancel_processing`` waits for the monitor thread to wind down.
+    #: Bounded because this runs on the Tk main thread — the worker may be
+    #: mid-inference on a frame, and a freeze reads as a crash to the operator.
+    WORKER_CANCEL_TIMEOUT_S = 2.0
+
     def __init__(
         self,
         state_manager: StateManager,
@@ -653,11 +658,18 @@ class ProgressTrackingCoordinator(BaseCoordinator):
         if self.cancel_event:
             self.cancel_event.set()
 
+        # ``cancel``, not ``stop``: ProcessingWorker has never had a ``stop``,
+        # so the ``hasattr`` guard silently skipped this every single time and
+        # the intended join/terminate never happened. The run still stopped —
+        # the monitor loop forwards ``cancel_event`` to the worker process — but
+        # nobody waited for it, so the cancel returned while the process was
+        # still writing. The bounded timeout keeps the UI thread responsive if
+        # the worker is mid-inference.
         vpc = self._video_processing_coordinator
         if vpc:
             worker = getattr(vpc, "processing_worker", None)
-            if worker and hasattr(worker, "stop"):
-                worker.stop()
+            if worker is not None and hasattr(worker, "cancel"):
+                worker.cancel(timeout=self.WORKER_CANCEL_TIMEOUT_S)
 
         self.state_manager.update_processing_state(
             source="processing_coordinator.cancel_processing",
@@ -670,7 +682,7 @@ class ProgressTrackingCoordinator(BaseCoordinator):
     def _update_ui_for_cancel(self) -> None:
         """Update UI for cancellation (must run on main thread)."""
         if self.view:
-            self.ui_coordinator.set_status(self.view, "Cancelando processamento...")
+            self.ui_coordinator.set_status(self.view, _("Cancelling processing..."))
 
     # ========================================================================
     # Progress Callback Factory

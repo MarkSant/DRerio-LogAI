@@ -68,9 +68,6 @@ def mock_gui(tkinter_root, mock_controller):
     gui.display_interval_var = Mock()
     gui.display_interval_var.get = Mock(return_value="10")
     gui.display_interval_var.set = Mock()
-    gui.roi_choice_var = Mock()
-    gui.roi_choice_var.get = Mock(return_value="none")
-    gui.roi_choice_var.set = Mock()
     gui.stabilization_frames_var = Mock()
     gui.stabilization_frames_var.get = Mock(return_value="10")
     gui.stabilization_frames_var.set = Mock()
@@ -497,8 +494,6 @@ class TestComposeSingleVideoRuntimeConfig:
         mock_zone_controls.analysis_interval_var.get = Mock(return_value="20")
         mock_zone_controls.display_interval_var = Mock()
         mock_zone_controls.display_interval_var.get = Mock(return_value="15")
-        mock_zone_controls.roi_choice_var = Mock()
-        mock_zone_controls.roi_choice_var.get = Mock(return_value="template")
         mock_zone_controls.stabilization_frames_var = Mock()
         mock_zone_controls.stabilization_frames_var.get = Mock(return_value="5")
         mock_gui.zone_controls = mock_zone_controls
@@ -508,8 +503,10 @@ class TestComposeSingleVideoRuntimeConfig:
         assert result is not None
         assert result["analysis_interval_frames"] == 20
         assert result["display_interval_frames"] == 15
-        assert result["roi_choice"] == "template"
         assert result["stabilization_frames"] == 5
+        # ``roi_choice`` is gone: it was composed into the run config and read
+        # by nobody, so "Do not use ROIs" analysed the drawn ROIs anyway.
+        assert "roi_choice" not in result
 
     def test_compose_single_video_runtime_config_invalid_interval(
         self, validation_manager, mock_gui

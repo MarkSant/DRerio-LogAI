@@ -503,13 +503,11 @@ class StateSynchronizer:
 
         analysis_interval = None
         display_interval = None
-        roi_choice = None
         stabilization_frames = None
 
         if config:
             analysis_interval = config.get("analysis_interval_frames")
             display_interval = config.get("display_interval_frames")
-            roi_choice = config.get("roi_choice")
             stabilization_frames = config.get("stabilization_frames")
 
         if analysis_interval is None:
@@ -522,12 +520,10 @@ class StateSynchronizer:
         # Share the same StringVar instances so edits from either side stay in sync
         self.gui.analysis_interval_var = zone_controls.analysis_interval_var
         self.gui.display_interval_var = zone_controls.display_interval_var
-        self.gui.roi_choice_var = zone_controls.roi_choice_var
         self.gui.stabilization_frames_var = zone_controls.stabilization_frames_var
 
         self.gui.analysis_interval_var.set(str(analysis_interval or "10"))
         self.gui.display_interval_var.set(str(display_interval or "10"))
-        self.gui.roi_choice_var.set(roi_choice or "none")
         self.gui.stabilization_frames_var.set(str(stabilization_frames or "10"))
 
     def update_social_summary(

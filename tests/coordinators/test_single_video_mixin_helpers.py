@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from typing import Any
 from unittest.mock import MagicMock, Mock
 
 import pytest
@@ -274,3 +275,170 @@ class TestEnsureSingleVideoRegistered:
             "/path/v.mp4", {}, mzd, {"w": None, "h": None, "n": 2}
         )
         coordinator.project_manager.add_video_batch.assert_called_once()
+
+
+# =====================================================================
+# _execute_single_video_analysis — the task must state its output folder
+# =====================================================================
+
+
+class TestExecuteSingleVideoAnalysis:
+    """``scan_input_paths`` returns bare descriptors; the run dir must be added.
+
+    Without it the worker rebuilt the path from scratch as
+    ``<video_dir>/<experiment_id>_results`` and only *happened* to land where
+    ``resolve_results_directory`` had pointed — a coincidence documented in a
+    comment and enforced nowhere. The report step resolves the directory a third
+    time; if any of the three ever drifts, the trajectory is written to one
+    folder and looked for in another, and the run silently produces no report.
+    """
+
+    @staticmethod
+    def _prepare(coordinator, out_dir, scanned):
+        coordinator.project_manager.resolve_results_directory.return_value = out_dir
+        coordinator.process_videos = MagicMock()
+        return scanned
+
+    def test_task_carries_the_resolved_results_dir(self, coordinator, monkeypatch, tmp_path):
+        from zebtrack.core.project.project_manager import ProjectManager
+
+        out_dir = tmp_path / "exp_results"
+        scanned = [{"path": "C:/videos/exp.mp4", "has_arena": True}]
+        self._prepare(coordinator, out_dir, scanned)
+        monkeypatch.setattr(
+            ProjectManager, "scan_input_paths", staticmethod(lambda _paths: scanned)
+        )
+
+        coordinator._execute_single_video_analysis("C:/videos/exp.mp4")
+
+        tasks, passed_out_dir = coordinator.process_videos.call_args.args[:2]
+        assert tasks[0]["results_dir"] == str(out_dir)
+        assert str(passed_out_dir) == str(out_dir), (
+            "the task and the context must name the SAME directory"
+        )
+
+    def test_results_dir_matches_the_worker_fallback_without_a_project(
+        self, coordinator, monkeypatch, tmp_path
+    ):
+        """Explicit value must equal what the worker would have guessed.
+
+        Locks the equivalence that used to be load-bearing but implicit, so a
+        change to either side is caught here instead of in a silent no-report run.
+        """
+        import os
+
+        from zebtrack.core.project.project_manager import ProjectManager
+
+        video = tmp_path / "exp.mp4"
+        video.write_bytes(b"")
+        worker_fallback = os.path.join(os.path.dirname(str(video)), "exp_results")
+
+        scanned = [{"path": str(video)}]
+        self._prepare(coordinator, worker_fallback, scanned)
+        monkeypatch.setattr(
+            ProjectManager, "scan_input_paths", staticmethod(lambda _paths: scanned)
+        )
+
+        coordinator._execute_single_video_analysis(str(video))
+
+        tasks = coordinator.process_videos.call_args.args[0]
+        assert tasks[0]["results_dir"] == worker_fallback
+
+    def test_aborts_when_no_video_is_identified(self, coordinator, monkeypatch):
+        from zebtrack.core.project.project_manager import ProjectManager
+
+        coordinator.process_videos = MagicMock()
+        monkeypatch.setattr(ProjectManager, "scan_input_paths", staticmethod(lambda _paths: []))
+
+        coordinator._execute_single_video_analysis("C:/videos/missing.mp4")
+
+        coordinator.process_videos.assert_not_called()
+        coordinator.view.dialog_manager.show_error.assert_called_once()
+
+
+# =====================================================================
+# _ensure_single_video_registered — re-running the same video
+# =====================================================================
+
+
+class TestReRegisterExistingVideo:
+    """Re-analysing one video is routine now that "Analyse Another Video" exists.
+
+    The report reads the cm scale from the entry's metadata
+    (``ReportGenerationCoordinator._resolve_pixel_cm``), so a stale width or
+    height there silently rescales every distance, speed and freezing decision.
+    """
+
+    @staticmethod
+    def _existing(entry):
+        return {"w": 20.0, "h": 12.0, "n": 1}, entry
+
+    def test_corrected_dimensions_overwrite_the_stored_ones(self, coordinator):
+        entry: dict[str, Any] = {
+            "path": "C:/videos/exp.mp4",
+            "metadata": {"aquarium_width_cm": 10.0, "aquarium_height_cm": 8.0},
+        }
+        coordinator.project_manager.find_video_entry.return_value = entry
+
+        coordinator._ensure_single_video_registered(
+            "C:/videos/exp.mp4", {}, None, {"w": 20.0, "h": 12.0, "n": 1}
+        )
+
+        assert entry["metadata"]["aquarium_width_cm"] == 20.0
+        assert entry["metadata"]["aquarium_height_cm"] == 12.0
+
+    def test_animal_identity_metadata_is_not_touched(self, coordinator):
+        """Group/day/subject identify the animal; this dialog does not edit them."""
+        entry: dict[str, Any] = {
+            "path": "C:/videos/exp.mp4",
+            "metadata": {
+                "aquarium_width_cm": 10.0,
+                "group": "Controle",
+                "day": "3",
+                "subject": "7",
+            },
+        }
+        coordinator.project_manager.find_video_entry.return_value = entry
+
+        coordinator._ensure_single_video_registered(
+            "C:/videos/exp.mp4", {}, None, {"w": 20.0, "h": 12.0, "n": 1}
+        )
+
+        assert entry["metadata"]["group"] == "Controle"
+        assert entry["metadata"]["day"] == "3"
+        assert entry["metadata"]["subject"] == "7"
+
+    def test_a_run_without_dimensions_keeps_the_previous_measurement(self, coordinator):
+        """No new numbers must not blank the old ones — stale beats absent."""
+        entry: dict[str, Any] = {
+            "path": "C:/videos/exp.mp4",
+            "metadata": {"aquarium_width_cm": 10.0, "aquarium_height_cm": 8.0},
+        }
+        coordinator.project_manager.find_video_entry.return_value = entry
+
+        coordinator._ensure_single_video_registered(
+            "C:/videos/exp.mp4", {}, None, {"w": None, "h": None, "n": 1}
+        )
+
+        assert entry["metadata"]["aquarium_width_cm"] == 10.0
+        assert entry["metadata"]["aquarium_height_cm"] == 8.0
+
+    def test_existing_entry_is_never_re_added(self, coordinator):
+        entry: dict[str, Any] = {"path": "C:/videos/exp.mp4", "metadata": {}}
+        coordinator.project_manager.find_video_entry.return_value = entry
+
+        coordinator._ensure_single_video_registered(
+            "C:/videos/exp.mp4", {}, None, {"w": 20.0, "h": 12.0, "n": 1}
+        )
+
+        coordinator.project_manager.add_video_batch.assert_not_called()
+
+    def test_entry_without_metadata_dict_gains_one(self, coordinator):
+        entry: dict[str, Any] = {"path": "C:/videos/exp.mp4"}
+        coordinator.project_manager.find_video_entry.return_value = entry
+
+        coordinator._ensure_single_video_registered(
+            "C:/videos/exp.mp4", {}, None, {"w": 20.0, "h": 12.0, "n": 1}
+        )
+
+        assert entry["metadata"]["aquarium_width_cm"] == 20.0

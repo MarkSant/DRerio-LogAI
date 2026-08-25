@@ -740,6 +740,48 @@ class TestProcessingIntervals:
         assert analysis == 5
         assert display == 10
 
+    def test_explicit_config_beats_stale_project_data(self, coordinator, mock_settings):
+        """The 2nd single video of a session must honour ITS interval.
+
+        ``_persist_single_video_calibration`` writes the resolved interval into
+        ``project_data``, so on the second run the previous run's value is
+        sitting there. It used to override the config unconditionally and
+        silently: the user set 1, the run used 3.
+        """
+        mac = coordinator._multi_aquarium_coordinator
+        mac.project_manager.project_data = {
+            "analysis_interval_frames": 3,
+            "display_interval_frames": 3,
+        }
+
+        analysis, display = mac._determine_processing_intervals(
+            {"analysis_interval_frames": 1, "display_interval_frames": 1}
+        )
+
+        assert (analysis, display) == (1, 1)
+
+    def test_project_data_still_wins_over_settings_without_config(self, coordinator, mock_settings):
+        """Project batch path is untouched: it always calls with config=None."""
+        mock_settings.video_processing.processing_interval = 5
+        mock_settings.video_processing.display_interval = 10
+        mac = coordinator._multi_aquarium_coordinator
+        mac.project_manager.project_data = {
+            "analysis_interval_frames": 7,
+            "display_interval_frames": 9,
+        }
+
+        assert mac._determine_processing_intervals(None) == (7, 9)
+
+    def test_partial_config_falls_back_per_key(self, coordinator, mock_settings):
+        """A config carrying only one of the two keys must not shadow the other."""
+        mock_settings.video_processing.display_interval = 10
+        mac = coordinator._multi_aquarium_coordinator
+        mac.project_manager.project_data = {"display_interval_frames": 9}
+
+        analysis, display = mac._determine_processing_intervals({"analysis_interval_frames": 2})
+
+        assert (analysis, display) == (2, 9)
+
 
 # =============================================================================
 # METADATA EXTRACTION TESTS

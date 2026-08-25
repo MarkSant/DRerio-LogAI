@@ -453,6 +453,46 @@ class _WorkerProcess(multiprocessing.Process):
             return str(value)
 
     @staticmethod
+    def _aquarium_dimensions_cm(video_metadata: dict) -> tuple[float, float]:
+        """Read the tank's real dimensions from a task descriptor.
+
+        Reads the TOP level of the task descriptor only, and no production
+        caller populates it: the single-video flow puts the dimensions under the
+        video entry's nested ``metadata`` (``_extract_metadata_from_config``),
+        project entries do the same, and the sequential coordinator spreads only
+        group/day/subject. The removed fallback probed ``settings.calibration``,
+        an attribute ``Settings`` does not declare and cannot grow at runtime
+        because it is ``extra="forbid"``. Both lookups therefore missed, and no
+        ``Calibration`` has ever been built by this worker in any flow.
+
+        THE NESTED LOOKUP IS OMITTED ON PURPOSE — it is a coordinate-space
+        change disguised as a bug fix. ``Calibration`` warps coordinates into a
+        rectified 600 px-wide space, whereas the report pipeline subtracts an
+        arena offset measured in RAW video pixels
+        (``_normalize_df_to_local_space``) and the ROIs are stored in raw pixels
+        too. Reading the nested dict would quietly switch project batch runs —
+        whose entries DO carry the dimensions — into rectified coordinates, and
+        every distance, speed and ROI membership would be wrong while the run
+        still looked successful. The live pipeline passes no calibration either,
+        so raw pixels are the one coordinate contract both pipelines share.
+
+        Writing the ``x_cm``/``y_cm`` columns is a separate decision: it needs
+        ``pixel_per_cm_ratio`` WITHOUT ``calibration``, plus the matching change
+        on the live side and in ``tests/test_recorder.py``.
+
+        Returns:
+            ``(width_cm, height_cm)``; zeros when unavailable, which is normal.
+        """
+
+        def _read(key: str) -> float:
+            try:
+                return float(video_metadata.get(key) or 0)
+            except (TypeError, ValueError):
+                return 0.0
+
+        return _read("aquarium_width_cm"), _read("aquarium_height_cm")
+
+    @staticmethod
     def _format_subject(value) -> str:
         """Format subject component for folder name."""
         if not value:
@@ -1025,16 +1065,12 @@ class _WorkerProcess(multiprocessing.Process):
         calibration = None
         pixel_ratio = None
 
-        # Try to get measurements from metadata (preferred) or settings
-        width_cm = float(video_metadata.get("aquarium_width_cm") or 0)
-        height_cm = float(video_metadata.get("aquarium_height_cm") or 0)
-
-        # Fallback to project settings if available
-        if (width_cm <= 0 or height_cm <= 0) and hasattr(self.config.settings, "calibration"):
-            calib = self.config.settings.calibration
-            if calib:
-                width_cm = float(getattr(calib, "aquarium_width_cm", 0) or 0)
-                height_cm = float(getattr(calib, "aquarium_height_cm", 0) or 0)
+        width_cm, height_cm = self._aquarium_dimensions_cm(video_metadata)
+        if width_cm <= 0 or height_cm <= 0:
+            # Not an error: no production caller supplies these, so this is the
+            # normal path. Reports derive cm from the arena bbox and the video
+            # entry's metadata instead — see ReportGenerationCoordinator.
+            log.info("worker.calibration.absent", video=experiment_id)
 
         calibration_by_aquarium = {}
 
@@ -1171,7 +1207,8 @@ class _WorkerProcess(multiprocessing.Process):
         try:
             log.info("worker.processing_loop.started", video=experiment_id)
             while True:
-                if self._check_cancellation():
+                # wait_s=0.0: runs once per VIDEO frame — see _check_cancellation.
+                if self._check_cancellation(wait_s=0.0):
                     return False
 
                 should_process = frame_num % self.config.analysis_interval_frames == 0
@@ -1210,8 +1247,9 @@ class _WorkerProcess(multiprocessing.Process):
                     if detections:
                         detected_frames += 1
 
-                    # Check cancellation after detection (slowest part)
-                    if self._check_cancellation():
+                    # Check cancellation after detection (slowest part).
+                    # wait_s=0.0: runs once per ANALYSED frame — see _check_cancellation.
+                    if self._check_cancellation(wait_s=0.0):
                         return False
 
                     # Record
@@ -1357,8 +1395,30 @@ class _WorkerProcess(multiprocessing.Process):
 
         return True
 
-    def _check_cancellation(self) -> bool:
-        """Check for cancellation messages."""
+    def _check_cancellation(self, *, wait_s: float = 0.005) -> bool:
+        """Check for cancellation messages.
+
+        ``wait_s`` is how long to block when ``get_nowait`` comes back empty. It
+        exists because ``mp.Queue`` hands the payload to a feeder thread, so a
+        ``put`` that has already returned in the parent may not be readable here
+        for another instant; a short blocking read closes that window.
+
+        THE FRAME LOOP MUST PASS ``wait_s=0.0``. On Windows the wait resolves
+        against the system timer, whose default granularity is ~15.6 ms, so a
+        5 ms timeout costs ~15.7 ms — measured, not estimated — while
+        ``get_nowait`` alone costs 0.008 ms. The queue is empty for the entire
+        run (it carries exactly one ``"cancel"``, once), so the expensive branch
+        fired on EVERY call: ~19 800 calls for a 10-minute 30 fps video at
+        interval 10, i.e. ~5 minutes of pure sleeping, dwarfing inference and
+        cancelling out the ``cap.grab()`` fast-skip below. Worse, the cost is
+        per VIDEO frame rather than per ANALYSED frame, so raising the analysis
+        interval to speed a run up barely helped.
+
+        Dropping the wait in the hot loop is safe because a spuriously empty
+        read there costs one loop iteration: the ``"cancel"`` stays queued and
+        the next frame picks it up. Callers that check once and must not miss a
+        just-enqueued command (tests, one-shot probes) keep the default.
+        """
         if self._cancel_requested:
             return True
 
@@ -1366,8 +1426,10 @@ class _WorkerProcess(multiprocessing.Process):
         try:
             msg = self.command_queue.get_nowait()
         except queue.Empty:
+            if wait_s <= 0:
+                return self._cancel_requested
             try:
-                msg = self.command_queue.get(timeout=0.005)
+                msg = self.command_queue.get(timeout=wait_s)
             except queue.Empty:
                 return self._cancel_requested
         except (OSError, EOFError, ValueError) as exc:
