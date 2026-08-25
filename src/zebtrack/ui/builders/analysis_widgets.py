@@ -213,8 +213,27 @@ class AnalysisWidgetsBuilder:
             def reset_handler(_: payloads.EmptyPayload) -> None:
                 return self.on_reset_global_config_form_widget()
 
+            def validation_error_handler(
+                data: payloads.ConfigValidationErrorPayload,
+            ) -> None:
+                """Mostra a falha de conversão que o widget não consegue mostrar sozinho.
+
+                ``ConfigEditorWidget._on_save_clicked`` publica este evento quando
+                um campo não converte (vazio ou com texto). Sem assinante, o bus
+                descartava em silêncio e o botão "Salvar Configurações" ficava
+                literalmente inerte — o usuário concluía que tinha salvo.
+                """
+                self.dialog_manager.show_error(
+                    _("Validation Error"),
+                    _(
+                        "A field could not be read as a number: {error}\n\n"
+                        "Check that every field is filled in correctly."
+                    ).format(error=data.error),
+                )
+
             self.gui.event_bus.subscribe(UIEvents.CONFIG_SAVE_REQUESTED, save_handler)
             self.gui.event_bus.subscribe(UIEvents.CONFIG_RESET_REQUESTED, reset_handler)
+            self.gui.event_bus.subscribe(UIEvents.CONFIG_VALIDATION_ERROR, validation_error_handler)
             # CONFIG_ROI_RULE_CHANGED had a subscriber here that toggled
             # ``gui.radius_frame`` / ``gui.overlap_frame`` — attributes never
             # assigned on ``gui`` (they lived on ZoneControlsWidget), so the
@@ -232,6 +251,7 @@ class AnalysisWidgetsBuilder:
             self.gui._event_bus_handlers["config.save_requested"] = save_handler
             self.gui._event_bus_handlers["config.reset_requested"] = reset_handler
             self.gui._event_bus_handlers["config.open_calibration_dialog"] = calibration_handler
+            self.gui._event_bus_handlers["config.validation_error"] = validation_error_handler
 
         self.reload_config_editor_values_widget()
 

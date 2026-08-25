@@ -21,6 +21,7 @@ import ttkbootstrap as ttk
 
 from zebtrack.i18n import _
 from zebtrack.ui import payloads
+from zebtrack.ui.components.roi_name_validation import RoiNameError, validate_roi_name
 from zebtrack.ui.event_bus_v2 import Event, UIEvents
 from zebtrack.ui.sentinels import is_main_arena_row, main_arena_row_label
 
@@ -375,7 +376,24 @@ class ZoneEditor:
             _("ROI Name"),
             _("Type a name for this new Region of Interest (Circle):"),
         )
-        if not roi_name:
+        if roi_name is None:
+            self.stop_drawing()
+            return
+
+        # Mesma regra do ROI poligonal: o nome vira coluna e chave de métrica no
+        # relatório, então vazio e homônimo são recusados aqui, no ponto em que
+        # ainda dá para corrigir.
+        current_arena_id_for_names = "arena_1"
+        if hasattr(self.gui, "arena_selector_var"):
+            current_arena_id_for_names = self.gui.arena_selector_var.get() or "arena_1"
+        existing = [
+            str(roi.get("name", ""))
+            for roi in (getattr(self.gui, "roi_data", {}) or {}).get(current_arena_id_for_names, [])
+        ]
+        try:
+            roi_name = validate_roi_name(roi_name, existing)
+        except RoiNameError as exc:
+            self.dialog_manager.show_error(_("Invalid ROI name"), str(exc))
             self.stop_drawing()
             return
 

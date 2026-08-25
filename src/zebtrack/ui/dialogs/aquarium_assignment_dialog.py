@@ -464,7 +464,7 @@ class AquariumAssignmentDialog(simpledialog.Dialog):
         )
 
         # Group selection
-        group_label = ttk.Label(frame, text="Grupo:")
+        group_label = ttk.Label(frame, text=_("Group:"))
         group_label.grid(row=0, column=0, sticky=tk.W, pady=3)
 
         group_var = tk.StringVar(value=self._get_default_group(aquarium_id))
@@ -574,7 +574,14 @@ class AquariumAssignmentDialog(simpledialog.Dialog):
 
             self.ok()
 
-        except ValueError as e:
+        # ``TclError`` junto de ``ValueError``: o campo "Dia" é um
+        # ``ttk.Spinbox`` editável ligado a ``IntVar``, e ``IntVar.get()`` sobre
+        # texto levanta ``TclError``, que não descende de ``ValueError``. Dia
+        # fora da faixa já era barrado (o ``AquariumConfig`` do Pydantic levanta
+        # ``ValidationError``, que É um ``ValueError`` e chegava ao operador com
+        # a mensagem certa); só o texto não numérico escapava, virando o diálogo
+        # genérico "Erro Inesperado".
+        except (ValueError, tk.TclError) as e:
             log.warning("aquarium_assignment.dialog.validation_error", error=str(e))
             # Show error in dialog
             from tkinter import messagebox

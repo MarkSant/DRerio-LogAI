@@ -73,6 +73,22 @@ class WeightHardwareManager:
                 weight_type = "seg"
             elif weight_type.startswith("det"):
                 weight_type = "det"
+            else:
+                # Qualquer outra coisa seguia adiante COMO FOI DIGITADA. Um peso
+                # registrado com tipo "sim" nunca casa com os slots seg/det e
+                # simplesmente não aparece nas listas — o operador acha que
+                # carregou o modelo e ele nunca é oferecido.
+                from tkinter import messagebox
+
+                messagebox.showerror(
+                    _("Unrecognised model type"),
+                    _(
+                        "'{value}' is not a model type. Type 'seg' for "
+                        "Segmentation or 'det' for Detection."
+                    ).format(value=weight_type),
+                    parent=self.gui.root,
+                )
+                return
 
             # Resume workflow
             self.gui.controller.hardware_vm.load_new_weight(

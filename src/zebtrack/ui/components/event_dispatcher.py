@@ -356,6 +356,24 @@ class EventDispatcher:
         event_bus.subscribe(UIEvents.UI_SHOW_WARNING, _show_warning)
         event_bus.subscribe(UIEvents.UI_SHOW_ERROR, _show_error)
 
+        # ``SHOW_*`` são os MESMOS pedidos, publicados sem o prefixo ``UI_`` por
+        # project_lifecycle_coordinator, project_workflow_adapter,
+        # analysis_pipeline_runner, video_context_factory e
+        # analysis_control_view_model. Só os ``UI_*`` tinham assinante, e
+        # ``EventBusV2.publish`` abre com ``if not handlers: return`` — sem log,
+        # sem erro. O sintoma era o assistente fechar sem criar projeto e sem
+        # dizer por quê: a mensagem de "Configuração Inválida" ia para
+        # ``SHOW_ERROR`` e morria ali.
+        #
+        # Assinar os dois nomes com o MESMO handler, em vez de renomear os
+        # publicadores: os nomes sem prefixo estão espalhados pelo pipeline de
+        # análise, e trocá-los lá só moveria o risco de um alias errado para
+        # outro arquivo. Os payloads são idênticos (``MessagePayload``), então
+        # o handler serve aos dois sem adaptação.
+        event_bus.subscribe(UIEvents.SHOW_INFO, _show_info)
+        event_bus.subscribe(UIEvents.SHOW_WARNING, _show_warning)
+        event_bus.subscribe(UIEvents.SHOW_ERROR, _show_error)
+
         # External Triggers
         event_bus.subscribe(
             UIEvents.UI_SHOW_EXTERNAL_TRIGGER_NOTICE,
@@ -378,6 +396,16 @@ class EventDispatcher:
         # Status updates
         event_bus.subscribe(
             UIEvents.UI_SET_STATUS,
+            lambda d: gui.status_var.set(_payload_get(d, "message", "")),
+        )
+        # Mesmo alias dos ``SHOW_*`` acima: progress_notifier,
+        # tracking_session_runner e analysis_control_view_model publicam
+        # ``SET_STATUS`` com o mesmo ``StatusPayload``. Sem esta linha a barra
+        # de status ficava parada durante a análise pré-gravada — inclusive no
+        # aviso de "Cancelamento solicitado", que é justamente quando o
+        # operador precisa de confirmação na tela.
+        event_bus.subscribe(
+            UIEvents.SET_STATUS,
             lambda d: gui.status_var.set(_payload_get(d, "message", "")),
         )
 

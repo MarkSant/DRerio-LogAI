@@ -495,8 +495,16 @@ class CalibrationData(BaseModel):
 
     num_aquariums: int = Field(ge=1, le=100, description="Number of aquariums/arenas")
     animals_per_aquarium: int = Field(ge=1, le=100, description="Number of animals per aquarium")
-    aquarium_width_cm: float = Field(gt=0, description="Aquarium width in centimeters")
-    aquarium_height_cm: float = Field(gt=0, description="Aquarium height in centimeters")
+    # ``ge=0``, não ``gt=0``: zero significa "sem calibração" (análise em
+    # pixels) em ``ProjectLifecycleManager``, que é quem de fato cria o
+    # projeto. Exigir > 0 aqui divergia do domínio e tornava impossível
+    # exprimir um projeto não calibrado. O teto de 500 cm também vem de lá.
+    aquarium_width_cm: float = Field(
+        ge=0, le=500, description="Aquarium width in cm (0 = no calibration)"
+    )
+    aquarium_height_cm: float = Field(
+        ge=0, le=500, description="Aquarium height in cm (0 = no calibration)"
+    )
     analysis_interval_frames: int = Field(
         default=10, ge=1, le=30, description="Detection interval in frames"
     )

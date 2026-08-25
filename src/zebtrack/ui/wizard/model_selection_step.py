@@ -1197,6 +1197,36 @@ class ModelSelectionStep(WizardStep):
             if not 0.0 < value < 1.0:
                 return False, message
 
+        # Os três campos abaixo eram lidos por ``get_data()`` e por NENHUM
+        # validador. Um texto em "Track Buffer" fazia ``get_data()`` estourar
+        # fora de qualquer ``try`` no ``WizardDialog._on_next``, virando um
+        # diálogo genérico sem apontar o campo. Pior era o valor fora de faixa:
+        # ele passava, chegava em ``_default_apply_wizard_overrides``, e o
+        # ``DetectorService`` o recusava lá — dentro de um ``except Exception``
+        # que só registra ``warning``. Como os parâmetros são aplicados em
+        # bloco, UM valor inválido descartava TODOS os overrides do projeto em
+        # silêncio, e o projeto abria com os padrões globais.
+        try:
+            track_buffer = int(self.track_buffer_var.get())
+        except ValueError:
+            return False, _("The track buffer must be a whole number of frames.")
+        if track_buffer < 1:
+            return False, _("The track buffer must be at least 1 frame.")
+
+        try:
+            max_center_distance = float(self.max_center_dist_var.get())
+        except ValueError:
+            return False, _("The maximum distance must be a number of pixels.")
+        if max_center_distance <= 0:
+            return False, _("The maximum distance must be greater than 0 pixels.")
+
+        try:
+            iou_threshold = float(self.iou_thresh_var.get())
+        except ValueError:
+            return False, _("The IoU threshold must be a decimal number.")
+        if not 0.0 <= iou_threshold <= 1.0:
+            return False, _("The IoU threshold must be between 0 and 1.")
+
         for role_message, method_var, weight_var in (
             (
                 _("Select a valid weight for the aquarium. The file must match the chosen method."),

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from copy import deepcopy
 from pathlib import Path
-from tkinter import END, BooleanVar, IntVar, StringVar, messagebox, simpledialog, ttk
+from tkinter import END, BooleanVar, StringVar, messagebox, simpledialog, ttk
 from typing import Any
 
 import structlog
@@ -12,6 +12,28 @@ import structlog
 from zebtrack.i18n import _
 
 log = structlog.get_logger()
+
+
+def _parse_day(value: Any) -> int | None:
+    """Dia como inteiro positivo, ou ``None`` se o texto não for legível.
+
+    Os campos "Dia" deste arquivo são ``ttk.Spinbox`` EDITÁVEIS — o operador
+    pode digitar qualquer coisa neles. Enquanto estiveram presos a um
+    ``IntVar``, ``get()`` levantava ``TclError`` sobre texto não numérico, e
+    ``TclError`` não descende de ``ValueError``: os ``except (TypeError,
+    ValueError)`` de todos os ``validate()`` daqui passavam direto por ele. O
+    resultado era um diálogo genérico "Erro Inesperado" no lugar de "Informe um
+    dia válido" — e, no diálogo em lote, o OK fechava a janela marcando a
+    importação como cancelada, levando junto os metadados de todos os vídeos.
+
+    Com ``StringVar`` + este parser a falha é um valor de retorno (``None``),
+    que o chamador é obrigado a tratar, em vez de uma exceção que ninguém pega.
+    """
+    try:
+        day = int(str(value).strip())
+    except (TypeError, ValueError):
+        return None
+    return day if day > 0 else None
 
 
 class SubjectEntriesDialog(simpledialog.Dialog):
@@ -32,7 +54,7 @@ class SubjectEntriesDialog(simpledialog.Dialog):
         self.initial_entries = deepcopy(initial_entries or [])
         self.default_group = default_group or ""
         self.default_day = default_day or 1
-        self._rows: list[tuple[StringVar, IntVar, StringVar]] = []
+        self._rows: list[tuple[StringVar, StringVar, StringVar]] = []
         self.result: list[dict[str, Any]] | None = None
         super().__init__(parent, _("Video Animals"))
 
@@ -51,7 +73,9 @@ class SubjectEntriesDialog(simpledialog.Dialog):
         for index in range(self.subject_entry_count):
             initial = self.initial_entries[index] if index < len(self.initial_entries) else {}
             group_var = StringVar(value=str(initial.get("group") or self.default_group or ""))
-            day_var = IntVar(value=self._coerce_day(initial.get("day"), fallback=self.default_day))
+            day_var = StringVar(
+                value=str(self._coerce_day(initial.get("day"), fallback=self.default_day))
+            )
             subject_var = StringVar(value=str(initial.get("subject") or ""))
 
             ttk.Label(master, text=f"{index + 1}").grid(
@@ -95,7 +119,7 @@ class SubjectEntriesDialog(simpledialog.Dialog):
                 )
                 return 0
             try:
-                if int(day_var.get()) <= 0:
+                if _parse_day(day_var.get()) is None:
                     raise ValueError
             except (TypeError, ValueError):
                 messagebox.showerror(
@@ -110,7 +134,7 @@ class SubjectEntriesDialog(simpledialog.Dialog):
         self.result = [
             {
                 "group": group_var.get().strip(),
-                "day": int(day_var.get()),
+                "day": _parse_day(day_var.get()) or 1,
                 "subject": subject_var.get().strip(),
             }
             for group_var, day_var, subject_var in self._rows
@@ -142,10 +166,12 @@ class VideoMetadataDialog(simpledialog.Dialog):
         self.subject_entry_count = max(1, subject_entry_count)
         self.initial_metadata = deepcopy(initial_metadata or {})
         self.group_var = StringVar(value=str(self.initial_metadata.get("group") or ""))
-        self.day_var = IntVar(
-            value=SubjectEntriesDialog._coerce_day(
-                self.initial_metadata.get("day"),
-                fallback=1,
+        self.day_var = StringVar(
+            value=str(
+                SubjectEntriesDialog._coerce_day(
+                    self.initial_metadata.get("day"),
+                    fallback=1,
+                )
             )
         )
         self.subject_var = StringVar(value=str(self.initial_metadata.get("subject") or ""))
@@ -199,7 +225,7 @@ class VideoMetadataDialog(simpledialog.Dialog):
             messagebox.showerror(_("Validation"), _("Enter the group for the video."), parent=self)
             return 0
         try:
-            if int(self.day_var.get()) <= 0:
+            if _parse_day(self.day_var.get()) is None:
                 raise ValueError
         except (TypeError, ValueError):
             messagebox.showerror(_("Validation"), _("Enter a valid day."), parent=self)
@@ -214,7 +240,7 @@ class VideoMetadataDialog(simpledialog.Dialog):
     def apply(self):
         result = {
             "group": self.group_var.get().strip(),
-            "day": int(self.day_var.get()),
+            "day": _parse_day(self.day_var.get()) or 1,
         }
         if self.subject_entries:
             result["subject_entries"] = deepcopy(self.subject_entries)
@@ -231,7 +257,7 @@ class VideoMetadataDialog(simpledialog.Dialog):
             subject_entry_count=self.subject_entry_count,
             initial_entries=deepcopy(self.subject_entries),
             default_group=self.group_var.get().strip(),
-            default_day=int(self.day_var.get()),
+            default_day=_parse_day(self.day_var.get()) or 1,
         )
         if not dialog.result:
             return
@@ -239,7 +265,7 @@ class VideoMetadataDialog(simpledialog.Dialog):
         self.subject_entries = deepcopy(dialog.result)
         first_entry = self.subject_entries[0]
         self.group_var.set(str(first_entry.get("group") or self.group_var.get() or ""))
-        self.day_var.set(SubjectEntriesDialog._coerce_day(first_entry.get("day"), fallback=1))
+        self.day_var.set(str(SubjectEntriesDialog._coerce_day(first_entry.get("day"), fallback=1)))
         if len(self.subject_entries) == 1:
             self.subject_var.set(str(first_entry.get("subject") or ""))
         else:
@@ -270,10 +296,12 @@ class BatchVideoMetadataDialog(simpledialog.Dialog):
         self.apply_group_var = BooleanVar(value="group" in self.initial_values)
         self.group_var = StringVar(value=str(self.initial_values.get("group") or ""))
         self.apply_day_var = BooleanVar(value="day" in self.initial_values)
-        self.day_var = IntVar(
-            value=SubjectEntriesDialog._coerce_day(
-                self.initial_values.get("day"),
-                fallback=1,
+        self.day_var = StringVar(
+            value=str(
+                SubjectEntriesDialog._coerce_day(
+                    self.initial_values.get("day"),
+                    fallback=1,
+                )
             )
         )
         self.apply_subject_var = BooleanVar(
@@ -364,7 +392,7 @@ class BatchVideoMetadataDialog(simpledialog.Dialog):
             return 0
         if self.apply_day_var.get():
             try:
-                if int(self.day_var.get()) <= 0:
+                if _parse_day(self.day_var.get()) is None:
                     raise ValueError
             except (TypeError, ValueError):
                 messagebox.showerror(_("Validation"), _("Enter a valid day."), parent=self)
@@ -379,7 +407,7 @@ class BatchVideoMetadataDialog(simpledialog.Dialog):
         if self.apply_group_var.get():
             result["group"] = self.group_var.get().strip()
         if self.apply_day_var.get():
-            result["day"] = int(self.day_var.get())
+            result["day"] = _parse_day(self.day_var.get()) or 1
         if self.apply_subject_var.get():
             result["subject"] = self.subject_var.get().strip()
         self.result = result
@@ -410,11 +438,11 @@ class ProjectVideoImportDialog(simpledialog.Dialog):
         self.available_groups = available_groups
         self.subject_entry_count = max(1, subject_entry_count)
         self.default_group_var = StringVar(value=default_group or "")
-        self.default_day_var = IntVar(value=self._coerce_day(default_day, fallback=1))
+        self.default_day_var = StringVar(value=str(self._coerce_day(default_day, fallback=1)))
         self.default_subject_var = StringVar(value="")
         self.process_mode_var = StringVar(value=default_process_mode)
         self.group_var = StringVar(value="")
-        self.day_var = IntVar(value=1)
+        self.day_var = StringVar(value="1")
         self.subject_var = StringVar(value="")
         self.status_var = StringVar(value="")
         self.summary_var = StringVar(value="")
@@ -581,7 +609,31 @@ class ProjectVideoImportDialog(simpledialog.Dialog):
         self.bind("<Return>", self.ok)
         self.bind("<Escape>", self.cancel)
 
+    def _default_day(self) -> int:
+        """Dia padrão utilizável, mesmo com o campo de padrões em edição.
+
+        Vários caminhos usam o campo "Dia padrão" como fallback ao carregar uma
+        linha. Ele é editável, então não pode ser lido como inteiro sem passar
+        pelo parser — era exatamente isso que fazia trocar de vídeo na lista
+        estourar quando o campo de padrões estava com texto pela metade.
+        """
+        return _parse_day(self.default_day_var.get()) or 1
+
     def validate(self):
+        # O campo em edição é conferido ANTES de ser gravado na linha: gravar
+        # primeiro e validar depois faria um dia ilegível virar silenciosamente
+        # o valor anterior, e o operador veria a importação seguir com um dia
+        # que ele não digitou.
+        if _parse_day(self.day_var.get()) is None and self._rows:
+            messagebox.showerror(
+                _("Validation"),
+                _("Enter a valid day for video {name}.").format(
+                    name=Path(str(self._rows[self._selected_index].get("path", ""))).name
+                ),
+                parent=self,
+            )
+            return 0
+
         self._save_selected_video()
         if not self._rows:
             messagebox.showerror(
@@ -635,7 +687,7 @@ class ProjectVideoImportDialog(simpledialog.Dialog):
             "videos": videos,
             "process_mode": self.process_mode_var.get(),
             "last_group": self.default_group_var.get().strip(),
-            "last_day": int(self.default_day_var.get()),
+            "last_day": _parse_day(self.default_day_var.get()) or 1,
         }
 
     def cancel(self, event=None):
@@ -686,7 +738,7 @@ class ProjectVideoImportDialog(simpledialog.Dialog):
         row = self._rows[index]
         self._selected_index = index
         self.group_var.set(str(row.get("group") or ""))
-        self.day_var.set(self._coerce_day(row.get("day"), fallback=self.default_day_var.get()))
+        self.day_var.set(str(self._coerce_day(row.get("day"), fallback=self._default_day())))
         self.subject_var.set(str(row.get("subject") or ""))
         self.status_var.set(
             f"{self._format_status(row)}. {self._format_subject_summary(row)} configurado(s)."
@@ -697,7 +749,7 @@ class ProjectVideoImportDialog(simpledialog.Dialog):
             return
         row = self._rows[self._selected_index]
         row["group"] = self.group_var.get().strip()
-        row["day"] = int(self.day_var.get())
+        row["day"] = _parse_day(self.day_var.get()) or self._coerce_day(row.get("day"), fallback=1)
         subject_text = self.subject_var.get().strip()
         if not row.get("subject_entries"):
             row["subject"] = subject_text
@@ -714,7 +766,7 @@ class ProjectVideoImportDialog(simpledialog.Dialog):
     def _apply_defaults(self, *, selected_only: bool) -> None:
         target_indexes = [self._selected_index] if selected_only else list(range(len(self._rows)))
         default_group = self.default_group_var.get().strip()
-        default_day = int(self.default_day_var.get())
+        default_day = _parse_day(self.default_day_var.get()) or 1
         default_subject = self.default_subject_var.get().strip()
 
         for index in target_indexes:
@@ -743,7 +795,7 @@ class ProjectVideoImportDialog(simpledialog.Dialog):
             subject_entry_count=self.subject_entry_count,
             initial_entries=deepcopy(row.get("subject_entries") or []),
             default_group=str(row.get("group") or self.default_group_var.get() or ""),
-            default_day=self._coerce_day(row.get("day"), fallback=self.default_day_var.get()),
+            default_day=self._coerce_day(row.get("day"), fallback=self._default_day()),
         )
         if not dialog.result:
             return
@@ -754,7 +806,7 @@ class ProjectVideoImportDialog(simpledialog.Dialog):
         row["group"] = first_entry.get("group") or row.get("group")
         row["day"] = self._coerce_day(
             first_entry.get("day"),
-            fallback=self.default_day_var.get(),
+            fallback=self._default_day(),
         )
         row["subject"] = "" if len(dialog.result) > 1 else str(first_entry.get("subject") or "")
         self._load_selected_video(self._selected_index)
@@ -793,7 +845,7 @@ class ProjectVideoImportDialog(simpledialog.Dialog):
         group = metadata.get("group") or video.get("group") or self.default_group_var.get().strip()
         day = self._coerce_day(
             metadata.get("day") or video.get("day"),
-            fallback=self.default_day_var.get(),
+            fallback=self._default_day(),
         )
         subject_entries = deepcopy(
             metadata.get("subject_entries") or video.get("subject_entries") or []

@@ -326,3 +326,80 @@ def test_seg_overlap_warning_appears_only_when_masks_are_off(config_widget):
     config_widget._on_roi_rule_changed()
 
     assert config_widget._seg_overlap_warning_label.cget("text") == ""
+
+
+class TestSaveClickSurfacesFailures:
+    """O clique em Salvar precisa DIZER o que houve, nunca ficar inerte.
+
+    ``_on_save_clicked`` capturava só ``ValueError`` e publicava
+    ``CONFIG_VALIDATION_ERROR``, que não tinha assinante — o bus descarta
+    evento sem assinante em silêncio, então o botão não fazia absolutamente
+    nada com um campo vazio. E os ``Spinbox`` do widget comportamental falham
+    com ``TclError``, que nem sequer era capturado.
+    """
+
+    @staticmethod
+    def _captured(event_bus, event):
+        received: list = []
+        event_bus.subscribe(event, received.append)
+        return received
+
+    def test_empty_numeric_field_reports_instead_of_going_silent(self, config_widget, event_bus):
+        errors = self._captured(event_bus, UIEvents.CONFIG_VALIDATION_ERROR)
+        saves = self._captured(event_bus, UIEvents.CONFIG_SAVE_REQUESTED)
+
+        config_widget.fps_var.set("")
+        config_widget._on_save_clicked()
+
+        assert len(errors) == 1, "campo vazio precisa gerar CONFIG_VALIDATION_ERROR"
+        assert not saves, "não pode salvar com campo ilegível"
+
+    def test_text_in_numeric_field_reports(self, config_widget, event_bus):
+        errors = self._captured(event_bus, UIEvents.CONFIG_VALIDATION_ERROR)
+        saves = self._captured(event_bus, UIEvents.CONFIG_SAVE_REQUESTED)
+
+        config_widget.fps_var.set("trinta")
+        config_widget._on_save_clicked()
+
+        assert len(errors) == 1
+        assert not saves
+
+    def test_text_in_behavioral_spinbox_is_caught_not_raised(self, config_widget, event_bus):
+        """``TclError`` do ``DoubleVar`` não pode escapar para a rede do Tk."""
+        errors = self._captured(event_bus, UIEvents.CONFIG_VALIDATION_ERROR)
+        saves = self._captured(event_bus, UIEvents.CONFIG_SAVE_REQUESTED)
+
+        spinbox = config_widget.behavioral_config_widget.thigmotaxis_spinbox
+        spinbox.delete(0, "end")
+        spinbox.insert(0, "xyz")
+
+        # Sem a captura de TclError isto levantava e o teste falharia aqui.
+        config_widget._on_save_clicked()
+
+        assert len(errors) == 1, "TclError precisa virar CONFIG_VALIDATION_ERROR"
+        assert not saves
+
+    def test_out_of_range_behavioral_value_is_rejected_with_the_widget_message(
+        self, config_widget, event_bus
+    ):
+        """A aba nunca chamava ``BehavioralConfigWidget.validate()``."""
+        errors = self._captured(event_bus, UIEvents.CONFIG_VALIDATION_ERROR)
+        saves = self._captured(event_bus, UIEvents.CONFIG_SAVE_REQUESTED)
+
+        config_widget.behavioral_config_widget.thigmotaxis_distance_var.set(99.0)
+        config_widget._on_save_clicked()
+
+        assert len(errors) == 1
+        assert not saves
+        assert "0.1" in errors[0].error and "10.0" in errors[0].error
+
+    def test_valid_form_still_saves(self, config_widget, event_bus):
+        """A guarda nova não pode bloquear o caminho feliz."""
+        errors = self._captured(event_bus, UIEvents.CONFIG_VALIDATION_ERROR)
+        saves = self._captured(event_bus, UIEvents.CONFIG_SAVE_REQUESTED)
+
+        config_widget._on_save_clicked()
+
+        assert not errors
+        assert len(saves) == 1
+        assert saves[0].values["video_processing"]["fps"] == 30
