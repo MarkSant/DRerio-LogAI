@@ -9,7 +9,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: DRerio LogAI VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-08-25 17:10-0300\n"
+"POT-Creation-Date: 2026-08-25 17:22-0300\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -12601,4 +12601,3 @@ msgstr ""
 #: src/zebtrack/utils/hardware_capability.py:455
 msgid "⚠️ Available memory is very low. Close other applications immediately."
 msgstr ""
-
