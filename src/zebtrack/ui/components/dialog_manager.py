@@ -15,6 +15,7 @@ from typing import TYPE_CHECKING, Any, Literal
 import structlog
 
 from zebtrack.i18n import _
+from zebtrack.ui.components.roi_name_validation import RoiNameError, validate_roi_name
 
 # Dialogs are imported locally within methods to avoid circular dependencies
 
@@ -1642,42 +1643,59 @@ class DialogManager:
             initialvalue=old_name,
         )
 
-        if new_name and new_name != old_name:
-            # Update in project
-            zone_data = self.zone_context_service.get_zone_data_for_active_context()
-            try:
-                idx = zone_data.roi_names.index(old_name)
-                zone_data.roi_names[idx] = new_name
+        if new_name is None or new_name == old_name:
+            return
 
-                # Persist updated ROI name
-                self.gui.controller.project_manager.save_zone_data(zone_data)
+        zone_data = self.zone_context_service.get_zone_data_for_active_context()
 
-                # Update visualization
-                status_message = _("ROI renamed to '{name}'.").format(name=new_name)
-                self.gui.set_status(status_message)
-                self.show_info(_("Success"), status_message)
+        # Renomear para um nome já existente colide no relatório: as duas ROIs
+        # compartilham a coluna ``in_<nome>_stable`` e uma some do ``.xlsx``.
+        # ``index(old_name)`` abaixo devolve a PRIMEIRA ocorrência, então
+        # homônimas também faziam renomear a errada.
+        try:
+            new_name = validate_roi_name(
+                new_name,
+                zone_data.roi_names or [],
+                current_name=old_name,
+            )
+        except RoiNameError as exc:
+            self.show_error(_("Invalid ROI name"), str(exc))
+            return
 
-                if self.event_bus_v2:
-                    from zebtrack.ui import payloads
-                    from zebtrack.ui.event_bus_v2 import Event, UIEvents
+        try:
+            idx = zone_data.roi_names.index(old_name)
+        except ValueError:
+            self.show_error(_("Error"), _("ROI not found"))
+            return
 
-                    self.event_bus_v2.publish(
-                        Event(
-                            type=UIEvents.ZONES_UPDATED,
-                            data=payloads.ZonesUpdatedPayload(zone_data=zone_data),
-                            source="DialogManager.rename_selected_roi",
-                        )
-                    )
-                    self.event_bus_v2.publish(
-                        Event(
-                            type=UIEvents.PROJECT_VIEWS_REFRESH_REQUESTED,
-                            data=payloads.ProjectViewsRefreshRequestedPayload(
-                                reason=status_message,
-                                append_summary=True,
-                            ),
-                            source="DialogManager.rename_selected_roi",
-                        )
-                    )
+        zone_data.roi_names[idx] = new_name
 
-            except ValueError:
-                self.show_error(_("Error"), _("ROI not found"))
+        # Persist updated ROI name
+        self.gui.controller.project_manager.save_zone_data(zone_data)
+
+        # Update visualization
+        status_message = _("ROI renamed to '{name}'.").format(name=new_name)
+        self.gui.set_status(status_message)
+        self.show_info(_("Success"), status_message)
+
+        if self.event_bus_v2:
+            from zebtrack.ui import payloads
+            from zebtrack.ui.event_bus_v2 import Event, UIEvents
+
+            self.event_bus_v2.publish(
+                Event(
+                    type=UIEvents.ZONES_UPDATED,
+                    data=payloads.ZonesUpdatedPayload(zone_data=zone_data),
+                    source="DialogManager.rename_selected_roi",
+                )
+            )
+            self.event_bus_v2.publish(
+                Event(
+                    type=UIEvents.PROJECT_VIEWS_REFRESH_REQUESTED,
+                    data=payloads.ProjectViewsRefreshRequestedPayload(
+                        reason=status_message,
+                        append_summary=True,
+                    ),
+                    source="DialogManager.rename_selected_roi",
+                )
+            )

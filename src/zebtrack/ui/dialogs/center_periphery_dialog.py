@@ -6,6 +6,7 @@ Extracted from gui.py for better modularity.
 
 from tkinter import (
     StringVar,
+    messagebox,
     simpledialog,
     ttk,
 )
@@ -48,12 +49,35 @@ class CenterPeripheryDialog(simpledialog.Dialog):
         ttk.Entry(master, textvariable=self.value).pack(anchor="w")
         return master
 
+    def validate(self):
+        """Recusa o valor ilegível ANTES de fechar.
+
+        A conversão vivia só em ``apply()``, com ``self.result = None`` no
+        ``except``. Quem chama testa ``if not dialog.result: return`` — a mesma
+        condição de cancelamento — então um valor inválido fechava o diálogo e
+        não fazia nada, sem mensagem alguma.
+        """
+        try:
+            value = float(self.value.get())
+        except (ValueError, TypeError):
+            messagebox.showerror(
+                _("Invalid value"),
+                _("'{value}' is not a number.").format(value=self.value.get()),
+                parent=self,
+            )
+            return False
+        if value <= 0:
+            messagebox.showerror(
+                _("Invalid value"),
+                _("The value must be greater than zero."),
+                parent=self,
+            )
+            return False
+        return True
+
     def apply(self):
         """Apply the selected center/periphery settings to result."""
-        try:
-            self.result = {
-                "method": self.method.get(),
-                "value": float(self.value.get()),
-            }
-        except (ValueError, TypeError):
-            self.result = None
+        self.result = {
+            "method": self.method.get(),
+            "value": float(self.value.get()),
+        }

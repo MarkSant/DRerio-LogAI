@@ -16,6 +16,7 @@ from tkinter import (
     LabelFrame,
     Spinbox,
     StringVar,
+    TclError,
     messagebox,
     ttk,
 )
@@ -939,7 +940,15 @@ class LiveConfigStep(WizardStep):
 
             return (True, "")
 
-        except (ValueError, KeyError, AttributeError) as e:
+        # ``TclError`` na lista: ``recording_duration_var`` é um ``DoubleVar``
+        # ligado a um ``Entry`` livre, e ``DoubleVar.get()`` sobre texto levanta
+        # ``TclError``, que NÃO descende de ``ValueError``. Sem ele, apagar o
+        # campo de duração escapava deste ``except``, escapava do ``_on_next`` e
+        # virava o diálogo genérico "Erro Inesperado", deixando o assistente
+        # travado sem dizer qual campo estava errado. O passo de Calibração já
+        # usava ``except Exception`` para o mesmo problema; os dois agora se
+        # comportam igual.
+        except (ValueError, KeyError, AttributeError, TclError) as e:
             return (False, _("Error validating data: {error}").format(error=str(e)))
 
     def get_data(self) -> dict:

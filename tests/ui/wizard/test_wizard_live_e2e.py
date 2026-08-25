@@ -267,20 +267,32 @@ class TestWizardServiceIntegration:
         with pytest.raises(ValidationError):
             CalibrationData(**data)
 
-    def test_calibration_validation_zero_dimensions(self):
-        """Test that zero or negative dimensions are rejected."""
-        data: dict[str, Any] = {
+    def test_calibration_validation_dimensions(self):
+        """Zero significa "sem calibração"; negativo e absurdo continuam recusados.
+
+        Esta asserção esperava que zero fosse recusado, fixando um bug: o
+        domínio (``ProjectLifecycleManager``) documenta 0 cm como análise em
+        pixels, e o assistente era o único a proibir a única forma de pedir
+        isso.
+        """
+        no_calibration: dict[str, Any] = {
             "num_aquariums": 1,
             "animals_per_aquarium": 1,
-            "aquarium_width_cm": 0.0,  # Invalid: must be > 0
-            "aquarium_height_cm": 20.0,
+            "aquarium_width_cm": 0.0,
+            "aquarium_height_cm": 0.0,
         }
+        assert WizardService.validate_basic_calibration(no_calibration)[0] is True
+        CalibrationData(**no_calibration)
 
-        is_valid, _error = WizardService.validate_basic_calibration(data)
-        assert not is_valid
-
+        negative = dict(no_calibration, aquarium_width_cm=-1.0)
+        assert WizardService.validate_basic_calibration(negative)[0] is False
         with pytest.raises(ValidationError):
-            CalibrationData(**data)
+            CalibrationData(**negative)
+
+        oversized = dict(no_calibration, aquarium_height_cm=900.0)
+        assert WizardService.validate_basic_calibration(oversized)[0] is False
+        with pytest.raises(ValidationError):
+            CalibrationData(**oversized)
 
     def test_complete_wizard_data_integration(self):
         """Test that all wizard data can be validated together."""

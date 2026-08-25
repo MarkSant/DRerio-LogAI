@@ -175,8 +175,50 @@ class TestCalibrationStep:
         assert not is_valid
         assert "width" in error_message.lower() or "greater than zero" in error_message.lower()
 
-    def test_validation_fails_with_zero_height(self):
-        """Validation should fail when height is zero."""
+    def test_zero_dimensions_mean_no_calibration_and_are_accepted(self):
+        """Zero é a forma de pedir análise em pixels, não um erro.
+
+        ``ProjectLifecycleManager``, que de fato cria o projeto, documenta 0 cm
+        como "sem calibração". Este teste esperava reprovação e com isso fixava
+        uma divergência: o assistente proibia a única maneira de exprimir um
+        projeto não calibrado.
+        """
+        wizard_data: dict[str, Any] = {}
+        step = CalibrationStep(self.root, wizard_data)
+        step.build_ui()
+
+        step.num_aquariums_var.set(1)
+        step.animals_per_aquarium_var.set(1)
+        step.aquarium_width_var.set(0.0)
+        step.aquarium_height_var.set(0.0)
+
+        is_valid, error_message = step.validate()
+
+        assert is_valid, error_message
+
+    def test_validation_fails_with_oversized_dimensions(self):
+        """Acima de 500 cm o domínio recusa; o assistente precisa recusar antes."""
+        wizard_data: dict[str, Any] = {}
+        step = CalibrationStep(self.root, wizard_data)
+        step.build_ui()
+
+        step.num_aquariums_var.set(1)
+        step.animals_per_aquarium_var.set(1)
+        step.aquarium_width_var.set(900.0)
+        step.aquarium_height_var.set(10.0)
+
+        is_valid, error_message = step.validate()
+
+        assert not is_valid
+        assert "500" in error_message
+
+    def test_validation_fails_with_out_of_range_interval(self):
+        """O campo de intervalo não era validado em passo nenhum.
+
+        Um valor fora de 1..30 atravessava os cinco passos e só era recusado na
+        criação do projeto, por um ``ValueError`` que o event bus engolia — o
+        assistente fechava sem criar nada e sem dizer por quê.
+        """
         wizard_data: dict[str, Any] = {}
         step = CalibrationStep(self.root, wizard_data)
         step.build_ui()
@@ -184,12 +226,13 @@ class TestCalibrationStep:
         step.num_aquariums_var.set(1)
         step.animals_per_aquarium_var.set(1)
         step.aquarium_width_var.set(10.0)
-        step.aquarium_height_var.set(0.0)
+        step.aquarium_height_var.set(10.0)
+        step.analysis_interval_var.set(60)
 
         is_valid, error_message = step.validate()
 
         assert not is_valid
-        assert "height" in error_message.lower() or "greater than zero" in error_message.lower()
+        assert "30" in error_message
 
     def test_on_show_restores_from_wizard_data(self):
         """on_show should restore values from wizard_data."""
@@ -282,7 +325,7 @@ class TestCalibrationStep:
             (1, 1, 5.5, 7.2, True),  # Decimal dimensions
             (-1, 1, 10.0, 10.0, False),  # Negative aquariums
             (1, -5, 10.0, 10.0, False),  # Negative animals
-            (1, 1, 0.0, 10.0, False),  # Zero width
+            (1, 1, 0.0, 10.0, True),  # Zero width = sem calibração (válido)
             (1, 1, 10.0, -1.0, False),  # Negative height
         ],
     )

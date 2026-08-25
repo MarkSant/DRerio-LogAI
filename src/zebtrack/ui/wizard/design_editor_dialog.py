@@ -502,16 +502,32 @@ class DesignEditorDialog(Dialog):
 
         log.info("design_editor.day_removed", day=day_name)
 
-    def apply(self) -> None:
-        """Validate and persist friendly names before closing."""
+    def validate(self) -> bool:
+        """Barra o fechamento quando não há grupo nenhum.
+
+        Esta checagem morava em ``apply()``. O ``Dialog.ok()`` do Tkinter chama
+        ``apply()`` DEPOIS do ``withdraw()`` e sempre dentro de um
+        ``try/finally: self.cancel()`` — então o ``return`` após o ``showerror``
+        não impedia nada: a mensagem aparecia, a janela fechava assim mesmo, e
+        tudo que tinha sido renomeado ou acrescentado ali dentro era descartado.
+        ``validate()`` é o único método que o Tkinter respeita para manter o
+        diálogo aberto.
+        """
         if not self.groups:
             messagebox.showerror(
                 _("Validation Error"),
                 _("At least one group is required."),
                 parent=self,
             )
-            return
+            return False
+        return True
 
+    def apply(self) -> None:
+        """Persist friendly names before closing.
+
+        Sem checagens aqui: ``validate()`` já barrou o que não pode passar, e
+        uma segunda checagem neste ponto não teria como impedir o fechamento.
+        """
         for index, group_id in enumerate(self.groups):
             if index < len(self.group_name_vars):
                 display_name = self.group_name_vars[index].get().strip()

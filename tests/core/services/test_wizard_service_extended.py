@@ -8,7 +8,7 @@ camera index resolution, and multi-aquarium configuration rules.
 from __future__ import annotations
 
 from types import SimpleNamespace
-from typing import Any, cast
+from typing import Any, ClassVar, cast
 from unittest.mock import MagicMock, patch
 
 import numpy as np
@@ -269,6 +269,10 @@ class TestWizardServiceValidation:
             )[0]
             is False
         )
+        # Largura 0 é VÁLIDA: ``ProjectLifecycleManager`` documenta zero como
+        # "sem calibração" (análise em pixels). Esta asserção esperava False e
+        # com isso fixava um bug — o assistente recusava a única forma de
+        # exprimir um projeto não calibrado, embora o domínio a suporte.
         assert (
             WizardService.validate_basic_calibration(
                 {
@@ -278,7 +282,7 @@ class TestWizardServiceValidation:
                     "aquarium_height_cm": 10,
                 }
             )[0]
-            is False
+            is True
         )
         assert (
             WizardService.validate_basic_calibration(
@@ -409,3 +413,91 @@ class TestWizardServiceHardwareAndIntervals:
 
         cameras = WizardService.detect_available_cameras(use_cache=False)
         assert len(cameras) == 0  # Rejects black frame
+
+
+class TestBasicCalibrationMatchesTheDomain:
+    """O assistente e a criação de projeto precisam recusar as MESMAS coisas.
+
+    Enquanto as faixas viviam só em ``ProjectLifecycleManager``, um intervalo
+    fora delas atravessava os cinco passos do assistente e só era recusado na
+    criação — por um ``ValueError`` cru que o event bus engolia. O usuário
+    clicava em "Criar Projeto", a janela fechava, e não havia projeto nem
+    mensagem.
+    """
+
+    BASE: ClassVar[dict[str, Any]] = {
+        "num_aquariums": 1,
+        "animals_per_aquarium": 1,
+        "aquarium_width_cm": 10.0,
+        "aquarium_height_cm": 10.0,
+    }
+
+    def _check(self, **overrides):
+        return WizardService.validate_basic_calibration({**self.BASE, **overrides})
+
+    def test_interval_above_domain_maximum_is_rejected(self):
+        """60 é o valor plausível que a própria dica do campo sugeria."""
+        valid, msg = self._check(analysis_interval_frames=60, display_interval_frames=10)
+        assert valid is False
+        assert "30" in msg, "a mensagem precisa dizer qual é o limite"
+
+    def test_interval_zero_is_rejected(self):
+        """Intervalo 0 chega a ``frame % 0`` na análise: ZeroDivisionError."""
+        assert self._check(analysis_interval_frames=0, display_interval_frames=10)[0] is False
+
+    def test_negative_interval_is_rejected(self):
+        assert self._check(analysis_interval_frames=-5, display_interval_frames=10)[0] is False
+
+    def test_display_interval_is_checked_too(self):
+        assert self._check(analysis_interval_frames=10, display_interval_frames=99)[0] is False
+
+    def test_boolean_is_not_a_valid_interval(self):
+        """``True`` é ``int`` em Python e passaria pela faixa 1..30 sem o guarda."""
+        assert self._check(analysis_interval_frames=True, display_interval_frames=10)[0] is False
+
+    def test_interval_inside_the_range_passes(self):
+        assert self._check(analysis_interval_frames=1, display_interval_frames=30) == (True, "")
+        assert self._check(analysis_interval_frames=30, display_interval_frames=1) == (True, "")
+
+    def test_missing_intervals_are_not_invented(self):
+        """Passos que não coletam intervalo não podem ser reprovados por isso."""
+        assert self._check() == (True, "")
+
+    def test_zero_dimension_means_no_calibration_and_is_accepted(self):
+        assert self._check(aquarium_width_cm=0.0, aquarium_height_cm=0.0) == (True, "")
+
+    def test_dimension_above_domain_maximum_is_rejected(self):
+        valid, msg = self._check(aquarium_width_cm=900.0)
+        assert valid is False
+        assert "500" in msg
+
+    def test_negative_dimension_is_rejected(self):
+        assert self._check(aquarium_height_cm=-0.5)[0] is False
+
+    def test_the_wizard_accepts_exactly_what_the_domain_accepts(self):
+        """Amarra os dois validadores: divergir é o bug, não o detalhe."""
+        from zebtrack.core.project.project_lifecycle_manager import ProjectLifecycleManager
+
+        for interval in (0, 1, 15, 30, 31, 60):
+            wizard_ok = self._check(analysis_interval_frames=interval, display_interval_frames=10)[
+                0
+            ]
+            try:
+                ProjectLifecycleManager.validate_project_parameters(
+                    num_aquariums=1,
+                    animals_per_aquarium=1,
+                    aquarium_width_cm=10.0,
+                    aquarium_height_cm=10.0,
+                    analysis_interval_frames=interval,
+                    display_interval_frames=10,
+                    camera_index=0,
+                    project_type="Pre-recorded",
+                    video_files=["a.mp4"],
+                )
+                domain_ok = True
+            except ValueError:
+                domain_ok = False
+
+            assert wizard_ok == domain_ok, (
+                f"intervalo {interval}: assistente={wizard_ok}, domínio={domain_ok}"
+            )

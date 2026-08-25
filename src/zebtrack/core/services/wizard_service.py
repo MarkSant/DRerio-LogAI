@@ -20,6 +20,12 @@ import numpy as np
 import serial.tools.list_ports
 import structlog
 
+from zebtrack.core.project.project_lifecycle_manager import (
+    MAX_AQUARIUM_DIMENSION_CM,
+    MAX_INTERVAL_FRAMES,
+    MIN_AQUARIUM_DIMENSION_CM,
+    MIN_INTERVAL_FRAMES,
+)
 from zebtrack.i18n import _
 from zebtrack.io.arduino import Arduino
 from zebtrack.utils.cache import TTLCache
@@ -825,14 +831,53 @@ class WizardService:
                 _("The number of animals per aquarium cannot exceed 100"),
             )
 
-        # Dimensions validation
-        width = data.get("aquarium_width_cm")
-        if not isinstance(width, int | float) or width <= 0:
-            return (False, _("The aquarium width must be greater than zero"))
+        # Dimensions validation.
+        #
+        # 0 cm é ACEITO: o modelo de projeto documenta zero como "sem
+        # calibração" (análise em pixels). Recusar zero aqui tornava impossível
+        # exprimir essa escolha na criação do projeto, embora o domínio a
+        # suporte.
+        for key, too_small, too_large in (
+            (
+                "aquarium_width_cm",
+                _("The aquarium width cannot be negative (use 0 for no calibration)"),
+                _("The aquarium width cannot exceed {maximum:g} cm"),
+            ),
+            (
+                "aquarium_height_cm",
+                _("The aquarium height cannot be negative (use 0 for no calibration)"),
+                _("The aquarium height cannot exceed {maximum:g} cm"),
+            ),
+        ):
+            value = data.get(key)
+            if not isinstance(value, int | float) or value < MIN_AQUARIUM_DIMENSION_CM:
+                return (False, too_small)
+            if value > MAX_AQUARIUM_DIMENSION_CM:
+                return (False, too_large.format(maximum=MAX_AQUARIUM_DIMENSION_CM))
 
-        height = data.get("aquarium_height_cm")
-        if not isinstance(height, int | float) or height <= 0:
-            return (False, _("The aquarium height must be greater than zero"))
+        # Intervals validation.
+        #
+        # Sem isto, um intervalo fora da faixa atravessava os cinco passos e só
+        # era recusado na criação do projeto, por um ``ValueError`` cru que o
+        # event bus engolia — o assistente fechava sem criar nada e sem avisar.
+        # As faixas vêm do próprio domínio, não de literais repetidos aqui.
+        for key, message in (
+            ("analysis_interval_frames", _("The analysis interval must be between {lo} and {hi}")),
+            ("display_interval_frames", _("The display interval must be between {lo} and {hi}")),
+        ):
+            if key not in data:
+                continue
+            interval = data.get(key)
+            if (
+                not isinstance(interval, int)
+                or isinstance(interval, bool)
+                or interval < MIN_INTERVAL_FRAMES
+                or interval > MAX_INTERVAL_FRAMES
+            ):
+                return (
+                    False,
+                    message.format(lo=MIN_INTERVAL_FRAMES, hi=MAX_INTERVAL_FRAMES),
+                )
 
         return (True, "")
 

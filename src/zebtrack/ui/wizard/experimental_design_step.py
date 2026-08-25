@@ -56,6 +56,27 @@ class NumberInput(Frame):
         self.min_val = min_val
         self.max_val = max_val
 
+        # O ``Entry`` é ligado a um ``StringVar`` INTERNO, não ao ``IntVar``
+        # público. Ligá-lo ao ``IntVar`` era a origem de dois defeitos ao mesmo
+        # tempo:
+        #
+        # 1. Cada tecla escrevia no ``IntVar``, e os traces do passo
+        #    (``_update_summary``, ``_on_num_groups_change``) chamavam
+        #    ``IntVar.get()`` sobre o conteúdo cru. Com o campo vazio ou com
+        #    letras isso levanta ``TclError``. Traces do Tcl rodam em ordem
+        #    INVERSA de criação, então os do passo — registrados depois —
+        #    disparavam ANTES do validador deste widget, e nenhum clamp chegava
+        #    a tempo. O usuário via um diálogo "Erro Inesperado" no meio da
+        #    digitação.
+        # 2. O validador então repunha o mínimo no campo, com o cursor na
+        #    posição 0. Quem apagava "1" para escrever "5" terminava com "51",
+        #    limitado a 30 — o projeto nascia com 30 dias em vez de 5, sem aviso.
+        #
+        # Agora o texto só é convertido em ``commit()`` (FocusOut, Enter, ±,
+        # ou explicitamente antes de ler). Enquanto o usuário digita, o
+        # ``IntVar`` mantém o último valor VÁLIDO e ninguém é interrompido.
+        self._text = StringVar(master=self, value=str(self._clamp(self._read_variable())))
+
         # Decrease button
         self.btn_decrease = Button(
             self,
@@ -68,7 +89,7 @@ class NumberInput(Frame):
         # Entry field
         self.entry = Entry(
             self,
-            textvariable=self.variable,
+            textvariable=self._text,
             width=width,
             justify="center",
         )
@@ -83,41 +104,87 @@ class NumberInput(Frame):
         )
         self.btn_increase.pack(side="left", padx=(2, 0))
 
-        # Validation
-        self.variable.trace_add("write", self._validate)
+        self.entry.bind("<FocusOut>", self._on_commit_event)
+        self.entry.bind("<Return>", self._on_commit_event)
 
-        # Initial validation
-        self._validate()
+        # Mudanças programáticas (``set_data``, ``on_show``) precisam aparecer
+        # no campo; este trace observa o IntVar, que a esta altura só recebe
+        # valores já validados.
+        self.variable.trace_add("write", self._on_variable_changed)
+
+        self._sync_text_from_variable()
+
+    # -- leitura tolerante -------------------------------------------------
+
+    def _read_variable(self) -> int:
+        """Valor atual do ``IntVar``, ou o mínimo se ele estiver ilegível.
+
+        Defensivo só para o momento da construção: o chamador pode passar um
+        ``IntVar`` recém-criado que outro código já sujou. Depois da construção
+        este widget é o único a escrever nele.
+        """
+        try:
+            return int(self.variable.get())
+        except Exception:  # except Exception justified: TclError/ValueError do Tk
+            return self.min_val
+
+    def _clamp(self, value: int) -> int:
+        return max(self.min_val, min(self.max_val, value))
+
+    # -- comandos ----------------------------------------------------------
 
     def _decrease(self):
         """Decrease value by 1."""
-        current = self.variable.get()
+        self.commit()
+        current = self._read_variable()
         if current > self.min_val:
             self.variable.set(current - 1)
 
     def _increase(self):
         """Increase value by 1."""
-        current = self.variable.get()
+        self.commit()
+        current = self._read_variable()
         if current < self.max_val:
             self.variable.set(current + 1)
 
-    def _validate(self, *args):
-        """Validate and clamp value to allowed range."""
+    def _on_commit_event(self, _event=None):
+        self.commit()
+
+    def commit(self) -> int:
+        """Converte o texto digitado em valor, limitado à faixa. Devolve o valor.
+
+        Texto ilegível (vazio, letras) NÃO altera o valor: o campo volta a
+        exibir o último válido. Substituir por ``min_val`` é o que produzia o
+        "51" descrito acima, e apagar o campo é um passo normal de quem vai
+        digitar outro número — não um erro a ser corrigido no meio do caminho.
+        """
+        raw = self._text.get().strip()
         try:
-            value = self.variable.get()
-            # Clamp to valid range
-            if value < self.min_val:
-                self.variable.set(self.min_val)
-            elif value > self.max_val:
-                self.variable.set(self.max_val)
+            parsed = int(raw)
+        except ValueError:
+            self._sync_text_from_variable()
+            return self._read_variable()
 
-            # Update button states
-            self.btn_decrease.config(state="normal" if value > self.min_val else "disabled")
-            self.btn_increase.config(state="normal" if value < self.max_val else "disabled")
+        clamped = self._clamp(parsed)
+        if clamped != self._read_variable():
+            self.variable.set(clamped)
+        self._sync_text_from_variable()
+        return clamped
 
-        except Exception:
-            # If conversion fails, reset to min value
-            self.variable.set(self.min_val)
+    # -- sincronização -----------------------------------------------------
+
+    def _on_variable_changed(self, *_args):
+        self._sync_text_from_variable()
+
+    def _sync_text_from_variable(self):
+        value = self._clamp(self._read_variable())
+        if self._text.get() != str(value):
+            self._text.set(str(value))
+        self._update_button_states(value)
+
+    def _update_button_states(self, value: int) -> None:
+        self.btn_decrease.config(state="normal" if value > self.min_val else "disabled")
+        self.btn_increase.config(state="normal" if value < self.max_val else "disabled")
 
 
 class ExperimentalDesignStep(WizardStep):
@@ -145,6 +212,25 @@ class ExperimentalDesignStep(WizardStep):
 
         # Container for dynamic group name entries
         self.group_names_container: Frame | None = None
+
+        # Preenchidos em ``build_ui``; ``_commit_inputs`` os consolida antes de
+        # qualquer leitura.
+        self.days_input: NumberInput | None = None
+        self.subjects_input: NumberInput | None = None
+        self.groups_input: NumberInput | None = None
+
+    def _commit_inputs(self) -> None:
+        """Converte o texto pendente dos três campos para as variáveis.
+
+        Necessário porque o ``Entry`` agora só grava no ``IntVar`` em
+        ``commit()``. Clicar em "Avançar" costuma disparar ``<FocusOut>`` antes
+        do comando do botão, mas isso depende do gerenciador de janelas — e
+        perder o último número digitado por causa disso seria trocar um bug
+        barulhento por um silencioso.
+        """
+        for widget in (self.days_input, self.subjects_input, self.groups_input):
+            if widget is not None:
+                widget.commit()
 
     def build_ui(self):
         """Build experimental design step UI."""
@@ -187,14 +273,14 @@ class ExperimentalDesignStep(WizardStep):
         days_frame = Frame(left_col)
         days_frame.pack(fill="x", pady=(0, 15))
 
-        days_input = NumberInput(
+        self.days_input = NumberInput(
             days_frame,
             variable=self.num_days_var,
             min_val=1,
             max_val=30,
             width=5,
         )
-        days_input.pack(side="left")
+        self.days_input.pack(side="left")
 
         Label(days_frame, text=_("days"), fg="gray").pack(side="left", padx=5)
 
@@ -222,14 +308,14 @@ class ExperimentalDesignStep(WizardStep):
         subjects_frame = Frame(left_col)
         subjects_frame.pack(fill="x", pady=(0, 15))
 
-        subjects_input = NumberInput(
+        self.subjects_input = NumberInput(
             subjects_frame,
             variable=self.subjects_per_group_var,
             min_val=1,
             max_val=20,
             width=5,
         )
-        subjects_input.pack(side="left")
+        self.subjects_input.pack(side="left")
 
         Label(subjects_frame, text=_("animals/group"), fg="gray").pack(side="left", padx=5)
 
@@ -256,14 +342,14 @@ class ExperimentalDesignStep(WizardStep):
         groups_frame = Frame(left_col)
         groups_frame.pack(fill="x", pady=(0, 15))
 
-        groups_input = NumberInput(
+        self.groups_input = NumberInput(
             groups_frame,
             variable=self.num_groups_var,
             min_val=1,
             max_val=6,
             width=5,
         )
-        groups_input.pack(side="left")
+        self.groups_input.pack(side="left")
 
         # Register callback for groups change
         self.num_groups_var.trace_add("write", lambda *args: self._on_num_groups_change())
@@ -419,6 +505,7 @@ class ExperimentalDesignStep(WizardStep):
 
     def validate(self) -> tuple[bool, str]:
         """Validate experimental design using WizardService."""
+        self._commit_inputs()
         num_groups = self.num_groups_var.get()
 
         # Trim all group names first
@@ -434,6 +521,7 @@ class ExperimentalDesignStep(WizardStep):
 
     def get_data(self) -> dict:
         """Extract experimental design data."""
+        self._commit_inputs()
         num_groups = self.num_groups_var.get()
 
         return {

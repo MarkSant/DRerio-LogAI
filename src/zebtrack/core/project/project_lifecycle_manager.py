@@ -28,6 +28,27 @@ if TYPE_CHECKING:
 
 log = structlog.get_logger()
 
+# Faixas aceitas na criação de um projeto. São a FONTE ÚNICA: o assistente as
+# importa em ``WizardService.validate_basic_calibration`` para recusar o valor
+# no passo em que ele é digitado.
+#
+# Antes de existirem como constantes, as mesmas faixas viviam só nos ``if``
+# abaixo, e o assistente não as conhecia. Um intervalo de análise de 60 —
+# plausível, e até sugerido pela dica do campo ("quanto maior, mais rápido") —
+# passava por todos os cinco passos e só era recusado aqui, por um
+# ``ValueError`` cru em inglês que subia até o event bus e era engolido pelo
+# ``except Exception`` dele. O assistente fechava sem criar projeto e sem dizer
+# por quê.
+MIN_AQUARIUMS = 1
+MAX_AQUARIUMS = 100
+MIN_ANIMALS_PER_AQUARIUM = 1
+MAX_ANIMALS_PER_AQUARIUM = 100
+# 0 cm é VÁLIDO e significa "sem calibração" — análise em pixels.
+MIN_AQUARIUM_DIMENSION_CM = 0.0
+MAX_AQUARIUM_DIMENSION_CM = 500.0
+MIN_INTERVAL_FRAMES = 1
+MAX_INTERVAL_FRAMES = 30
+
 CONFIG_FILE_NAME = "project_config.json"
 SETTINGS_SNAPSHOT_FILE_NAME = "config_snapshot.yaml"
 
@@ -204,40 +225,47 @@ class ProjectLifecycleManager:
             ValueError: If any parameter is invalid.
         """
         # Validate aquarium count
-        if num_aquariums < 1:
+        if num_aquariums < MIN_AQUARIUMS:
             # Developer-facing guards: they name the code parameter, are
             # raised before any dialog exists, and are English without _().
-            raise ValueError("num_aquariums must be >= 1")
-        if num_aquariums > 100:
-            raise ValueError("num_aquariums must be <= 100 (practical limit)")
+            raise ValueError(f"num_aquariums must be >= {MIN_AQUARIUMS}")
+        if num_aquariums > MAX_AQUARIUMS:
+            raise ValueError(f"num_aquariums must be <= {MAX_AQUARIUMS} (practical limit)")
 
         # Validate animals per aquarium
-        if animals_per_aquarium < 1:
-            raise ValueError("animals_per_aquarium must be >= 1")
-        if animals_per_aquarium > 100:
-            raise ValueError("animals_per_aquarium must be <= 100 (practical limit)")
+        if animals_per_aquarium < MIN_ANIMALS_PER_AQUARIUM:
+            raise ValueError(f"animals_per_aquarium must be >= {MIN_ANIMALS_PER_AQUARIUM}")
+        if animals_per_aquarium > MAX_ANIMALS_PER_AQUARIUM:
+            raise ValueError(
+                f"animals_per_aquarium must be <= {MAX_ANIMALS_PER_AQUARIUM} (practical limit)"
+            )
 
         # Phase 1.2: Calibration dimensions — 0 means "no calibration", valid
-        if aquarium_width_cm < 0:
+        if aquarium_width_cm < MIN_AQUARIUM_DIMENSION_CM:
             raise ValueError("aquarium_width_cm must be >= 0 (0 = no calibration)")
-        if aquarium_width_cm > 500:
-            raise ValueError("aquarium_width_cm must be <= 500 cm (unrealistic value)")
+        if aquarium_width_cm > MAX_AQUARIUM_DIMENSION_CM:
+            raise ValueError(
+                f"aquarium_width_cm must be <= {MAX_AQUARIUM_DIMENSION_CM:g} cm (unrealistic value)"
+            )
 
-        if aquarium_height_cm < 0:
+        if aquarium_height_cm < MIN_AQUARIUM_DIMENSION_CM:
             raise ValueError("aquarium_height_cm must be >= 0 (0 = no calibration)")
-        if aquarium_height_cm > 500:
-            raise ValueError("aquarium_height_cm must be <= 500 cm (unrealistic value)")
+        if aquarium_height_cm > MAX_AQUARIUM_DIMENSION_CM:
+            raise ValueError(
+                f"aquarium_height_cm must be <= {MAX_AQUARIUM_DIMENSION_CM:g} cm "
+                "(unrealistic value)"
+            )
 
         # Validate frame intervals
-        if analysis_interval_frames < 1:
-            raise ValueError("analysis_interval_frames must be >= 1")
-        if analysis_interval_frames > 30:
-            raise ValueError("analysis_interval_frames must be <= 30")
+        if analysis_interval_frames < MIN_INTERVAL_FRAMES:
+            raise ValueError(f"analysis_interval_frames must be >= {MIN_INTERVAL_FRAMES}")
+        if analysis_interval_frames > MAX_INTERVAL_FRAMES:
+            raise ValueError(f"analysis_interval_frames must be <= {MAX_INTERVAL_FRAMES}")
 
-        if display_interval_frames < 1:
-            raise ValueError("display_interval_frames must be >= 1")
-        if display_interval_frames > 30:
-            raise ValueError("display_interval_frames must be <= 30")
+        if display_interval_frames < MIN_INTERVAL_FRAMES:
+            raise ValueError(f"display_interval_frames must be >= {MIN_INTERVAL_FRAMES}")
+        if display_interval_frames > MAX_INTERVAL_FRAMES:
+            raise ValueError(f"display_interval_frames must be <= {MAX_INTERVAL_FRAMES}")
 
         # Validate camera index
         if camera_index < 0:

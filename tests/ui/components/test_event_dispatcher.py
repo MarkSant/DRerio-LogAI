@@ -571,3 +571,111 @@ class TestFinishDrawingRouting:
             edited_polygon_points=[[0, 0], [1, 1], [2, 2]],
         )
         assert EventDispatcher._finish_drawing_is_interactive_edit(gui) is True
+
+
+class TestUnprefixedMessageAliases:
+    """``SHOW_*``/``SET_STATUS`` precisam chegar ao mesmo lugar que os ``UI_*``.
+
+    São dois membros distintos do mesmo enum para o bus e sinônimos para quem
+    lê o código. Enquanto só o ``UI_`` tinha assinante, toda mensagem publicada
+    sob o nome curto era descartada por ``EventBusV2.publish`` sem log — foi
+    assim que o assistente passou a fechar sem criar projeto e sem explicar.
+    """
+
+    @staticmethod
+    def _dispatcher_with_immediate_after():
+        """GUI de teste cujo ``root.after`` executa o callback na hora.
+
+        Os handlers de mensagem embrulham a chamada em ``root.after(0, ...)``
+        para voltar à thread do Tk. Com um ``MagicMock`` puro o lambda nunca
+        roda e o teste passaria sem exercitar nada.
+        """
+        event_bus = MagicMock()
+        dialog_manager = MagicMock()
+        status_var = MagicMock()
+        root = MagicMock()
+        root.after.side_effect = lambda _delay, callback: callback()
+
+        gui = SimpleNamespace(
+            event_bus=event_bus,
+            root=root,
+            widget_factory=MagicMock(),
+            dialog_manager=dialog_manager,
+            status_var=status_var,
+            notebook=MagicMock(),
+            state_synchronizer=MagicMock(),
+            video_selector_manager=MagicMock(),
+            project_view_manager=MagicMock(),
+            canvas_manager=MagicMock(),
+            zone_controls=MagicMock(),
+            menu_manager=MagicMock(),
+            zone_control_builder=MagicMock(),
+        )
+        dispatcher = EventDispatcher(cast(Any, gui))
+        dispatcher.subscribe_to_ui_events()
+        return event_bus, dialog_manager, status_var
+
+    @staticmethod
+    def _handler_for(event_bus, event):
+        for call in event_bus.subscribe.call_args_list:
+            args, _kwargs = call
+            if args and args[0] == event:
+                return args[1]
+        return None
+
+    def test_show_error_without_prefix_reaches_the_dialog(self):
+        from zebtrack.ui import payloads
+
+        event_bus, dialog_manager, _status = self._dispatcher_with_immediate_after()
+
+        handler = self._handler_for(event_bus, UIEvents.SHOW_ERROR)
+        assert handler is not None, "UIEvents.SHOW_ERROR ficou sem assinante"
+
+        handler(
+            payloads.MessagePayload(
+                title="Configuração Inválida",
+                message="det só aceita 1 animal por aquário",
+            )
+        )
+
+        dialog_manager.show_error.assert_called_once_with(
+            "Configuração Inválida", "det só aceita 1 animal por aquário"
+        )
+
+    def test_show_info_without_prefix_reaches_the_dialog(self):
+        from zebtrack.ui import payloads
+
+        event_bus, dialog_manager, _status = self._dispatcher_with_immediate_after()
+
+        handler = self._handler_for(event_bus, UIEvents.SHOW_INFO)
+        assert handler is not None, "UIEvents.SHOW_INFO ficou sem assinante"
+
+        handler(payloads.MessagePayload(title="Pronto", message="Projeto criado"))
+
+        dialog_manager.show_info.assert_called_once_with("Pronto", "Projeto criado")
+
+    def test_set_status_without_prefix_updates_the_status_bar(self):
+        from zebtrack.ui import payloads
+
+        event_bus, _dialog_manager, status_var = self._dispatcher_with_immediate_after()
+
+        handler = self._handler_for(event_bus, UIEvents.SET_STATUS)
+        assert handler is not None, "UIEvents.SET_STATUS ficou sem assinante"
+
+        handler(payloads.StatusPayload(message="Cancelamento solicitado para CECT_4."))
+
+        status_var.set.assert_called_once_with("Cancelamento solicitado para CECT_4.")
+
+    def test_prefixed_and_unprefixed_reach_the_same_dialog_call(self):
+        """Os dois nomes precisam produzir o MESMO efeito, não só existir."""
+        from zebtrack.ui import payloads
+
+        event_bus, dialog_manager, _status = self._dispatcher_with_immediate_after()
+        payload = payloads.MessagePayload(title="Erro", message="falha X")
+
+        self._handler_for(event_bus, UIEvents.UI_SHOW_ERROR)(payload)
+        self._handler_for(event_bus, UIEvents.SHOW_ERROR)(payload)
+
+        assert dialog_manager.show_error.call_count == 2
+        first, second = dialog_manager.show_error.call_args_list
+        assert first == second

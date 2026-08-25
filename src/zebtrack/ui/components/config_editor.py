@@ -537,14 +537,23 @@ class ConfigEditorWidget(BaseWidget):
         self._refresh_seg_overlap_warning()
 
         # Hint
+        # O texto anterior dizia "são GLOBAIS; altere por projeto na aba Zonas",
+        # e era errado duas vezes: a aba Zonas só EXIBE a regra efetiva (o
+        # editor é este painel), e com um projeto aberto o Salvar daqui grava em
+        # ``project_data["roi_settings"]``, não no arquivo global. Ou seja, o
+        # escopo é o inverso do que a dica prometia.
         ttk.Label(
             roi_frame,
             text=_(
-                "💡 Tip: these are GLOBAL settings. You can change them per project "
-                "in the Zones tab."
+                "💡 The scope depends on the context: with no project open these "
+                "are the GLOBAL defaults (config.local.yaml); with a project "
+                "open, saving writes to THAT PROJECT only. The Zones tab shows "
+                "the rule in effect, but this is where it is edited."
             ),
             font=("TkDefaultFont", 8),
             foreground="#555555",
+            wraplength=520,
+            justify="left",
         ).grid(row=5, column=0, columnspan=4, sticky="w", pady=(6, 0))
 
     def focus_roi_section(self) -> None:
@@ -805,17 +814,44 @@ class ConfigEditorWidget(BaseWidget):
         self.behavioral_config_widget.set_values(widget_values)
 
     def _on_save_clicked(self) -> None:
-        """Handle save button click."""
+        """Handle save button click.
+
+        ``TclError`` ao lado de ``ValueError`` não é defensivo: as seções de
+        vídeo/suavização/ROI usam ``StringVar`` e falham com ``ValueError`` no
+        ``int()``, mas o widget de análise comportamental usa ``DoubleVar`` e
+        ``IntVar`` em ``Spinbox`` editáveis — e ``DoubleVar.get()`` sobre texto
+        levanta ``TclError``, que não descende de ``ValueError``. Só com
+        ``ValueError`` o erro escapava do botão e virava o diálogo genérico
+        "Erro Inesperado" da rede do Tk.
+        """
         try:
             values = self.get_values()
-            self.emit_event(
-                UIEvents.CONFIG_SAVE_REQUESTED, payloads.ConfigSaveRequestedPayload(values=values)
-            )
-        except ValueError as e:
+        except (ValueError, TclError) as e:
             self.emit_event(
                 UIEvents.CONFIG_VALIDATION_ERROR,
                 payloads.ConfigValidationErrorPayload(error=str(e)),
             )
+            return
+
+        # ``BehavioralConfigWidget.validate()`` já existia, com todas as faixas
+        # corretas, e esta aba era a única das três que o utiliza que nunca o
+        # chamava — os diálogos de vídeo único e de análise ao vivo chamam. Sem
+        # isto, uma tigmotaxia de 99 cm só era barrada mais tarde, pelo Pydantic,
+        # com a mensagem crua do modelo em vez do texto escrito para o operador.
+        # Roda DEPOIS de ``get_values()``: se as variáveis não são legíveis, o
+        # bloco acima já saiu, então aqui ``validate()`` não pode levantar.
+        if self.behavioral_config_widget is not None:
+            is_valid, errors = self.behavioral_config_widget.validate()
+            if not is_valid:
+                self.emit_event(
+                    UIEvents.CONFIG_VALIDATION_ERROR,
+                    payloads.ConfigValidationErrorPayload(error="\n".join(errors)),
+                )
+                return
+
+        self.emit_event(
+            UIEvents.CONFIG_SAVE_REQUESTED, payloads.ConfigSaveRequestedPayload(values=values)
+        )
 
     def _on_reset_clicked(self) -> None:
         """Handle reset button click."""

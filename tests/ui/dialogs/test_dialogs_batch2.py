@@ -130,35 +130,46 @@ class TestTemplateDialog:
 
         dialog.destroy()
 
-    def test_apply_with_invalid_numeric_input(self, tkinter_root):
-        """Testa apply com entrada não-numérica (deve retornar None)."""
+    def test_invalid_numeric_input_is_rejected_by_validate(self, tkinter_root):
+        """Entrada não-numérica precisa AVISAR, não virar cancelamento mudo.
+
+        A conversão vivia em ``apply()`` e o ``except`` fazia
+        ``result = None``. Quem chama testa ``if not dialog.result: return`` —
+        a mesma condição de "o usuário cancelou" — então o diálogo fechava sem
+        criar ROI nenhuma e sem mensagem. A checagem passou para ``validate()``,
+        o único método que o Tkinter respeita para manter a janela aberta.
+        """
+        from unittest.mock import patch
+
         dialog = TemplateDialog(tkinter_root)
         dialog.withdraw()
 
         dialog.template_type.set("vertical")
-        dialog.num_lanes.set("abc")  # Inválido
+        dialog.num_lanes.set("abc")
         dialog.num_rows.set("2")
         dialog.num_cols.set("2")
 
-        dialog.apply()
-
-        assert dialog.result is None
+        with patch("zebtrack.ui.dialogs.template_dialog.messagebox.showerror") as showerror:
+            assert dialog.validate() is False
+            showerror.assert_called_once()
 
         dialog.destroy()
 
-    def test_apply_with_empty_input(self, tkinter_root):
-        """Testa apply com entrada vazia (deve retornar None)."""
+    def test_empty_input_in_a_relevant_field_is_rejected(self, tkinter_root):
+        """Campo vazio que o tipo escolhido USA precisa barrar o fechamento."""
+        from unittest.mock import patch
+
         dialog = TemplateDialog(tkinter_root)
         dialog.withdraw()
 
         dialog.template_type.set("grid")
-        dialog.num_lanes.set("")  # Vazio
-        dialog.num_rows.set("2")
+        dialog.num_lanes.set("")
+        dialog.num_rows.set("")  # 'grid' usa linhas/colunas
         dialog.num_cols.set("2")
 
-        dialog.apply()
-
-        assert dialog.result is None
+        with patch("zebtrack.ui.dialogs.template_dialog.messagebox.showerror") as showerror:
+            assert dialog.validate() is False
+            showerror.assert_called_once()
 
         dialog.destroy()
 
@@ -424,31 +435,35 @@ class TestCenterPeripheryDialog:
 
         dialog.destroy()
 
-    def test_apply_with_invalid_value(self, tkinter_root):
-        """Testa apply com valor inválido (deve retornar None)."""
+    def test_invalid_value_is_rejected_by_validate(self, tkinter_root):
+        """Mesmo motivo do TemplateDialog: ``result = None`` era indistinguível
+        de cancelamento, então o diálogo fechava sem fazer nada e sem avisar."""
+        from unittest.mock import patch
+
         dialog = CenterPeripheryDialog(tkinter_root)
         dialog.withdraw()
 
         dialog.method.set("distance")
-        dialog.value.set("abc")  # Inválido
+        dialog.value.set("abc")
 
-        dialog.apply()
-
-        assert dialog.result is None
+        with patch("zebtrack.ui.dialogs.center_periphery_dialog.messagebox.showerror") as showerror:
+            assert dialog.validate() is False
+            showerror.assert_called_once()
 
         dialog.destroy()
 
-    def test_apply_with_empty_value(self, tkinter_root):
-        """Testa apply com valor vazio (deve retornar None)."""
+    def test_empty_value_is_rejected_by_validate(self, tkinter_root):
+        from unittest.mock import patch
+
         dialog = CenterPeripheryDialog(tkinter_root)
         dialog.withdraw()
 
         dialog.method.set("area_ratio")
-        dialog.value.set("")  # Vazio
+        dialog.value.set("")
 
-        dialog.apply()
-
-        assert dialog.result is None
+        with patch("zebtrack.ui.dialogs.center_periphery_dialog.messagebox.showerror") as showerror:
+            assert dialog.validate() is False
+            showerror.assert_called_once()
 
         dialog.destroy()
 

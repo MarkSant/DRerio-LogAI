@@ -2,9 +2,25 @@ from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Any
 
 from zebtrack.i18n import _
+from zebtrack.ui.components.roi_name_validation import RoiNameError, validate_roi_name
 
 if TYPE_CHECKING:
     from zebtrack.ui.gui import ApplicationGUI
+
+
+def _existing_roi_names(gui: "ApplicationGUI") -> list[str]:
+    """Nomes de ROI já usados no contexto ativo.
+
+    Best-effort de propósito: se a leitura do contexto falhar, a validação de
+    duplicata é pulada e só a de nome vazio permanece. Recusar o desenho que o
+    operador acabou de fazer porque não conseguimos ler a lista seria pior do
+    que aceitar um homônimo.
+    """
+    try:
+        zone_data = gui.dialog_manager.zone_context_service.get_zone_data_for_active_context()
+    except Exception:  # except Exception justified: leitura de contexto é opcional aqui
+        return []
+    return [str(name) for name in (getattr(zone_data, "roi_names", None) or [])]
 
 
 def _is_multi_aquarium_context(gui: "ApplicationGUI", zone_controls: Any) -> bool:
@@ -146,7 +162,17 @@ class ROICompletionStrategy(PolygonCompletionStrategy):
         # ApplicationGUI — calling ``gui.ask_string`` raised
         # "'ApplicationGUI' object has no attribute 'ask_string'".
         roi_name = gui.dialog_manager.ask_string(_("ROI Name"), _("Type a name:"))
-        if not roi_name:
+        if roi_name is None:
+            return False
+
+        # O nome é chave no relatório, não rótulo: homônimos colidem na coluna
+        # ``in_<nome>_stable`` e uma das ROIs some do ``.xlsx`` em silêncio.
+        # ``if not roi_name`` sozinho também deixava passar "   ", que é
+        # verdadeiro em Python e vira cabeçalho em branco na planilha.
+        try:
+            roi_name = validate_roi_name(roi_name, _existing_roi_names(gui))
+        except RoiNameError as exc:
+            gui.dialog_manager.show_error(_("Invalid ROI name"), str(exc))
             return False
 
         # Select color

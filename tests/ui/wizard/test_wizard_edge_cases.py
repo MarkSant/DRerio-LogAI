@@ -185,15 +185,21 @@ class TestExperimentalDesignEdgeCases:
 class TestCalibrationEdgeCases:
     """Test suite for CalibrationData edge cases."""
 
-    def test_aquarium_width_zero_invalid(self):
-        """Test aquarium width cannot be zero."""
-        with pytest.raises(ValidationError):
-            CalibrationData(
-                num_aquariums=1,
-                animals_per_aquarium=5,
-                aquarium_width_cm=0.0,  # Invalid
-                aquarium_height_cm=30.0,
-            )
+    def test_aquarium_width_zero_means_no_calibration(self):
+        """Zero é VÁLIDO: significa "sem calibração" (análise em pixels).
+
+        Esta asserção esperava ``ValidationError`` e com isso fixava uma
+        divergência: ``ProjectLifecycleManager``, que de fato cria o projeto,
+        documenta 0 cm como ausência de calibração. O modelo do assistente era
+        o único a proibir a única forma de exprimir isso.
+        """
+        data = CalibrationData(
+            num_aquariums=1,
+            animals_per_aquarium=5,
+            aquarium_width_cm=0.0,
+            aquarium_height_cm=30.0,
+        )
+        assert data.aquarium_width_cm == 0.0
 
     def test_aquarium_width_negative_invalid(self):
         """Test aquarium width cannot be negative."""
@@ -215,25 +221,40 @@ class TestCalibrationEdgeCases:
         )
         assert data.aquarium_width_cm == 0.1
 
-    def test_aquarium_width_very_large(self):
-        """Test aquarium width with very large value."""
-        data = CalibrationData(
-            num_aquariums=1,
-            animals_per_aquarium=5,
-            aquarium_width_cm=10000.0,  # Unrealistic but valid
-            aquarium_height_cm=30.0,
-        )
-        assert data.aquarium_width_cm == 10000.0
+    def test_aquarium_width_above_the_domain_ceiling_is_rejected(self):
+        """10 000 cm são 100 m: o domínio recusa acima de 500 cm.
 
-    def test_aquarium_height_zero_invalid(self):
-        """Test aquarium height cannot be zero."""
+        O nome antigo do teste — "unrealistic but valid" — descrevia
+        exatamente a divergência: o modelo do assistente aceitava um valor que
+        a criação do projeto recusaria depois, com uma mensagem em inglês que o
+        event bus engolia.
+        """
         with pytest.raises(ValidationError):
             CalibrationData(
                 num_aquariums=1,
                 animals_per_aquarium=5,
-                aquarium_width_cm=50.0,
-                aquarium_height_cm=0.0,  # Invalid
+                aquarium_width_cm=10000.0,
+                aquarium_height_cm=30.0,
             )
+
+    def test_aquarium_width_at_the_ceiling_is_accepted(self):
+        data = CalibrationData(
+            num_aquariums=1,
+            animals_per_aquarium=5,
+            aquarium_width_cm=500.0,
+            aquarium_height_cm=30.0,
+        )
+        assert data.aquarium_width_cm == 500.0
+
+    def test_aquarium_height_zero_means_no_calibration(self):
+        """Mesma regra da largura: zero é ausência de calibração, não erro."""
+        data = CalibrationData(
+            num_aquariums=1,
+            animals_per_aquarium=5,
+            aquarium_width_cm=50.0,
+            aquarium_height_cm=0.0,
+        )
+        assert data.aquarium_height_cm == 0.0
 
 
 class TestWizardServiceHardwareFailures:

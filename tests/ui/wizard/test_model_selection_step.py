@@ -467,3 +467,94 @@ class TestModelSelectionStep:
         # Without the fix this returns the lateral default because the
         # perspective lookup silently fails.
         assert step._default_weight_for_method("seg") == "yolov8n-seg-top.pt"
+
+
+@pytest.mark.gui
+class TestBytetrackFieldsAreValidated:
+    """``track_buffer``, ``max_center_distance`` e ``iou_threshold``.
+
+    Os três são ``Entry`` editáveis, eram lidos por ``get_data()`` e por nenhum
+    validador. Consequências, da mais barulhenta para a mais cara:
+
+    * texto → ``get_data()`` estoura fora de qualquer ``try`` no
+      ``WizardDialog._on_next``, virando um diálogo genérico que não diz qual
+      campo está errado;
+    * valor fora de faixa → passa, e o ``DetectorService`` o recusa lá adiante
+      dentro de um ``except Exception`` que só faz ``log.warning``. Como os
+      parâmetros são aplicados em bloco, UM valor inválido descarta TODOS os
+      overrides do projeto em silêncio.
+    """
+
+    @pytest.fixture
+    def step(self, tkinter_root):
+        from zebtrack.settings import load_settings
+
+        instance = ModelSelectionStep(tkinter_root, {}, settings_obj=load_settings())
+        instance.build_ui()
+        return instance
+
+    def test_text_in_track_buffer_is_rejected_before_get_data(self, step):
+        step.track_buffer_var.set("abc")
+
+        valid, msg = step.validate()
+
+        assert valid is False
+        assert msg, "a mensagem precisa nomear o campo, não sair vazia"
+
+    def test_zero_track_buffer_is_rejected(self, step):
+        step.track_buffer_var.set("0")
+        assert step.validate()[0] is False
+
+    def test_negative_max_distance_is_rejected(self, step):
+        """-50 px atravessava inteiro e degradava o casamento por distância."""
+        step.max_center_dist_var.set("-50")
+        assert step.validate()[0] is False
+
+    def test_zero_max_distance_is_rejected(self, step):
+        step.max_center_dist_var.set("0")
+        assert step.validate()[0] is False
+
+    def test_iou_above_one_is_rejected(self, step):
+        """O rótulo do campo diz "0-1"; 5 era aceito e propagado."""
+        step.iou_thresh_var.set("5")
+        assert step.validate()[0] is False
+
+    def test_iou_negative_is_rejected(self, step):
+        step.iou_thresh_var.set("-0.1")
+        assert step.validate()[0] is False
+
+    def test_iou_accepts_the_inclusive_bounds(self, step):
+        """0 e 1 são válidos para IoU — a faixa do DetectorService é fechada."""
+        for value in ("0", "1", "0.05"):
+            step.iou_thresh_var.set(value)
+            assert step.validate()[0] is True, f"IoU {value} deveria passar"
+
+    def test_valid_values_still_pass_and_reach_get_data(self, step):
+        step.track_buffer_var.set("120")
+        step.max_center_dist_var.set("350.5")
+        step.iou_thresh_var.set("0.2")
+
+        assert step.validate()[0] is True
+
+        params = step.get_data()["detector_parameters"]
+        assert params["track_buffer"] == 120
+        assert params["max_center_distance"] == 350.5
+        assert params["iou_threshold"] == 0.2
+
+    def test_get_data_never_runs_on_values_validate_rejected(self, step):
+        """Contrato do ``_on_next``: ``get_data()`` só roda após validate() True.
+
+        Amarra os dois: se alguém acrescentar um campo ao ``get_data()`` sem
+        acrescentá-lo ao ``validate()``, este teste falha em vez de o assistente
+        estourar na cara do usuário.
+        """
+        for var, bad in (
+            (step.track_buffer_var, "x"),
+            (step.max_center_dist_var, "x"),
+            (step.iou_thresh_var, "x"),
+            (step.confidence_var, "x"),
+        ):
+            original = var.get()
+            var.set(bad)
+            assert step.validate()[0] is False, f"valor {bad!r} passou pelo validate()"
+            var.set(original)
