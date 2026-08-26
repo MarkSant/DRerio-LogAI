@@ -557,3 +557,56 @@ class TestCalibrationSessionsAndDefaults:
         assert res is False
 
         assert coordinator._using_project_overrides is False
+
+
+class TestOpenProjectSignals:
+    """``PROJECT_OPENED`` is the "a DIFFERENT project is current now" signal.
+
+    Its emission was once removed as "no handlers exist", but two live
+    subscribers were left wired to it and simply stopped running:
+    ``ZoneContextPanel._on_project_opened`` and
+    ``MultiAquariumCoordinator.reset_multi_aquarium_state``. The batch
+    assignment state therefore survived a project switch.
+    """
+
+    @staticmethod
+    def _published_types(event_bus):
+        return [call.args[0].type for call in event_bus.publish.call_args_list if call.args]
+
+    def test_successful_open_publishes_project_opened(self, coordinator, event_bus):
+        coordinator.project_workflow_adapter.open_project_workflow.return_value = True
+
+        assert coordinator.open_project("C:/projects/Experiment") is True
+        assert UIEvents.PROJECT_OPENED in self._published_types(event_bus)
+
+    def test_failed_open_does_not_publish_project_opened(self, coordinator, event_bus):
+        coordinator.project_workflow_adapter.open_project_workflow.return_value = False
+
+        assert coordinator.open_project("C:/projects/Experiment") is False
+        assert UIEvents.PROJECT_OPENED not in self._published_types(event_bus)
+
+    def test_successful_open_marks_the_override_scope_as_project(self, coordinator):
+        """``get_calibration_scope_info`` reads THIS flag, not the workflow service's.
+
+        Two attributes share the name ``_using_project_overrides``; only the one
+        on ``ModelOverrideService`` decides the scope shown by the calibration
+        dialog, and nothing but the calibration context manager ever set it.
+        """
+        override_service = MagicMock()
+        override_service._using_project_overrides = False
+        coordinator._model_override_service = override_service
+        coordinator.project_workflow_adapter.open_project_workflow.return_value = True
+
+        coordinator.open_project("C:/projects/Experiment")
+
+        assert override_service._using_project_overrides is True
+
+    def test_failed_open_leaves_the_override_scope_global(self, coordinator):
+        override_service = MagicMock()
+        override_service._using_project_overrides = False
+        coordinator._model_override_service = override_service
+        coordinator.project_workflow_adapter.open_project_workflow.return_value = False
+
+        coordinator.open_project("C:/projects/Experiment")
+
+        assert override_service._using_project_overrides is False

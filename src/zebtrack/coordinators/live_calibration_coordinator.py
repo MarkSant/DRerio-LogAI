@@ -38,11 +38,13 @@ from zebtrack.core.detection.aquarium_retry import (
     RETRY_REASON_OK,
     AquariumRetryOutcome,
 )
+from zebtrack.core.services.arena_detection_policy import resolve_arena_detection
 from zebtrack.i18n import _
 from zebtrack.io.camera import Camera
 from zebtrack.ui import payloads
 from zebtrack.ui.event_bus_v2 import Event, UIEvents
 from zebtrack.ui.payloads import VideoPathPayload
+from zebtrack.utils.geometry import resolve_polygon_epsilon_factor, simplify_polygon
 
 if TYPE_CHECKING:
     from zebtrack.core.project.project_manager import ProjectManager
@@ -959,21 +961,17 @@ class LiveCalibrationCoordinator(BaseCoordinator):
 
         # Auto-detect aquarium using configured model
 
-        # Determine detection method (det/seg) from configuration.
+        # Detection method (det/seg) AND outline shape come from the canonical
+        # resolver, shared with ``MultiAquariumCoordinator.run_aquarium_detection``.
         #
-        # Precedence: project ``model_selection.aquarium_method`` > global
-        # settings > "det". NOT an if/elif on key PRESENCE: a project carrying a
-        # ``model_selection`` dict WITHOUT ``aquarium_method`` used to pin the
-        # method to "det" and never consult the settings, so the same camera and
-        # the same tank resolved to different model families depending on which
-        # flow opened them.
-        method = "det"  # Default fallback
+        # Precedence lives in one place now
+        # (``core.services.arena_detection_policy``). It used to be duplicated
+        # here and absent there, which is exactly how the two flows drifted:
+        # the same camera and the same tank resolved to different model families
+        # depending on which flow opened them.
         project_data = self.project_manager.project_data or {}
-        settings_method = None
-        if self.settings and hasattr(self.settings, "model_selection"):
-            settings_method = self.settings.model_selection.aquarium_method
-        project_method = (project_data.get("model_selection") or {}).get("aquarium_method")
-        method = project_method or settings_method or method
+        policy = resolve_arena_detection(project_data, self.settings)
+        method = policy.method
 
         log.info("live_calibration_coordinator.live_calibration.method_selected", method=method)
 
@@ -1043,25 +1041,15 @@ class LiveCalibrationCoordinator(BaseCoordinator):
         # Cache references for retry callback (re-captures + re-detects with new conf).
         self._calibration_detector = detector
         self._calibration_initial_confidence = initial_confidence
-        # Project value wins; otherwise fall back to the global setting.
+        # Resolved above alongside the method: project value wins, then the
+        # global ``detection_zones.preserve_real_aquarium_shape`` setting.
         #
-        # Without the fallback this was hard-False for the ad-hoc single-video
+        # Without that fallback this was hard-False for the ad-hoc single-video
         # live flow (no project ⇒ empty ``project_data``), so the arena was
         # ALWAYS collapsed to a 4-corner rectangle there even with a
         # segmentation model loaded — visibly worse than the live-project flow
-        # on circular / hexagonal / perspective-skewed tanks. The setting
-        # ``detection_zones.preserve_real_aquarium_shape`` existed but had no
-        # reader at all.
-        if "preserve_real_aquarium_shape" in project_data:
-            preserve_real_shape = bool(project_data["preserve_real_aquarium_shape"])
-        else:
-            preserve_real_shape = bool(
-                getattr(
-                    getattr(self.settings, "detection_zones", None),
-                    "preserve_real_aquarium_shape",
-                    False,
-                )
-            )
+        # on circular / hexagonal / perspective-skewed tanks.
+        preserve_real_shape = policy.preserve_real_shape
         self._calibration_preserve_real_shape = preserve_real_shape
 
         # Audit Erro 4 (2026-05-25): if the user previously opted into
@@ -1480,76 +1468,19 @@ class LiveCalibrationCoordinator(BaseCoordinator):
         )
 
     def _simplify_polygon(self, raw_polygon: Any) -> list[list[int]]:
-        """Reduce the vertex count of a segmentation mask polygon.
+        """Reduce the vertex count of a segmentation mask outline.
 
-        Audit Erro 8 round 4 (2026-05-25): YOLO segmentation masks return
-        the raw contour from cv2.findContours, which carries one vertex
-        per pixel along the boundary (often 200+ points). Apply
-        Douglas-Peucker (``cv2.approxPolyDP``) so downstream consumers
-        — the editable polygon canvas, the ArenaROI parquet, the
-        recorder's draw_overlay — work with a clean ~6-12 vertex polygon
-        that matches what the pre-recorded auto-detect pipeline produces.
-
-        Args:
-            raw_polygon: ndarray-like with shape (N, 2); pixel coords.
-
-        Returns:
-            Simplified polygon as a list of [x, y] integer pairs.
+        Thin wrapper over :func:`zebtrack.utils.geometry.simplify_polygon`: it
+        only supplies the epsilon factor from this coordinator's injected
+        settings. The algorithm itself moved out because the PRE-RECORDED
+        segmentation path needs the identical reduction — while it lived here as
+        a private method, that flow shipped raw 200-vertex outlines for the same
+        tank this one simplified to ~6-12.
         """
-        import numpy as np
-
-        try:
-            contour = np.asarray(raw_polygon, dtype=np.float32).reshape(-1, 1, 2)
-            perimeter = float(cv2.arcLength(contour, closed=True))
-            if perimeter <= 0:
-                return [[int(p[0]), int(p[1])] for p in raw_polygon]
-
-            # Read epsilon factor from settings, fall back to a sensible
-            # 0.5% of the perimeter (preserves rectangular aquarium corners
-            # while collapsing pixel-jitter along straight edges).
-            epsilon_factor = 0.005
-            try:
-                epsilon_factor = float(
-                    getattr(
-                        self.settings.yolo_model,
-                        "aquarium_polygon_epsilon",
-                        epsilon_factor,
-                    )
-                )
-            # except Exception justified: settings access may fail in tests
-            # with stripped configs — fall back to default.
-            except Exception:
-                log.debug(
-                    "live_calibration_coordinator.epsilon_settings_fallback",
-                    exc_info=True,
-                )
-
-            epsilon = max(1.0, epsilon_factor * perimeter)
-            approx = cv2.approxPolyDP(contour, epsilon, closed=True)
-
-            if approx is None or len(approx) < 3:
-                # Approximation collapsed to <3 points — keep the raw shape.
-                return [[int(p[0]), int(p[1])] for p in raw_polygon]
-
-            # ``approx`` from cv2.approxPolyDP has shape (N, 1, 2); each ``pt``
-            # is a (1, 2) ndarray. Use explicit indexing flattened via .ravel()
-            # so mypy can resolve the dtype without complaining that ``pt[0]``
-            # is already a scalar.
-            simplified = [[int(pt.ravel()[0]), int(pt.ravel()[1])] for pt in approx]
-            log.info(
-                "live_calibration_coordinator.polygon_simplified",
-                raw_vertices=len(raw_polygon),
-                simplified_vertices=len(simplified),
-                epsilon_factor=epsilon_factor,
-                perimeter_px=round(perimeter, 1),
-            )
-            return simplified
-        except Exception:
-            log.warning(
-                "live_calibration_coordinator.polygon_simplify_failed",
-                exc_info=True,
-            )
-            return [[int(p[0]), int(p[1])] for p in raw_polygon]
+        return simplify_polygon(
+            raw_polygon,
+            epsilon_factor=resolve_polygon_epsilon_factor(self.settings),
+        )
 
     # Fallback confidence for the second detection pass, mirroring
     # ``AquariumDetector.detect_aquariums``' own ``fallback_confidence``. The

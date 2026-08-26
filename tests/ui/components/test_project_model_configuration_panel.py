@@ -81,3 +81,61 @@ def test_project_model_configuration_panel_copies_globals(tkinter_root, project_
         panel._copy_globals_to_project()
 
     project_config_controller.project_vm.handle_calibration_copy_to_project.assert_called_once()
+
+
+def test_panel_built_without_a_project_rebuilds_once_one_is_open(
+    tkinter_root, project_config_controller
+):
+    """Regression: the tab stayed on "Open a project…" with a project loaded.
+
+    ``build_model_configuration_tab`` creates the panel together with the
+    notebook — which the single-video flow builds BEFORE any project exists —
+    so ``_build`` took the "no project" branch and returned early, leaving
+    ``slot_controls_frame`` at None. ``refresh_from_project`` only refreshed
+    values, and ``_build_slot_override_controls`` bails on that None, so every
+    later refresh was a silent no-op for the rest of the session.
+    """
+    scope = project_config_controller.project_vm.get_calibration_scope_info
+    scope.return_value = {"project_loaded": False}
+
+    panel = ProjectModelConfigurationPanel(tkinter_root, project_config_controller)
+    assert panel.slot_weight_dropdowns == {}
+    assert panel.slot_controls_frame is None
+
+    scope.return_value = {"project_loaded": True}
+    panel.refresh_from_project()
+
+    assert len(panel.slot_weight_dropdowns) == 2
+    assert panel.slot_controls_frame is not None
+    assert "🐠 Aquário (det): weights.pt" in panel.effective_weight_var.get()
+
+
+def test_panel_falls_back_to_the_placeholder_when_the_project_closes(
+    tkinter_root, project_config_controller
+):
+    scope = project_config_controller.project_vm.get_calibration_scope_info
+    panel = ProjectModelConfigurationPanel(tkinter_root, project_config_controller)
+    assert len(panel.slot_weight_dropdowns) == 2
+
+    scope.return_value = {"project_loaded": False}
+    panel.refresh_from_project()
+
+    assert panel.slot_weight_dropdowns == {}
+    assert panel.slot_controls_frame is None
+
+
+def test_on_project_manager_replaced_adopts_the_new_manager(
+    tkinter_root, project_config_controller
+):
+    """The constructor snapshot would otherwise read the CLOSED project."""
+    panel = ProjectModelConfigurationPanel(tkinter_root, project_config_controller)
+    original = panel.project_manager
+
+    new_manager = SimpleNamespace(
+        project_data={"model_overrides": {"slot_weights": {"det:aquarium": "alt_det.pt"}}}
+    )
+    panel.on_project_manager_replaced(new_manager)
+
+    assert panel.project_manager is new_manager
+    assert panel.project_manager is not original
+    assert panel.slot_weight_choices["det:aquarium"].get() == "alt_det.pt"

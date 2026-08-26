@@ -337,6 +337,24 @@ class ZoneManager:
         else:
             self._last_zone_source_video = None
 
+    def reset_active_context(self) -> None:
+        """Forget which video's zones are active.
+
+        ``_active_zone_video`` and ``_last_zone_source_video`` are INSTANCE
+        state, so they outlive ``ProjectManager.load_project`` — which swaps
+        ``project_path`` and ``project_data`` but never touches the zone
+        manager. Opening a project therefore inherited the pointer left by
+        whatever ran before it, most damagingly an ad-hoc single-video session:
+        ``get_active_zone_video()`` still named that video, and
+        ``ProjectLifecycleCoordinator`` fed its zones straight into
+        ``DetectorService.configure_zones`` for the newly opened project.
+
+        A project that was just opened has no active video by definition, so the
+        correct value is None — the first selection sets it again.
+        """
+        self._active_zone_video = None
+        self._last_zone_source_video = None
+
     def set_active_zone_video(self, project_data: dict, video_path: Path | str | None) -> None:
         """Set the video whose zones should be considered active in memory.
 

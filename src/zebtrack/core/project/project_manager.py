@@ -528,6 +528,12 @@ class ProjectManager:
             load_config_fn=self.project_service.load_project_config,
             apply_migrations_fn=self._apply_project_migrations,
         )
+        # Drop the previous session's active-video pointer BEFORE installing
+        # the new data: the pointer is instance state on ZoneManager and would
+        # otherwise make the freshly opened project answer with the zones of
+        # whatever video was last selected — including an ad-hoc single-video
+        # run that has nothing to do with this project.
+        self.zone_manager.reset_active_context()
         self.project_path = project_path
         self.project_data = loaded_data
         if migration_applied:

@@ -80,6 +80,18 @@ class ModelDiagnosticsPanel(ttk.Frame):
         self._refresh_project_weight_summary()
         self._populate_project_weights_dropdown()
 
+    def on_project_manager_replaced(self, new_manager) -> None:
+        """Adopt the ``ProjectManager`` that replaced the one we were built with.
+
+        ``close_project`` swaps the instance, so the constructor snapshot would
+        otherwise keep this panel reading the CLOSED project's ``project_data``
+        — valid-looking data from the wrong project.
+        """
+        self.project_manager = new_manager
+        refresh = getattr(self, "refresh_from_project", None) or getattr(self, "refresh", None)
+        if callable(refresh):
+            refresh()
+
     def _build(self) -> None:
         self.columnconfigure(0, weight=1)
 

@@ -1281,6 +1281,64 @@ no longer started in silence either:
 project declares `external_trigger_mode`, and is a no-op otherwise (including
 with no project at all).
 
+### 5.15. Project Switch: `PROJECT_MANAGER_REPLACED` and `PROJECT_OPENED` (August 2026)
+
+`close_project` does not clear the current `ProjectManager` — it constructs a
+**brand new one** (`project_workflow_adapter.close_project`) and publishes
+`PROJECT_MANAGER_REPLACED`. The old instance stays a perfectly valid object
+holding the PREVIOUS session's `project_data`, so anything that snapshotted the
+manager in its constructor keeps answering from the closed project. Nothing
+about that looks like an error, which is what made it survive so long.
+
+**Propagation is a tree, not a list.** `MainViewModelRuntime.handle_project_manager_replaced`
+walks `services_to_update`; two of those entries are *owners* that forward to
+what they constructed:
+
+| Owner | Forwards to |
+| --- | --- |
+| `ProjectLifecycleCoordinator` | `CalibrationCoordinator`, `ModelOverrideService` |
+| `VideoProcessingCoordinator` | multi-aquarium, sequential, report, progress sub-coordinators, `ui_coordinator`, `dialog_coordinator` |
+| `ApplicationGUI` (own subscription) | `gui.project_manager`, `ZoneContextService`, `TabBuilder`, `ROITemplateManager`, and every panel exposing `on_project_manager_replaced` |
+
+A component that holds `project_manager` and is reachable from none of those is
+a bug waiting to happen. Two concrete ones this replaced:
+
+- `ZoneContextService` (built once in `ApplicationGUI.__init__`) fed the canvas,
+  the zone editor and the zone list. After an ad-hoc single-video run — which
+  writes its arena and ROIs into the then-current manager's `project_data`
+  (`project.zone_data.save.in_memory`) — opening a project drew the SINGLE
+  VIDEO's arena over the project's own, while the detector had the right zones.
+- `CalibrationCoordinator` computes `project_loaded = bool(pm.project_path)`.
+  Off the closed manager that is `False`, so the **AI Model Config** tab
+  reported "Open a project…" with a project fully loaded.
+
+The GUI handler bounces onto the Tk main thread via `root.after(0, ...)` —
+`EventBusV2` publishes synchronously on the publisher's thread — and finishes by
+republishing `UI_REDRAW_ZONES` + `UI_UPDATE_ZONE_LIST` so the canvas repaints
+from the new manager.
+
+**`PROJECT_OPENED` is mandatory.** Its emission was once deleted from
+`ProjectLifecycleCoordinator.open_project` as "no handlers exist", while two live
+subscribers stayed wired to it and simply stopped running:
+`ZoneContextPanel._on_project_opened` and
+`MultiAquariumCoordinator.reset_multi_aquarium_state` (so `_auto_assign_aquariums`,
+`_last_assignment_configs` and `_assigned_videos` leaked across a project
+switch). Anything that must FORGET the previous project belongs on this event.
+
+**Opening a project resets, it does not merely load.** Three steps that used to
+be missing:
+
+1. `ProjectManager.load_project` calls `zone_manager.reset_active_context()`.
+   `_active_zone_video` / `_last_zone_source_video` are instance state and
+   survived the swap, so the new project inherited the previous run's video
+   pointer — and `ProjectLifecycleCoordinator` fed THAT video's zones to
+   `DetectorService.configure_zones`.
+2. `ProjectWorkflowService.open_project` runs `setup_zones_callback`
+   **unconditionally**. It used to be gated on the project already having zones,
+   with no `else`, so a project without an arena kept the previous session's.
+3. `ProjectInitializer.load_project_view` clears `pending_single_video_path`,
+   the single-video buttons and the interactive drawing state.
+
 ---
 
 ## 6. Common Pitfalls for Agents

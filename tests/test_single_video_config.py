@@ -3,7 +3,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from zebtrack.settings import BehavioralAnalysisSettings, Settings
+from zebtrack.settings import BehavioralAnalysisSettings, DetectionZonesSettings, Settings
 from zebtrack.ui.dialogs.single_video_config_dialog import SingleVideoConfigDialog
 
 
@@ -20,6 +20,11 @@ class TestSingleVideoConfigPersistence:
             aquarium_perspective="lateral",
             geotaxis_mode="zones",
         )
+        # A real object, like ``behavioral_analysis`` above: ``MagicMock(spec=...)``
+        # over a Pydantic v2 model does not expose field names for GETTING, so a
+        # bare mock makes ``hasattr(settings, "detection_zones")`` False and the
+        # dialog silently skips the write it is supposed to make.
+        settings.detection_zones = DetectionZonesSettings()
         settings.roi_inclusion_rule = "bbox_intersects"
         settings.roi_buffer_radius_value = 0.5
         settings.roi_min_bbox_overlap_ratio = 0.1
@@ -76,6 +81,7 @@ class TestSingleVideoConfigPersistence:
             dialog.aquarium_method_var = MagicMock(get=MagicMock(return_value="seg"))
             dialog.animal_method_var = MagicMock(get=MagicMock(return_value="det"))
             dialog.use_openvino_var = MagicMock(get=MagicMock(return_value=False))
+            dialog.preserve_real_shape_var = MagicMock(get=MagicMock(return_value=True))
 
             SingleVideoConfigDialog.apply(dialog)
 
@@ -88,6 +94,15 @@ class TestSingleVideoConfigPersistence:
 
             # Verify result dict was set
             assert dialog.result is not None
+
+            # The arena-shape choice must reach BOTH consumers: the injected
+            # settings (the fallback level ``resolve_arena_detection`` reads
+            # when there is no project) and the returned config (which
+            # ``SingleVideoWorkflow`` copies into ``project_data``). Dropping
+            # either one silently reverts the flow to a 4-corner rectangle.
+            assert mock_settings.detection_zones.preserve_real_aquarium_shape is True
+            assert dialog.result["preserve_real_aquarium_shape"] is True
+            assert dialog.result["aquarium_method"] == "seg"
             assert dialog.result["video_path"] == "c:/video.mp4"
             assert dialog.result["behavioral_analysis"]["aquarium_perspective"] == "lateral"
             assert dialog.result["behavioral_analysis"]["geotaxis_num_zones"] == 4

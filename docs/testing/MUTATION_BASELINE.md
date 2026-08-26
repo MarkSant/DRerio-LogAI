@@ -31,16 +31,18 @@ percentage.
 
 ## Current baseline
 
-Measured 2026-08-19. **21 mutations, 21 killed, 0 survivors.**
+Measured 2026-08-26. **30 mutations, 30 killed, 0 survivors.**
 
-| Module                                       | Mutations | Killed |
-| -------------------------------------------- | --------- | ------ |
-| `core/services/mask_capture.py`              | 4         | 4      |
-| `core/services/external_trigger_gate.py`     | 4         | 4      |
-| `core/services/session_duration_resolver.py` | 3         | 3      |
-| `core/services/arduino_bindings.py`          | 2         | 2      |
-| `core/services/roi_rule_resolver.py`         | 3         | 3      |
-| `core/services/weight_manager.py`            | 5         | 5      |
+| Module                                        | Mutations | Killed |
+| --------------------------------------------- | --------- | ------ |
+| `core/services/mask_capture.py`               | 4         | 4      |
+| `core/services/external_trigger_gate.py`      | 4         | 4      |
+| `core/services/session_duration_resolver.py`  | 3         | 3      |
+| `core/services/arduino_bindings.py`           | 2         | 2      |
+| `core/services/roi_rule_resolver.py`          | 3         | 3      |
+| `core/services/arena_detection_policy.py`     | 5         | 5      |
+| `core/services/weight_manager.py`             | 5         | 5      |
+| `core/services/live_calibration_scale.py`     | 4         | 4      |
 
 The catalogue covers the contracts `CLAUDE.md` flags as critical — the ones written to **degrade
 silently** rather than raise. A silent degradation that no test detects is indistinguishable from

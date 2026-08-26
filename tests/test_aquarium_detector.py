@@ -914,3 +914,165 @@ class TestAquariumDetectorStabilization:
 
         # Deve retornar lista vazia quando não consegue gerar default
         assert result == []
+
+
+# ============================================================================
+# CLASSE 7: FORMA DA ARENA EM MODO SEGMENTACAO (preserve_real_shape)
+# ============================================================================
+
+
+def _octagon_mask(cx=320, cy=240, rx=220, ry=170):
+    """Outline with more than 4 vertices, sized to pass the area gate."""
+    import math
+
+    return np.array(
+        [
+            [
+                int(cx + rx * math.cos(2 * math.pi * i / 8)),
+                int(cy + ry * math.sin(2 * math.pi * i / 8)),
+            ]
+            for i in range(8)
+        ],
+        dtype=np.int32,
+    )
+
+
+def _seg_result(mask_polygon, *, confidence=0.9):
+    """A YOLO-shaped result carrying one mask and its box."""
+    box = MagicMock()
+    box.conf = confidence
+    x_min, y_min = mask_polygon[:, 0].min(), mask_polygon[:, 1].min()
+    x_max, y_max = mask_polygon[:, 0].max(), mask_polygon[:, 1].max()
+    box.xyxy = [np.array([x_min, y_min, x_max, y_max])]
+    box.cls = 0
+
+    masks = MagicMock()
+    masks.xy = [mask_polygon.astype(np.float32)]
+
+    result = MagicMock()
+    result.boxes = [box]
+    result.masks = masks
+    return result
+
+
+class TestAquariumDetectorArenaShape:
+    """The mask-vs-rectangle decision on the PRE-RECORDED path.
+
+    Before ``preserve_real_shape`` reached this flow, ``detect_aquariums`` in
+    "seg" mode always returned the raw contour and the coordinator could only
+    ever ask for "det" — so a round or hexagonal tank came back as a rectangle
+    with no way to say otherwise.
+    """
+
+    @pytest.mark.skipif(not ULTRALYTICS_AVAILABLE, reason="Ultralytics not available")
+    def test_preserve_keeps_more_than_four_vertices(self, tmp_path, mock_video_file):
+        model_path = tmp_path / "model.pt"
+        model_path.write_text("fake model")
+        mask = _octagon_mask()
+
+        with patch("zebtrack.core.detection.aquarium_detector.YOLO") as mock_yolo:
+            mock_model = MagicMock()
+            mock_model.predict = MagicMock(return_value=[_seg_result(mask)])
+            mock_yolo.return_value = mock_model
+
+            detector = AquariumDetector(model_path, mode="seg")
+            polygons = detector.detect_aquariums(
+                mock_video_file,
+                stabilization_frames=5,
+                preserve_real_shape=True,
+            )
+
+        assert polygons, "segmentation with a valid mask must yield a polygon"
+        assert len(polygons[0]) > 4
+
+    @pytest.mark.skipif(not ULTRALYTICS_AVAILABLE, reason="Ultralytics not available")
+    def test_without_preserve_the_mask_collapses_to_four_corners(self, tmp_path, mock_video_file):
+        model_path = tmp_path / "model.pt"
+        model_path.write_text("fake model")
+        mask = _octagon_mask()
+
+        with patch("zebtrack.core.detection.aquarium_detector.YOLO") as mock_yolo:
+            mock_model = MagicMock()
+            mock_model.predict = MagicMock(return_value=[_seg_result(mask)])
+            mock_yolo.return_value = mock_model
+
+            detector = AquariumDetector(model_path, mode="seg")
+            polygons = detector.detect_aquariums(
+                mock_video_file,
+                stabilization_frames=5,
+                preserve_real_shape=False,
+            )
+
+        assert polygons
+        assert len(polygons[0]) == 4
+        # The box must still bound the original mask.
+        result = np.asarray(polygons[0])
+        assert result[:, 0].min() == mask[:, 0].min()
+        assert result[:, 1].max() == mask[:, 1].max()
+
+    @pytest.mark.skipif(not ULTRALYTICS_AVAILABLE, reason="Ultralytics not available")
+    def test_default_is_the_historical_rectangle(self, tmp_path, mock_video_file):
+        """Omitting the argument must not change behaviour for existing callers."""
+        model_path = tmp_path / "model.pt"
+        model_path.write_text("fake model")
+
+        with patch("zebtrack.core.detection.aquarium_detector.YOLO") as mock_yolo:
+            mock_model = MagicMock()
+            mock_model.predict = MagicMock(return_value=[_seg_result(_octagon_mask())])
+            mock_yolo.return_value = mock_model
+
+            detector = AquariumDetector(model_path, mode="seg")
+            polygons = detector.detect_aquariums(mock_video_file, stabilization_frames=5)
+
+        assert polygons
+        assert len(polygons[0]) == 4
+
+    @pytest.mark.skipif(not ULTRALYTICS_AVAILABLE, reason="Ultralytics not available")
+    def test_missing_mask_degrades_to_the_box_instead_of_losing_the_arena(
+        self, tmp_path, mock_video_file
+    ):
+        """A "seg" slot pointing at a box model must still detect.
+
+        Returning nothing would send the user to manual drawing for a tank the
+        model actually found.
+        """
+        model_path = tmp_path / "model.pt"
+        model_path.write_text("fake model")
+
+        box = MagicMock()
+        box.conf = 0.9
+        box.xyxy = [np.array([100, 100, 540, 380])]
+        box.cls = 0
+        boxless_result = MagicMock()
+        boxless_result.boxes = [box]
+        boxless_result.masks = None
+
+        with patch("zebtrack.core.detection.aquarium_detector.YOLO") as mock_yolo:
+            mock_model = MagicMock()
+            mock_model.predict = MagicMock(return_value=[boxless_result])
+            mock_yolo.return_value = mock_model
+
+            detector = AquariumDetector(model_path, mode="seg")
+            polygons = detector.detect_aquariums(
+                mock_video_file,
+                stabilization_frames=5,
+                preserve_real_shape=True,
+            )
+
+        assert polygons, "must degrade to the bounding box, not return nothing"
+        assert len(polygons[0]) == 4
+
+    @pytest.mark.skipif(not ULTRALYTICS_AVAILABLE, reason="Ultralytics not available")
+    def test_zero_epsilon_disables_simplification(self, tmp_path):
+        """``aquarium_polygon_epsilon = 0`` must hand back every raw vertex."""
+        model_path = tmp_path / "model.pt"
+        model_path.write_text("fake model")
+        with patch("zebtrack.core.detection.aquarium_detector.YOLO") as mock_yolo:
+            mock_yolo.return_value = MagicMock()
+            detector = AquariumDetector(model_path, mode="seg")
+
+        raw = _octagon_mask()
+        kept = detector._shape_segmentation_polygon(
+            raw, preserve_real_shape=True, epsilon_factor=0.0
+        )
+        assert len(kept) == len(raw)

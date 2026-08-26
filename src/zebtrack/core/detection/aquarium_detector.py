@@ -17,6 +17,7 @@ import structlog
 from shapely.geometry import Polygon
 
 from zebtrack.io.video_source import VideoFileSource
+from zebtrack.utils.geometry import DEFAULT_POLYGON_EPSILON_FACTOR, simplify_polygon
 
 YOLO: Any | None
 
@@ -370,6 +371,45 @@ class AquariumDetector:
                             )
         return None
 
+    def _shape_segmentation_polygon(
+        self,
+        polygon: np.ndarray,
+        *,
+        preserve_real_shape: bool,
+        epsilon_factor: float,
+    ) -> np.ndarray:
+        """Decide what a segmentation mask outline becomes downstream.
+
+        This is the ONLY place the pre-recorded pipeline turns a mask into an
+        arena, and it deliberately mirrors ``LiveCalibrationCoordinator._burst_pass``
+        so the same tank yields the same outline in both flows:
+
+        * ``preserve_real_shape=False`` — collapse to the 4-corner bounding box.
+          The historical behaviour, and correct for a rectangular tank whose ROIs
+          are drawn against straight edges.
+        * ``preserve_real_shape=True`` — keep the mask, simplified. Raw YOLO
+          contours carry one vertex per boundary pixel; handing 200+ points to the
+          editable canvas and the ArenaROI parquet is unusable.
+
+        Never raises: ``simplify_polygon`` degrades to the raw outline, and the
+        bbox branch is pure arithmetic on values we already validated.
+        """
+        if preserve_real_shape:
+            simplified = simplify_polygon(polygon, epsilon_factor=epsilon_factor)
+            return np.array(simplified, dtype=np.int32)
+
+        x_min, y_min = int(polygon[:, 0].min()), int(polygon[:, 1].min())
+        x_max, y_max = int(polygon[:, 0].max()), int(polygon[:, 1].max())
+        log.info(
+            "aquarium_detector.mask_collapsed_to_bbox",
+            raw_vertices=len(polygon),
+            bbox=[x_min, y_min, x_max, y_max],
+        )
+        return np.array(
+            [[x_min, y_min], [x_max, y_min], [x_max, y_max], [x_min, y_max]],
+            dtype=np.int32,
+        )
+
     def _find_consensus_polygon(
         self,
         good_polygons: list[np.ndarray],
@@ -464,12 +504,14 @@ class AquariumDetector:
         max_area_ratio: float = 0.98,
         confidence_threshold: float | None = None,
         fallback_confidence: float | None = None,
+        preserve_real_shape: bool = False,
+        polygon_epsilon_factor: float = DEFAULT_POLYGON_EPSILON_FACTOR,
     ) -> list[np.ndarray]:
         """
         Analyzes initial frames of a video to find the most stable aquarium polygon.
 
         Supports both segmentation and detection modes:
-        - "seg": Uses segmentation masks (original behavior)
+        - "seg": Uses segmentation masks, shaped by ``preserve_real_shape``
         - "det": Uses bounding box detections converted to rectangular polygons
 
         Args:
@@ -482,6 +524,16 @@ class AquariumDetector:
             fallback_confidence: Low-confidence retry used inside
                 ``_process_segmentation_results`` when the primary pass produces
                 no usable mask. ``None`` falls back to 0.01.
+            preserve_real_shape: In ``"seg"`` mode, keep the mask outline
+                (simplified to ~6-12 vertices) instead of collapsing it to a
+                4-corner bounding box. Ignored in ``"det"`` mode, which has no
+                mask to preserve. Resolve it with
+                ``core.services.arena_detection_policy.resolve_arena_detection``
+                rather than deciding at the call site — the live and
+                pre-recorded flows must agree.
+            polygon_epsilon_factor: Douglas-Peucker epsilon as a fraction of the
+                outline perimeter, applied only when the mask shape is kept.
+                Callers pass ``settings.yolo_model.aquarium_polygon_epsilon``.
 
         Returns:
             A list containing the single most stable polygon, or an empty list if
@@ -497,6 +549,7 @@ class AquariumDetector:
             min_ratio=min_area_ratio,
             confidence_threshold=conf,
             fallback_confidence=fallback_conf,
+            preserve_real_shape=preserve_real_shape,
         )
         source = None
         try:
@@ -553,6 +606,27 @@ class AquariumDetector:
                         confidence_threshold=conf,
                         fallback_confidence=fallback_conf,
                     )
+                    if polygon is None:
+                        # DEGRADE, never lose the detection: a "seg" weight slot
+                        # pointing at a box model (or a frame where the mask head
+                        # produced nothing) still has usable boxes. Falling through
+                        # to them costs the exact outline; returning nothing sends
+                        # the user to manual drawing for a tank the model found.
+                        polygon = self._extract_polygon_from_detection(
+                            frame, results, min_area_ratio, max_area_ratio
+                        )
+                        if polygon is not None:
+                            log.warning(
+                                "aquarium_detector.mask_unavailable_fallback",
+                                frame=i,
+                                message="Segmentation requested but no mask; using bbox.",
+                            )
+                    else:
+                        polygon = self._shape_segmentation_polygon(
+                            polygon,
+                            preserve_real_shape=preserve_real_shape,
+                            epsilon_factor=polygon_epsilon_factor,
+                        )
                 elif self.mode == "det":
                     # Detection mode - extract polygon from bounding boxes
                     polygon = self._extract_polygon_from_detection(

@@ -34,6 +34,7 @@ from zebtrack.core.services.roi_rule_resolver import (
 from zebtrack.core.services.zone_context_service import ZoneContextService
 from zebtrack.core.video.processing_mode import ProcessingMode
 from zebtrack.i18n import _
+from zebtrack.ui import payloads
 from zebtrack.ui.builders import ButtonFactory, PanelBuilder, ZoneControlBuilder
 from zebtrack.ui.components import (
     AnalysisDisplayWidget,
@@ -67,7 +68,7 @@ from zebtrack.ui.dialogs import (
     MissingMetadataDialog,
     StartRecordingDialog,
 )
-from zebtrack.ui.event_bus_v2 import EventBusV2, UIEvents
+from zebtrack.ui.event_bus_v2 import Event, EventBusV2, UIEvents
 from zebtrack.ui.sentinels import all_tracks_label
 from zebtrack.ui.ui_coordinator import UICoordinator
 
@@ -422,11 +423,100 @@ class ApplicationGUI:
             # New: Subscribe to Controller->UI events
             self.event_dispatcher.subscribe_to_ui_events()
             log.info("gui.init.event_bus_setup_complete")
+            self.event_bus.subscribe(
+                UIEvents.PROJECT_MANAGER_REPLACED, self._on_project_manager_replaced_event
+            )
         else:
             log.warning("gui.init.no_event_bus")
 
         # Subscribe to StateManager state changes for reactive UI updates
         self.state_synchronizer.subscribe_to_state_changes()
+
+    # ------------------------------------------------------------------
+    # ProjectManager lifecycle
+    # ------------------------------------------------------------------
+
+    def _on_project_manager_replaced_event(self, data: Any) -> None:
+        """Bounce the rebind onto the Tk main thread.
+
+        ``EventBusV2`` publishes SYNCHRONOUSLY on the publisher's thread, and
+        the rebind touches widgets (panel refreshes, canvas redraw).
+        """
+        new_manager = _payload_get(data, "new_manager", None)
+        if not new_manager:
+            return
+        try:
+            self.root.after(0, lambda: self._rebind_project_manager(new_manager))
+        except TclError:
+            # Closing a project as part of application shutdown: the root is
+            # already gone, so there is no UI left to rebind.
+            log.debug("gui.project_manager_replaced.root_unavailable", exc_info=True)
+
+    def _rebind_project_manager(self, new_manager: Any) -> None:
+        """Point every UI-side holder at the ``ProjectManager`` that is now live.
+
+        ``close_project`` constructs a BRAND NEW ``ProjectManager``; the old one
+        stays a perfectly valid object holding the PREVIOUS session's
+        ``project_data``. Every component that snapshotted the manager in its
+        constructor therefore keeps serving that stale data, and nothing about
+        it looks like an error.
+
+        The visible symptom this fixes: run an ad-hoc single-video analysis
+        (which writes its arena and ROIs into the then-current manager's
+        ``project_data`` — ``project.zone_data.save.in_memory``), then open a
+        project. ``ZoneContextService`` still held manager #1, so the canvas,
+        the zone editor and the zone list drew the single video's arena and ROIs
+        over the project's own — while the DETECTOR, which is rebound by
+        ``MainViewModelRuntime``, had the project's real zones. The two
+        disagreed, and the user edited the wrong one.
+        """
+        self.project_manager = new_manager
+        self._zone_context_service.project_manager = new_manager
+
+        for attr in ("tab_builder", "roi_template_manager"):
+            holder = getattr(self, attr, None)
+            if holder is not None and hasattr(holder, "project_manager"):
+                holder.project_manager = new_manager
+
+        # ``zone_context_panel`` hangs off the builder, not off the GUI.
+        panels: list[tuple[str, Any]] = [
+            (attr, getattr(self, attr, None))
+            for attr in (
+                "project_model_configuration_panel",
+                "project_diagnostics_panel",
+                "arduino_bindings_panel",
+            )
+        ]
+        panels.append(
+            ("zone_context_panel", getattr(self.zone_control_builder, "zone_context_panel", None))
+        )
+
+        for attr, panel in panels:
+            if panel is None:
+                continue
+            hook = getattr(panel, "on_project_manager_replaced", None)
+            try:
+                if callable(hook):
+                    hook(new_manager)
+                elif hasattr(panel, "project_manager"):
+                    panel.project_manager = new_manager
+            # except Exception justified: a panel whose widget tree was already
+            # destroyed must not abort the rebind of the ones still alive.
+            except Exception:
+                log.warning("gui.project_manager_replaced.panel_failed", panel=attr, exc_info=True)
+
+        log.info("gui.project_manager_replaced.rebound")
+
+        # Repaint from the NEW manager. Without this the canvas keeps whatever
+        # the previous project left on it until something else happens to
+        # trigger a redraw.
+        if self.event_bus is not None:
+            self.event_bus.publish(
+                Event(UIEvents.UI_REDRAW_ZONES, payloads.ZonesUpdatedPayload(zone_data=None))
+            )
+            self.event_bus.publish(
+                Event(UIEvents.UI_UPDATE_ZONE_LIST, payloads.ZonesUpdatedPayload(zone_data=None))
+            )
 
     def _post_init(self, _retries: int = 0) -> None:
         """

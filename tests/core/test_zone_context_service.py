@@ -121,3 +121,48 @@ class TestProjectManagerProperty:
         pm = _pm()
         service.project_manager = pm
         assert service.project_manager is pm
+
+
+class TestProjectManagerReplacement:
+    """Regression for the reported cross-contamination (2026-08-26).
+
+    Sequence that produced it: run an ad-hoc single-video analysis (whose arena
+    and ROIs land in the then-current ``ProjectManager``'s ``project_data``),
+    close, then open a real project. ``close_project`` builds a BRAND NEW
+    ``ProjectManager``, but ``ZoneContextService`` was constructed once in
+    ``ApplicationGUI.__init__`` and nothing re-pointed it — so the canvas, the
+    zone editor and the zone list kept drawing the single video's arena over
+    the project's own, while the detector (which IS re-pointed) had the right
+    zones. The two disagreed and the user edited the wrong one.
+    """
+
+    @staticmethod
+    def _single_video_manager():
+        arena = ZoneData(polygon=[[162, 125], [1022, 154], [1008, 685], [148, 643]])
+        arena.roi_polygons = [[[405, 309], [408, 154], [560, 154], [558, 298]]]
+        arena.roi_names = ["Z2"]
+        return _pm(get_zone_data=arena)
+
+    @staticmethod
+    def _project_manager():
+        # A 16-vertex arena and no ROIs — the real shape of the project in the report.
+        project_arena = ZoneData(polygon=[[i, i * 2] for i in range(16)])
+        return _pm(get_zone_data=project_arena)
+
+    def test_stale_manager_serves_the_previous_session(self):
+        """Pins the failure mode itself, so a regression cannot pass silently."""
+        service = ZoneContextService(self._single_video_manager())
+        stale = service.get_zone_data_for_active_context()
+        assert isinstance(stale, ZoneData)
+        assert len(stale.polygon) == 4
+
+    def test_rebinding_switches_to_the_new_project_zones(self):
+        service = ZoneContextService(self._single_video_manager())
+        service.get_zone_data_for_active_context()
+
+        service.project_manager = self._project_manager()
+
+        result = service.get_zone_data_for_active_context()
+        assert isinstance(result, ZoneData)
+        assert len(result.polygon) == 16
+        assert not result.roi_polygons, "the project has no ROIs; Z2 came from the single video"
