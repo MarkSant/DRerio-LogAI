@@ -74,6 +74,8 @@ broader suite:
 | `analysis/reporters/*` | `tests/analysis/test_reporter*.py`, `test_*_reporter.py` |
 | `analysis/behavior*.py`, `analysis/roi.py` | `tests/test_behavior_geotaxis.py`, `tests/analysis/test_roi*.py` |
 | `core/services/roi_rule_resolver.py` (regra de ROI) | `tests/core/services/test_roi_rule_resolver.py`, `tests/coordinators/test_roi_rule_propagation.py`, `tests/core/test_arduino_roi_evaluator.py`, `tests/ui/components/test_roi_settings_persistence.py`, `tests/ui/components/test_zone_controls_widget.py` |
+| `core/services/arena_detection_policy.py` (método seg/det + forma da máscara da arena) | `tests/core/test_arena_detection_policy.py`, `tests/coordinators/test_multi_aquarium_coordinator.py`, `tests/coordinators/test_live_calibration_coordinator.py` |
+| Troca de projeto (`PROJECT_MANAGER_REPLACED`, `PROJECT_OPENED`) | `tests/core/test_project_manager_replaced_event.py`, `tests/core/test_zone_context_service.py`, `tests/coordinators/test_project_lifecycle_coordinator_unit.py`, `tests/ui/components/test_project_model_configuration_panel.py` (marcador `gui`) |
 | `analysis/data_transformer.py` (colunas do resumo, tabela `por_animal`) | `tests/analysis/test_data_transformer.py`, `tests/analysis/test_data_transformer_roi_metrics.py` (regressão das colunas antigas!) |
 | `analysis/reporters/excel_reporter.py` (abas do `.xlsx`) | `tests/analysis/reporters/test_excel_reporter.py`, `tests/analysis/reporters/test_excel_reporter_sheets.py` |
 | `ui/components/config_editor.py` (formulário global, `recorder.persist_masks`) | `tests/ui/components/test_config_editor.py` (marcador `gui`) |

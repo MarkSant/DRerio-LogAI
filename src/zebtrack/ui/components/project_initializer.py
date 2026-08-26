@@ -150,6 +150,8 @@ class ProjectInitializer:
             except (TclError, AttributeError):
                 log.debug("project_initializer.video_label_clear.suppressed", exc_info=True)
 
+        self._clear_single_video_leftovers()
+
         pm = gui.controller.project_manager
 
         # Update window title with project name
@@ -193,6 +195,35 @@ class ProjectInitializer:
         # user clicks "Iniciar Sessão" on a specific subject in the batch
         # grid. The ``check_live_project_calibration`` method is preserved
         # for explicit invocation but no longer scheduled automatically.
+
+    def _clear_single_video_leftovers(self) -> None:
+        """Drop every trace of an ad-hoc single-video session before the project loads.
+
+        Two distinct leaks, both invisible until they bite:
+
+        * ``pending_single_video_path`` is the fallback ``ZoneContextService``
+          and ``ValidationManager`` use when no video is active. Left set, the
+          freshly opened project resolves zones against the single video.
+        * ``start_single_analysis_btn`` / ``new_single_video_btn`` live in
+          ``fixed_button_frame``, which ``create_main_control_frame`` destroys
+          and rebuilds a few lines below. The stale references then point at
+          destroyed widgets, and the next single-video run takes the
+          ``if not gui.start_single_analysis_btn`` branch as FALSE, skips
+          recreating them, and raises ``TclError`` on ``.config(state=...)``.
+
+        The interactive drawing state goes with them: half-finished handles from
+        the previous canvas have no meaning against the project's arena.
+        """
+        gui = self.gui
+        gui.analysis_view_controller.cleanup_single_analysis_button()
+        gui.pending_single_video_path = None
+        gui.pending_single_video_config = None
+        gui.edited_polygon_points = []
+        gui.interactive_polygon_item = None
+        gui.polygon_handles = []
+        gui.current_editing_zone = None
+        gui.roi_data = {}
+        log.info("project_initializer.single_video_leftovers.cleared")
 
     def refresh_zone_sidebar(self) -> None:
         """Render the Zones sidebar for the project that was just loaded.

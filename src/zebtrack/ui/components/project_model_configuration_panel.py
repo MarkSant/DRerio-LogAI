@@ -47,15 +47,58 @@ class ProjectModelConfigurationPanel(ttk.Frame):
         self.slot_weight_dropdowns: dict[str, ttk.Combobox] = {}
         self.project_slots: list[dict[str, str | None]] = []
         self.slot_controls_frame: ttk.LabelFrame | None = None
+        #: Which of the two mutually exclusive layouts is currently on screen.
+        #: The panel is built once, with the notebook — which the single-video
+        #: flow creates BEFORE any project exists — so this is almost always
+        #: False at construction time and has to be re-checked later.
+        self._built_with_project = bool(self.scope_info.get("project_loaded"))
 
         self._build()
 
+    def on_project_manager_replaced(self, new_manager) -> None:
+        """Adopt the ``ProjectManager`` that replaced the one we were built with.
+
+        ``close_project`` swaps the instance, so the constructor snapshot on
+        ``self.project_manager`` would otherwise keep feeding
+        ``_get_current_overrides`` the CLOSED project's ``model_overrides``.
+        """
+        self.project_manager = new_manager
+        self.refresh_from_project()
+
     def refresh_from_project(self) -> None:
-        """Reload project overrides and available weights into the current form."""
+        """Reload project overrides and available weights into the current form.
+
+        Rebuilds the whole panel when the project_loaded state flipped since the
+        last build. A value-only refresh cannot repair that transition: the
+        "no project" layout returns early from :meth:`_build` without ever
+        creating ``slot_controls_frame``, so ``_build_slot_override_controls``
+        bails on ``None`` and every later refresh is a no-op. The panel stayed
+        frozen on "Open a project to adjust…" for the rest of the session, with
+        a project fully loaded.
+        """
         self.scope_info = self.controller.project_vm.get_calibration_scope_info()
+        project_loaded = bool(self.scope_info.get("project_loaded"))
+        if project_loaded != self._built_with_project:
+            self._rebuild()
+            return
+
         self.project_slots = self._get_project_slots()
         self._refresh_slot_dropdown_values()
         self._restore_project_preferences()
+
+    def _rebuild(self) -> None:
+        """Tear the current layout down and build the one matching the scope."""
+        for child in self.winfo_children():
+            child.destroy()
+        self.slot_controls_frame = None
+        self.slot_weight_dropdowns = {}
+        self.project_slots = []
+        self._built_with_project = bool(self.scope_info.get("project_loaded"))
+        log.info(
+            "project_model_configuration_panel.rebuilt",
+            project_loaded=self._built_with_project,
+        )
+        self._build()
 
     def _build(self) -> None:
         self.columnconfigure(1, weight=1)

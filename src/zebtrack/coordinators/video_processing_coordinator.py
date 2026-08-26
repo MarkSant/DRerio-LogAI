@@ -164,6 +164,44 @@ class VideoProcessingCoordinator(
     # Internal helpers
     # ------------------------------------------------------------------
 
+    def _on_project_manager_replaced(self, data: Any) -> None:
+        """Re-point this coordinator AND everything it owns at the new manager.
+
+        ``close_project`` builds a BRAND NEW ``ProjectManager`` and publishes
+        ``PROJECT_MANAGER_REPLACED``. Anything still holding the old instance
+        keeps answering from the CLOSED project — silently, because the dead
+        manager is a perfectly valid object with ``project_path is None`` and
+        whatever ``project_data`` it was left holding.
+
+        ``MainViewModelRuntime`` reaches this coordinator directly, so the
+        sub-components it wires up are only reachable through this hop.
+        """
+        new_manager = getattr(data, "new_manager", None) or (
+            data.get("new_manager") if isinstance(data, dict) else None
+        )
+        if not new_manager:
+            return
+        self.project_manager = new_manager
+        for attr in (
+            "_multi_aquarium_coordinator",
+            "_sequential_coordinator",
+            "_report_coordinator",
+            "_progress_coordinator",
+            "ui_coordinator",
+            "dialog_coordinator",
+        ):
+            sub = getattr(self, attr, None)
+            if sub is not None and hasattr(sub, "project_manager"):
+                try:
+                    sub.project_manager = new_manager
+                except AttributeError as exc:
+                    log.error(
+                        "video_processing_coordinator.project_manager_replaced.failed",
+                        target=attr,
+                        error=str(exc),
+                    )
+        log.info("video_processing_coordinator.project_manager_replaced")
+
     def _get_video_dimensions(self, video_path: Path | str) -> tuple[int, int] | None:
         """Return (width, height) for a video file, or *None* on failure.
 

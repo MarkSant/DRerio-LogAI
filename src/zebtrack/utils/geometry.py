@@ -4,8 +4,11 @@ from __future__ import annotations
 
 import math
 from collections.abc import Iterable, Sequence
+from typing import Any
 
-# No typing imports needed
+import structlog
+
+log = structlog.get_logger()
 
 Point = tuple[float, float]
 
@@ -85,3 +88,108 @@ def snap_point_to_axes(
         _consider((cx, cy))  # Snap directly to center intersection
 
     return best_point
+
+
+#: Default Douglas-Peucker epsilon as a fraction of the contour perimeter.
+#: 0.5% preserves the corners of a rectangular/octagonal tank while collapsing
+#: the pixel jitter YOLO leaves along straight edges. Mirrors the default of
+#: ``settings.yolo_model.aquarium_polygon_epsilon``.
+DEFAULT_POLYGON_EPSILON_FACTOR = 0.005
+
+
+def simplify_polygon(
+    raw_polygon: Any,
+    *,
+    epsilon_factor: float = DEFAULT_POLYGON_EPSILON_FACTOR,
+) -> list[list[int]]:
+    """Reduce the vertex count of a segmentation mask outline.
+
+    YOLO segmentation masks come back as the raw ``cv2.findContours`` contour —
+    one vertex per boundary pixel, often 200+ points. Every downstream consumer
+    (the editable polygon canvas, the ArenaROI parquet, the recorder overlay)
+    wants a clean ~6-12 vertex polygon instead.
+
+    Lives here rather than on a coordinator because BOTH auto-detection flows
+    need it: the live burst path and the pre-recorded segmentation path. It was
+    previously a private method of ``LiveCalibrationCoordinator``, which is why
+    the pre-recorded flow shipped raw 200-vertex outlines while the live one
+    shipped simplified ones for the same tank.
+
+    Takes the epsilon FACTOR rather than a settings object so it stays a pure
+    function — callers read ``settings.yolo_model.aquarium_polygon_epsilon``
+    themselves and pass the number.
+
+    Degrades to the raw outline (never raises, never returns fewer than the
+    input's points) whenever simplification cannot be trusted: a zero-length
+    perimeter, an approximation that collapses below a triangle, or any cv2
+    failure. Losing the arena here would send the user to manual drawing despite
+    the model having found the tank.
+
+    Args:
+        raw_polygon: ndarray-like of shape (N, 2) in pixel coordinates.
+        epsilon_factor: Douglas-Peucker epsilon as a fraction of the perimeter.
+            ``0.0`` disables simplification and returns the raw outline.
+
+    Returns:
+        Polygon as a list of ``[x, y]`` integer pairs.
+    """
+    import cv2
+    import numpy as np
+
+    def _as_int_pairs(polygon: Any) -> list[list[int]]:
+        return [[int(point[0]), int(point[1])] for point in polygon]
+
+    if epsilon_factor <= 0:
+        return _as_int_pairs(raw_polygon)
+
+    try:
+        contour = np.asarray(raw_polygon, dtype=np.float32).reshape(-1, 1, 2)
+        perimeter = float(cv2.arcLength(contour, closed=True))
+        if perimeter <= 0:
+            return _as_int_pairs(raw_polygon)
+
+        epsilon = max(1.0, epsilon_factor * perimeter)
+        approx = cv2.approxPolyDP(contour, epsilon, closed=True)
+
+        if approx is None or len(approx) < 3:
+            # Approximation collapsed below a triangle — keep the raw shape.
+            return _as_int_pairs(raw_polygon)
+
+        # ``approx`` has shape (N, 1, 2); ``.ravel()`` flattens each (1, 2)
+        # entry so mypy resolves the dtype instead of seeing a scalar index.
+        simplified = [[int(pt.ravel()[0]), int(pt.ravel()[1])] for pt in approx]
+        log.info(
+            "geometry.polygon_simplified",
+            raw_vertices=len(raw_polygon),
+            simplified_vertices=len(simplified),
+            epsilon_factor=epsilon_factor,
+            perimeter_px=round(perimeter, 1),
+        )
+        return simplified
+    # except Exception justified: cv2 contour math over model output —
+    # heterogeneous failures, and the raw outline is always a usable answer.
+    except Exception:
+        log.warning("geometry.polygon_simplify_failed", exc_info=True)
+        return _as_int_pairs(raw_polygon)
+
+
+def resolve_polygon_epsilon_factor(settings_obj: Any) -> float:
+    """Read ``yolo_model.aquarium_polygon_epsilon``, falling back to the default.
+
+    Both auto-detection flows need this exact lookup, and both must tolerate a
+    stripped settings object (tests, partial configs) without losing the
+    detection.
+    """
+    try:
+        return float(
+            getattr(
+                getattr(settings_obj, "yolo_model", None),
+                "aquarium_polygon_epsilon",
+                DEFAULT_POLYGON_EPSILON_FACTOR,
+            )
+        )
+    # except Exception justified: settings may be a stub in tests — the default
+    # is always a valid answer.
+    except Exception:
+        log.debug("geometry.polygon_epsilon.settings_fallback", exc_info=True)
+        return DEFAULT_POLYGON_EPSILON_FACTOR

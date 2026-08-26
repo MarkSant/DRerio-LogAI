@@ -248,6 +248,42 @@ class ProjectLifecycleCoordinator(BaseCoordinator):
                 "project.close.live_session_stop_failed", error=str(exc), exc_info=True
             )
 
+    def _on_project_manager_replaced(self, data: Any) -> None:
+        """Re-point this coordinator AND everything it owns at the new manager.
+
+        ``close_project`` builds a BRAND NEW ``ProjectManager`` and publishes
+        ``PROJECT_MANAGER_REPLACED``. Anything still holding the old instance
+        keeps answering from the CLOSED project — silently, because the dead
+        manager is a perfectly valid object with ``project_path is None`` and
+        whatever ``project_data`` it was left holding.
+
+        ``CalibrationCoordinator`` and ``ModelOverrideService`` are constructed
+        with the manager and reachable only through here. Missing this hop is
+        what made the AI Model Config tab report "no project" with a project
+        fully open: ``get_calibration_scope_info`` computes
+        ``project_loaded = bool(pm.project_path)`` off the closed manager.
+        """
+        new_manager = getattr(data, "new_manager", None) or (
+            data.get("new_manager") if isinstance(data, dict) else None
+        )
+        if not new_manager:
+            return
+        self.project_manager = new_manager
+        for name, sub in (
+            ("calibration_coordinator", self._calibration_coordinator),
+            ("model_override_service", self._model_override_service),
+        ):
+            if sub is not None and hasattr(sub, "project_manager"):
+                try:
+                    sub.project_manager = new_manager
+                except AttributeError as exc:
+                    self.logger.error(
+                        "project_lifecycle_coordinator.project_manager_replaced.failed",
+                        target=name,
+                        error=str(exc),
+                    )
+        self.logger.info("project_lifecycle_coordinator.project_manager_replaced")
+
     def close_project(
         self,
         *,
@@ -653,8 +689,39 @@ class ProjectLifecycleCoordinator(BaseCoordinator):
         )
 
         if success:
-            # NOTE: Removed PROJECT_OPENED event emission (no handlers exist; all UI updates
-            # are already handled by project_workflow_adapter.open_project_workflow)
+            # Mark the model-override scope as project-scoped, mirroring the
+            # ``restore_global_model_defaults()`` that close_project runs.
+            #
+            # ``ProjectWorkflowService.open_project`` sets a flag of the SAME
+            # NAME on itself, but ``CalibrationCoordinator.get_calibration_scope_info``
+            # reads ``ModelOverrideService._using_project_overrides`` — a
+            # different attribute on a different object that only the
+            # ``project_calibration_session()`` context manager ever flipped. The
+            # scope therefore stayed "global" after opening a project, and the
+            # calibration dialog offered the global panel instead of the
+            # project one.
+            if self._model_override_service is not None:
+                self._model_override_service._using_project_overrides = True
+
+            # PROJECT_OPENED is the one signal that says "a DIFFERENT project is
+            # now current". Its emission was removed once as "no handlers exist"
+            # — but two live subscribers were left wired to it, so both simply
+            # stopped running:
+            #
+            #   * ``ZoneContextPanel._on_project_opened`` — the calibration
+            #     context panel kept showing the previous project's source and
+            #     model caption;
+            #   * ``MultiAquariumCoordinator.reset_multi_aquarium_state`` — the
+            #     batch assignment state (``_auto_assign_aquariums``,
+            #     ``_last_assignment_configs``, ``_assigned_videos``) survived
+            #     the switch and leaked into the new project.
+            #
+            # Anything that must forget the previous project belongs on this
+            # event; do not remove it again without moving those resets first.
+            self._publish_event(
+                UIEvents.PROJECT_OPENED,
+                payloads.ProjectOpenedPayload(project_path=str(project_path)),
+            )
             self.logger.info("project.open.complete", path=str(project_path))
         else:
             self.logger.warning("project.open.failed", path=str(project_path))

@@ -450,7 +450,21 @@ class MainViewModelRuntime:
             ("detector_service", self._vm.detector_service),
             ("video_processing_service", self._vm.video_processing_service),
             ("recording_service", self._vm.recording_service),
+            # ``VideoProcessingCoordinator`` forwards to the four sub-coordinators
+            # it owns (multi-aquarium, sequential, report, progress) through its
+            # own ``_on_project_manager_replaced``.
             ("processing_coordinator", self._vm.processing_coordinator),
+            # Likewise ``ProjectLifecycleCoordinator`` forwards to
+            # ``CalibrationCoordinator`` and ``ModelOverrideService``. Missing
+            # that hop is what made the AI Model Config tab report "no project"
+            # with a project fully open: ``get_calibration_scope_info`` reads
+            # ``bool(pm.project_path)`` off the CLOSED manager, which is None.
+            (
+                "project_lifecycle_coordinator",
+                getattr(self._vm, "project_lifecycle_coordinator", None),
+            ),
+            ("live_batch_coordinator", getattr(self._vm, "live_batch_coordinator", None)),
+            ("dialog_coordinator", getattr(self._vm, "dialog_coordinator", None)),
             ("live_camera_service", getattr(self._vm, "live_camera_service", None)),
             # Os tres coordinators de live/gravacao guardam ``project_manager``
             # como atributo simples desde a construcao (``di_registrations``) e

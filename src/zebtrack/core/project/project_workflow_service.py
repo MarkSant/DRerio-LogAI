@@ -1156,20 +1156,27 @@ class ProjectWorkflowService:
             if saved_detector_config:
                 restore_detector_callback(saved_detector_config)
 
-        # Load and setup zones
+        # Load and setup zones.
+        #
+        # The callback runs UNCONDITIONALLY. It used to be gated on the opened
+        # project already having an arena or ROIs, with no ``else`` — so opening
+        # a project WITHOUT zones left the detector configured with whatever the
+        # previous session installed (most damagingly an ad-hoc single-video
+        # run). "This project has no zones" must actively clear them, not skip
+        # the step: the callback re-reads the project's own (possibly empty)
+        # zone data and hands that to ``DetectorService.configure_zones``.
         zone_data = self.project_manager.get_zone_data()
-        if zone_data and (zone_data.polygon or zone_data.roi_polygons):
-            log.info(
-                "project_workflow_service.open_project.zones_found",
-                has_polygon=bool(zone_data.polygon),
-                roi_count=len(zone_data.roi_polygons),
-            )
+        has_zones = bool(zone_data and (zone_data.polygon or zone_data.roi_polygons))
+        log.info(
+            "project_workflow_service.open_project.zones_found",
+            has_polygon=bool(zone_data.polygon) if zone_data else False,
+            roi_count=len(zone_data.roi_polygons) if zone_data else 0,
+        )
 
-            # Setup zones via callback
-            if setup_zones_callback:
-                setup_zones_callback()
+        if setup_zones_callback:
+            setup_zones_callback()
 
-            log.info("project_workflow_service.open_project.zones_applied")
+        log.info("project_workflow_service.open_project.zones_applied", has_zones=has_zones)
 
         # Collect project information for display
         project_name = self.project_manager.get_project_name()

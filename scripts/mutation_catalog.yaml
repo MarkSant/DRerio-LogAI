@@ -126,6 +126,51 @@ modules:
         find: 'DEFAULT_ROI_FLUTTER_ENTER_FRAMES: Final[int] = 2'
         replace: 'DEFAULT_ROI_FLUTTER_ENTER_FRAMES: Final[int] = 3'
 
+  arena_detection_policy:
+    source: src/zebtrack/core/services/arena_detection_policy.py
+    tests:
+      - tests/core/test_arena_detection_policy.py
+      - tests/coordinators/test_multi_aquarium_coordinator.py
+    mutations:
+      - id: project-method-ignored
+        description: "aquarium_method do projeto deixa de ser lido (volta a fixar det)"
+        find: 'if isinstance(data.get("model_selection"), dict)'
+        replace: 'if False'
+      - id: explicit-request-loses-to-project
+        description: "method explicito do call site deixa de vencer a preferencia do projeto"
+        find: 'explicit or project_method or _settings_method(settings_obj) or _DEFAULT_METHOD'
+        replace: 'project_method or explicit or _settings_method(settings_obj) or _DEFAULT_METHOD'
+      - id: preserve-shape-project-ignored
+        description: "preserve_real_aquarium_shape do projeto deixa de vencer o global"
+        find: |-
+          preserve = project_flag
+              if preserve is None:
+                  preserve = _settings_preserve_real_shape(settings_obj)
+        replace: |-
+          preserve = None
+              if preserve is None:
+                  preserve = _settings_preserve_real_shape(settings_obj)
+      - id: uses-masks-drops-seg-check
+        description: "uses_masks passa a valer para modelo det, que nao tem mascara"
+        find: 'return self.method == "seg" and self.preserve_real_shape'
+        replace: 'return self.preserve_real_shape'
+      - id: invalid-flag-raises-instead-of-degrading
+        description: "flag corrompida vira True em vez de cair para o nivel seguinte"
+        find: |-
+          log.warning(
+                  "arena_detection_policy.preserve_real_shape.invalid",
+                  source=source,
+                  value=str(value),
+              )
+              return None
+        replace: |-
+          log.warning(
+                  "arena_detection_policy.preserve_real_shape.invalid",
+                  source=source,
+                  value=str(value),
+              )
+              return True
+
   weight_manager:
     source: src/zebtrack/core/services/weight_manager.py
     tests:

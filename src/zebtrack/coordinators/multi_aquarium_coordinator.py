@@ -185,13 +185,23 @@ class MultiAquariumCoordinator(BaseCoordinator):
             video=os.path.basename(video_path),
             multi=multi_aquarium,
             count=count,
+            requested_method=method,
         )
 
         try:
             from zebtrack.core.detection.aquarium_detector import AquariumDetector
+            from zebtrack.core.services.arena_detection_policy import resolve_arena_detection
+            from zebtrack.utils.geometry import resolve_polygon_epsilon_factor
 
-            # Resolve model path via weight_manager (same pattern as LiveCalibrationCoordinator)
-            detection_method = method if method != "auto" else "det"
+            # Model family + outline shape come from the CANONICAL resolver, the
+            # same one ``LiveCalibrationCoordinator.run_live_calibration`` uses.
+            #
+            # This used to be ``method if method != "auto" else "det"``. Every
+            # pre-recorded call site passes the ``"auto"`` default, so the branch
+            # pinned this flow to detection boxes: the "Aquarium AI: seg/det"
+            # combobox wrote a value nothing read, a project carrying
+            # ``model_selection.aquarium_method: "seg"`` still ran "det", and the
+            # arena came back a rectangle on tanks that are not rectangles.
             model_path = None
 
             # Resolve perspective for weight selection — SAME precedence as
@@ -207,6 +217,8 @@ class MultiAquariumCoordinator(BaseCoordinator):
             # weight instead of the perspective-specific one.
             perspective: str | None = None
             project_data = (self.project_manager.project_data if self.project_manager else {}) or {}
+            policy = resolve_arena_detection(project_data, self.settings, requested_method=method)
+            detection_method = policy.method
             bc_data = project_data.get("behavioral_config") or {}
             perspective = bc_data.get("aquarium_perspective") or None
             if perspective is None:
@@ -338,10 +350,23 @@ class MultiAquariumCoordinator(BaseCoordinator):
                     )
                 return None
             else:
-                # Single aquarium detection
+                # Single aquarium detection.
+                #
+                # ``confidence_threshold`` is forwarded on purpose: without it
+                # the detector fell back to its hardcoded 0.05 and ignored
+                # ``settings.yolo_model.confidence_threshold``, which the live
+                # path has always honoured. Same tank, same weights, different
+                # threshold depending on which flow opened the video.
                 results = detector.detect_aquariums(
                     video_path=video_path,
                     stabilization_frames=stabilization_frames,
+                    confidence_threshold=getattr(
+                        getattr(self.settings, "yolo_model", None),
+                        "confidence_threshold",
+                        None,
+                    ),
+                    preserve_real_shape=policy.preserve_real_shape,
+                    polygon_epsilon_factor=resolve_polygon_epsilon_factor(self.settings),
                 )
                 if results:
                     polygon = results[0]

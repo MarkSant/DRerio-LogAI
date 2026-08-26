@@ -12016,6 +12016,28 @@ msgstr ""
 "• seg: Segmentação (mais preciso nos cantos).\n"
 "• det: Detecção por caixa (mais rápido)."
 
+#: src/zebtrack/ui/dialogs/single_video_config_dialog.py:439
+msgid "Preserve the real aquarium shape (mask)"
+msgstr "Preservar formato real do aquário (máscara)"
+
+#: src/zebtrack/ui/dialogs/single_video_config_dialog.py:448
+msgid ""
+"Aquarium Outline\n"
+"\n"
+"• Checked: keeps the segmentation mask outline, for round, hexagonal or "
+"perspective-skewed tanks.\n"
+"• Unchecked: reduces the detection to a 4-corner rectangle.\n"
+"\n"
+"Requires the 'seg' aquarium model."
+msgstr ""
+"Contorno do Aquário\n"
+"\n"
+"• Marcado: mantém o contorno da máscara de segmentação, para aquários "
+"redondos, hexagonais ou com perspectiva inclinada.\n"
+"• Desmarcado: reduz a detecção a um retângulo de 4 cantos.\n"
+"\n"
+"Exige o modelo de aquário 'seg'."
+
 #: src/zebtrack/ui/dialogs/single_video_config_dialog.py:426
 msgid ""
 "Model for Fish Tracking\n"

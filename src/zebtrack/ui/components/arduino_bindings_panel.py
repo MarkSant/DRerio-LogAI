@@ -88,6 +88,16 @@ class ArduinoBindingsPanel(ttk.Frame):
         self._build()
         self.refresh()
 
+    def on_project_manager_replaced(self, new_manager) -> None:
+        """Adopt the ``ProjectManager`` that replaced the one we were built with.
+
+        ``close_project`` swaps the instance, so the constructor snapshot would
+        otherwise keep this panel reading the CLOSED project's ``project_data``
+        — valid-looking data from the wrong project.
+        """
+        self.project_manager = new_manager
+        self.refresh()
+
     # ------------------------------------------------------------------
     # Build
     # ------------------------------------------------------------------

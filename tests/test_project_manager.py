@@ -1157,6 +1157,31 @@ class TestProjectManager(unittest.TestCase):
         result = pm.save_detector_state(detector_config)
         self.assertFalse(result)
 
+    def test_load_project_forgets_the_previous_active_zone_video(self):
+        """Regression: an ad-hoc single-video session leaked into the next project.
+
+        ``_active_zone_video`` / ``_last_zone_source_video`` are INSTANCE state
+        on ``ZoneManager``, and ``load_project`` swaps ``project_path`` and
+        ``project_data`` without touching it. The freshly opened project
+        therefore inherited the pointer left by whatever ran before it, and
+        ``ProjectLifecycleCoordinator`` fed THAT video's zones into
+        ``DetectorService.configure_zones``.
+        """
+        pm = ProjectManager(settings_obj=self.settings_obj)
+        project_path = os.path.join(self.test_dir, "zone_pointer_project")
+        pm.create_new_project(project_path, "pre-recorded", video_files=[])
+
+        # Stand in for the single-video workflow: it points the zone manager at
+        # a video that has nothing to do with the project about to be opened.
+        loader_pm = ProjectManager(settings_obj=self.settings_obj)
+        loader_pm.set_active_zone_video("C:/elsewhere/AdHoc/CECT_4.mp4")
+        assert loader_pm.get_active_zone_video() is not None
+
+        loader_pm.load_project(project_path)
+
+        self.assertIsNone(loader_pm.get_active_zone_video())
+        self.assertIsNone(loader_pm.zone_manager._last_zone_source_video)
+
 
 if __name__ == "__main__":
     unittest.main()

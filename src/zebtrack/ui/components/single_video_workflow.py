@@ -109,6 +109,8 @@ class SingleVideoWorkflow:
             except (KeyError, ValueError, TypeError, AttributeError) as e:
                 log.warning("single_video_workflow.update_settings_failed", error=str(e))
 
+        self._publish_arena_detection_preferences(config)
+
         # Ensure zone edits persist under the selected video
         gui.controller.project_manager.set_active_zone_video(video_path)
 
@@ -161,6 +163,47 @@ class SingleVideoWorkflow:
         # over the new frame — the same trap documented in
         # ``_refresh_zone_tab_overlay``.
         self._refresh_zone_tab_overlay(gui)
+
+    def _publish_arena_detection_preferences(self, config: dict | None) -> None:
+        """Copy the dialog's arena choices into the in-memory ``project_data``.
+
+        ``resolve_arena_detection`` reads the project level FIRST, and this flow
+        has no project file — but it does have a live ``ProjectManager`` whose
+        ``project_data`` dict is where the single-video workflow already stores
+        zones (``project.zone_data.save.in_memory``). Writing the two keys there
+        means the ad-hoc flow and a real project reach the resolver through the
+        exact same door, with no second code path to keep in sync.
+
+        Uses the SAME key names the project file uses
+        (``model_selection.aquarium_method``, ``preserve_real_aquarium_shape``)
+        so nothing has to translate between the two vocabularies.
+        """
+        if not config:
+            return
+        project_manager = getattr(self.gui.controller, "project_manager", None)
+        project_data = getattr(project_manager, "project_data", None)
+        if project_data is None:
+            log.debug("single_video_workflow.arena_preferences.no_project_data")
+            return
+
+        aquarium_method = config.get("aquarium_method")
+        if aquarium_method in ("seg", "det"):
+            model_selection = project_data.get("model_selection")
+            if not isinstance(model_selection, dict):
+                model_selection = {}
+                project_data["model_selection"] = model_selection
+            model_selection["aquarium_method"] = aquarium_method
+
+        if "preserve_real_aquarium_shape" in config:
+            project_data["preserve_real_aquarium_shape"] = bool(
+                config["preserve_real_aquarium_shape"]
+            )
+
+        log.info(
+            "single_video_workflow.arena_preferences.applied",
+            aquarium_method=aquarium_method,
+            preserve_real_aquarium_shape=project_data.get("preserve_real_aquarium_shape"),
+        )
 
     # ------------------------------------------------------------------
     # Auto-detect

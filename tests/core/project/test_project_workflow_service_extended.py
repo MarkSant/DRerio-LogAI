@@ -540,3 +540,59 @@ class TestProjectWorkflowServiceExtended9:
         assert "CPU" in _VALID_OPENVINO_DEVICES
         assert "GPU" in _VALID_OPENVINO_DEVICES
         assert "NPU" in _VALID_OPENVINO_DEVICES
+
+
+class TestOpenProjectZoneSetup:
+    """Opening a project must APPLY its zones — including "it has none".
+
+    The callback used to be gated on the opened project already having an arena
+    or ROIs, with no ``else``. A project without zones therefore left the
+    detector configured with whatever the previous session installed, most
+    damagingly an ad-hoc single-video run.
+    """
+
+    @pytest.fixture
+    def service(self) -> ProjectWorkflowService:
+        pm = MagicMock()
+        pm.project_data = {}
+        pm.project_path = None
+        pm.get_detector_state.return_value = None
+        pm.get_project_name.return_value = "Experiment"
+        pm.get_all_videos.return_value = []
+        pm.get_active_zone_video.return_value = None
+        ms = MagicMock()
+        ms.get_all_weight_names.return_value = ["best_seg.pt"]
+        ms.is_openvino_ready.return_value = True
+        ms.get_default_weight.return_value = "best_seg.pt"
+        return ProjectWorkflowService(
+            project_manager=pm, model_service=ms, state_manager=MagicMock()
+        )
+
+    @staticmethod
+    def _zone_data(*, polygon=None, rois=None):
+        zone = MagicMock()
+        zone.polygon = polygon or []
+        zone.roi_polygons = rois or []
+        return zone
+
+    def test_callback_runs_when_the_project_has_zones(self, service, tmp_path):
+        service.project_manager.get_zone_data.return_value = self._zone_data(
+            polygon=[[0, 0], [1, 0], [1, 1], [0, 1]]
+        )
+        setup_zones = MagicMock()
+
+        result = service.open_project(tmp_path, setup_zones_callback=setup_zones)
+
+        assert result["success"] is True
+        setup_zones.assert_called_once()
+
+    def test_callback_still_runs_when_the_project_has_no_zones(self, service, tmp_path):
+        """ "No zones" must actively CLEAR, not skip the step."""
+        service.project_manager.get_zone_data.return_value = self._zone_data()
+        setup_zones = MagicMock()
+
+        result = service.open_project(tmp_path, setup_zones_callback=setup_zones)
+
+        assert result["success"] is True
+        setup_zones.assert_called_once()
+        assert result["project_info"]["zone_status"] == "✗"

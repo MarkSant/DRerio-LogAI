@@ -362,3 +362,87 @@ class TestResolveSingleAnimalMode:
 
         coordinator.project_manager.project_data = {"calibration": {"animals_per_aquarium": 4}}
         assert coordinator._resolve_single_animal_mode() is False
+
+
+# ---------------------------------------------------------------------------
+# Arena detection policy — the pre-recorded flow must honour aquarium_method
+# ---------------------------------------------------------------------------
+
+
+def _arena_detection_case(coordinator, *, project_data, settings_method, settings_preserve=False):
+    """Drive ``run_aquarium_detection`` and report how the detector was built."""
+    import numpy as np
+
+    coordinator.project_manager.project_data = project_data
+    coordinator.settings.model_selection.aquarium_method = settings_method
+    coordinator.settings.detection_zones.preserve_real_aquarium_shape = settings_preserve
+    coordinator.settings.yolo_model.confidence_threshold = 0.33
+    coordinator.settings.yolo_model.aquarium_polygon_epsilon = 0.005
+    coordinator.weight_manager.get_weight_path_by_method.return_value = "model.pt"
+
+    with patch("zebtrack.core.detection.aquarium_detector.AquariumDetector") as mock_detector_class:
+        instance = MagicMock()
+        mock_detector_class.return_value = instance
+        instance.detect_aquariums.return_value = [np.array([[0, 0], [9, 0], [9, 9], [0, 9]])]
+        with patch.object(coordinator, "set_main_arena_polygon"):
+            coordinator.run_aquarium_detection("test.mp4", multi_aquarium=False)
+
+    return mock_detector_class.call_args.kwargs, instance.detect_aquariums.call_args.kwargs
+
+
+def test_project_aquarium_method_seg_is_honoured(coordinator):
+    """A project configured for segmentation must not silently run "det".
+
+    ``run_aquarium_detection`` used to compute ``method if method != "auto"
+    else "det"``, and every pre-recorded call site passes the ``"auto"``
+    default — so ``model_selection.aquarium_method`` had no reader at all here.
+    """
+    ctor_kwargs, _detect_kwargs = _arena_detection_case(
+        coordinator,
+        project_data={"model_selection": {"aquarium_method": "seg"}},
+        settings_method="det",
+    )
+    assert ctor_kwargs["mode"] == "seg"
+
+
+def test_settings_aquarium_method_used_without_a_project(coordinator):
+    """The ad-hoc single-video flow has no project_data — settings must win."""
+    ctor_kwargs, _detect_kwargs = _arena_detection_case(
+        coordinator, project_data={}, settings_method="seg"
+    )
+    assert ctor_kwargs["mode"] == "seg"
+
+
+def test_explicit_method_still_overrides_the_project(coordinator):
+    import numpy as np
+
+    coordinator.project_manager.project_data = {"model_selection": {"aquarium_method": "seg"}}
+    coordinator.settings.model_selection.aquarium_method = "seg"
+    coordinator.weight_manager.get_weight_path_by_method.return_value = "model.pt"
+
+    with patch("zebtrack.core.detection.aquarium_detector.AquariumDetector") as mock_detector_class:
+        instance = MagicMock()
+        mock_detector_class.return_value = instance
+        instance.detect_aquariums.return_value = [np.array([[0, 0], [9, 0], [9, 9], [0, 9]])]
+        with patch.object(coordinator, "set_main_arena_polygon"):
+            coordinator.run_aquarium_detection("test.mp4", multi_aquarium=False, method="det")
+
+    assert mock_detector_class.call_args.kwargs["mode"] == "det"
+
+
+def test_preserve_real_shape_and_confidence_reach_the_detector(coordinator):
+    """Both used to be dropped: the flag had no reader, the threshold no caller.
+
+    ``detect_aquariums`` fell back to its hardcoded 0.05 and ignored
+    ``settings.yolo_model.confidence_threshold``, which the live path honours.
+    """
+    _ctor_kwargs, detect_kwargs = _arena_detection_case(
+        coordinator,
+        project_data={
+            "model_selection": {"aquarium_method": "seg"},
+            "preserve_real_aquarium_shape": True,
+        },
+        settings_method="det",
+    )
+    assert detect_kwargs["preserve_real_shape"] is True
+    assert detect_kwargs["confidence_threshold"] == 0.33

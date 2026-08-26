@@ -122,6 +122,19 @@ class SingleVideoConfigDialog(simpledialog.Dialog):
         self.aquarium_method_var = StringVar(value=aquarium_method_default)
         self.animal_method_var = StringVar(value=animal_method_default)
         self.use_openvino_var = BooleanVar(value=True)  # OpenVINO enabled by default
+        # Seeded from the global default so the ad-hoc single-video flow starts
+        # where the wizard's projects do. The value travels in the returned
+        # config under the SAME key the project file uses
+        # (``preserve_real_aquarium_shape``), so one resolver reads both.
+        self.preserve_real_shape_var = BooleanVar(
+            value=bool(
+                getattr(
+                    getattr(self.settings, "detection_zones", None),
+                    "preserve_real_aquarium_shape",
+                    False,
+                )
+            )
+        )
 
         # --- Layout ---
         main_frame = ttk.Frame(master, padding=10)
@@ -416,9 +429,37 @@ class SingleVideoConfigDialog(simpledialog.Dialog):
         )
         aquarium_method_combo.grid(row=0, column=2, sticky="w", padx=5)
 
+        # Keep the real aquarium outline.
+        #
+        # Only meaningful with a segmentation model — a box model has no mask to
+        # preserve — so the checkbox follows the combobox instead of silently
+        # accepting a choice that cannot take effect.
+        self._preserve_real_shape_check = ttk.Checkbutton(
+            method_frame,
+            text=_("Preserve the real aquarium shape (mask)"),
+            variable=self.preserve_real_shape_var,
+        )
+        self._preserve_real_shape_check.grid(
+            row=1, column=0, columnspan=3, sticky="w", padx=5, pady=(2, 6)
+        )
+        create_help_label(
+            method_frame,
+            _(
+                "Aquarium Outline\n\n"
+                "• Checked: keeps the segmentation mask outline, for round, "
+                "hexagonal or perspective-skewed tanks.\n"
+                "• Unchecked: reduces the detection to a 4-corner rectangle.\n\n"
+                "Requires the 'seg' aquarium model."
+            ),
+        ).grid(row=1, column=1, padx=2, sticky="e")
+        aquarium_method_combo.bind(
+            "<<ComboboxSelected>>", lambda *_a: self._sync_preserve_real_shape_state()
+        )
+        self._sync_preserve_real_shape_state()
+
         # Animal Method
         ttk.Label(method_frame, text=_("Fish AI:")).grid(
-            row=1, column=0, sticky="w", padx=(5, 2), pady=2
+            row=2, column=0, sticky="w", padx=(5, 2), pady=2
         )
         create_help_label(
             method_frame,
@@ -427,7 +468,7 @@ class SingleVideoConfigDialog(simpledialog.Dialog):
                 "• seg: recommended for several fish (avoids confusion).\n"
                 "• det: recommended for 1 fish (very fast)."
             ),
-        ).grid(row=1, column=1, padx=2)
+        ).grid(row=2, column=1, padx=2)
         animal_method_combo = ttk.Combobox(
             method_frame,
             textvariable=self.animal_method_var,
@@ -435,7 +476,7 @@ class SingleVideoConfigDialog(simpledialog.Dialog):
             state="readonly",
             width=8,
         )
-        animal_method_combo.grid(row=1, column=2, sticky="w", padx=5)
+        animal_method_combo.grid(row=2, column=2, sticky="w", padx=5)
 
         # OpenVINO option
         openvino_check = ttk.Checkbutton(
@@ -443,7 +484,7 @@ class SingleVideoConfigDialog(simpledialog.Dialog):
             text=_("Use OpenVINO acceleration (Intel)"),
             variable=self.use_openvino_var,
         )
-        openvino_check.grid(row=2, column=0, columnspan=3, sticky="w", padx=5, pady=(10, 0))
+        openvino_check.grid(row=3, column=0, columnspan=3, sticky="w", padx=5, pady=(10, 0))
 
         # --- Behavioral Analysis Widget (New) ---
         # Add it to the left column, below the behavior metrics frame
@@ -555,6 +596,25 @@ class SingleVideoConfigDialog(simpledialog.Dialog):
         log.info("single_video_dialog.validate.SUCCESS")
         return True
 
+    def _sync_preserve_real_shape_state(self) -> None:
+        """Enable the mask checkbox only while the aquarium model is 'seg'.
+
+        The stored value is deliberately NOT cleared when the user switches to
+        'det': switching back must restore the earlier choice rather than
+        silently losing it. The resolver already ignores the flag for a box
+        model, so a stale True is inert, not wrong.
+        """
+        check = getattr(self, "_preserve_real_shape_check", None)
+        if check is None:
+            return
+        is_seg = self.aquarium_method_var.get() == "seg"
+        try:
+            check.config(state="normal" if is_seg else "disabled")
+        # except Exception justified: Tk widget may already be destroyed when a
+        # trace fires during teardown; the state is cosmetic.
+        except Exception:
+            log.debug("single_video_dialog.preserve_real_shape.state_sync_failed", exc_info=True)
+
     def apply(self):
         """Apply the single video configuration to result dictionary and settings."""
         log.info("single_video_dialog.apply.START")
@@ -600,6 +660,15 @@ class SingleVideoConfigDialog(simpledialog.Dialog):
                         Literal["seg", "det"], self.animal_method_var.get()
                     )
                     self.settings.model_selection.use_openvino = self.use_openvino_var.get()
+
+                # Mirrors ``model_selection`` above: the ad-hoc single-video flow
+                # has no project file, so the injected settings object IS where
+                # the choice lives for this session — and it is the fallback
+                # level ``resolve_arena_detection`` consults after the project.
+                if hasattr(self.settings, "detection_zones"):
+                    self.settings.detection_zones.preserve_real_aquarium_shape = bool(
+                        self.preserve_real_shape_var.get()
+                    )
 
                 if hasattr(self.settings, "analysis_config"):
                     self.settings.analysis_config.num_aquariums = num_aquariums
@@ -672,6 +741,7 @@ class SingleVideoConfigDialog(simpledialog.Dialog):
             "display_interval_frames": display_interval,
             "aquarium_method": self.aquarium_method_var.get(),
             "animal_method": self.animal_method_var.get(),
+            "preserve_real_aquarium_shape": bool(self.preserve_real_shape_var.get()),
             "use_openvino": self.use_openvino_var.get(),
             "use_single_subject_tracker": animals_per_aquarium == 1,
             "behavioral_analysis": behavioral_config,
