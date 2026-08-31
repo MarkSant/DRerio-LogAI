@@ -91,6 +91,7 @@ class VideoProcessingService(
         ui_event_bus: EventBusV2,
         cancel_event: threading.Event,
         settings_obj: Settings,
+        settings_baseline: Settings | None = None,
         detector: Detector | None = None,
         recorder: Recorder | None = None,
     ) -> None:
@@ -101,6 +102,13 @@ class VideoProcessingService(
         self.ui_event_bus = ui_event_bus
         self.cancel_event = cancel_event
         self.settings = settings_obj
+        # Pristine settings for PROJECT analysis. The ad-hoc dialogs mutate the
+        # shared object and never restore it, so ``self.settings`` is not a safe
+        # fallback for a project's thresholds. See
+        # ``core.services.project_settings_snapshot``.
+        self.settings_baseline = (
+            settings_baseline if settings_baseline is not None else settings_obj
+        )
         self.detector = detector
         self.recorder = recorder
 

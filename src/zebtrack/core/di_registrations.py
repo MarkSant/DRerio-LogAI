@@ -70,6 +70,19 @@ class ContainerContext:
     cancel_event: threading.Event
     controller_ref: LazyRef
 
+    #: Pristine ``Settings``, captured before any dialog can mutate the shared one.
+    #:
+    #: ``SingleVideoConfigDialog`` and ``LiveAnalysisDialog`` write their per-run
+    #: choices (freezing thresholds, Savitzky-Golay window, ...) into the SHARED
+    #: settings object and never restore them. A project that does not carry its
+    #: own values would inherit an earlier ad-hoc run's numbers and report
+    #: different metrics, silently. Project analysis resolves
+    #: **project > baseline > default** instead of touching the live object.
+    #:
+    #: Left ``None`` by callers that do not care: the container copies the
+    #: settings itself at build time, which is still before any UI exists.
+    settings_baseline: Settings | None = None
+
 
 T = TypeVar("T")
 
@@ -84,6 +97,8 @@ def build_container(context: ContainerContext) -> punq.Container:
     """Create and configure the DI container with all registrations."""
     container = punq.Container()
     settings_obj = context.settings_obj
+    # Pristine copy for project-scoped analysis; see ``ContainerContext``.
+    settings_baseline = context.settings_baseline or settings_obj.model_copy(deep=True)
 
     container.register(Settings, instance=settings_obj)
     container.register(EventBusV2, instance=context.event_bus)
@@ -141,6 +156,7 @@ def build_container(context: ContainerContext) -> punq.Container:
             ui_event_bus=_resolve(container, EventBusV2),
             cancel_event=context.cancel_event,
             settings_obj=settings_obj,
+            settings_baseline=settings_baseline,
         ),
         scope=punq.Scope.singleton,
     )
@@ -397,6 +413,9 @@ def _build_application_gui(
 
 
 def _register_processing_cluster(container: punq.Container, context: ContainerContext) -> None:
+    # Copied here when the caller did not supply one: container build still
+    # happens before any dialog exists, so this is a pristine baseline either way.
+    settings_baseline = context.settings_baseline or context.settings_obj.model_copy(deep=True)
     view = _resolve(container, ApplicationGUI)
     state_manager = _resolve(container, StateManager)
     project_manager = _resolve(container, ProjectManager)
@@ -447,6 +466,7 @@ def _register_processing_cluster(container: punq.Container, context: ContainerCo
         state_manager=state_manager,
         project_manager=project_manager,
         settings_obj=context.settings_obj,
+        settings_baseline=settings_baseline,
         analysis_service=_resolve(container, AnalysisService),
         event_bus=event_bus,
         video_metadata_service=video_metadata_service,
@@ -471,6 +491,7 @@ def _register_processing_cluster(container: punq.Container, context: ContainerCo
         detector_service=detector_service,
         weight_manager=weight_manager,
         settings_obj=context.settings_obj,
+        settings_baseline=settings_baseline,
         ui_coordinator=ui_coordinator,
         ui_state_controller=_resolve(container, UIStateController),
         cancel_event=context.cancel_event,

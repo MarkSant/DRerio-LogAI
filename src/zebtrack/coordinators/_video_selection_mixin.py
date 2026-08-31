@@ -22,7 +22,9 @@ import structlog
 
 from zebtrack.coordinators.processing_types import ValidationResult
 from zebtrack.core.project.project_manager import ProjectManager
-from zebtrack.core.services.roi_rule_resolver import apply_roi_rule_to_settings, resolve_roi_rule
+from zebtrack.core.services.project_settings_snapshot import (
+    build_project_settings_snapshot,
+)
 from zebtrack.i18n import _
 from zebtrack.ui.event_bus_v2 import UIEvents
 
@@ -370,45 +372,16 @@ class VideoSelectionMixin:
     # ------------------------------------------------------------------
 
     def _create_project_settings_snapshot(self) -> Any:
-        """Create a Settings object with project-specific overrides applied."""
-        snapshot = self.settings.model_copy(deep=True)
-        project_data = self.project_manager.project_data or {}
+        """Settings for THIS project: a copy, never the shared object.
 
-        if "analysis_offset_frames" in project_data:
-            snapshot.video_processing.processing_offset = project_data["analysis_offset_frames"]
-
-        analysis_params = project_data.get("analysis_parameters", {})
-        if "smoothing_window_length" in analysis_params:
-            snapshot.trajectory_smoothing.window_length = analysis_params["smoothing_window_length"]
-        if "smoothing_polyorder" in analysis_params:
-            snapshot.trajectory_smoothing.polyorder = analysis_params["smoothing_polyorder"]
-
-        # Regra de ROI: resolvida pela fonte canônica (projeto > global >
-        # default), a mesma consumida pela regeneração de relatório, pela
-        # pós-análise ao vivo e pelo gatilho Arduino.
-        apply_roi_rule_to_settings(snapshot, resolve_roi_rule(project_data, self.settings))
-
-        behavioral_config = project_data.get("behavioral_config", {})
-        if behavioral_config and hasattr(snapshot, "behavioral_analysis"):
-            ba = snapshot.behavioral_analysis
-            if "aquarium_perspective" in behavioral_config:
-                raw = (
-                    str(behavioral_config["aquarium_perspective"]).strip().lower().replace("-", "_")
-                )
-                ba.aquarium_perspective = (
-                    "top_down"
-                    if raw in {"top_down", "top_down_view", "topdown", "top"}
-                    else "lateral"
-                )
-            if "thigmotaxis_distance_cm" in behavioral_config:
-                ba.default_thigmotaxis_distance_cm = behavioral_config["thigmotaxis_distance_cm"]
-            if "geotaxis_distance_cm" in behavioral_config:
-                ba.default_geotaxis_distance_cm = behavioral_config["geotaxis_distance_cm"]
-            if "geotaxis_num_zones" in behavioral_config:
-                ba.default_geotaxis_num_zones = behavioral_config["geotaxis_num_zones"]
-            if "geotaxis_bottom_zones" in behavioral_config:
-                ba.default_geotaxis_bottom_zones = behavioral_config["geotaxis_bottom_zones"]
-            if "geotaxis_mode" in behavioral_config:
-                ba.geotaxis_mode = behavioral_config["geotaxis_mode"]
-
-        return snapshot
+        Delegates to the canonical builder in
+        ``core.services.project_settings_snapshot``. This method and its twin
+        on ``ReportGenerationCoordinator`` used to be two hand-maintained
+        implementations that applied DIFFERENT project keys, so regenerating a
+        report produced different numbers than processing the same video.
+        """
+        return build_project_settings_snapshot(
+            self.settings,
+            getattr(self.project_manager, "project_data", None) or {},
+            baseline=getattr(self, "settings_baseline", None),
+        )

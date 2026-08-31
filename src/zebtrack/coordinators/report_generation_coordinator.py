@@ -25,7 +25,9 @@ from zebtrack.coordinators._unified_report_mixin import UnifiedReportMixin
 from zebtrack.coordinators.base_coordinator import BaseCoordinator
 from zebtrack.core.detection import MultiAquariumZoneData, ZoneData
 from zebtrack.core.detection.calibration import Calibration
-from zebtrack.core.services.roi_rule_resolver import apply_roi_rule_to_settings, resolve_roi_rule
+from zebtrack.core.services.project_settings_snapshot import (
+    build_project_settings_snapshot,
+)
 from zebtrack.i18n import _
 from zebtrack.ui import payloads
 from zebtrack.ui.event_bus_v2 import UIEvents
@@ -69,10 +71,17 @@ class ReportGenerationCoordinator(BaseCoordinator, UnifiedReportMixin):
         video_metadata_service: VideoMetadataService | None = None,
         trajectory_data_service: TrajectoryDataService | None = None,
         video_frame_extractor: VideoFrameExtractor | None = None,
+        settings_baseline: Settings | None = None,
     ) -> None:
         super().__init__(state_manager, event_bus)
         self.project_manager = project_manager
         self.settings = settings_obj
+        #: Pristine settings for project analysis. See
+        #: ``core.services.project_settings_snapshot`` for why the live object
+        #: must not be the fallback.
+        self.settings_baseline = (
+            settings_baseline if settings_baseline is not None else settings_obj
+        )
         self.analysis_service = analysis_service
         self._video_metadata_service = video_metadata_service
         self._trajectory_data_service = trajectory_data_service
@@ -290,8 +299,17 @@ class ReportGenerationCoordinator(BaseCoordinator, UnifiedReportMixin):
             fps=fps,
             metadata=aq_metadata,
             roi_colors=roi_colors_map,
-            freezing_vel_threshold=self.settings.video_processing.freezing_velocity_threshold,
-            freezing_min_duration=self.settings.video_processing.freezing_min_duration_s,
+            # From the resolved params (project > settings), NOT straight off
+            # ``self.settings``: the shared object carries whatever the last
+            # ad-hoc single-video run wrote into it.
+            freezing_vel_threshold=params.get(
+                "freezing_vel_threshold",
+                self.settings.video_processing.freezing_velocity_threshold,
+            ),
+            freezing_min_duration=params.get(
+                "freezing_min_duration",
+                self.settings.video_processing.freezing_min_duration_s,
+            ),
             video_path=video_path_report,
             frame_crop_box=frame_crop_for_viz,
             behavioral_config=params.get("behavioral_config"),
@@ -393,8 +411,17 @@ class ReportGenerationCoordinator(BaseCoordinator, UnifiedReportMixin):
             fps=float(self.settings.video_processing.fps),
             metadata=metadata,
             roi_colors=roi_colors_map,
-            freezing_vel_threshold=self.settings.video_processing.freezing_velocity_threshold,
-            freezing_min_duration=self.settings.video_processing.freezing_min_duration_s,
+            # From the resolved params (project > settings), NOT straight off
+            # ``self.settings``: the shared object carries whatever the last
+            # ad-hoc single-video run wrote into it.
+            freezing_vel_threshold=analysis_params.get(
+                "freezing_vel_threshold",
+                self.settings.video_processing.freezing_velocity_threshold,
+            ),
+            freezing_min_duration=analysis_params.get(
+                "freezing_min_duration",
+                self.settings.video_processing.freezing_min_duration_s,
+            ),
             video_path=video_path_report,
             frame_crop_box=None,
             behavioral_config=analysis_params.get("behavioral_config"),
@@ -810,34 +837,19 @@ class ReportGenerationCoordinator(BaseCoordinator, UnifiedReportMixin):
             self.analysis_service.settings = self.settings
 
     def _create_project_settings_snapshot(self) -> Any:
-        """Create a settings snapshot with project-level overrides applied."""
-        # Import here to avoid circular imports during module loading
-        import copy
+        """Settings for THIS project: a copy, never the shared object.
 
-        settings_snapshot = copy.deepcopy(self.settings)
-
-        project_data = getattr(self.project_manager, "project_data", {}) or {}
-
-        # Apply project overrides
-        if "analysis_interval_frames" in project_data:
-            settings_snapshot.video_processing.processing_interval = int(
-                project_data["analysis_interval_frames"]
-            )
-        if "display_interval_frames" in project_data:
-            settings_snapshot.video_processing.display_interval = int(
-                project_data["display_interval_frames"]
-            )
-        if "single_animal_per_aquarium" in project_data:
-            settings_snapshot.video_processing.single_animal_per_aquarium = bool(
-                project_data["single_animal_per_aquarium"]
-            )
-
-        # Sem isto a regeneração de relatório usava a regra global e produzia
-        # números diferentes do processamento original (que honra o projeto via
-        # ``VideoSelectionMixin._create_project_settings_snapshot``).
-        apply_roi_rule_to_settings(settings_snapshot, resolve_roi_rule(project_data, self.settings))
-
-        return settings_snapshot
+        Delegates to the canonical builder in
+        ``core.services.project_settings_snapshot``. This method and its twin
+        on ``VideoSelectionMixin`` used to be two hand-maintained
+        implementations that applied DIFFERENT project keys, so regenerating a
+        report produced different numbers than processing the same video.
+        """
+        return build_project_settings_snapshot(
+            self.settings,
+            getattr(self.project_manager, "project_data", None) or {},
+            baseline=getattr(self, "settings_baseline", None),
+        )
 
     def _collect_rois_for_aquarium(
         self, zone_data: Any, aq_id: int, off_x: float, off_y: float

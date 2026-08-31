@@ -77,6 +77,38 @@ def test_collect_analysis_parameters_with_overrides(settings_obj: Settings):
     assert params["freezing_min_duration"] == settings_obj.video_processing.freezing_min_duration_s
 
 
+def test_collect_analysis_parameters_honors_project_thresholds(settings_obj: Settings):
+    """The nested ``analysis`` dict is what the reporters read.
+
+    ``sharp_turn_threshold`` had no project home at all, even though the ad-hoc
+    dialogs overwrite it globally; the freezing pair reached the flat keys but
+    not the nested ones the reporters consume.
+    """
+    service = AnalysisService(settings_obj=settings_obj)
+    params = service.collect_analysis_parameters(
+        {
+            "analysis_parameters": {
+                "sharp_turn_threshold": 45.0,
+                "freezing_vel_threshold": 3.25,
+                "freezing_min_duration": 2.5,
+            }
+        }
+    )
+
+    assert params["analysis"]["sharp_turn_threshold"] == 45.0
+    assert params["analysis"]["freezing_threshold"] == 3.25
+    assert params["analysis"]["freezing_min_duration"] == 2.5
+
+
+def test_collect_analysis_parameters_nested_analysis_falls_back(settings_obj: Settings):
+    service = AnalysisService(settings_obj=settings_obj)
+    params = service.collect_analysis_parameters({})
+
+    assert params["analysis"]["sharp_turn_threshold"] == (
+        settings_obj.video_processing.sharp_turn_threshold_deg_s
+    )
+
+
 def test_validate_trajectory_schema_success(settings_obj: Settings):
     """Test that the schema validation passes with a valid dataframe."""
     service = AnalysisService(settings_obj=settings_obj)

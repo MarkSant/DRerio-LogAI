@@ -1,5 +1,6 @@
 import os
 from types import SimpleNamespace
+from typing import Any
 from unittest.mock import patch
 
 import pandas as pd
@@ -62,6 +63,61 @@ def test_apply_project_migrations_sets_tracking_default(project_manager):
     assert "tracking.use_single_subject_tracker" in fields
     assert migrated_data["tracking"]["use_single_subject_tracker"] is True
     assert migrated_data["analysis_profiles"]
+
+
+def test_apply_project_migrations_normalizes_analysis_parameters(project_manager):
+    """Old projects get the dict, but NO invented values.
+
+    Stamping numbers here from the session settings would freeze the very leak
+    ``analysis_parameters`` exists to close: an ad-hoc run may already have
+    rewritten the shared object. Absent means "use the session baseline".
+    """
+    loaded: dict[str, Any] = {"calibration": {}, "analysis_profiles": [], "tracking": {}}
+
+    migrated_data, migrated, fields = project_manager._apply_project_migrations(
+        loaded,
+        structlog.get_logger().bind(test="analysis_parameters_migration"),
+    )
+
+    assert migrated is True
+    assert "analysis_parameters" in fields
+    assert migrated_data["analysis_parameters"] == {}
+
+
+def test_apply_project_migrations_keeps_declared_analysis_parameters(project_manager):
+    loaded = {
+        "calibration": {},
+        "analysis_profiles": [],
+        "tracking": {},
+        "analysis_parameters": {"freezing_vel_threshold": 3.25},
+    }
+
+    migrated_data, _migrated, fields = project_manager._apply_project_migrations(
+        loaded,
+        structlog.get_logger().bind(test="analysis_parameters_kept"),
+    )
+
+    assert migrated_data["analysis_parameters"] == {"freezing_vel_threshold": 3.25}
+    assert "analysis_parameters" not in fields
+
+
+def test_apply_project_migrations_repairs_hand_edited_analysis_parameters(project_manager):
+    """A JSON edited by hand can put anything there; readers need a dict."""
+    loaded = {
+        "calibration": {},
+        "analysis_profiles": [],
+        "tracking": {},
+        "analysis_parameters": "nonsense",
+    }
+
+    migrated_data, migrated, fields = project_manager._apply_project_migrations(
+        loaded,
+        structlog.get_logger().bind(test="analysis_parameters_repair"),
+    )
+
+    assert migrated is True
+    assert "analysis_parameters" in fields
+    assert migrated_data["analysis_parameters"] == {}
 
 
 def test_apply_project_migrations_initializes_slot_weights(project_manager):

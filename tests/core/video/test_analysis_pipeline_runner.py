@@ -37,6 +37,10 @@ def runner():
     """Instância do mixin com atributos injetados (sem threads/IO)."""
     instance = AnalysisPipelineRunnerMixin()
     instance.settings = _make_settings()
+    # Como em produção (``VideoProcessingService.__init__``): a cópia pristina
+    # capturada no startup é a fonte dos limiares de PROJETO. Sem ela o mixin
+    # cairia no objeto compartilhado, que qualquer fluxo ad-hoc reescreve.
+    instance.settings_baseline = _make_settings()
     instance.project_manager = Mock()
     instance.ui_event_bus = Mock()
     return instance
@@ -110,6 +114,53 @@ class TestCollectParamsFromProject:
 
         assert metadata == {"group_id": "derived"}
         runner.project_manager.derive_processing_metadata.assert_called_once()
+
+    def test_project_analysis_parameters_win_over_settings(self, runner):
+        """O projeto declara seus limiares — eles têm de valer."""
+        runner.project_manager.project_data = {
+            "calibration": {},
+            "analysis_parameters": {
+                "sharp_turn_threshold": 45.0,
+                "freezing_vel_threshold": 3.25,
+                "freezing_min_duration": 2.5,
+                "smoothing_window_length": 9,
+                "smoothing_polyorder": 4,
+            },
+        }
+        runner.project_manager.get_metadata_for_experiment.return_value = {"group_id": "G1"}
+
+        _m, _w, _h, turn, freeze_vel, freeze_dur, win, poly = runner._collect_params_from_project(
+            {}, "exp1", "/v/exp1.mp4"
+        )
+
+        assert (turn, freeze_vel, freeze_dur, win, poly) == (45.0, 3.25, 2.5, 9, 4)
+
+    def test_ad_hoc_run_does_not_leak_into_the_project(self, runner):
+        """Regressão do vazamento entre fluxos (2026-08-30).
+
+        ``SingleVideoConfigDialog.apply()`` e ``LiveAnalysisDialog.apply()``
+        escrevem suas escolhas no objeto ``Settings`` COMPARTILHADO e nunca as
+        restauram. Este caminho — o processamento em lote de PROJETO — lia os
+        cinco valores direto dali, então rodar um vídeo único e depois analisar
+        um projeto aplicava os limiares do vídeo único aos vídeos do projeto,
+        mudando tempo de freezing, curvas acentuadas, distância e velocidade
+        no relatório, em silêncio.
+        """
+        runner.project_manager.project_data = {"calibration": {}}
+        runner.project_manager.get_metadata_for_experiment.return_value = {"group_id": "G1"}
+
+        before = runner._collect_params_from_project({}, "exp1", "/v/exp1.mp4")[3:]
+
+        # O que um fluxo ad-hoc deixa para trás no objeto compartilhado.
+        runner.settings.video_processing.sharp_turn_threshold_deg_s = 7.0
+        runner.settings.video_processing.freezing_velocity_threshold = 99.0
+        runner.settings.video_processing.freezing_min_duration_s = 42.0
+        runner.settings.trajectory_smoothing.window_length = 21
+        runner.settings.trajectory_smoothing.polyorder = 4
+
+        after = runner._collect_params_from_project({}, "exp1", "/v/exp1.mp4")[3:]
+
+        assert after == before
 
 
 @pytest.mark.unit

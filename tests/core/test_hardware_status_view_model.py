@@ -362,3 +362,63 @@ def test_on_arduino_command_sent_publishes_command_and_log(view_model):
     cmd_payload = next(d for t, d in published if t == UIEvents.UI_UPDATE_ARDUINO_COMMAND)
     assert cmd_payload.command == 7
     assert cmd_payload.success is True
+
+
+class TestArduinoReleasedOnProjectSwitch:
+    """The serial connection is PROJECT-scoped and nothing used to close it.
+
+    ``initialize_live_components`` opens the port from
+    ``project_data["use_arduino"]`` / ``["arduino_port"]``. The only
+    ``disconnect()`` in the codebase ran at application exit, so after closing a
+    live project the port stayed open, both daemon threads kept running and the
+    dashboard stayed green — for a project that no longer exists, and often for
+    one that never asked for an Arduino.
+    """
+
+    def test_connected_manager_is_disconnected(self, view_model):
+        manager = Mock()
+        manager.is_connected.return_value = True
+        view_model.arduino_manager = manager
+
+        view_model._on_project_manager_replaced({"new_manager": Mock()})
+
+        manager.disconnect.assert_called_once()
+
+    def test_the_manager_reference_survives(self, view_model):
+        """``disconnect()``, never ``_shutdown_arduino_manager()``.
+
+        The latter drops the reference, and the next project would find
+        ``hardware_vm.arduino_manager is None`` and never reconnect.
+        """
+        manager = Mock()
+        manager.is_connected.return_value = True
+        view_model.arduino_manager = manager
+
+        view_model._on_project_manager_replaced({"new_manager": Mock()})
+
+        assert view_model.arduino_manager is manager
+        manager.shutdown.assert_not_called()
+
+    def test_already_disconnected_is_a_no_op(self, view_model):
+        manager = Mock()
+        manager.is_connected.return_value = False
+        view_model.arduino_manager = manager
+
+        view_model._on_project_manager_replaced({"new_manager": Mock()})
+
+        manager.disconnect.assert_not_called()
+
+    def test_no_manager_is_a_no_op(self, view_model):
+        view_model.arduino_manager = None
+
+        view_model._on_project_manager_replaced({"new_manager": Mock()})
+
+    def test_a_serial_failure_never_blocks_the_close(self, view_model):
+        manager = Mock()
+        manager.is_connected.return_value = True
+        manager.disconnect.side_effect = OSError("port vanished")
+        view_model.arduino_manager = manager
+
+        view_model._on_project_manager_replaced({"new_manager": Mock()})
+
+        assert view_model.arduino_manager is manager

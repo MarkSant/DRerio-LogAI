@@ -155,6 +155,14 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
         # which triggers _on_resume_requested → resumes the stored call with
         # zones_validated=True.
         self._pending_live_context: dict[str, Any] | None = None
+        #: ``model_selection`` as it was before this project's session touched it.
+        #:
+        #: Starting a live project session writes ``animal_method`` /
+        #: ``aquarium_method`` / ``use_openvino`` into the SHARED settings and
+        #: never put them back, so the project's choices became the defaults of
+        #: whatever flow ran next. Captured on the first write, restored when the
+        #: project goes away.
+        self._model_selection_before_session: dict[str, Any] | None = None
         self._pending_live_kind: str | None = None  # "project" or "config"
 
         # Sessão armada aguardando o código 1 do Arduino (modo de gatilho
@@ -212,8 +220,60 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
         self._pending_trigger_context = None
         self._active_live_session_id = None
         self._active_wizard_data = None
+        self._restore_model_selection()
 
         log.info("live_camera_session_coordinator.project_manager_replaced")
+
+    def _remember_model_selection(self) -> None:
+        """Snapshot ``model_selection`` before this session overwrites it.
+
+        Only the FIRST call in a project's lifetime records anything: later
+        sessions of the same project must not overwrite the pre-project value
+        with a mid-project one.
+        """
+        if getattr(self, "_model_selection_before_session", None) is not None:
+            return
+        model_selection = getattr(self.settings, "model_selection", None)
+        if model_selection is None:
+            return
+        self._model_selection_before_session = {
+            "animal_method": model_selection.animal_method,
+            "aquarium_method": model_selection.aquarium_method,
+            "use_openvino": model_selection.use_openvino,
+        }
+
+    def _restore_model_selection(self) -> None:
+        """Put back what the project's sessions overwrote.
+
+        Mirrors ``MultiAquariumCoordinator.temporary_mode``: a project-scoped
+        write to the shared settings has to be undone when the project goes, or
+        it becomes the next flow's default.
+        """
+        # ``getattr``: the close hook must survive a coordinator that never ran
+        # its ``__init__`` (tests build it with ``object.__new__``). A project
+        # close is not a place to raise over a bookkeeping attribute.
+        remembered = getattr(self, "_model_selection_before_session", None)
+        self._model_selection_before_session = None
+        if not remembered:
+            return
+        model_selection = getattr(self.settings, "model_selection", None)
+        if model_selection is None:
+            return
+        for field, value in remembered.items():
+            try:
+                setattr(model_selection, field, value)
+            # except Exception justified: settings validation must never block a
+            # project close; the stale value is cosmetic next to a wedged close.
+            except Exception:
+                log.warning(
+                    "live_camera_session_coordinator.model_selection_restore_failed",
+                    field=field,
+                    exc_info=True,
+                )
+        log.info(
+            "live_camera_session_coordinator.model_selection_restored",
+            **remembered,
+        )
 
     # =============================================================================
     # PENDING-SESSION HANDSHAKE (zone-tab "Iniciar Gravação" button)
@@ -1773,6 +1833,8 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
         aquarium_method = config.get("aquarium_method")
         use_openvino = config.get("use_openvino")
         use_single_subject_tracker = config.get("use_single_subject_tracker")
+
+        self._remember_model_selection()
 
         if animal_method is not None:
             self.settings.model_selection.animal_method = animal_method

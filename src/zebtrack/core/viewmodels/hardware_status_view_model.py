@@ -196,6 +196,41 @@ class HardwareStatusViewModel:
         # Lazy init if needed, though passed in bootstrap
         return self.arduino_manager
 
+    def _on_project_manager_replaced(self, _data: Any) -> None:
+        """Release the serial port when the project that owned it goes away.
+
+        The Arduino connection is PROJECT-scoped: the only place that opens it is
+        ``ProjectInitializer.initialize_live_components``, from
+        ``project_data["use_arduino"]`` and ``project_data["arduino_port"]``.
+        Nothing closed it, so after a project close the port stayed open, both
+        daemon threads kept running and the dashboard stayed green — for a
+        project that no longer exists, and often for one that never asked for an
+        Arduino at all.
+
+        ``disconnect()``, deliberately NOT ``_shutdown_arduino_manager()``: the
+        latter also drops the manager reference, and the next project would find
+        ``hardware_vm.arduino_manager is None`` and never reconnect.
+        ``disconnect()`` re-arms itself for a later ``connect()`` and publishes
+        the status change on its own, so the dashboard turns red with no extra
+        UI code. ``_shutdown_arduino_manager`` stays reserved for app exit.
+
+        Ordering is already safe: ``close_project`` runs
+        ``_stop_live_session_if_active()`` BEFORE publishing this event, so the
+        session-end token sweep and the closed-loop log have already finished.
+        """
+        manager = self.arduino_manager
+        if manager is None:
+            return
+        try:
+            if not manager.is_connected():
+                return
+            manager.disconnect()
+            log.info("hardware.arduino.disconnected_on_project_close")
+        # except Exception justified: serial teardown must never block a project
+        # close; a stuck port is recoverable, a wedged close is not.
+        except Exception as exc:
+            log.warning("hardware.arduino.project_close_disconnect_failed", error=str(exc))
+
     def _shutdown_arduino_manager(self) -> None:
         try:
             if self.arduino_manager:

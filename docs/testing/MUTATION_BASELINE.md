@@ -31,7 +31,7 @@ percentage.
 
 ## Current baseline
 
-Measured 2026-08-26. **30 mutations, 30 killed, 0 survivors.**
+Measured 2026-08-30. **33 mutations, 33 killed, 0 survivors.**
 
 | Module                                        | Mutations | Killed |
 | --------------------------------------------- | --------- | ------ |
@@ -41,6 +41,7 @@ Measured 2026-08-26. **30 mutations, 30 killed, 0 survivors.**
 | `core/services/arduino_bindings.py`           | 2         | 2      |
 | `core/services/roi_rule_resolver.py`          | 3         | 3      |
 | `core/services/arena_detection_policy.py`     | 5         | 5      |
+| `core/services/project_settings_snapshot.py`  | 3         | 3      |
 | `core/services/weight_manager.py`             | 5         | 5      |
 | `core/services/live_calibration_scale.py`     | 4         | 4      |
 

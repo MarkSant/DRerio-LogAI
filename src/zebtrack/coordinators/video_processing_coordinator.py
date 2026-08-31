@@ -121,6 +121,7 @@ class VideoProcessingCoordinator(
         event_bus: EventBusV2 | None = None,
         dialog_coordinator: DialogCoordinator | None = None,
         video_metadata_service: VideoMetadataService | None = None,
+        settings_baseline: Settings | None = None,
         # UI components
         view: Any = None,
         root: Any = None,
@@ -131,6 +132,12 @@ class VideoProcessingCoordinator(
         self.detector_service = detector_service
         self.weight_manager = weight_manager
         self.settings = settings_obj
+        #: Pristine settings for project analysis. See
+        #: ``core.services.project_settings_snapshot`` for why the live object
+        #: must not be the fallback.
+        self.settings_baseline = (
+            settings_baseline if settings_baseline is not None else settings_obj
+        )
         self.ui_coordinator = ui_coordinator
         self.ui_state_controller = ui_state_controller
         self.cancel_event = cancel_event

@@ -464,6 +464,10 @@ class MainViewModelRuntime:
                 getattr(self._vm, "project_lifecycle_coordinator", None),
             ),
             ("live_batch_coordinator", getattr(self._vm, "live_batch_coordinator", None)),
+            # Owns the ArduinoManager. The serial connection is project-scoped
+            # (opened from ``project_data["arduino_port"]``) and nothing used to
+            # close it, so the port stayed open after a project switch.
+            ("hardware_vm", getattr(self._vm, "hardware_vm", None)),
             ("dialog_coordinator", getattr(self._vm, "dialog_coordinator", None)),
             ("live_camera_service", getattr(self._vm, "live_camera_service", None)),
             # Os tres coordinators de live/gravacao guardam ``project_manager``

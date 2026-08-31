@@ -124,3 +124,129 @@ class TestRuntimeBroadcast:
         runtime.handle_project_manager_replaced({"new_manager": new_manager})
 
         target._on_project_manager_replaced.assert_called_once()
+
+
+def _recording_coordinator():
+    from zebtrack.coordinators.recording_session_coordinator import RecordingSessionCoordinator
+
+    return RecordingSessionCoordinator(
+        state_manager=MagicMock(),
+        recording_service=MagicMock(),
+        live_camera_service=MagicMock(),
+        project_manager=MagicMock(),
+        settings_obj=MagicMock(),
+        live_calibration_coordinator=MagicMock(),
+        event_bus=MagicMock(),
+    )
+
+
+class TestRecordingSessionCoordinator:
+    """The only one of the three whose hook had no test at all.
+
+    Its pending handshakes reference a project that is gone. An armed external
+    trigger surviving into the next project would fire on the wrong run — and
+    ``_pending_recording_project_data`` would resume a recording against the
+    closed project's paths and zones.
+    """
+
+    def test_adopts_the_new_manager(self):
+        coordinator = _recording_coordinator()
+        new_manager = MagicMock()
+
+        coordinator._on_project_manager_replaced({"new_manager": new_manager})
+
+        assert coordinator.project_manager is new_manager
+
+    def test_clears_every_pending_handshake(self):
+        coordinator = _recording_coordinator()
+        coordinator._pending_external_trigger = {"ctx": 1}
+        coordinator._pending_recording_context = {"ctx": 2}
+        coordinator._pending_recording_trigger_source = "panel"
+        coordinator._pending_recording_project_data = {"project": "old"}
+
+        coordinator._on_project_manager_replaced({"new_manager": MagicMock()})
+
+        assert coordinator._pending_external_trigger is None
+        assert coordinator._pending_recording_context is None
+        assert coordinator._pending_recording_trigger_source is None
+        assert coordinator._pending_recording_project_data is None
+
+    def test_ignores_a_payload_without_a_manager(self):
+        coordinator = _recording_coordinator()
+        original = coordinator.project_manager
+        coordinator._pending_external_trigger = {"ctx": 1}
+
+        coordinator._on_project_manager_replaced({"new_manager": None})
+
+        assert coordinator.project_manager is original
+        assert coordinator._pending_external_trigger == {"ctx": 1}
+
+
+class TestLiveCameraSessionModelSelection:
+    """A live PROJECT session writes ``model_selection`` into the SHARED settings.
+
+    It never put the values back, so the project's model choices silently became
+    the defaults of whatever flow ran next — including an ad-hoc single-video
+    analysis with no project at all.
+    """
+
+    @staticmethod
+    def _coordinator(settings):
+        from zebtrack.coordinators.live_camera_session_coordinator import (
+            LiveCameraSessionCoordinator,
+        )
+
+        coordinator = object.__new__(LiveCameraSessionCoordinator)
+        coordinator.settings = settings
+        coordinator.project_manager = MagicMock()
+        coordinator._pending_live_context = None
+        coordinator._pending_live_kind = None
+        coordinator._pending_trigger_context = None
+        coordinator._active_live_session_id = None
+        coordinator._active_wizard_data = None
+        coordinator._model_selection_before_session = None
+        return coordinator
+
+    @staticmethod
+    def _settings():
+        return SimpleNamespace(
+            model_selection=SimpleNamespace(
+                animal_method="det", aquarium_method="det", use_openvino=False
+            )
+        )
+
+    def test_project_choices_are_restored_on_project_switch(self):
+        settings = self._settings()
+        coordinator = self._coordinator(settings)
+
+        coordinator._remember_model_selection()
+        settings.model_selection.animal_method = "seg"
+        settings.model_selection.aquarium_method = "seg"
+        settings.model_selection.use_openvino = True
+
+        coordinator._on_project_manager_replaced({"new_manager": MagicMock()})
+
+        assert settings.model_selection.animal_method == "det"
+        assert settings.model_selection.aquarium_method == "det"
+        assert settings.model_selection.use_openvino is False
+
+    def test_only_the_first_session_records_the_baseline(self):
+        """A second session of the SAME project must not overwrite it."""
+        settings = self._settings()
+        coordinator = self._coordinator(settings)
+
+        coordinator._remember_model_selection()
+        settings.model_selection.animal_method = "seg"
+        coordinator._remember_model_selection()
+
+        coordinator._on_project_manager_replaced({"new_manager": MagicMock()})
+
+        assert settings.model_selection.animal_method == "det"
+
+    def test_nothing_to_restore_is_a_no_op(self):
+        settings = self._settings()
+        coordinator = self._coordinator(settings)
+
+        coordinator._on_project_manager_replaced({"new_manager": MagicMock()})
+
+        assert settings.model_selection.animal_method == "det"

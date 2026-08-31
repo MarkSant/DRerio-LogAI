@@ -912,6 +912,16 @@ class AnalysisService:
                 params["smoothing_window_length"] = analysis_params["smoothing_window_length"]
             if "smoothing_polyorder" in analysis_params:
                 params["smoothing_polyorder"] = analysis_params["smoothing_polyorder"]
+            # The sharp-turn threshold had no project home at all, even though
+            # the ad-hoc dialogs overwrite it globally. It lives in the nested
+            # ``analysis`` dict, which is what the reporters read.
+            if "sharp_turn_threshold" in analysis_params and "analysis" in params:
+                params["analysis"]["sharp_turn_threshold"] = analysis_params["sharp_turn_threshold"]
+            for key in ("freezing_vel_threshold", "freezing_min_duration"):
+                if key in analysis_params and "analysis" in params:
+                    params["analysis"][
+                        "freezing_threshold" if key == "freezing_vel_threshold" else key
+                    ] = analysis_params[key]
 
             # Merge behavioral config from project (preserves defaults like geotaxis_enabled)
             if "behavioral_config" in project_data:
