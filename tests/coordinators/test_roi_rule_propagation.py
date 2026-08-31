@@ -222,3 +222,84 @@ def test_arduino_and_report_agree_on_the_same_rule(global_settings):
     evaluator = _make_arduino_stub(global_settings, project_data)._build_arduino_evaluator()
 
     assert evaluator.rule == report_rule.rule
+
+
+# ----------------------------------------------------------------------
+# 5. Os dois snapshots concordam em TUDO, não só na regra de ROI
+# ----------------------------------------------------------------------
+
+
+ANALYSIS_PROJECT_DATA = {
+    "analysis_parameters": {
+        "freezing_vel_threshold": 3.25,
+        "freezing_min_duration": 2.5,
+        "sharp_turn_threshold": 45.0,
+        "smoothing_window_length": 9,
+        "smoothing_polyorder": 2,
+    },
+    "behavioral_config": {
+        "aquarium_perspective": "top_down",
+        "thigmotaxis_distance_cm": 2.75,
+    },
+    "analysis_interval_frames": 4,
+    "display_interval_frames": 6,
+}
+
+
+def _both_snapshots(settings, project_data):
+    """(processing, regeneration) snapshots for the same project."""
+    from zebtrack.coordinators._video_selection_mixin import VideoSelectionMixin
+    from zebtrack.coordinators.report_generation_coordinator import ReportGenerationCoordinator
+
+    project_manager = SimpleNamespace(project_data=dict(project_data))
+
+    mixin: Any = VideoSelectionMixin()
+    mixin.settings = settings
+    mixin.project_manager = project_manager
+
+    regeneration = ReportGenerationCoordinator(
+        state_manager=MagicMock(),
+        project_manager=cast(Any, project_manager),
+        settings_obj=settings,
+    )
+    return (
+        mixin._create_project_settings_snapshot(),
+        regeneration._create_project_settings_snapshot(),
+    )
+
+
+def test_processing_and_regeneration_agree_on_analysis_parameters(global_settings):
+    """Regenerar um relatório tem de dar o MESMO número que processar.
+
+    As duas implementações do snapshot divergiam: a de processamento aplicava
+    ``analysis_parameters`` e ``behavioral_config``, a de regeneração aplicava
+    os intervalos — e nenhuma das duas aplicava os limiares de freezing e de
+    curva acentuada. Este é o teste que mata essa divergência.
+    """
+    processing, regeneration = _both_snapshots(global_settings, ANALYSIS_PROJECT_DATA)
+
+    for section, field in (
+        ("video_processing", "freezing_velocity_threshold"),
+        ("video_processing", "freezing_min_duration_s"),
+        ("video_processing", "sharp_turn_threshold_deg_s"),
+        ("video_processing", "processing_interval"),
+        ("video_processing", "display_interval"),
+        ("trajectory_smoothing", "window_length"),
+        ("trajectory_smoothing", "polyorder"),
+        ("behavioral_analysis", "aquarium_perspective"),
+        ("behavioral_analysis", "default_thigmotaxis_distance_cm"),
+    ):
+        assert getattr(getattr(processing, section), field) == getattr(
+            getattr(regeneration, section), field
+        ), f"{section}.{field} diverge entre processar e regenerar"
+
+
+def test_both_snapshots_actually_apply_the_project_values(global_settings):
+    """Concordar em valores GLOBAIS não provaria nada."""
+    processing, regeneration = _both_snapshots(global_settings, ANALYSIS_PROJECT_DATA)
+
+    for snapshot in (processing, regeneration):
+        assert snapshot.video_processing.freezing_velocity_threshold == 3.25
+        assert snapshot.video_processing.sharp_turn_threshold_deg_s == 45.0
+        assert snapshot.trajectory_smoothing.window_length == 9
+        assert snapshot.behavioral_analysis.default_thigmotaxis_distance_cm == 2.75

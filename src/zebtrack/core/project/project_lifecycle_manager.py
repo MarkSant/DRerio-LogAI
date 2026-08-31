@@ -656,6 +656,18 @@ class ProjectLifecycleManager:
             migration_applied = True
             migrated_fields.append("session_duration_overrides")
 
+        # Per-project analysis thresholds (freezing, sharp turn, Savitzky-Golay
+        # window). NORMALIZES THE TYPE ONLY — deliberately stamps no value: an
+        # old project never declared these numbers, and inventing them here from
+        # the session settings would freeze exactly the leak this dict exists to
+        # close (an earlier ad-hoc run may have rewritten the shared object).
+        # Absent means "use the session baseline", which is both correct and
+        # reproducible.
+        if not isinstance(loaded_data.get("analysis_parameters"), dict):
+            loaded_data["analysis_parameters"] = {}
+            migration_applied = True
+            migrated_fields.append("analysis_parameters")
+
         if "analysis_profiles" not in loaded_data or not loaded_data.get("analysis_profiles"):
             default_profile = (
                 default_analysis_profile_fn()

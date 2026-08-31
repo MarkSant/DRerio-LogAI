@@ -32,6 +32,10 @@ def _make_gui_stub() -> Any:
     settings.model_copy.return_value = settings_copy
 
     hardware_vm = SimpleNamespace(
+        # Production reads ``arduino_manager``; ``arduino`` is the deprecated
+        # alias and stays None. A stub that only defined ``arduino`` made the
+        # "does not connect" assertion below pass without exercising anything.
+        arduino_manager=None,
         arduino=None,
         camera=None,
         active_frame_source=None,
@@ -170,7 +174,7 @@ def test_initialize_live_components_skips_arduino_when_disabled():
     even when use_arduino=False (Etapa 6 polish)."""
     gui = _make_gui_stub()
     arduino_manager = MagicMock()
-    gui.controller.hardware_vm.arduino = arduino_manager
+    gui.controller.hardware_vm.arduino_manager = arduino_manager
     pm = _make_pm()  # use_arduino=False by default
     initializer = ProjectInitializer(gui)
 
@@ -338,3 +342,31 @@ def test_zone_sidebar_refresh_survives_a_broken_canvas():
     ProjectInitializer(gui).refresh_zone_sidebar()
 
     gui.canvas_manager.update_zone_listbox.assert_called_once_with()
+
+
+def test_initialize_live_components_connects_when_the_project_asks():
+    """The positive case, which nothing covered.
+
+    Without it the "skips when disabled" guard proves only that a mock was not
+    called, and would keep passing if the connect path were deleted outright.
+    """
+    gui = _make_gui_stub()
+    arduino_manager = MagicMock()
+    arduino_manager.connect.return_value = True
+    gui.controller.hardware_vm.arduino_manager = arduino_manager
+
+    pm = _make_pm()
+    pm.project_data["use_arduino"] = True
+    pm.project_data["arduino_port"] = "COM7"
+
+    initializer = ProjectInitializer(gui)
+
+    with patch(
+        "zebtrack.core.services.wizard_service.WizardService.resolve_camera_index",
+        return_value=(0, "OK"),
+    ):
+        initializer.initialize_live_components(pm)
+
+    arduino_manager.connect.assert_called_once()
+    # The PROJECT's port wins over ``settings.arduino.port``.
+    assert arduino_manager.connect.call_args.args[0] == "COM7"

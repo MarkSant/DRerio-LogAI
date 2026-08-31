@@ -373,10 +373,18 @@ class AnalysisControlViewModel:
                     except (ValueError, TypeError) as e:
                         log.warning(f"Skipping invalid ROI {name}: {e}")
 
-                # Retrieve analysis profile params
-                analysis_profile = self.project_manager.resolve_analysis_profile(metadata)
+                # Analysis parameters come from the PROJECT DATA.
+                #
+                # This used to pass ``resolve_analysis_profile(metadata)`` as if
+                # it were ``analysis_parameters``. An analysis PROFILE has keys
+                # ``name / criteria / track_ids / social`` and shares not one key
+                # with what ``collect_analysis_parameters`` looks for, so the
+                # override block never fired — and wrapping it in a synthetic
+                # dict also hid the project's ``behavioral_config`` from the
+                # merge, silently dropping thigmotaxis/geotaxis settings from
+                # these summaries.
                 params = self.analysis_service.collect_analysis_parameters(
-                    {"analysis_parameters": analysis_profile}
+                    self.project_manager.project_data or {}
                 )
 
                 # Load DataFrame using Service (efficient loading)

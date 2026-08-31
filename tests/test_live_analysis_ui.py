@@ -682,6 +682,62 @@ class TestLiveAnalysisDialog:
 
 
 @pytest.mark.gui
+class TestLiveAnalysisDialogSettingsWrites:
+    """``apply()`` mutates the SHARED ``Settings``; nothing asserted that before.
+
+    The dialog writes nine fields into the injected settings object and never
+    restores them, so a live ad-hoc run leaves its choices behind for whatever
+    flow comes next. The write itself is intentional (other UI tabs read it
+    back) — what must stay visible is exactly WHICH fields it touches, since
+    project analysis has to be insulated from all of them. That insulation is
+    proven in tests/core/test_project_settings_snapshot.py.
+    """
+
+    @pytest.fixture
+    def isolated_settings(self):
+        """A private Settings — ``test_settings`` is session-scoped and shared."""
+        from zebtrack.settings import load_settings
+
+        return load_settings()
+
+    def test_apply_writes_the_documented_fields(self, tkinter_root, isolated_settings):
+        with (
+            patch.object(LiveAnalysisDialog, "wait_window"),
+            patch(
+                "zebtrack.core.services.wizard_service.WizardService.detect_available_cameras"
+            ) as mock_detect,
+        ):
+            mock_detect.return_value = [{"index": 0, "name": "Camera 0", "resolution": "640x480"}]
+            dialog = LiveAnalysisDialog(tkinter_root, settings_obj=isolated_settings)
+            process_tk_events(tkinter_root)
+
+            dialog.camera_combo.current(0)
+            dialog.analysis_interval_var.set(3)
+            dialog.display_interval_var.set(4)
+            dialog.sharp_turn_var.set(77.0)
+            dialog.freeze_thresh_var.set(0.25)
+            dialog.freeze_dur_var.set(2.5)
+            dialog.smoothing_window_var.set(9)
+            dialog.smoothing_polyorder_var.set(2)
+            dialog.aquarium_method_var.set("seg")
+            dialog.animal_method_var.set("det")
+            dialog.use_openvino_var.set(False)
+
+            dialog.apply()
+
+        assert isolated_settings.video_processing.processing_interval == 3
+        assert isolated_settings.video_processing.display_interval == 4
+        assert isolated_settings.video_processing.sharp_turn_threshold_deg_s == 77.0
+        assert isolated_settings.video_processing.freezing_velocity_threshold == 0.25
+        assert isolated_settings.video_processing.freezing_min_duration_s == 2.5
+        assert isolated_settings.trajectory_smoothing.window_length == 9
+        assert isolated_settings.trajectory_smoothing.polyorder == 2
+        assert isolated_settings.model_selection.aquarium_method == "seg"
+        assert isolated_settings.model_selection.animal_method == "det"
+        assert isolated_settings.model_selection.use_openvino is False
+
+
+@pytest.mark.gui
 class TestLivePreviewWindow:
     """Tests for LivePreviewWindow real-time display."""
 

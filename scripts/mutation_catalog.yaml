@@ -171,6 +171,26 @@ modules:
               )
               return True
 
+  project_settings_snapshot:
+    source: src/zebtrack/core/services/project_settings_snapshot.py
+    tests:
+      - tests/core/test_project_settings_snapshot.py
+      - tests/coordinators/test_roi_rule_propagation.py
+      - tests/core/video/test_analysis_pipeline_runner.py
+    mutations:
+      - id: baseline-ignored
+        description: "baseline da sessao deixa de vencer as settings vivas (o vazamento volta)"
+        find: 'source = baseline if baseline is not None else settings_obj'
+        replace: 'source = settings_obj'
+      - id: shared-object-mutated
+        description: "snapshot passa a ser o proprio objeto compartilhado, nao uma copia"
+        find: 'snapshot = _copy_settings(source)'
+        replace: 'snapshot = source'
+      - id: rejected-submodel-not-rolled-back
+        description: "sub-modelo recusado fica aplicado e corrompe o snapshot em silencio"
+        find: 'snapshot.__dict__[name] = current'
+        replace: 'pass'
+
   weight_manager:
     source: src/zebtrack/core/services/weight_manager.py
     tests:

@@ -1339,6 +1339,64 @@ be missing:
 3. `ProjectInitializer.load_project_view` clears `pending_single_video_path`,
    the single-video buttons and the interactive drawing state.
 
+### 5.16. Project vs Session Scope: the settings snapshot (August 2026)
+
+**The ad-hoc dialogs write into the SHARED `Settings` and never restore it.**
+`SingleVideoConfigDialog.apply()` and `LiveAnalysisDialog.apply()` push their
+per-run choices — `freezing_velocity_threshold`, `freezing_min_duration_s`,
+`sharp_turn_threshold_deg_s`, `trajectory_smoothing.window_length` and
+`.polyorder` — onto the injected settings object so the other UI tabs stay
+consistent. Nothing puts them back.
+
+That is only safe because **no project path reads the live object for those
+values**. Project analysis goes through
+`core/services/project_settings_snapshot.build_project_settings_snapshot`, which
+resolves **project > session baseline > schema default** and returns a deep
+copy. The baseline is a pristine `Settings` captured in `ContainerContext`
+before any dialog exists; it is what protects projects that carry no
+`analysis_parameters` of their own — including every project created before this
+existed.
+
+Reading any of those five off `self.settings` in a project flow reintroduces the
+bug: run an ad-hoc single video, then analyse a project, and the project's
+report silently uses the ad-hoc thresholds. `analysis_pipeline_runner
+._collect_params_from_project` did exactly that.
+
+**One snapshot builder, not two.** `_create_project_settings_snapshot` existed
+on both `VideoSelectionMixin` and `ReportGenerationCoordinator` and applied
+DIFFERENT project keys, so regenerating a report produced different numbers than
+processing the video. Both are now one-line delegations. Adding a project key
+means adding it in the builder — never in a caller.
+
+**`analysis_parameters` is the per-project home** for the five thresholds, using
+the key names the readers already expect (`freezing_vel_threshold`,
+`freezing_min_duration`, `sharp_turn_threshold`, `smoothing_window_length`,
+`smoothing_polyorder`) — NOT the `Settings` field names. It is written by
+`analysis_widgets._update_current_project_settings` (saving config with a
+project open) and normalized to a dict by the project migration. The migration
+deliberately stamps **no values**: inventing them from session settings would
+freeze the leak it exists to close.
+
+Two traps the builder handles, and a caller must not re-derive:
+
+- **Pydantic writes the field before running the model validator.** A rejected
+  assignment still leaves the invalid value in place, so the exception is not a
+  rollback — the builder restores the previous sub-model via `__dict__`.
+  Without it a bad `processing_offset` surfaced later as a ROI-rule failure.
+- **Cross-field invariants span sub-models.** `processing_offset` is validated
+  against `processing_interval` on `Settings` itself, and
+  `trajectory_smoothing.polyorder` against `window_length`. Sub-models are
+  therefore replaced whole, and the smoothing pair is never applied key by key:
+  a valid pair can be rejected purely on the order the halves are written.
+
+**Two more project-scoped things released on `PROJECT_MANAGER_REPLACED`:**
+`LiveCameraSessionCoordinator` restores the `model_selection` it overwrote when
+a live session started, and `HardwareStatusViewModel` disconnects the Arduino —
+the port is opened from `project_data["arduino_port"]`, so it belongs to the
+project, not the session. Use `disconnect()`, never
+`_shutdown_arduino_manager()`: the latter drops the manager reference and the
+next project would never reconnect.
+
 ---
 
 ## 6. Common Pitfalls for Agents

@@ -491,8 +491,31 @@ class AnalysisWidgetsBuilder:
             project_data["display_interval_frames"] = validated.video_processing.display_interval
             project_data["video_processing"] = validated.video_processing.model_dump()
 
-            project_data["trajectory_smoothing"] = validated.trajectory_smoothing.model_dump()
             project_data["behavioral_config"] = validated.behavioral_analysis.model_dump()
+
+            # PER-PROJECT analysis thresholds.
+            #
+            # This is the only door that writes ``analysis_parameters``: the
+            # other writer was unreachable by construction. Without it the five
+            # numbers lived only in the session settings, which any ad-hoc
+            # single-video run overwrites — and the project inherited them in
+            # silence, changing reported freezing time and smoothing.
+            #
+            # The key names are the ones the readers already use
+            # (``AnalysisService.collect_analysis_parameters`` and the project
+            # settings snapshot), NOT the ``Settings`` field names.
+            if not isinstance(project_data.get("analysis_parameters"), dict):
+                project_data["analysis_parameters"] = {}
+            video_processing = validated.video_processing
+            project_data["analysis_parameters"].update(
+                {
+                    "freezing_vel_threshold": video_processing.freezing_velocity_threshold,
+                    "freezing_min_duration": video_processing.freezing_min_duration_s,
+                    "sharp_turn_threshold": video_processing.sharp_turn_threshold_deg_s,
+                    "smoothing_window_length": validated.trajectory_smoothing.window_length,
+                    "smoothing_polyorder": validated.trajectory_smoothing.polyorder,
+                }
+            )
 
             if "roi_settings" not in project_data:
                 project_data["roi_settings"] = {}
@@ -559,84 +582,15 @@ class AnalysisWidgetsBuilder:
                 getattr(validated, field_name),
             )
 
-        project_updated = False
-        if self.gui.controller.project_manager.project_path:
-            project_updated = self._sync_global_to_project(validated)
-
+        # No "and it also updated the project" branch: this method ONLY runs
+        # when NO project is open (it is the ``else`` of
+        # ``on_save_global_config_from_widget``). The ``_sync_global_to_project``
+        # that used to live here sat behind an ``if project_path`` INSIDE that
+        # ``else`` — unreachable by construction, and it was the only writer of
+        # ``analysis_parameters``. ``_update_current_project_settings`` is what
+        # writes to the project now.
         self.reload_config_editor_values_widget()
 
-        msg = _("Changes recorded in config.local.yaml.")
-        if project_updated:
-            msg += _("\n\nThe current project was also updated with these values.")
-
-        self.dialog_manager.show_info(_("Settings Saved"), msg)
-
-    def _sync_global_to_project(self, validated: Settings) -> bool:
-        """Sync global settings changes to the active project."""
-        try:
-            project_data = self.gui.controller.project_manager.project_data
-
-            project_data["analysis_interval_frames"] = (
-                validated.video_processing.processing_interval
-            )
-            project_data["display_interval_frames"] = validated.video_processing.display_interval
-
-            project_data["fps"] = validated.video_processing.fps
-
-            if "behavioral_config" not in project_data:
-                project_data["behavioral_config"] = {}
-
-            ba_settings = validated.behavioral_analysis
-            project_data["behavioral_config"].update(
-                {
-                    "aquarium_perspective": ba_settings.aquarium_perspective,
-                    "thigmotaxis_distance_cm": ba_settings.default_thigmotaxis_distance_cm,
-                    "geotaxis_distance_cm": ba_settings.default_geotaxis_distance_cm,
-                    "geotaxis_num_zones": ba_settings.default_geotaxis_num_zones,
-                    "geotaxis_bottom_zones": ba_settings.default_geotaxis_bottom_zones,
-                    "geotaxis_enabled": ba_settings.aquarium_perspective == "lateral",
-                }
-            )
-
-            project_data["analysis_offset_frames"] = validated.video_processing.processing_offset
-
-            if "analysis_parameters" not in project_data:
-                project_data["analysis_parameters"] = {}
-
-            project_data["analysis_parameters"].update(
-                {
-                    "smoothing_window_length": validated.trajectory_smoothing.window_length,
-                    "smoothing_polyorder": validated.trajectory_smoothing.polyorder,
-                }
-            )
-
-            if "roi_settings" not in project_data:
-                project_data["roi_settings"] = {}
-
-            project_data["roi_settings"].update(
-                {
-                    "roi_inclusion_rule": validated.roi_inclusion_rule,
-                    "roi_buffer_radius_value": validated.roi_buffer_radius_value,
-                    "roi_min_bbox_overlap_ratio": validated.roi_min_bbox_overlap_ratio,
-                    "roi_bbox_overlap_basis": validated.roi_bbox_overlap_basis,
-                }
-            )
-
-            self.gui.controller.project_manager.save_project()
-            log.info(
-                "config.save.project_synced",
-                project=self.gui.controller.project_manager.get_project_name(),
-                analysis_interval=project_data["analysis_interval_frames"],
-            )
-            return True
-
-        except (OSError, ValueError, KeyError, AttributeError) as e:
-            log.error("config.save.project_sync_failed", error=str(e))
-            self.dialog_manager.show_warning(
-                _("Warning"),
-                _(
-                    "Global settings were saved, but the current project could not "
-                    "be updated: {error}"
-                ).format(error=e),
-            )
-            return False
+        self.dialog_manager.show_info(
+            _("Settings Saved"), _("Changes recorded in config.local.yaml.")
+        )

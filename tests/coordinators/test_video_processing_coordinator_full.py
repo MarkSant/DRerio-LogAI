@@ -138,6 +138,29 @@ class TestEventRegistrationAndRouting:
         assert UIEvents.REPORT_GENERATE in subscribed_events
         assert UIEvents.PROJECT_OPENED in subscribed_events
 
+    def test_project_opened_actually_resets_multi_aquarium_state(self, mock_deps):
+        """Registering the event is not the same as acting on it.
+
+        The existing assertion above only proves ``PROJECT_OPENED`` appears in
+        the subscription list; gutting the handler would still pass. This drives
+        the registered callback and checks the reset really happens — the state
+        it clears (``_auto_assign_aquariums``, ``_last_assignment_configs``,
+        ``_assigned_videos``) otherwise crosses a project switch.
+        """
+        coord, deps = mock_deps
+        mac = MagicMock()
+        coord._multi_aquarium_coordinator = mac
+        coord.register_event_handlers()
+
+        handler = next(
+            call[0][1]
+            for call in deps["event_bus"].subscribe.call_args_list
+            if call[0][0] is UIEvents.PROJECT_OPENED
+        )
+        handler(MagicMock())
+
+        mac.reset_multi_aquarium_state.assert_called_once()
+
     def test_register_event_handlers_none_event_bus(self, mock_deps):
         coord, deps = mock_deps
         coord.event_bus = None

@@ -3,7 +3,15 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from zebtrack.settings import BehavioralAnalysisSettings, DetectionZonesSettings, Settings
+from zebtrack.settings import (
+    BehavioralAnalysisSettings,
+    DetectionZonesSettings,
+    ModelSelectionSettings,
+    Settings,
+    TrackingSettings,
+    TrajectorySmoothingSettings,
+    VideoProcessingSettings,
+)
 from zebtrack.ui.dialogs.single_video_config_dialog import SingleVideoConfigDialog
 
 
@@ -25,6 +33,15 @@ class TestSingleVideoConfigPersistence:
         # bare mock makes ``hasattr(settings, "detection_zones")`` False and the
         # dialog silently skips the write it is supposed to make.
         settings.detection_zones = DetectionZonesSettings()
+        # Real sub-models, like ``behavioral_analysis`` above: ``MagicMock(spec=...)``
+        # over a Pydantic v2 model does not expose field names for GETTING, so a
+        # bare mock silently swallows the writes we want to assert.
+        settings.video_processing = VideoProcessingSettings(
+            fps=30, processing_interval=10, processing_offset=1
+        )
+        settings.trajectory_smoothing = TrajectorySmoothingSettings()
+        settings.model_selection = ModelSelectionSettings()
+        settings.tracking = TrackingSettings()
         settings.roi_inclusion_rule = "bbox_intersects"
         settings.roi_buffer_radius_value = 0.5
         settings.roi_min_bbox_overlap_ratio = 0.1
@@ -103,6 +120,25 @@ class TestSingleVideoConfigPersistence:
             assert mock_settings.detection_zones.preserve_real_aquarium_shape is True
             assert dialog.result["preserve_real_aquarium_shape"] is True
             assert dialog.result["aquarium_method"] == "seg"
+
+            # Everything else apply() writes into the SHARED settings object.
+            #
+            # These five are the ones that used to leak into a project opened
+            # afterwards: the project batch path read them straight off the
+            # shared object. They are asserted here so the write stays visible
+            # and intentional — the isolation itself is proven in
+            # tests/core/test_project_settings_snapshot.py.
+            assert mock_settings.video_processing.processing_interval == 10
+            assert mock_settings.video_processing.display_interval == 10
+            assert mock_settings.video_processing.sharp_turn_threshold_deg_s == 90.0
+            assert mock_settings.video_processing.freezing_velocity_threshold == 0.5
+            assert mock_settings.video_processing.freezing_min_duration_s == 1.0
+            assert mock_settings.trajectory_smoothing.window_length == 5
+            assert mock_settings.trajectory_smoothing.polyorder == 2
+            assert mock_settings.model_selection.aquarium_method == "seg"
+            assert mock_settings.model_selection.animal_method == "det"
+            assert mock_settings.model_selection.use_openvino is False
+            assert mock_settings.tracking.use_single_subject_tracker is True
             assert dialog.result["video_path"] == "c:/video.mp4"
             assert dialog.result["behavioral_analysis"]["aquarium_perspective"] == "lateral"
             assert dialog.result["behavioral_analysis"]["geotaxis_num_zones"] == 4

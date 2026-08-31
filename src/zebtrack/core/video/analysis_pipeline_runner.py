@@ -41,6 +41,9 @@ from zebtrack.analysis.reporters import (
 from zebtrack.analysis.roi import ROI, ROIAnalyzer
 from zebtrack.core.detection import ZoneData
 from zebtrack.core.detection.calibration import Calibration
+from zebtrack.core.services.project_settings_snapshot import (
+    build_project_settings_snapshot,
+)
 from zebtrack.core.video.social_analysis_outcome import (
     DEFAULT_SOCIAL_RADIUS_CM,
     SocialAnalysisOutcome,
@@ -62,6 +65,7 @@ class AnalysisPipelineRunnerMixin:
     ui_event_bus: EventBusV2
     cancel_event: threading.Event
     settings: Settings
+    settings_baseline: Settings
     detector: Any
     recorder: Recorder | None
 
@@ -126,15 +130,33 @@ class AnalysisPipelineRunnerMixin:
                 fields=list(metadata.keys()),
             )
 
+        # Thresholds come from the PROJECT, not from the live settings object.
+        #
+        # These five used to be read straight off ``self.settings``, with no
+        # project consultation at all — while the single-video sibling above
+        # already honoured its own config. So running an ad-hoc analysis (which
+        # writes its choices into the shared settings and never restores them)
+        # and then processing a project silently applied the ad-hoc freezing
+        # thresholds and smoothing window to the project's videos, changing
+        # freezing time, sharp-turn counts, distance and speed in the report.
+        #
+        # The snapshot resolves project > session baseline > default and never
+        # mutates the shared object.
+        snapshot = build_project_settings_snapshot(
+            self.settings,
+            project_data,
+            baseline=getattr(self, "settings_baseline", None),
+        )
+
         return (
             metadata,
             calibration.get("aquarium_width_cm"),
             calibration.get("aquarium_height_cm"),
-            self.settings.video_processing.sharp_turn_threshold_deg_s,
-            self.settings.video_processing.freezing_velocity_threshold,
-            self.settings.video_processing.freezing_min_duration_s,
-            self.settings.trajectory_smoothing.window_length,
-            self.settings.trajectory_smoothing.polyorder,
+            snapshot.video_processing.sharp_turn_threshold_deg_s,
+            snapshot.video_processing.freezing_velocity_threshold,
+            snapshot.video_processing.freezing_min_duration_s,
+            snapshot.trajectory_smoothing.window_length,
+            snapshot.trajectory_smoothing.polyorder,
         )
 
     def _collect_analysis_parameters(
