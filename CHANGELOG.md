@@ -9,6 +9,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [6.1.0] - 2026-09-05
+
+Marco de validação: os fluxos de vídeo pré-gravado — **vídeo único e projeto** —
+foram testados de ponta a ponta com 1 animal em 1 aquário por vídeo, da
+auto-detecção da arena até o `.docx` e o `.xlsx`. É o ponto de partida para os
+testes de vídeo ao vivo.
+
+### Painel destruído gritava TclError no rebind de projeto
+
+Troca de projeto emitia um traceback completo em WARNING
+(`bad window path name ".!notebook...!arduinobindingspanel.!label"`). O painel
+OBJETO sobrevive à sua árvore de widgets: `tab_builder` destrói a aba e a
+reconstrói, e `_rebind_project_manager` cai no intervalo ainda segurando a
+instância anterior. O `except Exception` do laço existia para isso e cumpriu o
+papel — mas a rede de último recurso virou o caminho normal, e um traceback
+assustador para um evento de ciclo de vida esperado ensina o leitor a ignorar a
+linha de log onde uma falha REAL apareceria. `ArduinoBindingsPanel.is_alive()` e
+`gui._panel_is_alive()` tornam o caso esperado silencioso (DEBUG);
+`on_project_manager_replaced` continua adotando o novo manager mesmo morto, senão
+um painel reconstruído depois leria o projeto fechado.
+
 ### Vídeo único: "1 animal" não chegava ao worker, e um artefato virava o 2º objeto
 
 Teste no ambiente real (`CEST_9.mp4`): a aba de análise mostrou **dois** objetos —
