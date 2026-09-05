@@ -9,6 +9,76 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Auto-detecção do aquário: segmentação devolvia a tela inteira
+
+Teste real (`cest_9.mp4`, 2026-08-31): com `Aquarium AI: seg` e "preservar a
+forma real" marcados, a arena voltou como um retângulo de 1189×720 num quadro
+1280×720. O log prova que a configuração chegou intacta ao detector — o defeito
+estava três camadas abaixo.
+
+- **`_process_segmentation_results` exigia exatamente UMA máscara.** O YOLO
+  devolveu duas: o tanque (413 vértices, confiança 0,928) e uma tira de altura
+  zero na borda inferior (0,272). O portão descartava as duas, o chamador caía
+  em `_extract_polygon_from_detection`, e esse caminho **nunca** passa por
+  `_shape_segmentation_polygon` — então `preserve_real_shape` era ignorado por
+  construção. A regra de seleção agora vive em
+  `core/detection/arena_candidate_selection.py`, compartilhada com o fluxo ao
+  vivo (que nunca teve o bug): contornos degenerados são filtrados e vence a
+  máscara da caixa mais confiável que passa no portão de área.
+- **O consenso misturava máscaras e retângulos no mesmo IoU.** Retângulos
+  concordam entre si a ~0,99 enquanto contornos reais oscilam quadro a quadro,
+  então um único quadro degradado derrubava a forma preservada. O consenso passa
+  a rodar sobre uma população só.
+- **O passe de baixa confiança não filtrava classe nem tinha teto de área** —
+  predizia sem `classes=[0]` e aceitava qualquer contorno acima de 10% do quadro.
+- **Dois aquários não conseguiam preservar forma alguma**: `detect_multiple_aquariums`
+  era baseado só em caixas e nem recebia `preserve_real_shape` ou o limiar de
+  confiança do projeto.
+- **A falha era muda.** Detecção vazia só escrevia no log e não mudava nada na
+  tela; agora avisa o usuário, assim como uma execução que pediu segmentação e
+  terminou num retângulo.
+- **`expected_count` ausente lia um cache global.** O caminho de projeto sem
+  arena consultava `settings.analysis_config.num_aquariums`, que é
+  ressincronizado quando a UI é remontada — um projeto de dois aquários podia
+  auto-detectar em modo single conforme o instante do clique. O projeto aberto
+  agora vence o cache.
+
+Achados no teste em app real, na mesma investigação:
+
+- **A perspectiva não chegava à auto-detecção.** `run_aquarium_detection` a lê de
+  `project_data["behavioral_config"]`, mas no fluxo de vídeo único isso só era
+  gravado por `_persist_single_video_calibration`, que roda quando a **análise
+  começa** — depois da detecção. O resolvedor caía no global (`lateral`).
+  `_publish_arena_detection_preferences` passa a gravá-la junto com o método e a
+  forma. Um vídeo top-down era segmentado com o peso lateral: 88% do quadro em
+  vez do labirinto.
+- **A perspectiva era descartada na escolha do peso.** `_default_target_for_type`
+  dá a cada peso um único `target` a partir do TIPO (convenção da v3.x: "seg
+  rastreia o peixe, det rastreia o aquário"), e os pesos atuais são de duas
+  classes — então `(seg, aquarium)` nunca casava e a busca caía no flag
+  `is_default_seg_aquarium`, que um peso **lateral** legitimamente carrega e que
+  é cego à perspectiva. Agora a perspectiva pedida é restrição **dura**, acima do
+  slot padrão, e um peso de perspectiva divergente gera
+  `weights.get_path.perspective_mismatch` em vez de silêncio.
+- **Consenso inerte com máscaras.** Contornos de `approxPolyDP` se
+  auto-interseccionam com frequência (3 de 4 quadros num vídeo real) e o Shapely
+  os trata como inválidos, então `_calculate_iou` devolvia 0,0 para **todos** os
+  pares e o consenso escolhia sempre o primeiro quadro. Reparo com `buffer(0)`:
+  IoU real passou de 0,0 para 0,967-0,993.
+- **`save_settings` destruía a configuração ao falhar.** Abria o destino com
+  `"w"` e serializava dentro do handle, truncando **antes** de saber se o dump
+  daria certo. A suíte inteira reproduzia: um teste com `settings` mockado zerava
+  o `config.local.yaml` do repositório — câmera, porta do Arduino, caminhos de
+  peso e idioma — enquanto reportava 6492 testes passando. Agora serializa
+  primeiro, recusa dump vazio e grava via arquivo temporário + `os.replace`.
+  Isso desmascarou `test_configure_logging_levels_from_settings`, que só passava
+  porque o arquivo era zerado antes dele rodar; agora isola o override.
+
+Cobertura: `tests/core/test_arena_candidate_selection.py` e
+`tests/core/services/test_processing_interval_resolver.py` (novos) e 21 entradas
+em `scripts/mutation_catalog.yaml`, todas mortas — quatro sobreviveram na
+primeira rodada e motivaram os testes que faltavam.
+
 ### Fluxo de vídeo único pré-gravado: gargalo, beco sem saída e controles que mentiam
 
 Auditoria do botão "Análise de Vídeo Único" da tela inicial, do clique até o

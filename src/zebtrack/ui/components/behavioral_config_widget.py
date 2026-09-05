@@ -171,7 +171,14 @@ class BehavioralConfigWidget(BaseWidget):
             width=25,
         )
         self.perspective_combo.pack(side="left")
-        self.perspective_combo.set(display_values[1])  # Default to Lateral
+        # Show the perspective the caller actually asked for. Hardcoding "Side
+        # View" here let the combobox disagree with ``perspective_var``: a widget
+        # built with ``default_perspective="top_down"`` displayed "Side View"
+        # while reporting ``top_down``, so the operator could not tell which one
+        # the run would use — and the perspective is what selects the arena weight.
+        self.perspective_combo.set(
+            self._perspective_reverse.get(self._default_perspective, display_values[1])
+        )
         self.perspective_combo.bind("<<ComboboxSelected>>", self._on_perspective_combo_changed)
 
     def _build_thigmotaxis_section(self) -> None:

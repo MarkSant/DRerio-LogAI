@@ -63,6 +63,27 @@ if TYPE_CHECKING:
 log = structlog.get_logger()
 
 
+def _coerce_aquarium_count(value: Any) -> int | None:
+    """Normalize one aquarium-count candidate, or ``None`` to fall through.
+
+    Accepts the shapes a hand-edited ``project_config.json`` actually produces
+    (``2``, ``"2"``, ``2.0``) and rejects everything else — notably ``bool``,
+    which is an ``int`` subclass, and any object that merely happens to define
+    ``__int__``. A blanket ``int(value)`` would coerce those silently and turn
+    "no value here" into a confident, wrong answer.
+    """
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int | float):
+        return int(value)
+    if isinstance(value, str):
+        try:
+            return int(value.strip())
+        except ValueError:
+            return None
+    return None
+
+
 def _payload_get(payload: payloads.EventPayload | dict[str, Any], key: str, default=None):
     if isinstance(payload, dict):
         return payload.get(key, default)
@@ -297,15 +318,17 @@ class VideoProcessingCoordinator(
             stabilization_frames = int(_payload_get(payload, "stabilization_frames", 10))
             expected_count = _payload_get(payload, "expected_count")
 
-            # Fallback: read num_aquariums from settings if not in payload
-            if expected_count is None and self.settings:
-                num_aq = getattr(
-                    getattr(self.settings, "analysis_config", None),
-                    "num_aquariums",
-                    1,
-                )
-                if num_aq >= 2:
-                    expected_count = num_aq
+            # Fallback when the publisher did not carry the count.
+            #
+            # The OPEN PROJECT wins over ``settings.analysis_config.num_aquariums``.
+            # That global is a cache, resynchronised to the project's count (default
+            # 1) whenever the project UI is rebuilt — see the same warning in
+            # ``SingleVideoWorkflow.on_auto_detect_clicked``. Reading it first meant
+            # a two-aquarium project could auto-detect in single mode depending on
+            # when the button was pressed, and the only visible symptom was one
+            # arena where there should have been two.
+            if expected_count is None:
+                expected_count = self._fallback_expected_aquarium_count()
 
             multi_aquarium = expected_count is not None and expected_count >= 2
 
@@ -394,6 +417,41 @@ class VideoProcessingCoordinator(
         )
 
         log.info("video_processing_coordinator.register_handlers.complete", count=10)
+
+    def _fallback_expected_aquarium_count(self) -> int | None:
+        """Aquarium count for an auto-detect request that did not carry one.
+
+        Returns ``None`` for single-aquarium (the detector's own default), or the
+        count when it is 2 or more.
+
+        Precedence is ``project_data["num_aquariums"]`` over
+        ``settings.analysis_config.num_aquariums``, and the order matters: the
+        settings value is a per-session cache that gets resynchronised to the
+        project's count whenever the project UI is rebuilt, so it can read 1 for a
+        two-aquarium project depending on timing. The project file is the fact.
+        """
+        project_data = getattr(self.project_manager, "project_data", None)
+        candidates = (
+            project_data.get("num_aquariums") if isinstance(project_data, dict) else None,
+            getattr(getattr(self.settings, "analysis_config", None), "num_aquariums", None),
+        )
+
+        for source, value in zip(("project", "settings"), candidates, strict=True):
+            count = _coerce_aquarium_count(value)
+            if count is None:
+                continue
+            if count >= 2:
+                log.info(
+                    "video_processing_coordinator.zone_auto_detect.count_resolved",
+                    source=source,
+                    count=count,
+                )
+                return count
+            # An explicit 1 is an answer, not a missing value: stop here instead
+            # of letting the settings cache below promote it to multi.
+            return None
+
+        return None
 
     # ========================================================================
     # Project Processing Workflow

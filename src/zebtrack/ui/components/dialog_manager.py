@@ -1014,8 +1014,10 @@ class DialogManager:
 
         The frame is loaded first so the detection result is drawn over the video
         the user actually picked; ``expected_count`` is left unset so the
-        coordinator applies its own ``analysis_config.num_aquariums`` fallback
-        rather than this button holding a second copy of that rule.
+        coordinator applies its own fallback
+        (``VideoProcessingCoordinator._fallback_expected_aquarium_count``, which
+        reads the open project before the settings cache) rather than this button
+        holding a second copy of that rule.
         """
         from zebtrack.ui import payloads
         from zebtrack.ui.event_bus_v2 import UIEvents

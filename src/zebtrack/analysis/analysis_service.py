@@ -1082,30 +1082,26 @@ class AnalysisService:
         Returns:
             tuple[int, int]: (analysis_interval_frames, display_interval_frames)
         """
-        analysis_interval_frames = 10
-        display_interval_frames = 10
+        from zebtrack.core.services.processing_interval_resolver import (
+            resolve_processing_intervals,
+        )
 
-        if single_video_config:
-            analysis_interval_frames = single_video_config.get(
-                "analysis_interval_frames", analysis_interval_frames
-            )
-            display_interval_frames = single_video_config.get(
-                "display_interval_frames", display_interval_frames
-            )
-            self.log.info(
-                "analysis_service.intervals_single_video",
-                analysis_interval=analysis_interval_frames,
-                display_interval=display_interval_frames,
-            )
-        elif project_data:
-            analysis_interval_frames = project_data.get(
-                "analysis_interval_frames", analysis_interval_frames
-            )
-            display_interval_frames = project_data.get(
-                "display_interval_frames", display_interval_frames
-            )
-
-        return int(analysis_interval_frames), int(display_interval_frames)
+        # The display interval is not a second decision — it IS the analysis
+        # interval. Resolved centrally so this path cannot drift from
+        # ``MultiAquariumCoordinator`` and ``SequentialProcessingCoordinator``,
+        # which used to each carry their own copy of the precedence.
+        intervals = resolve_processing_intervals(
+            config=single_video_config,
+            project_data=project_data,
+            settings_obj=getattr(self, "settings", None),
+        )
+        self.log.info(
+            "analysis_service.intervals_resolved",
+            analysis_interval=intervals.analysis,
+            display_interval=intervals.display,
+            from_single_video=bool(single_video_config),
+        )
+        return intervals.analysis, intervals.display
 
     def build_metadata_context(
         self,

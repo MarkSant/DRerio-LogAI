@@ -520,5 +520,90 @@ video_processing:
                 self.assertEqual(settings.video_processing.processing_offset, 1)
 
 
+class TestSaveSettingsNeverDestroysTheExistingFile(unittest.TestCase):
+    """A failed save must leave the previous configuration untouched.
+
+    ``save_settings`` used to open the target with ``"w"`` and serialize INTO the
+    handle, so the file was truncated before anyone knew whether the dump would
+    succeed. One unit test calling it with a mocked settings object zeroed the
+    real ``config.local.yaml`` in the repo root — camera index, Arduino port,
+    weight paths and language, gone — while the suite reported 6492 passing.
+    """
+
+    def _existing_config(self, tmp_path):
+        from pathlib import Path
+
+        target = Path(tmp_path) / "config.local.yaml"
+        target.write_text("camera:\n  index: 7\n", encoding="utf-8")
+        return target
+
+    def _save_or_fail(self, settings_like, target):
+        """Call ``save_settings``, tolerating whichever error type it raises.
+
+        The assertion that matters is on the FILE, not on the exception class:
+        the defect was that the target got truncated before anyone knew the dump
+        would work. Pinning an exception type here would only couple the test to
+        PyYAML's internals.
+        """
+        import contextlib
+
+        import zebtrack.settings as settings_module
+
+        with contextlib.suppress(Exception):
+            settings_module.save_settings(settings_like, target_path=target)
+
+    def test_unserializable_settings_leave_the_file_intact(self):
+        """The exact shape that zeroed the repo's config: a mocked settings object."""
+        import tempfile
+        from unittest.mock import MagicMock
+
+        with tempfile.TemporaryDirectory() as tmp:
+            target = self._existing_config(tmp)
+            original = target.read_text(encoding="utf-8")
+
+            self._save_or_fail(MagicMock(), target)
+
+            self.assertEqual(
+                target.read_text(encoding="utf-8"),
+                original,
+                "a failed save must not touch the previous configuration",
+            )
+
+    def test_empty_dump_is_refused_rather_than_written(self):
+        import tempfile
+        from unittest.mock import MagicMock
+
+        with tempfile.TemporaryDirectory() as tmp:
+            target = self._existing_config(tmp)
+            original = target.read_text(encoding="utf-8")
+
+            empty = MagicMock()
+            empty.model_dump.return_value = {}
+
+            self._save_or_fail(empty, target)
+
+            self.assertEqual(target.read_text(encoding="utf-8"), original)
+
+    def test_a_real_settings_object_round_trips(self):
+        """A genuine Settings object must still save, and leave no temp file."""
+        import tempfile
+        from pathlib import Path
+
+        import zebtrack.settings as settings_module
+
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "config.local.yaml"
+            settings = settings_module.load_settings(Path("config.yaml"), Path(tmp) / "absent.yaml")
+
+            settings_module.save_settings(settings, target_path=target)
+
+            self.assertTrue(target.exists())
+            self.assertGreater(target.stat().st_size, 0)
+            self.assertFalse(
+                target.with_name(f"{target.name}.tmp").exists(),
+                "the temp file must not survive a successful write",
+            )
+
+
 if __name__ == "__main__":
     unittest.main()

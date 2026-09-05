@@ -30,6 +30,8 @@ Usage (Dependency Injection):
     schema = export_schema()
 """
 
+import contextlib
+import os
 from pathlib import Path
 from typing import Any, Literal
 
@@ -1503,22 +1505,48 @@ def save_settings(
     """
     target_path = Path(target_path) if isinstance(target_path, str) else target_path
 
-    # Dump model to dict using json mode for better serialization compatibility
-    config_data = settings.model_dump(mode="json")
-
     try:
-        with open(target_path, "w", encoding="utf-8") as f:
-            yaml.dump(
-                config_data,
-                f,
-                default_flow_style=False,
-                sort_keys=False,
-                allow_unicode=True,
+        # Serialize FULLY before touching the file.
+        #
+        # This used to be ``open(target_path, "w")`` wrapped around ``yaml.dump``,
+        # which truncates on open — so any serialization failure left the user
+        # with an EMPTY ``config.local.yaml``, destroying their camera index,
+        # Arduino port, weight paths and language in one go. The whole test suite
+        # reproduced it: one unit test calling this with a mocked settings object
+        # zeroed the config in the repo root while reporting success.
+        config_data = settings.model_dump(mode="json")
+        # A settings dump is always a non-empty mapping. Anything else — a mock,
+        # a partially built object, an empty dict — would overwrite a working
+        # configuration with nothing, so refuse before the file is touched.
+        if not isinstance(config_data, dict) or not config_data:
+            raise ValueError(
+                f"refusing to save settings: expected a non-empty mapping, "
+                f"got {type(config_data).__name__}"
             )
+        payload = yaml.dump(
+            config_data,
+            default_flow_style=False,
+            sort_keys=False,
+            allow_unicode=True,
+        )
+    except Exception as e:
+        log.error("settings.save.serialize_failed", path=str(target_path), error=str(e))
+        raise
+
+    # Write via a sibling temp file + atomic replace, so a crash mid-write cannot
+    # leave a half-written config either.
+    tmp_path = target_path.with_name(f"{target_path.name}.tmp")
+    try:
+        tmp_path.write_text(payload, encoding="utf-8")
+        os.replace(tmp_path, target_path)
         log.info("settings.save.success", path=str(target_path))
     except Exception as e:
         log.error("settings.save.failed", path=str(target_path), error=str(e))
         raise
+    finally:
+        if tmp_path.exists():
+            with contextlib.suppress(OSError):
+                tmp_path.unlink()
 
 
 def write_local_override(

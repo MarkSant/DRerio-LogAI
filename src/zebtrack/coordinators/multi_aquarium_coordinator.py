@@ -235,6 +235,16 @@ class MultiAquariumCoordinator(BaseCoordinator):
                     or None
                 )
 
+            # The perspective picks the WEIGHT, so it belongs in the log next to
+            # the method. Without this line a lateral weight running on a
+            # top-down video was invisible: the only symptom was a bad mask, and
+            # nothing said which perspective produced it or where it came from.
+            log.info(
+                "processing_coordinator.aquarium_detection.perspective_resolved",
+                perspective=perspective,
+                from_project=bool(bc_data.get("aquarium_perspective")),
+            )
+
             if self.weight_manager:
                 model_path = self.weight_manager.get_weight_path_by_method(
                     method=detection_method,
@@ -251,10 +261,21 @@ class MultiAquariumCoordinator(BaseCoordinator):
             detector = AquariumDetector(model_path=model_path, mode=detection_method)
 
             if multi_aquarium:
+                # The arena policy applies to TWO aquariums exactly as it does to
+                # one. Until these three arguments were forwarded, a two-aquarium
+                # project ran at the detector's hardcoded 0.05 and could never
+                # preserve a real outline, however it was configured.
                 polygons = detector.detect_multiple_aquariums(
                     video_path=video_path,
                     expected_count=count or 2,
                     stabilization_frames=stabilization_frames,
+                    confidence_threshold=getattr(
+                        getattr(self.settings, "yolo_model", None),
+                        "confidence_threshold",
+                        None,
+                    ),
+                    preserve_real_shape=policy.preserve_real_shape,
+                    polygon_epsilon_factor=resolve_polygon_epsilon_factor(self.settings),
                 )
                 if polygons:
                     source_dims = detector.get_last_source_dimensions()
@@ -373,10 +394,13 @@ class MultiAquariumCoordinator(BaseCoordinator):
                     polygon_list: list[tuple[float, float]] = (
                         polygon.tolist() if hasattr(polygon, "tolist") else list(polygon)
                     )
+                    provenance = detector.get_last_detection_provenance()
                     log.info(
                         "processing_coordinator.aquarium_detection.single_success",
                         points=len(polygon_list),
+                        provenance=provenance,
                     )
+                    self._warn_about_arena_provenance(provenance, policy)
                     # Set arena polygon directly (no SUCCESS event exists for single detect)
                     self.set_main_arena_polygon(polygon_list)
                     # Sem evento de SUCCESS dedicado p/ single detect, a arena fica
@@ -397,7 +421,22 @@ class MultiAquariumCoordinator(BaseCoordinator):
                     )
                     return {"polygon": polygon_list}
                 else:
+                    # Nothing detected. This branch was entirely silent: the arena
+                    # stayed empty, no dialog appeared, and the user was left
+                    # looking at an unchanged canvas wondering whether the button
+                    # had worked at all.
                     log.warning("processing_coordinator.aquarium_detection.single_failed")
+                    self._publish_event(
+                        UIEvents.UI_SHOW_WARNING,
+                        payloads.MessagePayload(
+                            title=_("Aquarium not detected"),
+                            message=_(
+                                "The model found no aquarium in the first frames of this "
+                                "video. Draw the arena by hand, or try again with a lower "
+                                "confidence threshold."
+                            ),
+                        ),
+                    )
                 return None
 
         except Exception as exc:  # except Exception justified: YOLO + cv2 + geometry pipeline
@@ -414,6 +453,55 @@ class MultiAquariumCoordinator(BaseCoordinator):
             return None
         finally:
             self._is_detecting_aquarium = False
+
+    def _warn_about_arena_provenance(self, provenance: str, policy: Any) -> None:
+        """Tell the user when the arena is not what they asked for.
+
+        The arena is ALWAYS kept and drawn — this only adds the caveat. Two cases
+        used to be indistinguishable from a clean detection:
+
+        * ``synthetic_default`` — nothing was detected at all and the detector
+          fabricated a rectangle covering 80% of the frame. It was reported as
+          success, so the researcher had no reason to distrust it.
+        * ``bbox`` while the project asked to preserve the real shape — the run
+          silently downgraded to a rectangle. This is exactly what produced the
+          2026-08-31 report of "it returned the whole screen".
+        """
+        from zebtrack.core.detection.aquarium_detector import (
+            PROVENANCE_BBOX,
+            PROVENANCE_SYNTHETIC_DEFAULT,
+        )
+
+        if provenance == PROVENANCE_SYNTHETIC_DEFAULT:
+            log.warning("processing_coordinator.aquarium_detection.single_fallback_default")
+            self._publish_event(
+                UIEvents.UI_SHOW_WARNING,
+                payloads.MessagePayload(
+                    title=_("Aquarium not detected"),
+                    message=_(
+                        "The model found no aquarium in this video. The arena shown is a "
+                        "generic placeholder covering most of the frame, not a detection — "
+                        "adjust it by hand or try again with a lower confidence threshold "
+                        "before analysing."
+                    ),
+                ),
+            )
+            return
+
+        if provenance == PROVENANCE_BBOX and getattr(policy, "preserve_real_shape", False):
+            log.warning("processing_coordinator.aquarium_detection.single_shape_degraded")
+            self._publish_event(
+                UIEvents.UI_SHOW_WARNING,
+                payloads.MessagePayload(
+                    title=_("Aquarium shape not preserved"),
+                    message=_(
+                        "Segmentation was requested, but the model returned no usable mask "
+                        "for this video. The arena was approximated by a rectangle around "
+                        "the detection — check it before analysing if the tank is not "
+                        "rectangular."
+                    ),
+                ),
+            )
 
     def _handle_multi_auto_detect(self, payload: payloads.EventPayload) -> None:
         """Handle ZONE_MULTI_AUTO_DETECT event.
@@ -965,22 +1053,16 @@ class MultiAquariumCoordinator(BaseCoordinator):
         Returns:
             Tuple of (analysis_interval_frames, display_interval_frames).
         """
-        analysis = self.settings.video_processing.processing_interval
-        display = self.settings.video_processing.display_interval
-        config = config or {}
-        project_data = getattr(self.project_manager, "project_data", {}) or {}
+        from zebtrack.core.services.processing_interval_resolver import (
+            resolve_processing_intervals,
+        )
 
-        if "analysis_interval_frames" in config:
-            analysis = int(config["analysis_interval_frames"])
-        elif "analysis_interval_frames" in project_data:
-            analysis = int(project_data["analysis_interval_frames"])
-
-        if "display_interval_frames" in config:
-            display = int(config["display_interval_frames"])
-        elif "display_interval_frames" in project_data:
-            display = int(project_data["display_interval_frames"])
-
-        return analysis, display
+        intervals = resolve_processing_intervals(
+            config=config,
+            project_data=getattr(self.project_manager, "project_data", {}) or {},
+            settings_obj=self.settings,
+        )
+        return intervals.analysis, intervals.display
 
     @contextlib.contextmanager
     def _temporary_single_animal_mode(

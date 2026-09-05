@@ -258,15 +258,20 @@ class SequentialProcessingCoordinator(BaseCoordinator):
             configure_kwargs["video_height"] = source_video_height
         self.detector_service.configure_zones(**configure_kwargs)
 
-        # Determine intervals
-        analysis_interval = self.settings.video_processing.processing_interval
-        display_interval = self.settings.video_processing.display_interval
+        # Determine intervals — the display interval is not a second decision,
+        # it is the analysis interval. Resolved by the canonical rule so this
+        # path cannot drift from the coordinator and the analysis service.
+        from zebtrack.core.services.processing_interval_resolver import (
+            resolve_processing_intervals,
+        )
 
-        if single_video_config:
-            if "analysis_interval_frames" in single_video_config:
-                analysis_interval = int(single_video_config["analysis_interval_frames"])
-            if "display_interval_frames" in single_video_config:
-                display_interval = int(single_video_config["display_interval_frames"])
+        intervals = resolve_processing_intervals(
+            config=single_video_config,
+            project_data=getattr(self.project_manager, "project_data", {}) or {},
+            settings_obj=self.settings,
+        )
+        analysis_interval = intervals.analysis
+        display_interval = intervals.display
 
         # Build processing context (matches ProcessingContext dataclass fields).
         # CHAVE "path" (não "video_path"): o worker lê ``video_info.get("path")``

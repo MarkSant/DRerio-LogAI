@@ -492,6 +492,9 @@ class TestComposeSingleVideoRuntimeConfig:
         mock_zone_controls = Mock()
         mock_zone_controls.analysis_interval_var = Mock()
         mock_zone_controls.analysis_interval_var.get = Mock(return_value="20")
+        # The display field is no longer editable, so this var can only ever hold
+        # a stale value — composing it into the run config is what let the
+        # overlay repaint on frames carrying no fresh detection.
         mock_zone_controls.display_interval_var = Mock()
         mock_zone_controls.display_interval_var.get = Mock(return_value="15")
         mock_zone_controls.stabilization_frames_var = Mock()
@@ -502,8 +505,9 @@ class TestComposeSingleVideoRuntimeConfig:
 
         assert result is not None
         assert result["analysis_interval_frames"] == 20
-        assert result["display_interval_frames"] == 15
+        assert result["display_interval_frames"] == 20, "display mirrors analysis, never the var"
         assert result["stabilization_frames"] == 5
+        mock_zone_controls.display_interval_var.get.assert_not_called()
         # ``roi_choice`` is gone: it was composed into the run config and read
         # by nobody, so "Do not use ROIs" analysed the drawn ROIs anyway.
         assert "roi_choice" not in result

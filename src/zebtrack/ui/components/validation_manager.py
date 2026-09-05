@@ -469,17 +469,14 @@ class ValidationManager:
         zone_controls = getattr(self.gui, "zone_controls", None)
         if zone_controls:
             analysis_var = zone_controls.analysis_interval_var.get()
-            display_var = zone_controls.display_interval_var.get()
             stabilization_var = zone_controls.stabilization_frames_var.get()
         else:
             analysis_var = self.gui.analysis_interval_var.get()
-            display_var = self.gui.display_interval_var.get()
             stabilization_var = self.gui.stabilization_frames_var.get()
 
         try:
             analysis_interval = int(analysis_var)
-            display_interval = int(display_var)
-            if analysis_interval <= 0 or display_interval <= 0:
+            if analysis_interval <= 0:
                 raise ValueError
             stabilization_frames = int(stabilization_var)
             if stabilization_frames <= 0:
@@ -487,12 +484,15 @@ class ValidationManager:
         except (TypeError, ValueError):
             self.dialog_manager.show_error(
                 _("Error"),
-                _("The intervals must be positive integers (analysis, display and stabilisation)."),
+                _("The intervals must be positive integers (analysis and stabilisation)."),
             )
             return None
 
         config["analysis_interval_frames"] = analysis_interval
-        config["display_interval_frames"] = display_interval
+        # The preview redraws on the frames that were analysed — one number, not
+        # two. Written explicitly so a stale ``display_interval_var`` (the field
+        # is no longer editable) cannot reach the pipeline.
+        config["display_interval_frames"] = analysis_interval
         config["stabilization_frames"] = stabilization_frames
 
         return config

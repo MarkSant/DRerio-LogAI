@@ -31,19 +31,26 @@ percentage.
 
 ## Current baseline
 
-Measured 2026-08-30. **33 mutations, 33 killed, 0 survivors.**
+Measured 2026-09-05. **44 mutations, 44 killed, 0 survivors.**
 
-| Module                                        | Mutations | Killed |
-| --------------------------------------------- | --------- | ------ |
-| `core/services/mask_capture.py`               | 4         | 4      |
-| `core/services/external_trigger_gate.py`      | 4         | 4      |
-| `core/services/session_duration_resolver.py`  | 3         | 3      |
-| `core/services/arduino_bindings.py`           | 2         | 2      |
-| `core/services/roi_rule_resolver.py`          | 3         | 3      |
-| `core/services/arena_detection_policy.py`     | 5         | 5      |
-| `core/services/project_settings_snapshot.py`  | 3         | 3      |
-| `core/services/weight_manager.py`             | 5         | 5      |
-| `core/services/live_calibration_scale.py`     | 4         | 4      |
+| Module                                            | Mutations | Killed |
+| ------------------------------------------------- | --------- | ------ |
+| `core/services/mask_capture.py`                   | 4         | 4      |
+| `core/services/external_trigger_gate.py`          | 4         | 4      |
+| `core/services/session_duration_resolver.py`      | 3         | 3      |
+| `core/services/arduino_bindings.py`               | 2         | 2      |
+| `core/services/roi_rule_resolver.py`              | 3         | 3      |
+| `core/services/arena_detection_policy.py`         | 5         | 5      |
+| `core/services/project_settings_snapshot.py`      | 3         | 3      |
+| `core/services/weight_manager.py`                 | 5         | 5      |
+| `core/services/live_calibration_scale.py`         | 4         | 4      |
+| `core/detection/arena_candidate_selection.py`     | 4         | 4      |
+| `core/detection/aquarium_detector.py`             | 7         | 7      |
+
+The two detection entries were added in 2026-09 together with the fix for "segmentation returned
+the whole screen". Four of their ten mutations SURVIVED on first run — the degeneracy filter and
+the entire low-confidence retry branch had no test that could fail. That is the intended use of
+this tool: the tests were written to kill them, and the mutations stay in the catalogue.
 
 The catalogue covers the contracts `CLAUDE.md` flags as critical — the ones written to **degrade
 silently** rather than raise. A silent degradation that no test detects is indistinguishable from

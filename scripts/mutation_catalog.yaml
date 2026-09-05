@@ -239,3 +239,74 @@ modules:
         description: "poligono com menos de 3 vertices deixa de ser recusado"
         find: 'if len(points) < 3:'
         replace: 'if False:'
+
+  arena_candidate_selection:
+    source: src/zebtrack/core/detection/arena_candidate_selection.py
+    tests:
+      - tests/core/test_arena_candidate_selection.py
+      - tests/test_aquarium_detector.py
+    mutations:
+      - id: ranked-by-area-instead-of-confidence
+        description: "candidato vence por tamanho, nao por confianca (a caixa gorda ganha)"
+        find: 'order = sorted(range(count), key=lambda i: float(confidences[i]), reverse=True)'
+        replace: 'order = sorted(range(count), key=lambda i: _box_area(boxes_xyxy[i]), reverse=True)'
+      - id: area-ceiling-dropped
+        description: "caixa cobrindo o campo de visao inteiro passa a ser aceita como arena"
+        find: 'if min_area_ratio <= (_box_area(boxes_xyxy[idx]) / frame_area) <= max_area_ratio'
+        replace: 'if min_area_ratio <= (_box_area(boxes_xyxy[idx]) / frame_area)'
+      - id: degenerate-outline-accepted
+        description: "mascara de altura zero deixa de ser filtrada e derruba a mascara real"
+        find: 'return (max(xs) - min(xs)) <= 0 or (max(ys) - min(ys)) <= 0'
+        replace: 'return False'
+      - id: two-vertex-outline-accepted
+        description: "contorno com menos de 3 vertices deixa de ser degenerado"
+        find: 'if len(polygon) < 3:'
+        replace: 'if len(polygon) < 0:'
+
+  aquarium_detector:
+    source: src/zebtrack/core/detection/aquarium_detector.py
+    tests:
+      - tests/test_aquarium_detector.py
+      - tests/core/test_aquarium_detector_multi.py
+      - tests/test_aquarium_detector_thresholds.py
+    mutations:
+      - id: degenerate-masks-not-filtered
+        description: "sliver fantasma volta a concorrer e pode vencer a mascara real do tanque"
+        find: 'usable = [j for j, poly in enumerate(polygons) if not is_degenerate_outline(poly)]'
+        replace: 'usable = list(range(len(polygons)))'
+      - id: consensus-populations-merged
+        description: "bbox volta a competir com mascara no IoU e derruba a forma preservada"
+        find: 'good_polygons = mask_polygons or bbox_polygons'
+        replace: 'good_polygons = mask_polygons + bbox_polygons'
+      - id: mask-choice-ignores-box-ranking
+        description: "escolha da mascara deixa de seguir a caixa mais confiavel"
+        find: |-
+          for idx in rank_box_indices(confidences, boxes, frame_width, frame_height):
+                      if idx in usable:
+                          return idx
+        replace: |-
+          for idx in []:
+                      if idx in usable:
+                          return idx
+      - id: fallback-pass-loses-class-filter
+        description: "passe de baixa confianca volta a aceitar mascara de qualquer classe"
+        find: |-
+          results_all = self.model.predict(
+                          frame, verbose=False, classes=[0], conf=fallback_confidence
+                      )
+        replace: |-
+          results_all = self.model.predict(
+                          frame, verbose=False, conf=fallback_confidence
+                      )
+      - id: fallback-pass-loses-area-ceiling
+        description: "passe de baixa confianca volta a aceitar mascara do quadro inteiro"
+        find: 'if min_area_ratio <= area_ratio <= max_area_ratio:'
+        replace: 'if area_ratio > 0.1:'
+      - id: self-intersection-not-repaired
+        description: "contorno auto-interseccionado volta a zerar o IoU e o consenso vira inerte"
+        find: 'repaired = polygon.buffer(0)'
+        replace: 'repaired = polygon'
+      - id: multi-aquarium-ignores-masks
+        description: "dois aquarios voltam a ser sempre retangulos, ignorando preserve_real_shape"
+        find: 'use_masks = preserve_real_shape and self.mode == "seg"'
+        replace: 'use_masks = False'

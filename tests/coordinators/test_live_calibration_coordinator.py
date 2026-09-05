@@ -1328,3 +1328,64 @@ class TestPendingZoneConfirmation:
         res = coordinator._wait_for_zone_confirmation()
         assert res is False
         assert coordinator.pending_zone_confirmation is True
+
+
+class TestBurstConsensusPopulations:
+    """A bbox fallback must not out-vote the mask outlines in the same burst.
+
+    Rectangles agree with each other at IoU ~0.99 while real outlines jitter
+    frame to frame, so mixing both into one consensus pool systematically
+    returns the rectangle — silently undoing the preserved shape the user asked
+    for whenever a single frame degrades.
+    """
+
+    @staticmethod
+    def _mixed_detector(bbox, mask, *, mask_frames: int, bbox_frames: int):
+        """Detector yielding ``mask_frames`` mask results then maskless ones."""
+        detector = _make_seg_detector(boxes_xyxy=bbox, masks_xy=[mask])
+        with_mask = detector.model.predict.return_value
+
+        boxes_obj = MagicMock()
+        boxes_obj.xyxy = MagicMock()
+        boxes_obj.xyxy.cpu.return_value.numpy.return_value = bbox
+        boxes_obj.__len__ = lambda self: len(bbox)
+        boxes_obj.__bool__ = lambda self: len(bbox) > 0
+        without_mask = [SimpleNamespace(boxes=boxes_obj, masks=None)]
+
+        detector.model.predict = MagicMock(
+            side_effect=[with_mask] * mask_frames + [without_mask] * bbox_frames
+        )
+        return detector
+
+    def test_single_mask_frame_beats_three_bbox_frames(self, sample_frame):
+        coordinator = _make_coordinator()
+        mask = _hexagon_polygon(cx=320, cy=240, r=180)
+        bbox = np.array([[140.0, 60.0, 500.0, 420.0]], dtype=np.float32)
+        detector = self._mixed_detector(bbox, mask, mask_frames=1, bbox_frames=3)
+
+        polygons = coordinator._detect_polygon_on_burst(
+            detector=detector,
+            frames=[sample_frame] * 4,
+            confidence=0.25,
+            preserve_real_shape=True,
+        )
+
+        assert len(polygons) == 1
+        assert len(polygons[0]) == 6, "the lone real outline must win the consensus"
+
+    def test_all_frames_degraded_still_returns_the_rectangle(self, sample_frame):
+        """Degradation is still an answer — never lose the arena entirely."""
+        coordinator = _make_coordinator()
+        mask = _hexagon_polygon(cx=320, cy=240, r=180)
+        bbox = np.array([[140.0, 60.0, 500.0, 420.0]], dtype=np.float32)
+        detector = self._mixed_detector(bbox, mask, mask_frames=0, bbox_frames=4)
+
+        polygons = coordinator._detect_polygon_on_burst(
+            detector=detector,
+            frames=[sample_frame] * 4,
+            confidence=0.25,
+            preserve_real_shape=True,
+        )
+
+        assert len(polygons) == 1
+        assert len(polygons[0]) == 4

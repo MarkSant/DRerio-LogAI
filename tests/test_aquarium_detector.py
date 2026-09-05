@@ -19,6 +19,7 @@ from unittest.mock import MagicMock, patch
 import cv2
 import numpy as np
 import pytest
+from shapely.geometry import Polygon
 
 # Verificar se ultralytics está disponível
 try:
@@ -263,15 +264,23 @@ class TestAquariumDetectorIoU:
 
     @pytest.mark.skipif(not ULTRALYTICS_AVAILABLE, reason="Ultralytics not available")
     def test_iou_invalid_polygon_self_intersecting(self, detector):
-        """Teste de IoU com polígono auto-intersectante."""
+        """Um contorno auto-intersectante é REPARADO, não descartado.
+
+        Este teste afirmava ``iou == 0.0``, fixando o comportamento antigo do
+        Shapely (inválido ⇒ área 0). Isso era o bug: máscaras reais passam por
+        ``approxPolyDP`` e se auto-interseccionam com frequência, então TODOS os
+        pares davam 0.0 e ``_find_consensus_polygon`` caía em "vence o primeiro
+        frame". Agora ``buffer(0)`` reconstrói o anel e a comparação volta a
+        significar alguma coisa.
+        """
         poly1 = np.array([[0, 0], [100, 0], [100, 100], [0, 100]])
-        # Polígono auto-intersectante (bow-tie)
+        # Polígono auto-intersectante (bow-tie): as duas metades somam metade
+        # da área do quadrado, então a interseção reparada é 0.25 da união.
         poly2 = np.array([[0, 0], [100, 100], [100, 0], [0, 100]])
 
         iou = detector._calculate_iou(poly1, poly2)
 
-        # Shapely considera auto-intersectante como inválido, retorna 0.0
-        assert iou == 0.0
+        assert iou == pytest.approx(0.25, abs=1e-6)
 
     @pytest.mark.skipif(not ULTRALYTICS_AVAILABLE, reason="Ultralytics not available")
     def test_iou_exception_handling(self, detector):
@@ -284,6 +293,40 @@ class TestAquariumDetectorIoU:
 
         # Deve retornar 0.0 em caso de exceção
         assert iou == 0.0
+
+    @pytest.mark.skipif(not ULTRALYTICS_AVAILABLE, reason="Ultralytics not available")
+    def test_self_intersecting_outlines_are_repaired_not_scored_zero(self, detector):
+        """Self-intersection must not silently zero the consensus.
+
+        Mask outlines through ``approxPolyDP`` self-intersect routinely — on a
+        real run (2026-09-05, `cest_9.mp4`) three of the four analysed frames
+        did. Shapely calls those invalid and every area operation returns 0, so
+        `_calculate_iou` answered 0.0 for EVERY pair and `_find_consensus_polygon`
+        silently fell back to "whichever frame came first", making the multi-frame
+        consensus inert exactly when the arena is a preserved mask.
+        """
+        bowtie = np.array([[0, 0], [100, 100], [100, 0], [0, 100]], dtype=np.int32)
+        assert not Polygon(bowtie).is_valid, "fixture must actually be self-intersecting"
+
+        assert detector._calculate_iou(bowtie, bowtie) == pytest.approx(1.0, abs=1e-6)
+
+    @pytest.mark.skipif(not ULTRALYTICS_AVAILABLE, reason="Ultralytics not available")
+    def test_repair_keeps_the_largest_piece(self, detector):
+        """`buffer(0)` can split a crossing ring; the arena is the biggest part."""
+        bowtie = np.array([[0, 0], [100, 100], [100, 0], [0, 100]], dtype=np.int32)
+
+        repaired = detector._as_valid_polygon(bowtie)
+
+        assert repaired is not None
+        assert repaired.is_valid
+        assert repaired.area > 0
+
+    @pytest.mark.skipif(not ULTRALYTICS_AVAILABLE, reason="Ultralytics not available")
+    def test_unrepairable_outline_degrades_to_none(self, detector):
+        """A collapsed ring has no area to recover — degrade, never raise."""
+        flat = np.array([[0, 10], [50, 10], [100, 10]], dtype=np.int32)
+
+        assert detector._as_valid_polygon(flat) is None
 
 
 # ============================================================================
@@ -1076,3 +1119,386 @@ class TestAquariumDetectorArenaShape:
             raw, preserve_real_shape=True, epsilon_factor=0.0
         )
         assert len(kept) == len(raw)
+
+
+# ============================================================================
+# CLASSE 8: SELECAO ENTRE VARIAS MASCARAS NO MESMO FRAME
+# ============================================================================
+
+
+def _bottom_edge_sliver():
+    """The zero-height phantom mask YOLO emitted on 2026-08-31 (``area: 0``)."""
+    return np.array([[76, 479], [500, 479], [620, 479], [76, 479]], dtype=np.float32)
+
+
+def _seg_result_multi(mask_polygons, confidences):
+    """A YOLO-shaped result carrying several masks, each with its own box."""
+    boxes = []
+    for mask_polygon, confidence in zip(mask_polygons, confidences, strict=True):
+        box = MagicMock()
+        box.conf = confidence
+        x_min, y_min = mask_polygon[:, 0].min(), mask_polygon[:, 1].min()
+        x_max, y_max = mask_polygon[:, 0].max(), mask_polygon[:, 1].max()
+        box.xyxy = [np.array([x_min, y_min, x_max, y_max])]
+        box.cls = 0
+        boxes.append(box)
+
+    masks = MagicMock()
+    masks.xy = [m.astype(np.float32) for m in mask_polygons]
+
+    result = MagicMock()
+    result.boxes = boxes
+    result.masks = masks
+    return result
+
+
+class TestAquariumDetectorMultiMaskSelection:
+    """Frames carrying MORE THAN ONE mask must still yield the real arena.
+
+    Regression cover for the 2026-08-31 report. ``_process_segmentation_results``
+    used to accept a frame only when the model returned exactly one mask. A real
+    run produced two — the tank (413 vertices, confidence 0.928) and a zero-height
+    sliver on the bottom edge (confidence 0.272) — so the gate discarded both, the
+    caller degraded to ``_extract_polygon_from_detection``, and a segmentation run
+    that had explicitly asked to preserve the real shape returned a rectangle
+    covering 93% of the frame.
+    """
+
+    @pytest.mark.skipif(not ULTRALYTICS_AVAILABLE, reason="Ultralytics not available")
+    def test_degenerate_second_mask_no_longer_discards_the_real_one(
+        self, tmp_path, mock_video_file
+    ):
+        model_path = tmp_path / "model.pt"
+        model_path.write_text("fake model")
+        tank = _octagon_mask()
+
+        with patch("zebtrack.core.detection.aquarium_detector.YOLO") as mock_yolo:
+            mock_model = MagicMock()
+            mock_model.predict = MagicMock(
+                return_value=[_seg_result_multi([tank, _bottom_edge_sliver()], [0.928, 0.272])]
+            )
+            mock_yolo.return_value = mock_model
+
+            detector = AquariumDetector(model_path, mode="seg")
+            polygons = detector.detect_aquariums(
+                mock_video_file,
+                stabilization_frames=5,
+                preserve_real_shape=True,
+            )
+
+        assert polygons, "the phantom sliver must not cost us the tank"
+        assert len(polygons[0]) > 4, "the real outline must survive, not a bounding box"
+        assert detector.get_last_detection_provenance() == "mask"
+
+    @pytest.mark.skipif(not ULTRALYTICS_AVAILABLE, reason="Ultralytics not available")
+    def test_two_valid_masks_resolve_by_confidence_not_by_size(self, tmp_path, mock_video_file):
+        """The bigger blob must not win over the one the model is sure about."""
+        model_path = tmp_path / "model.pt"
+        model_path.write_text("fake model")
+        small_but_certain = _octagon_mask(cx=320, cy=240, rx=130, ry=110)
+        large_but_doubtful = _octagon_mask(cx=320, cy=240, rx=280, ry=200)
+
+        with patch("zebtrack.core.detection.aquarium_detector.YOLO") as mock_yolo:
+            mock_model = MagicMock()
+            mock_model.predict = MagicMock(
+                return_value=[
+                    _seg_result_multi([large_but_doubtful, small_but_certain], [0.21, 0.94])
+                ]
+            )
+            mock_yolo.return_value = mock_model
+
+            detector = AquariumDetector(model_path, mode="seg")
+            polygons = detector.detect_aquariums(
+                mock_video_file,
+                stabilization_frames=5,
+                preserve_real_shape=True,
+            )
+
+        assert polygons
+        chosen = np.asarray(polygons[0])
+        width = chosen[:, 0].max() - chosen[:, 0].min()
+        assert width < 400, f"expected the confident (smaller) tank, got width {width}"
+
+    @pytest.mark.skipif(not ULTRALYTICS_AVAILABLE, reason="Ultralytics not available")
+    def test_degenerate_mask_with_a_healthy_box_must_not_win(self, tmp_path, mock_video_file):
+        """The case only the degenerate FILTER can save.
+
+        Here the broken outline is backed by a large, high-confidence box, so the
+        box ranking happily points at it. Without the degeneracy check the
+        detector selects that index, the area validation then rejects the
+        zero-height outline, and the perfectly good second mask is never even
+        considered — the run degrades to a rectangle with a real outline in hand.
+        """
+        model_path = tmp_path / "model.pt"
+        model_path.write_text("fake model")
+        tank = _octagon_mask()
+
+        result = _seg_result_multi([_bottom_edge_sliver(), tank], [0.95, 0.60])
+        # The sliver's own box is healthy — only its OUTLINE is broken.
+        result.boxes[0].xyxy = [np.array([100, 100, 540, 380])]
+
+        with patch("zebtrack.core.detection.aquarium_detector.YOLO") as mock_yolo:
+            mock_model = MagicMock()
+            mock_model.predict = MagicMock(return_value=[result])
+            mock_yolo.return_value = mock_model
+
+            detector = AquariumDetector(model_path, mode="seg")
+            polygons = detector.detect_aquariums(
+                mock_video_file,
+                stabilization_frames=5,
+                preserve_real_shape=True,
+            )
+
+        assert polygons
+        assert len(polygons[0]) > 4, "the healthy outline must be chosen over the broken one"
+        assert detector.get_last_detection_provenance() == "mask"
+
+    @pytest.mark.skipif(not ULTRALYTICS_AVAILABLE, reason="Ultralytics not available")
+    def test_every_mask_degenerate_falls_back_to_the_box(self, tmp_path, mock_video_file):
+        """No usable outline is a degradation, not a lost detection."""
+        model_path = tmp_path / "model.pt"
+        model_path.write_text("fake model")
+
+        result = _seg_result_multi([_bottom_edge_sliver()], [0.9])
+        # A real box exists even though the outline is unusable.
+        result.boxes[0].xyxy = [np.array([100, 100, 540, 380])]
+
+        with patch("zebtrack.core.detection.aquarium_detector.YOLO") as mock_yolo:
+            mock_model = MagicMock()
+            mock_model.predict = MagicMock(return_value=[result])
+            mock_yolo.return_value = mock_model
+
+            detector = AquariumDetector(model_path, mode="seg")
+            polygons = detector.detect_aquariums(
+                mock_video_file,
+                stabilization_frames=5,
+                preserve_real_shape=True,
+            )
+
+        assert polygons, "must degrade to the box rather than return nothing"
+        assert len(polygons[0]) == 4
+        assert detector.get_last_detection_provenance() == "bbox"
+
+
+class TestAquariumDetectorLowConfidenceFallback:
+    """The retry that runs when the primary pass finds no mask at all.
+
+    This branch had no test of its own. It searched WITHOUT ``classes=[0]`` and
+    accepted any outline above 10% of the frame with no ceiling — two separate
+    routes to "the arena is the whole screen".
+    """
+
+    @staticmethod
+    def _detector_with_fallback(tmp_path, fallback_masks):
+        model_path = tmp_path / "model.pt"
+        model_path.write_text("fake model")
+
+        fallback = MagicMock()
+        fallback.masks = MagicMock()
+        fallback.masks.xy = fallback_masks
+        fallback.boxes = []
+
+        with patch("zebtrack.core.detection.aquarium_detector.YOLO") as mock_yolo:
+            mock_model = MagicMock()
+            mock_model.predict = MagicMock(return_value=[fallback])
+            mock_yolo.return_value = mock_model
+            detector = AquariumDetector(model_path, mode="seg")
+        return detector
+
+    @staticmethod
+    def _primary_result_without_masks():
+        result = MagicMock()
+        result.masks = None
+        result.boxes = []
+        return result
+
+    @pytest.mark.skipif(not ULTRALYTICS_AVAILABLE, reason="Ultralytics not available")
+    def test_retry_is_restricted_to_the_aquarium_class(self, tmp_path, sample_frame):
+        """Without ``classes=[0]`` the largest object of ANY class becomes the arena."""
+        detector = self._detector_with_fallback(tmp_path, [_octagon_mask()])
+
+        detector._process_segmentation_results(
+            sample_frame, [self._primary_result_without_masks()], 0
+        )
+
+        assert detector.model.predict.call_args.kwargs.get("classes") == [0]
+
+    @pytest.mark.skipif(not ULTRALYTICS_AVAILABLE, reason="Ultralytics not available")
+    def test_retry_accepts_an_outline_inside_the_area_gate(self, tmp_path, sample_frame):
+        detector = self._detector_with_fallback(tmp_path, [_octagon_mask()])
+
+        polygon = detector._process_segmentation_results(
+            sample_frame, [self._primary_result_without_masks()], 0
+        )
+
+        assert polygon is not None
+
+    @pytest.mark.skipif(not ULTRALYTICS_AVAILABLE, reason="Ultralytics not available")
+    def test_retry_rejects_a_full_frame_outline(self, tmp_path, sample_frame):
+        """A mask covering the field of view is a false positive, not an arena."""
+        whole_screen = np.array(
+            [[0, 0], [639, 0], [639, 479], [0, 479]],
+            dtype=np.float32,
+        )
+        detector = self._detector_with_fallback(tmp_path, [whole_screen])
+
+        polygon = detector._process_segmentation_results(
+            sample_frame, [self._primary_result_without_masks()], 0
+        )
+
+        assert polygon is None, "the ceiling must reject it, as the primary pass does"
+
+    @pytest.mark.skipif(not ULTRALYTICS_AVAILABLE, reason="Ultralytics not available")
+    def test_retry_skips_degenerate_outlines(self, tmp_path, sample_frame):
+        detector = self._detector_with_fallback(tmp_path, [_bottom_edge_sliver(), _octagon_mask()])
+
+        polygon = detector._process_segmentation_results(
+            sample_frame, [self._primary_result_without_masks()], 0
+        )
+
+        assert polygon is not None
+        assert len(polygon) > 4
+
+
+class TestAquariumDetectorConsensusPopulations:
+    """Consensus must never let a bbox fallback out-vote preserved mask shapes.
+
+    Rectangles agree with each other at IoU ~0.99 while real outlines jitter from
+    frame to frame, so a single degraded frame dropped into the same pool would
+    drag the arena back to a rectangle — and make the multi-mask fix above look
+    intermittent rather than broken.
+    """
+
+    @pytest.mark.skipif(not ULTRALYTICS_AVAILABLE, reason="Ultralytics not available")
+    def test_one_mask_frame_beats_later_bbox_frames_when_preserving(
+        self, tmp_path, mock_video_file
+    ):
+        model_path = tmp_path / "model.pt"
+        model_path.write_text("fake model")
+
+        maskless = MagicMock()
+        box = MagicMock()
+        box.conf = 0.9
+        box.xyxy = [np.array([100, 100, 540, 380])]
+        box.cls = 0
+        maskless.boxes = [box]
+        maskless.masks = None
+
+        with patch("zebtrack.core.detection.aquarium_detector.YOLO") as mock_yolo:
+            mock_model = MagicMock()
+            # Frame 0 carries the mask; every later frame degrades to a box.
+            mock_model.predict = MagicMock(
+                side_effect=[[_seg_result(_octagon_mask())]] + [[maskless]] * 10
+            )
+            mock_yolo.return_value = mock_model
+
+            detector = AquariumDetector(model_path, mode="seg")
+            polygons = detector.detect_aquariums(
+                mock_video_file,
+                stabilization_frames=5,
+                preserve_real_shape=True,
+            )
+
+        assert polygons
+        assert len(polygons[0]) > 4, "the lone mask must win over the agreeing rectangles"
+        assert detector.get_last_detection_provenance() == "mask"
+
+    @pytest.mark.skipif(not ULTRALYTICS_AVAILABLE, reason="Ultralytics not available")
+    def test_without_preserve_the_populations_do_not_split(self, tmp_path, mock_video_file):
+        """With the flag off every candidate is a rectangle — historical behaviour."""
+        model_path = tmp_path / "model.pt"
+        model_path.write_text("fake model")
+
+        with patch("zebtrack.core.detection.aquarium_detector.YOLO") as mock_yolo:
+            mock_model = MagicMock()
+            mock_model.predict = MagicMock(return_value=[_seg_result(_octagon_mask())])
+            mock_yolo.return_value = mock_model
+
+            detector = AquariumDetector(model_path, mode="seg")
+            polygons = detector.detect_aquariums(
+                mock_video_file,
+                stabilization_frames=5,
+                preserve_real_shape=False,
+            )
+
+        assert polygons
+        assert len(polygons[0]) == 4
+        assert detector.get_last_detection_provenance() == "bbox"
+
+
+class TestAquariumDetectorProvenance:
+    """A fabricated arena must be distinguishable from a detected one."""
+
+    @pytest.mark.skipif(not ULTRALYTICS_AVAILABLE, reason="Ultralytics not available")
+    def test_provenance_starts_as_none(self, tmp_path):
+        model_path = tmp_path / "model.pt"
+        model_path.write_text("fake model")
+        with patch("zebtrack.core.detection.aquarium_detector.YOLO") as mock_yolo:
+            mock_yolo.return_value = MagicMock()
+            detector = AquariumDetector(model_path, mode="seg")
+
+        assert detector.get_last_detection_provenance() == "none"
+
+    @pytest.mark.skipif(not ULTRALYTICS_AVAILABLE, reason="Ultralytics not available")
+    def test_real_video_source_yields_nothing_rather_than_a_placeholder(
+        self, tmp_path, mock_video_file
+    ):
+        """Pins PRODUCTION behaviour when the model detects nothing.
+
+        The 80%-of-frame placeholder in ``_find_consensus_polygon`` is guarded by
+        ``hasattr(source, "_cap")``, and ``VideoFileSource`` exposes ``cap`` — so
+        with a real video the placeholder is unreachable and the flow correctly
+        returns nothing. The coordinator turns that into a visible warning; this
+        test exists so a future rename of that attribute cannot quietly start
+        handing researchers a fabricated arena.
+        """
+        model_path = tmp_path / "model.pt"
+        model_path.write_text("fake model")
+
+        empty = MagicMock()
+        empty.boxes = []
+        empty.masks = None
+
+        with patch("zebtrack.core.detection.aquarium_detector.YOLO") as mock_yolo:
+            mock_model = MagicMock()
+            mock_model.predict = MagicMock(return_value=[empty])
+            mock_yolo.return_value = mock_model
+
+            detector = AquariumDetector(model_path, mode="det")
+            polygons = detector.detect_aquariums(mock_video_file, stabilization_frames=5)
+
+        assert polygons == []
+        assert detector.get_last_detection_provenance() == "none"
+
+    @pytest.mark.skipif(not ULTRALYTICS_AVAILABLE, reason="Ultralytics not available")
+    def test_placeholder_arena_is_tagged_synthetic_when_it_is_reachable(
+        self, tmp_path, mock_video_file
+    ):
+        """A source that DOES expose ``_cap`` still gets the placeholder — tagged."""
+        model_path = tmp_path / "model.pt"
+        model_path.write_text("fake model")
+
+        empty = MagicMock()
+        empty.boxes = []
+        empty.masks = None
+
+        fake_source = MagicMock()
+        fake_source.get_frame.return_value = (True, np.zeros((480, 640, 3), dtype=np.uint8))
+        fake_source._cap.get.side_effect = lambda prop: {3: 640.0, 4: 480.0}.get(prop, 0.0)
+
+        with (
+            patch("zebtrack.core.detection.aquarium_detector.YOLO") as mock_yolo,
+            patch(
+                "zebtrack.core.detection.aquarium_detector.VideoFileSource",
+                return_value=fake_source,
+            ),
+        ):
+            mock_model = MagicMock()
+            mock_model.predict = MagicMock(return_value=[empty])
+            mock_yolo.return_value = mock_model
+
+            detector = AquariumDetector(model_path, mode="det")
+            polygons = detector.detect_aquariums(mock_video_file, stabilization_frames=5)
+
+        assert polygons, "the placeholder is still returned — only the reporting changed"
+        assert detector.get_last_detection_provenance() == "synthetic_default"

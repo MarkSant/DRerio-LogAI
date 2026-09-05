@@ -1536,24 +1536,39 @@ class LiveCalibrationCoordinator(BaseCoordinator):
             return []
 
         clamped_conf = max(0.01, min(0.95, float(confidence)))
-        polygons = self._burst_pass(
+        mask_polygons, bbox_polygons = self._burst_pass(
             detector=detector,
             frames=frames,
             conf=clamped_conf,
             preserve_real_shape=preserve_real_shape,
         )
 
-        if not polygons and clamped_conf > self._BURST_FALLBACK_CONFIDENCE:
+        nothing_found = not mask_polygons and not bbox_polygons
+        if nothing_found and clamped_conf > self._BURST_FALLBACK_CONFIDENCE:
             log.info(
                 "live_calibration_coordinator.burst_detect.fallback_pass",
                 requested_confidence=clamped_conf,
                 fallback_confidence=self._BURST_FALLBACK_CONFIDENCE,
             )
-            polygons = self._burst_pass(
+            mask_polygons, bbox_polygons = self._burst_pass(
                 detector=detector,
                 frames=frames,
                 conf=self._BURST_FALLBACK_CONFIDENCE,
                 preserve_real_shape=preserve_real_shape,
+            )
+
+        # Consensus runs over ONE population. Rectangles agree with each other at
+        # IoU ~0.99 while real mask outlines jitter frame to frame, so a bbox
+        # fallback thrown into the same pool out-votes the shapes the user asked
+        # to preserve. With ``preserve_real_shape`` off, ``mask_polygons`` is
+        # always empty and this is the previous behaviour exactly.
+        polygons = mask_polygons or bbox_polygons
+        if mask_polygons and bbox_polygons:
+            log.info(
+                "live_calibration_coordinator.burst_detect.population_split",
+                mask_polygons=len(mask_polygons),
+                bbox_polygons=len(bbox_polygons),
+                used="mask",
             )
 
         if not polygons:
@@ -1616,12 +1631,16 @@ class LiveCalibrationCoordinator(BaseCoordinator):
         frames: list[Any],
         conf: float,
         preserve_real_shape: bool,
-    ) -> list[list[list[int]]]:
+    ) -> tuple[list[list[list[int]]], list[list[list[int]]]]:
         """One detection pass over the burst at a fixed confidence.
 
-        Returns every accepted polygon (one per frame at most), in frame order.
+        Returns ``(mask_polygons, bbox_polygons)`` — every accepted polygon (one
+        per frame at most), in frame order, SPLIT BY PROVENANCE so the caller can
+        run consensus over a single population. Mixing the two biases the vote
+        towards rectangles, which always agree with each other.
         """
-        good_polygons: list[list[list[int]]] = []
+        mask_polygons: list[list[list[int]]] = []
+        bbox_polygons: list[list[list[int]]] = []
         frame_height, frame_width = frames[0].shape[:2]
         clamped_conf = conf
         is_seg_model = getattr(getattr(detector, "model", None), "task", "") == "segment"
@@ -1678,25 +1697,29 @@ class LiveCalibrationCoordinator(BaseCoordinator):
                     )
 
             if polygon_pts is None:
-                polygon_pts = [
-                    [int(x1), int(y1)],
-                    [int(x2), int(y1)],
-                    [int(x2), int(y2)],
-                    [int(x1), int(y2)],
-                ]
-
-            good_polygons.append(polygon_pts)
+                bbox_polygons.append(
+                    [
+                        [int(x1), int(y1)],
+                        [int(x2), int(y1)],
+                        [int(x2), int(y2)],
+                        [int(x1), int(y2)],
+                    ]
+                )
+            else:
+                mask_polygons.append(polygon_pts)
 
         log.info(
             "live_calibration_coordinator.burst_detect.summary",
             confidence=clamped_conf,
             frames_analyzed=len(frames),
-            polygons_found=len(good_polygons),
+            polygons_found=len(mask_polygons) + len(bbox_polygons),
+            mask_polygons=len(mask_polygons),
+            bbox_polygons=len(bbox_polygons),
             preserve_real_shape=preserve_real_shape,
             used_segmentation_masks=use_masks,
         )
 
-        return good_polygons
+        return mask_polygons, bbox_polygons
 
     # Area gate shared with ``AquariumDetector._extract_polygon_from_detection``
     # (min_area_ratio / max_area_ratio). Below the floor the box is a fish, not a
@@ -1718,10 +1741,14 @@ class LiveCalibrationCoordinator(BaseCoordinator):
 
         Falls back to descending area only when confidences are unavailable, so
         a model/stub that exposes no ``conf`` still detects something.
+
+        The ranking itself lives in
+        ``core.detection.arena_candidate_selection.select_best_box_index``, shared
+        with the pre-recorded detector. Only the extraction of confidences from
+        this flow's Ultralytics result stays here — the two flows receive
+        different containers, but the RULE must not diverge again.
         """
-        frame_area = frame_width * frame_height
-        if frame_area <= 0:
-            return None
+        from zebtrack.core.detection.arena_candidate_selection import select_best_box_index
 
         confidences: list[float] | None = None
         try:
@@ -1733,22 +1760,14 @@ class LiveCalibrationCoordinator(BaseCoordinator):
         except Exception:
             confidences = None
 
-        if confidences is not None and len(confidences) == len(boxes):
-            order = sorted(range(len(boxes)), key=lambda i: confidences[i], reverse=True)
-        else:
-            order = sorted(
-                range(len(boxes)),
-                key=lambda i: (boxes[i][2] - boxes[i][0]) * (boxes[i][3] - boxes[i][1]),
-                reverse=True,
-            )
-
-        for idx in order:
-            x1, y1, x2, y2 = boxes[idx]
-            area_ratio = ((x2 - x1) * (y2 - y1)) / frame_area
-            if cls._BURST_MIN_AREA_RATIO <= area_ratio <= cls._BURST_MAX_AREA_RATIO:
-                return idx
-
-        return None
+        return select_best_box_index(
+            confidences,
+            boxes,
+            frame_width,
+            frame_height,
+            min_area_ratio=cls._BURST_MIN_AREA_RATIO,
+            max_area_ratio=cls._BURST_MAX_AREA_RATIO,
+        )
 
     def _retry_aquarium_detection(self, confidence: float) -> AquariumRetryOutcome:
         """Retry aquarium auto-detection with a user-chosen confidence threshold.

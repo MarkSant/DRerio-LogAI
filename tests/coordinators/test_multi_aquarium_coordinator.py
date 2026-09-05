@@ -446,3 +446,145 @@ def test_preserve_real_shape_and_confidence_reach_the_detector(coordinator):
     )
     assert detect_kwargs["preserve_real_shape"] is True
     assert detect_kwargs["confidence_threshold"] == 0.33
+
+
+# ---------------------------------------------------------------------------
+# The arena policy must reach the TWO-aquarium branch as well
+# ---------------------------------------------------------------------------
+
+
+def _multi_arena_detection_case(coordinator, *, project_data):
+    """Drive the multi-aquarium branch and report the detector call."""
+    import numpy as np
+
+    coordinator.project_manager.project_data = project_data
+    coordinator.settings.model_selection.aquarium_method = "det"
+    coordinator.settings.detection_zones.preserve_real_aquarium_shape = False
+    coordinator.settings.yolo_model.confidence_threshold = 0.33
+    coordinator.settings.yolo_model.aquarium_polygon_epsilon = 0.005
+    coordinator.weight_manager.get_weight_path_by_method.return_value = "model.pt"
+    coordinator.project_manager.find_video_entry.return_value = None
+
+    polygon = np.array([[0, 0], [9, 0], [9, 9], [0, 9]])
+    with patch("zebtrack.core.detection.aquarium_detector.AquariumDetector") as mock_detector_class:
+        instance = MagicMock()
+        mock_detector_class.return_value = instance
+        instance.detect_multiple_aquariums.return_value = [polygon, polygon]
+        instance.get_last_source_dimensions.return_value = (1280, 720)
+        coordinator.run_aquarium_detection("test.mp4", multi_aquarium=True, count=2)
+
+    return mock_detector_class.call_args.kwargs, instance.detect_multiple_aquariums.call_args.kwargs
+
+
+def test_multi_aquarium_branch_honours_the_arena_policy(coordinator):
+    """Two aquariums used to ignore seg, the shape flag AND the threshold.
+
+    ``detect_multiple_aquariums`` was called with only the path, the count and
+    the frame budget, so a two-aquarium project ran at the detector's hardcoded
+    0.05 and could never preserve a real outline.
+    """
+    ctor_kwargs, detect_kwargs = _multi_arena_detection_case(
+        coordinator,
+        project_data={
+            "model_selection": {"aquarium_method": "seg"},
+            "preserve_real_aquarium_shape": True,
+        },
+    )
+
+    assert ctor_kwargs["mode"] == "seg"
+    assert detect_kwargs["preserve_real_shape"] is True
+    assert detect_kwargs["confidence_threshold"] == 0.33
+    assert detect_kwargs["polygon_epsilon_factor"] == 0.005
+
+
+# ---------------------------------------------------------------------------
+# A degraded or absent detection must reach the USER, not only the log
+# ---------------------------------------------------------------------------
+
+
+def _warning_titles(publish_mock):
+    """Titles of every UI_SHOW_WARNING published during the run."""
+    return [
+        call.args[1].title
+        for call in publish_mock.call_args_list
+        if call.args[0] == UIEvents.UI_SHOW_WARNING
+    ]
+
+
+def _run_single_detection(coordinator, *, project_data, detect_result, provenance):
+    coordinator.project_manager.project_data = project_data
+    coordinator.settings.model_selection.aquarium_method = "seg"
+    coordinator.settings.detection_zones.preserve_real_aquarium_shape = False
+    coordinator.settings.yolo_model.confidence_threshold = 0.33
+    coordinator.settings.yolo_model.aquarium_polygon_epsilon = 0.005
+    coordinator.weight_manager.get_weight_path_by_method.return_value = "model.pt"
+
+    with patch("zebtrack.core.detection.aquarium_detector.AquariumDetector") as mock_detector_class:
+        instance = MagicMock()
+        mock_detector_class.return_value = instance
+        instance.detect_aquariums.return_value = detect_result
+        instance.get_last_detection_provenance.return_value = provenance
+        with (
+            patch.object(coordinator, "set_main_arena_polygon") as set_arena,
+            patch.object(coordinator, "_publish_event") as publish,
+        ):
+            coordinator.run_aquarium_detection("test.mp4", multi_aquarium=False)
+    return set_arena, publish
+
+
+def test_bbox_result_warns_when_the_project_asked_to_preserve_the_shape(coordinator):
+    """The exact 2026-08-31 case: seg requested, rectangle delivered, no word said."""
+    import numpy as np
+
+    _set_arena, publish = _run_single_detection(
+        coordinator,
+        project_data={
+            "model_selection": {"aquarium_method": "seg"},
+            "preserve_real_aquarium_shape": True,
+        },
+        detect_result=[np.array([[0, 0], [9, 0], [9, 9], [0, 9]])],
+        provenance="bbox",
+    )
+
+    assert any("shape" in str(title).lower() for title in _warning_titles(publish))
+
+
+def test_bbox_result_is_silent_when_no_shape_was_requested(coordinator):
+    """Nobody asked for an outline, so a rectangle is the expected answer."""
+    import numpy as np
+
+    _set_arena, publish = _run_single_detection(
+        coordinator,
+        project_data={"model_selection": {"aquarium_method": "det"}},
+        detect_result=[np.array([[0, 0], [9, 0], [9, 9], [0, 9]])],
+        provenance="bbox",
+    )
+
+    assert _warning_titles(publish) == []
+
+
+def test_synthetic_placeholder_warns_but_still_saves_the_arena(coordinator):
+    """Degrade AND tell: losing the polygon would only add a second problem."""
+    import numpy as np
+
+    set_arena, publish = _run_single_detection(
+        coordinator,
+        project_data={"model_selection": {"aquarium_method": "seg"}},
+        detect_result=[np.array([[0, 0], [9, 0], [9, 9], [0, 9]])],
+        provenance="synthetic_default",
+    )
+
+    assert _warning_titles(publish), "a fabricated arena must never pass as a detection"
+    set_arena.assert_called_once()
+
+
+def test_empty_detection_warns_instead_of_failing_in_silence(coordinator):
+    """Clicking auto-detect and seeing nothing change was the whole symptom."""
+    _set_arena, publish = _run_single_detection(
+        coordinator,
+        project_data={"model_selection": {"aquarium_method": "seg"}},
+        detect_result=[],
+        provenance="none",
+    )
+
+    assert _warning_titles(publish)
