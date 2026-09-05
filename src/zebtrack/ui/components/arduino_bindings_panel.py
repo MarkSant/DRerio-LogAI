@@ -189,8 +189,30 @@ class ArduinoBindingsPanel(ttk.Frame):
     # ------------------------------------------------------------------
     # Public refresh
     # ------------------------------------------------------------------
+    def is_alive(self) -> bool:
+        """True while this panel's Tk widgets still exist.
+
+        The panel object outlives its widget tree: ``tab_builder`` destroys the
+        tab and rebuilds it, and ``ApplicationGUI._rebind_project_manager`` may
+        fire in between while still holding the previous instance. Every public
+        entry point checks this rather than letting Tk raise ``TclError`` into
+        the caller's broad ``except`` — a scary traceback for an expected
+        lifecycle event trains the reader to ignore that log line, which is
+        exactly where a REAL panel failure would appear.
+        """
+        try:
+            return bool(self.winfo_exists())
+        # except Exception justified: Tk raises assorted errors once the
+        # interpreter behind the widget is gone; "not alive" is the answer.
+        except Exception:
+            return False
+
     def refresh(self) -> None:
         """Re-evaluate visibility and reload ROIs/bindings from the project."""
+        if not self.is_alive():
+            log.debug("arduino_bindings_panel.refresh.skipped_destroyed")
+            return
+
         project_type = None
         if hasattr(self.project_manager, "get_project_type"):
             project_type = self.project_manager.get_project_type()

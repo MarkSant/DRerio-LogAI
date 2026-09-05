@@ -81,6 +81,34 @@ if TYPE_CHECKING:
 log = structlog.get_logger()
 
 
+def _panel_is_alive(panel: Any) -> bool:
+    """True unless the panel's Tk widget tree has already been destroyed.
+
+    Prefers the panel's own ``is_alive()`` when it has one, so a panel can add
+    conditions of its own; otherwise falls back to ``winfo_exists``. An object
+    that is not a widget at all (a stub in tests) counts as alive — refusing to
+    rebind it would silently skip the very thing the caller asked for.
+    """
+    checker = getattr(panel, "is_alive", None)
+    if callable(checker):
+        try:
+            return bool(checker())
+        # except Exception justified: a panel's own liveness check must never
+        # decide the fate of the whole rebind loop.
+        except Exception:
+            return False
+
+    exists = getattr(panel, "winfo_exists", None)
+    if not callable(exists):
+        return True
+    try:
+        return bool(exists())
+    # except Exception justified: Tk raises assorted errors once the interpreter
+    # behind the widget is gone; "not alive" is the answer.
+    except Exception:
+        return False
+
+
 def _payload_get(payload: Any, key: str, default=None):
     if isinstance(payload, dict):
         return payload.get(key, default)
@@ -494,14 +522,26 @@ class ApplicationGUI:
         for attr, panel in panels:
             if panel is None:
                 continue
+
+            # A panel whose widget tree is gone is an EXPECTED lifecycle state,
+            # not a failure: ``tab_builder`` destroys the tab and rebuilds it,
+            # and this rebind can land in between while we still hold the
+            # previous instance. Detecting it here keeps the ``except`` below a
+            # last resort — it used to be the normal path, emitting a full
+            # TclError traceback at WARNING on an ordinary project switch, which
+            # is precisely how a genuine panel failure would look.
+            if not _panel_is_alive(panel):
+                log.debug("gui.project_manager_replaced.panel_destroyed", panel=attr)
+                continue
+
             hook = getattr(panel, "on_project_manager_replaced", None)
             try:
                 if callable(hook):
                     hook(new_manager)
                 elif hasattr(panel, "project_manager"):
                     panel.project_manager = new_manager
-            # except Exception justified: a panel whose widget tree was already
-            # destroyed must not abort the rebind of the ones still alive.
+            # except Exception justified: a panel that fails to rebind for any
+            # other reason must not abort the rebind of the ones still alive.
             except Exception:
                 log.warning("gui.project_manager_replaced.panel_failed", panel=attr, exc_info=True)
 

@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 from zebtrack.ui.gui import (
     PROJECT_STATUS_WIDGET_ORDER,
     STATUS_SYMBOLS,
     ApplicationGUI,
+    _panel_is_alive,
     _payload_get,
 )
 
@@ -169,3 +171,40 @@ class TestGuiExtended6:
     def test_application_gui_canvas_constants(self):
         assert ApplicationGUI.DEFAULT_CANVAS_WIDTH == 800
         assert ApplicationGUI.DEFAULT_CANVAS_HEIGHT == 600
+
+
+class TestPanelIsAlive:
+    """Guards the rebind loop from panels whose widget tree is already gone.
+
+    ``tab_builder`` destroys the tab and rebuilds it, so
+    ``_rebind_project_manager`` can land on the previous instance. That used to
+    raise ``TclError`` into a broad ``except`` and log a full traceback at
+    WARNING for an ordinary project switch — indistinguishable from a real bug.
+    """
+
+    def test_live_widget_is_alive(self):
+        panel = MagicMock()
+        panel.is_alive.return_value = True
+
+        assert _panel_is_alive(panel) is True
+
+    def test_destroyed_widget_is_not_alive(self):
+        panel = MagicMock()
+        panel.is_alive.return_value = False
+
+        assert _panel_is_alive(panel) is False
+
+    def test_falls_back_to_winfo_exists(self):
+        panel = SimpleNamespace(winfo_exists=lambda: 0)
+
+        assert _panel_is_alive(panel) is False
+
+    def test_object_without_widget_api_counts_as_alive(self):
+        """Refusing to rebind a plain object would skip the very thing asked for."""
+        assert _panel_is_alive(SimpleNamespace()) is True
+
+    def test_raising_liveness_check_counts_as_dead(self):
+        panel = SimpleNamespace()
+        panel.is_alive = lambda: (_ for _ in ()).throw(RuntimeError("tk is gone"))
+
+        assert _panel_is_alive(panel) is False
