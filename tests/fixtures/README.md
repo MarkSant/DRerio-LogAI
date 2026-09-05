@@ -1,77 +1,73 @@
 # Test Fixtures
 
-This directory contains test data files used by the DRerio LogAI test suite.
+Data files the test suite reads from disk. Everything else — videos, trajectories,
+projects — is **generated at run time** by the test that needs it.
 
-## Video Files
+> An earlier version of this file documented `sample_video.mp4`,
+> `sample_video_long.mp4`, `sample_detections.parquet`,
+> `sample_detections_with_calibration.parquet`, `zones_project.yaml`,
+> `calibration_project.yaml`, `yolo11n.pt` and three generator scripts
+> (`scripts/generate_test_video.py`, `generate_test_detections.py`,
+> `generate_test_projects.py`). **None of them existed.** A fixture index that
+> lists files nobody can find sends a reader looking for the wrong thing; this
+> file now lists only what is actually here.
 
-- **sample_video.mp4** - Standard test video (10s, 640x480, 2-3 zebrafish)
-  - Used by: `test_video_source.py`, `test_detector.py`, `test_overlay_integration.py`
-  - Purpose: Video processing pipeline tests
+## What is here
 
-- **sample_video_long.mp4** - Extended test video (30s+)
-  - Used by: Performance and memory tests
-  - Purpose: Long-running analysis validation
+### `api_baseline.json`
 
-## Project Files
+Frozen public API of `ApplicationGUI`.
 
-- **zones_project.yaml** - Pre-configured project with 3 ROIs
-  - Zones: Arena (full frame), Top zone, Bottom zone
-  - Used by: `test_interval_frames_config.py`, zone persistence tests
-  - Purpose: Project loading and zone configuration validation
+- Read by: `tests/ui/test_api_breaking_changes.py`, `scripts/check_public_api.py`
+- Purpose: a method disappearing from the public surface has to be a deliberate,
+  reviewable change rather than a side effect.
 
-- **calibration_project.yaml** - Project with pixel-to-cm calibration
-  - Calibration: 10px = 1cm
-  - Used by: `test_calibration.py`, `test_recorder.py`
-  - Purpose: Calibration and cm-coordinate output tests
+### `golden/`
 
-## Detection Data
+Signed-off output of the pre-recorded single-video pipeline.
 
-- **sample_detections.parquet** - Pre-recorded detection results
-  - Schema: `timestamp, frame, track_id, x1, y1, x2, y2, confidence`
-  - Used by: `test_concrete_behavioral_analyzer.py`, `test_reporter.py`
-  - Purpose: Analysis and reporting tests without running full detection
+| File | Content |
+| --- | --- |
+| `prerecorded_single_trajectory.csv` | The full `3_CoordMovimento` trajectory, in the immutable column order |
+| `prerecorded_single_report.json` | The whole analysis report: distance, speed, freezing, sharp turns, ROI attribution, geotaxis |
 
-- **sample_detections_with_calibration.parquet** - Detections with cm coordinates
-  - Additional columns: `x_center_px, y_center_px, x_cm, y_cm`
-  - Used by: Calibrated analysis tests
-  - Purpose: Validate cm-based metrics
+- Read by: `tests/integration/test_prerecorded_golden.py`
+- Produced by: `tests/helpers/prerecorded_pipeline.py`, which drives the real
+  `_WorkerProcess` loop over a generated video with a deterministic
+  contour-finding plugin — no model weights, no inference variance.
+- Purpose: catch a change in the NUMBERS. The pre-recorded flows were validated
+  end to end in v6.1.0, and the existing end-to-end test asserts only that files
+  exist — which is why PR #524 could change 7 of 9 analysis parameters on a real
+  project with the suite green.
 
-## Model Weights
+**Re-recording** is deliberate:
 
-- **yolo11n.pt** - YOLOv11 Nano weights (if available)
-  - Size: ~6MB
-  - Used by: Detector integration tests
-  - Purpose: Real detection model validation
-
-- **test_model.xml** / **test_model.bin** - OpenVINO test model
-  - Used by: OpenVINO plugin tests
-  - Purpose: OpenVINO inference validation
-
-## Creating New Fixtures
-
-1. **Small files** (<1MB): Commit directly to repository
-2. **Large files** (>1MB): Use Git LFS or document external download location
-3. **Sensitive data**: Never commit real experiment data; use synthetic fixtures
-4. **Documentation**: Update this README when adding new fixtures
-
-## Fixture Generation Scripts
-
-Run these to regenerate fixtures if needed:
-
-```powershell
-# Generate sample video (requires ffmpeg)
-poetry run python scripts/generate_test_video.py
-
-# Generate sample detections from video
-poetry run python scripts/generate_test_detections.py
-
-# Generate project configs
-poetry run python scripts/generate_test_projects.py
+```bash
+ZEBTRACK_UPDATE_GOLDEN=1 pytest tests/integration/test_prerecorded_golden.py -m ""
 ```
 
-## Notes
+Do it when you changed analysis behaviour on purpose, and let the new numbers
+appear in the diff where a reviewer can see which metric moved. Do **not** do it
+to make a red test go green — that is the one failure mode the fixture exists to
+prevent. If you did not intend a change, read
+`tests/integration/test_flow_isolation.py`: something probably leaked through the
+shared `Settings` object.
 
-- All fixtures should be platform-independent (avoid absolute paths)
-- Use minimal file sizes to keep repository lean
-- Fixtures should be representative of real data but not actual experimental data
-- Update tests if fixture format changes
+## Why the videos are generated, not committed
+
+A committed `.mp4` is a binary blob whose contents nobody can review, and its
+decoded frames depend on the codec build on the machine that reads it. The
+fixture video is a few dozen lines of `cv2.rectangle` calls instead
+(`tests/helpers/prerecorded_pipeline.py::write_golden_video`), so the trajectory
+it produces is inspectable in the source and identical everywhere the codec is
+available. Where `mp4v` is missing, the affected tests skip rather than fail.
+
+## Adding a fixture
+
+1. Prefer generating it in the test. Reach for a committed file only when the
+   content itself is the thing under test (a frozen baseline, a malformed file
+   you need to parse).
+2. Keep it small and text-based where possible — a fixture that cannot be read
+   in a diff cannot be reviewed.
+3. Never commit real experiment data.
+4. Add it to this file, with what reads it and why.
