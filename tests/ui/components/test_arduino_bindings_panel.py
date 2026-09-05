@@ -438,3 +438,53 @@ class TestArduinoBindingsPanel:
         tkinter_root.update_idletasks()
 
         assert not _is_packed(_nn(panel._conflict_label))
+
+
+@pytest.mark.gui
+class TestPanelOutlivesItsWidgets:
+    """A destroyed panel must go quiet, not raise into the caller's ``except``.
+
+    ``tab_builder`` destroys the tab and rebuilds it, and
+    ``ApplicationGUI._rebind_project_manager`` can fire in between while still
+    holding the previous instance. That produced a full ``TclError`` traceback at
+    WARNING on an ordinary project switch:
+
+        bad window path name ".!notebook...!arduinobindingspanel.!label"
+
+    A scary traceback for an expected lifecycle event trains the reader to ignore
+    that log line — which is exactly where a REAL panel failure would appear.
+    """
+
+    def test_is_alive_flips_after_destroy(self, tkinter_root):
+        controller, _pm = _make_controller({"use_arduino": False}, ["A"])
+        panel = ArduinoBindingsPanel(tkinter_root, controller)
+
+        assert panel.is_alive() is True
+
+        panel.destroy()
+        tkinter_root.update_idletasks()
+
+        assert panel.is_alive() is False
+
+    def test_refresh_on_a_destroyed_panel_is_a_no_op(self, tkinter_root):
+        controller, _pm = _make_controller({"use_arduino": False}, ["A"])
+        panel = ArduinoBindingsPanel(tkinter_root, controller)
+        panel.destroy()
+        tkinter_root.update_idletasks()
+
+        panel.refresh()  # must not raise TclError
+
+    def test_project_manager_replacement_on_a_destroyed_panel_is_quiet(self, tkinter_root):
+        """The exact call path from the reported traceback."""
+        controller, _pm = _make_controller({"use_arduino": False}, ["A"])
+        panel = ArduinoBindingsPanel(tkinter_root, controller)
+        panel.destroy()
+        tkinter_root.update_idletasks()
+
+        new_manager = MagicMock()
+        panel.on_project_manager_replaced(new_manager)  # must not raise
+
+        assert panel.project_manager is new_manager, (
+            "adopting the new manager must still happen — a panel that is "
+            "rebuilt later would otherwise read the CLOSED project"
+        )
