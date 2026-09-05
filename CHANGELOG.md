@@ -9,6 +9,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Vídeo único: "1 animal" não chegava ao worker, e um artefato virava o 2º objeto
+
+Teste no ambiente real (`CEST_9.mp4`): a aba de análise mostrou **dois** objetos —
+o peixe dentro da arena e outro fora — com "1 animal em 1 aquário" configurado.
+
+- **`single_video_config` parava no coordinator.** `process_videos` montava o
+  contexto sem ele, então `create_processing_context` resolvia a preferência de
+  sujeito único para `None`, pulava a sincronia inteira e o **worker** herdava o
+  `config.local.yaml`. O log mostra os dois lados:
+  `detector_service.single_subject.configured {"enabled": true}` no processo
+  principal contra `worker.detector.single_subject_mode_set {"enabled": false}`
+  no processo que de fato analisa. O ByteTracker então devolveu **0 tracks em 608
+  dos 899 frames**, o detector caiu em `passthrough_untracked` — que emite as
+  detecções cruas com IDs novos — e um único peixe saiu com **517 track_ids**.
+- **A inferência por `animals_per_aquarium` só existia num dos dois caminhos.**
+  `run_video_processing` a fazia; `create_processing_context`, não. Um config que
+  trazia a contagem mas não a flag deixava a sincronia em `None`.
+- **A regra da arena admitia centroide fora.** `is_inside_polygon` aceitava se
+  **qualquer um** de 5 pontos (4 cantos + centro) estivesse dentro. Um artefato
+  estático fora do braço do labirinto — bbox `[992,116,1012,144]`, centro fora,
+  dois cantos raspando a borda — entrou **263 vezes**, 22,7% da trajetória. Nova
+  `detection_zones.arena_membership_rule`, padrão `centroid`; `any_corner`
+  preserva o comportamento antigo. As duas rotas (máscara pré-cacheada e
+  `cv2.pointPolygonTest`) passam a obedecer à mesma regra — antes o resultado
+  dependia de um detalhe de cache invisível.
+- **Um limiar servia a dois propósitos.** `yolo_model.confidence_threshold` 0,05
+  é razoável para achar o tanque uma vez por vídeo e permissivo demais para
+  aceitar um peixe em todo frame — o artefato tinha 0,21-0,34. Nova
+  `yolo_model.animal_confidence_threshold` (`null` reusa a da arena).
+- **Testes envenenavam `sys.modules` sem restaurar.** `test_openvino_context.py`
+  substituía cinco módulos — incluindo `zebtrack.settings`, `structlog` e
+  `zebtrack.utils` — no `setUp` e não tinha `tearDown`, então qualquer teste
+  posterior no mesmo worker que importasse `zebtrack.settings` tardiamente
+  recebia um `MagicMock`. O sintoma chegava irreconhecível do outro lado
+  (`conf_threshold` valendo `mock.resolve_animal_confidence()`). Era também a
+  causa da instabilidade que ficou sem explicação no PR anterior.
+
 ### Auto-detecção do aquário: segmentação devolvia a tela inteira
 
 Teste real (`cest_9.mp4`, 2026-08-31): com `Aquarium AI: seg` e "preservar a

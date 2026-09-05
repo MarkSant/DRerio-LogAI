@@ -11,15 +11,31 @@ from unittest.mock import MagicMock
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 
+#: Modules replaced while importing the plugin without OpenVINO installed.
+_MOCKED_MODULES = (
+    "openvino",
+    "structlog",
+    "zebtrack.tracker.byte_tracker",
+    "zebtrack.settings",
+    "zebtrack.utils",
+)
+
+
 class TestOpenVINOContext(unittest.TestCase):
     def setUp(self):
         """Create a mock OpenVINO plugin for testing."""
-        # Mock all dependencies
-        sys.modules["openvino"] = MagicMock()
-        sys.modules["structlog"] = MagicMock()
-        sys.modules["zebtrack.tracker.byte_tracker"] = MagicMock()
-        sys.modules["zebtrack.settings"] = MagicMock()
-        sys.modules["zebtrack.utils"] = MagicMock()
+        # Mock all dependencies.
+        #
+        # ``sys.modules`` is PROCESS-WIDE and these replacements used to have no
+        # tearDown, so every later test in the same pytest worker that imported
+        # ``zebtrack.settings`` lazily got a MagicMock instead of the module.
+        # The symptom was baffling on the receiving end: a plugin's
+        # ``conf_threshold`` came out as ``mock.resolve_animal_confidence()``,
+        # and ``save_settings`` appeared to accept a mocked Settings object.
+        # The originals are captured here and restored in ``tearDown``.
+        self._saved_modules = {name: sys.modules.get(name) for name in _MOCKED_MODULES}
+        for name in _MOCKED_MODULES:
+            sys.modules[name] = MagicMock()
 
         # Import after mocking
         from zebtrack.plugins.openvino_detector import OpenVINOPlugin
@@ -28,6 +44,19 @@ class TestOpenVINOContext(unittest.TestCase):
         self.plugin = object.__new__(OpenVINOPlugin)
         self.plugin._context = "tracking"
         self.plugin._aquarium_region_defined = False
+
+    def tearDown(self):
+        """Put ``sys.modules`` back exactly as it was.
+
+        A module absent before must be REMOVED again, not left bound to ``None``:
+        a ``None`` entry in ``sys.modules`` makes the next import raise
+        ``ImportError`` instead of importing.
+        """
+        for name, original in self._saved_modules.items():
+            if original is None:
+                sys.modules.pop(name, None)
+            else:
+                sys.modules[name] = original
 
     def test_default_context_is_tracking(self):
         """Test that the default context is 'tracking'."""

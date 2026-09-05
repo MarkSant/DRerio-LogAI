@@ -31,7 +31,7 @@ percentage.
 
 ## Current baseline
 
-Measured 2026-09-05. **44 mutations, 44 killed, 0 survivors.**
+Measured 2026-09-05. **50 mutations, 50 killed, 0 survivors.**
 
 | Module                                            | Mutations | Killed |
 | ------------------------------------------------- | --------- | ------ |
@@ -46,6 +46,8 @@ Measured 2026-09-05. **44 mutations, 44 killed, 0 survivors.**
 | `core/services/live_calibration_scale.py`         | 4         | 4      |
 | `core/detection/arena_candidate_selection.py`     | 4         | 4      |
 | `core/detection/aquarium_detector.py`             | 7         | 7      |
+| `core/detection/zone_scaler.py`                   | 3         | 3      |
+| `settings.py` (animal confidence + atomic save)   | 3         | 3      |
 
 The two detection entries were added in 2026-09 together with the fix for "segmentation returned
 the whole screen". Four of their ten mutations SURVIVED on first run — the degeneracy filter and

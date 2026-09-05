@@ -263,6 +263,44 @@ modules:
         find: 'if len(polygon) < 3:'
         replace: 'if len(polygon) < 0:'
 
+  zone_scaler:
+    source: src/zebtrack/core/detection/zone_scaler.py
+    tests:
+      - tests/core/test_zone_scaler.py
+      - tests/core/detection/test_zone_scaler_extended.py
+    mutations:
+      - id: membership-defaults-to-any-corner
+        description: "regra padrao volta a ser 4 cantos, admitindo centroide fora da arena"
+        find: 'arena_membership_rule: str = "centroid",'
+        replace: 'arena_membership_rule: str = "any_corner",'
+      - id: centroid-rule-adds-the-corners-back
+        description: "regra de centroide passa a testar tambem os 4 cantos"
+        find: 'if self.arena_membership_rule == "centroid":'
+        replace: 'if self.arena_membership_rule == "nunca-casa":'
+      - id: invalid-rule-not-normalized
+        description: "regra invalida deixa de cair para centroid e vale como escrita"
+        find: 'if arena_membership_rule not in self.VALID_MEMBERSHIP_RULES:'
+        replace: 'if False:'
+
+  animal_confidence:
+    source: src/zebtrack/settings.py
+    tests:
+      - tests/test_settings.py
+      - tests/test_plugins_ultralytics.py
+    mutations:
+      - id: animal-threshold-ignored
+        description: "limiar do animal deixa de ser lido e o da arena volta a governar"
+        find: 'explicit = getattr(yolo_settings, "animal_confidence_threshold", None)'
+        replace: 'explicit = None'
+      - id: mock-override-accepted
+        description: "override sem checagem de tipo: um Mock vira limiar de confianca"
+        find: 'if isinstance(explicit, int | float) and not isinstance(explicit, bool) and 0 < explicit < 1:'
+        replace: 'if explicit is not None:'
+      - id: empty-dump-written-over-a-good-config
+        description: "dump vazio deixa de ser recusado e sobrescreve a config existente"
+        find: 'if not isinstance(config_data, dict) or not config_data:'
+        replace: 'if False:'
+
   aquarium_detector:
     source: src/zebtrack/core/detection/aquarium_detector.py
     tests:

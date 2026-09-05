@@ -734,10 +734,26 @@ class VideoProcessingCoordinator(
         settings_snapshot = self._create_project_settings_snapshot()
         mac = self._multi_aquarium_coordinator
 
-        # Sync single-subject tracker preference
+        # Sync single-subject tracker preference.
+        #
+        # The explicit flag comes first, then "1 animal per aquarium" is INFERRED
+        # — the same two-step ``run_video_processing`` already performed. Only
+        # the explicit half lived here, so a run whose config carried the animal
+        # count but not the tracker flag left this at ``None``, skipped the sync
+        # entirely, and shipped the worker whatever ``config.local.yaml`` said.
         use_single_subject = (
             mac._resolve_single_subject_tracker_preference(single_video_config) if mac else None
         )
+        if use_single_subject is None and mac:
+            inferred = mac._resolve_single_animal_mode(single_video_config)
+            if inferred is not None:
+                use_single_subject = bool(inferred)
+                log.info(
+                    "video_processing_coordinator.single_subject.inferred_from_single_animal",
+                    enabled=use_single_subject,
+                    scope="single_video" if single_video_config else "project",
+                )
+
         if use_single_subject is not None:
             if use_single_subject != settings_snapshot.tracking.use_single_subject_tracker:
                 log.info(

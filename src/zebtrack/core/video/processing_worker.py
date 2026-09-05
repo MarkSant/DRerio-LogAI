@@ -32,7 +32,7 @@ import structlog
 from zebtrack.core.detection import Detector, MultiAquariumZoneData, ZoneData
 from zebtrack.core.detection.detection_post_processor import DetectionPostProcessor
 from zebtrack.core.detection.multi_aquarium_detector import MultiAquariumDetector
-from zebtrack.core.detection.zone_scaler import ZoneScaler
+from zebtrack.core.detection.zone_scaler import ZoneScaler, arena_membership_rule_from_settings
 from zebtrack.core.video.shared_frame_buffer import SharedFrameBuffer
 from zebtrack.i18n import _
 from zebtrack.io.recorder import Recorder
@@ -663,7 +663,11 @@ class _WorkerProcess(multiprocessing.Process):
         # Initialize Detector with decomposed helpers (Phase 4.3)
         width = settings.camera.desired_width
         height = settings.camera.desired_height
-        zone_scaler = ZoneScaler(width, height)
+        zone_scaler = ZoneScaler(
+            width,
+            height,
+            arena_membership_rule=arena_membership_rule_from_settings(settings),
+        )
         post_processor = DetectionPostProcessor()
         detector = Detector(
             plugin=plugin,

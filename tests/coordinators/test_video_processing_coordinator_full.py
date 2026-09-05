@@ -459,3 +459,83 @@ class TestProcessPendingProjectVideos:
         mock_worker.start_in_thread.assert_called_once()
         deps["state_manager"].update_processing_state.assert_called_once()
         deps["project_manager"].update_video_status.assert_called_once_with("v1.mp4", "processing")
+
+
+# =============================================================================
+# SINGLE-SUBJECT PREFERENCE MUST REACH THE WORKER'S SETTINGS SNAPSHOT
+# =============================================================================
+
+
+class TestSingleSubjectReachesTheWorker:
+    """The worker process rebuilds its detector from the settings SNAPSHOT.
+
+    Anything the user chose that is not in that snapshot never reaches the
+    analysis. On a real run (2026-09-05) the main-process detector was
+    configured for one animal while the worker logged
+    ``single_subject_mode_set {"enabled": false}``: ByteTrack then returned no
+    tracks on 608 of 899 frames, the detector fell through to
+    ``passthrough_untracked``, and a single fish came out as 517 track ids.
+    """
+
+    def _coordinator_with_mac(self, coord, *, tracker_pref, animal_mode):
+        mac = MagicMock()
+        mac._resolve_single_subject_tracker_preference.return_value = tracker_pref
+        mac._resolve_single_animal_mode.return_value = animal_mode
+        mac._determine_processing_intervals.return_value = (10, 10)
+        coord._multi_aquarium_coordinator = mac
+
+        # A snapshot with REAL booleans: the object the worker will receive, and
+        # the only place an assertion about "what the analysis will do" is
+        # meaningful. A MagicMock snapshot answers every attribute truthily and
+        # would pass no matter what the sync did.
+        snapshot = SimpleNamespace(
+            tracking=SimpleNamespace(use_single_subject_tracker=False),
+            video_processing=SimpleNamespace(
+                single_animal_per_aquarium=False,
+                batch_retry_strategy="continue",
+            ),
+        )
+        coord._create_project_settings_snapshot = lambda: snapshot  # type: ignore[method-assign]
+        coord.settings.tracking.use_single_subject_tracker = False
+        coord.settings.video_processing.single_animal_per_aquarium = False
+        return mac
+
+    def test_explicit_preference_reaches_the_snapshot(self, mock_deps):
+        coord, _deps = mock_deps
+        self._coordinator_with_mac(coord, tracker_pref=True, animal_mode=None)
+
+        context = coord.create_processing_context([], "out", single_video_config={"x": 1})
+
+        assert context.settings.tracking.use_single_subject_tracker is True
+        assert context.settings.video_processing.single_animal_per_aquarium is True
+
+    def test_one_animal_per_aquarium_is_inferred_when_the_flag_is_absent(self, mock_deps):
+        """The config carried the animal COUNT but not the tracker flag.
+
+        Only the explicit half was consulted here, so this resolved to ``None``,
+        the sync was skipped entirely, and the worker inherited whatever
+        ``config.local.yaml`` happened to say.
+        """
+        coord, _deps = mock_deps
+        self._coordinator_with_mac(coord, tracker_pref=None, animal_mode=True)
+
+        context = coord.create_processing_context([], "out", single_video_config={"x": 1})
+
+        assert context.settings.tracking.use_single_subject_tracker is True
+        assert context.settings.video_processing.single_animal_per_aquarium is True
+
+    def test_multi_animal_stays_multi(self, mock_deps):
+        coord, _deps = mock_deps
+        self._coordinator_with_mac(coord, tracker_pref=None, animal_mode=False)
+
+        context = coord.create_processing_context([], "out", single_video_config={"x": 1})
+
+        assert context.settings.tracking.use_single_subject_tracker is False
+
+    def test_nothing_resolvable_leaves_the_snapshot_untouched(self, mock_deps):
+        coord, _deps = mock_deps
+        self._coordinator_with_mac(coord, tracker_pref=None, animal_mode=None)
+
+        context = coord.create_processing_context([], "out", single_video_config=None)
+
+        assert context.settings.tracking.use_single_subject_tracker is False

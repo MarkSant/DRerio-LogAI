@@ -174,7 +174,11 @@ class SingleVideoMixin:
             mac._publish_processing_mode(source="single_video.preflight", force=True)
 
         # 9. Execute
-        self._execute_single_video_analysis(video_path, zone_data=zone_data)
+        #
+        # ``config`` travels with the run: the worker process rebuilds its own
+        # detector from the settings snapshot, so anything the user chose in the
+        # dialog that is not in that snapshot simply does not reach the analysis.
+        self._execute_single_video_analysis(video_path, zone_data=zone_data, config=config)
 
     def _extract_calibration_from_config(self, config: dict) -> dict:
         """Extract calibration params from config."""
@@ -421,7 +425,12 @@ class SingleVideoMixin:
         self.detector.set_aquarium_region_defined(has_aq)
         return True
 
-    def _execute_single_video_analysis(self, video_path: Path | str, zone_data: Any = None) -> None:
+    def _execute_single_video_analysis(
+        self,
+        video_path: Path | str,
+        zone_data: Any = None,
+        config: dict | None = None,
+    ) -> None:
         """Final execution start for single video."""
         scanned = ProjectManager.scan_input_paths([str(video_path)])
         if not scanned:
@@ -438,9 +447,8 @@ class SingleVideoMixin:
 
         # State the output directory ON THE TASK instead of relying on the
         # worker's fallback. ``scan_input_paths`` returns bare descriptors with
-        # no ``results_dir``, and ``single_video_config`` is not forwarded to the
-        # context either, so the worker was rebuilding the path from scratch as
-        # ``<video_dir>/<experiment_id>_results``. That happens to equal what
+        # no ``results_dir``, so the worker was rebuilding the path from scratch
+        # as ``<video_dir>/<experiment_id>_results``. That happens to equal what
         # ``resolve_results_directory`` returns without a project — a coincidence
         # held together by a comment in ``OutputRegistrationManager`` and nothing
         # else. The project batch path already passes ``results_dir`` this way
@@ -448,21 +456,35 @@ class SingleVideoMixin:
         for task in scanned:
             task["results_dir"] = str(out_dir)
 
-        self.process_videos(scanned, out_dir, zone_data=zone_data)
+        self.process_videos(scanned, out_dir, zone_data=zone_data, single_video_config=config)
 
     def process_videos(
         self,
         videos_to_process: list[dict],
         output_base_dir: Path | str,
         zone_data: Any = None,
+        single_video_config: dict | None = None,
     ) -> None:
-        """Execute processing for a list of videos (legacy support)."""
+        """Execute processing for a list of videos (legacy support).
+
+        ``single_video_config`` carries the choices the user made in the
+        single-video dialog. It used to stop here: the context was built without
+        it, so ``create_processing_context`` resolved the single-subject
+        preference to ``None`` and the WORKER ran in multi-animal mode while the
+        main-process detector had been configured for one animal. On a real run
+        (2026-09-05) ByteTrack then returned no tracks on 608 of 899 frames, the
+        detector fell through to ``passthrough_untracked``, and the trajectory
+        came out with 517 distinct track ids for a single fish.
+        """
         output_dir_str = str(output_base_dir)
 
         # Reuse the unified callback factory
         callbacks = self.create_processing_callbacks(videos_to_process)
         context = self.create_processing_context(
-            videos_to_process, output_dir_str, zone_data=zone_data
+            videos_to_process,
+            output_dir_str,
+            zone_data=zone_data,
+            single_video_config=single_video_config,
         )
         if self.cancel_event:
             self.cancel_event.clear()

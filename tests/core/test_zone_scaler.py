@@ -33,12 +33,29 @@ class TestIsInsidePolygon:
         poly = _square(0, 0, 100, 100)
         assert scaler.is_inside_polygon(200, 200, 210, 210, poly) is False
 
-    def test_corner_on_boundary_is_inside(self, scaler):
-        # cv2.pointPolygonTest returns 0 on the edge, and the code accepts >= 0,
-        # so a bbox whose corner sits exactly on a polygon vertex counts as inside.
-        # (Contrast: shapely's strict ``contains`` in analysis/roi.py excludes it.)
+    def test_corner_on_boundary_no_longer_admits_an_outside_centroid(self, scaler):
+        """The default rule is the CENTROID, so grazing a vertex is not enough.
+
+        Under the legacy "any of 4 corners or the centre" rule this returned
+        True. On a real plus-maze run (2026-09-05) that admitted a static
+        artifact just outside the arena on 263 frames — 22.7% of the trajectory —
+        because two of its corners crossed the boundary while its centre never did.
+        """
         poly = _square(0, 0, 100, 100)
-        assert scaler.is_inside_polygon(100, 100, 110, 110, poly) is True
+        # Centroid is (105, 105): outside. Only the top-left corner touches.
+        assert scaler.is_inside_polygon(100, 100, 110, 110, poly) is False
+
+    def test_legacy_any_corner_rule_is_still_available(self):
+        """Projects that need the old behaviour can ask for it explicitly."""
+        legacy = ZoneScaler(arena_membership_rule="any_corner")
+        poly = _square(0, 0, 100, 100)
+
+        assert legacy.is_inside_polygon(100, 100, 110, 110, poly) is True
+
+    def test_invalid_rule_degrades_to_centroid(self):
+        scaler = ZoneScaler(arena_membership_rule="nonsense")
+
+        assert scaler.arena_membership_rule == "centroid"
 
     def test_empty_polygon_returns_false(self, scaler):
         assert scaler.is_inside_polygon(10, 10, 20, 20, np.array([])) is False
@@ -60,15 +77,31 @@ class TestBboxHitsRoiPolygon:
 
 
 class TestCheckMask:
-    def test_any_point_inside(self):
+    def test_centroid_inside(self, scaler):
         mask = np.zeros((100, 100), dtype=np.uint8)
         mask[0:50, 0:50] = 255
-        # Top-left corner falls in the filled region.
-        assert ZoneScaler._check_mask(mask, 10, 10, 20, 20) is True
+        # Whole bbox, centroid included, falls in the filled region.
+        assert scaler._check_mask(mask, 10, 10, 20, 20) is True
 
-    def test_no_point_inside(self):
+    def test_no_point_inside(self, scaler):
         mask = np.zeros((100, 100), dtype=np.uint8)
-        assert ZoneScaler._check_mask(mask, 10, 10, 20, 20) is False
+        assert scaler._check_mask(mask, 10, 10, 20, 20) is False
+
+    def test_mask_path_obeys_the_same_rule_as_the_fallback(self):
+        """Which path runs depends only on whether the polygon was pre-cached.
+
+        If the two disagreed, the same bbox would be inside or outside the arena
+        depending on a caching detail invisible to the researcher.
+        """
+        mask = np.zeros((100, 100), dtype=np.uint8)
+        mask[0:50, 0:50] = 255
+        # Centroid at (50, 50) is OUTSIDE the filled region; the top-left corner
+        # is inside.
+        centroid_scaler = ZoneScaler()
+        legacy_scaler = ZoneScaler(arena_membership_rule="any_corner")
+
+        assert centroid_scaler._check_mask(mask, 40, 40, 60, 60) is False
+        assert legacy_scaler._check_mask(mask, 40, 40, 60, 60) is True
 
 
 class TestGetCropInfo:

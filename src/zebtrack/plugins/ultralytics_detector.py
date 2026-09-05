@@ -49,7 +49,12 @@ class UltralyticsDetectorPlugin(DetectorPlugin):
 
         # Use injected settings or sensible defaults
         if settings_obj is not None:
-            self.conf_threshold = settings_obj.yolo_model.confidence_threshold
+            # ANIMAL threshold, not the arena's. Falls back to
+            # ``confidence_threshold`` when unset, so this is a no-op until the
+            # researcher separates the two.
+            from zebtrack.settings import resolve_animal_confidence
+
+            self.conf_threshold = resolve_animal_confidence(settings_obj.yolo_model)
             self.nms_threshold = settings_obj.yolo_model.nms_threshold
             # Read ByteTrack thresholds from settings
             self.track_threshold = getattr(settings_obj.bytetrack, "track_threshold", 0.25)

@@ -217,6 +217,25 @@ class RecorderSettings(BaseModel):
     )
 
 
+def resolve_animal_confidence(yolo_settings: Any) -> float:
+    """Confidence floor for ANIMAL detection, falling back to the arena's.
+
+    One rule, one place. The two thresholds answer different questions — a
+    permissive floor is right for finding a tank once per video and wrong for
+    accepting a fish on every frame — but until a project sets the animal one
+    explicitly, the historical single value must keep governing both.
+
+    Tolerates a stub or mock ``yolo_settings`` by TYPE-CHECKING the override
+    rather than trusting ``getattr`` to miss: a ``MagicMock`` answers every
+    attribute, so a plain ``getattr(..., default)`` silently returns a mock and
+    the caller ends up comparing a threshold against an object.
+    """
+    explicit = getattr(yolo_settings, "animal_confidence_threshold", None)
+    if isinstance(explicit, int | float) and not isinstance(explicit, bool) and 0 < explicit < 1:
+        return float(explicit)
+    return yolo_settings.confidence_threshold
+
+
 class YOLOModelSettings(BaseModel):
     """Settings for the YOLO object detection model."""
 
@@ -271,8 +290,33 @@ class YOLOModelSettings(BaseModel):
         ...,
         gt=0,
         lt=1,
-        description="Minimum confidence score for a detection to be considered valid.",
+        description=(
+            "Minimum confidence score for an ARENA detection. Deliberately permissive: the "
+            "tank is a large, static object and a missed arena blocks the whole run."
+        ),
     )
+    animal_confidence_threshold: float | None = Field(
+        None,
+        gt=0,
+        lt=1,
+        description=(
+            "Minimum confidence for an ANIMAL detection. ``None`` reuses "
+            "``confidence_threshold``, which is the historical behaviour. The two are "
+            "separate because they answer different questions: a permissive floor is right "
+            "for finding a tank once, and wrong for accepting a fish 900 times — at 0.05 a "
+            "static artifact outside the arena was recorded on 263 frames of a real run."
+        ),
+    )
+
+    @property
+    def effective_animal_confidence(self) -> float:
+        """Confidence floor to use for animal detection.
+
+        Prefer :func:`resolve_animal_confidence` at call sites that may receive a
+        stub or mock settings object; this property assumes a real model.
+        """
+        return resolve_animal_confidence(self)
+
     nms_threshold: float = Field(
         ...,
         gt=0,
@@ -637,6 +681,16 @@ class DetectionZonesSettings(BaseModel):
     roi_colors: list[tuple[int, int, int]] = Field(
         default_factory=list,
         description="The BGR colors for drawing each ROI polygon on the overlay.",
+    )
+
+    arena_membership_rule: Literal["centroid", "any_corner"] = Field(
+        "centroid",
+        description=(
+            "How a detection is judged to be inside the arena. 'centroid' (default) requires "
+            "the animal's centre to be inside, matching the ROI vocabulary. 'any_corner' is "
+            "the legacy rule (4 corners OR centre), which admits a detection whose centre is "
+            "outside whenever a corner grazes the boundary."
+        ),
     )
 
     # Aquarium detection constraints
