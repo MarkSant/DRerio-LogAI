@@ -200,6 +200,74 @@ class TestEventRegistrationAndRouting:
                     stabilization_frames=5,
                 )
 
+    def _run_auto_detect(self, coord, deps):
+        """Fire ZONE_AUTO_DETECT with no expected_count and return the MAC mock."""
+        mock_mac = MagicMock()
+        coord._multi_aquarium_coordinator = mock_mac
+        coord.register_event_handlers()
+
+        bus = deps["event_bus"]
+        for call in bus.subscribe.call_args_list:
+            if call[0][0] == UIEvents.ZONE_AUTO_DETECT:
+                call[0][1]({"video_path": "video.mp4", "stabilization_frames": 5})
+                break
+        return mock_mac
+
+    def test_open_project_count_wins_over_the_settings_cache(self, mock_deps):
+        """The settings value is a cache that gets reset to the project's count.
+
+        A two-aquarium project could therefore auto-detect in single mode
+        depending on when the button was pressed, and the only visible symptom
+        was one arena where there should have been two.
+        """
+        coord, deps = mock_deps
+        coord.project_manager.project_data = {"num_aquariums": 2}
+        coord.settings.analysis_config.num_aquariums = 1
+
+        mock_mac = self._run_auto_detect(coord, deps)
+
+        assert mock_mac.run_aquarium_detection.call_args.kwargs["count"] == 2
+        assert mock_mac.run_aquarium_detection.call_args.kwargs["multi_aquarium"] is True
+
+    def test_explicit_single_aquarium_project_is_not_promoted_by_the_cache(self, mock_deps):
+        """An explicit 1 is an answer, not a missing value."""
+        coord, deps = mock_deps
+        coord.project_manager.project_data = {"num_aquariums": 1}
+        coord.settings.analysis_config.num_aquariums = 4
+
+        mock_mac = self._run_auto_detect(coord, deps)
+
+        assert mock_mac.run_aquarium_detection.call_args.kwargs["count"] is None
+        assert mock_mac.run_aquarium_detection.call_args.kwargs["multi_aquarium"] is False
+
+    def test_project_without_the_key_falls_through_to_settings(self, mock_deps):
+        coord, deps = mock_deps
+        coord.project_manager.project_data = {}
+        coord.settings.analysis_config.num_aquariums = 2
+
+        mock_mac = self._run_auto_detect(coord, deps)
+
+        assert mock_mac.run_aquarium_detection.call_args.kwargs["count"] == 2
+
+    def test_hand_edited_string_count_is_tolerated(self, mock_deps):
+        """``project_config.json`` is edited by researchers, not only written."""
+        coord, deps = mock_deps
+        coord.project_manager.project_data = {"num_aquariums": "2"}
+        coord.settings.analysis_config.num_aquariums = 1
+
+        mock_mac = self._run_auto_detect(coord, deps)
+
+        assert mock_mac.run_aquarium_detection.call_args.kwargs["count"] == 2
+
+    def test_garbage_count_degrades_instead_of_raising(self, mock_deps):
+        coord, deps = mock_deps
+        coord.project_manager.project_data = {"num_aquariums": "dois"}
+        coord.settings.analysis_config.num_aquariums = 3
+
+        mock_mac = self._run_auto_detect(coord, deps)
+
+        assert mock_mac.run_aquarium_detection.call_args.kwargs["count"] == 3
+
     def test_handle_generate_trajectories_filters_sub_and_invalid_extensions(self, mock_deps):
         coord, deps = mock_deps
         coord.process_pending_project_videos = MagicMock()

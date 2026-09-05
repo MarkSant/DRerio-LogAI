@@ -730,7 +730,11 @@ class TestProcessingIntervals:
         assert len(intervals) == 2  # (analysis_interval, display_interval)
 
     def test_determine_processing_intervals_uses_settings(self, coordinator, mock_settings):
-        """Test intervals come from settings."""
+        """The analysis interval comes from settings; display mirrors it.
+
+        ``video_processing.display_interval`` is no longer consulted: the preview
+        redraws on the frames that were analysed, so there is one number to set.
+        """
         mock_settings.video_processing.processing_interval = 5
         mock_settings.video_processing.display_interval = 10
         mac = coordinator._multi_aquarium_coordinator
@@ -738,7 +742,7 @@ class TestProcessingIntervals:
         analysis, display = mac._determine_processing_intervals(config={})
 
         assert analysis == 5
-        assert display == 10
+        assert display == 5
 
     def test_explicit_config_beats_stale_project_data(self, coordinator, mock_settings):
         """The 2nd single video of a session must honour ITS interval.
@@ -770,17 +774,25 @@ class TestProcessingIntervals:
             "display_interval_frames": 9,
         }
 
-        assert mac._determine_processing_intervals(None) == (7, 9)
+        # The legacy display value (9) is ignored — display follows analysis.
+        assert mac._determine_processing_intervals(None) == (7, 7)
 
-    def test_partial_config_falls_back_per_key(self, coordinator, mock_settings):
-        """A config carrying only one of the two keys must not shadow the other."""
+    def test_legacy_display_value_cannot_override_the_analysis_interval(
+        self, coordinator, mock_settings
+    ):
+        """Old projects carry a divergent ``display_interval_frames``; it must not win.
+
+        Before the two were tied together, a project saved with analysis=2 and
+        display=9 redrew the overlay on frames that carried no fresh detection,
+        so the box looked frozen while the tracker was fine.
+        """
         mock_settings.video_processing.display_interval = 10
         mac = coordinator._multi_aquarium_coordinator
         mac.project_manager.project_data = {"display_interval_frames": 9}
 
         analysis, display = mac._determine_processing_intervals({"analysis_interval_frames": 2})
 
-        assert (analysis, display) == (2, 9)
+        assert (analysis, display) == (2, 2)
 
 
 # =============================================================================

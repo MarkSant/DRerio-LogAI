@@ -16,6 +16,10 @@ import numpy as np
 import structlog
 from shapely.geometry import Polygon
 
+from zebtrack.core.detection.arena_candidate_selection import (
+    is_degenerate_outline,
+    rank_box_indices,
+)
 from zebtrack.io.video_source import VideoFileSource
 from zebtrack.utils.geometry import DEFAULT_POLYGON_EPSILON_FACTOR, simplify_polygon
 
@@ -31,6 +35,15 @@ except ImportError:
     ULTRALYTICS_AVAILABLE = False
 
 log = structlog.get_logger()
+
+
+#: What the last completed detection actually produced. Read it through
+#: :meth:`AquariumDetector.get_last_detection_provenance` — callers need it to
+#: tell a real arena from a placeholder, which the return value alone cannot say.
+PROVENANCE_NONE = "none"
+PROVENANCE_MASK = "mask"
+PROVENANCE_BBOX = "bbox"
+PROVENANCE_SYNTHETIC_DEFAULT = "synthetic_default"
 
 
 def _clamp_confidence(value: float | None, *, default: float) -> float:
@@ -63,6 +76,7 @@ class AquariumDetector:
         self.mode = mode
         self._last_source_width = 0
         self._last_source_height = 0
+        self._last_provenance = PROVENANCE_NONE
         if mode not in ["seg", "det"]:
             raise ValueError(f"Invalid mode '{mode}'. Must be 'seg' or 'det'.")
 
@@ -81,13 +95,48 @@ class AquariumDetector:
             )
             raise
 
+    @staticmethod
+    def _as_valid_polygon(points: Any) -> Polygon | None:
+        """Build a Shapely polygon, repairing self-intersections.
+
+        Mask outlines run through ``approxPolyDP`` self-intersect routinely — on a
+        real 2026-09-05 run, three of the four frames did. Shapely reports those
+        as invalid and every area operation on them returns 0, which used to make
+        :meth:`_calculate_iou` answer 0.0 for every pair and left the consensus
+        picking whichever frame happened to come first.
+
+        ``buffer(0)`` is the standard repair: it re-polygonizes the self-crossing
+        ring. It can yield several disjoint pieces, in which case the largest is
+        the arena and the rest are the slivers the crossing created.
+
+        Returns ``None`` when nothing usable survives — callers degrade to 0.0
+        rather than raising.
+        """
+        try:
+            polygon = Polygon(points)
+            if polygon.is_valid:
+                return polygon
+
+            repaired = polygon.buffer(0)
+            if repaired.is_empty:
+                return None
+            if repaired.geom_type == "MultiPolygon":
+                repaired = max(repaired.geoms, key=lambda part: part.area)
+            if repaired.is_valid and repaired.area > 0:
+                return repaired
+        # except Exception justified: Shapely raises heterogeneous topology errors
+        # on degenerate input; an unusable polygon is not a reason to lose the run.
+        except Exception:
+            log.debug("aquarium_detector.polygon_repair_failed", exc_info=True)
+        return None
+
     def _calculate_iou(self, poly1_points, poly2_points) -> float:
         """Calculate the Intersection over Union (IoU) of two polygons."""
         try:
-            poly1 = Polygon(poly1_points)
-            poly2 = Polygon(poly2_points)
+            poly1 = self._as_valid_polygon(poly1_points)
+            poly2 = self._as_valid_polygon(poly2_points)
 
-            if not poly1.is_valid or not poly2.is_valid:
+            if poly1 is None or poly2 is None:
                 return 0.0
 
             intersection_area = poly1.intersection(poly2).area
@@ -193,6 +242,83 @@ class AquariumDetector:
 
         return polygon
 
+    @staticmethod
+    def _normalize_boxes(results: list[Any]) -> tuple[list[float] | None, list[list[float]]]:
+        """Extract ``(confidences, xyxy_boxes)`` from a YOLO result.
+
+        Kept separate from ``arena_candidate_selection`` on purpose: the ranking
+        RULE is shared with the live flow, but the two flows hand it different
+        containers. This is the pre-recorded side's adapter, and it tolerates the
+        MagicMock boxes the test suite builds — a box whose ``conf`` or ``xyxy``
+        cannot be read yields ``None`` confidences and a zero box, which the
+        ranking treats as "unrankable" rather than crashing the detection.
+        """
+        boxes_attr = results[0].boxes if results else None
+        if not boxes_attr:
+            return None, []
+
+        confidences: list[float] = []
+        boxes: list[list[float]] = []
+        confidences_usable = True
+
+        for box in boxes_attr:
+            try:
+                confidences.append(float(box.conf))
+            except (AttributeError, TypeError, ValueError):
+                confidences_usable = False
+                confidences.append(0.0)
+
+            try:
+                xyxy_data = box.xyxy[0]
+                if hasattr(xyxy_data, "cpu"):
+                    xyxy_data = xyxy_data.cpu().numpy()
+                boxes.append([float(v) for v in xyxy_data[:4]])
+            except (AttributeError, IndexError, TypeError, ValueError):
+                boxes.append([0.0, 0.0, 0.0, 0.0])
+
+        return (confidences if confidences_usable else None), boxes
+
+    def _choose_mask_index(
+        self,
+        polygons: Any,
+        usable: list[int],
+        results: list[Any],
+        frame: np.ndarray,
+        *,
+        preferred_index: int | None,
+    ) -> int:
+        """Pick WHICH mask of a multi-mask frame is the arena.
+
+        ``usable`` is already filtered of degenerate outlines and is never empty.
+
+        Precedence: an index the caller already resolved, then the highest-
+        confidence box that both passes the area gate and has a usable mask, then
+        the largest remaining outline. The last step matters because the box
+        ranking can be unavailable (a model that exposes no ``conf``, a stub, or
+        boxes whose geometry does not line up with the masks) — and "unavailable
+        ranking" must still yield an arena.
+        """
+        if preferred_index is not None and preferred_index in usable:
+            return preferred_index
+
+        confidences, boxes = self._normalize_boxes(results)
+        frame_height, frame_width = frame.shape[:2]
+        for idx in rank_box_indices(confidences, boxes, frame_width, frame_height):
+            if idx in usable:
+                return idx
+
+        return max(usable, key=lambda j: self._outline_bbox_area(polygons[j]))
+
+    @staticmethod
+    def _outline_bbox_area(polygon: Any) -> float:
+        """Area of an outline's bounding box, or ``0.0`` when unreadable."""
+        try:
+            xs = [float(point[0]) for point in polygon]
+            ys = [float(point[1]) for point in polygon]
+        except (IndexError, TypeError, ValueError):
+            return 0.0
+        return (max(xs) - min(xs)) * (max(ys) - min(ys))
+
     def _process_segmentation_results(
         self,
         frame: np.ndarray,
@@ -202,6 +328,8 @@ class AquariumDetector:
         max_area_ratio: float = 0.98,
         confidence_threshold: float = 0.05,
         fallback_confidence: float = 0.01,
+        *,
+        preferred_index: int | None = None,
     ) -> np.ndarray | None:
         """
         Process segmentation results to extract a valid aquarium polygon.
@@ -258,60 +386,92 @@ class AquariumDetector:
                     bbox=[int(x_min), int(y_min), int(x_max), int(y_max)],
                 )
 
-            # Accept frames with exactly one large mask
-            if len(polygons) == 1:
-                polygon = polygons[0].astype(np.int32)
-
-                # Validate that it's large enough (more than min_area_ratio of frame)
-                frame_area = frame.shape[0] * frame.shape[1]
-                x_min, y_min = polygon[:, 0].min(), polygon[:, 1].min()
-                x_max, y_max = polygon[:, 0].max(), polygon[:, 1].max()
-                poly_area = (x_max - x_min) * (y_max - y_min)
-
-                area_ratio = poly_area / frame_area
-                area_valid = min_area_ratio <= area_ratio <= max_area_ratio
-
-                # Additional confidence validation (if there are boxes)
-                # But doesn't block if there aren't - maintains robustness
-                conf_valid = True
-                conf_info = "sem_box"
-                if confidences:
-                    max_conf = max(confidences)
-                    conf_valid = max_conf > confidence_threshold
-                    conf_info = f"{max_conf:.3f}"
-
-                if area_valid and conf_valid:
-                    log.info(
-                        "aquarium_detector.good_polygon",
-                        frame=frame_index,
-                        area_ratio=area_ratio,
-                        confidence=conf_info,
-                        min_ratio=min_area_ratio,
-                    )
-                    return polygon
-                elif not area_valid:
-                    log.warning(
-                        "aquarium_detector.polygon_size_invalid",
-                        frame=frame_index,
-                        area_ratio=area_ratio,
-                        confidence=conf_info,
-                        min_ratio=min_area_ratio,
-                        max_ratio=max_area_ratio,
-                    )
-                elif not conf_valid:
-                    log.warning(
-                        "aquarium_detector.confidence_too_low",
-                        frame=frame_index,
-                        area_ratio=area_ratio,
-                        confidence=conf_info,
-                        threshold=confidence_threshold,
-                    )
-            else:
+            # Pick the arena among however many masks came back.
+            #
+            # This used to require EXACTLY ONE mask and discard the frame
+            # otherwise. On 2026-08-31 that gate turned a 413-vertex tank mask at
+            # 0.928 confidence into a full-frame bounding box, because the model
+            # also emitted a zero-height sliver on the bottom edge at 0.272. The
+            # sliver is now filtered as degenerate, and a genuine second
+            # detection is resolved by confidence instead of aborting the frame.
+            usable = [j for j, poly in enumerate(polygons) if not is_degenerate_outline(poly)]
+            if not usable:
                 log.warning(
-                    "aquarium_detector.wrong_mask_count",
+                    "aquarium_detector.all_masks_degenerate",
                     frame=frame_index,
                     num_masks=len(polygons),
-                    expected=1,
+                )
+                return None
+
+            chosen_index = self._choose_mask_index(
+                polygons,
+                usable,
+                results,
+                frame,
+                preferred_index=preferred_index,
+            )
+            if len(polygons) > 1:
+                log.info(
+                    "aquarium_detector.mask_selected",
+                    frame=frame_index,
+                    num_masks=len(polygons),
+                    num_usable=len(usable),
+                    chosen_index=chosen_index,
+                )
+
+            polygon = polygons[chosen_index].astype(np.int32)
+
+            # Validate that it's large enough (more than min_area_ratio of frame)
+            frame_area = frame.shape[0] * frame.shape[1]
+            x_min, y_min = polygon[:, 0].min(), polygon[:, 1].min()
+            x_max, y_max = polygon[:, 0].max(), polygon[:, 1].max()
+            poly_area = (x_max - x_min) * (y_max - y_min)
+
+            area_ratio = poly_area / frame_area
+            area_valid = min_area_ratio <= area_ratio <= max_area_ratio
+
+            # Additional confidence validation (if there are boxes)
+            # But doesn't block if there aren't - maintains robustness.
+            # Uses the CHOSEN detection's confidence, not the frame maximum: with
+            # several masks those are different numbers, and validating the
+            # polygon we are about to return against another detection's score
+            # would let a strong false positive vouch for a weak real one.
+            conf_valid = True
+            conf_info = "sem_box"
+            if confidences:
+                chosen_conf = (
+                    confidences[chosen_index]
+                    if chosen_index < len(confidences)
+                    else max(confidences)
+                )
+                conf_valid = chosen_conf > confidence_threshold
+                conf_info = f"{chosen_conf:.3f}"
+
+            if area_valid and conf_valid:
+                log.info(
+                    "aquarium_detector.good_polygon",
+                    frame=frame_index,
+                    area_ratio=area_ratio,
+                    confidence=conf_info,
+                    min_ratio=min_area_ratio,
+                )
+                return polygon
+            elif not area_valid:
+                log.warning(
+                    "aquarium_detector.polygon_size_invalid",
+                    frame=frame_index,
+                    area_ratio=area_ratio,
+                    confidence=conf_info,
+                    min_ratio=min_area_ratio,
+                    max_ratio=max_area_ratio,
+                )
+            elif not conf_valid:
+                log.warning(
+                    "aquarium_detector.confidence_too_low",
+                    frame=frame_index,
+                    area_ratio=area_ratio,
+                    confidence=conf_info,
+                    threshold=confidence_threshold,
                 )
         else:
             # If didn't find aquarium, try alternative strategy
@@ -320,7 +480,12 @@ class AquariumDetector:
                 frame=frame_index,
                 fallback_conf=fallback_confidence,
             )
-            results_all = self.model.predict(frame, verbose=False, conf=fallback_confidence)
+            # ``classes=[0]`` is NOT optional here. Without it this retry accepted
+            # the largest mask of ANY class, so on a multi-class weight the arena
+            # could come back as whatever object happened to be biggest.
+            results_all = self.model.predict(
+                frame, verbose=False, classes=[0], conf=fallback_confidence
+            )
 
             if results_all and results_all[0].masks and results_all[0].masks.xy:
                 all_polygons = results_all[0].masks.xy
@@ -332,13 +497,19 @@ class AquariumDetector:
 
                 # Look for the largest mask (likely aquarium)
                 if all_polygons:
-                    largest_area = 0
+                    largest_area = 0.0
                     largest_polygon = None
 
                     for j, poly in enumerate(all_polygons):
-                        x_min, y_min = poly[:, 0].min(), poly[:, 1].min()
-                        x_max, y_max = poly[:, 0].max(), poly[:, 1].max()
-                        area = (x_max - x_min) * (y_max - y_min)
+                        if is_degenerate_outline(poly):
+                            log.info(
+                                "aquarium_detector.fallback_mask_degenerate",
+                                frame=frame_index,
+                                mask_index=j,
+                            )
+                            continue
+
+                        area = self._outline_bbox_area(poly)
 
                         if area > largest_area:
                             largest_area = area
@@ -351,12 +522,15 @@ class AquariumDetector:
                             area=int(area),
                         )
 
-                    # If the largest mask is large enough, accept it
+                    # Accept only inside the SAME area gate the primary pass uses.
+                    # This branch used to check ``> 0.1`` with no ceiling, so a
+                    # mask covering the whole field of view was accepted as the
+                    # arena — one of the ways this flow returned "the screen".
                     if largest_polygon is not None:
                         frame_area = frame.shape[0] * frame.shape[1]
                         area_ratio = largest_area / frame_area
 
-                        if area_ratio > 0.1:  # At least 10% of frame
+                        if min_area_ratio <= area_ratio <= max_area_ratio:
                             log.info(
                                 "aquarium_detector.fallback_polygon_accepted",
                                 frame=frame_index,
@@ -365,9 +539,11 @@ class AquariumDetector:
                             return largest_polygon.astype(np.int32)
                         else:
                             log.warning(
-                                "aquarium_detector.fallback_polygon_too_small",
+                                "aquarium_detector.fallback_polygon_rejected",
                                 frame=frame_index,
                                 area_ratio=area_ratio,
+                                min_ratio=min_area_ratio,
+                                max_ratio=max_area_ratio,
                             )
         return None
 
@@ -542,6 +718,7 @@ class AquariumDetector:
         video_path = str(Path(video_path) if isinstance(video_path, str) else video_path)
         conf = _clamp_confidence(confidence_threshold, default=0.05)
         fallback_conf = _clamp_confidence(fallback_confidence, default=0.01)
+        self._last_provenance = PROVENANCE_NONE
         log.info(
             "aquarium_detector.detect.start",
             video_path=video_path,
@@ -554,7 +731,8 @@ class AquariumDetector:
         source = None
         try:
             source = VideoFileSource(video_path)
-            good_polygons = []
+            mask_polygons: list[np.ndarray] = []
+            bbox_polygons: list[np.ndarray] = []
 
             # MELHORIA: Unified logic with LiveCameraService (frame skip + early exit)
             frame_skip = 5
@@ -594,6 +772,7 @@ class AquariumDetector:
                 )
 
                 polygon = None
+                from_mask = False
 
                 if self.mode == "seg":
                     # Segmentation mode - use existing logic
@@ -622,6 +801,11 @@ class AquariumDetector:
                                 message="Segmentation requested but no mask; using bbox.",
                             )
                     else:
+                        # Only a KEPT mask outline counts as mask provenance. With
+                        # ``preserve_real_shape=False`` the call below collapses it
+                        # to a rectangle, which must compete with the other
+                        # rectangles, not against them.
+                        from_mask = preserve_real_shape
                         polygon = self._shape_segmentation_polygon(
                             polygon,
                             preserve_real_shape=preserve_real_shape,
@@ -636,23 +820,91 @@ class AquariumDetector:
                         log.info("aquarium_detector.detection_polygon_accepted", frame=i)
 
                 if polygon is not None:
-                    good_polygons.append(polygon)
+                    if from_mask:
+                        mask_polygons.append(polygon)
+                    else:
+                        bbox_polygons.append(polygon)
 
                     # MELHORIA: Early exit if we have enough consistent data
-                    if len(good_polygons) >= 4:
-                        log.info("aquarium_detector.detect.early_exit", count=len(good_polygons))
+                    accepted = len(mask_polygons) + len(bbox_polygons)
+                    if accepted >= 4:
+                        log.info("aquarium_detector.detect.early_exit", count=accepted)
                         break
 
-            # Apply the same consensus logic regardless of mode
-            return self._find_consensus_polygon(good_polygons, source)
+            # Consensus runs over ONE population, never a mixture.
+            #
+            # Rectangles agree with each other at IoU ~0.99 while real mask
+            # outlines jitter from frame to frame, so a bbox fallback dropped into
+            # the same pool systematically out-votes the very shapes the user
+            # asked to preserve — and one degraded frame would be enough to send
+            # the arena back to a rectangle. When ``preserve_real_shape`` is off,
+            # ``mask_polygons`` stays empty and this is byte-for-byte the previous
+            # behaviour.
+            good_polygons = mask_polygons or bbox_polygons
+            self._last_provenance = PROVENANCE_MASK if mask_polygons else PROVENANCE_BBOX
+            if mask_polygons and bbox_polygons:
+                log.info(
+                    "aquarium_detector.detect.population_split",
+                    mask_polygons=len(mask_polygons),
+                    bbox_polygons=len(bbox_polygons),
+                    used="mask",
+                )
+
+            consensus = self._find_consensus_polygon(good_polygons, source)
+            if not good_polygons:
+                self._last_provenance = (
+                    PROVENANCE_SYNTHETIC_DEFAULT if consensus else PROVENANCE_NONE
+                )
+            return consensus
 
         # except Exception justified: cv2/numpy aquarium detection pipeline — heterogeneous failures
         except Exception as e:
             log.error("aquarium_detector.detect.failed", video_path=video_path, error=str(e))
+            self._last_provenance = PROVENANCE_NONE
             return []
         finally:
             if source:
                 source.release()
+
+    @staticmethod
+    def _multi_aquarium_outline(
+        box_xyxy: tuple[float, float, float, float],
+        *,
+        mask_xy: Any,
+        box_index: int,
+        frame_index: int,
+        epsilon_factor: float,
+    ) -> np.ndarray:
+        """Outline for ONE accepted aquarium box: its mask when usable, else its box.
+
+        ``mask_xy`` is ``None`` whenever masks were not requested or the model is
+        not a segmentation one, which is why the rectangle stays the default and
+        the historical behaviour is untouched when nothing asked for shapes.
+        """
+        x1, y1, x2, y2 = box_xyxy
+
+        if mask_xy is not None and box_index < len(mask_xy):
+            raw_mask = mask_xy[box_index]
+            if not is_degenerate_outline(raw_mask):
+                return np.array(
+                    simplify_polygon(raw_mask, epsilon_factor=epsilon_factor),
+                    dtype=np.int32,
+                )
+            log.warning(
+                "aquarium_detector.detect_multiple.mask_degenerate",
+                frame=frame_index,
+                box_index=box_index,
+            )
+
+        return np.array(
+            [
+                [int(x1), int(y1)],
+                [int(x2), int(y1)],
+                [int(x2), int(y2)],
+                [int(x1), int(y2)],
+            ],
+            dtype=np.int32,
+        )
 
     def detect_multiple_aquariums(
         self,
@@ -662,6 +914,8 @@ class AquariumDetector:
         min_area_ratio: float = 0.1,
         max_area_ratio: float = 0.98,
         confidence_threshold: float | None = None,
+        preserve_real_shape: bool = False,
+        polygon_epsilon_factor: float = DEFAULT_POLYGON_EPSILON_FACTOR,
     ) -> list[np.ndarray]:
         """Detect multiple aquariums in a video.
 
@@ -675,6 +929,15 @@ class AquariumDetector:
             stabilization_frames: Number of frames to analyze.
             min_area_ratio: Minimum area ratio per aquarium.
             max_area_ratio: Maximum area ratio per aquarium.
+            confidence_threshold: YOLO prediction confidence. ``None`` falls back
+                to the historical 0.05. Clamped to ``[0.01, 0.95]``.
+            preserve_real_shape: In ``"seg"`` mode, keep each aquarium's mask
+                outline instead of its bounding box. Ignored in ``"det"`` mode.
+                Resolve it with ``resolve_arena_detection`` — this method used to
+                take no such argument at all, so a two-aquarium project could not
+                honour "preserve the real shape" no matter what it configured.
+            polygon_epsilon_factor: Douglas-Peucker epsilon as a fraction of the
+                outline perimeter, applied only when the mask shape is kept.
 
         Returns:
             List of polygon numpy arrays (shape: Nx2), sorted by X position.
@@ -696,6 +959,8 @@ class AquariumDetector:
             video_path=video_path_str,
             expected_count=expected_count,
             confidence_threshold=conf,
+            mode=self.mode,
+            preserve_real_shape=preserve_real_shape,
         )
 
         # Try YOLO-based detection first
@@ -738,6 +1003,16 @@ class AquariumDetector:
                     boxes = results[0].boxes
                     frame_polygons = []
 
+                    # Masks are read at the SAME index as the accepted box, which
+                    # is what keeps each outline paired with the aquarium it
+                    # belongs to. Without this the method was box-only and a
+                    # two-aquarium project could never preserve a real shape.
+                    use_masks = preserve_real_shape and self.mode == "seg"
+                    mask_xy = None
+                    if use_masks:
+                        masks = getattr(results[0], "masks", None)
+                        mask_xy = getattr(masks, "xy", None) if masks is not None else None
+
                     for _j, box in enumerate(boxes):
                         box_conf = float(box.conf)
                         if box_conf < conf:
@@ -757,15 +1032,17 @@ class AquariumDetector:
                         area_ratio = box_area / frame_area
 
                         if min_area_ratio <= area_ratio <= 0.50:  # Cap max at 50 for multi
-                            polygon = np.array(
-                                [
-                                    [int(x1), int(y1)],
-                                    [int(x2), int(y1)],
-                                    [int(x2), int(y2)],
-                                    [int(x1), int(y2)],
-                                ],
-                                dtype=np.int32,
+                            polygon = self._multi_aquarium_outline(
+                                (x1, y1, x2, y2),
+                                mask_xy=mask_xy,
+                                box_index=_j,
+                                frame_index=i,
+                                epsilon_factor=polygon_epsilon_factor,
                             )
+
+                            # center_x always comes from the BOX, never the mask:
+                            # the left-to-right ordering below must not shift just
+                            # because an outline is asymmetric.
                             frame_polygons.append((polygon, (x1 + x2) / 2))  # polygon, center_x
 
                     # If we found exactly 2 in this frame, add them
@@ -814,6 +1091,24 @@ class AquariumDetector:
         if self._last_source_width > 0 and self._last_source_height > 0:
             return (self._last_source_width, self._last_source_height)
         return None
+
+    def get_last_detection_provenance(self) -> str:
+        """What the last :meth:`detect_aquariums` call actually produced.
+
+        One of ``"mask"``, ``"bbox"``, ``"synthetic_default"`` or ``"none"``.
+
+        The return value of ``detect_aquariums`` cannot express this on its own: a
+        placeholder rectangle built from the frame size and a real segmentation
+        outline are both "a list with one polygon". Callers need the difference to
+        decide whether they may report success — until this existed, a run where
+        NOTHING was detected still logged ``single_success`` and drew an arena the
+        researcher had no reason to distrust.
+
+        Mirrors :meth:`get_last_source_dimensions`: out-of-band metadata about the
+        last run, exposed through an accessor rather than widening the return type
+        of a method with several call sites.
+        """
+        return self._last_provenance
 
 
 class ContourBasedMultiAquariumDetector:

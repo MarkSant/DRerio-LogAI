@@ -420,3 +420,81 @@ def test_start_ignores_worker_left_over_from_a_previous_run():
 
     assert button.state == "normal"
     assert gui.pending_single_video_path == "C:/videos/exp.mp4"
+
+
+# ---------------------------------------------------------------------------
+# Arena preferences must reach project_data BEFORE auto-detection runs
+# ---------------------------------------------------------------------------
+
+
+def _preferences_workflow(project_data):
+    """Workflow whose project_manager exposes ``project_data``."""
+    pm = Mock()
+    pm.project_data = project_data
+    gui = SimpleNamespace(controller=SimpleNamespace(project_manager=pm))
+    return SingleVideoWorkflow(
+        cast(Any, gui),
+        dialog_manager=Mock(),
+        zone_context_service=Mock(),
+    )
+
+
+def test_perspective_reaches_project_data_for_arena_detection():
+    """The perspective selects the WEIGHT, so it must land before auto-detect.
+
+    It used to reach ``project_data`` only via
+    ``_persist_single_video_calibration``, which runs when analysis STARTS. At
+    auto-detect time the resolver therefore fell through to the global
+    ``settings.behavioral_analysis.aquarium_perspective`` — and a top-down video
+    got segmented with the lateral weight.
+    """
+    project_data: dict = {}
+    workflow = _preferences_workflow(project_data)
+
+    workflow._publish_arena_detection_preferences(
+        {
+            "aquarium_method": "seg",
+            "preserve_real_aquarium_shape": True,
+            "behavioral_analysis": {"aquarium_perspective": "top_down"},
+        }
+    )
+
+    assert project_data["behavioral_config"]["aquarium_perspective"] == "top_down"
+    assert project_data["model_selection"]["aquarium_method"] == "seg"
+    assert project_data["preserve_real_aquarium_shape"] is True
+
+
+def test_perspective_write_preserves_other_behavioral_keys():
+    """Writing the perspective must not wipe a behavioral_config already there."""
+    project_data: dict = {"behavioral_config": {"geotaxis_mode": "zones"}}
+    workflow = _preferences_workflow(project_data)
+
+    workflow._publish_arena_detection_preferences(
+        {"behavioral_analysis": {"aquarium_perspective": "lateral"}}
+    )
+
+    assert project_data["behavioral_config"]["aquarium_perspective"] == "lateral"
+    assert project_data["behavioral_config"]["geotaxis_mode"] == "zones"
+
+
+def test_invalid_perspective_degrades_to_the_global_default():
+    """A value the weight lookup cannot honour must not be written at all."""
+    project_data: dict = {}
+    workflow = _preferences_workflow(project_data)
+
+    workflow._publish_arena_detection_preferences(
+        {"behavioral_analysis": {"aquarium_perspective": "Top-Down View"}}
+    )
+
+    assert "behavioral_config" not in project_data
+
+
+def test_missing_behavioral_block_is_not_an_error():
+    """The dialog can return without a behavioral section; that is not a failure."""
+    project_data: dict = {}
+    workflow = _preferences_workflow(project_data)
+
+    workflow._publish_arena_detection_preferences({"aquarium_method": "det"})
+
+    assert project_data["model_selection"]["aquarium_method"] == "det"
+    assert "behavioral_config" not in project_data

@@ -281,11 +281,21 @@ class WeightManager:
         """
         Get the weight path for a specific method and task.
 
-        Resolution precedence (most specific wins):
-            1. Default flagged for ``(method, target, perspective)`` (perspective-aware)
-            2. Default flagged for ``(method, target)`` regardless of perspective
-            3. Any registered weight of ``(method, target)``
-            4. Any registered weight of ``method`` (legacy / catch-all)
+        Resolution precedence (most specific wins). A requested ``perspective``
+        is a HARD constraint and outranks the perspective-blind slot defaults —
+        the lateral and top-down models are trained on different geometry, so
+        the wrong one does not merely fit worse, it does not work:
+
+            1. Runtime slot override (an explicit, temporary user choice)
+            2. Default flagged for ``(method, target, perspective)``, then any
+               registered weight of ``(method, target, perspective)``
+            3. Any registered weight of ``(method, perspective)``, any target
+            4. Default flagged for ``(method, target)`` regardless of perspective
+            5. Legacy default for ``method`` alone
+            6. Any registered weight of ``method``
+
+        When the returned weight's perspective contradicts the requested one,
+        ``weights.get_path.perspective_mismatch`` is logged at WARNING.
 
         Args:
             method: ``"seg"`` or ``"det"``.
@@ -330,18 +340,39 @@ class WeightManager:
                     default_only=False,
                 )
 
-        # 2. Default flag for (method, target) without perspective constraint.
+        # 2. Right PERSPECTIVE, any target.
+        #
+        # This runs BEFORE the perspective-blind slot default below, because a
+        # requested perspective is a HARD constraint: the lateral and top-down
+        # models are trained on different geometry, so the wrong one is not a
+        # lesser match, it is a model that does not work on this footage.
+        #
+        # It is reachable because ``_default_target_for_type`` assigns each
+        # weight a single target from its TYPE alone ("seg tracks the fish, det
+        # tracks the tank" — the v3.x convention). Today's weights are dual-class
+        # (``{0: aqua, 1: zebrafish}``) and arena detection asks for
+        # ``(seg, aquarium)``, which that convention can never produce — so the
+        # lookup used to land on ``is_default_seg_aquarium``, a flag a LATERAL
+        # weight legitimately carries. On a real top-down plus-maze recording
+        # (2026-09-05) that returned the lateral weight, which segmented 88% of
+        # the frame instead of the maze.
+        if details is None and perspective:
+            name, details = self._find_weight(
+                method=method, target=None, perspective=perspective, default_only=False
+            )
+
+        # 3. Default flag for (method, target) without perspective constraint.
         if details is None and target:
             name, details = self.get_default_weight_for(method, target)
 
-        # 3. Legacy default for `method` only (back-compat).
+        # 4. Legacy default for `method` only (back-compat).
         if details is None:
             if method == "seg":
                 name, details = self.get_default_seg_weight()
             else:
                 name, details = self.get_default_det_weight()
 
-        # 4. Last-resort: any weight of the requested method.
+        # 5. Last-resort: any weight of the requested method.
         if details is None:
             for weight_name, weight_details in self.weights.items():
                 if weight_details.get("type") == method:
@@ -350,11 +381,25 @@ class WeightManager:
 
         if details:
             path = details.get("path")
+            resolved_perspective = details.get("perspective")
+            if perspective and resolved_perspective and resolved_perspective != perspective:
+                # Never silent: a perspective mismatch is the difference between
+                # a usable arena and a mask over the whole bench.
+                log.warning(
+                    "weights.get_path.perspective_mismatch",
+                    method=method,
+                    task=task,
+                    requested=perspective,
+                    resolved=resolved_perspective,
+                    name=name,
+                )
             log.info(
                 "weights.get_path.selected",
                 method=method,
                 task=task,
                 target=target,
+                perspective=resolved_perspective,
+                requested_perspective=perspective,
                 name=name,
                 path=path,
             )
@@ -378,7 +423,7 @@ class WeightManager:
         self,
         *,
         method: str,
-        target: str,
+        target: str | None,
         perspective: str | None,
         default_only: bool,
     ) -> tuple[str, dict] | tuple[None, None]:
@@ -386,20 +431,25 @@ class WeightManager:
 
         Args:
             method: ``"seg"`` or ``"det"``.
-            target: ``"aquarium"`` or ``"zebrafish"``.
+            target: ``"aquarium"`` or ``"zebrafish"``, or ``None`` for ANY target.
+                ``None`` exists because a weight's stored target comes from
+                ``_default_target_for_type`` — its model TYPE, not its classes —
+                so a dual-class weight is only ever registered under one of the
+                two slots it can actually serve.
             perspective: Required perspective (``"lateral"``/``"top_down"``) or ``None``.
             default_only: When ``True`` only weights flagged as default for the
-                ``(method, target)`` slot are returned.
+                ``(method, target)`` slot are returned. Ignored when ``target``
+                is ``None``, since the flag key is per-target.
         """
-        slot_key = _default_flag_key(method, target)
+        slot_key = _default_flag_key(method, target) if target else None
         for name, details in self.weights.items():
             if details.get("type") != method:
                 continue
-            if details.get("target") != target:
+            if target is not None and details.get("target") != target:
                 continue
             if perspective is not None and details.get("perspective") != perspective:
                 continue
-            if default_only and not details.get(slot_key, False):
+            if slot_key and default_only and not details.get(slot_key, False):
                 continue
             return name, details
         return None, None

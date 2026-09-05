@@ -6,10 +6,15 @@ method for detecting 2 aquariums in a single video frame.
 Coverage target: 80%+
 """
 
+from unittest.mock import MagicMock, patch
+
 import numpy as np
 import pytest
 
-from zebtrack.core.detection.aquarium_detector import ContourBasedMultiAquariumDetector
+from zebtrack.core.detection.aquarium_detector import (
+    AquariumDetector,
+    ContourBasedMultiAquariumDetector,
+)
 
 
 class TestContourBasedMultiAquariumDetector:
@@ -261,6 +266,179 @@ class TestMultiAquariumDetectionVideo:
 
         assert isinstance(result, list)
         assert len(result) == 0  # Should return empty list on error
+
+
+def _octagon_in(x1, y1, x2, y2):
+    """Outline with 8 vertices inscribed in the given box."""
+    import math
+
+    cx, cy = (x1 + x2) / 2, (y1 + y2) / 2
+    rx, ry = (x2 - x1) / 2, (y2 - y1) / 2
+    return np.array(
+        [
+            [
+                int(cx + rx * math.cos(2 * math.pi * i / 8)),
+                int(cy + ry * math.sin(2 * math.pi * i / 8)),
+            ]
+            for i in range(8)
+        ],
+        dtype=np.float32,
+    )
+
+
+#: Two tanks, each ~17% of a 1280x720 frame — inside the multi-aquarium gate
+#: (``min_area_ratio`` .. 0.50).
+LEFT_BOX = (100, 100, 500, 500)
+RIGHT_BOX = (700, 100, 1100, 500)
+
+
+def _multi_seg_result(*, with_masks: bool):
+    """A YOLO result with two aquarium detections, optionally carrying masks."""
+    boxes = []
+    for box_xyxy in (LEFT_BOX, RIGHT_BOX):
+        box = MagicMock()
+        box.conf = 0.9
+        box.xyxy = [np.array(box_xyxy, dtype=np.float32)]
+        box.cls = 0
+        boxes.append(box)
+
+    result = MagicMock()
+    result.boxes = boxes
+    if with_masks:
+        masks = MagicMock()
+        masks.xy = [_octagon_in(*LEFT_BOX), _octagon_in(*RIGHT_BOX)]
+        result.masks = masks
+    else:
+        result.masks = None
+    return result
+
+
+def _yolo_detector_over(result, *, mode, tmp_path):
+    """An ``AquariumDetector`` whose model always returns ``result``."""
+    model_path = tmp_path / "model.pt"
+    model_path.write_text("fake model")
+    with patch("zebtrack.core.detection.aquarium_detector.YOLO") as mock_yolo:
+        mock_model = MagicMock()
+        mock_model.predict = MagicMock(return_value=[result])
+        mock_yolo.return_value = mock_model
+        return AquariumDetector(model_path, mode=mode)
+
+
+def _fake_source():
+    source = MagicMock()
+    source.width = 1280
+    source.height = 720
+    source.get_frame.return_value = (True, np.zeros((720, 1280, 3), dtype=np.uint8))
+    return source
+
+
+class TestMultiAquariumArenaShape:
+    """Two aquariums must honour the arena policy exactly as one does.
+
+    ``detect_multiple_aquariums`` was box-only and did not even accept
+    ``preserve_real_shape``, so a two-aquarium project could not preserve a real
+    outline however it was configured.
+    """
+
+    def test_preserve_real_shape_keeps_each_mask_outline(self, tmp_path):
+        detector = _yolo_detector_over(
+            _multi_seg_result(with_masks=True), mode="seg", tmp_path=tmp_path
+        )
+
+        with patch(
+            "zebtrack.core.detection.aquarium_detector.VideoFileSource",
+            return_value=_fake_source(),
+        ):
+            polygons = detector.detect_multiple_aquariums(
+                "video.mp4",
+                expected_count=2,
+                stabilization_frames=2,
+                preserve_real_shape=True,
+            )
+
+        assert len(polygons) == 2
+        assert all(len(p) > 4 for p in polygons), "both tanks must keep their real outline"
+
+    def test_preserve_real_shape_keeps_left_to_right_order(self, tmp_path):
+        """Ordering comes from the BOX centre, so an asymmetric mask cannot swap them."""
+        detector = _yolo_detector_over(
+            _multi_seg_result(with_masks=True), mode="seg", tmp_path=tmp_path
+        )
+
+        with patch(
+            "zebtrack.core.detection.aquarium_detector.VideoFileSource",
+            return_value=_fake_source(),
+        ):
+            polygons = detector.detect_multiple_aquariums(
+                "video.mp4",
+                expected_count=2,
+                stabilization_frames=2,
+                preserve_real_shape=True,
+            )
+
+        assert polygons[0][:, 0].mean() < polygons[1][:, 0].mean()
+
+    def test_default_still_returns_rectangles(self, tmp_path):
+        """Omitting the flag must not change behaviour for existing callers."""
+        detector = _yolo_detector_over(
+            _multi_seg_result(with_masks=True), mode="seg", tmp_path=tmp_path
+        )
+
+        with patch(
+            "zebtrack.core.detection.aquarium_detector.VideoFileSource",
+            return_value=_fake_source(),
+        ):
+            polygons = detector.detect_multiple_aquariums(
+                "video.mp4", expected_count=2, stabilization_frames=2
+            )
+
+        assert len(polygons) == 2
+        assert all(len(p) == 4 for p in polygons)
+
+    def test_det_mode_ignores_the_flag(self, tmp_path):
+        """A box model has no mask to preserve; asking for one is not an error."""
+        detector = _yolo_detector_over(
+            _multi_seg_result(with_masks=False), mode="det", tmp_path=tmp_path
+        )
+
+        with patch(
+            "zebtrack.core.detection.aquarium_detector.VideoFileSource",
+            return_value=_fake_source(),
+        ):
+            polygons = detector.detect_multiple_aquariums(
+                "video.mp4",
+                expected_count=2,
+                stabilization_frames=2,
+                preserve_real_shape=True,
+            )
+
+        assert len(polygons) == 2
+        assert all(len(p) == 4 for p in polygons)
+
+    def test_degenerate_mask_degrades_to_that_aquariums_box(self, tmp_path):
+        """One unusable outline must cost its own shape, never the whole detection."""
+        result = _multi_seg_result(with_masks=True)
+        # Right-hand mask collapses to a zero-height sliver.
+        result.masks.xy = [
+            _octagon_in(*LEFT_BOX),
+            np.array([[700, 500], [900, 500], [1100, 500], [700, 500]], dtype=np.float32),
+        ]
+        detector = _yolo_detector_over(result, mode="seg", tmp_path=tmp_path)
+
+        with patch(
+            "zebtrack.core.detection.aquarium_detector.VideoFileSource",
+            return_value=_fake_source(),
+        ):
+            polygons = detector.detect_multiple_aquariums(
+                "video.mp4",
+                expected_count=2,
+                stabilization_frames=2,
+                preserve_real_shape=True,
+            )
+
+        assert len(polygons) == 2
+        assert len(polygons[0]) > 4, "the healthy tank keeps its outline"
+        assert len(polygons[1]) == 4, "the broken one degrades to its box"
 
 
 class TestPolygonOutput:

@@ -289,7 +289,11 @@ class TestAnalysisServiceVideoProcessing:
         )
 
     def test_determine_processing_intervals_single_video(self, analysis_service):
-        """Test interval determination for single video mode."""
+        """Single-video mode: the display interval mirrors the analysis interval.
+
+        The stored ``display_interval_frames`` is legacy and ignored — the
+        preview redraws exactly on analysed frames, so there is one number.
+        """
         single_video_config = {"analysis_interval_frames": 5, "display_interval_frames": 10}
 
         analysis_interval, display_interval = analysis_service.determine_processing_intervals(
@@ -297,10 +301,10 @@ class TestAnalysisServiceVideoProcessing:
         )
 
         assert analysis_interval == 5
-        assert display_interval == 10
+        assert display_interval == 5
 
     def test_determine_processing_intervals_project(self, analysis_service):
-        """Test interval determination from project data."""
+        """Project mode obeys the same one-number rule."""
         project_data = {"analysis_interval_frames": 15, "display_interval_frames": 20}
 
         analysis_interval, display_interval = analysis_service.determine_processing_intervals(
@@ -308,7 +312,7 @@ class TestAnalysisServiceVideoProcessing:
         )
 
         assert analysis_interval == 15
-        assert display_interval == 20
+        assert display_interval == 15
 
     def test_determine_processing_intervals_defaults(self, analysis_service):
         """Test interval determination with defaults."""

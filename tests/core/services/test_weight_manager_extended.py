@@ -613,3 +613,77 @@ class TestWeightManagerExtended11:
     def test_weight_manager_init(self):
         mgr = WeightManager(settings_obj=None)
         assert isinstance(mgr, WeightManager)
+
+
+class TestPerspectiveIsAHardConstraint:
+    """A requested perspective must outrank the perspective-blind slot default.
+
+    Regression cover for 2026-09-05. ``_default_target_for_type`` gives every
+    weight a single target from its TYPE ("seg tracks the fish, det tracks the
+    tank" — the v3.x convention), so today's dual-class weights can never be
+    registered under ``(seg, aquarium)``. Arena detection asks for exactly that,
+    the lookup landed on ``is_default_seg_aquarium`` — a flag a LATERAL weight
+    legitimately carries — and a top-down plus-maze video was segmented with the
+    lateral model: 88% of the frame instead of the maze.
+    """
+
+    def _manager(self, tmp_path: Path) -> WeightManager:
+        wm = WeightManager(settings_obj=None, config_dir=tmp_path, weights_dir=tmp_path)
+        wm.weights = {
+            "best_seg_lateral.pt": {
+                "path": "/w/best_seg_lateral.pt",
+                "type": "seg",
+                "target": TARGET_ZEBRAFISH,
+                "perspective": "lateral",
+                # The slot flag that used to win regardless of perspective.
+                "is_default_seg_aquarium": True,
+                "is_default_seg": True,
+            },
+            "best_seg_topdown.pt": {
+                "path": "/w/best_seg_topdown.pt",
+                "type": "seg",
+                "target": TARGET_ZEBRAFISH,
+                "perspective": "top_down",
+            },
+        }
+        return wm
+
+    def test_top_down_request_does_not_return_the_lateral_default(self, tmp_path: Path):
+        wm = self._manager(tmp_path)
+
+        path = wm.get_weight_path_by_method(method="seg", task="aquarium", perspective="top_down")
+
+        assert path == "/w/best_seg_topdown.pt"
+
+    def test_lateral_request_still_returns_the_lateral_weight(self, tmp_path: Path):
+        wm = self._manager(tmp_path)
+
+        path = wm.get_weight_path_by_method(method="seg", task="aquarium", perspective="lateral")
+
+        assert path == "/w/best_seg_lateral.pt"
+
+    def test_no_perspective_requested_keeps_the_slot_default(self, tmp_path: Path):
+        """Unchanged behaviour when the caller expresses no preference."""
+        wm = self._manager(tmp_path)
+
+        path = wm.get_weight_path_by_method(method="seg", task="aquarium", perspective=None)
+
+        assert path == "/w/best_seg_lateral.pt"
+
+    def test_runtime_override_still_wins_over_perspective(self, tmp_path: Path):
+        """An explicit user override is a deliberate choice; it outranks the rule."""
+        wm = self._manager(tmp_path)
+        wm.set_runtime_slot_overrides({("seg", TARGET_AQUARIUM): "best_seg_lateral.pt"})
+
+        path = wm.get_weight_path_by_method(method="seg", task="aquarium", perspective="top_down")
+
+        assert path == "/w/best_seg_lateral.pt"
+
+    def test_unavailable_perspective_degrades_instead_of_returning_nothing(self, tmp_path: Path):
+        """No top-down weight installed must still yield a usable model."""
+        wm = self._manager(tmp_path)
+        del wm.weights["best_seg_topdown.pt"]
+
+        path = wm.get_weight_path_by_method(method="seg", task="aquarium", perspective="top_down")
+
+        assert path == "/w/best_seg_lateral.pt", "degrade, never lose the detection"

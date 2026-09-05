@@ -383,22 +383,13 @@ class SingleVideoConfigDialog(simpledialog.Dialog):
             row=0, column=2, sticky="w", padx=5
         )
 
-        # Display Interval
-        ttk.Label(interval_frame, text=_("Display interval:")).grid(
-            row=1, column=0, sticky="w", padx=(5, 2), pady=2
-        )
-        create_help_label(
-            interval_frame,
-            _(
-                "Display Interval (frames)\n\n"
-                "How often the on-screen image refreshes during processing.\n"
-                "• Use high values (e.g. 30) to speed the analysis up by saving "
-                "video resources."
-            ),
-        ).grid(row=1, column=1, padx=2)
-        ttk.Entry(interval_frame, textvariable=self.display_interval_var, width=8).grid(
-            row=1, column=2, sticky="w", padx=5
-        )
+        # "Display interval" is deliberately NOT offered. The preview refreshes
+        # exactly on the frames that were analysed, so there is only one number
+        # to set. A second one let the overlay repaint on frames carrying no
+        # fresh detection — the box looked frozen while the tracker was fine —
+        # and project creation had already dropped the field for that reason.
+        # ``display_interval_var`` is kept so existing readers keep working;
+        # ``processing_interval_resolver`` decides its value.
 
         # --- Detection Method Settings ---
         method_frame = ttk.LabelFrame(right_column, text=_("AI Models"), padding=10)
@@ -561,12 +552,11 @@ class SingleVideoConfigDialog(simpledialog.Dialog):
             smoothing_window = int(self.smoothing_window_var.get())
             smoothing_polyorder = int(self.smoothing_polyorder_var.get())
             analysis_interval = int(self.analysis_interval_var.get())
-            display_interval = int(self.display_interval_var.get())
 
             if num_aquariums <= 0 or animals_per_aquarium <= 0:
                 raise ValueError(_("The values must be positive."))
-            if analysis_interval <= 0 or display_interval <= 0:
-                raise ValueError(_("The intervals must be positive whole numbers."))
+            if analysis_interval <= 0:
+                raise ValueError(_("The interval must be a positive whole number."))
             if smoothing_window <= 0:
                 raise ValueError(_("The smoothing window must be positive."))
             if smoothing_window % 2 == 0:
@@ -620,7 +610,11 @@ class SingleVideoConfigDialog(simpledialog.Dialog):
         log.info("single_video_dialog.apply.START")
 
         analysis_interval = int(self.analysis_interval_var.get())
-        display_interval = int(self.display_interval_var.get())
+        # One number, two consumers: the preview redraws exactly on the frames
+        # that were analysed. Mirrored into the var so every existing reader of
+        # ``display_interval_var`` sees the same value the resolver will pick.
+        display_interval = analysis_interval
+        self.display_interval_var.set(str(display_interval))
         num_aquariums = int(self.num_aquariums_var.get())
         animals_per_aquarium = int(self.animals_per_aquarium_var.get())
 

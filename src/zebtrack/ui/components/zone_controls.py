@@ -610,14 +610,13 @@ class ZoneControlsWidget(BaseWidget):
             width=10,
         ).pack(anchor="w", padx=10)
 
-        ttk.Label(self.single_analysis_options_frame, text=_("Display Interval (frames):")).pack(
-            anchor="w", pady=(5, 0)
-        )
-        ttk.Entry(
-            self.single_analysis_options_frame,
-            textvariable=self.display_interval_var,
-            width=10,
-        ).pack(anchor="w", padx=10)
+        # "Display Interval" is NOT shown: the preview redraws exactly on the
+        # frames that were analysed. Offering a second number let the overlay
+        # repaint on frames carrying no fresh detection, so the box went stale
+        # on screen while the tracker was in fact fine — and project creation had
+        # already dropped the same field for the same reason.
+        # ``display_interval_var`` stays alive because other readers still bind
+        # to it; ``processing_interval_resolver`` is what decides its value.
 
     def _build_template_section(self) -> None:
         """Build the ROI template section."""

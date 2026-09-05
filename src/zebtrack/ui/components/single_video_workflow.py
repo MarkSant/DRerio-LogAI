@@ -199,10 +199,46 @@ class SingleVideoWorkflow:
                 config["preserve_real_aquarium_shape"]
             )
 
+        # The perspective decides WHICH WEIGHT arena detection loads
+        # (``best_seg_lateral.pt`` vs ``best_seg_topdown.pt``), and it belongs in
+        # ``project_data`` for the same reason the two keys above do.
+        #
+        # It used to reach ``project_data`` only through
+        # ``_persist_single_video_calibration``, which runs when ANALYSIS starts —
+        # long after auto-detection. So the resolver fell through to the global
+        # ``settings.behavioral_analysis.aquarium_perspective`` and a top-down
+        # video was segmented with the lateral weight: on a real plus-maze
+        # recording (2026-09-05) that returned 88% of the frame at 0.914
+        # confidence, while the top-down weight traced the maze at 0.966.
+        behavioral = config.get("behavioral_analysis")
+        perspective = None
+        if isinstance(behavioral, dict):
+            candidate = behavioral.get("aquarium_perspective")
+            if isinstance(candidate, str) and candidate.strip().lower() in (
+                "lateral",
+                "top_down",
+            ):
+                perspective = candidate.strip().lower()
+            elif candidate is not None:
+                # Degrade to the global default rather than writing a value the
+                # weight lookup cannot honour.
+                log.warning(
+                    "single_video_workflow.arena_preferences.invalid_perspective",
+                    value=str(candidate),
+                )
+
+        if perspective is not None:
+            behavioral_config = project_data.get("behavioral_config")
+            if not isinstance(behavioral_config, dict):
+                behavioral_config = {}
+                project_data["behavioral_config"] = behavioral_config
+            behavioral_config["aquarium_perspective"] = perspective
+
         log.info(
             "single_video_workflow.arena_preferences.applied",
             aquarium_method=aquarium_method,
             preserve_real_aquarium_shape=project_data.get("preserve_real_aquarium_shape"),
+            aquarium_perspective=perspective,
         )
 
     # ------------------------------------------------------------------

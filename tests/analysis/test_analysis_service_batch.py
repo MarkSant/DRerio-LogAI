@@ -386,7 +386,13 @@ class TestBatchProcessing:
         assert mock_root.after.call_count > 0
 
     def test_determine_intervals_precedence(self, analysis_service):
-        """Test that single video config takes precedence over project data."""
+        """Single-video config wins over project data — and display follows analysis.
+
+        The stored ``display_interval_frames`` (14 here) is deliberately ignored:
+        the preview redraws on the frames that were analysed, so there is one
+        number, not two. A separate display interval let the overlay repaint on
+        frames carrying no fresh detection.
+        """
         single_video_config = {"analysis_interval_frames": 7, "display_interval_frames": 14}
         project_data = {"analysis_interval_frames": 20, "display_interval_frames": 30}
 
@@ -396,4 +402,4 @@ class TestBatchProcessing:
 
         # Single video config should take precedence
         assert analysis_interval == 7
-        assert display_interval == 14
+        assert display_interval == 7

@@ -43,7 +43,12 @@ def test_configure_logging_levels_from_settings(mock_config_file):
         },
     }
     config_path = mock_config_file(config_data)
-    settings_obj = load_settings(config_path)
+    # Isolate from the repo-root ``config.local.yaml``. ``load_settings`` applies
+    # that override by default, so a developer whose local config sets
+    # ``zebtrack.io: WARNING`` silently overrode the ERROR this test asserts. It
+    # only ever passed because another test used to truncate that file to zero
+    # bytes before this one ran.
+    settings_obj = load_settings(config_path, config_path.parent / "no-local-override.yaml")
 
     # DI architecture: pass settings_obj directly to configure_logging_levels
     configure_logging_levels(settings_obj)

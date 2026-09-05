@@ -134,8 +134,47 @@ This section defines the contract for `EventBus` messages. Agents **MUST** adher
 | :---------------------------------------- | :---------------------------------- | :--------------------------- | :------------------------- | :------------------------------------------------------------------------------------------ |
 | `Events.VIDEO_ANALYZE_SINGLE`             | `video_path` (str), `config` (dict) | -                            | `AnalysisControlViewModel` | Triggers the start of the single video analysis workflow.                                   |
 | `Events.VIDEO_CANCEL_ANALYSIS`            | -                                   | -                            | `AnalysisControlViewModel` | **Delegates to `ProcessingCoordinator.cancel_processing()`**. Sets flags and stops workers. |
-| `Events.ZONE_AUTO_DETECT`                 | `video_path` (str or None)          | `stabilization_frames` (int) | `ProcessingCoordinator`    | Runs `AquariumDetector` to find the tank polygon automatically.                             |
+| `Events.ZONE_AUTO_DETECT`                 | `video_path` (str or None)          | `stabilization_frames` (int), `expected_count` (int) | `ProcessingCoordinator`    | Runs `AquariumDetector` to find the tank polygon automatically. See § 2.1.                  |
 | `Events.PROCESSING_GENERATE_TRAJECTORIES` | `video_paths` (list, optional)      | -                            | `ProcessingCoordinator`    | Triggers `process_pending_project_videos`. Used by Reports tab to start analysis.           |
+
+### 2.1 Arena auto-detection: one path, two flows, three answers
+
+**Project and single pre-recorded video share the same code.** The zone tab's
+button emits `ZONE_AUTO_DETECT_CLICKED` → `SingleVideoWorkflow.on_auto_detect_clicked`
+(the name predates the project flow reusing it); `DialogManager._start_arena_detection_for`
+publishes `ZONE_AUTO_DETECT` directly. Both reach
+`VideoProcessingCoordinator._handle_zone_auto_detect` →
+`MultiAquariumCoordinator.run_aquarium_detection` → `AquariumDetector`.
+
+**`expected_count`, when absent, comes from the OPEN PROJECT first**
+(`_fallback_expected_aquarium_count`). `settings.analysis_config.num_aquariums` is
+a cache resynchronised whenever the project UI is rebuilt, so reading it first let
+a two-aquarium project auto-detect in single mode depending on timing.
+
+**Which model and which outline** is decided only by
+`core/services/arena_detection_policy.resolve_arena_detection`. **Which detection
+in a frame is the arena** is decided only by
+`core/detection/arena_candidate_selection` — shared with the live burst path, which
+resolves masks by box index and never required a single detection.
+
+**Consensus runs over one population.** Mask outlines and bbox fallbacks are kept
+apart: rectangles agree with each other at IoU ~0.99 while real outlines jitter, so
+mixing them lets one degraded frame out-vote the preserved shapes.
+
+**The result carries provenance**, readable via
+`AquariumDetector.get_last_detection_provenance()`:
+
+| Provenance          | Meaning                                             | User-facing effect                    |
+| :------------------ | :-------------------------------------------------- | :------------------------------------ |
+| `mask`              | A segmentation outline was kept                     | Silent success                        |
+| `bbox`              | Rectangle — no usable mask, or none requested       | `UI_SHOW_WARNING` **only** if the project asked to preserve the shape |
+| `synthetic_default` | Frame-sized placeholder, nothing was detected       | `UI_SHOW_WARNING`; arena still saved  |
+| `none`              | Nothing detected (the real production outcome)      | `UI_SHOW_WARNING`; no arena set       |
+
+The `synthetic_default` branch is guarded by `hasattr(source, "_cap")` and
+`VideoFileSource` exposes `cap`, so it is unreachable with a real video — kept
+tagged rather than activated, because a fabricated arena is worse than a reported
+failure.
 
 ---
 
