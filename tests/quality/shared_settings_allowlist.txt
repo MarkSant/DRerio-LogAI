@@ -1,0 +1,72 @@
+# Every place production code assigns into a SHARED ``Settings`` sub-model.
+#
+# Format: <path relative to the repo root>::<sub-model>.<field>
+#
+# This file exists because of PR #524. The ad-hoc dialogs write the user's
+# per-run choices into the shared ``Settings`` object and never restore them, so
+# a flow that runs LATER in the same app session reads the earlier flow's
+# numbers. On a real project that changed 7 of 9 analysis parameters -- freezing
+# time, sharp turns, distance and speed -- with nothing in the UI or the logs to
+# say so.
+#
+# The fix was made on the READER side: ``build_project_settings_snapshot``
+# answers from a pristine baseline. This list guards the WRITER side, which was
+# never closed: it fails when a NEW assignment appears, so the person adding it
+# has to decide, in that PR, whether the readers of that field are protected.
+#
+# Adding a line is a real decision, not a formality. Before you add one, check
+# that every reader of that field either goes through
+# ``build_project_settings_snapshot`` or genuinely wants the live value.
+# Removing a line is always safe.
+#
+# See tests/quality/test_shared_settings_mutations.py and
+# tests/integration/test_flow_isolation.py.
+
+src/zebtrack/coordinators/_single_video_mixin.py::analysis_config.num_aquariums
+src/zebtrack/coordinators/_single_video_mixin.py::tracking.use_single_subject_tracker
+src/zebtrack/coordinators/_single_video_mixin.py::video_processing.single_animal_per_aquarium
+src/zebtrack/coordinators/live_calibration_coordinator.py::camera.index
+src/zebtrack/coordinators/live_camera_session_coordinator.py::model_selection.animal_method
+src/zebtrack/coordinators/live_camera_session_coordinator.py::model_selection.aquarium_method
+src/zebtrack/coordinators/live_camera_session_coordinator.py::model_selection.use_openvino
+src/zebtrack/coordinators/multi_aquarium_coordinator.py::tracking.use_single_subject_tracker
+src/zebtrack/coordinators/multi_aquarium_coordinator.py::video_processing.single_animal_per_aquarium
+src/zebtrack/coordinators/video_processing_coordinator.py::tracking.use_single_subject_tracker
+src/zebtrack/coordinators/video_processing_coordinator.py::video_processing.single_animal_per_aquarium
+src/zebtrack/core/project/project_workflow_service.py::openvino.device
+src/zebtrack/core/project/project_workflow_service.py::openvino.device_batch
+src/zebtrack/core/services/detector_service.py::tracking.use_bytetrack
+src/zebtrack/core/services/detector_service.py::tracking.use_single_subject_tracker
+src/zebtrack/core/services/detector_service.py::yolo_model.confidence_threshold
+src/zebtrack/core/services/detector_service.py::yolo_model.nms_threshold
+src/zebtrack/ui/dialogs/live_analysis_dialog.py::analysis_config.num_aquariums
+src/zebtrack/ui/dialogs/live_analysis_dialog.py::model_selection.animal_method
+src/zebtrack/ui/dialogs/live_analysis_dialog.py::model_selection.aquarium_method
+src/zebtrack/ui/dialogs/live_analysis_dialog.py::model_selection.use_openvino
+src/zebtrack/ui/dialogs/live_analysis_dialog.py::tracking.use_single_subject_tracker
+src/zebtrack/ui/dialogs/live_analysis_dialog.py::trajectory_smoothing.polyorder
+src/zebtrack/ui/dialogs/live_analysis_dialog.py::trajectory_smoothing.window_length
+src/zebtrack/ui/dialogs/live_analysis_dialog.py::video_processing.display_interval
+src/zebtrack/ui/dialogs/live_analysis_dialog.py::video_processing.freezing_min_duration_s
+src/zebtrack/ui/dialogs/live_analysis_dialog.py::video_processing.freezing_velocity_threshold
+src/zebtrack/ui/dialogs/live_analysis_dialog.py::video_processing.processing_interval
+src/zebtrack/ui/dialogs/live_analysis_dialog.py::video_processing.sharp_turn_threshold_deg_s
+src/zebtrack/ui/dialogs/single_video_config_dialog.py::analysis_config.num_aquariums
+src/zebtrack/ui/dialogs/single_video_config_dialog.py::behavioral_analysis.aquarium_perspective
+src/zebtrack/ui/dialogs/single_video_config_dialog.py::behavioral_analysis.default_geotaxis_bottom_zones
+src/zebtrack/ui/dialogs/single_video_config_dialog.py::behavioral_analysis.default_geotaxis_distance_cm
+src/zebtrack/ui/dialogs/single_video_config_dialog.py::behavioral_analysis.default_geotaxis_num_zones
+src/zebtrack/ui/dialogs/single_video_config_dialog.py::behavioral_analysis.default_thigmotaxis_distance_cm
+src/zebtrack/ui/dialogs/single_video_config_dialog.py::behavioral_analysis.geotaxis_mode
+src/zebtrack/ui/dialogs/single_video_config_dialog.py::detection_zones.preserve_real_aquarium_shape
+src/zebtrack/ui/dialogs/single_video_config_dialog.py::model_selection.animal_method
+src/zebtrack/ui/dialogs/single_video_config_dialog.py::model_selection.aquarium_method
+src/zebtrack/ui/dialogs/single_video_config_dialog.py::model_selection.use_openvino
+src/zebtrack/ui/dialogs/single_video_config_dialog.py::tracking.use_single_subject_tracker
+src/zebtrack/ui/dialogs/single_video_config_dialog.py::trajectory_smoothing.polyorder
+src/zebtrack/ui/dialogs/single_video_config_dialog.py::trajectory_smoothing.window_length
+src/zebtrack/ui/dialogs/single_video_config_dialog.py::video_processing.display_interval
+src/zebtrack/ui/dialogs/single_video_config_dialog.py::video_processing.freezing_min_duration_s
+src/zebtrack/ui/dialogs/single_video_config_dialog.py::video_processing.freezing_velocity_threshold
+src/zebtrack/ui/dialogs/single_video_config_dialog.py::video_processing.processing_interval
+src/zebtrack/ui/dialogs/single_video_config_dialog.py::video_processing.sharp_turn_threshold_deg_s

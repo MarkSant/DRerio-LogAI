@@ -348,3 +348,22 @@ modules:
         description: "dois aquarios voltam a ser sempre retangulos, ignorando preserve_real_shape"
         find: 'use_masks = preserve_real_shape and self.mode == "seg"'
         replace: 'use_masks = False'
+
+  sharp_turn_threshold:
+    source: src/zebtrack/analysis/analysis_service.py
+    tests:
+      - tests/analysis/test_sharp_turn_threshold_resolver.py
+      - tests/integration/test_prerecorded_golden.py
+    mutations:
+      - id: threshold-ignored-by-the-computation
+        description: "contagem de curvas volta a ignorar o limiar configurado (o defeito original)"
+        find: '"curvas_acentuadas": b_analyzer.calculate_sharp_turns(sharp_turn_threshold),'
+        replace: '"curvas_acentuadas": b_analyzer.calculate_sharp_turns(90.0),'
+      - id: settings-win-over-project
+        description: "precedencia invertida: o objeto compartilhado passa na frente do projeto e o vazamento volta"
+        find: '    nested = (params or {}).get("analysis")'
+        replace: '    nested = {} if getattr(getattr(settings_obj, "video_processing", None), "sharp_turn_threshold_deg_s", None) is not None else (params or {}).get("analysis")'
+      - id: zero-override-treated-as-absent
+        description: "limiar 0 explicito vira ausente por checagem de truthiness"
+        find: 'if isinstance(nested, dict) and nested.get("sharp_turn_threshold") is not None:'
+        replace: 'if isinstance(nested, dict) and nested.get("sharp_turn_threshold"):'

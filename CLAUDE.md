@@ -474,6 +474,7 @@ Connector plugins (Slack, Linear, Notion, Jira, BigQuery, Datadog, Enterprise Se
 | ---------------------------- | ------------------------------------------------------------- |
 | **Domain glossary**          | [`docs/reference/DOMAIN_GLOSSARY.md`](docs/reference/DOMAIN_GLOSSARY.md) |
 | **Source → tests map**       | [`docs/testing/TEST_MAP.md`](docs/testing/TEST_MAP.md)        |
+| **Testar ao vivo sem regredir o pré-gravado** | [`docs/testing/LIVE_FLOW_TEST_PROTOCOL.md`](docs/testing/LIVE_FLOW_TEST_PROTOCOL.md) |
 | **Coverage ratchet**         | [`docs/testing/COVERAGE_BASELINE.md`](docs/testing/COVERAGE_BASELINE.md) |
 | **Mutation baseline**        | [`docs/testing/MUTATION_BASELINE.md`](docs/testing/MUTATION_BASELINE.md) |
 | **Cheatsheet**               | [`docs/guides/developer/CHEATSHEET.md`](docs/guides/developer/CHEATSHEET.md) |

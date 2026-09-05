@@ -9,6 +9,61 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Rede de regressão cross-fluxo, antes de testar os vídeos ao vivo
+
+Os dois fluxos pré-gravados foram validados de ponta a ponta na v6.1.0. A rodada
+anterior de testes ao vivo custou quatro PRs de conserto do pré-gravado
+(#522, #523, #524, #527), e o mecanismo é sempre o mesmo: os quatro fluxos
+dividem um único objeto `Settings` pela vida do app, os diálogos ad-hoc escrevem
+nele e nunca restauram, e o fluxo que roda depois herda os números do anterior.
+
+O #521 declarava compatibilidade por defaults, e estava certo no nível da
+assinatura Python. **Defaults compatíveis protegem a assinatura da função, não o
+estado do processo** — por isso a suíte passou e o app quebrou. A suíte não via
+nada porque todo teste constrói objetos novos: o defeito só existe quando dois
+fluxos rodam no MESMO processo.
+
+- **Golden numérico do pré-gravado** (`tests/integration/test_prerecorded_golden.py`).
+  Congela a trajetória inteira e o relatório inteiro, rodando o laço de produção
+  real (`_WorkerProcess`) com `Settings` de verdade. O único teste ponta-a-ponta
+  que existia afirma que o arquivo existe e que uma coluna do Excel bate, com
+  `MagicMock()` no lugar do `Settings` — incapaz, por construção, de ver
+  vazamento. Re-gravação deliberada por `ZEBTRACK_UPDATE_GOLDEN=1`.
+- **Testes de transição entre fluxos** (`tests/integration/test_flow_isolation.py`).
+  Rodam o `apply()` real do `LiveAnalysisDialog` e em seguida o pipeline
+  pré-gravado, no mesmo processo. Com controle negativo: sem o baseline os
+  números têm de mudar, senão os outros testes estariam passando por
+  insensibilidade do fixture em vez de por a guarda funcionar.
+- **Tripwire do poluidor** (`tests/quality/test_shared_settings_mutations.py`).
+  Varredura AST de todo o `src`, com 48 escritas em 9 arquivos congeladas. Uma
+  escrita nova reprova e obriga a decisão no PR que cria a exposição.
+- **Protocolo de bancada** em `docs/testing/LIVE_FLOW_TEST_PROTOCOL.md`, cuja
+  regra central é nunca reiniciar o app entre a sessão ao vivo e a conferência
+  do pré-gravado — reiniciar esconde exatamente esta classe de bug.
+
+### O limiar de curvas acentuadas nunca chegou ao número
+
+Encontrado ao validar o golden por **sensibilidade medida** em vez de "a métrica
+não é zero": `sharp_turns_count` ficava em 7 com o limiar entre 10 e 2000.
+
+`AnalysisService.run_full_analysis` não aceitava `sharp_turn_threshold` e chamava
+`calculate_sharp_turns(90.0)` com literal (`# Assuming 90 as default`). O valor
+configurado seguia por outra rota — `AnalysisResult` → `ReporterContext` →
+`VisualizationGenerator`, que **recalcula as curvas para o gráfico**. O mesmo
+`.docx` trazia tabela a 90 °/s e figura a 45 (o default do DTO), e nenhum
+chamador de produção passava o parâmetro, então essa divergência era o caso
+normal, não a exceção. Havia quatro números para um ajuste: 200,0 no schema do
+`Settings`, 90,0 no `config.yaml`, 45,0 no DTO e 90,0 fixo na computação.
+
+`resolve_sharp_turn_threshold()` passa a ser o resolvedor único — projeto >
+settings da sessão > default, nessa ordem porque o objeto compartilhado depois do
+projeto é o que impede o vazamento de voltar por esta porta. Os quatro caminhos
+de relatório o consultam; sem isso a correção não faria nada, já que todos usavam
+o default.
+
+Compatibilidade: em 90,0, o valor do `config.yaml`, a contagem é idêntica à de
+antes. Só muda para quem configurou outro valor — e para esses estava quebrado.
+
 ## [6.1.0] - 2026-09-05
 
 Marco de validação: os fluxos de vídeo pré-gravado — **vídeo único e projeto** —

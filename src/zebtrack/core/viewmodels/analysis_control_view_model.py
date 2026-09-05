@@ -6,7 +6,10 @@ from typing import TYPE_CHECKING, Any
 
 import structlog
 
-from zebtrack.analysis.analysis_service import resolve_mask_sidecar
+from zebtrack.analysis.analysis_service import (
+    resolve_mask_sidecar,
+    resolve_sharp_turn_threshold,
+)
 from zebtrack.i18n import _
 from zebtrack.ui import payloads as payloads
 from zebtrack.ui.event_bus_v2 import Event, UIEvents
@@ -475,6 +478,7 @@ class AnalysisControlViewModel:
                     freezing_min_duration=params["freezing_min_duration"],
                     smoothing_window_length=params["smoothing_window_length"],
                     smoothing_polyorder=params["smoothing_polyorder"],
+                    sharp_turn_threshold=resolve_sharp_turn_threshold(params, self.settings),
                     video_path=video_path,
                     mask_sidecar_path=resolve_mask_sidecar(parquet_path),
                 )

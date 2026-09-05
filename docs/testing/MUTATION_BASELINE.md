@@ -31,7 +31,7 @@ percentage.
 
 ## Current baseline
 
-Measured 2026-09-05. **50 mutations, 50 killed, 0 survivors.**
+Measured 2026-09-05. **53 mutations, 53 killed, 0 survivors.**
 
 | Module                                            | Mutations | Killed |
 | ------------------------------------------------- | --------- | ------ |
@@ -48,6 +48,13 @@ Measured 2026-09-05. **50 mutations, 50 killed, 0 survivors.**
 | `core/detection/aquarium_detector.py`             | 7         | 7      |
 | `core/detection/zone_scaler.py`                   | 3         | 3      |
 | `settings.py` (animal confidence + atomic save)   | 3         | 3      |
+| `analysis/analysis_service.py` (sharp-turn resolver) | 3      | 3      |
+
+The sharp-turn entry was added with the fix for a threshold that never reached the number: the
+metrics table was computed with a hardcoded `90.0` while the plot used the DTO default of `45.0`.
+Its `threshold-ignored-by-the-computation` mutation restores exactly that literal, so the defect
+cannot return silently — which matters because it survived for as long as it did by being
+invisible rather than by being hard.
 
 The two detection entries were added in 2026-09 together with the fix for "segmentation returned
 the whole screen". Four of their ten mutations SURVIVED on first run — the degeneracy filter and

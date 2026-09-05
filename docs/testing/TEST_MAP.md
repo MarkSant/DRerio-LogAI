@@ -42,10 +42,28 @@ The test tree mirrors `src/zebtrack/`, with two exceptions:
 
 **Cross-cutting (no source mirror):**
 
-- `tests/integration/` (12) — E2E flows: wizard, multi-aquarium, live camera
+- `tests/integration/` (14) — E2E flows: wizard, multi-aquarium, and the two
+  cross-flow guards below
+- `tests/quality/` (3) — AST meta-tests over the suite and the source itself:
+  hollow tests, orphan UI events, shared-`Settings` writes
+- `tests/i18n/` (6) — catalogue integrity and the untranslated-literal ratchet
+- `tests/helpers/` — shared drivers, not tests. `prerecorded_pipeline.py` runs the
+  real pre-recorded worker in-process and is imported by both guards below
 - `tests/benchmarks/` (2) — perf checks
 - `tests/performance/` (1) — perf regressions
 - `tests/orchestrators/` (0 currently — placeholder)
+
+### The cross-flow regression net
+
+The pre-recorded flows were validated end to end in v6.1.0. These three files
+exist so that work on the LIVE flows cannot silently move those numbers — the
+failure mode that produced four repair PRs (#522, #523, #524, #527) last time.
+
+| File | What it proves |
+| --- | --- |
+| `tests/integration/test_prerecorded_golden.py` | The pre-recorded pipeline still computes the numbers signed off in v6.1.0. Compares the full trajectory and the whole analysis report against `tests/fixtures/golden/`. Re-record deliberately with `ZEBTRACK_UPDATE_GOLDEN=1`. |
+| `tests/integration/test_flow_isolation.py` | A live-dialog run does not change what the pre-recorded pipeline computes — flow A then flow B **in the same process**, which is where this defect class lives and where nothing else in the suite looks. Includes a negative control that fails if the guard stops being load-bearing. |
+| `tests/quality/test_shared_settings_mutations.py` | No NEW assignment into the shared `Settings` object appears without a decision. Allowlist: `tests/quality/shared_settings_allowlist.txt`. |
 
 ## High-traffic files → quick lookup
 
@@ -58,7 +76,13 @@ broader suite:
 | `coordinators/video_processing_coordinator.py` | `tests/coordinators/test_video_processing*.py` |
 | `coordinators/sequential_processing_coordinator.py` | `tests/coordinators/test_sequential*.py` |
 | `coordinators/report_generation_coordinator.py` | `tests/coordinators/test_*report*.py`, `tests/analysis/test_reporter*.py` |
-| `core/recording/live_camera_service.py` | `tests/core/test_live_camera*.py`, `tests/integration/test_live_camera*.py` |
+| `core/recording/live_camera_service.py` | `tests/core/test_live_camera*.py`, `tests/test_live_camera_workflow_e2e.py` |
+| **Anything on a LIVE path, before pushing** | `tests/integration/test_flow_isolation.py`, `tests/integration/test_prerecorded_golden.py`, `tests/quality/test_shared_settings_mutations.py` — the pre-recorded flows must still compute the v6.1.0 numbers |
+| `ui/dialogs/live_analysis_dialog.py`, `ui/dialogs/single_video_config_dialog.py` (they write into the SHARED `Settings`) | `tests/quality/test_shared_settings_mutations.py`, `tests/integration/test_flow_isolation.py` |
+| `core/services/project_settings_snapshot.py` | `tests/core/test_project_settings_snapshot.py`, `tests/integration/test_flow_isolation.py` |
+| `core/video/processing_worker.py` | `tests/core/test_processing_worker_unit.py`, `tests/core/video/test_processing_worker_extended.py`, `tests/integration/test_prerecorded_golden.py` |
+| `analysis/analysis_service.py` | `tests/analysis/test_analysis_service*.py`, `tests/integration/test_prerecorded_golden.py` |
+| `analysis/analysis_service.resolve_sharp_turn_threshold` (limiar de curvas) | `tests/analysis/test_sharp_turn_threshold_resolver.py` + `scripts/mutation_check.py --module sharp_turn_threshold`. A tabela do `.docx` e o **gráfico** têm de usar o MESMO limiar — eram 90 e 45 |
 | `core/recording/frame_processing_pipeline.py`, `core/recording/frame_ledger.py` | `tests/core/recording/`, `tests/core/test_closed_loop_latency.py`, `tests/core/test_arduino_zone_dispatch.py` |
 | `core/recording/live_session_manager.py` (parada, limpeza de pastas, status de start) | `tests/core/recording/test_live_session_manager_extended.py`, `tests/core/recording/test_live_session_stop_intent.py` (intenção de parada: descartar × preservar) |
 | `core/recording/live_analysis_post_processor.py` (escala px→cm, pós-análise) | `tests/core/recording/test_live_analysis_post_processor.py`, `tests/core/services/test_live_calibration_scale.py` |

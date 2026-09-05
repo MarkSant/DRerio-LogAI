@@ -6,6 +6,92 @@ This document tracks all major agent interventions, technical debt resolutions, 
 
 ## Active Tasks
 
+### [2026-09-05] Rede de regressão cross-fluxo antes de testar os vídeos ao vivo
+
+__ID:__ TASK-072
+__Agent:__ Claude Code (Opus 5)
+__Status:__ Em andamento
+__Branch:__ claude/live-video-testing-strategy-2f5f9c
+__Description:__
+Os fluxos pré-gravados (vídeo único e projeto) foram validados de ponta a ponta
+na v6.1.0. A rodada anterior de testes ao vivo custou quatro PRs de conserto do
+pré-gravado (#522, #523, #524, #527), e o mecanismo é sempre o mesmo: estado
+mutável compartilhado dentro de UMA sessão do app — o fluxo A escreve no objeto
+`Settings` global, não restaura, e o fluxo B lê. Invisível para a suíte, porque
+todo teste constrói objetos novos; o defeito só existe quando A e B rodam no
+MESMO processo.
+
+Esta tarefa constrói o alarme antes de tocar em código ao vivo.
+
+__Critério de pronto:__ um golden numérico do pré-gravado; testes de transição
+A→B no mesmo processo, com controle negativo; tripwire que reprova uma escrita
+NOVA no `Settings` compartilhado; e cada guarda vista falhando com defeito
+injetado. Nenhuma mudança de comportamento em produção.
+
+__Baseline verde antes de qualquer mudança (2026-09-05):__
+
+- `pytest -q` → 6513 passed, 5 skipped, 1218 deselected (203,78 s)
+- `pytest -m gui -n0` → 1194 passed (49,99 s)
+- `scripts/mutation_check.py --all` → 50/50, zero sobreviventes
+
+### Subtasks (TASK-072)
+
+- [x] `tests/helpers/prerecorded_pipeline.py` — dirige o laço de produção real
+      (`_WorkerProcess._process_single_video`) em processo, com `Settings` REAL
+      carregado só do `config.yaml` (o `config.local.yaml` é por máquina e
+      tornaria o golden dependente de quem roda). Determinismo verificado: duas
+      execuções independentes dão relatórios byte-idênticos.
+- [x] `tests/integration/test_prerecorded_golden.py` + `tests/fixtures/golden/`
+      — trajetória completa e relatório inteiro congelados; re-gravação
+      deliberada por `ZEBTRACK_UPDATE_GOLDEN=1`.
+- [x] Sensibilidade do golden MEDIDA, não presumida. "A métrica não é zero,
+      logo o fixture exercita o limiar" é falso e falhou aqui em silêncio.
+- [x] `tests/integration/test_flow_isolation.py` — roda o `apply()` REAL do
+      `LiveAnalysisDialog` e depois o pipeline pré-gravado, no mesmo processo.
+      Inclui controle negativo: sem o baseline os números têm de mudar, senão o
+      resto do arquivo não prova nada.
+- [x] `tests/quality/test_shared_settings_mutations.py` +
+      `shared_settings_allowlist.txt` — varredura AST de todo o `src`; 48
+      escritas em 9 arquivos congeladas. Uma escrita nova reprova e obriga a
+      decisão no PR que cria a exposição.
+- [x] Guardas vistas falhando: 13º campo injetado no diálogo → tripwire vermelho
+      nomeando a atribuição; baseline removido → números movem (é o próprio
+      controle negativo).
+- [x] `tests/fixtures/README.md` corrigido — documentava 6 arquivos e 3 scripts
+      geradores inexistentes.
+- [x] `docs/testing/TEST_MAP.md` — a rede documentada; corrigido o ponteiro
+      `tests/integration/test_live_camera*.py`, que não casava com arquivo
+      nenhum, e acrescentados `tests/quality/`, `tests/i18n/` e
+      `tests/test_integration.py`, ausentes do mapa.
+
+__Achado durante a construção, e CORRIGIDO:__
+`sharp_turn_threshold_deg_s` nunca afetou a contagem de curvas acentuadas.
+`AnalysisService.run_full_analysis` não aceitava o parâmetro e chamava
+`b_analyzer.calculate_sharp_turns(90.0)` com literal
+(`# Assuming 90 as default`). O valor configurado ia por outro caminho —
+`run_full_analysis_as_dto` → `AnalysisResult` → `ReporterContext` →
+`VisualizationGenerator`, que __recalcula as curvas para o gráfico__. Então o
+mesmo `.docx` trazia tabela a 90 e figura a 45 (o default do DTO), e nenhum
+chamador de produção passava o parâmetro — logo esse era o caso normal.
+
+Havia QUATRO números para um ajuste: 200.0 no schema do `Settings`, 90.0 no
+`config.yaml`, 45.0 no default do DTO e 90.0 fixo na computação.
+
+- [x] `resolve_sharp_turn_threshold()` — resolvedor único, no formato dos outros
+      do repo. Precedência projeto > settings da sessão > default; o objeto
+      compartilhado vem DEPOIS do projeto, senão o vazamento que o
+      `project_settings_snapshot` fecha voltaria por esta porta.
+- [x] `DEFAULT_SHARP_TURN_THRESHOLD_DEG_S = 90.0` alinha DTO, `AnalysisResult` e
+      computação ao `config.yaml`.
+- [x] Os quatro caminhos de relatório passam o valor resolvido — sem isso a
+      correção não faria nada em produção, porque todos usavam o default.
+- [x] `tests/analysis/test_sharp_turn_threshold_resolver.py` (9 testes) e 3
+      mutações novas no catálogo, 3/3 mortas.
+
+Compatibilidade: em 90.0, que é o valor do `config.yaml`, a contagem é idêntica
+à de antes. Só muda para quem configurou outro valor — e para esses estava
+quebrado.
+
 ### [2026-08-23] Análise ao vivo de vídeo único: escala, intenção de parada e pasta de saída
 
 __ID:__ TASK-070

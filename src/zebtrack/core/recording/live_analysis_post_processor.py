@@ -17,6 +17,7 @@ import numpy as np
 import pandas as pd
 import structlog
 
+from zebtrack.analysis.analysis_service import resolve_sharp_turn_threshold
 from zebtrack.core.services.live_calibration_scale import resolve_live_pixel_per_cm
 from zebtrack.core.services.roi_rule_resolver import resolve_roi_rule
 from zebtrack.i18n import _
@@ -631,6 +632,7 @@ class LiveAnalysisPostProcessorMixin:
                     freezing_min_duration=params["freezing_min_duration"],
                     smoothing_window_length=params["smoothing_window_length"],
                     smoothing_polyorder=params["smoothing_polyorder"],
+                    sharp_turn_threshold=resolve_sharp_turn_threshold(params, self.settings),
                     behavioral_config=params["behavioral_config"],
                     video_path=str(video_path),
                 )
