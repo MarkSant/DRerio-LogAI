@@ -95,10 +95,20 @@ yolo_model:
   # Path is relative to the project root; weights live under weights.source_dir.
   path: 'weights/best_seg.pt'
 
-  # Confidence threshold: detections below this score are ignored
-  # Range: 0.0-1.0. Lower values detect more but may increase false positives
-  # Typical: 0.05-0.5 depending on model quality and use case
+  # Confidence threshold for the ARENA (aquarium) detection.
+  # Deliberately permissive: the tank is a large static object, found once per
+  # video, and a missed arena blocks the whole run.
+  # Range: 0.0-1.0.
   confidence_threshold: 0.05
+
+  # Confidence threshold for the ANIMAL detection. Leave null to reuse
+  # `confidence_threshold` (historical behaviour).
+  #
+  # These are separate because they answer different questions. A floor that is
+  # right for finding a tank ONCE is wrong for accepting a fish on every frame:
+  # at 0.05 a static artifact just outside the arena was recorded on 263 frames
+  # of a real run (22.7% of the trajectory). Typical useful values: 0.25-0.5.
+  animal_confidence_threshold: null
 
   # Non-Maximum Suppression (NMS) threshold: filters overlapping bounding boxes
   # Range: 0.0-1.0. Higher values allow more overlap between detections

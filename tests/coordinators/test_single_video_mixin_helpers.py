@@ -317,6 +317,29 @@ class TestExecuteSingleVideoAnalysis:
             "the task and the context must name the SAME directory"
         )
 
+    def test_the_dialog_config_travels_to_process_videos(self, coordinator, monkeypatch, tmp_path):
+        """The user's choices must reach the worker, not stop at the coordinator.
+
+        ``single_video_config`` was never forwarded, so
+        ``create_processing_context`` resolved the single-subject preference to
+        ``None`` and the WORKER ran in multi-animal mode while the main-process
+        detector had been configured for one animal. On a real run (2026-09-05)
+        one fish came out as 517 track ids.
+        """
+        from zebtrack.core.project.project_manager import ProjectManager
+
+        out_dir = tmp_path / "exp_results"
+        scanned = [{"path": "C:/videos/exp.mp4", "has_arena": True}]
+        self._prepare(coordinator, out_dir, scanned)
+        monkeypatch.setattr(
+            ProjectManager, "scan_input_paths", staticmethod(lambda _paths: scanned)
+        )
+        config = {"use_single_subject_tracker": True, "analysis_interval_frames": 3}
+
+        coordinator._execute_single_video_analysis("C:/videos/exp.mp4", config=config)
+
+        assert coordinator.process_videos.call_args.kwargs["single_video_config"] is config
+
     def test_results_dir_matches_the_worker_fallback_without_a_project(
         self, coordinator, monkeypatch, tmp_path
     ):

@@ -17,7 +17,7 @@ import structlog
 
 from zebtrack.core.detection import Detector, MultiAquariumZoneData, ZoneData
 from zebtrack.core.detection.detection_post_processor import DetectionPostProcessor
-from zebtrack.core.detection.zone_scaler import ZoneScaler
+from zebtrack.core.detection.zone_scaler import ZoneScaler, arena_membership_rule_from_settings
 from zebtrack.i18n import _
 from zebtrack.settings import save_settings
 from zebtrack.utils import IntegrityError
@@ -201,7 +201,11 @@ class DetectorService:
             # Create detector instance with decomposed helpers (Phase 4.3)
             base_w = self.settings.camera.desired_width
             base_h = self.settings.camera.desired_height
-            zone_scaler = ZoneScaler(base_w, base_h)
+            zone_scaler = ZoneScaler(
+                base_w,
+                base_h,
+                arena_membership_rule=arena_membership_rule_from_settings(self.settings),
+            )
             post_processor = DetectionPostProcessor()
             self.detector = Detector(
                 plugin=plugin_instance,

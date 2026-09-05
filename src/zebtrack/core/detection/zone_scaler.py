@@ -12,7 +12,29 @@ from zebtrack.core.detection.detection_types import AquariumData, MultiAquariumZ
 
 log = structlog.get_logger()
 
-__all__ = ["ZoneScaler"]
+__all__ = ["ZoneScaler", "arena_membership_rule_from_settings"]
+
+
+def arena_membership_rule_from_settings(settings_obj: object | None) -> str:
+    """Read ``detection_zones.arena_membership_rule``, tolerating stub settings.
+
+    Every ``ZoneScaler`` construction site needs this exact lookup, and they must
+    agree: which rule applies cannot depend on whether the detector was built by
+    the UI, by ``DetectorService`` or inside the worker process.
+    """
+    try:
+        value = getattr(
+            getattr(settings_obj, "detection_zones", None),
+            "arena_membership_rule",
+            None,
+        )
+    # except Exception justified: settings may be a stub/mock in tests — the
+    # default is always a valid answer.
+    except Exception:
+        return "centroid"
+    if isinstance(value, str) and value in ZoneScaler.VALID_MEMBERSHIP_RULES:
+        return value
+    return "centroid"
 
 
 class ZoneScaler:
@@ -27,9 +49,37 @@ class ZoneScaler:
         base_height: Reference height the zones were defined on.
     """
 
-    def __init__(self, base_width: int = 1280, base_height: int = 720) -> None:
+    #: How a bounding box is judged to be inside the arena.
+    #:
+    #: ``"centroid"`` — the animal's centre must be inside. This is the rule the
+    #: ROI vocabulary already uses (``centroid_in``) and the one a researcher
+    #: means by "the fish is in the tank".
+    #:
+    #: ``"any_corner"`` — the historical rule: any of the 4 corners OR the centre.
+    #: It admits a detection whose centre is clearly OUTSIDE whenever a corner
+    #: grazes the boundary. On a real plus-maze run (2026-09-05) a static
+    #: artifact just outside the top-right arm was recorded 263 times — 22.7% of
+    #: the trajectory — because two of its corners crossed the edge while its
+    #: centroid never did.
+    VALID_MEMBERSHIP_RULES = ("centroid", "any_corner")
+
+    def __init__(
+        self,
+        base_width: int = 1280,
+        base_height: int = 720,
+        arena_membership_rule: str = "centroid",
+    ) -> None:
         self.base_width = base_width
         self.base_height = base_height
+        if arena_membership_rule not in self.VALID_MEMBERSHIP_RULES:
+            log.warning(
+                "zone_scaler.membership_rule.invalid",
+                value=str(arena_membership_rule),
+                valid=list(self.VALID_MEMBERSHIP_RULES),
+                fallback="centroid",
+            )
+            arena_membership_rule = "centroid"
+        self.arena_membership_rule = arena_membership_rule
         self.scaled_polygon: np.ndarray = np.array([])
         self.scaled_roi_polygons: list[np.ndarray] = []
         self._scaling_cache: dict = {}
@@ -235,11 +285,13 @@ class ZoneScaler:
         cv2.fillPoly(mask, [pts], 255)
         return mask
 
-    @staticmethod
-    def _check_mask(mask: np.ndarray, x1: int, y1: int, x2: int, y2: int) -> bool:
-        """Test 5 bbox points against a precomputed binary mask.
+    def _check_mask(self, mask: np.ndarray, x1: int, y1: int, x2: int, y2: int) -> bool:
+        """Test the membership points against a precomputed binary mask.
 
-        O(1) pixel lookups instead of 5× cv2.pointPolygonTest calls.
+        O(1) pixel lookups instead of ``cv2.pointPolygonTest`` calls. Honours the
+        same :attr:`arena_membership_rule` as the fallback path — the two must
+        never disagree, since which one runs depends only on whether the polygon
+        happened to be pre-cached.
 
         Args:
             mask: Binary mask (height × width, uint8, 255=inside).
@@ -249,28 +301,24 @@ class ZoneScaler:
             y2: Bottom y coordinate.
 
         Returns:
-            True if any of the 5 test points (4 corners + center) is inside.
+            True if any tested point is inside.
         """
         h, w = mask.shape[:2]
-        center_x = (x1 + x2) // 2
-        center_y = (y1 + y2) // 2
 
-        for px, py in (
-            (x1, y1),
-            (x2, y1),
-            (x2, y2),
-            (x1, y2),
-            (center_x, center_y),
-        ):
+        for px, py in self._membership_points(x1, y1, x2, y2):
             # Clamp to valid pixel coordinates
-            cx = max(0, min(px, w - 1))
-            cy = max(0, min(py, h - 1))
+            cx = max(0, min(int(px), w - 1))
+            cy = max(0, min(int(py), h - 1))
             if mask[cy, cx]:
                 return True
         return False
 
     def is_inside_polygon(self, x1: int, y1: int, x2: int, y2: int, polygon: np.ndarray) -> bool:
-        """Check if any of the 4 corners OR the center of bbox is inside the polygon.
+        """Check whether a bounding box counts as inside the arena polygon.
+
+        Which points are tested depends on :attr:`arena_membership_rule`:
+        ``"centroid"`` (default) tests only the centre; ``"any_corner"`` keeps
+        the historical 4-corners-or-centre behaviour.
 
         Returns False if the polygon is empty or invalid.
 
@@ -282,7 +330,7 @@ class ZoneScaler:
             polygon: Polygon vertices as numpy array.
 
         Returns:
-            True if any point is inside the polygon.
+            True if the box is inside under the configured rule.
         """
         if polygon.size == 0:
             return False
@@ -293,24 +341,24 @@ class ZoneScaler:
             return self._check_mask(mask, x1, y1, x2, y2)
 
         # Fallback to cv2.pointPolygonTest (e.g. polygon not pre-cached)
-        # Calculate all 5 points: 4 corners + center
-        center_x = (x1 + x2) / 2
-        center_y = (y1 + y2) / 2
-
-        points_to_test = [
-            (x1, y1),  # top-left
-            (x2, y1),  # top-right
-            (x2, y2),  # bottom-right
-            (x1, y2),  # bottom-left
-            (center_x, center_y),  # center
-        ]
-
-        # Return True if ANY of the 5 points is inside the polygon
-        for point in points_to_test:
+        for point in self._membership_points(x1, y1, x2, y2):
             if cv2.pointPolygonTest(polygon, point, False) >= 0:
                 return True
 
         return False
+
+    def _membership_points(self, x1: int, y1: int, x2: int, y2: int) -> list[tuple[float, float]]:
+        """Points that decide arena membership, per the configured rule."""
+        center = ((x1 + x2) / 2, (y1 + y2) / 2)
+        if self.arena_membership_rule == "centroid":
+            return [center]
+        return [
+            (float(x1), float(y1)),  # top-left
+            (float(x2), float(y1)),  # top-right
+            (float(x2), float(y2)),  # bottom-right
+            (float(x1), float(y2)),  # bottom-left
+            center,
+        ]
 
     def bbox_hits_roi_polygon(
         self, x1: int, y1: int, x2: int, y2: int, roi_polygon: np.ndarray

@@ -607,3 +607,65 @@ class TestSaveSettingsNeverDestroysTheExistingFile(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestAnimalConfidenceResolution(unittest.TestCase):
+    """The animal threshold is separate from the arena's, and falls back to it.
+
+    A permissive floor is right for finding a tank ONCE per video and wrong for
+    accepting a fish on every frame: at 0.05 a static artifact just outside the
+    arena was recorded on 263 frames of a real run (2026-09-05), 22.7% of the
+    trajectory.
+    """
+
+    def test_falls_back_to_the_arena_threshold_when_unset(self):
+        from types import SimpleNamespace
+
+        from zebtrack.settings import resolve_animal_confidence
+
+        yolo = SimpleNamespace(confidence_threshold=0.05, animal_confidence_threshold=None)
+
+        self.assertEqual(resolve_animal_confidence(yolo), 0.05)
+
+    def test_explicit_value_wins(self):
+        from types import SimpleNamespace
+
+        from zebtrack.settings import resolve_animal_confidence
+
+        yolo = SimpleNamespace(confidence_threshold=0.05, animal_confidence_threshold=0.35)
+
+        self.assertEqual(resolve_animal_confidence(yolo), 0.35)
+
+    def test_mock_settings_fall_back_instead_of_returning_a_mock(self):
+        """A MagicMock answers every attribute; trusting getattr returns an object.
+
+        The plugins compare this value against detection scores, so a mock here
+        would not raise — it would silently accept or reject everything.
+        """
+        from unittest.mock import MagicMock
+
+        from zebtrack.settings import resolve_animal_confidence
+
+        yolo = MagicMock()
+        yolo.confidence_threshold = 0.6
+
+        self.assertEqual(resolve_animal_confidence(yolo), 0.6)
+
+    def test_out_of_range_override_is_ignored(self):
+        from types import SimpleNamespace
+
+        from zebtrack.settings import resolve_animal_confidence
+
+        for bad in (0, 1, -0.2, 1.5, True):
+            yolo = SimpleNamespace(confidence_threshold=0.05, animal_confidence_threshold=bad)
+            self.assertEqual(resolve_animal_confidence(yolo), 0.05, f"bad={bad!r}")
+
+    def test_real_settings_expose_the_same_answer_as_the_property(self):
+        from zebtrack.settings import load_settings, resolve_animal_confidence
+
+        settings = load_settings()
+
+        self.assertEqual(
+            settings.yolo_model.effective_animal_confidence,
+            resolve_animal_confidence(settings.yolo_model),
+        )

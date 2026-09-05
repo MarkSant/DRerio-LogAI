@@ -139,7 +139,12 @@ class OpenVINOPlugin(DetectorPlugin):
         # Use injected settings or sensible defaults
         self._settings = settings_obj
         if settings_obj is not None:
-            self.conf_threshold = settings_obj.yolo_model.confidence_threshold
+            # ANIMAL threshold, not the arena's. Falls back to
+            # ``confidence_threshold`` when unset, so this is a no-op until the
+            # researcher separates the two.
+            from zebtrack.settings import resolve_animal_confidence
+
+            self.conf_threshold = resolve_animal_confidence(settings_obj.yolo_model)
             self.nms_threshold = settings_obj.yolo_model.nms_threshold
         else:
             # Fallback defaults when settings not injected
