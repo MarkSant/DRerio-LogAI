@@ -9,6 +9,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Ao vivo avulso: a perspectiva escolhida não chegava ao detector de arena
+
+Primeiro teste do fluxo ao vivo de vídeo único depois da v6.1.0, com um
+labirinto filmado de cima: o usuário escolheu `top_down` no `LiveAnalysisDialog`
+e a auto-detecção respondeu que não conseguia detectar o aquário.
+
+O log fecha o caso: `perspective_resolved perspective=lateral has_project=False`.
+A cadeia de precedência terminava em
+`settings.behavioral_analysis.aquarium_perspective`, sob um comentário afirmando
+que "LiveAnalysisDialog / SingleVideoConfigDialog escrevem" ali — mas **só o
+segundo escreve**. O `LiveAnalysisDialog` devolve a perspectiva dentro de
+`result["behavioral_analysis"]`, lido só adiante, ao montar o `analysis_config`
+da pós-análise — depois desta calibração já ter rodado. O relatório saía com a
+perspectiva certa e o detector de arena com a errada.
+
+Isso não degradava a detecção, apagava. Medido contra o quadro real da sessão:
+`best_seg_lateral.pt` numa cena top-down devolve uma caixa de **altura zero** na
+borda inferior (`(177,720,1134,720)`, confiança 0,347), que o portão de área de
+`arena_candidate_selection` rejeita — corretamente, porque área zero não é um
+tanque. Zero polígonos em 30 quadros, a 0,05 e a 0,01. O `best_seg_topdown.pt`
+acha o tanque no mesmo quadro, ocupando 61% da área.
+
+`run_live_calibration` e `ensure_zones_before_recording` passam a aceitar
+`perspective`, pelo mesmo motivo e com a mesma precedência que o `camera_index`
+já tinha: sem projeto não existe `project_data` de onde lê-la. O valor é
+memorizado para o botão "auto-detectar" da aba de Zonas, que reexecuta a
+calibração sem o config do diálogo em mãos — sem isso o defeito voltaria de
+forma intermitente, que é pior. O `perspective_resolved` agora registra também a
+ORIGEM: antes o log dizia só `lateral`, indistinguível entre "o usuário pediu
+lateral" e "ninguém pediu nada", e era o segundo caso.
+
+O caminho por settings continua servindo o vídeo único pré-gravado, cujo diálogo
+de fato escreve ali.
+
 ### Rede de regressão cross-fluxo, antes de testar os vídeos ao vivo
 
 Os dois fluxos pré-gravados foram validados de ponta a ponta na v6.1.0. A rodada

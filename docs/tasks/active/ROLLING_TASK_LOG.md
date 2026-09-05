@@ -6,6 +6,56 @@ This document tracks all major agent interventions, technical debt resolutions, 
 
 ## Active Tasks
 
+### [2026-09-05] Ao vivo avulso: perspectiva escolhida não chegava ao detector
+
+__ID:__ TASK-073
+__Agent:__ Claude Code (Opus 5)
+__Status:__ Completed ✅
+__Branch:__ fix/live-adhoc-perspective-weight
+__Description:__
+Primeiro teste do fluxo ao vivo de vídeo único depois da v6.1.0, com a rede da
+TASK-072 já no lugar. Labirinto filmado de cima, `top_down` escolhido no
+`LiveAnalysisDialog`, e a auto-detecção disse que não achava o aquário.
+
+O log fecha o caso na primeira leitura:
+`perspective_resolved perspective=lateral has_project=False`.
+
+__Critério de pronto:__ a perspectiva do diálogo decide o peso; o caminho por
+settings do vídeo único pré-gravado intacto; teste que reproduz o defeito.
+
+### Subtasks (TASK-073)
+
+- [x] Causa raiz: a cadeia de precedência terminava em
+      `settings.behavioral_analysis.aquarium_perspective`, sob comentário
+      afirmando que os DOIS diálogos escrevem ali. Só o
+      `SingleVideoConfigDialog` escreve — o allowlist de escritas da TASK-072 é
+      quem prova. O `LiveAnalysisDialog` devolve a perspectiva em
+      `result["behavioral_analysis"]`, lido só ao montar o `analysis_config`,
+      DEPOIS do portão de zonas: relatório certo, detector errado.
+- [x] Medido, não deduzido, contra o quadro real da sessão
+      (`live_camera_reference_frame.png`, preservado no temp):
+      `best_seg_lateral.pt` numa cena top-down devolve caixa de ALTURA ZERO na
+      borda inferior — `(177,720,1134,720)`, confiança 0,347 — que o portão de
+      área de `arena_candidate_selection` rejeita corretamente. Zero polígonos
+      em 30 quadros, a 0,05 e a 0,01. `best_seg_topdown.pt` acha o tanque no
+      mesmo quadro (61% da área). O portão estava certo; o modelo, errado.
+- [x] `run_live_calibration(perspective=)` e
+      `ensure_zones_before_recording(perspective=)`, seguindo o precedente do
+      `camera_index` — mesmo motivo, mesma precedência (projeto > argumento >
+      settings). Memorizado em `_adhoc_perspective` para o botão
+      "auto-detectar" da aba de Zonas, que reexecuta a calibração sem o config.
+- [x] `perspective_resolved` passa a registrar a ORIGEM. Sem isso o log dizia
+      só `lateral`, indistinguível entre escolha e default — foi o que fez o
+      defeito parecer problema de modelo.
+- [x] `tests/coordinators/test_live_calibration_perspective.py` (5 testes),
+      visto falhando com a correção removida (2 vermelhos) e verde com ela.
+
+__Verificação:__ ruff limpo, mypy 895 arquivos, 6551 rápidos, 1194 GUI.
+
+__Observação:__ o `LiveAnalysisDialog` continua NÃO escrevendo no `Settings`
+compartilhado, de propósito. Escrever ali resolveria o sintoma e criaria a 13ª
+escrita global — exatamente o que o tripwire da TASK-072 existe para impedir.
+
 ### [2026-09-05] Rede de regressão cross-fluxo antes de testar os vídeos ao vivo
 
 __ID:__ TASK-072
