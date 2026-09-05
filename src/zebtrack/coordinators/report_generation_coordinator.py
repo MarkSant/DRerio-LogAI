@@ -18,7 +18,10 @@ from typing import TYPE_CHECKING, Any
 
 import structlog
 
-from zebtrack.analysis.analysis_service import resolve_mask_sidecar
+from zebtrack.analysis.analysis_service import (
+    resolve_mask_sidecar,
+    resolve_sharp_turn_threshold,
+)
 from zebtrack.analysis.roi import ROI
 from zebtrack.analysis.roi_builder import build_roi_from_polygon
 from zebtrack.coordinators._unified_report_mixin import UnifiedReportMixin
@@ -310,6 +313,7 @@ class ReportGenerationCoordinator(BaseCoordinator, UnifiedReportMixin):
                 "freezing_min_duration",
                 self.settings.video_processing.freezing_min_duration_s,
             ),
+            sharp_turn_threshold=resolve_sharp_turn_threshold(params, self.settings),
             video_path=video_path_report,
             frame_crop_box=frame_crop_for_viz,
             behavioral_config=params.get("behavioral_config"),
@@ -422,6 +426,7 @@ class ReportGenerationCoordinator(BaseCoordinator, UnifiedReportMixin):
                 "freezing_min_duration",
                 self.settings.video_processing.freezing_min_duration_s,
             ),
+            sharp_turn_threshold=resolve_sharp_turn_threshold(analysis_params, self.settings),
             video_path=video_path_report,
             frame_crop_box=None,
             behavioral_config=analysis_params.get("behavioral_config"),

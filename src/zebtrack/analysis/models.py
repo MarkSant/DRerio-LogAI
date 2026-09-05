@@ -114,8 +114,15 @@ class AnalysisResult:
     video_path: str | None = None
     """Optional path to source video file."""
 
-    sharp_turn_threshold: float = 45.0
-    """Sharp turn detection threshold in degrees/second."""
+    sharp_turn_threshold: float = 90.0
+    """Sharp turn detection threshold in degrees/second.
+
+    Matches ``analysis_service.DEFAULT_SHARP_TURN_THRESHOLD_DEG_S`` and
+    ``config.yaml``. It was 45.0 while the metrics table was computed with a
+    hardcoded 90.0, so a report could carry a table and a trajectory plot built
+    from different thresholds. Not imported from ``analysis_service`` — that
+    module imports this one, and the reverse would be a cycle.
+    """
 
     freezing_threshold: float = 1.5
     """Freezing velocity threshold in cm/s."""

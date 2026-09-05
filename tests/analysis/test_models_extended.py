@@ -58,7 +58,13 @@ class TestAnalysisResultExtended:
         assert res.report == {"metrics": {}}
         assert res.roi_analyzer is None
         assert res.metadata["experiment_id"] == "exp_01"
-        assert res.sharp_turn_threshold == 45.0
+        # 90.0, not the old 45.0: this default reaches the trajectory PLOT via
+        # ``ReporterContext``, while the metrics table was computed with a
+        # hardcoded 90.0 — one report could carry a figure and a table built
+        # from different thresholds. Both now come from
+        # ``analysis_service.DEFAULT_SHARP_TURN_THRESHOLD_DEG_S``, which matches
+        # ``config.yaml``.
+        assert res.sharp_turn_threshold == 90.0
         assert res.freezing_threshold == 1.5
         assert res.freezing_duration == 1.0
         assert res.smoothing_window_length is None

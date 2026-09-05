@@ -34,6 +34,18 @@ if TYPE_CHECKING:
 
 log = structlog.get_logger()
 
+#: Fallback sharp-turn threshold, in degrees per second.
+#:
+#: Used only when a caller supplies none. It matches ``config.yaml``, so the
+#: shipped configuration and the fallback agree — they did not before. The
+#: metrics table was computed with a hardcoded 90.0 while the plot used the DTO
+#: default of 45.0, so one report could show a table and a figure built from
+#: different thresholds. ``Settings.sharp_turn_threshold_deg_s`` declares yet
+#: another value (200.0) as its schema default; it is unreachable in practice
+#: because ``config.yaml`` always sets the key and ``load_settings`` requires
+#: that file to exist.
+DEFAULT_SHARP_TURN_THRESHOLD_DEG_S = 90.0
+
 # v2.2: Memory optimization - only copy columns needed for analysis
 REQUIRED_TRAJECTORY_COLUMNS = [
     "timestamp",
@@ -46,6 +58,49 @@ REQUIRED_TRAJECTORY_COLUMNS = [
     "x2",
     "y2",
 ]
+
+
+def resolve_sharp_turn_threshold(
+    params: dict[str, Any] | None,
+    settings_obj: "Settings | None" = None,
+) -> float:
+    """Sharp-turn threshold, in deg/s, for one analysis run.
+
+    Single resolver for every report path, in the shape
+    ``resolve_roi_rule``/``resolve_session_duration`` already use here.
+
+    Precedence: the resolved ``params`` (project > session settings, as built by
+    :meth:`AnalysisService.collect_analysis_parameters`) > ``settings_obj`` >
+    :data:`DEFAULT_SHARP_TURN_THRESHOLD_DEG_S`.
+
+    ``settings_obj`` is a fallback only. Reading it first would reintroduce the
+    leak ``project_settings_snapshot`` exists to close: the shared object holds
+    whatever the last ad-hoc dialog wrote into it.
+
+    Degrades rather than raising. A hand-edited ``project_config.json`` with a
+    non-numeric threshold falls back with a warning; a report that stops halfway
+    is worse than one computed with the documented default.
+    """
+    nested = (params or {}).get("analysis")
+    if isinstance(nested, dict) and nested.get("sharp_turn_threshold") is not None:
+        try:
+            return float(nested["sharp_turn_threshold"])
+        except (TypeError, ValueError):
+            log.warning(
+                "analysis.sharp_turn_threshold.invalid_override",
+                value=repr(nested.get("sharp_turn_threshold")),
+            )
+
+    from_settings = getattr(
+        getattr(settings_obj, "video_processing", None), "sharp_turn_threshold_deg_s", None
+    )
+    if from_settings is not None:
+        try:
+            return float(from_settings)
+        except (TypeError, ValueError):
+            log.warning("analysis.sharp_turn_threshold.invalid_setting", value=repr(from_settings))
+
+    return DEFAULT_SHARP_TURN_THRESHOLD_DEG_S
 
 
 def resolve_mask_sidecar(trajectory_path: str | Path | None) -> Path | None:
@@ -154,6 +209,7 @@ class AnalysisService:
         smoothing_window_length: int | None = None,
         smoothing_polyorder: int | None = None,
         max_plausible_speed_cm_s: float = 50.0,
+        sharp_turn_threshold: float = DEFAULT_SHARP_TURN_THRESHOLD_DEG_S,
         behavioral_config: dict[str, Any] | None = None,
         mask_sidecar_path: str | Path | None = None,
     ) -> tuple[dict[str, Any], ConcreteBehavioralAnalyzer, ROIAnalyzer | None, list, dict]:
@@ -308,9 +364,7 @@ class AnalysisService:
                 ),
                 "tortuosidade": b_analyzer.get_tortuosity(),
                 "periodos_inatividade": b_analyzer.calculate_inactivity_periods(),
-                "curvas_acentuadas": b_analyzer.calculate_sharp_turns(
-                    90.0
-                ),  # Assuming 90 as default
+                "curvas_acentuadas": b_analyzer.calculate_sharp_turns(sharp_turn_threshold),
                 "total_frames_analisados": validation_result["stats"].get("total_frames"),
                 "duracao_video_s": (
                     validation_result["stats"].get("total_frames", 0) / fps
@@ -439,7 +493,7 @@ class AnalysisService:
         # Optional parameters
         video_path: Path | str | None = None,
         calibration=None,
-        sharp_turn_threshold: float = 45.0,
+        sharp_turn_threshold: float = DEFAULT_SHARP_TURN_THRESHOLD_DEG_S,
         frame_crop_box: tuple[int, int, int, int] | None = None,
         behavioral_config: dict[str, Any] | None = None,
         mask_sidecar_path: str | Path | None = None,
@@ -502,6 +556,11 @@ class AnalysisService:
             smoothing_window_length=smoothing_window_length,
             smoothing_polyorder=smoothing_polyorder,
             max_plausible_speed_cm_s=max_plausible_speed_cm_s,
+            # Forwarded, not defaulted: the metrics table and the trajectory
+            # plot must be built from the SAME threshold. The plot has always
+            # used this value (via ``ReporterContext``); the table used to
+            # ignore it.
+            sharp_turn_threshold=sharp_turn_threshold,
             behavioral_config=behavioral_config,
             mask_sidecar_path=mask_sidecar_path,
         )
@@ -550,7 +609,7 @@ class AnalysisService:
         smoothing_window_length: int | None = None,
         smoothing_polyorder: int | None = None,
         max_plausible_speed_cm_s: float = 50.0,
-        sharp_turn_threshold: float = 45.0,
+        sharp_turn_threshold: float = DEFAULT_SHARP_TURN_THRESHOLD_DEG_S,
         behavioral_config: dict[str, Any] | None = None,
     ) -> dict[int, AnalysisResult | None]:
         """

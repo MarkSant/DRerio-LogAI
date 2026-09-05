@@ -82,6 +82,7 @@ broader suite:
 | `core/services/project_settings_snapshot.py` | `tests/core/test_project_settings_snapshot.py`, `tests/integration/test_flow_isolation.py` |
 | `core/video/processing_worker.py` | `tests/core/test_processing_worker_unit.py`, `tests/core/video/test_processing_worker_extended.py`, `tests/integration/test_prerecorded_golden.py` |
 | `analysis/analysis_service.py` | `tests/analysis/test_analysis_service*.py`, `tests/integration/test_prerecorded_golden.py` |
+| `analysis/analysis_service.resolve_sharp_turn_threshold` (limiar de curvas) | `tests/analysis/test_sharp_turn_threshold_resolver.py` + `scripts/mutation_check.py --module sharp_turn_threshold`. A tabela do `.docx` e o **gráfico** têm de usar o MESMO limiar — eram 90 e 45 |
 | `core/recording/frame_processing_pipeline.py`, `core/recording/frame_ledger.py` | `tests/core/recording/`, `tests/core/test_closed_loop_latency.py`, `tests/core/test_arduino_zone_dispatch.py` |
 | `core/recording/live_session_manager.py` (parada, limpeza de pastas, status de start) | `tests/core/recording/test_live_session_manager_extended.py`, `tests/core/recording/test_live_session_stop_intent.py` (intenção de parada: descartar × preservar) |
 | `core/recording/live_analysis_post_processor.py` (escala px→cm, pós-análise) | `tests/core/recording/test_live_analysis_post_processor.py`, `tests/core/services/test_live_calibration_scale.py` |

@@ -64,17 +64,33 @@ __Baseline verde antes de qualquer mudança (2026-09-05):__
       nenhum, e acrescentados `tests/quality/`, `tests/i18n/` e
       `tests/test_integration.py`, ausentes do mapa.
 
-__Achado durante a construção (NÃO corrigido — muda números):__
+__Achado durante a construção, e CORRIGIDO:__
 `sharp_turn_threshold_deg_s` nunca afetou a contagem de curvas acentuadas.
-`AnalysisService.run_full_analysis` não aceita o parâmetro e chama
+`AnalysisService.run_full_analysis` não aceitava o parâmetro e chamava
 `b_analyzer.calculate_sharp_turns(90.0)` com literal
-(`# Assuming 90 as default`, `analysis_service.py:311`). O valor configurado vai
-por outro caminho — `run_full_analysis_as_dto` → `AnalysisResult` →
-`ReporterContext.sharp_turn_threshold` → relatório — então um `.docx` pode
-exibir 20 °/s ao lado de uma contagem calculada a 90. O ajuste existe no
-`config.yaml`, nos dois diálogos ad-hoc e por projeto. Pinado por
-`test_sharp_turn_threshold_is_a_known_blind_spot`, que falha quando for
-corrigido.
+(`# Assuming 90 as default`). O valor configurado ia por outro caminho —
+`run_full_analysis_as_dto` → `AnalysisResult` → `ReporterContext` →
+`VisualizationGenerator`, que __recalcula as curvas para o gráfico__. Então o
+mesmo `.docx` trazia tabela a 90 e figura a 45 (o default do DTO), e nenhum
+chamador de produção passava o parâmetro — logo esse era o caso normal.
+
+Havia QUATRO números para um ajuste: 200.0 no schema do `Settings`, 90.0 no
+`config.yaml`, 45.0 no default do DTO e 90.0 fixo na computação.
+
+- [x] `resolve_sharp_turn_threshold()` — resolvedor único, no formato dos outros
+      do repo. Precedência projeto > settings da sessão > default; o objeto
+      compartilhado vem DEPOIS do projeto, senão o vazamento que o
+      `project_settings_snapshot` fecha voltaria por esta porta.
+- [x] `DEFAULT_SHARP_TURN_THRESHOLD_DEG_S = 90.0` alinha DTO, `AnalysisResult` e
+      computação ao `config.yaml`.
+- [x] Os quatro caminhos de relatório passam o valor resolvido — sem isso a
+      correção não faria nada em produção, porque todos usavam o default.
+- [x] `tests/analysis/test_sharp_turn_threshold_resolver.py` (9 testes) e 3
+      mutações novas no catálogo, 3/3 mortas.
+
+Compatibilidade: em 90.0, que é o valor do `config.yaml`, a contagem é idêntica
+à de antes. Só muda para quem configurou outro valor — e para esses estava
+quebrado.
 
 ### [2026-08-23] Análise ao vivo de vídeo único: escala, intenção de parada e pasta de saída
 

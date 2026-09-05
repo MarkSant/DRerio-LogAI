@@ -161,17 +161,30 @@ Ao tocar um módulo do catálogo de mutação:
 python scripts/mutation_check.py --all
 ```
 
+## Corrigido ao construir a rede
+
+- **`sharp_turn_threshold_deg_s` nunca afetou a contagem de curvas.**
+  `AnalysisService.run_full_analysis` não aceitava o parâmetro e chamava
+  `calculate_sharp_turns(90.0)` com literal, enquanto o valor configurado seguia
+  por outra rota até o `ReporterContext` — de onde o `VisualizationGenerator`
+  recalculava as curvas **para o gráfico**. O mesmo `.docx` trazia tabela a 90 e
+  figura a 45 (o default do DTO), e nenhum chamador de produção passava o
+  parâmetro, então esse era o caso normal, não a exceção.
+
+  Agora `resolve_sharp_turn_threshold()` é o resolvedor único — projeto >
+  settings da sessão > default — e os quatro caminhos de relatório o consultam.
+  O default virou 90.0 em todos os lugares, igual ao `config.yaml`: quem não
+  configurou nada vê exatamente os mesmos números de antes; quem configurou
+  passa a ver o valor que pediu.
+
+Encontrado porque o golden foi validado por **sensibilidade medida**, não por
+"a métrica não é zero" — a contagem ficava em 7 com o limiar entre 10 e 2000.
+
 ## Assimetrias conhecidas (registradas, não corrigidas)
 
 Todas mudam números se corrigidas. Encare cada uma como trabalho de fluxo ao
 vivo, com a rede já no lugar — não como conserto de passagem.
 
-- **`sharp_turn_threshold_deg_s` nunca afetou a contagem de curvas.**
-  `AnalysisService.run_full_analysis` não aceita o parâmetro e chama
-  `calculate_sharp_turns(90.0)` com literal (`analysis_service.py:311`). O valor
-  configurado viaja por outra rota até o `ReporterContext`, então o `.docx` pode
-  exibir 20 °/s ao lado de uma contagem calculada a 90. Pinado por
-  `test_sharp_turn_threshold_is_a_known_blind_spot`.
 - **A pós-análise ao vivo não usa o snapshot do projeto.**
   `live_analysis_post_processor.py` monta `AnalysisService(settings_obj=self.settings)`
   — o objeto vivo e mutado. `build_project_settings_snapshot` tem três call

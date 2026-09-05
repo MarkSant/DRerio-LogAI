@@ -132,6 +132,7 @@ def test_trajectory_keeps_the_immutable_column_contract(outcome: PipelineOutcome
 GUARDED_THRESHOLDS = [
     ("video_processing", "freezing_velocity_threshold", 6.0),
     ("video_processing", "freezing_min_duration_s", 5.0),
+    ("video_processing", "sharp_turn_threshold_deg_s", 300.0),
     ("trajectory_smoothing", "window_length", 15),
     ("trajectory_smoothing", "polyorder", 1),
 ]
@@ -145,14 +146,19 @@ def test_golden_detects_a_change_to_each_guarded_threshold(
     """Perturbing a guarded threshold must move the report.
 
     This replaces the assumption a golden usually rests on. "The metric is
-    non-zero, therefore the fixture exercises the threshold" is not sound — it
-    was wrong here, and quietly: ``sharp_turns_count`` is a healthy 7 and stays
-    exactly 7 whether the threshold is 10 or 2000, so a non-degeneracy check
-    would have reported full coverage of a field the golden cannot see at all.
+    non-zero, therefore the fixture exercises the threshold" is not sound, and
+    writing this test is what proved it: ``sharp_turns_count`` sat at a healthy
+    7 and stayed at exactly 7 whether the threshold was 10 or 2000. A
+    non-degeneracy check would have reported full coverage of a field nothing
+    could see. The cause was a production defect —
+    ``AnalysisService.run_full_analysis`` did not accept the parameter and
+    called ``calculate_sharp_turns(90.0)`` with a literal — fixed in the same
+    change that added this test, which is why the field is in the list below
+    rather than pinned as a known blind spot.
 
-    Each parameter below is a field ``LiveAnalysisDialog.apply()`` writes into
-    the shared ``Settings``. A failure here means the golden has gone blind to
-    that field — the fixture no longer exercises it — and ``test_flow_isolation.py``
+    Each parameter is a field ``LiveAnalysisDialog.apply()`` writes into the
+    shared ``Settings``. A failure here means the golden has gone blind to that
+    field — the fixture no longer exercises it — and ``test_flow_isolation.py``
     can no longer prove anything about it either.
     """
     settings = load_pristine_settings()
@@ -163,40 +169,6 @@ def test_golden_detects_a_change_to_each_guarded_threshold(
     assert normalize_report(perturbed.report) != normalize_report(outcome.report), (
         f"changing {group}.{field} did not change the report: the golden is "
         f"blind to it, so a leak of that field would pass unnoticed"
-    )
-
-
-@pytest.mark.integration
-def test_sharp_turn_threshold_is_a_known_blind_spot(tmp_path, outcome: PipelineOutcome) -> None:
-    """``sharp_turn_threshold_deg_s`` is ignored by the computation.
-
-    Not a fixture weakness — a production defect, pinned here so it is not
-    rediscovered as a mystery. ``AnalysisService.run_full_analysis`` does not
-    accept the parameter at all and calls
-    ``b_analyzer.calculate_sharp_turns(90.0)`` with a literal
-    ("# Assuming 90 as default"). The value the user configured travels a
-    different route — ``run_full_analysis_as_dto`` -> ``AnalysisResult`` ->
-    ``ReporterContext.sharp_turn_threshold`` -> the report — so a ``.docx`` can
-    state a threshold of 20 deg/s next to a count computed at 90.
-
-    Consequence: the setting is live in ``config.yaml``, in both ad-hoc dialogs
-    and per project, and has never affected the number.
-
-    When that is fixed, this test fails. That is the intended signal: delete it,
-    move the field into ``GUARDED_THRESHOLDS``, and re-record the golden.
-    """
-    settings = load_pristine_settings()
-    settings.video_processing.sharp_turn_threshold_deg_s = 20.0
-
-    perturbed = run_prerecorded_pipeline(tmp_path / "sharp_turn", settings)
-
-    assert (
-        perturbed.report["comportamento_geral"]["curvas_acentuadas"]["sharp_turns_count"]
-        == outcome.report["comportamento_geral"]["curvas_acentuadas"]["sharp_turns_count"]
-    ), (
-        "sharp_turn_threshold_deg_s now affects the sharp-turn count — the "
-        "hardcoded 90.0 in AnalysisService.run_full_analysis has been fixed. "
-        "Move the field into GUARDED_THRESHOLDS and re-record the golden."
     )
 
 
