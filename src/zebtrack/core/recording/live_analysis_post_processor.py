@@ -286,16 +286,18 @@ class LiveAnalysisPostProcessorMixin:
             outputs_by_aquarium[aq_id] = entry
 
         analysis_params = self._analysis_params or {}
-        if self.project_manager.project_path:
-            self.project_manager.register_processing_outputs(
-                video_path=str(video_path),
-                results_dir=str(output_dir),
-                experiment_id=self._experiment_id,
-                group=analysis_params.get("group"),
-                day=analysis_params.get("day"),
-                subject_id=analysis_params.get("subject_id"),
-                polygon_source=analysis_params.get("polygon_source"),
-            )
+        # Sem guarda de projeto, pela mesma razão do caminho de aquário único:
+        # o registro é o que faz a sessão aparecer na aba de Relatórios, e
+        # ``register_processing_outputs`` já lida com a ausência de projeto.
+        self.project_manager.register_processing_outputs(
+            video_path=str(video_path),
+            results_dir=str(output_dir),
+            experiment_id=self._experiment_id,
+            group=analysis_params.get("group"),
+            day=analysis_params.get("day"),
+            subject_id=analysis_params.get("subject_id"),
+            polygon_source=analysis_params.get("polygon_source"),
+        )
 
         if multi_zone_data is None:
             log.warning(
@@ -672,22 +674,37 @@ class LiveAnalysisPostProcessorMixin:
                     word=str(word_path),
                 )
 
-                # Register outputs in project if active
-                if self.project_manager.project_path:
-                    self.project_manager.register_processing_outputs(
-                        video_path=str(video_path),
-                        results_dir=str(output_dir),
-                        trajectory_path=str(trajectory_file),
-                        summary_excel=str(excel_path),
-                        report_path=str(word_path),
-                        experiment_id=self._experiment_id,
-                        group=self._analysis_params.get("group"),
-                        day=self._analysis_params.get("day"),
-                        subject_id=self._analysis_params.get("subject_id"),
-                        polygon_source=self._analysis_params.get("polygon_source"),
-                    )
+                # Registra SEMPRE, com ou sem projeto.
+                #
+                # A guarda ``if project_path`` que existia aqui não protegia
+                # nada: ``register_processing_outputs`` já trata a ausência de
+                # projeto sozinho — popula ``project_data["videos"]`` em memória
+                # e condiciona apenas o ``save_project()`` final, que é o único
+                # passo que precisa de um arquivo em disco.
+                #
+                # O que a guarda fazia era tornar a sessão ao vivo AVULSA
+                # invisível: a aba de Relatórios monta a lista a partir de
+                # ``get_all_videos()``, então os relatórios ficavam em disco sem
+                # nenhuma forma de chegar até eles pela interface. O fluxo de
+                # vídeo único PRÉ-GRAVADO já registra sem guarda
+                # (``analysis_control_view_model``), e é por isso que ele
+                # aparece — a assimetria era só aqui.
+                self.project_manager.register_processing_outputs(
+                    video_path=str(video_path),
+                    results_dir=str(output_dir),
+                    trajectory_path=str(trajectory_file),
+                    summary_excel=str(excel_path),
+                    report_path=str(word_path),
+                    experiment_id=self._experiment_id,
+                    group=self._analysis_params.get("group"),
+                    day=self._analysis_params.get("day"),
+                    subject_id=self._analysis_params.get("subject_id"),
+                    polygon_source=self._analysis_params.get("polygon_source"),
+                )
 
-                    self._publish_project_views_refresh("Live analysis complete")
+                # Fora da guarda também: sem o refresh a aba continuaria com a
+                # lista antiga mesmo depois de o registro entrar.
+                self._publish_project_views_refresh("Live analysis complete")
 
                 # Finalize
                 total_frames = df["frame"].nunique()
