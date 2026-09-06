@@ -9,6 +9,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [6.2.0] - 2026-09-06
+
+Marco de validacao: o fluxo de **video unico AO VIVO** (camera avulsa, sem
+projeto) foi testado de ponta a ponta com 1 animal em 1 aquario -- do dialogo
+de configuracao a auto-deteccao da arena, a gravacao, a pos-analise, os
+relatorios e a aba de Relatorios. E o ponto de partida para os testes de
+PROJETO de videos ao vivo.
+
+Os quatro defeitos corrigidos aqui eram a mesma familia: **uma escolha que
+existe num fluxo e nao chega ao consumidor no outro**. Era por isso que o fluxo
+ao vivo avulso parecia "quase funcionando" -- cada peca estava no lugar, faltava
+a ponte, em tres pontos diferentes.
+
+O quinto e de outra natureza e foi encontrado pela propria rede de regressao:
+uma caixa que o rastreador inflava quando o animal sumia de vista. Medido em
+duas sessoes reais consecutivas, antes e depois:
+
+| Sessao | Linhas | Area maxima | Caixas > 50k px2 | Fora do quadro |
+| --- | --- | --- | --- | --- |
+| antes | 228 | 310.800 px2 | 36 | 8 |
+| depois | 196 | 4.761 px2 | 0 | 0 |
+
+(o peixe ocupa ~1.000 px2)
+
+- `pyproject` e `zebtrack.__version__` passam a 6.2.0. MINOR e nao PATCH: o
+  `LiveAnalysisDialog` ganha um controle novo e `resolve_arena_detection` ganha
+  um parametro, ambos retrocompativeis.
+- Os 6 blocos acumulados em [Unreleased] viram a secao [6.2.0]; [Unreleased]
+  volta vazio.
+
 ### Caixa do animal estourava quando o peixe sumia de vista
 
 Reportado testando o fluxo ao vivo: objetos muito maiores que o peixe eram
