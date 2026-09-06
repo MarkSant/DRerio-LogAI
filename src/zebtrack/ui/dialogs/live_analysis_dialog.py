@@ -165,6 +165,20 @@ class LiveAnalysisDialog(Dialog):
         self.aquarium_method_var = StringVar(value=aquarium_method_default)
         self.animal_method_var = StringVar(value=animal_method_default)
         self.use_openvino_var = BooleanVar(value=use_openvino_default)
+        # Seeded from the global default, exactly as the single-video dialog
+        # does, so both ad-hoc flows start where the wizard's projects do. The
+        # value travels in the returned config under the SAME key the project
+        # file uses (``preserve_real_aquarium_shape``), so one resolver reads
+        # both.
+        self.preserve_real_shape_var = BooleanVar(
+            value=bool(
+                getattr(
+                    getattr(settings_obj, "detection_zones", None),
+                    "preserve_real_aquarium_shape",
+                    False,
+                )
+            )
+        )
 
         super().__init__(parent, title=_("Analyze Live Camera"))
 
@@ -409,13 +423,16 @@ class LiveAnalysisDialog(Dialog):
                 "• det: very fast."
             ),
         ).grid(row=0, column=1, padx=2)
-        ttk.Combobox(
+        # Nomeado (era inline) para que o checkbox de forma real possa seguir a
+        # sua seleção — preservar a máscara só existe com um modelo 'seg'.
+        aquarium_method_combo = ttk.Combobox(
             adv_frame,
             textvariable=self.aquarium_method_var,
             values=["seg", "det"],
             width=8,
             state="readonly",
-        ).grid(row=0, column=2, padx=5, sticky="w")
+        )
+        aquarium_method_combo.grid(row=0, column=2, padx=5, sticky="w")
 
         ttk.Label(adv_frame, text=_("Fish AI:")).grid(row=0, column=3, padx=(15, 2), sticky="w")
         create_help_label(
@@ -430,7 +447,44 @@ class LiveAnalysisDialog(Dialog):
             state="readonly",
         ).grid(row=0, column=5, padx=5, sticky="w")
 
-        # Row 1: Physical setup
+        # Row 1: Keep the real aquarium outline.
+        #
+        # Existia só no SingleVideoConfigDialog. Sem ele, a única forma de pedir
+        # a máscara neste fluxo era editar ``config.local.yaml`` à mão — e o
+        # default é ``false``, então a auto-detecção entregava um retângulo de 4
+        # cantos mesmo com um modelo de segmentação carregado. Num labirinto em
+        # cruz medido de cima isso não é cosmético: a bbox cobria 61% do quadro
+        # contra 37% da máscara real, e os ~39% de diferença são os cantos
+        # vazios entre os braços, onde um artefato parado entra como objeto
+        # DENTRO da arena.
+        #
+        # Só faz sentido com modelo de segmentação — um modelo de caixa não tem
+        # máscara a preservar — então o checkbox acompanha o combo em vez de
+        # aceitar em silêncio uma escolha que não pode ter efeito.
+        self._preserve_real_shape_check = ttk.Checkbutton(
+            adv_frame,
+            text=_("Preserve the real aquarium shape (mask)"),
+            variable=self.preserve_real_shape_var,
+        )
+        self._preserve_real_shape_check.grid(
+            row=1, column=0, columnspan=3, sticky="w", padx=5, pady=(2, 6)
+        )
+        create_help_label(
+            adv_frame,
+            _(
+                "Aquarium Outline\n\n"
+                "• Checked: keeps the segmentation mask outline, for round, "
+                "hexagonal, maze-shaped or perspective-skewed tanks.\n"
+                "• Unchecked: reduces the detection to a 4-corner rectangle.\n\n"
+                "Requires the 'seg' aquarium model."
+            ),
+        ).grid(row=1, column=3, padx=2, sticky="w")
+        aquarium_method_combo.bind(
+            "<<ComboboxSelected>>", lambda *_a: self._sync_preserve_real_shape_state()
+        )
+        self._sync_preserve_real_shape_state()
+
+        # Row 2: Physical setup
         #
         # Nº de aquários fica DESABILITADO neste fluxo. A análise ao vivo sem
         # projeto é single-arena de ponta a ponta: a calibração ao vivo detecta
@@ -440,7 +494,7 @@ class LiveAnalysisDialog(Dialog):
         # produzia um campo validado que não mudava nada — pior que dizer que
         # a função não existe. Multi-aquário requer um projeto.
         ttk.Label(adv_frame, text=_("No. of aquariums:")).grid(
-            row=1, column=0, padx=(5, 2), pady=5, sticky="w"
+            row=2, column=0, padx=(5, 2), pady=5, sticky="w"
         )
         create_help_label(
             adv_frame,
@@ -448,7 +502,7 @@ class LiveAnalysisDialog(Dialog):
                 "Live analysis handles ONE aquarium at a time.\n"
                 "For multiple aquariums, create a live project."
             ),
-        ).grid(row=1, column=1, padx=2)
+        ).grid(row=2, column=1, padx=2)
         Spinbox(
             adv_frame,
             from_=1,
@@ -456,17 +510,17 @@ class LiveAnalysisDialog(Dialog):
             textvariable=self.num_aquariums_var,
             width=8,
             state="disabled",
-        ).grid(row=1, column=2, padx=5, sticky="w")
+        ).grid(row=2, column=2, padx=5, sticky="w")
 
         ttk.Label(adv_frame, text=_("Animals/aquarium:")).grid(
-            row=1, column=3, padx=(15, 2), pady=5, sticky="w"
+            row=2, column=3, padx=(15, 2), pady=5, sticky="w"
         )
         create_help_label(adv_frame, _("Number of fish inside each aquarium.")).grid(
-            row=1, column=4, padx=2
+            row=2, column=4, padx=2
         )
         Spinbox(
             adv_frame, from_=1, to=100, textvariable=self.animals_per_aquarium_var, width=8
-        ).grid(row=1, column=5, padx=5, sticky="w")
+        ).grid(row=2, column=5, padx=5, sticky="w")
 
         # Aviso VISÍVEL (não só no tooltip): o campo desabilitado sozinho parece
         # defeito. Vários animais no MESMO aquário continuam suportados.
@@ -478,7 +532,7 @@ class LiveAnalysisDialog(Dialog):
             ),
             fg="gray",
             justify="left",
-        ).grid(row=2, column=0, columnspan=6, padx=5, pady=(0, 5), sticky="w")
+        ).grid(row=3, column=0, columnspan=6, padx=5, pady=(0, 5), sticky="w")
 
         # --- Behavioral Analysis Widget (New) ---
         behavior_frame = ttk.LabelFrame(container, text=_("Behavioural Analysis"), padding=10)
@@ -786,6 +840,25 @@ class LiveAnalysisDialog(Dialog):
             return False
         return True
 
+    def _sync_preserve_real_shape_state(self) -> None:
+        """Enable the mask checkbox only while the aquarium model is 'seg'.
+
+        O valor guardado NÃO é limpo ao trocar para 'det': voltar para 'seg'
+        deve restaurar a escolha anterior em vez de perdê-la em silêncio. O
+        resolvedor já ignora a flag para um modelo de caixa, então um ``True``
+        parado é inerte, não errado.
+        """
+        check = getattr(self, "_preserve_real_shape_check", None)
+        if check is None:
+            return
+        is_seg = self.aquarium_method_var.get() == "seg"
+        try:
+            check.config(state="normal" if is_seg else "disabled")
+        # except Exception justified: o widget Tk pode já ter sido destruído
+        # quando o trace dispara no teardown; o estado aqui é cosmético.
+        except Exception:
+            log.debug("live_analysis_dialog.preserve_real_shape.state_sync_failed", exc_info=True)
+
     def apply(self) -> None:
         """Build result dictionary and update settings."""
         selected = self.camera_selection_var.get().strip()
@@ -876,6 +949,13 @@ class LiveAnalysisDialog(Dialog):
             "aquarium_method": self.aquarium_method_var.get(),
             "animal_method": self.animal_method_var.get(),
             "use_openvino": bool(self.use_openvino_var.get()),
+            # MESMA chave que o arquivo de projeto usa, para que
+            # ``resolve_arena_detection`` leia as duas origens sem traduzir
+            # nomes. Viaja por argumento, NÃO pelo ``Settings`` compartilhado:
+            # escrever ali seria a 13ª escrita global, exatamente o que
+            # ``tests/quality/test_shared_settings_mutations.py`` existe para
+            # impedir.
+            "preserve_real_aquarium_shape": bool(self.preserve_real_shape_var.get()),
             "use_single_subject_tracker": animals_per_aquarium == 1,
             "behavioral_analysis": behavioral_config,
             # Pasta de saída escolhida pelo usuário (None = padrão).

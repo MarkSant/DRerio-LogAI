@@ -1945,6 +1945,10 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
                 # deste portão — então o detector de arena ficava com o default
                 # ``lateral`` e não achava um tanque filmado de cima.
                 perspective=(config.get("behavioral_analysis") or {}).get("aquarium_perspective"),
+                # Mesma razão que a perspectiva: sem projeto não há
+                # ``project_data`` onde persistir a escolha, e o único outro
+                # canal seria escrever no ``Settings`` compartilhado.
+                preserve_real_shape=config.get("preserve_real_aquarium_shape"),
             )
             if not zones_ready:
                 if self.live_calibration_coordinator.pending_zone_confirmation:

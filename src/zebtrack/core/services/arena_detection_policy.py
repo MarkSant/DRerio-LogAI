@@ -147,6 +147,7 @@ def resolve_arena_detection(
     settings_obj: Any = None,
     *,
     requested_method: str = "auto",
+    requested_preserve_real_shape: bool | None = None,
 ) -> ArenaDetectionPolicy:
     """Resolve the arena detection model family and outline shape.
 
@@ -159,14 +160,20 @@ def resolve_arena_detection(
             means "no explicit request — consult the preferences". This is what
             lets a caller that genuinely knows better, e.g. a diagnostic run,
             pin the family without mutating anyone's configuration.
+        requested_preserve_real_shape: the outline choice made for THIS run,
+            with the same standing as ``requested_method``. ``None`` means "no
+            explicit request". It exists for the ad-hoc live flow, which has no
+            project to persist the flag in and must not write it into the shared
+            ``Settings`` — the ``LiveAnalysisDialog`` checkbox arrives here.
 
     Precedence:
 
     * ``method``: ``requested_method`` > ``project_data["model_selection"]
       ["aquarium_method"]`` > ``settings.model_selection.aquarium_method`` >
       ``"det"``.
-    * ``preserve_real_shape``: ``project_data["preserve_real_aquarium_shape"]``
-      > ``settings.detection_zones.preserve_real_aquarium_shape`` > ``False``.
+    * ``preserve_real_shape``: ``requested_preserve_real_shape`` >
+      ``project_data["preserve_real_aquarium_shape"]`` >
+      ``settings.detection_zones.preserve_real_aquarium_shape`` > ``False``.
 
     The two keys are resolved INDEPENDENTLY and on purpose: a project may pin
     the model family while leaving the outline choice to the global default, and
@@ -193,7 +200,10 @@ def resolve_arena_detection(
         data.get("preserve_real_aquarium_shape"),
         source="project_data",
     )
-    preserve = project_flag
+    explicit_flag = _coerce_flag(requested_preserve_real_shape, source="requested_flag")
+    preserve = explicit_flag
+    if preserve is None:
+        preserve = project_flag
     if preserve is None:
         preserve = _settings_preserve_real_shape(settings_obj)
     if preserve is None:
@@ -208,5 +218,6 @@ def resolve_arena_detection(
         requested_method=requested_method,
         from_project_method=project_method is not None,
         from_project_shape=project_flag is not None,
+        from_requested_shape=explicit_flag is not None,
     )
     return policy

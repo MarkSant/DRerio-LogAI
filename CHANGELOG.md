@@ -9,6 +9,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Ao vivo avulso: pedir a forma real do aquario so era possivel editando o YAML
+
+O checkbox "preservar a forma real do aquario" existia so no
+`SingleVideoConfigDialog`. No fluxo ao vivo avulso nao havia como pedir a
+mascara pela interface, e o default de
+`detection_zones.preserve_real_aquarium_shape` e `false` — entao a
+auto-deteccao entregava um retangulo de 4 cantos mesmo com um modelo de
+segmentacao carregado e funcionando.
+
+Nao e cosmetico. Medido no quadro real de uma sessao com labirinto em cruz
+visto de cima: a bounding box cobria **61%** do quadro e a mascara real,
+**37%**. Os ~39% de diferenca sao os cantos vazios entre os bracos — area FORA
+do aparato que a arena passava a considerar dentro, e onde um artefato parado
+vira "objeto dentro da arena" (o defeito que o #528 mediu em 22,7% da
+trajetoria de um peixe).
+
+O `LiveAnalysisDialog` ganha o mesmo checkbox, habilitado apenas com o modelo
+`seg` — um modelo de caixa nao tem mascara a preservar. A escolha viaja por
+ARGUMENTO ate `resolve_arena_detection`, que ganha
+`requested_preserve_real_shape`: escreve-la no `Settings` compartilhado
+resolveria o sintoma criando a 13a escrita global, exatamente o que
+`tests/quality/test_shared_settings_mutations.py` existe para impedir.
+
+Num projeto o valor persistido continua mandando; a decisao de quando oferecer
+a escolha do dialogo mora no coordinator, para que os dois `requested_*` do
+resolvedor sigam querendo dizer a mesma coisa ("quem chama sabe mais").
+
 ### Ao vivo avulso: a perspectiva escolhida não chegava ao detector de arena
 
 Primeiro teste do fluxo ao vivo de vídeo único depois da v6.1.0, com um
