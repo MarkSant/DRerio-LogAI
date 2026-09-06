@@ -127,6 +127,11 @@ class LiveCalibrationCoordinator(BaseCoordinator):
         self.camera: Camera | None = None
         self._pending_zone_confirmation = False
         self._session_count = 0
+        #: Perspectiva do fluxo AD-HOC ao vivo, memorizada de
+        #: ``run_live_calibration(perspective=...)``. Sem projeto não há
+        #: ``project_data`` de onde lê-la, e o botão "auto-detectar" da aba de
+        #: Zonas reexecuta a calibração sem o config do diálogo.
+        self._adhoc_perspective: str | None = None
         # Source of the polygon for the pending session: "auto" (PreviewPolygonDialog
         # approved an auto-detected polygon) or "manual" (user drew it / fell back to
         # manual mode). Read by LiveCameraSessionCoordinator when publishing
@@ -291,7 +296,9 @@ class LiveCalibrationCoordinator(BaseCoordinator):
     # ZONE VALIDATION
     # =============================================================================
 
-    def ensure_zones_before_recording(self, camera_index: int | None = None) -> bool:  # noqa: C901
+    def ensure_zones_before_recording(  # noqa: C901
+        self, camera_index: int | None = None, perspective: str | None = None
+    ) -> bool:
         """Ensure project zones are defined before starting recording.
 
         New implementation uses ZoneCalibrationDialog and ZoneReuseDialog
@@ -301,6 +308,10 @@ class LiveCalibrationCoordinator(BaseCoordinator):
             camera_index: Câmera a usar na calibração quando NÃO há projeto
                 (fluxo ad-hoc de vídeo único ao vivo). Em projetos, o índice
                 vem de ``project_data`` e este argumento é ignorado.
+            perspective: Perspectiva escolhida no diálogo, pelo mesmo motivo e
+                com a mesma precedência que ``camera_index``. Sem ela a
+                auto-detecção carrega o modelo da perspectiva errada e não acha
+                o aquário — ver ``run_live_calibration``.
 
         Returns:
             True if recording can proceed, False if cancelled or waiting for zones
@@ -573,7 +584,10 @@ class LiveCalibrationCoordinator(BaseCoordinator):
                 # IMPORTANT: Use 30 frames for camera exposure adjustment
                 # (not just aquarium detection)
                 success = self.run_live_calibration(
-                    stabilization_frames=30, show_preview=True, camera_index=camera_index
+                    stabilization_frames=30,
+                    show_preview=True,
+                    camera_index=camera_index,
+                    perspective=perspective,
                 )
 
                 if success:
@@ -846,6 +860,7 @@ class LiveCalibrationCoordinator(BaseCoordinator):
         stabilization_frames: int = 10,
         show_preview: bool = True,
         camera_index: int | None = None,
+        perspective: str | None = None,
     ) -> bool:
         """Execute live aquarium calibration with auto-detection.
 
@@ -855,11 +870,21 @@ class LiveCalibrationCoordinator(BaseCoordinator):
             camera_index: Câmera a usar quando NÃO há projeto (fluxo ad-hoc de
                 vídeo único ao vivo). Em projetos, o índice de ``project_data``
                 tem precedência e este argumento é ignorado.
+            perspective: Perspectiva escolhida no ``LiveAnalysisDialog``, pelo
+                mesmo motivo que ``camera_index``: sem projeto não há
+                ``project_data`` de onde lê-la. Em projetos o valor persistido
+                tem precedência e este argumento é ignorado.
 
         Returns:
             True if calibration successful, False otherwise
         """
         import time  # For delays between camera operations
+
+        # Memorizado para o botão "auto-detectar" da aba de Zonas: ele reexecuta
+        # esta calibração direto (``single_video_workflow._route_live_auto_detect``)
+        # e não tem o config do diálogo em mãos.
+        if perspective:
+            self._adhoc_perspective = perspective
 
         log.info("live_calibration_coordinator.live_calibration.start")
         # Reset the cancellation flag so a previous cancel doesn't leak into
@@ -982,24 +1007,48 @@ class LiveCalibrationCoordinator(BaseCoordinator):
         # ``calibration.behavioral_analysis`` (older project files/templates) >
         # ``settings.behavioral_analysis`` (the session-scoped value).
         #
-        # The settings fallback is what makes the AD-HOC single-video live flow
-        # behave like a live project. That flow has no project, so
-        # ``project_data`` is ``{}`` and perspective resolved to None — yet the
-        # user DID pick a perspective in LiveAnalysisDialog /
-        # SingleVideoConfigDialog, which writes it into
-        # ``settings.behavioral_analysis.aquarium_perspective``. Ignoring it made
-        # ``get_weight_path_by_method`` fall through to a generic aquarium weight
-        # (possibly lateral-trained) on a top-down scene — the single biggest
-        # reason auto-detection was visibly worse here than in a live project.
-        perspective: str | None = None
+        # Sem projeto, a escolha do usuário chega pelo ARGUMENTO — é a única
+        # via que existe no fluxo ad-hoc.
+        #
+        # O comentário anterior aqui afirmava que "LiveAnalysisDialog /
+        # SingleVideoConfigDialog escrevem em
+        # ``settings.behavioral_analysis.aquarium_perspective``". Só o SEGUNDO
+        # escreve. O ``LiveAnalysisDialog`` devolve a perspectiva dentro de
+        # ``result["behavioral_analysis"]``, que só é lido MAIS TARDE, ao montar
+        # o ``analysis_config`` da pós-análise — depois desta calibração já ter
+        # rodado. O relatório saía com a perspectiva certa e o detector de arena
+        # com a errada.
+        #
+        # Concretamente (sessão de 2026-09-05, labirinto em vista superior): o
+        # fallback devolvia ``lateral``, carregava ``best_seg_lateral.pt``, e
+        # esse modelo numa cena top-down emite uma caixa de ALTURA ZERO na borda
+        # inferior — ``(177,720,1134,720)``, confiança 0,347. O portão de área de
+        # ``arena_candidate_selection`` a rejeita, corretamente, e a auto-detecção
+        # termina com zero polígonos e a mensagem de que não achou o aquário. O
+        # ``best_seg_topdown.pt`` acha o tanque no mesmo quadro (61% da área).
+        # Nome próprio, distinto do parâmetro: o argumento é só UMA das fontes,
+        # e reusar o nome esconderia que o projeto tem precedência sobre ele.
+        resolved_perspective: str | None = None
+        perspective_source = "none"
         bc_data = project_data.get("behavioral_config") or {}
-        perspective = bc_data.get("aquarium_perspective") or None
-        if perspective is None:
+        resolved_perspective = bc_data.get("aquarium_perspective") or None
+        if resolved_perspective:
+            perspective_source = "project.behavioral_config"
+        if resolved_perspective is None:
             cal_data = project_data.get("calibration") or {}
             ba_data = cal_data.get("behavioral_analysis") or {}
-            perspective = ba_data.get("aquarium_perspective") or None
-        if perspective is None:
-            perspective = (
+            resolved_perspective = ba_data.get("aquarium_perspective") or None
+            if resolved_perspective:
+                perspective_source = "project.calibration"
+        if resolved_perspective is None:
+            resolved_perspective = self._adhoc_perspective or None
+            if resolved_perspective:
+                perspective_source = "dialog"
+        if resolved_perspective is None:
+            # Último recurso: o valor de sessão. É o que o
+            # ``SingleVideoConfigDialog`` escreve, então o fluxo pré-gravado de
+            # vídeo único continua atendido por aqui.
+            resolved_perspective = (
                 getattr(
                     getattr(self.settings, "behavioral_analysis", None),
                     "aquarium_perspective",
@@ -1007,10 +1056,16 @@ class LiveCalibrationCoordinator(BaseCoordinator):
                 )
                 or None
             )
+            if resolved_perspective:
+                perspective_source = "settings"
 
         log.info(
             "live_calibration_coordinator.live_calibration.perspective_resolved",
-            perspective=perspective,
+            perspective=resolved_perspective,
+            # Sem esta chave o log dizia apenas "lateral", indistinguível entre
+            # "o usuário pediu lateral" e "ninguém pediu nada e caiu no default"
+            # — e era o segundo caso.
+            source=perspective_source,
             has_project=bool(self.project_manager.project_path),
         )
 
@@ -1018,7 +1073,7 @@ class LiveCalibrationCoordinator(BaseCoordinator):
         model_path = self.weight_manager.get_weight_path_by_method(
             method=method,
             task="aquarium",
-            perspective=perspective,
+            perspective=resolved_perspective,
         )
         if not model_path:
             log.error(

@@ -1938,7 +1938,13 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
         # ``zones_validated=True``.
         if not zones_validated:
             zones_ready = self.live_calibration_coordinator.ensure_zones_before_recording(
-                camera_index=camera_index
+                camera_index=camera_index,
+                # A perspectiva escolhida no diálogo decide QUAL peso a
+                # auto-detecção carrega. Ela já viajava para o ``analysis_config``
+                # do relatório, mas esse dicionário só é montado ADIANTE, depois
+                # deste portão — então o detector de arena ficava com o default
+                # ``lateral`` e não achava um tanque filmado de cima.
+                perspective=(config.get("behavioral_analysis") or {}).get("aquarium_perspective"),
             )
             if not zones_ready:
                 if self.live_calibration_coordinator.pending_zone_confirmation:
