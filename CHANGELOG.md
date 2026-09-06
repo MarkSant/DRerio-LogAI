@@ -9,6 +9,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Sessao ao vivo avulsa nao aparecia na aba de Relatorios
+
+A gravacao rodava, a analise concluia, o aviso de sucesso aparecia e o `.xlsx` e
+o `.docx` iam para o disco -- mas a aba de Relatorios ficava vazia. Sem item na
+lista, nao havia como chegar aos resultados pela interface.
+
+A causa era uma guarda em `live_analysis_post_processor`:
+
+```python
+# Register outputs in project if active
+if self.project_manager.project_path:
+    self.project_manager.register_processing_outputs(...)
+    self._publish_project_views_refresh(...)
+```
+
+Ela nao protegia nada. `register_processing_outputs` ja trata a ausencia de
+projeto sozinho: popula `project_data["videos"]` em memoria e condiciona apenas
+o `save_project()` final, que e o unico passo que precisa de um arquivo em
+disco. O que a guarda fazia era pular o registro INTEIRO no fluxo sem projeto --
+e a aba monta a lista a partir de `get_all_videos()`.
+
+O fluxo de video unico PRE-GRAVADO ja registrava sem guarda nenhuma
+(`analysis_control_view_model`), e e por isso que ele sempre apareceu. A
+assimetria estava so no lado ao vivo, nos dois caminhos (aquario unico e
+multi-aquario). O `_publish_project_views_refresh` tambem estava dentro da
+guarda, entao mesmo com o registro a lista nao se atualizaria.
+
 ### Ao vivo avulso: pedir a forma real do aquario so era possivel editando o YAML
 
 O checkbox "preservar a forma real do aquario" existia so no
