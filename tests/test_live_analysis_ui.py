@@ -1233,3 +1233,91 @@ class TestLivePreviewWindow:
         assert LivePreviewWindow._format_eta(-5) == "0s"
         assert LivePreviewWindow._format_eta(59) == "59s"
         assert LivePreviewWindow._format_eta(60) == "1m 00s"
+
+
+# ==============================================================================
+# Dimensões reais do aquário: os campos precisam EXISTIR na tela
+# ==============================================================================
+#
+# ``aquarium_width_var``/``aquarium_height_var`` existiam desde sempre, eram
+# validadas e chegavam ao ``analysis_config`` — mas nenhum widget as expunha.
+# Ficavam travadas no default 10,0 x 10,0, e é desse par que sai o ``pixelcm`` da
+# pós-análise. Numa sessão real, um labirinto de proporção ~1,63 declarado como
+# quadrado deu 95,8 px/cm em X contra 60,1 em Y, e todo o relatório em cm saiu
+# errado de forma anisotrópica.
+
+
+class TestAquariumDimensionFields:
+    """A variável existir não basta: tem de haver campo para digitar."""
+
+    @staticmethod
+    def _dialog_source() -> str:
+        import inspect
+
+        from zebtrack.ui.dialogs import live_analysis_dialog
+
+        return inspect.getsource(live_analysis_dialog)
+
+    def test_both_dimensions_are_bound_to_a_widget(self):
+        """Cada variável precisa aparecer como ``textvariable`` de um widget.
+
+        Varredura no fonte, e não construção do diálogo: montar a janela exige
+        display e enumeração de câmeras, enquanto a propriedade que falhou é
+        estática — a variável não estava ligada a campo nenhum.
+        """
+        source = self._dialog_source()
+
+        for name in ("aquarium_width_var", "aquarium_height_var"):
+            assert f"textvariable=self.{name}" in source, (
+                f"{name} não está ligada a nenhum widget: o operador não tem como "
+                "informar a dimensão, e ela fica presa no default de 10 cm"
+            )
+
+    def test_the_typed_values_reach_the_config(self):
+        """O caminho do dado, do campo ao ``analysis_config``."""
+
+        class _Var:
+            def __init__(self, value):
+                self._value = value
+
+            def get(self):
+                return self._value
+
+        dialog = object.__new__(LiveAnalysisDialog)
+        for name, value in {
+            "analysis_interval_var": 5,
+            "display_interval_var": 5,
+            "sharp_turn_var": 90.0,
+            "freeze_thresh_var": 1.5,
+            "freeze_dur_var": 1.0,
+            "smoothing_window_var": 7,
+            "smoothing_polyorder_var": 3,
+            "aquarium_method_var": "seg",
+            "animal_method_var": "det",
+            "use_openvino_var": True,
+            "preserve_real_shape_var": True,
+            "num_aquariums_var": 1,
+            "animals_per_aquarium_var": 1,
+            "camera_selection_var": "Camera 0",
+            "experiment_id_var": "dims",
+            "duration_var": 30.0,
+            "record_video_var": True,
+            "use_countdown_var": False,
+            # As dimensões reais medidas pelo operador, deliberadamente
+            # diferentes entre si e do default quadrado.
+            "aquarium_width_var": 32.5,
+            "aquarium_height_var": 19.0,
+            "output_folder_var": "",
+        }.items():
+            setattr(dialog, name, _Var(value))
+        dialog.settings = None
+        dialog.camera_index_map = {"Camera 0": 0}
+        dialog.behavioral_config_widget = None
+        dialog._countdown_seconds = 0
+        dialog.result = None
+
+        dialog.apply()
+
+        assert dialog.result is not None, "apply() nao montou o resultado"
+        assert dialog.result["aquarium_width_cm"] == 32.5
+        assert dialog.result["aquarium_height_cm"] == 19.0

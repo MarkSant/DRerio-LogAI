@@ -9,6 +9,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Dimensoes reais do aquario: nao havia como informa-las na analise ao vivo
+
+`aquarium_width_var` e `aquarium_height_var` existiam no `LiveAnalysisDialog`,
+eram validadas e chegavam ao `analysis_config` -- mas **nenhum widget as
+expunha**. Ficavam travadas no default 10,0 x 10,0 cm, e e desse par que sai o
+`pixelcm` da pos-analise: toda distancia, velocidade e metrica em cm do
+relatorio depende dele.
+
+Numa sessao real, um labirinto de proporcao ~1,63 declarado como quadrado
+produziu **95,8 px/cm** no eixo X contra **60,1** no Y. O relatorio saiu com
+numeros plausiveis e errados.
+
+- Dois campos novos no dialogo, "Aquarium width/height (cm)", com a ajuda
+  explicando que os dois px/cm resultantes devem sair proximos um do outro.
+- Aviso quando eles NAO saem proximos: acima de 25% de diferenca entre os eixos,
+  a pos-analise carimba a ressalva em `validation_warnings` -- o mesmo objeto que
+  `report["validacao"]["avisos"]`, entao ela aparece no `.docx` e nao so num log.
+
+O aviso avisa, nao recusa: so o operador conhece a geometria do aparato, e
+abortar a analise depois de a gravacao ter acontecido destruiria dado que nao
+volta. O erro e ANISOTROPICO -- um deslocamento horizontal e um vertical do mesmo
+tamanho real viram valores diferentes --, entao nenhuma constante aplicada depois
+conserta o relatorio; a mensagem diz isso e manda medir de novo e regerar.
+
 ## [6.2.0] - 2026-09-06
 
 Marco de validacao: o fluxo de **video unico AO VIVO** (camera avulsa, sem

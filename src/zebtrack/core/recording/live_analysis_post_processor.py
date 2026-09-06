@@ -153,6 +153,53 @@ class LiveAnalysisPostProcessorMixin:
         )
         return 1.0, 1.0, False
 
+    #: Acima desta razão entre os px/cm dos dois eixos, a escala é suspeita.
+    #:
+    #: 1,25 dá folga para inclinação leve da câmera e distorção de lente, que
+    #: produzem poucos por cento. O caso real que motivou o aviso estava em
+    #: 1,59 — longe demais para ser óptica.
+    MAX_PLAUSIBLE_SCALE_ANISOTROPY = 1.25
+
+    def _warn_if_scale_is_anisotropic(
+        self, warnings: list[str], pixelcm_x: float, pixelcm_y: float
+    ) -> bool:
+        """Avisa quando os px/cm dos dois eixos discordam demais.
+
+        O aviso vai para ``validation_warnings``, que é o MESMO objeto que
+        ``report["validacao"]["avisos"]`` — ou seja, sai carimbado no ``.docx``
+        que o pesquisador lê, e não só num log que ninguém abre.
+
+        Returns:
+            ``True`` quando o aviso foi emitido.
+        """
+        if pixelcm_x <= 0 or pixelcm_y <= 0:
+            return False
+
+        larger, smaller = max(pixelcm_x, pixelcm_y), min(pixelcm_x, pixelcm_y)
+        ratio = larger / smaller
+        if ratio <= self.MAX_PLAUSIBLE_SCALE_ANISOTROPY:
+            return False
+
+        log.warning(
+            "live_camera_service.post_analysis.anisotropic_scale",
+            pixelcm_x=f"{pixelcm_x:.2f}",
+            pixelcm_y=f"{pixelcm_y:.2f}",
+            ratio=f"{ratio:.2f}",
+        )
+        warnings.append(
+            _(
+                "Scale differs by {percent:.0f}% between the axes "
+                "({px_x:.1f} px/cm horizontally against {px_y:.1f} vertically). "
+                "A camera facing the apparatus should give nearly the same value "
+                "on both, so the aquarium dimensions entered probably do not "
+                "match the real proportions. Distances and velocities are "
+                "affected UNEVENLY by direction, which no single correction "
+                "factor can undo — re-measure the aquarium and regenerate the "
+                "report."
+            ).format(percent=(ratio - 1) * 100, px_x=pixelcm_x, px_y=pixelcm_y)
+        )
+        return True
+
     def _publish_post_analysis_status(self, message: str) -> None:
         """Show a status line while the post-analysis thread runs.
 
@@ -653,6 +700,24 @@ class LiveAnalysisPostProcessorMixin:
                             "therefore expressed in PIXELS and is NOT comparable with "
                             "calibrated recordings."
                         )
+                    )
+                else:
+                    # Escala calibrada, mas com os dois eixos discordando.
+                    #
+                    # Uma câmera de frente para o aparato tem escala
+                    # praticamente uniforme; px/cm muito diferentes entre X e Y
+                    # significam que as dimensões digitadas não têm a proporção
+                    # do aquário real. Numa sessão medida, o padrão quadrado
+                    # 10x10 num labirinto de proporção ~1,63 deu 95,8 contra
+                    # 60,1 px/cm.
+                    #
+                    # É o pior tipo de erro para passar calado: o relatório sai
+                    # com números plausíveis, e o erro é ANISOTRÓPICO — um
+                    # deslocamento horizontal e um vertical do mesmo tamanho
+                    # real viram valores diferentes, então não existe constante
+                    # que conserte depois.
+                    self._warn_if_scale_is_anisotropic(
+                        analysis_result.validation_warnings, pixelcm_x, pixelcm_y
                     )
 
                 # Generate Reports
