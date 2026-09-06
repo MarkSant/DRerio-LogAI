@@ -9,6 +9,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Caixa do animal estourava quando o peixe sumia de vista
+
+Reportado testando o fluxo ao vivo: objetos muito maiores que o peixe eram
+tratados como o peixe quando ele saia de vista ou ficava muito tempo parado.
+
+Nao eram deteccoes. Eram predicoes do filtro de Kalman do ByteTrack. Medido na
+sessao real: o peixe ocupa ~1.000 px2 e as caixas gravadas chegam a **310.800
+px2**, varias com `x1` NEGATIVO -- comecando fora do quadro. 36 de 228 linhas
+acima de 50.000 px2, uma variacao de 3.000x no mesmo `track_id`. O log mostra a
+causa direto: `bytetrack.no_matching_detection track_bbox=[140,216,326,611]`,
+em 73 quadros da sessao.
+
+O `BboxAreaGate` foi escrito exatamente para este sintoma e estava habilitado --
+mas filtra as DETECCOES **antes** do `track()`, e nunca ve o que o tracker
+produz. Prova: replicando aquele portao, com as settings de producao, sobre as
+228 linhas gravadas, ele rejeita 49 (21,5%) -- que estao no arquivo, logo nao
+passaram por portao nenhum. O filtro de poligono no fim do ByteTrack existe pela
+MESMA causa (`tracks_moved_outside_polygon_by_kalman_filter`), mas so pega a
+caixa que sai da arena; a que incha DENTRO dela passava.
+
+Um segundo portao, sobre a saida do tracker, aplicado em `SingleDetector.track()`
+-- e nao dentro de `_apply_byte_tracking` -- para valer em todas as estrategias.
+Instancia separada da primeira: deteccoes cruas e posicoes rastreadas nao sao
+areas comparaveis.
+
+A caixa inflada e DESCARTADA, nao redimensionada: uma caixa "consertada" seria
+geometria inventada num arquivo que o pesquisador le como medida. O track
+continua vivo e volta a casar sozinho quando o animal reaparece.
+
+Os dois fluxos ao vivo (avulso e de projeto) compartilham este caminho e tinham
+o mesmo defeito. O golden do pre-gravado seguiu inalterado.
+
 ### Sessao ao vivo avulsa nao aparecia na aba de Relatorios
 
 A gravacao rodava, a analise concluia, o aviso de sucesso aparecia e o `.xlsx` e
