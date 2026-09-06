@@ -113,6 +113,21 @@ class SingleDetector:
         # animals in one session are the same species at the same camera
         # distance, so their apparent areas form a single population.
         self._bbox_area_gate = BboxAreaGate.from_settings(settings_obj, label="single")
+        #: Segundo portão, para a saída do TRACKER.
+        #:
+        #: O de cima filtra as DETECÇÕES antes do ``track()``, e por isso nunca
+        #: vê a caixa que o próprio tracker inventa: quando o animal some, o
+        #: Kalman do ByteTrack segue extrapolando e a predição cresce sem limite
+        #: — medido numa sessão real, até 310.800 px² com ``x1`` negativo, para
+        #: um peixe de ~1.000 px². O filtro de polígono logo abaixo já existe
+        #: por essa razão (``tracks_moved_outside_polygon_by_kalman_filter``),
+        #: mas só pega as que saem da arena; as que incham DENTRO dela passavam.
+        #:
+        #: Instância separada de propósito: são duas populações distintas
+        #: (detecções cruas × posições rastreadas) e áreas só são comparáveis
+        #: dentro de uma mesma população — a mesma razão pela qual o detector
+        #: multi-aquário mantém um portão por aquário.
+        self._tracked_area_gate = BboxAreaGate.from_settings(settings_obj, label="single_tracked")
 
         # Dynamic class ID resolution
         self.aquarium_class_id, self.animal_class_id = DetectionPostProcessor.resolve_class_ids(
@@ -481,6 +496,27 @@ class SingleDetector:
         else:
             tracks = self._apply_simple_tracking(predictions)
 
+        # Descarta a posição rastreada que estourou de TAMANHO.
+        #
+        # AQUI, e não dentro de ``_apply_byte_tracking``, para valer em TODAS as
+        # estratégias: o ByteTrack é quem produz o caso conhecido, mas nada
+        # impede o rastreador simples de arrastar uma caixa do mesmo jeito, e um
+        # portão que cobre só um ramo é um portão que alguém vai contornar sem
+        # perceber ao trocar de estratégia.
+        #
+        # A causa é o Kalman extrapolando um animal que sumiu de vista: medido
+        # numa sessão real, a predição chegou a 310.800 px² com ``x1`` negativo
+        # para um peixe de ~1.000 px². O filtro de polígono dentro do ByteTrack
+        # já existe pela mesma razão (``tracks_moved_outside_polygon_by_
+        # kalman_filter``), mas só pega a caixa que SAI da arena; a que incha
+        # dentro dela passava direto para o ``3_CoordMovimento``.
+        #
+        # Descartar, e não redimensionar: uma caixa "consertada" seria geometria
+        # inventada num arquivo que o pesquisador vai ler como medida. Sem ela o
+        # quadro simplesmente não tem detecção, que é a verdade. O track
+        # continua vivo e volta a casar sozinho quando o animal reaparece.
+        tracks = self._tracked_area_gate.filter(tracks)
+
         return tracks, None
 
     # =========================================================================
@@ -549,6 +585,10 @@ class SingleDetector:
     def _reset_bbox_area_history(self) -> None:
         """Forget accepted-area history so the next video re-learns its own baseline."""
         self._bbox_area_gate.reset()
+        # Os dois juntos: deixar o do tracker com a escala do vídeo anterior
+        # rejeitaria posições válidas do novo exatamente na janela em que ele
+        # ainda não tem dados próprios.
+        self._tracked_area_gate.reset()
 
     def clear_cache(self) -> None:
         """Clear the internal scaling cache to free memory."""
