@@ -132,6 +132,9 @@ class LiveCalibrationCoordinator(BaseCoordinator):
         #: ``project_data`` de onde lê-la, e o botão "auto-detectar" da aba de
         #: Zonas reexecuta a calibração sem o config do diálogo.
         self._adhoc_perspective: str | None = None
+        #: Idem para a forma real da arena (máscara vs retângulo de 4 cantos).
+        #: ``None`` = o diálogo não opinou; só então valem projeto e settings.
+        self._adhoc_preserve_real_shape: bool | None = None
         # Source of the polygon for the pending session: "auto" (PreviewPolygonDialog
         # approved an auto-detected polygon) or "manual" (user drew it / fell back to
         # manual mode). Read by LiveCameraSessionCoordinator when publishing
@@ -297,7 +300,10 @@ class LiveCalibrationCoordinator(BaseCoordinator):
     # =============================================================================
 
     def ensure_zones_before_recording(  # noqa: C901
-        self, camera_index: int | None = None, perspective: str | None = None
+        self,
+        camera_index: int | None = None,
+        perspective: str | None = None,
+        preserve_real_shape: bool | None = None,
     ) -> bool:
         """Ensure project zones are defined before starting recording.
 
@@ -312,6 +318,9 @@ class LiveCalibrationCoordinator(BaseCoordinator):
                 com a mesma precedência que ``camera_index``. Sem ela a
                 auto-detecção carrega o modelo da perspectiva errada e não acha
                 o aquário — ver ``run_live_calibration``.
+            preserve_real_shape: forma da arena escolhida no diálogo (máscara
+                real vs retângulo de 4 cantos), mesmo canal e mesma
+                precedência.
 
         Returns:
             True if recording can proceed, False if cancelled or waiting for zones
@@ -588,6 +597,7 @@ class LiveCalibrationCoordinator(BaseCoordinator):
                     show_preview=True,
                     camera_index=camera_index,
                     perspective=perspective,
+                    preserve_real_shape=preserve_real_shape,
                 )
 
                 if success:
@@ -861,6 +871,7 @@ class LiveCalibrationCoordinator(BaseCoordinator):
         show_preview: bool = True,
         camera_index: int | None = None,
         perspective: str | None = None,
+        preserve_real_shape: bool | None = None,
     ) -> bool:
         """Execute live aquarium calibration with auto-detection.
 
@@ -874,6 +885,9 @@ class LiveCalibrationCoordinator(BaseCoordinator):
                 mesmo motivo que ``camera_index``: sem projeto não há
                 ``project_data`` de onde lê-la. Em projetos o valor persistido
                 tem precedência e este argumento é ignorado.
+            preserve_real_shape: forma da arena escolhida no diálogo — máscara
+                real (``True``) ou retângulo de 4 cantos (``False``). Mesmo
+                canal e mesma precedência. ``None`` = o diálogo não opinou.
 
         Returns:
             True if calibration successful, False otherwise
@@ -885,6 +899,10 @@ class LiveCalibrationCoordinator(BaseCoordinator):
         # e não tem o config do diálogo em mãos.
         if perspective:
             self._adhoc_perspective = perspective
+        # ``is not None`` e não truthiness: um ``False`` explícito ("quero o
+        # retângulo") é uma escolha, não ausência de escolha.
+        if preserve_real_shape is not None:
+            self._adhoc_preserve_real_shape = bool(preserve_real_shape)
 
         log.info("live_calibration_coordinator.live_calibration.start")
         # Reset the cancellation flag so a previous cancel doesn't leak into
@@ -995,7 +1013,27 @@ class LiveCalibrationCoordinator(BaseCoordinator):
         # the same camera and the same tank resolved to different model families
         # depending on which flow opened them.
         project_data = self.project_manager.project_data or {}
-        policy = resolve_arena_detection(project_data, self.settings)
+
+        # ``requested_preserve_real_shape`` significa, no resolvedor, "quem
+        # chama sabe mais e vence tudo" — a mesma semântica do
+        # ``requested_method``. A escolha do diálogo NÃO tem essa estatura: ela
+        # existe porque o fluxo ad-hoc não tem projeto onde guardá-la. Num
+        # projeto o valor persistido manda, senão uma sessão ao vivo dentro de
+        # projeto herdaria a forma escolhida no último diálogo avulso.
+        #
+        # Por isso a decisão de QUANDO oferecer o valor mora aqui, e não no
+        # resolvedor: assim os dois ``requested_*`` continuam querendo dizer a
+        # mesma coisa, e a cadeia projeto > settings > default segue inteira lá.
+        requested_shape = (
+            None
+            if "preserve_real_aquarium_shape" in project_data
+            else self._adhoc_preserve_real_shape
+        )
+        policy = resolve_arena_detection(
+            project_data,
+            self.settings,
+            requested_preserve_real_shape=requested_shape,
+        )
         method = policy.method
 
         log.info("live_calibration_coordinator.live_calibration.method_selected", method=method)

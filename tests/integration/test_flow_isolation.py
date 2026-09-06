@@ -72,6 +72,10 @@ LIVE_CHOICES: dict[str, Any] = {
     "aquarium_width_var": 20.0,
     "aquarium_height_var": 15.0,
     "output_folder_var": "",
+    # Escolha de forma da arena. NAO entra em POLLUTED_FIELDS: viaja no
+    # dict de resultado, por argumento ate resolve_arena_detection, e
+    # deliberadamente NAO e escrita no Settings compartilhado.
+    "preserve_real_shape_var": True,
 }
 
 #: The fields the dialog writes into the shared object. Kept here as the
