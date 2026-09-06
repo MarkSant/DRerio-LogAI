@@ -522,6 +522,66 @@ class LiveAnalysisDialog(Dialog):
             adv_frame, from_=1, to=100, textvariable=self.animals_per_aquarium_var, width=8
         ).grid(row=2, column=5, padx=5, sticky="w")
 
+        # Row 3: Dimensões REAIS do aquário.
+        #
+        # As variáveis existiam desde sempre, eram validadas e chegavam ao
+        # ``analysis_config`` — mas nenhum widget as expunha, então ficavam
+        # travadas no default 10,0 x 10,0 e não havia como corrigi-las pela
+        # interface. É desse par que sai o ``pixelcm`` da pós-análise
+        # (``resolve_live_pixel_per_cm``), logo toda distância, velocidade e
+        # métrica em cm do relatório depende dele.
+        #
+        # Numa sessão real medida, o labirinto tinha proporção ~1,63 e o padrão
+        # quadrado produziu 95,8 px/cm em X contra 60,1 em Y: um deslocamento
+        # horizontal e um vertical do MESMO tamanho real viravam números
+        # diferentes. O erro é anisotrópico, então não dá para corrigir depois
+        # multiplicando por uma constante.
+        ttk.Label(adv_frame, text=_("Aquarium width (cm):")).grid(
+            row=3, column=0, padx=(5, 2), pady=5, sticky="w"
+        )
+        create_help_label(
+            adv_frame,
+            _(
+                "Real WIDTH of the aquarium, in centimetres.\n\n"
+                "Together with the height it converts pixels to cm, so every "
+                "distance, speed and cm-based metric in the report depends on "
+                "this pair.\n\n"
+                "Measure the apparatus — do not leave the default. The two "
+                "px/cm values reported in the log should come out close to each "
+                "other; far apart means the proportions entered do not match "
+                "the real ones."
+            ),
+        ).grid(row=3, column=1, padx=2)
+        Spinbox(
+            adv_frame,
+            from_=0.1,
+            to=1000.0,
+            increment=0.5,
+            textvariable=self.aquarium_width_var,
+            width=8,
+        ).grid(row=3, column=2, padx=5, sticky="w")
+
+        ttk.Label(adv_frame, text=_("Aquarium height (cm):")).grid(
+            row=3, column=3, padx=(15, 2), pady=5, sticky="w"
+        )
+        create_help_label(
+            adv_frame,
+            _(
+                "Real HEIGHT of the aquarium, in centimetres — the vertical "
+                "extent as the camera sees it.\n\n"
+                "For a top-down view this is the depth of the apparatus on the "
+                "bench, not the water column."
+            ),
+        ).grid(row=3, column=4, padx=2)
+        Spinbox(
+            adv_frame,
+            from_=0.1,
+            to=1000.0,
+            increment=0.5,
+            textvariable=self.aquarium_height_var,
+            width=8,
+        ).grid(row=3, column=5, padx=5, sticky="w")
+
         # Aviso VISÍVEL (não só no tooltip): o campo desabilitado sozinho parece
         # defeito. Vários animais no MESMO aquário continuam suportados.
         Label(
@@ -532,7 +592,7 @@ class LiveAnalysisDialog(Dialog):
             ),
             fg="gray",
             justify="left",
-        ).grid(row=3, column=0, columnspan=6, padx=5, pady=(0, 5), sticky="w")
+        ).grid(row=4, column=0, columnspan=6, padx=5, pady=(0, 5), sticky="w")
 
         # --- Behavioral Analysis Widget (New) ---
         behavior_frame = ttk.LabelFrame(container, text=_("Behavioural Analysis"), padding=10)
