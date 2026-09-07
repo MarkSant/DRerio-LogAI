@@ -93,7 +93,13 @@ yolo_model:
   # Path to model weights file (.pt format)
   # This path is used as fallback; actual model selection happens via model_selection section
   # Path is relative to the project root; weights live under weights.source_dir.
-  path: 'weights/best_seg.pt'
+  #
+  # Points at a weight `fetch-weights` actually installs. It used to name
+  # `best_seg.pt`, a legacy model that is NOT part of the published bundle, so a
+  # correctly provisioned machine still logged `yolo_model.path.not_found` on
+  # every start -- a permanent false alarm that trained everyone to ignore the
+  # one warning that means the weights are really missing.
+  path: 'weights/best_seg_lateral.pt'
 
   # Confidence threshold for the ARENA (aquarium) detection.
   # Deliberately permissive: the tank is a large static object, found once per
