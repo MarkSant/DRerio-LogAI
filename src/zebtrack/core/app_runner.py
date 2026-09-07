@@ -14,6 +14,7 @@ from typing import Any, Literal, cast
 import structlog
 
 from zebtrack.constants import SPLASH_CLOSE_DELAY_MS
+from zebtrack.core.exceptions import MissingDetectorWeightsError
 from zebtrack.i18n import _
 from zebtrack.logging_config import configure_logging
 from zebtrack.ui.tk_exception_handler import install_tk_exception_handler
@@ -140,6 +141,11 @@ def run_app(
         # Detect first launch (no cached benchmark) and inform user
         _detect_first_launch(settings_obj, splash)
 
+        # Before the benchmark, not after: without weights the run is doomed,
+        # and the benchmark is the slowest step in startup. Failing here turns a
+        # long wait ending in a generic error into an immediate, specific one.
+        _require_detector_weights(settings_obj, log)
+
         _run_benchmark_if_enabled(settings_obj, splash, save_settings, log)
 
         event_bus = EventBusV2()
@@ -177,6 +183,15 @@ def run_app(
         root.after(SPLASH_CLOSE_DELAY_MS, close_splash_and_show_main)
         controller.run()
 
+    except MissingDetectorWeightsError as exc:
+        # Handled before the blanket clause below, which would reduce by far the
+        # most likely fresh-clone failure to "a fatal error occurred, see the
+        # log" -- a message that names neither the cause nor the remedy, and
+        # that the user only reaches after sitting through a hardware benchmark.
+        log.critical("startup.weights.missing", weights_dir=exc.weights_dir)
+        splash_obj = locals().get("splash")
+        root_obj = locals().get("root")
+        _handle_missing_weights(messagebox_module, log, exc, root=root_obj, splash=splash_obj)
     except Exception:
         log.critical("unhandled.exception", exc_info=True)
         splash_obj = locals().get("splash")
@@ -541,6 +556,77 @@ def _warm_container(container: Any, splash: Any) -> None:
     splash.update_progress(phases[4][0], phases[4][1])
     container.resolve(ApplicationGUI)
     splash.update_progress(phases[5][0], phases[5][1])
+
+
+def _require_detector_weights(settings_obj: Any, log: Any) -> None:
+    """Fail early, and by name, when no detector weight is installed.
+
+    A deliberately conservative pre-flight: it only fires when the weights
+    folder holds no ``.pt`` at all, which is exactly the fresh-clone case and
+    can never be a false alarm. Anything subtler -- a weight present but of the
+    wrong type or perspective -- is left to the bootstrapper, which has the
+    catalogue loaded and can judge it properly.
+
+    Raises:
+        MissingDetectorWeightsError: the folder exists but holds no weights, or
+            does not exist at all.
+    """
+    # From zebtrack.paths, not from weight_manager: importing that module pulls
+    # in torch, cv2, ultralytics and openvino and spawns a thread pool, and none
+    # of that belongs BEFORE a check meant to fail fast.
+    from zebtrack.paths import resolve_weights_dir
+    from zebtrack.settings import expected_weight_filenames
+
+    weights_dir = resolve_weights_dir(settings_obj)
+    if weights_dir.is_dir() and any(weights_dir.glob("*.pt")):
+        return
+
+    log.error("startup.weights.none_found", weights_dir=str(weights_dir))
+    raise MissingDetectorWeightsError(str(weights_dir), expected_weight_filenames(settings_obj))
+
+
+def _handle_missing_weights(
+    messagebox_module: Any,
+    log: Any,
+    exc: MissingDetectorWeightsError,
+    *,
+    root: Any | None,
+    splash: Any | None,
+) -> None:
+    """Tell the user which weights are missing, where, and how to get them."""
+    try:
+        if splash is not None:
+            splash.destroy()
+    except Exception:
+        log.debug("main.splash_destroy.suppressed", exc_info=True)
+
+    try:
+        if root is not None:
+            root.deiconify()
+    except Exception:
+        log.debug("main.root_deiconify.suppressed", exc_info=True)
+
+    listing = "\n".join(f"  - {name}" for name in exc.expected)
+    if not listing:
+        listing = "  - best_*_lateral.pt / best_*_topdown.pt"
+
+    message = _(
+        "The trained detector models are not installed, so tracking cannot start.\n\n"
+        "Expected in:\n{folder}\n\n"
+        "Missing files:\n{files}\n\n"
+        "These models are not part of the repository because of their size. "
+        "To download and verify them, run:\n\n"
+        "    poetry run fetch-weights"
+    ).format(folder=exc.weights_dir, files=listing)
+
+    try:
+        messagebox_module.showerror(_("Detector models not found"), message, parent=root)
+    except Exception:
+        # No usable Tk at this point; the console is the only channel left.
+        log.debug("main.missing_weights_dialog.suppressed", exc_info=True)
+        print(message, file=sys.stderr)
+
+    sys.exit(1)
 
 
 def _handle_fatal_error(

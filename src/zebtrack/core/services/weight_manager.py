@@ -15,7 +15,8 @@ from typing import Any
 import structlog
 
 from zebtrack.i18n import _
-from zebtrack.paths import repo_root
+from zebtrack.paths import DEFAULT_WEIGHTS_DIR as DEFAULT_WEIGHTS_DIR
+from zebtrack.paths import repo_root, resolve_weights_dir
 from zebtrack.settings import Settings
 from zebtrack.utils import calculate_sha256
 
@@ -32,7 +33,6 @@ except ImportError:
 
 WEIGHTS_CONFIG_FILE = "weights_config.json"
 OPENVINO_CACHE_DIR = "openvino_model_cache"
-DEFAULT_WEIGHTS_DIR = "weights"
 
 log = structlog.get_logger()
 
@@ -151,31 +151,8 @@ class WeightManager:
         self._load_weights()
 
     def _resolve_weights_dir(self, override: Path | str | None) -> Path:
-        """Resolve the weights folder path.
-
-        Priority: explicit override > settings.weights.source_dir > DEFAULT_WEIGHTS_DIR.
-        Relative paths are anchored at ``config_dir``. Defensive: any
-        non-string/path value (e.g. a Mock from a partially-stubbed test
-        settings) is silently ignored in favour of the default.
-        """
-        if override is not None:
-            try:
-                candidate = Path(os.fspath(override))
-            except TypeError:
-                candidate = Path(DEFAULT_WEIGHTS_DIR)
-        else:
-            source_dir: str | None = None
-            if self.settings is not None:
-                weights_settings = getattr(self.settings, "weights", None)
-                if weights_settings is not None:
-                    raw = getattr(weights_settings, "source_dir", None)
-                    if isinstance(raw, str | os.PathLike):
-                        source_dir = os.fspath(raw)
-            candidate = Path(source_dir or DEFAULT_WEIGHTS_DIR)
-
-        if not candidate.is_absolute():
-            candidate = Path(self.config_dir) / candidate
-        return candidate
+        """Resolve the weights folder for this instance."""
+        return resolve_weights_dir(self.settings, self.config_dir, override)
 
     def _load_weights(self) -> None:
         """Load the weights configuration from the JSON file."""

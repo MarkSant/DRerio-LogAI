@@ -9,6 +9,49 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Sem pesos, o app dizia so "a fatal error occurred"
+
+O caminho de falha mais provavel de um clone limpo era tambem o pior explicado.
+`_init_hardware_and_models` levantava um `RuntimeError` cru, que caia no
+`except Exception` generico de `run_app` e virava **"A fatal error occurred.
+See <log> for details."** -- uma mensagem que nao nomeia nem a causa nem o
+remedio. A mensagem real, que so ia para o log, ainda apontava a pasta errada:
+dizia `'models/'`, enquanto o codigo e o `config.yaml` sempre usaram `weights/`.
+
+E o usuario so chegava nela depois de esperar o **benchmark de hardware
+completo** e ver o splash chegar a ~95%, porque a checagem acontecia no fim da
+inicializacao. Recuperar pela interface era impossivel: o bootstrapper levanta
+antes de `_init_view`, entao nao havia janela nenhuma para abrir o gerenciador
+de pesos.
+
+Agora:
+
+- `MissingDetectorWeightsError` (sob `DetectorError`) carrega a pasta e os
+  nomes esperados. E tipada justamente para que `run_app` possa trata-la
+  separadamente do generico.
+- Um pre-flight roda **antes** do benchmark, deliberadamente conservador: so
+  dispara quando a pasta nao tem nenhum `.pt`, que e exatamente o caso do clone
+  limpo e nunca pode ser falso alarme. Qualquer julgamento mais sutil (peso
+  presente mas do tipo ou perspectiva errados) continua com o bootstrapper, que
+  tem o catalogo carregado.
+- O dialogo nomeia a pasta, lista os arquivos que faltam e da o comando:
+  `poetry run fetch-weights`. Se o Tk ja estiver quebrado, a mensagem vai para
+  o console em vez de sumir.
+
+**`resolve_weights_dir` mudou de casa, e por um motivo concreto.** O pre-flight
+precisa saber onde os pesos moram, e importar `core.services.weight_manager`
+para isso puxa **torch, cv2, ultralytics e openvino** e cria um ThreadPool --
+tudo antes de uma checagem cuja razao de existir e falhar em um segundo. A
+funcao passou para `zebtrack.paths`, que nao importa nada disso;
+`weight_manager` a reexporta. Um teste em subprocesso guarda a propriedade.
+
+**Um defeito achado no caminho.** A versao original filtrava
+`settings.weights.source_dir` com `isinstance(raw, str | os.PathLike)`. Isso
+nao basta: `MagicMock` implementa `__fspath__`, entao passa no teste e
+`os.fspath` devolve um caminho montado com o repr do proprio mock -- era
+possivel acabar procurando pesos em `.../MagicMock/mock.weights.source_dir/...`.
+Agora exige `str` ou `PurePath` de verdade.
+
 ### Os pesos nao existiam para ninguem alem do autor
 
 Os quatro modelos treinados que o app precisa para ABRIR sao gitignored
