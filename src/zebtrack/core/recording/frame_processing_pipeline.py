@@ -568,6 +568,36 @@ class FrameProcessingMixin:
             total_frames_written=self._video_frames_written,
         )
 
+    def _write_track_masks(self, frame_number: int, detections: list) -> None:
+        """Grava as máscaras do quadro no sidecar ``3b_Mascaras_*``.
+
+        No-op quando a captura está desligada: ``pop_track_masks`` devolve um
+        dicionário vazio e o recorder não escreve nada, então o caminho normal
+        (sem ``seg_overlap``) não paga custo algum.
+
+        DEGRADA, nunca interrompe. Uma máscara perdida custa uma linha a menos no
+        sidecar e faz o ROI cair no ``bbox_intersects`` com aviso; uma exceção
+        aqui derrubaria a thread de processamento e levaria junto a GRAVAÇÃO,
+        que é o dado que não volta.
+        """
+        detector = getattr(self.detector_service, "detector", None)
+        popper = getattr(detector, "pop_track_masks", None)
+        if not callable(popper):
+            return
+
+        try:
+            masks = popper(detections)
+            if masks:
+                self.recorder.write_mask_data(frame_number, masks)
+        # except Exception justified: recording-boundary — decodificação de
+        # máscara e I/O do sidecar não podem abortar a sessão em andamento.
+        except Exception:
+            log.warning(
+                "live_camera_service.mask_write_failed",
+                frame_number=frame_number,
+                exc_info=True,
+            )
+
     def _processing_loop(self) -> None:  # noqa: C901
         """Thread loop for processing frames with detection."""
         log.info("live_camera_service.processing_loop_started")
@@ -925,6 +955,13 @@ class FrameProcessingMixin:
                             # isso a correção é feita no consumo.
                             timestamp = time.time() - self.recorder.start_time
                             self.recorder.write_detection_data(timestamp, frame_number, detections)
+                            # Depois da trajetória e com as MESMAS detecções: o
+                            # ``track_id`` que indexa a máscara é o que acabou de
+                            # ser gravado na linha. Sem esta chamada o sidecar
+                            # ``3b_Mascaras_*`` nunca existia ao vivo e
+                            # ``seg_overlap`` degradava sempre para
+                            # ``bbox_intersects``.
+                            self._write_track_masks(frame_number, detections)
                             log.debug(
                                 "live_camera_service.detection_written",
                                 frame_number=frame_number,

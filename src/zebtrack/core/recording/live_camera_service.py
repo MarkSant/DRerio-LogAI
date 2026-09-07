@@ -144,6 +144,7 @@ class LiveCameraService(
         event_bus: EventBusV2,  # Injected EventBusV2
         root: Misc | None = None,
         project_workflow_service: ProjectWorkflowService | None = None,
+        settings_baseline: Any = None,  # Settings
     ):
         """
         Initialize LiveCameraService.
@@ -169,6 +170,12 @@ class LiveCameraService(
         self.recording_service = recording_service
         self.detector_service = detector_service
         self.settings = settings_obj
+        #: Cópia pristina das settings, capturada no ``ContainerContext`` antes
+        #: de qualquer diálogo existir. Usada SÓ quando há projeto aberto — ver
+        #: ``_build_post_analysis_service``.
+        self.settings_baseline = (
+            settings_baseline if settings_baseline is not None else settings_obj
+        )
         self.recorder = recorder
         self.event_bus = event_bus
         self.root = root

@@ -351,12 +351,15 @@ class TestLiveAnalysisDialog:
                 # Select camera
                 dialog.camera_combo.current(0)
 
-                # Set invalid interval
+                # O intervalo de EXIBICAO nao e mais um valor proprio: ele
+                # segue o de analise (ver resolve_processing_intervals). Um
+                # valor invalido nele nao pode mais reprovar a validacao,
+                # porque ninguem o le. Quem e validado e o de ANALISE.
                 dialog.display_interval_var.set(-5)
+                assert dialog.validate() is not False
 
-                # Should fail validation (showerror already mocked)
-                result = dialog.validate()
-                assert result is False
+                dialog.analysis_interval_var.set(-5)
+                assert dialog.validate() is False
 
     def test_record_video_checkbox_state(self, tkinter_root, test_settings):
         """Test record video checkbox state changes."""
@@ -466,7 +469,10 @@ class TestLiveAnalysisDialog:
                 assert dialog.result["camera_index"] == 1
                 assert dialog.result["duration_s"] == 600.0
                 assert dialog.result["analysis_interval_frames"] == 5
-                assert dialog.result["display_interval_frames"] == 10
+                # Espelha o de analise: o preview repinta no ritmo da analise, e
+                # emitir um par divergente deixaria no config um valor que
+                # nenhum leitor honra.
+                assert dialog.result["display_interval_frames"] == 5
                 assert dialog.result["record_video"] is False
                 assert dialog.result["experiment_id"] == "test_exp"
                 # Pasta de saída em branco → None (usa o padrão).
@@ -726,7 +732,9 @@ class TestLiveAnalysisDialogSettingsWrites:
             dialog.apply()
 
         assert isolated_settings.video_processing.processing_interval == 3
-        assert isolated_settings.video_processing.display_interval == 4
+        # Espelha o de analise, pelo mesmo motivo: um par divergente fazia o
+        # overlay repintar em quadros SEM deteccao nova.
+        assert isolated_settings.video_processing.display_interval == 3
         assert isolated_settings.video_processing.sharp_turn_threshold_deg_s == 77.0
         assert isolated_settings.video_processing.freezing_velocity_threshold == 0.25
         assert isolated_settings.video_processing.freezing_min_duration_s == 2.5

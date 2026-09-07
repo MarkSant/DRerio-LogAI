@@ -287,6 +287,38 @@ class LiveSessionManagerMixin:
 
         return False
 
+    def _configure_mask_capture(self) -> bool:
+        """Liga a captura de máscaras quando a sessão vai precisar delas.
+
+        A regra é a de ``core.services.mask_capture.should_capture_masks`` —
+        ``recorder.persist_masks`` E modelo de animal ``seg`` E regra de ROI
+        efetiva ``seg_overlap``, as três juntas — e ela mora lá justamente para
+        não ser re-derivada em cada chamador.
+
+        Diferente do worker pré-gravado, aqui o ``project_data`` É passado: o ao
+        vivo roda no mesmo processo e tem o projeto em mãos, então um projeto com
+        ``seg_overlap`` sobre um global ``bbox_intersects`` conta na decisão. O
+        worker recebe só o snapshot de settings, que já chega com a regra do
+        projeto aplicada.
+
+        Returns:
+            ``True`` quando a captura foi ligada.
+        """
+        from zebtrack.core.services.mask_capture import should_capture_masks
+
+        detector = getattr(self.detector_service, "detector", None)
+        if detector is None or not hasattr(detector, "set_mask_capture"):
+            return False
+
+        project_data = getattr(self.project_manager, "project_data", None)
+        enabled = should_capture_masks(self.settings, project_data)
+        # Chamado mesmo quando ``False``: o detector é COMPARTILHADO e pode ter
+        # ficado com a captura ligada por uma sessão anterior. Sem o desligar,
+        # uma sessão que não precisa de máscaras pagaria a decodificação delas.
+        detector.set_mask_capture(enabled)
+        log.info("live_camera_service.mask_capture.configured", enabled=enabled)
+        return enabled
+
     def start_session(  # noqa: C901
         self,
         camera_index: int,
@@ -636,6 +668,13 @@ class LiveSessionManagerMixin:
                     single_subject_mode=use_single_subject,
                     animals_per_aquarium=self._animals_per_aquarium,
                 )
+
+        # Captura de máscaras: mesma decisão que o worker pré-gravado toma, pelo
+        # mesmo resolvedor. Sem isto, ``seg_overlap`` numa sessão ao vivo
+        # degradava SEMPRE para ``bbox_intersects`` — o sidecar
+        # ``3b_Mascaras_*`` nunca era escrito, e o relatório saía com o aviso de
+        # degradação como se fosse limitação do dado, quando era do pipeline.
+        self._configure_mask_capture()
 
         # Run countdown after warmup/setup and before capture starts.
         if use_countdown and countdown_duration_s > 0:

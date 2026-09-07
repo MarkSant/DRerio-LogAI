@@ -52,6 +52,10 @@ class LiveAnalysisPostProcessorMixin:
     recording_service: RecordingService
     detector_service: DetectorService
     settings: Any
+    #: Cópia pristina das settings, injetada no ``LiveCameraService``.
+    #: Só entra na resposta quando há PROJETO aberto — ver
+    #: ``_build_post_analysis_service``.
+    settings_baseline: Any
     recorder: Any
     event_bus: EventBusV2
     root: Any
@@ -88,13 +92,45 @@ class LiveAnalysisPostProcessorMixin:
         A pós-análise lia só o ``Settings`` global e ignorava
         ``project_data["roi_settings"]`` — o relatório podia contar uma entrada
         que o Arduino (que resolve a regra pela mesma fonte) não disparou.
+
+        De onde vêm os limiares
+        -----------------------
+        Os dois casos precisam de FONTES DIFERENTES, e tratá-los igual quebra um
+        ou outro:
+
+        * **Com projeto**, o snapshot (``projeto > baseline > default``). O
+          objeto compartilhado carrega o que o último diálogo ad-hoc escreveu
+          nele e nunca restaurou, então analisar uma sessão de projeto por ele
+          aplicaria os limiares daquela outra execução — é o defeito que o #524
+          mediu no pré-gravado (7 de 9 parâmetros mudavam), pela porta que
+          continuava aberta no ao vivo.
+        * **Sem projeto**, o objeto vivo. Aqui os valores do diálogo SÃO a
+          intenção da sessão: o snapshot devolveria o baseline pristino e
+          descartaria calado o que o operador acabou de digitar.
+
+        Ou seja, a mesma precedência das outras correções deste fluxo — o
+        projeto manda quando existe, e a escolha ad-hoc vale quando não há
+        projeto para mandar.
         """
         from zebtrack.analysis.analysis_service import AnalysisService
-
-        roi_rule = resolve_roi_rule(
-            getattr(self.project_manager, "project_data", None), self.settings
+        from zebtrack.core.services.project_settings_snapshot import (
+            build_project_settings_snapshot,
         )
-        return AnalysisService(settings_obj=self.settings, roi_rule=roi_rule)
+
+        project_data = getattr(self.project_manager, "project_data", None) or {}
+        has_project = bool(getattr(self.project_manager, "project_path", None))
+
+        if has_project:
+            settings_for_analysis = build_project_settings_snapshot(
+                self.settings,
+                project_data,
+                baseline=getattr(self, "settings_baseline", None),
+            )
+        else:
+            settings_for_analysis = self.settings
+
+        roi_rule = resolve_roi_rule(project_data, self.settings)
+        return AnalysisService(settings_obj=settings_for_analysis, roi_rule=roi_rule)
 
     def _resolve_live_session_video_path(self, output_dir: Path) -> Path:
         """Resolve the canonical video path for the current live session."""
