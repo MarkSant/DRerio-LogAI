@@ -48,7 +48,7 @@ event-driven architecture with dependency injection.
 
 **BEFORE making ANY code change**, you MUST:
 
-1. **Read**: [`docs/architecture/IMPACT_ANALYSIS_PROTOCOL.md`](docs/architecture/IMPACT_ANALYSIS_PROTOCOL.md)
+1. **Read**: [`docs/guides/developer/impact_analysis.md`](docs/guides/developer/impact_analysis.md)
 2. **Run**: `python scripts/impact_analyzer.py <type> <name>` - Identify affected components
 3. **Consult**: [`.copilot-impact-map.yaml`](.copilot-impact-map.yaml) - Quick dependency lookup
 4. **Verify**: Update ALL affected components consistently
@@ -215,7 +215,7 @@ When working with multi-aquarium features:
 ---
 
 _Historical fixes archived to `docs/archive/fixes/DEC_2025_CRITICAL_FIXES.md`_
-_Impact Analysis Protocol: `docs/architecture/IMPACT_ANALYSIS_PROTOCOL.md`_
+_Impact Analysis Protocol: `docs/guides/developer/impact_analysis.md`_
 
 ---
 
