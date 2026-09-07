@@ -49,6 +49,13 @@ Detalhes que nao sao acidentais:
 `--generate-manifest` e o passo do mantenedor: reconstroi os hashes a partir de
 um `weights/` conhecido.
 
+**So `http`/`https` chegam ao `urlopen`.** Ele honra `file:` e qualquer esquema
+com handler registrado, entao um manifesto que nomeasse `file:///etc/passwd`
+teria o arquivo copiado para `weights/` com nome de `.pt` -- e o checksum nao
+salvaria, porque quem escreve o manifesto escreve o hash. O manifesto e um
+arquivo versionado e portanto confiavel hoje; essa e exatamente a premissa que
+deixa de valer no dia em que um manifesto vier de fora.
+
 **`yolo_model.path` apontava para um peso que o bundle nao entrega.** Ele
 nomeava `best_seg.pt`, legado, entao mesmo uma maquina corretamente provisionada
 logava `yolo_model.path.not_found` a cada inicializacao. Um falso alarme

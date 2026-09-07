@@ -386,3 +386,65 @@ class TestShippedManifest(unittest.TestCase):
                     f"{entry.name} would never be auto-discovered",
                 )
                 self.assertTrue(entry.name.startswith("best_"))
+
+
+class TestUrlSchemeGuard(unittest.TestCase):
+    """Only http/https may reach urlopen.
+
+    ``urlopen`` honours ``file:`` and any scheme with a registered handler, so a
+    manifest naming ``file:///etc/passwd`` would have it copied into ``weights/``
+    under a ``.pt`` name. The manifest is tracked and therefore trusted today --
+    but that assumption stops holding the day a manifest arrives from elsewhere,
+    and the checksum would not save us: an attacker writing the manifest writes
+    the hash too.
+    """
+
+    def test_file_scheme_is_refused(self):
+        with TemporaryDirectory() as tmp:
+            dest = Path(tmp)
+            source = dest / "planted.pt"
+            source.write_bytes(_PAYLOAD)
+
+            manifest = _LocalManifest(
+                repository="local/test",
+                release_tag="t",
+                entries=(),
+                base=source.parent.as_uri(),
+            )
+            entry = _entry("planted.pt")
+
+            with self.assertRaises(RuntimeError) as ctx:
+                download_entry(manifest, entry, dest / "out")
+
+            self.assertIn("scheme", str(ctx.exception).lower())
+
+    def test_refusal_happens_before_any_file_is_created(self):
+        with TemporaryDirectory() as tmp:
+            dest = Path(tmp) / "weights"
+            dest.mkdir()
+            manifest = _LocalManifest(
+                repository="local/test", release_tag="t", entries=(), base="ftp://example.invalid"
+            )
+
+            with self.assertRaises(RuntimeError):
+                download_entry(manifest, _entry(), dest)
+
+            self.assertEqual(list(dest.iterdir()), [], "nothing may be written before the check")
+
+    def test_http_and_https_are_allowed(self):
+        from zebtrack.fetch_weights import _reject_unsupported_scheme
+
+        # Must not raise.
+        _reject_unsupported_scheme("http://127.0.0.1:8000/best_seg_lateral.pt")
+        _reject_unsupported_scheme("https://github.com/o/r/releases/download/t/best.pt")
+
+    def test_scheme_check_is_case_insensitive(self):
+        from zebtrack.fetch_weights import _reject_unsupported_scheme
+
+        _reject_unsupported_scheme("HTTPS://github.com/o/r/releases/download/t/best.pt")
+
+    def test_a_bare_path_without_scheme_is_refused(self):
+        from zebtrack.fetch_weights import _reject_unsupported_scheme
+
+        with self.assertRaises(RuntimeError):
+            _reject_unsupported_scheme("/etc/passwd")
