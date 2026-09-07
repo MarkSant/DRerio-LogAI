@@ -21,6 +21,42 @@ uma instrucao de 6.x nao consegue abrir o programa --, `--reset` passou a apagar
 de fato o que promete, e `config.yaml`, `weights/` e os caches deixaram de ser
 resolvidos contra o diretorio de trabalho.
 
+### Notas de release, processo de release, e a wiki publicada
+
+**O README nao contava o que mudou na 7.0.** O badge ja dizia 7.0.0 e a secao
+mais nova era "Novidades na Versao 6.0" -- um leitor via a versao no topo e uma
+pagina cuja ultima noticia era outra. Os dois READMEs ganharam a secao da 7.0,
+com os sete pontos de efeito visivel; a da 6.0 vira historico, como as demais.
+
+**`docs/releases/RELEASE_NOTES_v7.0.0.md`** e o corpo do GitHub Release. Existe
+separado do CHANGELOG porque carrega o que ele nao tem: a relacao entre a tag
+arquivada e a versao que os manuscritos avaliaram (`4.0.0`, tag `v4.0.0`), e a
+instalacao no formato que um leitor vindo do DOI espera. A secao "Changes since
+v6.0.0" sai dos 24 topicos que o CHANGELOG curou entre a 6.1 e a 7.0, agrupados
+por tema em vez dos 85 commits crus.
+
+**`docs/guides/developer/RELEASE.md`** nao existia, e a ausencia dele foi o que
+deixou a versao declarada em cinco lugares com dois certos. Registra as
+armadilhas desta preparacao: o `version` do `.zenodo.json` sobrescrever o nome da
+tag no DOI; `bandit` e `pip-audit` serem gates que so existem no CI; PRs
+empilhados nao dispararem `ci.yml`; apagar a branch base fechar o PR filho sem
+poder reabrir; e o `main` local ficar defasado apos cada squash.
+
+**A wiki publicada e um repositorio git separado, e derivou.** Ainda chamava o
+projeto pelo nome aposentado em julho e ensinava a instalar executaveis
+pre-compilados que nunca existiram. `scripts/build_wiki.py` monta a arvore a
+partir de `docs/wiki/` e `wiki-sync.yml` a publica a cada push em `main`.
+
+Copiar a pasta nao bastava: onze links apontam para fora dela --
+`CONTRIBUTING.md`, `LICENSE`, `docs/reference/metrics.md` e outros -- e nao
+existem na wiki. O script os reescreve como URLs absolutas para o repositorio e
+deixa os internos intactos, porque a wiki mantem o mesmo layout. `INDEX.md` vira
+`Home.md`, que e o nome que o GitHub usa como pagina inicial.
+
+O workflow exige "Read and write permissions" em Settings -> Actions: o padrao do
+repositorio e somente leitura, e esse ajuste e um TETO, nao um default -- o bloco
+`permissions:` nao consegue ultrapassa-lo.
+
 ### Limpeza do que ficaria permanente no arquivo citavel
 
 O deposito Zenodo e um retrato do fonte na tag. O que estiver aqui fica no
@@ -512,6 +548,7 @@ lista, nao havia como chegar aos resultados pela interface.
 A causa era uma guarda em `live_analysis_post_processor`:
 
 ```python
+
 # Register outputs in project if active
 if self.project_manager.project_path:
     self.project_manager.register_processing_outputs(...)
