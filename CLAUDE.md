@@ -188,6 +188,25 @@ timestamp, frame, track_id, x1, y1, x2, y2, confidence,
   Its threshold is `roi_min_seg_overlap_ratio` (default 0.3) — **not**
   `roi_min_bbox_overlap_ratio` (0.10): the denominators differ (mask vs. bbox), so the
   two fractions are not comparable.
+- **Zonas achadas em disco NÃO se adotam sozinhas.** `VideoManager.scan_input_paths` registra
+  `1_ProcessingArea_*`/`2_AreasOfInterest_*` achados ao lado do `.mp4` em
+  `video_entry["parquet_files"]` **mesmo com a importação recusada no wizard**, e
+  `_resolve_source_zone_parquets` varre a pasta do próprio vídeo de qualquer forma. Quem decide é
+  `core/services/zone_autoimport_policy.decide_zone_autoimport()`, por PROCEDÊNCIA: dentro do
+  projeto ⇒ `AUTO` (sessão live, reprocessamento — sempre foi assim e precisa continuar); fora do
+  projeto com recusa registrada em `_wizard_metadata["import_config"]` ⇒ `SKIP`; fora sem registro
+  ⇒ `ASK`. Sem projeto (vídeo único, live ad-hoc) ⇒ `AUTO`, legado intacto.
+  `import_zone_data_from_video_parquets()` importa **incondicionalmente** — a permissão é de quem
+  chama. Histórico: um projeto pré-gravado criado sobre uma pasta com arena/ROIs de 2025 os
+  carregava no primeiro duplo-clique; o relatório saía completo, medido contra a arena errada.
+- **`save_zone_data(zone_data, video)` NÃO espelha mais em `detection_zones` num projeto
+  pré-gravado.** O espelho é o default global que `get_zone_data(fallback_to_global=True)` serve a
+  qualquer vídeo sem zonas próprias — espelhar todo save por vídeo fazia a arena do vídeo A virar a
+  arena do vídeo B. Regra única em `ZoneManager.should_mirror_to_global()`: mantém o espelho quando
+  não há vídeo alvo (o save É o global), quando `project_type == "live"` (uma câmera, uma arena, e
+  os `.mp4` gravados não têm chave própria — `ZoneContextService`, `ValidationManager` e a grade de
+  sessões planejadas leem o global) e quando não há `project_type` declarado (vídeo único e live
+  ad-hoc). Só um projeto que se declara não-live é excluído.
 - Full guide: [`docs/reference/COORDINATE_SYSTEMS.md`](docs/reference/COORDINATE_SYSTEMS.md).
 
 ### 🐟 Multi-Aquarium (CRITICAL)

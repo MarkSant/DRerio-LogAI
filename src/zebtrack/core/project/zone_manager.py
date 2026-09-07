@@ -449,6 +449,49 @@ class ZoneManager:
         zone_data = self.zone_data_from_dict(stored)
         return bool(zone_data.polygon or zone_data.roi_polygons)
 
+    @staticmethod
+    def should_mirror_to_global(project_data: dict, target_video: Path | str | None) -> bool:
+        """Whether saving zones for *target_video* also rewrites ``detection_zones``.
+
+        ``detection_zones`` is the project-wide default that
+        ``get_zone_data(fallback_to_global=True)`` serves to any video without
+        zones of its own. Mirroring EVERY per-video save into it is what turns
+        one video's arena into every other video's arena: draw (or import) an
+        arena for video A, open video B, and B silently inherits A's geometry —
+        the analysis then runs, and reports, against the wrong region.
+
+        Who genuinely needs the mirror:
+
+        - **A save with no target video.** That call *is* the global save; there
+          is nothing else for it to write.
+        - **Live projects.** One camera, one arena, defined once for the whole
+          project. Zones live under the ``live_camera_reference_frame.png`` key
+          while the recorded ``.mp4`` files have no key at all, so the global is
+          the only place several readers can find them — see
+          ``ZoneContextService``, ``ValidationManager`` (planned-session
+          placeholders) and ``MultiAquariumCoordinator.save_manual_arena``.
+          Removing the mirror here would make a live project forget its
+          calibration.
+        - **Anything with no declared project type.** The single-video workflow
+          and the ad-hoc live flow (``is_live_like = live or not has_project``)
+          run with an empty ``project_data``. They have always relied on the
+          mirror and are not what this rule is aimed at, so they keep the legacy
+          behaviour rather than being silently changed.
+
+        Only a project that positively declares itself non-live — ``batch`` or
+        ``pre-recorded`` — is excluded, which is exactly the case where zones are
+        per video. ``ZoneEditor.is_awaiting_video_selection`` already documents
+        the same asymmetry from the UI side.
+        """
+        if not target_video:
+            return True
+
+        project_type = project_data.get("project_type")
+        if not isinstance(project_type, str) or not project_type.strip():
+            return True
+
+        return project_type.strip().lower() == "live"
+
     def save_zone_data(
         self,
         project_data: dict,
@@ -486,7 +529,8 @@ class ZoneManager:
             return
 
         serialized = self.zone_data_to_dict(zone_data)
-        project_data["detection_zones"] = serialized
+        if self.should_mirror_to_global(project_data, target_video):
+            project_data["detection_zones"] = serialized
 
         if target_video:
             normalized = self.normalize_video_path(target_video)

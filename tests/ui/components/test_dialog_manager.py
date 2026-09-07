@@ -1,5 +1,6 @@
 """Tests for DialogManager component."""
 
+import os
 from types import SimpleNamespace
 from unittest.mock import ANY, Mock, patch
 
@@ -990,24 +991,43 @@ class TestConfirmationDialogs:
         assert UIEvents.VIDEO_TREE_REFRESH_REQUESTED in event_types
         assert UIEvents.PROJECT_VIEWS_REFRESH_REQUESTED in event_types
 
+    @staticmethod
+    def _arm_zone_self_import(pm, *, project_path, candidates, project_data=None):
+        """Point the mocked ProjectManager at a concrete zone-parquet situation."""
+        pm.has_zone_data.return_value = False
+        pm.has_zone_data.side_effect = None
+        pm.project_path = project_path
+        pm.project_data = project_data if project_data is not None else {}
+        pm.resolve_zone_parquet_candidates.return_value = candidates
+        pm.import_zone_data_from_video_parquets.return_value = True
+
     @patch("zebtrack.ui.components.dialog_manager.messagebox")
     def test_offer_zone_reuse_self_import_skips_prompt(
         self, mock_messagebox, dialog_manager, mock_gui, mock_event_bus
     ):
-        """Vídeo com parquets próprios: importa silenciosamente, sem prompt.
+        """Parquets DENTRO do projeto: importa silenciosamente, sem prompt.
 
         Gravações live já têm 1_ProcessingArea_*/2_AreasOfInterest_* na pasta
         da sessão; o double-click deve carregá-los direto (bug-sexteto live).
+        Como a sessão vive dentro do projeto, nada foi "importado de fora" e não
+        há decisão de usuário a respeitar.
         """
         pm = mock_gui.controller.project_manager
-        pm.has_zone_data.return_value = False
-        pm.has_zone_data.side_effect = None
-        pm.import_zone_data_from_video_parquets.return_value = True
+        session = os.path.join("C:", os.sep, "proj", "Grupo_G", "Dia_01", "Sujeito_01")
+        self._arm_zone_self_import(
+            pm,
+            project_path=os.path.join("C:", os.sep, "proj"),
+            candidates={
+                "arena": os.path.join(session, "1_ProcessingArea_video1.parquet"),
+                "rois": os.path.join(session, "2_AreasOfInterest_video1.parquet"),
+            },
+        )
         mock_gui._zone_prompt_history = set()
 
         dialog_manager.offer_zone_reuse("video1.mp4")
 
-        pm.import_zone_data_from_video_parquets.assert_called_once_with("video1.mp4")
+        pm.import_zone_data_from_video_parquets.assert_called_once()
+        assert pm.import_zone_data_from_video_parquets.call_args[0][0] == "video1.mp4"
         pm.save_project.assert_called_once()
         mock_messagebox.askyesno.assert_not_called()
         pm.get_last_zone_video.assert_not_called()
@@ -1017,6 +1037,128 @@ class TestConfirmationDialogs:
         assert UIEvents.ZONES_UPDATED in event_types
         assert UIEvents.VIDEO_TREE_REFRESH_REQUESTED in event_types
         assert UIEvents.PROJECT_VIEWS_REFRESH_REQUESTED in event_types
+
+    @patch("zebtrack.ui.components.dialog_manager.messagebox")
+    def test_offer_zone_reuse_single_video_imports_without_saving_a_project(
+        self, mock_messagebox, dialog_manager, mock_gui
+    ):
+        """Vídeo único (sem projeto): importa, mas não tenta salvar projeto.
+
+        ``save_project`` levanta ProjectInvalidError sem ``project_path``, e este
+        fluxo chega aqui exatamente assim — sem projeto, com os parquets ao lado
+        do .mp4. As zonas ficam em memória, que é onde este fluxo as usa.
+        """
+        pm = mock_gui.controller.project_manager
+        video = os.path.join("E:", os.sep, "avulso", "peixe.mp4")
+        self._arm_zone_self_import(
+            pm,
+            project_path=None,
+            candidates={
+                "arena": os.path.join("E:", os.sep, "avulso", "1_ProcessingArea_peixe.parquet"),
+            },
+        )
+        pm.save_project.side_effect = AssertionError("não há projeto para salvar")
+        mock_gui._zone_prompt_history = set()
+
+        dialog_manager.offer_zone_reuse(video)
+
+        pm.import_zone_data_from_video_parquets.assert_called_once()
+        pm.save_project.assert_not_called()
+        mock_messagebox.askyesno.assert_not_called()
+
+    @patch("zebtrack.ui.components.dialog_manager.messagebox")
+    def test_offer_zone_reuse_honours_wizard_declined_import(
+        self, mock_messagebox, dialog_manager, mock_gui
+    ):
+        """Parquets de FORA + recusa registrada no wizard: não importa, não pergunta.
+
+        Regressão do vazamento: um projeto pré-gravado criado sobre uma pasta que
+        já tinha arena/ROIs de um estudo anterior carregava aqueles polígonos no
+        primeiro duplo-clique, apesar de o operador ter recusado a importação.
+        """
+        pm = mock_gui.controller.project_manager
+        video = os.path.join("D:", os.sep, "estudo_antigo", "CECT_4", "CECT_4.mp4")
+        self._arm_zone_self_import(
+            pm,
+            project_path=os.path.join("C:", os.sep, "proj"),
+            candidates={
+                "arena": os.path.join(
+                    "D:", os.sep, "estudo_antigo", "CECT_4", "1_ProcessingArea_CECT_4.parquet"
+                ),
+            },
+            project_data={
+                "_wizard_metadata": {
+                    "import_config": [
+                        {"video": video, "import_arena": False, "import_rois": False},
+                    ]
+                }
+            },
+        )
+        pm.get_last_zone_video.return_value = None
+        mock_gui._zone_prompt_history = set()
+
+        dialog_manager.offer_zone_reuse(video)
+
+        pm.import_zone_data_from_video_parquets.assert_not_called()
+        mock_messagebox.askyesno.assert_not_called()
+        pm.save_project.assert_not_called()
+
+    @patch("zebtrack.ui.components.dialog_manager.messagebox")
+    def test_offer_zone_reuse_asks_before_adopting_foreign_zones(
+        self, mock_messagebox, dialog_manager, mock_gui
+    ):
+        """Parquets de FORA sem decisão registrada: pergunta antes de importar."""
+        mock_messagebox.askyesno.return_value = True
+        pm = mock_gui.controller.project_manager
+        video = os.path.join("D:", os.sep, "estudo_antigo", "CECT_4", "CECT_4.mp4")
+        origin_dir = os.path.join("D:", os.sep, "estudo_antigo", "CECT_4")
+        self._arm_zone_self_import(
+            pm,
+            project_path=os.path.join("C:", os.sep, "proj"),
+            candidates={
+                "arena": os.path.join(origin_dir, "1_ProcessingArea_CECT_4.parquet"),
+                "rois": os.path.join(origin_dir, "2_AreasOfInterest_CECT_4.parquet"),
+            },
+        )
+        mock_gui._zone_prompt_history = set()
+
+        with patch.object(dialog_manager, "show_warning") as mock_warning:
+            dialog_manager.offer_zone_reuse(video)
+
+        mock_messagebox.askyesno.assert_called_once()
+        # A pasta de origem tem que estar no texto: era justamente a informação
+        # ausente que fazia o import parecer uma configuração escondida.
+        assert origin_dir in mock_messagebox.askyesno.call_args[0][1]
+        pm.import_zone_data_from_video_parquets.assert_called_once()
+        # Zonas de outra gravação produzem um relatório completo e errado; o
+        # aviso de conferir é obrigatório neste ramo.
+        mock_warning.assert_called_once()
+
+    @patch("zebtrack.ui.components.dialog_manager.messagebox")
+    def test_offer_zone_reuse_foreign_zones_declined_are_not_imported(
+        self, mock_messagebox, dialog_manager, mock_gui
+    ):
+        """Recusa no diálogo: não importa, e não repergunta no próximo clique."""
+        mock_messagebox.askyesno.return_value = False
+        pm = mock_gui.controller.project_manager
+        video = os.path.join("D:", os.sep, "estudo_antigo", "CECT_4", "CECT_4.mp4")
+        self._arm_zone_self_import(
+            pm,
+            project_path=os.path.join("C:", os.sep, "proj"),
+            candidates={
+                "arena": os.path.join(
+                    "D:", os.sep, "estudo_antigo", "CECT_4", "1_ProcessingArea_CECT_4.parquet"
+                ),
+            },
+        )
+        pm.get_last_zone_video.return_value = None
+        mock_gui._zone_prompt_history = set()
+
+        dialog_manager.offer_zone_reuse(video)
+        dialog_manager.offer_zone_reuse(video)
+
+        pm.import_zone_data_from_video_parquets.assert_not_called()
+        assert mock_messagebox.askyesno.call_count == 1
 
     @patch("zebtrack.ui.components.dialog_manager.messagebox")
     def test_offer_zone_reuse_declined(
