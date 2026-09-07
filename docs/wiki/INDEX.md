@@ -1,6 +1,10 @@
 # DRerio LogAI Wiki Index
 
-This directory contains the structured documentation to be published on the project's Wiki.
+User and developer documentation for DRerio LogAI, an open-source, GPU-free platform for
+automated tracking and behavioural analysis of adult zebrafish (*Danio rerio*).
+
+New here? Start with [Installation and Setup](1_Installation.md), then the
+[Full Tutorial](2_Full_Tutorial.md).
 
 ## 1. User Guide
 
@@ -26,4 +30,6 @@ This directory contains the structured documentation to be published on the proj
 
 ---
 
-_Note: To keep the Wiki up to date, edit the Markdown files under the `docs/` folder and replicate the changes to the GitHub Wiki._
+*This wiki is generated from `docs/wiki/` in the repository and republished automatically
+on every change to `main`. Edit the files there; edits made here are overwritten by the
+next sync.*

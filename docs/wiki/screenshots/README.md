@@ -1,254 +1,71 @@
-# Screenshots Directory
+# Screenshots
 
-This directory contains screenshots referenced in the user documentation guides.
+Capture specification for the images referenced by
+[`user-guide/GETTING_STARTED.md`](../user-guide/GETTING_STARTED.md).
 
-## Required Screenshots
+This file is a note for maintainers and is deliberately **not** published to the
+wiki (see `NOT_WIKI_PAGES` in `scripts/build_wiki.py`): as a wiki page it showed
+up in the sidebar as "README", next to the user guides.
 
-The following screenshots need to be captured from the running application:
+## Before capturing
 
-### 1. Main Window (`main_window.png`)
-
-**Location**: Main application window after launch
-**Content**:
-
-- Menu bar (File, Edit, View, Tools, Help)
-- Toolbar with common actions
-- Video player area
-- Timeline and controls
-- Status bar
-
-**How to capture**:
+**Set the interface to English.** The wiki is written in English, and the
+project's own captures so far are in Portuguese:
 
 ```bash
-poetry run zebtrack
-# Wait for main window to open
-# Take screenshot of entire window
+ZEBTRACK_LANGUAGE=en poetry run zebtrack
 ```
 
-### 2. Wizard Step 1 (`wizard_step1.png`)
+`ui.language: en` in `config.local.yaml` does the same thing permanently.
 
-**Location**: File → New Project → Project Wizard opens
-**Content**:
+**Use a real project with real data.** Empty and default states make poor
+documentation, and several of these panels only exist once a project has
+sessions and completed analyses.
 
-- Project wizard window (1150x550px)
-- Step 1: Project Information
-- Fields: Project Name, Experiment ID, Description
-- Navigation buttons (Next, Cancel)
+**Do not show identifying data.** No real subject IDs from ongoing work, no
+paths revealing unpublished directories.
 
-**How to capture**:
+## The ten images
 
-```bash
-poetry run zebtrack
-# Click File → New Project
-# Take screenshot of wizard window (Step 1)
-```
+Filenames are fixed: `GETTING_STARTED.md` links to exactly these names. Where a
+capture also serves a supplementary figure of the platform manuscript, the panel
+is noted — one capture session can serve both.
 
-### 3. Wizard Step 2 - Video Source (`wizard_step2_video.png`)
+| File | Screen | Manuscript panel |
+|---|---|---|
+| `main_window.png` | Launcher, with the project-action buttons and the detection-model status panel below them (active weights per function, OpenVINO device and hardware) | Fig. S5a |
+| `wizard_step1.png` | Project wizard, **step 1 of 7** — project type | Fig. S5b |
+| `wizard_step2_video.png` | Wizard, video/folder selection, with the preview tree summarising the detected structure | — |
+| `roi_config.png` | Zone and ROI definition drawn on a real acquired frame, with the arena boundary and the ROI list | Fig. S6b |
+| `wizard_step4_detection.png` | Wizard, **step 5 of 7** — detection and tracking: YOLO weights per function, OpenVINO device, ByteTrack association parameters | Fig. S5d |
+| `wizard_step5_options.png` | Wizard, **step 3 of 7** — physical calibration (pixels per centimetre from the arena dimensions) with the behavioural-analysis settings | Fig. S5c |
+| `analysis_running.png` | Batch panel with pending videos, progress, and the buttons that run processing and generate reports | Fig. S7 |
+| `heatmap.png` | Spatial occupancy heat map over the arena, with the ROI overlay | — |
+| `live_analysis_dialog.png` | Live analysis dialog: camera, experiment identification, real aquarium width and height, session duration, optional Arduino | Fig. S5e |
+| `live_preview.png` | Live session in progress: camera feed with detection overlay, frame counter, measured FPS, session timer | Fig. S6c |
 
-**Location**: Project Wizard → Step 2
-**Content**:
+> The wizard is **dynamic**: 7 steps for pre-recorded projects, 6 for live. Step
+> numbers above are the pre-recorded branch, matching the manuscript captions.
+> The filenames `wizard_step4_*` and `wizard_step5_*` predate that and no longer
+> match the step they show — they are kept because `GETTING_STARTED.md` links to
+> them, and renaming buys nothing.
 
-- Video source selection options
-- File browser button
-- Camera selection dropdown
-- Resolution and frame rate settings
+## Two extra captures the manuscript needs
 
-**How to capture**:
+Not referenced by the wiki, but part of the same session:
 
-```bash
-# Continue from wizard Step 1
-# Click Next to reach Step 2
-# Take screenshot
-```
+| Screen | Manuscript panel |
+|---|---|
+| Project overview: sessions, subjects, per-video processing status | Fig. S6a |
+| Tracking output rendered on the video, zones and trajectory overlaid, with the run metrics | Fig. S6d |
 
-### 4. ROI Configuration (`roi_config.png`)
+Twelve captures in total cover both the wiki and Figures S5–S7.
 
-**Location**: Project Wizard → Step 3 (Arena and ROI Configuration)
-**Content**:
+## Technical requirements
 
-- Video frame with drawn ROIs
-- ROI list panel
-- Drawing tools (rectangle, polygon, circle)
-- ROI properties (name, color)
-- Arena boundary overlay
-
-**How to capture**:
-
-```bash
-# Continue from wizard Step 2
-# Click Next to reach Step 3
-# Draw 2-3 example ROIs on the video
-# Take screenshot showing ROIs overlaid on video
-```
-
-### 5. Detection Settings (`wizard_step4_detection.png`)
-
-**Location**: Project Wizard → Step 4
-**Content**:
-
-- Model selection (YOLO, OpenVINO)
-- Confidence threshold slider
-- Multi-subject tracking checkbox
-- Track ID assignment options
-- Advanced settings panel
-
-**How to capture**:
-
-```bash
-# Continue from wizard Step 3
-# Click Next to reach Step 4
-# Take screenshot of detection configuration
-```
-
-### 6. Analysis Options (`wizard_step5_options.png`)
-
-**Location**: Project Wizard → Step 5 (Final step)
-**Content**:
-
-- Output options checkboxes (annotated video, heatmap, etc.)
-- Export format dropdown
-- Performance options
-- Advanced settings
-- Finish button
-
-**How to capture**:
-
-```bash
-# Continue from wizard Step 4
-# Click Next to reach Step 5
-# Take screenshot
-```
-
-### 7. Analysis Progress (`analysis_running.png`)
-
-**Location**: During analysis (after clicking Run Analysis)
-**Content**:
-
-- Progress dialog with progress bar
-- Frame count (current/total)
-- Processing speed (FPS)
-- Detection rate
-- Estimated time remaining
-- Pause/Cancel buttons
-
-**How to capture**:
-
-```bash
-# Complete wizard and start analysis
-# OR load existing project and click Run Analysis
-# Take screenshot while analysis is running (mid-progress, e.g., 50%)
-```
-
-### 8. Heatmap Example (`heatmap.png`)
-
-**Location**: Analysis results after completion
-**Content**:
-
-- Heatmap visualization overlaid on video frame
-- Color scale (blue → green → yellow → red)
-- Arena boundary
-- ROI overlays
-- Clear movement density patterns
-
-**How to capture**:
-
-```bash
-# After analysis completes
-# Open annotated video or heatmap output
-# Take screenshot showing heatmap with visible activity patterns
-```
-
-### 9. Live Analysis Dialog (`live_analysis_dialog.png`)
-
-**Location**: File → Analisar Câmera ao Vivo...
-**Content**:
-
-- Live Analysis configuration dialog
-- Experiment ID field
-- Session duration settings
-- Camera selection
-- Resolution options
-- Detection settings
-- Output settings
-- Start Session button
-
-**How to capture**:
-
-```bash
-poetry run zebtrack
-# Click File → Analisar Câmera ao Vivo...
-# Take screenshot of dialog
-```
-
-### 10. Live Preview Window (`live_preview.png`)
-
-**Location**: During live camera session
-**Content**:
-
-- Real-time video feed from camera
-- Detection overlays (bounding boxes)
-- Frame counter
-- FPS display
-- Session timer
-- Control buttons (Pause, Stop)
-
-**How to capture**:
-
-```bash
-# From Live Analysis Dialog, click Start Session
-# Take screenshot while session is running
-# Ensure camera is detecting subjects (bounding boxes visible)
-```
-
-## Screenshot Guidelines
-
-### Technical Requirements
-
-- **Format**: PNG (lossless)
-- **Resolution**: Native resolution (don't downscale)
-- **Quality**: Maximum quality, no compression artifacts
-- **Naming**: Use exact filenames as listed above (lowercase, underscores)
-
-### Content Guidelines
-
-- **Clean UI**: Close unnecessary windows, clean desktop background
-- **Representative Data**: Use realistic example data (not empty/default states)
-- **Visibility**: Ensure all text is readable, no cutoff elements
-- **Privacy**: No personal information, real subject IDs, or sensitive data
-
-### Capture Tools
-
-#### Windows
-
-- **Snipping Tool**: Win+Shift+S → Select area → Save as PNG
-- **Windows + PrtScn**: Captures full screen to Pictures/Screenshots
-
-#### Linux
-
-- **GNOME Screenshot**: gnome-screenshot -a (area selection)
-- **Spectacle**: spectacle -r (rectangular region)
-
-#### macOS
-
-- **Cmd+Shift+4**: Click and drag to capture area
-- **Cmd+Shift+4, then Space**: Capture entire window
-
-## Placeholder Images
-
-Until screenshots are captured, the documentation references them by filename. The guides are complete and ready; screenshots will be added when the application is running.
-
-## Contributing Screenshots
-
-If you capture screenshots for this documentation:
-
-1. Follow the naming convention exactly
-2. Use PNG format with maximum quality
-3. Verify screenshots are readable and clear
-4. Place files in this directory (`docs/wiki/screenshots/`)
-5. Update this README if adding new screenshots
-6. Submit via pull request
-
----
-
-**Status**: Awaiting screenshot capture (application needs to be launched)
-**Last Updated**: November 2025
+- **Format**: PNG, lossless.
+- **Resolution**: native. Do not downscale; the manuscript figures are
+  assembled from these and are printed.
+- **Framing**: the whole window, or a clean rectangular region. No desktop
+  clutter, no overlapping windows, nothing cut off.
+- **Legibility**: every label readable at 100%.
