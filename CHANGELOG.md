@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [6.3.0] - 2026-09-07
+
 ### Tres assimetrias do fluxo ao vivo, antes de testar projeto ao vivo
 
 **A pos-analise ao vivo nao usava o snapshot do projeto.** Ela montava
@@ -62,6 +64,115 @@ abortar a analise depois de a gravacao ter acontecido destruiria dado que nao
 volta. O erro e ANISOTROPICO -- um deslocamento horizontal e um vertical do mesmo
 tamanho real viram valores diferentes --, entao nenhuma constante aplicada depois
 conserta o relatorio; a mensagem diz isso e manda medir de novo e regerar.
+
+### As ROIs sumiam ao redetectar a arena
+
+Reportado testando projeto ao vivo: 2 ROIs desenhadas, comandos do Arduino
+associados e testados com sucesso pelo painel -- e na analise ao vivo as ROIs
+nao apareciam e nenhum comando era enviado. O log fecha o caso em duas linhas:
+
+```text
+zone_manager.load_zones.rois_loaded          <- as ROIs existem no projeto
+single_detector.zones.set  roi_count=0  polygon_points=17
+```
+
+Sem ROIs no detector nao ha o que desenhar **nem o que disparar** -- o envio ao
+Arduino e por borda de entrada/saida de ROI. Os dois sintomas tinham uma causa
+so: `run_live_calibration` montava `ZoneData(polygon=..., metadata=...)` com a
+arena recem-detectada, e como `save_zone_data` substitui a chave inteira, a
+gravacao trocava "arena + 2 ROIs" por "arena, sem ROIs" em memoria. Os parquets
+no disco seguiam integros, o que tornava o defeito ainda mais confuso: reabrir o
+projeto "consertava".
+
+A arena e o que a deteccao acabou de calcular. As ROIs nao sao dela para
+redefinir.
+
+Junto, a reversao de uma mutacao do catalogo que foi commitada por engano no
+`analysis_service.py`: ela invertia a precedencia de
+`resolve_sharp_turn_threshold`, reabrindo a classe de vazamento que o #531
+fechou. Uma varredura do catalogo inteiro confirmou que nao ha outra
+remanescente.
+
+### As zonas sumiam do sumario e, com ele, do relatorio unificado
+
+Medido nos arquivos de uma sessao real:
+
+```text
+4_Relatorio_*.xlsx (individual)  85 colunas, ROI completa
+*_summary.parquet                43 colunas, NENHUMA
+unified_summary_*.xlsx           42 colunas, nenhuma
+```
+
+O individual trazia tempo, %, entradas, saidas, latencia, distancia, velocidade
+e freezing por ROI. O sumario da MESMA sessao, nada -- e como o unificado agrega
+os sumarios, as zonas sumiam do parcial e do total. Sem erro e sem aviso: apenas
+ausentes.
+
+`_process_standard_summary_video` resolvia as zonas por
+`get_zone_data(video_path=<mp4 da sessao>)`. Mas uma sessao ao vivo e gravada sob
+a chave do reference frame (`live_camera_reference_frame.png`), nao sob o caminho
+do `.mp4` que ela produz; o `.mp4` nao tem chave propria, entao a busca caia no
+`detection_zones` global -- vazio num projeto ao vivo.
+
+Os dados nunca faltaram: o `2_AreasOfInterest_<exp>.parquet` gravado na propria
+pasta da sessao tinha as ROIs o tempo todo. Ler dali e tambem o comportamento
+mais correto, nao so o mais conveniente: aquele parquet registra as zonas com que
+a gravacao REALMENTE rodou -- redesenhar as ROIs amanha nao deve reescrever o
+relatorio de hoje. O fallback e de SEGUNDO nivel: um projeto que responde
+continua mandando.
+
+### Uma trava de thread virava "sessao cancelada" e sumia do projeto
+
+Ao estourar o teto de 5 s no join das threads de trabalho, `stop_session` fazia
+`cancelled_session = True`. A intencao era legitima -- promover o encerramento do
+recorder a `force_stop`, para que o `video_writer` seja anulado antes do
+`release()` --, mas `cancelled_session` nao e um flag de shutdown: e o VEREDITO
+da sessao. Ele chega em `_finalize_live_session_ui(cancelled=True)`, que pula o
+`_register_batch_session()`.
+
+Medido, com `stop_session` numa conclusao normal:
+
+```text
+todas as threads mortas    on_session_stopped=[False]  stop_recording=call()
+processing_thread travada  on_session_stopped=[True]   force_stop=True
+```
+
+Uma sessao COMPLETA que travasse 5 s no encerramento nunca era registrada no
+projeto. E a pasta nao e apagada nesse caminho -- o `rmtree` obedece ao parametro
+`cancelled`, nao a essa variavel --, o que tornava a perda invisivel: arquivos no
+disco, projeto sem entrada nenhuma, nenhum erro para o operador.
+
+Uma trava de thread e um problema de maquina; cancelar e uma intencao do
+operador. As duas passam a ter variaveis proprias.
+
+### A inscricao no bus sobrevivia ao widget
+
+`TclError: bad window path name ".!...!zonecontrolswidget"` em ERROR a cada
+evento de sessao ao vivo. Nao e o laco que o #529 corrigiu: e a mesma familia (o
+objeto sobrevive a sua arvore de widgets) por outro caminho.
+
+`bind_callback` so chamava `event_bus.subscribe`, e nao havia desinscricao em
+lugar nenhum -- enquanto `create_main_control_frame` reconstroi o notebook inteiro
+a cada abertura ou fechamento de projeto. O painel novo assinava; o antigo
+continuava assinado para sempre. Medido com Tk real, num widget cujo container
+foi destruido:
+
+```text
+vivo   -> winfo_toplevel(): Tk   | winfo_exists: 1
+morto  -> winfo_toplevel(): TclError: bad window path name ".!frame.!fake"
+morto  -> winfo_exists(): 0
+```
+
+E `winfo_toplevel()` era a primeira linha dos dois handlers, antes de qualquer
+guarda; o `except tk.TclError` do banner estava um nivel fundo demais.
+
+O bus captura por handler e segue, entao nenhum outro assinante era pulado -- o
+estrago era o log: um traceback completo em ERROR num evento de ciclo de vida
+esperado, que so crescia com o numero de trocas de projeto na sessao. Corrigido
+nos dois niveis: `BaseWidget.destroy()` desinscreve o que passou por
+`bind_callback` (o vazamento era da classe base -- `EventBusV2.unsubscribe` tinha
+UM call site em producao), e `ZoneControlsWidget.is_alive()` guarda os handlers
+para a janela entre o Tcl destruir o widget e o `destroy()` Python rodar.
 
 ## [6.2.0] - 2026-09-06
 
