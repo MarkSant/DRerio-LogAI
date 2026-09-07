@@ -31,7 +31,7 @@ percentage.
 
 ## Current baseline
 
-Measured 2026-09-05. **53 mutations, 53 killed, 0 survivors.**
+Measured 2026-09-07. **58 mutations, 58 killed, 0 survivors.**
 
 | Module                                            | Mutations | Killed |
 | ------------------------------------------------- | --------- | ------ |
@@ -41,6 +41,7 @@ Measured 2026-09-05. **53 mutations, 53 killed, 0 survivors.**
 | `core/services/arduino_bindings.py`               | 2         | 2      |
 | `core/services/roi_rule_resolver.py`              | 3         | 3      |
 | `core/services/arena_detection_policy.py`         | 5         | 5      |
+| `core/services/zone_autoimport_policy.py`         | 5         | 5      |
 | `core/services/project_settings_snapshot.py`      | 3         | 3      |
 | `core/services/weight_manager.py`                 | 5         | 5      |
 | `core/services/live_calibration_scale.py`         | 4         | 4      |
@@ -55,6 +56,14 @@ metrics table was computed with a hardcoded `90.0` while the plot used the DTO d
 Its `threshold-ignored-by-the-computation` mutation restores exactly that literal, so the defect
 cannot return silently — which matters because it survived for as long as it did by being
 invisible rather than by being hard.
+
+The `zone_autoimport_policy` entry was added in 2026-09 with the fix for zones that adopted
+themselves: a pre-recorded project built over a folder holding an earlier study's
+`1_ProcessingArea_*`/`2_AreasOfInterest_*` loaded those polygons on the first double-click,
+even though the wizard's import had been declined. Nothing raised and nothing degraded
+visibly — the reports came out complete, measured against the previous experiment's arena.
+That is precisely the shape this catalogue exists for, so all five branches of the new
+decision are pinned.
 
 The two detection entries were added in 2026-09 together with the fix for "segmentation returned
 the whole screen". Four of their ten mutations SURVIVED on first run — the degeneracy filter and

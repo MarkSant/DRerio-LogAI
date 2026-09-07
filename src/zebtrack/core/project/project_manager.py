@@ -402,11 +402,33 @@ class ProjectManager:
             save_project_fn=self.save_project,
         )
 
-    def import_zone_data_from_video_parquets(self, video_path: Path | str) -> bool:
+    def resolve_zone_parquet_candidates(self, video_path: Path | str) -> dict[str, str]:
+        """Parquets de zona que existem em disco para *video_path*.
+
+        Delegates to ParquetIOManager. Não lê nem importa nada — serve para que
+        ``decide_zone_autoimport`` julgue a procedência dos arquivos antes de
+        qualquer efeito colateral.
+        """
+        return self.parquet_io_manager.resolve_zone_parquet_candidates(
+            video_path,
+            project_path=self.project_path,
+            find_video_entry_fn=self.find_video_entry,
+            resolve_results_directory_fn=self.resolve_results_directory,
+        )
+
+    def import_zone_data_from_video_parquets(
+        self,
+        video_path: Path | str,
+        *,
+        candidates: dict[str, str] | None = None,
+    ) -> bool:
         """Importa zonas dos parquets já existentes do próprio vídeo.
 
         Delegates to ParquetIOManager. Retorna True quando arena e/ou ROIs
         foram carregadas para o registro de zonas do vídeo.
+
+        Importa INCONDICIONALMENTE: a permissão é de quem chama, via
+        ``decide_zone_autoimport``.
         """
         return self.parquet_io_manager.import_zone_data_from_video_parquets(
             video_path,
@@ -415,6 +437,7 @@ class ProjectManager:
             resolve_results_directory_fn=self.resolve_results_directory,
             get_zone_data_fn=self.get_zone_data,
             save_zone_data_fn=self.save_zone_data,
+            candidates=candidates,
         )
 
     @staticmethod

@@ -1,0 +1,8 @@
+{
+  "_comment": "Gate do auto-import de zonas: um projeto pre-gravado criado sobre uma pasta com arena/ROIs de um estudo anterior carregava aqueles poligonos em silencio, mesmo com a importacao recusada no wizard. Estas sao as strings do dialogo que passou a perguntar.",
+
+  "Zones found outside the project": "Zonas encontradas fora do projeto",
+  "The folder of video \"{name}\" already contains zones saved by a previous analysis:\n\n{origin}\n\nThese zones are not part of this project and were not imported when it was created.\n\nChoose \"Yes\" to load them, or \"No\" to define the zones yourself.": "A pasta do vídeo \"{name}\" já contém zonas salvas por uma análise anterior:\n\n{origin}\n\nEssas zonas não fazem parte deste projeto e não foram importadas quando ele foi criado.\n\nEscolha \"Sim\" para carregá-las, ou \"Não\" para definir as zonas você mesmo.",
+  "Zones imported from a previous analysis": "Zonas importadas de uma análise anterior",
+  "The zones saved in the folder of \"{name}\" were loaded.\n\nCheck that the outlines match this video before starting the analysis: an arena from another recording still produces a complete report, measured against the wrong region.": "As zonas salvas na pasta de \"{name}\" foram carregadas.\n\nConfira se os contornos correspondem a este vídeo antes de iniciar a análise: uma arena de outra gravação ainda produz um relatório completo, medido contra a região errada."
+}

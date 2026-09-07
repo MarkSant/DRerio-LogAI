@@ -45,6 +45,11 @@ class DialogManager:
         self.event_bus_v2 = event_bus_v2
         self._zone_context_service = zone_context_service
         self._suppress_batch_dialogs: bool = False
+        # Videos whose foreign zone parquets the operator refused this session.
+        # Kept apart from ``gui._zone_prompt_history`` on purpose: that set also
+        # gates the "reuse zones from another video" prompt, and reusing it here
+        # would make one refusal swallow an unrelated question.
+        self._declined_zone_autoimport: set[str] = set()
 
     @property
     def zone_context_service(self):
@@ -1379,6 +1384,169 @@ class DialogManager:
                 ),
             )
 
+    def _publish_zone_refresh(self, status_message: str, *, source: str) -> None:
+        """Publish the trio of events the UI needs after zone data changed.
+
+        The canvas, the video tree and the project overview each read zones
+        independently; refreshing only some of them leaves the operator looking
+        at a stale arena while the analysis uses a different one.
+        """
+        if not self.event_bus_v2:
+            return
+
+        from zebtrack.ui import payloads
+        from zebtrack.ui.event_bus_v2 import Event, UIEvents
+
+        self.event_bus_v2.publish(
+            Event(
+                type=UIEvents.ZONES_UPDATED,
+                data=payloads.ZonesUpdatedPayload(zone_data=None),
+                source=source,
+            )
+        )
+        self.event_bus_v2.publish(
+            Event(
+                type=UIEvents.VIDEO_TREE_REFRESH_REQUESTED,
+                data=payloads.VideoTreeRefreshRequestedPayload(filter_text=None),
+                source=source,
+            )
+        )
+        self.event_bus_v2.publish(
+            Event(
+                type=UIEvents.PROJECT_VIEWS_REFRESH_REQUESTED,
+                data=payloads.ProjectViewsRefreshRequestedPayload(
+                    reason=status_message,
+                    append_summary=True,
+                ),
+                source=source,
+            )
+        )
+
+    def _confirm_foreign_zone_import(
+        self, video_path: Path | str, candidates: dict[str, str]
+    ) -> bool:
+        """Ask before adopting zone parquets that came from outside the project.
+
+        The folder is named in the prompt on purpose. "This video has zones on
+        disk" is precisely the phrasing that made the old silent import feel like
+        a hidden setting — the operator could not tell whether the arena came
+        from the video's folder, from the project, or from somewhere else.
+        """
+        from zebtrack.core.services.zone_autoimport_policy import describe_candidate_origin
+
+        # A frase é montada inteira, sem interpolar o nome do ativo
+        # ("arena"/"ROIs"): fragmento traduzido isolado quebra a ordem das
+        # palavras em outros idiomas e um msgid de uma palavra colide fácil com
+        # outro sentido no catálogo. A pasta já é a informação acionável.
+        return messagebox.askyesno(
+            _("Zones found outside the project"),
+            _(
+                'The folder of video "{name}" already contains zones saved by a '
+                "previous analysis:\n\n{origin}\n\n"
+                "These zones are not part of this project and were not imported "
+                "when it was created.\n\n"
+                'Choose "Yes" to load them, or "No" to define the zones yourself.'
+            ).format(
+                name=os.path.basename(str(video_path)),
+                origin=describe_candidate_origin(candidates),
+            ),
+            icon="question",
+        )
+
+    def _handle_zone_self_import(self, video_path: Path | str) -> bool:
+        """Resolve the video's own zone parquets, if that settles the question.
+
+        Returns:
+            True when zones were loaded (or the operator was asked and the
+            matter is closed), meaning ``offer_zone_reuse`` must stop. False
+            when the caller should carry on to the normal "no zones" handling.
+        """
+        from zebtrack.core.services.zone_autoimport_policy import (
+            ZoneAutoImport,
+            decide_zone_autoimport,
+        )
+
+        pm = self.gui.controller.project_manager
+        key = str(video_path)
+
+        if key in self._declined_zone_autoimport:
+            return False
+
+        try:
+            candidates = pm.resolve_zone_parquet_candidates(video_path)
+            decision = decide_zone_autoimport(
+                video_path=video_path,
+                candidates=candidates,
+                project_path=getattr(pm, "project_path", None),
+                project_data=getattr(pm, "project_data", None),
+            )
+        # except Exception justified: a resolução varre caminhos vindos de
+        # projetos de usuário; falhar aqui não pode impedir abrir o vídeo.
+        except Exception:
+            log.warning(
+                "dialog_manager.zone_self_import.decision_failed",
+                video=key,
+                exc_info=True,
+            )
+            return False
+
+        if decision is ZoneAutoImport.SKIP:
+            return False
+
+        if decision is ZoneAutoImport.ASK and not self._confirm_foreign_zone_import(
+            video_path, candidates
+        ):
+            self._declined_zone_autoimport.add(key)
+            log.info("dialog_manager.zone_self_import.declined_by_user", video=key)
+            return False
+
+        try:
+            imported = pm.import_zone_data_from_video_parquets(video_path, candidates=candidates)
+        # except Exception justified: leitura de parquet de usuário pode
+        # falhar por corrupção; cai no fluxo de reuso normal.
+        except Exception:
+            log.warning(
+                "dialog_manager.zone_self_import.failed",
+                video=key,
+                exc_info=True,
+            )
+            return False
+
+        if not imported:
+            return False
+
+        # ``save_project`` levanta ProjectInvalidError sem ``project_path``, e o
+        # fluxo de vídeo único chega aqui exatamente assim: sem projeto, com os
+        # parquets ao lado do .mp4. As zonas já estão em memória e é lá que esse
+        # fluxo as usa — não há para onde persistir, e estourar depois de um
+        # import bem-sucedido derrubaria o duplo-clique.
+        if getattr(pm, "project_path", None):
+            pm.save_project()
+
+        status_message = _('Zones loaded from the files of video "{name}".').format(
+            name=os.path.basename(key)
+        )
+        self.gui.set_status(status_message)
+        self._publish_zone_refresh(
+            status_message, source="DialogManager.offer_zone_reuse.self_import"
+        )
+
+        if decision is ZoneAutoImport.ASK:
+            # Só avisa quando as zonas vieram de FORA: no caso do projeto (live,
+            # reprocessamento) elas já são as do próprio experimento e um alerta
+            # a cada duplo-clique vira ruído que se aprende a ignorar.
+            self.show_warning(
+                _("Zones imported from a previous analysis"),
+                _(
+                    'The zones saved in the folder of "{name}" were loaded.\n\n'
+                    "Check that the outlines match this video before starting the "
+                    "analysis: an arena from another recording still produces a "
+                    "complete report, measured against the wrong region."
+                ).format(name=os.path.basename(key)),
+            )
+
+        return True
+
     def offer_zone_reuse(self, video_path: Path | str) -> None:
         """Prompt user to reuse the last zones when the current video has none.
 
@@ -1395,56 +1563,13 @@ class DialogManager:
         if pm.has_zone_data(video_path):
             return
 
-        # O próprio vídeo pode já ter os parquets de zona na pasta da sessão
-        # (gravações live salvam 1_ProcessingArea_*/2_AreasOfInterest_* junto
-        # do MP4, mas o registro de zonas fica sob a chave do frame de
-        # referência). Importa silenciosamente em vez de oferecer reuso.
-        try:
-            imported = pm.import_zone_data_from_video_parquets(video_path)
-        # except Exception justified: leitura de parquet de usuário pode
-        # falhar por corrupção; cai no fluxo de reuso normal.
-        except Exception:
-            log.warning(
-                "dialog_manager.zone_self_import.failed",
-                video=str(video_path),
-                exc_info=True,
-            )
-            imported = False
-
-        if imported:
-            pm.save_project()
-            status_message = _('Zones loaded from the files of video "{name}".').format(
-                name=os.path.basename(video_path)
-            )
-            self.gui.set_status(status_message)
-            if self.event_bus_v2:
-                from zebtrack.ui import payloads
-                from zebtrack.ui.event_bus_v2 import Event, UIEvents
-
-                self.event_bus_v2.publish(
-                    Event(
-                        type=UIEvents.ZONES_UPDATED,
-                        data=payloads.ZonesUpdatedPayload(zone_data=None),
-                        source="DialogManager.offer_zone_reuse.self_import",
-                    )
-                )
-                self.event_bus_v2.publish(
-                    Event(
-                        type=UIEvents.VIDEO_TREE_REFRESH_REQUESTED,
-                        data=payloads.VideoTreeRefreshRequestedPayload(filter_text=None),
-                        source="DialogManager.offer_zone_reuse.self_import",
-                    )
-                )
-                self.event_bus_v2.publish(
-                    Event(
-                        type=UIEvents.PROJECT_VIEWS_REFRESH_REQUESTED,
-                        data=payloads.ProjectViewsRefreshRequestedPayload(
-                            reason=status_message,
-                            append_summary=True,
-                        ),
-                        source="DialogManager.offer_zone_reuse.self_import",
-                    )
-                )
+        # O próprio vídeo pode já ter parquets de zona em disco. Se eles são do
+        # PROJETO (pasta da sessão live, ou uma execução anterior deste mesmo
+        # projeto), carregar em silêncio é o certo. Se vieram de fora — um
+        # estudo anterior ao lado do .mp4 —, quem decide é o operador, e uma
+        # recusa registrada no wizard já é decisão tomada. Regra em
+        # ``core.services.zone_autoimport_policy``.
+        if self._handle_zone_self_import(video_path):
             return
 
         last_video_with_zones = pm.get_last_zone_video(exclude=video_path)

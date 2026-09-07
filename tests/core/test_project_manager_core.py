@@ -234,3 +234,86 @@ def test_get_completed_sessions_without_groups_returns_raw(project_manager):
         return_value=raw,
     ):
         assert project_manager.get_completed_sessions() == raw
+
+
+# ---------------------------------------------------------------------------
+# detection_zones: espelho global do save por vídeo
+# ---------------------------------------------------------------------------
+#
+# ``detection_zones`` é o default do projeto que ``get_zone_data(
+# fallback_to_global=True)`` serve a qualquer vídeo sem zonas próprias.
+# Espelhar TODO save por vídeo nele é o que transformava a arena de um vídeo na
+# arena de todos os outros. Live continua precisando do espelho (uma câmera, uma
+# arena, e o .mp4 gravado não tem chave própria); pré-gravado, não.
+
+
+def _zone(polygon):
+    from zebtrack.core.detection import ZoneData
+
+    return ZoneData(polygon=list(polygon), roi_polygons=[], roi_names=[], roi_colors=[])
+
+
+ARENA_A = [[0, 0], [10, 0], [10, 10], [0, 10]]
+ARENA_B = [[5, 5], [20, 5], [20, 20], [5, 20]]
+
+
+def test_prerecorded_per_video_save_does_not_rewrite_global_default(project_manager):
+    """Projeto pré-gravado: salvar zonas de um vídeo não toca o default global."""
+    project_manager.project_data["project_type"] = "pre-recorded"
+
+    project_manager.save_zone_data(_zone(ARENA_A), "video_a.mp4", persist=False)
+
+    assert project_manager.project_data["detection_zones"] == {}
+    stored = project_manager.get_zone_data("video_a.mp4", fallback_to_global=False)
+    assert stored.polygon == ARENA_A
+
+
+def test_prerecorded_second_video_does_not_inherit_the_first_arena(project_manager):
+    """A regressão em si: abrir o vídeo B não pode devolver a arena do vídeo A.
+
+    Antes, o save de A escrevia ``detection_zones`` e o fallback global entregava
+    aquela geometria para B — a análise rodava e o relatório saía completo,
+    medido contra a arena errada.
+    """
+    project_manager.project_data["project_type"] = "pre-recorded"
+    project_manager.save_zone_data(_zone(ARENA_A), "video_a.mp4", persist=False)
+
+    inherited = project_manager.get_zone_data("video_b.mp4", fallback_to_global=True)
+
+    assert not inherited.polygon
+
+
+def test_live_project_still_mirrors_zones_into_the_global_default(project_manager):
+    """Contrato do fluxo live: uma arena para o projeto inteiro.
+
+    As zonas ficam sob a chave do ``live_camera_reference_frame.png`` e os
+    ``.mp4`` gravados não têm chave própria, então ``ZoneContextService``,
+    ``ValidationManager`` e a grade de sessões planejadas leem o global. Sem o
+    espelho, um projeto live esqueceria a calibração.
+    """
+    project_manager.project_data["project_type"] = "live"
+
+    project_manager.save_zone_data(_zone(ARENA_B), "live_camera_reference_frame.png", persist=False)
+
+    assert project_manager.project_data["detection_zones"]["polygon"] == ARENA_B
+    recorded = project_manager.get_zone_data("sessao_gravada.mp4", fallback_to_global=True)
+    assert recorded.polygon == ARENA_B
+
+
+def test_project_without_declared_type_keeps_legacy_mirror(project_manager):
+    """Vídeo único e live ad-hoc rodam sem ``project_type``: comportamento intacto."""
+    project_manager.project_data.pop("project_type", None)
+
+    project_manager.save_zone_data(_zone(ARENA_A), "avulso.mp4", persist=False)
+
+    assert project_manager.project_data["detection_zones"]["polygon"] == ARENA_A
+
+
+def test_save_without_target_video_is_still_the_global_save(project_manager):
+    """Sem vídeo alvo o save É o global — inclusive em projeto pré-gravado."""
+    project_manager.project_data["project_type"] = "pre-recorded"
+    project_manager.zone_manager.set_active_zone_video(project_manager.project_data, None)
+
+    project_manager.save_zone_data(_zone(ARENA_B), None, persist=False)
+
+    assert project_manager.project_data["detection_zones"]["polygon"] == ARENA_B

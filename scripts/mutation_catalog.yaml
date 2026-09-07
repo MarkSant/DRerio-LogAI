@@ -367,3 +367,33 @@ modules:
         description: "limiar 0 explicito vira ausente por checagem de truthiness"
         find: 'if isinstance(nested, dict) and nested.get("sharp_turn_threshold") is not None:'
         replace: 'if isinstance(nested, dict) and nested.get("sharp_turn_threshold"):'
+
+  zone_autoimport_policy:
+    source: src/zebtrack/core/services/zone_autoimport_policy.py
+    tests:
+      - tests/core/services/test_zone_autoimport_policy.py
+    mutations:
+      - id: declined-wizard-import-happens-anyway
+        description: "recusa registrada no wizard deixa de bloquear: o vazamento original volta"
+        find: 'if declined:'
+        replace: 'if False:'
+      - id: absent-record-read-as-refusal
+        description: "'nunca perguntado' passa por recusa e o projeto legado para de perguntar"
+        find: 'declined = wizard_import_declined(project_data, video_path)'
+        replace: 'declined = wizard_import_declined(project_data, video_path) is not False'
+      - id: foreign-parquets-imported-silently
+        description: "arquivos de fora do projeto voltam a ser adotados sem perguntar"
+        find: 'return ZoneAutoImport.ASK'
+        replace: 'return ZoneAutoImport.AUTO'
+      - id: no-candidates-tries-to-import
+        description: "sem parquets em disco a decisao deixa de ser SKIP"
+        find: |-
+          if not candidates:
+                  return ZoneAutoImport.SKIP
+        replace: |-
+          if not candidates:
+                  return ZoneAutoImport.AUTO
+      - id: sibling-directory-counts-as-inside
+        description: "prefixo cru: Projeto_backup passa por dentro de Projeto e ganha import silencioso"
+        find: 'root_norm + os.sep if not root_norm.endswith(os.sep) else root_norm'
+        replace: 'root_norm'

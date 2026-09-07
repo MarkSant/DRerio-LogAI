@@ -15568,3 +15568,41 @@ msgstr "⚠️ Memória disponível muito baixa. Feche outras aplicações imedi
 
 #~ msgid "The intervals must be positive whole numbers."
 #~ msgstr "Os intervalos devem ser números inteiros positivos."
+
+#: src/zebtrack/ui/components/dialog_manager.py:0
+msgid "Zones found outside the project"
+msgstr "Zonas encontradas fora do projeto"
+
+#: src/zebtrack/ui/components/dialog_manager.py:0
+#, python-brace-format
+msgid ""
+"The folder of video \"{name}\" already contains zones saved by a previous analysis:\n"
+"\n"
+"{origin}\n"
+"\n"
+"These zones are not part of this project and were not imported when it was created.\n"
+"\n"
+"Choose \"Yes\" to load them, or \"No\" to define the zones yourself."
+msgstr ""
+"A pasta do vídeo \"{name}\" já contém zonas salvas por uma análise anterior:\n"
+"\n"
+"{origin}\n"
+"\n"
+"Essas zonas não fazem parte deste projeto e não foram importadas quando ele foi criado.\n"
+"\n"
+"Escolha \"Sim\" para carregá-las, ou \"Não\" para definir as zonas você mesmo."
+
+#: src/zebtrack/ui/components/dialog_manager.py:0
+msgid "Zones imported from a previous analysis"
+msgstr "Zonas importadas de uma análise anterior"
+
+#: src/zebtrack/ui/components/dialog_manager.py:0
+#, python-brace-format
+msgid ""
+"The zones saved in the folder of \"{name}\" were loaded.\n"
+"\n"
+"Check that the outlines match this video before starting the analysis: an arena from another recording still produces a complete report, measured against the wrong region."
+msgstr ""
+"As zonas salvas na pasta de \"{name}\" foram carregadas.\n"
+"\n"
+"Confira se os contornos correspondem a este vídeo antes de iniciar a análise: uma arena de outra gravação ainda produz um relatório completo, medido contra a região errada."

@@ -171,29 +171,26 @@ class ParquetIOManager:
                     break
         return found
 
-    def import_zone_data_from_video_parquets(
+    def resolve_zone_parquet_candidates(
         self,
         video_path: Path | str,
         *,
         project_path: Path | str | None,
         find_video_entry_fn: Callable[..., dict | None],
         resolve_results_directory_fn: Callable[..., Path],
-        get_zone_data_fn: Callable,
-        save_zone_data_fn: Callable,
-    ) -> bool:
-        """Importa zonas dos parquets já existentes do PRÓPRIO vídeo.
+    ) -> dict[str, str]:
+        """Localiza os parquets de zona que PODERIAM ser importados p/ *video_path*.
 
-        Vídeos gravados ao vivo já possuem ``1_ProcessingArea_*`` /
-        ``2_AreasOfInterest_*`` na pasta da sessão (o recorder os salva
-        durante a gravação), mas o registro de zonas em memória fica sob a
-        chave do frame de referência. Este método reconhece esses arquivos e
-        os carrega como ZoneData do vídeo, evitando o prompt de reutilização.
+        Extraído de ``import_zone_data_from_video_parquets`` para que a decisão
+        de importar (``core.services.zone_autoimport_policy``) possa examinar a
+        PROCEDÊNCIA dos arquivos antes de qualquer leitura. Enquanto a busca
+        ficou embutida no import, a origem — pasta do projeto ou pasta de um
+        estudo anterior ao lado do ``.mp4`` — era invisível para quem decidia, e
+        a única regra possível era "achou, importa".
 
         Returns:
-            True quando arena e/ou ROIs foram importadas.
+            Mapa ``{"arena": path, "rois": path}`` com as chaves encontradas.
         """
-        import pandas as pd  # Lazy import to avoid loading pandas during startup
-
         video_path = str(Path(video_path) if isinstance(video_path, str) else video_path)
         source_entry = find_video_entry_fn(path=video_path)
 
@@ -213,6 +210,54 @@ class ParquetIOManager:
             )
             for key, value in located.items():
                 candidates.setdefault(key, value)
+
+        return candidates
+
+    def import_zone_data_from_video_parquets(
+        self,
+        video_path: Path | str,
+        *,
+        project_path: Path | str | None,
+        find_video_entry_fn: Callable[..., dict | None],
+        resolve_results_directory_fn: Callable[..., Path],
+        get_zone_data_fn: Callable,
+        save_zone_data_fn: Callable,
+        candidates: dict[str, str] | None = None,
+    ) -> bool:
+        """Importa zonas dos parquets já existentes do PRÓPRIO vídeo.
+
+        Vídeos gravados ao vivo já possuem ``1_ProcessingArea_*`` /
+        ``2_AreasOfInterest_*`` na pasta da sessão (o recorder os salva
+        durante a gravação), mas o registro de zonas em memória fica sob a
+        chave do frame de referência. Este método reconhece esses arquivos e
+        os carrega como ZoneData do vídeo, evitando o prompt de reutilização.
+
+        Este método NÃO decide se a importação é permitida — quem chama já
+        decidiu, via ``zone_autoimport_policy.decide_zone_autoimport``. Chamá-lo
+        direto importa incondicionalmente, que é o comportamento correto para os
+        fluxos sem projeto (vídeo único, live ad-hoc).
+
+        Args:
+            candidates: Parquets já localizados por
+                ``resolve_zone_parquet_candidates``. Passe-os quando a decisão
+                foi tomada sobre eles, para que a importação não redescubra um
+                conjunto diferente entre a pergunta e a resposta do usuário.
+
+        Returns:
+            True quando arena e/ou ROIs foram importadas.
+        """
+        import pandas as pd  # Lazy import to avoid loading pandas during startup
+
+        video_path = str(Path(video_path) if isinstance(video_path, str) else video_path)
+        source_entry = find_video_entry_fn(path=video_path)
+
+        if candidates is None:
+            candidates = self.resolve_zone_parquet_candidates(
+                video_path,
+                project_path=project_path,
+                find_video_entry_fn=find_video_entry_fn,
+                resolve_results_directory_fn=resolve_results_directory_fn,
+            )
 
         if not candidates:
             return False
