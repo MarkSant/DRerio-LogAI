@@ -224,3 +224,83 @@ jobs:
           path: |
             .mutmut-cache
             mutmut-summary.txt
+
+  # The curated catalogue, whole. CI runs it per PR scoped to the modules the
+  # diff touches (scripts/mutation_check.py --changed-since), which is exact for
+  # a defect introduced in the module itself but blind to one that arrives
+  # through a shared dependency: a fixture, a settings default, a helper every
+  # module imports. This job is where that blind spot gets closed, once a night,
+  # off the PR critical path. Unlike the mutmut job above it is NOT
+  # continue-on-error -- a survivor here is a named hole in the tests, and the
+  # failure opens an issue.
+  mutation-catalogue:
+    name: Curated Mutation Catalogue (--all)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+
+      # The catalogue drives tests that build Tk widgets and read video files;
+      # without a display and a decoder they fail for reasons that have nothing
+      # to do with the mutation, and every mutation would report as "killed".
+      - name: Install system dependencies
+        env:
+          DEBIAN_FRONTEND: noninteractive
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends xvfb ffmpeg libavcodec-extra
+
+      - name: Install Poetry
+        run: |
+          curl -sSL https://install.python-poetry.org | python3 -
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+      - name: Install dependencies
+        run: poetry install --no-interaction
+
+      - name: Build wizard template archive
+        run: poetry run python scripts/build_templates.py
+
+      - name: Compile translations
+        run: poetry run python scripts/compile_translations.py
+
+      - name: Run the curated mutation catalogue
+        run: |
+          xvfb-run --auto-servernum poetry run python scripts/mutation_check.py \
+            --all --json mutation-catalogue.json
+
+      - name: Upload mutation catalogue report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: mutation-catalogue-report
+          path: mutation-catalogue.json
+
+      - name: Create issue on failure
+        if: failure()
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const issue = await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: 'Nightly Mutation Catalogue Failed - surviving mutations',
+              body: `## Curated mutation catalogue\n\n` +
+                    `**Workflow:** ${context.workflow}\n` +
+                    `**Run:** ${context.runNumber}\n` +
+                    `**Commit:** ${context.sha}\n\n` +
+                    `A mutation survived, or the run could not be trusted. Each survivor is a ` +
+                    `missing test: add the test, never delete the mutation ` +
+                    `(docs/testing/MUTATION_BASELINE.md).\n\n` +
+                    `The per-mutation verdicts are in the \`mutation-catalogue-report\` artifact.\n\n` +
+                    `[View workflow run](${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})`,
+              labels: ['stress-test-failure', 'needs-investigation', 'test-quality'],
+              assignees: []
+            });

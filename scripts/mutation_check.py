@@ -13,6 +13,7 @@ in the tests, not a bug in the code.
 Usage::
 
     python scripts/mutation_check.py --all
+    python scripts/mutation_check.py --changed-since origin/main
     python scripts/mutation_check.py --module mask_capture
     python scripts/mutation_check.py --list
     python scripts/mutation_check.py --all --json report.json
@@ -40,6 +41,19 @@ CATALOG_PATH = REPO_ROOT / "scripts" / "mutation_catalog.yaml"
 # pytest prints "3 failed, 12 passed in 4.20s". Coverage totals and rerun lines
 # also contain numbers, so anchor on the words pytest uses for outcomes.
 _OUTCOME_RE = re.compile(r"(\d+) (passed|failed|error|errors)")
+
+# Touching any of these invalidates the file-to-module reasoning ``--changed-since``
+# is built on, so the scope widens back to the whole catalogue:
+#   - the runner and the catalogue decide what a mutation even is;
+#   - the root conftest owns the autouse fixtures every module's tests run under,
+#     and one neutered fixture can hide a defect in a module the diff never named.
+_SCOPE_FORCING_PATHS = frozenset(
+    {
+        "scripts/mutation_check.py",
+        "scripts/mutation_catalog.yaml",
+        "tests/conftest.py",
+    }
+)
 
 
 @dataclass
@@ -204,6 +218,111 @@ def _verify_tree_restored(specs: dict[str, Any]) -> list[str]:
     return [line[3:].strip() for line in completed.stdout.splitlines() if line.strip()]
 
 
+def _git(*args: str) -> tuple[int, str]:
+    """Run git in the repository and return (exit code, stdout)."""
+    completed = subprocess.run(
+        ["git", *args],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+    )
+    return completed.returncode, completed.stdout
+
+
+def _changed_paths(ref: str) -> set[str] | None:
+    """Repo-relative paths this working tree changes against ``ref``.
+
+    ``None`` means git could not answer -- an unfetched base on a shallow CI
+    clone is the usual cause. The caller must then run everything: a scoped
+    check that silently scopes itself to nothing is worse than no check, because
+    it still reports success.
+
+    Three dots first, so commits that landed on the base after the fork point do
+    not drag in modules this branch never touched. Two dots is the shallow
+    fallback: without the merge base git cannot subtract those commits, and
+    over-selecting runs extra modules rather than skipping the one that matters.
+    Uncommitted work is folded in so the flag is usable before the commit exists.
+    """
+    code, out = _git("diff", "--name-only", f"{ref}...HEAD")
+    if code != 0:
+        code, out = _git("diff", "--name-only", ref)
+    if code != 0:
+        return None
+
+    paths = {line.strip() for line in out.splitlines() if line.strip()}
+
+    status_code, status_out = _git("status", "--porcelain")
+    if status_code == 0:
+        for line in status_out.splitlines():
+            entry = line[3:].strip()
+            if not entry:
+                continue
+            # A rename reads "old -> new"; the new path is the one to match.
+            paths.add(entry.split(" -> ")[-1].strip('"'))
+
+    # git reports POSIX separators, but a status entry may arrive quoted on
+    # Windows; normalise so comparison against the catalogue cannot miss.
+    return {path.replace("\\", "/") for path in paths if path}
+
+
+def _scope_to_changed(specs: dict[str, Any], ref: str) -> dict[str, Any]:
+    """Narrow the catalogue to the modules a diff against ``ref`` can affect.
+
+    A mutation only proves something about the module it patches, so a change
+    touching neither a module's source nor its tests cannot change that module's
+    verdict. Drift arriving through a shared dependency is what the nightly
+    ``--all`` run in ``stress-tests.yml`` is for.
+    """
+    changed = _changed_paths(ref)
+    if changed is None:
+        print(f"changed-since: git cannot diff against {ref!r} -- running every module")
+        return specs
+
+    forcing = sorted(changed & _SCOPE_FORCING_PATHS)
+    if forcing:
+        print(f"changed-since: {', '.join(forcing)} changed -- running every module")
+        return specs
+
+    selected = {
+        name: spec for name, spec in specs.items() if changed & {spec["source"], *spec["tests"]}
+    }
+    print(
+        f"changed-since {ref}: {len(changed)} file(s) changed, "
+        f"{len(selected)}/{len(specs)} module(s) affected"
+        + (f" -- {', '.join(selected)}" if selected else "")
+    )
+    return selected
+
+
+def _write_json(path: Path, reports: list[ModuleReport]) -> None:
+    """Write the machine-readable report, including for an empty selection."""
+    killed = sum(1 for report in reports for result in report.results if result.killed)
+    total = sum(len(report.results) for report in reports)
+    path.write_text(
+        json.dumps(
+            {
+                "score": {"killed": killed, "total": total},
+                "results": [
+                    {
+                        "module": result.module,
+                        "mutation": result.mutation_id,
+                        "description": result.description,
+                        "killed": result.killed,
+                        "note": result.note,
+                    }
+                    for report in reports
+                    for result in report.results
+                ],
+                "skipped": {r.name: r.skipped_reason for r in reports if r.skipped_reason},
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
         description=__doc__,
@@ -211,6 +330,11 @@ def main() -> int:
     )
     parser.add_argument("--all", action="store_true", help="run every module in the catalogue")
     parser.add_argument("--module", action="append", default=[], help="run one module (repeatable)")
+    parser.add_argument(
+        "--changed-since",
+        metavar="REF",
+        help="run only the modules whose source or tests differ from REF (implies --all)",
+    )
     parser.add_argument("--list", action="store_true", help="list the catalogue and exit")
     parser.add_argument("--json", type=Path, help="write a machine-readable report here")
     parser.add_argument("--verbose", action="store_true", help="print pytest output for survivors")
@@ -227,17 +351,30 @@ def main() -> int:
                 print(f"    - {mutation['id']}: {mutation['description']}")
         return 0
 
+    if args.module and args.changed_since:
+        print("--module and --changed-since select differently; pass one", file=sys.stderr)
+        return 2
+
     if args.module:
         unknown = [m for m in args.module if m not in specs]
         if unknown:
             print(f"unknown module(s): {', '.join(unknown)}", file=sys.stderr)
             return 2
         selected = {m: specs[m] for m in args.module}
+    elif args.changed_since:
+        selected = _scope_to_changed(specs, args.changed_since)
     elif args.all:
         selected = specs
     else:
         parser.print_help()
         return 2
+
+    if not selected:
+        # Not a silent pass: the line above already named the diff it looked at.
+        print("nothing to mutate -- no catalogued module is affected by this change")
+        if args.json:
+            _write_json(args.json, [])
+        return 0
 
     reports = [_check_module(name, spec, verbose=args.verbose) for name, spec in selected.items()]
 
@@ -269,27 +406,7 @@ def main() -> int:
         return 2
 
     if args.json:
-        args.json.write_text(
-            json.dumps(
-                {
-                    "score": {"killed": killed, "total": total},
-                    "results": [
-                        {
-                            "module": result.module,
-                            "mutation": result.mutation_id,
-                            "description": result.description,
-                            "killed": result.killed,
-                            "note": result.note,
-                        }
-                        for report in reports
-                        for result in report.results
-                    ],
-                    "skipped": {r.name: r.skipped_reason for r in reports if r.skipped_reason},
-                },
-                indent=2,
-            ),
-            encoding="utf-8",
-        )
+        _write_json(args.json, reports)
 
     return 1 if survivors else 0
 
