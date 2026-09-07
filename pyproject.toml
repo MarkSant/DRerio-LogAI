@@ -62,6 +62,7 @@ pygrabber = {version = "^0.2", markers = "sys_platform == 'win32'"}
 
 [tool.poetry.scripts]
 zebtrack = "zebtrack.__main__:main"
+fetch-weights = "zebtrack.fetch_weights:main"
 
 [tool.poetry.group.dev.dependencies]
 ruff = "^0.12.9"

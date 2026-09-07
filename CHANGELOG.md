@@ -9,6 +9,52 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Os pesos nao existiam para ninguem alem do autor
+
+Os quatro modelos treinados que o app precisa para ABRIR sao gitignored
+(`.gitignore`: `*.pt`, `weights/`) e nada no repositorio dizia como obte-los.
+Um clone limpo instalava, passava a suite inteira -- que mocka os pesos -- e
+so entao falhava ao abrir. O CI nunca pegou porque nunca importa o app: ele
+roda pytest, ruff e mypy, e nenhum deles precisa de um `.pt`.
+
+`poetry run fetch-weights` fecha esse buraco. Le `weights_manifest.json`, baixa
+o que falta do release nomeado ali e confere cada byte contra um SHA-256
+gravado. Sem dependencia nova: `urllib.request` e `hashlib` da stdlib bastam
+para assets de release de um repositorio publico -- `requests` so existe aqui
+como dependencia transitiva do ultralytics, e depender disso seria fragil.
+
+Detalhes que nao sao acidentais:
+
+- **O download so vira arquivo final depois de conferido.** Ele cai em
+  `<nome>.part` e so entao e renomeado. Um download interrompido ou corrompido
+  que se passasse por peso valida apareceria muito depois como deteccao
+  silenciosamente ruim, nao como erro.
+- **Os nomes precisam casar com os globs da descoberta.**
+  `WeightManager.discover_perspective_weights()` so reconhece
+  `best_*_lateral.pt` e `best_*_topdown.pt`. Um peso baixado com outro nome
+  seria ignorado pelo catalogo -- indistinguivel de nao ter baixado.
+- **Release proprio, nao a tag do app.** Os assets ficam em `weights-v1`, uma
+  tag estavel referenciada pelo manifesto, para que `v6.4.0` nao precise
+  reenviar 200 MB e o script nao quebre a cada release.
+- **Os dois pesos legados sao opcionais.** `best_seg.pt` e `best_oi.pt` nao sao
+  auto-descobertos e ficam atras de `--all`. O bundle obrigatorio sao os quatro
+  de perspectiva (202 MiB): um `seg` e um `det` para cada uma, porque um modelo
+  lateral numa cena top-down devolve zero poligonos.
+- **A saida fica em ingles, sem `_()`.** O script roda antes de o app ter
+  iniciado alguma vez, logo antes do prompt de idioma de primeira execucao --
+  nao ha idioma escolhido a respeitar. Mesmo precedente dos dialogos fatais de
+  configuracao em `core/app_runner.py`.
+
+`--check` verifica sem baixar e devolve 1 se falta algo, entao serve de gate.
+`--generate-manifest` e o passo do mantenedor: reconstroi os hashes a partir de
+um `weights/` conhecido.
+
+**`yolo_model.path` apontava para um peso que o bundle nao entrega.** Ele
+nomeava `best_seg.pt`, legado, entao mesmo uma maquina corretamente provisionada
+logava `yolo_model.path.not_found` a cada inicializacao. Um falso alarme
+permanente treina todo mundo a ignorar justamente o aviso que significa que os
+pesos sumiram de verdade. Agora aponta para `best_seg_lateral.pt`.
+
 ### O diretorio de trabalho decidia se o app achava a propria configuracao
 
 `load_settings()` tinha como default `Path("config.yaml")` -- relativo ao
