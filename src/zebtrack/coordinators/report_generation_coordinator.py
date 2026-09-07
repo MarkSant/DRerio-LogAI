@@ -716,7 +716,7 @@ class ReportGenerationCoordinator(BaseCoordinator, UnifiedReportMixin):
 
         self.project_manager.set_active_zone_video(path)
         try:
-            zone_data = self.project_manager.get_zone_data(video_path=path)
+            zone_data = self._resolve_summary_zone_data(path, res_dir)
             calib = self.project_manager.project_data.get("calibration", {}) or {}
             px_x, px_y, poly_warped, video_h, rois, colors, cal = self._prepare_summary_geometry(
                 list(zone_data.polygon or []),
@@ -1034,6 +1034,66 @@ class ReportGenerationCoordinator(BaseCoordinator, UnifiedReportMixin):
         if w <= 0 or h <= 0:  # pragma: no cover
             return None  # pragma: no cover
         return frame[y : y + h, x : x + w].copy()  # pragma: no cover
+
+    def _resolve_summary_zone_data(self, path: Path | str, res_dir: Path | str) -> ZoneData:
+        """Zonas para o sumário deste vídeo: projeto primeiro, disco depois.
+
+        Por que existe o segundo nível
+        ------------------------------
+        Uma sessão AO VIVO é gravada sob a chave de zonas do *reference frame*
+        (``live_camera_reference_frame.png``), não sob o caminho do ``.mp4`` que
+        ela produz. Este método é chamado com o ``.mp4``, que não tem chave
+        própria, então a busca cai no ``detection_zones`` global — e num projeto
+        ao vivo esse global costuma estar VAZIO.
+
+        O resultado, medido num projeto real: o ``.xlsx`` individual saía com 85
+        colunas e as métricas por ROI completas (tempo, entradas, latência,
+        distância), enquanto o ``_summary.parquet`` da mesma sessão saía com 43
+        colunas e NENHUMA. Como o relatório unificado agrega os sumários, as
+        zonas sumiam do parcial e do total — sem erro, sem aviso, só ausentes.
+
+        Os dados nunca faltaram: o ``2_AreasOfInterest_<exp>.parquet`` gravado na
+        própria pasta da sessão tinha as ROIs o tempo todo. É ele que este
+        fallback lê, pelo mesmo leitor que o resto do app usa
+        (``ZoneManager.load_zones_from_parquet``).
+
+        Ler da pasta da sessão é também o comportamento mais correto, não só o
+        mais conveniente: aquele parquet registra as zonas com que a gravação
+        REALMENTE rodou. Redesenhar as ROIs amanhã não deve reescrever o
+        relatório de hoje.
+        """
+        zone_data = self.project_manager.get_zone_data(video_path=path)
+        if zone_data and (zone_data.roi_polygons or zone_data.polygon):
+            return zone_data
+
+        results_path = Path(res_dir)
+        arena = sorted(results_path.glob("1_ProcessingArea_*.parquet"))
+        rois = sorted(results_path.glob("2_AreasOfInterest_*.parquet"))
+        if not arena and not rois:
+            return zone_data
+
+        from zebtrack.core.project.zone_manager import ZoneManager
+
+        from_disk = ZoneManager.load_zones_from_parquet(
+            {
+                "path": str(path),
+                "parquet_files": {
+                    "arena": str(arena[0]) if arena else None,
+                    "rois": str(rois[0]) if rois else None,
+                },
+            }
+        )
+        if from_disk is None:
+            return zone_data
+
+        log.info(
+            "report_generation.summary_zones.from_session_folder",
+            video=str(path),
+            polygon_points=len(from_disk.polygon or []),
+            roi_count=len(from_disk.roi_polygons or []),
+            roi_names=list(from_disk.roi_names or []),
+        )
+        return from_disk
 
     def _prepare_summary_geometry(
         self,
