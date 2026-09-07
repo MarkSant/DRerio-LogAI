@@ -1,7 +1,7 @@
 {
   "manifest_version": 1,
   "repository": "MarkSant/DRerio-LogAI",
-  "release_tag": "weights-v1",
+  "release_tag": "v7.0.0",
   "files": [
     {
       "name": "best_det_lateral.pt",

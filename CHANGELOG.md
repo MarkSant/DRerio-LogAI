@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [7.0.0] - 2026-09-07
+
+Primeiro release **publico** e primeiro objeto citavel: e desta tag que sai o
+DOI do Zenodo. A ultima tag publicada foi a `v6.2.0`, entao tudo o que a 6.3.0
+registrou chega aos usuarios aqui tambem.
+
+O salto de maior vem do contrato de instalacao, nao do tamanho do diff:
+`poetry run fetch-weights` passou a ser um passo **obrigatorio** -- quem seguir
+uma instrucao de 6.x nao consegue abrir o programa --, `--reset` passou a apagar
+de fato o que promete, e `config.yaml`, `weights/` e os caches deixaram de ser
+resolvidos contra o diretorio de trabalho.
+
 ### Metadados de citacao e licenca alinhados com a tag que vai virar DOI
 
 Cinco lugares declaravam a versao, e so dois estavam certos. `pyproject.toml` e
@@ -149,9 +161,11 @@ Detalhes que nao sao acidentais:
   `WeightManager.discover_perspective_weights()` so reconhece
   `best_*_lateral.pt` e `best_*_topdown.pt`. Um peso baixado com outro nome
   seria ignorado pelo catalogo -- indistinguivel de nao ter baixado.
-- **Release proprio, nao a tag do app.** Os assets ficam em `weights-v1`, uma
-  tag estavel referenciada pelo manifesto, para que `v6.4.0` nao precise
-  reenviar 200 MB e o script nao quebre a cada release.
+- **Os assets ficam no release da versao, e o manifesto fixa essa tag.** Nao ha
+  release separado so para pesos: criar um cunharia um DOI a mais, e o Zenodo
+  arquiva o tarball do FONTE da tag, nao os assets -- o record resultante teria
+  codigo, nao pesos. Versoes seguintes nao precisam reenviar 200 MB: o manifesto
+  continua apontando para a tag onde os pesos moram, ate que eles mudem.
 - **Os dois pesos legados sao opcionais.** `best_seg.pt` e `best_oi.pt` nao sao
   auto-descobertos e ficam atras de `--all`. O bundle obrigatorio sao os quatro
   de perspectiva (202 MiB): um `seg` e um `det` para cada uma, porque um modelo
