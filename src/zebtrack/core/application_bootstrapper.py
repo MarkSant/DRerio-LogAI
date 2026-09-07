@@ -33,6 +33,7 @@ from zebtrack.coordinators.dialog_coordinator import DialogCoordinator
 # Phase 3A/3B/3C/3D: Removed imports for superseded orchestrators
 from zebtrack.coordinators.ui_state_coordinator import UIStateController
 from zebtrack.core.dependency_container import MainViewModelDependencies
+from zebtrack.core.exceptions import MissingDetectorWeightsError
 from zebtrack.core.project.project_service import ProjectService
 from zebtrack.core.video.batch_configuration_service import BatchConfigurationService
 from zebtrack.core.video.video_classification_service import VideoClassificationService
@@ -41,6 +42,7 @@ from zebtrack.core.video.video_validation_service import VideoValidationService
 from zebtrack.i18n import _
 from zebtrack.io.arduino_manager import ArduinoManager
 from zebtrack.io.recorder import Recorder
+from zebtrack.settings import expected_weight_filenames
 from zebtrack.ui.components.event_dispatcher import EventDispatcher
 from zebtrack.ui.gui import ApplicationGUI
 from zebtrack.ui.project_workflow_adapter import ProjectWorkflowAdapter
@@ -246,12 +248,17 @@ class ApplicationBootstrapper:
         # New state variables for model management (must exist before view)
         default_weight, _weight_meta = self._safe_get_default_weight()
 
-        # Raise exception if no valid weight is available
+        # Raise exception if no valid weight is available.
+        #
+        # Typed rather than a bare RuntimeError: run_app() catches this one
+        # specifically to show a dialog that names the folder and the remedy.
+        # A RuntimeError fell through to the blanket handler, which told the
+        # user only "a fatal error occurred, see the log" -- for by far the most
+        # likely failure on a fresh clone.
         if not isinstance(default_weight, str) or not default_weight:
-            raise RuntimeError(
-                "No valid detector weight available. Cannot initialize application. "
-                "Please ensure at least one .pt or .onnx file is in the 'models/' directory."
-            )
+            weight_manager = self.deps.weight_manager
+            weights_dir = str(getattr(weight_manager, "weights_dir", "weights"))
+            raise MissingDetectorWeightsError(weights_dir, expected_weight_filenames(self.settings))
 
         active_weight_name = default_weight
 

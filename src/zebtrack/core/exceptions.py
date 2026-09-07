@@ -116,6 +116,35 @@ class ModelLoadError(DetectorError):
     pass
 
 
+class MissingDetectorWeightsError(DetectorError):
+    """No detector weight file is installed, so the application cannot start.
+
+    Distinct from :class:`ModelLoadError`, which means a weight was found and
+    refused to load. Here there is nothing to load at all -- the ``weights/``
+    folder is empty because the ``.pt`` files are not in git and were never
+    fetched.
+
+    Carries the folder and the expected filenames so the startup boundary can
+    tell the user *what* is missing and *where*, instead of the generic "a fatal
+    error occurred, see the log" that this condition used to produce.
+    """
+
+    def __init__(
+        self,
+        weights_dir: Path | str,
+        expected: tuple[str, ...] = (),
+        details: dict | None = None,
+    ) -> None:
+        self.weights_dir = Path(weights_dir) if isinstance(weights_dir, str) else weights_dir
+        self.expected = expected
+        listing = ", ".join(expected) if expected else "best_*_lateral.pt / best_*_topdown.pt"
+        super().__init__(
+            f"No detector weights found in {weights_dir}. Expected: {listing}. "
+            "Run 'poetry run fetch-weights' to download them.",
+            details=details,
+        )
+
+
 class ModelError(DetectorError):
     """Error during model inference."""
 

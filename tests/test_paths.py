@@ -70,3 +70,92 @@ class TestConfigPaths(unittest.TestCase):
     def test_both_paths_share_the_repository_root(self):
         self.assertEqual(default_config_path().parent, default_local_config_path().parent)
         self.assertEqual(default_config_path().parent, repo_root())
+
+
+class TestResolveWeightsDir(unittest.TestCase):
+    """Where the ``.pt`` files are looked for."""
+
+    def test_defaults_to_weights_under_the_repository_root(self):
+        from zebtrack.paths import DEFAULT_WEIGHTS_DIR, resolve_weights_dir
+
+        self.assertEqual(resolve_weights_dir(None), repo_root() / DEFAULT_WEIGHTS_DIR)
+
+    def test_settings_source_dir_wins_over_the_default(self):
+        from types import SimpleNamespace
+
+        from zebtrack.paths import resolve_weights_dir
+
+        settings = SimpleNamespace(weights=SimpleNamespace(source_dir="modelos"))
+        self.assertEqual(resolve_weights_dir(settings), repo_root() / "modelos")
+
+    def test_explicit_override_wins_over_settings(self):
+        from types import SimpleNamespace
+
+        from zebtrack.paths import resolve_weights_dir
+
+        settings = SimpleNamespace(weights=SimpleNamespace(source_dir="modelos"))
+        resolved = resolve_weights_dir(settings, override="outros")
+        self.assertEqual(resolved, repo_root() / "outros")
+
+    def test_absolute_paths_are_left_alone(self):
+        from zebtrack.paths import resolve_weights_dir
+
+        absolute = Path(tempfile.gettempdir()).resolve() / "pesos"
+        self.assertEqual(resolve_weights_dir(None, override=absolute), absolute)
+
+    def test_config_dir_anchors_relative_paths(self):
+        from zebtrack.paths import resolve_weights_dir
+
+        base = Path(tempfile.gettempdir()).resolve()
+        self.assertEqual(resolve_weights_dir(None, config_dir=base), base / "weights")
+
+    def test_a_mock_source_dir_falls_back_instead_of_being_used_as_a_path(self):
+        """A MagicMock answers every attribute, so getattr alone cannot be trusted.
+
+        Without the isinstance check a stubbed settings object would produce a
+        path built from the repr of a mock.
+        """
+        from unittest.mock import MagicMock
+
+        from zebtrack.paths import DEFAULT_WEIGHTS_DIR, resolve_weights_dir
+
+        self.assertEqual(resolve_weights_dir(MagicMock()), repo_root() / DEFAULT_WEIGHTS_DIR)
+
+
+class TestImportStaysCheap(unittest.TestCase):
+    """``zebtrack.paths`` answers path questions during early startup.
+
+    The startup pre-flight asks it where the weights are BEFORE the hardware
+    benchmark, precisely so a missing-weights run fails in a second rather than
+    a minute. That only holds while importing this module is cheap: the obvious
+    alternative home for the resolver, ``core.services.weight_manager``, drags
+    in torch, cv2, ultralytics and openvino and spawns a thread pool.
+
+    Runs in a subprocess because the modules are already imported in-process by
+    the rest of the suite, which would make any in-process assertion vacuous.
+    """
+
+    def test_importing_paths_does_not_drag_in_the_detector_stack(self):
+        import subprocess
+        import sys
+
+        code = (
+            "import sys\n"
+            "import zebtrack.paths\n"
+            "heavy = [m for m in ('torch', 'cv2', 'ultralytics', 'openvino')"
+            " if m in sys.modules]\n"
+            "print(','.join(heavy))\n"
+        )
+        result = subprocess.run(
+            [sys.executable, "-c", code],
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(
+            result.stdout.strip(),
+            "",
+            "zebtrack.paths must stay importable without the detector stack",
+        )

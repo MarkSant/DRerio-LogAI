@@ -14,6 +14,7 @@ from zebtrack.core.exceptions import (
     FileOperationError,
     FrameProcessingError,
     HardwareError,
+    MissingDetectorWeightsError,
     ModelError,
     ModelLoadError,
     ParquetError,
@@ -55,6 +56,7 @@ __all__ = [
     "FrameProcessingError",
     # Hardware
     "HardwareError",
+    "MissingDetectorWeightsError",
     "ModelError",
     "ModelLoadError",
     "ParquetError",

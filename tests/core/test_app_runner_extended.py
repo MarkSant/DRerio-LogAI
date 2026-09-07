@@ -111,3 +111,128 @@ class TestAppRunnerExtended:
         mock_log = MagicMock()
         # Should execute safely without raising exception on any OS
         _set_windows_app_id(mock_log)
+
+
+class TestRequireDetectorWeights:
+    """The startup pre-flight that fails fast, and by name, without weights.
+
+    It runs BEFORE the hardware benchmark on purpose: the benchmark is the
+    slowest step in startup, and without weights the run is doomed anyway. The
+    user used to wait through it and a 95%-complete splash only to be told "a
+    fatal error occurred".
+    """
+
+    def _settings_pointing_at(self, folder):
+        settings = load_settings()
+        settings.weights.source_dir = str(folder)
+        return settings
+
+    def test_raises_when_the_folder_holds_no_weights(self, tmp_path):
+        from zebtrack.core.app_runner import _require_detector_weights
+        from zebtrack.core.exceptions import MissingDetectorWeightsError
+
+        empty = tmp_path / "weights"
+        empty.mkdir()
+
+        with pytest.raises(MissingDetectorWeightsError) as excinfo:
+            _require_detector_weights(self._settings_pointing_at(empty), MagicMock())
+
+        assert empty == excinfo.value.weights_dir
+
+    def test_raises_when_the_folder_does_not_exist(self, tmp_path):
+        from zebtrack.core.app_runner import _require_detector_weights
+        from zebtrack.core.exceptions import MissingDetectorWeightsError
+
+        with pytest.raises(MissingDetectorWeightsError):
+            _require_detector_weights(self._settings_pointing_at(tmp_path / "absent"), MagicMock())
+
+    def test_passes_when_a_weight_is_present(self, tmp_path):
+        from zebtrack.core.app_runner import _require_detector_weights
+
+        folder = tmp_path / "weights"
+        folder.mkdir()
+        (folder / "best_seg_lateral.pt").write_bytes(b"not really a checkpoint")
+
+        # Must not raise: the pre-flight is deliberately conservative and leaves
+        # every subtler judgement (wrong type, wrong perspective) to the
+        # bootstrapper, which has the catalogue loaded.
+        _require_detector_weights(self._settings_pointing_at(folder), MagicMock())
+
+    def test_ignores_non_weight_files(self, tmp_path):
+        from zebtrack.core.app_runner import _require_detector_weights
+        from zebtrack.core.exceptions import MissingDetectorWeightsError
+
+        folder = tmp_path / "weights"
+        folder.mkdir()
+        (folder / "README.md").write_text("put the models here")
+        (folder / "best_seg_lateral.pt.part").write_bytes(b"interrupted download")
+
+        with pytest.raises(MissingDetectorWeightsError):
+            _require_detector_weights(self._settings_pointing_at(folder), MagicMock())
+
+
+class TestMissingWeightsDialog:
+    """The dialog must say what is missing, where, and how to fix it."""
+
+    def _shown(self, tmp_path):
+        from zebtrack.core.app_runner import _handle_missing_weights
+        from zebtrack.core.exceptions import MissingDetectorWeightsError
+
+        exc = MissingDetectorWeightsError(
+            str(tmp_path / "weights"),
+            ("best_seg_lateral.pt", "best_det_lateral.pt"),
+        )
+        messagebox = MagicMock()
+
+        with pytest.raises(SystemExit) as excinfo:
+            _handle_missing_weights(messagebox, MagicMock(), exc, root=None, splash=None)
+
+        assert excinfo.value.code == 1
+        messagebox.showerror.assert_called_once()
+        args = messagebox.showerror.call_args[0]
+        return args[0], args[1]
+
+    def test_names_the_folder_and_the_missing_files(self, tmp_path):
+        _title, body = self._shown(tmp_path)
+
+        assert str(tmp_path / "weights") in body
+        assert "best_seg_lateral.pt" in body
+        assert "best_det_lateral.pt" in body
+
+    def test_gives_the_command_that_fixes_it(self, tmp_path):
+        _title, body = self._shown(tmp_path)
+
+        assert "fetch-weights" in body
+
+    def test_does_not_fall_back_to_the_generic_wording(self, tmp_path):
+        title, body = self._shown(tmp_path)
+
+        assert "fatal error" not in body.lower()
+        assert "fatal error" not in title.lower()
+
+    def test_falls_back_to_the_naming_pattern_when_no_names_are_known(self, tmp_path):
+        from zebtrack.core.app_runner import _handle_missing_weights
+        from zebtrack.core.exceptions import MissingDetectorWeightsError
+
+        exc = MissingDetectorWeightsError(str(tmp_path / "weights"), ())
+        messagebox = MagicMock()
+
+        with pytest.raises(SystemExit):
+            _handle_missing_weights(messagebox, MagicMock(), exc, root=None, splash=None)
+
+        body = messagebox.showerror.call_args[0][1]
+        assert "best_*_lateral.pt" in body
+
+    def test_a_dead_tk_does_not_swallow_the_message(self, tmp_path, capsys):
+        """With Tk already broken the console is the only channel left."""
+        from zebtrack.core.app_runner import _handle_missing_weights
+        from zebtrack.core.exceptions import MissingDetectorWeightsError
+
+        exc = MissingDetectorWeightsError(str(tmp_path / "weights"), ("best_seg_lateral.pt",))
+        messagebox = MagicMock()
+        messagebox.showerror.side_effect = RuntimeError("no display")
+
+        with pytest.raises(SystemExit):
+            _handle_missing_weights(messagebox, MagicMock(), exc, root=None, splash=None)
+
+        assert "fetch-weights" in capsys.readouterr().err

@@ -22,13 +22,16 @@ which the existing ``patch("pathlib.Path.is_file", side_effect=[True, False])``
 tests in ``tests/test_settings.py`` depend on.
 """
 
-from pathlib import Path
-from typing import Final
+import os
+from pathlib import Path, PurePath
+from typing import Any, Final
 
 # Markers that identify the repository root. ``pyproject.toml`` alone is not
 # enough: a nested tool directory could carry one, and the root we want is the
 # one that also holds the configuration the application loads.
 _ROOT_MARKERS: Final[tuple[str, ...]] = ("pyproject.toml", "config.yaml")
+
+DEFAULT_WEIGHTS_DIR: Final[str] = "weights"
 
 
 def _find_repo_root() -> Path:
@@ -61,3 +64,49 @@ def default_config_path() -> Path:
 def default_local_config_path() -> Path:
     """Absolute path to the git-ignored per-machine override."""
     return _REPO_ROOT / "config.local.yaml"
+
+
+def resolve_weights_dir(
+    settings_obj: Any,
+    config_dir: Path | str | None = None,
+    override: Path | str | None = None,
+) -> Path:
+    """Resolve the folder holding the ``.pt`` weight files.
+
+    Priority: explicit *override* > ``settings.weights.source_dir`` >
+    :data:`DEFAULT_WEIGHTS_DIR`. Relative paths are anchored at *config_dir*,
+    which defaults to the repository root.
+
+    It lives here, and not next to :class:`~zebtrack.core.services.weight_manager.WeightManager`,
+    so the startup pre-flight can ask where the weights are without importing
+    that module -- which drags in torch, cv2, ultralytics and openvino, and
+    spawns a thread pool, purely to answer a question about a path. That import
+    belongs after the pre-flight, not before it.
+
+    Defensive: any value that is not a real ``str`` or ``PurePath`` -- a Mock
+    from partially-stubbed test settings, say -- is ignored in favour of the
+    default. Testing against ``os.PathLike`` is NOT enough: ``MagicMock``
+    implements ``__fspath__``, so it passes that check and ``os.fspath`` happily
+    yields a path built out of the mock's own repr.
+    """
+    if override is not None:
+        try:
+            candidate = Path(os.fspath(override))
+        except TypeError:
+            candidate = Path(DEFAULT_WEIGHTS_DIR)
+    else:
+        source_dir: str | None = None
+        if settings_obj is not None:
+            weights_settings = getattr(settings_obj, "weights", None)
+            if weights_settings is not None:
+                raw = getattr(weights_settings, "source_dir", None)
+                if isinstance(raw, str):
+                    source_dir = raw
+                elif isinstance(raw, PurePath):
+                    source_dir = str(raw)
+        candidate = Path(source_dir or DEFAULT_WEIGHTS_DIR)
+
+    if not candidate.is_absolute():
+        base = repo_root() if config_dir is None else Path(config_dir)
+        candidate = base / candidate
+    return candidate

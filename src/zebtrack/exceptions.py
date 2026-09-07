@@ -26,6 +26,7 @@ Exception Hierarchy:
     │   └── ParquetError
     ├── DetectorError
     │   ├── ModelLoadError
+    │   ├── MissingDetectorWeightsError
     │   └── ModelError
     ├── TrackingError
     ├── ZoneError
@@ -66,6 +67,7 @@ from zebtrack.core.exceptions import (
     FileOperationError,
     FrameProcessingError,
     HardwareError,
+    MissingDetectorWeightsError,
     ModelError,
     ModelLoadError,
     ParquetError,
@@ -105,6 +107,7 @@ __all__ = [  # noqa: RUF022 - grouped by domain for clarity
     "ParquetError",
     # Detection
     "DetectorError",
+    "MissingDetectorWeightsError",
     "ModelLoadError",
     "ModelError",
     "TrackingError",

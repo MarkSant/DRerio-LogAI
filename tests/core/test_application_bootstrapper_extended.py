@@ -130,3 +130,75 @@ class TestApplicationBootstrapperExtended:
 
         assert bootstrapper._services["analysis_service"] is custom_analysis
         assert bootstrapper._services["dialog_coordinator"] is custom_dialog
+
+
+class TestMissingWeightsIsActionable:
+    """Startup must name the missing weights, not hide them behind "fatal error".
+
+    The regression: `_init_hardware_and_models` raised a bare `RuntimeError`
+    that fell through to the blanket handler in `run_app`, so the user saw only
+    "A fatal error occurred. See <log> for details." -- after sitting through a
+    full hardware benchmark. The message that did reach the log named the wrong
+    folder ('models/', while the code has always used 'weights/').
+    """
+
+    def _bootstrapper_without_weights(self, tmp_path) -> ApplicationBootstrapper:
+        weight_manager = MagicMock()
+        weight_manager.get_default_weight.return_value = (None, None)
+        weight_manager.weights_dir = str(tmp_path / "weights")
+
+        deps = MagicMock(spec=MainViewModelDependencies)
+        deps.settings_obj = load_settings()
+        deps.state_manager = MagicMock()
+        deps.weight_manager = weight_manager
+
+        return ApplicationBootstrapper(deps)
+
+    def test_raises_the_typed_error_not_a_bare_runtimeerror(self, tmp_path):
+        from zebtrack.core.exceptions import DetectorError, MissingDetectorWeightsError
+
+        bootstrapper = self._bootstrapper_without_weights(tmp_path)
+
+        with pytest.raises(MissingDetectorWeightsError) as excinfo:
+            bootstrapper._init_hardware_and_models()
+
+        # run_app catches this specific type to show the actionable dialog.
+        assert isinstance(excinfo.value, DetectorError)
+
+    def test_names_the_weights_folder_and_never_models(self, tmp_path):
+        from zebtrack.core.exceptions import MissingDetectorWeightsError
+
+        bootstrapper = self._bootstrapper_without_weights(tmp_path)
+
+        with pytest.raises(MissingDetectorWeightsError) as excinfo:
+            bootstrapper._init_hardware_and_models()
+
+        message = str(excinfo.value)
+        assert "weights" in message
+        assert "models/" not in message, "the old message pointed at a folder that never existed"
+        assert excinfo.value.weights_dir.name == "weights"
+
+    def test_carries_the_expected_filenames_for_the_dialog(self, tmp_path):
+        from zebtrack.core.exceptions import MissingDetectorWeightsError
+
+        bootstrapper = self._bootstrapper_without_weights(tmp_path)
+
+        with pytest.raises(MissingDetectorWeightsError) as excinfo:
+            bootstrapper._init_hardware_and_models()
+
+        expected = excinfo.value.expected
+        # Both perspectives, each with a seg and a det model.
+        assert "best_seg_lateral.pt" in expected
+        assert "best_det_lateral.pt" in expected
+        assert "best_seg_topdown.pt" in expected
+        assert "best_det_topdown.pt" in expected
+
+    def test_message_points_at_the_fetch_command(self, tmp_path):
+        from zebtrack.core.exceptions import MissingDetectorWeightsError
+
+        bootstrapper = self._bootstrapper_without_weights(tmp_path)
+
+        with pytest.raises(MissingDetectorWeightsError) as excinfo:
+            bootstrapper._init_hardware_and_models()
+
+        assert "fetch-weights" in str(excinfo.value)

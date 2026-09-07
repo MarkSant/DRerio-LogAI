@@ -949,6 +949,36 @@ class WeightsSelectionSettings(BaseModel):
         return self.lateral
 
 
+def expected_weight_filenames(settings_obj: Any) -> tuple[str, ...]:
+    """The four weight filenames a provisioned install is expected to carry.
+
+    Both perspectives need a segmentation and a detection model, because the
+    wizard offers both and a lateral model on a top-down scene returns nothing.
+    Used to tell the user *which* files are missing when startup cannot find a
+    single usable weight.
+
+    Tolerates a stub or mock ``settings_obj`` by TYPE-CHECKING every value
+    rather than trusting ``getattr`` to miss: a ``MagicMock`` answers every
+    attribute, so a plain ``getattr(..., default)`` would return mocks and the
+    caller would render them into a dialog. Returns ``()`` when nothing usable
+    is present, and callers fall back to describing the naming pattern.
+    """
+    weights = getattr(settings_obj, "weights", None)
+    if weights is None:
+        return ()
+
+    found: list[str] = []
+    for perspective in ("lateral", "top_down"):
+        group = getattr(weights, perspective, None)
+        if group is None:
+            continue
+        for attribute in ("seg_filename", "det_filename"):
+            value = getattr(group, attribute, None)
+            if isinstance(value, str) and value:
+                found.append(value)
+    return tuple(found)
+
+
 class UIFeatureFlags(BaseModel):
     """Feature flags for UI/UX experiments and gradual rollouts."""
 

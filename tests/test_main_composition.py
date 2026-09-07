@@ -45,6 +45,18 @@ def _setup_main_mocks(monkeypatch):
     mock_messagebox = MagicMock()
     monkeypatch.setattr(app_main, "messagebox", mock_messagebox)
 
+    # Neutralise the detector-weights pre-flight. These tests drive the
+    # composition root -- logging, benchmark, splash, error handling -- with a
+    # MagicMock settings object, so the resolver correctly declines to trust
+    # `weights.source_dir` and falls back to the real (and, on a fresh clone,
+    # empty) weights folder. Without this the pre-flight would abort every test
+    # here before the behaviour under test ever runs. The pre-flight has its own
+    # coverage in tests/core/test_app_runner_extended.py.
+    monkeypatch.setattr(
+        "zebtrack.core.app_runner._require_detector_weights",
+        lambda settings_obj, log: None,
+    )
+
     return app_main
 
 
@@ -524,3 +536,60 @@ class TestModuleExecution:
             source = f.read()
         assert 'if __name__ == "__main__":' in source
         assert "main()" in source
+
+
+class TestMissingWeightsShortCircuitsStartup:
+    """Without weights, startup must stop BEFORE the slowest step.
+
+    The hardware benchmark is the longest part of a first launch. The
+    missing-weights check used to happen at the very end of bootstrap, so a
+    fresh clone ran the whole benchmark, drew the splash to ~95%, and only then
+    reported a generic "a fatal error occurred". Order is the fix, so order is
+    what this guards.
+    """
+
+    def _settings_with_empty_weights_dir(self, folder):
+        settings_obj = _make_settings(auto_benchmark=True)
+        settings_obj.weights = MagicMock()
+        settings_obj.weights.source_dir = str(folder)
+        settings_obj.weights.lateral = MagicMock()
+        settings_obj.weights.lateral.seg_filename = "best_seg_lateral.pt"
+        settings_obj.weights.lateral.det_filename = "best_det_lateral.pt"
+        settings_obj.weights.top_down = MagicMock()
+        settings_obj.weights.top_down.seg_filename = "best_seg_topdown.pt"
+        settings_obj.weights.top_down.det_filename = "best_det_topdown.pt"
+        return settings_obj
+
+    def test_benchmark_never_runs_and_the_dialog_is_specific(self, monkeypatch, tmp_path):
+        import zebtrack.core.app_runner as app_runner
+
+        # Captured before _setup_main_mocks neutralises it: here the pre-flight
+        # IS the behaviour under test, so it has to be the real one.
+        real_preflight = app_runner._require_detector_weights
+
+        app_main = _setup_main_mocks(monkeypatch)
+        monkeypatch.setattr(app_runner, "_require_detector_weights", real_preflight)
+
+        empty = tmp_path / "weights"
+        empty.mkdir()
+        settings_obj = self._settings_with_empty_weights_dir(empty)
+        monkeypatch.setattr("zebtrack.settings.load_settings", lambda: settings_obj)
+        monkeypatch.setattr("zebtrack.ui.splash_screen.create_splash", lambda parent: MagicMock())
+
+        benchmark = MagicMock()
+        monkeypatch.setattr(app_runner, "_run_benchmark_if_enabled", benchmark)
+
+        with pytest.raises(SystemExit) as excinfo:
+            app_main.main()
+
+        assert excinfo.value.code == 1
+        benchmark.assert_not_called()
+
+        messagebox = app_main.messagebox
+        messagebox.showerror.assert_called_once()
+        title, body = messagebox.showerror.call_args[0][:2]
+        assert "fatal error" not in body.lower(), "the generic wording is the regression"
+        assert str(empty) in body
+        assert "fetch-weights" in body
+        assert "best_seg_lateral.pt" in body
+        assert title
