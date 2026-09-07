@@ -9,6 +9,50 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### O diretorio de trabalho decidia se o app achava a propria configuracao
+
+`load_settings()` tinha como default `Path("config.yaml")` -- relativo ao
+diretorio de trabalho, nao ao repositorio. Rodar a partir de qualquer outra
+pasta levantava `FileNotFoundError`, caia no dialogo "Configuration File Not
+Found" e saia com `sys.exit(1)` antes de qualquer janela aparecer:
+
+```bash
+cd ~
+poetry -C /caminho/DRerio-LogAI run zebtrack
+```
+
+Nao era um caso de borda: e o primeiro comando que um pesquisador tenta depois
+de instalar num diretorio que nao e o do checkout.
+
+O mesmo endereco solto aparecia em mais cinco lugares, e dois deles falhavam em
+silencio, que e pior que o dialogo:
+
+- **`_perform_reset`** montava `Path("config.local.yaml")` e
+  `Path("openvino_model_cache")`. Fora da raiz, `--reset`, `--reset-weights` e
+  `--reset-all` nao encontravam nada, nao apagavam nada, e ainda assim
+  imprimiam "Reset complete". O usuario acreditava ter zerado o estado.
+- **`WeightManager(config_dir=".")`** ancorava `weights/`, `weights_config.json`
+  e `openvino_model_cache/` no CWD. Iniciar de outra pasta criava um `weights/`
+  vazio ali, ignorava o catalogo real e reconvertia os modelos do zero.
+- `_select_language_on_first_run` checava `config.local.yaml` num lugar
+  enquanto `write_local_override` gravava noutro, o que reapresentaria o
+  prompt de idioma a cada execucao.
+
+Agora `zebtrack.paths` e a fonte unica: sobe a partir do proprio modulo ate o
+diretorio que carrega `pyproject.toml` **e** `config.yaml`, e todos esses
+caminhos passam a ser resolvidos contra ele. Para quem ja rodava da raiz nada
+muda -- sao os mesmos arquivos.
+
+Os defaults sao constantes de modulo, avaliadas no import, e nao chamadas dentro
+de `load_settings`. Nao e estilo: os testes de `tests/test_settings.py` mockam
+`patch("pathlib.Path.is_file", side_effect=[True, False])`, o que presume
+exatamente duas chamadas a `is_file()` no corpo da funcao. Uma sondagem extra
+ali estouraria o `side_effect` ou deslocaria os booleanos, fazendo o teste
+afirmar o ramo errado.
+
+`--reset` passa a apagar de fato o que promete. Antes, rodado da pasta errada,
+ele era um no-op que se declarava bem-sucedido.
+
 ## [6.3.0] - 2026-09-07
 
 ### Tres assimetrias do fluxo ao vivo, antes de testar projeto ao vivo

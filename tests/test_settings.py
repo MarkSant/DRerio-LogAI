@@ -669,3 +669,29 @@ class TestAnimalConfidenceResolution(unittest.TestCase):
             settings.yolo_model.effective_animal_confidence,
             resolve_animal_confidence(settings.yolo_model),
         )
+
+
+class TestConfigPathIsIndependentOfWorkingDirectory(unittest.TestCase):
+    """The launch directory must not decide whether the app finds its config.
+
+    ``load_settings`` used to default to the bare relative ``Path("config.yaml")``,
+    so ``poetry -C <repo> run zebtrack`` from anywhere but the repository root
+    raised ``FileNotFoundError`` and the app died on the "Configuration File Not
+    Found" dialog before showing a window.
+    """
+
+    def test_load_settings_finds_config_from_an_unrelated_directory(self):
+        import os
+        import tempfile
+
+        original = Path.cwd()
+        with tempfile.TemporaryDirectory() as elsewhere:
+            os.chdir(elsewhere)
+            try:
+                settings = load_settings()
+            finally:
+                os.chdir(original)
+
+        # A real parse of the tracked config.yaml, not a default-constructed model.
+        self.assertIsInstance(settings, Settings)
+        self.assertGreater(settings.camera.desired_width, 0)
