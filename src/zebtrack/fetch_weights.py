@@ -349,7 +349,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument(
         "--release-tag",
-        default="weights-v1",
+        default="v7.0.0",
         help="With --generate-manifest: the release tag holding the assets.",
     )
     args = parser.parse_args(argv)

@@ -9,6 +9,49 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [7.0.0] - 2026-09-07
+
+Primeiro release **publico** e primeiro objeto citavel: e desta tag que sai o
+DOI do Zenodo. A ultima tag publicada foi a `v6.2.0`, entao tudo o que a 6.3.0
+registrou chega aos usuarios aqui tambem.
+
+O salto de maior vem do contrato de instalacao, nao do tamanho do diff:
+`poetry run fetch-weights` passou a ser um passo **obrigatorio** -- quem seguir
+uma instrucao de 6.x nao consegue abrir o programa --, `--reset` passou a apagar
+de fato o que promete, e `config.yaml`, `weights/` e os caches deixaram de ser
+resolvidos contra o diretorio de trabalho.
+
+### Metadados de citacao e licenca alinhados com a tag que vai virar DOI
+
+Cinco lugares declaravam a versao, e so dois estavam certos. `pyproject.toml` e
+`__init__.py` diziam 6.3.0; `.zenodo.json`, `CITATION.cff`, os badges dos dois
+READMEs e `docs/INDEX.md` continuavam em 6.0.0.
+
+Isso nao e cosmetico: **o campo `version` do `.zenodo.json` sobrescreve o nome
+da tag no registro do DOI**. Publicar a v6.3.0 com o arquivo como estava criaria
+um record permanente rotulado "6.0.0", com data de 2026-08-15, apontando para
+codigo que nao e aquele. Corrigir depois exige publicar nova versao do deposito.
+
+- **ORCID da Percilia Cardoso Giaquinto** (0000-0003-4591-4415) preenchido no
+  `CITATION.cff`. Estava como TODO desde a preparacao da v6.0.0, e o campo entra
+  no registro permanente: a autora de correspondencia ficaria sem identificador.
+- O TODO do DOI agora avisa o que de fato bloqueia: a integracao Zenodo precisa
+  estar **ligada antes** de publicar o release, senao nao ha DOI nenhum a
+  preencher.
+
+**O `NOTICE` afirmava algo que nunca foi verdade, e que ficaria pior.** Dizia que
+os pesos "sao baixados em tempo de execucao dos canais de distribuicao da
+Ultralytics" e "nao sao redistribuidos". Nenhuma das duas: sao modelos treinados
+para este projeto, e ninguem baixava nada. Com o `fetch-weights` eles passam a
+ser distribuidos de fato, como assets de um release proprio -- e ai a atribuicao
+**CC BY 4.0** do dataset ZebraFish-Detection deixa de ser hipotese e vira
+obrigacao que viaja junto com os pesos. O texto agora diz isso.
+
+O `.zenodo.json` tambem precisou de mais que o numero: "the trained YOLOv11
+weights distributed with the application" era ambiguo num deposito que contem
+**so o codigo-fonte**. Agora explicita que os pesos nao fazem parte do arquivo
+depositado e como sao obtidos.
+
 ### A documentacao de instalacao ensinava coisas que nao funcionam
 
 Nao era so desatualizacao. Tres instrucoes estavam ativamente erradas, e uma
@@ -118,9 +161,11 @@ Detalhes que nao sao acidentais:
   `WeightManager.discover_perspective_weights()` so reconhece
   `best_*_lateral.pt` e `best_*_topdown.pt`. Um peso baixado com outro nome
   seria ignorado pelo catalogo -- indistinguivel de nao ter baixado.
-- **Release proprio, nao a tag do app.** Os assets ficam em `weights-v1`, uma
-  tag estavel referenciada pelo manifesto, para que `v6.4.0` nao precise
-  reenviar 200 MB e o script nao quebre a cada release.
+- **Os assets ficam no release da versao, e o manifesto fixa essa tag.** Nao ha
+  release separado so para pesos: criar um cunharia um DOI a mais, e o Zenodo
+  arquiva o tarball do FONTE da tag, nao os assets -- o record resultante teria
+  codigo, nao pesos. Versoes seguintes nao precisam reenviar 200 MB: o manifesto
+  continua apontando para a tag onde os pesos moram, ate que eles mudem.
 - **Os dois pesos legados sao opcionais.** `best_seg.pt` e `best_oi.pt` nao sao
   auto-descobertos e ficam atras de `--all`. O bundle obrigatorio sao os quatro
   de perspectiva (202 MiB): um `seg` e um `det` para cada uma, porque um modelo
