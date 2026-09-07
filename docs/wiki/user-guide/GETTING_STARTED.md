@@ -100,7 +100,12 @@ poetry run zebtrack
 
 When the application starts, you'll see the main window with the following components:
 
-![Main Window](../screenshots/main_window.png)
+![Launcher, with the detection-model status panel](../screenshots/main_window.png)
+
+Inside a project, the overview lists every session, subject and per-video
+processing status:
+
+![Project overview by group, day and subject](../screenshots/project_overview.png)
 
 **Key Components**:
 
@@ -416,7 +421,12 @@ Comprehensive report including:
 
 Heatmaps show movement density (warmer colors = more time spent):
 
-![Heatmap Example](../screenshots/heatmap.png)
+![Occupancy heat map over the arena, in centimetres](../screenshots/heatmap.png)
+
+The same session as a reconstructed swim trajectory, with the operator-defined
+ROIs drawn over the arena frame:
+
+![Swim trajectory with the four ROIs](../screenshots/trajectory_output.png)
 
 **Interpreting Heatmaps**:
 
@@ -512,7 +522,10 @@ Live Camera Analysis allows real-time tracking and recording from connected came
 3. Session runs for configured duration
 4. Results saved automatically to `live_analysis_sessions/{experiment_id}_{timestamp}/`
 
-![Live Preview Window](../screenshots/live_preview.png)
+The live session runner, with per-animal acquisition control and the
+progress of the current experimental day:
+
+![Live session control, one card per animal](../screenshots/live_session_control.png)
 
 ### Live Session Controls
 

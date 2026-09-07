@@ -74,6 +74,25 @@ terms.
 - **🏗️ Event-Driven Architecture**: modular, extensible system built on events
 - **📦 Standard Formats**: export to Parquet (data), Excel (metrics), and Word (reports)
 
+## 🖼️ What it looks like
+
+The launcher reports which detection weights are loaded and whether OpenVINO is
+active, before any analysis runs:
+
+![DRerio LogAI launcher, with the detection-model status panel](docs/wiki/screenshots/main_window.png)
+
+Zones and regions of interest are drawn directly on a frame from the real
+recording, so the analysis geometry is set against the actual arena:
+
+![Zone and ROI configuration over an acquired frame](docs/wiki/screenshots/roi_config.png)
+
+Every session yields a reconstructed trajectory and an occupancy heat map in
+centimetres, with no manual post-processing:
+
+![Swim trajectory with the four operator-defined ROIs](docs/wiki/screenshots/trajectory_output.png)
+
+More screens in the [user guide](docs/wiki/user-guide/GETTING_STARTED.md).
+
 ## 🚀 What's New in Version 7.0
 
 First **public** release, and the first citable one: this is the tag the Zenodo DOI is minted
