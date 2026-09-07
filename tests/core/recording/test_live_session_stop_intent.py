@@ -14,6 +14,7 @@ as an abandoned take and the recording was deleted.
 
 from __future__ import annotations
 
+import threading
 import time
 from pathlib import Path
 from typing import Any
@@ -56,6 +57,8 @@ class DummyLiveService(LiveSessionManagerMixin):
         self.on_session_stopped = None
         self.cleared_queues = 0
         self.finalized_ledgers = 0
+        # Preenchido so pelos casos que plantam uma thread travada.
+        self.halt_the_stuck_thread = threading.Event()
 
     def _clear_queues(self) -> None:
         self.cleared_queues += 1
@@ -176,3 +179,154 @@ class TestStopSessionOnDisk:
         service.stop_session(cancelled=True)
 
         assert service.finalized_ledgers == 1
+
+
+class TestThreadHangIsNotACancellation:
+    """Uma trava de thread e problema de MAQUINA; cancelar e intencao do OPERADOR.
+
+    As duas dividiam a mesma variavel: ao estourar o teto de join,
+    ``stop_session`` fazia ``cancelled_session = True`` -- com a intencao
+    legitima de promover o encerramento do recorder a ``force_stop`` -- e essa
+    mesma variavel viajava para ``on_session_stopped``. O coordinator lia
+    "cancelada", pulava ``_register_batch_session()`` e o projeto nunca ficava
+    sabendo da gravacao.
+
+    O que tornava a perda invisivel: a pasta NAO e apagada nesse caminho (o
+    ``rmtree`` obedece ao parametro ``cancelled``, nao a essa variavel). MP4,
+    parquets e ledger no disco, projeto sem entrada nenhuma, nenhum erro para o
+    operador -- so a UI dizendo "sessao interrompida".
+    """
+
+    @pytest.fixture(autouse=True)
+    def _release_stuck_threads(self):
+        """Destrava, no teardown, toda thread que um caso deixou parada.
+
+        Sao daemons, entao nao seguram o pytest -- mas ficam vivas ate o fim da
+        sessao, e uma suite que acumula threads paradas transforma qualquer
+        diagnostico de vazamento de thread em ruido.
+        """
+        self._halts: list[threading.Event] = []
+        yield
+        for halt in self._halts:
+            halt.set()
+
+    def _service_with_a_stuck_thread(self, session_dir: Path) -> DummyLiveService:
+        service = DummyLiveService(session_dir, planned_s=300.0, elapsed_s=300.0)
+        # Encurta o teto: o caso sob teste e "o orcamento estourou", nao o valor
+        # do orcamento -- esse continua guardado por
+        # ``test_stop_session_bounded_total_join_budget``.
+        service._max_join_wait_s = 0.2
+        halt = threading.Event()
+        stuck = threading.Thread(target=halt.wait, daemon=True)
+        stuck.start()
+        service.processing_thread = stuck
+        # Guardado para o caso que precisa MATAR a thread no meio do
+        # encerramento. ``threads_to_join`` e uma lista LOCAL que segura o
+        # objeto Thread, entao zerar ``service.processing_thread`` nao muda o
+        # que o codigo velho consultava -- so a thread morrer de fato muda.
+        service.halt_the_stuck_thread = halt
+        self._halts.append(halt)
+        return service
+
+    def test_a_hung_thread_does_not_report_the_session_as_cancelled(self, session_dir: Path):
+        """O defeito reportado: sessao completa virava sessao nao registrada."""
+        service = self._service_with_a_stuck_thread(session_dir)
+        verdicts: list[bool] = []
+        service.on_session_stopped = verdicts.append
+
+        service.stop_session()
+
+        assert verdicts == [False], (
+            "a trava de thread voltou a ser relatada como cancelamento; o "
+            "coordinator pula _register_batch_session() e a gravacao fica no "
+            "disco sem entrada no projeto"
+        )
+
+    def test_the_hung_session_keeps_its_files(self, session_dir: Path):
+        """A pasta sobrevive -- e por isso que a perda so aparece no relatorio."""
+        service = self._service_with_a_stuck_thread(session_dir)
+
+        service.stop_session()
+
+        assert session_dir.exists()
+        assert (session_dir / "live_20260822_100000.mp4").exists()
+
+    def test_a_hung_thread_still_forces_the_recorder_stop(self, session_dir: Path):
+        """A promocao a ``force_stop`` era o proposito legitimo -- ela permanece.
+
+        Sem ela o recorder libera o ``video_writer`` enquanto uma thread viva
+        ainda pode escrever, que e a corrida da assercao do FFmpeg.
+        """
+        service = self._service_with_a_stuck_thread(session_dir)
+
+        service.stop_session()
+
+        kwargs = service.recorder.stop_recording.call_args.kwargs
+        assert kwargs["force_stop"] is True
+        assert kwargs["reason"] == "thread_hang"
+
+    def test_a_cancelled_session_that_also_hangs_stays_cancelled(self, session_dir: Path):
+        """Separar as variaveis nao pode ressuscitar uma sessao descartada."""
+        service = self._service_with_a_stuck_thread(session_dir)
+        verdicts: list[bool] = []
+        service.on_session_stopped = verdicts.append
+
+        service.stop_session(cancelled=True)
+
+        assert verdicts == [True]
+        assert not session_dir.exists()
+
+    def test_the_reason_survives_a_thread_that_dies_after_the_timeout(self, session_dir: Path):
+        """``reason`` vem do laco, nao de um segundo ``is_alive()``.
+
+        Ele era derivado depois da finalizacao do ledger; uma thread que
+        morresse nesse intervalo transformava uma trava genuina em
+        ``user_cancelled`` -- corrompendo justamente o campo que se le para
+        explicar o ocorrido.
+        """
+        service = self._service_with_a_stuck_thread(session_dir)
+        stuck = service.processing_thread
+        assert stuck is not None
+
+        def _let_the_thread_die_between_the_break_and_the_reason() -> None:
+            # A thread destrava e SAI de verdade: e o unico jeito de o
+            # ``is_alive()`` tardio mudar de resposta.
+            service.halt_the_stuck_thread.set()
+            stuck.join(timeout=2.0)
+            assert not stuck.is_alive()
+            service.finalized_ledgers += 1
+
+        service._finalize_frame_ledger = _let_the_thread_die_between_the_break_and_the_reason  # type: ignore[method-assign]
+
+        service.stop_session()
+
+        assert service.recorder.stop_recording.call_args.kwargs["reason"] == "thread_hang"
+
+
+class TestHungThreadStacks:
+    """Sem a pilha, o log diz QUAIS threads travaram, nunca ONDE."""
+
+    def test_a_live_thread_contributes_its_stack(self):
+        halt = threading.Event()
+        stuck = threading.Thread(target=halt.wait, daemon=True)
+        stuck.start()
+        try:
+            stacks = LiveSessionManagerMixin._hung_thread_stacks([("processing_thread", stuck)])
+        finally:
+            halt.set()
+
+        assert "processing_thread" in stacks
+        # A pilha real de uma thread parada em ``Event.wait`` passa por
+        # ``threading.py``; o conteudo importa mais que o formato.
+        assert "wait" in stacks["processing_thread"]
+
+    def test_dead_and_missing_threads_are_skipped(self):
+        finished = threading.Thread(target=lambda: None, daemon=True)
+        finished.start()
+        finished.join()
+
+        stacks = LiveSessionManagerMixin._hung_thread_stacks(
+            [("capture_thread", None), ("video_recording_thread", finished)]
+        )
+
+        assert stacks == {}
