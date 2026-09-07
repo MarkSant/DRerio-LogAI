@@ -39,6 +39,11 @@ command.
 
 ## Configure bindings
 
+Bindings are set per ROI in the Zone Configuration tab of a live project,
+alongside the zones they fire on:
+
+![Zone configuration in a live project, with the Arduino binding panel](../../wiki/screenshots/roi_config_live_arduino.png)
+
 1. Open the project and go to the **"Zone Configuration"** tab.
 2. Define your ROIs as usual.
 3. In the **"Per-Zone Arduino Commands (Optional)"** panel (bottom of the left column):

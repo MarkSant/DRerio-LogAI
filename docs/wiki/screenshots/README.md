@@ -25,41 +25,41 @@ sessions and completed analyses.
 **Do not show identifying data.** No real subject IDs from ongoing work, no
 paths revealing unpublished directories.
 
-## The ten images
+## What is here
 
-Filenames are fixed: `GETTING_STARTED.md` links to exactly these names. Where a
-capture also serves a supplementary figure of the platform manuscript, the panel
-is noted — one capture session can serve both.
+Captured 2026-09-07 with the interface in English. Filenames are fixed where
+`GETTING_STARTED.md` links to them. "Manuscript" is the panel of the platform
+paper's supplementary figures that the same capture serves.
 
-| File | Screen | Manuscript panel |
+| File | Screen | Manuscript |
 |---|---|---|
-| `main_window.png` | Launcher, with the project-action buttons and the detection-model status panel below them (active weights per function, OpenVINO device and hardware) | Fig. S5a |
-| `wizard_step1.png` | Project wizard, **step 1 of 7** — project type | Fig. S5b |
-| `wizard_step2_video.png` | Wizard, video/folder selection, with the preview tree summarising the detected structure | — |
-| `roi_config.png` | Zone and ROI definition drawn on a real acquired frame, with the arena boundary and the ROI list | Fig. S6b |
-| `wizard_step4_detection.png` | Wizard, **step 5 of 7** — detection and tracking: YOLO weights per function, OpenVINO device, ByteTrack association parameters | Fig. S5d |
-| `wizard_step5_options.png` | Wizard, **step 3 of 7** — physical calibration (pixels per centimetre from the arena dimensions) with the behavioural-analysis settings | Fig. S5c |
-| `analysis_running.png` | Batch panel with pending videos, progress, and the buttons that run processing and generate reports | Fig. S7 |
-| `heatmap.png` | Spatial occupancy heat map over the arena, with the ROI overlay | — |
-| `live_analysis_dialog.png` | Live analysis dialog: camera, experiment identification, real aquarium width and height, session duration, optional Arduino | Fig. S5e |
-| `live_preview.png` | Live session in progress: camera feed with detection overlay, frame counter, measured FPS, session timer | Fig. S6c |
+| `main_window.png` | Launcher: project actions and the detection-model status panel (weights per role, OpenVINO device, hardware) | Fig. S5a |
+| `wizard_step1.png` | Project wizard, step **1/7** — project type, folder organisation, existing Parquet files | Fig. S5b |
+| `wizard_step2_video.png` | Wizard — video and folder selection | — |
+| `wizard_step5_options.png` | Wizard, step **3/7** — physical calibration px→cm, thigmotaxis and geotaxis settings | Fig. S5c |
+| `wizard_step4_detection.png` | Wizard, step **5/7** — models and weights per role, OpenVINO device, YOLO and ByteTrack parameters | Fig. S5d |
+| `roi_config.png` | Zone Configuration on a pre-recorded project: arena polygon and four ROIs over a real frame, with the inclusion rule | Fig. S6b |
+| `analysis_running.png` | Video Analysis mid-run: frame counter, detections, elapsed and estimated time, live overlay with track ID and confidence | Fig. S7-adjacent |
+| `heatmap.png` | Occupancy heat map in centimetres, with the density scale | — |
+| `trajectory_output.png` | Reconstructed swim trajectory over the arena frame, with the four ROIs | — |
+| `project_overview.png` | Project overview: group / day / subject hierarchy with per-video status and metadata | Fig. S6a |
+| `live_analysis_dialog.png` | Live wizard, step **3/6** — camera detection, Arduino synchronisation, external trigger, timed recording | Fig. S5e |
+| `live_wizard_experimental_design.png` | Live wizard, step 2/6 — experimental design | — |
+| `live_session_control.png` | Live session runner: one card per animal, day/group progress, camera and quick actions | Fig. S6c |
+| `live_experiment_progress.png` | Experiment Progress grid: day × group, sessions completed per cell | — |
+| `roi_config_live_arduino.png` | Zone Configuration on a live project, with the per-zone Arduino binding panel | — |
 
-> The wizard is **dynamic**: 7 steps for pre-recorded projects, 6 for live. Step
-> numbers above are the pre-recorded branch, matching the manuscript captions.
-> The filenames `wizard_step4_*` and `wizard_step5_*` predate that and no longer
-> match the step they show — they are kept because `GETTING_STARTED.md` links to
-> them, and renaming buys nothing.
+## Still missing
 
-## Two extra captures the manuscript needs
+**A capture of the live preview window itself** — the camera feed with detection
+overlay, frame counter and session timer, while a live session records. The
+guide's live section currently shows the session runner instead, captioned for
+what it is.
 
-Not referenced by the wiki, but part of the same session:
-
-| Screen | Manuscript panel |
-|---|---|
-| Project overview: sessions, subjects, per-video processing status | Fig. S6a |
-| Tracking output rendered on the video, zones and trajectory overlaid, with the run metrics | Fig. S6d |
-
-Twelve captures in total cover both the wiki and Figures S5–S7.
+**Fig. S6d** as specified ("tracking output rendered on the video with overlaid
+zones and trajectory, *alongside run metrics*"): `analysis_running.png` has the
+overlay and the metrics but is mid-run on a pre-recorded video, and
+`trajectory_output.png` is the generated plot rather than the application.
 
 ## Technical requirements
 

@@ -21,6 +21,28 @@ uma instrucao de 6.x nao consegue abrir o programa --, `--reset` passou a apagar
 de fato o que promete, e `config.yaml`, `weights/` e os caches deixaram de ser
 resolvidos contra o diretorio de trabalho.
 
+### As capturas de tela entraram, e a documentacao ficou visivel
+
+Quinze capturas, feitas com a interface em ingles, cobrem o launcher, os sete
+passos do wizard pre-gravado, os seis do ao vivo, a configuracao de zonas e ROI
+sobre um quadro real, a analise em execucao, o controle de sessao ao vivo, a
+grade de progresso do experimento, e as duas saidas espaciais -- trajetoria e
+mapa de calor, ambos em centimetros.
+
+**O repositorio ficou sem nenhum link quebrado.** Eram 51 no inicio desta
+preparacao; as ultimas dez eram justamente estas imagens.
+
+Dez servem tambem as figuras suplementares S5-S7 do manuscrito da plataforma,
+entao uma sessao de captura cobriu os dois usos. O mapeamento esta registrado em
+`docs/wiki/screenshots/README.md`, junto com o que **ainda falta**: uma captura
+da janela de preview ao vivo com o feed da camera. Onde nao havia imagem
+correspondente, a legenda diz o que a imagem E, em vez de repetir o titulo da
+secao -- o defeito que a especificacao antiga produzia.
+
+Os dois READMEs ganharam uma secao visual curta: launcher, configuracao de zonas
+e trajetoria. O guia de Arduino ganhou a configuracao de zonas de um projeto ao
+vivo, na secao onde as bindings sao de fato definidas.
+
 ### O que a wiki publicada revelou depois de publicada
 
 Dois defeitos que so aparecem quando o conteudo esta la, e nao no diff:

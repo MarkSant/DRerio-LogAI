@@ -75,6 +75,25 @@ termos legais.
 - **🏗️ Arquitetura Event-Driven**: Sistema modular e extensível baseado em eventos
 - **📦 Formatos Padrão**: Exportação para Parquet (dados), Excel (métricas) e Word (relatórios)
 
+## 🖼️ Como é na prática
+
+O launcher informa quais pesos de detecção estão carregados e se o OpenVINO está
+ativo, antes de qualquer análise:
+
+![Launcher do DRerio LogAI, com o painel de status dos modelos](docs/wiki/screenshots/main_window.png)
+
+Zonas e regiões de interesse são desenhadas diretamente sobre um quadro da
+gravação real, então a geometria da análise é definida contra a arena de fato:
+
+![Configuração de zonas e ROI sobre um quadro adquirido](docs/wiki/screenshots/roi_config.png)
+
+Cada sessão produz uma trajetória reconstruída e um mapa de calor de ocupação em
+centímetros, sem pós-processamento manual:
+
+![Trajetória com as quatro ROIs definidas pelo operador](docs/wiki/screenshots/trajectory_output.png)
+
+Mais telas no [guia do usuário](docs/wiki/user-guide/GETTING_STARTED.md).
+
 ## 🚀 Novidades na Versão 7.0
 
 Primeiro release **público**, e o primeiro citável: é desta tag que sai o DOI do Zenodo. Os
