@@ -30,6 +30,9 @@ from zebtrack.coordinators.base_coordinator import (
     CoordinatorError,
     CoordinatorValidationError,
 )
+from zebtrack.core.services.processing_interval_resolver import (
+    resolve_processing_intervals,
+)
 from zebtrack.core.state_manager import StateCategory
 from zebtrack.i18n import _
 from zebtrack.ui import payloads
@@ -1820,8 +1823,18 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
         experiment_id = config.get("experiment_id") or f"camera_{camera_index}"
 
         # Extract intervals from config (not hardcoded defaults!)
-        analysis_interval_frames = config.get("analysis_interval_frames", 1)
-        display_interval_frames = config.get("display_interval_frames", 1)
+        # Resolvedor único, igual ao pré-gravado. O display NÃO é uma segunda
+        # decisão: ele segue o intervalo de análise. Com análise=10 e
+        # exibição=5, o overlay repintava em quadros SEM detecção nova, e o
+        # preview mostrava uma caixa velha em metade dos quadros — visualmente
+        # idêntico a um rastreador que parou de atualizar.
+        _intervals = resolve_processing_intervals(
+            config,
+            getattr(self.project_manager, "project_data", None),
+            self.settings,
+        )
+        analysis_interval_frames = _intervals.analysis
+        display_interval_frames = _intervals.display
 
         # Video recording (optional)
         record_video = config.get("record_video", True)
@@ -2414,8 +2427,11 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
             duration_s = project_data.get("recording_duration_s", 300.0)
 
         # Intervals
-        analysis_interval_frames = project_data.get("analysis_interval_frames", 1)
-        display_interval_frames = project_data.get("display_interval_frames", 1)
+        # Mesmo resolvedor do caminho avulso e do pré-gravado. Sem ``config``:
+        # numa sessão de projeto quem manda é o ``project_data``.
+        _intervals = resolve_processing_intervals(None, project_data, self.settings)
+        analysis_interval_frames = _intervals.analysis
+        display_interval_frames = _intervals.display
         use_countdown = bool(project_data.get("use_countdown", False))
         countdown_duration_s = int(project_data.get("countdown_duration_s", 0) or 0)
 

@@ -304,26 +304,19 @@ class LiveAnalysisDialog(Dialog):
         )
         analysis_spin.grid(row=1, column=2, padx=5, pady=2, sticky="w")
 
-        # Display Interval
-        ttk.Label(duration_frame, text=_("Display interval:")).grid(
-            row=2, column=0, padx=(5, 2), pady=2, sticky="w"
-        )
-        create_help_label(
-            duration_frame,
-            _(
-                "Display Interval (frames)\n\n"
-                "How often the video on screen is refreshed.\n"
-                "• Raising this helps if the interface feels slow."
-            ),
-        ).grid(row=2, column=1, padx=2)
-        display_spin = Spinbox(
-            duration_frame,
-            from_=1,
-            to=60,
-            textvariable=self.display_interval_var,
-            width=8,
-        )
-        display_spin.grid(row=2, column=2, padx=5, pady=2, sticky="w")
+        # O campo "Display interval" foi REMOVIDO daqui.
+        #
+        # Ele nunca foi uma segunda decisão: o preview repinta no ritmo da
+        # análise. Mantê-lo separado criava uma armadilha real — com análise=10 e
+        # exibição=5, o overlay repintava em quadros SEM detecção nova, e a tela
+        # mostrava uma caixa velha em metade dos quadros, indistinguível de um
+        # rastreador que parou de atualizar.
+        #
+        # O valor agora sai de ``resolve_processing_intervals``, o mesmo
+        # resolvedor do pré-gravado, onde ``display`` é uma propriedade que
+        # devolve ``analysis`` — nenhum chamador consegue montar um par
+        # divergente. A criação de projeto e o diálogo de vídeo único já haviam
+        # largado esse campo pelo mesmo motivo.
 
         # Right Column: Options & ID
         right_col = ttk.Frame(config_container)
@@ -846,9 +839,8 @@ class LiveAnalysisDialog(Dialog):
         # Validate intervals
         try:
             analysis_interval = int(self.analysis_interval_var.get())
-            display_interval = int(self.display_interval_var.get())
 
-            if analysis_interval < 1 or display_interval < 1:
+            if analysis_interval < 1:
                 raise ValueError(_("Intervals must be >= 1"))
 
         except (ValueError, TypeError) as e:
@@ -931,7 +923,11 @@ class LiveAnalysisDialog(Dialog):
             experiment_id = f"camera_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
 
         analysis_interval = int(self.analysis_interval_var.get())
-        display_interval = int(self.display_interval_var.get())
+        # O preview repinta no ritmo da ANÁLISE. Emitir o mesmo número nas duas
+        # chaves mantém o config coerente com o que
+        # ``resolve_processing_intervals`` vai devolver, em vez de carregar um
+        # valor que ninguém lê.
+        display_interval = analysis_interval
         num_aquariums = int(self.num_aquariums_var.get())
         animals_per_aquarium = int(self.animals_per_aquarium_var.get())
 

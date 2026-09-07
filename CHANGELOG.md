@@ -9,6 +9,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Tres assimetrias do fluxo ao vivo, antes de testar projeto ao vivo
+
+**A pos-analise ao vivo nao usava o snapshot do projeto.** Ela montava
+`AnalysisService(settings_obj=self.settings)` -- o objeto COMPARTILHADO, que os
+dialogos ad-hoc escrevem e nunca restauram. Numa sessao de PROJETO isso
+significa analisar com os limiares que a ultima execucao avulsa deixou: o
+defeito que o #524 mediu no pre-gravado, pela porta que continuava aberta.
+`build_project_settings_snapshot` tinha tres pontos de uso, nenhum aqui.
+
+Os dois casos precisam de fontes DIFERENTES, e tratar igual quebra um ou outro:
+com projeto vale o snapshot (`projeto > baseline > default`); sem projeto vale o
+objeto vivo, porque ali os valores do dialogo SAO a intencao da sessao e o
+snapshot os descartaria calado.
+
+**`seg_overlap` ao vivo degradava sempre.** `should_capture_masks` tinha um unico
+chamador, o worker pre-gravado. O pipeline ao vivo nunca a chamava, nunca ligava
+a captura e nunca escrevia o sidecar `3b_Mascaras_*` -- entao a regra caia em
+`bbox_intersects` e o relatorio trazia o aviso de degradacao como se fosse
+limitacao do dado, quando era do pipeline. Aqui o `project_data` E passado ao
+resolvedor: o ao vivo roda no mesmo processo e tem o projeto em maos.
+
+**Os intervalos nao passavam pelo resolvedor.** O diagnostico mudou ao ler o
+`processing_interval_resolver`: o problema nao era so a fonte, era o campo
+"Display interval" existir. Ele nunca foi uma segunda decisao -- o preview
+repinta no ritmo da analise --, e com analise=10 e exibicao=5 o overlay
+repintava em quadros SEM deteccao nova, mostrando uma caixa velha em metade dos
+quadros, indistinguivel de um rastreador travado. O campo saiu do dialogo, como
+ja tinha saido da criacao de projeto e do dialogo de video unico, e os dois
+caminhos ao vivo passam a usar `resolve_processing_intervals`.
+
 ### Dimensoes reais do aquario: nao havia como informa-las na analise ao vivo
 
 `aquarium_width_var` e `aquarium_height_var` existiam no `LiveAnalysisDialog`,

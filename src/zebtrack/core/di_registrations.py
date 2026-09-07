@@ -184,6 +184,7 @@ def build_container(context: ContainerContext) -> punq.Container:
             recording_service=_resolve(container, RecordingService),
             detector_service=_resolve(container, DetectorService),
             settings_obj=settings_obj,
+            settings_baseline=settings_baseline,
             recorder=context.recorder_factory.get_recorder(),
             event_bus=_resolve(container, EventBusV2),
             root=context.root,
