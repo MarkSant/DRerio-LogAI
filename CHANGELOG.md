@@ -2567,9 +2567,9 @@ decomposition.
   - Context 1: Single video analysis with camera
   - Context 2: Live projects with multi-session recording
 
-## [Unreleased]
+### 📷 Camera Detection & Live Camera
 
-### Fixed
+#### Fixed
 
 - **🎯 CRITICAL: Ghost Camera Detection**: Fixed wizard detecting "phantom" cameras that report `isOpened=True` but never return frames (e.g., virtual cameras, disconnected devices)
 - **🎯 CRITICAL: Black Frame Detection**: Added detection of cameras that return completely black frames (virtual cameras with no input source)
@@ -2582,7 +2582,7 @@ decomposition.
 - **Live Camera DirectShow**: Added DirectShow backend (`cv2.CAP_DSHOW`) to Camera class for Windows consistency with wizard detection
 - **Detector Empty Polygon**: Fixed ValueError when zone data contains empty polygons in standalone analysis mode
 
-### Changed
+#### Changed
 
 - **🎯 Camera Detection Logic**: Wizard now validates each camera can actually capture frames before adding to list (prevents index misalignment)
 - **🎯 Camera Descriptions**: Changed from Windows device names to sequential numbering with resolution + brightness hints (e.g., "Câmera #1 [índice 1] - SD (640x480) (iluminação clara)")
@@ -2590,7 +2590,7 @@ decomposition.
 - **Camera Detection Reliability**: Added consecutive failure tracking (stops after 3 consecutive ghost cameras to avoid long scans)
 - **Camera Detection Range**: Reduced scan range from 0-9 to 0-5 for faster detection
 
-### Removed
+#### Removed
 
 - **Live Camera Health Check**: Removed blocking 3-frame capture test that caused program hangs with slow/ghost cameras
 
