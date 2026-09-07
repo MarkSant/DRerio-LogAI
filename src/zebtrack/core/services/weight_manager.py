@@ -15,6 +15,7 @@ from typing import Any
 import structlog
 
 from zebtrack.i18n import _
+from zebtrack.paths import repo_root
 from zebtrack.settings import Settings
 from zebtrack.utils import calculate_sha256
 
@@ -117,7 +118,7 @@ class WeightManager:
     def __init__(
         self,
         settings_obj: Settings | None = None,
-        config_dir: Path | str = ".",
+        config_dir: Path | str | None = None,
         weights_dir: Path | str | None = None,
     ):
         """Initialize WeightManager with settings dependency injection.
@@ -125,12 +126,15 @@ class WeightManager:
         Args:
             settings_obj: Settings instance (injected, required for non-test usage)
             config_dir: Directory for weights configuration file (and OpenVINO cache).
+                Defaults to the repository root. It used to default to ``"."``,
+                which made ``weights/``, ``weights_config.json`` and the OpenVINO
+                cache land wherever the app happened to be launched from.
             weights_dir: Folder where ``.pt`` weight files live. When ``None`` it
                 is resolved from ``settings_obj.weights.source_dir`` (default:
                 ``"weights"``) joined with ``config_dir``. Created if missing.
         """
         self.settings = settings_obj
-        self.config_dir = str(config_dir)
+        self.config_dir = str(repo_root() if config_dir is None else config_dir)
         self.config_path = os.path.join(self.config_dir, WEIGHTS_CONFIG_FILE)
         self.weights_dir = str(self._resolve_weights_dir(weights_dir))
         # Ensure the weights folder exists so discovery + add_weight can target it.

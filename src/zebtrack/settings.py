@@ -33,7 +33,7 @@ Usage (Dependency Injection):
 import contextlib
 import os
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Final, Literal
 
 import structlog
 import yaml
@@ -46,7 +46,21 @@ from pydantic import (
     model_validator,
 )
 
+# Aliased on import: the public names collide with the parameter names of the
+# loader functions below.
+from zebtrack.paths import default_config_path as _resolve_config_path
+from zebtrack.paths import default_local_config_path as _resolve_local_config_path
+from zebtrack.paths import repo_root
+
 log = structlog.get_logger()
+
+# Resolved once at import and used as the loaders' default arguments. Doing it
+# here rather than inside the function bodies keeps the number and order of
+# filesystem calls made by load_settings() unchanged, which the
+# ``patch("pathlib.Path.is_file", side_effect=[True, False])`` tests in
+# tests/test_settings.py depend on.
+_DEFAULT_CONFIG_PATH: Final[Path] = _resolve_config_path()
+_DEFAULT_LOCAL_CONFIG_PATH: Final[Path] = _resolve_local_config_path()
 
 
 # --- Pydantic Models for Configuration Structure ---
@@ -265,13 +279,8 @@ class YOLOModelSettings(BaseModel):
         if path_cwd.exists() and path_cwd.is_file():
             return str(path_cwd.resolve())
 
-        # 2. Check relative to project root (assuming src layout)
-        # Location: src/zebtrack/settings.py
-        # .parent -> src/zebtrack
-        # .parent.parent -> src
-        # .parent.parent.parent -> Project Root
-        project_root = Path(__file__).parent.parent.parent
-        path_project = project_root / v
+        # 2. Check relative to the project root, which is where `weights/` lives.
+        path_project = repo_root() / v
 
         if path_project.exists() and path_project.is_file():
             return str(path_project.resolve())
@@ -1413,8 +1422,8 @@ def _deep_merge_dicts(base: dict[str, Any], override: dict[str, Any]) -> dict[st
 
 
 def load_settings(
-    default_config_path: Path | str = Path("config.yaml"),
-    override_config_path: Path | str = Path("config.local.yaml"),
+    default_config_path: Path | str = _DEFAULT_CONFIG_PATH,
+    override_config_path: Path | str = _DEFAULT_LOCAL_CONFIG_PATH,
 ) -> Settings:
     """Load and validate application settings from YAML configuration files.
 
@@ -1510,8 +1519,8 @@ def load_settings(
 
 
 def reload_settings(
-    default_config_path: Path | str = Path("config.yaml"),
-    override_config_path: Path | str = Path("config.local.yaml"),
+    default_config_path: Path | str = _DEFAULT_CONFIG_PATH,
+    override_config_path: Path | str = _DEFAULT_LOCAL_CONFIG_PATH,
 ) -> Settings:
     """Reload settings from disk, useful after editing configuration files.
 
@@ -1545,7 +1554,7 @@ def reload_settings(
 
 def save_settings(
     settings: Settings,
-    target_path: Path | str = Path("config.local.yaml"),
+    target_path: Path | str = _DEFAULT_LOCAL_CONFIG_PATH,
 ) -> None:
     """Save the current settings to a YAML file.
 
@@ -1605,7 +1614,7 @@ def save_settings(
 
 def write_local_override(
     updates: dict[str, Any],
-    target_path: Path | str = Path("config.local.yaml"),
+    target_path: Path | str = _DEFAULT_LOCAL_CONFIG_PATH,
 ) -> None:
     """Merge *updates* into the local override file, touching nothing else.
 

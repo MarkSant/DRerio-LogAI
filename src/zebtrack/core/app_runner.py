@@ -203,15 +203,22 @@ def _perform_reset(
             app rebuilds it from defaults + weights/ on next launch.
         openvino_cache: When True, removes the entire
             ``openvino_model_cache/`` folder (all converted OpenVINO models).
+
+    Every target is resolved against the repository root, not the working
+    directory. Run from anywhere else these paths used to match nothing, so the
+    command printed "Reset complete" after deleting exactly nothing.
     """
     from pathlib import Path
 
+    from zebtrack.paths import repo_root
+
+    root = repo_root()
     file_targets: list[Path] = []
     if benchmark_and_config:
-        file_targets.append(Path("openvino_model_cache") / "system_benchmark.json")
-        file_targets.append(Path("config.local.yaml"))
+        file_targets.append(root / "openvino_model_cache" / "system_benchmark.json")
+        file_targets.append(root / "config.local.yaml")
     if weights_registry:
-        file_targets.append(Path("weights_config.json"))
+        file_targets.append(root / "weights_config.json")
 
     for path in file_targets:
         if path.exists():
@@ -221,7 +228,7 @@ def _perform_reset(
             print(f"Not found (skip): {path}")
 
     if openvino_cache:
-        cache_dir = Path("openvino_model_cache")
+        cache_dir = root / "openvino_model_cache"
         if cache_dir.exists():
             if _rmtree_with_unlock(cache_dir):
                 print(f"Removed: {cache_dir}/")
@@ -359,14 +366,16 @@ def _select_language_on_first_run(root: Any, *, log: Any) -> None:
     Any failure degrades to English and lets startup continue. A language
     chooser is not worth aborting the application over.
     """
-    from pathlib import Path
-
     from zebtrack.i18n import LANGUAGE_ENV_VAR
+    from zebtrack.paths import default_local_config_path
 
     if os.environ.get("ZEBTRACK_SKIP_LANGUAGE_PROMPT") or os.environ.get(LANGUAGE_ENV_VAR):
         return
 
-    if Path("config.local.yaml").exists():
+    # Must agree with write_local_override() below, which writes to this same
+    # anchored path: checking one location and writing to another would re-ask
+    # the language on every launch.
+    if default_local_config_path().exists():
         return
 
     try:
