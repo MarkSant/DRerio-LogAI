@@ -1,0 +1,55 @@
+{
+  "manifest_version": 1,
+  "repository": "MarkSant/DRerio-LogAI",
+  "release_tag": "weights-v1",
+  "files": [
+    {
+      "name": "best_det_lateral.pt",
+      "sha256": "43802efa22c90b8ce91334cfc2d4b58e30fbd89467a6f5a2107a98feb28dbe68",
+      "bytes": 80755597,
+      "type": "det",
+      "perspective": "lateral",
+      "required": true
+    },
+    {
+      "name": "best_det_topdown.pt",
+      "sha256": "e3f33d3c32a397be9e199d5f638afaf5bfb27ac6c1c71d9158cf95fe730ed1f8",
+      "bytes": 40525100,
+      "type": "det",
+      "perspective": "top_down",
+      "required": true
+    },
+    {
+      "name": "best_oi.pt",
+      "sha256": "eb94f0df748e2c3eed2c3cbd4304f9ded96b95e99b9c6843e0ead1f045720e90",
+      "bytes": 19220903,
+      "type": "det",
+      "perspective": null,
+      "required": false
+    },
+    {
+      "name": "best_seg.pt",
+      "sha256": "3ec65bfbad9d9d044d512efa3446f5477cf589004a9ee05d00b1ec29c14dd9e5",
+      "bytes": 20568005,
+      "type": "seg",
+      "perspective": null,
+      "required": false
+    },
+    {
+      "name": "best_seg_lateral.pt",
+      "sha256": "3866b38ca337c66998f2456ff0de2f4f86332d57999bfe07d0f76722f3ff454f",
+      "bytes": 45147190,
+      "type": "seg",
+      "perspective": "lateral",
+      "required": true
+    },
+    {
+      "name": "best_seg_topdown.pt",
+      "sha256": "dc601df4837b1c755a6ed98b1e04e6bde87f9e378d66be7c2c128286db4263c5",
+      "bytes": 45162486,
+      "type": "seg",
+      "perspective": "top_down",
+      "required": true
+    }
+  ]
+}
