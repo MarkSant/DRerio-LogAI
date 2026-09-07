@@ -1,5 +1,6 @@
 """Tests for ZoneControlsWidget core behaviors."""
 
+from tkinter import ttk
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
@@ -257,3 +258,70 @@ def test_tab_builder_resolves_the_effective_rule_for_the_panel():
 # (``test_seg_overlap_warning_appears_only_when_masks_are_off`` e o teste de
 # ajuda que exige ``persist_masks`` + ``animal_method``). O lado do resumo desta
 # aba está em ``test_roi_summary_names_seg_overlap_prerequisites``.
+
+
+@pytest.mark.gui
+def test_a_destroyed_panel_does_not_raise_on_a_live_session_event(tkinter_root, event_bus):
+    """O sintoma reportado: ``bad window path name .!...!zonecontrolswidget``.
+
+    O painel assina quatro eventos de sessao ao vivo. Ate a desinscricao do
+    ``BaseWidget`` existir, o objeto continuava assinado depois de a aba ser
+    reconstruida, e o proximo ``LIVE_SESSION_STOPPED`` caia num widget morto.
+    ``winfo_toplevel()`` LEVANTA nesse estado -- e a primeira coisa que os dois
+    handlers faziam, antes de qualquer guarda. O ``except tk.TclError`` dentro
+    de ``_hide_pending_session_banner`` estava um nivel fundo demais.
+    """
+    container = ttk.Frame(tkinter_root)
+    widget = ZoneControlsWidget(container, event_bus=event_bus)
+    tkinter_root.update_idletasks()
+
+    container.destroy()  # tab_builder reconstruindo a aba
+
+    # Sem a guarda isto levanta TclError, que o bus republica como
+    # ``event_bus_v2.handler_failed`` com traceback completo em ERROR.
+    widget._on_live_recording_done()
+
+    assert widget.is_alive() is False
+
+
+@pytest.mark.gui
+def test_a_destroyed_panel_does_not_raise_on_a_pending_event(tkinter_root, event_bus):
+    """Mesmo caminho pelo handler do banner de sessao pendente."""
+    container = ttk.Frame(tkinter_root)
+    widget = ZoneControlsWidget(container, event_bus=event_bus)
+    tkinter_root.update_idletasks()
+    payload = payloads.LiveRecordingPendingPayload(
+        experiment_id="live_teste",
+        polygon_source="auto",
+    )
+
+    container.destroy()
+
+    widget._on_live_recording_pending(payload)
+
+    assert widget._pending_session_payload is None
+
+
+@pytest.mark.gui
+def test_a_live_panel_still_shows_the_banner(tkinter_root, event_bus):
+    """A guarda nao pode custar o comportamento normal.
+
+    Um teste que so prova "nao levanta" passaria com o handler transformado num
+    ``return`` incondicional -- que e o defeito oposto: o banner nunca aparece.
+    """
+    widget = ZoneControlsWidget(tkinter_root, event_bus=event_bus)
+    tkinter_root.update_idletasks()
+    payload = payloads.LiveRecordingPendingPayload(
+        experiment_id="live_teste",
+        polygon_source="auto",
+    )
+
+    widget._on_live_recording_pending(payload)
+    tkinter_root.update()  # o handler agenda por root.after(0, ...)
+
+    assert widget.has_pending_live_session() is True
+
+    widget._on_live_recording_done()
+    tkinter_root.update()
+
+    assert widget.has_pending_live_session() is False
