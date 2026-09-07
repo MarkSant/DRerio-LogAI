@@ -9,12 +9,12 @@ authors:
     affiliation: "São Paulo State University (UNESP), Botucatu, Brazil"
   - family-names: "Giaquinto"
     given-names: "Percília Cardoso"
+    orcid: "https://orcid.org/0000-0003-4591-4415"
     email: "percilia.giaquinto@unesp.br"
     affiliation: "São Paulo State University (UNESP), Botucatu, Brazil"
-    # orcid: "https://orcid.org/XXXX-XXXX-XXXX-XXXX"  # TODO: Percília ORCID (required for corresponding author)
 title: "DRerio LogAI"
-version: 6.0.0
-date-released: 2026-08-15
+version: 6.3.0
+date-released: 2026-09-07
 abstract: "An open-source, GPU-free platform for automated tracking, closed-loop stimulation and behavioural analysis of adult zebrafish (Danio rerio), combining YOLOv11 detection, BYTETracker multi-object tracking and Intel OpenVINO inference in an event-driven architecture."
 keywords:
   - "zebrafish"
@@ -36,7 +36,9 @@ identifiers:
   - type: other
     value: "INPI BR 51 2026 005215-7"
     description: "Brazilian computer-program copyright registration (INPI, petition 870260066857); titleholder: Universidade Estadual Paulista (UNESP)."
-  # TODO: uncomment and fill after the Zenodo DOI is minted from the v6.0.0 release
+  # TODO: uncomment and fill after the Zenodo DOI is minted from the v6.3.0 release.
+  # The Zenodo GitHub integration must be enabled on the repository BEFORE the
+  # release is published: with no webhook, publishing mints no DOI at all.
   # - type: doi
   #   value: 10.5281/zenodo.XXXXXXX
-  #   description: "Archived snapshot of release 6.0.0 (concept DOI resolves to the latest version)."
+  #   description: "Archived snapshot of release 6.3.0 (concept DOI resolves to the latest version)."

@@ -5,7 +5,7 @@
 
 **Intelligent Tracking and Behavioral Analysis Platform for _Danio rerio_ (Zebrafish)**
 
-![Version](https://img.shields.io/badge/version-6.0.0-blue.svg)
+![Version](https://img.shields.io/badge/version-6.3.0-blue.svg)
 ![Architecture](https://img.shields.io/badge/architecture-Event--Driven-green.svg)
 ![Python](https://img.shields.io/badge/python-3.12%2B-yellow.svg)
 ![License](https://img.shields.io/badge/license-MIT%20%2B%20AGPL--3.0--or--later%20effective-lightgrey.svg)
@@ -202,7 +202,7 @@ Advanced support for simultaneous analysis of multiple aquariums:
 
 ## 📚 Version History (v1–v3)
 
-This README highlights the current state (v6.0.0). For full per-release details, see the
+This README highlights the current state (v6.3.0). For full per-release details, see the
 [CHANGELOG.md](CHANGELOG.md). Below is a summary (main milestones) of earlier versions.
 
 ### v3.0.0 (2025-01-11)

@@ -9,6 +9,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Metadados de citacao e licenca alinhados com a tag que vai virar DOI
+
+Cinco lugares declaravam a versao, e so dois estavam certos. `pyproject.toml` e
+`__init__.py` diziam 6.3.0; `.zenodo.json`, `CITATION.cff`, os badges dos dois
+READMEs e `docs/INDEX.md` continuavam em 6.0.0.
+
+Isso nao e cosmetico: **o campo `version` do `.zenodo.json` sobrescreve o nome
+da tag no registro do DOI**. Publicar a v6.3.0 com o arquivo como estava criaria
+um record permanente rotulado "6.0.0", com data de 2026-08-15, apontando para
+codigo que nao e aquele. Corrigir depois exige publicar nova versao do deposito.
+
+- **ORCID da Percilia Cardoso Giaquinto** (0000-0003-4591-4415) preenchido no
+  `CITATION.cff`. Estava como TODO desde a preparacao da v6.0.0, e o campo entra
+  no registro permanente: a autora de correspondencia ficaria sem identificador.
+- O TODO do DOI agora avisa o que de fato bloqueia: a integracao Zenodo precisa
+  estar **ligada antes** de publicar o release, senao nao ha DOI nenhum a
+  preencher.
+
+**O `NOTICE` afirmava algo que nunca foi verdade, e que ficaria pior.** Dizia que
+os pesos "sao baixados em tempo de execucao dos canais de distribuicao da
+Ultralytics" e "nao sao redistribuidos". Nenhuma das duas: sao modelos treinados
+para este projeto, e ninguem baixava nada. Com o `fetch-weights` eles passam a
+ser distribuidos de fato, como assets de um release proprio -- e ai a atribuicao
+**CC BY 4.0** do dataset ZebraFish-Detection deixa de ser hipotese e vira
+obrigacao que viaja junto com os pesos. O texto agora diz isso.
+
+O `.zenodo.json` tambem precisou de mais que o numero: "the trained YOLOv11
+weights distributed with the application" era ambiguo num deposito que contem
+**so o codigo-fonte**. Agora explicita que os pesos nao fazem parte do arquivo
+depositado e como sao obtidos.
+
 ### A documentacao de instalacao ensinava coisas que nao funcionam
 
 Nao era so desatualizacao. Tres instrucoes estavam ativamente erradas, e uma

@@ -5,7 +5,7 @@
 
 **Plataforma Inteligente de Rastreamento e Análise Comportamental para _Danio rerio_ (Zebrafish)**
 
-![Version](https://img.shields.io/badge/version-6.0.0-blue.svg)
+![Version](https://img.shields.io/badge/version-6.3.0-blue.svg)
 ![Architecture](https://img.shields.io/badge/architecture-Event--Driven-green.svg)
 ![Python](https://img.shields.io/badge/python-3.12%2B-yellow.svg)
 ![License](https://img.shields.io/badge/license-MIT%20%2B%20AGPL--3.0--or--later%20effective-lightgrey.svg)
@@ -205,7 +205,7 @@ Suporte avançado para análise simultânea de múltiplos aquários:
 
 ## 📚 Histórico de versões (v1–v3)
 
-O README destaca o estado atual (v6.0.0). Para detalhes completos por release, consulte o
+O README destaca o estado atual (v6.3.0). Para detalhes completos por release, consulte o
 [CHANGELOG.md](CHANGELOG.md). Abaixo fica um resumo (marcos principais) das versões anteriores.
 
 ### v3.0.0 (2025-01-11)
