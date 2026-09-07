@@ -1328,14 +1328,37 @@ class LiveCalibrationCoordinator(BaseCoordinator):
             # Ensure polygon is int for ZoneData
             int_polygon = [[int(p[0]), int(p[1])] for p in polygon]
 
-            zone_data = ZoneData(
-                polygon=int_polygon,
-                metadata=metadata,
-            )
-
             # Save reference frame to disk so the Zone tab canvas can load it.
             reference_frame_path = self._reference_frame_path()
             cv2.imwrite(reference_frame_path, frames[-1])
+
+            # As ROIs JÁ definidas sobrevivem à re-detecção da arena.
+            #
+            # ``ZoneData(polygon=..., metadata=...)`` deixa ``roi_polygons``,
+            # ``roi_names`` e ``roi_colors`` vazios, e ``save_zone_data``
+            # SUBSTITUI a chave inteira — então redetectar o aquário apagava as
+            # ROIs do projeto. O efeito era duplo e mudo: a aba de zonas parava
+            # de desenhar as ROIs, e o Arduino não disparava nada, porque o
+            # envio é por borda de entrada/saída de ROI e o detector recebia
+            # ``roi_count=0``. Nada no log dizia "as ROIs foram descartadas".
+            #
+            # A arena é o que a detecção acabou de calcular; as ROIs não são
+            # dela para redefinir.
+            existing = self.project_manager.get_zone_data(reference_frame_path)
+            preserved_rois = list(getattr(existing, "roi_polygons", []) or [])
+
+            zone_data = ZoneData(
+                polygon=int_polygon,
+                roi_polygons=preserved_rois,
+                roi_names=list(getattr(existing, "roi_names", []) or []),
+                roi_colors=list(getattr(existing, "roi_colors", []) or []),
+                metadata=metadata,
+            )
+            if preserved_rois:
+                log.info(
+                    "live_calibration_coordinator.zones.rois_preserved",
+                    count=len(preserved_rois),
+                )
 
             # IN-MEMORY ONLY (persist=False) — audit Erro 4 (2026-05-25).
             #
