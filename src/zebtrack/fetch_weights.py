@@ -28,6 +28,7 @@ import hashlib
 import json
 import sys
 import urllib.error
+import urllib.parse
 import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
@@ -38,6 +39,9 @@ from zebtrack.paths import repo_root
 MANIFEST_NAME = "weights_manifest.json"
 _CHUNK = 1024 * 1024
 _MANIFEST_VERSION = 1
+
+# urlopen would otherwise honour file:// and any registered custom scheme.
+_ALLOWED_SCHEMES = frozenset({"http", "https"})
 
 
 @dataclass(frozen=True)
@@ -148,6 +152,26 @@ def _format_size(num_bytes: int) -> str:
     return f"{num_bytes / (1024 * 1024):.1f} MiB"
 
 
+def _reject_unsupported_scheme(url: str) -> None:
+    """Refuse anything but http/https before it reaches ``urlopen``.
+
+    ``urlopen`` honours ``file:`` and any scheme a handler is registered for, so
+    a manifest that named ``file:///etc/passwd`` would have it dutifully copied
+    into ``weights/`` under a ``.pt`` name. The manifest is a tracked file and
+    therefore trusted, but "trusted input" is exactly the assumption that stops
+    being true the day someone accepts a manifest from elsewhere.
+
+    Raises:
+        RuntimeError: the URL uses a scheme this downloader will not fetch.
+    """
+    scheme = urllib.parse.urlparse(url).scheme.lower()
+    if scheme not in _ALLOWED_SCHEMES:
+        raise RuntimeError(
+            f"Refusing to fetch {url!r}: scheme {scheme or '(none)'!r} is not allowed. "
+            f"Only {', '.join(sorted(_ALLOWED_SCHEMES))} are."
+        )
+
+
 def download_entry(manifest: Manifest, entry: WeightEntry, dest_dir: Path) -> None:
     """Download one weight into *dest_dir*, verifying before it takes its name.
 
@@ -160,6 +184,7 @@ def download_entry(manifest: Manifest, entry: WeightEntry, dest_dir: Path) -> No
         RuntimeError: the transfer failed, or the bytes did not verify.
     """
     url = manifest.url_for(entry)
+    _reject_unsupported_scheme(url)
     part = dest_dir / f"{entry.name}.part"
     final = dest_dir / entry.name
 
@@ -167,7 +192,10 @@ def download_entry(manifest: Manifest, entry: WeightEntry, dest_dir: Path) -> No
     part.unlink(missing_ok=True)
 
     try:
-        with urllib.request.urlopen(url) as response, part.open("wb") as out:
+        # The scheme is restricted to http/https by _reject_unsupported_scheme()
+        # above. bandit flags every urlopen call statically (B310) because it
+        # cannot see a guard that is not inline, hence the marker on this line.
+        with urllib.request.urlopen(url) as response, part.open("wb") as out:  # nosec B310
             copied = 0
             while chunk := response.read(_CHUNK):
                 out.write(chunk)
