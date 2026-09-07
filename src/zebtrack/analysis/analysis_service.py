@@ -81,14 +81,7 @@ def resolve_sharp_turn_threshold(
     non-numeric threshold falls back with a warning; a report that stops halfway
     is worse than one computed with the documented default.
     """
-    nested = (
-        {}
-        if getattr(
-            getattr(settings_obj, "video_processing", None), "sharp_turn_threshold_deg_s", None
-        )
-        is not None
-        else (params or {}).get("analysis")
-    )
+    nested = (params or {}).get("analysis")
     if isinstance(nested, dict) and nested.get("sharp_turn_threshold") is not None:
         try:
             return float(nested["sharp_turn_threshold"])
