@@ -353,8 +353,16 @@ OpenCV e SciPy sozinhos respondem pela maior parte de um ambiente virtual de
    Os modelos YOLO treinados não ficam no repositório por causa do tamanho. Esse
    comando os baixa do release do projeto no GitHub e confere cada arquivo contra
    um SHA-256 gravado em `weights_manifest.json`. Use `--check` para validar uma
-   instalação existente sem baixar, ou `--all` para trazer também os modelos
-   legados opcionais.
+   instalação existente sem baixar, ou `--all` para trazer também os dois
+   modelos generalistas.
+
+   São seis modelos anexados ao release, e quatro baixados por padrão. Esses
+   quatro são o par de perspectiva -- um `seg` e um `det` para lateral e para
+   top-down -- e são os que o catálogo encontra sozinho. Os outros dois,
+   `best_oi.pt` (det) e `best_seg.pt` (seg), são generalistas de 3 classes:
+   têm uma classe `zup-aqua` que os de perspectiva não têm. Nada os registra
+   automaticamente, então depois do `--all` adicione-os pelo botão
+   **Add Weight...** no painel de configuração de modelos.
 
 5. **Execute**:
 

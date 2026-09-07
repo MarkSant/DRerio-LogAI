@@ -59,8 +59,16 @@ Useful variants:
 
 ```powershell
 poetry run fetch-weights --check   # verify what is installed, download nothing
-poetry run fetch-weights --all     # also fetch the optional legacy models
+poetry run fetch-weights --all     # also fetch the two generalist models
 ```
+
+The release carries six models and installs four by default. The four are the
+perspective pair (`seg` + `det`, lateral and top-down), which
+`WeightManager.discover_perspective_weights()` finds by filename. The two
+behind `--all` -- `best_oi.pt` and `best_seg.pt` -- are 3-class generalists,
+carrying a `zup-aqua` class the perspective models lack. They match no
+discovery glob, so register them with **Add Weight...** in the model
+configuration panel once downloaded.
 
 ## Launch the application
 

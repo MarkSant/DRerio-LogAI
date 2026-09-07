@@ -291,10 +291,14 @@ Detalhes que nao sao acidentais:
   arquiva o tarball do FONTE da tag, nao os assets -- o record resultante teria
   codigo, nao pesos. Versoes seguintes nao precisam reenviar 200 MB: o manifesto
   continua apontando para a tag onde os pesos moram, ate que eles mudem.
-- **Os dois pesos legados sao opcionais.** `best_seg.pt` e `best_oi.pt` nao sao
-  auto-descobertos e ficam atras de `--all`. O bundle obrigatorio sao os quatro
-  de perspectiva (202 MiB): um `seg` e um `det` para cada uma, porque um modelo
-  lateral numa cena top-down devolve zero poligonos.
+- **Sao seis pesos publicados, e quatro baixados por padrao.** O bundle padrao
+  (202 MiB) sao os quatro de perspectiva: um `seg` e um `det` para cada uma,
+  porque um modelo lateral numa cena top-down devolve zero poligonos. Os outros
+  dois -- `best_oi.pt` (det) e `best_seg.pt` (seg), 38 MiB -- ficam atras de
+  `--all`. Nao sao sobras: sao generalistas de 3 CLASSES, com um `zup-aqua` que
+  os de perspectiva nao tem. O que os separa e a descoberta, nao a qualidade --
+  `discover_perspective_weights()` casa por sufixo de nome, entao nenhum dos
+  dois entra no catalogo sozinho; e o botao "Add Weight..." que os registra.
 - **A saida fica em ingles, sem `_()`.** O script roda antes de o app ter
   iniciado alguma vez, logo antes do prompt de idioma de primeira execucao --
   nao ha idioma escolhido a respeitar. Mesmo precedente dos dialogos fatais de
@@ -312,7 +316,8 @@ arquivo versionado e portanto confiavel hoje; essa e exatamente a premissa que
 deixa de valer no dia em que um manifesto vier de fora.
 
 **`yolo_model.path` apontava para um peso que o bundle nao entrega.** Ele
-nomeava `best_seg.pt`, legado, entao mesmo uma maquina corretamente provisionada
+nomeava `best_seg.pt`, que so vem com `--all`, entao mesmo uma maquina
+corretamente provisionada
 logava `yolo_model.path.not_found` a cada inicializacao. Um falso alarme
 permanente treina todo mundo a ignorar justamente o aviso que significa que os
 pesos sumiram de verdade. Agora aponta para `best_seg_lateral.pt`.

@@ -351,7 +351,15 @@ detector weights add another ~200 MB.
    size. This command downloads them from the project's GitHub release and
    verifies every file against a SHA-256 recorded in `weights_manifest.json`.
    Add `--check` to validate an existing installation without downloading, or
-   `--all` to also fetch the optional legacy models.
+   `--all` to also fetch the two generalist models.
+
+   Six models are attached to the release; four are downloaded by default.
+   Those four are the perspective pair -- one `seg` and one `det` for lateral
+   and for top-down -- and they are the ones the catalogue finds on its own.
+   The other two, `best_oi.pt` (det) and `best_seg.pt` (seg), are 3-class
+   generalists: they add a `zup-aqua` class the perspective models do not
+   have. Nothing auto-registers them, so after `--all` add them through
+   **Add Weight...** in the model configuration panel.
 
 5. **Run it**:
 

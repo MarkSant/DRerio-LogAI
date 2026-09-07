@@ -268,9 +268,11 @@ def generate_manifest(
                 "bytes": path.stat().st_size,
                 "type": weight_type,
                 "perspective": perspective,
-                # Only the perspective-suffixed weights are auto-discovered by
-                # WeightManager.discover_perspective_weights(); the legacy flat
-                # names are optional extras.
+                # `required` tracks DISCOVERY, not quality: only the
+                # perspective-suffixed names are matched by
+                # WeightManager.discover_perspective_weights(). The flat-named
+                # generalists have to be registered by hand, so they are not
+                # part of the default download.
                 "required": perspective is not None,
             }
         )
@@ -323,7 +325,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--all",
         action="store_true",
-        help="Also fetch weights the manifest marks optional (legacy models).",
+        help="Also fetch the generalist models the manifest marks optional.",
     )
     parser.add_argument(
         "--dest",

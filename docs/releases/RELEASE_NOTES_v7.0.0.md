@@ -31,6 +31,13 @@ assets and verifies every file against a SHA-256 recorded in
 `weights_manifest.json`. They are not in the repository because of their size,
 and **the application does not start without them**.
 
+Six models are attached. The four installed by default are the perspective
+pair -- one segmentation and one detection model for the lateral view and for
+the top-down view -- and they are the ones the weight catalogue discovers by
+filename. `--all` adds `best_oi.pt` and `best_seg.pt`, 3-class generalists
+that carry a `zup-aqua` class the perspective models do not; they match no
+discovery glob and are registered through **Add Weight...**.
+
 A C compiler is required: one dependency (`cython-bbox`) ships only as a source
 distribution. Budget about 3 GB of free disk for the virtual environment and the
 models together. Full prerequisites in the README.
