@@ -6,6 +6,53 @@ This document tracks all major agent interventions, technical debt resolutions, 
 
 ## Active Tasks
 
+### [2026-09-07] Mutation check no CI: 7 min por PR, sem poder reprovar nada
+
+__ID:__ TASK-074
+__Agent:__ Claude Code (Opus 5)
+__Status:__ Completed ✅
+__Branch:__ claude/ci-mutation-check-perf-5cb2c8
+__Description:__
+O passo `mutation_check.py --all` levava 443 s no run 34158977057 — mais que os
+testes core (335 s) — e rodava com `continue-on-error: true`, ou seja, custava
+sete minutos e não podia reprovar PR nenhum. O job `test (ubuntu-latest, core)`
+fechava em 898 s contra 463 s do segundo mais longo: o passo era metade do
+wall clock de todo o CI.
+
+Medido, não deduzido: são 67 processos pytest (14 baselines + 53 mutações), e
+~4 s de CADA um é `import torch/torchvision/ultralytics`, puxados avidamente por
+`core/services/__init__.py` → `detector_service` → `core.detection` → registro de
+plugins. Bloqueando os três no `sys.meta_path`, o import do
+`external_trigger_gate` cai de 4,71 s para 1,42 s. O teste em si, nesse módulo,
+roda em ~0,2 s.
+
+__Critério de pronto:__ o passo deixa de pagar por módulos que o PR não toca,
+vira bloqueante, e o catálogo inteiro continua rodando todo dia.
+
+### Subtasks (TASK-074)
+
+- [x] `--changed-since REF` em `scripts/mutation_check.py`: seleciona os módulos
+      cujo source OU testes o diff toca. Três dots primeiro (exclui o que entrou
+      na base depois do fork), dois dots como fallback de clone raso, e
+      `git status` incluído para o trabalho ainda não commitado.
+- [x] Degradação na direção segura: git sem resposta ⇒ roda TUDO e diz por quê.
+      `mutation_check.py`, `mutation_catalog.yaml` e `tests/conftest.py` também
+      forçam o catálogo inteiro — os dois primeiros definem o que é uma mutação,
+      o terceiro governa as fixtures autouse de todos os testes.
+- [x] Seleção vazia retorna 0 ANTES de qualquer outra coisa: `_verify_tree_restored`
+      monta o pathspec do `git status` a partir dos sources selecionados, e sem
+      nenhum o pathspec some e o git reporta o repositório inteiro — qualquer
+      arquivo sujo viraria "vazamento de mutação" e exit 2.
+- [x] CI: `--changed-since HEAD^` (na PR o HEAD é o merge, então `HEAD^` é a
+      ponta da base; no push para `main` é o commit anterior) com
+      `fetch-depth: 2`, e `continue-on-error` removido — o passo agora reprova.
+- [x] Noturno: job `mutation-catalogue` em `stress-tests.yml` roda `--all --json`,
+      publica o relatório como artefato e abre issue quando algo sobrevive.
+- [x] `tests/quality/test_mutation_check.py` — o mapeamento arquivo→módulo virou
+      portão, e um mapeamento errado não falha: ele para de checar em silêncio.
+- [x] Docs: `MUTATION_BASELINE.md` (seção "Where it runs"), `CLAUDE.md`,
+      `CONTRIBUTING.md`, `TEST_MAP.md`.
+
 ### [2026-09-05] Ao vivo avulso: perspectiva escolhida não chegava ao detector
 
 __ID:__ TASK-073

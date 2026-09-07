@@ -406,7 +406,9 @@ use it for latency or to date an event. See
 
 **A test PR is judged by mutation score, not by test count.** Coverage says a line RAN; only a
 failing assertion proves the line is CHECKED. Run
-`poetry run python scripts/mutation_check.py --all` — a surviving mutation is a missing test.
+`poetry run python scripts/mutation_check.py --changed-since origin/main` — a surviving mutation is
+a missing test. CI runs exactly that (as `--changed-since HEAD^`) and it **blocks**; the full
+`--all` catalogue runs nightly in `stress-tests.yml`.
 Baseline in [`docs/testing/MUTATION_BASELINE.md`](docs/testing/MUTATION_BASELINE.md).
 
 Three shapes are rejected automatically by `tests/quality/test_no_hollow_tests.py`:
@@ -428,8 +430,9 @@ what produced 47 byte-identical duplicates and made it impossible to see what wa
 1. Read relevant test files before modifying.
 2. `poetry run pytest -q` (all pass).
 3. `poetry run pytest -m gui -n0` if `tests/ui/**` or any dialog changed — the fast suite skips GUI.
-4. `poetry run python scripts/mutation_check.py --all` (no survivors) when touching a module in the
-   catalogue or the tests that cover it.
+4. `poetry run python scripts/mutation_check.py --changed-since origin/main` (no survivors) — it
+   selects the catalogued modules your diff touches, and prints "nothing to mutate" when it touches
+   none.
 5. `poetry run ruff check .` (no errors) and `poetry run mypy .` (CI runs it repo-wide, `tests/`
    included).
 6. Update docs if user-facing changes.

@@ -87,6 +87,7 @@ broader suite:
 | `core/recording/live_session_manager.py` (parada, limpeza de pastas, status de start) | `tests/core/recording/test_live_session_manager_extended.py`, `tests/core/recording/test_live_session_stop_intent.py` (intenção de parada: descartar × preservar) |
 | `core/recording/live_analysis_post_processor.py` (escala px→cm, pós-análise) | `tests/core/recording/test_live_analysis_post_processor.py`, `tests/core/services/test_live_calibration_scale.py` |
 | `core/services/live_calibration_scale.py` (px→cm ao vivo) | `tests/core/services/test_live_calibration_scale.py` + `scripts/mutation_check.py --module live_calibration_scale` |
+| `scripts/mutation_check.py`, `scripts/mutation_catalog.yaml` | `tests/quality/test_mutation_check.py`. O CI roda `--changed-since HEAD^`: um mapeamento arquivo→módulo errado não falha, ele **deixa de checar em silêncio** |
 | `core/recording/live_output_paths.py` (pasta padrão sem projeto) | `tests/core/recording/test_live_output_paths.py`, `tests/test_live_analysis_ui.py` |
 | `ui/builders/analysis_widgets.py` (cancelar × encerrar-e-salvar) | `tests/ui/builders/test_analysis_widgets.py` |
 | `core/services/closed_loop_latency.py` | `tests/core/test_closed_loop_latency.py` (CSV columns are append-only!) |

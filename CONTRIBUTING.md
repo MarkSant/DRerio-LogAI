@@ -61,12 +61,15 @@ Obrigado por querer contribuir com o DRerio LogAI! Este guia descreve o fluxo de
 
 - Adicione testes para novas funcionalidades ou coberturas regressivas.
 - **Um PR de teste é avaliado pelo _mutation score_, não pela contagem de testes.** Cobertura diz
-  que a linha EXECUTOU; só uma asserção que falha prova que ela é VERIFICADA. Antes de abrir um PR
-  que mexa num módulo do catálogo ou nos testes que o cobrem:
+  que a linha EXECUTOU; só uma asserção que falha prova que ela é VERIFICADA. Antes de abrir o PR:
 
   ```powershell
-  poetry run python scripts/mutation_check.py --all
+  poetry run python scripts/mutation_check.py --changed-since origin/main
   ```
+
+  Ele seleciona sozinho os módulos do catálogo que o seu diff toca (e diz "nothing to mutate"
+  quando não toca nenhum) — é o mesmo comando que o CI roda, onde ele **reprova o PR**. O catálogo
+  inteiro (`--all`) roda toda noite em `stress-tests.yml`.
 
   Mutação sobrevivente = teste faltando. Adicione o teste; não remova a mutação.
 - Testes que não exercitam código de produção são recusados automaticamente por
@@ -182,7 +185,7 @@ References:
    - [ ] Tipos (`poetry run mypy .` — o CI roda no repositório inteiro, `tests/` incluído)
    - [ ] Testes (`poetry run pytest -q`)
    - [ ] Testes de GUI (`poetry run pytest -m gui -n0`) se tocou `tests/ui/**` ou algum diálogo
-   - [ ] Mutação sem sobreviventes (`poetry run python scripts/mutation_check.py --all`)
+   - [ ] Mutação sem sobreviventes (`poetry run python scripts/mutation_check.py --changed-since origin/main`)
    - [ ] Documentação atualizada
    - [ ] Capturas de tela/GIF quando relevante à UI
 
