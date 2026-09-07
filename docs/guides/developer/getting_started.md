@@ -57,7 +57,7 @@ We use the Mediator pattern (`UICoordinator`) to prevent a "mesh" of dependencie
 
 ### Dual Mode (Transitional)
 
-During migration, components support both legacy (direct call) and new (event) paths. See [Migration Guide](../docs/MIGRATION_GUIDE_V4.md) for details.
+During migration, components support both legacy (direct call) and new (event) paths. See [Migration Guide](../../archive/v3-baseline/MIGRATION_GUIDE_V4.md) for details.
 
 ---
 
@@ -79,5 +79,5 @@ During migration, components support both legacy (direct call) and new (event) p
 
 ### Code Style
 
-- Follow the standards in [CONTRIBUTING.md](../CONTRIBUTING.md).
+- Follow the standards in [CONTRIBUTING.md](../../../CONTRIBUTING.md).
 - Run `poetry run ruff check .` before committing.

@@ -23,7 +23,7 @@ sends every configured *exit* token once, as a "turn everything off" sweep.
 - At least one **ROI** defined in the **"Zone Configuration"** tab.
 
 The serial port (and baud rate) is a per-machine setting in
-[`config.local.yaml`](../../../config.local.yaml):
+`config.local.yaml`:
 
 ```yaml
 arduino:

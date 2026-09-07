@@ -85,13 +85,19 @@ python --version
 
 ### Why does installation take so long?
 
-First-time installation downloads:
+`poetry install` downloads the dependency tree — PyTorch, OpenVINO, OpenCV and
+SciPy are the bulk of it — and then compiles `cython-bbox` from source, which is
+why a C compiler is required. Expect a virtual environment of roughly 1.7 GB.
 
-- AI models (~200MB)
-- Python dependencies (~500MB)
-- OpenVINO runtime (~800MB if using)
+The detector models (~200 MB) are a separate, explicit step:
 
-Total: ~1.5GB. Subsequent launches are instant.
+```bash
+poetry run fetch-weights
+```
+
+They are not downloaded automatically at any point. Budget about 3 GB of free
+disk for the two together. Subsequent launches are fast; only the very first one
+runs a hardware benchmark, and its result is cached.
 
 ### Can I install without Poetry?
 

@@ -33,7 +33,7 @@ Open a new Claude Code session in this repo and paste **exactly** this prompt
 to begin Refactor 1:
 
 > I'm starting the refactor of `src/zebtrack/ui/dialogs/calibration_dialog.py`
-> as planned in [`docs/tasks/active/REFACTOR_GIANTS.md`](docs/tasks/active/REFACTOR_GIANTS.md). Read that file in full, then walk
+> as planned in [`docs/tasks/active/REFACTOR_GIANTS.md`](REFACTOR_GIANTS.md). Read that file in full, then walk
 > through Phase 0 → Phase 4 for **Refactor 1 only**. Stop after Phase 2
 > (proposed division) and wait for my approval before doing any code change.
 > Commit incrementally, run `/test-fast` after each step, and update
@@ -60,8 +60,8 @@ same prompt but pointing at `weight_manager.py` and the Refactor 2 section.
    `/test-fast`). If a commit can't pass tests, split it smaller.
 6. **Run `/impact <type> <name>`** before extracting anything to confirm
    external dependencies.
-7. **Update [`.copilot-impact-map.yaml`](.copilot-impact-map.yaml) and
-   [`docs/testing/TEST_MAP.md`](docs/testing/TEST_MAP.md)** if file paths
+7. **Update [`.copilot-impact-map.yaml`](../../../.copilot-impact-map.yaml) and
+   [`docs/testing/TEST_MAP.md`](../../testing/TEST_MAP.md)** if file paths
    change.
 8. **Avoid premature abstraction.** Extracting a method into another class
    is fine; introducing a new design pattern (Visitor, Strategy, etc.) is
@@ -178,8 +178,8 @@ every commit but **must** pass before opening the PR.
 - [ ] All tests green (`/test-fast` + `pytest -m gui -n0`)
 - [ ] Each new file under target line count (largest ≤500)
 - [ ] No new circular imports (`poetry run python -c "from zebtrack.ui.dialogs import CalibrationDialog"`)
-- [ ] [`docs/testing/TEST_MAP.md`](../../docs/testing/TEST_MAP.md) updated if dialog path changed
-- [ ] [`.copilot-impact-map.yaml`](../../.copilot-impact-map.yaml) updated if any event subscription moved
+- [ ] [`docs/testing/TEST_MAP.md`](../../testing/TEST_MAP.md) updated if dialog path changed
+- [ ] [`.copilot-impact-map.yaml`](../../../.copilot-impact-map.yaml) updated if any event subscription moved
 - [ ] PR description lists what moved where, with line counts before/after
 
 ---

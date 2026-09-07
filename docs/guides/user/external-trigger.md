@@ -93,7 +93,7 @@ To stop from hardware, send `Serial.println(0)` the same way. If you never send
 
 ## Port configuration
 
-Per machine, in [`config.local.yaml`](../../../config.local.yaml):
+Per machine, in `config.local.yaml`:
 
 ```yaml
 arduino:

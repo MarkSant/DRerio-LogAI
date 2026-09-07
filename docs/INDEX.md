@@ -1,7 +1,7 @@
 # DRerio LogAI Documentation Index
 
-**Last Updated:** February 2, 2026
-**Version:** 6.0.0 (Diátaxis Corrected)
+**Last Updated:** September 7, 2026
+**Version:** 6.3.0
 
 ---
 
@@ -14,12 +14,12 @@ docs/
 ├── explanation/     # Understanding-oriented (Deep dives into architecture)
 ├── reference/       # Information-oriented (API, metrics, technical specs)
 ├── tasks/           # Active intervention logs and technical debt
-├── wiki/            # Portuguese translations and end-user manuals
+├── wiki/            # End-user manuals, mirrored to the GitHub Wiki
 └── archive/         # Legacy and historical documentation
 
-> Legacy content in [docs/archive/](docs/archive/) is preserved for historical reference.
-> It is excluded from markdownlint checks; see [.markdownlintignore](.markdownlintignore) and
-> [.pre-commit-config.yaml](.pre-commit-config.yaml) for the enforcement details.
+> Legacy content in [archive/](archive/) is preserved for historical reference.
+> It is excluded from markdownlint checks; see [.markdownlintignore](../.markdownlintignore) and
+> [.pre-commit-config.yaml](../.pre-commit-config.yaml) for the enforcement details.
 ```
 
 ---
