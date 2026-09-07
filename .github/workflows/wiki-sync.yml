@@ -1,0 +1,72 @@
+# yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
+#
+# Publishes docs/wiki/ to the GitHub Wiki, which is a separate git repository
+# (<repo>.wiki.git) and therefore drifts unless something keeps it in step.
+# It drifted for months: the published wiki still called the project by a name
+# retired in July 2026 and described an installation method that never existed.
+#
+# REQUIRES "Read and write permissions" under Settings -> Actions -> General ->
+# Workflow permissions. The repository default is read-only, and that setting is
+# a ceiling: the `permissions:` block below cannot raise the token above it, so
+# the push fails with 403 until the setting is changed. The alternative is a PAT
+# with `repo` scope in a secret, swapped in below.
+name: Wiki Sync
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'docs/wiki/**'
+      - 'scripts/build_wiki.py'
+      - '.github/workflows/wiki-sync.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: wiki-sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Build the wiki tree
+        run: python scripts/build_wiki.py --out "${RUNNER_TEMP}/wiki-build"
+
+      - name: Check out the wiki repository
+        run: |
+          git clone \
+            "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.wiki.git" \
+            "${RUNNER_TEMP}/wiki-repo"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Replace the wiki contents
+        run: |
+          cd "${RUNNER_TEMP}/wiki-repo"
+          # Everything except .git: pages deleted from docs/wiki/ must disappear
+          # from the wiki too, otherwise stale pages outlive their source.
+          find . -mindepth 1 -maxdepth 1 ! -name '.git' -exec rm -rf {} +
+          cp -r "${RUNNER_TEMP}/wiki-build/." .
+
+      - name: Commit and push
+        run: |
+          cd "${RUNNER_TEMP}/wiki-repo"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "Wiki already matches docs/wiki/; nothing to push."
+            exit 0
+          fi
+          git commit -m "docs(wiki): sync from ${GITHUB_SHA::7}"
+          git push

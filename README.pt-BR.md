@@ -75,6 +75,41 @@ termos legais.
 - **🏗️ Arquitetura Event-Driven**: Sistema modular e extensível baseado em eventos
 - **📦 Formatos Padrão**: Exportação para Parquet (dados), Excel (métricas) e Word (relatórios)
 
+## 🚀 Novidades na Versão 7.0
+
+Primeiro release **público**, e o primeiro citável: é desta tag que sai o DOI do Zenodo. Os
+resultados relatados nos manuscritos associados foram produzidos com a release `4.0.0`, que
+continua disponível na tag `v4.0.0` para reprodução exata.
+
+- **📥 Os modelos treinados passaram a ser obteníveis.** Eles são gitignored e, até agora,
+  nada dizia como consegui-los — um clone limpo instalava, passava a suíte inteira (que os
+  mocka) e só então falhava ao abrir. `poetry run fetch-weights` baixa os quatro modelos dos
+  assets deste release e confere cada um contra um SHA-256 do `weights_manifest.json`. É agora
+  um passo **obrigatório** da instalação.
+- **🧭 Iniciar sem os modelos passa a dizer isso.** Quais modelos, em qual pasta e qual comando
+  os instala — em vez de rodar um benchmark de hardware completo, desenhar o splash até 95% e
+  informar "a fatal error occurred".
+- **📂 O diretório de onde se inicia deixou de importar.** `config.yaml`, `weights/`,
+  `weights_config.json` e o cache do OpenVINO são resolvidos contra a raiz do repositório,
+  então `poetry -C <repo> run zebtrack` funciona de qualquer lugar. O `--reset` e os irmãos
+  passam a apagar o que prometem; rodados de outra pasta, antes não encontravam nada e ainda
+  imprimiam "Reset complete".
+- **📐 Dimensões reais do aquário no diálogo ao vivo.** Elas eram validadas e definiam o
+  pixel/cm por trás de toda distância, velocidade e métrica em cm, mas nenhum widget as
+  expunha — um labirinto declarado quadrado produziu 95,8 px/cm num eixo contra 60,1 no outro.
+- **🎥 Correção nos fluxos ao vivo e pré-gravado.** A pós-análise ao vivo usa o snapshot do
+  projeto em vez do que a última execução avulsa deixou; `seg_overlap` não degrada mais
+  incondicionalmente; redetectar a arena não apaga as ROIs; vídeo único respeita "1 animal"; a
+  auto-detecção do aquário honra segmentação, forma real e perspectiva.
+- **📊 Relatórios.** As zonas pararam de sumir do sumário — e, com ele, do relatório
+  unificado; um basename repetido entre dias não sobrescreve mais o sumário nem perde metade
+  dos animais.
+- **📚 Documentação que corresponde ao programa.** Uma dica de troubleshooting inventava uma
+  chave de configuração que reprova a validação e impede o app de abrir; os dois READMEs
+  mandavam copiar o `config.yaml` inteiro para o override local, o que sombreia
+  permanentemente os padrões futuros. Os pré-requisitos agora declaram o compilador C e o
+  espaço em disco.
+
 ## 🚀 Novidades na Versão 6.0
 
 Snapshot citável preparado para depósito permanente no Zenodo (DOI), em apoio aos manuscritos

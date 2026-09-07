@@ -74,6 +74,40 @@ terms.
 - **🏗️ Event-Driven Architecture**: modular, extensible system built on events
 - **📦 Standard Formats**: export to Parquet (data), Excel (metrics), and Word (reports)
 
+## 🚀 What's New in Version 7.0
+
+First **public** release, and the first citable one: this is the tag the Zenodo DOI is minted
+from. The results reported in the associated manuscripts were produced with release `4.0.0`,
+which stays available as tag `v4.0.0` for exact reproduction.
+
+- **📥 The trained models are obtainable.** They are git-ignored, and until now nothing said
+  how to get them — a fresh clone installed, passed the whole test suite (which mocks them),
+  and then failed to open. `poetry run fetch-weights` downloads the four detector models from
+  this release's assets and verifies each against a SHA-256 in `weights_manifest.json`. It is
+  now a **required** installation step.
+- **🧭 Starting without models says so.** Which models, in which folder, and which command
+  installs them — instead of running a full hardware benchmark, drawing the splash to 95%,
+  and reporting "a fatal error occurred".
+- **📂 The launch directory stopped mattering.** `config.yaml`, `weights/`,
+  `weights_config.json` and the OpenVINO cache resolve against the repository root, so
+  `poetry -C <repo> run zebtrack` works from anywhere. `--reset` and friends now delete what
+  they promise; run from another folder they used to match nothing and still print
+  "Reset complete".
+- **📐 Real aquarium dimensions in the live dialog.** They were validated and drove the
+  pixel/cm ratio behind every distance, speed and cm-based metric, but no widget exposed
+  them — a maze declared square produced 95.8 px/cm on one axis against 60.1 on the other.
+- **🎥 Live and pre-recorded correctness.** Live post-analysis uses the project's settings
+  snapshot instead of whatever the last ad-hoc run left behind; `seg_overlap` no longer
+  degrades unconditionally; re-detecting the arena no longer erases the ROIs; single-video
+  respects "1 animal"; arena auto-detection honours segmentation, real shape and perspective.
+- **📊 Reports.** Zones stopped disappearing from the summary — and with it from the unified
+  report; a basename repeated across days no longer overwrites the summary and loses half the
+  animals.
+- **📚 Documentation that matches the program.** A troubleshooting entry used to invent a
+  configuration key that fails validation and prevents the application from opening; both
+  READMEs advised copying the whole `config.yaml` into the local override, which permanently
+  shadows later defaults. Prerequisites now state the C compiler and the disk budget.
+
 ## 🚀 What's New in Version 6.0
 
 Citable archival snapshot prepared for permanent deposit on Zenodo (DOI), in support of the
