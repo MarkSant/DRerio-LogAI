@@ -33,6 +33,12 @@ BLOB_BASE = "https://github.com/MarkSant/DRerio-LogAI/blob/main"
 LANDING_PAGE = "INDEX.md"
 LANDING_TARGET = "Home.md"
 
+# Repo-internal notes that live under docs/wiki/ but are not wiki pages. A
+# GitHub wiki flattens page names, so `screenshots/README.md` was published as a
+# page called "README" — a capture checklist for maintainers, sitting in the
+# sidebar next to the user guides. Assets in those folders are still copied.
+NOT_WIKI_PAGES = frozenset({"screenshots/README.md"})
+
 _LINK = re.compile(r"(\[[^\]]*\]\()([^)\s]+)(\))")
 
 GENERATED_BANNER = (
@@ -88,6 +94,9 @@ def build(out_dir: Path | None, *, check: bool) -> int:
         if source.is_dir():
             continue
         relative = source.relative_to(WIKI_SOURCE)
+
+        if relative.as_posix() in NOT_WIKI_PAGES:
+            continue
 
         if source.suffix.lower() != ".md":
             assets += 1

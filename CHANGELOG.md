@@ -21,6 +21,33 @@ uma instrucao de 6.x nao consegue abrir o programa --, `--reset` passou a apagar
 de fato o que promete, e `config.yaml`, `weights/` e os caches deixaram de ser
 resolvidos contra o diretorio de trabalho.
 
+### O que a wiki publicada revelou depois de publicada
+
+Dois defeitos que so aparecem quando o conteudo esta la, e nao no diff:
+
+- **`screenshots/README.md` virou uma pagina chamada "README"**, na barra lateral
+  ao lado dos guias de usuario. E um checklist de captura para mantenedores. O
+  `build_wiki.py` ganhou `NOT_WIKI_PAGES`; os assets da pasta continuam sendo
+  copiados.
+- **A pagina inicial abria com "This directory contains the structured
+  documentation to be published on the project's Wiki."** Lido no repositorio,
+  faz sentido; lido COMO a wiki, e autorreferente. E a nota de rodape ainda
+  mandava "replicate the changes to the GitHub Wiki" a mao, o que agora e
+  automatico.
+
+**A especificacao das capturas descrevia uma interface que nao existe.** Escrita
+em fevereiro, pedia `Menu bar (File, Edit, View, Tools, Help)`, um wizard de
+cinco passos e uma "video player area / timeline" na janela principal. O wizard e
+dinamico -- sete passos no pre-gravado, seis no ao vivo -- e a janela principal
+nao tem player. Capturar por ela produziria legendas descrevendo telas alheias.
+
+A especificacao reescrita mantem os dez nomes de arquivo, porque
+`GETTING_STARTED.md` linka exatamente para eles, e passa a mapear cada um ao
+painel correspondente das figuras suplementares S5-S7 do manuscrito. Doze
+capturas cobrem os dois usos. Os nomes `wizard_step4_*` e `wizard_step5_*` nao
+correspondem mais ao passo que mostram; ficam assim de proposito, porque renomear
+quebraria os links sem ganhar nada.
+
 ### Notas de release, processo de release, e a wiki publicada
 
 **O README nao contava o que mudou na 7.0.** O badge ja dizia 7.0.0 e a secao
