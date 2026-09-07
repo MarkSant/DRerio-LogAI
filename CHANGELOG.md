@@ -21,6 +21,46 @@ uma instrucao de 6.x nao consegue abrir o programa --, `--reset` passou a apagar
 de fato o que promete, e `config.yaml`, `weights/` e os caches deixaram de ser
 resolvidos contra o diretorio de trabalho.
 
+### Limpeza do que ficaria permanente no arquivo citavel
+
+O deposito Zenodo e um retrato do fonte na tag. O que estiver aqui fica no
+registro para sempre, entao a limpeza precisa vir ANTES, nao depois.
+
+Removidos (18 arquivos, ~5,9 mil linhas), cada um verificado como orfao antes:
+
+- `bytetrack.yaml` -- copia do default do Ultralytics que **nada** referencia. A
+  configuracao real do ByteTrack e a secao `bytetrack:` do `config.yaml`, lida
+  via `settings.bytetrack`.
+- `.tasks/` (443 linhas) -- tarefa de mypy de janeiro marcada `IN PROGRESS` com
+  "1.952 erros". O CI roda `mypy .` limpo desde entao; o arquivo descrevia um
+  estado que nao existe mais.
+- `AGENT_INVESTIGATOR.md` (499 linhas) -- prompt de agente na raiz do repo.
+- `.readthedocs.yml` -- apontava para `docs/api/source/conf.py`, que nao existe,
+  com `fail_on_warning: true`; e usava `extra_requirements: [dev]`, que e grupo
+  Poetry e nao extra PEP 621. Nao havia build possivel.
+- `docs/archive/legacy/fapesp/git/` (614 KB) -- doze arquivos de texto com a
+  saida de `git log`, `git tag` e contagens de commit. E o historico do
+  repositorio transcrito para dentro do repositorio; qualquer clone regenera com
+  um comando.
+- `scripts/jules_setup.sh` -- setup do agente Google Jules, sem chamador.
+
+**Mantidos, contra a intencao inicial, por evidencia encontrada na execucao:**
+
+- `docs/archive/api_sphinx/` ia junto com o `.readthedocs.yml`, mas
+  `docs/reference/api/README.md` documenta como usa-lo para regenerar as docs de
+  API, e as dependencias de Sphinx seguem no `pyproject`. E material arquivado
+  com proposito, nao entulho.
+- `src/zebtrack/locales/_pairs/` viaja dentro do pacote instalado, o que motivou
+  a proposta de move-lo. Mas tem sete referencias vivas -- o script de merge,
+  quatro mensagens e guardas de i18n (uma delas com `present.discard("_pairs")`,
+  que conhece o diretorio pelo nome) e o guia de i18n. Sao 373 KB de insumo de um
+  fluxo documentado e ativo; mexer em guardas de i18n as vesperas de um release
+  citavel nao compensa.
+
+O `README` do arquivo FAPESP passou a registrar tambem esta remocao. Ele nao
+descreve mais nenhum arquivo: existe pela procedencia, para que um leitor do
+snapshot distinga "isto nunca existiu" de "isto foi removido de proposito".
+
 ### Metadados de citacao e licenca alinhados com a tag que vai virar DOI
 
 Cinco lugares declaravam a versao, e so dois estavam certos. `pyproject.toml` e
