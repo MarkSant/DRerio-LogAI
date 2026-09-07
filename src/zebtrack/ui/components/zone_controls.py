@@ -298,12 +298,34 @@ class ZoneControlsWidget(BaseWidget):
         except tk.TclError:
             log.debug("zone_controls.pending_banner.hide.suppressed", exc_info=True)
 
+    def is_alive(self) -> bool:
+        """True enquanto a arvore de widgets deste painel ainda existe.
+
+        O objeto sobrevive a sua arvore: o notebook e reconstruido a cada
+        abertura/fechamento de projeto, e ate a desinscricao do ``BaseWidget``
+        rodar o painel antigo ainda pode receber um evento do bus. ``winfo_``
+        levanta ``TclError`` nesse estado -- e ``winfo_exists()`` e o unico que
+        responde 0 em vez de levantar.
+        """
+        try:
+            return bool(self.winfo_exists())
+        # except Exception justified: com o interpretador Tk ja fora, o proprio
+        # ``winfo_exists`` levanta; "nao esta vivo" e a resposta.
+        except Exception:
+            return False
+
     def _on_live_recording_pending(
         self, payload: payloads.LiveRecordingPendingPayload | None = None
     ) -> None:
         """Handle LIVE_RECORDING_PENDING — schedule banner show on the Tk thread."""
         if payload is None:
             return
+        if not self.is_alive():
+            log.debug("zone_controls.pending_banner.show.widget_destroyed")
+            return
+        # A guarda tem de vir ANTES desta linha: o ``except tk.TclError`` de
+        # ``_show_pending_session_banner`` esta um nivel fundo demais, porque
+        # ``winfo_toplevel()`` ja levantou aqui.
         root = self.winfo_toplevel()
         if root is not None:
             root.after(0, lambda p=payload: self._show_pending_session_banner(p))  # type: ignore[misc]
@@ -312,6 +334,9 @@ class ZoneControlsWidget(BaseWidget):
 
     def _on_live_recording_done(self, payload: Any = None) -> None:
         """Handle LIVE_SESSION_STARTED / STOPPED / LIVE_RECORDING_CANCELLED."""
+        if not self.is_alive():
+            log.debug("zone_controls.pending_banner.hide.widget_destroyed")
+            return
         root = self.winfo_toplevel()
         if root is not None:
             root.after(0, self._hide_pending_session_banner)
