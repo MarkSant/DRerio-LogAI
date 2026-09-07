@@ -813,16 +813,23 @@ poetry run zebtrack
 
    ```yaml
    # In config.local.yaml
-   detector:
-     model_path: "models/yolov8n.pt" # Verify path exists
+   yolo_model:
+     path: "weights/best_seg_lateral.pt" # must exist under weights/
    ```
 
-2. **Download model manually**:
+   > There is no `detector:` section, and there never was. The settings model
+   > forbids unknown keys, so inventing one makes the whole configuration fail
+   > validation and the application exits before opening a window.
+
+2. **Download the models**:
 
    ```bash
-   # YOLOv8
-   wget https://github.com/ultralytics/assets/releases/download/v0.0.0/yolov8n.pt -O models/yolov8n.pt
+   poetry run fetch-weights
    ```
+
+   This fetches the project's own trained models and verifies their checksums.
+   Stock Ultralytics weights (`yolov8n.pt` and friends) are not interchangeable
+   with them: they do not know the `aquarium` and `zebrafish` classes.
 
 3. **Verify model format**:
    - YOLO: `.pt` file (PyTorch)
@@ -834,7 +841,7 @@ poetry run zebtrack
 
 5. **Try default model**:
    - Remove custom model path from config
-   - Application will download default model automatically
+   - Run `poetry run fetch-weights` to restore the published set
 
 ### "Permission denied" errors
 

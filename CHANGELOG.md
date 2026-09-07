@@ -9,6 +9,48 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### A documentacao de instalacao ensinava coisas que nao funcionam
+
+Nao era so desatualizacao. Tres instrucoes estavam ativamente erradas, e uma
+delas **inutiliza o app**:
+
+- `docs/wiki/user-guide/TROUBLESHOOTING.md` mandava escrever uma secao
+  `detector: model_path:` em `config.local.yaml`. Essa secao nao existe -- a
+  chave e `yolo_model.path` -- e o modelo de configuracao usa `extra="forbid"`,
+  entao inventar uma chave reprova a validacao inteira e o aplicativo sai antes
+  de abrir janela. A mesma secao mandava baixar `yolov8n.pt`, um modelo generico
+  que nao conhece as classes `aquarium` e `zebrafish`.
+- Os dois READMEs mandavam `cp config.yaml config.local.yaml`. O docstring de
+  `write_local_override` ja explicava por que isso e danoso: os arquivos sao
+  mesclados recursivamente, entao a copia integral congela todos os padroes
+  atuais e sombreia em silencio qualquer correcao futura.
+- `CONTRIBUTING.md` instruia `from zebtrack import settings`, que e exatamente o
+  import proibido fora do composition root. Tambem mandava `poetry shell`
+  (removido no Poetry 2.0) e declarava `line-length = 88` contra os 100 reais.
+
+E tres afirmacoes falsas sobre os pesos: os READMEs diziam que "detection models
+(~6 MB) are downloaded automatically", o FAQ contava "AI models (~200MB)" entre
+os downloads da instalacao, e o troubleshooting prometia que o app baixaria o
+modelo padrao sozinho. Nada disso existe -- os pesos so chegam por
+`poetry run fetch-weights`.
+
+Alem disso:
+
+- **Compilador C entrou nos pre-requisitos.** `cython-bbox` e publicado so como
+  sdist, entao todo `poetry install` compila uma extensao. Isso aparecia apenas
+  como linha REATIVA de troubleshooting, depois de a instalacao ja ter falhado.
+- **Espaco em disco entrou na tabela de requisitos**, de onde estava ausente: o
+  ambiente virtual passa de 1,7 GB e os pesos somam ~200 MB.
+- **Python 3.11 virou 3.12.** A tabela, o passo de pre-requisitos e a secao de
+  padroes diziam 3.11, enquanto `pyproject.toml` exige `>=3.12,<3.15`. Quem
+  seguisse o README com 3.11 falhava na resolucao do Poetry.
+- **34 links quebrados corrigidos** nos dois READMEs (12 cada) e em
+  `docs/INDEX.md`, `system_integration.md`, `getting_started.md` e nos guias de
+  usuario. Os links para `config.local.yaml` viraram texto: o arquivo e
+  gitignored, entao o link nunca resolveu em checkout nenhum.
+- **ADR-009 era citado tres vezes como "Accepted" e nunca foi escrito.** O link
+  saiu; o texto agora diz que a decisao so existe no proprio mapa de integracao.
+
 ### Sem pesos, o app dizia so "a fatal error occurred"
 
 O caminho de falha mais provavel de um clone limpo era tambem o pior explicado.

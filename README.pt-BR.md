@@ -15,7 +15,7 @@
 
 **🇺🇸 [Read in English](README.md)**
 
-[Documentação](docs/) | [Guia de Contribuição](docs/guides/developer/DEVELOPER_GUIDE.md) | [Arquitetura](docs/architecture/ARCHITECTURE.md) | [Changelog](CHANGELOG.md)
+[Documentação](docs/) | [Guia de Contribuição](docs/guides/developer/getting_started.md) | [Arquitetura](docs/explanation/architecture.md) | [Changelog](CHANGELOG.md)
 
 </div>
 
@@ -246,25 +246,34 @@ O README destaca o estado atual (v6.0.0). Para detalhes completos por release, c
 
 ### Requisitos do Sistema
 
-| Componente | Versão Mínima            | Recomendado                         |
-| ---------- | ------------------------ | ------------------------------------ |
-| Python     | 3.11                     | 3.12+                                |
-| RAM        | 4 GB                     | 8 GB+                                |
-| CPU        | Dual-core                | Quad-core+ (Intel Core Ultra p/ NPU)|
-| GPU        | Não requerida            | NVIDIA com CUDA (opcional)           |
-| NPU        | Não requerido            | Intel Core Ultra (via OpenVINO)      |
-| SO         | Windows 10, Linux, macOS | Ubuntu 22.04+                        |
+| Componente | Mínimo                   | Recomendado                           |
+| ---------- | ------------------------ | ------------------------------------- |
+| Python     | 3.12                     | 3.12 (3.15+ não suportado)            |
+| Disco      | 3 GB livres              | 5 GB+                                 |
+| RAM        | 8 GB                     | 16 GB+                                |
+| CPU        | Dual-core                | Quad-core+ (Intel Core Ultra p/ NPU)  |
+| GPU        | Não requerida            | NPU Intel Core Ultra via OpenVINO     |
+| SO         | Windows 10, Linux, macOS | Windows 11 (onde é validado)          |
+
+**Um compilador C é obrigatório, não opcional.** Uma dependência (`cython-bbox`,
+usada pelo rastreador) é publicada apenas como distribuição de código-fonte,
+então `poetry install` compila um módulo de extensão em qualquer plataforma:
+
+- **Windows**: Visual Studio Build Tools, carga "Desenvolvimento para desktop com C++"
+- **Linux**: `build-essential` (Debian/Ubuntu) ou o equivalente `gcc` / `make`
+- **macOS**: Xcode Command Line Tools (`xcode-select --install`)
+
+**Espaço em disco é o requisito que costuma surpreender.** PyTorch, OpenVINO,
+OpenCV e SciPy sozinhos respondem pela maior parte de um ambiente virtual de
+~1,7 GB, e os pesos do detector somam outros ~200 MB.
 
 ### Instalação Rápida
 
-1. **Pré-requisitos**: Certifique-se de ter Python 3.11+ e Poetry instalados
+1. **Pré-requisitos** — Python 3.12, Poetry, Git e as ferramentas de compilação acima:
 
    ```bash
-   # Verificar versão do Python
-   python --version
-
-   # Instalar Poetry (se necessário)
-   curl -sSL https://install.python-poetry.org | python3 -
+   python --version    # precisa reportar 3.12.x
+   poetry --version
    ```
 
 2. **Clone o repositório**:
@@ -280,15 +289,38 @@ O README destaca o estado atual (v6.0.0). Para detalhes completos por release, c
    poetry install
    ```
 
-4. **(Opcional) Configure parâmetros locais**:
+4. **Baixe os pesos do detector** (~200 MB, **obrigatório** — o aplicativo não
+   inicia sem eles):
 
    ```bash
-   # Copie o template de configuração local
-   cp config.yaml config.local.yaml
-
-   # Edite config.local.yaml com suas preferências
-   # (índice da câmera, porta Arduino, parâmetros de detecção, etc.)
+   poetry run fetch-weights
    ```
+
+   Os modelos YOLO treinados não ficam no repositório por causa do tamanho. Esse
+   comando os baixa do release do projeto no GitHub e confere cada arquivo contra
+   um SHA-256 gravado em `weights_manifest.json`. Use `--check` para validar uma
+   instalação existente sem baixar, ou `--all` para trazer também os modelos
+   legados opcionais.
+
+5. **Execute**:
+
+   ```bash
+   poetry run zebtrack
+   ```
+
+6. **(Opcional) Ajustes específicos da máquina** — crie um `config.local.yaml`
+   contendo _apenas_ as chaves que você quer sobrescrever:
+
+   ```yaml
+   camera:
+     index: 0
+   arduino:
+     port: "COM3"
+   ```
+
+   > **Não** copie o `config.yaml` inteiro para dentro dele. Os dois arquivos são
+   > mesclados recursivamente, então uma cópia completa congela todos os padrões
+   > atuais na sua máquina e sombreia em silêncio qualquer correção posterior.
 
 ### Instalação para Desenvolvimento
 
@@ -362,11 +394,18 @@ poetry run zebtrack --log-level zebtrack.core.detector=DEBUG
 
 ### Primeira Execução
 
-Na primeira execução, o sistema irá:
+Na primeira execução, o aplicativo irá:
 
-1. **Baixar modelos YOLO**: Os modelos de detecção (~6 MB) serão baixados automaticamente
-2. **Criar diretórios**: Estrutura de pastas para projetos, templates e cache
-3. **Exibir Wizard**: Interface guiada para criar seu primeiro projeto
+1. **Perguntar o idioma**: a escolha é gravada em `config.local.yaml`; o locale do
+   sistema operacional deliberadamente não é consultado
+2. **Avaliar o hardware**: escolhe o backend de inferência e guarda o resultado em
+   cache, para que as execuções seguintes pulem essa etapa
+3. **Criar diretórios**: estrutura de pastas para projetos, templates e cache
+4. **Abrir o Wizard**: interface guiada para criar seu primeiro projeto
+
+Os pesos do detector **não** são baixados aqui. Eles são obtidos uma única vez,
+antes, por `poetry run fetch-weights` (passo 4 da instalação acima). Sem eles o
+aplicativo para na inicialização, com um diálogo nomeando os arquivos que faltam.
 
 ## 🎬 Guia Rápido de Uso
 
@@ -592,28 +631,28 @@ A documentação técnica está disponível na pasta `docs/`:
 
 - 📚 [**CHEATSHEET.md**](docs/guides/developer/CHEATSHEET.md) - Referência rápida de comandos e padrões
 
-- 🏗️ [**ARCHITECTURE.md**](docs/architecture/ARCHITECTURE.md) - Arquitetura Event-Driven e Mediator
-- 👨‍💻 [**DEVELOPER_GUIDE.md**](docs/guides/developer/DEVELOPER_GUIDE.md) - Guia completo para contribuidores
-- 🧙 [**DEVELOPER_GUIDE_WIZARD.md**](docs/guides/developer/DEVELOPER_GUIDE_WIZARD.md) - Desenvolvimento do Wizard
-- 🧪 [**README_TESTS.md**](README_TESTS.md) - Guia completo de testes (~3700 testes)
+- 🏗️ [**ARCHITECTURE.md**](docs/explanation/architecture.md) - Arquitetura Event-Driven e Mediator
+- 👨‍💻 [**DEVELOPER_GUIDE.md**](docs/guides/developer/getting_started.md) - Guia completo para contribuidores
+- 🧙 [**DEVELOPER_GUIDE_WIZARD.md**](docs/guides/developer/wizard.md) - Desenvolvimento do Wizard
+- 🧪 [**README_TESTS.md**](docs/testing/TEST_MAP.md) - Guia completo de testes (~3700 testes)
 
 ### Guias Técnicos
 
-- 🔌 [**DEPENDENCY_INJECTION_GUIDE.md**](docs/architecture/DEPENDENCY_INJECTION_GUIDE.md) - Padrões de DI
+- 🔌 [**DEPENDENCY_INJECTION_GUIDE.md**](docs/explanation/dependency_injection.md) - Padrões de DI
 
-- 📡 [**EVENT_BUS_GUIDE.md**](docs/architecture/EVENT_BUS_GUIDE.md) - Sistema de eventos
+- 📡 [**EVENT_BUS_GUIDE.md**](docs/reference/events.md) - Sistema de eventos
 - 🗺️ [**COORDINATE_SYSTEMS.md**](docs/reference/COORDINATE_SYSTEMS.md) - Sistemas de coordenadas
-- 🎯 [**STATE_MANAGEMENT_GUIDE.md**](docs/architecture/STATE_MANAGEMENT_GUIDE.md) - Gerenciamento de estado
-- 🚀 [**PERFORMANCE_TUNING.md**](docs/performance/PERFORMANCE_TUNING.md) - Otimizações
+- 🎯 [**STATE_MANAGEMENT_GUIDE.md**](docs/explanation/state_management.md) - Gerenciamento de estado
+- 🚀 [**PERFORMANCE_TUNING.md**](docs/guides/developer/performance-tuning.md) - Otimizações
 - 🔌 [**HARDWARE_OPTIMIZATION_GUIDE.md**](docs/performance/HARDWARE_OPTIMIZATION_GUIDE.md) - NPU e hardware
 - 💻 [**NPU_SETUP_GUIDE.md**](docs/performance/NPU_SETUP_GUIDE.md) - Configuração de NPU Intel
 
 ### Guias Operacionais
 
-- 📋 [**REFERENCE_GUIDE.md**](docs/reference/REFERENCE_GUIDE.md) - Guia operacional completo
+- 📋 [**REFERENCE_GUIDE.md**](docs/reference/operational_reference.md) - Guia operacional completo
 - 📊 [**metrics.md**](docs/reference/metrics.md) - Referência canônica de métricas comportamentais
 - 🔄 [**WORKFLOWS.md**](docs/guides/developer/WORKFLOWS.md) - Fluxos de trabalho detalhados
-- 🐛 [**QUICK_DEBUG_GUIDE.md**](docs/guides/developer/QUICK_DEBUG_GUIDE.md) - Solução de problemas
+- 🐛 [**QUICK_DEBUG_GUIDE.md**](docs/guides/developer/debugging.md) - Solução de problemas
 - ⚠️ [**KNOWN_ISSUES.md**](docs/reference/KNOWN_ISSUES.md) - Problemas conhecidos e soluções
 - 📝 [**CHANGELOG.md**](CHANGELOG.md) - Histórico de versões
 
@@ -781,7 +820,7 @@ poetry run pytest --cov=src/zebtrack --cov-report=html
 @pytest.mark.e2e          # Teste end-to-end
 ```
 
-Para mais detalhes, consulte [README_TESTS.md](README_TESTS.md).
+Para mais detalhes, consulte [README_TESTS.md](docs/testing/TEST_MAP.md).
 
 ## 🤝 Contribuição
 
@@ -822,7 +861,7 @@ Contribuições são muito bem-vindas! Este projeto segue práticas modernas de 
 
 ### Diretrizes de Código
 
-- ✅ **Python 3.11+**: Use type hints e recursos modernos
+- ✅ **Python 3.12+**: Use type hints e recursos modernos
 - ✅ **Ruff**: Linter e formatador (linha máxima: 100 caracteres)
 - ✅ **Docstrings**: Google Style para funções públicas
 - ✅ **Testes**: Adicione testes para novas funcionalidades
@@ -832,14 +871,14 @@ Contribuições são muito bem-vindas! Este projeto segue práticas modernas de 
 
 ### Áreas que Precisam de Ajuda
 
-- 🐛 **Correção de bugs** listados em [KNOWN_ISSUES.md](docs/KNOWN_ISSUES.md)
+- 🐛 **Correção de bugs** listados em [KNOWN_ISSUES.md](docs/reference/KNOWN_ISSUES.md)
 - 📝 **Documentação**: Tradução, tutoriais, exemplos
 - 🧪 **Testes**: Aumentar cobertura para 70%+
 - 🎨 **UI/UX**: Melhorias na interface gráfica
 - 🚀 **Performance**: Otimizações de processamento
 - 🔌 **Plugins**: Novos detectores ou exportadores
 
-Consulte o [DEVELOPER_GUIDE.md](docs/DEVELOPER_GUIDE.md) para diretrizes completas.
+Consulte o [DEVELOPER_GUIDE.md](docs/guides/developer/getting_started.md) para diretrizes completas.
 
 ## 📊 Casos de Uso
 

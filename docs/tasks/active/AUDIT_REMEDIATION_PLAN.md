@@ -214,7 +214,7 @@ e `main_view_model.py`.
 
 #### Status (2026-03-15): Concluído
 
-- DI container `punq` instalado e registrado em [src/zebtrack/core/di_registrations.py](src/zebtrack/core/di_registrations.py)
+- DI container `punq` instalado e registrado em [src/zebtrack/core/di_registrations.py](../../../src/zebtrack/core/di_registrations.py)
 - `__main__.py` reduzido para entrypoint fino com `run_app` e DI via container
 - Post-construction injection removida do fluxo de startup (LazyRef usado no container)
 Verificações:

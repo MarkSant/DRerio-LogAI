@@ -17,10 +17,10 @@ Obrigado por querer contribuir com o DRerio LogAI! Este guia descreve o fluxo de
    poetry install
    ```
 
-1. Ative o shell virtual (opcional, mas recomendado):
+1. Baixe os pesos do detector (~200 MB, obrigatório — sem eles o app não abre):
 
    ```powershell
-   poetry shell
+   poetry run fetch-weights
    ```
 
 1. Verifique se a aplicação inicia:
@@ -28,6 +28,9 @@ Obrigado por querer contribuir com o DRerio LogAI! Este guia descreve o fluxo de
    ```powershell
    poetry run zebtrack
    ```
+
+   > `poetry shell` não é mais uma opção: foi removido do Poetry 2.0 e movido
+   > para o plugin `poetry-plugin-shell`. Prefira `poetry run <comando>`.
 
 ## 2. Fluxo de desenvolvimento
 
@@ -41,11 +44,11 @@ Obrigado por querer contribuir com o DRerio LogAI! Este guia descreve o fluxo de
 
 ## 3. Estilo de código
 
-- **Formatação & lint:** use Ruff (`poetry run ruff check .`) com `line-length = 88`.
+- **Formatação & lint:** use Ruff (`poetry run ruff check .`); `line-length = 100`, definido em `pyproject.toml` — não redefina por arquivo.
 - **Type hints:** exigidos para novos módulos/funções públicas.
 - **Docstrings curtas:** use estilo Google ou NumPy quando a função não for autoexplicativa.
 - **Logging:** utilize `structlog.get_logger()` e o padrão `dominio.acao.resultado` (por exemplo, `controller.processing.success`).
-- **Configuração:** nenhum valor hardcoded; importe `from zebtrack import settings` e/ou leia do projeto via `ProjectManager`.
+- **Configuração:** nenhum valor hardcoded. **Nunca** importe o singleton `from zebtrack import settings` fora do composition root — receba `settings_obj` por injeção de dependência, e leia o que for do projeto via `ProjectManager`. O singleton é compartilhado e mutável: quem o importa acaba lendo o que o último diálogo avulso deixou lá.
 - **Threads/UI:** todo update de GUI deve ser agendado com `root.after(0, ...)`.
 
 ## 4. Testes

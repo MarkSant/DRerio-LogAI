@@ -74,7 +74,7 @@ Phase 3 consolidated 7 orchestrators into 4 "super coordinators." Phase 4 furthe
 
 > **Deprecation Notice (ADR-009):** EventBus v1 is deprecated. New features MUST use
 > EventBusV2 (`UIEvents` enum). Migration of existing v1 subscribers is planned but
-> not yet started. See [ADR-009](../decisions/ADR-009-event-bus-unification.md).
+> not yet started. No ADR was ever written for this; the decision lives only in this document.
 
 **CRITICAL:** DRerio LogAI uses **two coexisting event bus systems** by design. Agents must understand which system to use for each use case.
 
@@ -414,7 +414,7 @@ Understanding who holds what references prevents "AttributeError" and circular d
 - Features built for `CanvasManager` (drawing tools) are NOT available in live preview
 - If needed, implement equivalent features directly in `LivePreviewWindow`
 
-**Reference:** See `docs/decisions/ADR-004-live-camera-divergence.md` for full decision record.
+**Reference:** See `docs/archive/decisions/ADR-004-live-camera-divergence.md` for full decision record.
 
 ### 5.4. Live Zones, Batch Completion & Status Counts (June 2026)
 
@@ -1591,9 +1591,9 @@ Heavy imports (pandas, pyarrow, openpyxl) are deferred in:
 
 | ADR | Title | Status |
 | --- | ----- | ------ |
-| [ADR-001](../decisions/ADR-001-multi-aquarium-support.md) | Multi-Aquarium Support | Accepted |
-| [ADR-004](../decisions/ADR-004-live-camera-divergence.md) | Live Camera Architecture Divergence | Accepted |
-| [ADR-009](../decisions/ADR-009-event-bus-unification.md) | Event Bus Unification | Accepted (migration pending) |
+| [ADR-001](../archive/decisions/ADR-001-multi-aquarium-support.md) | Multi-Aquarium Support | Accepted |
+| [ADR-004](../archive/decisions/ADR-004-live-camera-divergence.md) | Live Camera Architecture Divergence | Accepted |
+| ADR-009 (never written) | Event Bus Unification | Decision recorded here only |
 
 ---
 
