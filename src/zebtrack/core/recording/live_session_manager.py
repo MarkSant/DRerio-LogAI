@@ -10,6 +10,7 @@ import datetime
 import os
 import re
 import shutil
+import sys
 import threading
 import time
 import tkinter as tk
@@ -44,6 +45,13 @@ class LiveSessionManagerMixin:
         _on_session_active, _setup_session_timer, _update_session_countdown,
         _publish_analysis_lag_status
     """
+
+    #: Teto TOTAL de espera pelo join das threads de trabalho em
+    #: ``stop_session`` (segundos). E atributo de classe, e nao constante local,
+    #: para que um teste possa exercitar o caminho da trava sem pagar 5 s de
+    #: relogio por caso. O valor real de producao continua guardado de ponta a
+    #: ponta por ``test_stop_session_bounded_total_join_budget``.
+    _max_join_wait_s: float = 5.0
 
     # -- Typing stubs for attributes defined by LiveCameraService.__init__ --
     controller: MainViewModel | None
@@ -907,6 +915,38 @@ class LiveSessionManagerMixin:
 
         return True
 
+    @staticmethod
+    def _hung_thread_stacks(
+        threads: list[tuple[str, threading.Thread | None]],
+    ) -> dict[str, str]:
+        """Onde cada thread ainda viva parou, para o log da trava.
+
+        ``threads_still_alive`` diz QUAIS threads nao sairam; sem a pilha nao
+        diz ONDE elas pararam, e a trava so acontece na bancada -- nao ha como
+        reproduzi-la depois no depurador. Um despejo de uma linha por quadro
+        transforma o proximo incidente em diagnostico de uma vez so.
+
+        Best-effort por construcao: roda no caminho de encerramento, e uma falha
+        ao coletar a pilha nao pode impedir a sessao de terminar.
+        """
+        import traceback
+
+        frames = sys._current_frames()
+        stacks: dict[str, str] = {}
+        for name, thread in threads:
+            if thread is None or not thread.is_alive():
+                continue
+            frame = frames.get(thread.ident or -1)
+            if frame is None:
+                stacks[name] = "<frame indisponivel>"
+                continue
+            try:
+                stacks[name] = "".join(traceback.format_stack(frame))
+            # except Exception justified: diagnostico best-effort no shutdown
+            except Exception:
+                stacks[name] = "<falha ao formatar a pilha>"
+        return stacks
+
     def finish_session_early(self) -> bool:
         """End the session NOW and keep everything, as if the timer had expired.
 
@@ -1003,8 +1043,18 @@ class LiveSessionManagerMixin:
         # around BOTH the ``write_video_frame`` and the release, so any
         # still-alive worker either finishes its write atomically or sees a
         # nulled writer on next iteration — no FFmpeg assertion crash.
-        MAX_JOIN_WAIT_S = 5.0
+        # ``threads_hung`` e DELIBERADAMENTE separado de ``cancelled_session``.
+        # Uma trava de thread e um problema de maquina; cancelamento e uma
+        # intencao do operador. Ate 2026-09 as duas compartilhavam a mesma
+        # variavel, e uma sessao COMPLETA que travasse 5 s no join era relatada
+        # como cancelada a ``on_session_stopped`` -- o coordinator entao pulava
+        # ``_register_batch_session()`` e o projeto nunca ficava sabendo da
+        # gravacao. Os arquivos continuavam no disco (o ``rmtree`` obedece ao
+        # parametro ``cancelled``, nao a esta variavel), o que tornava a perda
+        # invisivel: pasta cheia, projeto vazio, nenhum erro para o operador.
+        MAX_JOIN_WAIT_S = self._max_join_wait_s
         TICK_S = 0.1
+        threads_hung = False
         wait_start = time.time()
         while any(t is not None and t.is_alive() for _, t in threads_to_join):
             if time.time() - wait_start > MAX_JOIN_WAIT_S:
@@ -1013,10 +1063,12 @@ class LiveSessionManagerMixin:
                     "live_camera_service.thread_join_hang",
                     threads_still_alive=still_alive,
                     waited_s=MAX_JOIN_WAIT_S,
+                    stacks=self._hung_thread_stacks(threads_to_join),
                 )
-                # Promote graceful stop to force_stop so the recorder
-                # nullifies ``video_writer`` before calling release().
-                cancelled_session = True
+                # Promove o encerramento a force_stop para que o recorder anule
+                # ``video_writer`` antes do release(). Isso e tudo que a trava
+                # decide -- o destino da sessao continua sendo o do operador.
+                threads_hung = True
                 break
             time.sleep(TICK_S)
         else:
@@ -1043,18 +1095,21 @@ class LiveSessionManagerMixin:
         # (or we've promoted to force_stop above if a thread hung).
         if self.recorder:
             try:
-                if cancelled_session:
-                    reason = (
-                        "thread_hang"
-                        if any(t is not None and t.is_alive() for _, t in threads_to_join)
-                        else "user_cancelled"
-                    )
+                if cancelled_session or threads_hung:
+                    # ``reason`` vem do que REALMENTE aconteceu no laco acima.
+                    # Ele era derivado de um segundo ``is_alive()`` feito aqui
+                    # embaixo, depois do ledger -- e uma thread que morresse
+                    # nesse intervalo transformava uma trava genuina em
+                    # "user_cancelled", corrompendo justamente o campo que se
+                    # le para explicar o ocorrido.
+                    reason = "thread_hang" if threads_hung else "user_cancelled"
                     self.recorder.stop_recording(force_stop=True, reason=reason)
                 else:
                     self.recorder.stop_recording()
                 log.info(
                     "live_camera_service.recorder_stopped",
                     cancelled=cancelled_session,
+                    threads_hung=threads_hung,
                 )
             # except Exception justified: graceful shutdown
             except Exception as e:
