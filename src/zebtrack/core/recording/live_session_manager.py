@@ -938,13 +938,13 @@ class LiveSessionManagerMixin:
                 continue
             frame = frames.get(thread.ident or -1)
             if frame is None:
-                stacks[name] = "<frame indisponivel>"
+                stacks[name] = "<frame unavailable>"
                 continue
             try:
                 stacks[name] = "".join(traceback.format_stack(frame))
             # except Exception justified: diagnostico best-effort no shutdown
             except Exception:
-                stacks[name] = "<falha ao formatar a pilha>"
+                stacks[name] = "<stack formatting failed>"
         return stacks
 
     def finish_session_early(self) -> bool:
