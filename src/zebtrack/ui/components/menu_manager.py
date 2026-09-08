@@ -68,6 +68,13 @@ class MenuManager:
         settings_menu = Menu(menubar, tearoff=0)
         menubar.add_cascade(label=_("Settings"), menu=settings_menu)
         settings_menu.add_command(label=_("Language..."), command=self.change_language)
+        # The model configuration panel had no menu entry at all: it was
+        # reachable only from a button inside a project view, so a new operator
+        # could not find the one screen they need before their first analysis.
+        settings_menu.add_command(
+            label=_("Model settings..."),
+            command=self.gui._open_global_model_configuration_window,
+        )
 
         # Tools menu
         tools_menu = Menu(menubar, tearoff=0)
@@ -80,7 +87,16 @@ class MenuManager:
         # Help menu
         help_menu = Menu(menubar, tearoff=0)
         menubar.add_cascade(label=_("Help"), menu=help_menu)
+        help_menu.add_command(label=_("Getting Started..."), command=self.show_welcome_dialog)
         help_menu.add_command(label=_("About DRerio LogAI"), command=self.show_about_dialog)
+
+    def show_welcome_dialog(self) -> None:
+        """Reopen the getting-started window on demand.
+
+        Separate from the automatic first-run showing so that dismissing it
+        permanently does not make the explanation unreachable.
+        """
+        self.gui.show_welcome_dialog(force=True)
 
     def change_language(self) -> None:
         """Let the user pick a different interface language.

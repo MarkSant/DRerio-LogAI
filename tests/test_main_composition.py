@@ -251,10 +251,14 @@ class TestReproducibility:
         set_seed_mock = MagicMock()
         monkeypatch.setattr("zebtrack.utils.set_seed", set_seed_mock)
 
-        # Make it fail early after seed is set
+        # Stop right after the seed is set. This used to throw from
+        # create_splash, but the splash is now built BEFORE set_seed -- on
+        # purpose, so the window appears before zebtrack.utils drags torch in --
+        # and stopping there would prove nothing about the seed.
+        monkeypatch.setattr("zebtrack.ui.splash_screen.create_splash", lambda parent: MagicMock())
         monkeypatch.setattr(
-            "zebtrack.ui.splash_screen.create_splash",
-            lambda parent: (_ for _ in ()).throw(Exception("stop")),
+            "zebtrack.core.di_registrations.build_container",
+            lambda context: (_ for _ in ()).throw(Exception("stop")),
         )
 
         try:
@@ -280,9 +284,10 @@ class TestReproducibility:
         set_seed_mock = MagicMock()
         monkeypatch.setattr("zebtrack.utils.set_seed", set_seed_mock)
 
+        monkeypatch.setattr("zebtrack.ui.splash_screen.create_splash", lambda parent: MagicMock())
         monkeypatch.setattr(
-            "zebtrack.ui.splash_screen.create_splash",
-            lambda parent: (_ for _ in ()).throw(Exception("stop")),
+            "zebtrack.core.di_registrations.build_container",
+            lambda context: (_ for _ in ()).throw(Exception("stop")),
         )
 
         try:

@@ -203,7 +203,7 @@ install.ps1 again.
     # ----------------------------------------------------------------------
     # 4. Detector weights
     # ----------------------------------------------------------------------
-    Write-Step 4 $TotalSteps 'Downloading detector models (~200 MB)'
+    Write-Step 4 $TotalSteps 'Downloading detector models (~250 MB)'
 
     if ($SkipWeights) {
         Write-Host '  Skipped (-SkipWeights).'

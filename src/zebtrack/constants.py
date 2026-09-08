@@ -22,6 +22,12 @@ SPLASH_WIDTH: Final[int] = 500
 SPLASH_HEIGHT: Final[int] = 400
 SPLASH_CLOSE_DELAY_MS: Final[int] = 300
 
+# Minimum time a startup step stays on the splash before the next replaces it.
+# The benchmark steps were always sent to the splash, but several finish in
+# milliseconds, so they were painted and overwritten inside a single frame and
+# the sequence was legible only in the log.
+SPLASH_MIN_STEP_SECONDS: Final[float] = 0.35
+
 # ---------------------------------------------------------------------------
 # Wizard dialog layout
 # ---------------------------------------------------------------------------

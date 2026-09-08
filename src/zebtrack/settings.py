@@ -1024,6 +1024,17 @@ class UISettings(BaseModel):
             "allowed values in sync with zebtrack.i18n.SUPPORTED_LANGUAGES."
         ),
     )
+    show_welcome: bool = Field(
+        True,
+        description=(
+            "Show the getting-started window after the main window opens. It "
+            "explains the six detector models, the four roles they fill, and "
+            "when OpenVINO is worth enabling. Cleared by the 'do not show "
+            "again' checkbox, which writes only this key via "
+            "write_local_override(); the window stays reachable from "
+            "Help > Getting Started."
+        ),
+    )
 
 
 class PerformanceSettings(BaseModel):

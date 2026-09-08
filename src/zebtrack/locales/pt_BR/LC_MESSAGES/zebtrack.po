@@ -15606,3 +15606,87 @@ msgstr ""
 "As zonas salvas na pasta de \"{name}\" foram carregadas.\n"
 "\n"
 "Confira se os contornos correspondem a este vídeo antes de iniciar a análise: uma arena de outra gravação ainda produz um relatório completo, medido contra a região errada."
+
+msgid "Loading the tracking engine..."
+msgstr "Carregando o motor de rastreamento..."
+
+msgid "Step 1/7 — Detecting hardware..."
+msgstr "Etapa 1/7 — Detectando o hardware..."
+
+msgid "Step 2/7 — Preparing the model for your hardware (one time, may take a minute)..."
+msgstr "Etapa 2/7 — Preparando o modelo para o seu hardware (uma única vez, pode levar um minuto)..."
+
+msgid "Step 3/7 — Testing video decoding..."
+msgstr "Etapa 3/7 — Testando a decodificação de vídeo..."
+
+msgid "Step 4/7 — Testing inference performance..."
+msgstr "Etapa 4/7 — Testando o desempenho de inferência..."
+
+msgid "Step 5/7 — Testing live camera pipeline..."
+msgstr "Etapa 5/7 — Testando o pipeline da câmera ao vivo..."
+
+msgid "Step 6/7 — Testing batch processing..."
+msgstr "Etapa 6/7 — Testando o processamento em lote..."
+
+msgid "Step 7/7 — Generating recommendations..."
+msgstr "Etapa 7/7 — Gerando recomendações..."
+
+msgid "Model settings..."
+msgstr "Definições de modelo..."
+
+msgid "Getting Started..."
+msgstr "Primeiros passos..."
+
+msgid "Getting started"
+msgstr "Primeiros passos"
+
+msgid "One thing is worth setting up before your first analysis."
+msgstr "Vale ajustar uma coisa antes da sua primeira análise."
+
+msgid "The detector models"
+msgstr "Os modelos do detector"
+
+msgid ""
+"Six models are installed. Four are specialists, trained for one camera angle each: segmentation and detection, for a lateral view and for a top-down view. The other two are generalists that work from any angle but with less precision.\n"
+"\n"
+"You assign a model to each of four roles — detecting the aquarium and detecting the animal, by segmentation and by bounding box. The specialists are pre-assigned; pick the pair that matches how your camera is mounted."
+msgstr ""
+"Seis modelos estão instalados. Quatro são especialistas, treinados cada um para um ângulo de câmera: segmentação e detecção, para vista lateral e para vista superior. Os outros dois são generalistas, que funcionam de qualquer ângulo, porém com menos precisão.\n"
+"\n"
+"Você atribui um modelo a cada um de quatro papéis — detectar o aquário e detectar o animal, por segmentação e por caixa delimitadora. Os especialistas já vêm atribuídos; escolha o par que corresponde à montagem da sua câmera."
+
+msgid "Acceleration"
+msgstr "Aceleração"
+
+msgid "OpenVINO speeds up Intel processors, integrated graphics and NPUs. On a machine with an NVIDIA card, PyTorch with CUDA is usually faster and OpenVINO is not worth enabling."
+msgstr "O OpenVINO acelera processadores Intel, gráficos integrados e NPUs. Numa máquina com placa NVIDIA, o PyTorch com CUDA costuma ser mais rápido e não compensa ligar o OpenVINO."
+
+msgid "An NVIDIA GPU was detected"
+msgstr "Uma GPU NVIDIA foi detectada"
+
+msgid "PyTorch with CUDA will normally be the fastest option here, so you can leave OpenVINO off. It exists for machines without an NVIDIA card, where it moves the work onto the Intel CPU, integrated graphics or NPU instead."
+msgstr "O PyTorch com CUDA costuma ser a opção mais rápida aqui, então você pode deixar o OpenVINO desligado. Ele existe para máquinas sem placa NVIDIA, onde passa o trabalho para a CPU Intel, os gráficos integrados ou a NPU."
+
+msgid "No NVIDIA GPU — OpenVINO is the fast path here"
+msgstr "Sem GPU NVIDIA — o OpenVINO é o caminho rápido aqui"
+
+msgid "Without a CUDA card, OpenVINO is what makes tracking fast on this machine. It can use: {devices}. Enable it in the model settings and convert the models you plan to use; conversion happens once and is cached."
+msgstr "Sem uma placa CUDA, o OpenVINO é o que torna o rastreamento rápido nesta máquina. Ele pode usar: {devices}. Ligue-o nas definições de modelo e converta os modelos que pretende usar; a conversão acontece uma única vez e fica em cache."
+
+msgid "No hardware acceleration was detected"
+msgstr "Nenhuma aceleração de hardware foi detectada"
+
+msgid "Tracking will run on the CPU through PyTorch. It works, but expect it to be slower than on a machine with an NVIDIA card or Intel acceleration."
+msgstr "O rastreamento vai rodar na CPU via PyTorch. Funciona, mas espere que seja mais lento do que numa máquina com placa NVIDIA ou aceleração Intel."
+
+msgid "All of this lives in Settings > Model settings, at any time."
+msgstr "Tudo isso fica em Configurações > Definições de modelo, a qualquer momento."
+
+msgid "Do not show this again"
+msgstr "Não mostrar novamente"
+
+msgid "Not now"
+msgstr "Agora não"
+
+msgid "Open model settings"
+msgstr "Abrir definições de modelo"

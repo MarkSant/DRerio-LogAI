@@ -7,13 +7,14 @@ import logging
 import os
 import sys
 import threading
+import time
 import warnings
 from collections.abc import Callable
 from typing import Any, Literal, cast
 
 import structlog
 
-from zebtrack.constants import SPLASH_CLOSE_DELAY_MS
+from zebtrack.constants import SPLASH_CLOSE_DELAY_MS, SPLASH_MIN_STEP_SECONDS
 from zebtrack.core.exceptions import MissingDetectorWeightsError
 from zebtrack.i18n import _
 from zebtrack.logging_config import configure_logging
@@ -110,14 +111,49 @@ def run_app(
         # critically, before _warm_container() builds the whole UI tree below.
         i18n.install(settings_obj.ui.language)
 
+        # THE SPLASH IS BUILT HERE, and everything below it is deliberately
+        # downstream. It used to be created after the import block further down,
+        # and that ordering is what made a double-click look like a dead icon:
+        # measured in logs/analysis.log, roughly four seconds passed with no
+        # window, no cursor change and no taskbar entry. Under the desktop
+        # shortcut (pythonw.exe, no console) there is not even a terminal to
+        # suggest something is happening.
+        #
+        # Two separate costs sat in front of it, both invisible as plain
+        # `import` lines:
+        #   * `from zebtrack.utils import set_seed` -- zebtrack.utils imports
+        #     torch at module level, about 1.1 s.
+        #   * the di_registrations block below -- it eagerly builds the whole
+        #     coordinator/service graph, pulling ultralytics, cv2 and
+        #     matplotlib on top of torch, about 3 s.
+        #
+        # What this block needs is cheap by comparison: splash_screen imports
+        # tkinter, PIL and constants, and icon_utils/window_utils are thin
+        # wrappers. Keep it that way -- an expensive import added above or
+        # inside here silently moves the dead gap back.
+        from zebtrack.ui.icon_utils import set_window_icon
+        from zebtrack.ui.splash_screen import create_splash
+        from zebtrack.ui.window_utils import maximize_window
+
+        set_window_icon(root)
+        splash = create_splash(parent=root)
+        splash.update_progress(0.0, _("Starting..."))
+
+        log.info("application.starting", component="main")
+        _set_windows_app_id(log)
+
+        splash.update_progress(0.03, _("Loading the tracking engine..."))
+
         from zebtrack.utils import set_seed
 
         if settings_obj.reproducibility and settings_obj.reproducibility.seed:
             set_seed(settings_obj.reproducibility.seed)
             log.info("reproducibility.seed.set", seed=settings_obj.reproducibility.seed)
 
-        log.info("application.starting", component="main")
-        _set_windows_app_id(log)
+        # Needs hardware_benchmark, hence after the torch import above rather
+        # than before it. Puts the first-run hint on screen while the heavier
+        # import block below runs.
+        _detect_first_launch(settings_obj, splash)
 
         from zebtrack.core.dependency_container import LazyRef
         from zebtrack.core.di_registrations import (
@@ -130,20 +166,12 @@ def run_app(
         from zebtrack.io.recorder_factory import RecorderFactory
         from zebtrack.settings import save_settings
         from zebtrack.ui.event_bus_v2 import EventBusV2
-        from zebtrack.ui.icon_utils import set_window_icon
-        from zebtrack.ui.splash_screen import create_splash
-        from zebtrack.ui.window_utils import maximize_window
-
-        set_window_icon(root)
-        splash = create_splash(parent=root)
-        splash.update_progress(0.0, _("Loading settings..."))
-
-        # Detect first launch (no cached benchmark) and inform user
-        _detect_first_launch(settings_obj, splash)
 
         # Before the benchmark, not after: without weights the run is doomed,
-        # and the benchmark is the slowest step in startup. Failing here turns a
-        # long wait ending in a generic error into an immediate, specific one.
+        # and the benchmark now converts a model, which is the slowest step in
+        # startup. Failing here turns a long wait ending in a generic error into
+        # an immediate, specific one -- and avoids converting a weight for an
+        # install that cannot track anyway.
         _require_detector_weights(settings_obj, log)
 
         _run_benchmark_if_enabled(settings_obj, splash, save_settings, log)
@@ -179,6 +207,11 @@ def run_app(
             splash.destroy()
             maximize_window(root)
             root.deiconify()
+            # After deiconify, never before: the window is modal and centres on
+            # its parent, and a transient of a withdrawn master is itself
+            # withdrawn -- the same trap that made the first-run language
+            # chooser hang on a window nobody could see.
+            _show_welcome_if_due(container, log)
 
         root.after(SPLASH_CLOSE_DELAY_MS, close_splash_and_show_main)
         controller.run()
@@ -449,17 +482,33 @@ def _run_benchmark_if_enabled(
 
         cached = load_cached_benchmark()
         if cached is None:
-            splash.update_progress(0.02, _("Optimizing for your hardware (first run)..."))
+            splash.update_progress(0.05, _("Optimizing for your hardware (first run)..."))
             log.info("benchmark.running_first_time")
 
+            # Each step is held on screen for a beat before the next one
+            # replaces it. Without this the fast steps are unreadable: the
+            # messages were always sent to the splash, but a step that finishes
+            # in milliseconds is painted and overwritten within one frame, so
+            # the sequence only ever existed in the log. The wait is skipped
+            # whenever the step already took longer than the floor, which is
+            # the normal case for the conversion and pipeline steps.
+            last_shown = time.monotonic()
+
             def progress_cb(step: int, total: int, message: str) -> None:
-                # Benchmark occupies progress range 0.02-0.15
-                frac = 0.02 + (step / max(total, 1)) * 0.13
+                nonlocal last_shown
+                elapsed = time.monotonic() - last_shown
+                remaining = SPLASH_MIN_STEP_SECONDS - elapsed
+                if remaining > 0:
+                    splash.sleep(remaining)
+                # Benchmark occupies progress range 0.05-0.20
+                frac = 0.05 + (step / max(total, 1)) * 0.15
                 splash.update_progress(frac, message)
+                last_shown = time.monotonic()
 
             benchmark_result = get_or_run_benchmark(
                 quick_mode=True,
                 progress_callback=progress_cb,
+                settings_obj=settings_obj,
             )
 
             if benchmark_result.recommendation:
@@ -523,6 +572,25 @@ def _run_benchmark_if_enabled(
             )
     except Exception as e:
         log.warning("benchmark.failed", error=str(e))
+
+
+def _show_welcome_if_due(container: Any, log: Any) -> None:
+    """Offer the getting-started window once the main window is up.
+
+    Lives here rather than inside the GUI's own startup because this is the
+    function that owns the splash-to-main-window transition, and "after the
+    main window is visible" is the whole constraint.
+
+    Any failure is swallowed: an informational window must never be the reason
+    an otherwise working application does not appear.
+    """
+    try:
+        from zebtrack.ui.gui import ApplicationGUI
+
+        gui = container.resolve(ApplicationGUI)
+        gui.show_welcome_dialog()
+    except Exception:
+        log.warning("welcome.startup_show_failed", exc_info=True)
 
 
 def _warm_container(container: Any, splash: Any) -> None:

@@ -193,7 +193,7 @@ top-level helpers and 1 exception class. Concerns:
 
 | Concern                       | Approx. line range | Marker methods                                                                |
 | ----------------------------- | ------------------ | ----------------------------------------------------------------------------- |
-| Loading & discovery           | 145–520            | `_resolve_weights_dir`, `_load_weights`, `discover_perspective_weights`, `_maybe_relocate_path` |
+| Loading & discovery           | 145–520            | `_resolve_weights_dir`, `_load_weights`, `discover_weights`, `_maybe_relocate_path` |
 | Classification                | 391–435            | `_classify_weight_type`, `_classify_perspective`                              |
 | Persistence                   | 522–650            | `_initialize_default_weight`, `save_weights`                                   |
 | CRUD (single weight)          | 654–1056           | `get_weight_*`, `set_default_weight*`, `add_weight`, `delete_weight`           |

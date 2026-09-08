@@ -25,7 +25,7 @@
       "bytes": 19220903,
       "type": "det",
       "perspective": null,
-      "required": false
+      "required": true
     },
     {
       "name": "best_seg.pt",
@@ -33,7 +33,7 @@
       "bytes": 20568005,
       "type": "seg",
       "perspective": null,
-      "required": false
+      "required": true
     },
     {
       "name": "best_seg_lateral.pt",

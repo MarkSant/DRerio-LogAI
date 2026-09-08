@@ -1,6 +1,7 @@
 """Splash screen for DRerio LogAI startup."""
 
 import platform
+import time
 import tkinter as tk
 from pathlib import Path
 from tkinter import ttk
@@ -21,6 +22,9 @@ ACCENT_COLOR = "#4a9eff"  # Blue accent for highlights
 TEXT_PRIMARY = "#ffffff"  # White for primary text
 TEXT_SECONDARY = "#a0a0a0"  # Gray for secondary text
 TEXT_MUTED = "#505050"  # Darker gray for footer text
+
+# Granularity of SplashScreen.sleep's event-loop pumping.
+_SLEEP_SLICE_SECONDS = 0.02
 
 
 class SplashScreen:
@@ -207,6 +211,24 @@ class SplashScreen:
             self.status_var.set(message)
         self.splash.update()
         log.debug("splash.progress.updated", pct=int(pct), message=message)
+
+    def sleep(self, seconds: float) -> None:
+        """Hold the current frame on screen for *seconds*, still repainting.
+
+        Not ``time.sleep``: this runs before ``mainloop`` starts, so blocking
+        outright leaves the window unpainted and Windows draws it as a white
+        rectangle -- worse than the flicker it is meant to fix. Pumping the
+        event loop in short slices keeps the splash alive.
+
+        Args:
+            seconds: How long to wait. Zero or negative returns immediately.
+        """
+        if seconds <= 0:
+            return
+        deadline = time.monotonic() + seconds
+        while time.monotonic() < deadline:
+            self.splash.update()
+            time.sleep(_SLEEP_SLICE_SECONDS)
 
     def set_first_launch(self, is_first: bool) -> None:
         """Show or hide the first-launch hint.

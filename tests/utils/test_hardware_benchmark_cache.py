@@ -127,3 +127,67 @@ def test_print_benchmark_summary(capsys):
     assert "HARDWARE BENCHMARK SUMMARY" in out
     assert "CPU: Test CPU" in out
     assert "GPU: Test GPU" in out
+
+
+def test_inconclusive_result_is_not_cached(tmp_path, monkeypatch):
+    """A benchmark that measured nothing must not freeze its guess forever.
+
+    On a fresh install there is no converted OpenVINO model, so every
+    measurement step used to be skipped: the run finished in 0.2 s and
+    recommended CPU at 0.0 FPS. Caching that was worse than having no cache --
+    the file existed, so the benchmark never ran again and the machine stayed
+    configured off a measurement that never happened.
+    """
+    cache_path = tmp_path / "bench.json"
+    monkeypatch.setattr(hb, "get_benchmark_cache_path", lambda: cache_path)
+
+    result = _make_result(fingerprint="abc")
+    result.inconclusive = True
+
+    hb.save_benchmark_cache(result)
+
+    assert not cache_path.exists()
+
+
+def test_conclusive_result_is_still_cached(tmp_path, monkeypatch):
+    """The guard must be narrow: a real measurement is cached as before."""
+    cache_path = tmp_path / "bench.json"
+    monkeypatch.setattr(hb, "get_benchmark_cache_path", lambda: cache_path)
+
+    result = _make_result(fingerprint="abc")
+    result.inconclusive = False
+
+    hb.save_benchmark_cache(result)
+
+    assert cache_path.exists()
+
+
+def test_inconclusive_flag_survives_a_round_trip(tmp_path, monkeypatch):
+    """It is serialized, so a cache written by an older build reads as False."""
+    cache_path = tmp_path / "bench.json"
+    monkeypatch.setattr(hb, "get_benchmark_cache_path", lambda: cache_path)
+
+    result = _make_result(fingerprint="abc")
+    monkeypatch.setattr(hb, "detect_hardware_profile", lambda: result.hardware)
+    hb.save_benchmark_cache(result)
+
+    loaded = hb.load_cached_benchmark()
+
+    assert loaded is not None
+    assert loaded.inconclusive is False
+
+
+def test_cache_path_is_anchored_at_the_repository_root():
+    """Not the working directory.
+
+    ``core/app_runner._perform_reset`` deletes this file resolved against the
+    repository root. While the two disagreed, ``--reset`` could report success
+    after deleting a file the application never wrote.
+    """
+    from zebtrack.paths import repo_root
+
+    path = hb.get_benchmark_cache_path()
+
+    assert path.is_absolute()
+    assert path.parent.parent == repo_root()
+    assert path.name == "system_benchmark.json"

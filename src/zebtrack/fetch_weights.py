@@ -268,12 +268,15 @@ def generate_manifest(
                 "bytes": path.stat().st_size,
                 "type": weight_type,
                 "perspective": perspective,
-                # `required` tracks DISCOVERY, not quality: only the
-                # perspective-suffixed names are matched by
-                # WeightManager.discover_perspective_weights(). The flat-named
-                # generalists have to be registered by hand, so they are not
-                # part of the default download.
-                "required": perspective is not None,
+                # Everything the manifest lists is fetched by default. This
+                # used to be `perspective is not None`, which excluded the two
+                # flat-named generalists (best_oi.pt, best_seg.pt) because
+                # WeightManager could not discover them -- so a standard install
+                # left four of the six models on the server. The discovery gap
+                # was the real defect and is fixed in
+                # WeightManager.discover_weights(); the download no longer has
+                # to model it.
+                "required": True,
             }
         )
 
@@ -325,7 +328,10 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--all",
         action="store_true",
-        help="Also fetch the generalist models the manifest marks optional.",
+        help=(
+            "Accepted for compatibility. Every model in the manifest is fetched "
+            "by default, so this flag no longer changes the selection."
+        ),
     )
     parser.add_argument(
         "--dest",

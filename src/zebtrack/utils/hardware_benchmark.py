@@ -32,6 +32,13 @@ import numpy as np
 import structlog
 
 from zebtrack.i18n import _
+from zebtrack.paths import repo_root
+
+# Must match WeightManager's OPENVINO_CACHE_DIR and the folder --reset removes.
+OPENVINO_CACHE_DIRNAME = "openvino_model_cache"
+
+# Keep in sync with the "Step N/7" strings in run_adaptive_benchmark.
+TOTAL_BENCHMARK_STEPS = 7
 
 log = structlog.get_logger()
 
@@ -162,6 +169,10 @@ class SystemBenchmarkResult:
     # Recommendations
     recommendation: BenchmarkRecommendation | None = None
 
+    # True when nothing could actually be measured (no OpenVINO model, no CUDA).
+    # Such a result is reported but never cached -- see save_benchmark_cache.
+    inconclusive: bool = False
+
     def to_dict(self) -> dict:
         result = {
             "benchmark_version": self.benchmark_version,
@@ -173,6 +184,7 @@ class SystemBenchmarkResult:
             "pipeline_live_results": self.pipeline_live_results,
             "pipeline_batch_results": self.pipeline_batch_results,
             "recommendation": self.recommendation.to_dict() if self.recommendation else None,
+            "inconclusive": self.inconclusive,
         }
         return result
 
@@ -187,6 +199,7 @@ class SystemBenchmarkResult:
         result.compute_results = data.get("compute_results", {})
         result.pipeline_live_results = data.get("pipeline_live_results", {})
         result.pipeline_batch_results = data.get("pipeline_batch_results", {})
+        result.inconclusive = bool(data.get("inconclusive", False))
         if data.get("recommendation"):
             result.recommendation = BenchmarkRecommendation.from_dict(data["recommendation"])
         return result
@@ -338,12 +351,19 @@ def detect_hardware_profile() -> HardwareProfile:
 
 
 def _find_test_video() -> Path | None:
-    """Find a test video for benchmarking."""
+    """Find a test video for benchmarking.
+
+    Anchored at the repository root, not the working directory. Launched from
+    the desktop shortcut these agreed by luck -- the .lnk pins
+    WorkingDirectory to the repo -- but from anywhere else the benchmark
+    searched folders that did not exist and silently measured nothing.
+    """
+    root = repo_root()
     search_paths = [
-        Path("live_analysis_sessions"),
-        Path("tests/fixtures"),
-        Path("test_data"),
-        Path("resources"),
+        root / "live_analysis_sessions",
+        root / "tests" / "fixtures",
+        root / "test_data",
+        root / "resources",
     ]
 
     for base in search_paths:
@@ -357,8 +377,13 @@ def _find_test_video() -> Path | None:
 
 
 def _find_openvino_model() -> Path | None:
-    """Find an OpenVINO model for benchmarking."""
-    cache_dir = Path("openvino_model_cache")
+    """Find a converted OpenVINO model to benchmark against.
+
+    Returns None when nothing has been converted yet -- the normal state of a
+    fresh install, and the reason :func:`run_adaptive_benchmark` now converts
+    one before measuring rather than skipping every measurement step.
+    """
+    cache_dir = repo_root() / OPENVINO_CACHE_DIRNAME
     if not cache_dir.exists():
         return None
 
@@ -368,6 +393,58 @@ def _find_openvino_model() -> Path | None:
             if xml_files:
                 return xml_files[0]
     return None
+
+
+def _prepare_openvino_model(settings_obj: Any | None) -> Path | None:
+    """Convert one weight to OpenVINO so the inference steps have a subject.
+
+    Without this the first run measured **nothing**. Steps 3-5 are all guarded
+    by ``if video_path and model_path and profile.openvino_available``, and on a
+    fresh install ``openvino_model_cache/`` does not exist yet, so
+    :func:`_find_openvino_model` returned None and every measurement was
+    skipped. The whole benchmark finished in 0.2 s and produced a
+    recommendation of CPU at 0.0 FPS -- which was then cached and never
+    recomputed, so the machine was configured off a measurement that never
+    happened.
+
+    The conversion is not overhead bolted on to fix that: it is work the
+    application pays anyway the first time OpenVINO is used for real. Doing it
+    here moves it out of the first analysis and into a moment where the splash
+    can explain the wait.
+
+    Returns:
+        Path to an OpenVINO ``.xml``, or None when there is nothing to convert
+        or the conversion failed. A failure degrades to a CPU-only benchmark;
+        it must never stop the application from starting.
+    """
+    if settings_obj is None:
+        return None
+
+    try:
+        # Imported lazily: this module is reachable from startup paths that
+        # must not drag the service layer in when no conversion is needed.
+        from zebtrack.core.services.weight_manager import WeightManager
+
+        manager = WeightManager(settings_obj=settings_obj)
+        name, _details = manager.get_default_det_weight()
+        if not name:
+            name, _details = manager.get_default_weight()
+        if not name:
+            log.info("benchmark.prepare_model.no_weight_registered")
+            return None
+
+        log.info("benchmark.prepare_model.converting", weight=name)
+        converted = manager.convert_to_openvino(name)
+        if not converted:
+            log.warning("benchmark.prepare_model.conversion_returned_nothing", weight=name)
+            return None
+    except Exception as exc:
+        # Broad on purpose: ultralytics' exporter raises a wide and unstable
+        # set of errors, and none of them justify refusing to start.
+        log.warning("benchmark.prepare_model.failed", error=str(exc))
+        return None
+
+    return _find_openvino_model()
 
 
 def _benchmark_video_decode(video_path: Path, num_frames: int = 50) -> dict[str, BenchmarkResult]:
@@ -763,6 +840,7 @@ def _get_benchmark_devices(profile: HardwareProfile) -> list[str]:
 def run_adaptive_benchmark(
     quick_mode: bool = False,
     progress_callback: Callable[[int, int, str], None] | None = None,
+    settings_obj: Any | None = None,
 ) -> SystemBenchmarkResult:
     """
     Run adaptive benchmark based on detected hardware.
@@ -770,6 +848,9 @@ def run_adaptive_benchmark(
     Args:
         quick_mode: If True, run fewer iterations for faster results.
         progress_callback: Optional callback(step: int, total: int, message: str)
+        settings_obj: Settings used to locate the weights when no OpenVINO model
+            has been converted yet. Without it the inference steps have nothing
+            to measure and the result is reported as inconclusive.
 
     Returns:
         SystemBenchmarkResult with all benchmark data and recommendations.
@@ -790,13 +871,22 @@ def run_adaptive_benchmark(
             progress_callback(step, total, message)
 
     # Step 1: Detect hardware
-    report_progress(1, 6, _("Step 1/6 — Detecting hardware..."))
+    report_progress(1, TOTAL_BENCHMARK_STEPS, _("Step 1/7 — Detecting hardware..."))
     profile = detect_hardware_profile()
     result.hardware = profile
 
     # Find test resources
     video_path = _find_test_video()
     model_path = _find_openvino_model()
+
+    # Step 2: make sure the measurement steps have a subject
+    report_progress(
+        2,
+        TOTAL_BENCHMARK_STEPS,
+        _("Step 2/7 — Preparing the model for your hardware (one time, may take a minute)..."),
+    )
+    if model_path is None and profile.openvino_available:
+        model_path = _prepare_openvino_model(settings_obj)
 
     sample_frame = None
     if video_path:
@@ -807,15 +897,15 @@ def run_adaptive_benchmark(
     if sample_frame is None:
         sample_frame = np.random.randint(0, 255, (720, 1280, 3), dtype=np.uint8)
 
-    # Step 2: Video decode benchmark
-    report_progress(2, 6, _("Step 2/6 — Testing video decoding..."))
+    # Step 3: Video decode benchmark
+    report_progress(3, TOTAL_BENCHMARK_STEPS, _("Step 3/7 — Testing video decoding..."))
     decode_results = {}
     if video_path:
         decode_results = _benchmark_video_decode(video_path, num_frames=num_frames)
         result.decode_results = {k: v.to_dict() for k, v in decode_results.items()}
 
-    # Step 3: Compute/Inference benchmark
-    report_progress(3, 6, _("Step 3/6 — Testing inference performance..."))
+    # Step 4: Compute/Inference benchmark
+    report_progress(4, TOTAL_BENCHMARK_STEPS, _("Step 4/7 — Testing inference performance..."))
     compute_results = {}
 
     if model_path and profile.openvino_available:
@@ -829,8 +919,8 @@ def run_adaptive_benchmark(
 
     result.compute_results = {k: v.to_dict() for k, v in compute_results.items()}
 
-    # Step 4: Pipeline Live benchmark
-    report_progress(4, 6, _("Step 4/6 — Testing live camera pipeline..."))
+    # Step 5: Pipeline Live benchmark
+    report_progress(5, TOTAL_BENCHMARK_STEPS, _("Step 5/7 — Testing live camera pipeline..."))
     pipeline_live_results = {}
     if video_path and model_path and profile.openvino_available:
         available = _get_benchmark_devices(profile)
@@ -843,8 +933,8 @@ def run_adaptive_benchmark(
 
     result.pipeline_live_results = {k: v.to_dict() for k, v in pipeline_live_results.items()}
 
-    # Step 5: Pipeline Batch benchmark
-    report_progress(5, 6, _("Step 5/6 — Testing batch processing..."))
+    # Step 6: Pipeline Batch benchmark
+    report_progress(6, TOTAL_BENCHMARK_STEPS, _("Step 6/7 — Testing batch processing..."))
     pipeline_batch_results = {}
     if video_path and model_path and profile.openvino_available:
         available = _get_benchmark_devices(profile)
@@ -865,8 +955,8 @@ def run_adaptive_benchmark(
 
     result.pipeline_batch_results = {k: v.to_dict() for k, v in pipeline_batch_results.items()}
 
-    # Step 6: Generate recommendations
-    report_progress(6, 6, _("Step 6/6 — Generating recommendations..."))
+    # Step 7: Generate recommendations
+    report_progress(7, TOTAL_BENCHMARK_STEPS, _("Step 7/7 — Generating recommendations..."))
     result.recommendation = _generate_recommendation(
         profile,
         compute_results,
@@ -876,6 +966,20 @@ def run_adaptive_benchmark(
     )
 
     result.benchmark_duration_s = time.perf_counter() - start_time
+
+    # Nothing was actually timed: no OpenVINO model to run and no CUDA device.
+    # The recommendation is then a default dressed as a measurement, and the
+    # give-away is an estimated FPS of exactly zero. Saying so lets
+    # save_benchmark_cache refuse to freeze it for the life of the install.
+    result.inconclusive = not compute_results and not pipeline_live_results
+    if result.inconclusive:
+        log.warning(
+            "benchmark.inconclusive",
+            openvino_available=profile.openvino_available,
+            cuda_available=profile.cuda_available,
+            had_model=model_path is not None,
+            had_video=video_path is not None,
+        )
 
     log.info(
         "benchmark.completed",
@@ -889,8 +993,14 @@ def run_adaptive_benchmark(
 
 
 def get_benchmark_cache_path() -> Path:
-    """Get path to cached benchmark results."""
-    return Path("openvino_model_cache") / "system_benchmark.json"
+    """Path to the cached benchmark result.
+
+    Anchored at the repository root so it names the same file that
+    ``--reset`` deletes (``core/app_runner._perform_reset`` resolves it that
+    way). While this was relative to the working directory the two could point
+    at different files, and a reset that reported success changed nothing.
+    """
+    return repo_root() / OPENVINO_CACHE_DIRNAME / "system_benchmark.json"
 
 
 def load_cached_benchmark() -> SystemBenchmarkResult | None:
@@ -927,7 +1037,18 @@ def load_cached_benchmark() -> SystemBenchmarkResult | None:
 
 
 def save_benchmark_cache(result: SystemBenchmarkResult) -> None:
-    """Save benchmark results to cache."""
+    """Save benchmark results to cache, unless nothing was measured.
+
+    A benchmark that timed nothing still produces a recommendation, and caching
+    it is worse than having no cache at all: the file exists, so the benchmark
+    never runs again, and the machine stays configured off a measurement that
+    never happened. Repeating the attempt next launch costs seconds; freezing
+    the wrong answer costs the life of the install.
+    """
+    if result.inconclusive:
+        log.warning("benchmark.cache_skipped", reason="inconclusive")
+        return
+
     cache_path = get_benchmark_cache_path()
     cache_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -943,6 +1064,7 @@ def get_or_run_benchmark(
     force_rerun: bool = False,
     quick_mode: bool = False,
     progress_callback: Callable[[int, int, str], None] | None = None,
+    settings_obj: Any | None = None,
 ) -> SystemBenchmarkResult:
     """
     Get benchmark results from cache or run new benchmark if needed.
@@ -951,6 +1073,8 @@ def get_or_run_benchmark(
         force_rerun: If True, ignore cache and run new benchmark.
         quick_mode: If True, run faster benchmark with fewer iterations.
         progress_callback: Optional callback for progress updates.
+        settings_obj: Settings forwarded to :func:`run_adaptive_benchmark` so it
+            can convert a weight when no OpenVINO model exists yet.
 
     Returns:
         SystemBenchmarkResult with recommendations.
@@ -960,7 +1084,11 @@ def get_or_run_benchmark(
         if cached:
             return cached
 
-    result = run_adaptive_benchmark(quick_mode=quick_mode, progress_callback=progress_callback)
+    result = run_adaptive_benchmark(
+        quick_mode=quick_mode,
+        progress_callback=progress_callback,
+        settings_obj=settings_obj,
+    )
     save_benchmark_cache(result)
 
     return result
