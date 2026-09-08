@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "drerio-logai"
-version = "7.0.0"
+version = "7.0.1"
 description = "AI-powered tracking and behavioral analysis for Danio rerio (zebrafish) research. Automates video tracking, behavioral metrics, and scientific report generation."
 authors = [
     "Marco Antonio Sant'Ana Camargos <marco.sant@unesp.br>",
@@ -52,7 +52,6 @@ seaborn = "^0.13.2"
 python-docx = "^1.1.2"
 docxtpl = "^0.16.7"
 openpyxl = "^3.1.5"
-cython-bbox = "^0.1.3"
 ttkbootstrap = "^1.10.1"
 tomli = "^2.0.1"
 # Pin setuptools < 81 to prevent pkg_resources removal (docxcompose dependency)

@@ -17,10 +17,9 @@ DRerio LogAI currently ships as a Poetry project. The recommended way to run the
 
 - [Poetry](https://python-poetry.org/docs/#installation) available on your `PATH`
 - Git (to clone the repository)
-- **A C compiler.** One dependency (`cython-bbox`) is published only as a source
-  distribution, so `poetry install` builds an extension module on every platform:
-  Visual Studio Build Tools with the "Desktop development with C++" workload on
-  Windows, `build-essential` on Debian/Ubuntu, Xcode Command Line Tools on macOS.
+- **No C compiler.** Every dependency installs from a prebuilt wheel. Earlier
+  releases needed a toolchain for `cython-bbox`; that IoU routine is NumPy now,
+  so nothing is compiled during installation.
 - **About 3 GB of free disk.** The virtual environment lands around 1.7 GB
   (PyTorch, OpenVINO, OpenCV and SciPy dominate it) and the detector weights add
   another ~200 MB.

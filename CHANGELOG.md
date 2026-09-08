@@ -9,6 +9,59 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [7.0.1] - 2026-09-07
+
+Release de correcao. A 7.0.0 prometia `clone -> poetry install -> poetry run
+zebtrack` e **nao entregava numa maquina limpa**: dois defeitos independentes
+faziam o `poetry install` terminar sem instalar o projeto, e ambos apareciam com
+a mesma mensagem enganosa, um comando depois.
+
+```text
+poetry run fetch-weights
+ModuleNotFoundError: No module named 'zebtrack'
+```
+
+O nome no erro e o do pacote, que esta correto. Nada nele fala de compilador nem
+de versao de Python -- as duas causas reais.
+
+### Fixed
+
+- **`cython-bbox` exigia um compilador C, e nao ha wheel nenhum.** Ele publica
+  no PyPI **apenas** o sdist, em qualquer plataforma e qualquer versao de
+  Python, entao todo `poetry install` compilava uma extensao C. No Windows isso
+  significa MS C++ Build Tools (~6 GB) so para instalar o programa. Havia **um
+  unico** ponto de uso -- `bbox_overlaps`, em `tracker/matching.py` -- agora
+  reescrito em NumPy.
+
+  **A aritmetica e identica em bits**, verificada contra o `cython_bbox` 0.1.5
+  real em 300 casos aleatorios (diferenca absoluta maxima: `0.0`). O que
+  preserva isso e a convencao do Faster R-CNN de contar o pixel final (`+ 1` em
+  cada dimensao): sem ela, `[0,0,10,10]` contra `[5,5,15,15]` daria `0.1428` em
+  vez de `0.1747`, e o rastreador passaria a casar outras deteccoes -- mudando
+  as identidades em `3_CoordMovimento` sem que nada falhasse.
+  `tests/test_matching.py::TestBboxIous` trava esses valores.
+
+- **O teto de Python permitia 3.14, onde o install quebra.** `pyproject.toml`
+  declarava `>=3.12,<3.15`, mas o `numpy` travado (2.2.6) publica wheels so ate
+  cp313. Numa maquina cujo `python` padrao e 3.14 -- cada vez mais comum -- o
+  ambiente nascia em 3.14 e o numpy ia para compilacao de fonte. Teto agora e
+  `<3.14`, e o Poetry recusa **antes** de instalar, nomeando a causa.
+
+### Changed
+
+- **Compilador C saiu dos pre-requisitos.** Toda dependencia instala de wheel
+  pronto. README, README.pt-BR, `1_Installation.md`, `FAQ.md` e `NOTICE`
+  atualizados.
+- A wiki de instalacao ganhou a secao de diagnostico para
+  `ModuleNotFoundError: No module named 'zebtrack'`, cobrindo tambem o caso de
+  um ambiente criado antes de o `fetch-weights` existir, que precisa de
+  `poetry install` depois do upgrade.
+
+### Notas
+
+Os pesos **nao mudaram**: `weights_manifest.json` continua apontando para os
+assets da `v7.0.0`, com os mesmos SHA-256. Nao ha 200 MB para reenviar.
+
 ## [7.0.0] - 2026-09-07
 
 Primeiro release **publico** e primeiro objeto citavel: e desta tag que sai o

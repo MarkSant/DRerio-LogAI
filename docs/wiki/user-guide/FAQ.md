@@ -86,8 +86,8 @@ python --version
 ### Why does installation take so long?
 
 `poetry install` downloads the dependency tree — PyTorch, OpenVINO, OpenCV and
-SciPy are the bulk of it — and then compiles `cython-bbox` from source, which is
-why a C compiler is required. Expect a virtual environment of roughly 1.7 GB.
+SciPy are the bulk of it. Expect a virtual environment of roughly 1.7 GB. Nothing
+is compiled: since 7.0.1 every dependency installs from a prebuilt wheel.
 
 The detector models (~200 MB) are a separate, explicit step:
 

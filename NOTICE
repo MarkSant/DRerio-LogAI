@@ -86,7 +86,6 @@ Permissive (MIT / BSD / Apache-2.0 / PSF-style / similar):
 - python-docx — MIT
 - docxcompose — MIT
 - openpyxl — MIT
-- cython-bbox — MIT
 - ttkbootstrap — MIT AND (Apache-2.0 OR BSD-2-Clause)
 - tomli — MIT
 - setuptools — MIT
