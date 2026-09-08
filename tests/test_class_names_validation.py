@@ -2,28 +2,73 @@
 
 MELHORIA #5: Test suite to ensure class names are correctly extracted
 and validated across Ultralytics and OpenVINO plugins.
+
+Why the model-backed tests resolve their paths instead of naming them
+---------------------------------------------------------------------
+The three tests that need a real model on disk used to gate on
+``Path("best_seg.pt")`` and ``Path("openvino_model_cache/...")`` -- bare
+relative paths, resolved against the *current working directory*. Weights have
+not lived at the project root for a long time: ``fetch-weights`` writes them
+into ``weights/`` and :func:`zebtrack.paths.resolve_weights_dir` is the
+canonical resolver. So the first two conditions were false even on a fully
+provisioned machine, and the third (CWD-relative) was true only when pytest
+happened to be launched from the main checkout -- never from a git worktree.
+All three skipped silently, which is indistinguishable from passing.
+
+Anchoring them the way production does (``repo_root()`` + the settings) makes
+them run wherever the assets actually are. They still skip when the asset is
+genuinely absent: ``best_seg.pt`` is a generalist model that ``fetch-weights``
+downloads only with ``--all``, so CI legitimately skips them.
 """
 
+import json
 from pathlib import Path
 from unittest.mock import Mock, patch
 
 import pytest
 
 from zebtrack.core.services.detector_service import DetectorService
+from zebtrack.core.services.weight_manager import OPENVINO_CACHE_DIR
+from zebtrack.paths import repo_root, resolve_weights_dir
+from zebtrack.settings import load_settings
+
+#: Name of the generalist segmentation weight these tests inspect. It is a
+#: weight NAME (the key ``WeightManager`` registers), not a path -- keep it that
+#: way: ``ModelService.inspect_model`` resolves the path itself.
+SEG_WEIGHT_NAME = "best_seg.pt"
+
+
+def _seg_weight_path() -> Path:
+    """Absolute path to ``best_seg.pt`` in the configured weights directory.
+
+    Mirrors :class:`~zebtrack.core.services.weight_manager.WeightManager`:
+    ``settings.weights.source_dir`` (default ``weights``) anchored at the
+    repository root -- never at the working directory.
+    """
+    return resolve_weights_dir(load_settings()) / SEG_WEIGHT_NAME
+
+
+def _openvino_seg_model_dir() -> Path:
+    """Absolute path to the converted OpenVINO model directory.
+
+    ``WeightManager`` builds this as ``config_dir / OPENVINO_CACHE_DIR``, with
+    ``config_dir`` defaulting to :func:`~zebtrack.paths.repo_root`.
+    """
+    return repo_root() / OPENVINO_CACHE_DIR / "best_seg_openvino_model"
 
 
 class TestClassNamesConsistency:
     """Test class names are correctly extracted from models."""
 
     @pytest.mark.skipif(
-        not Path("best_seg.pt").exists(),
-        reason="best_seg.pt not found in project root",
+        not _seg_weight_path().exists(),
+        reason=f"{SEG_WEIGHT_NAME} not found in the configured weights directory",
     )
     def test_ultralytics_plugin_extracts_class_names(self):
         """Verify UltralyticsDetectorPlugin extracts class names from model."""
         from zebtrack.plugins.ultralytics_detector import UltralyticsDetectorPlugin
 
-        plugin = UltralyticsDetectorPlugin("best_seg.pt")
+        plugin = UltralyticsDetectorPlugin(_seg_weight_path())
 
         # Plugin should have class_names attribute
         assert hasattr(plugin, "class_names"), "Plugin missing class_names attribute"
@@ -49,14 +94,27 @@ class TestClassNamesConsistency:
         print(f"✓ Extracted class names: {plugin.class_names}")
 
     @pytest.mark.skipif(
-        not Path("openvino_model_cache/best_seg_openvino_model").exists(),
-        reason="OpenVINO model not found",
+        not _openvino_seg_model_dir().exists(),
+        reason="converted OpenVINO model not found in the repository cache",
     )
     def test_openvino_plugin_loads_metadata(self):
-        """Verify OpenVINOPlugin loads class names from metadata.json."""
+        """Verify OpenVINOPlugin loads class names from metadata.json.
+
+        The names must come from the sidecar, not from the generic fallback.
+        Counting classes cannot show that: the fallback infers its count from
+        the output shape and lands on the same number, so ``len() >= 2`` holds
+        either way. What separates the two branches is the NAMES -- the
+        fallback can only synthesise ``class_<i>`` placeholders (pinned by
+        :meth:`test_openvino_plugin_fallback_without_metadata`), while
+        metadata.json carries the real taxonomy.
+        """
         from zebtrack.plugins.openvino_detector import OpenVINOPlugin
 
-        plugin = OpenVINOPlugin("openvino_model_cache/best_seg_openvino_model")
+        model_dir = _openvino_seg_model_dir()
+        metadata = json.loads((model_dir / "metadata.json").read_text(encoding="utf-8"))
+        expected = {int(k): v for k, v in metadata["class_names"].items()}
+
+        plugin = OpenVINOPlugin(model_dir)
 
         # Plugin should have class_names attribute
         assert hasattr(plugin, "class_names"), "OpenVINO plugin missing class_names"
@@ -66,7 +124,11 @@ class TestClassNamesConsistency:
             f"Expected at least 2 classes, got {len(plugin.class_names)}"
         )
 
-        print(f"✓ OpenVINO class names: {plugin.class_names}")
+        # Exactly the sidecar's mapping, with int keys -- not the fallback's.
+        assert plugin.class_names == expected
+        assert not any(name.startswith("class_") for name in plugin.class_names.values()), (
+            f"Generic names mean the fallback ran, not metadata.json: {plugin.class_names}"
+        )
 
     def test_openvino_plugin_fallback_without_metadata(self):
         """Verify OpenVINOPlugin gracefully handles missing metadata."""
@@ -239,8 +301,8 @@ class TestModelInspection:
     """Test model inspection functionality."""
 
     @pytest.mark.skipif(
-        not Path("best_seg.pt").exists(),
-        reason="best_seg.pt not found",
+        not _seg_weight_path().exists(),
+        reason=f"{SEG_WEIGHT_NAME} not found in the configured weights directory",
     )
     def test_inspect_model_success(self):
         """Test model inspection returns correct information."""
@@ -252,8 +314,8 @@ class TestModelInspection:
         weight_manager = WeightManager(settings_obj=settings)
         model_service = ModelService(weight_manager)
 
-        # Inspect best_seg.pt
-        info = model_service.inspect_model("best_seg.pt")
+        # Inspect by weight NAME; WeightManager resolves the path.
+        info = model_service.inspect_model(SEG_WEIGHT_NAME)
 
         # Verify structure
         assert "weight_name" in info
@@ -266,7 +328,7 @@ class TestModelInspection:
         assert "is_available" in info
 
         # Verify values
-        assert info["weight_name"] == "best_seg.pt"
+        assert info["weight_name"] == SEG_WEIGHT_NAME
         assert info["weight_type"] == "seg"
         assert info["model_task"] == "segment"
         assert info["is_available"] is True
