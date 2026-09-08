@@ -134,3 +134,71 @@ class TestGateCostMatrix:
         kf = KalmanFilter(dt=1.0)
         empty = np.empty((0, 0))
         assert matching.gate_cost_matrix(kf, empty, [], []).size == 0
+
+
+class TestBboxIous:
+    """Locks the arithmetic inherited from ``cython_bbox.bbox_overlaps``.
+
+    Every number below was produced by ``cython_bbox`` 0.1.5 itself, before the
+    dependency was dropped. It shipped as a source distribution only, so
+    installing the project required a C toolchain; the replacement is pure
+    NumPy and must stay numerically indistinguishable from it.
+    """
+
+    def test_identical_boxes_score_one(self):
+        box = np.array([[0.0, 0.0, 10.0, 10.0]])
+        assert matching.bbox_ious(box, box)[0, 0] == pytest.approx(1.0)
+
+    def test_disjoint_boxes_score_zero(self):
+        a = np.array([[0.0, 0.0, 10.0, 10.0]])
+        b = np.array([[100.0, 100.0, 110.0, 110.0]])
+        assert matching.bbox_ious(a, b)[0, 0] == 0.0
+
+    def test_partial_overlap_keeps_the_inclusive_pixel_convention(self):
+        """The discriminating case: 36/206, not 25/175.
+
+        ``cython_bbox`` counts a box's final pixel, so ``[0, 0, 10, 10]`` is
+        11 px wide. Computing the same overlap without that convention yields
+        0.1428..., and nothing would fail -- the tracker would just match
+        different boxes and write different track identities.
+        """
+        a = np.array([[0.0, 0.0, 10.0, 10.0]])
+        b = np.array([[5.0, 5.0, 15.0, 15.0]])
+        assert matching.bbox_ious(a, b)[0, 0] == pytest.approx(0.17475728155339806, abs=1e-15)
+
+    def test_matrix_matches_cython_bbox_reference(self):
+        a = np.array([[0.0, 0.0, 10.0, 10.0], [20.0, 20.0, 30.0, 30.0], [5.0, 5.0, 25.0, 25.0]])
+        b = np.array([[0.0, 0.0, 10.0, 10.0], [5.0, 5.0, 15.0, 15.0], [100.0, 100.0, 110.0, 110.0]])
+        expected = np.array(
+            [
+                [1.0, 0.17475728155339806, 0.0],
+                [0.0, 0.0, 0.0],
+                [0.06844106463878327, 0.2743764172335601, 0.0],
+            ]
+        )
+        np.testing.assert_allclose(matching.bbox_ious(a, b), expected, atol=1e-15)
+
+    @pytest.mark.parametrize(
+        ("n_a", "n_b"),
+        [(0, 3), (3, 0), (0, 0)],
+    )
+    def test_empty_inputs_return_correctly_shaped_zeros(self, n_a, n_b):
+        a = np.zeros((n_a, 4))
+        b = np.zeros((n_b, 4))
+        out = matching.bbox_ious(a, b)
+        assert out.shape == (n_a, n_b)
+
+    def test_never_returns_nan_on_degenerate_boxes(self):
+        """A zero union must score 0.0, the way ``cython_bbox`` did.
+
+        A nan would survive into the cost matrix and silently lose the match:
+        comparisons against the threshold are false for nan.
+        """
+        degenerate = np.array([[5.0, 5.0, 4.0, 4.0]])
+        out = matching.bbox_ious(degenerate, degenerate)
+        assert not np.isnan(out).any()
+
+    def test_ious_wrapper_accepts_lists(self):
+        """``ious`` is what the tracker calls, and it is fed plain lists."""
+        out = matching.ious([[0, 0, 10, 10]], [[0, 0, 10, 10]])
+        assert out[0, 0] == pytest.approx(1.0)

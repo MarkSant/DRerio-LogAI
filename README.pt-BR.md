@@ -5,7 +5,7 @@
 
 **Plataforma Inteligente de Rastreamento e Análise Comportamental para _Danio rerio_ (Zebrafish)**
 
-![Version](https://img.shields.io/badge/version-7.0.0-blue.svg)
+![Version](https://img.shields.io/badge/version-7.0.1-blue.svg)
 ![Architecture](https://img.shields.io/badge/architecture-Event--Driven-green.svg)
 ![Python](https://img.shields.io/badge/python-3.12%2B-yellow.svg)
 ![License](https://img.shields.io/badge/license-MIT%20%2B%20AGPL--3.0--or--later%20effective-lightgrey.svg)
@@ -303,20 +303,18 @@ O README destaca o estado atual (v7.0.0). Para detalhes completos por release, c
 
 | Componente | Mínimo                   | Recomendado                           |
 | ---------- | ------------------------ | ------------------------------------- |
-| Python     | 3.12                     | 3.12 (3.15+ não suportado)            |
+| Python     | 3.12                     | 3.12 (3.14+ não suportado)            |
 | Disco      | 3 GB livres              | 5 GB+                                 |
 | RAM        | 8 GB                     | 16 GB+                                |
 | CPU        | Dual-core                | Quad-core+ (Intel Core Ultra p/ NPU)  |
 | GPU        | Não requerida            | NPU Intel Core Ultra via OpenVINO     |
 | SO         | Windows 10, Linux, macOS | Windows 11 (onde é validado)          |
 
-**Um compilador C é obrigatório, não opcional.** Uma dependência (`cython-bbox`,
-usada pelo rastreador) é publicada apenas como distribuição de código-fonte,
-então `poetry install` compila um módulo de extensão em qualquer plataforma:
-
-- **Windows**: Visual Studio Build Tools, carga "Desenvolvimento para desktop com C++"
-- **Linux**: `build-essential` (Debian/Ubuntu) ou o equivalente `gcc` / `make`
-- **macOS**: Xcode Command Line Tools (`xcode-select --install`)
+**Nenhum compilador é necessário.** Todas as dependências instalam a partir de
+wheels prontos. Até a 7.0.1 o rastreador puxava o `cython-bbox`, publicado só
+como código-fonte, então o `poetry install` compilava uma extensão C e falhava
+numa máquina sem toolchain — avisando, um comando depois, que o módulo
+`zebtrack` não existia. Essa rotina de IoU agora é NumPy puro.
 
 **Espaço em disco é o requisito que costuma surpreender.** PyTorch, OpenVINO,
 OpenCV e SciPy sozinhos respondem pela maior parte de um ambiente virtual de

@@ -5,7 +5,7 @@
 
 **Intelligent Tracking and Behavioral Analysis Platform for _Danio rerio_ (Zebrafish)**
 
-![Version](https://img.shields.io/badge/version-7.0.0-blue.svg)
+![Version](https://img.shields.io/badge/version-7.0.1-blue.svg)
 ![Architecture](https://img.shields.io/badge/architecture-Event--Driven-green.svg)
 ![Python](https://img.shields.io/badge/python-3.12%2B-yellow.svg)
 ![License](https://img.shields.io/badge/license-MIT%20%2B%20AGPL--3.0--or--later%20effective-lightgrey.svg)
@@ -300,20 +300,18 @@ This README highlights the current state (v7.0.0). For full per-release details,
 
 | Component | Minimum                  | Recommended                           |
 | --------- | ------------------------ | ------------------------------------- |
-| Python    | 3.12                     | 3.12 (3.15+ not supported)            |
+| Python    | 3.12                     | 3.12 (3.14+ not supported)            |
 | Disk      | 3 GB free                | 5 GB+                                 |
 | RAM       | 8 GB                     | 16 GB+                                |
 | CPU       | Dual-core                | Quad-core+ (Intel Core Ultra for NPU) |
 | GPU       | Not required             | Intel Core Ultra NPU via OpenVINO     |
 | OS        | Windows 10, Linux, macOS | Windows 11 (where it is validated)    |
 
-**A C compiler is required, not optional.** One dependency (`cython-bbox`, used by
-the tracker) is published only as a source distribution, so `poetry install`
-compiles an extension module on every platform:
-
-- **Windows**: Visual Studio Build Tools, "Desktop development with C++" workload
-- **Linux**: `build-essential` (Debian/Ubuntu) or the equivalent `gcc` / `make`
-- **macOS**: Xcode Command Line Tools (`xcode-select --install`)
+**No compiler is needed.** Every dependency installs from a prebuilt wheel.
+Until 7.0.1 the tracker pulled `cython-bbox`, published only as a source
+distribution, so `poetry install` compiled a C extension and failed outright
+on a machine without a toolchain — reporting, one command later, that the
+`zebtrack` module did not exist. That IoU routine is now plain NumPy.
 
 **Disk space is the requirement that surprises people.** PyTorch, OpenVINO,
 OpenCV and SciPy alone account for most of a ~1.7 GB virtual environment, and the

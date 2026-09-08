@@ -1,5 +1,4 @@
 import numpy as np
-from cython_bbox import bbox_overlaps as bbox_ious
 from scipy.optimize import linear_sum_assignment
 from scipy.sparse import csc_matrix
 from scipy.spatial.distance import cdist
@@ -67,6 +66,58 @@ def linear_assignment(cost_matrix, thresh):
     return _indices_to_matches(cost_matrix, indices, thresh)
 
 
+def bbox_ious(atlbrs: np.ndarray, btlbrs: np.ndarray) -> np.ndarray:
+    """Pairwise IoU between two sets of ``tlbr`` boxes.
+
+    Replaces ``cython_bbox.bbox_overlaps``, which ships only as a source
+    distribution: every install compiled a C extension, so a machine without a
+    C toolchain could not install the project at all, and the failure surfaced
+    one command later as ``No module named 'zebtrack'``.
+
+    **The ``+ 1`` terms are not an off-by-one.** They are the Faster R-CNN
+    convention that ``cython_bbox`` implements, where a box spans its final
+    pixel: ``[0, 0, 10, 10]`` is 11 px wide, not 10. Dropping them scores
+    ``[0, 0, 10, 10]`` against ``[5, 5, 15, 15]`` as 0.1428 instead of 0.1747 --
+    a shift that changes which detection matches which track, and therefore the
+    identities in ``3_CoordMovimento``, without anything failing.
+    ``tests/test_matching.py`` pins the values this must reproduce.
+
+    Args:
+        atlbrs: ``(n, 4)`` array of ``[x1, y1, x2, y2]``.
+        btlbrs: ``(m, 4)`` array of ``[x1, y1, x2, y2]``.
+
+    Returns:
+        ``(n, m)`` matrix of IoU values.
+    """
+    boxes = np.ascontiguousarray(atlbrs, dtype=np.float64)
+    query = np.ascontiguousarray(btlbrs, dtype=np.float64)
+    if boxes.size == 0 or query.size == 0:
+        return np.zeros((len(boxes), len(query)), dtype=np.float64)
+
+    box_area = (boxes[:, 2] - boxes[:, 0] + 1) * (boxes[:, 3] - boxes[:, 1] + 1)
+    query_area = (query[:, 2] - query[:, 0] + 1) * (query[:, 3] - query[:, 1] + 1)
+
+    overlap_w = (
+        np.minimum(boxes[:, None, 2], query[None, :, 2])
+        - np.maximum(boxes[:, None, 0], query[None, :, 0])
+        + 1
+    )
+    overlap_h = (
+        np.minimum(boxes[:, None, 3], query[None, :, 3])
+        - np.maximum(boxes[:, None, 1], query[None, :, 1])
+        + 1
+    )
+    np.clip(overlap_w, 0, None, out=overlap_w)
+    np.clip(overlap_h, 0, None, out=overlap_h)
+
+    intersection = overlap_w * overlap_h
+    union = box_area[:, None] + query_area[None, :] - intersection
+    # Degenerate boxes can drive the union to zero; cython_bbox returned 0.0
+    # there rather than a nan, and callers threshold the result.
+    with np.errstate(divide="ignore", invalid="ignore"):
+        return np.where(union > 0, intersection / union, 0.0)
+
+
 def ious(atlbrs, btlbrs):
     """
     Compute cost based on IoU
@@ -78,12 +129,10 @@ def ious(atlbrs, btlbrs):
     if len(atlbrs) == 0 or len(btlbrs) == 0:
         return np.zeros((len(atlbrs), len(btlbrs)), dtype=np.float64)
 
-    _ious = bbox_ious(
+    return bbox_ious(
         np.ascontiguousarray(atlbrs, dtype=np.float64),
         np.ascontiguousarray(btlbrs, dtype=np.float64),
     )
-
-    return _ious
 
 
 def iou_distance(atracks, btracks):

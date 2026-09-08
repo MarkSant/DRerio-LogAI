@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "drerio-logai"
-version = "7.0.0"
+version = "7.0.1"
 description = "AI-powered tracking and behavioral analysis for Danio rerio (zebrafish) research. Automates video tracking, behavioral metrics, and scientific report generation."
 authors = [
     "Marco Antonio Sant'Ana Camargos <marco.sant@unesp.br>",
@@ -15,7 +15,12 @@ readme = "README.md"
 packages = [{include = "zebtrack", from = "src"}]
 
 [tool.poetry.dependencies]
-python = ">=3.12,<3.15"
+# Ceiling is 3.14, not 3.15: the locked numpy (2.2.6) publishes wheels only up
+# to cp313. On 3.14 pip falls back to building it from source, that build fails,
+# and `poetry install` leaves the project uninstalled -- so the next command dies
+# with `ModuleNotFoundError: No module named 'zebtrack'`, naming the wrong cause.
+# 3.12 is the only version CI and mypy exercise.
+python = ">=3.12,<3.14"
 filelock = ">=3.20.3"
 fonttools = ">=4.60.2"
 numpy = "~=2.2.6"
@@ -47,7 +52,6 @@ seaborn = "^0.13.2"
 python-docx = "^1.1.2"
 docxtpl = "^0.16.7"
 openpyxl = "^3.1.5"
-cython-bbox = "^0.1.3"
 ttkbootstrap = "^1.10.1"
 tomli = "^2.0.1"
 # Pin setuptools < 81 to prevent pkg_resources removal (docxcompose dependency)
