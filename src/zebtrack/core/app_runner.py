@@ -622,9 +622,15 @@ def _handle_missing_weights(
     try:
         messagebox_module.showerror(_("Detector models not found"), message, parent=root)
     except Exception:
-        # No usable Tk at this point; the console is the only channel left.
+        # No usable Tk at this point; the console is the only channel left --
+        # and under the desktop shortcut (pythonw.exe) there is no console
+        # either, so ``sys.stderr`` is None and printing would raise from
+        # inside this handler. The message is already in ``logs/analysis.log``.
         log.debug("main.missing_weights_dialog.suppressed", exc_info=True)
-        print(message, file=sys.stderr)
+        if sys.stderr is not None:
+            print(message, file=sys.stderr)
+        else:
+            log.error("main.missing_weights", message=message)
 
     sys.exit(1)
 

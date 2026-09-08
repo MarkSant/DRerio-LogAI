@@ -266,3 +266,154 @@ class TestConfigureLogging:
             ):
                 # Console handler should be high level in tests
                 assert handler.level > logging.INFO
+
+
+class TestConfigureLoggingWithoutConsole:
+    """``configure_logging`` must survive a process that has no console.
+
+    That is not hypothetical: the Windows desktop shortcut launches the app
+    through ``pythonw.exe`` precisely so the researcher gets the GUI and no
+    terminal window behind it. In such a process ``sys.stdout`` and
+    ``sys.stderr`` are both None.
+
+    Building the handler anyway does NOT degrade gracefully.
+    ``logging.StreamHandler(None)`` substitutes ``sys.stderr``, which is also
+    None here, so the handler ends up holding ``stream=None`` and every record
+    raises ``AttributeError`` inside ``emit`` -- before the window appears.
+
+    These tests drive the handlers directly rather than through
+    ``logging.getLogger()``: ``tests/conftest.py`` calls
+    ``logging.disable(logging.CRITICAL)``, so a record emitted the usual way
+    never reaches a handler and would prove nothing.
+    """
+
+    @staticmethod
+    def _root_handlers(kind):
+        return [h for h in logging.getLogger().handlers if isinstance(h, kind)]
+
+    @staticmethod
+    def _console_handlers():
+        """Only the handler ``configure_logging`` builds.
+
+        ``isinstance(h, StreamHandler)`` alone is not enough: pytest installs
+        its own capture handler, which is a StreamHandler over a ``StringIO``
+        and would make every assertion here pass or fail for reasons that have
+        nothing to do with this project. The ``CompactConsoleRenderer`` in the
+        formatter is what identifies ours.
+        """
+        from zebtrack.logging_config import CompactConsoleRenderer
+
+        def is_ours(handler):
+            formatter = handler.formatter
+            processors = getattr(formatter, "processors", ())
+            return any(isinstance(p, CompactConsoleRenderer) for p in processors)
+
+        return [
+            h
+            for h in logging.getLogger().handlers
+            if isinstance(h, logging.StreamHandler)
+            and not isinstance(h, logging.FileHandler)
+            and is_ours(h)
+        ]
+
+    @staticmethod
+    def _record(message):
+        return logging.LogRecord(
+            name="test",
+            level=logging.WARNING,
+            pathname=__file__,
+            lineno=1,
+            msg=message,
+            args=(),
+            exc_info=None,
+        )
+
+    @pytest.fixture
+    def headless(self, tmp_path, monkeypatch):
+        """A configured logger in a process that has no console.
+
+        The two suppression env vars have to be cleared. ``configure_logging``
+        skips ``addHandler`` outright when either is set, so leaving them in
+        place means no console handler is registered *for reasons unrelated to
+        having no console* -- and every assertion below would hold even with
+        the guard removed. Verified: with the guard reverted and these vars
+        cleared, ``test_no_handler_is_left_holding_a_none_stream`` and
+        ``test_emitting_through_every_handler_does_not_raise`` both fail.
+        """
+        from zebtrack.logging_config import configure_logging
+
+        monkeypatch.setenv("ZEBTRACK_LOG_DIR", str(tmp_path))
+        monkeypatch.delenv("ZEBTRACK_SUPPRESS_CONSOLE_LOGS", raising=False)
+        monkeypatch.delenv("PYTEST_CURRENT_TEST", raising=False)
+        monkeypatch.setattr("sys.stdout", None)
+        monkeypatch.setattr("sys.stderr", None)
+        configure_logging()
+        return tmp_path
+
+    def test_no_handler_is_left_holding_a_none_stream(self, headless):
+        """The exact defect being prevented: a handler that cannot write.
+
+        Checked over EVERY root handler, not just ours: a ``stream`` of None
+        is unusable no matter who installed it.
+        """
+        for handler in logging.getLogger().handlers:
+            if isinstance(handler, logging.StreamHandler):
+                assert handler.stream is not None, f"unusable handler: {handler!r}"
+
+    def test_our_console_handler_is_not_registered(self, headless):
+        """With no console there is nothing for it to write to."""
+        assert self._console_handlers() == []
+
+    def test_no_handler_swallows_the_record(self, headless, monkeypatch):
+        """Without the guard, emitting raises ``AttributeError`` inside ``emit``.
+
+        It does not propagate: ``logging`` routes it to ``Handler.handleError``,
+        which by default writes to stderr -- None here -- and returns. So the
+        app would run with its logging quietly broken rather than crashing.
+        Spying on ``handleError`` is what makes that visible to a test.
+        """
+        failures = []
+        monkeypatch.setattr(
+            logging.Handler,
+            "handleError",
+            lambda self, record: failures.append(self),
+        )
+
+        record = self._record("console-less smoke test")
+        for handler in logging.getLogger().handlers:
+            handler.handle(record)
+
+        assert failures == [], f"handlers failed to emit: {failures!r}"
+
+    def test_file_handler_still_records_without_a_console(self, headless):
+        """The file is the only diagnostic channel left; it must keep working."""
+        file_handlers = self._root_handlers(logging.FileHandler)
+        assert file_handlers, "configure_logging must always install a file handler"
+
+        for handler in file_handlers:
+            handler.handle(self._record("written-without-a-console"))
+            handler.flush()
+
+        assert "written-without-a-console" in (headless / "analysis.log").read_text(
+            encoding="utf-8"
+        )
+
+    def test_console_handler_is_still_built_when_stdout_exists(self, tmp_path, monkeypatch):
+        """The guard must not silence the console for everyone else.
+
+        ``PYTEST_CURRENT_TEST`` has to go: ``configure_logging`` skips
+        ``addHandler`` entirely in test mode, so leaving it set would make this
+        assertion pass for the wrong reason -- it would be indistinguishable
+        from the console-less path.
+        """
+        from zebtrack.logging_config import configure_logging
+
+        monkeypatch.setenv("ZEBTRACK_LOG_DIR", str(tmp_path))
+        monkeypatch.delenv("ZEBTRACK_SUPPRESS_CONSOLE_LOGS", raising=False)
+        monkeypatch.delenv("PYTEST_CURRENT_TEST", raising=False)
+
+        configure_logging()
+
+        console = self._console_handlers()
+        assert console, "a console handler is expected when sys.stdout is a real stream"
+        assert all(h.stream is not None for h in console)

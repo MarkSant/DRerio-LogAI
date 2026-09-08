@@ -158,9 +158,19 @@ def configure_logging(log_file: str = "analysis.log"):
         )
     file_handler.setFormatter(file_formatter)
 
-    # Console handler for development
-    console_handler = logging.StreamHandler(sys.stdout)
-    console_handler.setFormatter(console_formatter)
+    # Console handler for development.
+    #
+    # ``sys.stdout`` is None when the process has no console at all, which is
+    # exactly how the desktop shortcut launches the app: pythonw.exe, so the
+    # researcher gets the GUI and no terminal window behind it. Building a
+    # StreamHandler anyway would NOT save us -- ``StreamHandler(None)`` falls
+    # back to ``sys.stderr``, which under pythonw is also None -- so every
+    # single log record would raise AttributeError inside ``emit`` before the
+    # window ever appeared. The file handler above is the real diagnostic
+    # channel and is unaffected; it is where ``logs/analysis.log`` comes from.
+    console_handler = logging.StreamHandler(sys.stdout) if sys.stdout is not None else None
+    if console_handler is not None:
+        console_handler.setFormatter(console_formatter)
 
     # Configure root logger to route ALL logs (including stdlib/libs) through structlog
     root_logger = logging.getLogger()
@@ -170,11 +180,14 @@ def configure_logging(log_file: str = "analysis.log"):
     file_handler.setLevel(logging.DEBUG)  # All levels in file
 
     # Check if running in test environment - suppress console output to keep terminal clean
-    if os.environ.get("ZEBTRACK_SUPPRESS_CONSOLE_LOGS") or os.environ.get("PYTEST_CURRENT_TEST"):
-        # Above CRITICAL = effectively disabled (only dots/letters in pytest output)
-        console_handler.setLevel(logging.CRITICAL + 1)
-    else:
-        console_handler.setLevel(logging.INFO)  # INFO and above in console (hides DEBUG)
+    if console_handler is not None:
+        if os.environ.get("ZEBTRACK_SUPPRESS_CONSOLE_LOGS") or os.environ.get(
+            "PYTEST_CURRENT_TEST"
+        ):
+            # Above CRITICAL = effectively disabled (only dots/letters in pytest output)
+            console_handler.setLevel(logging.CRITICAL + 1)
+        else:
+            console_handler.setLevel(logging.INFO)  # INFO and above in console (hides DEBUG)
 
     # Clear existing handlers to avoid duplication if called multiple times.
     # Close them first to reduce Windows file locking issues.
@@ -188,9 +201,10 @@ def configure_logging(log_file: str = "analysis.log"):
 
     root_logger.addHandler(file_handler)
 
-    # Only add console handler if NOT in test mode
+    # Only add console handler if NOT in test mode, and only if there is a
+    # console to write to (see the construction above).
     # Tests set ZEBTRACK_SUPPRESS_CONSOLE_LOGS or pytest sets PYTEST_CURRENT_TEST
-    if not (
+    if console_handler is not None and not (
         os.environ.get("ZEBTRACK_SUPPRESS_CONSOLE_LOGS") or os.environ.get("PYTEST_CURRENT_TEST")
     ):
         root_logger.addHandler(console_handler)

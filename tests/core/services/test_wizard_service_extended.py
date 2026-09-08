@@ -501,3 +501,57 @@ class TestBasicCalibrationMatchesTheDomain:
             assert wizard_ok == domain_ok, (
                 f"intervalo {interval}: assistente={wizard_ok}, domínio={domain_ok}"
             )
+
+
+class TestSuppressOpencvLogsWithoutAConsole:
+    """Camera detection must not depend on there being a stderr to silence.
+
+    ``detect_available_cameras`` runs inside ``suppress_opencv_logs``. Launched
+    from the desktop shortcut the app runs under ``pythonw.exe``: no console,
+    ``sys.stderr`` is None and file descriptor 2 is unopened, so ``os.dup(2)``
+    raises ``OSError``. Before the guard that turned "OpenCV is chatty" into
+    "the wizard lists no cameras at all" -- and the live flow has nothing to
+    record from.
+    """
+
+    def test_yields_when_stderr_cannot_be_duplicated(self):
+        """The body must still run when the redirection is impossible."""
+        ran = False
+        with patch("os.dup", side_effect=OSError(9, "Bad file descriptor")):
+            with WizardService.suppress_opencv_logs():
+                ran = True
+        assert ran
+
+    def test_leaves_sys_stderr_untouched_when_redirection_fails(self):
+        """A failed swap must not be "restored" over the real stderr.
+
+        The previous implementation called ``sys.stderr.close()`` in its
+        ``finally`` unconditionally, so a redirection that failed halfway
+        closed the process's actual stderr on the way out.
+        """
+        import sys
+
+        original = sys.stderr
+        with patch("os.dup", side_effect=OSError(9, "Bad file descriptor")):
+            with WizardService.suppress_opencv_logs():
+                pass
+        assert sys.stderr is original
+        assert not original.closed
+
+    def test_restores_stderr_after_a_successful_redirection(self):
+        """The normal path must still swap and restore."""
+        import sys
+
+        original = sys.stderr
+        with WizardService.suppress_opencv_logs():
+            assert sys.stderr is not original
+        assert sys.stderr is original
+        assert not original.closed
+
+    def test_opencv_log_level_is_restored_even_without_a_console(self):
+        """Silencing OpenCV is independent of the stderr swap."""
+        with patch("os.dup", side_effect=OSError(9, "Bad file descriptor")):
+            with patch("cv2.utils.logging.setLogLevel") as set_level:
+                with WizardService.suppress_opencv_logs():
+                    pass
+        assert [c.args[0] for c in set_level.call_args_list] == [0, 3]
