@@ -56,6 +56,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `_handle_missing_weights` caia para `print(..., file=sys.stderr)` quando o Tk
   nao estava utilizavel; sem console isso e `None`. Agora registra no log.
 
+- **Uma falha antes do Tk existir sumia sem deixar rastro.** `run_app` converte
+  erros em dialogo, mas so a partir do ponto em que a raiz Tk existe: parsing de
+  argumentos, configuracao de logging e o proprio `Tk()` rodam antes disso. Sob
+  `pythonw` o traceback padrao do Python vai para um `sys.stderr` que e `None`,
+  entao o duplo-clique no icone simplesmente nao fazia nada -- sem janela, sem
+  mensagem, sem pista. `__main__.main()` agora mostra o traceback num message
+  box e diz onde esta o log. Nao interfere quando existe console: ali o
+  traceback do proprio Python e melhor que um modal.
+
 ### Changed
 
 - **A documentacao de instalacao passou a ter duas trilhas explicitas**, operador
