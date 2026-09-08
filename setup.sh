@@ -96,7 +96,7 @@ if ! poetry run python -c "import zebtrack" >/dev/null 2>&1; then
 fi
 
 # 5. Download detector weights
-echo "[4/6] Downloading detector models (~200 MB)..."
+echo "[4/6] Downloading detector models (~250 MB)..."
 if [ "$SKIP_WEIGHTS" -eq 1 ]; then
     echo "Skipped (--skip-weights)."
 else

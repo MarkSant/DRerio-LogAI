@@ -682,6 +682,38 @@ class ApplicationGUI:
         with self.controller.global_calibration_session():
             CalibrationDialog(self.root, self.controller, show_diagnostics=False)
 
+    def show_welcome_dialog(self, *, force: bool = False) -> bool:
+        """Show the getting-started window if it is due.
+
+        Called from ``app_runner`` once the main window is mapped -- the window
+        is modal and centres on its parent, so it must not be built while the
+        root is still withdrawn.
+
+        Args:
+            force: Show it regardless of the stored preference. Used by
+                Help > Getting Started, so dismissing it permanently does not
+                make the explanation unreachable.
+
+        Returns:
+            True when the window was shown.
+        """
+        from zebtrack.ui.dialogs.welcome_dialog import WelcomeDialog, should_show_welcome
+
+        if not force and not should_show_welcome(self.settings):
+            return False
+
+        try:
+            WelcomeDialog(
+                self.root,
+                on_open_model_settings=self._open_global_model_configuration_window,
+            )
+        except Exception:
+            # Informational only. A failure here must not stop the operator from
+            # reaching an application that is otherwise fully up.
+            log.warning("welcome.show_failed", exc_info=True)
+            return False
+        return True
+
     def _open_global_model_diagnostics_window(self):
         from zebtrack.ui.dialogs.model_diagnostics_dialog import ModelDiagnosticsDialog
 

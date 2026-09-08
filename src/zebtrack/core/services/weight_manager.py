@@ -244,8 +244,8 @@ class WeightManager:
                     log.info("weights.migration.completed")
 
                 log.info("weights.config.loaded", path=self.config_path)
-                # Auto-discover any new perspective weight files
-                self.discover_perspective_weights()
+                # Auto-discover any new weight files
+                self.discover_weights()
             except (OSError, json.JSONDecodeError) as e:
                 log.error("weights.config.load_error", error=str(e))
                 self.weights = {}
@@ -481,13 +481,26 @@ class WeightManager:
             return "top_down"
         return None
 
-    def discover_perspective_weights(self) -> int:
-        """Auto-discover perspective weight files in the configured weights folder.
+    def discover_weights(self) -> int:
+        """Auto-discover weight files in the configured weights folder.
 
-        Scans for ``best_*_lateral.pt`` and ``best_*_topdown.pt`` files that
-        are not already registered and adds them to the catalog. Falls back
-        to the legacy project-root location when the weights folder is empty,
-        so migrated installs don't lose their pre-existing files.
+        Scans for every ``best_*.pt`` that is not already registered and adds
+        it to the catalog. Falls back to the legacy project-root location when
+        the weights folder is empty, so migrated installs don't lose their
+        pre-existing files.
+
+        **The glob used to be ``best_*_lateral.pt`` / ``best_*_topdown.pt``
+        only**, which quietly excluded the two flat-named generalists that ship
+        alongside the four specialists (``best_oi.pt``, ``best_seg.pt``). They
+        landed in ``weights/`` and never appeared in the catalog, so nothing in
+        the UI could select them -- the reason the installer did not bother
+        downloading them either.
+
+        A discovered generalist is registered but **never claims a default
+        slot**: ``is_default_*`` stays False for a weight with no perspective.
+        The specialists are trained for a specific camera angle and must stay
+        the defaults; a generalist is something the researcher opts into from
+        the model configuration panel.
 
         Returns:
             Number of newly discovered weights.
@@ -503,40 +516,41 @@ class WeightManager:
         for scan_dir in scan_dirs:
             if not scan_dir.exists():
                 continue
-            for pattern in ("best_*_lateral.pt", "best_*_topdown.pt"):
-                for pt_file in scan_dir.glob(pattern):
-                    weight_name = pt_file.name
-                    if weight_name in self.weights:
-                        continue
-                    weight_type = self._classify_weight_type(weight_name) or "seg"
-                    perspective = self._classify_perspective(weight_name)
-                    target = _default_target_for_type(weight_type)
-                    self.weights[weight_name] = {
-                        "path": str(pt_file.absolute()),
-                        "is_default": True,
-                        "type": weight_type,
-                        "target": target,
-                        "perspective": perspective,
-                        "is_default_seg": weight_type == "seg",
-                        "is_default_det": weight_type == "det",
-                        "is_default_seg_aquarium": False,
-                        "is_default_seg_zebrafish": False,
-                        "is_default_det_aquarium": False,
-                        "is_default_det_zebrafish": False,
-                        "openvino_path": "",
-                        "openvino_hash": "",
-                        "openvino_status": OPENVINO_STATUS_NOT_CONVERTED,
-                        "last_conversion_error": None,
-                    }
-                    discovered += 1
-                    log.info(
-                        "weights.auto_discover.found",
-                        name=weight_name,
-                        type=weight_type,
-                        target=target,
-                        perspective=perspective,
-                        location=str(scan_dir),
-                    )
+            for pt_file in sorted(scan_dir.glob("best_*.pt")):
+                weight_name = pt_file.name
+                if weight_name in self.weights:
+                    continue
+                weight_type = self._classify_weight_type(weight_name) or "seg"
+                perspective = self._classify_perspective(weight_name)
+                target = _default_target_for_type(weight_type)
+                # Only a perspective-tagged specialist may be a default.
+                is_specialist = perspective is not None
+                self.weights[weight_name] = {
+                    "path": str(pt_file.absolute()),
+                    "is_default": is_specialist,
+                    "type": weight_type,
+                    "target": target,
+                    "perspective": perspective,
+                    "is_default_seg": is_specialist and weight_type == "seg",
+                    "is_default_det": is_specialist and weight_type == "det",
+                    "is_default_seg_aquarium": False,
+                    "is_default_seg_zebrafish": False,
+                    "is_default_det_aquarium": False,
+                    "is_default_det_zebrafish": False,
+                    "openvino_path": "",
+                    "openvino_hash": "",
+                    "openvino_status": OPENVINO_STATUS_NOT_CONVERTED,
+                    "last_conversion_error": None,
+                }
+                discovered += 1
+                log.info(
+                    "weights.auto_discover.found",
+                    name=weight_name,
+                    type=weight_type,
+                    target=target,
+                    perspective=perspective,
+                    location=str(scan_dir),
+                )
         if discovered:
             self.save_weights()
         return discovered
@@ -689,7 +703,7 @@ class WeightManager:
 
         # Always sweep the weights folder so freshly-dropped .pt files are
         # registered even when the settings filenames are blank.
-        self.discover_perspective_weights()
+        self.discover_weights()
 
     def save_weights(self) -> None:
         """Save the current weights configuration to the JSON file."""
@@ -1332,11 +1346,11 @@ class WeightManager:
     def rescan_source_folder(self) -> int:
         """Re-run discovery against the configured weights folder.
 
-        Convenience wrapper around :meth:`discover_perspective_weights` that
+        Convenience wrapper around :meth:`discover_weights` that
         simply reports how many new files were registered. Existing entries
         are left untouched (use :meth:`reset_registry` for a clean slate).
         """
-        added = self.discover_perspective_weights()
+        added = self.discover_weights()
         log.info("weights.rescan.completed", added=added, weights_dir=self.weights_dir)
         return added
 
@@ -1360,7 +1374,7 @@ class WeightManager:
             )
         # Re-seed from settings and rescan the weights folder.
         self._initialize_default_weight()
-        self.discover_perspective_weights()
+        self.discover_weights()
         return len(self.weights)
 
     def validate_weight_files(self) -> dict[str, bool]:

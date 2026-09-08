@@ -109,16 +109,21 @@ Useful variants:
 
 ```powershell
 poetry run fetch-weights --check   # verify what is installed, download nothing
-poetry run fetch-weights --all     # also fetch the two generalist models
 ```
 
-The release carries six models and installs four by default. The four are the
-perspective pair (`seg` + `det`, lateral and top-down), which
-`WeightManager.discover_perspective_weights()` finds by filename. The two
-behind `--all` -- `best_oi.pt` and `best_seg.pt` -- are 3-class generalists,
-carrying a `zup-aqua` class the perspective models lack. They match no
-discovery glob, so register them with **Add Weight...** in the model
-configuration panel once downloaded.
+The release carries six models and installs **all six**. Four are the
+perspective pair (`seg` + `det`, lateral and top-down); the other two --
+`best_oi.pt` and `best_seg.pt` -- are 3-class generalists, carrying a
+`zup-aqua` class the perspective models lack. `WeightManager.discover_weights()`
+registers all of them by filename, so the six appear in the model configuration
+panel with no manual step.
+
+Only the four perspective models are pre-assigned as defaults. A generalist is
+something you opt into per role from that panel.
+
+Before v7.1.0 the generalists sat behind a `--all` flag and matched no discovery
+glob, so a standard install carried four models and the other two were invisible
+even when downloaded. The flag is still accepted and now changes nothing.
 
 ### If `fetch-weights` says there is no module named `zebtrack`
 

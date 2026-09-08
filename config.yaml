@@ -94,11 +94,10 @@ yolo_model:
   # This path is used as fallback; actual model selection happens via model_selection section
   # Path is relative to the project root; weights live under weights.source_dir.
   #
-  # Points at a weight `fetch-weights` installs by DEFAULT. It used to name
-  # `best_seg.pt`, which is published but sits behind `--all`, so a correctly
-  # provisioned machine still logged `yolo_model.path.not_found` on every start
-  # -- a permanent false alarm that trained everyone to ignore the one warning
-  # that means the weights are really missing.
+  # Points at a perspective-specific weight rather than the generalist
+  # `best_seg.pt`. Both are installed now -- `fetch-weights` fetches all six --
+  # but a lateral-trained model is the better default: the generalist is
+  # something the researcher opts into from the model configuration panel.
   path: 'weights/best_seg_lateral.pt'
 
   # Confidence threshold for the ARENA (aquarium) detection.
@@ -451,6 +450,12 @@ ui:
   # from Settings -> Language. Applied at startup, not while running.
   # The operating system locale is deliberately NOT consulted.
   language: en
+
+  # Show the getting-started window once the main window is up. It explains the
+  # six detector models, the four roles they fill, and when OpenVINO helps.
+  # The window's "do not show again" checkbox writes this key (and only this
+  # key) to config.local.yaml; it stays reachable from Help -> Getting Started.
+  show_welcome: true
 
 # -----------------------------------------------------------------------------
 # Performance & Parallelization (Phase 8)

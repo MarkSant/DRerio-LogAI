@@ -212,10 +212,12 @@ class TestGenerateManifest(unittest.TestCase):
             self.assertEqual(by_name["best_det_topdown.pt"].perspective, "top_down")
             self.assertEqual(by_name["best_det_topdown.pt"].weight_type, "det")
 
-            # Only perspective-suffixed weights are auto-discovered by
-            # WeightManager, so only those are required.
+            # Every model in the manifest is fetched by default. The flat-named
+            # generalists used to be marked optional because WeightManager could
+            # not discover them; it can now, so a standard install carries all
+            # six rather than four.
             self.assertTrue(by_name["best_seg_lateral.pt"].required)
-            self.assertFalse(by_name["best_seg.pt"].required)
+            self.assertTrue(by_name["best_seg.pt"].required)
             self.assertIsNone(by_name["best_seg.pt"].perspective)
 
             self.assertEqual(by_name["best_seg_lateral.pt"].sha256, _PAYLOAD_SHA)
@@ -345,7 +347,7 @@ class TestCheckMode(unittest.TestCase):
 class TestShippedManifest(unittest.TestCase):
     """The manifest committed to the repository must stay loadable and coherent."""
 
-    def test_repository_manifest_loads_and_requires_all_four_perspectives(self):
+    def test_repository_manifest_requires_every_published_model(self):
         manifest = load_manifest()
 
         self.assertEqual(manifest.repository, "MarkSant/DRerio-LogAI")
@@ -358,9 +360,13 @@ class TestShippedManifest(unittest.TestCase):
                 "best_det_lateral.pt",
                 "best_seg_topdown.pt",
                 "best_det_topdown.pt",
+                "best_oi.pt",
+                "best_seg.pt",
             },
-            "both perspectives need a seg and a det weight; a lateral model on a "
-            "top-down scene returns zero polygons",
+            "both perspectives need a seg and a det weight -- a lateral model on "
+            "a top-down scene returns zero polygons -- and the two generalists "
+            "ship with them so the model configuration panel has something to "
+            "offer beyond the four specialists",
         )
 
     def test_every_entry_has_a_plausible_digest_and_size(self):
@@ -370,22 +376,23 @@ class TestShippedManifest(unittest.TestCase):
                 self.assertRegex(entry.sha256, r"^[0-9a-f]{64}$")
                 self.assertGreater(entry.size_bytes, 1_000_000, "a YOLO checkpoint is megabytes")
 
-    def test_required_names_match_the_discovery_globs(self):
-        """WeightManager only auto-discovers best_*_lateral.pt / best_*_topdown.pt.
+    def test_required_names_match_the_discovery_glob(self):
+        """WeightManager.discover_weights() globs ``best_*.pt``.
 
-        A required entry whose name misses those globs would download fine and
+        A required entry whose name misses that glob would download fine and
         then be ignored by the catalogue, which is indistinguishable from not
-        having downloaded it at all.
+        having downloaded it at all. That is exactly what happened to
+        ``best_oi.pt`` and ``best_seg.pt`` while discovery matched only the
+        perspective suffixes.
         """
         for entry in load_manifest().entries:
             if not entry.required:
                 continue
             with self.subTest(entry.name):
                 self.assertTrue(
-                    entry.name.endswith(("_lateral.pt", "_topdown.pt")),
+                    entry.name.startswith("best_") and entry.name.endswith(".pt"),
                     f"{entry.name} would never be auto-discovered",
                 )
-                self.assertTrue(entry.name.startswith("best_"))
 
 
 class TestUrlSchemeGuard(unittest.TestCase):

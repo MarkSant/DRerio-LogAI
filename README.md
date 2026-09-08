@@ -315,7 +315,7 @@ on a machine without a toolchain — reporting, one command later, that the
 
 **Disk space is the requirement that surprises people.** PyTorch, OpenVINO,
 OpenCV and SciPy alone account for most of a ~1.7 GB virtual environment, and the
-detector weights add another ~200 MB.
+detector weights add another ~250 MB.
 
 ### Installing to use it
 
@@ -355,7 +355,7 @@ procedure.** It needs neither Git nor a terminal session you have to keep open.
    does the same and makes updating easier.)
 
 4. **Run the installer.** Open the extracted folder and **double-click
-   `install.bat`**. It installs the dependencies, downloads the ~200 MB of
+   `install.bat`**. It installs the dependencies, downloads the ~250 MB of
    detector models, and puts a **DRerio LogAI** icon on your Desktop and in the
    Start Menu. Expect several minutes.
 
@@ -394,7 +394,7 @@ poetry install --with dev
 # Install pre-commit hooks
 poetry run pre-commit install
 
-# Download the detector models (~200 MB, required to run the app)
+# Download the detector models (~250 MB, required to run the app)
 poetry run fetch-weights
 
 # Run the tests to verify the installation

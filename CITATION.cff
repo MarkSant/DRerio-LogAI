@@ -13,8 +13,8 @@ authors:
     email: "percilia.giaquinto@unesp.br"
     affiliation: "São Paulo State University (UNESP), Botucatu, Brazil"
 title: "DRerio LogAI"
-version: 7.0.1
-date-released: "2026-09-07"
+version: 7.1.0
+date-released: "2026-09-08"
 abstract: "An open-source, GPU-free platform for automated tracking, closed-loop stimulation and behavioural analysis of adult zebrafish (Danio rerio), combining YOLOv11 detection, BYTETracker multi-object tracking and Intel OpenVINO inference in an event-driven architecture."
 keywords:
   - "zebrafish"

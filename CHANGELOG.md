@@ -9,7 +9,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [7.1.0] - 2026-09-08
+
+Release da primeira execucao. A 7.0.1 fez o programa instalar e abrir sem
+terminal; operando o resultado numa maquina limpa, tres lacunas apareceram --
+todas no intervalo entre o duplo-clique e a primeira analise.
+
 ### Added
+
+- **Janela de primeiros passos**, mostrada depois que a janela principal abre.
+  Ate aqui o operador recebia um aplicativo completo sem nenhuma indicacao do
+  que fazer primeiro -- e, em particular, nenhuma pista de que os seis modelos
+  precisam ser atribuidos a papeis antes de o rastreamento se comportar bem.
+
+  Ela explica os modelos, os quatro papeis que eles preenchem e quando vale
+  ligar o OpenVINO, e oferece abrir o painel onde essas escolhas sao feitas.
+  **O conselho sobre OpenVINO e lido da maquina, nao escrito no abstrato:**
+  "use OpenVINO quando nao houver placa NVIDIA" e verdade e inutil para quem nao
+  sabe o que tem instalado, entao o texto consulta `get_hardware_summary()` e
+  nomeia os dispositivos encontrados.
+
+  A caixa "nao mostrar novamente" grava **apenas** `ui.show_welcome` via
+  `write_local_override()`. Nunca `save_settings`, que despejaria a arvore
+  inteira de defaults em `config.local.yaml` e derrotaria de vez a fusao em
+  camadas `config.yaml` -> `config.local.yaml` naquela instalacao.
+
+- **Entradas de menu para as definicoes de modelo e para os primeiros passos.**
+  O painel de configuracao de modelos **nao tinha entrada de menu nenhuma**:
+  era alcancavel so por um botao dentro da visao de projeto, ou seja, a unica
+  tela que o operador precisa antes da primeira analise era a que ele nao
+  conseguia achar. Agora esta em **Configuracoes -> Definicoes de modelo...**,
+  e a janela de boas-vindas volta por **Ajuda -> Primeiros passos...**, de modo
+  que dispensa-la em definitivo nao torna a explicacao inalcancavel.
 
 - **Instalador guiado e atalho de area de trabalho.** Quem opera o programa nao
   precisa mais abrir um terminal para usa-lo. `install.ps1` (duplo-clique via
@@ -34,6 +65,52 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   atalho cujo ambiente nao consegue importar `zebtrack`.
 
 ### Fixed
+
+- **O duplo-clique passava ~4 s sem sinal de vida.** O splash era criado
+  *depois* do bloco de imports que monta o grafo de coordinators, entao a janela
+  so aparecia quando o carregamento pesado ja tinha terminado. Sob o atalho
+  (`pythonw.exe`, sem console) isso e indistinguivel de um icone morto.
+
+  Dois custos estavam na frente dele, ambos com cara de `import` comum:
+  `from zebtrack.utils import set_seed` -- `zebtrack.utils` importa torch em
+  corpo de modulo, ~1,1 s -- e o bloco `di_registrations`, que puxa ultralytics,
+  cv2 e matplotlib por cima do torch, ~3 s. Medido em `logs/analysis.log` entre
+  `application.starting` e `benchmark.running_first_time`.
+
+  O splash agora e construido logo apos `i18n.install()`, antes dos dois, e o
+  carregamento pesado roda sob a mensagem "Carregando o motor de rastreamento".
+  `tests/core/test_app_runner_splash_ordering.py` fixa a **ordem**, nao a
+  duracao: uma assercao de tempo seria instavel numa maquina carregada e nao
+  diria por que regrediu.
+
+- **As etapas do benchmark nunca eram legiveis no splash.** Elas sempre foram
+  enviadas para la, mas varias terminam em milissegundos: a mensagem era
+  pintada e sobrescrita dentro do mesmo quadro, entao a sequencia so existia no
+  log. Cada etapa agora permanece um instante minimo na tela
+  (`SPLASH_MIN_STEP_SECONDS`), pulado quando a etapa ja demorou mais que isso.
+
+- **O benchmark da primeira execucao nao media nada -- e cacheava o resultado.**
+  As etapas 3 a 5 sao guardadas por `if video_path and model_path and
+  profile.openvino_available`, e numa instalacao nova `openvino_model_cache/`
+  ainda nao existe, entao `_find_openvino_model()` devolvia `None` e **todas**
+  eram puladas. O benchmark inteiro terminava em 0,2 s e recomendava CPU a 0,0
+  FPS; esse resultado ia para o cache e nunca mais era recalculado, deixando a
+  maquina configurada por uma medicao que jamais aconteceu.
+
+  Agora ele **converte um modelo para OpenVINO antes de medir** (nova etapa 2 de
+  7). Nao e sobrecarga acrescentada: e trabalho que a aplicacao pagaria de
+  qualquer forma no primeiro uso real do OpenVINO -- fazer aqui tira do caminho
+  da primeira analise e coloca num momento em que o splash pode explicar a
+  espera. E um resultado que nao mediu nada e marcado como inconclusivo e
+  **nao** vai para o cache: repetir a tentativa no proximo arranque custa
+  segundos; congelar a resposta errada custa a vida da instalacao.
+
+- **Os caminhos do benchmark eram relativos ao diretorio de trabalho.**
+  `get_benchmark_cache_path()`, `_find_test_video()` e `_find_openvino_model()`
+  resolviam contra o CWD. Pelo atalho isso concordava por sorte -- o `.lnk` fixa
+  `WorkingDirectory` na pasta do repositorio -- mas iniciado de qualquer outro
+  lugar, `--reset` apagava um arquivo e a aplicacao escrevia outro. Todos
+  ancorados em `repo_root()` agora, como o resto do projeto.
 
 - **Sem console, o logging morria a cada registro.** `configure_logging`
   construia `StreamHandler(sys.stdout)` incondicionalmente. Sob `pythonw.exe`
@@ -86,6 +163,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   traceback do proprio Python e melhor que um modal.
 
 ### Changed
+
+- **A instalacao passou a trazer os seis modelos, nao quatro.** `best_oi.pt` e
+  `best_seg.pt` estavam marcados `required: false` no manifesto e ficavam atras
+  de `fetch-weights --all`.
+
+  A razao registrada era circular: eles ficavam de fora do download **porque**
+  `WeightManager` nao sabia descobri-los. A descoberta varria so
+  `best_*_lateral.pt` e `best_*_topdown.pt`, entao os dois generalistas caiam em
+  `weights/` e nunca apareciam no catalogo -- baixa-los sem isso seria buscar um
+  arquivo que nada conseguia selecionar. O defeito real era a lacuna de
+  descoberta; ela foi corrigida (`discover_weights()` varre `best_*.pt`), e o
+  download deixou de precisar modelar o problema.
+
+  **Um generalista nunca toma um slot padrao.** Os especialistas sao treinados
+  para um angulo de camera especifico -- um modelo lateral numa cena de topo nao
+  devolve nada -- entao eles continuam sendo os padroes, e o generalista e algo
+  que o pesquisador escolhe no painel. O download passou de ~212 MB para
+  ~240 MiB; `--all` continua aceito e agora nao muda nada.
 
 - **A documentacao de instalacao passou a ter duas trilhas explicitas**, operador
   e desenvolvedor, em vez de uma so escrita para quem desenvolve. A trilha do
