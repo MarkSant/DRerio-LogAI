@@ -56,6 +56,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `_handle_missing_weights` caia para `print(..., file=sys.stderr)` quando o Tk
   nao estava utilizavel; sem console isso e `None`. Agora registra no log.
 
+- **A PRIMEIRA execucao travava numa janela que nunca era desenhada.** O
+  seletor de idioma chamava `dialog.transient(root)`, e `run_app` faz
+  `root.withdraw()` logo antes de perguntar o idioma -- a resposta precisa ser
+  escrita antes de `load_settings()` le-la. **Uma janela transient herda o
+  estado do master:** com o master withdrawn ela tambem fica withdrawn, e nem
+  `deiconify()` nem `lift()` revertem isso (medido no Windows: `state`
+  permanece `'withdrawn'`, nao-visivel, 1x1).
+
+  O chooser era criado, nunca aparecia, e o `wait_window` seguinte bloqueava
+  para sempre numa janela que ninguem podia ver, focar ou fechar. Pelo terminal
+  o app parava logo depois de `logging.configured`; pelo icone, o duplo-clique
+  parecia nao fazer nada. So numa maquina limpa, que e exatamente a do operador.
+
+  O `transient` agora e aplicado apenas quando o master esta visivel -- que e o
+  caso de **Configuracoes -> Idioma**, onde ele vale a pena (empilhamento
+  correto, sem segundo botao na barra de tarefas).
+
+  Escapou porque todo teste do arquivo recebia um Toplevel visivel da fixture
+  `tkinter_root`; nenhum reproduzia o root withdrawn do arranque real.
+
+- **Uma falha antes do Tk existir sumia sem deixar rastro.** `run_app` converte
+  erros em dialogo, mas so a partir do ponto em que a raiz Tk existe: parsing de
+  argumentos, configuracao de logging e o proprio `Tk()` rodam antes disso. Sob
+  `pythonw` o traceback padrao do Python vai para um `sys.stderr` que e `None`,
+  entao o duplo-clique no icone simplesmente nao fazia nada -- sem janela, sem
+  mensagem, sem pista. `__main__.main()` agora mostra o traceback num message
+  box e diz onde esta o log. Nao interfere quando existe console: ali o
+  traceback do proprio Python e melhor que um modal.
+
 ### Changed
 
 - **A documentacao de instalacao passou a ter duas trilhas explicitas**, operador

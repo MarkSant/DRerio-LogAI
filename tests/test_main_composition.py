@@ -593,3 +593,81 @@ class TestMissingWeightsShortCircuitsStartup:
         assert "fetch-weights" in body
         assert "best_seg_lateral.pt" in body
         assert title
+
+
+class TestStartupCrashIsVisibleWithoutAConsole:
+    """A failure before the Tk root exists must not vanish.
+
+    The desktop shortcut launches the app with ``pythonw.exe`` so that no
+    console sits behind the window. ``sys.stderr`` is then None, and Python's
+    default traceback goes nowhere -- double-clicking the icon simply appears to
+    do nothing, with no message and no window.
+
+    ``run_app`` has its own error dialog, but only from the point the Tk root
+    exists onwards. Argument parsing, logging setup and ``Tk()`` itself run
+    before that.
+    """
+
+    def test_shows_a_dialog_when_there_is_no_stderr(self, monkeypatch):
+        app_main = _setup_main_mocks(monkeypatch)
+        monkeypatch.setattr(sys, "stderr", None)
+        monkeypatch.setattr(
+            app_main,
+            "run_app",
+            MagicMock(side_effect=RuntimeError("boom before Tk existed")),
+        )
+
+        with pytest.raises(RuntimeError):
+            app_main.main()
+
+        app_main.messagebox.showerror.assert_called_once()
+        title, body = app_main.messagebox.showerror.call_args[0][:2]
+        assert "boom before Tk existed" in body, "the traceback is the point"
+        assert "analysis.log" in body, "the operator needs to be told where the log is"
+        assert title
+
+    def test_stays_out_of_the_way_when_a_console_exists(self, monkeypatch):
+        """With a terminal, Python's own traceback is better than a modal."""
+        app_main = _setup_main_mocks(monkeypatch)
+        monkeypatch.setattr(
+            app_main,
+            "run_app",
+            MagicMock(side_effect=RuntimeError("boom")),
+        )
+
+        with pytest.raises(RuntimeError):
+            app_main.main()
+
+        app_main.messagebox.showerror.assert_not_called()
+
+    def test_a_deliberate_exit_is_not_reported_as_a_crash(self, monkeypatch):
+        """``sys.exit(1)`` after a specific dialog must not add a second one.
+
+        The missing-weights path exits this way, having already shown a message
+        that names the folder and the remedy.
+        """
+        app_main = _setup_main_mocks(monkeypatch)
+        monkeypatch.setattr(sys, "stderr", None)
+        monkeypatch.setattr(app_main, "run_app", MagicMock(side_effect=SystemExit(1)))
+
+        with pytest.raises(SystemExit) as excinfo:
+            app_main.main()
+
+        assert excinfo.value.code == 1
+        app_main.messagebox.showerror.assert_not_called()
+
+    def test_survives_a_tk_that_cannot_show_the_dialog(self, monkeypatch):
+        """If Tk is the thing that is broken, the log is the last channel."""
+        app_main = _setup_main_mocks(monkeypatch)
+        monkeypatch.setattr(sys, "stderr", None)
+        app_main.messagebox.showerror.side_effect = RuntimeError("no display")
+        monkeypatch.setattr(
+            app_main,
+            "run_app",
+            MagicMock(side_effect=RuntimeError("original failure")),
+        )
+
+        # The original error must reach the caller, not be replaced by the
+        # reporter's own.
+        with pytest.raises(RuntimeError, match="original failure"):
+            app_main.main()
