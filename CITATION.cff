@@ -14,7 +14,7 @@ authors:
     affiliation: "São Paulo State University (UNESP), Botucatu, Brazil"
 title: "DRerio LogAI"
 version: 7.0.0
-date-released: 2026-09-07
+date-released: "2026-09-07"
 abstract: "An open-source, GPU-free platform for automated tracking, closed-loop stimulation and behavioural analysis of adult zebrafish (Danio rerio), combining YOLOv11 detection, BYTETracker multi-object tracking and Intel OpenVINO inference in an event-driven architecture."
 keywords:
   - "zebrafish"
@@ -32,13 +32,14 @@ license:
   - AGPL-3.0-or-later
 license-url: "https://github.com/MarkSant/DRerio-LogAI/blob/main/LICENSE"
 repository-code: "https://github.com/MarkSant/DRerio-LogAI"
+doi: "10.5281/zenodo.22650404"
 identifiers:
   - type: other
     value: "INPI BR 51 2026 005215-7"
     description: "Brazilian computer-program copyright registration (INPI, petition 870260066857); titleholder: Universidade Estadual Paulista (UNESP)."
-  # TODO: uncomment and fill after the Zenodo DOI is minted from the v7.0.0 release.
-  # The Zenodo GitHub integration is enabled on this repository, so publishing
-  # the release mints the DOI automatically; paste it here afterwards.
-  # - type: doi
-  #   value: 10.5281/zenodo.XXXXXXX
-  #   description: "Archived snapshot of release 7.0.0 (concept DOI resolves to the latest version)."
+  - type: doi
+    value: 10.5281/zenodo.22650404
+    description: "Concept DOI: always resolves to the most recent archived version. Cite this one unless a specific version is required."
+  - type: doi
+    value: 10.5281/zenodo.22650405
+    description: "Version DOI: the archived snapshot of release 7.0.0 specifically."

@@ -10,6 +10,7 @@
 ![Python](https://img.shields.io/badge/python-3.12%2B-yellow.svg)
 ![License](https://img.shields.io/badge/license-MIT%20%2B%20AGPL--3.0--or--later%20effective-lightgrey.svg)
 ![INPI](https://img.shields.io/badge/INPI-BR%2051%202026%20005215--7-blueviolet.svg)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.22650404.svg)](https://doi.org/10.5281/zenodo.22650404)
 [![CI](https://github.com/MarkSant/DRerio-LogAI/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/MarkSant/DRerio-LogAI/actions/workflows/ci.yml)
 [![Codecov](https://codecov.io/gh/MarkSant/DRerio-LogAI/branch/main/graph/badge.svg?token=XH937YKEOU)](https://codecov.io/gh/MarkSant/DRerio-LogAI)
 
@@ -970,6 +971,19 @@ Economic copyright: **Universidade Estadual Paulista (UNESP)**. See the "🏛️
 ## 📖 Citation
 
 If you use DRerio LogAI in research, please cite it using the metadata in [CITATION.cff](CITATION.cff) (Citation File Format 1.2.0 — recognized by GitHub as "Cite this repository").
+
+The software is archived on Zenodo and has two DOIs:
+
+| DOI | Resolves to |
+|---|---|
+| [`10.5281/zenodo.22650404`](https://doi.org/10.5281/zenodo.22650404) | **All versions.** Cite this one unless you need to pin a specific release. |
+| [`10.5281/zenodo.22650405`](https://doi.org/10.5281/zenodo.22650405) | Release **7.0.0** specifically. |
+
+> **Reproducing the published results.** The validation and benchmark numbers
+> reported in the associated manuscripts were produced with release **4.0.0**
+> (tag [`v4.0.0`](https://github.com/MarkSant/DRerio-LogAI/tree/v4.0.0)), not
+> with this one. Check out that tag for exact reproduction; cite the DOI above
+> for the archived platform.
 
 ## 📄 License
 
