@@ -4,6 +4,7 @@ Tests for new weight type classification and per-type default features.
 
 import os
 import tempfile
+from pathlib import Path
 
 from zebtrack.core.services.weight_manager import WeightManager
 
@@ -132,12 +133,20 @@ def test_get_weight_path_by_method():
         wm.set_default_weight_by_type("best_seg.pt", "seg")
         wm.set_default_weight_by_type("best_oi.pt", "det")
 
-        # Test getting paths by method
+        # Compared as resolved paths, not as strings. The registered path now
+        # comes from discovery rather than from the exact string this test
+        # handed to add_weight, and on the Windows CI runner the two disagree
+        # in spelling: tempfile hands out the long user name while the
+        # directory listing yields the 8.3 short form ("RUNNER~1"). Same file,
+        # and the question here is which file was resolved, not how the path
+        # happens to be spelled.
         seg_path = wm.get_weight_path_by_method("seg", "aquarium")
-        assert seg_path == seg_file
+        assert seg_path is not None
+        assert Path(seg_path).resolve() == Path(seg_file).resolve()
 
         det_path = wm.get_weight_path_by_method("det", "animal")
-        assert det_path == det_file
+        assert det_path is not None
+        assert Path(det_path).resolve() == Path(det_file).resolve()
 
         # Test invalid method
         invalid_path = wm.get_weight_path_by_method("invalid", "task")

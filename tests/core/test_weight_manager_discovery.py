@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import os
 import tempfile
+from pathlib import Path
 from unittest.mock import Mock
 
 import pytest
@@ -111,6 +112,22 @@ def test_discovery_counts_only_new_files(populated_weights_dir):
     manager = WeightManager(settings_obj=_blank_settings(), config_dir=populated_weights_dir)
 
     assert manager.discover_weights() == 0
+
+
+def test_discovered_path_points_at_the_file_that_was_found(populated_weights_dir):
+    """Identity, asserted by resolution rather than by string equality.
+
+    The registered path is built from the directory listing, which need not
+    spell the directory the way the caller did -- on Windows a temp folder is
+    listed in its 8.3 short form while tempfile reports the long one. Callers
+    that compare these as strings are asserting a spelling, not a file.
+    """
+    manager = WeightManager(settings_obj=_blank_settings(), config_dir=populated_weights_dir)
+
+    for name in SPECIALISTS + GENERALISTS:
+        registered = Path(manager.weights[name]["path"])
+        assert registered.is_absolute()
+        assert registered.resolve() == (Path(populated_weights_dir) / name).resolve()
 
 
 def test_unrelated_pt_files_are_left_alone(populated_weights_dir):
