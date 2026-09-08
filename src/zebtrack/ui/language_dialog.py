@@ -63,7 +63,7 @@ def ask_language(root: Any, *, initial: str = DEFAULT_LANGUAGE) -> str:
 
     dialog = tk.Toplevel(root)
     dialog.title(_TITLE)
-    dialog.transient(root)
+    _make_transient_if_the_master_is_visible(dialog, root)
     dialog.resizable(False, False)
 
     frame = ttk.Frame(dialog, padding=20)
@@ -103,6 +103,41 @@ def ask_language(root: Any, *, initial: str = DEFAULT_LANGUAGE) -> str:
     chosen = result["value"]
     log.info("i18n.language_dialog.chosen", language=chosen)
     return chosen
+
+
+def _make_transient_if_the_master_is_visible(dialog: Any, root: Any) -> None:
+    """Apply ``transient`` only when it will not make *dialog* disappear.
+
+    **A transient window inherits its master's mapped state.** If the master is
+    withdrawn, so is the transient -- and neither ``deiconify()`` nor ``lift()``
+    overrides that; measured on Windows, the dialog stays ``state='withdrawn'``,
+    unviewable, sized 1x1.
+
+    That is fatal here, because ``run_app`` calls ``root.withdraw()`` before
+    asking for a language: on a genuine first launch the chooser was created,
+    never shown, and ``wait_window`` below then blocked forever on a window
+    nobody could see, focus or close. The application hung with no window and
+    no error -- launched from the desktop shortcut, double-clicking the icon
+    appeared to do nothing at all.
+
+    Reopened from **Settings -> Language** the root is mapped, and there the
+    transient relationship is worth keeping: correct stacking above the main
+    window, and no second taskbar button. So it is applied whenever it is safe.
+
+    ``winfo_viewable`` is asked of the root rather than assumed from the call
+    site, because both callers reach the same function.
+    """
+    try:
+        master_is_visible = bool(root.winfo_viewable())
+    except tk.TclError:
+        # A root that cannot answer is not one to tie this dialog's visibility
+        # to. Showing a chooser without transient behaviour is a cosmetic loss;
+        # not showing it at all stops the application.
+        log.debug("i18n.language_dialog.viewable_check_failed", exc_info=True)
+        return
+
+    if master_is_visible:
+        dialog.transient(root)
 
 
 def _center_on_screen(window: Any) -> None:

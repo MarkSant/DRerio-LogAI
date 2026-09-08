@@ -184,3 +184,92 @@ def test_initial_selection_is_honoured(tkinter_root):
     result = ask_language(tkinter_root, initial="pt_BR")
     assert state.get("done"), "language dialog never appeared"
     assert result == "pt_BR"
+
+
+class TestTheDialogIsActuallyVisibleOnFirstLaunch:
+    """The condition the other tests here never reproduce: a withdrawn root.
+
+    ``run_app`` calls ``root.withdraw()`` and only asks for a language
+    afterwards, because the answer has to be written before ``load_settings()``
+    reads it. Every other test in this file receives an ordinary visible
+    Toplevel from the ``tkinter_root`` fixture, which is why a dialog that is
+    never mapped passed all of them.
+
+    A transient window inherits its master's mapped state, so
+    ``transient(withdrawn_root)`` produced a chooser that was created and never
+    shown -- and ``wait_window`` then blocked forever. The app hung with no
+    window and no error.
+    """
+
+    def test_dialog_is_viewable_when_the_root_is_withdrawn(self, tkinter_session_root):
+        root = tk.Toplevel(tkinter_session_root)
+        root.withdraw()
+        seen: dict[str, object] = {}
+
+        def inspect_then_close(dialog):
+            dialog.update_idletasks()
+            dialog.update()
+            seen["viewable"] = bool(dialog.winfo_viewable())
+            seen["state"] = dialog.state()
+            seen["size"] = (dialog.winfo_width(), dialog.winfo_height())
+            dialog.destroy()
+
+        try:
+            _drive(root, inspect_then_close)
+        finally:
+            root.destroy()
+
+        assert seen["viewable"], (
+            f"the chooser was never mapped: state={seen['state']!r} size={seen['size']!r}; "
+            "wait_window would block on it forever"
+        )
+        assert seen["state"] == "normal"
+
+    def test_transient_is_still_applied_when_the_root_is_visible(self, tkinter_root):
+        """Settings -> Language reopens this over a mapped window.
+
+        There the transient relationship earns its keep -- stacking above the
+        main window, no second taskbar entry -- so the guard must not drop it
+        for everyone.
+        """
+        tkinter_root.deiconify()
+        tkinter_root.update_idletasks()
+        seen: dict[str, object] = {}
+
+        def inspect_then_close(dialog):
+            dialog.update_idletasks()
+            seen["master"] = dialog.wm_transient()
+            seen["viewable"] = bool(dialog.winfo_viewable())
+            dialog.destroy()
+
+        _drive(tkinter_root, inspect_then_close)
+
+        assert seen["master"], "transient was dropped over a visible root"
+        assert seen["viewable"]
+
+    def test_a_root_that_cannot_answer_still_yields_a_dialog(self, tkinter_session_root):
+        """A TclError from the master must not cost us the chooser.
+
+        Losing transient behaviour is cosmetic; losing the dialog stops startup.
+        """
+        root = tk.Toplevel(tkinter_session_root)
+        seen: dict[str, object] = {}
+
+        def boom():
+            raise tk.TclError("bad window path name")
+
+        root.winfo_viewable = boom  # type: ignore[method-assign]
+
+        def inspect_then_close(dialog):
+            dialog.update_idletasks()
+            dialog.update()
+            seen["viewable"] = bool(dialog.winfo_viewable())
+            dialog.destroy()
+
+        try:
+            _drive(root, inspect_then_close)
+        finally:
+            del root.winfo_viewable
+            root.destroy()
+
+        assert seen["viewable"]
