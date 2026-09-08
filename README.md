@@ -300,7 +300,7 @@ This README highlights the current state (v7.0.0). For full per-release details,
 
 | Component | Minimum                  | Recommended                           |
 | --------- | ------------------------ | ------------------------------------- |
-| Python    | 3.12                     | 3.12 (3.15+ not supported)            |
+| Python    | 3.12                     | 3.12 (3.14+ not supported)            |
 | Disk      | 3 GB free                | 5 GB+                                 |
 | RAM       | 8 GB                     | 16 GB+                                |
 | CPU       | Dual-core                | Quad-core+ (Intel Core Ultra for NPU) |

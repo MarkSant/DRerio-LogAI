@@ -4,8 +4,17 @@ DRerio LogAI currently ships as a Poetry project. The recommended way to run the
 
 ## Prerequisites
 
-- Python 3.12 (64-bit). Not 3.11, and not 3.15+ — `pyproject.toml` requires
-  `>=3.12,<3.15`, and Poetry refuses to resolve outside that range.
+- Python 3.12 (64-bit). Not 3.11, and not 3.14+ — `pyproject.toml` requires
+  `>=3.12,<3.14`, and Poetry refuses to resolve outside that range.
+
+  **If 3.14 is your default `python`, this matters even when 3.12 is also
+  installed.** Poetry builds the environment from the interpreter it finds
+  first. Point it at 3.12 explicitly before installing:
+
+  ```powershell
+  poetry env use 3.12          # or the full path to python.exe
+  ```
+
 - [Poetry](https://python-poetry.org/docs/#installation) available on your `PATH`
 - Git (to clone the repository)
 - **A C compiler.** One dependency (`cython-bbox`) is published only as a source
@@ -69,6 +78,37 @@ behind `--all` -- `best_oi.pt` and `best_seg.pt` -- are 3-class generalists,
 carrying a `zup-aqua` class the perspective models lack. They match no
 discovery glob, so register them with **Add Weight...** in the model
 configuration panel once downloaded.
+
+## If `fetch-weights` says there is no module named `zebtrack`
+
+```text
+ModuleNotFoundError: No module named 'zebtrack'
+```
+
+The message names the symptom, not the cause. It means `poetry install` did not
+finish installing the project, so the console scripts point at a package that is
+not there. Two things produce it:
+
+**The environment is on the wrong Python.** Check first:
+
+```powershell
+poetry env info --path
+poetry run python -V
+```
+
+Anything other than 3.12 or 3.13 explains it: the pinned NumPy publishes no
+wheel above cp313, so on 3.14 the install tries to compile NumPy from source and
+fails, leaving the project uninstalled. Rebuild the environment on 3.12:
+
+```powershell
+poetry env use 3.12
+poetry install
+```
+
+**Or the environment predates the command.** `fetch-weights` arrived in 7.0.0.
+An environment created from an earlier checkout has no such script, and Poetry
+warns that it is "an entry point defined in pyproject.toml, but it's not
+installed as a script". Re-running `poetry install` after the upgrade creates it.
 
 ## Launch the application
 

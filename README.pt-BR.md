@@ -303,7 +303,7 @@ O README destaca o estado atual (v7.0.0). Para detalhes completos por release, c
 
 | Componente | Mínimo                   | Recomendado                           |
 | ---------- | ------------------------ | ------------------------------------- |
-| Python     | 3.12                     | 3.12 (3.15+ não suportado)            |
+| Python     | 3.12                     | 3.12 (3.14+ não suportado)            |
 | Disco      | 3 GB livres              | 5 GB+                                 |
 | RAM        | 8 GB                     | 16 GB+                                |
 | CPU        | Dual-core                | Quad-core+ (Intel Core Ultra p/ NPU)  |

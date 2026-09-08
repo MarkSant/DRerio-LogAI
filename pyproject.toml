@@ -15,7 +15,12 @@ readme = "README.md"
 packages = [{include = "zebtrack", from = "src"}]
 
 [tool.poetry.dependencies]
-python = ">=3.12,<3.15"
+# Ceiling is 3.14, not 3.15: the locked numpy (2.2.6) publishes wheels only up
+# to cp313. On 3.14 pip falls back to building it from source, that build fails,
+# and `poetry install` leaves the project uninstalled -- so the next command dies
+# with `ModuleNotFoundError: No module named 'zebtrack'`, naming the wrong cause.
+# 3.12 is the only version CI and mypy exercise.
+python = ">=3.12,<3.14"
 filelock = ">=3.20.3"
 fonttools = ">=4.60.2"
 numpy = "~=2.2.6"

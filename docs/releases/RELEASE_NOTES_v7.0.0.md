@@ -153,7 +153,7 @@ technology transfer office (AUIN).
 
 ## Requirements
 
-Python ≥ 3.12, < 3.15 · Ultralytics YOLO ≥ 8.3.179 · Intel OpenVINO ~2026.0 ·
+Python ≥ 3.12, < 3.14 · Ultralytics YOLO ≥ 8.3.179 · Intel OpenVINO ~2026.0 ·
 PyTorch ≥ 2.8 · NumPy ~2.2 · OpenCV ~4.13. Runs GPU-free on integrated graphics.
 Validated on Windows 11. Full dependency pins in `pyproject.toml` /
 `poetry.lock`.

@@ -3983,5 +3983,5 @@ python-discovery = ">=1"
 
 [metadata]
 lock-version = "2.1"
-python-versions = ">=3.12,<3.15"
-content-hash = "60a2593f46e781243f7f7ef9400f0c2740bef681e18b62977af8979b78904be6"
+python-versions = ">=3.12,<3.14"
+content-hash = "7fdbee100af64c9e1f884d6b950df2ddffe7b70a030674a19bf1fa3e9e14d85d"
