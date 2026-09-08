@@ -320,75 +320,76 @@ numa máquina sem toolchain — avisando, um comando depois, que o módulo
 OpenCV e SciPy sozinhos respondem pela maior parte de um ambiente virtual de
 ~1,7 GB, e os pesos do detector somam outros ~200 MB.
 
-### Instalação Rápida
+### Instalando para usar
 
-1. **Pré-requisitos** — Python 3.12, Poetry, Git e as ferramentas de compilação acima:
+**Se você vai operar o programa, não modificá-lo, este é o procedimento
+inteiro.** Não exige Git nem manter um terminal aberto.
+
+1. **Instale o Python 3.12.** Baixe "Windows installer (64-bit)" em
+   [python.org/downloads/release/python-3129](https://www.python.org/downloads/release/python-3129/)
+   (macOS e Linux: a mesma página, ou o gerenciador de pacotes).
+
+   > Na **primeira** tela do instalador do Windows, marque
+   > **"Add python.exe to PATH"** antes de clicar em Install. Nada depois
+   > consegue encontrar o interpretador sem isso, e é de longe o motivo mais
+   > comum de a instalação falhar.
+
+   O Python 3.13 também serve. **O 3.14 não** — o NumPy travado não publica
+   wheel para ele, e a instalação falha culpando a coisa errada.
+
+2. **Instale o Poetry** — a ferramenta que busca as dependências do programa.
+   As instruções completas estão em
+   [python-poetry.org/docs/#installation](https://python-poetry.org/docs/#installation);
+   no Windows a linha única é:
+
+   ```powershell
+   (Invoke-WebRequest -Uri https://install.python-poetry.org -UseBasicParsing).Content | py -
+   ```
+
+   Ele informa a pasta onde instalou (normalmente `%APPDATA%\Python\Scripts`).
+   Acrescente essa pasta ao PATH e abra um terminal novo.
+
+3. **Baixe o programa.** Na
+   [página de releases](https://github.com/MarkSant/DRerio-LogAI/releases), use
+   **Source code (zip)** e extraia num lugar definitivo — é nessa pasta que
+   ficam projetos, pesos e configurações, então não em `Downloads`.
+
+   (Com o Git instalado, `git clone https://github.com/MarkSant/DRerio-LogAI.git`
+   faz o mesmo e facilita atualizar depois.)
+
+4. **Rode o instalador.** Abra a pasta extraída e dê **duplo-clique em
+   `install.bat`**. Ele instala as dependências, baixa os ~200 MB de modelos do
+   detector e coloca um ícone **DRerio LogAI** na Área de Trabalho e no Menu
+   Iniciar. Leva alguns minutos.
+
+   O equivalente pelo terminal, e a forma a usar no Linux:
+
+   ```powershell
+   powershell -ExecutionPolicy Bypass -File install.ps1   # Windows
+   ```
 
    ```bash
-   python --version    # precisa reportar 3.12.x
-   poetry --version
+   ./setup.sh                                             # Debian/Ubuntu
    ```
 
-2. **Clone o repositório**:
+5. **Abra o programa** com duplo-clique no ícone **DRerio LogAI**.
 
-   ```bash
-   git clone https://github.com/MarkSant/DRerio-LogAI.git
-   cd DRerio-LogAI
-   ```
+É só isso. O aplicativo pergunta o idioma na primeira vez, avalia o hardware,
+cria as pastas e abre o wizard de projetos. Câmera, porta do Arduino e todas as
+demais configurações são escolhidas dentro da interface — não há arquivo de
+configuração para escrever à mão.
 
-3. **Instale as dependências**:
+> **Se algo falhar**, o instalador para e diz o que fazer. A única falha que
+> vale nomear aqui é `ModuleNotFoundError: No module named 'zebtrack'` vindo de
+> um comando `poetry` manual: significa que o ambiente foi criado sobre um
+> Python não suportado. Veja
+> [a wiki de instalação](docs/wiki/1_Installation.md#if-fetch-weights-says-there-is-no-module-named-zebtrack).
 
-   ```bash
-   poetry install
-   ```
+### Instalando para desenvolver
 
-4. **Baixe os pesos do detector** (~200 MB, **obrigatório** — o aplicativo não
-   inicia sem eles):
-
-   ```bash
-   poetry run fetch-weights
-   ```
-
-   Os modelos YOLO treinados não ficam no repositório por causa do tamanho. Esse
-   comando os baixa do release do projeto no GitHub e confere cada arquivo contra
-   um SHA-256 gravado em `weights_manifest.json`. Use `--check` para validar uma
-   instalação existente sem baixar, ou `--all` para trazer também os dois
-   modelos generalistas.
-
-   São seis modelos anexados ao release, e quatro baixados por padrão. Esses
-   quatro são o par de perspectiva -- um `seg` e um `det` para lateral e para
-   top-down -- e são os que o catálogo encontra sozinho. Os outros dois,
-   `best_oi.pt` (det) e `best_seg.pt` (seg), são generalistas de 3 classes:
-   têm uma classe `zup-aqua` que os de perspectiva não têm. Nada os registra
-   automaticamente, então depois do `--all` adicione-os pelo botão
-   **Add Weight...** no painel de configuração de modelos.
-
-5. **Execute**:
-
-   ```bash
-   poetry run zebtrack
-   ```
-
-6. **(Opcional) Ajustes específicos da máquina** — crie um `config.local.yaml`
-   contendo _apenas_ as chaves que você quer sobrescrever:
-
-   ```yaml
-   camera:
-     index: 0
-   arduino:
-     port: "COM3"
-   ```
-
-   > **Não** copie o `config.yaml` inteiro para dentro dele. Os dois arquivos são
-   > mesclados recursivamente, então uma cópia completa congela todos os padrões
-   > atuais na sua máquina e sombreia em silêncio qualquer correção posterior.
-
-### Instalação para Desenvolvimento
-
-Se você pretende contribuir ou modificar o código:
+Os mesmos passos com o grupo de dependências de desenvolvimento, e sem atalho:
 
 ```bash
-# Clone e instale com dependências de desenvolvimento
 git clone https://github.com/MarkSant/DRerio-LogAI.git
 cd DRerio-LogAI
 poetry install --with dev
@@ -396,9 +397,44 @@ poetry install --with dev
 # Instale os hooks de pré-commit
 poetry run pre-commit install
 
+# Baixe os modelos do detector (~200 MB, obrigatórios para rodar o app)
+poetry run fetch-weights
+
 # Execute os testes para verificar a instalação
 poetry run pytest -q
 ```
+
+`install.ps1 -Dev` faz o mesmo no Windows, e ainda cria o atalho.
+
+**Sobre os pesos do detector.** Os modelos YOLO treinados não ficam no
+repositório por causa do tamanho. O `fetch-weights` os baixa do release do
+projeto no GitHub e confere cada arquivo contra um SHA-256 gravado em
+`weights_manifest.json`. Use `--check` para validar uma instalação existente sem
+baixar, ou `--all` para trazer também os dois modelos generalistas.
+
+São seis modelos anexados ao release, e quatro baixados por padrão. Esses quatro
+são o par de perspectiva -- um `seg` e um `det` para lateral e para top-down --
+e são os que o catálogo encontra sozinho. Os outros dois, `best_oi.pt` (det) e
+`best_seg.pt` (seg), são generalistas de 3 classes: têm uma classe `zup-aqua`
+que os de perspectiva não têm. Nada os registra automaticamente, então depois do
+`--all` adicione-os pelo botão **Add Weight...** no painel de configuração de
+modelos.
+
+**Abrir sem o atalho**, de qualquer pasta:
+
+```bash
+poetry run zebtrack
+```
+
+**Gerenciar o atalho** no Windows:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\install_shortcut.ps1           # criar/reparar
+powershell -ExecutionPolicy Bypass -File scripts\install_shortcut.ps1 -Remove   # remover
+```
+
+Rode de novo depois de mover a pasta do repositório: o atalho guarda um caminho
+absoluto, então mover deixa ele apontando para o nada.
 
 ### 🧩 Extensões VS Code (Desenvolvimento)
 
@@ -465,8 +501,37 @@ Na primeira execução, o aplicativo irá:
 4. **Abrir o Wizard**: interface guiada para criar seu primeiro projeto
 
 Os pesos do detector **não** são baixados aqui. Eles são obtidos uma única vez,
-antes, por `poetry run fetch-weights` (passo 4 da instalação acima). Sem eles o
+antes, pelo `fetch-weights`, que o instalador executa para você. Sem eles o
 aplicativo para na inicialização, com um diálogo nomeando os arquivos que faltam.
+
+### Configurações: não há nada para escrever à mão
+
+O `config.local.yaml` é o arquivo de sobrescrita desta máquina. **Ele é criado
+sozinho** — responder ao prompt de idioma da primeira execução é o que o grava —
+e tudo que ele contém é acessível pela interface:
+
+| Configuração               | Onde se escolhe                                                    |
+| -------------------------- | ------------------------------------------------------------------ |
+| Idioma da interface        | **Configurações → Idioma**                                          |
+| Câmera                     | Wizard de projeto (projetos ao vivo); depois, o diálogo da sessão   |
+| Porta do Arduino           | O painel do Arduino, que lista as portas encontradas                |
+| Limiares do detector, ROI  | O editor de configuração e o painel de análise                      |
+
+**Câmera e porta do Arduino são gravadas por projeto, e o valor do projeto tem
+precedência sobre o global.** Defini-los globalmente à mão, portanto, não faz
+efeito num projeto que tenha os seus — que é todo projeto criado pelo wizard.
+
+Se ainda assim for editar o arquivo, coloque nele _apenas_ as chaves que quer
+sobrescrever:
+
+```yaml
+camera:
+  index: 0
+```
+
+> **Não** copie o `config.yaml` inteiro para dentro dele. Os dois arquivos são
+> mesclados recursivamente, então uma cópia completa congela todos os padrões
+> atuais na sua máquina e sombreia em silêncio qualquer correção posterior.
 
 ## 🎬 Guia Rápido de Uso
 

@@ -9,6 +9,69 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Instalador guiado e atalho de area de trabalho.** Quem opera o programa nao
+  precisa mais abrir um terminal para usa-lo. `install.ps1` (duplo-clique via
+  `install.bat`) confere o Python, confere o Poetry, fixa o ambiente no
+  interpretador certo, instala as dependencias, baixa os pesos e cria o icone
+  **DRerio LogAI** na area de trabalho e no menu Iniciar. `setup.sh` ganhou o
+  equivalente no Linux: `fetch-weights` e uma entrada `.desktop`.
+
+  O `install.bat` existe porque o Windows **nao executa um `.ps1` com
+  duplo-clique** -- o Explorer abre no editor -- e a ExecutionPolicy padrao de
+  um cliente recusa scripts. Um `.ps1` extraido de um ZIP baixado carrega a Mark
+  of the Web e e barrado ate em `RemoteSigned`. O `.bat` e uma linha que
+  contorna a policy **so naquele processo**.
+
+  O atalho aponta para `.venv\Scripts\pythonw.exe -m zebtrack`: `pythonw` para
+  nao deixar um console atras da janela (fechar esse console mataria a analise
+  em curso), e `-m zebtrack` porque o console script que o Poetry gera e um
+  `.cmd`, que traria o console de volta.
+
+- `scripts/install_shortcut.ps1`, com `-Remove` e `-NoDesktop`, para criar,
+  reparar (depois de mover a pasta) ou remover o atalho. Recusa-se a escrever um
+  atalho cujo ambiente nao consegue importar `zebtrack`.
+
+### Fixed
+
+- **Sem console, o logging morria a cada registro.** `configure_logging`
+  construia `StreamHandler(sys.stdout)` incondicionalmente. Sob `pythonw.exe`
+  -- exatamente como o atalho novo abre o app -- `sys.stdout` e None, e
+  `StreamHandler(None)` **nao** ajuda: ele cai para `sys.stderr`, tambem None.
+  O handler ficava com `stream=None` e todo record levantava `AttributeError`
+  dentro de `emit`. Nao propagava: o `logging` desviava para `handleError`, que
+  escreve no stderr inexistente e volta -- ou seja, o app rodaria com o log
+  quebrado em silencio.
+
+- **A deteccao de cameras dependia de existir um stderr para silenciar.**
+  `WizardService.suppress_opencv_logs` fazia `os.dup(2)` sem guarda; num
+  processo sem console isso levanta `OSError` e o wizard nao listava **nenhuma**
+  camera. Pior: o `finally` chamava `sys.stderr.close()` incondicionalmente,
+  entao um redirecionamento que falhasse no meio fechava o stderr real do
+  processo (`lost sys.stderr`). Cada metade agora e restaurada apenas se
+  realmente foi trocada.
+
+- **O aviso de pesos ausentes podia levantar de dentro do proprio handler.**
+  `_handle_missing_weights` caia para `print(..., file=sys.stderr)` quando o Tk
+  nao estava utilizavel; sem console isso e `None`. Agora registra no log.
+
+### Changed
+
+- **A documentacao de instalacao passou a ter duas trilhas explicitas**, operador
+  e desenvolvedor, em vez de uma so escrita para quem desenvolve. A trilha do
+  operador nao pede Git (ZIP da pagina de releases) e diz **onde obter** Python e
+  Poetry -- inclusive o aviso de marcar "Add python.exe to PATH", que era a causa
+  mais comum de a instalacao falhar sem ninguem entender por que.
+
+- **O passo "(Opcional) Ajustes especificos da maquina" saiu do README.** Ele
+  mandava criar `config.local.yaml` a mao com `camera.index` e `arduino.port`.
+  O arquivo ja e criado sozinho na primeira execucao (o prompt de idioma o
+  escreve), a camera e a porta sao escolhidas no wizard e no painel do Arduino,
+  e -- decisivo -- ficam gravadas **por projeto**, onde tem precedencia sobre o
+  valor global. Era uma instrucao que nao produzia efeito. No lugar entrou uma
+  tabela dizendo onde cada configuracao e escolhida na interface.
+
 ## [7.0.1] - 2026-09-07
 
 Release de correcao. A 7.0.0 prometia `clone -> poetry install -> poetry run

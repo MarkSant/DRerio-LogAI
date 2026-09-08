@@ -63,15 +63,37 @@ https://github.com/MarkSant/DRerio-LogAI
 
 ## Installation and Setup
 
+### I just want to run the software. What do I actually have to install?
+
+Python 3.12 and Poetry. Then double-click `install.bat` (Windows) or run
+`./setup.sh` (Debian/Ubuntu) in the extracted repository folder, and start the
+app from the **DRerio LogAI** icon it puts on your desktop.
+
+You do **not** need Git (download **Source code (zip)** from the releases page),
+a C compiler (nothing is compiled since 7.0.1), or a terminal you keep open.
+
 ### Which Python version do I need?
 
-**Python 3.12 or higher** is required. Python 3.11 and below are not supported.
+**Python 3.12**, and 3.13 works too. Python 3.11 and below are not supported.
+
+**Python 3.14 does not work.** The pinned NumPy publishes no wheel for it, so
+the install tries to compile NumPy from source, fails, and leaves the project
+uninstalled — and the *next* command is the one that complains, with
+`No module named 'zebtrack'`. If 3.14 is your default `python`, install 3.12
+alongside it; the installer picks the right one on its own.
 
 To check your Python version:
 
 ```bash
 python --version
 ```
+
+### Do I have to create `config.local.yaml`?
+
+No. It is created for you the first time you run the app — answering the
+language prompt is what writes it. Camera, Arduino port and the detector
+settings are all chosen inside the interface, and camera and port are stored
+**per project**, where they take precedence over anything set globally.
 
 ### Do I need to install CUDA for GPU support?
 

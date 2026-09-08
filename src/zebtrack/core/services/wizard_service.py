@@ -120,17 +120,34 @@ class WizardService:
         Context manager to suppress OpenCV verbose output during camera detection.
 
         Redirects stderr to devnull and sets OpenCV log level to silent.
+
+        **The redirection is best-effort, and silence is not the point --
+        detecting cameras is.** Launched from the desktop shortcut the process
+        has no console: ``pythonw.exe`` leaves ``sys.stderr`` as None and file
+        descriptor 2 unopened, so ``os.dup(2)`` raises ``OSError`` and the old
+        unguarded version turned "OpenCV is chatty" into "the wizard cannot
+        list a single camera". There is also nothing to silence in that case.
+        Each half is therefore restored only if it was actually swapped --
+        note in particular that the previous ``finally`` called
+        ``sys.stderr.close()`` unconditionally, which closed the *real* stderr
+        whenever the redirection had failed partway.
         """
         old_stderr_fd = None
         old_stderr = sys.stderr
+        devnull_stream = None
 
         try:
             # Redirect stderr to devnull
-            old_stderr_fd = os.dup(2)
-            devnull = os.open(os.devnull, os.O_WRONLY)
-            os.dup2(devnull, 2)
-            os.close(devnull)
-            sys.stderr = open(os.devnull, "w")
+            try:
+                old_stderr_fd = os.dup(2)
+                devnull = os.open(os.devnull, os.O_WRONLY)
+                os.dup2(devnull, 2)
+                os.close(devnull)
+                devnull_stream = open(os.devnull, "w")
+                sys.stderr = devnull_stream
+            except OSError:
+                # No usable stderr (no console). Nothing to suppress.
+                log.debug("wizard_service.suppress_opencv_logs.no_stderr", exc_info=True)
 
             # Also set OpenCV log level to ERROR
             cv2.utils.logging.setLogLevel(0)  # type: ignore[attr-defined]  # LOG_LEVEL_SILENT
@@ -142,8 +159,9 @@ class WizardService:
             if old_stderr_fd is not None:
                 os.dup2(old_stderr_fd, 2)
                 os.close(old_stderr_fd)
-            sys.stderr.close()
-            sys.stderr = old_stderr
+            if devnull_stream is not None:
+                devnull_stream.close()
+                sys.stderr = old_stderr
             # Restore OpenCV log level
             cv2.utils.logging.setLogLevel(3)  # type: ignore[attr-defined]  # LOG_LEVEL_ERROR
 

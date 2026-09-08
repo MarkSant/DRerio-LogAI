@@ -1,8 +1,50 @@
 # Installation Guide
 
-DRerio LogAI currently ships as a Poetry project. The recommended way to run the application is to clone the repository, install the dependencies with Poetry, and launch the GUI from the virtual environment.
+DRerio LogAI ships as a Poetry project. There are two ways in, and they are not
+variations of the same thing:
 
-## Prerequisites
+- **[The guided installer](#the-guided-installer-recommended)** — one script,
+  then a desktop icon. Written for whoever runs experiments with the software.
+  Skip the rest of this page unless it fails.
+- **[Step by step](#step-by-step)** — the same operations spelled out, for
+  anyone modifying the code or working on a machine where the script cannot run.
+
+## The guided installer (recommended)
+
+Install [Python 3.12](https://www.python.org/downloads/release/python-3129/)
+(tick **"Add python.exe to PATH"** on the installer's first screen) and
+[Poetry](https://python-poetry.org/docs/#installation), download the repository
+— [**Source code (zip)**](https://github.com/MarkSant/DRerio-LogAI/releases)
+extracted somewhere permanent, or `git clone` — then:
+
+```powershell
+# Windows: double-click install.bat, or from a terminal:
+powershell -ExecutionPolicy Bypass -File install.ps1
+```
+
+```bash
+# Debian/Ubuntu:
+./setup.sh
+```
+
+It installs the dependencies, downloads the ~200 MB of detector models, verifies
+that the package actually imports, and creates a **DRerio LogAI** launcher on the
+desktop and in the applications menu. Double-click that to start the app.
+
+Flags: `-Dev` adds the development group and the pre-commit hooks;
+`-SkipWeights` and `-SkipShortcut` skip those steps (`--skip-weights` and
+`--skip-launcher` on `setup.sh`).
+
+> **Why `install.bat` and not just the `.ps1`?** Windows does not run a `.ps1`
+> on double-click — Explorer opens it in an editor — and the default execution
+> policy on a client OS refuses scripts outright. A script extracted from a
+> downloaded ZIP is blocked even at `RemoteSigned`, because it carries the Mark
+> of the Web. `install.bat` is one line that launches PowerShell with the policy
+> bypassed **for that process only**; it changes nothing on the machine.
+
+## Step by step
+
+### Prerequisites
 
 - Python 3.12 (64-bit). Not 3.11, and not 3.14+ — `pyproject.toml` requires
   `>=3.12,<3.14`, and Poetry refuses to resolve outside that range.
@@ -16,7 +58,7 @@ DRerio LogAI currently ships as a Poetry project. The recommended way to run the
   ```
 
 - [Poetry](https://python-poetry.org/docs/#installation) available on your `PATH`
-- Git (to clone the repository)
+- Git, if you clone rather than download the ZIP
 - **No C compiler.** Every dependency installs from a prebuilt wheel. Earlier
   releases needed a toolchain for `cython-bbox`; that IoU routine is NumPy now,
   so nothing is compiled during installation.
@@ -33,7 +75,7 @@ poetry --version
 git --version
 ```
 
-## Clone the repository
+### Clone the repository
 
 ```powershell
 git clone https://github.com/MarkSant/DRerio-LogAI.git
@@ -42,7 +84,7 @@ cd DRerio-LogAI
 
 > 💡 On Windows, use **PowerShell** (the default shell in the project). On Linux/macOS, any POSIX-compatible shell works.
 
-## Install dependencies with Poetry
+### Install dependencies with Poetry
 
 ```powershell
 poetry install
@@ -50,7 +92,7 @@ poetry install
 
 The first run may take a few minutes while Poetry resolves and downloads all packages. The command creates an isolated virtual environment that will be reused in subsequent runs.
 
-## Download the detector weights
+### Download the detector weights
 
 ```powershell
 poetry run fetch-weights
@@ -78,7 +120,7 @@ carrying a `zup-aqua` class the perspective models lack. They match no
 discovery glob, so register them with **Add Weight...** in the model
 configuration panel once downloaded.
 
-## If `fetch-weights` says there is no module named `zebtrack`
+### If `fetch-weights` says there is no module named `zebtrack`
 
 ```text
 ModuleNotFoundError: No module named 'zebtrack'
@@ -111,11 +153,33 @@ installed as a script". Re-running `poetry install` after the upgrade creates it
 
 ## Launch the application
 
+Double-click the **DRerio LogAI** icon the installer created on the desktop, or
+from a terminal in the repository folder:
+
 ```powershell
 poetry run zebtrack
 ```
 
-This command opens the Tkinter GUI. The project creation wizard (5 steps) is enabled by default.
+Either opens the Tkinter GUI. The project creation wizard (5 steps) is enabled
+by default.
+
+The shortcut targets `.venv\Scripts\pythonw.exe -m zebtrack`, which is why no
+console window sits behind the application. Diagnostics go to
+`logs/analysis.log` regardless of how it was launched.
+
+### Managing the shortcut
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\install_shortcut.ps1            # create or repair
+powershell -ExecutionPolicy Bypass -File scripts\install_shortcut.ps1 -NoDesktop # Start Menu only
+powershell -ExecutionPolicy Bypass -File scripts\install_shortcut.ps1 -Remove    # delete
+```
+
+**Re-run it after moving the repository folder.** A `.lnk` stores an absolute
+path, so a move leaves it pointing at an interpreter that is no longer there.
+The script refuses to write a shortcut whose environment cannot import
+`zebtrack`, so a stale or broken install is reported now rather than as a window
+that opens and vanishes.
 
 ### Useful commands
 
@@ -149,22 +213,47 @@ poetry run ruff check .
 - Ensure system packages for Tkinter are installed (e.g., `sudo apt install python3.12-tk` on Ubuntu-based distributions).
 - Make sure your user can access the GPU driver (if using CUDA).
 
-## Optional: local configuration overrides
+## Local configuration overrides
 
-Create `config.local.yaml` in the project root to override specific settings (e.g., to enable experimental features):
+**There is no setup step here.** `config.local.yaml` is created for you on first
+run — answering the language prompt is what writes it — and the settings an
+operator needs are all reachable from the interface:
+
+| Setting                   | Where it is chosen                                                |
+| ------------------------- | ----------------------------------------------------------------- |
+| Interface language        | **Settings → Language**                                            |
+| Camera                    | Project Wizard (live projects); later, the session detail dialog   |
+| Arduino port              | The Arduino panel, which lists the ports it detects                |
+| Detector thresholds, ROI  | The configuration editor and the analysis panel                    |
+
+**Camera and Arduino port live in the project, and the project's value wins.**
+`ProjectInitializer` reads `project_data["arduino_port"]` first and only falls
+back to `settings.arduino.port`, so setting them globally by hand has no effect
+on a project that carries its own — which is every project the wizard creates.
+Use the global file for a genuinely machine-wide default, not to configure a
+study.
+
+To override something the UI does not expose, put in the file _only_ the keys
+you are changing:
 
 ```yaml
 ui_features:
-  use_wizard_for_project_creation: true # padrão
+  use_wizard_for_project_creation: true # default
 ```
 
-Other overrides (detector thresholds, Arduino port, event bus) are documented in `docs/reference/operational_reference.md` and `docs/guides/developer/wizard.md`.
+> Do **not** copy the whole `config.yaml` into it. The two are merged
+> recursively, so a full copy freezes every current default onto this machine
+> and silently shadows every later correction.
+
+Other overrides (detector thresholds, event bus) are documented in
+`docs/reference/operational_reference.md` and `docs/guides/developer/wizard.md`.
 
 ## Troubleshooting
 
 | Symptom                                     | Suggested fix                                                                                                                                |
 | ------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| `poetry install` fails with compiler errors | Ensure you have build tools installed (Visual Studio Build Tools on Windows, `build-essential` on Linux, Xcode Command Line Tools on macOS). |
+| `poetry install` fails                      | Nothing here needs a compiler — every dependency ships as a wheel. Check the interpreter (`poetry run python -V`, must be 3.12 or 3.13), the network, and free disk (~1.7 GB). |
+| The desktop icon does nothing               | Re-run `scripts\install_shortcut.ps1`; a moved repository folder leaves the shortcut pointing at a path that no longer exists. Check `logs/analysis.log` for what the app itself reported. |
 | GUI does not open and no error appears      | Check `poetry env info` to confirm the virtual environment exists. The launch directory no longer matters: configuration and weights are resolved against the repository root. |
 | Models are slow on CPU                      | Convert the active weight to OpenVINO from the model panel in the app (Advanced Settings → Convert to OpenVINO). There is no command-line entry point for this.                |
 | Wizard disabled unexpectedly                | Delete `config.local.yaml` or set `ui_features.use_wizard_for_project_creation: true`.                                                       |
