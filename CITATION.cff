@@ -41,5 +41,8 @@ identifiers:
     value: 10.5281/zenodo.22650404
     description: "Concept DOI: always resolves to the most recent archived version. Cite this one unless a specific version is required."
   - type: doi
+    value: 10.5281/zenodo.22783436
+    description: "Version DOI: the archived snapshot of release 7.2.0, the current release."
+  - type: doi
     value: 10.5281/zenodo.22650405
     description: "Version DOI: the archived snapshot of release 7.0.0 specifically."
