@@ -6,1100 +6,621 @@
 **Plataforma Inteligente de Rastreamento e Análise Comportamental para _Danio rerio_ (Zebrafish)**
 
 ![Version](https://img.shields.io/badge/version-7.1.0-blue.svg)
-![Architecture](https://img.shields.io/badge/architecture-Event--Driven-green.svg)
 ![Python](https://img.shields.io/badge/python-3.12%2B-yellow.svg)
 ![License](https://img.shields.io/badge/license-MIT%20%2B%20AGPL--3.0--or--later%20effective-lightgrey.svg)
 ![INPI](https://img.shields.io/badge/INPI-BR%2051%202026%20005215--7-blueviolet.svg)
-<!-- DOI badge is a static shields.io image on purpose. zenodo.org/badge/... is rate-limited
-     (120 req/min) and sent with no-cache, so GitHub's shared image proxy intermittently gets
-     HTTP 429 and renders a broken icon. The DOI text never changes, so nothing is lost. -->
+<!-- O badge do DOI é uma imagem estática do shields.io de propósito. O endereço do Zenodo é
+     limitado a 120 requisições por minuto e vem com no-cache, então o proxy de imagens do
+     GitHub leva HTTP 429 e mostra o ícone quebrado. O texto de um DOI nunca muda. -->
 [![DOI](https://img.shields.io/badge/DOI-10.5281%2Fzenodo.22650404-1682D4.svg)](https://doi.org/10.5281/zenodo.22650404)
 [![CI](https://github.com/MarkSant/DRerio-LogAI/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/MarkSant/DRerio-LogAI/actions/workflows/ci.yml)
 [![Codecov](https://codecov.io/gh/MarkSant/DRerio-LogAI/branch/main/graph/badge.svg?token=XH937YKEOU)](https://codecov.io/gh/MarkSant/DRerio-LogAI)
 
 **🇺🇸 [Read in English](README.md)**
 
-[Documentação](docs/) | [Guia de Contribuição](docs/guides/developer/getting_started.md) | [Arquitetura](docs/explanation/architecture.md) | [Changelog](CHANGELOG.md)
+[Instalação](#-instalação) · [Primeira execução](#-primeira-execução-o-que-você-verá) ·
+[Primeiro projeto](#-seu-primeiro-projeto) · [Documentação](docs/INDEX.md) ·
+[Novidades](docs/releases/INDEX.md)
 
 </div>
 
 ---
 
-## 📋 Sobre o Projeto
-
-O **DRerio LogAI** é uma solução completa e de código aberto para análise automatizada de comportamento de peixes zebrafish (_Danio rerio_) em experimentos científicos. Desenvolvido com foco em **reprodutibilidade**, **precisão** e **facilidade de uso**, o sistema combina técnicas avançadas de visão computacional com Deep Learning para rastreamento multi-objeto em tempo real.
-
-### 🎯 Motivação
-
-Pesquisadores em neurociência, farmacologia e toxicologia frequentemente utilizam zebrafish como modelo animal devido à sua transparência óptica, rápido desenvolvimento e alta homologia genética com humanos (~70%). No entanto, a análise manual de vídeos comportamentais é:
-
-- **Demorada**: Horas de trabalho para analisar minutos de vídeo
-- **Subjetiva**: Variabilidade entre observadores
-- **Limitada**: Impossibilidade de rastrear múltiplos indivíduos simultaneamente
-
-O **DRerio LogAI** resolve esses problemas oferecendo análise automatizada, objetiva e escalável.
-
-> **Não confunda com o PyZebArdYolo.** O **PyZebArdYolo** é um repositório
-> irmão, mais simples, focado em uma unidade de aquisição em tempo real
-> (webcam + YOLO11 + Arduino, closed-loop) usada em um paper de hardware
-> separado. Ele **não** está coberto pelo registro INPI descrito abaixo e
-> não tem a exigência de titularidade UNESP presente nos arquivos de
-> licença deste repositório — lá, os próprios autores figuram como
-> titulares. Os dois projetos são independentes.
-
-## 🏛️ Titularidade e Registro
-
-O **DRerio LogAI** possui **Registro de Programa de
-Computador concedido pelo INPI** (Instituto Nacional da Propriedade
-Industrial, Brasil), sob a Lei 9.609/98 (direito autoral de software —
-**não** se trata de patente):
-
-- **Processo**: BR 51 2026 005215-7
-- **Petição**: 870260066857
-- **Data de depósito**: 07/07/2026
-- **Data de criação declarada**: 22/10/2025
-
-O **titular** dos direitos patrimoniais (dono dos direitos econômicos) é a
-**Universidade Estadual Paulista "Júlio de Mesquita Filho" (UNESP)**, CNPJ
-48.031.918/0001-24. Os **autores/inventores** (direitos morais) são
-**Marco Antônio Sant'Ana Camargos** e **Percília Cardoso Giaquinto**,
-ambos com afiliação UNESP.
-
-Veja [NOTICE](NOTICE) para o detalhamento completo (copyright,
-dependências de terceiros e suas licenças) e [LICENSE](LICENSE) para os
-termos legais.
-
-### ✨ Diferenciais
-
-- **🤖 Deep Learning Otimizado**: Ultralytics YOLO (detecção e segmentação) com opção de aceleração via OpenVINO
-- **📊 Métricas Científicas**: Cálculo automático de velocidade, distância percorrida, tempo em zonas, imobilidade, proximidade social
-- **🎨 Interface Intuitiva**: Wizard dinâmico (6–7 etapas) para criação de projetos (pré-gravado ou ao vivo) sem necessidade de programação
-- **🔬 Reprodutibilidade**: Todas as configurações e parâmetros de análise são salvos junto com os dados
-- **📹 Análise ao Vivo**: Captura e análise em tempo real com câmeras USB/webcams
-- **🏗️ Arquitetura Event-Driven**: Sistema modular e extensível baseado em eventos
-- **📦 Formatos Padrão**: Exportação para Parquet (dados), Excel (métricas) e Word (relatórios)
-
-## 🖼️ Como é na prática
-
-O launcher informa quais pesos de detecção estão carregados e se o OpenVINO está
-ativo, antes de qualquer análise:
-
-![Launcher do DRerio LogAI, com o painel de status dos modelos](docs/wiki/screenshots/main_window.png)
-
-Zonas e regiões de interesse são desenhadas diretamente sobre um quadro da
-gravação real, então a geometria da análise é definida contra a arena de fato:
-
-![Configuração de zonas e ROI sobre um quadro adquirido](docs/wiki/screenshots/roi_config.png)
-
-Cada sessão produz uma trajetória reconstruída e um mapa de calor de ocupação em
-centímetros, sem pós-processamento manual:
-
-![Trajetória com as quatro ROIs definidas pelo operador](docs/wiki/screenshots/trajectory_output.png)
-
-Mais telas no [guia do usuário](docs/wiki/user-guide/GETTING_STARTED.md).
-
-## 🚀 Novidades na Versão 7.0
-
-Primeiro release **público**, e o primeiro citável: é desta tag que sai o DOI do Zenodo. Os
-resultados relatados nos manuscritos associados foram produzidos com a release `4.0.0`, que
-continua disponível na tag `v4.0.0` para reprodução exata.
-
-- **📥 Os modelos treinados passaram a ser obteníveis.** Eles são gitignored e, até agora,
-  nada dizia como consegui-los — um clone limpo instalava, passava a suíte inteira (que os
-  mocka) e só então falhava ao abrir. `poetry run fetch-weights` baixa os quatro modelos dos
-  assets deste release e confere cada um contra um SHA-256 do `weights_manifest.json`. É agora
-  um passo **obrigatório** da instalação.
-- **🧭 Iniciar sem os modelos passa a dizer isso.** Quais modelos, em qual pasta e qual comando
-  os instala — em vez de rodar um benchmark de hardware completo, desenhar o splash até 95% e
-  informar "a fatal error occurred".
-- **📂 O diretório de onde se inicia deixou de importar.** `config.yaml`, `weights/`,
-  `weights_config.json` e o cache do OpenVINO são resolvidos contra a raiz do repositório,
-  então `poetry -C <repo> run zebtrack` funciona de qualquer lugar. O `--reset` e os irmãos
-  passam a apagar o que prometem; rodados de outra pasta, antes não encontravam nada e ainda
-  imprimiam "Reset complete".
-- **📐 Dimensões reais do aquário no diálogo ao vivo.** Elas eram validadas e definiam o
-  pixel/cm por trás de toda distância, velocidade e métrica em cm, mas nenhum widget as
-  expunha — um labirinto declarado quadrado produziu 95,8 px/cm num eixo contra 60,1 no outro.
-- **🎥 Correção nos fluxos ao vivo e pré-gravado.** A pós-análise ao vivo usa o snapshot do
-  projeto em vez do que a última execução avulsa deixou; `seg_overlap` não degrada mais
-  incondicionalmente; redetectar a arena não apaga as ROIs; vídeo único respeita "1 animal"; a
-  auto-detecção do aquário honra segmentação, forma real e perspectiva.
-- **📊 Relatórios.** As zonas pararam de sumir do sumário — e, com ele, do relatório
-  unificado; um basename repetido entre dias não sobrescreve mais o sumário nem perde metade
-  dos animais.
-- **📚 Documentação que corresponde ao programa.** Uma dica de troubleshooting inventava uma
-  chave de configuração que reprova a validação e impede o app de abrir; os dois READMEs
-  mandavam copiar o `config.yaml` inteiro para o override local, o que sombreia
-  permanentemente os padrões futuros. Os pré-requisitos agora declaram o compilador C e o
-  espaço em disco.
-
-## 🚀 Novidades na Versão 6.0
-
-Snapshot citável preparado para depósito permanente no Zenodo (DOI), em apoio aos manuscritos
-que descrevem a validação da plataforma e um benchmark multi-método de rastreamento:
-
-- **📡 Correção do Logger Closed-Loop**: `fps` e `sampling_interval_ms` em
-  `5_ClosedLoop_<base>.csv` agora guardam a taxa **medida** a partir dos timestamps de captura
-  (`FrameLedger.current_fps_measured()`), não mais o valor configurado nas settings — uma câmera
-  USB costuma exceder a taxa configurada. O valor configurado (nominal) fica em colunas próprias,
-  `fps_configured` / `sampling_interval_ms_configured`.
-- **📦 Pronto para Arquivamento**: `.zenodo.json` com metadados completos (autores, ORCID,
-  licença, registro INPI, financiamento); `CITATION.cff` atualizado para `6.0.0`; material
-  interno da agência de fomento (manuscritos inéditos, relatórios parciais, propostas, planilha
-  financeira) removido da árvore publicamente arquivada.
-- **🌐 Polimento de i18n e Docs**: `README.md` dividido em fonte em inglês mais tradução em
-  português (`README.pt-BR.md`); referências de rótulos de UI desatualizadas corrigidas
-  pós-i18n; `_on_send_selected_video_to_analysis` (não utilizado) removido.
-
-## 🏗️ Marco: Versão 5.0
-
-Cerca de 4,5 meses de trabalho entre a reescrita arquitetural da `v4.0.0` e o snapshot de
-arquivamento `v6.0.0`: uma revisão completa de ROI, estimulação por hardware em malha fechada, e
-a migração da interface para o inglês como língua-fonte.
-
-### Revisão de Região de Interesse (ROI)
-
-- **🎯 Regra Canônica de Inclusão de ROI**: um resolvedor único (`roi_rule_resolver`, projeto →
-  global → padrão) passa a valer para geração de relatórios, gatilhos ao vivo do Arduino e a UI,
-  substituindo lógica divergente por consumidor. Modos: `centroid_in`,
-  `centroid_in_on_buffered_roi`, `bbox_intersects`, `seg_overlap`.
-- **🔬 ROI Multi-Animal**: agregação por `(timestamp, track_id)` acaba com o bug do "centroide
-  fantasma"; semântica de grupo `por_animal` e `any_track`; suavização e detecção de episódios
-  cientes da trilha.
-- **🎭 ROI de Sobreposição de Segmentação Real**: `seg_overlap` lê máscaras gravadas
-  (`3b_Mascaras_<base>.parquet`) e degrada graciosamente — nunca levanta exceção — para
-  `bbox_intersects`, com aviso registrado em log e reportado quando as máscaras não existem.
-
-### Estimulação Closed-Loop e Robustez de Hardware
-
-- **⚡ Comandos Arduino por Zona**: tokens `on_enter`/`on_exit` por ROI, disparados por borda,
-  com detecção de conflito de tokens e detecção de inversão via ACK (a resposta do próprio
-  firmware prova quando um binding está ligado ao contrário).
-- **📊 Log de Latência Closed-Loop**: caracterização por software, baseada em timestamps de ACK,
-  do caminho gatilho-de-ROI → acionamento do LED (`5_ClosedLoop_<base>.csv`), mais um firmware de
-  referência não-bloqueante.
-- **🗂️ Ledger de Frames e Reconstrução da Linha do Tempo**: `6_FrameLedger_<base>` mapeia frame
-  do pipeline ↔ frame real do MP4 ↔ instante de captura, registrando todo modo de perda de frame
-  (descarte por fila cheia, falha de escrita, fora de gravação).
-- **🔌 Modo de Gatilho Externo**: o início de gravação condicionado ao Arduino agora chega tanto
-  ao painel legado quanto ao fluxo ao vivo da grade de Progresso por um único portão de decisão
-  (`external_trigger_gate`).
-
-### Duração por Sujeito e Robustez de Sessões Ao Vivo
-
-- **⏱️ Duração de Gravação por Sujeito**: `session_duration_resolver` (override do sujeito →
-  padrão do bloco → padrão do projeto → 300 s de fallback), com aviso de duração heterogênea em
-  relatórios parciais/em lote.
-- **🐟 Correções Multi-Aquário e de Sessão Ao Vivo**: detecção de reuso de zonas, "Marcar Lote
-  Como Completo" agora gera relatórios de verdade, herança do OpenVINO global, contadores da aba
-  de processamento corrigidos.
-
-### Internacionalização
-
-- **🌐 Inglês como Língua-Fonte da Interface**: catálogo completo em português (pt-BR);
-  traduções resolvidas no momento da chamada, nunca no import; varredura de português sem
-  acento no CI para prevenir regressões.
-
-## 🏗️ Marco Arquitetural: Versão 4.0
-
-### Refatoração Arquitetural Completa
-
-A v4.0 representou uma reescrita fundamental do sistema com foco em estabilidade, manutenibilidade e performance. Ela continua sendo a base arquitetural das versões acima e da versão atual; veja o [CHANGELOG.md](CHANGELOG.md) para o histórico completo por mudança:
-
-- **🏗️ Arquitetura Event-Driven**: Refatoração completa para eliminar acoplamento direto entre componentes
-  - Sistema de eventos com `EventBus` para comunicação assíncrona
-  - Padrão Mediator (`UICoordinator`) para orquestração da UI
-  - Eliminação de 90+ linhas de código legado de threads
-- **🎨 Interface Otimizada**: Nova aba unificada de "Processamento e Relatórios"
-  - Redução de 50% no uso de memória durante renderização
-  - Eliminação de race conditions em atualizações de UI
-  - Preview em tempo real com `LivePreviewWindow`
-- **⚡ Performance**: Melhorias significativas de velocidade
-  - Startup 67% mais rápido (6.0s → 2.0s) com lazy loading
-  - `RecorderFactory` para carregamento sob demanda de pandas/pyarrow
-  - Cache de hardware com TTL de 30s (5x mais rápido)
-- **🔒 Confiabilidade**: Sistema de testes robusto
-  - ~3700 testes (~48% de cobertura)
-  - Testes E2E para fluxos críticos
-  - Timeout automático para prevenir travamentos (pytest-timeout)
-- **🐛 Correções Críticas**: Resolução de bugs de câmera ao vivo
-  - Seleção correta de `camera_index` em projetos live
-  - Respeito a intervalos de análise configurados
-  - Unificação de `LiveCameraService` para ambos os contextos
-- **💡 Ajuda Contextual**: Novo sistema de ícones de informação (ⓘ)
-  - Tooltips detalhados para todos os parâmetros de IA e calibração
-  - Explicações claras sobre o impacto de aumentar ou diminuir valores
-  - Sincronização em tempo real entre diálogos de configuração e o `Settings` global
-
-### Multi-Aquarium v2 (Novo!)
-
-Suporte avançado para análise simultânea de múltiplos aquários:
-
-- **🔄 Detecção Paralela**: `detect_partitioned_parallel()` com ThreadPoolExecutor (~30-40% speedup)
-- **📦 Inferência em Lote**: `detect_batch()` para processamento offline otimizado
-- **✂️ Recorte ROI**: `_crop_aquarium_region()` para extração individual por aquário
-- **📊 Métricas de Incerteza**: Colunas `uncertainty` e `bbox_iou` no Parquet para análise de qualidade
-- **🔬 Thigmotaxis**: Métricas de preferência de borda por aquário
-- **✅ Validação Avançada**: `validate_multi_aquarium_config()` retorna erros e avisos
-- **🔍 Detecção de Gaps**: `_detect_per_aquarium_gaps()` para lacunas de trajetória por aquário
-- **🛡️ Recuperação de Erros**: Fallback automático quando detecção em aquário individual falha
-- **📤 Exportação R/Python**: Scripts prontos para análise estatística em R ou Python
-- **🖼️ Preview Lado-a-lado**: `create_side_by_side_preview()` para comparação visual
-- **📝 Relatórios por Aquário (Word/Excel)**: artefatos separados por `aquarium_0/`, `aquarium_1/` e exibição correta na aba de Relatórios
-
-### Análise Comportamental Expandida
-
-- **🧠 Geotaxia (Novel Tank Test)**: Suporte nativo para perspectiva lateral com zonas verticais (Fundo/Meio/Superfície)
-- **📏 Demarcação Visual**: Linhas de zona automáticas em plots de trajetória e heatmaps para visualização clara de preferência de altura
-- **📄 Relatórios Contextuais**: Nomenclatura adaptativa de colunas baseada na perspectiva da câmera
-
-### Suporte a NPU e Hardware Heterogêneo (Novo!)
-
-- **🔌 Intel NPU**: Suporte a Neural Processing Unit em processadores Intel Core Ultra via OpenVINO
-- **📦 Variantes de Modelo**: `standard`, `lite` e `nano` com seleção automática conforme capacidade do hardware
-- **📈 Benchmark Automático**: Medição de throughput (FPS) entre CPU, GPU e NPU para recomendação ideal
-- **⚡ Fallback Inteligente**: Downgrade automático de variante quando hardware detectado é insuficiente
-- **🔧 CI Robustecido**: Badge dinâmico, trigger manual, mocks cross-platform para Linux
-
-## 📚 Histórico de versões (v1–v3)
-
-O README destaca o estado atual (v7.0.0). Para detalhes completos por release, consulte o
-[CHANGELOG.md](CHANGELOG.md). Abaixo fica um resumo (marcos principais) das versões anteriores.
-
-### v3.0.0 (2025-01-11)
-
-- Remoção completa do sistema legado de threads para projetos ao vivo.
-- Fluxo de câmera ao vivo passa a ser exclusivamente via `LiveCameraService`.
-- Limpeza e simplificação do carregamento de projetos Live (separação mais clara entre vídeo e
-   câmera).
-
-### v2.x (2025)
-
-#### v2.1.0 (2025-01-11)
-
-- Migração de projetos Live para arquitetura unificada do `LiveCameraService`.
-- Correções críticas: `camera_index` respeitado (não força câmera 0) e intervalos de análise/display
-   respeitados.
-- Redução de threads e memória (de 4 → 2 threads; buffer menor).
-
-#### v2.0.0 (2025-10-XX)
-
-- Camada de serviço do Wizard (`zebtrack.core.wizard_service`) com lógica de negócio testável e
-   centralizada (hardware, validação, utilitários e sugestões).
-- Modelos Pydantic para validação tipada (`LiveConfigData`, `ExperimentalDesignData`, etc.).
-- Modularização de UI: extração de diálogos do `gui.py` para `zebtrack.ui.dialogs/` e melhoria de
-   testabilidade/manutenibilidade.
-- Cache de detecção de hardware (TTL 30s) para reduzir latência na navegação do Wizard.
-- Evolução do Wizard (Express/Advanced, trigger externo, templates, regras de inclusão em ROI).
-
-### v1.x (baseline)
-
-#### v1.6.0 (previous release)
-
-- Criação de projetos via Wizard (fluxo em etapas) e suporte a projetos Live com câmera/Arduino.
-- Campos de desenho experimental (grupos/dias/sujeitos) e persistência de templates.
-- Diálogos legados mantidos por compatibilidade.
-
-## 🛠️ Instalação
-
-### Requisitos do Sistema
-
-| Componente | Mínimo                   | Recomendado                           |
-| ---------- | ------------------------ | ------------------------------------- |
-| Python     | 3.12                     | 3.12 (3.14+ não suportado)            |
-| Disco      | 3 GB livres              | 5 GB+                                 |
-| RAM        | 8 GB                     | 16 GB+                                |
-| CPU        | Dual-core                | Quad-core+ (Intel Core Ultra p/ NPU)  |
-| GPU        | Não requerida            | NPU Intel Core Ultra via OpenVINO     |
-| SO         | Windows 10, Linux, macOS | Windows 11 (onde é validado)          |
-
-**Nenhum compilador é necessário.** Todas as dependências instalam a partir de
-wheels prontos. Até a 7.0.1 o rastreador puxava o `cython-bbox`, publicado só
-como código-fonte, então o `poetry install` compilava uma extensão C e falhava
-numa máquina sem toolchain — avisando, um comando depois, que o módulo
-`zebtrack` não existia. Essa rotina de IoU agora é NumPy puro.
-
-**Espaço em disco é o requisito que costuma surpreender.** PyTorch, OpenVINO,
-OpenCV e SciPy sozinhos respondem pela maior parte de um ambiente virtual de
-~1,7 GB, e os pesos do detector somam outros ~250 MB.
-
-### Instalando para usar
-
-**Se você vai operar o programa, não modificá-lo, este é o procedimento
-inteiro.** Não exige Git nem manter um terminal aberto.
-
-1. **Instale o Python 3.12.** Baixe "Windows installer (64-bit)" em
-   [python.org/downloads/release/python-3129](https://www.python.org/downloads/release/python-3129/)
-   (macOS e Linux: a mesma página, ou o gerenciador de pacotes).
-
-   > Na **primeira** tela do instalador do Windows, marque
-   > **"Add python.exe to PATH"** antes de clicar em Install. Nada depois
-   > consegue encontrar o interpretador sem isso, e é de longe o motivo mais
-   > comum de a instalação falhar.
-
-   O Python 3.13 também serve. **O 3.14 não** — o NumPy travado não publica
-   wheel para ele, e a instalação falha culpando a coisa errada.
-
-2. **Instale o Poetry** — a ferramenta que busca as dependências do programa.
-   As instruções completas estão em
-   [python-poetry.org/docs/#installation](https://python-poetry.org/docs/#installation);
-   no Windows a linha única é:
-
-   ```powershell
-   (Invoke-WebRequest -Uri https://install.python-poetry.org -UseBasicParsing).Content | py -
-   ```
-
-   Ele informa a pasta onde instalou (normalmente `%APPDATA%\Python\Scripts`).
-   Acrescente essa pasta ao PATH e abra um terminal novo.
-
-3. **Baixe o programa.** Na
-   [página de releases](https://github.com/MarkSant/DRerio-LogAI/releases), use
-   **Source code (zip)** e extraia num lugar definitivo — é nessa pasta que
-   ficam projetos, pesos e configurações, então não em `Downloads`.
-
-   (Com o Git instalado, `git clone https://github.com/MarkSant/DRerio-LogAI.git`
-   faz o mesmo e facilita atualizar depois.)
-
-4. **Rode o instalador.** Abra a pasta extraída e dê **duplo-clique em
-   `install.bat`**. Ele instala as dependências, baixa os ~250 MB de modelos do
-   detector e coloca um ícone **DRerio LogAI** na Área de Trabalho e no Menu
-   Iniciar. Leva alguns minutos.
-
-   O equivalente pelo terminal, e a forma a usar no Linux:
-
-   ```powershell
-   powershell -ExecutionPolicy Bypass -File install.ps1   # Windows
-   ```
-
-   ```bash
-   ./setup.sh                                             # Debian/Ubuntu
-   ```
-
-5. **Abra o programa** com duplo-clique no ícone **DRerio LogAI**.
-
-É só isso. O aplicativo pergunta o idioma na primeira vez, avalia o hardware,
-cria as pastas e abre o wizard de projetos. Câmera, porta do Arduino e todas as
-demais configurações são escolhidas dentro da interface — não há arquivo de
-configuração para escrever à mão.
-
-> **Se algo falhar**, o instalador para e diz o que fazer. A única falha que
-> vale nomear aqui é `ModuleNotFoundError: No module named 'zebtrack'` vindo de
-> um comando `poetry` manual: significa que o ambiente foi criado sobre um
-> Python não suportado. Veja
-> [a wiki de instalação](docs/wiki/1_Installation.md#if-fetch-weights-says-there-is-no-module-named-zebtrack).
-
-### Instalando para desenvolver
-
-Os mesmos passos com o grupo de dependências de desenvolvimento, e sem atalho:
+## Conteúdo
+
+- [O que é](#-o-que-é)
+- [O que ele faz](#-o-que-ele-faz)
+- [Como é na prática](#-como-é-na-prática)
+- [Quem usa](#-quem-usa)
+- [Instalação](#-instalação)
+- [Primeira execução: o que você verá](#-primeira-execução-o-que-você-verá)
+- [Modelos de detecção e OpenVINO](#-modelos-de-detecção-e-openvino)
+- [Seu primeiro projeto](#-seu-primeiro-projeto)
+- [A janela do projeto, aba por aba](#-a-janela-do-projeto-aba-por-aba)
+- [Configurações e parâmetros](#-configurações-e-parâmetros)
+- [O que sai do programa](#-o-que-sai-do-programa)
+- [Métricas comportamentais](#-métricas-comportamentais)
+- [Quando algo dá errado](#-quando-algo-dá-errado)
+- [Novidades](#-novidades)
+- [Citação](#-citação)
+- [Titularidade, registro e licença](#-titularidade-registro-e-licença)
+- [Para desenvolvedores](#-para-desenvolvedores)
+
+## 📋 O que é
+
+O **DRerio LogAI** é um aplicativo completo e de código aberto para análise comportamental
+automatizada de zebrafish (_Danio rerio_). Ele detecta e rastreia os animais num vídeo — ou ao
+vivo, direto da câmera — e transforma o movimento nas medidas que um experimento comportamental de
+fato reporta: distância percorrida, velocidade, tempo em cada região do aquário, imobilidade,
+tigmotaxia, geotaxia.
+
+É um **programa de computador com interface gráfica**. Nada aqui é programado, escrito em script ou
+digitado num terminal: projetos, zonas, modelos e parâmetros são escolhidos em janelas e caixas de
+diálogo.
+
+O zebrafish é usado em neurociência, farmacologia e toxicologia, e analisar o comportamento à mão é
+lento (horas de trabalho por minutos de vídeo), subjetivo (observadores discordam) e limitado (uma
+pessoa não acompanha vários animais ao mesmo tempo). Esta plataforma substitui isso por uma medida
+automática, objetiva e repetível, guardando cada parâmetro junto dos dados para que um resultado
+possa ser reproduzido depois.
+
+**Roda num computador comum.** Não é preciso ter placa de vídeo NVIDIA: em máquinas Intel os modelos
+rodam por OpenVINO, na CPU, no vídeo integrado ou na NPU.
+
+## ✨ O que ele faz
+
+- **🤖 Detecção e rastreamento** — modelos Ultralytics YOLO (caixas ou máscaras de segmentação), com
+  rastreamento multiobjeto por ByteTrack e manutenção da identidade em oclusões breves.
+- **🐟 Um animal ou vários**, num aquário ou em vários filmados lado a lado no mesmo vídeo
+  (multi-aquário), analisados em paralelo ou um de cada vez.
+- **📹 Vídeo pré-gravado e câmera ao vivo.** Um projeto ao vivo grava e analisa a sessão ao mesmo
+  tempo, por animal, por dia, por grupo.
+- **🎯 Arena e regiões de interesse** desenhadas sobre um quadro real da sua própria gravação, com
+  quatro regras de inclusão, modelos reutilizáveis e detecção automática da arena.
+- **📏 Unidades reais.** As dimensões do aquário em centímetros convertem pixels em cm, então
+  distâncias e velocidades saem em cm e cm/s.
+- **📊 Métricas científicas** — locomoção, velocidade angular, episódios comportamentais,
+  tigmotaxia, geotaxia (novel tank test), ocupação de ROI e tabelas por animal.
+- **🔌 Hardware em malha fechada.** Um Arduino pode ser acionado na entrada e na saída de uma ROI,
+  ou ser ele a disparar o início da gravação, com a latência quadro→acionamento registrada.
+- **📦 Formatos padrão** — Parquet (trajetórias), Excel (métricas) e Word (relatório ilustrado),
+  além de um relatório unificado de todo o projeto.
+- **🔬 Reprodutibilidade.** Toda configuração é gravada junto dos dados, o esquema da trajetória é
+  imutável e o release é arquivado com DOI.
+
+## 📸 Como é na prática
+
+A tela inicial informa quais pesos de detecção estão carregados e se o OpenVINO está ativo, antes
+de qualquer análise:
+
+![Tela inicial do DRerio LogAI, com o painel de status dos modelos](docs/wiki/screenshots/main_window.png)
+
+Zonas e regiões de interesse são desenhadas direto sobre um quadro da gravação real, de modo que a
+geometria da análise é definida contra a arena de verdade:
+
+![Configuração de zonas e ROIs sobre um quadro adquirido](docs/wiki/screenshots/roi_config.png)
+
+Cada sessão rende a trajetória reconstruída e um mapa de calor de ocupação em centímetros, sem
+pós-processamento manual:
+
+![Trajetória de natação com as quatro ROIs definidas pelo operador](docs/wiki/screenshots/trajectory_output.png)
+
+Mais telas, passo a passo, no [guia do usuário](docs/wiki/user-guide/PRIMEIROS_PASSOS.md).
+
+## 🎓 Quem usa
+
+- **Farmacologia** — triagem de fármacos (canabidiol, ansiolíticos, antidepressivos), desenhos de
+  dose-resposta ao longo de grupos e dias.
+- **Toxicologia** — toxicidade ambiental, desfechos comportamentais após exposição.
+- **Neurociência** — comportamento tipo-ansiedade (novel tank test, claro/escuro), memória e
+  aprendizagem.
+- **Genética** — fenotipagem de mutantes e transgênicos.
+- **Metodologia** — estimulação em malha fechada, caracterização de latência, rastreamento de
+  vários animais.
+
+## 📥 Instalação
+
+### O que o computador precisa
+
+| Componente | Mínimo                     | Recomendado                              |
+| ---------- | -------------------------- | ---------------------------------------- |
+| Python     | 3.12                       | 3.12 (3.13 funciona; **3.14 não**)       |
+| Disco      | 3 GB livres                | 5 GB+                                    |
+| RAM        | 8 GB                       | 16 GB+                                   |
+| CPU        | Dois núcleos               | Quatro núcleos+ (Intel Core Ultra p/ NPU)|
+| GPU        | Não é necessária           | NPU Intel Core Ultra via OpenVINO        |
+| SO         | Windows 10, Linux, macOS   | Windows 11 (onde é validado)             |
+
+**Nenhum compilador é necessário** — toda dependência instala a partir de pacote pronto.
+
+**O espaço em disco é o requisito que pega as pessoas de surpresa.** PyTorch, OpenVINO, OpenCV e
+SciPy respondem pela maior parte de um ambiente virtual de ~1,7 GB, e os modelos somam mais ~240 MB.
+
+### Instale em cinco passos (Windows)
+
+Este é o procedimento completo para usar o programa. Não exige Git, terminal nem programação. Cada
+passo está explicado clique a clique, com o que fazer quando falha, no
+**[guia de instalação completo](docs/wiki/1_Instalacao.md)** — leia aquele se algo aqui for
+desconhecido.
+
+1. **Instale o Python 3.12** em
+   [python.org](https://www.python.org/downloads/release/python-3129/) — o botão
+   "Windows installer (64-bit)". Na **primeira** tela desse instalador, marque
+   **"Add python.exe to PATH"** antes de clicar em Install.
+
+   _O Python é o motor sobre o qual o programa roda. Se você pular este passo, o instalador do
+   passo 4 se oferece para fazê-lo por você._
+
+2. **Baixe o DRerio LogAI**: abra a
+   [página de releases](https://github.com/MarkSant/DRerio-LogAI/releases) e, em **Assets** do
+   release mais recente, clique em **Source code (zip)**.
+
+3. **Extraia o ZIP** num lugar permanente: botão direito no arquivo baixado → **Extrair tudo**.
+   Escolha uma pasta simples, como `C:\DRerio-LogAI`. **Não** a pasta Downloads — essa pasta vira a
+   casa do programa, guardando os modelos, as configurações e (por padrão) seus projetos.
+
+4. **Dê dois cliques em `install.bat`** dentro da pasta extraída. O Windows pode avisar que
+   protegeu o computador; escolha **Mais informações → Executar assim mesmo** (o arquivo é um
+   script de uma linha, e o aviso só significa que ele veio da internet).
+
+   Ele confere o Python, confere o Poetry, **se oferece para instalar o que estiver faltando**,
+   instala as bibliotecas, baixa os ~240 MB de modelos e cria o ícone **DRerio LogAI** na área de
+   trabalho e no menu Iniciar. Conte com alguns minutos. Responda `Y` ao que ele perguntar.
+
+5. **Abra o programa** pelo ícone **DRerio LogAI**.
+
+É só isso. O programa pergunta o idioma, mede o hardware, cria suas pastas e abre. Câmera, porta do
+Arduino e todo o resto são escolhidos dentro da interface — não há arquivo de configuração para
+escrever à mão.
+
+### Linux e macOS
 
 ```bash
 git clone https://github.com/MarkSant/DRerio-LogAI.git
 cd DRerio-LogAI
-poetry install --with dev
-
-# Instale os hooks de pré-commit
-poetry run pre-commit install
-
-# Baixe os modelos do detector (~250 MB, obrigatórios para rodar o app)
-poetry run fetch-weights
-
-# Execute os testes para verificar a instalação
-poetry run pytest -q
+./setup.sh          # Debian/Ubuntu: dependências, modelos e atalho .desktop
 ```
 
-`install.ps1 -Dev` faz o mesmo no Windows, e ainda cria o atalho.
-
-**Sobre os pesos do detector.** Os modelos YOLO treinados não ficam no
-repositório por causa do tamanho. O `fetch-weights` os baixa do release do
-projeto no GitHub e confere cada arquivo contra um SHA-256 gravado em
-`weights_manifest.json`. Use `--check` para validar uma instalação existente sem
-baixar, ou `--all` para trazer também os dois modelos generalistas.
-
-São seis modelos anexados ao release, e quatro baixados por padrão. Esses quatro
-são o par de perspectiva -- um `seg` e um `det` para lateral e para top-down --
-e são os que o catálogo encontra sozinho. Os outros dois, `best_oi.pt` (det) e
-`best_seg.pt` (seg), são generalistas de 3 classes: têm uma classe `zup-aqua`
-que os de perspectiva não têm. Nada os registra automaticamente, então depois do
-`--all` adicione-os pelo botão **Add Weight...** no painel de configuração de
-modelos.
-
-**Abrir sem o atalho**, de qualquer pasta:
+No macOS, e nas distribuições onde o `setup.sh` não se aplica, instale
+[Python 3.12](https://www.python.org/downloads/) e
+[Poetry](https://python-poetry.org/docs/#installation) e então:
 
 ```bash
+poetry install
+poetry run fetch-weights     # ~240 MB de modelos treinados, obrigatório
 poetry run zebtrack
 ```
 
-**Gerenciar o atalho** no Windows:
+O Linux também precisa das ligações do Tk: `sudo apt install python3.12-tk` em sistemas baseados em
+Ubuntu.
 
-```powershell
-powershell -ExecutionPolicy Bypass -File scripts\install_shortcut.ps1           # criar/reparar
-powershell -ExecutionPolicy Bypass -File scripts\install_shortcut.ps1 -Remove   # remover
-```
+### Atualizando para uma versão nova
 
-Rode de novo depois de mover a pasta do repositório: o atalho guarda um caminho
-absoluto, então mover deixa ele apontando para o nada.
+Baixe e extraia o ZIP novo, copie para ele o `config.local.yaml`, a pasta `weights/` e os projetos
+guardados dentro da pasta antiga, e rode o `install.bat` de novo. Com Git, `git pull` seguido de
+`install.bat` faz o mesmo. Rode o instalador novamente também depois de **mover** a pasta: o atalho
+guarda um caminho absoluto.
 
-### 🧩 Extensões VS Code (Desenvolvimento)
+## 🚀 Primeira execução: o que você verá
 
-Para consistência no ambiente local, siga estas boas práticas com as extensões instaladas:
+Na ordem, na primeiríssima abertura:
 
-- **Python / Pylance**: use o interpretador do Poetry (venv) no editor e no terminal.
-- **Ruff**: use como **único** formatter/linter Python; evite Black/Pylint/Flake8 no VS Code.
-- **Mypy (Matan Gover)**: extensão única de daemon Mypy; prefira `mypy.runUsingActiveInterpreter=true`;
-  alinhe com `mypy.ini`/`pyproject.toml`.
-- **Python Debugger**: depure e gerencie ambientes usando o mesmo interpretador do Poetry.
-- **PowerShell**: use para scripts e automação; mantenha comandos no terminal PowerShell.
-- **GitHub Copilot / Chat / PRs / Actions**: faça mudanças incrementais e sempre com impacto analisado.
-- **GitLens (GitKraken)**: ferramenta Git principal — blame inline, histórico e comparação.
-- **Error Lens**: exibe erros/warnings inline; CSpell excluído.
-- **TODO Tree**: rastreia tags TODO, FIXME, HACK, BUG, XXX, DEPRECATED.
-- **YAML / markdownlint / Code Spell Checker**: mantenha lint ativo e corrija avisos.
+1. **A pergunta de idioma.** Sua resposta é gravada em `config.local.yaml`. O idioma do sistema
+   operacional **não** é consultado de propósito — antes da v5.0.0 uma máquina brasileira gerava
+   relatórios em português sem ninguém pedir. Mude depois em **Configurações → Idioma...**.
 
-Checklist rápido:
+2. **Uma tela de abertura rodando um teste de hardware.** Ela converte um modelo para OpenVINO e
+   mede a inferência nos dispositivos que encontra, para escolher o backend. Esta é a abertura mais
+   lenta que você terá: o resultado fica em cache e as próximas pulam a etapa. Uma medição que não
+   mediu nada é marcada como inconclusiva e refeita na próxima vez, em vez de virar um chute
+   permanente.
 
-- [ ] Interpretador ativo é o venv do Poetry.
-- [ ] Ruff é o único formatter Python (Black/Pylint/Flake8 desativados).
-- [ ] Apenas `matangover.mypy` instalado (NÃO `ms-python.mypy-type-checker`).
-- [ ] Linters de YAML/Markdown estão ativos.
+3. **A janela principal**, com **Criar Novo Projeto**, **Abrir Projeto Existente**, **Analisar
+   Vídeo Único** e **Analisar Câmera ao Vivo**, além do painel que informa os pesos ativos e o
+   estado do OpenVINO.
 
-Como configurar no VS Code:
+4. **A janela de Primeiros passos**, explicando os modelos de detecção, os quatro papéis que eles
+   preenchem e se vale ligar o OpenVINO **na sua máquina** — ela lê o hardware encontrado e nomeia
+   os dispositivos, em vez de dar conselho genérico. O botão dela abre o painel de modelos direto.
 
-- Use "Python: Select Interpreter" para escolher o venv do Poetry.
-- Prefira `python.analysis.typeCheckingMode=basic` e use `strict` apenas em arquivos alvo.
-- Mypy: mantenha config em `mypy.ini`/pyproject e prefira `mypy.runUsingActiveInterpreter=true`.
-- Ruff: `editor.defaultFormatter=charliermarsh.ruff`, `editor.formatOnSave=true` e `editor.codeActionsOnSave` com `source.fixAll.ruff` e `source.organizeImports.ruff`.
-- GitLens: habilitado por padrão; blame inline e CodeLens ativos.
+   Dispensá-la em definitivo é seguro: ela volta por **Ajuda → Primeiros passos...**, e o painel
+   para onde ela aponta fica em **Configurações → Definições de modelo...**.
 
-> Nota para agentes: as instruções de agentes têm **fonte de verdade** em AGENTS.md e mudanças devem começar por lá.
+Os modelos de detecção **não** são baixados aqui. Eles vêm uma única vez, antes, pelo
+`fetch-weights`, que o instalador executa por você. Sem eles o programa abre e depois se recusa a
+rastrear, nomeando os arquivos que faltam.
 
-## ▶️ Execução
+## 🧠 Modelos de detecção e OpenVINO
 
-### Modo Gráfico (GUI)
+Esta é a única coisa que vale configurar antes da primeira análise.
 
-Para iniciar a interface gráfica:
+### Os seis modelos
+
+O `fetch-weights` instala seis modelos YOLO treinados em `weights/` e confere cada um contra um
+SHA-256 registrado em `weights_manifest.json`.
+
+| Modelo | Tipo | Ângulo da câmera | Use quando |
+| --- | --- | --- | --- |
+| `best_det_lateral.pt` | detecção (caixa) | lateral | Novel tank test, geotaxia, aquários filmados de lado |
+| `best_seg_lateral.pt` | segmentação (máscara) | lateral | O mesmo, quando a precisão nas bordas importa |
+| `best_det_topdown.pt` | detecção (caixa) | de cima | Campo aberto, claro/escuro, arenas filmadas de cima |
+| `best_seg_topdown.pt` | segmentação (máscara) | de cima | O mesmo, quando a precisão nas bordas importa |
+| `best_oi.pt` | detecção (caixa) | qualquer | Montagens que os especialistas não atendem; traz a classe `zup-aqua` |
+| `best_seg.pt` | segmentação (máscara) | qualquer | O mesmo, com máscaras |
+
+**Um modelo treinado para um ângulo não devolve nada no outro.** Um modelo lateral numa gravação de
+cima não detecta o peixe que está claramente visível — então a primeira coisa a acertar é combinar
+o modelo com a forma como sua câmera está montada.
+
+Os quatro especialistas já vêm atribuídos como padrão. Os dois generalistas ficam registrados mas
+não ocupam nenhum papel: são uma escolha explícita sua.
+
+### Os quatro papéis
+
+Em **Configurações → Definições de modelo...**, em **Pesos padrão por papel**, um modelo é
+atribuído a cada papel:
+
+| Papel | O que ele encontra |
+| --- | --- |
+| 🐠 **Aquário (Detecção)** | A arena, como um retângulo |
+| 🐠 **Aquário (Segmentação)** | A arena, na forma real |
+| 🐟 **Animal (Detecção)** | Cada peixe, como uma caixa |
+| 🐟 **Animal (Segmentação)** | Cada peixe, como uma máscara |
+
+Qual par é usado numa análise depende do método escolhido para aquele projeto, no passo **Modelos e
+Pesos** do assistente.
+
+**Detecção ou segmentação?**
+
+- **Detecção (`det`)** é mais leve e basta quando a posição aproximada é o que você precisa.
+- **Segmentação (`seg`)** é a melhor escolha quando a análise depende de precisão espacial — ROIs
+  pequenas, bordas, vários animais próximos — e é **obrigatória** para a regra de ROI
+  `seg_overlap`, que precisa de máscaras gravadas.
+
+### OpenVINO
+
+O OpenVINO é o acelerador de inferência da Intel. Se vale ligá-lo depende da sua máquina, e a
+janela de Primeiros passos responde isso para a máquina à sua frente:
+
+| Seu hardware | O que fazer |
+| --- | --- |
+| Placa de vídeo NVIDIA | Deixe o OpenVINO **desligado**; PyTorch com CUDA costuma ser mais rápido |
+| CPU Intel, vídeo integrado ou NPU, sem NVIDIA | **Ligue** — é o caminho rápido aqui (3–5× em CPUs Intel) |
+| Nenhum dos dois | Roda mesmo assim, na CPU, só mais devagar |
+
+Em **Configurações → Definições de modelo...**: marque **Otimizar com OpenVINO (para hardware
+Intel)**, escolha o **dispositivo OpenVINO** (CPU, GPU ou NPU) e use **Converter para OpenVINO** nos
+pesos que pretende usar. **A conversão acontece uma vez** e fica em cache em
+`openvino_model_cache/`; o painel mostra cada peso como ✓ Pronto, ⏳ Convertendo ou ✗ Falhou.
+
+O mesmo painel tem **Adicionar peso...** (registrar um modelo treinado por você), **Validar
+caminhos**, **Reescanear a pasta de pesos**, manutenção de cache e **Refazer o benchmark de
+hardware**.
+
+### Conferir ou reparar os modelos
 
 ```bash
-poetry run zebtrack
+poetry run fetch-weights --check    # confere o que está instalado, sem baixar nada
+poetry run fetch-weights            # baixa o que faltar ou estiver corrompido
 ```
 
-### Modo Linha de Comando (CLI)
+## 🚀 Seu primeiro projeto
 
-Atualmente o entrypoint `zebtrack` é focado na execução da aplicação (GUI) e expõe apenas
-opções de diagnóstico/log via argumentos.
+### A versão curta, de ponta a ponta
 
-```bash
-# Exemplo: aumentar verbosidade de um módulo específico
-poetry run zebtrack --log-level zebtrack.core.detector=DEBUG
-```
+1. **Criar Novo Projeto**, na janela principal, abre o assistente.
+2. Responda ao assistente (7 passos no pré-gravado, 6 no ao vivo — detalhados abaixo).
+3. Em **Configuração de Zonas**, desenhe a arena e as regiões de interesse sobre um quadro real e
+   clique em **✅ Finalizar e Salvar Projeto**.
+4. Em **Controle Principal** (pré-gravado), use **Analisar Vídeo(s) Selecionado(s)** ou **Processar
+   Vídeos Pendentes...**; num projeto ao vivo, **▶️ Iniciar Gravação**.
+5. Em **Processamento e Relatórios**, gere os relatórios parcial e unificado.
+6. Abra o `.xlsx` e o `.docx` gravados ao lado de cada vídeo.
 
-### Primeira Execução
+### O assistente, passo a passo
 
-Na primeira execução, o aplicativo irá:
+Os dois fluxos partem de **Criar Novo Projeto**. O assistente tem 1150×550 px e mostra seu próprio
+contador de passos.
 
-1. **Perguntar o idioma**: a escolha é gravada em `config.local.yaml`; o locale do
-   sistema operacional deliberadamente não é consultado
-2. **Avaliar o hardware**: escolhe o backend de inferência e guarda o resultado em
-   cache, para que as execuções seguintes pulem essa etapa
-3. **Criar diretórios**: estrutura de pastas para projetos, templates e cache
-4. **Abrir o Wizard**: interface guiada para criar seu primeiro projeto
+#### Projeto pré-gravado — 7 passos
 
-Os pesos do detector **não** são baixados aqui. Eles são obtidos uma única vez,
-antes, pelo `fetch-weights`, que o instalador executa para você. Sem eles o
-aplicativo para na inicialização, com um diálogo nomeando os arquivos que faltam.
+| # | Passo | O que você faz |
+| --- | --- | --- |
+| 1 | **Descoberta** | Tipo de projeto (experimental / ao vivo), se as pastas têm significado experimental e o que fazer com arquivos `.parquet` encontrados ao lado dos vídeos |
+| 2 | **Seleção de vídeos** | **📁 Adicionar arquivos...** ou **📂 Adicionar pasta...**; uma prévia mostra a estrutura entendida |
+| 3 | **Calibração física** | **Largura (cm)** e **Altura (cm)** do aquário, número de aquários por vídeo, animais por aquário, intervalo de análise, opções comportamentais |
+| 4 | **Detecção automática do desenho** | A estrutura de pastas vira Grupos / Dias / Sujeitos. Revise e corrija com **✏️ Editar desenho** ou **🔧 Regex personalizada** |
+| 5 | **Modelos e Pesos** | Método e peso por papel, OpenVINO, confiança/NMS do YOLO e os parâmetros do ByteTrack |
+| 6 | **Configuração de importação** | Por vídeo: importar arena, ROIs, trajetória — e a estratégia de mesclagem quando já existem ROIs |
+| 7 | **Confirmação** | Nome e local do projeto, resumo de tudo, opcionalmente **💾 Salvar como modelo** |
 
-### Configurações: não há nada para escrever à mão
+#### Projeto ao vivo — 6 passos
 
-O `config.local.yaml` é o arquivo de sobrescrita desta máquina. **Ele é criado
-sozinho** — responder ao prompt de idioma da primeira execução é o que o grava —
-e tudo que ele contém é acessível pela interface:
+| # | Passo | O que você faz |
+| --- | --- | --- |
+| 1 | **Descoberta** | Tipo de projeto: ao vivo |
+| 2 | **Desenho experimental** | Dias, grupos, nomes dos grupos, animais por grupo — o assistente mostra quantas gravações isso dá |
+| 3 | **Configuração da gravação ao vivo** | **🔍 Detectar câmeras** e escolher uma; porta do Arduino opcional com **🔌 Testar**; modo de gatilho externo; gravação temporizada e contagem regressiva |
+| 4 | **Calibração física** | Como acima |
+| 5 | **Modelos e Pesos** | Como acima |
+| 6 | **Confirmação** | Como acima |
 
-| Configuração               | Onde se escolhe                                                    |
-| -------------------------- | ------------------------------------------------------------------ |
-| Idioma da interface        | **Configurações → Idioma**                                          |
-| Câmera                     | Wizard de projeto (projetos ao vivo); depois, o diálogo da sessão   |
-| Porta do Arduino           | O painel do Arduino, que lista as portas encontradas                |
-| Limiares do detector, ROI  | O editor de configuração e o painel de análise                      |
+**Organizando as pastas de vídeo.** Quando as pastas têm significado experimental, um arranjo como
+`Grupo_CBD/Dia_1/Sujeito_4/CECT_4.mp4` é detectado automaticamente em grupos, dias e sujeitos. O
+mesmo nome de arquivo pode se repetir entre dias — um desenho longitudinal grava o mesmo sujeito
+todo dia — porque um vídeo é identificado pelo **caminho**, nunca só pelo nome.
 
-**Câmera e porta do Arduino são gravadas por projeto, e o valor do projeto tem
-precedência sobre o global.** Defini-los globalmente à mão, portanto, não faz
-efeito num projeto que tenha os seus — que é todo projeto criado pelo wizard.
+> **O modo de gatilho externo** (o Arduino inicia a gravação) é opcional e vem desligado. Ele exige
+> um sketch que envie `1`/`0` pela serial; o sketch de referência deste repositório **não** faz
+> isso. Veja [`docs/guides/user/external-trigger.md`](docs/guides/user/external-trigger.md).
 
-Se ainda assim for editar o arquivo, coloque nele _apenas_ as chaves que quer
-sobrescrever:
+### Desenhando a arena e as ROIs
+
+Na aba **Configuração de Zonas**, sobre um quadro do seu próprio vídeo:
+
+- **Detectar Aquário (Auto)** propõe a arena; **Suavização (quadros)** reduz o ruído dessa detecção.
+  Ou desenhe você mesmo com **Polígono Principal**.
+- **Região de Interesse (ROI)** desenha cada região — polígonos, retângulos e círculos. Dê nome a
+  elas; as métricas saem por ROI com esses nomes.
+- **Modelos de ROI** salvam um conjunto de regiões para reutilizar em outros vídeos e projetos.
+- Desfazer e refazer estão sempre à mão (`Ctrl+Z` / `Ctrl+Y`).
+- Com vários aquários no mesmo vídeo, o **Modo de processamento** escolhe entre **Simultâneo** (uma
+  passada) e **Sequencial** (um aquário por vez).
+
+As zonas pertencem ao vídeo em que foram desenhadas. Um vídeo sem zonas próprias usa o padrão do
+projeto.
+
+## 🧩 A janela do projeto, aba por aba
+
+- **Controle Principal** — ações conforme o tipo de projeto (ao vivo: iniciar/parar gravação;
+  pré-gravado: adicionar e processar vídeos), a árvore grupo/dia/sujeito/vídeo e o painel **Status
+  do Modelo de Detecção**.
+- **Configuração de Zonas** — arena e ROIs, regra de inclusão, estabilização, modelos.
+- **Análise de Vídeo** — acompanhar a análise em curso e selecionar quais `track_id` considerar.
+- **Processamento e Relatórios** — geração de trajetória, exportação do sumário, relatórios parciais
+  e unificados, com árvore de status por vídeo; duplo clique abre o arquivo.
+- **Config. Modelo IA** / **Diagnóstico de Modelo IA** — o painel de modelos deste projeto e um
+  teste contra um quadro de exemplo.
+- **Configurações Avançadas** — editor das configurações dentro do programa, persistido em
+  `config.local.yaml`.
+- **Progresso do Experimento** (projetos ao vivo) — a grade dia × grupo com as sessões concluídas.
+
+Projetos ao vivo também expõem o **Painel do Arduino**, com status da conexão, comandos e nova
+varredura de portas.
+
+## 🔩 Configurações e parâmetros
+
+**Não há nada para escrever à mão.** O `config.local.yaml` é criado por você — responder à pergunta
+de idioma é o que o escreve — e tudo que um operador precisa está na interface.
+
+### O que ajustar, e quando
+
+| Parâmetro | Onde | Padrão | Aumente quando | Diminua quando |
+| --- | --- | --- | --- | --- |
+| **Confiança mínima** | Assistente → Modelos e Pesos; Configurações Avançadas | 0,05 | Aparecem detecções falsas (reflexos, sombras, o termostato) | O animal é perdido, ou some em quadros escuros |
+| **NMS (sobreposição)** | Idem | 0,5 | O mesmo peixe é detectado duas vezes | Dois peixes próximos viram um só |
+| **Track Threshold** | Idem (ByteTrack) | 0,25 | Surgem IDs em cima de ruído | As trilhas se partem |
+| **Match Threshold** | Idem | 0,95 (permissivo) | As trilhas se partem entre quadros analisados | IDs pulam de um animal para outro |
+| **Track Buffer (quadros)** | Idem | 150 | O animal é ocluído com frequência e volta | A identidade não deve sobreviver a uma ausência longa |
+| **Distância máxima (px)** | Idem | 400 | O animal nada rápido para o intervalo de análise | IDs são trocados entre vizinhos |
+| **Intervalo de análise (quadros)** | Assistente → Calibração; Config. Avançadas | 10 | O processamento está lento demais | Você precisa de mais resolução temporal |
+| **Regra de inclusão de ROI** | Configuração de Zonas | `bbox_intersects` | — | Veja abaixo |
+| **Número de animais** | Assistente → Calibração | 1 | — | Precisa bater com a realidade; "1 animal" é respeitado |
+| **Duração da gravação** | Assistente → ao vivo, por bloco ou por cobaia | 300 s | — | — |
+
+O padrão de confiança é deliberadamente baixo porque ele é o piso para achar o **aquário**, uma vez.
+O limiar do animal é separado (`animal_confidence_threshold`) e herda esse valor até você defini-lo:
+aceitar um tanque uma vez e aceitar um peixe em todo quadro são perguntas diferentes.
+
+> **Ajuste um parâmetro de cada vez, em passos de ±0,05, e teste.** A interface diz o mesmo, pela
+> mesma razão: mexer em dois ao mesmo tempo torna o resultado impossível de atribuir.
+
+**As regras de inclusão de ROI** decidem o que conta como "o animal está dentro da região":
+
+| Regra | Conta como dentro quando |
+| --- | --- |
+| `bbox_intersects` (padrão) | A caixa do animal sobrepõe a região em pelo menos `roi_min_bbox_overlap_ratio` (0,10) |
+| `centroid_in` | O centro do animal está dentro da região |
+| `centroid_in_on_buffered_roi` | O mesmo, numa região expandida ou contraída por uma margem |
+| `seg_overlap` | A **máscara** de segmentação sobrepõe a região acima de uma fração (0,3 por padrão) |
+
+A `seg_overlap` precisa de máscaras, que só existem se tiverem sido gravadas — método de
+segmentação, persistência de máscaras ligada e essa regra em vigor. Quando faltam, a análise
+**degrada para `bbox_intersects` com um aviso no relatório**, em vez de falhar.
+
+**Câmera e porta do Arduino ficam salvas no projeto, e o valor do projeto vence o global.** Defini-los
+globalmente à mão, portanto, não faz nada por um projeto que tem os seus — que é todo projeto criado
+pelo assistente.
+
+Se ainda assim editar o `config.local.yaml`, escreva nele _apenas_ as chaves que está sobrescrevendo:
 
 ```yaml
 camera:
   index: 0
 ```
 
-> **Não** copie o `config.yaml` inteiro para dentro dele. Os dois arquivos são
-> mesclados recursivamente, então uma cópia completa congela todos os padrões
-> atuais na sua máquina e sombreia em silêncio qualquer correção posterior.
+> **Não** copie o `config.yaml` inteiro para dentro dele. Os dois são mesclados recursivamente, então
+> uma cópia completa congela todos os padrões atuais na sua máquina e esconde silenciosamente toda
+> correção futura.
 
-## 🎬 Guia Rápido de Uso
+## 📁 O que sai do programa
 
-### Fluxo de Trabalho Típico
-
-1. **Criar Projeto** (Wizard dinâmico: 6 etapas ao vivo, 7 etapas pré-gravado)
-    - **Discovery**: tipo de projeto (experimental/exploratório/ao vivo), organização de pastas e
-       escopo de importação de parquets (quando aplicável); suporte a templates
-    - **Pré-gravado**: seleção de arquivos/pastas → calibração física → detecção/validação de
-       design (auto-detecção por estrutura de pastas, regex customizada e editor de design)
-       → seleção de modelo/pesos/parâmetros → configuração de importação por vídeo
-       (arena/ROIs/trajetória + estratégia de merge de ROIs) → confirmação
-    - **Ao vivo**: design experimental (grupos/dias/sujeitos) → configuração de câmera/Arduino e
-       gravação (inclui modo de gatilho externo) → calibração física → seleção de modelo/pesos/
-       parâmetros → confirmação
-    - O **modo de gatilho externo** (Arduino dá a partida na gravação) é opt-in e vem
-       desligado; exige um sketch que envie `1`/`0` pela serial — o sketch de referência
-       do repositório **não** faz isso. Ver
-       [`docs/guides/user/external-trigger.md`](docs/guides/user/external-trigger.md).
-
-2. **Processar Vídeos**
-   - Detecção automática de peixes com YOLO
-   - Rastreamento multi-objeto com BYTETracker
-   - Filtragem de trajetórias (Savitzky-Golay)
-   - Cálculo de métricas comportamentais
-
-3. **Analisar Resultados**
-   - Visualizar trajetórias e heatmaps
-   - Revisar métricas por ROI e zona
-   - Exportar dados para análise estatística
-
-4. **Gerar Relatórios**
-   - Relatórios automatizados em Word
-   - Planilhas Excel com métricas agregadas
-   - Gráficos de velocidade, distância e ocupação
-
-## 🧩 Tour da Interface (abas do projeto)
-
-Após criar/abrir um projeto, a janela principal organiza o fluxo operacional em abas:
-
-- **Controle Principal**: ações por tipo de projeto (ao vivo: iniciar/parar gravação; pré-gravado:
-   adicionar e processar novos vídeos/pastas), fechar projeto, visão geral hierárquica
-   (grupo/dia/sujeito/vídeo), e painel de estado do modelo (peso ativo e OpenVINO)
-- **Configuração de Zonas**: definição de arena e ROIs com desenho por polígono, desfazer/refazer,
-   estabilização (ignorar frames iniciais), regras de inclusão em zona (centroide/intersecção/sobreposição)
-   e suporte a templates/reuso
-- **Análise de Vídeo**: acompanhamento de análise e seleção de `track_id` (todos ou específicos)
-- **Processamento e Relatórios**: centraliza geração de trajetórias, exportação de sumários e
-   geração de relatórios (parciais e unificado), com árvore de status por vídeo e abertura por duplo clique
-- **Config. Avançadas**: editor in-app para parâmetros do `config.yaml` com persistência em
-   `config.local.yaml` e sincronização por eventos
-- **Progresso do Experimento** (ao vivo): grade visual de progresso e atualização sob demanda
-
-Em projetos ao vivo, o **Arduino Dashboard** também é integrado ao fluxo para status de conexão,
-comandos e rechecagem de portas.
-
-## 🔬 Funcionalidades Científicas
-
-### Detecção e Rastreamento
-
-- **Modelos**: Ultralytics YOLO (detecção e/ou segmentação conforme o objetivo)
-- **Aceleração**: OpenVINO para CPUs Intel (3-5x mais rápido), suporte a NPU (Intel Core Ultra)
-- **Variantes de Modelo**: `standard`, `lite`, `nano` — seleção automática por hardware
-- **Multi-objeto**: Rastreamento simultâneo de até 96 peixes
-- **Filtragem**: Savitzky-Golay para suavização de trajetórias
-- **Persistência**: Manutenção de IDs através de oclusões temporárias
-
-### Pesos, backends e reprodutibilidade de modelo
-
-- **Catálogo persistente de pesos**: gerenciamento via `weights_config.json`
-- **Tipos de peso**: separação explícita entre segmentação (`seg`) e detecção (`det`)
-- **Padrões independentes por tipo**: um peso padrão para segmentação e outro para detecção
-- **Seleção por tarefa**: no Wizard, método/peso podem ser definidos separadamente para “aquário”
-   e “animal”
-- **OpenVINO**: conversão/caching com estados explícitos (não convertido, convertendo, pronto, falhou)
-
-### Detecção (det) vs Segmentação (seg): quando usar
-
-- **Detecção (det)**: representa o alvo como _bounding box_; tende a ser mais leve e adequada quando
-   a localização aproximada é suficiente
-- **Segmentação (seg)**: representa o alvo como máscara; tende a ser mais adequada quando a análise
-   depende de precisão espacial (bordas/ROIs pequenas) e/ou quando há múltiplos animais
-
-O DRerio LogAI expõe na UI os parâmetros críticos (confiança/NMS e ByteTrack) para documentar e
-reproduzir o trade-off escolhido em cada experimento.
-
-### Métricas Comportamentais
-
-<!-- EN: Complete behavioral metrics reference with formulas and column names.
-     PT: Referência completa de métricas com fórmulas e nomes de colunas. -->
-
-#### Métricas Locomotoras / Locomotor Metrics
-
-| Métrica / Metric | Coluna / Column | Fórmula / Formula |
-| --- | --- | --- |
-| Distância Total / Total Distance | `total_distance_cm` | $D = \sum_{i=1}^{N-1} \sqrt{(x_{i+1}-x_i)^2 + (y_{i+1}-y_i)^2}$ |
-| Velocidade Média / Mean Speed | `mean_speed_cm_s` | $\bar{v} = \text{mean}(v_i)$ onde $v_i = d_i \times FPS$ |
-| Velocidade Máxima / Max Speed | `max_speed_cm_s` | $v_{\max} = \max(v_i)$ |
-| Desvio Padrão Vel. / Speed Std Dev | `std_speed_cm_s` | $\sigma_v = \text{std}(v_i)$ |
-| Tortuosidade / Tortuosity | `tortuosity` | $T = D_{\text{path}} / D_{\text{net}}$ (≥ 1.0; 1.0 = reta perfeita) |
-
-#### Velocidade Angular / Angular Velocity
-
-| Métrica / Metric | Coluna / Column | Fórmula / Formula |
-| --- | --- | --- |
-| Vel. Angular Média / Mean Angular Vel. | `mean_angular_velocity_deg_s` | $\bar{\omega} = \text{mean}(\|\omega_i\|)$ |
-| Vel. Angular Máx. / Max Angular Vel. | `max_angular_velocity_deg_s` | $\omega_{\max} = \max(\|\omega_i\|)$ |
-| Desvio Padrão / Angular Vel. Std Dev | `angular_velocity_std_dev_deg_s` | $\sigma_\omega = \text{std}(\|\omega_i\|)$ |
-| Curvas Acentuadas / Sharp Turns | `sharp_turns_count` | Frames onde $\|\omega_i\| >$ threshold |
-| Curvas por Minuto / Turns per Minute | `sharp_turns_per_minute` | $\text{count} \times 60 / T_{\text{total}}$ |
-
-Onde $\omega_i = \arctan2(\vec{v}_i \times \vec{v}_{i-1},\; \vec{v}_i \cdot \vec{v}_{i-1}) \times FPS$ — signed angle between consecutive displacement vectors.
-
-#### Episódios Comportamentais / Behavioral Episodes
-
-| Métrica / Metric | Coluna / Column | Descrição / Description |
-| --- | --- | --- |
-| Rajadas de Velocidade / Speed Bursts | `speed_bursts_count`, `speed_bursts_total_duration_s` | Episódios com $v > $ threshold |
-| Periodos de Inatividade / Inactivity | `inactivity_count`, `inactivity_total_duration_s`, `inactivity_percentage_of_recording` | $v <$ threshold por duração mínima |
-
-#### Métricas Espaciais / Spatial Metrics
-
-| Métrica / Metric | Coluna / Column | Descrição / Description |
-| --- | --- | --- |
-| Tigmotaxia (parede) / Thigmotaxis | `thigmotaxis_time_near_wall_pct` | % tempo próximo à parede |
-| Distância Média da Parede / Avg Wall Dist | `thigmotaxis_avg_wall_distance_cm` | Distância média ao contorno da arena |
-| Ocupação Geotaxia / Geotaxis Zones | `geotaxis_zone_{i}_pct` | % tempo em cada zona vertical (vista lateral) |
-
-Para cada ROI definida pelo usuário, métricas adicionais são geradas: tempo, entradas, saídas, latência, distância e velocidade dentro da ROI.
-
-> **Aquários poligonais (N lados) / Polygonal arenas.** A distância à parede
-> (tigmotaxia) é a distância euclidiana exata até a aresta mais próxima do
-> polígono do aquário, válida para qualquer número de lados (≥3), convexo ou
-> côncavo — não só retângulos. Logo, o gráfico de tigmotaxia do relatório é
-> confiável para aquários de 8+ lados. Detalhes (e a ressalva da geotaxia, que
-> usa o piso da _bounding-box_): [docs/reference/metrics.md](docs/reference/metrics.md).
->
-> **Referência completa**: [docs/reference/metrics.md](docs/reference/metrics.md) — [Full reference with all column names and formulas]
-
-#### Metadados de Sessão / Session Metadata
-
-| Coluna / Column | Descrição / Description |
-| --- | --- |
-| `experiment_id` | Identificador do vídeo/experimento |
-| `group_id` | Grupo experimental |
-| `day` | Dia experimental |
-| `video_duration_s` | Duração do vídeo em segundos |
-| `total_frames_analyzed` | Total de frames processados |
-
-### Schema Parquet (Trajetória) / Parquet Schema (Trajectory)
-
-O schema de colunas do arquivo de trajetória (`3_CoordMovimento_*.parquet`) é imutável:
-
-```text
-timestamp, frame, track_id, x1, y1, x2, y2, confidence
-[x_center_px, y_center_px, x_cm, y_cm]*  — quando calibração disponível
-```
-
-### Estrutura de Saída / Output Directory Structure
-
-Cada vídeo processado gera uma pasta de resultados:
+Cada vídeo processado gera uma pasta de resultados ao lado dele:
 
 ```text
 <video>_results/
-├── 1_ArenaROI_<video>.parquet       # Definições Arena/ROI
-├── 2_Zones_<video>.parquet          # Metadados de zonas
-├── 3_CoordMovimento_<video>.parquet # Trajetória (schema imutável)
-├── <video>_summary.xlsx             # Resumo por ROI
+├── 1_ArenaROI_<video>.parquet       # Definições de arena/ROI
+├── 2_Zones_<video>.parquet          # Metadados das zonas
+├── 3_CoordMovimento_<video>.parquet # Trajetória (esquema imutável)
+├── 3b_Mascaras_<video>.parquet      # Máscaras de segmentação (só quando gravadas)
+├── <video>_summary.xlsx             # Métricas por ROI + tabela por animal
 └── <video>_report.docx              # Relatório Word com gráficos
 ```
 
-Multi-aquário adiciona subpastas por aquário:
+Multi-aquário acrescenta as subpastas `aquarium_0/`, `aquarium_1/` espelhando esse arranjo. Sessões
+ao vivo somam um registro de quadros (`6_FrameLedger_*`), que mapeia cada quadro analisado ao
+instante real de captura, e, com o Arduino, um log de latência em malha fechada (`5_ClosedLoop_*`).
+
+O relatório do projeto inteiro reúne todos os vídeos:
 
 ```text
-<video>_results/
-├── aquarium_0/
-│   ├── 3_CoordMovimento_<video>.parquet
-│   ├── <video>_aq0_summary.parquet
-│   ├── 4_Relatorio_<video>_aq0.docx
-│   └── 4_Relatorio_<video>_aq0.xlsx
-└── aquarium_1/
-    ├── 3_CoordMovimento_<video>.parquet
-    ├── <video>_aq1_summary.parquet
-    ├── 4_Relatorio_<video>_aq1.docx
-    └── 4_Relatorio_<video>_aq1.xlsx
+<projeto>/unified_reports/
+├── project_summary_<run_id>.parquet   # Dados brutos
+├── project_summary_<run_id>.xlsx      # Abas "Dados" + "Estatísticas descritivas"
+├── project_summary_<run_id>.csv       # Igual à aba de dados
+├── project_summary_<run_id>.docx      # Boxplots comparativos + tabela descritiva
+└── project_summary_<run_id>.json      # Manifesto com metadados da execução
 ```
 
-### Relatório Unificado / Unified Report
-
-Ao gerar relatórios unificados para o projeto, os seguintes arquivos são criados:
+O esquema da trajetória é fixo e não muda entre versões:
 
 ```text
-<project>/unified_reports/
-├── project_summary_<run_id>.parquet   # Dados brutos (colunas EN internas)
-├── project_summary_<run_id>.xlsx      # Excel com 2 abas: "Data" + "Descriptive Stats"
-├── project_summary_<run_id>.csv       # CSV idêntico à aba "Data" do Excel
-├── project_summary_<run_id>.docx      # Word: boxplots comparativos + tabela descritiva
-└── project_summary_<run_id>.json      # Manifesto com metadados do run
+timestamp, frame, track_id, x1, y1, x2, y2, confidence
+[x_center_px, y_center_px, x_cm, y_cm]*   — quando há calibração
 ```
 
-O Excel e CSV utilizam nomes de colunas traduzidos (display names). A aba "Descriptive Stats" contém estatísticas descritivas (mean, std, count, min, max) agrupadas por grupo e dia.
+## 📊 Métricas comportamentais
 
-### Calibração e Coordenadas
+Por vídeo, por animal e por ROI:
 
-- **Calibração Espacial**: Conversão pixels → cm via dimensões físicas informadas (largura/altura em cm)
-- **Sistemas de Coordenadas**: Referência (original) e display (redimensionado)
-- **Geometria de ROIs**: Suporte a polígonos, círculos e retângulos
-- **Buffer de ROIs**: Expansão/contração de regiões para análises de proximidade
+| Família | O que é reportado |
+| --- | --- |
+| **Locomoção** | Distância total (cm), média / máxima / desvio da velocidade (cm/s), tortuosidade |
+| **Angular** | Média / máxima / desvio da velocidade angular (°/s), viradas bruscas, viradas por minuto |
+| **Episódios** | Surtos de velocidade (contagem e duração), inatividade (contagem, duração, % da gravação) |
+| **Espacial** | Tigmotaxia (% do tempo perto da parede, distância média), ocupação geotáxica por zona vertical |
+| **Por ROI** | Tempo, entradas, saídas, latência até a primeira entrada, distância e velocidade dentro da região |
+| **Sessão** | Experimento, grupo, dia, duração do vídeo, quadros analisados |
 
-### Reprodutibilidade
+A distância até a parede é a distância euclidiana exata até a aresta mais próxima do polígono do
+aquário, válida para qualquer número de lados, convexo ou côncavo — o gráfico de tigmotaxia faz
+sentido para um aquário de 8 lados, não só para um retângulo.
 
-- **Formato Parquet**: Dados tabulares compactados e eficientes
-- **Schema Imutável**: Garantia de compatibilidade entre versões
-- **Metadados YAML**: Todas as configurações salvas junto com os dados
-- **Versionamento**: Rastreabilidade de modelos e parâmetros usados
-- **Timestamps**: Sincronização precisa entre eventos
+**Referência completa, com cada nome de coluna e fórmula:**
+[`docs/reference/metrics.md`](docs/reference/metrics.md).
 
-## 📖 Documentação Completa
+> **Comparar métricas absolutas entre gravações de durações diferentes é inválido** (distância
+> total, número de entradas, tempo em ROI). O programa avisa antes de gerar o relatório parcial ou
+> em lote e carimba a ressalva dentro do `.docx`; a coluna `video_duration_s` está no `.xlsx`
+> justamente para permitir a normalização.
 
-A documentação técnica está disponível na pasta `docs/`:
+## 🔧 Quando algo dá errado
 
-### Guias Essenciais
+| Sintoma | O que fazer |
+| --- | --- |
+| O instalador para com uma mensagem amarela | Ela nomeia a causa e a solução; a mais comum é um Python fora da faixa (3.14) |
+| `ModuleNotFoundError: No module named 'zebtrack'` | O ambiente foi criado no Python errado. [Guia de instalação](docs/wiki/1_Instalacao.md#se-o-fetch-weights-disser-que-não-existe-módulo-chamado-zebtrack) |
+| O ícone da área de trabalho não faz nada | Rode o instalador de novo; uma pasta movida deixa o atalho apontando para o vazio. Veja `logs/analysis.log` |
+| O programa abre mas se recusa a rastrear | Faltam os modelos: `poetry run fetch-weights` |
+| O peixe não é detectado | Modelo errado para o ângulo da câmera (lateral × de cima), ou confiança alta demais |
+| O rastreamento está lento | Ligue o OpenVINO em hardware Intel e converta o peso; aumente o intervalo de análise |
+| Nenhuma câmera é listada | Feche o que mais estiver usando a câmera e clique em **🔍 Detectar câmeras** de novo |
+| A aba de relatórios está vazia | Processe os vídeos primeiro; a árvore atualiza sob demanda |
 
-- 📚 [**CHEATSHEET.md**](docs/guides/developer/CHEATSHEET.md) - Referência rápida de comandos e padrões
+Listas mais longas: [Solução de problemas](docs/wiki/user-guide/TROUBLESHOOTING.md),
+[FAQ](docs/wiki/3_FAQ.md), [Problemas conhecidos](docs/reference/KNOWN_ISSUES.md).
 
-- 🏗️ [**ARCHITECTURE.md**](docs/explanation/architecture.md) - Arquitetura Event-Driven e Mediator
-- 👨‍💻 [**DEVELOPER_GUIDE.md**](docs/guides/developer/getting_started.md) - Guia completo para contribuidores
-- 🧙 [**DEVELOPER_GUIDE_WIZARD.md**](docs/guides/developer/wizard.md) - Desenvolvimento do Wizard
-- 🧪 [**README_TESTS.md**](docs/testing/TEST_MAP.md) - Guia completo de testes (~3700 testes)
+## 🆕 Novidades
 
-### Guias Técnicos
+**Versão 7.1.0** — o release da primeira execução: instalador guiado e atalho na área de trabalho
+(sem terminal), janela de primeiros passos explicando os modelos, tela de abertura que aparece na
+hora, benchmark inicial que de fato mede alguma coisa, e os seis modelos instalados e selecionáveis.
 
-- 🔌 [**DEPENDENCY_INJECTION_GUIDE.md**](docs/explanation/dependency_injection.md) - Padrões de DI
+**Histórico completo:** [novidades, versão por versão](docs/releases/INDEX.md) ·
+[CHANGELOG](CHANGELOG.md).
 
-- 📡 [**EVENT_BUS_GUIDE.md**](docs/reference/events.md) - Sistema de eventos
-- 🗺️ [**COORDINATE_SYSTEMS.md**](docs/reference/COORDINATE_SYSTEMS.md) - Sistemas de coordenadas
-- 🎯 [**STATE_MANAGEMENT_GUIDE.md**](docs/explanation/state_management.md) - Gerenciamento de estado
-- 🚀 [**PERFORMANCE_TUNING.md**](docs/guides/developer/performance-tuning.md) - Otimizações
-- 🔌 [**HARDWARE_OPTIMIZATION_GUIDE.md**](docs/performance/HARDWARE_OPTIMIZATION_GUIDE.md) - NPU e hardware
-- 💻 [**NPU_SETUP_GUIDE.md**](docs/performance/NPU_SETUP_GUIDE.md) - Configuração de NPU Intel
+## 📖 Citação
 
-### Guias Operacionais
+Se usar o DRerio LogAI em pesquisa, cite-o pelos metadados de [CITATION.cff](CITATION.cff)
+(reconhecido pelo GitHub como "Cite this repository").
 
-- 📋 [**REFERENCE_GUIDE.md**](docs/reference/operational_reference.md) - Guia operacional completo
-- 📊 [**metrics.md**](docs/reference/metrics.md) - Referência canônica de métricas comportamentais
-- 🔄 [**WORKFLOWS.md**](docs/guides/developer/WORKFLOWS.md) - Fluxos de trabalho detalhados
-- 🐛 [**QUICK_DEBUG_GUIDE.md**](docs/guides/developer/debugging.md) - Solução de problemas
-- ⚠️ [**KNOWN_ISSUES.md**](docs/reference/KNOWN_ISSUES.md) - Problemas conhecidos e soluções
-- 📝 [**CHANGELOG.md**](CHANGELOG.md) - Histórico de versões
-
-### Documentos Históricos
-
-- 📦 [**archive/**](docs/archive/) - Documentação de versões anteriores
-
-## 🏗️ Estrutura do Projeto
-
-### Organização de Diretórios
-
-```text
-DRerio-LogAI/
-├── src/zebtrack/               # Código-fonte principal
-│   ├── __main__.py            # Entry point (DI delegada a ApplicationBootstrapper)
-│   ├── core/                   # Camada de negócios (6 sub-packages)
-│   │   ├── state_manager.py   # Gerenciamento de estado (thread-safe)
-│   │   ├── main_view_model.py # Orquestrador principal (MVVM)
-│   │   ├── application_bootstrapper.py # Composition Root (DI)
-│   │   ├── dependency_container.py     # Container DI com LazyRef[T]
-│   │   ├── detection/          # Detecção AI (9 módulos)
-│   │   │   ├── single_detector.py      # Detecção single-aquarium
-│   │   │   ├── multi_aquarium_detector.py # Detecção multi-aquário
-│   │   │   ├── zone_scaler.py          # Escalonamento de zonas
-│   │   │   └── detection_types.py      # ZoneData, MultiAquariumZoneData
-│   │   ├── project/            # Gerenciamento de projetos (14 módulos)
-│   │   │   ├── project_manager.py      # Gerenciador principal
-│   │   │   └── zone_manager.py         # Zonas e parquets
-│   │   ├── video/              # Processamento de vídeo (8 módulos)
-│   │   │   ├── processing_worker.py    # Worker em background
-│   │   │   └── video_processing_service.py
-│   │   ├── recording/          # Gravação e câmera ao vivo (5 módulos)
-│   │   │   ├── live_camera_service.py  # Análise ao vivo
-│   │   │   └── recording_service.py    # Gravação de sessões
-│   │   └── services/           # Serviços de domínio (5 módulos)
-│   │       ├── detector_service.py
-│   │       ├── weight_manager.py       # Pesos + variantes (standard/lite/nano)
-│   │       └── wizard_service.py
-│   ├── coordinators/           # Coordinators decompostos (24 arquivos)
-│   │   ├── video_processing_coordinator.py
-│   │   ├── report_generation_coordinator.py
-│   │   ├── multi_aquarium_coordinator.py
-│   │   ├── sequential_processing_coordinator.py
-│   │   └── ...
-│   ├── io/                     # Camada de I/O
-│   │   ├── recorder.py         # Persistência Parquet (thread-safe, atomic writes)
-│   │   ├── recorder_factory.py # Lazy loading de recorder
-│   │   ├── video_source.py     # Fonte de frames (vídeos)
-│   │   ├── camera.py           # Captura de câmera
-│   │   └── frame_source_factory.py # Factory de fontes
-│   ├── ui/                     # Interface gráfica
-│   │   ├── gui.py              # Janela principal (865 linhas)
-│   │   ├── event_bus_v2.py     # EventBusV2 (único sistema de eventos)
-│   │   ├── components/         # Componentes UI decompostos
-│   │   │   ├── canvas/         # Sub-package canvas (5 módulos)
-│   │   │   ├── project_views/  # Sub-package reports/tree (3 módulos)
-│   │   │   ├── event_dispatcher.py
-│   │   │   └── ...
-│   │   ├── dialogs/            # Diálogos extraídos (26 diálogos)
-│   │   └── wizard/             # Wizard de 5 etapas + models Pydantic
-│   ├── analysis/               # Análise comportamental
-│   │   ├── analysis_service.py
-│   │   ├── behavior.py         # Métricas (velocidade, angular, thigmotaxis)
-│   │   ├── roi.py              # Análise de ROIs
-│   │   └── reporters/          # Sub-package de relatórios (8 módulos)
-│   │       ├── word_reporter.py
-│   │       ├── excel_reporter.py
-│   │       ├── parquet_reporter.py
-│   │       └── script_exporter.py
-│   ├── plugins/                # Sistema de plugins
-│   │   ├── base.py             # Interface de plugins (detect_batch ABC)
-│   │   ├── yolov8_detector.py  # Ultralytics YOLO (CPU/GPU)
-│   │   └── openvino_detector.py # OpenVINO (CPU/GPU/NPU)
-│   └── utils/                  # Utilitários
-│       ├── hardware_detection.py # Detecção CPU/GPU/NPU
-│       ├── hardware_benchmark.py # Benchmark automático
-│       ├── geometry.py         # Cálculos geométricos
-│       └── cache.py            # TTLCache thread-safe
-├── tests/                      # Suíte de testes (~3700 testes)
-│   ├── conftest.py            # Fixtures e hooks pytest
-│   ├── unit/                  # Testes unitários (~2806)
-│   ├── integration/           # Testes de integração (~891 GUI)
-│   └── e2e/                   # Testes end-to-end (~35)
-├── docs/                       # Documentação técnica
-│   ├── ARCHITECTURE.md
-│   ├── DEVELOPER_GUIDE.md
-│   ├── CHEATSHEET.md
-│   └── archive/               # Documentação histórica
-├── config.yaml                 # Configuração padrão
-├── config.local.yaml          # Configuração local (git-ignored)
-├── pyproject.toml             # Configuração Poetry
-└── README.md                  # Este arquivo
-```
-
-### Arquitetura (MVVM-S + Event-Driven)
-
-#### Camadas Principais
-
-| Camada         | Responsabilidade   | Componentes Chave                                           |
-| -------------- | ------------------ | ------------------------------------------------------------ |
-| **Model**      | Estado e dados     | `StateManager`, `ProjectManager`, `DetectorService`          |
-| **View**       | Interface Tkinter  | `ApplicationGUI`, `Dialogs`, `Wizard`                        |
-| **ViewModel**  | Orquestração       | `MainViewModel`, `DependencyContainer`                       |
-| **Coordinators** | Fluxos de domínio | 24 coordinators decompostos (Video, Reports, MultiAq, etc.) |
-| **Services**   | Lógica de negócios | `WizardService`, `AnalysisService`, `LiveCameraService`     |
-
-#### Fluxo de Dados (Event-Driven)
-
-```text
-User → UI Event → EventBusV2 → Coordinator/Handler → StateManager → UI Update (root.after)
-                                    ↓
-                              Services/Model
-```
-
-**Benefícios**:
-
-- ✅ Desacoplamento total entre componentes
-- ✅ Testabilidade (injeção de dependências)
-- ✅ Thread-safety (comunicação assíncrona)
-- ✅ Manutenibilidade (responsabilidades claras)
-
-## 🧪 Testes
-
-### Executar Testes
-
-```bash
-# Testes rápidos (excluindo GUI/slow) - ~2806 testes
-poetry run pytest
-
-# Todos os testes - ~3700 testes (6-7 min)
-poetry run pytest -m "" -n0
-
-# Testes de GUI (sequencial) - ~891 testes
-poetry run pytest -m gui -n0
-
-# Testes lentos - ~35 testes
-poetry run pytest -m slow
-
-# Com cobertura
-poetry run pytest --cov=src/zebtrack --cov-report=html
-```
-
-### Estatísticas de Testes
-
-| Categoria                | Quantidade | Tempo       |
-| ------------------------- | ---------- | ----------- |
-| **Testes Rápidos**       | ~2806      | ~3 min      |
-| **Testes de GUI**        | ~891       | ~3 min      |
-| **Testes Lentos**        | ~35        | ~1 min      |
-| **TOTAL**                | **~3700**  | **6-7 min** |
-
-### Cobertura
-
-- **Cobertura Global**: ~48%
-- **CI Gates**: Linux core 45%, Linux GUI 32%, Windows core 28%
-- **Meta**: OpenSSF Silver 80% (roadmap em progresso)
-
-### Marcadores de Teste
-
-```python
-@pytest.mark.unit         # Teste unitário rápido
-@pytest.mark.integration  # Teste de integração
-@pytest.mark.gui          # Teste de interface Tkinter
-@pytest.mark.slow         # Teste lento (>5s)
-@pytest.mark.e2e          # Teste end-to-end
-```
-
-Para mais detalhes, consulte [README_TESTS.md](docs/testing/TEST_MAP.md).
-
-## 🤝 Contribuição
-
-Contribuições são muito bem-vindas! Este projeto segue práticas modernas de desenvolvimento:
-
-### Como Contribuir
-
-1. **Fork** o repositório
-2. **Clone** seu fork localmente
-3. **Crie uma branch** para sua feature/fix:
-
-   ```bash
-   git checkout -b feature/minha-feature
-   ```
-
-4. **Instale dependências de desenvolvimento**:
-
-   ```bash
-   poetry install --with dev
-   poetry run pre-commit install
-   ```
-
-5. **Faça suas alterações** seguindo os padrões do projeto
-6. **Execute os testes**:
-
-   ```bash
-   poetry run pytest -q
-   poetry run ruff check .
-   ```
-
-7. **Commit** suas mudanças com mensagens claras:
-
-   ```bash
-   git commit -m "feat: adiciona suporte para YOLO v12"
-   ```
-
-8. **Push** para seu fork e abra um **Pull Request**
-
-### Diretrizes de Código
-
-- ✅ **Python 3.12+**: Use type hints e recursos modernos
-- ✅ **Ruff**: Linter e formatador (linha máxima: 100 caracteres)
-- ✅ **Docstrings**: Google Style para funções públicas
-- ✅ **Testes**: Adicione testes para novas funcionalidades
-- ✅ **DI**: Sempre use injeção de dependências
-- ✅ **Event-Driven**: Prefira comunicação via `EventBusV2`
-- ✅ **Logging**: Use `structlog` com padrão `domain.action.result`
-
-### Áreas que Precisam de Ajuda
-
-- 🐛 **Correção de bugs** listados em [KNOWN_ISSUES.md](docs/reference/KNOWN_ISSUES.md)
-- 📝 **Documentação**: Tradução, tutoriais, exemplos
-- 🧪 **Testes**: Aumentar cobertura para 70%+
-- 🎨 **UI/UX**: Melhorias na interface gráfica
-- 🚀 **Performance**: Otimizações de processamento
-- 🔌 **Plugins**: Novos detectores ou exportadores
-
-Consulte o [DEVELOPER_GUIDE.md](docs/guides/developer/getting_started.md) para diretrizes completas.
-
-## 📊 Casos de Uso
-
-### Pesquisa Acadêmica
-
-- **Farmacologia**: Screening de drogas (canabidiol, antidepressivos)
-- **Toxicologia**: Testes de toxicidade ambiental
-- **Neurociência**: Estudos de ansiedade e memória
-- **Genética**: Análise de mutantes e transgênicos
-
-### Publicações Científicas
-
-Este software foi desenvolvido para suportar pesquisas científicas com zebrafish. Se você usar o DRerio LogAI em suas publicações, por favor cite-o conforme a seção "📖 Citation" abaixo.
-
-## 👥 Authors
-
-- **Marco Antônio Sant'Ana Camargos** — São Paulo State University (UNESP), Botucatu, Brazil
-- **Percília Cardoso Giaquinto** — São Paulo State University (UNESP), Botucatu, Brazil
-
-Copyright patrimonial: **Universidade Estadual Paulista (UNESP)**. Veja a seção "🏛️ Titularidade e Registro" acima e o arquivo [NOTICE](NOTICE).
-
-## 📖 Citation
-
-Se você usar o DRerio LogAI em pesquisa, cite-o usando os metadados em [CITATION.cff](CITATION.cff) (formato Citation File Format 1.2.0 — reconhecido pelo GitHub como "Cite this repository").
-
-O software está arquivado no Zenodo e tem dois DOIs:
+O software está arquivado no Zenodo:
 
 | DOI | Resolve para |
-|---|---|
+| --- | --- |
 | [`10.5281/zenodo.22650404`](https://doi.org/10.5281/zenodo.22650404) | **Todas as versões.** Cite este, a menos que precise fixar um release específico. |
-| [`10.5281/zenodo.22650405`](https://doi.org/10.5281/zenodo.22650405) | Especificamente o release **7.0.0**. |
+| [`10.5281/zenodo.22650405`](https://doi.org/10.5281/zenodo.22650405) | O release **7.0.0** especificamente. |
 
-> **Reproduzir os resultados publicados.** Os números de validação e de
-> benchmark relatados nos manuscritos vieram do release **4.0.0**
-> (tag [`v4.0.0`](https://github.com/MarkSant/DRerio-LogAI/tree/v4.0.0)), não
-> deste. Faça checkout daquela tag para reprodução exata; cite o DOI acima
-> para a plataforma arquivada.
+> **Reproduzindo os resultados publicados.** Os números de validação e benchmark reportados nos
+> manuscritos associados foram produzidos com o release **4.0.0** (tag
+> [`v4.0.0`](https://github.com/MarkSant/DRerio-LogAI/tree/v4.0.0)), não com este. Use aquela tag
+> para reprodução exata; cite o DOI acima para a plataforma arquivada.
 
-## 📄 Licença
+## 📜 Titularidade, registro e licença
 
-O código-fonte original deste repositório (de titularidade da UNESP) é licenciado sob a **MIT License** — veja o arquivo [LICENSE](LICENSE) para detalhes.
+O **DRerio LogAI** tem **Registro de Programa de Computador concedido pelo INPI**, sob a Lei
+9.609/98 (direito autoral de software — **não** é patente): processo **BR 51 2026 005215-7**,
+petição 870260066857, depósito em 07/07/2026, data de criação declarada 22/10/2025.
 
-⚠️ **Licença efetiva da distribuição**: este projeto depende do
-[Ultralytics YOLO](https://github.com/ultralytics/ultralytics)
-(`ultralytics`), licenciado sob **AGPL-3.0-or-later**. Pelas condições de
-copyleft da AGPL-3.0-or-later, a obra combinada distribuída (este código +
-a dependência `ultralytics`) fica sujeita aos termos da
-AGPL-3.0-or-later, a menos que uma licença comercial/enterprise da
-Ultralytics seja obtida. Ou seja, a
-licença MIT cobre o código original da UNESP, mas **não** cobre sozinha o
-pacote distribuído como um todo. Veja [NOTICE](NOTICE) para o
-levantamento completo de licenças de dependências de terceiros.
+A **titular** dos direitos patrimoniais é a **Universidade Estadual Paulista "Júlio de Mesquita
+Filho" (UNESP)**, CNPJ 48.031.918/0001-24. Os **autores** (direitos morais) são:
 
-**Em resumo** (para o código original sob MIT), você pode:
+- **Marco Antônio Sant'Ana Camargos** — Universidade Estadual Paulista (UNESP), Botucatu, Brasil
+- **Percília Cardoso Giaquinto** — Universidade Estadual Paulista (UNESP), Botucatu, Brasil
 
-- ✅ Usar comercialmente
-- ✅ Modificar
-- ✅ Distribuir
-- ✅ Uso privado
+O código-fonte original é licenciado sob a **Licença MIT** ([LICENSE](LICENSE)).
 
-**Condições**:
+⚠️ **Licença efetiva de distribuição.** Este projeto depende do
+[Ultralytics YOLO](https://github.com/ultralytics/ultralytics), licenciado sob
+**AGPL-3.0-or-later**. Por causa desse copyleft, a obra combinada distribuída (este código mais o
+`ultralytics`) fica sujeita à AGPL-3.0-or-later, a menos que se obtenha uma licença comercial da
+Ultralytics. A MIT cobre o código original da UNESP; ela não cobre, por si só, o pacote distribuído
+como um todo. O [NOTICE](NOTICE) traz o levantamento completo das dependências.
 
-- 📋 Manter a licença e copyright
-- ⚠️ Sem garantias
-- ⚠️ Observar as obrigações da AGPL-3.0-or-later da dependência `ultralytics` na distribuição do conjunto (veja acima)
+> **Não confunda com o PyZebArdYolo.** É um repositório irmão, mais simples em escopo, focado numa
+> unidade de aquisição em tempo real (webcam + YOLO11 + Arduino) usada num artigo de hardware
+> separado. Ele **não** é coberto pelo registro INPI acima e não carrega a exigência de titularidade
+> da UNESP. Os dois projetos são independentes.
+
+## 👨‍💻 Para desenvolvedores
+
+```bash
+git clone https://github.com/MarkSant/DRerio-LogAI.git
+cd DRerio-LogAI
+poetry install --with dev
+poetry run pre-commit install
+poetry run fetch-weights
+poetry run pytest -q
+```
+
+`install.ps1 -Dev` faz o mesmo no Windows, mais o atalho.
+
+O programa é Python 3.12+, Tkinter, MVVM-S com injeção de dependência e um barramento de eventos
+(`EventBusV2`); ~3700 testes rodam em 6–7 minutos.
+
+| Tema | Documento |
+| --- | --- |
+| **Contribuição** | [CONTRIBUTING.md](CONTRIBUTING.md) |
+| **Arquitetura** | [docs/explanation/architecture.md](docs/explanation/architecture.md) |
+| **Onboarding de desenvolvedor** | [docs/guides/developer/getting_started.md](docs/guides/developer/getting_started.md) |
+| **Mapa código → testes** | [docs/testing/TEST_MAP.md](docs/testing/TEST_MAP.md) |
+| **Sistemas de coordenadas** | [docs/reference/COORDINATE_SYSTEMS.md](docs/reference/COORDINATE_SYSTEMS.md) |
+| **Eventos** | [docs/reference/events.md](docs/reference/events.md) |
+| **Desempenho / NPU** | [docs/guides/developer/performance-tuning.md](docs/guides/developer/performance-tuning.md) · [docs/performance/HARDWARE_OPTIMIZATION_GUIDE.md](docs/performance/HARDWARE_OPTIMIZATION_GUIDE.md) |
+| **Configuração do VS Code** | [docs/guides/developer/VSCODE.md](docs/guides/developer/VSCODE.md) |
+| **Publicar um release** | [docs/guides/developer/RELEASE.md](docs/guides/developer/RELEASE.md) |
+| **Todo o resto** | [docs/INDEX.md](docs/INDEX.md) |
+
+Contribuições são bem-vindas — correções de [KNOWN_ISSUES.md](docs/reference/KNOWN_ISSUES.md),
+documentação e traduções, cobertura de testes, melhorias de interface, novos plugins de detecção.
 
 ## 🙏 Agradecimentos
 
-### Instituições
+**UNESP** — Universidade Estadual Paulista, e o **Laboratório de Fisiologia e Comportamento de
+Peixes** (Depto. de Fisiologia — IBB/UNESP).
 
-- **UNESP** - Universidade Estadual Paulista
-- **Laboratório de Fisiologia e Comportamento de Peixes** (Depto. de Fisiologia - IBB/UNESP)
-
-### Tecnologias Open Source
-
-- [Ultralytics YOLO](https://github.com/ultralytics/ultralytics) - Detecção de objetos
-- [OpenVINO](https://github.com/openvinotoolkit/openvino) - Aceleração de inferência
-- [BYTETracker](https://github.com/ifzhang/ByteTrack) - Rastreamento multi-objeto
-- [Tkinter](https://docs.python.org/3/library/tkinter.html) - Interface gráfica
-- [Poetry](https://python-poetry.org/) - Gerenciamento de dependências
-- [Pydantic](https://pydantic.dev/) - Validação de dados
-- [structlog](https://www.structlog.org/) - Logging estruturado
-
-### Comunidade
-
-Agradecimentos especiais a todos os contribuidores e à comunidade open source que tornou este projeto possível.
+Construído sobre [Ultralytics YOLO](https://github.com/ultralytics/ultralytics),
+[OpenVINO](https://github.com/openvinotoolkit/openvino),
+[BYTETracker](https://github.com/ifzhang/ByteTrack),
+[Tkinter](https://docs.python.org/3/library/tkinter.html),
+[Poetry](https://python-poetry.org/), [Pydantic](https://pydantic.dev/) e
+[structlog](https://www.structlog.org/) — e sobre a comunidade de código aberto em torno deles.
 
 ---
 
 <div align="center">
 
-<h4>Desenvolvido com ❤️ para pesquisa científica</h4>
+<h4>Feito com ❤️ para a pesquisa científica</h4>
 
 <h4>UNESP - Laboratório de Fisiologia e Comportamento de Peixes (Depto. de Fisiologia - IBB/UNESP)</h4>
 

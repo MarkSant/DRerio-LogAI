@@ -7,6 +7,8 @@ If you have installed Python projects before, the short version is: install Pyth
 and extract the source ZIP, double-click `install.bat`. Everything else on this page is detail for
 when something does not go that way.
 
+Em português: [Instalação e configuração](1_Instalacao.md).
+
 Developers: jump to [Installing to develop it](#installing-to-develop-it).
 
 ## Contents

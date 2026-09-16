@@ -53,6 +53,7 @@ docs/
 
 - **[Installation and Setup](wiki/1_Installation.md)** - step by step, no previous experience assumed.
 - **[Getting Started](wiki/user-guide/GETTING_STARTED.md)** - first launch, detector models, first project, reports.
+- **Em português**: [Instalação](wiki/1_Instalacao.md) · [Primeiros passos](wiki/user-guide/PRIMEIROS_PASSOS.md).
 - **[Troubleshooting](wiki/user-guide/TROUBLESHOOTING.md)** - when something does not work.
 - **[What's new, version by version](releases/INDEX.md)** - release highlights; the full history is in CHANGELOG.md.
 - **[Per-Zone Arduino Commands](guides/user/arduino-bindings.md)** - Send signals to an Arduino on ROI enter/exit during live recordings.

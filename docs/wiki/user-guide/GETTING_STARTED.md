@@ -2,6 +2,8 @@
 
 From a freshly installed application to a finished report, in the order you will actually do it.
 
+Em português: [Primeiros passos](PRIMEIROS_PASSOS.md).
+
 This guide describes the interface as it is: every menu entry, button and step below exists and is
 named exactly as the application names it (in English; the Portuguese interface uses the
 translations of the same labels).
