@@ -6,6 +6,32 @@ This document tracks all major agent interventions, technical debt resolutions, 
 
 ## Active Tasks
 
+### [2026-09-15] README para quem nunca abriu um terminal, instalador que instala os pré-requisitos, release 7.2.0
+
+__ID:__ TASK-075
+__Agent:__ Claude Code (Opus 5)
+__Status:__ In Progress 🔄
+__Branch:__ docs/readme-doi-badge
+__Description:__
+O README prometia instalação "sem terminal", mas sem Poetry o `install.ps1` parava e mandava
+colar um comando no PowerShell e editar o PATH à mão. Git, terminal e "Source code (zip)" eram
+citados sem explicação; a instalação começava na linha 297, depois de 200 linhas de novidades
+das versões 4 a 7; o badge do DOI quebrava (Zenodo limita a 120 req/min e manda `no-cache`, e o
+proxy de imagens do GitHub leva 429); `GETTING_STARTED.md` descrevia outro programa (assistente
+de 5 passos, atalhos inexistentes, CUDA recomendado).
+
+__Critério de pronto:__
+
+- `install.ps1` instala Python 3.12 (winget) e Poetry (instalador oficial), com confirmação, e
+  põe o Poetry no PATH do usuário; helpers cobertos por teste.
+- README em inglês reorganizado para o usuário (instalação, primeira execução, modelos/OpenVINO,
+  primeiro projeto, parâmetros); novidades por versão em `docs/releases/`; conteúdo de
+  desenvolvedor em `CONTRIBUTING.md`.
+- Guia de instalação para leigos e `GETTING_STARTED.md` reescritos em inglês; depois as versões
+  em português.
+- Release 7.2.0 com as cinco declarações de versão alinhadas (`.zenodo.json` e `__version__`
+  ainda diziam 7.0.1 no release 7.1.0).
+
 ### [2026-09-07] Mutation check no CI: 7 min por PR, sem poder reprovar nada
 
 __ID:__ TASK-074
