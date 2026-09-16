@@ -80,6 +80,15 @@ pre-requisito, e o README nao explicava nenhum dos termos que usava.
   interface real.
 - **`TROUBLESHOOTING.md`** mandava usar `poetry shell`, removido no Poetry 2.0, e
   pedia "Python 3.12 ou superior" -- que inclui a 3.14, onde a instalacao falha.
+- **O alarme noturno de memoria estava invertido.** As sete issues abertas desde
+  08/09 com o titulo "Memory Leaks Detected" nao mediram vazamento nenhum: o passo
+  que roda a suite com `--memray` tem `continue-on-error`, entao nao reprova o job,
+  enquanto o upload do artefato nao tinha como dar certo -- o memray nomeia cada
+  `.bin` com o id do teste, e um id parametrizado carrega dois-pontos
+  (`test_known_values[125-2:05]`), caractere que o `upload-artifact` recusa. Os
+  resultados passam a subir como tarball, um passo explicito reprova o job quando a
+  execucao perfilada nao passa, e o texto da issue deixa de afirmar a conclusao
+  antes da investigacao.
 - **Os valores padrao documentados agora sao os do `config.yaml`**: confianca
   0,05, NMS 0,5, match 0,95, buffer 150, distancia maxima 400 px e regra de ROI
   `bbox_intersects`.
