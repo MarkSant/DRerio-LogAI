@@ -1,669 +1,466 @@
 # Getting Started with DRerio LogAI
 
-## Welcome
+From a freshly installed application to a finished report, in the order you will actually do it.
 
-DRerio LogAI is a comprehensive application for zebrafish behavioral tracking and analysis. This guide will help you get started with your first project, from installation to analyzing results.
+Em português: [Primeiros passos](PRIMEIROS_PASSOS.md).
 
-## Table of Contents
+This guide describes the interface as it is: every menu entry, button and step below exists and is
+named exactly as the application names it (in English; the Portuguese interface uses the
+translations of the same labels).
 
-<!-- markdownlint-disable MD051 --><!-- justification: TOC anchors validated by renderer -->
+## Contents
 
-1. [Installation](#installation)
-2. [System Requirements](#system-requirements)
-3. [First Launch](#first-launch)
-4. [Creating Your First Project](#creating-your-first-project)
-5. [Understanding the Project Wizard](#understanding-the-project-wizard)
-6. [Running Analysis](#running-analysis)
-7. [Understanding Results](#understanding-results)
-8. [Live Camera Analysis](#live-camera-analysis)
-9. [Keyboard Shortcuts](#keyboard-shortcuts)
-10. [Next Steps](#next-steps)
+- [Before your first analysis](#before-your-first-analysis)
+- [The first launch](#the-first-launch)
+- [Setting up the detector models](#setting-up-the-detector-models)
+- [The main window](#the-main-window)
+- [Choosing what kind of project to create](#choosing-what-kind-of-project-to-create)
+- [Creating a pre-recorded project](#creating-a-pre-recorded-project-7-steps)
+- [Drawing the arena and the ROIs](#drawing-the-arena-and-the-rois)
+- [Processing the videos](#processing-the-videos)
+- [Reports and results](#reports-and-results)
+- [Live camera projects](#live-camera-projects)
+- [Analysing a single video without a project](#analysing-a-single-video-without-a-project)
+- [Keyboard and mouse](#keyboard-and-mouse)
+- [Where to go next](#where-to-go-next)
+- [Glossary](#glossary)
 
-<!-- markdownlint-enable MD051 -->
+## Before your first analysis
 
----
+You need:
 
-## Installation
+- **The application installed** — see [Installation and Setup](../1_Installation.md).
+- **Your videos**, or a camera connected. MP4 is the safest format; AVI, MOV and MKV work, and in
+  general anything OpenCV can open.
+- **The physical dimensions of your aquarium, in centimetres** (width and height of the area the
+  camera sees). Without them, distances and speeds can only be reported in pixels.
+- **A decision about the camera angle**: lateral (side view, as in the novel tank test) or top-down
+  (from above, as in an open field). The detector model you use depends on it.
 
-### Prerequisites
+## The first launch
 
-Before installing DRerio LogAI, ensure your system meets these requirements:
+1. **A language question.** Your answer is written to `config.local.yaml`. The operating system's
+   language is deliberately not consulted. Change it later in **Settings → Language...**.
 
-- **Operating System**: Windows 10/11, Linux, or macOS
-- **Python**: Version 3.12 or higher
-- **Hardware**:
-  - Minimum 8GB RAM (16GB recommended)
-  - Webcam or video files for analysis
-  - GPU recommended for real-time processing (NVIDIA with CUDA support)
+2. **A splash screen running a hardware benchmark.** It converts one model to OpenVINO and measures
+   how fast each available device runs it, in order to pick a backend. This is the slowest launch
+   you will have: the result is cached, and later launches skip it.
 
-### Install via Poetry (Recommended)
+3. **The main window.**
 
-Poetry is the recommended installation method for both users and developers.
+   ![Launcher, with the detection-model status panel](../screenshots/main_window.png)
 
-```bash
-# 1. Clone the repository
-git clone https://github.com/MarkSant/DRerio-LogAI.git
-cd DRerio-LogAI
+4. **The Getting started window**, which explains the detector models and reads your hardware to
+   say whether OpenVINO is worth enabling here. Its button opens the model panel; you can also
+   reach that panel at any time from **Settings → Model settings...**, and this window from
+   **Help → Getting Started...**.
 
-# 2. Install dependencies
-poetry install
+## Setting up the detector models
 
-# 3. Run the application
-poetry run zebtrack
-```
+Do this once, before the first analysis. **Settings → Model settings...**
 
-### Alternative: Install from Release
+### What the six models are
 
-Pre-built executable releases are coming soon. Check the [Releases page](https://github.com/MarkSant/DRerio-LogAI/releases) for availability.
+`fetch-weights` (run for you by the installer) puts six trained YOLO models in `weights/`:
 
----
+| Model | Type | Camera angle |
+| --- | --- | --- |
+| `best_det_lateral.pt` | detection — a box around the animal | lateral (side view) |
+| `best_seg_lateral.pt` | segmentation — the animal's outline | lateral |
+| `best_det_topdown.pt` | detection | top-down (from above) |
+| `best_seg_topdown.pt` | segmentation | top-down |
+| `best_oi.pt` | detection | any (generalist, less precise) |
+| `best_seg.pt` | segmentation | any (generalist, less precise) |
 
-## System Requirements
+**A model trained for one angle finds nothing on the other.** A lateral model watching a top-down
+recording reports no fish at all, even though the fish is plainly visible. Matching the model to
+your camera is the single most important setting on this screen.
 
-### Minimum Requirements
+### The four roles
 
-- **CPU**: Dual-core processor, 2.0 GHz
-- **RAM**: 8GB
-- **Storage**: 5GB free space (for application and temporary files)
-- **Graphics**: Integrated graphics card
-- **Camera**: USB webcam (for live analysis)
+Under **Default weights per slot**, one model is assigned to each role:
 
-### Recommended Requirements
+- 🐠 **Aquarium (Detection)** — finds the tank as a rectangle
+- 🐠 **Aquarium (Segmentation)** — finds the tank's real shape
+- 🐟 **Animal (Detection)** — finds each fish as a box
+- 🐟 **Animal (Segmentation)** — finds each fish as a mask
 
-- **CPU**: Quad-core processor, 3.0 GHz or higher
-- **RAM**: 16GB or more
-- **Storage**: 20GB free space (for video storage and results)
-- **Graphics**: NVIDIA GPU with CUDA support (GTX 1060 or better)
-- **Camera**: HD webcam (1080p) with good low-light performance
+The four specialists are pre-assigned. Pick the pair matching your camera angle; the generalists are
+there for setups the specialists do not fit, and are chosen explicitly.
 
-### Supported Video Formats
+**Detection or segmentation?** Detection is lighter and enough when approximate position is what
+you need. Segmentation is better when spatial precision matters — small regions, edges, several
+animals close together — and it is **required** if you intend to use the `seg_overlap` ROI rule,
+which compares the animal's mask against the region.
 
-- MP4 (recommended)
-- AVI
-- MOV
-- MKV
-- Any format supported by OpenCV
+### OpenVINO
 
----
+| Your machine | What to do |
+| --- | --- |
+| Has an NVIDIA graphics card | Leave OpenVINO off — PyTorch with CUDA is normally faster |
+| Intel CPU / integrated graphics / NPU, no NVIDIA card | Turn it on: it is what makes tracking fast here |
+| Neither | Leave it off; analysis runs on the CPU, slower |
 
-## First Launch
+Tick **Optimise with OpenVINO (for Intel hardware)**, choose the **OpenVINO device**, select the
+weights you plan to use and press **Convert to OpenVINO**. Conversion happens once per weight and
+is cached; the catalogue shows ✓ Ready, ⏳ Converting or ✗ Failed.
 
-### Starting the Application
+The same panel also offers **Add Weight...** (register a model you trained yourself),
+**Validate Paths**, **Rescan Weights Folder**, OpenVINO cache maintenance and
+**Re-run Hardware Benchmark**.
 
-After installation, launch the application:
+## The main window
 
-```bash
-poetry run zebtrack
-```
+Before any project is open, the launcher offers:
 
-### Main Window Overview
+| Button | What it does |
+| --- | --- |
+| **Create New Project** | Opens the project wizard |
+| **Open Existing Project** | Reopens a project folder created earlier |
+| **Analyze Single Video** | One video, no project, no experimental design |
+| **Analyze Live Camera** | An ad-hoc live session, no project |
+| **Global Model Configuration...** | The same panel as **Settings → Model settings...** |
+| **Global Diagnostics...** | Runs the active models against a sample frame and reports what they found |
 
-When the application starts, you'll see the main window with the following components:
+The **Detection Model Status** panel underneath reports the active weights per role, the OpenVINO
+state and the detected hardware — it is worth a glance before starting a long batch.
 
-![Launcher, with the detection-model status panel](../screenshots/main_window.png)
+## Choosing what kind of project to create
 
-Inside a project, the overview lists every session, subject and per-video
-processing status:
+| You have | Use |
+| --- | --- |
+| Videos already recorded, organised in folders by group/day/subject | **Create New Project** → experimental (pre-recorded) |
+| A camera, and experiments still to run | **Create New Project** → live |
+| One video, to look at quickly | **Analyze Single Video** |
+| A camera, for a quick unstructured test | **Analyze Live Camera** |
+
+A project is what gives you the group/day/subject structure, per-video status tracking and the
+unified report across the whole experiment. The two ad-hoc modes skip all of that.
+
+## Creating a pre-recorded project (7 steps)
+
+![Project wizard, step 1](../screenshots/wizard_step1.png)
+
+### Step 1 — Discovery
+
+- **Project Type**: *Experimental (pre-recorded videos with groups, days, subjects)*.
+- **Folder Organization**: whether your folders mean something (e.g. `Group_CBD/Day_1/...`), are
+  only for tidiness, or do not exist (everything in one folder).
+- **Existing Parquet Files**: what to do with analysis files already sitting next to the videos —
+  import the arena, import the zones, import everything, or start from scratch.
+
+  > **Refusing here is respected.** A project created over a folder containing arenas and ROIs from
+  > an earlier study used to adopt them silently on the first double-click, and the report came out
+  > complete but measured against the wrong arena.
+
+**📂 Load Template...** restores the answers of a wizard run you saved earlier.
+
+### Step 2 — Video Selection
+
+**📁 Add Files...** for individual videos, **📂 Add Folder...** for a whole tree. The **Structure
+Preview** shows how the selection was understood; the videos inside folders are enumerated in the
+step after next.
+
+![Wizard — video and folder selection](../screenshots/wizard_step2_video.png)
+
+### Step 3 — Physical Calibration
+
+![Wizard — physical calibration](../screenshots/wizard_step5_options.png)
+
+- **Width (cm)** and **Height (cm)** of the aquarium: this is what converts pixels into
+  centimetres, so every distance, speed and cm-based metric depends on it. Measure the area the
+  camera actually sees.
+- **Number of aquariums (videos)**: more than one when several tanks are filmed side by side in the
+  same video.
+- **Animals per aquarium**.
+- **Analysis interval (frames)**: analyse one frame in every N (10 by default). Lower is more
+  temporal detail and more processing time.
+- **🧠 Behavioural Analysis**: thigmotaxis and geotaxis options.
+
+### Step 4 — Automatic Design Detection
+
+The folder structure and file names are read into **Groups**, **Days** and **Subjects**, with a
+confidence value and a summary of what was found.
+
+- **🔄 Re-analyze** after changing something.
+- **✏️ Edit Design** to correct the result by hand.
+- **🔧 Custom Regex** when your naming scheme needs an explicit pattern.
+
+Confirm the group names before moving on: everything downstream — folders, reports, comparisons —
+is built from them.
+
+### Step 5 — Models and Weights
+
+![Wizard — models, weights and detector parameters](../screenshots/wizard_step4_detection.png)
+
+Method (segmentation or detection) and weight, separately for **Aquarium (arena detection)** and
+**Animals (tracking)**; the OpenVINO switch and device; and the detector parameters:
+
+| Parameter | Default | What it does |
+| --- | --- | --- |
+| Minimum confidence (0–1) | 0.05 | How sure the model must be to accept a detection |
+| NMS (overlap, 0–1) | 0.5 | How much two detections may overlap before one is discarded |
+| Track Threshold (0–1) | 0.25 | Minimum confidence for a detection to keep a track alive |
+| Match Threshold (0–1) | 0.95 | How permissive the association between frames is (higher = more permissive) |
+| Track Buffer (frames) | 150 | How long a lost animal keeps its identity |
+| Max distance (px) | 400 | How far an animal may move between analysed frames and still be the same one |
+| IoU Threshold (0–1) | 0.05 | Below this overlap, matching falls back to centre distance |
+
+> **Adjust one parameter at a time, by about ±0.05, and re-test.** Moving two at once makes the
+> outcome impossible to attribute. **🔄 Restore Recommended Defaults** undoes the experiment.
+
+### Step 6 — Import Configuration
+
+Per video, what to import from files found alongside it: **Arena**, **ROIs**, **Trajectory**. When
+ROIs already exist, choose the strategy: **Replace (overwrite)**, **Merge (keep both ROIs)** or
+**Manual (ask)**.
+
+### Step 7 — Confirmation
+
+Project name and location, a summary of every answer, and **💾 Save as Template** to reuse this
+configuration for the next study. **Finish** creates the project.
+
+## Drawing the arena and the ROIs
+
+In the **Zone Configuration** tab, working on a real frame from your own recording.
+
+![Zone and ROI configuration over an acquired frame](../screenshots/roi_config.png)
+
+1. **📹 Select Video for Drawing**, then **📹 Load Frame from the Selected Video**.
+2. **The arena** — either **Detect Aquarium (Auto)**, which proposes a polygon (use
+   **Smoothing (frames)** to reduce noise in that detection), or **Main Polygon** to draw it
+   yourself. Click the vertices, then **✓ Close Polygon** and **💾 Save This Area**.
+3. **The regions of interest** — **Region of Interest (ROI)**, one polygon per region. Name each
+   one: the metrics are reported per ROI under those names.
+4. **Templates** — **💾 Save** stores the current set of regions; **📂 Import** applies a saved set
+   to another video or project.
+5. **✅ Finish and Save Project**.
+
+Mistakes are cheap: **↶ Undo (Ctrl+Z)** and **↷ Redo (Ctrl+Y)**, and **❌ Discard** abandons the
+polygon being drawn.
+
+**The inclusion rule** decides what counts as the animal being inside a region:
+
+| Rule | Inside when |
+| --- | --- |
+| `bbox_intersects` (default) | The box around the animal overlaps the region |
+| `centroid_in` | The animal's centre is inside the region |
+| `centroid_in_on_buffered_roi` | Same, on a region grown or shrunk by a buffer |
+| `seg_overlap` | The animal's mask overlaps the region beyond a fraction (0.3 by default) |
+
+`seg_overlap` needs masks, which only exist if they were recorded — segmentation method, mask
+persistence enabled, and this rule in force. When they are missing the analysis falls back to
+`bbox_intersects` and says so in the report rather than failing.
+
+With several aquariums in one video, **Processing Mode** chooses **Simultaneous (1 pass, faster)**
+or **Sequential (2 passes, 1 aquarium at a time)**, and **🐟 Active Aquarium** selects which one
+you are drawing.
+
+Zones belong to the video you drew them on. A video with none of its own uses the project default.
+
+## Processing the videos
+
+In **Main Control**:
+
+- **Analyse Selected Video(s)** — the ones selected in the tree.
+- **Process Pending Videos...** — everything not yet processed.
+- **Add Videos/Folders to the Project...** — to extend the project later.
+
+![Analysis in progress, with the live overlay](../screenshots/analysis_running.png)
+
+The **Video Analysis** tab follows the run: frames processed, detections, elapsed and estimated
+time, and the overlay with each animal's track ID and confidence. It is also where you choose which
+`track_id`s to keep — all of them, or a specific one.
+
+The project tree shows the state of each video, by group, day and subject:
 
 ![Project overview by group, day and subject](../screenshots/project_overview.png)
 
-**Key Components**:
+**Roughly how long it takes:** on a typical Intel laptop with OpenVINO enabled and the default
+analysis interval of 10, a 5-minute 1080p video takes a few minutes. Lowering the interval to 1
+multiplies that by about ten.
 
-1. **Menu Bar**: Access to File, Edit, View, Tools, and Help menus
-2. **Toolbar**: Quick access to common actions (New, Open, Save, Run Analysis)
-3. **Video Player**: Central area for video playback and visualization
-4. **Timeline**: Scrub through video frames
-5. **Control Panel**: Play, pause, frame advance controls
-6. **Status Bar**: Current frame, FPS, processing status
+## Reports and results
 
----
+The **Processing and Reports** tab generates:
 
-## Creating Your First Project
+- **🧾 Partial Reports** — per video: trajectory, summary and Word report.
+- **Unified reports** — one comparison across the whole project, in
+  `<project>/unified_reports/`, with an Excel sheet of data plus descriptive statistics, a CSV, a
+  Word file with comparative boxplots, and a JSON manifest of the run.
 
-### Project Creation Flow
+Double-click any entry to open the file.
 
-DRerio LogAI uses a **Project Wizard** as the primary method for creating new projects. The wizard guides you through 5 essential steps.
-
-### Step 1: Start New Project
-
-1. Click **File → New Project** (or press `Ctrl+N`)
-2. The Project Wizard opens
-
-![Project Wizard Start](../screenshots/wizard_step1.png)
-
-### Alternative: Traditional Flow
-
-For advanced users, you can use the traditional flow:
-
-- **File → Load Video**: Load video first, then configure settings
-
----
-
-## Understanding the Project Wizard
-
-The wizard consists of 5 steps with a consistent layout (1150x550px window):
-
-### Wizard Step 1: Project Information
-
-**Required Information**:
-
-- **Project Name**: Unique identifier for your project
-- **Experiment ID**: Experiment identifier (used for grouping)
-- **Description**: Optional notes about the experiment
-
-**Tips**:
-
-- Use descriptive names (e.g., "Zebrafish_Locomotion_Trial1")
-- Keep experiment IDs consistent across related projects
-- Document experimental conditions in the description
-
-![Wizard Step 1](../screenshots/wizard_step1.png)
-
-### Wizard Step 2: Video Source
-
-Choose your video source:
-
-#### Option A: Pre-recorded Video
-
-- Click **Browse** to select video file
-- Supported formats: MP4, AVI, MOV, MKV
-- Resolution: Up to 4K (1080p recommended)
-
-#### Option B: Live Camera
-
-- Select camera from dropdown
-- Configure resolution and frame rate
-- Test camera feed before proceeding
-
-![Wizard Step 2 - Video Source](../screenshots/wizard_step2_video.png)
-
-**Tips**:
-
-- For best results, use 1080p resolution at 30 FPS
-- Ensure consistent lighting across video
-- Minimize camera movement and vibrations
-
-### Wizard Step 3: Arena and ROI Configuration
-
-Define the analysis arena and regions of interest (ROI).
-
-**Arena Configuration**:
-
-- **Center Point**: Click to set arena center
-- **Four Corners**: Click four corners to define arena boundary
-- Arena defines the analysis boundary
-
-**ROI Configuration**:
-
-- Click **Add ROI** to create new regions
-- Draw rectangle or polygon on video
-- Name each ROI (e.g., "Zone A", "Zone B", "Center")
-- ROIs are used for behavioral metrics (time spent, entries/exits)
-
-![ROI Configuration](../screenshots/roi_config.png)
-
-**Tips**:
-
-- Draw ROIs on a representative frame
-- Use clear, descriptive names
-- Save ROI templates for reuse (**File → Save ROI Template**)
-
-### Wizard Step 4: Detection Settings
-
-Configure the AI detection model and tracking parameters.
-
-**Model Selection**:
-
-- **YOLO (Recommended)**: Fast, accurate, general-purpose
-- **OpenVINO**: Optimized for Intel CPUs
-- **Custom Model**: Load your own trained model
-
-**Detection Parameters**:
-
-- **Confidence Threshold**: 0.5 (default)
-  - Lower values: More detections, more false positives
-  - Higher values: Fewer detections, more misses
-- **Multi-Subject Tracking**: Enable for multiple fish
-- **Track ID Assignment**: Enable to maintain consistent IDs
-
-![Detection Settings](../screenshots/wizard_step4_detection.png)
-
-**Tips**:
-
-- Start with default confidence (0.5)
-- Enable GPU acceleration if available
-- Test detection on a few frames before full analysis
-
-### Wizard Step 5: Analysis Options
-
-Final configuration before running analysis.
-
-**Output Options**:
-
-- **Save Annotated Video**: Include bounding boxes and tracks
-- **Generate Heatmap**: Visualize movement density
-- **Export Format**: Parquet (default), CSV, JSON
-
-**Performance Options**:
-
-- **Frame Skipping**: Analyze every N frames (default: 1)
-- **Parallel Processing**: Enable multi-threading
-- **GPU Acceleration**: Use CUDA if available
-
-**Advanced Options**:
-
-- **Analysis Interval**: Detection frequency (default: 10 frames)
-- **Display Interval**: Overlay update frequency (default: 10 frames)
-- **Calibration**: Physical units (cm) conversion
-
-![Wizard Step 5 - Analysis Options](../screenshots/wizard_step5_options.png)
-
-**Tips**:
-
-- Enable all output options for comprehensive results
-- Frame skipping speeds up processing but reduces temporal resolution
-- Calibration enables distance/speed metrics in cm and cm/s
-
-### Completing the Wizard
-
-1. Review all settings in Step 5
-2. Click **Finish** to create the project
-3. Project is saved and ready for analysis
-
----
-
-## Running Analysis
-
-### Starting Analysis
-
-After creating a project:
-
-1. Click **Run Analysis** button (or press `Ctrl+R`)
-2. Progress dialog appears showing:
-   - Total frames
-   - Processed frames
-   - Detected frames
-   - Estimated time remaining
-
-![Analysis Progress](../screenshots/analysis_running.png)
-
-### Monitoring Progress
-
-The progress dialog displays:
-
-- **Progress Bar**: Overall completion percentage
-- **Frame Count**: Current frame / Total frames
-- **Detection Rate**: Frames with successful detections
-- **Processing Speed**: FPS (frames per second)
-- **Time Remaining**: Estimated time to completion
-
-### Analysis Stages
-
-The analysis pipeline consists of:
-
-1. **Video Loading**: Reading video file and metadata
-2. **Detection**: AI model identifies subjects in each frame
-3. **Tracking**: Assigns consistent IDs across frames
-4. **Zone Analysis**: Calculates time in ROIs, entries/exits
-5. **Metric Calculation**: Distance, speed, behavioral metrics
-6. **Output Generation**: Parquet files, annotated video, reports
-
-### Typical Processing Times
-
-| Video Length | Resolution | Speed (with GPU) | Speed (CPU only) |
-| ------------ | ---------- | ---------------- | ---------------- |
-| 1 minute     | 1080p      | ~10 seconds      | ~30 seconds      |
-| 5 minutes    | 1080p      | ~50 seconds      | ~2.5 minutes     |
-| 30 minutes   | 1080p      | ~5 minutes       | ~15 minutes      |
-| 1 hour       | 4K         | ~20 minutes      | ~1 hour          |
-
-### Pausing and Canceling
-
-- **Pause**: Click **Pause** button to temporarily stop
-- **Resume**: Click **Resume** to continue from current frame
-- **Cancel**: Click **Cancel** to abort analysis (partial results saved)
-
----
-
-## Understanding Results
-
-### Output Structure
-
-After analysis completes, results are saved in `<video_name>_results/` directory:
+### The files produced, per video
 
 ```text
-my_video_results/
-├── 1_ArenaROI_my_video.parquet         # Arena and ROI definitions
-├── 2_Zones_my_video.parquet            # Zone metadata
-├── 3_CoordMovimento_my_video.parquet   # Frame-by-frame tracking data
-├── my_video_summary.xlsx               # Summary metrics per ROI
-├── my_video_report.docx                # Word report with plots
-└── my_video_annotated.mp4              # Annotated video (optional)
+<video>_results/
+├── 1_ArenaROI_<video>.parquet       # Arena and ROI definitions
+├── 2_Zones_<video>.parquet          # Zone metadata
+├── 3_CoordMovimento_<video>.parquet # Frame-by-frame trajectory
+├── 3b_Mascaras_<video>.parquet      # Segmentation masks (only when recorded)
+├── <video>_summary.xlsx             # Metrics per ROI, plus a per-animal sheet
+└── <video>_report.docx              # Illustrated report
 ```
 
-### Key Output Files
-
-#### 1. Tracking Data (`3_CoordMovimento_*.parquet`)
-
-**Parquet Schema** (fixed, immutable):
+The trajectory schema is fixed and will not change between versions:
 
 ```text
-timestamp, frame, track_id, x1, y1, x2, y2, confidence, [x_center_px, y_center_px, x_cm, y_cm]*
+timestamp, frame, track_id, x1, y1, x2, y2, confidence
+[x_center_px, y_center_px, x_cm, y_cm]*   — when calibration is available
 ```
 
-**Columns**:
+- `track_id` — the animal's identity across frames
+- `x1, y1, x2, y2` — the bounding box, in **raw video pixels**
+- `confidence` — how sure the detector was, 0 to 1
 
-- `timestamp`: Video timestamp (seconds)
-- `frame`: Frame number
-- `track_id`: Unique ID for each tracked subject
-- `x1, y1, x2, y2`: Bounding box coordinates (pixels)
-- `confidence`: Detection confidence (0.0-1.0)
-- `x_center_px, y_center_px`: Centroid coordinates (pixels)
-- `x_cm, y_cm`: Centroid coordinates (cm, if calibrated)
+> `timestamp` is a **processing clock**, not the capture instant. For live sessions, the real
+> timing is in `6_FrameLedger_<base>`.
 
-**Reading in Python**:
+Reading it in Python:
 
 ```python
 import pandas as pd
 
-# Load tracking data
 df = pd.read_parquet("my_video_results/3_CoordMovimento_my_video.parquet")
-
-# Filter by track ID
-track_1 = df[df['track_id'] == 1]
-
-# Calculate total distance
-distance = track_1[['x_cm', 'y_cm']].diff().pow(2).sum(axis=1).pow(0.5).sum()
-print(f"Total distance: {distance:.2f} cm")
+one_animal = df[df["track_id"] == 1]
 ```
 
-#### 2. Summary Report (`*_summary.xlsx`)
+### Plots
 
-Excel file with multiple sheets:
+![Occupancy heat map in centimetres](../screenshots/heatmap.png)
 
-##### Sheet 1: Overall Statistics
-
-| Metric            | Value | Unit    |
-| ----------------- | ----- | ------- |
-| Total Time        | 120.5 | seconds |
-| Total Frames      | 3615  | frames  |
-| Detection Rate    | 98.3  | %       |
-| Distance Traveled | 345.2 | cm      |
-| Average Speed     | 2.86  | cm/s    |
-| Max Speed         | 12.4  | cm/s    |
-
-##### Sheet 2: ROI Metrics
-
-| ROI Name | Time (s) | Entries | Exits | % Time |
-| -------- | -------- | ------- | ----- | ------ |
-| Zone A   | 45.3     | 12      | 12    | 37.6   |
-| Zone B   | 32.1     | 8       | 8     | 26.6   |
-| Center   | 43.1     | 15      | 14    | 35.8   |
-
-##### Sheet 3: Track-by-Track Analysis (if multi-subject)
-
-Per-track metrics for each detected subject.
-
-#### 3. Word Report (`*_report.docx`)
-
-Comprehensive report including:
-
-- Experiment metadata
-- Summary statistics
-- Trajectory plots
-- Heatmaps
-- ROI time distribution charts
-- Speed over time graphs
-
-### Visualizing Results
-
-#### Heatmap
-
-Heatmaps show movement density (warmer colors = more time spent):
-
-![Occupancy heat map over the arena, in centimetres](../screenshots/heatmap.png)
-
-The same session as a reconstructed swim trajectory, with the operator-defined
-ROIs drawn over the arena frame:
+The heat map shows where the animal spent its time — warmer means longer. The trajectory plot shows
+the path itself, with the operator-defined regions drawn over the arena:
 
 ![Swim trajectory with the four ROIs](../screenshots/trajectory_output.png)
 
-**Interpreting Heatmaps**:
+Both are generated automatically and embedded in the Word report.
 
-- **Red zones**: High activity, preferred locations
-- **Blue zones**: Low activity, avoided locations
-- **Green zones**: Moderate activity
+### The metrics
 
-#### Trajectory Plot
+Locomotion (total distance, mean/max/SD speed, tortuosity), angular velocity and sharp turns,
+behavioural episodes (speed bursts, inactivity), thigmotaxis, geotaxis, and per ROI: time, entries,
+exits, latency to first entry, distance and speed inside the region.
 
-Line plot showing subject's path over time:
+Every column name and formula: [`docs/reference/metrics.md`](../../reference/metrics.md).
 
-- **Color gradient**: Time progression (blue → red)
-- **Line thickness**: Speed (thicker = faster)
+> **Recordings of different lengths cannot be compared on absolute metrics** (total distance, number
+> of entries, time in ROI). The application warns before generating the report and stamps the caveat
+> inside the `.docx`; normalise using the `video_duration_s` column in the `.xlsx`.
 
-#### Speed Over Time
+## Live camera projects
 
-Graph showing speed variations:
+A live project records and analyses at the same time, following an experimental design.
 
-- **Peaks**: Bursts of activity
-- **Valleys**: Resting periods
-- **Average line**: Mean speed across session
+### Creating it (6 steps)
 
-### Exporting Results
+1. **Discovery** — project type: live.
+2. **Experimental Design** — duration in days, number of groups and their names, animals per group.
+   The wizard shows the resulting number of recordings.
 
-#### Export Formats
+   ![Live wizard — experimental design](../screenshots/live_wizard_experimental_design.png)
 
-**Parquet (Default)**:
+3. **Live Recording Configuration**:
 
-- Binary format, efficient storage
-- Best for Python analysis (pandas)
-- Preserves data types and schema
+   ![Live wizard — camera, Arduino and recording](../screenshots/live_analysis_dialog.png)
 
-**CSV**:
+   - **🔍 Detect Cameras**, then **Select Camera**.
+   - Optional **Use Arduino for synchronization**: **🔍 Detect** the port, **🔌 Test** the
+     connection.
+   - **External Trigger Mode** — the Arduino starts the recording rather than the operator. Opt-in,
+     and it requires a sketch that sends `1`/`0` over serial; the reference sketch in this
+     repository does **not**. See
+     [`docs/guides/user/external-trigger.md`](../../guides/user/external-trigger.md).
+   - **Use timed recording** with a duration in seconds (300 = 5 minutes), and optionally a
+     countdown before it starts.
+4. **Physical Calibration**, 5. **Models and Weights**, 6. **Confirmation** — as in the pre-recorded
+   flow.
 
-- Text format, universal compatibility
-- Excel-compatible
-- Larger file size
+### Running sessions
 
-**JSON**:
-
-- Structured text format
-- Web application friendly
-- Human-readable
-
-#### Changing Export Format
-
-1. Before analysis: **Wizard Step 5 → Export Format**
-2. After analysis: **File → Export Results → Choose Format**
-
----
-
-## Live Camera Analysis
-
-### Overview
-
-Live Camera Analysis allows real-time tracking and recording from connected cameras.
-
-### Launching Live Analysis
-
-1. **File → Analisar Câmera ao Vivo...** (or press `Ctrl+L`)
-2. Live Analysis Dialog opens
-
-![Live Analysis Dialog](../screenshots/live_analysis_dialog.png)
-
-### Configuration
-
-**Basic Settings**:
-
-- **Experiment ID**: Identifier for live session
-- **Session Duration**: Time limit (seconds, minutes, or hours)
-- **Camera**: Select connected camera
-- **Resolution**: Camera resolution (720p, 1080p)
-
-**Detection Settings**:
-
-- **Model**: Choose detection model
-- **Confidence**: Detection threshold
-- **ROIs**: Define analysis regions
-
-**Output Settings**:
-
-- **Save Video**: Record annotated video
-- **Save Tracking Data**: Export Parquet file
-- **Output Directory**: `live_analysis_sessions/`
-
-### Running Live Session
-
-1. Click **Start Session**
-2. Live preview window opens showing:
-   - Real-time video feed
-   - Detection overlays
-   - Frame counter and FPS
-3. Session runs for configured duration
-4. Results saved automatically to `live_analysis_sessions/{experiment_id}_{timestamp}/`
-
-The live session runner, with per-animal acquisition control and the
-progress of the current experimental day:
+The session runner shows one card per animal for the current day and group:
 
 ![Live session control, one card per animal](../screenshots/live_session_control.png)
 
-### Live Session Controls
+Press **▶️ Start Recording** for a subject; **✖ Cancel Session** discards a recording in progress,
+including its folder — a cancelled session is not half-kept. Each session lands in
+`live_analysis_sessions/{experiment_id}_{timestamp}/`.
 
-- **Pause**: Temporarily pause recording (timer continues)
-- **Resume**: Continue recording
-- **Stop**: End session early
-- **Snapshot**: Capture current frame
+**Recording duration** can be set per subject, per block (day × group) or for the project, in that
+order of precedence.
 
-### Live Analysis Output
+> Heterogeneous durations inside one block invalidate comparisons of absolute metrics. The
+> application warns rather than silently normalising: the decision is the researcher's.
 
-Same structure as pre-recorded analysis:
+The **Experiment Progress** tab shows the day × group grid, with sessions completed per cell:
 
-```text
-live_analysis_sessions/
-└── exp_001_20251110_143022/
-    ├── 3_CoordMovimento_live_session.parquet
-    ├── live_session_summary.xlsx
-    ├── live_session_report.docx
-    └── live_session_annotated.mp4 (optional)
-```
+![Experiment Progress grid](../screenshots/live_experiment_progress.png)
 
----
+### Arduino, per-zone commands
 
-## Keyboard Shortcuts
+With an Arduino connected, each ROI can send an integer token when an animal enters or leaves it,
+and the firmware decides what the token does:
 
-### Global Shortcuts
+![Zone configuration with the Arduino binding panel](../screenshots/roi_config_live_arduino.png)
 
-| Shortcut | Action                    |
-| -------- | ------------------------- |
-| `Ctrl+N` | New Project (open wizard) |
-| `Ctrl+O` | Open Project              |
-| `Ctrl+S` | Save Project              |
-| `Ctrl+L` | Live Camera Analysis      |
-| `Ctrl+Q` | Quit Application          |
+- **Each token must have exactly one role.** Reusing one integer as one region's entry token and
+  another's exit token latches a device on and breaks the session-end sweep. The application detects
+  the conflict and warns, but never rewrites your bindings — only the sketch knows what each token
+  means.
+- **Verify against the firmware's reply, not your intent.** **🔌 Test commands** shows what the board answers; an entry token answered with "… OFF" proves the binding is inverted.
+- Full guide: [`docs/guides/user/arduino-bindings.md`](../../guides/user/arduino-bindings.md).
 
-### Video Playback
+## Analysing a single video without a project
 
-| Shortcut    | Action                  |
-| ----------- | ----------------------- |
-| `Space`     | Play/Pause              |
-| `→`         | Next Frame              |
-| `←`         | Previous Frame          |
-| `Page Down` | Jump Forward 10 Frames  |
-| `Page Up`   | Jump Backward 10 Frames |
-| `Home`      | Go to First Frame       |
-| `End`       | Go to Last Frame        |
+**Analyze Single Video** on the main window: choose the file, set the calibration and the number of
+animals, draw the arena and ROIs, and process. The outputs are the same `<video>_results/` folder;
+what you do not get is the group/day/subject structure or the unified report.
 
-### Analysis
+**Analyze Live Camera** does the same for an ad-hoc camera session.
 
-| Shortcut | Action                 |
-| -------- | ---------------------- |
-| `Ctrl+R` | Run Analysis           |
-| `Ctrl+P` | Pause Analysis         |
-| `Ctrl+T` | Toggle Track Overlays  |
-| `Ctrl+H` | Toggle Heatmap Overlay |
+## Keyboard and mouse
 
-### ROI Management
+| Shortcut | Action |
+| --- | --- |
+| `Ctrl+Q` | Quit the application |
+| `Ctrl+Z` / `Ctrl+Y` | Undo / redo while drawing zones |
+| Double-click (reports tree) | Open the report or file |
+| Right-click (project tree) | Context menu: edit design, delete specific data, remove a video |
 
-| Shortcut       | Action              |
-| -------------- | ------------------- |
-| `Ctrl+Shift+A` | Add ROI             |
-| `Ctrl+Shift+D` | Delete Selected ROI |
-| `Ctrl+Shift+E` | Edit ROI Properties |
-| `Ctrl+Shift+T` | Save ROI Template   |
+The right-click menu in the project tree is where per-video data is deleted selectively —
+**🏛️ Delete Arena**, **📍 Delete ROIs**, **📈 Delete Trajectory**, **📝 Delete Reports** — or all at
+once with **🧹 Delete All Processing Data**.
 
----
+## Where to go next
 
-## Next Steps
-
-### Tutorial Videos
-
-Watch video tutorials on our [YouTube channel](https://youtube.com/zebtrack) (coming soon):
-
-- Basic project workflow
-- Advanced ROI configuration
-- Multi-subject tracking
-- Custom model training
-
-### Advanced Features
-
-Explore advanced capabilities:
-
-- **Batch Processing**: Analyze multiple videos automatically ([see FAQ](FAQ.md#batch-processing))
-- **Custom Models**: Train detection models on your data
-- **Arduino Integration**: Trigger external devices based on ROI events
-- **Plugin System**: Extend functionality with custom plugins
-
-### Community and Support
-
-- **Documentation Hub**: [DRerio LogAI docs (GitHub)](https://github.com/MarkSant/DRerio-LogAI/tree/main/docs)
-- **GitHub Issues**: [Report bugs and request features](https://github.com/MarkSant/DRerio-LogAI/issues)
-- **Discussions**: [Community forum](https://github.com/MarkSant/DRerio-LogAI/discussions)
-- **Email Support**: <marco.sant@unesp.br>
-
-### Contributing
-
-Interested in contributing? See our [Contributing Guide](../../../CONTRIBUTING.md) for:
-
-- Code contribution guidelines
-- Development setup
-- Testing requirements
-- Documentation standards
-
----
-
-## Troubleshooting
-
-For common issues and solutions, see the [Troubleshooting Guide](TROUBLESHOOTING.md).
-
-**Quick Links**:
-
-- [Camera Not Found](TROUBLESHOOTING.md#camera-not-found)
-- [Low Detection Accuracy](TROUBLESHOOTING.md#low-detection-accuracy)
-- [Slow Performance](TROUBLESHOOTING.md#slow-performance)
-- [GPU Not Detected](TROUBLESHOOTING.md#gpu-not-detected)
-
----
+- [Full tutorial](../2_Full_Tutorial.md) — the same path with more detail on each screen.
+- [FAQ](../3_FAQ.md) — the questions that come up most.
+- [Troubleshooting](TROUBLESHOOTING.md) — when something does not work.
+- [Metrics reference](../../reference/metrics.md) — every column and formula.
+- [Tracking configuration](../6_Configuracao_Rastreamento.md) — tuning detection and tracking.
+- Bugs and requests: [GitHub Issues](https://github.com/MarkSant/DRerio-LogAI/issues) ·
+  Questions: [Discussions](https://github.com/MarkSant/DRerio-LogAI/discussions)
 
 ## Glossary
 
-**Arena**: The physical space where subjects are tracked (e.g., fish tank)
+**Arena** — the physical space the animals are tracked in, usually the aquarium.
 
-**ROI (Region of Interest)**: Defined area within arena for behavioral analysis
+**ROI (Region of Interest)** — a region drawn inside the arena that metrics are reported for
+separately (bottom, top, a corner, a chamber).
 
-**Confidence Threshold**: Minimum score for accepting a detection (0.0-1.0)
+**Track ID** — the identity the tracker assigns to an animal and carries across frames.
 
-**Track ID**: Unique identifier assigned to each subject across frames
+**Confidence** — how sure the model is about a detection, from 0 to 1.
 
-**Parquet**: Efficient binary format for storing tabular data
+**Calibration** — the conversion from pixels to centimetres, from the aquarium's real dimensions.
 
-**Heatmap**: Visualization showing spatial density of movement
+**Detection (det) / Segmentation (seg)** — a box around the animal, or its outline.
 
-**FPS (Frames Per Second)**: Processing or playback speed
+**Parquet** — the compact table format the trajectories are stored in; `pandas` reads it directly.
 
-**Calibration**: Conversion from pixels to physical units (cm)
+**Thigmotaxis** — the tendency to stay near the walls, a common anxiety-like measure.
 
----
+**Geotaxis** — vertical preference (bottom, middle, surface), measured in side view.
 
-**Version**: 2.1
-**Last Updated**: November 2025
-**License**: MIT
+**OpenVINO** — Intel's accelerator, which makes the models run faster on Intel hardware.

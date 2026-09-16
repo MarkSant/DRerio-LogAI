@@ -92,17 +92,31 @@ jobs:
           poetry run pip install memray pytest-memray
 
       - name: Run tests with memory profiling
+        id: profiled-run
+        # continue-on-error so the artifacts below are still collected; the
+        # outcome is enforced by the explicit gate after them.
         run: |
           poetry run pytest --memray --memray-bin-path=./memray-results \
             -v --tb=short --junit-xml=memory-leak-results.xml
         continue-on-error: true
+
+      # memray names every .bin after the test id, and a parametrised id can carry a
+      # colon -- test_known_values[125-2:05]. upload-artifact rejects such names
+      # outright (NTFS compatibility), so uploading the FOLDER failed on every single
+      # run. That, and not any measurement, is what made this job red every night and
+      # filed an issue each time -- each one pointing at the artifact whose upload was
+      # itself the failure. Inside a tarball the uploader never sees those names.
+      - name: Package memory profiling results
+        if: always()
+        run: tar -czf memray-results.tar.gz memray-results/ || true
 
       - name: Upload memory profiling results
         if: always()
         uses: actions/upload-artifact@v7
         with:
           name: memray-results
-          path: memray-results/
+          path: memray-results.tar.gz
+          if-no-files-found: ignore
 
       - name: Upload test results
         if: always()
@@ -110,6 +124,16 @@ jobs:
         with:
           name: memory-leak-results
           path: memory-leak-results.xml
+          if-no-files-found: ignore
+
+      # Without this the alarm is inverted: the profiled run cannot fail the job
+      # (continue-on-error), so a genuine memory problem was reported as success while
+      # an upload hiccup opened a "memory leak" issue.
+      - name: Fail when the profiled run did not pass
+        if: steps.profiled-run.outcome != 'success'
+        run: |
+          echo "pytest --memray outcome: ${{ steps.profiled-run.outcome }}" >&2
+          exit 1
 
       - name: Create issue on failure
         if: failure()
@@ -119,14 +143,16 @@ jobs:
             const issue = await github.rest.issues.create({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              title: 'Nightly Stress Test Failed - Memory Leaks Detected',
-              body: `## Memory Leak Detection Failure\n\n` +
+              title: 'Nightly memory profiling run failed',
+              body: `## The profiled test run did not pass\n\n` +
                     `**Workflow:** ${context.workflow}\n` +
                     `**Run:** ${context.runNumber}\n` +
                     `**Commit:** ${context.sha}\n\n` +
                     `[View workflow run](${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})\n\n` +
-                    `Check memray results artifacts for detailed memory profiling.`,
-              labels: ['stress-test-failure', 'memory-leak', 'needs-investigation'],
+                    `The suite under pytest --memray failed or timed out. This does NOT ` +
+                    `by itself mean a memory leak was measured: read the log first, then ` +
+                    `the memray-results tarball.`,
+              labels: ['stress-test-failure', 'needs-investigation'],
               assignees: []
             });
 

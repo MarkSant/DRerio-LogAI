@@ -6,6 +6,50 @@ This document tracks all major agent interventions, technical debt resolutions, 
 
 ## Active Tasks
 
+### [2026-09-15] README para quem nunca abriu um terminal, instalador que instala os pré-requisitos, release 7.2.0
+
+__ID:__ TASK-075
+__Agent:__ Claude Code (Opus 5)
+__Status:__ Completed ✅
+__Branch:__ docs/readme-doi-badge
+__Description:__
+O README prometia instalação "sem terminal", mas sem Poetry o `install.ps1` parava e mandava
+colar um comando no PowerShell e editar o PATH à mão. Git, terminal e "Source code (zip)" eram
+citados sem explicação; a instalação começava na linha 297, depois de 200 linhas de novidades
+das versões 4 a 7; o badge do DOI quebrava (Zenodo limita a 120 req/min e manda `no-cache`, e o
+proxy de imagens do GitHub leva 429); `GETTING_STARTED.md` descrevia outro programa (assistente
+de 5 passos, atalhos inexistentes, CUDA recomendado).
+
+__Critério de pronto:__
+
+- `install.ps1` instala Python 3.12 (winget) e Poetry (instalador oficial), com confirmação, e
+  põe o Poetry no PATH do usuário; helpers cobertos por teste.
+- README em inglês reorganizado para o usuário (instalação, primeira execução, modelos/OpenVINO,
+  primeiro projeto, parâmetros); novidades por versão em `docs/releases/`; conteúdo de
+  desenvolvedor em `CONTRIBUTING.md`.
+- Guia de instalação para leigos e `GETTING_STARTED.md` reescritos em inglês; depois as versões
+  em português.
+- Release 7.2.0 com as cinco declarações de versão alinhadas (`.zenodo.json` e `__version__`
+  ainda diziam 7.0.1 no release 7.1.0).
+
+__Resultado:__
+
+- `install.ps1` instala Python 3.12 (winget) e Poetry (instalador oficial), com confirmação, e
+  registra o Poetry no PATH do usuário lendo e gravando a chave __crua__ (`REG_EXPAND_SZ`) — a API
+  .NET expandiria `%USERPROFILE%` na leitura e gravaria `REG_SZ`, congelando entradas alheias.
+  Verificado de ponta a ponta nesta máquina com `-SkipWeights -SkipShortcut`.
+- `tests/test_install_ps1.py`: 12 testes que carregam os helpers por dot-source, sem executar
+  instalação, com PATH, APPDATA e POETRY_HOME controlados.
+- README (en + pt-BR) reorganizados; `docs/releases/INDEX.md` criado; `1_Installation.md` e
+  `GETTING_STARTED.md` reescritos, com as versões `1_Instalacao.md` e `PRIMEIROS_PASSOS.md`.
+- Badge do DOI trocado por shields.io estático (Zenodo limita a 120 req/min e manda `no-cache`;
+  o proxy de imagens do GitHub leva 429).
+- Cinco declarações de versão alinhadas em 7.2.0.
+
+__Validação:__ `pytest -q` 6767 passed / 1 skipped; `pytest -m gui -n0` 1224 passed; `ruff`,
+`mypy .` (916 arquivos), `bandit -r src/zebtrack -ll` sem achados, markdownlint,
+`scripts/build_wiki.py --check`, `mutation_check --changed-since origin/main` (nada a mutar).
+
 ### [2026-09-07] Mutation check no CI: 7 min por PR, sem poder reprovar nada
 
 __ID:__ TASK-074

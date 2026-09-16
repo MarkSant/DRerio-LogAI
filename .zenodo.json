@@ -1,8 +1,8 @@
 {
   "upload_type": "software",
   "title": "DRerio LogAI: an open-source, GPU-free platform for automated tracking and behavioural analysis of adult zebrafish (Danio rerio)",
-  "version": "7.0.1",
-  "publication_date": "2026-09-07",
+  "version": "7.2.0",
+  "publication_date": "2026-09-15",
   "language": "eng",
   "access_right": "open",
   "license": "AGPL-3.0-or-later",
