@@ -5,12 +5,15 @@
 
 **Plataforma Inteligente de Rastreamento e Análise Comportamental para _Danio rerio_ (Zebrafish)**
 
-![Version](https://img.shields.io/badge/version-7.0.1-blue.svg)
+![Version](https://img.shields.io/badge/version-7.1.0-blue.svg)
 ![Architecture](https://img.shields.io/badge/architecture-Event--Driven-green.svg)
 ![Python](https://img.shields.io/badge/python-3.12%2B-yellow.svg)
 ![License](https://img.shields.io/badge/license-MIT%20%2B%20AGPL--3.0--or--later%20effective-lightgrey.svg)
 ![INPI](https://img.shields.io/badge/INPI-BR%2051%202026%20005215--7-blueviolet.svg)
-[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.22650404.svg)](https://doi.org/10.5281/zenodo.22650404)
+<!-- DOI badge is a static shields.io image on purpose. zenodo.org/badge/... is rate-limited
+     (120 req/min) and sent with no-cache, so GitHub's shared image proxy intermittently gets
+     HTTP 429 and renders a broken icon. The DOI text never changes, so nothing is lost. -->
+[![DOI](https://img.shields.io/badge/DOI-10.5281%2Fzenodo.22650404-1682D4.svg)](https://doi.org/10.5281/zenodo.22650404)
 [![CI](https://github.com/MarkSant/DRerio-LogAI/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/MarkSant/DRerio-LogAI/actions/workflows/ci.yml)
 [![Codecov](https://codecov.io/gh/MarkSant/DRerio-LogAI/branch/main/graph/badge.svg?token=XH937YKEOU)](https://codecov.io/gh/MarkSant/DRerio-LogAI)
 
