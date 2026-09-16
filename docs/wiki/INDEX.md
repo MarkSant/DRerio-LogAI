@@ -8,11 +8,11 @@ New here? Start with [Installation and Setup](1_Installation.md), then the
 
 ## 1. User Guide
 
-- [Installation and Setup](1_Installation.md) (See README.md)
+- [Installation and Setup](1_Installation.md) - step by step, no previous experience assumed
 - [Full Tutorial](2_Full_Tutorial.md)
 - [FAQ](3_FAQ.md)
 - [Tracking Configuration](6_Configuracao_Rastreamento.md)
-- [User Guide (Summary)](user-guide/GETTING_STARTED.md)
+- [Getting Started](user-guide/GETTING_STARTED.md) - first launch, models, first project, reports
 - [Troubleshooting](user-guide/TROUBLESHOOTING.md)
 
 ## 2. Developer Guide

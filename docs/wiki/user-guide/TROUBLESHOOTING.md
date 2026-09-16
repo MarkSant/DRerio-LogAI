@@ -27,11 +27,15 @@ This guide provides solutions to common issues encountered when using DRerio Log
 
 **Solutions**:
 
-1. **Ensure Python 3.12+**:
+1. **Ensure Python 3.12 or 3.13** (3.14 is NOT supported: the pinned NumPy has no
+   wheel for it, so the install tries to compile from source and fails):
 
    ```bash
-   python --version  # Should show 3.12 or higher
+   poetry run python -V   # Must report 3.12.x or 3.13.x
    ```
+
+   If it reports anything else, rebuild the environment: `poetry env use 3.12` then
+   `poetry install`.
 
 2. **Update Poetry**:
 
@@ -66,14 +70,8 @@ This guide provides solutions to common issues encountered when using DRerio Log
 
 **Solutions**:
 
-1. **Activate Poetry environment**:
-
-   ```bash
-   poetry shell
-   zebtrack
-   ```
-
-   OR use:
+1. **Run through Poetry** (`poetry shell` was removed in Poetry 2.0 and moved to the
+   `poetry-plugin-shell` plugin; prefer `poetry run`):
 
    ```bash
    poetry run zebtrack
@@ -911,7 +909,7 @@ poetry run zebtrack
 1. **Check Python version**:
 
    ```bash
-   python --version  # Must be 3.12+
+   poetry run python -V  # Must be 3.12.x or 3.13.x
    ```
 
 2. **Run with verbose logging**:

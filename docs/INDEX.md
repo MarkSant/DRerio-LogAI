@@ -1,7 +1,7 @@
 # DRerio LogAI Documentation Index
 
 **Last Updated:** September 7, 2026
-**Version:** 7.0.0
+**Version:** 7.1.0
 
 ---
 
@@ -51,6 +51,10 @@ docs/
 
 ### For Users
 
+- **[Installation and Setup](wiki/1_Installation.md)** - step by step, no previous experience assumed.
+- **[Getting Started](wiki/user-guide/GETTING_STARTED.md)** - first launch, detector models, first project, reports.
+- **[Troubleshooting](wiki/user-guide/TROUBLESHOOTING.md)** - when something does not work.
+- **[What's new, version by version](releases/INDEX.md)** - release highlights; the full history is in CHANGELOG.md.
 - **[Per-Zone Arduino Commands](guides/user/arduino-bindings.md)** - Send signals to an Arduino on ROI enter/exit during live recordings.
 - **[External Trigger Mode](guides/user/external-trigger.md)** - Let the Arduino start/stop the recording (opt-in; the reference sketch does not implement it).
 
