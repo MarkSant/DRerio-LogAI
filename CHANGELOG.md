@@ -9,6 +9,81 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [7.2.0] - 2026-09-15
+
+Release da documentacao e dos pre-requisitos. A 7.1.0 fez o programa instalar e
+abrir sem terminal; operando isso com quem nunca programou, duas lacunas
+sobraram -- o instalador ainda exigia o terminal quando faltava um
+pre-requisito, e o README nao explicava nenhum dos termos que usava.
+
+### Added
+
+- **O instalador instala o que falta.** `install.ps1` passa a oferecer Python
+  3.12 (winget, escopo de usuario) e Poetry (instalador oficial), sempre
+  perguntando antes, e registra o Poetry no PATH do usuario. Ate aqui, uma
+  maquina sem Poetry recebia um comando para colar no PowerShell e a instrucao
+  de "adicionar aquela pasta ao PATH" -- o unico passo da instalacao que o
+  pesquisador para quem o script foi escrito nao consegue executar.
+
+  Tres detalhes decidem se isso funciona numa maquina limpa:
+
+  - **Poetry instalado mas fora do PATH e o caso comum**, porque o instalador
+    dele apenas pede que voce edite o PATH. `Find-PoetryExecutable` procura em
+    `POETRY_HOME` e nas duas pastas padrao antes de desistir.
+  - **O PATH do usuario e lido e escrito cru, como `REG_EXPAND_SZ`.** A API .NET
+    expande `%USERPROFILE%` na leitura e grava `REG_SZ`, entao o round-trip
+    congelaria em silencio toda entrada desse tipo.
+  - **Um processo nao ve o PATH que outro acabou de mudar.** Depois do winget,
+    a sessao rele a chave, e os candidatos de Python incluem a pasta de
+    instalacao por usuario -- onde o winget poe o interpretador.
+
+  `-Yes` aceita as ofertas sem perguntar; sem ele, um run desassistido recusa em
+  vez de travar (`-NonInteractive` faz `Read-Host` lancar).
+
+- **`docs/releases/INDEX.md`**: pagina de novidades versao por versao, para onde
+  foi o historico que ocupava o topo do README.
+- **`docs/wiki/1_Instalacao.md`** e **`docs/wiki/user-guide/PRIMEIROS_PASSOS.md`**:
+  as versoes em portugues do guia de instalacao e do guia do usuario.
+- **`tests/test_install_ps1.py`**: os helpers do instalador ficam acima de uma
+  guarda de dot-source, o que permite testa-los com PATH, APPDATA e POETRY_HOME
+  controlados, sem executar instalacao nenhuma.
+
+### Changed
+
+- **README reorganizado em torno de quem usa o programa.** Ele abria com 200
+  linhas de novidades das versoes 4 a 7 e so chegava a instalacao na linha 297;
+  entre a instalacao e o fim vinham extensoes do VS Code, a arvore de diretorios
+  e estatisticas da suite de testes. Agora segue a ordem em que o usuario precisa
+  das coisas, e ganhou tres secoes que nao existiam em lugar nenhum: os seis
+  modelos por angulo de camera, os quatro papeis e o OpenVINO por hardware, e uma
+  tabela de parametros com quando aumentar e quando diminuir.
+- **`docs/wiki/1_Installation.md` reescrito para quem nunca abriu um terminal**:
+  o que e Python, o que e o GitHub, onde fica "Source code (zip)", como extrair,
+  o aviso "O Windows protegeu o computador", o que o instalador pergunta, e o que
+  fazer quando cada passo falha. Git e terminal viraram secoes opcionais,
+  explicadas do zero.
+
+### Fixed
+
+- **O badge do DOI quebrava no GitHub, no celular e no computador.** O endereco
+  do Zenodo responde 200 direto, mas limita a 120 requisicoes por minuto e manda
+  `cache-control: no-cache`; as imagens do README passam pelo proxy compartilhado
+  do GitHub, que por isso leva 429 com frequencia. Agora e um badge estatico do
+  shields.io, com o mesmo texto e o mesmo link para `doi.org`.
+- **As cinco declaracoes de versao voltaram a concordar.** A 7.1.0 foi publicada
+  com `src/zebtrack/__init__.py` e `.zenodo.json` ainda em 7.0.1 -- e como
+  `.zenodo.json` sobrepoe o nome da tag, o deposito daquele release ficou
+  rotulado como 7.0.1.
+- **`GETTING_STARTED.md` descrevia outro programa**: assistente de 5 passos,
+  atalhos `Ctrl+N`/`Ctrl+R`/`Ctrl+Shift+A` que nao existem, "GPU NVIDIA
+  recomendada", exportacao para JSON e um canal no YouTube. Reescrito contra a
+  interface real.
+- **`TROUBLESHOOTING.md`** mandava usar `poetry shell`, removido no Poetry 2.0, e
+  pedia "Python 3.12 ou superior" -- que inclui a 3.14, onde a instalacao falha.
+- **Os valores padrao documentados agora sao os do `config.yaml`**: confianca
+  0,05, NMS 0,5, match 0,95, buffer 150, distancia maxima 400 px e regra de ROI
+  `bbox_intersects`.
+
 ## [7.1.0] - 2026-09-08
 
 Release da primeira execucao. A 7.0.1 fez o programa instalar e abrir sem

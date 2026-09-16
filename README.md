@@ -5,7 +5,7 @@
 
 **Intelligent Tracking and Behavioral Analysis Platform for _Danio rerio_ (Zebrafish)**
 
-![Version](https://img.shields.io/badge/version-7.1.0-blue.svg)
+![Version](https://img.shields.io/badge/version-7.2.0-blue.svg)
 ![Python](https://img.shields.io/badge/python-3.12%2B-yellow.svg)
 ![License](https://img.shields.io/badge/license-MIT%20%2B%20AGPL--3.0--or--later%20effective-lightgrey.svg)
 ![INPI](https://img.shields.io/badge/INPI-BR%2051%202026%20005215--7-blueviolet.svg)
@@ -511,6 +511,10 @@ Longer lists: [Troubleshooting](docs/wiki/user-guide/TROUBLESHOOTING.md),
 [FAQ](docs/wiki/3_FAQ.md), [Known issues](docs/reference/KNOWN_ISSUES.md).
 
 ## 🆕 What's new
+
+**Version 7.2.0** — the installer now installs Python and Poetry itself when they are missing,
+instead of asking you to do it in a terminal; the documentation was rewritten for people who have
+never used one; and the DOI badge stopped rendering as a broken icon.
 
 **Version 7.1.0** — the first-run release: a guided installer and a desktop shortcut (no terminal
 needed), a getting-started window explaining the models, a splash screen that appears immediately,

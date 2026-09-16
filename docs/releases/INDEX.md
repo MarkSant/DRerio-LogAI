@@ -6,6 +6,7 @@ the text published on each GitHub release is in `RELEASE_NOTES_v<version>.md` ne
 
 | Version | Date | In one line |
 | --- | --- | --- |
+| [7.2.0](#720--documentation-and-prerequisites) | 2026-09-15 | The installer installs Python and Poetry; docs rewritten for people who have never used a terminal |
 | [7.1.0](#710--the-first-run-release) | 2026-09-08 | Install and open the program without a terminal; a getting-started window |
 | [7.0.0](#700--first-public-release) | 2026-09-07 | First public and citable release; the models became obtainable |
 | [6.0.0](#600--archival-snapshot) | 2026-08-15 | Citable archival snapshot, closed-loop logger correctness, English README |
@@ -14,6 +15,32 @@ the text published on each GitHub release is in `RELEASE_NOTES_v<version>.md` ne
 | [v1–v3](#v1v3--earlier-milestones) | 2025 | Wizard, live projects, the unified `LiveCameraService` |
 
 ---
+
+## 7.2.0 — documentation and prerequisites
+
+- **📥 The installer installs what is missing.** Python 3.12 (through winget, in
+  user scope) and Poetry (through its official installer), always after asking, with
+  Poetry registered on the user's PATH. A machine without Poetry used to get a
+  one-liner to paste and an instruction to edit PATH by hand — the one step of the
+  install the people it is written for cannot do.
+- **📖 A README for the person who runs experiments**, not for whoever versions the
+  software: installation, first run, models and OpenVINO, first project, parameters,
+  outputs. The version history moved to this page; developer material became links.
+- **🧭 Three explanations that existed nowhere**: the six models by camera angle (a
+  lateral model on a top-down recording detects nothing), the four roles and when
+  OpenVINO is worth enabling, and a parameter table with when to raise and lower each.
+- **👣 A step-by-step installation guide for someone who has never opened a terminal**
+  — what Python is, where "Source code (zip)" lives, how to extract it, the
+  "Windows protected your PC" warning, and what to do when each step fails.
+- **🇧🇷 Portuguese versions** of the installation and user guides.
+- **🔗 The DOI badge stopped breaking.** Zenodo's badge endpoint is rate-limited and
+  sent with `no-cache`, so GitHub's shared image proxy takes HTTP 429; it is a static
+  shields.io badge now.
+- **🔢 The five version declarations agree again.** v7.1.0 shipped with
+  `__init__.py` and `.zenodo.json` still at 7.0.1, which is what labels that release's
+  Zenodo record.
+
+Full notes: [`RELEASE_NOTES_v7.2.0.md`](RELEASE_NOTES_v7.2.0.md).
 
 ## 7.1.0 — the first-run release
 
