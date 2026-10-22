@@ -140,7 +140,39 @@ jobs:
           # build/packaging tool, not exposed to untrusted input at app
           # runtime. Drop this ignore once docxcompose migrates off
           # pkg_resources and the ``setuptools < 81`` pin can be lifted.
+          #
+          # CVE-2026-112390..112406 / 112891..112901: Pillow, fixed in 13.0.0.
+          # We cannot take that fix because every ttkbootstrap release (2.2.3
+          # included) requires ``pillow<13``; forcing 13 makes the resolver fall
+          # back to ttkbootstrap 1.12.1. Pillow here only decodes the app's own
+          # bundled icons and frames from the researcher's own videos, never
+          # images from an untrusted source. Drop these ignores once
+          # ttkbootstrap lifts the cap and ``Pillow >= 13`` can be pinned.
           poetry run pip-audit --strict -r /tmp/requirements.txt \
+            --ignore-vuln CVE-2026-112390 \
+            --ignore-vuln CVE-2026-112391 \
+            --ignore-vuln CVE-2026-112392 \
+            --ignore-vuln CVE-2026-112393 \
+            --ignore-vuln CVE-2026-112395 \
+            --ignore-vuln CVE-2026-112396 \
+            --ignore-vuln CVE-2026-112397 \
+            --ignore-vuln CVE-2026-112399 \
+            --ignore-vuln CVE-2026-112400 \
+            --ignore-vuln CVE-2026-112401 \
+            --ignore-vuln CVE-2026-112402 \
+            --ignore-vuln CVE-2026-112404 \
+            --ignore-vuln CVE-2026-112405 \
+            --ignore-vuln CVE-2026-112406 \
+            --ignore-vuln CVE-2026-112891 \
+            --ignore-vuln CVE-2026-112892 \
+            --ignore-vuln CVE-2026-112893 \
+            --ignore-vuln CVE-2026-112894 \
+            --ignore-vuln CVE-2026-112895 \
+            --ignore-vuln CVE-2026-112896 \
+            --ignore-vuln CVE-2026-112897 \
+            --ignore-vuln CVE-2026-112899 \
+            --ignore-vuln CVE-2026-112900 \
+            --ignore-vuln CVE-2026-112901 \
             --ignore-vuln PYSEC-2025-210 \
             --ignore-vuln PYSEC-2025-197 \
             --ignore-vuln PYSEC-2025-196 \

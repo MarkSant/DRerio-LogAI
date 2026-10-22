@@ -397,6 +397,14 @@ The **Experiment Progress** tab shows the day × group grid, with sessions compl
 
 ![Experiment Progress grid](../screenshots/live_experiment_progress.png)
 
+**Experimental notes.** Click a cell to open the block: **📝 Add Note** annotates the whole block,
+and each row's **📝 Note** button annotates one subject ("jumped out of the tank at minute 3").
+Notes are saved in the project, the grid cell gains a 📝, and they appear in the *Experimental
+notes* section of the Word file and the `Notas` sheet of the Excel file of the partial and batch
+reports, and in the unified report (*Experiment Notes* section and `Notes` sheet). A note on a
+subject whose session failed is listed too, flagged as not in the report, because it is the note
+that explains the gap.
+
 ### Arduino, per-zone commands
 
 With an Arduino connected, each ROI can send an integer token when an animal enters or leaves it,

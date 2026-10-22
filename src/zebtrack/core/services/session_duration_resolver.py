@@ -40,6 +40,7 @@ __all__ = [
     "block_override_key",
     "collect_block_durations",
     "duration_override_key",
+    "normalize_day",
     "resolve_session_duration",
     "set_duration_override",
 ]
@@ -93,6 +94,15 @@ def _normalize_day(day: object) -> str:
         return f"Dia_{int(core)}"
 
     return text
+
+
+def normalize_day(day: object) -> str:
+    """Public entry to the day normalization above.
+
+    Other modules that share this ``Dia_N|grupo|sujeito`` key space (the
+    experiment notes) must compare days exactly as these keys were built.
+    """
+    return _normalize_day(day)
 
 
 def duration_override_key(day: object, group: object, subject: object) -> str:

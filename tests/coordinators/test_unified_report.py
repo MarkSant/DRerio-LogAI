@@ -1112,3 +1112,91 @@ class TestLongitudinalSubjectCollisions:
         final_df, _mismatch, _cols = coordinator._align_and_concatenate_unified_dfs([a, a.copy()])
 
         assert len(final_df) == 2
+
+
+class TestExperimentNotes:
+    """Researcher notes (block and subject) reach the unified Excel and Word."""
+
+    @staticmethod
+    def _final_df() -> pd.DataFrame:
+        return pd.DataFrame(
+            {
+                "group_id": ["Controle", "Controle"],
+                "subject": ["1", "2"],
+                "day": ["Dia_1", "Dia_1"],
+                "experiment_id": ["a", "b"],
+                "total_distance_cm": [10.0, 12.0],
+            }
+        )
+
+    @staticmethod
+    def _project_data() -> dict:
+        return {
+            "experiment_notes": {
+                "Dia_1|Controle|*": {"text": "luz piscou", "updated_at": "2026-10-22T14:30:05"},
+                "Dia_1|Controle|3": {"text": "sessao perdida"},
+                # Blocks the report does not cover never leak into it.
+                "Dia_2|Controle|1": {"text": "outro dia"},
+                "Dia_1_CBD": "outro grupo (legado)",
+            }
+        }
+
+    def test_collect_keeps_only_covered_blocks(self, coordinator):
+        coordinator.project_manager.project_data = self._project_data()
+
+        notes = coordinator._collect_unified_notes(self._final_df())
+
+        assert notes[["day", "group", "scope", "subject", "note"]].values.tolist() == [
+            ["Dia_1", "Controle", "block", "", "luz piscou"],
+            ["Dia_1", "Controle", "subject", "3", "sessao perdida"],
+        ]
+
+    def test_collect_matches_zero_padded_days(self, coordinator):
+        coordinator.project_manager.project_data = self._project_data()
+        final_df = self._final_df().assign(day=["Dia_01", "Dia_01"])
+
+        assert len(coordinator._collect_unified_notes(final_df)) == 2
+
+    def test_collect_is_empty_without_day_or_group_columns(self, coordinator):
+        coordinator.project_manager.project_data = self._project_data()
+
+        assert coordinator._collect_unified_notes(pd.DataFrame({"x": [1]})).empty
+        assert coordinator._collect_unified_notes(pd.DataFrame()).empty
+
+    def test_collect_is_empty_when_project_has_no_notes(self, coordinator):
+        coordinator.project_manager.project_data = {}
+
+        assert coordinator._collect_unified_notes(self._final_df()).empty
+
+    def test_export_writes_notes_sheet_and_word_section(self, coordinator, tmp_path):
+        from docx import Document
+
+        coordinator.project_manager.project_data = self._project_data()
+        final_df = self._final_df()
+
+        coordinator._export_unified_reports(final_df, tmp_path, {}, False, list(final_df.columns))
+
+        [excel_path] = tmp_path.glob("unified_summary_*.xlsx")
+        notes = pd.read_excel(excel_path, sheet_name="Notes", dtype=str, keep_default_na=False)
+        assert notes["note"].tolist() == ["luz piscou", "sessao perdida"]
+
+        [word_path] = tmp_path.glob("unified_report_*.docx")
+        document = Document(str(word_path))
+        cells = [cell.text for table in document.tables for row in table.rows for cell in row.cells]
+        assert "Experiment Notes" in [p.text for p in document.paragraphs]
+        assert "luz piscou" in cells
+        assert "(block)" in cells
+
+        # The notes never become a column of the unified data itself.
+        [parquet_path] = tmp_path.glob("unified_summary_*.parquet")
+        assert list(pd.read_parquet(parquet_path).columns) == list(final_df.columns)
+
+    def test_export_without_notes_has_no_notes_sheet(self, coordinator, tmp_path):
+        coordinator.project_manager.project_data = {}
+        final_df = self._final_df()
+
+        coordinator._export_unified_reports(final_df, tmp_path, {}, False, list(final_df.columns))
+
+        [excel_path] = tmp_path.glob("unified_summary_*.xlsx")
+        with pd.ExcelFile(excel_path) as workbook:
+            assert "Notes" not in workbook.sheet_names

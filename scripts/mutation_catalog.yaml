@@ -90,6 +90,28 @@ modules:
         find: 'return f"Dia_{int(core)}"'
         replace: 'return core'
 
+  experiment_notes:
+    source: src/zebtrack/core/services/experiment_notes.py
+    tests:
+      - tests/core/services/test_experiment_notes.py
+    mutations:
+      - id: blank-note-stored
+        description: "nota em branco passa a ser gravada em vez de apagar a anterior"
+        find: 'if not cleaned:'
+        replace: 'if False:'
+      - id: legacy-block-key-kept
+        description: "regravar a nota do bloco deixa a chave legada viva, que ressuscita ao limpar"
+        find: 'notes.pop(_legacy_block_key(day, group), None)'
+        replace: 'notes.get(_legacy_block_key(day, group), None)'
+      - id: legacy-overrides-new
+        description: "nota legada do bloco passa a sobrescrever a nova no relatorio"
+        find: 'records.setdefault((record.day, record.group, None), record)'
+        replace: 'records[(record.day, record.group, None)] = record'
+      - id: subject-note-as-block-note
+        description: "nota de sujeito passa a ser tratada como nota do bloco"
+        find: 'if record.subject is None:'
+        replace: 'if record.subject is not None:'
+
   arduino_bindings:
     source: src/zebtrack/core/services/arduino_bindings.py
     tests:
