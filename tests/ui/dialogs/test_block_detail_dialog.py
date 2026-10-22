@@ -299,3 +299,279 @@ def test_partial_report_stats_columns_include_duration():
 
     assert "video_duration_s" in columns
     assert "analysis_timestamp" not in columns
+
+
+# ---------------------------------------------------------------------------
+# Notas experimentais (bloco e cobaia)
+# ---------------------------------------------------------------------------
+
+
+def _build_note_dialog(tmp_path, project_data: dict | None = None):
+    """Dialog wired just enough to drive the note flow headless.
+
+    Returns ``(dialog, calls)`` where ``calls`` records save/popup ORDER, which
+    is the contract under test: success may only be announced after the save.
+    """
+    calls = MagicMock()
+    dialog = cast(Any, BlockDetailDialog.__new__(BlockDetailDialog))
+    dialog.day_num = 1
+    dialog.group_name = "Controle"
+    dialog.subjects_per_group = 3
+    dialog.completed_sessions = set()
+    dialog.project_manager = SimpleNamespace(
+        project_path=str(tmp_path),
+        project_data=project_data if project_data is not None else {},
+        save_project=calls.save_project,
+    )
+    dialog.session_coordinator = SimpleNamespace(event_bus=calls.event_bus)
+    dialog.live_batch_coordinator = SimpleNamespace(event_bus=None)
+    dialog._block_note_label = MagicMock()
+    dialog._note_button = MagicMock()
+    dialog.refresh_subject_rows = calls.refresh_subject_rows
+    return cast(BlockDetailDialog, dialog), calls
+
+
+_MB = "zebtrack.ui.dialogs.block_detail_dialog.messagebox"
+
+
+def test_add_note_saves_before_announcing_success(tmp_path):
+    dialog, calls = _build_note_dialog(tmp_path)
+    dialog._ask_note_text = MagicMock(return_value="  luz piscou\nno minuto 3 ")
+
+    with (
+        patch(f"{_MB}.showinfo", calls.showinfo),
+        patch(f"{_MB}.showerror", calls.showerror),
+    ):
+        dialog.add_note()
+
+    names = [c[0] for c in calls.mock_calls]
+    assert names.index("save_project") < names.index("showinfo")
+    calls.showerror.assert_not_called()
+    stored = dialog.project_manager.project_data["experiment_notes"]["Dia_1|Controle|*"]
+    assert stored["text"] == "luz piscou\nno minuto 3"
+    dialog._block_note_label.config.assert_called_once()
+    dialog._note_button.config.assert_called_once_with(text="📝 Edit Note")
+
+
+def test_add_note_save_failure_reports_error_and_rolls_back(tmp_path):
+    previous = {"Dia_1_Controle": "nota antiga"}
+    dialog, calls = _build_note_dialog(tmp_path, {"experiment_notes": dict(previous)})
+    calls.save_project.side_effect = OSError("disk full")
+    dialog._ask_note_text = MagicMock(return_value="nova")
+
+    with (
+        patch(f"{_MB}.showinfo", calls.showinfo),
+        patch(f"{_MB}.showerror", calls.showerror),
+    ):
+        dialog.add_note()
+
+    calls.showinfo.assert_not_called()
+    calls.showerror.assert_called_once()
+    assert "note could not be written" in calls.showerror.call_args[0][1]
+    # Nothing half-written stays in memory for an unrelated save to persist later.
+    assert dialog.project_manager.project_data["experiment_notes"] == previous
+    calls.event_bus.publish.assert_not_called()
+
+
+def test_add_note_rollback_removes_container_that_did_not_exist(tmp_path):
+    dialog, calls = _build_note_dialog(tmp_path)
+    calls.save_project.side_effect = OSError("disk full")
+    dialog._ask_note_text = MagicMock(return_value="nova")
+
+    with patch(f"{_MB}.showerror"):
+        dialog.add_note()
+
+    assert "experiment_notes" not in dialog.project_manager.project_data
+
+
+def test_add_note_without_project_path_does_not_save(tmp_path):
+    dialog, calls = _build_note_dialog(tmp_path)
+    dialog.project_manager.project_path = None
+    dialog._ask_note_text = MagicMock(return_value="nova")
+
+    with (
+        patch(f"{_MB}.showinfo", calls.showinfo),
+        patch(f"{_MB}.showerror", calls.showerror),
+    ):
+        dialog.add_note()
+
+    calls.save_project.assert_not_called()
+    calls.showinfo.assert_not_called()
+    assert "no path defined, so the note" in calls.showerror.call_args[0][1]
+
+
+def test_add_note_cancel_changes_nothing(tmp_path):
+    dialog, calls = _build_note_dialog(tmp_path, {"experiment_notes": {"Dia_1_Controle": "x"}})
+    dialog._ask_note_text = MagicMock(return_value=None)
+
+    dialog.add_note()
+
+    calls.save_project.assert_not_called()
+    assert dialog.project_manager.project_data == {"experiment_notes": {"Dia_1_Controle": "x"}}
+
+
+def test_add_note_prefills_legacy_note_and_blank_removes_it(tmp_path):
+    dialog, calls = _build_note_dialog(tmp_path, {"experiment_notes": {"Dia_1_Controle": "antiga"}})
+    dialog._ask_note_text = MagicMock(return_value="")
+
+    with patch(f"{_MB}.showinfo", calls.showinfo):
+        dialog.add_note()
+
+    assert dialog._ask_note_text.call_args[0][2] == "antiga"
+    assert dialog.project_manager.project_data["experiment_notes"] == {}
+    assert calls.showinfo.call_args[0][0] == "Note Removed"
+    dialog._note_button.config.assert_called_once_with(text="📝 Add Note")
+
+
+def test_subject_note_is_saved_and_rows_redrawn(tmp_path):
+    dialog, calls = _build_note_dialog(tmp_path)
+    dialog._ask_note_text = MagicMock(return_value="pulou do aquario")
+
+    dialog._edit_subject_note("2")
+
+    stored = dialog.project_manager.project_data["experiment_notes"]["Dia_1|Controle|2"]
+    assert stored["text"] == "pulou do aquario"
+    calls.save_project.assert_called_once()
+    calls.refresh_subject_rows.assert_called_once()
+    calls.event_bus.publish.assert_called_once()
+
+
+def test_subject_note_not_redrawn_when_save_fails(tmp_path):
+    dialog, calls = _build_note_dialog(tmp_path)
+    calls.save_project.side_effect = OSError("disk full")
+    dialog._ask_note_text = MagicMock(return_value="pulou")
+
+    with patch(f"{_MB}.showerror"):
+        dialog._edit_subject_note("2")
+
+    calls.refresh_subject_rows.assert_not_called()
+    assert "experiment_notes" not in dialog.project_manager.project_data
+
+
+def test_format_block_note_shows_preview_and_date(tmp_path):
+    dialog, _calls = _build_note_dialog(
+        tmp_path,
+        {
+            "experiment_notes": {
+                "Dia_1|Controle|*": {
+                    "text": "primeira linha\nsegunda",
+                    "updated_at": "2026-10-22T14:30:05",
+                }
+            }
+        },
+    )
+
+    assert dialog._format_block_note() == "primeira linha …  (22/10/2026 14:30)"
+    assert dialog._note_button_text() == "📝 Edit Note"
+
+
+def test_format_block_note_without_note(tmp_path):
+    dialog, _calls = _build_note_dialog(tmp_path)
+
+    assert dialog._format_block_note() == "(none)"
+    assert dialog._note_button_text() == "📝 Add Note"
+
+
+def test_note_preview_truncates_long_first_line():
+    from zebtrack.core.services.experiment_notes import ExperimentNote
+    from zebtrack.ui.dialogs.block_detail_dialog import _note_preview
+
+    assert _note_preview(ExperimentNote("curta")) == "curta"
+    assert _note_preview(ExperimentNote("x" * 200), limit=10) == "x" * 9 + " …"
+
+
+def _notes_project_data() -> dict:
+    return {
+        "recording_duration_s": 300.0,
+        "experiment_notes": {
+            "Dia_1|Controle|*": {"text": "luz piscou", "updated_at": "2026-10-22T14:30:05"},
+            "Dia_1|Controle|1": {"text": "nadou pouco", "updated_at": "2026-10-22T15:00:00"},
+            "Dia_1|Controle|3": {"text": "camera caiu, sessao perdida"},
+            "Dia_1|CBD|1": {"text": "outro grupo"},
+        },
+    }
+
+
+def _write_partial_word(tmp_path, dialog) -> Any:
+    session_folder = tmp_path / "session_1"
+    session_folder.mkdir()
+    summary = session_folder / "4_Relatorio_live_exp.xlsx"
+    pd.DataFrame({"total_distance_cm": [10.0]}).to_excel(summary, index=False)
+    all_data, unified_df, parsed = dialog._build_partial_report_dataset([("1", summary)])
+    output_path = tmp_path / "partial.docx"
+    dialog._write_partial_report_word(output_path, "partial.xlsx", parsed, all_data, unified_df)
+    return Document(output_path)
+
+
+def test_partial_word_report_includes_block_and_subject_notes(tmp_path):
+    dialog = _build_partial_report_dialog(tmp_path)
+    dialog.project_manager.project_data = _notes_project_data()
+
+    document = _write_partial_word(tmp_path, dialog)
+
+    paragraphs = [p.text for p in document.paragraphs]
+    assert any("see 'Experimental notes' at the end" in p for p in paragraphs)
+    assert "Experimental notes" in paragraphs
+    assert "Block note (last edited 22/10/2026 14:30):" in paragraphs
+    assert "luz piscou" in paragraphs
+
+    rows = [[cell.text for cell in row.cells] for row in document.tables[-1].rows]
+    assert rows == [
+        ["Animal", "Note", "Last edited"],
+        ["1", "nadou pouco", "22/10/2026 15:00"],
+        ["3 (not in this report)", "camera caiu, sessao perdida", "-"],
+    ]
+    # The session table stays the first table, untouched by the notes section.
+    assert document.tables[0].rows[0].cells[1].text == "Source file"
+
+
+def test_partial_word_report_without_notes_has_no_notes_section(tmp_path):
+    dialog = _build_partial_report_dialog(tmp_path)
+
+    document = _write_partial_word(tmp_path, dialog)
+
+    paragraphs = [p.text for p in document.paragraphs]
+    assert "Experimental notes" not in paragraphs
+    assert not any("see 'Experimental notes'" in p for p in paragraphs)
+
+
+def test_partial_excel_report_has_notes_sheet_only_with_notes(tmp_path):
+    dialog = _build_partial_report_dialog(tmp_path)
+    unified_df = pd.DataFrame({"animal": ["1"], "total_distance_cm": [10.0]})
+
+    without_notes = tmp_path / "sem_notas.xlsx"
+    dialog._write_partial_report_excel(without_notes, [unified_df], unified_df)
+    with pd.ExcelFile(without_notes) as workbook:
+        assert "Notas" not in workbook.sheet_names
+
+    dialog.project_manager.project_data = _notes_project_data()
+    with_notes = tmp_path / "com_notas.xlsx"
+    dialog._write_partial_report_excel(with_notes, [unified_df], unified_df)
+
+    notes = pd.read_excel(with_notes, sheet_name="Notas", dtype=str, keep_default_na=False)
+    assert notes.to_dict("records") == [
+        {
+            "day": "Dia_1",
+            "group": "Controle",
+            "scope": "block",
+            "subject": "",
+            "note": "luz piscou",
+            "updated_at": "2026-10-22T14:30:05",
+        },
+        {
+            "day": "Dia_1",
+            "group": "Controle",
+            "scope": "subject",
+            "subject": "1",
+            "note": "nadou pouco",
+            "updated_at": "2026-10-22T15:00:00",
+        },
+        {
+            "day": "Dia_1",
+            "group": "Controle",
+            "scope": "subject",
+            "subject": "3",
+            "note": "camera caiu, sessao perdida",
+            "updated_at": "",
+        },
+    ]

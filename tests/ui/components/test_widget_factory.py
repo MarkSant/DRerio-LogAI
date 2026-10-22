@@ -179,3 +179,58 @@ def test_create_drawing_buttons_builds_and_positions(monkeypatch):
 
     create_buttons.assert_called_once()
     frame.place.assert_called_once_with(relx=1.0, rely=0.0, anchor="ne", x=-10, y=10)
+
+
+def _render_grid_texts(monkeypatch, project_data):
+    """Render the progress grid with Tk stubbed out; return each cell's text."""
+    import tkinter
+
+    from zebtrack.ui.builders import project_widgets
+    from zebtrack.ui.builders.project_widgets import ProjectWidgetsBuilder
+
+    cell_texts: list[str] = []
+
+    def _fake_button(*_args, **kwargs):
+        cell_texts.append(kwargs["text"])
+        return Mock()
+
+    monkeypatch.setattr(tkinter, "Button", _fake_button)
+    monkeypatch.setattr(project_widgets, "ttk", Mock())
+
+    pm = Mock()
+    pm.get_project_type.return_value = "live"
+    pm.project_data = project_data
+    pm.get_completed_sessions.return_value = []
+    pm.get_batch_reports.return_value = {}
+    container = Mock()
+    container.winfo_children.return_value = []
+    gui = SimpleNamespace(
+        grid_container=container,
+        controller=SimpleNamespace(project_manager=pm),
+        dialog_manager=Mock(),
+    )
+    common = Mock()
+    common.build_day_title.side_effect = lambda day: f"Dia {day}"
+
+    ProjectWidgetsBuilder(gui, common, None, None).render_progress_grid()
+    return cell_texts
+
+
+def test_progress_grid_marks_blocks_with_experiment_notes(monkeypatch):
+    from zebtrack.core.services.experiment_notes import set_note
+    from zebtrack.core.services.session_duration_resolver import SUBJECT_WILDCARD
+
+    project_data = {"experiment_days": 2, "groups": ["Controle", "CBD"], "subjects_per_group": 3}
+    set_note(project_data, 1, "CBD", SUBJECT_WILDCARD, "luz piscou")
+    set_note(project_data, 2, "Controle", "2", "pulou")
+
+    texts = _render_grid_texts(monkeypatch, project_data)
+
+    # Row-major: (Dia 1, Controle), (Dia 1, CBD), (Dia 2, Controle), (Dia 2, CBD).
+    assert texts == ["0/3", "0/3 📝", "0/3 📝", "0/3"]
+
+
+def test_progress_grid_without_notes_is_unmarked(monkeypatch):
+    project_data = {"experiment_days": 1, "groups": ["Controle"], "subjects_per_group": 2}
+
+    assert _render_grid_texts(monkeypatch, project_data) == ["0/2"]

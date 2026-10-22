@@ -15690,3 +15690,79 @@ msgstr "Agora não"
 
 msgid "Open model settings"
 msgstr "Abrir definições de modelo"
+
+msgid "📝 Block note:"
+msgstr "📝 Nota do bloco:"
+
+msgid "(none)"
+msgstr "(nenhuma)"
+
+msgid "📝 Edit Note"
+msgstr "📝 Editar Nota"
+
+msgid "📝 Note"
+msgstr "📝 Nota"
+
+msgid "Remove note"
+msgstr "Remover nota"
+
+msgid "The project has no path defined, so the note could not be written. Save the project and try again."
+msgstr "O projeto não tem caminho definido, então a nota não pôde ser gravada. Salve o projeto e tente novamente."
+
+#, python-brace-format
+msgid ""
+"The note could not be written to the project:\n"
+"{error}"
+msgstr ""
+"A nota não pôde ser gravada no projeto:\n"
+"{error}"
+
+msgid "no project is loaded"
+msgstr "nenhum projeto está carregado"
+
+#, python-brace-format
+msgid "Note — Animal {subject}"
+msgstr "Nota — Animal {subject}"
+
+#, python-brace-format
+msgid ""
+"Note for Animal {subject} ({block}). It is included in the partial, batch and unified reports.\n"
+"\n"
+"Leave it blank to remove it."
+msgstr ""
+"Nota para o Animal {subject} ({block}). Ela entra nos relatórios parcial, de lote e unificado.\n"
+"\n"
+"Deixe em branco para removê-la."
+
+#, python-brace-format
+msgid ""
+"Note for {block}. It is included in the partial, batch and unified reports.\n"
+"\n"
+"Leave it blank to remove it."
+msgstr ""
+"Nota para {block}. Ela entra nos relatórios parcial, de lote e unificado.\n"
+"\n"
+"Deixe em branco para removê-la."
+
+msgid "Experimental notes"
+msgstr "Notas experimentais"
+
+#, python-brace-format
+msgid "Block note (last edited {timestamp}):"
+msgstr "Nota do bloco (editada em {timestamp}):"
+
+msgid "Block note:"
+msgstr "Nota do bloco:"
+
+msgid "Note"
+msgstr "Nota"
+
+msgid "Last edited"
+msgstr "Última edição"
+
+#, python-brace-format
+msgid "{subject} (not in this report)"
+msgstr "{subject} (fora deste relatório)"
+
+msgid "This block has experimental notes recorded during the experiment — see 'Experimental notes' at the end."
+msgstr "Este bloco tem notas experimentais registradas durante o experimento — veja 'Notas experimentais' no final."

@@ -74,6 +74,46 @@ class TestExportProjectReport:
         export_project_report(df, out)
         assert "No metrics available" in _doc_text(tmp_path / "r.docx")
 
+    def test_experiment_notes_section_when_provided(self, aggregated_df, tmp_path):
+        notes = pd.DataFrame(
+            [
+                {
+                    "day": "Dia_1",
+                    "group": "Control",
+                    "scope": "block",
+                    "subject": "",
+                    "note": "light flickered",
+                    "updated_at": "2026-10-22T14:30:05",
+                },
+                {
+                    "day": "Dia_1",
+                    "group": "Control",
+                    "scope": "subject",
+                    "subject": "3",
+                    "note": "jumped out",
+                    "updated_at": "",
+                },
+            ]
+        )
+        out = tmp_path / "r"
+
+        export_project_report(aggregated_df, out, experiment_notes=notes)
+
+        doc = Document(str(tmp_path / "r.docx"))
+        assert "Experiment Notes" in [p.text for p in doc.paragraphs]
+        rows = [[cell.text for cell in row.cells] for row in doc.tables[-1].rows]
+        assert rows == [
+            ["Day", "Group", "Subject", "Note", "Last edited"],
+            ["Dia_1", "Control", "(block)", "light flickered", "2026-10-22T14:30:05"],
+            ["Dia_1", "Control", "3", "jumped out", "-"],
+        ]
+
+    @pytest.mark.parametrize("notes", [None, pd.DataFrame()])
+    def test_no_experiment_notes_section_without_notes(self, aggregated_df, tmp_path, notes):
+        out = tmp_path / "r"
+        export_project_report(aggregated_df, out, experiment_notes=notes)
+        assert "Experiment Notes" not in _doc_text(tmp_path / "r.docx")
+
 
 class TestExportMultiAquariumReports:
     def test_none_result_is_skipped(self, tmp_path):

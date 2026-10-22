@@ -588,6 +588,7 @@ class UnifiedReportMixin:
         exported_paths: dict[str, str] = {}
         display_df: pd.DataFrame | None = None
         desc_stats_df: pd.DataFrame | None = None
+        notes_df = self._collect_unified_notes(final_df)
 
         # 1. Export Parquet
         parquet_path = unified_dir / f"{scope_prefix}_summary_{run_id}.parquet"
@@ -621,6 +622,8 @@ class UnifiedReportMixin:
             display_df.to_excel(writer, sheet_name="Data", index=False)
             if desc_stats_df is not None and not desc_stats_df.empty:
                 desc_stats_df.to_excel(writer, sheet_name="Descriptive Stats")
+            if not notes_df.empty:
+                notes_df.to_excel(writer, sheet_name="Notes", index=False)
 
             exported_artifacts.append(excel_path.name)
             exported_paths["excel"] = str(excel_path)
@@ -666,6 +669,7 @@ class UnifiedReportMixin:
                 roi_colors=roi_colors_map if roi_colors_map else None,
                 detector_params=None,
                 descriptive_stats_df=desc_stats_df if desc_stats_df is not None else None,
+                experiment_notes=notes_df if not notes_df.empty else None,
             )
             exported_artifacts.append(f"{word_path.name}.docx")
             exported_paths["word"] = f"{word_path}.docx"
@@ -750,6 +754,40 @@ class UnifiedReportMixin:
                     ),
                 ),
             )
+
+    # ------------------------------------------------------------------
+    # Experiment notes
+    # ------------------------------------------------------------------
+
+    def _collect_unified_notes(self, final_df: pd.DataFrame) -> pd.DataFrame:
+        """Researcher notes of the Day x Group blocks this report covers.
+
+        Only blocks present in ``final_df`` (columns ``day`` and ``group_id``)
+        contribute, so a report of selected videos does not carry notes about
+        blocks it does not contain. Within a covered block every subject note
+        is kept, as in the partial report: the note on a lost session explains
+        why that animal is missing.
+        """
+        from zebtrack.core.services.experiment_notes import NOTE_COLUMNS, iter_notes, note_rows
+        from zebtrack.core.services.session_duration_resolver import normalize_day
+
+        empty = pd.DataFrame(columns=list(NOTE_COLUMNS))
+        if final_df.empty or not {"day", "group_id"} <= set(final_df.columns):
+            return empty
+
+        covered = {
+            (normalize_day(day), str(group).strip())
+            for day, group in zip(final_df["day"], final_df["group_id"], strict=True)
+        }
+        project_data = getattr(self.project_manager, "project_data", None)
+        records = [
+            record
+            for record in iter_notes(project_data if isinstance(project_data, dict) else None)
+            if (record.day, record.group.strip()) in covered
+        ]
+        if not records:
+            return empty
+        return pd.DataFrame(note_rows(records), columns=list(NOTE_COLUMNS))
 
     # ------------------------------------------------------------------
     # Descriptive Statistics
