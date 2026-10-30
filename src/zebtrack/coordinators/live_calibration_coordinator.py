@@ -38,6 +38,7 @@ from zebtrack.core.detection.aquarium_retry import (
     RETRY_REASON_OK,
     AquariumRetryOutcome,
 )
+from zebtrack.core.detection.class_aliases import ClassAliases
 from zebtrack.core.services.arena_detection_policy import resolve_arena_detection
 from zebtrack.i18n import _
 from zebtrack.io.camera import Camera
@@ -55,6 +56,16 @@ if TYPE_CHECKING:
     from zebtrack.ui.event_bus_v2 import EventBusV2
 
 log = structlog.get_logger()
+
+
+def _arena_class_id(detector: Any) -> int:
+    """Arena class id of an ``AquariumDetector``; ``0`` for stubs without one.
+
+    Type-checked rather than trusted: a ``MagicMock`` detector would answer the
+    attribute with a mock, and ``predict(classes=[<mock>])`` is not ``[0]``.
+    """
+    value = getattr(detector, "arena_class_id", 0)
+    return value if isinstance(value, int) and not isinstance(value, bool) else 0
 
 
 # =============================================================================
@@ -1120,7 +1131,11 @@ class LiveCalibrationCoordinator(BaseCoordinator):
             self._release_calibration_camera(reason="no_aquarium_model")
             return False
 
-        detector = AquariumDetector(model_path=model_path, mode=method)
+        detector = AquariumDetector(
+            model_path=model_path,
+            mode=method,
+            class_aliases=ClassAliases.from_settings(self.settings),
+        )
 
         # Resolve initial confidence from settings (DI) — same value seeds the
         # PreviewPolygonDialog slider so the user can adjust + retry live.
@@ -1765,7 +1780,10 @@ class LiveCalibrationCoordinator(BaseCoordinator):
         for frame in frames:
             try:
                 results = detector.model.predict(
-                    frame, verbose=False, classes=[0], conf=clamped_conf
+                    frame,
+                    verbose=False,
+                    classes=[_arena_class_id(detector)],
+                    conf=clamped_conf,
                 )
             # except Exception justified: Ultralytics predict can raise heterogeneous
             # errors when model/weights/CUDA state is inconsistent — log and try next frame.

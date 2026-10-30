@@ -11,6 +11,9 @@ import cv2
 import numpy as np
 import structlog
 
+from zebtrack.core.detection.class_aliases import ClassAliases
+from zebtrack.core.detection.class_aliases import resolve_class_ids as _resolve_by_name
+
 if TYPE_CHECKING:
     from zebtrack.plugins.base import DetectorPlugin
     from zebtrack.settings import Settings
@@ -257,51 +260,25 @@ class DetectionPostProcessor:
     @staticmethod
     def resolve_class_ids(
         plugin: "DetectorPlugin",
+        aliases: ClassAliases | None = None,
     ) -> tuple[int, int]:
-        """Resolve class IDs from plugin metadata.
+        """Resolve class IDs from plugin metadata, by class NAME.
 
-        Inspects the plugin's class_names mapping to determine which class IDs
-        correspond to aquariums and animals.
+        Delegates to :func:`zebtrack.core.detection.class_aliases.resolve_class_ids`,
+        the single place that knows which names mean "arena" and which mean
+        "animal" — for zebrafish, rodents or any name added through
+        ``model_selection.class_aliases``. Without names the legacy ``(0, 1)``
+        is returned unchanged.
 
         Args:
             plugin: Detector plugin instance with class_names attribute.
+            aliases: Role vocabularies; built-in ones when ``None``.
 
         Returns:
             Tuple of (aquarium_class_id, animal_class_id).
         """
-        aquarium_class_id = 0
-        animal_class_id = 1
-
-        if hasattr(plugin, "class_names") and plugin.class_names:
-            aquarium_names = ["aqua", "aquarium", "tank", "agua"]
-            animal_names = ["zebrafish", "fish", "peixe"]
-
-            found_aquarium = False
-            found_animal = False
-
-            for cid, name in plugin.class_names.items():
-                name_lower = name.lower()
-                if name_lower in aquarium_names:
-                    aquarium_class_id = cid
-                    found_aquarium = True
-                if name_lower in animal_names:
-                    animal_class_id = cid
-                    found_animal = True
-
-            # If we found an animal class at 0 but no aquarium class,
-            # likely a single-class model
-            if found_animal and not found_aquarium and animal_class_id == 0:
-                # Ensure we don't overlap if we default aquarium to 0
-                aquarium_class_id = -1  # effectively disable aquarium detection by ID
-
-            log.info(
-                "post_processor.class_ids.resolved",
-                aquarium_id=aquarium_class_id,
-                animal_id=animal_class_id,
-                plugin_classes=plugin.class_names,
-            )
-
-        return aquarium_class_id, animal_class_id
+        class_names = getattr(plugin, "class_names", None)
+        return _resolve_by_name(class_names, aliases).as_tuple()
 
     # =========================================================================
     # Settings resolution helpers

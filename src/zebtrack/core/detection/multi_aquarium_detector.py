@@ -14,6 +14,7 @@ import numpy as np
 import structlog
 
 from zebtrack.core.detection.bbox_area_gate import BboxAreaGate
+from zebtrack.core.detection.class_aliases import ClassAliases
 from zebtrack.core.detection.detection_post_processor import DetectionPostProcessor
 from zebtrack.core.detection.detection_types import AquariumData, MultiAquariumZoneData, ZoneData
 from zebtrack.core.detection.single_subject_tracker import SingleSubjectTracker
@@ -71,7 +72,7 @@ class MultiAquariumDetector:
 
         # Dynamic class ID resolution
         self.aquarium_class_id, self.animal_class_id = DetectionPostProcessor.resolve_class_ids(
-            plugin
+            plugin, ClassAliases.from_settings(settings_obj)
         )
 
         # Multi-aquarium state

@@ -235,6 +235,17 @@ model_selection:
   # If left at default, the system will auto-detect optimal backend
   use_openvino: false
 
+  # Class names → roles. Each weight's classes are matched BY NAME to the arena
+  # and the animal (case-insensitive; spaces/hyphens = underscore). Built-in:
+  #   arena : aqua, aquarium, tank, agua, arena, maze, labirinto, open_field, apparatus
+  #   animal: zebrafish, fish, peixe, rat, rato, mouse, camundongo, rodent, roedor,
+  #           animal, subject
+  # These lists only ADD names for weights that use other labels. Classes that
+  # match neither role (e.g. experimenter, start_box) are ignored by tracking.
+  class_aliases:
+    arena: []
+    animal: []
+
 # -----------------------------------------------------------------------------
 # OpenVINO Settings (Hardware Acceleration)
 # -----------------------------------------------------------------------------

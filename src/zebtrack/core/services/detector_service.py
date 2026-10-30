@@ -16,6 +16,7 @@ from typing import TYPE_CHECKING, Any, ClassVar, Literal
 import structlog
 
 from zebtrack.core.detection import Detector, MultiAquariumZoneData, ZoneData
+from zebtrack.core.detection.class_aliases import ClassAliases
 from zebtrack.core.detection.detection_post_processor import DetectionPostProcessor
 from zebtrack.core.detection.zone_scaler import ZoneScaler, arena_membership_rule_from_settings
 from zebtrack.i18n import _
@@ -1076,20 +1077,12 @@ class DetectorService:
             )
             return
 
-        # Define expected names (case-insensitive)
-        aquarium_names = ["aqua", "aquarium", "tank", "agua"]
-        animal_names = ["zebrafish", "fish", "peixe"]
-
-        # Check what we have
-        has_aquarium = False
-        has_animal = False
-
-        for _class_id, name in plugin_classes.items():
-            name_lower = name.lower()
-            if name_lower in aquarium_names:
-                has_aquarium = True
-            if name_lower in animal_names:
-                has_animal = True
+        # Same vocabularies the detectors use (built-in + settings), so the
+        # validation can never disagree with the tracking about the roles.
+        aliases = ClassAliases.from_settings(self.settings)
+        roles = {aliases.role_of(name) for name in plugin_classes.values()}
+        has_aquarium = "arena" in roles
+        has_animal = "animal" in roles
 
         # Logic:
         # 1. We MUST have an animal class (unless it's a purely aquarium segmentation model,
@@ -1117,7 +1110,10 @@ class DetectorService:
                 "detector_service.validate_classes.no_animal_class",
                 plugin_classes=plugin_classes,
                 model_path=model_path,
-                message="Model does not seem to have a 'zebrafish' class.",
+                message=(
+                    "Model has no class recognised as the animal "
+                    "(see model_selection.class_aliases)."
+                ),
             )
 
         log.info(

@@ -11,6 +11,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Pesos que não são de zebrafish rastreavam o objeto errado sem avisar.** As
+  classes eram reconhecidas por duas listas fixas de nomes (aquário e peixe),
+  duplicadas em `DetectionPostProcessor` e `DetectorService`; um nome fora delas
+  caía em `arena = 0, animal = 1` pela POSIÇÃO. Como o Roboflow exporta as
+  classes em ordem alfabética, um peso de roedor `{0: arena, 1: experimenter,
+  2: rat}` rastreava o experimentador. O `AquariumDetector` e a calibração ao
+  vivo pediam sempre `classes=[0]` como arena.
+
 - **As notas experimentais do bloco agora chegam aos relatórios.** O botão
   "📝 Adicionar Nota" da janela do bloco (aba Progresso, projetos ao vivo)
   existia desde a v2.3.1 e gravava a nota em `project_data["experiment_notes"]`,
@@ -20,6 +28,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   seguida.
 
 ### Added
+
+- **Resolução de classes independente de espécie**
+  (`core/detection/class_aliases.py`): um único vocabulário de papéis
+  (arena/animal) que reconhece os nomes de zebrafish de sempre e também
+  roedores (`rat`, `mouse`, `rodent`…) e nomes genéricos (`arena`, `maze`,
+  `animal`, `subject`). `model_selection.class_aliases` acrescenta nomes por
+  projeto. O `AquariumDetector` resolve a classe da arena pelo nome (padrão 0).
+  Classes sem papel (`experimenter`, `start_box`) seguem ignoradas pelo
+  rastreamento.
 
 - **Notas por cobaia**, além da nota do bloco: botão "📝 Nota" em cada linha da
   janela do bloco, com editor de várias linhas e data da última edição.

@@ -860,6 +860,31 @@ class OpenVINOSettings(BaseModel):
     )
 
 
+class ClassAliasSettings(BaseModel):
+    """Extra class names mapped onto the arena and animal roles.
+
+    Built-in names (``aqua``/``aquarium``/``tank``/``agua``/``arena``… and
+    ``zebrafish``/``fish``/``peixe``/``rat``/``mouse``…) are always recognised;
+    these lists only ADD names, for weights whose classes use other labels.
+    See ``zebtrack.core.detection.class_aliases``.
+    """
+
+    model_config = ConfigDict(
+        str_strip_whitespace=True,
+        validate_assignment=True,
+        extra="forbid",
+    )
+
+    arena: list[str] = Field(
+        default_factory=list,
+        description="Additional class names treated as the arena/container.",
+    )
+    animal: list[str] = Field(
+        default_factory=list,
+        description="Additional class names treated as the tracked animal.",
+    )
+
+
 class ModelSelectionSettings(BaseModel):
     """Settings for selecting which model type to use for different tasks."""
 
@@ -880,6 +905,13 @@ class ModelSelectionSettings(BaseModel):
     use_openvino: bool = Field(
         False,
         description="Whether to use OpenVINO for model inference (auto-detected if not set)",
+    )
+    class_aliases: ClassAliasSettings = Field(
+        default_factory=ClassAliasSettings,
+        description=(
+            "Extra class names for the arena and animal roles, on top of the "
+            "built-in species-agnostic aliases."
+        ),
     )
 
 
