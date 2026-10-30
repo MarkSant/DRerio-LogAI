@@ -6,6 +6,29 @@ This document tracks all major agent interventions, technical debt resolutions, 
 
 ## Active Tasks
 
+### [2026-10-30] v8.0.0: qualquer peso/qualquer classe e janelas de análise por condição
+
+__ID:__ TASK-076
+__Agent:__ Claude Code (Opus 5.5) + agentes de implementação por frente
+__Status:__ In Progress 🚧
+__Branch:__ release/8.0 (frentes `feat/v8-*`, ver `docs/tasks/v8/PLAN.md`)
+__Description:__
+O programa supunha dois papéis fixos (aquário e peixe) e um tempo zero implícito (a primeira
+detecção). A v8 mapeia cada classe de qualquer peso a um papel (sujeito, arena, contexto,
+ignorada) e permite condições de INÍCIO/FIM da análise. Caso de aceitação: rato no Labirinto
+de Barnes (`{0: arena, 1: experimenter, 2: rat, 3: start_box}`). Auditoria e decisões em
+`docs/tasks/v8/` (AUDIT + ADR-009…013).
+
+__Critério de pronto:__
+
+- Peso multiclasse em ordem alfabética resolve os papéis por nome; pesos de zebrafish e projetos
+  7.2.0 funcionam sem intervenção (golden `_v72` + allowlist; fixture legada).
+- Sidecar `3c_Objetos_*` e artefato `7_AnalysisWindow_*`; motor de condições puro com testes de
+  unidade e propriedades; E2E Barnes com vídeo sintético.
+- fps real, `duracao_video_s` por tempo e latência por borda de subida com t0 explícito.
+- Suíte completa (`pytest -m "" -n0`) verde; versão 8.0.0; branches no GitHub; sem PR nem merge
+  na `main` sem ordem do mantenedor.
+
 ### [2026-09-15] README para quem nunca abriu um terminal, instalador que instala os pré-requisitos, release 7.2.0
 
 __ID:__ TASK-075
