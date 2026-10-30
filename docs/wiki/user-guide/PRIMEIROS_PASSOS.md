@@ -396,6 +396,13 @@ A aba **Progresso do Experimento** mostra a grade dia × grupo, com as sessões 
 
 ![Grade de progresso do experimento](../screenshots/live_experiment_progress.png)
 
+**Notas experimentais.** Clique numa célula para abrir o bloco: **📝 Adicionar Nota** anota o bloco
+inteiro, e o botão **📝 Nota** de cada linha anota uma cobaia ("pulou do aquário no minuto 3"). As
+notas ficam gravadas no projeto, a célula da grade ganha um 📝, e elas saem na seção *Notas
+experimentais* do Word e na aba `Notas` do Excel dos relatórios parcial e de lote, e também no
+relatório unificado (seção *Experiment Notes* e aba `Notes`). A nota de uma cobaia cuja sessão
+falhou também aparece, marcada como fora do relatório, porque é ela que explica a ausência.
+
 ### Arduino, comandos por zona
 
 Com um Arduino conectado, cada ROI pode enviar um inteiro quando um animal entra ou sai, e o

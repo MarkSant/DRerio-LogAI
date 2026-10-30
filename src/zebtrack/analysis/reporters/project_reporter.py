@@ -30,6 +30,7 @@ def export_project_report(
     roi_colors: dict[str, tuple[int, int, int]] | None = None,
     detector_params: dict[str, Any] | None = None,
     descriptive_stats_df: pd.DataFrame | None = None,
+    experiment_notes: pd.DataFrame | None = None,
 ) -> None:
     """Export aggregated project report with comparative analysis.
 
@@ -39,6 +40,9 @@ def export_project_report(
         roi_colors: Optional dict mapping ROI names to RGB colour tuples.
         detector_params: Optional dict with detection parameters used.
         descriptive_stats_df: Optional pre-computed descriptive statistics table.
+        experiment_notes: Optional researcher notes, columns
+            ``experiment_notes.NOTE_COLUMNS`` (day, group, scope, subject, note,
+            updated_at). Rendered as a section when non-empty.
     """
     from zebtrack import __version__
 
@@ -161,12 +165,43 @@ def export_project_report(
 
     _render_comparative_boxplots(document, aggregated_df)
 
+    # Before the pivot table, which switches the section to landscape.
+    if experiment_notes is not None and not experiment_notes.empty:
+        _render_experiment_notes(document, experiment_notes)
+
     # Descriptive statistics pivot table (if provided by unified report mixin)
     if descriptive_stats_df is not None and not descriptive_stats_df.empty:
         _render_descriptive_stats_table(document, descriptive_stats_df)
 
     file_path = f"{output_path}.docx"
     document.save(file_path)
+
+
+def _render_experiment_notes(document: Any, notes_df: pd.DataFrame) -> None:
+    """Render the researcher's block and subject notes as one table."""
+    document.add_page_break()
+    document.add_heading("Experiment Notes", level=2)
+    document.add_paragraph(
+        "Notes recorded by the researcher during the experiment, per Day x Group "
+        "block and per subject."
+    )
+
+    table = document.add_table(rows=1, cols=5)
+    table.style = "Table Grid"
+    for cell, title in zip(
+        table.rows[0].cells, ("Day", "Group", "Subject", "Note", "Last edited"), strict=True
+    ):
+        cell.text = title
+
+    for record in notes_df.to_dict("records"):
+        row_cells = table.add_row().cells
+        row_cells[0].text = str(record.get("day", ""))
+        row_cells[1].text = str(record.get("group", ""))
+        row_cells[2].text = (
+            "(block)" if record.get("scope") == "block" else str(record.get("subject", ""))
+        )
+        row_cells[3].text = str(record.get("note", ""))
+        row_cells[4].text = str(record.get("updated_at") or "-")
 
 
 def _render_descriptive_stats_table(document: Any, descriptive_stats_df: pd.DataFrame) -> None:

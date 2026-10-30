@@ -105,6 +105,10 @@ class ProjectWidgetsBuilder:
         """Clear and redraw the experimental progress grid based on project data."""
         from tkinter import Button
 
+        # Local: importing ``core.services`` pulls the detector stack, which this
+        # module must not pay for at import time.
+        from zebtrack.core.services.experiment_notes import block_has_notes
+
         try:
             try:
                 if self.gui.grid_container.winfo_exists():
@@ -158,6 +162,10 @@ class ProjectWidgetsBuilder:
                     )
 
                     status_text = f"{completed_count}/{subjects_per_group}"
+                    # A block with notes says so on the grid: the note matters
+                    # most BEFORE the next session of that block is recorded.
+                    if block_has_notes(pm.project_data, day, group_name):
+                        status_text = f"{status_text} 📝"
 
                     # Lote marcado como completo manualmente vence a contagem:
                     # verde mesmo com menos sujeitos que o planejado.

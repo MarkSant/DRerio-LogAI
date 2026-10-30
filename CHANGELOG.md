@@ -9,6 +9,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **As notas experimentais do bloco agora chegam aos relatórios.** O botão
+  "📝 Adicionar Nota" da janela do bloco (aba Progresso, projetos ao vivo)
+  existia desde a v2.3.1 e gravava a nota em `project_data["experiment_notes"]`,
+  mas nada no programa lia essa chave: a nota não aparecia no Word, no Excel, no
+  relatório unificado nem na grade. Além disso, o aviso "nota salva" saía antes
+  de salvar o projeto, então uma falha de gravação mostrava sucesso e erro em
+  seguida.
+
+### Added
+
+- **Notas por cobaia**, além da nota do bloco: botão "📝 Nota" em cada linha da
+  janela do bloco, com editor de várias linhas e data da última edição.
+- As notas entram na seção "Notas experimentais" do `.docx` e na aba `Notas` do
+  `.xlsx` dos relatórios parcial e de lote, e na seção "Experiment Notes" e na
+  aba `Notes` do relatório unificado. A célula da grade de Progresso ganha um 📝.
+- `core/services/experiment_notes.py` é a fonte única das notas. As chaves usam
+  as mesmas regras de `session_duration_overrides` (`Dia_1|Grupo|3`, bloco =
+  `Dia_1|Grupo|*`). Notas antigas (`Dia_1_Grupo`, texto puro) continuam sendo
+  lidas e passam para o formato novo na próxima edição.
+
 ## [7.2.0] - 2026-09-15
 
 Release da documentacao e dos pre-requisitos. A 7.1.0 fez o programa instalar e

@@ -7,15 +7,26 @@ Version: 2.3.1
 
 from __future__ import annotations
 
+import copy
 import re
 import threading
 from datetime import datetime
 from pathlib import Path
-from tkinter import Button, Canvas, Frame, Label, Toplevel, messagebox, simpledialog, ttk
+from tkinter import Button, Canvas, Frame, Label, Text, Toplevel, messagebox, simpledialog, ttk
 from typing import TYPE_CHECKING, Any
 
 import structlog
 
+from zebtrack.core.services.experiment_notes import (
+    NOTE_COLUMNS,
+    NOTES_KEY,
+    ExperimentNote,
+    block_records,
+    collect_block_notes,
+    get_note,
+    note_rows,
+    set_note,
+)
 from zebtrack.core.services.session_duration_resolver import (
     SUBJECT_WILDCARD,
     collect_block_durations,
@@ -35,11 +46,32 @@ log = structlog.get_logger(__name__)
 def _block_label(day_num, group_name) -> str:
     """Human-readable name of a Day x Group block.
 
-    DISPLAY ONLY. The persisted key for the same block is built separately as
-    ``Dia_{n}_{grupo}`` (see add_note) and must stay Portuguese -- it is a
-    dictionary key inside project_data, not copy.
+    DISPLAY ONLY. The persisted keys for the same block (durations, notes) are
+    built by ``session_duration_resolver.duration_override_key`` and must stay
+    Portuguese -- they are dictionary keys inside project_data, not copy.
     """
     return _("Day {day} - {group}").format(day=day_num, group=group_name)
+
+
+def _note_preview(note: ExperimentNote, limit: int = 90) -> str:
+    """First line of a note, truncated, flagging that more text follows."""
+    lines = note.text.splitlines() or [""]
+    first = lines[0].strip()
+    more = len(lines) > 1
+    if len(first) > limit:
+        first = first[: limit - 1].rstrip()
+        more = True
+    return f"{first} …" if more else first
+
+
+def _note_timestamp(note: ExperimentNote) -> str:
+    """``dd/mm/YYYY HH:MM`` of the last edit, or ``""`` for pre-v7.3 notes."""
+    if not note.updated_at:
+        return ""
+    try:
+        return datetime.fromisoformat(note.updated_at).strftime("%d/%m/%Y %H:%M")
+    except ValueError:
+        return note.updated_at
 
 
 class BlockDetailDialog(Toplevel):
@@ -114,7 +146,7 @@ class BlockDetailDialog(Toplevel):
 
         # Window config
         self.title(_("Sessions: {block}").format(block=_block_label(self.day_num, group)))
-        self.geometry("700x640")
+        self.geometry("700x680")
         self.transient(parent)
         self.grab_set()
 
@@ -128,6 +160,10 @@ class BlockDetailDialog(Toplevel):
         # were recorded for different lengths must stay auditable after restart.
         self._duration_label: Label | None = None
         self._subject_container: Frame | None = None
+
+        # Block note widgets (populated by build_ui), updated in place on edit.
+        self._block_note_label: Label | None = None
+        self._note_button: Button | None = None
 
         self.build_ui()
 
@@ -257,6 +293,27 @@ class BlockDetailDialog(Toplevel):
             command=self._edit_block_duration,
         ).pack(side="left")
 
+        # Block note: shown here so it is read before the next session starts,
+        # not only discovered later inside a report.
+        note_frame = Frame(self)
+        note_frame.pack(fill="x", padx=20, pady=(0, 10))
+
+        Label(
+            note_frame,
+            text=_("📝 Block note:"),
+            font=("Segoe UI", 10, "bold"),
+        ).pack(side="left", anchor="n")
+
+        self._block_note_label = Label(
+            note_frame,
+            text=self._format_block_note(),
+            font=("Segoe UI", 10),
+            anchor="w",
+            justify="left",
+            wraplength=480,
+        )
+        self._block_note_label.pack(side="left", padx=(5, 10), fill="x", expand=True)
+
         # Actions frame
         action_frame = Frame(self)
         action_frame.pack(fill="x", padx=20, pady=10)
@@ -281,12 +338,13 @@ class BlockDetailDialog(Toplevel):
             width=30,
         ).pack(fill="x", pady=5)
 
-        Button(
+        self._note_button = Button(
             action_frame,
-            text=_("📝 Add Note"),
+            text=self._note_button_text(),
             command=self.add_note,
             width=30,
-        ).pack(fill="x", pady=5)
+        )
+        self._note_button.pack(fill="x", pady=5)
 
         # Bottom buttons
         button_frame = Frame(self)
@@ -600,6 +658,18 @@ class BlockDetailDialog(Toplevel):
                 bg="white",
             ).pack(anchor="w")
 
+        subject_note = get_note(project_data, self.day_num, self.group_name, subject)
+        if subject_note is not None:
+            Label(
+                info_frame,
+                text=f"📝 {_note_preview(subject_note)}",
+                font=("Segoe UI", 8, "italic"),
+                fg="#5a4a00",
+                bg="white",
+                justify="left",
+                wraplength=360,
+            ).pack(anchor="w")
+
         # Action buttons
         if is_completed:
             Button(
@@ -618,6 +688,14 @@ class BlockDetailDialog(Toplevel):
                 text=_("⏱️ Duration"),
                 command=lambda: self._edit_subject_duration(subject),
             ).pack(side="right", padx=5, pady=10)
+
+        # On EVERY row, recorded or not: a recorded session is exactly where
+        # "the animal jumped out at minute 3" gets written down.
+        Button(
+            row,
+            text=_("📝 Note"),
+            command=lambda: self._edit_subject_note(subject),
+        ).pack(side="right", padx=5, pady=10)
 
     def _format_current_camera(self) -> str:
         """Render the camera label: override (if set) or project default."""
@@ -809,18 +887,26 @@ class BlockDetailDialog(Toplevel):
 
         return minutes * 60.0
 
-    def _persist_project(self) -> bool:
+    def _persist_project(self, *, what: str = "duration") -> bool:
         """Save the project, surfacing failures instead of swallowing them.
 
         ``save_project()`` raises when ``project_path`` is unset, and callers
         reached through the event bus have that exception eaten by the bus's
-        try/except — the user would see the new duration on screen and lose it
+        try/except — the user would see the new value on screen and lose it
         on restart. Check and report here.
+
+        Args:
+            what: ``"duration"`` or ``"note"`` — only picks the error wording.
         """
         if not getattr(self.project_manager, "project_path", None):
             messagebox.showerror(
                 _("Project not saved"),
                 _(
+                    "The project has no path defined, so the note could not "
+                    "be written. Save the project and try again."
+                )
+                if what == "note"
+                else _(
                     "The project has no path defined, so the duration could not "
                     "be written. Save the project and try again."
                 ),
@@ -832,17 +918,128 @@ class BlockDetailDialog(Toplevel):
             if hasattr(self.project_manager, "save_project"):
                 self.project_manager.save_project()
         # except Exception justified: qualquer falha de I/O aqui precisa virar
-        # feedback honesto — silenciar faria a duração "sumir" no próximo boot.
+        # feedback honesto — silenciar faria o valor "sumir" no próximo boot.
         except Exception as exc:
-            log.error("block_detail.duration.save_failed", error=str(exc), exc_info=True)
+            log.error(f"block_detail.{what}.save_failed", error=str(exc), exc_info=True)
             messagebox.showerror(
                 _("Failed to save"),
-                _("The duration could not be written to the project:\n{error}").format(error=exc),
+                (
+                    _("The note could not be written to the project:\n{error}")
+                    if what == "note"
+                    else _("The duration could not be written to the project:\n{error}")
+                ).format(error=exc),
                 parent=self,
             )
             return False
 
         return True
+
+    # ------------------------------------------------------------------
+    # Experimental notes (block and subject)
+    # ------------------------------------------------------------------
+
+    def _format_block_note(self) -> str:
+        """Label text for the block note: preview plus last-edit date, or none."""
+        note = get_note(self._project_data(), self.day_num, self.group_name)
+        if note is None:
+            return _("(none)")
+        stamp = _note_timestamp(note)
+        preview = _note_preview(note)
+        return f"{preview}  ({stamp})" if stamp else preview
+
+    def _note_button_text(self) -> str:
+        has_note = get_note(self._project_data(), self.day_num, self.group_name) is not None
+        return _("📝 Edit Note") if has_note else _("📝 Add Note")
+
+    def _ask_note_text(self, title: str, prompt: str, initial: str) -> str | None:
+        """Modal multi-line editor. Returns the text, ``""`` to clear, ``None`` if cancelled."""
+        editor = Toplevel(self)
+        editor.title(title)
+        editor.transient(self)
+        editor.grab_set()
+
+        Label(editor, text=prompt, justify="left", wraplength=460).pack(
+            anchor="w", padx=10, pady=(10, 5)
+        )
+        text_widget = Text(editor, width=60, height=8, wrap="word", font=("Segoe UI", 10))
+        text_widget.pack(fill="both", expand=True, padx=10, pady=5)
+        text_widget.insert("1.0", initial)
+        text_widget.focus_set()
+
+        result: dict[str, str | None] = {"text": None}
+
+        def _on_ok() -> None:
+            result["text"] = text_widget.get("1.0", "end-1c")
+            editor.destroy()
+
+        def _on_clear() -> None:
+            result["text"] = ""
+            editor.destroy()
+
+        button_row = Frame(editor)
+        button_row.pack(pady=(5, 10))
+        Button(button_row, text=_("Save"), command=_on_ok, width=10).pack(side="left", padx=5)
+        Button(button_row, text=_("Remove note"), command=_on_clear, width=14).pack(
+            side="left", padx=5
+        )
+        Button(button_row, text=_("Cancel"), command=editor.destroy, width=10).pack(
+            side="left", padx=5
+        )
+
+        editor.wait_window()
+        return result["text"]
+
+    def _save_note(self, subject: str, text: str) -> bool:
+        """Write one note and persist it; roll back the in-memory edit on failure.
+
+        Without the rollback a failed save would leave the note in memory, and
+        the next unrelated save would write it to disk after the user was told
+        it had failed.
+        """
+        project_data = getattr(self.project_manager, "project_data", None)
+        if not isinstance(project_data, dict):
+            messagebox.showerror(
+                _("Failed to save"),
+                _("The note could not be written to the project:\n{error}").format(
+                    error=_("no project is loaded")
+                ),
+                parent=self,
+            )
+            return False
+
+        notes_before = copy.deepcopy(project_data.get(NOTES_KEY))
+        set_note(project_data, self.day_num, self.group_name, subject, text)
+        if self._persist_project(what="note"):
+            self._publish_project_views_refresh("experiment_note")
+            return True
+
+        if notes_before is None:
+            project_data.pop(NOTES_KEY, None)
+        else:
+            project_data[NOTES_KEY] = notes_before
+        return False
+
+    def _edit_subject_note(self, subject: str) -> None:
+        """Edit the note of one subject of this block."""
+        log.info(
+            "block_detail.edit_subject_note",
+            day=self.day_num,
+            group=self.group_name,
+            subject=subject,
+        )
+        existing = get_note(self._project_data(), self.day_num, self.group_name, subject)
+        text = self._ask_note_text(
+            _("Note — Animal {subject}").format(subject=subject),
+            _(
+                "Note for Animal {subject} ({block}). It is included in the partial, "
+                "batch and unified reports.\n\nLeave it blank to remove it."
+            ).format(subject=subject, block=_block_label(self.day_num, self.group_name)),
+            existing.text if existing else "",
+        )
+        if text is None:
+            return
+        if self._save_note(subject, text):
+            self.refresh_subject_rows()
 
     def _edit_block_duration(self) -> None:
         """Set/clear the Day x Group default duration."""
@@ -1194,6 +1391,59 @@ class BlockDetailDialog(Toplevel):
                 summary_stats = unified_df.groupby("animal")[stats_cols].mean()
                 summary_stats.to_excel(writer, sheet_name="Resumo por Animal")  # i18n: not-ui
 
+            notes_df = self._block_notes_frame()
+            if not notes_df.empty:
+                notes_df.to_excel(writer, sheet_name="Notas", index=False)  # i18n: not-ui
+
+    def _block_notes_frame(self):
+        """This block's notes as a table, one row per note (block note first)."""
+        import pandas as pd
+
+        records = block_records(self._project_data(), self.day_num, self.group_name)
+        return pd.DataFrame(note_rows(records), columns=list(NOTE_COLUMNS))
+
+    def _render_block_notes_section(self, document: Any, subjects_in_report: list[str]) -> None:
+        """Append the "Experimental notes" section; no-op when the block has none.
+
+        Every subject note of the block is listed, including animals missing
+        from this report: the note about a session that failed is usually the
+        one that explains why it is missing.
+        """
+        block_note, subject_notes = collect_block_notes(
+            self._project_data(), self.day_num, self.group_name
+        )
+        if block_note is None and not subject_notes:
+            return
+
+        document.add_heading(_("Experimental notes"), level=2)
+
+        if block_note is not None:
+            stamp = _note_timestamp(block_note)
+            heading = (
+                _("Block note (last edited {timestamp}):").format(timestamp=stamp)
+                if stamp
+                else _("Block note:")
+            )
+            document.add_paragraph().add_run(heading).bold = True
+            document.add_paragraph(block_note.text)
+
+        if subject_notes:
+            in_report = {str(subject).strip() for subject in subjects_in_report}
+            table = document.add_table(rows=1, cols=3)
+            table.style = "Table Grid"
+            table.rows[0].cells[0].text = _("Animal")
+            table.rows[0].cells[1].text = _("Note")
+            table.rows[0].cells[2].text = _("Last edited")
+            for subject, note in subject_notes.items():
+                cells = table.add_row().cells
+                cells[0].text = (
+                    subject
+                    if subject in in_report
+                    else _("{subject} (not in this report)").format(subject=subject)
+                )
+                cells[1].text = note.text
+                cells[2].text = _note_timestamp(note) or "-"
+
     def _write_partial_report_word(
         self,
         path: Path,
@@ -1237,6 +1487,19 @@ class BlockDetailDialog(Toplevel):
                 ).format(listed=listed)
             )
 
+        # The notes section sits at the end, after the tables; this line makes
+        # sure a reader who stops at the numbers still knows it is there.
+        block_note, subject_notes = collect_block_notes(
+            self._project_data(), self.day_num, self.group_name
+        )
+        if block_note is not None or subject_notes:
+            document.add_paragraph(
+                _(
+                    "This block has experimental notes recorded during the "
+                    "experiment — see 'Experimental notes' at the end."
+                )
+            )
+
         document.add_heading(_("Sessions included"), level=2)
         session_table = document.add_table(rows=1, cols=2)
         session_table.style = "Table Grid"
@@ -1252,6 +1515,8 @@ class BlockDetailDialog(Toplevel):
         if stats_cols:
             summary_stats = unified_df.groupby("animal")[stats_cols].mean().reset_index()
             self._render_partial_summary_table(document, summary_stats, stats_cols)
+
+        self._render_block_notes_section(document, subjects_in_report)
 
         document.save(str(path))
 
@@ -1588,58 +1853,39 @@ class BlockDetailDialog(Toplevel):
             )
 
     def add_note(self):
-        """Add note to day/group block."""
+        """Edit the note of the whole Day x Group block.
+
+        The note lands in the partial/batch reports of this block and in the
+        unified report. Success is announced only AFTER the project is on disk.
+        """
         log.info("block_detail.add_note", day=self.day_num, group=self.group_name)
 
-        # Get existing notes from project data
-        project_data = (
-            self.project_manager.project_data
-            if hasattr(self.project_manager, "project_data")
-            else {}
-        )
-
-        # Notes are stored in experiment_notes dict with block key
-        experiment_notes = project_data.get("experiment_notes", {})
-        block_key = f"Dia_{self.day_num}_{self.group_name}"
-        existing_note = experiment_notes.get(block_key, "")
-
-        # Show input dialog
-        note = simpledialog.askstring(
+        existing = get_note(self._project_data(), self.day_num, self.group_name)
+        text = self._ask_note_text(
             _("Add Experimental Note"),
-            _("Note for {block}:\n\n(leave blank to clear)").format(
-                block=_block_label(self.day_num, self.group_name)
-            ),
-            initialvalue=existing_note,
-            parent=self,
+            _(
+                "Note for {block}. It is included in the partial, batch and "
+                "unified reports.\n\nLeave it blank to remove it."
+            ).format(block=_block_label(self.day_num, self.group_name)),
+            existing.text if existing else "",
         )
-
-        if note is None:
-            # User cancelled
+        if text is None:
             return
 
-        try:
-            # Save note
-            if "experiment_notes" not in project_data:
-                project_data["experiment_notes"] = {}
+        if not self._save_note(SUBJECT_WILDCARD, text):
+            return
 
-            if note.strip():
-                project_data["experiment_notes"][block_key] = note.strip()
-                log.info("block_detail.add_note.saved", block_key=block_key, note=note[:50])
-                messagebox.showinfo(_("Note Saved"), _("Experimental note saved successfully!"))
-            else:
-                # Remove note if empty
-                if block_key in project_data["experiment_notes"]:
-                    del project_data["experiment_notes"][block_key]
-                log.info("block_detail.add_note.cleared", block_key=block_key)
-                messagebox.showinfo(_("Note Removed"), _("Experimental note removed."))
+        if text.strip():
+            messagebox.showinfo(
+                _("Note Saved"), _("Experimental note saved successfully!"), parent=self
+            )
+        else:
+            messagebox.showinfo(_("Note Removed"), _("Experimental note removed."), parent=self)
 
-            # Save project
-            if hasattr(self.project_manager, "save_project"):
-                self.project_manager.save_project()
-
-        except Exception as e:
-            log.error("block_detail.add_note.failed", error=str(e), exc_info=True)
-            messagebox.showerror(_("Error"), _("Failed to save the note:\n{error}").format(error=e))
+        if self._block_note_label is not None:
+            self._block_note_label.config(text=self._format_block_note())
+        if self._note_button is not None:
+            self._note_button.config(text=self._note_button_text())
 
     def mark_batch_complete(self):
         """Mark batch as complete and generate the block partial report.

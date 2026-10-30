@@ -247,6 +247,12 @@ timestamp, frame, track_id, x1, y1, x2, y2, confidence,
   (distância total, nº de entradas, tempo em ROI). O app não normaliza sozinho — a decisão é do
   pesquisador — mas avisa antes de gerar o relatório parcial/lote e carimba a ressalva dentro do
   `.docx`. A coluna `video_duration_s` está no `.xlsx` justamente para permitir a normalização.
+- **Notas experimentais (bloco e cobaia) usam o MESMO espaço de chaves.**
+  `core/services/experiment_notes.py` é a fonte única de `project_data["experiment_notes"]`;
+  as chaves saem de `duration_override_key()` (bloco = sujeito `"*"`), nunca montadas à mão.
+  A chave legada `Dia_{n}_{grupo}` com texto puro ainda é LIDA. Quem chama `set_note()` persiste
+  e desfaz a edição em memória se o save falhar. As notas saem nos relatórios parcial/lote e unificado,
+  mas **nunca** como coluna dos dados, porque isso mudaria o schema do parquet/CSV unificado.
 
 ### 🔌 Modo de gatilho externo (Arduino inicia a gravação)
 
