@@ -1030,3 +1030,17 @@ class TestClassRolesPanel:
             assert seen[0].scope == "weight"
         finally:
             dialog.destroy()
+
+    def test_compact_layout_for_the_wizard(self, tkinter_root, registry) -> None:
+        wm, files = registry
+        editor = ClassRolesEditor(
+            scope=ClassRolesScope.WEIGHT, weight_manager=wm, weight_name=files["rat"].name
+        )
+        panel = self._panel(tkinter_root, editor, BARNES_NAMES, persist=False, compact=True)
+        assert panel._weight_label.winfo_manager() == ""
+        assert panel._restore_button.master is panel._role_combo.master
+        assert panel._status.winfo_manager() == ""
+        panel._on_role_chosen()  # nothing selected → message shown
+        assert panel._status.winfo_manager() == "pack"
+        panel._set_status("")
+        assert panel._status.winfo_manager() == ""

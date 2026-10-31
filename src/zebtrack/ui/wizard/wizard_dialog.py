@@ -84,6 +84,7 @@ class WizardDialog(Dialog):
         parent,
         settings_obj: "Settings | None" = None,
         event_bus: "EventBusV2 | None" = None,
+        model_service: Any = None,
     ):
         """
         Initialize wizard dialog.
@@ -92,6 +93,8 @@ class WizardDialog(Dialog):
             parent: Parent Tkinter widget (usually root window)
             settings_obj: Settings instance (optional)
             event_bus: EventBusV2 instance (optional)
+            model_service: ModelService (optional) — reads the animal weight's
+                class names for the model step's "Class roles" section
         """
         self.all_steps: dict[
             WizardStepID, WizardStep
@@ -109,6 +112,7 @@ class WizardDialog(Dialog):
         self._geometry_initialized = False
         self.settings = settings_obj  # Store settings for steps
         self.event_bus = event_bus
+        self.model_service = model_service
 
         log.info("wizard.opened")
 
@@ -161,7 +165,10 @@ class WizardDialog(Dialog):
                 self.steps_container, self.wizard_data
             ),
             WizardStepID.MODEL_SELECTION: ModelSelectionStep(
-                self.steps_container, self.wizard_data, settings_obj=self.settings
+                self.steps_container,
+                self.wizard_data,
+                settings_obj=self.settings,
+                model_service=self.model_service,
             ),
             WizardStepID.IMPORT_CONFIG: ImportConfigStep(self.steps_container, self.wizard_data),
             WizardStepID.CONFIRMATION: ConfirmationStep(self.steps_container, self.wizard_data),

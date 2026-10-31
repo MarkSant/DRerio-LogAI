@@ -1200,3 +1200,89 @@ class TestProjectWorkflowServicePostCreationGuideEdgeCases(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+WIZARD_ROLES = {"arena": "arena", "experimenter": "context", "rat": "subject"}
+
+
+class TestWizardClassRoles(unittest.TestCase):
+    """Class roles edited in the wizard reach model_overrides with their sha (ADR-009)."""
+
+    def setUp(self):
+        self.pm = Mock()
+        self.pm.create_new_project.return_value = True
+        self.pm.project_path = "/path/to/project"
+        self.pm.project_data = {}
+        self.pm.get_active_zone_video.return_value = None
+        model_service = Mock()
+        model_service.get_all_weight_names.return_value = ["rat.pt"]
+        settings = Mock()
+        settings.model_selection.animal_method = "det"
+        settings.model_selection.aquarium_method = "det"
+        self.service = ProjectWorkflowService(
+            project_manager=self.pm,
+            model_service=model_service,
+            state_manager=Mock(),
+            settings_obj=settings,
+        )
+        self.service.set_global_model_defaults(active_weight="rat.pt", use_openvino=False)
+
+    def _create(self, **extra):
+        return self.service.create_project(
+            project_path="/path/to/project",
+            project_type="live",
+            animals_per_aquarium=1,
+            **extra,
+        )
+
+    def test_roles_and_sha_are_stored_in_model_overrides(self):
+        result = self._create(class_roles=WIZARD_ROLES, class_roles_weight_sha256="abc")
+
+        assert result["success"] is True
+        overrides = self.pm.project_data["model_overrides"]
+        assert overrides["class_roles"] == WIZARD_ROLES
+        assert overrides["class_roles_weight_sha256"] == "abc"
+        self.pm.save_project.assert_called()
+
+    def test_roles_never_reach_create_new_project(self):
+        self._create(class_roles=WIZARD_ROLES, class_roles_weight_sha256="abc")
+
+        kwargs = self.pm.create_new_project.call_args.kwargs
+        assert "class_roles" not in kwargs
+        assert "class_roles_weight_sha256" not in kwargs
+
+    def test_untouched_section_stores_nothing(self):
+        self._create(class_roles=None, class_roles_weight_sha256=None)
+
+        overrides = self.pm.project_data.get("model_overrides") or {}
+        assert overrides.get("class_roles") is None
+
+    def test_roles_without_sha_are_dropped(self):
+        roles, sha = ProjectWorkflowService._build_initial_class_roles(WIZARD_ROLES, None)
+        assert (roles, sha) == (None, None)
+        assert ProjectWorkflowService._build_initial_class_roles(WIZARD_ROLES, "") == (None, None)
+
+    def test_invalid_roles_are_dropped(self):
+        assert ProjectWorkflowService._build_initial_class_roles({"rat": "boss"}, "abc") == (
+            None,
+            None,
+        )
+
+    def test_valid_roles_are_normalised(self):
+        roles, sha = ProjectWorkflowService._build_initial_class_roles(
+            {"Lab Rat": "subject"}, "abc"
+        )
+        assert roles == {"lab_rat": "subject"}
+        assert sha == "abc"
+
+    def test_persist_writes_roles_only_with_their_sha(self):
+        self.pm.project_data = {}
+        self.service._persist_initial_project_overrides(
+            None, None, class_roles=WIZARD_ROLES, class_roles_weight_sha256=None
+        )
+        assert self.pm.project_data == {}
+
+        self.service._persist_initial_project_overrides(
+            None, None, class_roles=WIZARD_ROLES, class_roles_weight_sha256="abc"
+        )
+        assert self.pm.project_data["model_overrides"]["class_roles"] == WIZARD_ROLES

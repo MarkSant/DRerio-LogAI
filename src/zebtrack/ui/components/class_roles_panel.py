@@ -866,6 +866,9 @@ class ClassRolesPanel(ttk.Frame):
         background: Load names on a thread (``False`` only in tests).
         load_when_mapped: Defer the model load until the panel is first shown
             (the wizard's collapsed section must not load a model nobody looks at).
+        compact: Fewer lines for tight hosts (the 780 px wizard): no weight line
+            (the host shows the weight), "Restore automatic" beside the role list
+            and a status line only while there is something to say.
     """
 
     def __init__(
@@ -880,8 +883,10 @@ class ClassRolesPanel(ttk.Frame):
         wraplength: int = 420,
         background: bool = True,
         load_when_mapped: bool = False,
+        compact: bool = False,
     ) -> None:
         super().__init__(parent)
+        self._compact = compact
         self.editor = editor
         self._loader = names_loader
         self._persist = persist
@@ -916,7 +921,8 @@ class ClassRolesPanel(ttk.Frame):
     # ------------------------------------------------------------------
     def _build(self, tree_height: int) -> None:
         self._weight_label = ttk.Label(self, text="", font=("Segoe UI", 9, "bold"))
-        self._weight_label.pack(anchor="w")
+        if not self._compact:
+            self._weight_label.pack(anchor="w")
         self._source_label = ttk.Label(
             self, text="", foreground="#555555", wraplength=self._wraplength, justify="left"
         )
@@ -963,18 +969,22 @@ class ClassRolesPanel(ttk.Frame):
         combo.bind("<<ComboboxSelected>>", self._on_role_chosen)
         self._role_combo = combo
 
-        buttons = ttk.Frame(self)
-        buttons.pack(fill="x", pady=(4, 0))
+        if self._compact:
+            buttons = editor_row
+        else:
+            buttons = ttk.Frame(self)
+            buttons.pack(fill="x", pady=(4, 0))
         self._restore_button = ttk.Button(
             buttons, text=_("Restore automatic"), command=self.restore_automatic
         )
-        self._restore_button.pack(side="left")
+        self._restore_button.pack(side="right" if self._compact else "left")
         if self._persist:
             self._save_button = ttk.Button(buttons, text=_("Save"), command=self.save)
             self._save_button.pack(side="right")
 
         self._status = ttk.Label(self, text="", foreground="gray", wraplength=self._wraplength)
-        self._status.pack(anchor="w", pady=(4, 0))
+        if not self._compact:
+            self._status.pack(anchor="w", pady=(4, 0))
 
     # ------------------------------------------------------------------
     # Lifecycle
@@ -1226,8 +1236,14 @@ class ClassRolesPanel(ttk.Frame):
         return True
 
     def _set_status(self, message: str, *, error: bool = False) -> None:
-        if self._status is not None:
-            self._status.config(text=message, foreground="#b00020" if error else "#2e7d32")
+        if self._status is None:
+            return
+        self._status.config(text=message, foreground="#b00020" if error else "#2e7d32")
+        if self._compact:
+            if message and not self._status.winfo_manager():
+                self._status.pack(anchor="w", pady=(4, 0))
+            elif not message:
+                self._status.pack_forget()
 
 
 class ClassRolesDialog(Toplevel):

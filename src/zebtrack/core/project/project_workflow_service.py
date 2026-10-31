@@ -533,6 +533,9 @@ class ProjectWorkflowService:
         wizard_metadata = context["wizard_metadata"]
         initial_slot_weights = context.get("initial_slot_weights") or {}
         detector_hyperparams = context.get("detector_hyperparams") or {}
+        initial_class_roles, initial_class_roles_sha = context.get(
+            "initial_class_roles", (None, None)
+        )
 
         is_valid, error_msg = self._validate_project_input(**prepared_kwargs)
         if not is_valid:
@@ -582,6 +585,8 @@ class ProjectWorkflowService:
         self._persist_initial_project_overrides(
             initial_slot_weights,
             detector_hyperparams,
+            class_roles=initial_class_roles,
+            class_roles_weight_sha256=initial_class_roles_sha,
         )
 
         self._emit_project_created_event()
@@ -722,6 +727,13 @@ class ProjectWorkflowService:
             kwargs.get("detector_parameters")
         )
 
+        # Class roles edited in the wizard's model step (ADR-009). They do not
+        # pass the create_new_project whitelist: like the slot weights they land
+        # in model_overrides, with the sha of the animal weight they were made for.
+        initial_class_roles = self._build_initial_class_roles(
+            kwargs.get("class_roles"), kwargs.get("class_roles_weight_sha256")
+        )
+
         model_selection = kwargs.get("model_selection")
         if (
             "openvino_device" not in kwargs
@@ -759,6 +771,7 @@ class ProjectWorkflowService:
             "wizard_metadata": wizard_metadata,
             "initial_slot_weights": initial_slot_weights,
             "detector_hyperparams": detector_hyperparams,
+            "initial_class_roles": initial_class_roles,
         }
 
     def _validate_project_input(self, **kwargs: Any) -> tuple[bool, str | None]:
@@ -850,6 +863,30 @@ class ProjectWorkflowService:
 
         return slot_weights
 
+    @staticmethod
+    def _build_initial_class_roles(
+        raw_roles: Any, raw_sha: Any
+    ) -> tuple[dict[str, str] | None, str | None]:
+        """Validate the wizard's class roles: ``(roles, sha)`` or ``(None, None)``.
+
+        A map without the sha of the weight it was made for would be discarded by
+        the resolver on every load, so it is dropped here with a warning instead
+        of being stored to no effect.
+        """
+        from zebtrack.core.detection.class_roles import parse_class_roles
+
+        if raw_roles is None:
+            return None, None
+        parsed = parse_class_roles(raw_roles)
+        if parsed is None or not isinstance(raw_sha, str) or not raw_sha:
+            log.warning(
+                "project_workflow_service.class_roles.dropped",
+                roles=raw_roles,
+                has_sha=bool(raw_sha),
+            )
+            return None, None
+        return {name: role.value for name, role in parsed.items()}, raw_sha
+
     def _build_detector_hyperparam_overrides(
         self,
         detector_parameters: Any,
@@ -883,15 +920,20 @@ class ProjectWorkflowService:
         self,
         slot_weights: dict[str, str] | None,
         detector_hyperparams: dict[str, float] | None,
+        *,
+        class_roles: dict[str, str] | None = None,
+        class_roles_weight_sha256: str | None = None,
     ) -> None:
-        """Write wizard-derived slot weights and hyperparams into project_data.
+        """Write wizard-derived slot weights, hyperparams and class roles.
 
         Called after the project structure is created and before
         ``apply_project_model_overrides`` runs, so the project's
         ``model_overrides`` block already contains the wizard's choices when
-        runtime resolution kicks in.
+        runtime resolution kicks in. ``class_roles`` is stored only together with
+        the sha256 of the weight it was made for (ADR-009).
         """
-        if not slot_weights and not detector_hyperparams:
+        store_roles = bool(class_roles) and bool(class_roles_weight_sha256)
+        if not slot_weights and not detector_hyperparams and not store_roles:
             return
 
         project_data = self.project_manager.project_data
@@ -921,6 +963,11 @@ class ProjectWorkflowService:
                 if overrides.get(key) != value:
                     overrides[key] = value
                     updated = True
+
+        if store_roles:
+            overrides["class_roles"] = dict(class_roles or {})
+            overrides["class_roles_weight_sha256"] = class_roles_weight_sha256
+            updated = True
 
         if updated and self.project_manager.project_path:
             self.project_manager.save_project()
