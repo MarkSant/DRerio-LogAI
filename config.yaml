@@ -85,6 +85,10 @@ recorder:
   # takes effect with a segmentation model (model_selection.animal_method: "seg").
   # See docs/guides/developer/performance-tuning.md § 1.1 for the measured cost.
   persist_masks: false
+  # Persist subject + context detections (and one heartbeat row per processed
+  # frame) to the 3c_Objetos_<base>.parquet sidecar. Analysis-window start/stop
+  # conditions are evaluated from it. Kill switch only (ADR-010).
+  persist_object_sidecar: true
 
 # -----------------------------------------------------------------------------
 # YOLO Model Settings (Object Detection)
@@ -245,6 +249,16 @@ model_selection:
   class_aliases:
     arena: []
     animal: []
+
+  # Context classes (experimenter, start box, ...) are only searched when the
+  # weight's class-role map declares one; otherwise the arena crop is unchanged.
+  #   arena_crop        : same crop as the subject
+  #   arena_crop_margin : arena box grown by context_crop_margin_frac on each side
+  #   full_frame        : whole frame (subject keeps the arena polygon filter)
+  context_inference_scope: "arena_crop_margin"
+  context_crop_margin_frac: 0.15
+  # Confidence floor for context classes; null = animal confidence threshold.
+  context_min_confidence: null
 
 # -----------------------------------------------------------------------------
 # OpenVINO Settings (Hardware Acceleration)

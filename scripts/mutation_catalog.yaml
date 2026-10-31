@@ -419,3 +419,47 @@ modules:
         description: "prefixo cru: Projeto_backup passa por dentro de Projeto e ganha import silencioso"
         find: 'root_norm + os.sep if not root_norm.endswith(os.sep) else root_norm'
         replace: 'root_norm'
+
+  class_aliases:
+    source: src/zebtrack/core/detection/class_aliases.py
+    tests:
+      - tests/core/test_class_aliases.py
+    mutations:
+      - id: arena-role-read-as-animal
+        description: "nomes de arena passam a disputar o papel de animal"
+        find: 'if role == "arena":'
+        replace: 'if role == "animal":'
+      - id: highest-animal-id-wins
+        description: "com varios candidatos a animal, vence o MAIOR id em vez do menor"
+        find: 'animal_id = animal_ids[0] if found_animal'
+        replace: 'animal_id = animal_ids[-1] if found_animal'
+      - id: single-class-animal-keeps-arena-zero
+        description: "peso so de animal no id 0 deixa de marcar a arena como ausente (-1)"
+        find: 'arena_id = -1'
+        replace: 'arena_id = 0'
+      - id: arena-fallback-not-zero
+        description: "modelo de arena sem classe reconhecida deixa de cair no id 0 historico"
+        find: 'return _LEGACY_ARENA_ID'
+        replace: 'return -1'
+
+  v8_settings:
+    source: src/zebtrack/settings.py
+    tests:
+      - tests/test_settings.py
+    mutations:
+      - id: object-sidecar-off-by-default
+        description: "sidecar 3c passa a vir desligado e as janelas perdem a fonte de presenca"
+        find: |-
+          persist_object_sidecar: bool = Field(
+                  True,
+        replace: |-
+          persist_object_sidecar: bool = Field(
+                  False,
+      - id: context-margin-default-changed
+        description: "margem de contexto padrao deixa de ser 15%"
+        find: |-
+          context_crop_margin_frac: float = Field(
+                  0.15,
+        replace: |-
+          context_crop_margin_frac: float = Field(
+                  0.25,

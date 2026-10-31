@@ -91,6 +91,10 @@ class WorkerConfig:
     model_type: str = "yolo"  # 'yolo' or 'openvino'
     zone_data: dict | None = None  # serialized ZoneData
     shm_name: str = ""  # shared memory block name for preview frames
+    # Effective weight resolved in the main process (ADR-009). Empty/None means
+    # "not resolved by the caller": the worker falls back to the settings path.
+    weight_sha256: str = ""
+    class_roles: dict[str, str] | None = None  # normalised class name -> role token
 
 
 class ProcessingWorker:

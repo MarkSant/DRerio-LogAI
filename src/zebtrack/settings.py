@@ -229,6 +229,16 @@ class RecorderSettings(BaseModel):
             "segmentation model (model_selection.animal_method == 'seg')"
         ),
     )
+    persist_object_sidecar: bool = Field(
+        True,
+        description=(
+            "Persist every processed frame's subject and context detections, plus one "
+            "heartbeat row per frame, to the 3c_Objetos_<base>.parquet sidecar. Analysis "
+            "windows (start/stop conditions) are evaluated from it, so turning it off "
+            "means a window can only be computed from the trajectory. Kill switch only "
+            "(ADR-010)."
+        ),
+    )
 
 
 def resolve_animal_confidence(yolo_settings: Any) -> float:
@@ -911,6 +921,32 @@ class ModelSelectionSettings(BaseModel):
         description=(
             "Extra class names for the arena and animal roles, on top of the "
             "built-in species-agnostic aliases."
+        ),
+    )
+    context_inference_scope: Literal["arena_crop", "arena_crop_margin", "full_frame"] = Field(
+        "arena_crop_margin",
+        description=(
+            "Where context classes (experimenter, start box, ...) are looked for. Only "
+            "takes effect when the class-role map has at least one context class; "
+            "without one the arena crop is exactly the legacy one (ADR-009)."
+        ),
+    )
+    context_crop_margin_frac: float = Field(
+        0.15,
+        ge=0.0,
+        le=1.0,
+        description=(
+            "Fraction of the arena bounding box added on every side when "
+            "context_inference_scope is 'arena_crop_margin'."
+        ),
+    )
+    context_min_confidence: float | None = Field(
+        None,
+        gt=0.0,
+        lt=1.0,
+        description=(
+            "Confidence floor for context classes. None uses the animal confidence "
+            "threshold (resolve_animal_confidence)."
         ),
     )
 

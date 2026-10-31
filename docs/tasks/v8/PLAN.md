@@ -20,7 +20,7 @@ without the maintainer's order.
 
 | Front | Branch | Owns |
 |---|---|---|
-| F0 | `feat/v8-contracts` | this folder, new `UIEvents`/payloads, new settings fields + `config.yaml`, new `WorkerConfig` fields, `project_workflow_service` allowlist, `mutation_catalog.yaml` stubs, `.pot` sync test |
+| F0 | `feat/v8-contracts` | this folder, new settings fields + `config.yaml`, new `WorkerConfig` fields (`weight_sha256`, `class_roles`), `class_aliases` and `v8_settings` mutation blocks. New `UIEvents` belong to the front that publishes them (`tests/quality/test_no_orphan_ui_events.py` rejects unpublished events): `CLASS_ROLES_CHANGED` → F6, `ANALYSIS_WINDOW_STATE_CHANGED` → F5. The `.pot` sync test belongs to F7, because every front adds msgids that only F7 catalogues |
 | F1 | `feat/v8-time-foundation` | `analysis/time_base.py`, `duracao_video_s`, ROI latency, real fps in report coordinators, `retime_from_ledger`, `run_full_analysis(window=None)`, golden |
 | F2 | `feat/v8-class-roles` | `core/detection/class_roles.py`, detectors, `detection_post_processor`, `weight_manager`, `worker_model_resolution`, worker model init, OpenVINO NMS, `detector_service` validation, wizard → project `model_selection`, project migrations, legacy 7.2.0 fixture |
 | F3 | `feat/v8-object-sidecar` | recorder `3c`, `core/services/object_capture.py`, `io/object_sidecar.py`, worker loop writes, import copy, stale sidecar cleanup |
