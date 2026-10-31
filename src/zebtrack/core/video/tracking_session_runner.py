@@ -23,6 +23,7 @@ import structlog
 if TYPE_CHECKING:
     from zebtrack.core.detection import Detector
     from zebtrack.core.project.project_manager import ProjectManager
+    from zebtrack.core.services.weight_manager import WeightManager
     from zebtrack.core.state_manager import StateManager
     from zebtrack.core.ui_scheduler import UIScheduler
     from zebtrack.core.video.video_processing_service import VideoContext
@@ -51,6 +52,7 @@ class TrackingSessionRunnerMixin:
     settings: Settings
     detector: Detector | None
     recorder: Recorder | None
+    weight_manager: WeightManager | None
 
     # ── Cross-mixin method stubs (implemented by other mixins) ──
     def ensure_arena_polygon(
@@ -299,6 +301,7 @@ class TrackingSessionRunnerMixin:
             )
         )
 
+        from zebtrack.core.services.worker_model_resolution import resolve_worker_model
         from zebtrack.core.video.processing_worker import (
             ProcessingCallbacks,
             ProcessingContext,
@@ -326,6 +329,7 @@ class TrackingSessionRunnerMixin:
             "experiment_id": experiment_id,
         }
 
+        project_data = getattr(self.project_manager, "project_data", None)
         context = ProcessingContext(
             videos_to_process=[task],
             output_base_dir=str(results_dir),
@@ -335,6 +339,11 @@ class TrackingSessionRunnerMixin:
             zone_data=zone_data,
             analysis_interval_frames=analysis_interval_frames,
             display_interval_frames=display_interval_frames,
+            model_spec=resolve_worker_model(
+                getattr(self, "weight_manager", None),
+                self.settings,
+                project_data if isinstance(project_data, dict) else None,
+            ),
         )
 
         result_status = {"success": False}

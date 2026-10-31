@@ -715,3 +715,39 @@ modules:
         description: "classe ausente de um mapa explicito vira contexto em vez de ignorada"
         find: 'parsed.get(normalized, ClassRole.IGNORED)'
         replace: 'parsed.get(normalized, ClassRole.CONTEXT)'
+
+  worker_model_resolution:
+    source: src/zebtrack/core/services/worker_model_resolution.py
+    tests:
+      - tests/core/services/test_worker_model_resolution.py
+    mutations:
+      - id: project-slot-ignored
+        description: "slot do animal no projeto deixa de ser lido e o peso padrao do registro vence"
+        find: 'f"{method}{_SLOT_SEPARATOR}{_ANIMAL_TARGET}"'
+        replace: 'f"{method}{_SLOT_SEPARATOR}aquarium"'
+      - id: settings-method-beats-project
+        description: "metodo det/seg global passa por cima do metodo gravado no projeto"
+        find: 'if project_method in VALID_ANIMAL_METHODS:'
+        replace: 'if False:'
+      - id: project-roles-sha-ignored
+        description: "papeis do projeto feitos para outro peso vao para o worker mesmo assim"
+        find: 'if weight_sha256 and recorded_sha == weight_sha256:'
+        replace: 'if True:'
+      - id: stale-openvino-export-shipped
+        description: "export OpenVINO que nao e do .pt atual vai para o worker"
+        find: 'and weight_manager.openvino_cache_is_current(name) is True'
+        replace: 'and True'
+      - id: top-level-active-weight-always-read
+        description: "active_weight resolvido de outra sessao vence o default em projeto com overrides"
+        find: 'if not isinstance(raw_overrides, dict):'
+        replace: 'if True:'
+
+  processing_worker_model_spec:
+    source: src/zebtrack/core/video/processing_worker.py
+    tests:
+      - tests/core/test_processing_worker_unit.py
+    mutations:
+      - id: settings-beat-the-spec
+        description: "o worker volta a montar o modelo pelas settings e ignora o peso escolhido no projeto"
+        find: 'if spec is not None:'
+        replace: 'if False:'

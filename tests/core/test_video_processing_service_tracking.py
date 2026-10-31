@@ -188,10 +188,45 @@ class TestRunTrackingIfNeeded:
         # Verify context
         assert context.analysis_interval_frames == 1
         assert context.videos_to_process[0]["experiment_id"] == "test_001"
+        # The weight is resolved in the main process and shipped (ADR-009).
+        assert context.model_spec is not None
 
         # Verify worker started
         mock_worker_instance.start_in_thread.assert_called_once()
         mock_thread.join.assert_called_once()
+
+    @patch("zebtrack.core.video.processing_worker.ProcessingWorker")
+    @patch("zebtrack.core.video.tracking_session_runner.os.path.exists")
+    @patch("zebtrack.core.video.tracking_session_runner.cv2.VideoCapture")
+    def test_ships_the_project_weight_to_the_worker(
+        self, mock_videocap, mock_exists, mock_worker, video_processing_service, tmp_path
+    ):
+        """Re-tracking a project video must load the PROJECT's weight."""
+        mock_exists.return_value = False
+        rat = tmp_path / "best_det_topdown_rat_v1.pt"
+        rat.write_bytes(b"rat")
+        weight_manager = Mock()
+        weight_manager.weights = {rat.name: {"path": str(rat), "type": "det"}}
+        weight_manager.get_weight_sha256.return_value = "c" * 64
+        video_processing_service.weight_manager = weight_manager
+        video_processing_service.project_manager.project_data = {
+            "model_overrides": {"slot_weights": {"det:zebrafish": rat.name}},
+            "model_selection": {"animal_method": "det"},
+            "use_openvino": False,
+        }
+        video_processing_service.project_manager.get_zone_data = Mock(
+            return_value=ZoneData(polygon=[[0, 0], [640, 0], [640, 480]])
+        )
+
+        video_processing_service.run_tracking_if_needed(
+            video_path="/fake/video.mp4",
+            results_dir="/fake/results",
+            experiment_id="test_001",
+        )
+
+        context = mock_worker.call_args.args[0]
+        assert context.model_spec.model_path == str(rat)
+        assert context.model_spec.weight_sha256 == "c" * 64
 
     @patch("zebtrack.core.video.processing_worker.ProcessingWorker")
     @patch("zebtrack.core.video.tracking_session_runner.os.path.exists")

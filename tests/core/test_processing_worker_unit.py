@@ -3,7 +3,7 @@ import queue
 import typing
 from types import SimpleNamespace
 from typing import Any, cast
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -406,3 +406,167 @@ def test_settings_has_no_calibration_attribute():
 
     assert "calibration" not in Settings.model_fields
     assert Settings.model_config.get("extra") == "forbid"
+
+
+# ---------------------------------------------------------------------------
+# ADR-009: the weight chosen in the PROJECT is the one the worker loads.
+#
+# Confirmed bug (AUDIT §1): the worker rebuilt its model from the global
+# settings, so a project whose slot pointed at a rat weight processed every
+# video with the zebrafish default and reported nothing unusual.
+# ---------------------------------------------------------------------------
+
+
+class _RecordingPlugin(FakePlugin):
+    loaded_paths: typing.ClassVar[list[str]] = []
+
+    def __init__(self, model_path: str, settings_obj):
+        super().__init__(model_path, settings_obj)
+        _RecordingPlugin.loaded_paths.append(str(model_path))
+
+
+def _start_worker_and_capture_config(context, monkeypatch) -> WorkerConfig:
+    from zebtrack.core.video import processing_worker as pw
+
+    captured: dict[str, WorkerConfig] = {}
+
+    class _CapturingProcess:
+        def __init__(self, config, result_queue, command_queue):
+            captured["config"] = config
+
+        def start(self) -> None:
+            return None
+
+    def _no_shared_memory(*_args, **_kwargs):
+        raise OSError("shared memory disabled in this test")
+
+    monkeypatch.setattr(pw, "_WorkerProcess", _CapturingProcess)
+    monkeypatch.setattr(pw, "SharedFrameBuffer", _no_shared_memory)
+    monkeypatch.setattr(pw.ProcessingWorker, "_monitor_loop", lambda self: None)
+
+    callbacks = cast(Any, SimpleNamespace())
+    worker = pw.ProcessingWorker(context, callbacks)
+    worker.start_in_thread().join(timeout=5)
+    return captured["config"]
+
+
+def _project_registry(tmp_path):
+    from zebtrack.core.services.weight_manager import WeightManager
+    from zebtrack.settings import load_settings
+
+    settings = load_settings()
+    settings.model_selection.animal_method = "det"
+    settings.model_selection.use_openvino = False
+    weights = tmp_path / "weights"
+    weights.mkdir()
+    zebra = weights / "best_det_topdown.pt"
+    rat = weights / "best_det_topdown_rat_v1.pt"
+    zebra.write_bytes(b"zebrafish")
+    rat.write_bytes(b"rat")
+    wm = WeightManager(settings_obj=settings, config_dir=tmp_path, weights_dir=weights)
+    for path, default in ((zebra, True), (rat, False)):
+        wm.weights[path.name] = {
+            "path": str(path),
+            "type": "det",
+            "target": "aquarium",
+            "perspective": settings.behavioral_analysis.aquarium_perspective,
+            "is_default": default,
+            "is_default_det": default,
+            "is_default_det_aquarium": default,
+            "is_default_det_zebrafish": False,
+            "is_default_seg_aquarium": False,
+            "is_default_seg_zebrafish": False,
+            "openvino_path": "",
+            "openvino_status": "not_converted",
+        }
+    wm.weights[rat.name]["class_roles"] = {"rat": "subject", "experimenter": "context"}
+    return wm, settings, zebra, rat
+
+
+def test_the_project_weight_is_the_one_the_worker_loads(tmp_path, monkeypatch):
+    import threading
+
+    from zebtrack.core.services.worker_model_resolution import resolve_worker_model
+    from zebtrack.core.video.processing_worker import ProcessingContext
+
+    wm, settings, zebra, rat = _project_registry(tmp_path)
+    project = {"model_overrides": {"slot_weights": {"det:zebrafish": rat.name}}}
+    context = ProcessingContext(
+        videos_to_process=[],
+        output_base_dir=str(tmp_path),
+        cancel_event=threading.Event(),
+        settings=settings,
+        model_spec=resolve_worker_model(wm, settings, project),
+    )
+
+    config = _start_worker_and_capture_config(context, monkeypatch)
+
+    assert config.model_path == str(rat)
+    assert config.model_type == "yolo"
+    assert config.weight_sha256 == wm.get_weight_sha256(rat.name)
+    assert config.class_roles == {"rat": "subject", "experimenter": "context"}
+    assert config.class_roles_source == "weight"
+
+    _RecordingPlugin.loaded_paths.clear()
+    worker = _WorkerProcess(config, mp.Queue(), mp.Queue())
+    with (
+        patch("zebtrack.plugins.ultralytics_detector.UltralyticsDetectorPlugin", _RecordingPlugin),
+        patch("zebtrack.core.video.processing_worker.Detector", FakeDetector),
+    ):
+        worker._initialize_detector()
+
+    assert _RecordingPlugin.loaded_paths == [str(rat)]
+    assert str(zebra) not in _RecordingPlugin.loaded_paths
+
+
+def test_without_a_spec_the_worker_warns_and_uses_the_settings(tmp_path, monkeypatch):
+    import threading
+
+    from zebtrack.core.video import processing_worker as pw
+    from zebtrack.core.video.processing_worker import ProcessingContext
+
+    fake_log = MagicMock()
+    monkeypatch.setattr(pw, "log", fake_log)
+    settings = SimpleNamespace(
+        model_selection=SimpleNamespace(use_openvino=False, animal_method="det"),
+        yolo_model=SimpleNamespace(path="settings_default.pt"),
+    )
+    context = ProcessingContext(
+        videos_to_process=[],
+        output_base_dir=str(tmp_path),
+        cancel_event=threading.Event(),
+        settings=settings,
+    )
+
+    config = _start_worker_and_capture_config(context, monkeypatch)
+
+    assert config.model_path == "settings_default.pt"
+    assert config.weight_sha256 == ""
+    assert config.class_roles is None
+    warnings = [c.args[0] for c in fake_log.warning.call_args_list]
+    assert "worker.model.spec_missing" in warnings
+
+
+def test_the_spec_beats_the_settings_even_when_they_name_another_file(tmp_path, monkeypatch):
+    import threading
+
+    from zebtrack.core.services.worker_model_resolution import WorkerModelSpec
+    from zebtrack.core.video.processing_worker import ProcessingContext
+
+    settings = SimpleNamespace(
+        model_selection=SimpleNamespace(use_openvino=True, animal_method="seg"),
+        yolo_model=SimpleNamespace(path="settings_default.pt"),
+    )
+    spec = WorkerModelSpec(model_path="chosen.pt", model_type="yolo", weight_sha256="f" * 64)
+    context = ProcessingContext(
+        videos_to_process=[],
+        output_base_dir=str(tmp_path),
+        cancel_event=threading.Event(),
+        settings=settings,
+        model_spec=spec,
+    )
+
+    config = _start_worker_and_capture_config(context, monkeypatch)
+
+    assert (config.model_path, config.model_type) == ("chosen.pt", "yolo")
+    assert config.weight_sha256 == "f" * 64

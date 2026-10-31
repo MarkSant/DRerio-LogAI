@@ -39,7 +39,7 @@ from zebtrack.io.recorder import Recorder
 
 # Settings is used at runtime in WorkerConfig
 if TYPE_CHECKING:
-    pass
+    from zebtrack.core.services.worker_model_resolution import WorkerModelSpec
 
 log = structlog.get_logger()
 
@@ -60,6 +60,10 @@ class ProcessingContext:
     apply_project_settings_func: Callable | None = None
     determine_intervals_func: Callable | None = None
     retry_strategy: str = "stop"
+    # Effective weight resolved in the main process by
+    # ``worker_model_resolution.resolve_worker_model`` (ADR-009). ``None`` keeps
+    # the settings-only resolution, now a warned fallback.
+    model_spec: WorkerModelSpec | None = None
 
 
 @dataclass
@@ -95,6 +99,7 @@ class WorkerConfig:
     # "not resolved by the caller": the worker falls back to the settings path.
     weight_sha256: str = ""
     class_roles: dict[str, str] | None = None  # normalised class name -> role token
+    class_roles_source: str = ""  # "project" | "weight" for an explicit map
 
 
 class ProcessingWorker:
@@ -169,12 +174,68 @@ class ProcessingWorker:
             self._shm_buffer = None
             shm_name = ""
 
-        # Resolve model type and path from settings snapshot
-        # The main process selects model via detector_service/weight_manager,
-        # but the worker needs to reconstruct the same selection from settings.
+        spec = self.context.model_spec
+        if spec is not None:
+            # The spec WINS over the settings: it was resolved in the main
+            # process from the project overrides and the weight registry.
+            resolved_model_type = spec.model_type
+            resolved_model_path = spec.model_path
+            log.info(
+                "worker.model.spec_used",
+                weight=spec.weight_name,
+                resolved_from=spec.resolved_from,
+                class_roles_source=spec.class_roles_source,
+            )
+        else:
+            log.warning(
+                "worker.model.spec_missing",
+                message=(
+                    "No WorkerModelSpec: rebuilding the model from the global settings. "
+                    "The project's weight choice is NOT honoured on this path."
+                ),
+            )
+            resolved_model_type, resolved_model_path = self._model_from_settings(
+                self.context.settings
+            )
+
+        log.info(
+            "worker.model.resolved",
+            model_type=resolved_model_type,
+            model_path=resolved_model_path,
+        )
+
+        # Create WorkerConfig
+        config = WorkerConfig(
+            settings=self.context.settings,
+            output_base_dir=self.context.output_base_dir,
+            tasks=self.context.videos_to_process,
+            single_video_mode=bool(self.context.single_video_config),
+            analysis_interval_frames=self.context.analysis_interval_frames,
+            display_interval_frames=self.context.display_interval_frames,
+            zone_data=z_dict,
+            shm_name=shm_name,
+            model_type=resolved_model_type,
+            model_path=resolved_model_path,
+            weight_sha256=spec.weight_sha256 if spec is not None else "",
+            class_roles=dict(spec.class_roles) if spec and spec.class_roles else None,
+            class_roles_source=(spec.class_roles_source or "") if spec is not None else "",
+        )
+
+        self.process = _WorkerProcess(config, self.result_queue, self.command_queue)
+        if self.process:  # Guard against None
+            self.process.start()
+
+        thread = threading.Thread(target=self._monitor_loop, name="ProcessingMonitor")
+        thread.daemon = True
+        thread.start()
+        self._monitor_thread = thread
+        return thread
+
+    @staticmethod
+    def _model_from_settings(settings: Any) -> tuple[str, str]:
+        """Legacy settings-only model resolution (fallback without a spec)."""
         resolved_model_type = "yolo"
         resolved_model_path = ""
-        settings = self.context.settings
         if hasattr(settings, "model_selection"):
             ms = settings.model_selection
             use_ov = getattr(ms, "use_openvino", False)
@@ -218,36 +279,7 @@ class ProcessingWorker:
                         fallback="yolo",
                     )
                     resolved_model_type = "yolo"
-
-        log.info(
-            "worker.model.resolved",
-            model_type=resolved_model_type,
-            model_path=resolved_model_path,
-        )
-
-        # Create WorkerConfig
-        config = WorkerConfig(
-            settings=self.context.settings,
-            output_base_dir=self.context.output_base_dir,
-            tasks=self.context.videos_to_process,
-            single_video_mode=bool(self.context.single_video_config),
-            analysis_interval_frames=self.context.analysis_interval_frames,
-            display_interval_frames=self.context.display_interval_frames,
-            zone_data=z_dict,
-            shm_name=shm_name,
-            model_type=resolved_model_type,
-            model_path=resolved_model_path,
-        )
-
-        self.process = _WorkerProcess(config, self.result_queue, self.command_queue)
-        if self.process:  # Guard against None
-            self.process.start()
-
-        thread = threading.Thread(target=self._monitor_loop, name="ProcessingMonitor")
-        thread.daemon = True
-        thread.start()
-        self._monitor_thread = thread
-        return thread
+        return resolved_model_type, resolved_model_path
 
     def cancel(self, timeout: float | None = None) -> bool:
         """Cancel processing."""

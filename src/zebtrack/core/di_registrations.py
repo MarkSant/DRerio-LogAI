@@ -157,6 +157,7 @@ def build_container(context: ContainerContext) -> punq.Container:
             cancel_event=context.cancel_event,
             settings_obj=settings_obj,
             settings_baseline=settings_baseline,
+            weight_manager=_resolve(container, WeightManager),
         ),
         scope=punq.Scope.singleton,
     )
