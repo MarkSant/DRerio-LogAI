@@ -19,6 +19,13 @@ if TYPE_CHECKING:
 # ``(context, t_send, t_ack, ack_text)`` — see ``closed_loop_latency``.
 LatencySink = Callable[[dict[str, Any], float | None, float | None, str | None], None]
 
+# Callback signature for the inbound-event sink: ``(code, t_read_perf) -> consumed``.
+# ``t_read_perf`` is the ``perf_counter`` stamped by the reader thread right after
+# ``readline()`` returned the line — the closest software instant to the device
+# event. Returning ``True`` means the sink OWNS the event (the live analysis
+# window turned it into an engine event) and the controller must not act on it.
+EventSink = Callable[[int, float], bool]
+
 _SerialExceptionBase: type[BaseException]
 
 try:  # pragma: no cover - serial may not be available during unit tests
@@ -85,6 +92,11 @@ class ArduinoManager:
         self._latency_sink: LatencySink | None = None
         self._pending_acks: deque[tuple[float, dict[str, Any]]] = deque()
         self._max_pending_acks = 512
+
+        # Inbound numeric events, stamped at read time (ADR-011). Registered by
+        # the live pipeline for the duration of a session; ``None`` otherwise.
+        self._event_lock = threading.Lock()
+        self._event_sink: EventSink | None = None
 
     # ---------------------------------------------------------------------
     # Public API
@@ -333,6 +345,18 @@ class ArduinoManager:
             self._latency_sink = sink
             self._pending_acks.clear()
 
+    def set_event_sink(self, sink: EventSink | None) -> None:
+        """Register (or clear, with ``None``) the inbound-event sink.
+
+        The sink receives every numeric line from the device as ``(code,
+        t_read_perf)`` BEFORE the controller does. It returns ``True`` to claim
+        the event: the live analysis window then owns it, and the recording
+        coordinators never see it (a code that became a condition event must
+        not also start or stop a session).
+        """
+        with self._event_lock:
+            self._event_sink = sink
+
     def flush_pending_acks(self) -> None:
         """Emit every still-unmatched pending trigger with ``t_ack=None``.
 
@@ -558,7 +582,9 @@ class ArduinoManager:
 
             try:
                 raw_line = serial_conn.readline()
-                t_ack = time.perf_counter()
+                # Stamped HERE, on the reader thread, before decoding: this is
+                # the instant both an ACK and an inbound event are dated with.
+                t_read = time.perf_counter()
             except SerialExceptionType:
                 log.warning("arduino_manager.reader.serial_exception", exc_info=True)
                 self._notify_log(_("Serial connection to the Arduino was lost."))
@@ -587,8 +613,8 @@ class ArduinoManager:
                 # buttons). This firmware ACKs commands with TEXT lines, so a
                 # numeric line is never an ACK and must not consume a pending.
                 event_code = int(decoded)
-                self._dispatch_event(event_code)
-            elif not self._consume_ack(decoded, t_ack):
+                self._dispatch_event(event_code, t_read)
+            elif not self._consume_ack(decoded, t_read):
                 self._notify_log(f"Arduino: {decoded}")
 
         log.debug("arduino_manager.reader.stop", port=self._port)
@@ -608,8 +634,27 @@ class ArduinoManager:
         self._emit_latency(context, t_send, t_ack, ack_text, sink)
         return True
 
-    def _dispatch_event(self, event_code: int) -> None:
-        log.info("arduino_manager.event", code=event_code)
+    def _dispatch_event(self, event_code: int, t_read: float | None = None) -> None:
+        """Deliver an inbound numeric event: sink first, then the controller.
+
+        ``t_read`` is the reader thread's ``perf_counter`` at ``readline()``;
+        ``None`` only for callers outside the reader loop, which get "now".
+        """
+        stamp = time.perf_counter() if t_read is None else float(t_read)
+        log.info("arduino_manager.event", code=event_code, t_read_perf=stamp)
+        with self._event_lock:
+            sink = self._event_sink
+        if sink is not None:
+            try:
+                consumed = bool(sink(event_code, stamp))
+            # except Exception justified: the sink is session code running on
+            # the serial reader thread; its failure must not kill the reader.
+            except Exception:
+                log.error("arduino_manager.event.sink_error", code=event_code, exc_info=True)
+                consumed = False
+            if consumed:
+                log.info("arduino_manager.event.claimed_by_sink", code=event_code)
+                return
         try:
             if hasattr(self.controller, "on_arduino_event"):
                 self.controller.on_arduino_event(event_code)

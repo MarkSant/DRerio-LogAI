@@ -1341,3 +1341,22 @@ modules:
         replace: |-
           if role == "subject" and class_id != 0:
                   return subject_color, _subject_label(track_id, is_single_subject=is_single_subject)
+
+  # ---- v8 F5: live integration ----------------------------------------------
+  arduino_event_stamp:
+    source: src/zebtrack/io/arduino_manager.py
+    tests:
+      - tests/test_io_arduino_manager.py
+    mutations:
+      - id: stamped-at-dispatch
+        description: "evento do Arduino datado na entrega em vez de no readline"
+        find: 'self._dispatch_event(event_code, t_read)'
+        replace: 'self._dispatch_event(event_code)'
+      - id: claimed-event-forwarded
+        description: "codigo que virou evento do motor ainda chega aos coordenadores"
+        find: 'if consumed:'
+        replace: 'if False:'
+      - id: failing-sink-swallows-event
+        description: "sink que falha engole o evento em vez de cair no controlador"
+        find: 'consumed = False'
+        replace: 'consumed = True'
