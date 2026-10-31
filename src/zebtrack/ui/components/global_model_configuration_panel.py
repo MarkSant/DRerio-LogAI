@@ -4,15 +4,16 @@ from __future__ import annotations
 
 import contextlib
 import os
-import unicodedata
 from collections.abc import Callable
 from pathlib import Path
 from tkinter import BooleanVar, StringVar, filedialog, messagebox, simpledialog, ttk
+from typing import Any
 
 import structlog
 
 from zebtrack.i18n import _
 from zebtrack.ui import payloads
+from zebtrack.ui.components.class_roles_panel import ClassRolesDialog
 from zebtrack.ui.event_bus_v2 import Event, UIEvents
 
 log = structlog.get_logger()
@@ -49,15 +50,56 @@ def _openvino_status_labels() -> dict[str, str]:
     }
 
 
-def _strip_accents(text: str) -> str:
-    """Fold accents away so typed input matches regardless of spelling.
+def _target_from_label(label: str) -> str | None:
+    """Stored ``target`` token behind a dropdown label (``None`` if unknown).
 
-    The target prompt accepts the word in either language; "aquário" and
-    "aquario" must both work, and comparing against a folded form avoids
-    carrying an accented literal that the i18n scanner would flag as copy.
+    The tokens ``aquarium``/``zebrafish`` are persistence contracts
+    (``weights_config.json``); only their labels are translated. Choosing from a
+    read-only list replaced a typed answer matched against accent-folded words
+    in two languages — a branch on displayed text that a new translation would
+    have broken silently.
     """
-    decomposed = unicodedata.normalize("NFKD", text)
-    return "".join(char for char in decomposed if not unicodedata.combining(char))
+    for token, text in _target_labels().items():
+        if text == label:
+            return token
+    return None
+
+
+class TargetChoiceDialog(simpledialog.Dialog):
+    """Modal "Change Target" prompt: the new target is picked, never typed."""
+
+    def __init__(self, parent: Any, *, weight_name: str, current: str) -> None:
+        self.weight_name = weight_name
+        self.current = current
+        self.choice: StringVar | None = None
+        self.combo: ttk.Combobox | None = None
+        self.result: str | None = None
+        super().__init__(parent, title=_("Change Target"))
+
+    def body(self, master: Any) -> Any:
+        labels = _target_labels()
+        ttk.Label(
+            master,
+            text=_("Current target of '{name}': {target}").format(
+                name=self.weight_name, target=labels.get(self.current, self.current)
+            ),
+            wraplength=360,
+            justify="left",
+        ).pack(anchor="w", padx=8, pady=(8, 4))
+        ttk.Label(master, text=_("New target:")).pack(anchor="w", padx=8)
+        self.choice = StringVar(master=master, value=labels.get(self.current, ""))
+        self.combo = ttk.Combobox(
+            master,
+            textvariable=self.choice,
+            values=list(labels.values()),
+            state="readonly",
+            width=24,
+        )
+        self.combo.pack(anchor="w", padx=8, pady=(2, 8))
+        return self.combo
+
+    def apply(self) -> None:
+        self.result = _target_from_label(self.choice.get() if self.choice else "")
 
 
 class GlobalModelConfigurationPanel(ttk.Frame):
@@ -255,7 +297,12 @@ class GlobalModelConfigurationPanel(ttk.Frame):
             button_grid,
             text=_("Convert to OpenVINO"),
             command=self._on_convert_openvino,
-        ).grid(row=1, column=1, columnspan=2, sticky="ew", padx=2, pady=2)
+        ).grid(row=1, column=1, sticky="ew", padx=2, pady=2)
+        ttk.Button(
+            button_grid,
+            text=_("Class roles..."),
+            command=self._on_class_roles,
+        ).grid(row=1, column=2, sticky="ew", padx=2, pady=2)
 
         self._populate_weights_treeview()
 
@@ -542,43 +589,50 @@ class GlobalModelConfigurationPanel(ttk.Frame):
         )
         self.after(150, self._refresh_weights_catalog)
 
+    def _ask_target(self, name: str, current: str) -> str | None:
+        """Modal choice of the new target token (``None`` when cancelled)."""
+        return TargetChoiceDialog(self, weight_name=name, current=current).result
+
     def _on_change_target(self) -> None:
         selected = self._selected_weight_details()
         if not selected:
             return
         name, details = selected
         current = details.get("target", "zebrafish")
-        new_label = simpledialog.askstring(
-            _("Change Target"),
-            _(
-                "Current target of '{name}': {target}\n\n"
-                "Type the new target: 'aquarium' or 'zebrafish'"
-            ).format(name=name, target=_target_labels().get(current, current)),
-            parent=self,
-        )
-        if not new_label:
-            return
-        normalized = _strip_accents(new_label.strip().lower())
-        if normalized in ("aquario", "aquarium", "tank"):
-            new_target = "aquarium"
-        elif normalized in ("zebrafish", "fish", "animal", "peixe"):
-            new_target = "zebrafish"
-        else:
-            messagebox.showerror(
-                _("Invalid target"),
-                _("Target '{value}' not recognised. Use 'aquarium' or 'zebrafish'.").format(
-                    value=new_label
-                ),
-                parent=self,
-            )
-            return
-        if new_target == current:
+        new_target = self._ask_target(name, current)
+        if new_target is None or new_target == current:
             return
         self._publish_model_event(
             UIEvents.MODEL_RECLASSIFY_TARGET,
             payloads.ModelReclassifyTargetPayload(name=name, target=new_target),
         )
         self.after(150, self._refresh_weights_catalog)
+
+    def _on_class_roles(self) -> ClassRolesDialog | None:
+        """Open the class-role editor for the selected weight (weight scope).
+
+        Roles saved here go to the weight's ``weights_config.json`` entry, so
+        every project that uses the weight gets them unless it sets its own.
+        """
+        name = self._selected_weight_name()
+        if not name:
+            return None
+        model_service = getattr(self.controller, "model_service", None)
+        if model_service is None:
+            messagebox.showerror(
+                _("Class roles"),
+                _("The model service is not available; the classes cannot be read."),
+                parent=self,
+            )
+            return None
+        return ClassRolesDialog(
+            self,
+            weight_name=name,
+            weight_manager=self.controller.weight_manager,
+            model_service=model_service,
+            settings_obj=getattr(self.controller, "settings", None),
+            event_bus=getattr(self.controller, "ui_event_bus", None),
+        )
 
     def _on_validate_paths(self) -> None:
         wm = self.controller.weight_manager

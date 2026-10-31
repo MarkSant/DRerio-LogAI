@@ -918,6 +918,19 @@ class TestAnalysisWindowPanel:
         assert values[-2:] == ["rat", "experimenter"]
         assert str(panel._target_combo.cget("state")) == "readonly"  # type: ignore[union-attr]
 
+    def test_names_arriving_later_close_the_list(self, tkinter_root: Any) -> None:
+        names: list[str] = []
+        panel, _pm, _bus = self._panel(tkinter_root, {}, provider=lambda: list(names))
+        panel.row_kind.set("Class is present")
+        panel._on_kind_changed()
+        assert str(panel._target_combo.cget("state")) == "normal"  # type: ignore[union-attr]
+
+        names.extend(["rat", "start_box"])  # the weight's model finished loading
+        panel.refresh_class_names()
+
+        assert list(panel._target_combo["values"])[-2:] == ["rat", "start_box"]  # type: ignore[index]
+        assert str(panel._target_combo.cget("state")) == "readonly"  # type: ignore[union-attr]
+
     def test_failing_provider_falls_back_to_free_text(self, tkinter_root: Any) -> None:
         def broken() -> list[str]:
             raise RuntimeError("no weight")

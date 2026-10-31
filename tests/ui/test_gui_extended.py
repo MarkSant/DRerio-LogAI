@@ -237,3 +237,18 @@ class TestRebindReachesTheAnalysisWindowPanel:
 
         gui.analysis_window_panel.on_project_manager_replaced.assert_called_once_with(new_manager)
         assert gui._zone_context_service.project_manager is new_manager
+
+    def test_class_roles_context_re_resolves_the_new_project_weight(self):
+        gui: Any = object.__new__(ApplicationGUI)
+        gui.project_manager = MagicMock()
+        gui._zone_context_service = SimpleNamespace(project_manager=None)
+        gui.tab_builder = None
+        gui.roi_template_manager = None
+        gui.class_roles_context = SimpleNamespace(on_project_manager_replaced=MagicMock())
+        gui.zone_control_builder = SimpleNamespace(zone_context_panel=None)
+        gui.event_bus = None
+        new_manager = MagicMock()
+
+        gui._rebind_project_manager(new_manager)
+
+        gui.class_roles_context.on_project_manager_replaced.assert_called_once_with(new_manager)

@@ -355,9 +355,8 @@ class TestGuiSubscriptions:
 
         dispatcher.register_event_bus_handlers()
 
-        event_bus.subscribe.assert_called_once()
-        args, _kwargs = event_bus.subscribe.call_args
-        assert args[0] == UIEvents.UI_SETUP_INTERACTIVE_POLYGON
+        subscribed = [call.args[0] for call in event_bus.subscribe.call_args_list]
+        assert subscribed == [UIEvents.CLASS_ROLES_CHANGED, UIEvents.UI_SETUP_INTERACTIVE_POLYGON]
 
     def test_subscribe_zone_component_events(self):
         event_bus = MagicMock()
@@ -729,3 +728,57 @@ class TestUnprefixedMessageAliases:
         assert dialog_manager.show_error.call_count == 2
         first, second = dialog_manager.show_error.call_args_list
         assert first == second
+
+
+class TestClassRolesChanged:
+    """A class-role save reaches the status bar and re-resolves the zone tab."""
+
+    @staticmethod
+    def _wired() -> tuple[Any, MagicMock, MagicMock]:
+        from zebtrack.ui.event_bus_v2 import EventBusV2
+
+        bus = EventBusV2()
+        status_var = MagicMock()
+        context = MagicMock()
+        gui = SimpleNamespace(
+            event_bus=bus, root=None, status_var=status_var, class_roles_context=context
+        )
+        EventDispatcher(cast(Any, gui)).register_event_bus_handlers()
+        return bus, status_var, context
+
+    def test_saved_roles_refresh_the_context(self):
+        from zebtrack.ui import payloads
+        from zebtrack.ui.event_bus_v2 import Event
+
+        bus, status_var, context = self._wired()
+
+        bus.publish(
+            Event(
+                type=UIEvents.CLASS_ROLES_CHANGED,
+                data=payloads.ClassRolesChangedPayload(
+                    scope="project", weight_name="rat.pt", class_roles={"rat": "subject"}
+                ),
+            )
+        )
+
+        status_var.set.assert_called_once_with(
+            "Class roles saved. They apply from the next detection run."
+        )
+        context.refresh.assert_called_once_with()
+
+    def test_cleared_roles_say_automatic(self):
+        from zebtrack.ui import payloads
+        from zebtrack.ui.event_bus_v2 import Event
+
+        bus, status_var, _context = self._wired()
+
+        bus.publish(
+            Event(
+                type=UIEvents.CLASS_ROLES_CHANGED,
+                data=payloads.ClassRolesChangedPayload(scope="weight", class_roles=None),
+            )
+        )
+
+        status_var.set.assert_called_once_with(
+            "Class roles back to automatic. They apply from the next detection run."
+        )

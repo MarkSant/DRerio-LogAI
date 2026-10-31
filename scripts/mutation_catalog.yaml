@@ -1221,3 +1221,123 @@ modules:
               "7_AnalysisWindow_",
         replace: |-
           "6_FrameLedger_",
+
+  class_roles_panel:
+    source: src/zebtrack/ui/components/class_roles_panel.py
+    tests:
+      - tests/ui/components/test_class_roles_panel.py
+    mutations:
+      - id: no-subject-accepted
+        description: "mapa sem nenhuma classe sujeito passa a ser gravado e o gate recusa o peso so na hora de gravar"
+        find: 'if ClassRole.SUBJECT not in roles.values():'
+        replace: 'if False:'
+      - id: two-arenas-accepted
+        description: "duas classes marcadas como arena passam e o ClassRoleMap recusa o mapa salvo em silencio"
+        find: 'if len(arenas) > 1:'
+        replace: 'if len(arenas) > 2:'
+      - id: same-name-conflict-ignored
+        description: "duas classes com o mesmo nome e papeis diferentes: o ultimo papel vence sem aviso"
+        find: 'if previous is not None and previous != row.role:'
+        replace: 'if False:'
+      - id: prefill-by-name-inverted
+        description: "pre-preenchimento mostra o palpite posicional num peso que o gate recusa (e esconde o que o detector faz nos demais)"
+        find: 'role = role_map.role_of_name(name) if by_name_only else role_map.role_of_id(class_id)'
+        replace: 'role = role_map.role_of_id(class_id) if by_name_only else role_map.role_of_name(name)'
+      - id: stale-sha-inverted
+        description: "mapa do projeto gravado para OUTRO peso deixa de ser avisado como descartado"
+        find: 'return not effective_sha or sha != effective_sha'
+        replace: 'return not effective_sha or sha == effective_sha'
+      - id: stale-checked-in-weight-scope
+        description: "aviso de mapa do projeto obsoleto some no escopo de projeto"
+        find: 'stale = scope is ClassRolesScope.PROJECT and project_roles_are_stale('
+        replace: 'stale = scope is ClassRolesScope.WEIGHT and project_roles_are_stale('
+      - id: weight-scope-reads-project-map
+        description: "escopo de projeto deixa de aplicar o mapa do proprio projeto ao mostrar os papeis"
+        find: |-
+          if scope is ClassRolesScope.PROJECT:
+                  overrides = _overrides(project_data)
+        replace: |-
+          if False:
+                  overrides = _overrides(project_data)
+      - id: cleared-map-keeps-sha
+        description: "restaurar automatico deixa o sha antigo no projeto"
+        find: 'overrides[PROJECT_SHA_KEY] = weight_sha256 if mapping else None'
+        replace: 'overrides[PROJECT_SHA_KEY] = weight_sha256'
+      - id: failed-save-keeps-edit
+        description: "save do projeto falha e os papeis antigos nao voltam para a memoria"
+        find: |-
+          if value is _MISSING:
+                              overrides.pop(key, None)
+        replace: |-
+          if True:
+                              overrides.pop(key, None)
+      - id: failed-save-keeps-created-block
+        description: "save falha num projeto sem model_overrides e o bloco criado fica na memoria"
+        find: |-
+          if raw_overrides is _MISSING:
+                      project_data.pop(OVERRIDES_KEY, None)
+        replace: |-
+          if False:
+                      project_data.pop(OVERRIDES_KEY, None)
+      - id: weight-refusal-ignored
+        description: "peso recusa o mapa (invalido) e o painel diz que salvou"
+        find: 'if stored is not True:'
+        replace: 'if False:'
+      - id: alias-map-recolours-overlay
+        description: "peso de zebrafish sem mapa explicito passa a ter o overlay recolorido por papel"
+        find: 'if role_map is None or not role_map.is_explicit or not role_map.names:'
+        replace: 'if role_map is None or not role_map.names:'
+      - id: change-not-announced
+        description: "salvar papeis deixa de publicar CLASS_ROLES_CHANGED"
+        find: '        self._publish(view, mapping)'
+        replace: '        self._publish(view, mapping) if False else None'
+      - id: empty-names-cached
+        description: "modelo ilegivel fica no cache como 'sem classes' ate fechar o app"
+        find: 'if key is None or not names:'
+        replace: 'if key is None:'
+      - id: superseded-load-applied
+        description: "carga lenta de um peso antigo sobrescreve os papeis do peso atual"
+        find: |-
+          if target != self._pending:
+                      return  # a newer refresh superseded this load
+        replace: |-
+          if False:
+                      return  # a newer refresh superseded this load
+
+  overlay_roles:
+    source: src/zebtrack/ui/components/canvas/overlay_roles.py
+    tests:
+      - tests/ui/components/canvas/test_overlay_roles.py
+    mutations:
+      - id: legacy-arena-inverted
+        description: "sem mapa, a classe 0 deixa de ser pintada como aquario (overlay do zebrafish muda)"
+        find: 'color = "yellow" if class_id == _LEGACY_ARENA_CLASS_ID else subject_color'
+        replace: 'color = "yellow" if class_id != _LEGACY_ARENA_CLASS_ID else subject_color'
+      - id: legacy-frame-inverted
+        description: "sem mapa, o quadro de analise troca as cores de aquario e animal"
+        find: 'color = _LEGACY_FRAME_ARENA if class_id == _LEGACY_ARENA_CLASS_ID else _LEGACY_FRAME_OTHER'
+        replace: 'color = _LEGACY_FRAME_OTHER if class_id == _LEGACY_ARENA_CLASS_ID else _LEGACY_FRAME_ARENA'
+      - id: stub-counts-as-map
+        description: "atributo stubado (MagicMock) da GUI passa a recolorir o overlay"
+        find: 'if not isinstance(class_roles, Mapping) or not class_roles:'
+        replace: 'if not class_roles:'
+      - id: unlisted-class-is-subject
+        description: "classe fora do mapa explicito passa a ser desenhada como sujeito"
+        find: 'return str(class_roles.get(key, "ignored"))'
+        replace: 'return str(class_roles.get(key, "subject"))'
+      - id: context-same-colour-as-subject
+        description: "contexto (experimentador, caixa) pintado com a cor do sujeito no canvas"
+        find: '"context": "orange",'
+        replace: '"context": "cyan",'
+      - id: frame-context-same-as-subject
+        description: "contexto pintado com a cor do sujeito no quadro de analise"
+        find: '"context": (0, 165, 255),'
+        replace: '"context": (255, 0, 255),'
+      - id: subject-role-ignored-at-zero
+        description: "sujeito com id 0 volta a ser pintado como arena quando ha mapa"
+        find: |-
+          if role == "subject":
+                  return subject_color, _subject_label(track_id, is_single_subject=is_single_subject)
+        replace: |-
+          if role == "subject" and class_id != 0:
+                  return subject_color, _subject_label(track_id, is_single_subject=is_single_subject)

@@ -1119,3 +1119,30 @@ class TestDetectionOverlay:
         canvas_manager._update_analysis_track_options_from_detections(detections)
 
         mock_gui.state_synchronizer._update_track_options.assert_called_once_with(["All", "1", "3"])
+
+
+class TestFrameOverlayByRole:
+    """Analysis-frame boxes: 7.2 colours without a map, role colours with one."""
+
+    @staticmethod
+    def _pixel(frame: np.ndarray, x: int, y: int) -> tuple[int, int, int]:
+        b, g, r = frame[y, x]
+        return int(b), int(g), int(r)
+
+    def test_legacy_colours_without_a_map(self):
+        frame = np.zeros((60, 60, 3), dtype=np.uint8)
+        VideoFrameManager._draw_detection_overlay_on_frame(
+            frame, [(10, 10, 20, 20, 0.9, 1, 0), (30, 30, 50, 50, 0.9, 2, 1)]
+        )
+        assert self._pixel(frame, 10, 15) == (0, 255, 255)
+        assert self._pixel(frame, 30, 40) == (255, 0, 255)
+
+    def test_subject_at_class_zero_is_not_drawn_as_the_arena(self):
+        frame = np.zeros((60, 60, 3), dtype=np.uint8)
+        VideoFrameManager._draw_detection_overlay_on_frame(
+            frame,
+            [(10, 10, 20, 20, 0.9, 1, 0), (30, 30, 50, 50, 0.9, None, 1)],
+            class_roles={0: "subject", 1: "context"},
+        )
+        assert self._pixel(frame, 10, 15) == (255, 0, 255)
+        assert self._pixel(frame, 30, 40) == (0, 165, 255)

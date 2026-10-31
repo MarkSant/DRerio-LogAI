@@ -1390,6 +1390,17 @@ class AnalysisWindowPanel(ttk.Frame):
     def _refresh_target_choices(self) -> None:
         self._on_kind_changed()
 
+    def refresh_class_names(self) -> None:
+        """Re-read the class names: the project's weight finished loading or changed.
+
+        The names come from the injected provider, which answers ``[]`` until the
+        weight's model was read on a background thread; this is the hook that
+        turns the class lines from free text into the weight's own list then.
+        """
+        if not self.is_alive():
+            return
+        self._refresh_target_choices()
+
     def _show_notice(self, text: str) -> None:
         if self._notice is None or self._preview is None:
             return

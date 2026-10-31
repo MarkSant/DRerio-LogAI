@@ -283,6 +283,14 @@ class EventDispatcher:
 
         event_bus = self.event_bus
 
+        # Class roles (ADR-009) are saved from the global model configuration
+        # too, with no zone tab open, so this lives in the once-per-GUI wiring
+        # rather than in the zone-tab subscriptions.
+        event_bus.subscribe(
+            UIEvents.CLASS_ROLES_CHANGED,
+            self._on_class_roles_changed,
+        )
+
         # Handlers that need access to GUI instance
         # Example: self.gui.update_status(...)
         event_bus.subscribe(
@@ -622,6 +630,7 @@ class EventDispatcher:
             lambda d: gui.analysis_view_controller.update_detection_overlay(
                 detections=_payload_get(d, "detections"),
                 report=_payload_get(d, "report"),
+                class_roles=_payload_get(d, "class_roles"),
             ),
         )
 
@@ -1150,6 +1159,36 @@ class EventDispatcher:
             UIEvents.ANALYSIS_WINDOW_SPEC_CHANGED,
             self._on_analysis_window_spec_changed,
         )
+
+    def _on_class_roles_changed(self, data: payloads.EventPayload) -> None:
+        """Re-resolve the zone tab's view of the weight and say when it applies.
+
+        The roles are read when the detector loads (live) and when the worker
+        starts (pre-recorded), so a recording already running keeps the old ones;
+        the status bar says so. The zone tab's context re-reads the project's
+        effective weight, which recolours the overlays and refreshes the class
+        names offered by the analysis-window editor.
+        """
+        gui = self._require_gui()
+        if _payload_get(data, "class_roles") is None:
+            message = _("Class roles back to automatic. They apply from the next detection run.")
+        else:
+            message = _("Class roles saved. They apply from the next detection run.")
+        self.log.info(
+            "event_dispatcher.class_roles_changed",
+            scope=_payload_get(data, "scope"),
+            weight=_payload_get(data, "weight_name"),
+            source=_payload_get(data, "source"),
+        )
+
+        def _apply() -> None:
+            gui.status_var.set(message)
+            context = getattr(gui, "class_roles_context", None)
+            refresh = getattr(context, "refresh", None)
+            if callable(refresh):
+                refresh()
+
+        self._run_on_ui_thread(_apply)
 
     def _on_analysis_window_spec_changed(self, data: payloads.EventPayload) -> None:
         """Tell the researcher what saving the analysis window changes — and when.

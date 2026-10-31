@@ -112,8 +112,18 @@ class ProcessingCountPayload:
 
 @dataclass(frozen=True)
 class DetectionOverlayPayload:
+    """Detections to draw over the zone canvas.
+
+    ``class_roles`` maps a class id to its role token (``subject``/``arena``/
+    ``context``/``ignored``) when the publisher knows the weight's explicit role
+    map. ``None`` (every publisher today) lets the UI use the map it resolved for
+    the project's weight (``gui.overlay_class_roles``), and without one the 7.2
+    colours stay exactly as they were (class 0 = aquarium).
+    """
+
     detections: Sequence[Any]
     report: Mapping[str, Any] | None = None
+    class_roles: Mapping[int, str] | None = None
 
 
 @dataclass(frozen=True)
@@ -205,6 +215,26 @@ class AnalysisWindowSpecChangedPayload:
 
     spec: Mapping[str, Any] | None = None
     spec_hash: str | None = None
+
+
+@dataclass(frozen=True)
+class ClassRolesChangedPayload:
+    """The class roles of a weight, or of the project's weight, were saved (ADR-009).
+
+    ``scope`` is ``"weight"`` (stored on the ``weights_config.json`` entry, so
+    every project using that weight sees it) or ``"project"`` (stored in
+    ``project_data["model_overrides"]["class_roles"]``, trusted only while
+    ``weight_sha256`` matches the weight actually loaded). ``class_roles`` is the
+    ``{normalised class name: role token}`` just written, ``None`` when the
+    explicit map was removed ("restore automatic"). ``source`` is the
+    ``ClassRoleSource`` token the weight resolves to AFTER the save.
+    """
+
+    scope: str
+    weight_name: str | None = None
+    weight_sha256: str | None = None
+    class_roles: Mapping[str, str] | None = None
+    source: str | None = None
 
 
 @dataclass(frozen=True)

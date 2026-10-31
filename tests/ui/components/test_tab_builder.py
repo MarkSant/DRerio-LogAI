@@ -234,3 +234,50 @@ class TestAnalyseSelectedButton:
         tkinter_root.update_idletasks()
 
         assert not any("Selected" in text for text in _button_texts(frame))
+
+
+def test_zone_tab_wires_the_class_roles_context(mock_app):
+    """The window editor reads the project weight's class names through the context."""
+    mock_app.controller.project_manager.project_data = {}
+    builder = TabBuilder(mock_app)
+
+    with (
+        patch("zebtrack.ui.components.tab_builder.ZoneControlsWidget"),
+        patch("zebtrack.ui.components.tab_builder.VideoDisplayWidget"),
+        patch("zebtrack.ui.components.tab_builder.ProjectClassRolesContext") as context_cls,
+    ):
+        builder.build_zone_tab()
+
+    context = context_cls.return_value
+    kwargs = context_cls.call_args.kwargs
+    assert kwargs["weight_manager"] is mock_app.controller.weight_manager
+    assert kwargs["settings_obj"] is mock_app.controller.settings
+    assert kwargs["project_manager_getter"]() is mock_app.project_manager
+    assert mock_app.class_roles_context is context
+    assert mock_app.analysis_window_panel._class_names_provider is context.class_names
+    context.refresh.assert_called_once_with()
+
+    # Names/roles arrived: overlays get the roles, the editor re-reads the names.
+    context.overlay_roles.return_value = {0: "arena", 1: "subject"}
+    context.class_names_by_id.return_value = {0: "arena", 1: "rat"}
+    mock_app.analysis_window_panel = MagicMock()
+    kwargs["on_change"]()
+    assert mock_app.overlay_class_roles == {0: "arena", 1: "subject"}
+    assert mock_app.overlay_class_names == {0: "arena", 1: "rat"}
+    mock_app.analysis_window_panel.refresh_class_names.assert_called_once_with()
+
+
+def test_zone_tab_without_model_service_keeps_free_text_classes(mock_app):
+    mock_app.controller.project_manager.project_data = {}
+    mock_app.controller.model_service = None
+    builder = TabBuilder(mock_app)
+
+    with (
+        patch("zebtrack.ui.components.tab_builder.ZoneControlsWidget"),
+        patch("zebtrack.ui.components.tab_builder.VideoDisplayWidget"),
+    ):
+        builder.build_zone_tab()
+
+    assert mock_app.class_roles_context is None
+    assert mock_app.overlay_class_roles is None
+    assert mock_app.analysis_window_panel._class_names_provider is None

@@ -82,6 +82,30 @@ DRerio LogAI utilizes two coexisting event bus systems to separate domain logic 
 - **Subscriber:** `EventDispatcher._on_analysis_window_spec_changed` (zone-tab wiring) writes
   the status bar: the window applies to the NEXT analysis run, not to results already on disk.
 
+### 3.4. Class Roles (v8)
+
+| Event Name            | Payload Requirements                                                                  | Description                                     |
+| --------------------- | ------------------------------------------------------------------------------------- | ----------------------------------------------- |
+| `CLASS_ROLES_CHANGED` | `ClassRolesChangedPayload(scope, weight_name, weight_sha256, class_roles, source)` | The roles of a weight's classes were saved.     |
+
+- **Publisher:** `ClassRolesEditor.save()` / `restore_automatic()`
+  (`ui/components/class_roles_panel.py`), on the Tk thread, after the roles were stored: in the
+  weight's `weights_config.json` entry (`scope="weight"`, global model configuration →
+  "Class roles…") or in `project_data["model_overrides"]["class_roles"]` plus
+  `class_roles_weight_sha256` (`scope="project"`, "AI Model Config." tab).
+- **Payload:** `class_roles` is the `{normalised class name: role token}` just written, `None`
+  after "Restore automatic"; `source` is the `ClassRoleSource` token the weight resolves to after
+  the save (`project`, `weight`, `aliases` or `legacy_positional`). Role tokens are never
+  translated.
+- **Subscriber:** `EventDispatcher._on_class_roles_changed` (registered once per GUI in
+  `register_event_bus_handlers`, so a save from the global dialog with no project open is still
+  heard) writes the status bar — the roles apply from the next detector load / worker start — and
+  calls `gui.class_roles_context.refresh()`, which re-resolves the project weight's roles for the
+  overlays and the class names offered by the analysis-window editor.
+- **Related:** `UI_UPDATE_DETECTION_OVERLAY`'s `DetectionOverlayPayload` gained an optional
+  `class_roles: {class id: role token}`. No publisher fills it yet; when it is `None` the overlay
+  uses `gui.overlay_class_roles` (explicit maps only) and, without one, the 7.2 colours.
+
 ---
 
 ## 4. How to Use (Implementation Patterns)

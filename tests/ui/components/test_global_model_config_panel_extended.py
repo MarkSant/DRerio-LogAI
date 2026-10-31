@@ -7,7 +7,6 @@ from zebtrack.ui.components.global_model_configuration_panel import (
     _method_labels,
     _openvino_status_labels,
     _perspective_labels,
-    _strip_accents,
     _target_labels,
 )
 
@@ -39,9 +38,3 @@ class TestGlobalModelConfigurationPanelExtended2:
         assert "converting" in labels
         assert "failed" in labels
         assert "not_converted" in labels
-
-    def test_strip_accents(self):
-        assert _strip_accents("aquário") == "aquario"
-        assert _strip_accents("olá mundo") == "ola mundo"
-        assert _strip_accents("teste rápido") == "teste rapido"
-        assert _strip_accents("plain ascii") == "plain ascii"

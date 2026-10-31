@@ -308,6 +308,29 @@ failure.
 panel lives in the Zone Configuration tab's left column and is rebound on
 `PROJECT_MANAGER_REPLACED` like the Arduino bindings panel.
 
+### 3.9. Class Role Events (v8)
+
+| Event (UIEvents)      | Payload Keys                                                          | Publishers                                    | Subscribers                                          |
+| --------------------- | --------------------------------------------------------------------- | --------------------------------------------- | ---------------------------------------------------- |
+| `CLASS_ROLES_CHANGED` | `scope`, `weight_name`, `weight_sha256`, `class_roles`, `source`      | `ClassRolesEditor` (`ClassRolesPanel`)        | `EventDispatcher` (status bar + `class_roles_context`) |
+
+Where the class-role editor is mounted and what it writes (ADR-009):
+
+| Mount point | Scope | Writes |
+| --- | --- | --- |
+| Global model configuration → weight catalogue → "Class roles…" (`ClassRolesDialog`) | weight | `weights_config.json[<weight>]["class_roles"]` via `WeightManager.set_weight_class_roles` |
+| "AI Model Config." tab (`ProjectModelConfigurationPanel`) | project | `model_overrides.class_roles` + `class_roles_weight_sha256` (sha of the effective weight from `resolve_worker_model`), then `save_project()`; undone in memory if the save fails |
+| Wizard `ModelSelectionStep` → collapsible "Class roles" | project (at creation) | `class_roles`/`class_roles_weight_sha256` in the step data → `ProjectWorkflowService._persist_initial_project_overrides` → `model_overrides` |
+
+The zone tab holds a `ProjectClassRolesContext` (`gui.class_roles_context`, built by
+`TabBuilder.build_zone_tab`, rebound on `PROJECT_MANAGER_REPLACED`). It resolves the project's
+effective weight on the Tk thread, reads the class names on a daemon thread
+(`ModelService.inspect_model`, cached by weight name + sha256) and, back on the Tk thread, sets
+`gui.overlay_class_roles` / `gui.overlay_class_names` (explicit maps only) and calls
+`AnalysisWindowPanel.refresh_class_names()`. Both overlays (`CanvasRenderer.update_overlay`,
+`VideoFrameManager._draw_detection_overlay_on_frame`) colour and label boxes by role through
+`ui/components/canvas/overlay_roles.py`; without an explicit map the 7.2 colours are kept.
+
 ---
 
 ## 4. Component Dependencies (The Hierarchy)

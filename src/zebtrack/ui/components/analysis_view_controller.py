@@ -229,8 +229,17 @@ class AnalysisViewController:
     # Overlay & detection updates
     # ------------------------------------------------------------------
 
-    def update_detection_overlay(self, detections: Any = None, report: Any = None) -> None:
-        """Update the detection overlay on the canvas."""
+    def update_detection_overlay(
+        self, detections: Any = None, report: Any = None, class_roles: Any = None
+    ) -> None:
+        """Update the detection overlay on the canvas.
+
+        ``class_roles`` (``{class id: role token}``) comes from the overlay
+        payload when the publisher knows the weight's explicit role map;
+        otherwise the map the zone tab resolved for the project's weight
+        (``gui.overlay_class_roles``) is used, and without either the boxes keep
+        the 7.2 colours.
+        """
         processing_mode = None
         if report:
             if hasattr(report, "mode"):
@@ -252,7 +261,14 @@ class AnalysisViewController:
                     exc_info=True,
                 )
 
-        self._canvas_manager.renderer.update_overlay(detections, is_single_subject)
+        if class_roles is None:
+            class_roles = getattr(self.gui, "overlay_class_roles", None)
+        self._canvas_manager.renderer.update_overlay(
+            detections,
+            is_single_subject,
+            class_roles=class_roles,
+            class_names=getattr(self.gui, "overlay_class_names", None),
+        )
 
     def update_processing_mode(self, report: ProcessingReport | None) -> None:
         """Update the UI to reflect the active tracking pipeline."""
