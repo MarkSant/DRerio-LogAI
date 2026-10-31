@@ -1204,3 +1204,20 @@ modules:
         description: "3c/7_ da trajetoria sobrescrita ficam ao lado da importada"
         find: 'stale.unlink()'
         replace: 'None'
+
+  session_output_labels:
+    source: src/zebtrack/utils/report_files.py
+    tests:
+      - tests/utils/test_session_output_listing.py
+    mutations:
+      - id: object-sidecar-unlabelled
+        description: "3c_Objetos_ volta a aparecer sem rotulo na lista de saidas"
+        find: '"3c_Objetos_": _("detected objects per frame"),'
+        replace: '"3c_Objetos_": "",'
+      - id: window-artifact-out-of-order
+        description: "7_AnalysisWindow_ sai da ordem do pipeline"
+        find: |-
+          "6_FrameLedger_",
+              "7_AnalysisWindow_",
+        replace: |-
+          "6_FrameLedger_",

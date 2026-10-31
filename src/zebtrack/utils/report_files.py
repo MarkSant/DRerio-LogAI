@@ -5,6 +5,8 @@ from __future__ import annotations
 from collections.abc import Iterable
 from pathlib import Path
 
+from zebtrack.i18n import _
+
 _SUMMARY_EXCEL_SUFFIXES = {".xlsx", ".xls"}
 _PRIMARY_SUMMARY_TOKENS = ("summary", "resumo")
 _SECONDARY_SUMMARY_TOKENS = ("relatorio", "report")
@@ -49,33 +51,53 @@ def has_summary_excel_output(results_dir: Path | str | None) -> bool:
     return find_summary_excel_file(results_dir) is not None
 
 
-# Human labels for the session outputs, keyed by the filename prefix the
-# writers actually use. Ordered: the list is rendered in this order so the
-# researcher reads the outputs in pipeline order rather than alphabetically.
+# Session outputs, keyed by the filename prefix the writers actually use.
+# Ordered: the list is rendered in this order so the researcher reads the
+# outputs in pipeline order rather than alphabetically.
 #
 # Deliberately keyed on PREFIX rather than an exhaustive filename: several
 # outputs are conditional (``2_AreasOfInterest`` only with ROIs,
 # ``3b_Mascaras`` only with ``recorder.persist_masks`` + a seg model,
-# ``5_ClosedLoop`` only with Arduino), so any static list is wrong for some
-# fraction of sessions. The caller lists the real directory and looks each
-# entry up here.
+# ``5_ClosedLoop`` only with Arduino, ``7_AnalysisWindow`` only with an
+# analysis window), so any static list is wrong for some fraction of sessions.
+# The caller lists the real directory and looks each entry up here.
 # The trailing underscore is part of the contract: every writer emits
 # ``<prefix>_<base>``. Keeping it makes the match exact-by-construction (a
 # hypothetical ``4_RelatorioX`` cannot be mistaken for ``4_Relatorio_``) and
-# keeps these strings recognisable as the persistence contract they are —
-# i18n: not-ui, they are filenames, never translated.
-_SESSION_OUTPUT_LABELS: tuple[tuple[str, str], ...] = (
-    ("1_ProcessingArea_", "arena / processing area"),
-    ("2_AreasOfInterest_", "ROIs"),
-    ("3_CoordMovimento_", "trajectory"),
-    ("3b_Mascaras_", "segmentation masks"),
-    ("4_Relatorio_", "report"),
-    ("4_RelatorioSumario_", "summary"),
-    ("5_RelatorioIndividual_", "individual report"),
-    ("5_ClosedLoop_", "closed-loop latency (frame -> LED)"),
-    ("6_FrameLedger_", "frame ledger (real capture timeline)"),
-    ("_recording_metadata", "recording metadata"),
+# keeps these strings recognisable as the persistence contract they are --
+# filenames, never translated. Only the labels are interface text.
+_SESSION_OUTPUT_PREFIXES: tuple[str, ...] = (
+    "1_ProcessingArea_",
+    "2_AreasOfInterest_",
+    "3_CoordMovimento_",
+    "3b_Mascaras_",
+    "3c_Objetos_",
+    "4_Relatorio_",
+    "4_RelatorioSumario_",
+    "5_RelatorioIndividual_",
+    "5_ClosedLoop_",
+    "6_FrameLedger_",
+    "7_AnalysisWindow_",
+    "_recording_metadata",
 )
+
+
+def _session_output_labels() -> dict[str, str]:
+    """Human label per prefix, translated at CALL time (never at import)."""
+    return {
+        "1_ProcessingArea_": _("arena / processing area"),
+        "2_AreasOfInterest_": _("ROIs"),
+        "3_CoordMovimento_": _("trajectory"),
+        "3b_Mascaras_": _("segmentation masks"),
+        "3c_Objetos_": _("detected objects per frame"),
+        "4_Relatorio_": _("report"),
+        "4_RelatorioSumario_": _("summary"),
+        "5_RelatorioIndividual_": _("individual report"),
+        "5_ClosedLoop_": _("closed-loop latency (frame -> LED)"),
+        "6_FrameLedger_": _("frame ledger (real capture timeline)"),
+        "7_AnalysisWindow_": _("analysis window"),
+        "_recording_metadata": _("recording metadata"),
+    }
 
 
 def describe_session_output(path: Path) -> str:
@@ -88,11 +110,11 @@ def describe_session_output(path: Path) -> str:
     name = path.name
     # Longest prefix first so ``3b_Mascaras`` is not shadowed by ``3_`` style
     # prefixes and ``4_RelatorioSumario`` is not shadowed by ``4_Relatorio``.
-    for prefix, label in sorted(_SESSION_OUTPUT_LABELS, key=lambda kv: -len(kv[0])):
+    for prefix in sorted(_SESSION_OUTPUT_PREFIXES, key=lambda value: -len(value)):
         if name.startswith(prefix):
-            return f"{name} ({label})"
+            return f"{name} ({_session_output_labels()[prefix]})"
     if path.suffix.lower() in {".mp4", ".avi"}:
-        return f"{name} (recorded video)"
+        return f"{name} ({_('recorded video')})"
     return name
 
 
@@ -112,7 +134,7 @@ def list_session_outputs(results_dir: Path | str | None) -> list[Path]:
     if not folder.exists() or not folder.is_dir():
         return []
 
-    order = {prefix: index for index, (prefix, _label) in enumerate(_SESSION_OUTPUT_LABELS)}
+    order = {prefix: index for index, prefix in enumerate(_SESSION_OUTPUT_PREFIXES)}
 
     def _sort_key(path: Path) -> tuple[int, str]:
         for prefix, index in sorted(order.items(), key=lambda kv: -len(kv[0])):
