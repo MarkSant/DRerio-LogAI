@@ -67,6 +67,21 @@ DRerio LogAI utilizes two coexisting event bus systems to separate domain logic 
 | `ZONE_AQUARIUM_CONFIG_CONFIRMED` | `{'configs': list[AquariumConfig]}`              | Aquarium configuration confirmed.      |
 | `ZONE_AQUARIUM_CONFIG_UPDATED`   | `{'id': int, 'config': dict, 'video_path': str}` | Individual aquarium config updated.    |
 
+### 3.3. Analysis Window (v8)
+
+| Event Name                     | Payload Requirements                                | Description                              |
+| ------------------------------ | --------------------------------------------------- | ---------------------------------------- |
+| `ANALYSIS_WINDOW_SPEC_CHANGED` | `AnalysisWindowSpecChangedPayload(spec, spec_hash)` | The project's analysis window was saved. |
+
+- **Publisher:** `AnalysisWindowPanel.save()` (`ui/components/analysis_window_panel.py`), on the
+  Tk thread, after `project_data["analysis_window"]` was written (and persisted, when the
+  project has a path).
+- **Payload:** `spec` is `WindowSpec.model_dump(mode="json")` exactly as stored, or `None` for
+  "analyse the whole recording"; `spec_hash` is `core.conditions.spec_hash(spec)` (`None` with
+  it).
+- **Subscriber:** `EventDispatcher._on_analysis_window_spec_changed` (zone-tab wiring) writes
+  the status bar: the window applies to the NEXT analysis run, not to results already on disk.
+
 ---
 
 ## 4. How to Use (Implementation Patterns)

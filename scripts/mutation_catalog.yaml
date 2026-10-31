@@ -951,3 +951,73 @@ modules:
         description: "codigo de parada passa a ser o de inicio e o gatilho fecha a janela que abriu"
         find: 'stop=External(source="arduino", code=stop_code),'
         replace: 'stop=External(source="arduino", code=start_code),'
+
+  analysis_window_panel:
+    source: src/zebtrack/ui/components/analysis_window_panel.py
+    tests:
+      - tests/ui/components/test_analysis_window_panel.py
+    mutations:
+      - id: any-of-groups-as-all
+        description: "linhas de classe com 'any of' passam a exigir TODAS ao mesmo tempo"
+        find: 'elif combinator == "any_of":'
+        replace: 'elif combinator == "never":'
+      - id: default-hold-two-frames
+        description: "sem 'mantida por', o grupo de classes passa a esperar 2 quadros em vez de disparar no primeiro"
+        find: 'return Hold(frames=1)'
+        replace: 'return Hold(frames=2)'
+      - id: hold-seconds-read-as-frames
+        description: "'mantida por N segundos' passa a valer N quadros"
+        find: 'if row.unit == "seconds":'
+        replace: 'if False:'
+      - id: any-of-becomes-all-of
+        description: "FIM 'any of' passa a esperar todas as condicoes e a janela de Barnes nunca fecha no teto"
+        find: 'return FirstOf(children=tuple(children))'
+        replace: 'return AllOf(children=tuple(children))'
+      - id: stop-only-lines-allowed-in-start
+        description: "'fim do video' e 'tempo apos o inicio' deixam de ser recusados no INICIO com linha identificada"
+        find: 'if section == "start" and row.kind in STOP_ONLY_KINDS:'
+        replace: 'if False:'
+      - id: two-hold-lines-accepted
+        description: "duas linhas 'mantida por' no mesmo bloco passam e a segunda e ignorada em silencio"
+        find: 'if len(hold_lines) > 1:'
+        replace: 'if len(hold_lines) > 2:'
+      - id: round-trip-not-verified
+        description: "spec escrita a mao vira linhas aproximadas e salvar a altera sem aviso"
+        find: 'if rebuilt != spec:'
+        replace: 'if False:'
+      - id: empty-editor-writes-a-spec
+        description: "editor vazio grava uma spec em vez de None (gravacao inteira)"
+        find: 'if start_node is None and stop_node is None:'
+        replace: 'if False:'
+      - id: presence-inverted
+        description: "'classe presente' vira 'classe ausente'"
+        find: 'present=row.kind == "class_present"'
+        replace: 'present=row.kind != "class_present"'
+      - id: friendly-limit-lost
+        description: "erro 'maior que zero' do pydantic perde a mensagem com o limite"
+        find: 'if error_type == "greater_than":'
+        replace: 'if error_type == "gt":'
+      - id: missing-classes-not-normalized
+        description: "'Start Box' do peso deixa de casar com start_box e o aviso de classe ausente mente"
+        find: 'known = {_normalized_class_name(name) for name in available if name.strip()}'
+        replace: 'known = {name for name in available if name.strip()}'
+      - id: corrupt-window-not-flagged
+        description: "janela gravada ilegivel deixa de ser sinalizada e some sem aviso"
+        find: 'return None, True'
+        replace: 'return None, False'
+      - id: stored-without-alias
+        description: "spec gravada sem alias ('class_name' em vez de 'class') e o projeto nao reabre a regra"
+        find: |-
+          project_data[PROJECT_KEY] = (
+                  None if spec is None else spec.model_dump(mode="json", by_alias=True)
+        replace: |-
+          project_data[PROJECT_KEY] = (
+                  None if spec is None else spec.model_dump(mode="json", by_alias=False)
+      - id: decimal-comma-rejected
+        description: "'2,5' digitado em teclado pt-BR deixa de ser lido como 2.5"
+        find: '.replace(",", ".")'
+        replace: '.replace(";", ".")'
+      - id: preview-as-soon-as-lost
+        description: "previa deixa de dizer 'assim que' para persistencia de 1 quadro"
+        find: 'if node.hold.frames == 1:'
+        replace: 'if node.hold.frames == 0:'

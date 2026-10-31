@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from types import SimpleNamespace
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 from zebtrack.ui.gui import (
@@ -208,3 +209,31 @@ class TestPanelIsAlive:
         panel.is_alive = lambda: (_ for _ in ()).throw(RuntimeError("tk is gone"))
 
         assert _panel_is_alive(panel) is False
+
+
+class TestRebindReachesTheAnalysisWindowPanel:
+    """A project switch must re-point the analysis-window editor too.
+
+    Without it the panel keeps the CLOSED project's ``project_data`` and saving a
+    window writes it into a project that is no longer open.
+    """
+
+    def test_panel_hook_receives_the_new_manager(self):
+        gui: Any = object.__new__(ApplicationGUI)
+        gui.project_manager = MagicMock()
+        gui._zone_context_service = SimpleNamespace(project_manager=None)
+        gui.tab_builder = None
+        gui.roi_template_manager = None
+        gui.project_model_configuration_panel = None
+        gui.project_diagnostics_panel = None
+        gui.arduino_bindings_panel = None
+        gui.analysis_window_panel = MagicMock()
+        gui.analysis_window_panel.is_alive.return_value = True
+        gui.zone_control_builder = SimpleNamespace(zone_context_panel=None)
+        gui.event_bus = None
+        new_manager = MagicMock()
+
+        gui._rebind_project_manager(new_manager)
+
+        gui.analysis_window_panel.on_project_manager_replaced.assert_called_once_with(new_manager)
+        assert gui._zone_context_service.project_manager is new_manager

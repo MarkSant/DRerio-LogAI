@@ -194,6 +194,20 @@ class ExternalTriggerNoticePayload:
 
 
 @dataclass(frozen=True)
+class AnalysisWindowSpecChangedPayload:
+    """The project's analysis window was saved (ADR-011).
+
+    ``spec`` is ``WindowSpec.model_dump(mode="json")`` exactly as stored in
+    ``project_data["analysis_window"]``; ``None`` means "analyse the whole
+    recording". ``spec_hash`` is ``core.conditions.spec_hash`` of it (the key the
+    analysis cache and the ``7_AnalysisWindow_`` artifact use), ``None`` with it.
+    """
+
+    spec: Mapping[str, Any] | None = None
+    spec_hash: str | None = None
+
+
+@dataclass(frozen=True)
 class CameraDisconnectPayload:
     camera_index: int = 0
     action: str | None = None

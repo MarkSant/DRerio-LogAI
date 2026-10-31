@@ -539,6 +539,56 @@ class TestZoneComponentEventHandlers:
         mock_gui.controller.update_detector_parameters.assert_called_once_with(params)
 
 
+class TestAnalysisWindowSpecChanged:
+    """The analysis-window panel's save reaches the status bar through the real bus."""
+
+    @staticmethod
+    def _wired() -> tuple[Any, MagicMock]:
+        from zebtrack.ui.event_bus_v2 import EventBusV2
+
+        bus = EventBusV2()
+        status_var = MagicMock()
+        gui = SimpleNamespace(event_bus=bus, root=None, status_var=status_var)
+        EventDispatcher(cast(Any, gui)).subscribe_zone_component_events()
+        return bus, status_var
+
+    def test_saved_window_asks_for_a_new_analysis(self):
+        from zebtrack.ui import payloads
+        from zebtrack.ui.event_bus_v2 import Event
+
+        bus, status_var = self._wired()
+
+        bus.publish(
+            Event(
+                type=UIEvents.ANALYSIS_WINDOW_SPEC_CHANGED,
+                data=payloads.AnalysisWindowSpecChangedPayload(
+                    spec={"version": 1}, spec_hash="sha256:abc"
+                ),
+            )
+        )
+
+        status_var.set.assert_called_once_with(
+            "Analysis window saved. Run the analysis again to apply it."
+        )
+
+    def test_removed_window_means_whole_recording(self):
+        from zebtrack.ui import payloads
+        from zebtrack.ui.event_bus_v2 import Event
+
+        bus, status_var = self._wired()
+
+        bus.publish(
+            Event(
+                type=UIEvents.ANALYSIS_WINDOW_SPEC_CHANGED,
+                data=payloads.AnalysisWindowSpecChangedPayload(spec=None),
+            )
+        )
+
+        status_var.set.assert_called_once_with(
+            "Analysis window removed: the whole recording will be analysed."
+        )
+
+
 class TestFinishDrawingRouting:
     """O 'Finalizar Desenho' deve comitar a edição interativa (não reverter)."""
 

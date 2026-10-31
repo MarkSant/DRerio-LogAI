@@ -1145,6 +1145,32 @@ class EventDispatcher:
             self._on_persist_roi_settings,
         )
 
+        # Analysis window (ADR-011) saved by the zone tab's panel.
+        event_bus.subscribe(
+            UIEvents.ANALYSIS_WINDOW_SPEC_CHANGED,
+            self._on_analysis_window_spec_changed,
+        )
+
+    def _on_analysis_window_spec_changed(self, data: payloads.EventPayload) -> None:
+        """Tell the researcher what saving the analysis window changes — and when.
+
+        The window is read by the NEXT analysis run; results already on disk keep
+        the window they were computed with. Saying so on the status bar is what
+        stops a researcher from reopening an old report and expecting it to have
+        moved. Published on the Tk thread by the panel, but routed through
+        ``_run_on_ui_thread`` like every other status write.
+        """
+        gui = self._require_gui()
+        if _payload_get(data, "spec") is None:
+            message = _("Analysis window removed: the whole recording will be analysed.")
+        else:
+            message = _("Analysis window saved. Run the analysis again to apply it.")
+        self.log.info(
+            "event_dispatcher.analysis_window_spec_changed",
+            spec_hash=_payload_get(data, "spec_hash"),
+        )
+        self._run_on_ui_thread(lambda: gui.status_var.set(message))
+
     def _on_apply_roi_settings(self, data: payloads.EventPayload) -> None:
         """Handle DETECTOR_UPDATE_PARAMETERS event.
 

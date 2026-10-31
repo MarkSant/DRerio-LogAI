@@ -128,6 +128,44 @@ def test_build_zone_tab_sets_up_components(mock_app):
     assert mock_app.video_display is mock_video_instance
 
 
+def test_build_zone_tab_mounts_the_analysis_window_panel(mock_app):
+    """The START/STOP editor sits in the zone tab's left column, wired to the bus."""
+    from zebtrack.ui.components.analysis_window_panel import AnalysisWindowPanel
+
+    mock_app.controller.project_manager.project_data = {}
+    builder = TabBuilder(mock_app)
+
+    with (
+        patch("zebtrack.ui.components.tab_builder.ZoneControlsWidget"),
+        patch("zebtrack.ui.components.tab_builder.VideoDisplayWidget"),
+    ):
+        builder.build_zone_tab()
+
+    panel = mock_app.analysis_window_panel
+    assert isinstance(panel, AnalysisWindowPanel)
+    assert panel.event_bus is mock_app.event_bus
+    assert panel.project_manager is mock_app.controller.project_manager
+    assert panel.winfo_manager() == "pack"
+    assert panel.pack_info()["side"] == "bottom"
+
+
+def test_analysis_window_panel_failure_does_not_block_the_zone_tab(mock_app):
+    builder = TabBuilder(mock_app)
+
+    with (
+        patch("zebtrack.ui.components.tab_builder.ZoneControlsWidget"),
+        patch("zebtrack.ui.components.tab_builder.VideoDisplayWidget"),
+        patch(
+            "zebtrack.ui.components.tab_builder.AnalysisWindowPanel",
+            side_effect=RuntimeError("boom"),
+        ),
+    ):
+        builder.build_zone_tab()
+
+    assert mock_app.analysis_window_panel is None
+    mock_app.event_dispatcher.subscribe_zone_component_events.assert_called_once()
+
+
 def test_build_project_model_tabs_adds_notebook_tabs(mock_app):
     builder = TabBuilder(mock_app)
 

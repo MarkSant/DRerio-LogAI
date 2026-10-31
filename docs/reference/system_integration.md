@@ -298,6 +298,16 @@ failure.
 | `EXTERNAL_TRIGGER_NOTICE`         | `context` (dict)   | `SessionCoordinator`     | `UICoordinator`  |
 | `EXTERNAL_TRIGGER_NOTICE_CLEARED` | -                  | `SessionCoordinator`     | `UICoordinator`  |
 
+### 3.8. Analysis Window Events (v8)
+
+| Event (UIEvents)               | Payload Keys        | Publishers            | Subscribers                    |
+| ------------------------------ | ------------------- | --------------------- | ------------------------------ |
+| `ANALYSIS_WINDOW_SPEC_CHANGED` | `spec`, `spec_hash` | `AnalysisWindowPanel` | `EventDispatcher` (status bar) |
+
+`spec` is `project_data["analysis_window"]` as just saved (`None` = whole recording). The
+panel lives in the Zone Configuration tab's left column and is rebound on
+`PROJECT_MANAGER_REPLACED` like the Arduino bindings panel.
+
 ---
 
 ## 4. Component Dependencies (The Hierarchy)

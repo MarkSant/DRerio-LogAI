@@ -6,6 +6,7 @@ import structlog
 from zebtrack.core.services.roi_rule_resolver import RoiRuleConfig, resolve_roi_rule
 from zebtrack.i18n import _
 from zebtrack.ui import payloads
+from zebtrack.ui.components.analysis_window_panel import AnalysisWindowPanel
 from zebtrack.ui.components.arduino_bindings_panel import ArduinoBindingsPanel
 from zebtrack.ui.components.arduino_dashboard import ArduinoDashboardWidget
 from zebtrack.ui.components.model_diagnostics_panel import ModelDiagnosticsPanel
@@ -164,6 +165,23 @@ class TabBuilder:
         except Exception:
             log.warning("tab_builder.arduino_bindings_panel.build_failed", exc_info=True)
             gui.arduino_bindings_panel = None
+
+        # Analysis-window START/STOP editor (ADR-011), packed after the Arduino
+        # panel so it sits just above it. Shown for every project type: the window
+        # restricts the metrics of pre-recorded and live recordings alike. The
+        # class-name provider is wired by the class-role editor (v8 front F6, part
+        # 2); until then the panel falls back to free text for class names.
+        try:
+            gui.analysis_window_panel = AnalysisWindowPanel(
+                left_panel_frame,
+                self.gui.controller,
+                event_bus=self.gui.event_bus,
+            )
+            gui.analysis_window_panel.pack(side="bottom", fill="x", pady=(6, 0))
+        # except Exception justified: optional panel must never block the zone tab.
+        except Exception:
+            log.warning("tab_builder.analysis_window_panel.build_failed", exc_info=True)
+            gui.analysis_window_panel = None
 
         # Update ZoneControlsWidget to accept these containers
         self.gui.zone_controls = ZoneControlsWidget(

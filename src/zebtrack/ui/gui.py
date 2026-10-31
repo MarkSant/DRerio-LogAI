@@ -513,6 +513,7 @@ class ApplicationGUI:
                 "project_model_configuration_panel",
                 "project_diagnostics_panel",
                 "arduino_bindings_panel",
+                "analysis_window_panel",
             )
         ]
         panels.append(
