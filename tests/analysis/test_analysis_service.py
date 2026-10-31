@@ -132,3 +132,137 @@ def test_validate_trajectory_schema_missing_columns(settings_obj: Settings):
     df = pd.DataFrame({"timestamp": [], "frame": []})
     with pytest.raises(ValueError, match="missing required columns"):
         service.validate_trajectory_schema(df)
+
+
+# ---------------------------------------------------------------------------
+# Recording duration from the time base, not rows / fps
+# ---------------------------------------------------------------------------
+
+_ARENA = [(0.0, 0.0), (400.0, 0.0), (400.0, 400.0), (0.0, 400.0)]
+
+
+def _moving_track(frames, timestamps, track_id: int, y: float) -> pd.DataFrame:
+    frames = list(frames)
+    x = [50.0 + 2.0 * (f % 50) for f in frames]
+    return pd.DataFrame(
+        {
+            "timestamp": list(timestamps),
+            "frame": frames,
+            "track_id": [track_id] * len(frames),
+            "x1": [v - 5 for v in x],
+            "y1": [y - 5] * len(frames),
+            "x2": [v + 5 for v in x],
+            "y2": [y + 5] * len(frames),
+            "x_center_px": x,
+            "y_center_px": [y] * len(frames),
+        }
+    )
+
+
+def _run(settings_obj: Settings, df: pd.DataFrame, fps: float, rois=None, **kwargs):
+    service = AnalysisService(settings_obj=settings_obj)
+    report, *_rest = service.run_full_analysis(
+        trajectory_df=df,
+        pixelcm_x=10.0,
+        pixelcm_y=10.0,
+        video_height_px=400,
+        arena_polygon_px=_ARENA,
+        rois=rois or [],
+        fps=fps,
+        freezing_vel_threshold=1.0,
+        freezing_min_duration=1.0,
+        **kwargs,
+    )
+    return report
+
+
+def test_duration_two_tracks_is_time_not_rows(settings_obj: Settings):
+    """2 tracks x 100 frames at 10 fps last 10 s; ``len(df)/fps`` said 20."""
+    frames = range(100)
+    df = pd.concat(
+        [
+            _moving_track(frames, [f / 10 for f in frames], 1, 100.0),
+            _moving_track(frames, [f / 10 for f in frames], 2, 300.0),
+        ],
+        ignore_index=True,
+    )
+
+    report = _run(settings_obj, df, fps=10.0)
+
+    assert report["comportamento_geral"]["duracao_video_s"] == pytest.approx(10.0)
+    assert report["validacao"]["estatisticas"]["duration_s"] == pytest.approx(10.0)
+
+
+def test_duration_survives_frames_without_subject(settings_obj: Settings):
+    """Half the frames with no detection (a block in the middle) is still 10 s."""
+    frames = [*range(0, 25), *range(75, 100)]
+    df = _moving_track(frames, [f / 10 for f in frames], 1, 100.0)
+
+    report = _run(settings_obj, df, fps=10.0)
+
+    assert report["comportamento_geral"]["duracao_video_s"] == pytest.approx(10.0)
+
+
+def test_duration_with_analysis_interval_ten_is_real_time(settings_obj: Settings):
+    """Every 10th frame of a 10 fps video: 10 rows, 10 s — rows/fps said 1 s."""
+    frames = range(0, 100, 10)
+    df = _moving_track(frames, [f / 10 for f in frames], 1, 100.0)
+
+    report = _run(settings_obj, df, fps=10.0)
+
+    assert report["comportamento_geral"]["duracao_video_s"] == pytest.approx(10.0)
+
+
+def test_duration_ignores_a_wrong_configured_fps(settings_obj: Settings):
+    """settings at 30 fps, PTS at 10 fps: the PTS decides."""
+    frames = range(100)
+    df = _moving_track(frames, [f / 10 for f in frames], 1, 100.0)
+
+    report = _run(settings_obj, df, fps=30.0)
+
+    assert report["comportamento_geral"]["duracao_video_s"] == pytest.approx(10.0)
+    assert report["validacao"]["avisos"] == []
+
+
+def test_analysis_window_is_always_reported(settings_obj: Settings):
+    frames = range(30)
+    df = _moving_track(frames, [f / 10 for f in frames], 1, 100.0)
+
+    report = _run(settings_obj, df, fps=10.0)
+
+    assert report["analysis_window"] == {"status": "none"}
+    assert report["latency_censored"] == {}
+    assert report["latency_present_at_start"] == {}
+
+
+def test_window_cut_is_not_silently_ignored(settings_obj: Settings):
+    frames = range(30)
+    df = _moving_track(frames, [f / 10 for f in frames], 1, 100.0)
+
+    with pytest.raises(NotImplementedError):
+        _run(settings_obj, df, fps=10.0, window=object())
+
+
+def test_latency_flags_reach_the_report(settings_obj: Settings):
+    """Born inside ``Left``: latency 0 and present at start; ``Far`` never entered."""
+    from shapely.geometry import Polygon
+
+    from zebtrack.analysis.roi import ROI
+
+    frames = range(60)
+    df = _moving_track(frames, [f / 10 for f in frames], 1, 100.0)
+    rois = [
+        ROI("Left", Polygon([(0, 0), (60, 0), (60, 400), (0, 400)]), coordinate_space="px"),
+        ROI("Far", Polygon([(350, 350), (400, 350), (400, 400), (350, 400)]), "px"),
+    ]
+
+    report = _run(settings_obj, df, fps=10.0, rois=rois)
+
+    roi = report["analise_roi"]
+    assert roi["latencia_primeira_entrada"]["Left"] == 0.0
+    assert roi["latencia_primeira_entrada"]["Far"] is None
+    assert report["latency_present_at_start"] == {"Left": True, "Far": False}
+    assert report["latency_censored"] == {"Left": False, "Far": True}
+    (per_animal,) = roi["por_animal"].values()
+    assert per_animal["latency_present_at_start"] == {"Left": True, "Far": False}
+    assert report["analysis_window"] == {"status": "none"}

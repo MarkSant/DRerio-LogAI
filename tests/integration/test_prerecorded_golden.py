@@ -76,6 +76,13 @@ EXPECTED_V8_CHANGES: dict[str, tuple[object, object]] = {
     "analise_roi/por_animal/1/latency_censored/Esquerda": (ABSENT, False),
     "analise_roi/por_animal/1/latency_present_at_start/Direita": (ABSENT, False),
     "analise_roi/por_animal/1/latency_present_at_start/Esquerda": (ABSENT, True),
+    "latency_censored/Direita": (ABSENT, False),
+    "latency_censored/Esquerda": (ABSENT, False),
+    "latency_present_at_start/Direita": (ABSENT, False),
+    "latency_present_at_start/Esquerda": (ABSENT, True),
+    "analysis_window/status": (ABSENT, "none"),
+    # Recording length from the time base, next to the row count.
+    "validacao/estatisticas/duration_s": (ABSENT, 12.0),
 }
 
 #: Coordinates are integers in pixels and metrics are derived from them, so the

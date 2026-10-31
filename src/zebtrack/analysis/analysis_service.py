@@ -22,6 +22,7 @@ from zebtrack.analysis.behavior import ConcreteBehavioralAnalyzer
 from zebtrack.analysis.metrics_cache import MetricsCache
 from zebtrack.analysis.models import AnalysisResult, CalibrationParams
 from zebtrack.analysis.roi import ROI, ROIAnalyzer
+from zebtrack.analysis.time_base import resolve_time_base
 from zebtrack.analysis.trajectory_validator import TrajectoryQualityValidator
 from zebtrack.core.services.roi_rule_resolver import RoiRuleConfig, resolve_roi_rule
 from zebtrack.i18n import _
@@ -212,6 +213,7 @@ class AnalysisService:
         sharp_turn_threshold: float = DEFAULT_SHARP_TURN_THRESHOLD_DEG_S,
         behavioral_config: dict[str, Any] | None = None,
         mask_sidecar_path: str | Path | None = None,
+        window: Any | None = None,
     ) -> tuple[dict[str, Any], ConcreteBehavioralAnalyzer, ROIAnalyzer | None, list, dict]:
         """
         Run a complete analysis pipeline on the given trajectory data.
@@ -226,7 +228,11 @@ class AnalysisService:
             video_height_px: Height of the video in pixels.
             arena_polygon_px: Vertices of the arena in pixels.
             rois: A list of ROI objects for analysis.
-            fps: Frames per second of the video.
+            fps: Frames per second of the video. Only the FALLBACK of the time
+                base: the recording length and rates come from the trajectory's
+                own timestamps (:func:`zebtrack.analysis.time_base.resolve_time_base`),
+                and this value is used — with a warning in the report — only
+                when they cannot date the recording.
             freezing_vel_threshold: Velocity threshold for detecting freezing.
             freezing_min_duration: Minimum duration for a freezing episode.
             behavioral_config: Configuration for behavioral metrics (thigmotaxis, geotaxis).
@@ -235,6 +241,9 @@ class AnalysisService:
                 exist) that rule degrades to ``bbox_intersects`` and the
                 downgrade is appended to the validation warnings — the analysis
                 never fails because of a missing sidecar.
+            window: Analysis window (ADR-011). Reserved: only ``None`` (analyse
+                the whole recording) is supported yet, and the report always
+                carries ``analysis_window = {"status": "none"}``.
 
         Returns:
             A tuple containing:
@@ -248,6 +257,13 @@ class AnalysisService:
                 "AnalysisService requires settings_obj parameter in constructor. "
                 "Use: AnalysisService(settings_obj=load_settings()) or "
                 "AnalysisService(settings_obj=create_mock_settings())"
+            )
+        if window is not None:
+            # Silently analysing the whole recording when a window was asked
+            # for would publish numbers for the wrong interval.
+            raise NotImplementedError(
+                "AnalysisService.run_full_analysis: analysis windows are not supported yet; "
+                "pass window=None to analyse the whole recording."
             )
 
         # IMPROVEMENT #5: Validate trajectory quality before analysis
@@ -280,6 +296,11 @@ class AnalysisService:
         # Log warnings even if validation passed
         validation_warnings = validation_result["warnings"]
         validation_stats = validation_result["stats"]
+
+        # The recording length comes from the time base (unique timestamps),
+        # never from rows / fps. ``fps`` is only its warned fallback.
+        time_base = resolve_time_base(trajectory_df, fallback_fps=fps)
+        validation_warnings.extend(time_base.warnings)
         if validation_warnings:
             self.log.info(
                 "analysis_service.trajectory_validation_warnings",
@@ -366,16 +387,18 @@ class AnalysisService:
                 "periodos_inatividade": b_analyzer.calculate_inactivity_periods(),
                 "curvas_acentuadas": b_analyzer.calculate_sharp_turns(sharp_turn_threshold),
                 "total_frames_analisados": validation_result["stats"].get("total_frames"),
-                "duracao_video_s": (
-                    validation_result["stats"].get("total_frames", 0) / fps
-                    if fps and fps > 0
-                    else None
-                ),
+                "duracao_video_s": time_base.duration_s,
             },
             "validacao": {
                 "avisos": validation_warnings,
                 "estatisticas": validation_result["stats"],
             },
+            # New in v8, English on purpose: the Portuguese keys are a
+            # persistence contract. Always present so every report has the same
+            # shape and the unified report never sees a schema mismatch.
+            "analysis_window": {"status": "none"},
+            "latency_censored": {},
+            "latency_present_at_start": {},
         }
 
         # Calculate Thigmotaxis (if configured)
@@ -444,9 +467,17 @@ class AnalysisService:
         # ``report["validacao"]["avisos"]`` são o MESMO objeto, e um append
         # depois disso não aparece no documento.
         validation_warnings.extend(r_analyzer.degradation_warnings)
+        latencies = r_analyzer.get_latency_details()
+        report["latency_censored"] = {name: lat.censored for name, lat in latencies.items()}
+        report["latency_present_at_start"] = {
+            name: lat.present_at_start for name, lat in latencies.items()
+        }
         report["analise_roi"] = {
             "tempo_gasto_por_roi": r_analyzer.get_time_spent_in_rois(),
-            "latencia_primeira_entrada": r_analyzer.get_latency_to_first_entry(),
+            # 0.0 when the subject is already inside at the start
+            # (``latency_present_at_start``); None when it never enters
+            # (``latency_censored``).
+            "latencia_primeira_entrada": {name: lat.latency_s for name, lat in latencies.items()},
             "contagem_entradas": r_analyzer.get_entry_counts(),
             "contagem_saidas": r_analyzer.get_exit_counts(),
             "distancia_por_roi": r_analyzer.get_distance_in_rois(),

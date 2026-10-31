@@ -111,6 +111,9 @@
       }
     }
   },
+  "analysis_window": {
+    "status": "none"
+  },
   "comportamento_geral": {
     "curvas_acentuadas": {
       "sharp_turns_count": 7,
@@ -178,6 +181,14 @@
     "tortuosidade": 8.673184338,
     "total_frames_analisados": 120
   },
+  "latency_censored": {
+    "Direita": false,
+    "Esquerda": false
+  },
+  "latency_present_at_start": {
+    "Direita": false,
+    "Esquerda": true
+  },
   "log_eventos": [
     {
       "event": "enter",
@@ -208,6 +219,7 @@
   "validacao": {
     "avisos": [],
     "estatisticas": {
+      "duration_s": 12.0,
       "frame_range": {
         "max": 119,
         "min": 0,

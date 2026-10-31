@@ -12,6 +12,7 @@ import numpy as np
 import pandas as pd
 import structlog
 
+from zebtrack.analysis.time_base import resolve_time_base
 from zebtrack.core.detection.multi_aquarium_detector import (
     AQUARIUM_TRACK_ID_MULTIPLIER,
     MAX_LOCAL_TRACK_ID,
@@ -327,10 +328,19 @@ class TrajectoryQualityValidator:
             stats["per_aquarium_gaps"] = per_aquarium_gaps["stats"]
 
     def _calculate_base_stats(self, df: pd.DataFrame) -> dict[str, Any]:
-        """Calculate overall quality metrics."""
+        """Calculate overall quality metrics.
+
+        ``total_frames`` is a ROW count (one per detection) and must never be
+        divided by a frame rate to get a duration: it doubles with two tracks
+        and shrinks with ``analysis_interval_frames``. ``duration_s`` is the
+        recording length from the time base (unique timestamps), with this
+        validator's ``fps`` only as the warned fallback.
+        """
+        time_base = resolve_time_base(df, fallback_fps=self.fps)
         base_stats: dict[str, Any] = {
             "total_frames": len(df),
             "unique_tracks": int(df["track_id"].nunique()) if "track_id" in df.columns else 1,
+            "duration_s": time_base.duration_s,
         }
 
         if "frame" in df.columns:

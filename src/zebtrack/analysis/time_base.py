@@ -36,7 +36,6 @@ import numpy as np
 import pandas as pd
 import structlog
 
-from zebtrack.core.recording.frame_ledger import index_by_pipeline_frame
 from zebtrack.i18n import _
 
 log = structlog.get_logger()
@@ -400,6 +399,10 @@ def retime_from_ledger(
                 )
             ],
         )
+
+    # Imported here: ``zebtrack.core.recording``'s package import pulls the
+    # analysis service, which imports this module (circular at import time).
+    from zebtrack.core.recording.frame_ledger import index_by_pipeline_frame
 
     by_frame = index_by_pipeline_frame([dict(row) for row in rows])
     capture = {frame: t for frame, row in by_frame.items() if (t := _capture_time(row)) is not None}

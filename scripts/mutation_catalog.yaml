@@ -629,3 +629,21 @@ modules:
         description: "latencias entre visitas voltam a listar as saidas como entradas"
         find: 'entries = _rising_edges(self._view[f"in_{name}_stable"])'
         replace: 'entries = (self._view[f"in_{name}_stable"].diff() == 1).to_numpy()'
+
+  video_duration:
+    source: src/zebtrack/analysis/analysis_service.py
+    tests:
+      - tests/analysis/test_analysis_service.py
+    mutations:
+      - id: duration-back-to-rows-over-fps
+        description: "duracao_video_s volta a ser linhas/fps (2 trilhas dobram, intervalo 10 divide)"
+        find: '"duracao_video_s": time_base.duration_s,'
+        replace: '"duracao_video_s": validation_result["stats"].get("total_frames", 0) / fps,'
+      - id: analysis-window-key-dropped
+        description: "relatorio sem analysis_window quebra o schema do unificado"
+        find: '"analysis_window": {"status": "none"},'
+        replace: '"analysis_window_removed": {"status": "none"},'
+      - id: window-silently-ignored
+        description: "janela pedida passa a ser ignorada em silencio e o video inteiro e analisado"
+        find: '        if window is not None:'
+        replace: '        if False:'

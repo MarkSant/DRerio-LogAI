@@ -274,3 +274,31 @@ class TestErrorRecoveryIntegration:
         # Should not crash
         result = validator.validate(df)
         assert "is_valid" in result
+
+
+class TestDurationStat:
+    """``duration_s`` is time; ``total_frames`` stays the ROW count."""
+
+    def test_two_tracks_last_ten_seconds_not_twenty(self):
+        validator = TrajectoryQualityValidator(fps=30.0, min_trajectory_frames=3)
+        t = np.arange(100) / 10.0
+        df = pd.DataFrame(
+            {
+                "timestamp": np.concatenate([t, t]),
+                "frame": np.concatenate([np.arange(100), np.arange(100)]),
+                "track_id": [1] * 100 + [2] * 100,
+            }
+        )
+
+        stats = validator.validate(df)["stats"]
+
+        assert stats["total_frames"] == 200
+        assert stats["duration_s"] == pytest.approx(10.0)
+
+    def test_without_timestamps_the_validator_fps_is_the_fallback(self):
+        validator = TrajectoryQualityValidator(fps=20.0, min_trajectory_frames=3)
+        df = pd.DataFrame({"frame": np.arange(40), "track_id": [1] * 40})
+
+        stats = validator.validate(df)["stats"]
+
+        assert stats["duration_s"] == pytest.approx(2.0)
