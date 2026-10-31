@@ -515,6 +515,9 @@ class TestProjectManager(unittest.TestCase):
                 "use_openvino": None,
                 "device": "AUTO",
                 "slot_weights": {},
+                # ADR-009/012: explicit class roles, inert until the user sets them.
+                "class_roles": None,
+                "class_roles_weight_sha256": None,
             },
         )
         self.assertEqual(
@@ -524,6 +527,9 @@ class TestProjectManager(unittest.TestCase):
                 "use_openvino": None,
                 "device": "AUTO",
                 "slot_weights": {},
+                # ADR-009/012: explicit class roles, inert until the user sets them.
+                "class_roles": None,
+                "class_roles_weight_sha256": None,
             },
         )
 
@@ -762,6 +768,9 @@ class TestProjectManager(unittest.TestCase):
                 "use_openvino": None,
                 "device": "AUTO",
                 "slot_weights": {},
+                # ADR-009/012: explicit class roles, inert until the user sets them.
+                "class_roles": None,
+                "class_roles_weight_sha256": None,
             },
         )
         self.assertIn("tracking", pm.project_data)
@@ -825,6 +834,9 @@ class TestProjectManager(unittest.TestCase):
                 "use_openvino": None,
                 "device": "AUTO",
                 "slot_weights": {},
+                # ADR-009/012: explicit class roles, inert until the user sets them.
+                "class_roles": None,
+                "class_roles_weight_sha256": None,
             },
         )
 
