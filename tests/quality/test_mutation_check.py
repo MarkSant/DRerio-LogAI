@@ -225,15 +225,133 @@ def test_unrelated_change_selects_nothing(monkeypatch):
     assert mutation_check._scope_to_changed(_SPECS, "origin/main") == {}
 
 
-@pytest.mark.parametrize(
-    "path",
-    ["scripts/mutation_check.py", "scripts/mutation_catalog.yaml", "tests/conftest.py"],
-)
+@pytest.mark.parametrize("path", ["scripts/mutation_check.py", "tests/conftest.py"])
 def test_scope_forcing_paths_widen_to_the_whole_catalogue(monkeypatch, path):
-    """These three decide what a mutation is, or what every test runs under."""
+    """The runner decides what a mutation is; the root conftest what every test runs under."""
     monkeypatch.setattr(mutation_check, "_changed_paths", lambda ref: {path})
 
     assert mutation_check._scope_to_changed(_SPECS, "origin/main") == _SPECS
+
+
+# --- catalogue edits: only the blocks that changed --------------------------
+#
+# Every front appends its own blocks to the catalogue, so "catalogue touched ->
+# run everything" re-ran ~110 mutations (tens of minutes) for a change that
+# added a dozen. A block that did not change, guarding a module the diff did
+# not touch, cannot change its verdict; the nightly ``--all`` still runs it.
+
+_CATALOG = "scripts/mutation_catalog.yaml"
+
+
+def _with_base_catalogue(monkeypatch, changed: set[str], base: dict | None) -> None:
+    monkeypatch.setattr(mutation_check, "_changed_paths", lambda ref: changed)
+    monkeypatch.setattr(mutation_check, "_base_catalog_modules", lambda ref: base)
+
+
+def test_new_catalogue_block_selects_only_that_block(monkeypatch):
+    _with_base_catalogue(monkeypatch, {_CATALOG}, {"weight_manager": _SPECS["weight_manager"]})
+
+    assert list(mutation_check._scope_to_changed(_SPECS, "origin/main")) == ["mask_capture"]
+
+
+def test_edited_catalogue_block_selects_that_block(monkeypatch):
+    base = {
+        "mask_capture": {**_SPECS["mask_capture"], "mutations": [{"id": "old"}]},
+        "weight_manager": _SPECS["weight_manager"],
+    }
+    current = {
+        "mask_capture": {**_SPECS["mask_capture"], "mutations": [{"id": "new"}]},
+        "weight_manager": _SPECS["weight_manager"],
+    }
+    _with_base_catalogue(monkeypatch, {_CATALOG}, base)
+
+    assert list(mutation_check._scope_to_changed(current, "origin/main")) == ["mask_capture"]
+
+
+def test_catalogue_blocks_and_touched_files_are_united(monkeypatch):
+    _with_base_catalogue(
+        monkeypatch,
+        {_CATALOG, "src/zebtrack/core/services/weight_manager.py"},
+        {"weight_manager": _SPECS["weight_manager"]},
+    )
+
+    assert set(mutation_check._scope_to_changed(_SPECS, "origin/main")) == {
+        "mask_capture",
+        "weight_manager",
+    }
+
+
+def test_removing_a_block_selects_nothing_from_the_catalogue(monkeypatch):
+    """A deleted block has nothing left to run; the remaining ones are unchanged."""
+    _with_base_catalogue(
+        monkeypatch, {_CATALOG}, {**_SPECS, "gone": {"source": "x.py", "tests": []}}
+    )
+
+    assert mutation_check._scope_to_changed(_SPECS, "origin/main") == {}
+
+
+def test_unreadable_base_catalogue_widens_to_everything(monkeypatch):
+    """Degrade towards running too much, never towards running nothing."""
+    _with_base_catalogue(monkeypatch, {_CATALOG}, None)
+
+    assert mutation_check._scope_to_changed(_SPECS, "origin/main") == _SPECS
+
+
+def test_runner_change_still_wins_over_catalogue_scoping(monkeypatch):
+    _with_base_catalogue(monkeypatch, {_CATALOG, "scripts/mutation_check.py"}, dict(_SPECS))
+
+    assert mutation_check._scope_to_changed(_SPECS, "origin/main") == _SPECS
+
+
+# --- _base_catalog_modules: reading the catalogue the branch started from ----
+
+
+def _catalogue_yaml(modules: dict) -> str:
+    return yaml.safe_dump({"modules": modules})
+
+
+def test_base_catalogue_is_read_at_the_merge_base(monkeypatch):
+    calls: list[tuple[str, ...]] = []
+    responses = {
+        ("merge-base", "origin/main", "HEAD"): (0, "abc123\n"),
+        ("show", f"abc123:{_CATALOG}"): (0, _catalogue_yaml(_SPECS)),
+    }
+    monkeypatch.setattr(mutation_check, "_git", _git_stub(responses, calls))
+
+    assert mutation_check._base_catalog_modules("origin/main") == _SPECS
+    assert ("show", f"abc123:{_CATALOG}") in calls
+
+
+def test_base_catalogue_falls_back_to_the_ref_without_a_merge_base(monkeypatch):
+    """Shallow clone: no merge base, but the ref itself may still be readable."""
+    responses = {
+        ("merge-base", "HEAD^", "HEAD"): (1, ""),
+        ("show", f"HEAD^:{_CATALOG}"): (0, _catalogue_yaml(_SPECS)),
+    }
+    monkeypatch.setattr(mutation_check, "_git", _git_stub(responses, []))
+
+    assert mutation_check._base_catalog_modules("HEAD^") == _SPECS
+
+
+@pytest.mark.parametrize(
+    "show_answer",
+    [(128, ""), (0, "modules: [unclosed"), (0, "not_modules: {}\n"), (0, "- a list\n")],
+)
+def test_unusable_base_catalogue_is_none(monkeypatch, show_answer):
+    responses = {
+        ("merge-base", "origin/main", "HEAD"): (0, "abc123\n"),
+        ("show", f"abc123:{_CATALOG}"): show_answer,
+        ("show", f"origin/main:{_CATALOG}"): show_answer,
+    }
+    monkeypatch.setattr(mutation_check, "_git", _git_stub(responses, []))
+
+    assert mutation_check._base_catalog_modules("origin/main") is None
+
+
+def test_real_repository_reads_its_own_base_catalogue():
+    modules = mutation_check._base_catalog_modules("HEAD")
+
+    assert isinstance(modules, dict) and modules
 
 
 def test_unknown_diff_widens_to_the_whole_catalogue(monkeypatch):

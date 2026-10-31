@@ -44,16 +44,22 @@ _OUTCOME_RE = re.compile(r"(\d+) (passed|failed|error|errors)")
 
 # Touching any of these invalidates the file-to-module reasoning ``--changed-since``
 # is built on, so the scope widens back to the whole catalogue:
-#   - the runner and the catalogue decide what a mutation even is;
+#   - the runner decides what a mutation even is;
 #   - the root conftest owns the autouse fixtures every module's tests run under,
 #     and one neutered fixture can hide a defect in a module the diff never named.
 _SCOPE_FORCING_PATHS = frozenset(
     {
         "scripts/mutation_check.py",
-        "scripts/mutation_catalog.yaml",
         "tests/conftest.py",
     }
 )
+
+# The catalogue itself is scoped BLOCK by block: a change to it selects the
+# blocks that were added or edited against the base. Every v8 front appends its
+# own blocks, and "catalogue touched -> run all" re-ran ~110 mutations for a
+# change that added a dozen. If the base catalogue cannot be read the scope
+# widens to everything, as for any other question git cannot answer.
+_CATALOG_REL = "scripts/mutation_catalog.yaml"
 
 
 @dataclass
@@ -267,6 +273,35 @@ def _changed_paths(ref: str) -> set[str] | None:
     return {path.replace("\\", "/") for path in paths if path}
 
 
+def _base_catalog_modules(ref: str) -> dict[str, Any] | None:
+    """The catalogue's ``modules`` as they were where this branch started.
+
+    Read at the merge base with ``ref`` (the same three-dot reasoning as
+    ``_changed_paths``), falling back to ``ref`` itself on a shallow clone.
+    ``None`` when git cannot show it or the file does not parse into a
+    ``modules`` mapping -- the caller then runs everything.
+    """
+    candidates: list[str] = []
+    code, out = _git("merge-base", ref, "HEAD")
+    if code == 0 and out.strip():
+        candidates.append(out.strip())
+    candidates.append(ref)
+
+    for rev in candidates:
+        code, text = _git("show", f"{rev}:{_CATALOG_REL}")
+        if code != 0:
+            continue
+        try:
+            data = yaml.safe_load(text)
+        except yaml.YAMLError:
+            return None
+        if not isinstance(data, dict) or not isinstance(data.get("modules"), dict):
+            return None
+        modules: dict[str, Any] = data["modules"]
+        return modules
+    return None
+
+
 def _scope_to_changed(specs: dict[str, Any], ref: str) -> dict[str, Any]:
     """Narrow the catalogue to the modules a diff against ``ref`` can affect.
 
@@ -285,8 +320,26 @@ def _scope_to_changed(specs: dict[str, Any], ref: str) -> dict[str, Any]:
         print(f"changed-since: {', '.join(forcing)} changed -- running every module")
         return specs
 
+    catalogue_blocks: set[str] = set()
+    if _CATALOG_REL in changed:
+        base = _base_catalog_modules(ref)
+        if base is None:
+            print(
+                f"changed-since: {_CATALOG_REL} changed and its base version cannot be "
+                "read -- running every module"
+            )
+            return specs
+        catalogue_blocks = {name for name, spec in specs.items() if base.get(name) != spec}
+        print(
+            f"changed-since: {_CATALOG_REL} changed -- "
+            f"{len(catalogue_blocks)} block(s) added or edited"
+            + (f": {', '.join(sorted(catalogue_blocks))}" if catalogue_blocks else "")
+        )
+
     selected = {
-        name: spec for name, spec in specs.items() if changed & {spec["source"], *spec["tests"]}
+        name: spec
+        for name, spec in specs.items()
+        if name in catalogue_blocks or changed & {spec["source"], *spec["tests"]}
     }
     print(
         f"changed-since {ref}: {len(changed)} file(s) changed, "

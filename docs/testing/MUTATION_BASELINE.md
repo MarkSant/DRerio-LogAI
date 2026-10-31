@@ -100,9 +100,14 @@ the step at `continue-on-error` — and a check that cannot fail the build is a 
 Scoping is exact for the defect a change introduces **in the module itself**, and blind to one
 that arrives through a shared dependency. Three consequences, all deliberate:
 
-- **The runner, the catalogue and `tests/conftest.py` widen the scope back to everything.** The
-  first two define what a mutation is; the third owns the autouse fixtures every module's tests run
-  under, and one neutered fixture can hide a defect in a module the diff never named.
+- **The runner and `tests/conftest.py` widen the scope back to everything.** The first defines
+  what a mutation is; the second owns the autouse fixtures every module's tests run under, and one
+  neutered fixture can hide a defect in a module the diff never named.
+- **A catalogue edit selects only the blocks it added or changed**, compared with the catalogue at
+  the merge base (or at the ref itself on a shallow clone). A block that did not change, guarding a
+  module the diff did not touch, cannot change its verdict. Until v8 any catalogue edit ran every
+  module, and since every front appends its own blocks a front adding a dozen mutations re-ran over
+  a hundred. If the base catalogue cannot be read, the scope widens to everything.
 - **When git cannot answer** — an unfetched base on a shallow clone — the runner says so and runs
   the whole catalogue. It never degrades to running nothing: that would report success while
   checking nothing, which is the failure mode this whole file exists to prevent.
