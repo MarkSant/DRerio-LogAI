@@ -489,3 +489,29 @@ modules:
         description: "nome de classe do alvo deixa de ser normalizado e 'Rat' nunca casa com 'rat'"
         find: 'return _SEPARATORS.sub("_", name.strip().lower())'
         replace: 'return name'
+
+  conditions_evaluator:
+    source: src/zebtrack/core/conditions/evaluator.py
+    tests:
+      - tests/core/conditions/test_evaluator.py
+    mutations:
+      - id: persist-not-backdated
+        description: "Persist passa a datar o evento no frame da confirmacao e o INICIO atrasa k-1 frames"
+        find: 'return _Fire(frame0, t0, "persist")'
+        replace: 'return _Fire(obs.frame, obs.t_s, "persist")'
+      - id: hold-seconds-strict
+        description: "hold em segundos passa a exigir mais que S e erra um frame na fronteira exata"
+        find: 'held = obs.t_s - t0 >= self._seconds - _TIME_EPS'
+        replace: 'held = obs.t_s - t0 > self._seconds'
+      - id: all-of-behaves-as-any
+        description: "AllOf dispara com o primeiro filho em vez de esperar todos"
+        find: 'if not all(f is not None for f in fired):'
+        replace: 'if not any(f is not None for f in fired):'
+      - id: gap-never-resets
+        description: "lacuna entre observacoes deixa de zerar a corrida e um buraco conta como persistencia"
+        find: 'if ctx.dt > gap_limit:'
+        replace: 'if False:'
+      - id: end-of-stream-never-censored
+        description: "FIM nunca atingido deixa de ser censurado e a latencia parece observada"
+        find: 'self._censored = not self._stop_is_end_of_stream'
+        replace: 'self._censored = False'
