@@ -433,6 +433,25 @@ class OpenVINOPlugin(DetectorPlugin):
         """Update aquarium region flag for downstream logic."""
         self._aquarium_region_defined = bool(defined)
 
+    #: Set by the detector when the class-role map declares context classes
+    #: (ADR-009): the rat inside the start box must survive NMS.
+    _context_classes_present: bool = False
+
+    def set_context_classes_present(self, present: bool) -> None:
+        """Force per-class NMS because the role map has context classes."""
+        self._context_classes_present = bool(present)
+
+    def _use_agnostic_nms(self) -> bool:
+        """Class-agnostic NMS only for the legacy two-class weights.
+
+        Agnostic NMS suppresses overlapping boxes of DIFFERENT classes: on a
+        Barnes weight the rat inside the start box was dropped in favour of the
+        box (Ultralytics, the other backend, has always been per class). The
+        zebrafish ``{aqua, zebrafish}`` weights keep the agnostic NMS they were
+        validated with (ADR-013).
+        """
+        return not (len(self.class_names) > 2 or self._context_classes_present)
+
     def set_tracking_parameters(
         self,
         *,
@@ -777,7 +796,7 @@ class OpenVINOPlugin(DetectorPlugin):
             prediction=torch.from_numpy(output_tensor),
             conf_thres=self.conf_threshold,
             iou_thres=self.nms_threshold,
-            agnostic=True,
+            agnostic=self._use_agnostic_nms(),
             nc=len(self.class_names),  # Explicitly pass number of classes so NMS can infer nm
         )
 

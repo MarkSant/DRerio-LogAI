@@ -85,6 +85,11 @@ class MultiAquariumDetector:
         self.class_role_map: ClassRoleMap = class_role_map
         self.aquarium_class_id, self.animal_class_id = class_role_map.to_legacy_tuple()
         self._subject_ids: frozenset[int] = class_role_map.subject_ids
+        if class_role_map.has_context:
+            # Per-class NMS on backends that default to agnostic (OpenVINO).
+            nms_setter = getattr(plugin, "set_context_classes_present", None)
+            if callable(nms_setter):
+                nms_setter(True)
         # Subject/context detections of the last detect call, per aquarium.
         # A dict (not a list) because the parallel path fills it from worker
         # threads; ``pop_class_observations`` flattens it in aquarium order.

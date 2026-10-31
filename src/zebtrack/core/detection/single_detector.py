@@ -145,6 +145,11 @@ class SingleDetector:
         self.class_role_map: ClassRoleMap = class_role_map
         self.aquarium_class_id, self.animal_class_id = class_role_map.to_legacy_tuple()
         self._subject_ids: frozenset[int] = class_role_map.subject_ids
+        if class_role_map.has_context:
+            # Per-class NMS on backends that default to agnostic (OpenVINO).
+            nms_setter = getattr(plugin, "set_context_classes_present", None)
+            if callable(nms_setter):
+                nms_setter(True)
         # Subject/context detections of the last ``detect()``; see
         # ``pop_class_observations``.
         self._class_observations: list[dict[str, Any]] = []
