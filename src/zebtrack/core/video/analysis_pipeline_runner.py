@@ -39,6 +39,7 @@ from zebtrack.analysis.reporters import (
     WordReporter,
 )
 from zebtrack.analysis.roi import ROI, ROIAnalyzer
+from zebtrack.analysis.time_base import resolve_time_base
 from zebtrack.core.detection import ZoneData
 from zebtrack.core.detection.calibration import Calibration
 from zebtrack.core.services.project_settings_snapshot import (
@@ -366,7 +367,14 @@ class AnalysisPipelineRunnerMixin:
         smoothing_window: int,
         smoothing_polyorder: int,
     ) -> ReporterContext:
-        """Create ReporterContext instance with all required parameters."""
+        """Create ReporterContext instance with all required parameters.
+
+        The frame rate is the recording's own (PTS of the trajectory); the
+        global ``settings.video_processing.fps`` is only the warned fallback.
+        """
+        settings_fps = float(self.settings.video_processing.fps)
+        time_base = resolve_time_base(filtered_df, fallback_fps=settings_fps)
+        fps = time_base.fps_video if time_base.fps_video else settings_fps
         return ReporterContext(
             trajectory_df=filtered_df,
             metadata=metadata,
@@ -375,7 +383,7 @@ class AnalysisPipelineRunnerMixin:
             video_height_px=calibration.target_dims_px[1],
             arena_polygon_px=arena_polygon_warped,
             rois=rois,
-            fps=self.settings.video_processing.fps,
+            fps=fps,
             roi_colors=roi_colors,
             video_path=video_path,
             calibration=calibration,

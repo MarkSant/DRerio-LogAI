@@ -24,6 +24,7 @@ from zebtrack.analysis.analysis_service import (
 )
 from zebtrack.analysis.roi import ROI
 from zebtrack.analysis.roi_builder import build_roi_from_polygon
+from zebtrack.analysis.time_base import TimeBase, resolve_time_base, retime_from_ledger
 from zebtrack.coordinators._unified_report_mixin import UnifiedReportMixin
 from zebtrack.coordinators.base_coordinator import BaseCoordinator
 from zebtrack.core.detection import MultiAquariumZoneData, ZoneData
@@ -106,6 +107,68 @@ class ReportGenerationCoordinator(BaseCoordinator, UnifiedReportMixin):
         import pandas as _pd  # pragma: no cover — fallback only
 
         return _pd.read_parquet(path)  # pragma: no cover
+
+    # ========================================================================
+    # Time base
+    # ========================================================================
+
+    #: Trajectory file prefix; the frame ledger of the same session shares the base.
+    _TRAJECTORY_PREFIX = "3_CoordMovimento_"
+
+    @classmethod
+    def _load_frame_ledger(
+        cls, trajectory_path: Path | str | None
+    ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+        """Rows and anchor of ``6_FrameLedger_<base>`` next to the trajectory.
+
+        Only live sessions write a ledger; for anything else this is ``([], {})``.
+        """
+        if not trajectory_path:
+            return [], {}
+        path = Path(trajectory_path)
+        if not path.stem.startswith(cls._TRAJECTORY_PREFIX):
+            return [], {}
+        from zebtrack.core.recording.frame_ledger import load_anchor, load_ledger
+
+        base = path.stem[len(cls._TRAJECTORY_PREFIX) :]
+        rows = load_ledger(path.parent, base)
+        return rows, (load_anchor(path.parent, base) if rows else {})
+
+    def _resolve_report_time_base(
+        self,
+        df: pd.DataFrame,
+        trajectory_path: Path | str | None,
+        *,
+        fallback_fps: float,
+    ) -> tuple[pd.DataFrame, TimeBase]:
+        """Time base of one trajectory, re-timed from its ledger when it has one.
+
+        ``fallback_fps`` (``settings.video_processing.fps``) is used only when
+        the recording itself cannot be dated — reports used to take it as the
+        truth, so a 9.9 fps video was analysed as 30 fps.
+        """
+        rows, anchor = self._load_frame_ledger(trajectory_path)
+        if rows:
+            # Live trajectories carry a PROCESSING clock; the analysis must
+            # run on the capture clock. In memory only — the Parquet stays.
+            df = retime_from_ledger(df, rows, anchor)
+        time_base = resolve_time_base(df, ledger=rows or None, fallback_fps=fallback_fps)
+        log.info(
+            "workflow.reports.time_base",
+            trajectory=str(trajectory_path) if trajectory_path else None,
+            source=time_base.source,
+            fps_video=time_base.fps_video,
+            fps_sampling=time_base.fps_sampling,
+            duration_s=time_base.duration_s,
+        )
+        return df, time_base
+
+    @staticmethod
+    def _report_fps(time_base: TimeBase, fallback_fps: float) -> float:
+        """The frame rate handed to the analysis: the video's, else the setting."""
+        if time_base.fps_video and time_base.fps_video > 0:
+            return float(time_base.fps_video)
+        return float(fallback_fps)
 
     # ========================================================================
     # Batch context delegation
@@ -226,6 +289,9 @@ class ReportGenerationCoordinator(BaseCoordinator, UnifiedReportMixin):
             return
 
         df = self._read_trajectory(trajectory_path)
+        # ``fps`` is the settings value: only the fallback of the time base.
+        df, time_base = self._resolve_report_time_base(df, trajectory_path, fallback_fps=float(fps))
+        fps = self._report_fps(time_base, float(fps))
 
         # Metadados do aquário: a fonte da verdade é o MultiAquariumZoneData (definido
         # na atribuição pós-autodetecção); fallback p/ output_info e metadata do vídeo.
@@ -366,6 +432,8 @@ class ReportGenerationCoordinator(BaseCoordinator, UnifiedReportMixin):
             return
 
         df = self._read_trajectory(traj_path)
+        settings_fps = float(self.settings.video_processing.fps)
+        df, time_base = self._resolve_report_time_base(df, traj_path, fallback_fps=settings_fps)
         zone_data = self.project_manager.get_zone_data(video_path=path)
         project_data = getattr(self.project_manager, "project_data", {}) or {}
 
@@ -412,7 +480,7 @@ class ReportGenerationCoordinator(BaseCoordinator, UnifiedReportMixin):
             video_height_px=int(loc_h),
             arena_polygon_px=arena_poly_local,
             rois=rois,
-            fps=float(self.settings.video_processing.fps),
+            fps=self._report_fps(time_base, settings_fps),
             metadata=metadata,
             roi_colors=roi_colors_map,
             # From the resolved params (project > settings), NOT straight off
@@ -636,6 +704,8 @@ class ReportGenerationCoordinator(BaseCoordinator, UnifiedReportMixin):
         df = self._read_trajectory(traj_path)
         if df.empty:
             return None
+        settings_fps = float(settings.video_processing.fps)
+        df, time_base = self._resolve_report_time_base(df, traj_path, fallback_fps=settings_fps)
 
         calib = self.project_manager.project_data.get("calibration", {})
         px_x, px_y, poly_warped, video_h, rois, colors, cal = self._prepare_summary_geometry(
@@ -669,7 +739,7 @@ class ReportGenerationCoordinator(BaseCoordinator, UnifiedReportMixin):
             video_height_px=video_h,
             arena_polygon_px=poly_warped,
             rois=rois,
-            fps=settings.video_processing.fps,
+            fps=self._report_fps(time_base, settings_fps),
             roi_colors=colors,
             video_path=str(path),
             calibration=cal,
@@ -714,6 +784,9 @@ class ReportGenerationCoordinator(BaseCoordinator, UnifiedReportMixin):
                 False,
             )
 
+        settings_fps = float(settings.video_processing.fps)
+        df, time_base = self._resolve_report_time_base(df, traj_path, fallback_fps=settings_fps)
+
         self.project_manager.set_active_zone_video(path)
         try:
             zone_data = self._resolve_summary_zone_data(path, res_dir)
@@ -744,7 +817,7 @@ class ReportGenerationCoordinator(BaseCoordinator, UnifiedReportMixin):
                 video_height_px=video_h,
                 arena_polygon_px=poly_warped,
                 rois=rois,
-                fps=settings.video_processing.fps,
+                fps=self._report_fps(time_base, settings_fps),
                 roi_colors=colors,
                 video_path=str(path),
                 behavioral_config=behavioral_config,

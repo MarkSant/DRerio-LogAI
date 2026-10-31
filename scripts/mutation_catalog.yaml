@@ -647,3 +647,21 @@ modules:
         description: "janela pedida passa a ser ignorada em silencio e o video inteiro e analisado"
         find: '        if window is not None:'
         replace: '        if False:'
+
+  report_fps:
+    source: src/zebtrack/coordinators/report_generation_coordinator.py
+    tests:
+      - tests/coordinators/test_report_generation_coordinator.py
+    mutations:
+      - id: settings-fps-reaches-the-report
+        description: "relatorio volta a usar o fps global de 30 em vez do fps do video"
+        find: 'if time_base.fps_video and time_base.fps_video > 0:'
+        replace: 'if False:'
+      - id: live-not-retimed
+        description: "sessao ao vivo deixa de ser re-datada pelo ledger de captura"
+        find: '            df = retime_from_ledger(df, rows, anchor)'
+        replace: '            pass'
+      - id: ledger-of-any-base
+        description: "ledger de outra sessao (outro base) passa a ser aceito"
+        find: 'if not path.stem.startswith(cls._TRAJECTORY_PREFIX):'
+        replace: 'if False:'

@@ -1,5 +1,6 @@
 """Tests for report_generation_coordinator.py."""
 
+import json
 from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock, patch
@@ -565,3 +566,206 @@ class TestReportHelpersAndOutputs:
 
         coordinator._video_metadata_service.get_video_dimensions.return_value = None
         assert coordinator._probe_video_dimensions("v.mp4") == (0, 0)
+
+
+# ---------------------------------------------------------------------------
+# Real time base: the recording's own fps, never the global setting
+# ---------------------------------------------------------------------------
+
+
+def _ten_fps_trajectory(n: int = 100) -> pd.DataFrame:
+    """A 10 fps recording (PTS), with the pixel columns the analysis needs."""
+    frames = np.arange(n)
+    x = 20.0 + (frames % 40) * 1.5
+    return pd.DataFrame(
+        {
+            "timestamp": frames / 10.0,
+            "frame": frames,
+            "track_id": 1,
+            "x1": x - 3,
+            "y1": 47.0,
+            "x2": x + 3,
+            "y2": 53.0,
+            "x_center_px": x,
+            "y_center_px": 50.0,
+        }
+    )
+
+
+def _wire_standard_report(coordinator, mock_project_manager, df) -> None:
+    coordinator._read_trajectory = MagicMock(return_value=df)
+    mock_project_manager.get_zone_data.return_value = MagicMock(
+        polygon=[[0, 0], [100, 0], [100, 100], [0, 100]],
+        roi_polygons=[],
+        roi_names=[],
+        roi_colors=[],
+    )
+    mock_project_manager.project_data = {}
+    mock_project_manager.resolve_results_directory.return_value = "/results"
+    coordinator._probe_video_dimensions = MagicMock(return_value=(100, 100))
+    coordinator._compute_local_space_geometry = MagicMock(return_value=(0, 0, 100, 100))
+    coordinator._collect_rois_for_standard = MagicMock(return_value=([], {}))
+    coordinator._normalize_df_to_local_space = MagicMock(side_effect=lambda d, *_a: d)
+    coordinator._resolve_pixel_cm = MagicMock(return_value=(10.0, 10.0))
+    coordinator._prepare_background_image = MagicMock(return_value="bg.png")
+    coordinator._export_individual_outputs = MagicMock(
+        return_value={"docx": "rep.docx", "xlsx": "rep.xlsx"}
+    )
+
+
+def _ledger_frame(perf_times, first_frame: int = 1) -> pd.DataFrame:
+    n = len(perf_times)
+    return pd.DataFrame(
+        {
+            "pipeline_frame": np.arange(first_frame, first_frame + n),
+            "video_frame_index": np.arange(n),
+            "t_capture_perf": perf_times,
+            "t_capture_wall": [1_700_000_000.0 + t for t in perf_times],
+            "outcome": "written",
+            "is_analysis_frame": True,
+            "queued_for_analysis": True,
+        }
+    )
+
+
+class TestRealTimeBase:
+    @patch("os.path.exists", return_value=True)
+    @patch("os.makedirs")
+    def test_standard_report_passes_the_recording_fps(
+        self, _mkdirs, _exists, coordinator, mock_project_manager
+    ):
+        _wire_standard_report(coordinator, mock_project_manager, _ten_fps_trajectory())
+        coordinator.analysis_service = MagicMock()
+
+        coordinator._generate_standard_report("video.mp4", "exp1", {}, {})
+
+        kwargs = coordinator.analysis_service.run_full_analysis_as_dto.call_args.kwargs
+        assert coordinator.settings.video_processing.fps == 30.0
+        assert kwargs["fps"] == pytest.approx(10.0)
+
+    @patch("os.path.exists", return_value=True)
+    @patch("os.makedirs")
+    def test_settings_at_30_fps_and_pts_at_10_give_real_durations(
+        self, _mkdirs, _exists, mock_state_manager, mock_project_manager, mock_event_bus
+    ):
+        """The mandatory case: a wrong global fps must not reach the numbers."""
+        from zebtrack.analysis.analysis_service import AnalysisService
+        from zebtrack.settings import load_settings
+
+        settings = load_settings()
+        settings.video_processing.fps = 30
+        coordinator = ReportGenerationCoordinator(
+            state_manager=mock_state_manager,
+            project_manager=mock_project_manager,
+            settings_obj=settings,
+            event_bus=mock_event_bus,
+            analysis_service=AnalysisService(settings_obj=settings),
+        )
+        _wire_standard_report(coordinator, mock_project_manager, _ten_fps_trajectory())
+        export = coordinator._export_individual_outputs
+        assert isinstance(export, MagicMock)
+
+        coordinator._generate_standard_report("video.mp4", "exp1", {}, {})
+
+        result = export.call_args.args[0]
+        general = result.report["comportamento_geral"]
+        assert general["duracao_video_s"] == pytest.approx(10.0)
+        assert result.calibration_params.fps == pytest.approx(10.0)
+        assert result.report["validacao"]["avisos"] == []
+
+    def test_multi_aquarium_report_passes_the_recording_fps(self, coordinator):
+        coordinator._read_trajectory = MagicMock(return_value=_ten_fps_trajectory())
+        coordinator._build_aquarium_report_base = MagicMock(return_value="base")
+        coordinator._export_individual_outputs = MagicMock()
+        coordinator._prepare_background_image = MagicMock(return_value=None)
+        coordinator.analysis_service = MagicMock()
+        out_info = {"results_dir": "dir", "parquet_files": {"trajectory": "traj.parquet"}}
+
+        with patch("os.path.exists", return_value=True):
+            coordinator._process_single_aquarium_in_multi(
+                "path", "exp_id", {}, 0, out_info, None, {}, 30.0, 100, 100, {}
+            )
+
+        kwargs = coordinator.analysis_service.run_full_analysis_as_dto.call_args.kwargs
+        assert kwargs["fps"] == pytest.approx(10.0)
+
+    def test_summary_context_gets_the_recording_fps(self, coordinator, tmp_path):
+        traj_p = tmp_path / "traj.parquet"
+        traj_p.write_text("data")
+        aquarium = MagicMock(id=0, polygon=[], roi_polygons=[], roi_names=[], roi_colors=[])
+        coordinator.project_manager.project_data = {"calibration": {}}
+        coordinator._read_trajectory = MagicMock(return_value=_ten_fps_trajectory())
+        coordinator._prepare_summary_geometry = MagicMock(
+            return_value=(10.0, 10.0, [], 100, [], {}, None)
+        )
+        out_info = {"results_dir": str(tmp_path), "parquet_files": {"trajectory": str(traj_p)}}
+        entry: dict[str, Any] = {"multi_aquarium_outputs": {"0": {"parquet_files": {}}}}
+
+        with (
+            patch("zebtrack.analysis.reporters.ReporterContext") as context,
+            patch("zebtrack.analysis.reporters.ParquetSummaryReporter"),
+        ):
+            coordinator._process_one_aquarium_summary(
+                entry,
+                "exp1",
+                "v.mp4",
+                0,
+                out_info,
+                MagicMock(aquariums=[aquarium]),
+                coordinator.settings,
+                [],
+            )
+
+        assert context.call_args.kwargs["fps"] == pytest.approx(10.0)
+
+    def test_without_timestamps_the_setting_is_the_fallback(self, coordinator):
+        df, time_base = coordinator._resolve_report_time_base(
+            pd.DataFrame({"x": [1.0, 2.0]}), None, fallback_fps=30.0
+        )
+
+        assert time_base.source == "fallback_fps"
+        assert coordinator._report_fps(time_base, 30.0) == pytest.approx(30.0)
+        assert list(df.columns) == ["x"]
+
+    def test_live_session_is_retimed_from_its_ledger(self, coordinator, tmp_path):
+        """Processing-clock timestamps are replaced by the capture instants."""
+        _ledger_frame(list(50.0 + np.arange(10) / 20.0)).to_parquet(
+            tmp_path / "6_FrameLedger_S1.parquet", index=False
+        )
+        anchor = {"t0_perf": 50.0, "t0_wall": 1_700_000_000.0}
+        (tmp_path / "6_FrameLedger_S1_anchor.json").write_text(json.dumps(anchor), encoding="utf-8")
+        # Processing clock: one second per frame, nothing like the capture.
+        df = pd.DataFrame({"timestamp": np.arange(10) * 1.0, "frame": np.arange(1, 11)})
+
+        retimed, time_base = coordinator._resolve_report_time_base(
+            df, tmp_path / "3_CoordMovimento_S1.parquet", fallback_fps=30.0
+        )
+
+        assert time_base.source == "ledger"
+        assert time_base.fps_video == pytest.approx(20.0)
+        assert retimed["timestamp"].tolist() == pytest.approx(list(np.arange(10) / 20.0))
+        assert df["timestamp"].tolist() == list(np.arange(10) * 1.0)
+
+    def test_ledger_of_another_base_is_not_used(self, coordinator, tmp_path):
+        _ledger_frame([0.0, 0.05]).to_parquet(tmp_path / "6_FrameLedger_OTHER.parquet", index=False)
+        df = pd.DataFrame({"timestamp": np.arange(10) / 10.0, "frame": np.arange(1, 11)})
+
+        _df, time_base = coordinator._resolve_report_time_base(
+            df, tmp_path / "3_CoordMovimento_S1.parquet", fallback_fps=30.0
+        )
+
+        assert time_base.source == "trajectory_timestamps"
+
+    def test_trajectory_outside_the_naming_contract_borrows_no_ledger(self, coordinator, tmp_path):
+        # Same length as "3_CoordMovimento_": slicing the prefix off blindly
+        # would yield base "S1" and pick up S1's ledger.
+        _ledger_frame(list(np.arange(10) / 20.0)).to_parquet(
+            tmp_path / "6_FrameLedger_S1.parquet", index=False
+        )
+        df = pd.DataFrame({"timestamp": np.arange(10) / 10.0, "frame": np.arange(1, 11)})
+
+        _df, time_base = coordinator._resolve_report_time_base(
+            df, tmp_path / "Trajectory_copy__S1.parquet", fallback_fps=30.0
+        )
+
+        assert time_base.source == "trajectory_timestamps"

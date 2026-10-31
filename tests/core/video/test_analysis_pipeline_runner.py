@@ -258,3 +258,38 @@ class TestRegisterProjectOutputs:
         )
         runner.project_manager.register_processing_outputs.assert_called_once()
         runner.ui_event_bus.publish.assert_called_once()
+
+
+@pytest.mark.unit
+class TestReporterFrameRate:
+    """The reporter gets the recording's fps; the setting is only a fallback."""
+
+    def _create(self, runner, df):
+        from unittest.mock import patch
+
+        with patch("zebtrack.core.video.analysis_pipeline_runner.ReporterContext") as context:
+            runner._create_reporter_instance(
+                filtered_df=df,
+                metadata={},
+                calibration=SimpleNamespace(target_dims_px=(100, 100)),
+                arena_polygon_warped=[],
+                rois=[],
+                roi_colors={},
+                video_path="v.mp4",
+                pixelcm_x=1.0,
+                pixelcm_y=1.0,
+                sharp_turn_threshold=90.0,
+                freezing_threshold=1.5,
+                freezing_duration=1.0,
+                smoothing_window=5,
+                smoothing_polyorder=2,
+            )
+        return context.call_args.kwargs["fps"]
+
+    def test_ten_fps_pts_beats_the_30_fps_setting(self, runner):
+        df = pd.DataFrame({"timestamp": [f / 10 for f in range(50)], "frame": range(50)})
+
+        assert self._create(runner, df) == pytest.approx(10.0)
+
+    def test_without_timestamps_the_setting_is_used(self, runner, trajectory_df):
+        assert self._create(runner, trajectory_df) == pytest.approx(30.0)
