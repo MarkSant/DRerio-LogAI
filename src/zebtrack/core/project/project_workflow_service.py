@@ -790,6 +790,17 @@ class ProjectWorkflowService:
         model_selection = getattr(self.settings, "model_selection", None)
         aquarium_method = getattr(model_selection, "aquarium_method", None)
         animal_method = getattr(model_selection, "animal_method", None)
+        # The project's own det/seg choice (written by the wizard since 8.0,
+        # backfilled from _wizard_metadata on load) beats the global one.
+        project_data = getattr(self.project_manager, "project_data", None)
+        project_selection = (
+            project_data.get("model_selection") if isinstance(project_data, dict) else None
+        )
+        if isinstance(project_selection, dict):
+            if project_selection.get("aquarium_method") in VALID_METHODS:
+                aquarium_method = project_selection["aquarium_method"]
+            if project_selection.get("animal_method") in VALID_METHODS:
+                animal_method = project_selection["animal_method"]
 
         pairs: list[tuple[str, str]] = []
         if aquarium_method in VALID_METHODS:
@@ -1011,8 +1022,27 @@ class ProjectWorkflowService:
         )
         return True, None
 
+    @staticmethod
+    def _wizard_model_selection(kwargs: dict[str, Any]) -> dict[str, str]:
+        """det/seg methods chosen at creation (wizard dict first, then top level)."""
+        selection = kwargs.get("model_selection")
+        selection = selection if isinstance(selection, dict) else {}
+        resolved: dict[str, str] = {}
+        for key in ("aquarium_method", "animal_method"):
+            value = selection.get(key, kwargs.get(key))
+            if value in VALID_METHODS:
+                resolved[key] = value
+        return resolved
+
     def _persist_project_data(self, kwargs: dict[str, Any]) -> None:
         project_updated = False
+        # Until 8.0 the det/seg choice went only to _wizard_metadata and a
+        # reopened project silently used the GLOBAL method (AUDIT §1).
+        model_selection = self._wizard_model_selection(kwargs)
+        if model_selection:
+            if self.project_manager.project_data.get("model_selection") != model_selection:
+                self.project_manager.project_data["model_selection"] = model_selection
+                project_updated = True
         behavioral_analysis = kwargs.get("behavioral_analysis")
         if isinstance(behavioral_analysis, dict) and behavioral_analysis:
             if self.project_manager.project_data.get("behavioral_config") != behavioral_analysis:

@@ -159,3 +159,104 @@ class TestProjectLifecycleManagerExtended:
         assert data["project_name"] == "MyProj"
         assert migrated is False
         assert fields == []
+
+
+# ---------------------------------------------------------------------------
+# v8 additive migrations (ADR-012)
+# ---------------------------------------------------------------------------
+
+
+def _migrate(data: dict[str, Any]) -> tuple[dict[str, Any], bool, list[str]]:
+    return ProjectLifecycleManager.apply_project_migrations(data, MagicMock())
+
+
+class TestV8Migrations:
+    def test_model_selection_is_backfilled_from_the_wizard_metadata(self):
+        data: dict[str, Any] = {
+            "_wizard_metadata": {
+                "model_selection": {
+                    "aquarium_method": "seg",
+                    "animal_method": "seg",
+                    "use_openvino": True,
+                }
+            }
+        }
+
+        migrated, applied, fields = _migrate(data)
+
+        assert migrated["model_selection"] == {"aquarium_method": "seg", "animal_method": "seg"}
+        assert applied is True
+        assert "model_selection" in fields
+
+    def test_existing_model_selection_is_never_overwritten(self):
+        data: dict[str, Any] = {
+            "model_selection": {"aquarium_method": "det", "animal_method": "det"},
+            "_wizard_metadata": {"model_selection": {"animal_method": "seg"}},
+        }
+
+        migrated, _applied, fields = _migrate(data)
+
+        assert migrated["model_selection"] == {"aquarium_method": "det", "animal_method": "det"}
+        assert "model_selection" not in fields
+
+    @pytest.mark.parametrize(
+        "wizard",
+        [None, {}, {"model_selection": None}, {"model_selection": {"animal_method": "bogus"}}],
+    )
+    def test_nothing_usable_in_the_wizard_leaves_the_global_fallback(self, wizard):
+        data: dict[str, Any] = {} if wizard is None else {"_wizard_metadata": wizard}
+
+        migrated, _applied, _fields = _migrate(data)
+
+        assert "model_selection" not in migrated
+
+    def test_inert_defaults_for_window_and_class_roles(self):
+        data: dict[str, Any] = {
+            "external_trigger_mode": True,
+            "model_overrides": {
+                "active_weight": "w.pt",
+                "use_openvino": None,
+                "device": "AUTO",
+                "slot_weights": {"det:zebrafish": "w.pt"},
+            },
+        }
+
+        migrated, _applied, fields = _migrate(data)
+
+        assert migrated["analysis_window"] is None
+        assert migrated["model_overrides"]["class_roles"] is None
+        assert migrated["model_overrides"]["class_roles_weight_sha256"] is None
+        assert migrated["model_overrides"]["slot_weights"] == {"det:zebrafish": "w.pt"}
+        assert migrated["external_trigger_mode"] is True
+        assert "analysis_window" in fields
+
+    def test_existing_window_and_roles_are_kept(self):
+        window = {"start": {"kind": "manual"}}
+        data: dict[str, Any] = {
+            "analysis_window": window,
+            "model_overrides": {
+                "class_roles": {"rat": "subject"},
+                "class_roles_weight_sha256": "a" * 64,
+                "slot_weights": {},
+            },
+        }
+
+        migrated, _applied, _fields = _migrate(data)
+
+        assert migrated["analysis_window"] == window
+        assert migrated["model_overrides"]["class_roles"] == {"rat": "subject"}
+        assert migrated["model_overrides"]["class_roles_weight_sha256"] == "a" * 64
+
+    def test_new_projects_start_with_the_v8_keys(self, tmp_path: Path):
+        data = ProjectLifecycleManager.create_new_project(
+            tmp_path / "proj",
+            "Pre-recorded",
+            None,
+            lambda: {"name": "default", "settings": {}},
+            lambda *_a, **_k: None,
+            lambda: None,
+        )
+
+        assert data["analysis_window"] is None
+        assert data["model_overrides"]["class_roles"] is None
+        assert data["model_overrides"]["class_roles_weight_sha256"] is None

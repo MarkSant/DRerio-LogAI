@@ -873,3 +873,40 @@ modules:
         description: "peso de 3 classes continua com NMS agnostico"
         find: 'len(self.class_names) > 2 or'
         replace: 'len(self.class_names) > 3 or'
+
+  project_v8_migrations:
+    source: src/zebtrack/core/project/project_lifecycle_manager.py
+    tests:
+      - tests/core/project/test_project_lifecycle_manager_extended.py
+      - tests/integration/test_legacy_project_7_2_0.py
+    mutations:
+      - id: model-selection-overwritten
+        description: "migracao sobrescreve o model_selection que o projeto ja tem"
+        find: 'if isinstance(loaded_data.get("model_selection"), dict):'
+        replace: 'if False:'
+      - id: window-default-not-inert
+        description: "projeto antigo ganha uma janela de analise vazia em vez de None (gravacao inteira)"
+        find: 'loaded_data["analysis_window"] = None  # None = the whole recording'
+        replace: 'loaded_data["analysis_window"] = {}  # None = the whole recording'
+      - id: class-roles-keys-not-added
+        description: "model_overrides de projeto 7.2 fica sem class_roles/class_roles_weight_sha256"
+        find: 'for v8_key in ("class_roles", "class_roles_weight_sha256"):'
+        replace: 'for v8_key in ():'
+      - id: wizard-method-not-validated
+        description: "metodo invalido do _wizard_metadata vira model_selection do projeto"
+        find: 'key: selection[key] for key in _MODEL_SELECTION_KEYS if selection.get(key) in _VALID_METHODS'
+        replace: 'key: selection[key] for key in _MODEL_SELECTION_KEYS if selection.get(key)'
+
+  project_workflow_model_selection:
+    source: src/zebtrack/core/project/project_workflow_service.py
+    tests:
+      - tests/core/test_project_workflow_service.py
+    mutations:
+      - id: wizard-method-not-persisted
+        description: "metodo det/seg do assistente volta a ficar so em _wizard_metadata"
+        find: '        if model_selection:'
+        replace: '        if False:'
+      - id: slot-pairs-ignore-project-method
+        description: "pares de slot seguem o metodo global, nao o do projeto"
+        find: 'if project_selection.get("animal_method") in VALID_METHODS:'
+        replace: 'if False:'

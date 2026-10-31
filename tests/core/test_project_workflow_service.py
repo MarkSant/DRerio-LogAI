@@ -377,6 +377,9 @@ class TestProjectWorkflowServiceProjectCreation(unittest.TestCase):
         """Set up test fixtures."""
         self.mock_project_manager = Mock()
         self.mock_model_service = Mock()
+        # create_project now persists model_selection, so project_data is never
+        # empty afterwards and apply_project_model_overrides lists the weights.
+        self.mock_model_service.get_all_weight_names.return_value = ["default_weight.pt"]
         self.mock_state_manager = Mock()
         self.mock_settings = Mock()
         self.mock_settings.model_selection.animal_method = "det"
@@ -468,6 +471,44 @@ class TestProjectWorkflowServiceProjectCreation(unittest.TestCase):
         assert result["wizard_metadata"] is not None
         assert result["import_success"] is True
         self.mock_project_manager.import_parquets_from_wizard.assert_called_once()
+
+    def test_create_project_persists_the_wizard_model_selection(self):
+        """The det/seg choice used to live only in _wizard_metadata (lost on reopen)."""
+        self.mock_settings.model_selection.animal_method = "det"
+        self.mock_settings.model_selection.aquarium_method = "det"
+        self.mock_project_manager.create_new_project.return_value = True
+        self.mock_project_manager.project_path = "/path/to/project"
+        self.mock_project_manager.project_data = {}
+        self.mock_project_manager.get_active_zone_video.return_value = None
+        self.mock_model_service.get_all_weight_names.return_value = ["default_weight.pt"]
+
+        result = self.service.create_project(
+            project_path="/path/to/project",
+            project_type="live",
+            animals_per_aquarium=2,
+            animal_method="seg",
+            aquarium_method="seg",
+            model_selection={"aquarium_method": "seg", "animal_method": "seg"},
+        )
+
+        assert result["success"] is True
+        assert self.mock_project_manager.project_data["model_selection"] == {
+            "aquarium_method": "seg",
+            "animal_method": "seg",
+        }
+        self.mock_project_manager.save_project.assert_called()
+
+    def test_project_method_drives_the_slot_pairs(self):
+        self.mock_settings.model_selection.animal_method = "det"
+        self.mock_settings.model_selection.aquarium_method = "det"
+        self.mock_project_manager.project_data = {
+            "model_selection": {"aquarium_method": "seg", "animal_method": "seg"}
+        }
+
+        assert self.service._get_project_slot_pairs() == [
+            ("seg", "aquarium"),
+            ("seg", "zebrafish"),
+        ]
 
     def test_prepare_project_input_generates_video_files_without_detected_design(self):
         """Pre-recorded flow must include video_files even when design detection is absent."""
@@ -804,6 +845,9 @@ class TestProjectWorkflowServiceZoneImportFailures(unittest.TestCase):
         """Set up test fixtures."""
         self.mock_project_manager = Mock()
         self.mock_model_service = Mock()
+        # create_project now persists model_selection, so project_data is never
+        # empty afterwards and apply_project_model_overrides lists the weights.
+        self.mock_model_service.get_all_weight_names.return_value = ["default_weight.pt"]
         self.mock_state_manager = Mock()
         self.mock_settings = Mock()
         self.mock_settings.model_selection.animal_method = "det"
@@ -1038,6 +1082,9 @@ class TestProjectWorkflowServiceConcurrentOperations(unittest.TestCase):
         """Set up test fixtures."""
         self.mock_project_manager = Mock()
         self.mock_model_service = Mock()
+        # create_project now persists model_selection, so project_data is never
+        # empty afterwards and apply_project_model_overrides lists the weights.
+        self.mock_model_service.get_all_weight_names.return_value = ["default_weight.pt"]
         self.mock_state_manager = Mock()
         self.mock_settings = Mock()
         self.mock_settings.model_selection.animal_method = "det"

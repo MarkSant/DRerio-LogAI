@@ -458,7 +458,13 @@ class ProjectLifecycleManager:
                 "use_openvino": None,
                 "device": (openvino_device or "AUTO").upper(),
                 "slot_weights": {},
+                # ADR-009: explicit class roles, valid only for the weight whose
+                # sha256 is recorded next to them. None = resolve by aliases.
+                "class_roles": None,
+                "class_roles_weight_sha256": None,
             },
+            # ADR-011: None = analyse the whole recording.
+            "analysis_window": None,
             "use_timed_recording": use_timed_recording,
             "recording_duration_s": recording_duration_s,
             # Durações por bloco/cobaia que fogem do padrão do projeto. Chaves
@@ -752,9 +758,10 @@ class ProjectLifecycleManager:
             migration_applied = True
             migrated_fields.append("external_trigger_mode")
 
-        if _ensure_model_overrides_defaults(loaded_data):
+        v8_fields = _apply_v8_defaults(loaded_data)
+        if v8_fields:
             migration_applied = True
-            migrated_fields.append("model_overrides")
+            migrated_fields.extend(v8_fields)
 
         # Add file_hash for legacy projects that don't have it
         if "file_hash" not in loaded_data:
@@ -780,9 +787,15 @@ def _ensure_model_overrides_defaults(loaded_data: dict[str, Any]) -> bool:
             "use_openvino": None,
             "device": "AUTO",
             "slot_weights": {},
+            "class_roles": None,
+            "class_roles_weight_sha256": None,
         }
         overrides_updated = True
     else:
+        for v8_key in ("class_roles", "class_roles_weight_sha256"):
+            if v8_key not in overrides:
+                overrides[v8_key] = None
+                overrides_updated = True
         if "active_weight" not in overrides:
             overrides["active_weight"] = None
             overrides_updated = True
@@ -799,6 +812,49 @@ def _ensure_model_overrides_defaults(loaded_data: dict[str, Any]) -> bool:
     if overrides_updated:
         loaded_data["model_overrides"] = overrides
     return overrides_updated
+
+
+def _apply_v8_defaults(loaded_data: dict[str, Any]) -> list[str]:
+    """``model_overrides`` normalisation plus the v8 additive defaults (ADR-012).
+
+    Returns the migrated field names, in the order they were applied.
+    """
+    added: list[str] = []
+    if _ensure_model_overrides_defaults(loaded_data):
+        added.append("model_overrides")
+    if "analysis_window" not in loaded_data:
+        loaded_data["analysis_window"] = None  # None = the whole recording
+        added.append("analysis_window")
+    if _backfill_model_selection(loaded_data):
+        added.append("model_selection")
+    return added
+
+
+_MODEL_SELECTION_KEYS = ("aquarium_method", "animal_method")
+_VALID_METHODS = ("seg", "det")
+
+
+def _backfill_model_selection(loaded_data: dict[str, Any]) -> bool:
+    """Recover the det/seg methods a pre-8.0 project chose in the wizard.
+
+    Until 8.0 the wizard's choice lived only in
+    ``_wizard_metadata["model_selection"]`` and reopening the project used the
+    GLOBAL method. A project that already has ``model_selection`` is never
+    touched; one whose wizard recorded nothing usable keeps the global fallback.
+    """
+    if isinstance(loaded_data.get("model_selection"), dict):
+        return False
+    wizard = loaded_data.get("_wizard_metadata")
+    selection = wizard.get("model_selection") if isinstance(wizard, dict) else None
+    if not isinstance(selection, dict):
+        return False
+    recovered = {
+        key: selection[key] for key in _MODEL_SELECTION_KEYS if selection.get(key) in _VALID_METHODS
+    }
+    if not recovered:
+        return False
+    loaded_data["model_selection"] = recovered
+    return True
 
 
 def _apply_wizard_multi_aquarium(
