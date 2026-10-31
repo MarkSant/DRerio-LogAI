@@ -48,21 +48,27 @@ Live `timestamp` (processing clock) is never used to date anything. `retime_from
 replaces the index **in memory** for analysis; the Parquet is untouched.
 
 `analysis/time_base.resolve_time_base()` picks fps/duration from, in order: `3c` heartbeat >
-ledger > unique trajectory timestamps > `CAP_PROP_FPS` stored on the video entry >
-`settings.video_processing.fps` (warned). `duracao_video_s = (t_last − t_first) + median_dt`
-over unique timestamps; new `duracao_janela_s`.
+ledger > unique trajectory timestamps > `settings.video_processing.fps` (warned). (A
+`CAP_PROP_FPS` stored on the video entry was planned between the last two; F1 shipped without
+it because no video entry reaches the analysis yet — a pre-recorded trajectory always has PTS.)
+`duracao_video_s = (t_last − t_first) + median_dt` over unique timestamps; `fps_sampling` is
+the mean rate `(n − 1) / span`, `fps_video` is `Δframe / Δt`. New `window_duration_s`.
 
 ### Analysis
 
 - `AnalysisService.run_full_analysis(window=None)`: smoothing, velocity and ROI debounce run on
   the **whole** frame; then `restrict_to_window(t_start, t_end)` cuts with the absolute index
-  kept. Denominators become STOP − START. `report["janela_analise"]` always exists
+  kept. Denominators become STOP − START. `report["analysis_window"]` always exists
   (`status="none"` without a window) so the unified report schema never mismatches.
 - Latency: rising edge `cur & ~prev.shift(fill_value=False)` (fixes the XOR), explicit `t0`.
   - Subject already inside an inner ROI at START → latency 0, `present_at_start=True`; entry
     count only counts real outside→inside transitions after START.
   - The arena never yields entry/latency metrics; "subject in arena" is a condition only.
-  - Censored latency → the window duration (e.g. 240 s) plus `latency_censored=True`.
+  - Censored latency → the window duration (e.g. 240 s) plus `latency_censored=True`;
+    without a window it stays `None` (legacy). Report keys, English because the Portuguese
+    ones are a persistence contract: `report["latency_censored"]` and
+    `report["latency_present_at_start"]` (`{roi: bool}`), mirrored per animal inside
+    `analise_roi.por_animal`.
 - Freezing episodes cut by a window edge are truncated; `min_duration` applies to what remains.
 - The metrics cache key includes `spec_hash` and the window bounds.
 
