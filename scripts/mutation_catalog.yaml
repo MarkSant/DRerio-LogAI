@@ -541,3 +541,47 @@ modules:
         description: "spec editada sem atualizar o hash passa a ser reaproveitada"
         find: 'if self.spec_hash != expected:'
         replace: 'if False:'
+
+  time_base:
+    source: src/zebtrack/analysis/time_base.py
+    tests:
+      - tests/analysis/test_time_base.py
+    mutations:
+      - id: settings-fps-wins-over-pts
+        description: "o fps do settings passa na frente do PTS e um video de 10 fps vira 30 fps"
+        find: |-
+          if times is not None:
+                  from_pts = _clock_stats(times, frames)
+        replace: |-
+          if fallback_fps:
+                  return _fallback(trajectory_df, times, frames, float(fallback_fps))
+              if times is not None:
+                  from_pts = _clock_stats(times, frames)
+      - id: duration-drops-last-interval
+        description: "duracao perde o + median_dt e a ultima amostra deixa de cobrir tempo"
+        find: 'return (self.t_last - self.t_first) + self.median_dt'
+        replace: 'return self.t_last - self.t_first'
+      - id: duration-counts-rows
+        description: "timestamps repetidos de duas trilhas voltam a contar como amostras"
+        find: 'unique = np.unique(times)'
+        replace: 'unique = np.sort(times)'
+      - id: vfr-rate-from-median
+        description: "taxa de amostragem vira 1/mediana e o VFR do Barnes sai 10,2 fps"
+        find: 'fps_sampling = (unique.size - 1) / span'
+        replace: 'fps_sampling = 1.0 / median_dt'
+      - id: ledger-loses-to-trajectory
+        description: "o relogio de processamento da trajetoria passa na frente do ledger de captura"
+        find: 'from_ledger = _from_ledger(ledger, frames)'
+        replace: 'from_ledger = None if times is not None else _from_ledger(ledger, frames)'
+      - id: heartbeat-reads-detections
+        description: "o batimento do 3c passa a ler as linhas de deteccao em vez das de batimento"
+        find: 'heartbeat = objects_df[class_ids == HEARTBEAT_CLASS_ID]'
+        replace: 'heartbeat = objects_df[class_ids != HEARTBEAT_CLASS_ID]'
+      - id: retime-mixes-clocks
+        description: "frame sem instante de captura deixa de abortar o retime e mistura relogios"
+        find: '    if missing:'
+        replace: '    if False:'
+      - id: retime-ignores-anchor
+        description: "o zero do retime deixa de ser o t0_perf da ancora"
+        find: 't0 = float(t0_raw) if t0_raw is not None else min(capture.values(), default=0.0)'
+        replace: 't0 = min(capture.values(), default=0.0)'
