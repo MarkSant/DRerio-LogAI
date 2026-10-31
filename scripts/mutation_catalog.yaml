@@ -910,3 +910,44 @@ modules:
         description: "pares de slot seguem o metodo global, nao o do projeto"
         find: 'if project_selection.get("animal_method") in VALID_METHODS:'
         replace: 'if False:'
+
+  conditions_presets:
+    source: src/zebtrack/core/conditions/presets.py
+    tests:
+      - tests/core/conditions/test_presets.py
+    mutations:
+      - id: start-box-must-be-present
+        description: "preset Barnes passa a exigir a caixa de partida VISIVEL e o INICIO nunca chega"
+        find: |-
+          target=ClassTarget.of_class(BARNES_START_BOX_CLASS),
+                              present=False,
+        replace: |-
+          target=ClassTarget.of_class(BARNES_START_BOX_CLASS),
+                              present=True,
+      - id: k-frames-ignored
+        description: "k_frames deixa de chegar ao Persist e o preset fica preso em 3 quadros"
+        find: 'hold=Hold(frames=k_frames),'
+        replace: 'hold=Hold(frames=3),'
+      - id: ceiling-ignored
+        description: "teto do protocolo deixa de chegar ao Delay e todo ensaio corta em 240 s"
+        find: 'Delay(after="start", seconds=max_s),'
+        replace: 'Delay(after="start", seconds=240.0),'
+      - id: end-of-stream-dropped
+        description: "fim do video sai do FIM e uma gravacao curta nunca fecha a janela"
+        find: |-
+          EndOfStream(),
+                      Persist(
+        replace: |-
+          Persist(
+      - id: zero-ceiling-accepted
+        description: "teto zero passa a ser aceito e toda janela fecha no primeiro quadro"
+        find: 'if not max_s > 0:'
+        replace: 'if False:'
+      - id: legacy-stop-only-marks
+        description: "codigo 0 do gatilho legado deixa de encerrar a sessao e so marca o FIM"
+        find: 'on_stop="end_session",'
+        replace: 'on_stop="mark",'
+      - id: stop-code-equals-start
+        description: "codigo de parada passa a ser o de inicio e o gatilho fecha a janela que abriu"
+        find: 'stop=External(source="arduino", code=stop_code),'
+        replace: 'stop=External(source="arduino", code=start_code),'
