@@ -374,6 +374,7 @@ class ProjectLifecycleManager:
         num_groups: int | None = None,
         group_names: list[str] | None = None,
         _wizard_metadata: dict | None = None,
+        analysis_window: dict | None = None,
     ) -> dict[str, Any]:
         """Initialize a new project, creating its directory and config file.
 
@@ -488,6 +489,8 @@ class ProjectLifecycleManager:
             "arduino_port": safe_arduino_port,
             "external_trigger_mode": safe_external_trigger,
             "preserve_real_aquarium_shape": bool(preserve_real_aquarium_shape),
+            # ADR-011/012: START/STOP conditions (validated by the wizard); None = whole recording.
+            "analysis_window": analysis_window,
             "tracking": {
                 "use_single_subject_tracker": tracker_pref,
             },

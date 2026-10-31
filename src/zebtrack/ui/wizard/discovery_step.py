@@ -27,7 +27,11 @@ from zebtrack.i18n import _
 from zebtrack.ui.window_utils import create_scrollbar
 from zebtrack.ui.wizard.base import WizardStep
 from zebtrack.ui.wizard.enums import ProjectType, WizardStepID
-from zebtrack.ui.wizard.templates import TemplateManager, format_template_banner
+from zebtrack.ui.wizard.templates import (
+    TemplateManager,
+    format_template_banner,
+    migrate_template,
+)
 from zebtrack.ui.wizard.tooltip import ToolTip
 
 
@@ -589,6 +593,9 @@ class DiscoveryStep(WizardStep):
         )
 
     def _apply_template_data(self, template: dict, template_path: Path | str):
+        # Older schemas are upgraded first (v3 → v4 turns the legacy external
+        # trigger into an analysis window); the notes reach the confirmation step.
+        template, migration_notes = migrate_template(template)
         template_name = template.get("name") or Path(template_path).stem
 
         metadata = {
@@ -600,6 +607,8 @@ class DiscoveryStep(WizardStep):
             metadata["schema_version"] = template.get("schema_version")
         if template.get("wizard_schema_version") is not None:
             metadata["wizard_schema_version"] = template.get("wizard_schema_version")
+        if migration_notes:
+            metadata["migration_notes"] = list(migration_notes)
         self.wizard_data["template_metadata"] = metadata
 
         mappings = {
@@ -648,6 +657,10 @@ class DiscoveryStep(WizardStep):
                     self.wizard_data[key] = deepcopy(value)
                 else:
                     self.wizard_data[key] = value
+
+        # Assigned even when None: loading a template without a window must clear
+        # the one a previously loaded template left in wizard_data.
+        self.wizard_data["analysis_window"] = deepcopy(template.get("analysis_window"))
 
         model_selection = self.wizard_data.get("model_selection")
         if isinstance(model_selection, dict) and "use_openvino" in model_selection:

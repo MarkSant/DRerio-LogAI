@@ -186,6 +186,8 @@ class ProjectWorkflowService:
             "subjects_per_group",
             "num_groups",
             "group_names",
+            # Analysis window (v8): START/STOP conditions from the wizard/template
+            "analysis_window",
             # Wizard metadata
             "_wizard_metadata",
         }

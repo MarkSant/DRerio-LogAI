@@ -196,6 +196,46 @@ class TestConfirmationStep:
         assert "Template Especial" in summary
         assert "Template loaded" in step.template_info_var.get()
 
+    def test_summary_warns_about_converted_trigger_and_shows_the_window(self):
+        """A v3 template's external trigger, converted on load, is spelled out."""
+        from zebtrack.core.conditions.presets import external_trigger_preset
+        from zebtrack.ui.wizard.templates import NOTE_EXTERNAL_TRIGGER_CONVERTED
+
+        wizard_data = {
+            "project_type": ProjectType.LIVE.value,
+            "template_metadata": {
+                "name": "Old live",
+                "schema_version": 3,
+                "migration_notes": [NOTE_EXTERNAL_TRIGGER_CONVERTED],
+            },
+            "analysis_window": external_trigger_preset().model_dump(mode="json", by_alias=True),
+        }
+
+        step = ConfirmationStep(self.root, wizard_data)
+        step.build_ui()
+        step._generate_summary()
+
+        summary = step.summary_text
+        assert "  ⚠ This template used 'External Trigger Mode'." in summary
+        assert "🪟 Analysis Window:" in summary
+        assert "  • Start: the Arduino sends code 1." in summary
+        assert "  • Stop: the Arduino sends code 0." in summary
+        assert "  • In a live session, Stop ends the recording." in summary
+
+    def test_summary_without_window_has_no_window_block(self):
+        step = ConfirmationStep(self.root, {"video_count": 1, "analysis_window": None})
+        step.build_ui()
+        step._generate_summary()
+
+        assert "Analysis Window" not in step.summary_text
+
+    def test_summary_flags_an_unreadable_window(self):
+        step = ConfirmationStep(self.root, {"video_count": 1, "analysis_window": {"version": 7}})
+        step.build_ui()
+        step._generate_summary()
+
+        assert "could not be read" in step.summary_text
+
     def test_summary_includes_folder_preview(self):
         """Summary should include folder preview details when provided."""
         wizard_data = {

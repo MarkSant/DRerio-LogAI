@@ -1021,3 +1021,45 @@ modules:
         description: "previa deixa de dizer 'assim que' para persistencia de 1 quadro"
         find: 'if node.hold.frames == 1:'
         replace: 'if node.hold.frames == 0:'
+
+  wizard_templates:
+    source: src/zebtrack/ui/wizard/templates.py
+    tests:
+      - tests/ui/wizard/test_wizard_templates.py
+    mutations:
+      - id: v3-not-migrated
+        description: "template v3 deixa de ser migrado e o gatilho externo nao vira janela"
+        find: 'if _template_schema_version(template) < 4:'
+        replace: 'if _template_schema_version(template) < 3:'
+      - id: legacy-flag-kept-on
+        description: "gatilho legado continua ligado ao lado da janela convertida (configuracao dupla invalida)"
+        find: 'migrated["external_trigger_mode"] = False'
+        replace: 'migrated["external_trigger_mode"] = True'
+      - id: conversion-not-announced
+        description: "conversao do gatilho deixa de ser avisada na etapa de confirmacao"
+        find: 'notes.append(NOTE_EXTERNAL_TRIGGER_CONVERTED)'
+        replace: 'pass'
+      - id: dropped-window-silent
+        description: "janela ilegivel de um template v4 e descartada sem aviso"
+        find: 'return migrated, (NOTE_ANALYSIS_WINDOW_DROPPED,)'
+        replace: 'return migrated, ()'
+      - id: schema-not-bumped
+        description: "templates continuam sendo gravados como v3 e reabrem convertendo de novo"
+        find: 'TEMPLATE_SCHEMA_VERSION = 4'
+        replace: 'TEMPLATE_SCHEMA_VERSION = 3'
+      - id: garbled-version-read-as-current
+        description: "schema_version ilegivel passa por v4 e o gatilho legado deixa de ser convertido"
+        find: |-
+          except (TypeError, ValueError):
+                  return 1
+        replace: |-
+          except (TypeError, ValueError):
+                  return 4
+      - id: v4-window-not-normalized
+        description: "janela v4 escrita a mao entra no projeto sem os defaults do modelo"
+        find: 'migrated["analysis_window"] = spec.model_dump(mode="json", by_alias=True)'
+        replace: 'migrated["analysis_window"] = raw_window'
+      - id: window-not-saved
+        description: "salvar template deixa de gravar a janela de analise"
+        find: '"analysis_window": deepcopy(wizard_data.get("analysis_window")),'
+        replace: '"analysis_window": None,'

@@ -1067,6 +1067,16 @@ class TestProjectWorkflowServiceParameterValidationEdgeCases(unittest.TestCase):
         assert "unknown_param1" not in filtered
         assert "unknown_param2" not in filtered
 
+    def test_prepare_parameters_keeps_the_analysis_window(self):
+        """The wizard's analysis window (v8) must survive the whitelist."""
+        window = {"version": 1, "start": {"kind": "external", "source": "arduino", "code": 1}}
+
+        filtered = self.service.prepare_controller_parameters(
+            project_path="/path", analysis_window=window
+        )
+
+        assert filtered["analysis_window"] is window
+
     def test_prepare_parameters_empty_input(self):
         """Test parameter preparation with empty input."""
         filtered = self.service.prepare_controller_parameters()

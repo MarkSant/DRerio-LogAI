@@ -5,18 +5,103 @@ Allows saving and loading project configuration templates for quick project crea
 """
 
 import json
+from collections.abc import Mapping
 from copy import deepcopy
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 
 import structlog
+from pydantic import ValidationError
 
+from zebtrack.core.conditions import WindowSpec
+from zebtrack.core.conditions.presets import external_trigger_preset
 from zebtrack.i18n import _
 
 log = structlog.get_logger()
 
 
-TEMPLATE_SCHEMA_VERSION = 3
+#: v4 (DRerio 8.0) adds ``analysis_window`` — the START/STOP conditions of the
+#: analysis (ADR-011), stored as ``WindowSpec.model_dump(mode="json")`` or None.
+TEMPLATE_SCHEMA_VERSION = 4
+
+#: Tokens a migration leaves for the confirmation step. Never translated: the
+#: text is built at display time by :func:`template_migration_note_text`.
+NOTE_EXTERNAL_TRIGGER_CONVERTED = "external_trigger_converted"
+NOTE_ANALYSIS_WINDOW_DROPPED = "analysis_window_dropped"
+
+
+def _template_schema_version(template: Mapping[str, Any]) -> int:
+    """The template's declared schema; a missing or garbled value counts as v1."""
+    raw = template.get("schema_version")
+    if isinstance(raw, bool):
+        return 1
+    try:
+        return int(raw) if raw is not None else 1
+    except (TypeError, ValueError):
+        return 1
+
+
+def migrate_template(template: Mapping[str, Any]) -> tuple[dict[str, Any], tuple[str, ...]]:
+    """Bring a loaded template up to :data:`TEMPLATE_SCHEMA_VERSION` (pure).
+
+    Returns ``(migrated_copy, notes)``; the input is never modified, and the file
+    on disk is left alone (the next save writes v4).
+
+    - **v3 and older** had no analysis window. ``external_trigger_mode=True``
+      becomes the equivalent window — Arduino code 1 starts it, code 0 stops it
+      and ends the live session (``external_trigger_preset``) — and the legacy
+      flag is turned off, because a project configured with BOTH is invalid
+      (ADR-011, external-trigger gate). Any other v3 template gets
+      ``analysis_window=None`` (whole recording).
+    - **v4 and later** keep their window if it validates. One that does not is
+      dropped with a note rather than carried into a project that would refuse
+      to read it.
+
+    ``schema_version`` is left as found, so the confirmation step still shows
+    which version the file was.
+    """
+    migrated = deepcopy(dict(template))
+    notes: list[str] = []
+    if _template_schema_version(template) < 4:
+        if bool(migrated.get("external_trigger_mode")):
+            migrated["analysis_window"] = external_trigger_preset().model_dump(
+                mode="json", by_alias=True
+            )
+            migrated["external_trigger_mode"] = False
+            notes.append(NOTE_EXTERNAL_TRIGGER_CONVERTED)
+        else:
+            migrated["analysis_window"] = None
+        return migrated, tuple(notes)
+
+    raw_window = migrated.get("analysis_window")
+    if raw_window is None:
+        migrated["analysis_window"] = None
+        return migrated, ()
+    try:
+        spec = WindowSpec.model_validate(raw_window)
+    except ValidationError as exc:
+        log.warning("template_manager.analysis_window.invalid", errors=exc.error_count())
+        migrated["analysis_window"] = None
+        return migrated, (NOTE_ANALYSIS_WINDOW_DROPPED,)
+    migrated["analysis_window"] = spec.model_dump(mode="json", by_alias=True)
+    return migrated, ()
+
+
+def template_migration_note_text(note: str) -> str:
+    """User-facing sentence for a :func:`migrate_template` note."""
+    texts = {
+        NOTE_EXTERNAL_TRIGGER_CONVERTED: _(
+            "This template used 'External Trigger Mode'. It was converted into an "
+            "analysis window: Arduino code 1 starts it, code 0 stops it and ends the "
+            "live session. Review it in the Zone Configuration tab once the project exists."
+        ),
+        NOTE_ANALYSIS_WINDOW_DROPPED: _(
+            "The template's analysis window could not be read and was dropped: the "
+            "whole recording will be analysed."
+        ),
+    }
+    return texts.get(note, note)
 
 
 class TemplateManager:
@@ -36,7 +121,8 @@ class TemplateManager:
     - Live capture settings (camera, Arduino, timed recording, countdown)
     - Behavioral analysis configuration
 
-    Schema v3 added the live-capture block (camera/Arduino/recording/countdown)
+    Schema v4 added ``analysis_window`` (see :func:`migrate_template`). Schema v3
+    added the live-capture block (camera/Arduino/recording/countdown)
     and ``behavioral_analysis``. The saved camera/Arduino selection is
     reconciled against the host hardware on load (see ``LiveConfigStep``); a
     saved device that is absent degrades gracefully instead of being applied
@@ -128,6 +214,8 @@ class TemplateManager:
                 "selected_live_mode": wizard_data.get("selected_live_mode"),
                 # Behavioral analysis configuration (Calibration step)
                 "behavioral_analysis": deepcopy(wizard_data.get("behavioral_analysis")),
+                # Analysis window (v4): START/STOP conditions, or None.
+                "analysis_window": deepcopy(wizard_data.get("analysis_window")),
                 # Folder organization fields
                 "has_folder_structure": wizard_data.get("has_folder_structure"),
                 "folder_meaning": wizard_data.get("folder_meaning"),
