@@ -665,3 +665,33 @@ modules:
         description: "ledger de outra sessao (outro base) passa a ser aceito"
         find: 'if not path.stem.startswith(cls._TRAJECTORY_PREFIX):'
         replace: 'if False:'
+
+  class_roles:
+    source: src/zebtrack/core/detection/class_roles.py
+    tests:
+      - tests/core/detection/test_class_roles.py
+    mutations:
+      - id: weight-beats-project
+        description: "precedencia invertida: o class_roles do peso passa por cima do mapa do projeto"
+        find: '    if project_override:'
+        replace: '    if project_override and not weight_entry:'
+      - id: project-sha-ignored
+        description: "mapa do projeto feito para OUTRO peso e aceito mesmo assim"
+        find: 'if project_override_sha and weight_sha256 and project_override_sha == weight_sha256:'
+        replace: 'if True:'
+      - id: aliases-produce-context
+        description: "o caminho por aliases marca as classes desconhecidas como contexto"
+        find: 'roles = {normalize_class_name(name): ClassRole.IGNORED for name in class_map.values()}'
+        replace: 'roles = {normalize_class_name(name): ClassRole.CONTEXT for name in class_map.values()}'
+      - id: legacy-path-tracks-every-animal
+        description: "o caminho legado passa a rastrear todas as classes de animal, nao so a de menor id"
+        find: 'subjects = [min(subjects)]'
+        replace: 'subjects = list(subjects)'
+      - id: strict-threshold-off-by-one
+        description: "peso de 3 classes sem sujeito volta a rastrear a classe 1 por posicao"
+        find: 'len(class_map) >= MIN_CLASSES_FOR_STRICT_SUBJECT'
+        replace: 'len(class_map) > MIN_CLASSES_FOR_STRICT_SUBJECT'
+      - id: absent-class-becomes-context
+        description: "classe ausente de um mapa explicito vira contexto em vez de ignorada"
+        find: 'parsed.get(normalized, ClassRole.IGNORED)'
+        replace: 'parsed.get(normalized, ClassRole.CONTEXT)'
