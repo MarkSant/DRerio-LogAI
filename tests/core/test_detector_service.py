@@ -130,6 +130,96 @@ class TestDetectorService(unittest.TestCase):
         self.assertIsNotNone(self.service.detector)
         self.state_manager.update_detector_state.assert_called_once()
 
+    def _initialize_with_names(self, class_names, mock_detector_class):
+        class _NamedPlugin(MockDetectorPlugin):
+            def __init__(self, *args, **kwargs):
+                super().__init__(*args, **kwargs)
+                self.class_names = dict(class_names)
+
+        self.settings.model_selection.animal_method = "det"
+        self.settings.camera.desired_width = 1280
+        self.settings.camera.desired_height = 720
+        self.weight_manager.get_weight_path_by_method.return_value = "/path/to/model.pt"
+        self.weight_manager.get_weight_sha256.return_value = "d" * 64
+        self.model_service.find_weight_by_path.return_value = (
+            "rat_weight",
+            {
+                "path": "/path/to/model.pt",
+                "class_roles": {"rat": "subject", "experimenter": "context"},
+            },
+        )
+        plugins = {"YOLO (Ultralytics)": _NamedPlugin}
+        with patch("os.path.exists", return_value=True):
+            return self.service.initialize_detector(
+                animal_method="det", use_openvino=False, detector_plugins=plugins
+            )
+
+    @patch("zebtrack.core.services.detector_service.Detector")
+    def test_initialize_detector_hands_the_weight_roles_to_the_detector(self, mock_detector_class):
+        success, error = self._initialize_with_names(
+            {0: "arena", 1: "experimenter", 2: "rat"}, mock_detector_class
+        )
+
+        self.assertTrue(success, error)
+        role_map = mock_detector_class.call_args.kwargs["class_role_map"]
+        self.assertEqual(role_map.subject_ids, frozenset({2}))
+        self.assertEqual(role_map.context_ids, frozenset({1}))
+        self.assertEqual(role_map.source.value, "weight")
+
+    @patch("zebtrack.core.services.detector_service.Detector")
+    def test_initialize_detector_refuses_a_weight_without_a_subject(self, mock_detector_class):
+        self.model_service.find_weight_by_path.return_value = ("coco", {"path": "/p.pt"})
+
+        class _CocoPlugin(MockDetectorPlugin):
+            class_names = {0: "person", 1: "bicycle", 2: "car"}  # noqa: RUF012
+
+        self.settings.model_selection.animal_method = "det"
+        self.weight_manager.get_weight_path_by_method.return_value = "/p.pt"
+        with patch("os.path.exists", return_value=True):
+            success, error = self.service.initialize_detector(
+                animal_method="det",
+                use_openvino=False,
+                detector_plugins={"YOLO (Ultralytics)": _CocoPlugin},
+            )
+
+        self.assertFalse(success)
+        self.assertIn("bicycle", error or "")
+        mock_detector_class.assert_not_called()
+
+    def test_project_roles_for_this_exact_weight_win(self):
+        plugin = MagicMock()
+        plugin.class_names = {0: "arena", 1: "experimenter", 2: "rat"}
+        self.project_manager.project_data = {
+            "model_overrides": {
+                "class_roles": {"experimenter": "subject"},
+                "class_roles_weight_sha256": "d" * 64,
+            }
+        }
+        self.weight_manager.get_weight_sha256.return_value = "d" * 64
+
+        role_map = self.service.resolve_class_role_map(
+            plugin, weight_name="w", weight_details={"class_roles": {"rat": "subject"}}
+        )
+
+        self.assertEqual(role_map.source.value, "project")
+        self.assertEqual(role_map.subject_ids, frozenset({1}))
+
+    def test_project_roles_for_another_weight_are_ignored(self):
+        plugin = MagicMock()
+        plugin.class_names = {0: "arena", 1: "experimenter", 2: "rat"}
+        self.project_manager.project_data = {
+            "model_overrides": {
+                "class_roles": {"experimenter": "subject"},
+                "class_roles_weight_sha256": "0" * 64,
+            }
+        }
+        self.weight_manager.get_weight_sha256.return_value = "d" * 64
+
+        role_map = self.service.resolve_class_role_map(plugin, weight_name="w")
+
+        self.assertEqual(role_map.source.value, "aliases")
+        self.assertEqual(role_map.subject_ids, frozenset({2}))
+
     def test_initialize_detector_no_model_path(self):
         """Test detector initialization fails when no model path found."""
         self.settings.model_selection.animal_method = "det"

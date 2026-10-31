@@ -30,6 +30,8 @@ import numpy as np
 import structlog
 
 from zebtrack.core.detection import Detector, MultiAquariumZoneData, ZoneData
+from zebtrack.core.detection.class_aliases import ClassAliases
+from zebtrack.core.detection.class_roles import ClassRoleMap, resolve_class_role_map
 from zebtrack.core.detection.detection_post_processor import DetectionPostProcessor
 from zebtrack.core.detection.multi_aquarium_detector import MultiAquariumDetector
 from zebtrack.core.detection.zone_scaler import ZoneScaler, arena_membership_rule_from_settings
@@ -712,6 +714,7 @@ class _WorkerProcess(multiprocessing.Process):
             base_width=width,
             base_height=height,
             settings_obj=settings,
+            class_role_map=self._resolve_class_role_map(plugin),
         )
 
         # CRITICAL: Propagate single_subject_mode from settings
@@ -787,6 +790,39 @@ class _WorkerProcess(multiprocessing.Process):
             self._default_zone_data = ZoneData()
 
         return detector
+
+    def _resolve_class_role_map(self, plugin: Any) -> ClassRoleMap:
+        """Rebuild the main process's role decision against the LOADED model.
+
+        The config carries roles by class NAME (pickle-safe); ids only exist once
+        the plugin has read ``model.names``. With a spec (``weight_sha256`` set)
+        the resolution is strict: a multi-class weight with no subject raises
+        :class:`ClassRolesUnresolvedError` instead of tracking class 1 by
+        position. Without a spec this is the legacy, non-strict alias path.
+        """
+        names = getattr(plugin, "class_names", None)
+        aliases = ClassAliases.from_settings(self.config.settings)
+        sha = self.config.weight_sha256 or None
+        strict = bool(self.config.weight_sha256)
+        roles = self.config.class_roles
+        if roles and self.config.class_roles_source == "project":
+            return resolve_class_role_map(
+                names,
+                project_override=roles,
+                project_override_sha=sha,
+                weight_sha256=sha,
+                aliases=aliases,
+                strict=strict,
+            )
+        if roles:
+            return resolve_class_role_map(
+                names,
+                weight_entry={"class_roles": roles},
+                weight_sha256=sha,
+                aliases=aliases,
+                strict=strict,
+            )
+        return resolve_class_role_map(names, weight_sha256=sha, aliases=aliases, strict=strict)
 
     def _get_zone_data_for_video(
         self, video_metadata: dict[str, Any]
@@ -1034,6 +1070,7 @@ class _WorkerProcess(multiprocessing.Process):
                 base_width=multi_base_width,
                 base_height=multi_base_height,
                 settings_obj=detector.settings,
+                class_role_map=getattr(detector, "class_role_map", None),
             )
             multi_aq_detector.set_multi_aquarium_zones(
                 video_zone_data.aquariums,

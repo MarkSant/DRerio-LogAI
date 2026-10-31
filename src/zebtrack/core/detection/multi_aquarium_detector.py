@@ -7,7 +7,7 @@ video frame. Each aquarium gets independent tracking with offset track IDs.
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from types import SimpleNamespace
-from typing import TYPE_CHECKING, Final
+from typing import TYPE_CHECKING, Any, Final
 
 import cv2
 import numpy as np
@@ -15,6 +15,7 @@ import structlog
 
 from zebtrack.core.detection.bbox_area_gate import BboxAreaGate
 from zebtrack.core.detection.class_aliases import ClassAliases
+from zebtrack.core.detection.class_roles import ClassRoleMap, resolve_class_role_map
 from zebtrack.core.detection.detection_post_processor import DetectionPostProcessor
 from zebtrack.core.detection.detection_types import AquariumData, MultiAquariumZoneData, ZoneData
 from zebtrack.core.detection.single_subject_tracker import SingleSubjectTracker
@@ -48,6 +49,8 @@ class MultiAquariumDetector:
         base_width: The reference width zones were defined on.
         base_height: The reference height zones were defined on.
         settings_obj: Settings instance (injected, optional for backward compat).
+        class_role_map: Roles of the model's classes (ADR-009). ``None`` builds
+            the map from the aliases -- literally the 7.2 resolution.
     """
 
     def __init__(
@@ -58,6 +61,7 @@ class MultiAquariumDetector:
         base_width: int = 1280,
         base_height: int = 720,
         settings_obj: "Settings | None" = None,
+        class_role_map: ClassRoleMap | None = None,
     ) -> None:
         self.plugin = plugin
         if not self.plugin:
@@ -70,10 +74,21 @@ class MultiAquariumDetector:
         self.base_width = base_width
         self.base_height = base_height
 
-        # Dynamic class ID resolution
-        self.aquarium_class_id, self.animal_class_id = DetectionPostProcessor.resolve_class_ids(
-            plugin, ClassAliases.from_settings(settings_obj)
-        )
+        # Class roles by NAME (ADR-009); without an explicit map the aliases
+        # decide, non-strictly, exactly as ``resolve_class_ids`` did in 7.2.
+        if class_role_map is None:
+            class_role_map = resolve_class_role_map(
+                getattr(plugin, "class_names", None),
+                aliases=ClassAliases.from_settings(settings_obj),
+                strict=False,
+            )
+        self.class_role_map: ClassRoleMap = class_role_map
+        self.aquarium_class_id, self.animal_class_id = class_role_map.to_legacy_tuple()
+        self._subject_ids: frozenset[int] = class_role_map.subject_ids
+        # Subject/context detections of the last detect call, per aquarium.
+        # A dict (not a list) because the parallel path fills it from worker
+        # threads; ``pop_class_observations`` flattens it in aquarium order.
+        self._class_observations: dict[int, list[dict[str, Any]]] = {}
 
         # Multi-aquarium state
         self._multi_aquarium_mode: bool = False
@@ -99,6 +114,76 @@ class MultiAquariumDetector:
             "multi_aquarium_detector.init.success",
             plugin=self.plugin.get_name(),
         )
+
+    def pop_class_observations(self) -> list[dict[str, Any]]:
+        """Subject and context detections of the last detect call.
+
+        Same contract as ``SingleDetector.pop_class_observations`` (and
+        ``pop_track_masks``): consumed once per frame. Items carry the
+        ``aquarium_id`` whose crop produced them.
+        """
+        observations = self._class_observations
+        self._class_observations = {}
+        return [item for aq_id in sorted(observations) for item in observations[aq_id]]
+
+    def _inference_window(
+        self, frame: np.ndarray, aquarium_id: int
+    ) -> tuple[np.ndarray, int, int, float | None, tuple[float, float, float] | None]:
+        """Crop, offset and confidence for one aquarium's inference.
+
+        Without context classes this is the legacy 10 px padded crop and the
+        plugin's own threshold -- byte for byte. With context classes the crop
+        follows ``context_inference_scope`` and the plugin infers with the lower
+        of the subject/context floors (re-applied per role afterwards).
+        """
+        if not self.class_role_map.has_context:
+            cropped, (offset_x, offset_y, _w, _h) = self.zone_scaler.crop_aquarium_region(
+                frame,
+                aquarium_id,
+                padding=10,
+            )
+            return cropped, offset_x, offset_y, None, None
+
+        scope, margin, context_floor = DetectionPostProcessor.context_settings(self.settings)
+        # Same polygon source as the legacy ``crop_aquarium_region``.
+        polygon = self.zone_scaler.get_aquarium_polygon(aquarium_id)
+        if polygon is None:
+            polygon = np.empty((0, 2), dtype=np.int32)
+        box = DetectionPostProcessor.context_crop_box(
+            polygon, frame.shape, scope=scope, margin_frac=margin, padding=10
+        )
+        if box is None:
+            x1, y1, x2, y2 = 0, 0, frame.shape[1], frame.shape[0]
+        else:
+            x1, y1, x2, y2 = box
+        subject_floor = float(getattr(self.plugin, "conf_threshold", 0.25))
+        floors = DetectionPostProcessor.role_confidence_floors(subject_floor, context_floor)
+        return frame[y1:y2, x1:x2], x1, y1, floors[0], floors
+
+    def _detect_in_window(
+        self,
+        window: tuple[np.ndarray, int, int, float | None, tuple[float, float, float] | None],
+        aquarium_id: int,
+    ) -> tuple[list[tuple], int, int]:
+        """Run the plugin on one aquarium's window (from ``_inference_window``).
+
+        Also records the aquarium's class observations (subject + context),
+        captured right after the offset as in the single detector.
+        """
+        cropped, offset_x, offset_y, inference_conf, floors = window
+        if inference_conf is None:
+            raw_detections = self.plugin.detect(cropped)
+        else:
+            raw_detections = self.plugin.detect(cropped, conf_threshold=inference_conf)
+        offset = DetectionPostProcessor.offset_detections(raw_detections, offset_x, offset_y)
+        if floors is not None:
+            offset = DetectionPostProcessor.filter_by_role_confidence(
+                offset, self.class_role_map, floors[1], floors[2]
+            )
+        self._class_observations[aquarium_id] = DetectionPostProcessor.class_observations(
+            offset, self.class_role_map, aquarium_id=aquarium_id
+        )
+        return raw_detections, offset_x, offset_y
 
     # =========================================================================
     # Zone configuration
@@ -404,6 +489,7 @@ class MultiAquariumDetector:
 
         self._ensure_multi_trackers()
         DetectionPostProcessor.validate_frame(frame)
+        self._class_observations = {}
 
         # Execute detection on full frame
         raw_detections = self.plugin.detect(frame)
@@ -417,9 +503,15 @@ class MultiAquariumDetector:
         # Partition detections by aquarium
         partitioned: dict[int, list] = {aq.id: [] for aq in self._aquariums}
 
+        explicit_roles = self.class_role_map.is_explicit
         for raw_det in raw_detections:
             det = DetectionPostProcessor.ensure_track_tuple(raw_det)
             x1, y1, x2, y2, conf, _track_id, _class_id = det
+            if explicit_roles and _class_id not in self._subject_ids:
+                # The legacy full-frame path never filtered by class. With an
+                # explicit map a context box (the experimenter) would otherwise
+                # be tracked as an animal; legacy weights keep the 7.2 path.
+                continue
             centroid = ((x1 + x2) / 2, (y1 + y2) / 2)
 
             for aq in self._aquariums:
@@ -480,15 +572,12 @@ class MultiAquariumDetector:
             return self.detect_partitioned(frame)
 
         # Process each aquarium with cropped regions
+        self._class_observations = {}
         partitioned: dict[int, list] = {}
         for aq in self._aquariums:
-            cropped, (offset_x, offset_y, _w, _h) = self.zone_scaler.crop_aquarium_region(
-                frame,
-                aq.id,
-                padding=10,
+            raw_detections, offset_x, offset_y = self._detect_in_window(
+                self._inference_window(frame, aq.id), aq.id
             )
-
-            raw_detections = self.plugin.detect(cropped)
 
             log.debug(
                 "multi_aquarium_detector.optimized.raw_crop",
@@ -506,8 +595,8 @@ class MultiAquariumDetector:
                 x2_g = x2 + offset_x
                 y2_g = y2 + offset_y
 
-                # Filter: class ID
-                if self.animal_class_id is not None and class_id != self.animal_class_id:
+                # Filter: class ID (every subject class, ADR-009)
+                if class_id not in self._subject_ids:
                     continue
 
                 # Filter: centroid within polygon (padding may capture outside)
@@ -560,6 +649,7 @@ class MultiAquariumDetector:
 
         results: dict[int, list[tuple]] = {}
         errors: dict[int, str] = {}
+        self._class_observations = {}
 
         def process_aquarium(
             aq_id: int,
@@ -574,17 +664,13 @@ class MultiAquariumDetector:
                         f"Aquarium {aq_id} not found in configuration",
                     )
 
-                cropped, crop_box = self.zone_scaler.crop_aquarium_region(
-                    frame,
-                    aq_id,
-                    padding=10,
-                )
-                offset_x, offset_y = crop_box[0], crop_box[1]
+                window = self._inference_window(frame, aq_id)
+                cropped = window[0]
 
                 if cropped is None or cropped.size == 0:
                     return aq_id, [], f"Aquarium {aq_id}: Empty crop region"
 
-                raw_detections = self.plugin.detect(cropped)
+                raw_detections, offset_x, offset_y = self._detect_in_window(window, aq_id)
 
                 adjusted = []
                 polygon = self._scaled_aquarium_polygons.get(aq_id)
@@ -597,7 +683,7 @@ class MultiAquariumDetector:
                     x2 = int(x2_f) + offset_x
                     y2 = int(y2_f) + offset_y
 
-                    if self.animal_class_id is not None and class_id != self.animal_class_id:
+                    if class_id not in self._subject_ids:
                         continue
 
                     centroid = ((x1 + x2) / 2, (y1 + y2) / 2)

@@ -751,3 +751,107 @@ modules:
         description: "o worker volta a montar o modelo pelas settings e ignora o peso escolhido no projeto"
         find: 'if spec is not None:'
         replace: 'if False:'
+      - id: worker-never-strict
+        description: "worker com spec volta a rastrear a classe 1 de um peso sem sujeito"
+        find: 'strict = bool(self.config.weight_sha256)'
+        replace: 'strict = False'
+      - id: worker-project-roles-as-weight
+        description: "papeis do projeto chegam ao worker rotulados como do peso"
+        find: 'if roles and self.config.class_roles_source == "project":'
+        replace: 'if False:'
+
+  single_detector_class_roles:
+    source: src/zebtrack/core/detection/single_detector.py
+    tests:
+      - tests/core/detection/test_single_detector_extended.py
+    mutations:
+      - id: only-lowest-subject-class
+        description: "in subject_ids volta a == de uma classe so: a segunda classe de sujeito some"
+        find: 'predictions = [det for det in predictions if det[6] in subject_ids]'
+        replace: 'predictions = [det for det in predictions if det[6] == min(subject_ids)]'
+      - id: context-crop-always
+        description: "recorte expandido mesmo sem classe de contexto (zebrafish deixa de ser byte a byte)"
+        find: 'has_context = role_map.has_context'
+        replace: 'has_context = True'
+      - id: context-crop-never
+        description: "mapa com contexto continua no recorte da arena e no limiar do sujeito"
+        find: 'has_context = role_map.has_context'
+        replace: 'has_context = False'
+      - id: mismatch-fallback-with-explicit-map
+        description: "caixa pequena de arena vira sujeito mesmo com mapa explicito (rato fantasma)"
+        find: 'if not role_map.is_explicit:'
+        replace: 'if True:'
+      - id: observations-not-captured
+        description: "observacoes de sujeito/contexto deixam de ser capturadas"
+        find: 'self._class_observations = DetectionPostProcessor.class_observations(predictions, role_map)'
+        replace: 'self._class_observations = []'
+      - id: observations-not-consumed
+        description: "pop_class_observations devolve o mesmo frame duas vezes"
+        find: |-
+          observations = self._class_observations
+                  self._class_observations = []
+        replace: |-
+          observations = self._class_observations
+                  self._class_observations = list(observations)
+
+  multi_aquarium_detector_class_roles:
+    source: src/zebtrack/core/detection/multi_aquarium_detector.py
+    tests:
+      - tests/core/detection/test_multi_aquarium_detector_extended.py
+    mutations:
+      - id: optimized-only-lowest-subject
+        description: "caminho otimizado volta a aceitar uma unica classe de sujeito"
+        find: |-
+          # Filter: class ID (every subject class, ADR-009)
+                          if class_id not in self._subject_ids:
+        replace: |-
+          # Filter: class ID (every subject class, ADR-009)
+                          if class_id != min(self._subject_ids):
+      - id: parallel-only-lowest-subject
+        description: "caminho paralelo volta a aceitar uma unica classe de sujeito"
+        find: '                    if class_id not in self._subject_ids:'
+        replace: '                    if class_id != min(self._subject_ids):'
+      - id: full-frame-keeps-context
+        description: "caminho de quadro inteiro rastreia o experimentador como animal"
+        find: 'if explicit_roles and _class_id not in self._subject_ids:'
+        replace: 'if False:'
+      - id: multi-context-crop-always
+        description: "recorte multi-aquario expandido mesmo sem contexto"
+        find: 'if not self.class_role_map.has_context:'
+        replace: 'if False:'
+
+  detection_post_processor_class_roles:
+    source: src/zebtrack/core/detection/detection_post_processor.py
+    tests:
+      - tests/core/detection/test_detection_post_processor_extended.py
+    mutations:
+      - id: inference-uses-higher-floor
+        description: "plugin infere com o MAIOR limiar e o contexto de baixa confianca some"
+        find: 'return min(subject_floor, ctx), subject_floor, ctx'
+        replace: 'return max(subject_floor, ctx), subject_floor, ctx'
+      - id: context-uses-subject-floor
+        description: "contexto passa a responder ao limiar do sujeito"
+        find: 'floor = context_floor if int(det[6]) in role_map.context_ids else subject_floor'
+        replace: 'floor = subject_floor'
+      - id: context-not-observed
+        description: "observacoes deixam de incluir as classes de contexto"
+        find: 'if role not in (ClassRole.SUBJECT, ClassRole.CONTEXT):'
+        replace: 'if role not in (ClassRole.SUBJECT,):'
+      - id: margin-ignored
+        description: "margem de contexto ignorada na horizontal"
+        find: 'pad_x = max(padding, round(w * margin_frac))'
+        replace: 'pad_x = padding'
+
+  detector_service_class_roles:
+    source: src/zebtrack/core/services/detector_service.py
+    tests:
+      - tests/core/test_detector_service.py
+    mutations:
+      - id: live-validation-only-logs
+        description: "validacao ao vivo volta a so registrar log para peso sem sujeito"
+        find: 'strict=True,'
+        replace: 'strict=False,'
+      - id: live-map-not-passed
+        description: "detector ao vivo ignora o mapa de papeis resolvido"
+        find: 'class_role_map=class_role_map,'
+        replace: 'class_role_map=None,'

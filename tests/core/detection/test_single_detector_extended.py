@@ -6,8 +6,10 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock
 
+import numpy as np
 import pytest
 
+from zebtrack.core.detection.class_roles import resolve_class_role_map
 from zebtrack.core.detection.detection_types import AquariumData, MultiAquariumZoneData, ZoneData
 from zebtrack.core.detection.single_detector import SingleDetector
 from zebtrack.core.detection.zone_scaler import ZoneScaler
@@ -97,3 +99,204 @@ class TestSingleDetectorExtended:
 
         detector.set_single_subject_mode(False)
         assert detector._single_subject_mode is False
+
+
+# ---------------------------------------------------------------------------
+# Class roles (ADR-009): subject filter, context crop, observations.
+# ---------------------------------------------------------------------------
+
+_BARNES = {0: "arena", 1: "experimenter", 2: "rat", 3: "start_box"}
+_BARNES_ROLES = {
+    "arena": "arena",
+    "experimenter": "context",
+    "rat": "subject",
+    "start_box": "context",
+}
+_ARENA_SQUARE = [[100, 100], [200, 100], [200, 200], [100, 200]]
+
+
+class _CropRecordingPlugin(DetectorPlugin):
+    """Records what the detector hands to inference; returns crop-space boxes."""
+
+    def __init__(self, class_names, detections_full_frame=(), conf_threshold=0.5):
+        self.class_names = dict(class_names)
+        self.conf_threshold = conf_threshold
+        self._full_frame = list(detections_full_frame)
+        self.crops: list[np.ndarray] = []
+        self.confs: list[float | None] = []
+        self.offsets: list[tuple[int, int]] = []
+        self._next_offset = (0, 0)
+
+    def detect(self, frame, conf_threshold=None):
+        self.crops.append(frame.copy())
+        self.confs.append(conf_threshold)
+        dx, dy = self._next_offset
+        return [
+            (x1 - dx, y1 - dy, x2 - dx, y2 - dy, conf, None, cid)
+            for (x1, y1, x2, y2, conf, cid) in self._full_frame
+        ]
+
+    @staticmethod
+    def get_name() -> str:
+        return "CropRecording"
+
+    @property
+    def model_input_shape(self) -> tuple[int, int]:
+        return (640, 640)
+
+
+def _frame() -> np.ndarray:
+    rng = np.random.default_rng(7)
+    return rng.integers(0, 255, size=(300, 400, 3), dtype=np.uint8)
+
+
+def _detector(plugin, role_map=None, settings_obj=None) -> SingleDetector:
+    detector = SingleDetector(
+        plugin=plugin,
+        base_width=400,
+        base_height=300,
+        settings_obj=settings_obj,
+        class_role_map=role_map,
+    )
+    detector.set_zones(ZoneData(polygon=_ARENA_SQUARE), actual_width=400, actual_height=300)
+    return detector
+
+
+def _context_settings(scope="arena_crop_margin", margin=0.15, floor=None):
+    from types import SimpleNamespace
+
+    return SimpleNamespace(
+        model_selection=SimpleNamespace(
+            context_inference_scope=scope,
+            context_crop_margin_frac=margin,
+            context_min_confidence=floor,
+            class_aliases=None,
+        )
+    )
+
+
+class TestClassRolesInTheSingleDetector:
+    def test_without_context_the_crop_and_threshold_are_the_legacy_ones(self):
+        frame = _frame()
+        plugin = _CropRecordingPlugin(_BARNES)
+        detector = _detector(plugin)  # aliases: no context
+        crop_info = detector.zone_scaler.get_crop_info(frame, detector.zone_scaler.scaled_polygon)
+        assert crop_info is not None
+        expected_crop = crop_info[0]
+
+        detector.detect(frame, "pre-recorded")
+
+        assert detector.class_role_map.has_context is False
+        assert plugin.crops[0].tobytes() == expected_crop.tobytes()
+        assert plugin.crops[0].shape == expected_crop.shape
+        assert plugin.confs == [None]
+
+    def test_context_map_widens_the_crop_by_the_margin(self):
+        role_map = resolve_class_role_map(_BARNES, weight_entry={"class_roles": _BARNES_ROLES})
+        plugin = _CropRecordingPlugin(_BARNES)
+        detector = _detector(plugin, role_map, _context_settings(margin=0.15))
+
+        detector.detect(_frame(), "pre-recorded")
+
+        # boundingRect of the square is 101x101 at (100, 100); 15% = 15 px.
+        assert plugin.crops[0].shape[:2] == (131, 131)
+
+    @pytest.mark.parametrize(
+        ("scope", "shape"), [("full_frame", (300, 400)), ("arena_crop", (101, 101))]
+    )
+    def test_context_scope_selects_the_window(self, scope, shape):
+        role_map = resolve_class_role_map(_BARNES, weight_entry={"class_roles": _BARNES_ROLES})
+        plugin = _CropRecordingPlugin(_BARNES)
+        detector = _detector(plugin, role_map, _context_settings(scope=scope))
+
+        detector.detect(_frame(), "pre-recorded")
+
+        assert plugin.crops[0].shape[:2] == shape
+
+    def test_context_infers_with_the_lower_floor_and_filters_by_role(self):
+        role_map = resolve_class_role_map(_BARNES, weight_entry={"class_roles": _BARNES_ROLES})
+        plugin = _CropRecordingPlugin(
+            _BARNES,
+            detections_full_frame=[
+                (140, 140, 150, 150, 0.9, 2),  # rat, confident
+                (160, 160, 170, 170, 0.3, 2),  # rat below the subject floor
+                (90, 90, 120, 120, 0.2, 1),  # experimenter above the context floor
+                (95, 150, 105, 160, 0.05, 3),  # start box below the context floor
+            ],
+            conf_threshold=0.5,
+        )
+        detector = _detector(plugin, role_map, _context_settings(floor=0.1, margin=0.15))
+        plugin._next_offset = (85, 85)
+
+        detector.detect(_frame(), "pre-recorded")
+        observations = detector.pop_class_observations()
+
+        assert plugin.confs == [pytest.approx(0.1)]
+        assert [(o["class_name"], o["role"]) for o in observations] == [
+            ("rat", "subject"),
+            ("experimenter", "context"),
+        ]
+        assert observations[1]["bbox"] == (90.0, 90.0, 120.0, 120.0)
+        assert observations[0]["aquarium_id"] is None
+        assert detector.pop_class_observations() == []
+
+    def test_every_subject_class_is_tracked(self):
+        names = {0: "arena", 1: "mouse", 2: "rat"}
+        roles = {"arena": "arena", "mouse": "subject", "rat": "subject"}
+        role_map = resolve_class_role_map(names, weight_entry={"class_roles": roles})
+        plugin = _CropRecordingPlugin(
+            names,
+            detections_full_frame=[
+                (110, 110, 120, 120, 0.9, 1),
+                (150, 150, 160, 160, 0.9, 2),
+            ],
+        )
+        detector = _detector(plugin, role_map)
+        plugin._next_offset = (100, 100)
+
+        tracked, _error = detector.detect(_frame(), "pre-recorded")
+
+        assert sorted(det[6] for det in tracked) == [1, 2]
+
+    def test_alias_path_tracks_only_the_lowest_animal_class(self):
+        names = {0: "arena", 1: "mouse", 2: "rat"}
+        plugin = _CropRecordingPlugin(
+            names,
+            detections_full_frame=[
+                (110, 110, 120, 120, 0.9, 1),
+                (150, 150, 160, 160, 0.9, 2),
+            ],
+        )
+        detector = _detector(plugin)
+        plugin._next_offset = (100, 100)
+
+        tracked, _error = detector.detect(_frame(), "pre-recorded")
+
+        assert [det[6] for det in tracked] == [1]
+
+    def test_small_arena_box_becomes_the_animal_only_without_an_explicit_map(self):
+        names = {0: "arena", 1: "rat"}
+        small_arena_box = [(140, 140, 150, 150, 0.9, 0)]
+
+        legacy_plugin = _CropRecordingPlugin(names, detections_full_frame=small_arena_box)
+        legacy = _detector(legacy_plugin)
+        legacy_plugin._next_offset = (100, 100)
+        legacy_tracked, _ = legacy.detect(_frame(), "pre-recorded")
+
+        explicit_map = resolve_class_role_map(
+            names, weight_entry={"class_roles": {"arena": "arena", "rat": "subject"}}
+        )
+        explicit_plugin = _CropRecordingPlugin(names, detections_full_frame=small_arena_box)
+        explicit = _detector(explicit_plugin, explicit_map)
+        explicit_plugin._next_offset = (100, 100)
+        explicit_tracked, _ = explicit.detect(_frame(), "pre-recorded")
+
+        assert [det[6] for det in legacy_tracked] == [1]
+        assert explicit_tracked == []
+
+    def test_legacy_ids_come_from_the_map(self):
+        role_map = resolve_class_role_map(_BARNES, weight_entry={"class_roles": _BARNES_ROLES})
+        detector = _detector(_CropRecordingPlugin(_BARNES), role_map)
+
+        assert (detector.aquarium_class_id, detector.animal_class_id) == (0, 2)
+        assert detector.class_role_map is role_map

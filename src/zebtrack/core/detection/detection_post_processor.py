@@ -5,7 +5,7 @@ coordinate offset, IoU calculation, class ID resolution, and settings extraction
 Used by both SingleDetector and MultiAquariumDetector.
 """
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import cv2
 import numpy as np
@@ -13,10 +13,16 @@ import structlog
 
 from zebtrack.core.detection.class_aliases import ClassAliases
 from zebtrack.core.detection.class_aliases import resolve_class_ids as _resolve_by_name
+from zebtrack.core.detection.class_roles import ClassRole, ClassRoleMap
 
 if TYPE_CHECKING:
     from zebtrack.plugins.base import DetectorPlugin
     from zebtrack.settings import Settings
+
+#: ``model_selection.context_inference_scope`` values (ADR-009).
+CONTEXT_SCOPES = ("arena_crop", "arena_crop_margin", "full_frame")
+_DEFAULT_CONTEXT_SCOPE = "arena_crop_margin"
+_DEFAULT_CONTEXT_MARGIN = 0.15
 
 log = structlog.get_logger()
 
@@ -279,6 +285,140 @@ class DetectionPostProcessor:
         """
         class_names = getattr(plugin, "class_names", None)
         return _resolve_by_name(class_names, aliases).as_tuple()
+
+    # =========================================================================
+    # Class roles: context crop, per-role confidence, class observations
+    # =========================================================================
+
+    @staticmethod
+    def context_settings(settings: Any) -> tuple[str, float, float | None]:
+        """``(scope, margin_frac, context_min_confidence)`` read defensively.
+
+        Stubs and ``MagicMock`` settings answer every attribute, so each value is
+        type-checked; anything unusable falls back to the ADR-009 default.
+        """
+        section = getattr(settings, "model_selection", None)
+        scope = getattr(section, "context_inference_scope", _DEFAULT_CONTEXT_SCOPE)
+        if scope not in CONTEXT_SCOPES:
+            scope = _DEFAULT_CONTEXT_SCOPE
+        margin = getattr(section, "context_crop_margin_frac", _DEFAULT_CONTEXT_MARGIN)
+        if not isinstance(margin, int | float) or isinstance(margin, bool) or not 0 <= margin <= 1:
+            margin = _DEFAULT_CONTEXT_MARGIN
+        floor = getattr(section, "context_min_confidence", None)
+        if not isinstance(floor, int | float) or isinstance(floor, bool) or not 0 < floor < 1:
+            floor = None
+        return str(scope), float(margin), None if floor is None else float(floor)
+
+    @staticmethod
+    def context_crop_box(
+        polygon: np.ndarray,
+        frame_shape: tuple[int, ...],
+        *,
+        scope: str,
+        margin_frac: float,
+        padding: int = 0,
+    ) -> tuple[int, int, int, int] | None:
+        """Inference rectangle ``(x1, y1, x2, y2)`` when the map has context classes.
+
+        The experimenter and the start box live AROUND the arena, so the plain
+        arena crop never shows them. ``arena_crop_margin`` widens the arena
+        bounding box by ``margin_frac`` of its own size on every side (never by
+        less than the detector's legacy ``padding``); ``full_frame`` uses the
+        whole frame; ``arena_crop`` keeps the legacy rectangle.
+
+        Args:
+            polygon: Scaled arena polygon.
+            frame_shape: ``frame.shape``.
+            scope: One of :data:`CONTEXT_SCOPES`.
+            margin_frac: Fraction of the arena box added per side.
+            padding: The detector's legacy padding in pixels.
+
+        Returns:
+            The clamped rectangle, or ``None`` when it is empty.
+        """
+        img_h, img_w = int(frame_shape[0]), int(frame_shape[1])
+        if scope == "full_frame" or polygon.size == 0:
+            return 0, 0, img_w, img_h
+        x, y, w, h = cv2.boundingRect(polygon)
+        pad_x = pad_y = padding
+        if scope == "arena_crop_margin":
+            pad_x = max(padding, round(w * margin_frac))
+            pad_y = max(padding, round(h * margin_frac))
+        x1, y1 = max(0, x - pad_x), max(0, y - pad_y)
+        x2, y2 = min(img_w, x + w + pad_x), min(img_h, y + h + pad_y)
+        if x2 <= x1 or y2 <= y1:
+            return None
+        return x1, y1, x2, y2
+
+    @staticmethod
+    def role_confidence_floors(
+        subject_floor: float,
+        context_floor: float | None,
+    ) -> tuple[float, float, float]:
+        """``(inference_floor, subject_floor, context_floor)`` for a context map.
+
+        The plugin must infer with the LOWER of the two floors -- otherwise a
+        context class with a permissive floor is cut by the subject's -- and the
+        per-role floors are re-applied afterwards by
+        :meth:`filter_by_role_confidence`. ``context_floor`` ``None`` means the
+        subject floor (``resolve_animal_confidence``).
+        """
+        ctx = subject_floor if context_floor is None else context_floor
+        return min(subject_floor, ctx), subject_floor, ctx
+
+    @staticmethod
+    def filter_by_role_confidence(
+        detections: list[tuple],
+        role_map: ClassRoleMap,
+        subject_floor: float,
+        context_floor: float,
+    ) -> list[tuple]:
+        """Drop detections below the floor of THEIR role.
+
+        Context classes answer to ``context_floor``; every other class keeps
+        the subject floor it always had, so lowering the inference floor for
+        context never lets a weak subject (or arena) box through.
+        """
+        kept: list[tuple] = []
+        for det in detections:
+            floor = context_floor if int(det[6]) in role_map.context_ids else subject_floor
+            if float(det[4]) >= floor:
+                kept.append(det)
+        return kept
+
+    @staticmethod
+    def class_observations(
+        detections: list[tuple],
+        role_map: ClassRoleMap,
+        aquarium_id: int | None = None,
+    ) -> list[dict[str, Any]]:
+        """Subject and context detections of one frame, as plain records.
+
+        Captured right after the crop offset -- before the polygon filter and
+        the tracker -- because a context object (the experimenter's hand, the
+        start box) is exactly what the subject pipeline throws away.
+
+        Returns:
+            ``[{"class_id", "class_name", "role", "bbox", "confidence",
+            "aquarium_id"}]`` with ``bbox`` in full-frame pixels.
+        """
+        observed: list[dict[str, Any]] = []
+        for det in detections:
+            class_id = int(det[6])
+            role = role_map.role_of_id(class_id)
+            if role not in (ClassRole.SUBJECT, ClassRole.CONTEXT):
+                continue
+            observed.append(
+                {
+                    "class_id": class_id,
+                    "class_name": role_map.class_name_of(class_id),
+                    "role": role.value,
+                    "bbox": (float(det[0]), float(det[1]), float(det[2]), float(det[3])),
+                    "confidence": float(det[4]),
+                    "aquarium_id": aquarium_id,
+                }
+            )
+        return observed
 
     # =========================================================================
     # Settings resolution helpers

@@ -36,8 +36,10 @@ class FakeDetector:
         settings_obj=None,
         zone_scaler=None,
         post_processor=None,
+        class_role_map=None,
     ):
         self.plugin = plugin
+        self.class_role_map = class_role_map
         self.base_width = base_width
         self.base_height = base_height
         self.settings_obj = settings_obj
@@ -570,3 +572,88 @@ def test_the_spec_beats_the_settings_even_when_they_name_another_file(tmp_path, 
 
     assert (config.model_path, config.model_type) == ("chosen.pt", "yolo")
     assert config.weight_sha256 == "f" * 64
+
+
+def _barnes_plugin_class():
+    class _BarnesPlugin(FakePlugin):
+        class_names: typing.ClassVar[dict[int, str]] = {
+            0: "arena",
+            1: "experimenter",
+            2: "rat",
+            3: "start_box",
+        }
+
+    return _BarnesPlugin
+
+
+def _init_with(config) -> Any:
+    worker = _WorkerProcess(config, mp.Queue(), mp.Queue())
+    with (
+        patch(
+            "zebtrack.plugins.ultralytics_detector.UltralyticsDetectorPlugin",
+            _barnes_plugin_class(),
+        ),
+        patch("zebtrack.core.video.processing_worker.Detector", FakeDetector),
+    ):
+        return worker._initialize_detector()
+
+
+def test_worker_rebuilds_the_shipped_roles_against_the_model_names(worker_config):
+    worker_config.weight_sha256 = "e" * 64
+    worker_config.class_roles = {"rat": "subject", "experimenter": "context", "arena": "arena"}
+    worker_config.class_roles_source = "weight"
+
+    detector = _init_with(worker_config)
+
+    role_map = detector.class_role_map
+    assert role_map.subject_ids == frozenset({2})
+    assert role_map.context_ids == frozenset({1})
+    assert role_map.source.value == "weight"
+
+
+def test_worker_project_roles_keep_their_source(worker_config):
+    worker_config.weight_sha256 = "e" * 64
+    worker_config.class_roles = {"experimenter": "subject"}
+    worker_config.class_roles_source = "project"
+
+    detector = _init_with(worker_config)
+
+    assert detector.class_role_map.source.value == "project"
+    assert detector.class_role_map.subject_ids == frozenset({1})
+
+
+def test_worker_without_roles_uses_the_aliases(worker_config):
+    detector = _init_with(worker_config)
+
+    assert detector.class_role_map.source.value == "aliases"
+    assert detector.class_role_map.to_legacy_tuple() == (0, 2)
+
+
+def test_worker_with_a_spec_refuses_a_weight_without_a_subject(worker_config):
+    from zebtrack.core.detection.class_roles import ClassRolesUnresolvedError
+
+    class _CocoPlugin(FakePlugin):
+        class_names: typing.ClassVar[dict[int, str]] = {0: "person", 1: "bicycle", 2: "car"}
+
+    worker_config.weight_sha256 = "e" * 64
+    worker = _WorkerProcess(worker_config, mp.Queue(), mp.Queue())
+    with (
+        patch("zebtrack.plugins.ultralytics_detector.UltralyticsDetectorPlugin", _CocoPlugin),
+        patch("zebtrack.core.video.processing_worker.Detector", FakeDetector),
+        pytest.raises(ClassRolesUnresolvedError),
+    ):
+        worker._initialize_detector()
+
+
+def test_worker_without_a_spec_keeps_the_7_2_positional_guess(worker_config):
+    class _CocoPlugin(FakePlugin):
+        class_names: typing.ClassVar[dict[int, str]] = {0: "person", 1: "bicycle", 2: "car"}
+
+    worker = _WorkerProcess(worker_config, mp.Queue(), mp.Queue())
+    with (
+        patch("zebtrack.plugins.ultralytics_detector.UltralyticsDetectorPlugin", _CocoPlugin),
+        patch("zebtrack.core.video.processing_worker.Detector", FakeDetector),
+    ):
+        detector = worker._initialize_detector()
+
+    assert detector.class_role_map.to_legacy_tuple() == (0, 1)
