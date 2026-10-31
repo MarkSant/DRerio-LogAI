@@ -14,6 +14,7 @@ from typing import Any
 
 import structlog
 
+from zebtrack.core.detection.class_roles import parse_class_roles
 from zebtrack.i18n import _
 from zebtrack.paths import DEFAULT_WEIGHTS_DIR as DEFAULT_WEIGHTS_DIR
 from zebtrack.paths import repo_root, resolve_weights_dir
@@ -64,6 +65,16 @@ def _default_target_for_type(weight_type: str) -> str:
 def _default_flag_key(method: str, target: str) -> str:
     """Build the dict key for a (method, target) default flag."""
     return f"is_default_{method}_{target}"
+
+
+#: Key, inside ``metadata.json`` of an OpenVINO export, holding the sha256 of
+#: the ``.pt`` it was exported from. A cache folder is only trusted for the
+#: exact weight that produced it: a retrained weight saved under the same file
+#: name used to reuse the OLD export (and its old class names) in silence.
+OPENVINO_SOURCE_SHA_KEY = "source_sha256"
+
+#: Characters of the weight sha256 embedded in the OpenVINO cache folder name.
+OPENVINO_CACHE_SHA_CHARS = 8
 
 
 class OpenVINOExportError(Exception):
@@ -148,6 +159,9 @@ class WeightManager:
             )
         self.weights: dict[str, Any] = {}
         self._runtime_slot_overrides: dict[tuple[str, str], str] = {}
+        # sha256 of each .pt, memoised by (path, size, mtime) so a weight file
+        # replaced on disk is re-hashed while an unchanged one is hashed once.
+        self._sha256_cache: dict[str, tuple[int, int, str]] = {}
         self._load_weights()
 
     def _resolve_weights_dir(self, override: Path | str | None) -> Path:
@@ -226,6 +240,16 @@ class WeightManager:
                             if slot not in details:
                                 details[slot] = False
                                 migrated = True
+
+                    # Class roles shipped next to the .pt (ADR-009). Only filled
+                    # in when the entry has none: an explicit choice saved in
+                    # the registry is never overwritten by the sidecar JSON, and
+                    # a 7.2 registry without siblings loads byte-for-byte.
+                    if "class_roles" not in details:
+                        sibling_roles = self._read_sibling_class_roles(details.get("path", ""))
+                        if sibling_roles is not None:
+                            details["class_roles"] = sibling_roles
+                            migrated = True
 
                     # Relocate stale absolute paths pointing to the project root
                     # to the new `weights/` folder when the file exists there.
@@ -542,6 +566,9 @@ class WeightManager:
                     "openvino_status": OPENVINO_STATUS_NOT_CONVERTED,
                     "last_conversion_error": None,
                 }
+                sibling_roles = self._read_sibling_class_roles(pt_file)
+                if sibling_roles is not None:
+                    self.weights[weight_name]["class_roles"] = sibling_roles
                 discovered += 1
                 log.info(
                     "weights.auto_discover.found",
@@ -554,6 +581,199 @@ class WeightManager:
         if discovered:
             self.save_weights()
         return discovered
+
+    @staticmethod
+    def _read_sibling_class_roles(pt_path: Path | str) -> dict[str, str] | None:
+        """``class_roles`` from the JSON that ships next to a ``.pt``.
+
+        A weight trained for the lab is distributed with a small descriptor of
+        the same stem, e.g. ``best_det_topdown_rat_v1.json``::
+
+            {"classes": {"0": "arena", "1": "experimenter", "2": "rat"},
+             "target": "rat",
+             "class_roles": {"arena": "arena", "experimenter": "context",
+                             "rat": "subject"}}
+
+        Only ``class_roles`` is imported, and only when every value is one of
+        the four role tokens. ``target`` is NOT: ``aquarium``/``zebrafish`` are
+        persistence contracts of the registry (ADR-012). Anything unreadable
+        degrades to ``None`` -- resolution then falls back to the aliases.
+
+        Args:
+            pt_path: Path of the ``.pt`` weight.
+
+        Returns:
+            ``{normalised name: role token}`` or ``None``.
+        """
+        if not pt_path:
+            return None
+        sibling = Path(pt_path).with_suffix(".json")
+        if not sibling.is_file():
+            return None
+        try:
+            payload = json.loads(sibling.read_text(encoding="utf-8"))
+        except (OSError, ValueError) as e:
+            log.warning("weights.sibling_json.unreadable", path=str(sibling), error=str(e))
+            return None
+        raw = payload.get("class_roles") if isinstance(payload, dict) else None
+        if raw is None:
+            return None
+        parsed = parse_class_roles(raw)
+        if parsed is None:
+            log.warning("weights.sibling_json.invalid_class_roles", path=str(sibling), roles=raw)
+            return None
+        log.info("weights.sibling_json.class_roles_imported", path=str(sibling))
+        return {name: role.value for name, role in parsed.items()}
+
+    def set_weight_class_roles(self, name: str, class_roles: dict[str, str] | None) -> bool:
+        """Store (or clear, with ``None``) the class roles of a registered weight.
+
+        Args:
+            name: Weight name in the registry.
+            class_roles: ``{class name: role token}``; ``None`` removes the key.
+
+        Returns:
+            ``True`` when stored; ``False`` for an unknown weight or an invalid map.
+        """
+        details = self.weights.get(name)
+        if details is None:
+            log.warning("weights.class_roles.unknown_weight", name=name)
+            return False
+        if class_roles is None:
+            details.pop("class_roles", None)
+        else:
+            parsed = parse_class_roles(class_roles)
+            if parsed is None:
+                log.warning("weights.class_roles.invalid", name=name, roles=class_roles)
+                return False
+            details["class_roles"] = {key: role.value for key, role in parsed.items()}
+        self.save_weights()
+        log.info("weights.class_roles.saved", name=name, roles=details.get("class_roles"))
+        return True
+
+    def get_weight_sha256(self, name: str) -> str:
+        """sha256 of a registered weight's ``.pt`` (``""`` when unknown or missing)."""
+        details = self.weights.get(name)
+        if not details:
+            return ""
+        return self.sha256_for_path(details.get("path", ""))
+
+    def sha256_for_path(self, path: Path | str) -> str:
+        """sha256 of a weight file, memoised by ``(path, size, mtime)``.
+
+        Args:
+            path: Path of the weight file.
+
+        Returns:
+            Hex digest, or ``""`` when the file does not exist.
+        """
+        if not path:
+            return ""
+        try:
+            stat_result = os.stat(path)
+        except OSError:
+            return ""
+        key = os.path.abspath(path)
+        cached = self._sha256_cache.get(key)
+        if cached and cached[0] == stat_result.st_size and cached[1] == stat_result.st_mtime_ns:
+            return cached[2]
+        digest = calculate_sha256(path)
+        if digest:
+            self._sha256_cache[key] = (stat_result.st_size, stat_result.st_mtime_ns, digest)
+        return digest
+
+    def openvino_cache_dir(self, name: str, *, int8: bool = False) -> str | None:
+        """Cache folder an export of this weight belongs in (it may not exist yet).
+
+        ``<stem>_<sha8>_openvino_model`` (``..._openvino_int8_model`` for INT8):
+        the weight's own sha256 is part of the name, so a retrained weight saved
+        under the same file name gets a NEW folder instead of the old export.
+
+        Args:
+            name: Weight name in the registry.
+            int8: The INT8-quantised export instead of the FP16 one.
+
+        Returns:
+            Absolute folder path, or ``None`` for an unknown weight.
+        """
+        details = self.weights.get(name)
+        if not details:
+            return None
+        suffix = "_openvino_int8_model" if int8 else "_openvino_model"
+        stem = os.path.splitext(os.path.basename(details.get("path", "") or name))[0]
+        sha = self.get_weight_sha256(name)
+        tag = f"_{sha[:OPENVINO_CACHE_SHA_CHARS]}" if sha else ""
+        return os.path.abspath(
+            os.path.join(self.config_dir, OPENVINO_CACHE_DIR, f"{stem}{tag}{suffix}")
+        )
+
+    def openvino_cache_is_current(self, name: str, *, int8: bool = False) -> bool:
+        """Whether the export the registry points at is provably of this ``.pt``.
+
+        ``openvino_status == "ready"`` only says an export once succeeded. A
+        7.2 registry points at ``<stem>_openvino_model`` folders that recorded
+        no source sha, and a retrained weight saved under the same name would
+        keep serving the OLD export. Callers about to load the export check
+        this first and re-convert when it is ``False``.
+
+        Args:
+            name: Weight name in the registry.
+            int8: Check the INT8 export instead of the FP16 one.
+
+        Returns:
+            ``True`` only when the recorded path is the export of the current file.
+        """
+        details = self.weights.get(name)
+        if not details:
+            return False
+        recorded = details.get("openvino_int8_path" if int8 else "openvino_path")
+        if not recorded or not os.path.isdir(recorded):
+            return False
+        reusable = self._reusable_openvino_cache(name, int8=int8)
+        if reusable is None:
+            return False
+        return os.path.normcase(os.path.abspath(recorded)) == os.path.normcase(reusable)
+
+    def _reusable_openvino_cache(self, name: str, *, int8: bool) -> str | None:
+        """An existing export that is PROVABLY of this exact weight, or ``None``.
+
+        The sha-named folder is trusted by its name. A legacy (7.2) folder
+        ``<stem>_openvino_model`` is trusted only when its ``metadata.json``
+        recorded the sha256 of the current ``.pt``; 7.2 never recorded one, so
+        its folders are re-exported once rather than risk serving a stale model.
+        """
+        cache_dir = self.openvino_cache_dir(name, int8=int8)
+        if cache_dir is None:
+            return None
+        sha = self.get_weight_sha256(name)
+        if sha and os.path.isdir(cache_dir):
+            return cache_dir
+
+        details = self.weights[name]
+        suffix = "_openvino_int8_model" if int8 else "_openvino_model"
+        stem = os.path.splitext(os.path.basename(details.get("path", "") or name))[0]
+        legacy_dir = os.path.join(self.config_dir, OPENVINO_CACHE_DIR, f"{stem}{suffix}")
+        if not os.path.isdir(legacy_dir):
+            return None
+        recorded = ""
+        try:
+            with open(os.path.join(legacy_dir, "metadata.json"), encoding="utf-8") as f:
+                metadata = json.load(f)
+            if isinstance(metadata, dict):
+                recorded = str(metadata.get(OPENVINO_SOURCE_SHA_KEY, ""))
+        except (OSError, ValueError):
+            recorded = ""
+        if sha and recorded == sha:
+            return os.path.abspath(legacy_dir)
+        log.warning(
+            "openvino.cache.legacy_rejected",
+            name=name,
+            path=legacy_dir,
+            recorded_sha=recorded or None,
+            weight_sha=sha or None,
+            message="Legacy OpenVINO export is not provably of this weight; re-exporting.",
+        )
+        return None
 
     def _maybe_relocate_path(self, weight_name: str, current_path: Path | str) -> str | None:
         """Return a relocated absolute path if the weight now lives in `weights_dir`.
@@ -1403,17 +1623,17 @@ class WeightManager:
             return None
 
         pt_path = details["path"]
-        base_model_name = os.path.splitext(os.path.basename(pt_path))[0]
-        cached_model_dir_name = f"{base_model_name}_openvino_model"
+        source_sha = self.get_weight_sha256(name)
 
         # The cache should be relative to the manager's config directory
         openvino_base_cache_dir = os.path.join(self.config_dir, OPENVINO_CACHE_DIR)
-        cached_model_dir = os.path.join(openvino_base_cache_dir, cached_model_dir_name)
+        cached_model_dir = self.openvino_cache_dir(name) or ""
 
-        if os.path.exists(cached_model_dir):
-            log.info("openvino.cache.found", path=cached_model_dir)
+        reusable = self._reusable_openvino_cache(name, int8=False)
+        if reusable is not None:
+            log.info("openvino.cache.found", path=reusable)
             # Ensure the path is absolute for consistency
-            details["openvino_path"] = os.path.abspath(cached_model_dir)
+            details["openvino_path"] = os.path.abspath(reusable)
             details["openvino_status"] = OPENVINO_STATUS_READY
             details["last_conversion_error"] = None
             self.save_weights()
@@ -1475,6 +1695,7 @@ class WeightManager:
                         "Converted segmentation model (class names extracted from the model)"
                     ),
                     "original_model": os.path.basename(pt_path),
+                    OPENVINO_SOURCE_SHA_KEY: source_sha,
                     "conversion_date": time.strftime("%Y-%m-%d %H:%M:%S"),
                 }
             else:  # det
@@ -1488,6 +1709,7 @@ class WeightManager:
                         "Converted detection model (class names extracted from the model)"
                     ),
                     "original_model": os.path.basename(pt_path),
+                    OPENVINO_SOURCE_SHA_KEY: source_sha,
                     "conversion_date": time.strftime("%Y-%m-%d %H:%M:%S"),
                 }
 
@@ -1583,15 +1805,15 @@ class WeightManager:
             return None
 
         pt_path = details["path"]
-        base_model_name = os.path.splitext(os.path.basename(pt_path))[0]
-        cached_model_dir_name = f"{base_model_name}_openvino_int8_model"
+        source_sha = self.get_weight_sha256(name)
 
         openvino_base_cache_dir = os.path.join(self.config_dir, OPENVINO_CACHE_DIR)
-        cached_model_dir = os.path.join(openvino_base_cache_dir, cached_model_dir_name)
+        cached_model_dir = self.openvino_cache_dir(name, int8=True) or ""
 
-        if os.path.exists(cached_model_dir):
-            log.info("openvino.int8_cache.found", path=cached_model_dir)
-            details["openvino_int8_path"] = os.path.abspath(cached_model_dir)
+        reusable = self._reusable_openvino_cache(name, int8=True)
+        if reusable is not None:
+            log.info("openvino.int8_cache.found", path=reusable)
+            details["openvino_int8_path"] = os.path.abspath(reusable)
             details["openvino_int8_status"] = OPENVINO_STATUS_READY
             self.save_weights()
             return details["openvino_int8_path"]
@@ -1639,6 +1861,7 @@ class WeightManager:
                 "quantization": "INT8",
                 "description": f"Converted {weight_type} model with INT8 quantisation",
                 "original_model": os.path.basename(pt_path),
+                OPENVINO_SOURCE_SHA_KEY: source_sha,
                 "conversion_date": time.strftime("%Y-%m-%d %H:%M:%S"),
             }
 

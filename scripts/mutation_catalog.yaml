@@ -238,6 +238,26 @@ modules:
         description: "sufixo _oi.pt deixa de classificar como det"
         find: 'if filename_lower.endswith("_oi.pt"):'
         replace: 'if filename_lower.endswith("_oiXX.pt"):'
+      - id: legacy-openvino-cache-without-sha-check
+        description: "pasta OpenVINO legada da 7.2 e reaproveitada sem conferir o sha do .pt"
+        find: 'if sha and recorded == sha:'
+        replace: 'if sha:'
+      - id: openvino-cache-name-without-sha
+        description: "pasta do cache OpenVINO deixa de levar o sha do peso no nome"
+        find: 'tag = f"_{sha[:OPENVINO_CACHE_SHA_CHARS]}" if sha else ""'
+        replace: 'tag = ""'
+      - id: registry-points-anywhere-is-current
+        description: "qualquer pasta registrada passa como export atual do peso"
+        find: 'return os.path.normcase(os.path.abspath(recorded)) == os.path.normcase(reusable)'
+        replace: 'return True'
+      - id: sibling-json-overwrites-registry-roles
+        description: "o JSON irmao do .pt sobrescreve class_roles ja gravados no registro"
+        find: 'if "class_roles" not in details:'
+        replace: 'if True:'
+      - id: sha-cache-ignores-replaced-file
+        description: "peso substituido no disco continua com o sha antigo em memoria"
+        find: 'if cached and cached[0] == stat_result.st_size and cached[1] == stat_result.st_mtime_ns:'
+        replace: 'if cached:'
 
   live_calibration_scale:
     source: src/zebtrack/core/services/live_calibration_scale.py
