@@ -1360,3 +1360,45 @@ modules:
         description: "sink que falha engole o evento em vez de cair no controlador"
         find: 'consumed = False'
         replace: 'consumed = True'
+
+  condition_runtime:
+    source: src/zebtrack/core/recording/condition_runtime.py
+    tests:
+      - tests/core/recording/test_condition_runtime.py
+    mutations:
+      - id: clock-origin-ignored
+        description: "t_s deixa de ser medido a partir da ancora do ledger"
+        find: 't_s=float(t_capture_perf) - origin,'
+        replace: 't_s=float(t_capture_perf),'
+      - id: event-delivered-before-its-frame
+        description: "evento externo entregue a um quadro capturado ANTES do aperto"
+        find: 'due = [item for item in self._pending if item[0] <= t_capture_perf]'
+        replace: 'due = list(self._pending)'
+      - id: mark-ends-session
+        description: "on_stop=mark passa a encerrar a sessao"
+        find: 'and self._spec.on_stop == "end_session"'
+        replace: 'and True'
+      - id: finish-ends-session
+        description: "o fim do fluxo pede de novo o encerramento da sessao"
+        find: 'and not from_finish'
+        replace: 'and True'
+      - id: claims-every-source
+        description: "o runtime reclama codigos do Arduino que a janela nao espera"
+        find: 'return self.offer_external("manual", None, stamp)'
+        replace: 'self.offer_external("manual", None, stamp); return True'
+      - id: listens-ignored
+        description: "offer_external reclama qualquer fonte"
+        find: |-
+          self._inbox.put((source, None if code is None else int(code), float(t_perf)))
+                  return self.listens_to(source)
+        replace: |-
+          self._inbox.put((source, None if code is None else int(code), float(t_perf)))
+                  return True
+      - id: undelivered-events-dropped
+        description: "eventos externos nao entregues somem do artefato"
+        find: 'self._seen.append(item)'
+        replace: 'pass'
+      - id: start-not-met-hidden
+        description: "inicio nunca atingido aparece como aguardando"
+        find: 'WindowPhase.START_NOT_MET if self._evaluator.finished else WindowPhase.WAITING_START'
+        replace: 'WindowPhase.WAITING_START'
