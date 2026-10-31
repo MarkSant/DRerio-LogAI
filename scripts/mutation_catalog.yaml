@@ -1063,3 +1063,112 @@ modules:
         description: "salvar template deixa de gravar a janela de analise"
         find: '"analysis_window": deepcopy(wizard_data.get("analysis_window")),'
         replace: '"analysis_window": None,'
+
+  object_capture:
+    source: src/zebtrack/core/services/object_capture.py
+    tests:
+      - tests/core/services/test_object_capture.py
+    mutations:
+      - id: no-settings-captures
+        description: "settings None passa a gravar o sidecar 3c"
+        find: |-
+          if settings_obj is None:
+                  return False
+        replace: |-
+          if settings_obj is None:
+                  return True
+      - id: kill-switch-ignored
+        description: "recorder.persist_object_sidecar=False deixa de desligar o sidecar 3c"
+        find: 'return isinstance(flag, bool) and flag'
+        replace: 'return isinstance(flag, bool)'
+      - id: mock-flag-accepted
+        description: "flag que nao e bool (MagicMock, string) passa a ligar o sidecar"
+        find: 'return isinstance(flag, bool) and flag'
+        replace: 'return bool(flag)'
+
+  object_sidecar:
+    source: src/zebtrack/io/object_sidecar.py
+    tests:
+      - tests/io/test_object_sidecar.py
+    mutations:
+      - id: shared-context-only-first-aquarium
+        description: "contexto fora de qualquer aquario vai so para o aquario 0"
+        find: 'parts[aquarium_id].append({**item, "aquarium_id": None})'
+        replace: 'parts[ordered_ids[0]].append({**item, "aquarium_id": None})'
+      - id: subject-follows-the-crop
+        description: "sujeito visto pelo recorte vizinho e gravado no aquario errado"
+        find: 'if owner is None and item.get("aquarium_id") in parts:'
+        replace: 'if item.get("aquarium_id") in parts:'
+      - id: cross-crop-duplicates-kept
+        description: "a mesma mao vista por dois recortes conta duas vezes"
+        find: 'and _iou(box, other_box) >= _DUPLICATE_CONTEXT_IOU'
+        replace: 'and False'
+      - id: duplicate-keeps-the-weaker
+        description: "na duplicata fica a deteccao de menor confianca"
+        find: 'if float(item.get("confidence") or 0.0) > float(best.get("confidence") or 0.0):'
+        replace: 'if False:'
+      - id: newer-schema-accepted
+        description: "sidecar de schema futuro e lido como se fosse v1"
+        find: 'if version != OBJECTS_SCHEMA_VERSION:'
+        replace: 'if version is None:'
+      - id: column-order-not-checked
+        description: "sidecar com colunas fora de ordem ou faltando e aceito"
+        find: 'if names[: len(OBJECT_COLUMNS)] != list(OBJECT_COLUMNS):'
+        replace: 'if not names:'
+      - id: sidecar-set-by-prefix-glob
+        description: "o conjunto de um sujeito arrasta o de outro sujeito com nome prefixo"
+        find: 'candidate = folder / f"{prefix}{base}{suffix}"'
+        replace: 'candidate = next(folder.glob(f"{prefix}{base}*{suffix}"), folder / "_")'
+
+  recorder_object_sidecar:
+    source: src/zebtrack/io/recorder.py
+    tests:
+      - tests/test_recorder.py
+    mutations:
+      - id: heartbeat-only-with-detections
+        description: "frame processado sem deteccao fica sem batimento no 3c"
+        find: 'rows = [heartbeat]'
+        replace: 'rows = [heartbeat] if observations else []'
+      - id: calibration-applied-to-3c
+        description: "o 3c passa a gravar coordenadas calibradas em vez de pixel cru"
+        find: 'x1, y1, x2, y2 = (float(v) for v in bbox)  # type: ignore[union-attr]'
+        replace: 'x1, y1, x2, y2 = (self.calibration.transform_bbox(*(float(v) for v in bbox)) if self.calibration else tuple(float(v) for v in bbox))  # type: ignore[union-attr]'
+      - id: stale-sidecars-kept
+        description: "start_recording deixa de apagar 3b/3c/7_ antigos da mesma base"
+        find: 'self._remove_stale_sidecars()'
+        replace: 'pass'
+      - id: stale-masks-kept
+        description: "o 3b_Mascaras antigo volta a ser reaproveitado no reprocessamento"
+        find: 'folder / f"{MASK_SIDECAR_PREFIX}{self.base_name}.parquet",'
+        replace: 'folder / f"{MASK_SIDECAR_PREFIX}{self.base_name}.keep",'
+      - id: kill-switch-ignored
+        description: "persist_object_sidecar desligado ainda grava o 3c"
+        find: |-
+          if self._persist_objects
+                      else ""
+        replace: |-
+          if True
+                      else ""
+      - id: partial-file-kept-on-failure
+        description: "falha de escrita deixa um 3c truncado no disco"
+        find: 'Path(path).unlink(missing_ok=True)'
+        replace: 'None'
+      - id: keeps-writing-after-failure
+        description: "depois da falha o sidecar volta a ser gravado, com buraco no meio"
+        find: 'self._object_sidecar_failed = True'
+        replace: 'self._object_sidecar_failed = False'
+      - id: sub-recorders-lose-metadata
+        description: "multi-aquario grava o 3c de cada aquario sem os metadados do peso"
+        find: |-
+          calibration=aq_calibration,
+                              object_metadata=object_metadata,
+        replace: |-
+          calibration=aq_calibration,
+      - id: heartbeat-without-aquarium
+        description: "batimento do sub-recorder sai sem aquarium_id"
+        find: '"aquarium_id": aquarium_id if aquarium_id is not None else self._aquarium_id,'
+        replace: '"aquarium_id": None,'
+      - id: clock-not-inferred
+        description: "sessao ao vivo sem metadados explicitos declara relogio pts"
+        find: 'clock=CLOCK_PTS if is_video_file else CLOCK_CAPTURE'
+        replace: 'clock=CLOCK_PTS'

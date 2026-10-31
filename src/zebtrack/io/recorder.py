@@ -1,6 +1,8 @@
+import math
 import os
 import threading
 import time
+from collections.abc import Iterable, Mapping
 from pathlib import Path
 from types import TracebackType
 from typing import TYPE_CHECKING, Any, FrozenSet  # noqa: UP035
@@ -14,6 +16,18 @@ from pyarrow import parquet as pq
 
 from zebtrack.constants import DEFAULT_FLUSH_INTERVAL_SECONDS, DEFAULT_FLUSH_ROW_THRESHOLD
 from zebtrack.core.detection import ZoneData
+from zebtrack.io.object_sidecar import (
+    ANALYSIS_WINDOW_PREFIX,
+    CLOCK_CAPTURE,
+    CLOCK_PTS,
+    HEARTBEAT_CLASS_ID,
+    HEARTBEAT_ROLE,
+    MASK_SIDECAR_PREFIX,
+    ObjectSidecarMetadata,
+    build_object_table,
+    object_sidecar_name,
+    partition_object_observations,
+)
 from zebtrack.utils.validation import validate_calibration
 
 if TYPE_CHECKING:
@@ -124,6 +138,22 @@ class Recorder:
         self._mask_parquet_writer: pq.ParquetWriter | None = None
         self._mask_parquet_filename: str = ""
 
+        # ------------------------------------------------------------------
+        # Object sidecar (``3c_Objetos_<base>.parquet``, ADR-010)
+        # ------------------------------------------------------------------
+        # One heartbeat row per processed frame plus one row per subject /
+        # context detection, for the analysis-window conditions. Separate file
+        # for the same reason as the masks: the trajectory schema is immutable
+        # and stays "subjects only" by construction.
+        self._persist_objects: bool = False
+        self._object_data: list[dict[str, Any]] = []
+        self._object_parquet_writer: pq.ParquetWriter | None = None
+        self._object_parquet_filename: str = ""
+        self._object_metadata: ObjectSidecarMetadata = ObjectSidecarMetadata()
+        # Set after a write failure: the partial file was removed and the rest
+        # of the session writes no sidecar (see ``_abandon_object_sidecar``).
+        self._object_sidecar_failed: bool = False
+
         # Multi-aquarium support (Phase 7)
         self._multi_aquarium_mode: bool = False
         self._aquarium_recorders: dict[int, Recorder] = {}
@@ -165,6 +195,12 @@ class Recorder:
             self._persist_masks = bool(
                 getattr(recorder_settings, "persist_masks", False) if recorder_settings else False
             )
+
+            # Lazy: ``core.services`` is a heavy package and this module is
+            # itself lazy-loaded by ``RecorderFactory``. One rule, decided once.
+            from zebtrack.core.services.object_capture import should_capture_objects
+
+            self._persist_objects = should_capture_objects(settings_obj)
 
             # Store fps from settings
             if hasattr(settings_obj, "video_processing"):
@@ -266,9 +302,14 @@ class Recorder:
         pixel_per_cm_ratio=None,
         base_name: str | None = None,
         calibration=None,
+        object_metadata: ObjectSidecarMetadata | None = None,
     ):
         """
         Prepares and starts a new recording session.
+
+        Stale ``3b_Mascaras_``, ``3c_Objetos_`` and ``7_AnalysisWindow_`` files
+        of the same base are deleted first: they describe a previous run, and a
+        reader would join them with this run's trajectory.
 
         Args:
             output_folder (str): The folder where files will be saved.
@@ -281,7 +322,13 @@ class Recorder:
                 If None, it's derived from the output_folder.
             calibration (Calibration, optional): Calibration object for perspective
                 transformation. Required to transform detection coordinates from
-                original video space to warped space before saving.
+                original video space to warped space before saving. Never
+                applied to the object sidecar, which stays in raw pixels.
+            object_metadata (ObjectSidecarMetadata, optional): Key-value metadata
+                of the ``3c_Objetos_`` sidecar (class names and roles, weight
+                sha256, clock, cadence). Without it the sidecar still records,
+                with empty class fields and the clock inferred from the
+                pipeline: ``pts`` for a video file, ``capture_perf`` otherwise.
 
         Returns:
             bool: True if recording started successfully, False otherwise.
@@ -324,6 +371,20 @@ class Recorder:
         self._mask_parquet_filename = (
             os.path.join(self.output_folder, f"3b_Mascaras_{self.base_name}.parquet")
             if self._persist_masks
+            else ""
+        )
+        # Object sidecar: same lazy-writer policy as the masks.
+        self._remove_stale_sidecars()
+        with self._data_lock:
+            self._object_data = []
+        self._object_parquet_writer = None
+        self._object_sidecar_failed = False
+        self._object_metadata = object_metadata or ObjectSidecarMetadata(
+            clock=CLOCK_PTS if is_video_file else CLOCK_CAPTURE
+        )
+        self._object_parquet_filename = (
+            os.path.join(self.output_folder, object_sidecar_name(self.base_name))
+            if self._persist_objects
             else ""
         )
         self._last_flush_time = time.time()
@@ -479,6 +540,7 @@ class Recorder:
             try:
                 self._flush_detection_data()
                 self._flush_mask_data()
+                self._flush_object_data()
             # except Exception justified: long-running worker, never crash recorder
             except Exception as exc:  # pragma: no cover - defensive
                 log.error("recorder.flush_loop.error", error=str(exc), exc_info=True)
@@ -487,6 +549,7 @@ class Recorder:
             try:
                 self._flush_detection_data(force=True)
                 self._flush_mask_data(force=True)
+                self._flush_object_data(force=True)
             # except Exception justified: final drain best-effort
             except Exception as exc:  # pragma: no cover - defensive
                 log.error(
@@ -556,13 +619,17 @@ class Recorder:
             # e sem isto o sidecar sairia truncado no último bloco.
             self._flush_mask_data(force=True)
             self._close_mask_writer()
+            self._flush_object_data(force=True)
+            self._close_object_writer()
         else:
             # If forcing stop due to an error, just close writers and clear buffers.
             self._close_parquet_writer()
             self._close_mask_writer()
+            self._close_object_writer()
             with self._data_lock:
                 self.detection_data.clear()
                 self._mask_data.clear()
+                self._object_data.clear()
             message = reason or "Error during recording."
             if reason and reason.lower().startswith("cancel"):
                 log.info("recorder.stop.forced", reason=message)
@@ -589,6 +656,7 @@ class Recorder:
         calibration: Any = None,
         calibration_by_aquarium: dict[int, Any] | None = None,
         output_folders_by_aquarium: dict[int, str] | None = None,
+        object_metadata: ObjectSidecarMetadata | None = None,
     ) -> bool:
         """
         Start recording for multiple aquariums with separate output folders.
@@ -621,6 +689,8 @@ class Recorder:
             calibration_by_aquarium: Optional dict mapping aquarium_id to Calibration.
             output_folders_by_aquarium: Optional dict mapping aquarium_id to output folder path.
                 If provided, uses these paths instead of creating aquarium_N subfolders.
+            object_metadata: Metadata of every aquarium's ``3c_Objetos_`` sidecar
+                (one weight, one clock: the same for all of them).
 
         Returns:
             True if all recordings started successfully, False otherwise.
@@ -683,6 +753,7 @@ class Recorder:
                     pixel_per_cm_ratio=aq_ratio,
                     base_name=aq_base_name,
                     calibration=aq_calibration,
+                    object_metadata=object_metadata,
                 )
 
                 if success:
@@ -750,6 +821,41 @@ class Recorder:
                     aquarium_id=aq_id,
                     known_ids=list(self._aquarium_recorders.keys()),
                 )
+
+    def write_partitioned_object_data(
+        self,
+        timestamp: float,
+        frame_number: int,
+        t_event_s: float,
+        observations: Iterable[Mapping[str, Any]],
+        aquarium_polygons: Mapping[int, Any],
+    ) -> None:
+        """Write one processed frame's object rows to every aquarium's sidecar.
+
+        Every aquarium gets its heartbeat. Subject rows go to their own
+        aquarium; context rows to the aquarium containing their centroid, or to
+        ALL of them with ``aquarium_id = None`` when they lie in none (see
+        :func:`~zebtrack.io.object_sidecar.partition_object_observations`).
+
+        Args:
+            timestamp: Same value as the trajectory's ``timestamp``.
+            frame_number: Same value as the trajectory's ``frame``.
+            t_event_s: Event clock of the frame (PTS pre-recorded).
+            observations: ``pop_class_observations()`` of the frame.
+            aquarium_polygons: ``{aquarium_id: polygon}`` in frame pixels.
+
+        Raises:
+            RuntimeError: If not in multi-aquarium mode.
+        """
+        if not self._multi_aquarium_mode:
+            raise RuntimeError("Recorder not in multi-aquarium mode")
+
+        polygons = {aq_id: aquarium_polygons.get(aq_id, []) for aq_id in self._aquarium_recorders}
+        parts = partition_object_observations(list(observations), polygons)
+        for aq_id, recorder in self._aquarium_recorders.items():
+            recorder.write_object_data(
+                timestamp, frame_number, t_event_s, parts.get(aq_id, []), aquarium_id=aq_id
+            )
 
     def write_video_frame_multi_aquarium(
         self,
@@ -1132,6 +1238,236 @@ class Recorder:
             log.error("recorder.masks.writer_close_error", path=path, error=str(exc))
         finally:
             self._mask_parquet_writer = None
+
+    # =========================================================================
+    # Object sidecar (``3c_Objetos_<base>.parquet``, ADR-010)
+    # =========================================================================
+
+    @property
+    def persist_object_sidecar(self) -> bool:
+        """Whether this recorder writes the ``3c_Objetos_`` sidecar."""
+        return self._persist_objects
+
+    @property
+    def object_parquet_filename(self) -> str:
+        """Path of the object sidecar; empty string when it is switched off."""
+        return self._object_parquet_filename
+
+    def write_object_data(
+        self,
+        timestamp: float,
+        frame_number: int,
+        t_event_s: float,
+        observations: Iterable[Mapping[str, Any]],
+        *,
+        aquarium_id: int | None = None,
+    ) -> None:
+        """Queue one PROCESSED frame for the object sidecar.
+
+        Always writes the frame's heartbeat (``class_id = -1``, ``role =
+        "frame"``, no bbox), then one row per observation. Call it for every
+        processed frame, including frames with no detection at all: the
+        heartbeat is what distinguishes "nothing there" from "not processed".
+
+        Args:
+            timestamp: Same value as the trajectory's ``timestamp``.
+            frame_number: Same value as the trajectory's ``frame``.
+            t_event_s: Event clock of the frame (PTS pre-recorded, capture
+                clock live).
+            observations: ``pop_class_observations()`` items: ``class_id``,
+                ``class_name``, ``role``, ``bbox`` (full-frame RAW pixels),
+                ``confidence``, ``aquarium_id`` and optionally ``track_id``.
+                Malformed items are skipped, never fatal.
+            aquarium_id: ``aquarium_id`` of the heartbeat; defaults to this
+                recorder's aquarium (``None`` single-aquarium).
+
+        No-op when the sidecar is off or failed, or when recording is not
+        active or paused (the same gates as the trajectory).
+        """
+        if not self._persist_objects or not self._object_parquet_filename:
+            return
+        if self._object_sidecar_failed or not self.is_recording or self._is_paused:
+            return
+
+        frame = int(frame_number)
+        ts = float(timestamp)
+        t_event = float(t_event_s)
+        heartbeat = {
+            "frame": frame,
+            "timestamp": ts,
+            "t_event_s": t_event,
+            "class_id": HEARTBEAT_CLASS_ID,
+            "class_name": None,
+            "role": HEARTBEAT_ROLE,
+            "x1": None,
+            "y1": None,
+            "x2": None,
+            "y2": None,
+            "confidence": None,
+            "track_id": None,
+            "aquarium_id": aquarium_id if aquarium_id is not None else self._aquarium_id,
+        }
+        rows = [heartbeat]
+        for observation in observations:
+            row = self._object_row(frame, ts, t_event, observation)
+            if row is not None:
+                rows.append(row)
+
+        with self._data_lock:
+            self._object_data.extend(rows)
+            # Same ceiling as the trajectory buffer.
+            if len(self._object_data) > self._max_buffer_rows:
+                dropped = len(self._object_data) - self._max_buffer_rows
+                self._object_data = self._object_data[-self._max_buffer_rows :]
+                log.warning("recorder.object_sidecar.buffer_capped", dropped_rows=dropped)
+            buffered = len(self._object_data)
+
+        if buffered < self._flush_row_threshold:
+            return
+        if self._flush_thread is not None and self._flush_thread.is_alive():
+            self._flush_signal.set()
+        else:
+            self._flush_object_data()
+
+    def _object_row(
+        self, frame: int, timestamp: float, t_event_s: float, observation: Mapping[str, Any]
+    ) -> dict[str, Any] | None:
+        """One observation as a sidecar row; ``None`` when it is malformed."""
+        bbox = observation.get("bbox")
+        try:
+            class_id = int(observation["class_id"])
+            # RAW pixels on purpose: ``self.calibration`` is never applied here.
+            x1, y1, x2, y2 = (float(v) for v in bbox)  # type: ignore[union-attr]
+        except (KeyError, TypeError, ValueError):
+            log.debug("recorder.object_sidecar.invalid_observation", observation=observation)
+            return None
+        if not all(math.isfinite(v) for v in (x1, y1, x2, y2)):
+            log.debug("recorder.object_sidecar.invalid_observation", observation=observation)
+            return None
+        confidence = observation.get("confidence")
+        raw_aquarium = observation.get("aquarium_id")
+        return {
+            "frame": frame,
+            "timestamp": timestamp,
+            "t_event_s": t_event_s,
+            "class_id": class_id,
+            "class_name": str(observation.get("class_name") or class_id),
+            "role": str(observation.get("role") or ""),
+            "x1": x1,
+            "y1": y1,
+            "x2": x2,
+            "y2": y2,
+            "confidence": None if confidence is None else float(confidence),
+            "track_id": self._normalise_track_id(observation.get("track_id")),
+            "aquarium_id": None if raw_aquarium is None else int(raw_aquarium),
+        }
+
+    def _flush_object_data(self, force: bool = False) -> None:
+        """Drain the object buffer to the sidecar.
+
+        Runs on the SAME flush thread as the trajectory and the masks, so the
+        non-thread-safe writer is only ever touched by one thread.
+        """
+        if not self._persist_objects or not self._object_parquet_filename:
+            return
+        if self._object_sidecar_failed:
+            return
+
+        with self._data_lock:
+            if not self._object_data:
+                return
+            if not force and len(self._object_data) < self._flush_row_threshold:
+                return
+            snapshot = list(self._object_data)
+            self._object_data.clear()
+
+        try:
+            table = build_object_table(snapshot, self._object_metadata)
+            if self._object_parquet_writer is None:
+                self._object_parquet_writer = pq.ParquetWriter(
+                    self._object_parquet_filename,
+                    table.schema,
+                    compression=self._parquet_compression,
+                )
+                log.info(
+                    "recorder.object_sidecar.writer_created",
+                    path=self._object_parquet_filename,
+                )
+            self._object_parquet_writer.write_table(table)
+            log.debug("recorder.object_sidecar.flush.success", rows=table.num_rows)
+        # except Exception justified: the sidecar is optional and this runs in
+        # the recording loop; Arrow/IO raise heterogeneous types. Losing the
+        # trajectory because of it would lose the irreplaceable data.
+        except Exception as exc:
+            self._abandon_object_sidecar(exc)
+
+    def _abandon_object_sidecar(self, exc: BaseException) -> None:
+        """Degrade after a write failure: no sidecar beats a truncated one.
+
+        A sidecar that stops mid-session reads as "the remaining frames were
+        never processed" (and the time base would end there), so the partial
+        file is removed and the rest of the session writes none. Readers then
+        fall back exactly as for a session recorded without the sidecar.
+        """
+        path = self._object_parquet_filename
+        log.warning(
+            "recorder.object_sidecar.write_failed",
+            path=path,
+            error=str(exc),
+            exc_info=True,
+        )
+        self._object_sidecar_failed = True
+        with self._data_lock:
+            self._object_data.clear()
+        self._close_object_writer()
+        try:
+            Path(path).unlink(missing_ok=True)
+        except OSError as unlink_error:
+            log.warning(
+                "recorder.object_sidecar.partial_remove_failed",
+                path=path,
+                error=str(unlink_error),
+            )
+
+    def _close_object_writer(self) -> None:
+        """Close the sidecar writer (best effort)."""
+        if self._object_parquet_writer is None:
+            return
+        path = self._object_parquet_filename
+        try:
+            self._object_parquet_writer.close()
+            log.info("recorder.object_sidecar.writer_closed", path=path)
+        except Exception as exc:  # pragma: no cover - best effort close
+            log.error("recorder.object_sidecar.writer_close_error", path=path, error=str(exc))
+        finally:
+            self._object_parquet_writer = None
+
+    def _remove_stale_sidecars(self) -> None:
+        """Delete ``3b_``/``3c_``/``7_`` files left by a previous run of this base.
+
+        Reprocessing reuses the folder and the base name. A mask sidecar from
+        the previous run was joined by ``(frame, track_id)`` with the new
+        trajectory (AUDIT § 1); an old object sidecar or analysis-window
+        artifact would be just as wrong. Runs whatever the persistence flags
+        say: a sidecar this run does NOT write is precisely the stale one.
+        """
+        folder = Path(self.output_folder)
+        for path in (
+            folder / f"{MASK_SIDECAR_PREFIX}{self.base_name}.parquet",
+            folder / object_sidecar_name(self.base_name),
+            folder / f"{ANALYSIS_WINDOW_PREFIX}{self.base_name}.json",
+        ):
+            if not path.exists():
+                continue
+            try:
+                path.unlink()
+                log.info("recorder.start.stale_sidecar_removed", path=str(path))
+            except OSError as exc:
+                log.warning(
+                    "recorder.start.stale_sidecar_remove_failed",
+                    path=str(path),
+                    error=str(exc),
+                )
 
     @staticmethod
     def _normalise_track_id(value: Any) -> int | None:
