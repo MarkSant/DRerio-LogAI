@@ -1190,3 +1190,17 @@ modules:
         description: "metadado weight_sha256 deixa de ser o do arquivo carregado pelo worker"
         find: 'weight_sha256=self.config.weight_sha256 or None,'
         replace: 'weight_sha256=None,'
+
+  parquet_import_sidecars:
+    source: src/zebtrack/core/project/parquet_io_manager.py
+    tests:
+      - tests/test_parquet_import.py
+    mutations:
+      - id: sidecars-left-behind
+        description: "importar a trajetoria volta a deixar 3b/3c/6/7 para tras"
+        find: 'shutil.copy2(src, dest)'
+        replace: 'pass'
+      - id: stale-sidecars-kept
+        description: "3c/7_ da trajetoria sobrescrita ficam ao lado da importada"
+        find: 'stale.unlink()'
+        replace: 'None'
