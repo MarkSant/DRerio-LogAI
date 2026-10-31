@@ -352,7 +352,7 @@ modules:
         description: "passe de baixa confianca volta a aceitar mascara de qualquer classe"
         find: |-
           results_all = self.model.predict(
-                          frame, verbose=False, classes=[0], conf=fallback_confidence
+                          frame, verbose=False, classes=[self.arena_class_id], conf=fallback_confidence
                       )
         replace: |-
           results_all = self.model.predict(
