@@ -1,0 +1,271 @@
+{
+  "project_name": "Zebrafish_CBD_2026",
+  "project_type": "pre-recorded",
+  "calibration": {
+    "num_aquariums": 1,
+    "animals_per_aquarium": 1,
+    "aquarium_width_cm": 20.0,
+    "aquarium_height_cm": 15.0
+  },
+  "use_openvino": false,
+  "openvino_device": "AUTO",
+  "active_weight": "best_det_lateral.pt",
+  "model_overrides": {
+    "active_weight": null,
+    "use_openvino": null,
+    "device": "AUTO",
+    "slot_weights": {
+      "seg:aquarium": "best_seg_lateral.pt",
+      "det:zebrafish": "best_det_lateral.pt"
+    }
+  },
+  "use_timed_recording": false,
+  "recording_duration_s": 300,
+  "session_duration_overrides": {},
+  "use_countdown": false,
+  "countdown_duration_s": 0,
+  "batches": [
+    {
+      "timestamp": "2026-09-14T10:22:31.900113",
+      "videos": [
+        {
+          "path": "D:/Lab/Zebrafish_CBD_2026/Dia_1/Controle/peixe_01.mp4",
+          "sha256": "",
+          "status": "processed",
+          "has_arena": true,
+          "has_rois": true,
+          "has_trajectory": true,
+          "has_complete_data": true,
+          "zones_finalized": true,
+          "metadata": {
+            "group": "Controle",
+            "day": 1,
+            "subject": "1",
+            "fps": 30.0,
+            "width": 1280,
+            "height": 720
+          }
+        },
+        {
+          "path": "D:/Lab/Zebrafish_CBD_2026/Dia_1/Controle/peixe_02.mp4",
+          "sha256": "",
+          "status": "processed",
+          "has_arena": true,
+          "has_rois": true,
+          "has_trajectory": true,
+          "has_complete_data": true,
+          "zones_finalized": true,
+          "metadata": {
+            "group": "Controle",
+            "day": 1,
+            "subject": "2",
+            "fps": 30.0,
+            "width": 1280,
+            "height": 720
+          }
+        },
+        {
+          "path": "D:/Lab/Zebrafish_CBD_2026/Dia_1/CBD_10mg/peixe_01.mp4",
+          "sha256": "",
+          "status": "processed",
+          "has_arena": true,
+          "has_rois": true,
+          "has_trajectory": true,
+          "has_complete_data": true,
+          "zones_finalized": true,
+          "metadata": {
+            "group": "CBD_10mg",
+            "day": 1,
+            "subject": "1",
+            "fps": 30.0,
+            "width": 1280,
+            "height": 720
+          }
+        },
+        {
+          "path": "D:/Lab/Zebrafish_CBD_2026/Dia_1/CBD_10mg/peixe_02.mp4",
+          "sha256": "",
+          "status": "processed",
+          "has_arena": true,
+          "has_rois": true,
+          "has_trajectory": true,
+          "has_complete_data": true,
+          "zones_finalized": true,
+          "metadata": {
+            "group": "CBD_10mg",
+            "day": 1,
+            "subject": "2",
+            "fps": 30.0,
+            "width": 1280,
+            "height": 720
+          }
+        },
+        {
+          "path": "D:/Lab/Zebrafish_CBD_2026/Dia_2/Controle/peixe_01.mp4",
+          "sha256": "",
+          "status": "pending",
+          "has_arena": false,
+          "has_rois": false,
+          "has_trajectory": false,
+          "has_complete_data": false,
+          "zones_finalized": false,
+          "metadata": {
+            "group": "Controle",
+            "day": 2,
+            "subject": "1",
+            "fps": 30.0,
+            "width": 1280,
+            "height": 720
+          }
+        },
+        {
+          "path": "D:/Lab/Zebrafish_CBD_2026/Dia_2/Controle/peixe_02.mp4",
+          "sha256": "",
+          "status": "pending",
+          "has_arena": false,
+          "has_rois": false,
+          "has_trajectory": false,
+          "has_complete_data": false,
+          "zones_finalized": false,
+          "metadata": {
+            "group": "Controle",
+            "day": 2,
+            "subject": "2",
+            "fps": 30.0,
+            "width": 1280,
+            "height": 720
+          }
+        },
+        {
+          "path": "D:/Lab/Zebrafish_CBD_2026/Dia_2/CBD_10mg/peixe_01.mp4",
+          "sha256": "",
+          "status": "pending",
+          "has_arena": false,
+          "has_rois": false,
+          "has_trajectory": false,
+          "has_complete_data": false,
+          "zones_finalized": false,
+          "metadata": {
+            "group": "CBD_10mg",
+            "day": 2,
+            "subject": "1",
+            "fps": 30.0,
+            "width": 1280,
+            "height": 720
+          }
+        },
+        {
+          "path": "D:/Lab/Zebrafish_CBD_2026/Dia_2/CBD_10mg/peixe_02.mp4",
+          "sha256": "",
+          "status": "pending",
+          "has_arena": false,
+          "has_rois": false,
+          "has_trajectory": false,
+          "has_complete_data": false,
+          "zones_finalized": false,
+          "metadata": {
+            "group": "CBD_10mg",
+            "day": 2,
+            "subject": "2",
+            "fps": 30.0,
+            "width": 1280,
+            "height": 720
+          }
+        }
+      ]
+    }
+  ],
+  "groups": [
+    "Controle",
+    "CBD_10mg"
+  ],
+  "num_groups": 2,
+  "experiment_days": 2,
+  "subjects_per_group": 2,
+  "last_selected_day": 1,
+  "last_selected_group": "Controle",
+  "analysis_interval_frames": 10,
+  "display_interval_frames": 10,
+  "camera_index": 0,
+  "camera_friendly_name": "",
+  "use_arduino": false,
+  "arduino_port": "",
+  "external_trigger_mode": false,
+  "preserve_real_aquarium_shape": false,
+  "tracking": {
+    "use_single_subject_tracker": true
+  },
+  "detection_zones": {},
+  "zones_by_video": {},
+  "analysis_profiles": [
+    {
+      "name": "default",
+      "description": "Default analysis profile",
+      "settings": {}
+    }
+  ],
+  "roi_templates": [],
+  "timestamp": "2026-09-14T10:22:31.512044",
+  "analysis_parameters": {},
+  "file_hash": {},
+  "videos": [],
+  "_wizard_metadata": {
+    "wizard_schema_version": 3,
+    "created_at": "2026-09-14T10:22:30.004871",
+    "has_folder_structure": true,
+    "folder_meaning": "day_group_subject",
+    "has_parquets": false,
+    "parquet_import_scope": null,
+    "detected_design": {
+      "groups": [
+        "Controle",
+        "CBD_10mg"
+      ],
+      "days": [
+        "Dia_1",
+        "Dia_2"
+      ],
+      "subjects_per_group": {
+        "Controle": [
+          "1",
+          "2"
+        ],
+        "CBD_10mg": [
+          "1",
+          "2"
+        ]
+      }
+    },
+    "scanned_videos": [],
+    "import_config": null,
+    "roi_merge_strategy": null,
+    "parquet_summary": null,
+    "video_count": 8,
+    "folder_preview": null,
+    "weight_assignments": {
+      "aquarium": "best_seg_lateral.pt",
+      "animal": "best_det_lateral.pt"
+    },
+    "detector_parameters": {
+      "confidence_threshold": 0.35,
+      "nms_threshold": 0.45,
+      "track_threshold": 0.25,
+      "match_threshold": 0.8,
+      "use_bytetrack": false,
+      "track_buffer": 30,
+      "max_center_distance": 150.0,
+      "iou_threshold": 0.3
+    },
+    "model_selection": {
+      "aquarium_method": "seg",
+      "animal_method": "det",
+      "use_openvino": false,
+      "openvino_device": "AUTO"
+    },
+    "use_openvino": false,
+    "openvino_device": "AUTO",
+    "custom_regex_patterns": null
+  },
+  "last_modified": "2026-10-31T05:47:07.874441",
+  "_integrity_hash": "bc6154f4163e6670653bf10b6b82e48e3928a69e9569ce143f7256ae114fdc7d"
+}
