@@ -463,3 +463,29 @@ modules:
         replace: |-
           context_crop_margin_frac: float = Field(
                   0.25,
+
+  conditions_model:
+    source: src/zebtrack/core/conditions/model.py
+    tests:
+      - tests/core/conditions/test_model.py
+    mutations:
+      - id: start-accepts-delay-after-start
+        description: "Delay(after=start) passa a ser aceito dentro do INICIO e a janela espera por si mesma"
+        find: 'if isinstance(node, Delay) and node.after == "start":'
+        replace: 'if False:'
+      - id: start-accepts-end-of-stream
+        description: "EndOfStream passa a ser aceito no INICIO e a janela so abriria depois do fim"
+        find: 'if isinstance(node, EndOfStream):'
+        replace: 'if False:'
+      - id: hold-accepts-both-fields
+        description: "Hold com seconds E frames passa a valer e a persistencia fica ambigua"
+        find: 'if (self.seconds is None) == (self.frames is None):'
+        replace: 'if self.seconds is None and self.frames is None:'
+      - id: hash-unsorted-keys
+        description: "spec_hash deixa de ordenar as chaves e o hash depende da grafia do JSON"
+        find: 'sort_keys=True,'
+        replace: 'sort_keys=False,'
+      - id: class-name-not-normalized
+        description: "nome de classe do alvo deixa de ser normalizado e 'Rat' nunca casa com 'rat'"
+        find: 'return _SEPARATORS.sub("_", name.strip().lower())'
+        replace: 'return name'

@@ -1,0 +1,56 @@
+"""Analysis-window condition engine (ADR-011) — pure, no Tk, no video, no settings.
+
+- :mod:`.model` — the START/STOP condition AST (:class:`WindowSpec`) and its hash.
+"""
+
+from zebtrack.core.conditions.model import (
+    AllOf,
+    AllOfLevel,
+    AnyOfLevel,
+    ClassPresence,
+    ClassTarget,
+    ConditionNode,
+    Delay,
+    EndOfStream,
+    External,
+    FirstOf,
+    FrameReached,
+    Hold,
+    LevelNode,
+    Not,
+    Persist,
+    RoiEdge,
+    RoiInside,
+    Sequence,
+    TimeReached,
+    TriggerNode,
+    WindowSpec,
+    iter_nodes,
+    spec_hash,
+)
+
+__all__ = [
+    "AllOf",
+    "AllOfLevel",
+    "AnyOfLevel",
+    "ClassPresence",
+    "ClassTarget",
+    "ConditionNode",
+    "Delay",
+    "EndOfStream",
+    "External",
+    "FirstOf",
+    "FrameReached",
+    "Hold",
+    "LevelNode",
+    "Not",
+    "Persist",
+    "RoiEdge",
+    "RoiInside",
+    "Sequence",
+    "TimeReached",
+    "TriggerNode",
+    "WindowSpec",
+    "iter_nodes",
+    "spec_hash",
+]
