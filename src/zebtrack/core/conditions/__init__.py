@@ -3,8 +3,22 @@
 - :mod:`.model` — the START/STOP condition AST (:class:`WindowSpec`) and its hash.
 - :mod:`.evaluator` — :class:`ConditionEvaluator` (online, one ``step`` per frame)
   and :func:`evaluate_window` (batch: the same fold).
+- :mod:`.artifact` — the ``7_AnalysisWindow_<base>.json`` artifact (atomic write,
+  read that degrades to ``None``).
 """
 
+from zebtrack.core.conditions.artifact import (
+    ARTIFACT_PREFIX,
+    ARTIFACT_SCHEMA,
+    AnalysisWindowArtifact,
+    ArtifactEvent,
+    ArtifactExternalEvent,
+    OfflineWindow,
+    OnlineWindow,
+    artifact_path,
+    read_artifact,
+    write_artifact,
+)
 from zebtrack.core.conditions.evaluator import (
     ConditionEvaluator,
     ExternalEvent,
@@ -42,9 +56,14 @@ from zebtrack.core.conditions.model import (
 )
 
 __all__ = [
+    "ARTIFACT_PREFIX",
+    "ARTIFACT_SCHEMA",
     "AllOf",
     "AllOfLevel",
+    "AnalysisWindowArtifact",
     "AnyOfLevel",
+    "ArtifactEvent",
+    "ArtifactExternalEvent",
     "ClassPresence",
     "ClassTarget",
     "ConditionEvaluator",
@@ -59,6 +78,8 @@ __all__ = [
     "Hold",
     "LevelNode",
     "Not",
+    "OfflineWindow",
+    "OnlineWindow",
     "Persist",
     "RoiEdge",
     "RoiInside",
@@ -70,7 +91,10 @@ __all__ = [
     "WindowResult",
     "WindowSpec",
     "WindowStatus",
+    "artifact_path",
     "evaluate_window",
     "iter_nodes",
+    "read_artifact",
     "spec_hash",
+    "write_artifact",
 ]

@@ -515,3 +515,29 @@ modules:
         description: "FIM nunca atingido deixa de ser censurado e a latencia parece observada"
         find: 'self._censored = not self._stop_is_end_of_stream'
         replace: 'self._censored = False'
+
+  conditions_artifact:
+    source: src/zebtrack/core/conditions/artifact.py
+    tests:
+      - tests/core/conditions/test_artifact.py
+    mutations:
+      - id: direct-write-not-atomic
+        description: "escrita direta no destino em vez de os.replace do temporario"
+        find: 'os.replace(tmp_path, target)'
+        replace: 'target.write_text(data, encoding="utf-8")'
+      - id: tmp-left-on-failure
+        description: "falha na escrita deixa o arquivo temporario para tras"
+        find: 'tmp_path.unlink(missing_ok=True)'
+        replace: 'pass'
+      - id: corrupt-file-raises
+        description: "artefato corrompido passa a levantar em vez de virar None"
+        find: 'except ValueError as exc:'
+        replace: 'except OSError as exc:'
+      - id: aquarium-folder-zero-based
+        description: "pasta do aquario passa a ser 0-based e o artefato nao fica ao lado da trajetoria"
+        find: 'suffix = f"aquarium_{aquarium_id + 1}"'
+        replace: 'suffix = f"aquarium_{aquarium_id}"'
+      - id: spec-hash-not-checked
+        description: "spec editada sem atualizar o hash passa a ser reaproveitada"
+        find: 'if self.spec_hash != expected:'
+        replace: 'if False:'
