@@ -305,6 +305,7 @@ def build_container(context: ContainerContext) -> punq.Container:
             cancel_event=context.cancel_event,
             root=context.root,
             view=_resolve(container, ApplicationGUI),
+            settings_obj=settings_obj,
         ),
         scope=punq.Scope.singleton,
     )

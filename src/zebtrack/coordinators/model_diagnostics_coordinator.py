@@ -19,6 +19,12 @@ import cv2
 import structlog
 
 from zebtrack.coordinators.base_coordinator import BaseCoordinator, CoordinatorValidationError
+from zebtrack.core.detection.class_aliases import ClassAliases
+from zebtrack.core.detection.class_roles import (
+    ClassRoleMap,
+    ClassRolesUnresolvedError,
+    resolve_class_role_map,
+)
 from zebtrack.i18n import _
 from zebtrack.plugins import DETECTOR_PLUGINS
 from zebtrack.ui.event_bus_v2 import Event, EventBusV2, UIEvents
@@ -118,6 +124,7 @@ class ModelDiagnosticsCoordinator(BaseCoordinator):
         cancel_event: _threading.Event | None = None,
         root: Any | None = None,
         view: Any | None = None,
+        settings_obj: Any | None = None,
     ):
         """Initialize ModelDiagnosticsCoordinator with dependency injection.
 
@@ -128,9 +135,12 @@ class ModelDiagnosticsCoordinator(BaseCoordinator):
             cancel_event: Threading event for cancellation support (optional)
             root: Tkinter root for thread-safe UI scheduling (optional)
             view: MainWindow reference for dialog access (optional)
+            settings_obj: Injected settings; its class-alias vocabularies decide
+                the roles shown in the report (optional, built-ins otherwise)
         """
         super().__init__(state_manager=state_manager, event_bus=event_bus)
         self.weight_manager = weight_manager
+        self.settings_obj = settings_obj
         self.cancel_event = cancel_event
         self.root = root
         self.view = view
@@ -221,6 +231,9 @@ class ModelDiagnosticsCoordinator(BaseCoordinator):
             if self.weight_manager and active_weight_name
             else None
         )
+        # The report names the role of every class; it resolves them for THIS
+        # weight, so the name has to travel with the config.
+        config["active_weight_name"] = active_weight_name
 
         log.info(
             "model_diagnostics.diagnostic.active_weight",
@@ -753,6 +766,83 @@ class ModelDiagnosticsCoordinator(BaseCoordinator):
                 )
             )
 
+    @staticmethod
+    def _collect_class_names(results: dict) -> dict[int, str]:
+        """``{class id: name}`` of the tested model, read from its predictions."""
+        names: dict[int, str] = {}
+        for preds_list in results.values():
+            for preds in preds_list:
+                model_names = getattr(preds, "names", None)
+                if isinstance(model_names, dict):
+                    for key, value in model_names.items():
+                        if isinstance(key, int) and isinstance(value, str):
+                            names.setdefault(key, value)
+                elif isinstance(preds, list):
+                    for det in preds:
+                        class_id = det.get("class_id") if isinstance(det, dict) else None
+                        class_name = det.get("class_name") if isinstance(det, dict) else None
+                        if isinstance(class_id, int) and isinstance(class_name, str):
+                            names.setdefault(class_id, class_name)
+        return names
+
+    def _resolve_report_roles(
+        self, config: dict, class_names: dict[int, str]
+    ) -> tuple[ClassRoleMap | None, bool]:
+        """Roles of the tested weight's classes, as the detector would resolve them.
+
+        Project scope passes the project's map (``class_roles`` +
+        ``class_roles_weight_sha256``) in the config; it counts only while its sha
+        matches the tested weight, the resolver's own rule. Returns the map and
+        whether the live gate would REFUSE the weight (no subject class).
+        """
+        if not class_names:
+            return None, False
+        weight_name = config.get("active_weight_name")
+        details: Any = None
+        sha: str | None = None
+        if self.weight_manager is not None and isinstance(weight_name, str) and weight_name:
+            details = self.weight_manager.get_weight_details(weight_name)
+            candidate = self.weight_manager.get_weight_sha256(weight_name)
+            sha = candidate if isinstance(candidate, str) and candidate else None
+        recorded = config.get("class_roles_weight_sha256")
+        kwargs: dict[str, Any] = {
+            "project_override": config.get("class_roles"),
+            "project_override_sha": recorded if isinstance(recorded, str) else None,
+            "weight_entry": details if isinstance(details, dict) else None,
+            "weight_sha256": sha,
+            "aliases": ClassAliases.from_settings(self.settings_obj),
+        }
+        try:
+            return resolve_class_role_map(class_names, strict=True, **kwargs), False
+        except ClassRolesUnresolvedError:
+            return resolve_class_role_map(class_names, strict=False, **kwargs), True
+
+    def _class_roles_report_lines(
+        self, role_map: ClassRoleMap | None, unresolved: bool
+    ) -> list[str]:
+        if role_map is None or not role_map.names:
+            return []
+        from zebtrack.ui.components.class_roles_panel import role_labels, source_labels
+
+        labels = role_labels()
+        lines = [_("- Class roles ({source}):").format(source=source_labels()[role_map.source])]
+        for class_id in sorted(role_map.names):
+            lines.append(
+                _("    {class_id}: '{class_name}' -> {role}").format(
+                    class_id=class_id,
+                    class_name=role_map.names[class_id],
+                    role=labels[role_map.role_of_id(class_id)],
+                )
+            )
+        if unresolved:
+            lines.append(
+                _(
+                    "  ! No class is recognised as the animal: live recording and "
+                    "analysis refuse this weight until a class gets the subject role."
+                )
+            )
+        return lines
+
     def _format_diagnostic_report(self, config: dict, results: dict) -> str:
         """Format the collected diagnostic data into a string.
 
@@ -769,9 +859,23 @@ class ModelDiagnosticsCoordinator(BaseCoordinator):
             _("- Video: {path}").format(path=config["video_path"]),
             _("- Frames analysed: {count}").format(count=config["frames_to_analyze"]),
             _("- Confidence threshold: {value}").format(value=config["confidence_threshold"]),
-            "-----------------------------------",
-            "",
         ]
+        role_map, unresolved = self._resolve_report_roles(
+            config, self._collect_class_names(results)
+        )
+        report_lines.extend(self._class_roles_report_lines(role_map, unresolved))
+        report_lines.extend(["-----------------------------------", ""])
+
+        def _role_info(class_id: Any) -> str:
+            if role_map is None:
+                return ""
+            try:
+                role = role_map.role_of_id(int(class_id))
+            except (TypeError, ValueError):
+                return ""
+            from zebtrack.ui.components.class_roles_panel import role_labels
+
+            return _(", Role: {role}").format(role=role_labels()[role])
 
         for model_name, preds_list in results.items():
             report_lines.append(_("--- [ {model} RESULTS ] ---").format(model=model_name.upper()))
@@ -817,6 +921,7 @@ class ModelDiagnosticsCoordinator(BaseCoordinator):
                                     bbox=bbox,
                                     mask_info=mask_info,
                                 )
+                                + _role_info(class_id)
                             )
 
                     # Process orphan masks (without boxes)
@@ -869,6 +974,7 @@ class ModelDiagnosticsCoordinator(BaseCoordinator):
                                 bbox=bbox,
                                 mask_info=mask_info,
                             )
+                            + _role_info(class_id)
                         )
 
                 # Add detections to report

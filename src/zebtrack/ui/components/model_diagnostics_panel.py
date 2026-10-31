@@ -885,6 +885,15 @@ class ModelDiagnosticsPanel(ttk.Frame):
                 )
                 return
             config["active_weight_name"] = selected_weight
+            # The report shows each class's role; in a project the project's map
+            # counts (while its sha matches the tested weight).
+            project_data = getattr(self.project_manager, "project_data", None)
+            overrides = (
+                project_data.get("model_overrides") if isinstance(project_data, dict) else None
+            )
+            if isinstance(overrides, dict):
+                config["class_roles"] = overrides.get("class_roles")
+                config["class_roles_weight_sha256"] = overrides.get("class_roles_weight_sha256")
         if self.parent_dialog is not None:
             config["parent_dialog"] = self.parent_dialog
 
