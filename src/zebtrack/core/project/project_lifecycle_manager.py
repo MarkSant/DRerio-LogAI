@@ -464,8 +464,6 @@ class ProjectLifecycleManager:
                 "class_roles": None,
                 "class_roles_weight_sha256": None,
             },
-            # ADR-011: None = analyse the whole recording.
-            "analysis_window": None,
             "use_timed_recording": use_timed_recording,
             "recording_duration_s": recording_duration_s,
             # Durações por bloco/cobaia que fogem do padrão do projeto. Chaves
