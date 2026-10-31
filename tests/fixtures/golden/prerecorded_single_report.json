@@ -44,7 +44,7 @@
     },
     "latencia_primeira_entrada": {
       "Direita": 2.1,
-      "Esquerda": null
+      "Esquerda": 0.0
     },
     "n_animais": 1,
     "por_animal": {
@@ -63,7 +63,15 @@
         },
         "latencia_primeira_entrada": {
           "Direita": 2.1,
-          "Esquerda": null
+          "Esquerda": 0.0
+        },
+        "latency_censored": {
+          "Direita": false,
+          "Esquerda": false
+        },
+        "latency_present_at_start": {
+          "Direita": false,
+          "Esquerda": true
         },
         "tempo_gasto_por_roi": {
           "Direita": {

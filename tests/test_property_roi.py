@@ -12,7 +12,7 @@ import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
-from zebtrack.analysis.roi import ROIAnalyzer
+from zebtrack.analysis.roi import ROIAnalyzer, _entry_counts, _roi_latencies
 
 # ---------------------------------------------------------------------------
 # Helper to test _apply_flutter_filter in isolation
@@ -156,3 +156,92 @@ class TestFlutterFilterTrivialCases:
         raw = pd.Series([False] * length, dtype=bool)
         result = _apply_flutter(raw, n)
         assert not result.any()
+
+
+# ---------------------------------------------------------------------------
+# Latency to first entry and entry counts (rising edge, explicit t0)
+# ---------------------------------------------------------------------------
+
+
+def _stable_frame(presence: list[bool], step_s: float = 0.1) -> pd.DataFrame:
+    index = pd.to_timedelta(np.arange(len(presence)) * step_s, unit="s")
+    return pd.DataFrame({"in_R_stable": presence}, index=index)
+
+
+_presence = st.lists(st.booleans(), min_size=1, max_size=60)
+
+
+@st.composite
+def _presence_with_window(draw):
+    presence = draw(_presence)
+    start = draw(st.integers(min_value=0, max_value=len(presence) - 1))
+    length = draw(st.integers(min_value=0, max_value=len(presence) + 5))
+    # Seconds on the 0.1 s clock; t_end may run past the last row.
+    return presence, round(start * 0.1, 6), round((start + length) * 0.1, 6), start
+
+
+@pytest.mark.property
+class TestLatencyProperties:
+    """Latency/entry invariants that hold for any presence series."""
+
+    @given(case=_presence_with_window())
+    @settings(max_examples=200, database=None)
+    def test_latency_is_within_zero_and_the_window(self, case) -> None:
+        presence, t0, t_end, _start = case
+        detail = _roi_latencies(_stable_frame(presence), ["R"], t0=t0, t_end=t_end)["R"]
+
+        assert detail.latency_s is not None
+        assert 0.0 <= detail.latency_s <= (t_end - t0) + 1e-9
+        if detail.censored:
+            assert detail.latency_s == pytest.approx(t_end - t0)
+
+    @given(case=_presence_with_window())
+    @settings(max_examples=200, database=None)
+    def test_entries_equal_rising_edges_after_t0(self, case) -> None:
+        presence, t0, t_end, start = case
+        frame = _stable_frame(presence)
+
+        expected = sum(
+            1
+            for i in range(start + 1, len(presence))
+            if presence[i] and not presence[i - 1] and i * 0.1 <= t_end + 1e-9
+        )
+
+        assert _entry_counts(frame, ["R"], t0=t0, t_end=t_end)["R"] == expected
+
+    @given(presence=_presence)
+    @settings(max_examples=200, database=None)
+    def test_entries_without_t0_count_every_rising_edge(self, presence) -> None:
+        frame = _stable_frame(presence)
+        expected = sum(1 for i in range(1, len(presence)) if presence[i] and not presence[i - 1])
+
+        assert _entry_counts(frame, ["R"])["R"] == expected
+
+    @given(case=_presence_with_window())
+    @settings(max_examples=200, database=None)
+    def test_starting_inside_means_latency_zero(self, case) -> None:
+        presence, t0, t_end, start = case
+        detail = _roi_latencies(_stable_frame(presence), ["R"], t0=t0, t_end=t_end)["R"]
+
+        assert detail.present_at_start == presence[start]
+        if presence[start]:
+            assert detail.latency_s == 0.0
+            assert detail.censored is False
+
+    @given(case=_presence_with_window())
+    @settings(max_examples=200, database=None)
+    def test_first_entry_is_the_first_rising_edge(self, case) -> None:
+        presence, t0, t_end, start = case
+        detail = _roi_latencies(_stable_frame(presence), ["R"], t0=t0, t_end=t_end)["R"]
+        if presence[start]:
+            return
+        edges = [
+            i
+            for i in range(start + 1, len(presence))
+            if presence[i] and not presence[i - 1] and i * 0.1 <= t_end + 1e-9
+        ]
+        if edges:
+            assert detail.censored is False
+            assert detail.latency_s == pytest.approx(edges[0] * 0.1 - t0)
+        else:
+            assert detail.censored is True

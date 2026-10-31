@@ -4,6 +4,7 @@ This module defines the ROIAnalyzer class for detailed behavioral analysis
 within specific regions of interest (ROIs).
 """
 
+from dataclasses import dataclass
 from itertools import combinations
 from pathlib import Path
 from typing import Any, Literal
@@ -73,8 +74,138 @@ def _to_seconds(value: Any) -> float:
 # DOIS quadros diferentes: a linha do tempo de grupo (``_view``) para os números
 # publicados e o recorte de UM animal para os números por sujeito. Como método
 # elas leriam ``self._trajectory`` e não haveria como pedir o recorte.
-def _time_spent_in_rois(frame: pd.DataFrame, roi_names: Any) -> dict[str, dict[str, float]]:
-    """Tempo total (segundos e percentual) em cada ROI, para o quadro dado."""
+#: A point on the analysis clock: seconds on the index's own clock, or a
+#: ``Timedelta``/``Timestamp`` of the same kind as the index.
+type TimePoint = float | pd.Timedelta | pd.Timestamp
+
+
+@dataclass(frozen=True)
+class RoiLatency:
+    """Latency to the first entry into one ROI, measured from ``t0``.
+
+    Attributes:
+        latency_s: Seconds from ``t0`` to the first outside→inside transition.
+            ``0.0`` when the subject is already inside at ``t0``. When it never
+            enters: ``None`` without ``t_end``, ``t_end - t0`` (the ceiling)
+            with it.
+        present_at_start: The subject was inside at ``t0``.
+        censored: The subject never entered between ``t0`` and the end.
+    """
+
+    latency_s: float | None
+    present_at_start: bool
+    censored: bool
+
+
+def _index_clock(index: pd.Index) -> tuple[np.ndarray, bool]:
+    """The index as numbers, and whether they are nanoseconds.
+
+    Time-like indexes are read as integer nanoseconds so differences match
+    ``Timedelta`` arithmetic exactly; any other index is taken as seconds.
+    """
+    if isinstance(index, pd.TimedeltaIndex | pd.DatetimeIndex):
+        return index.asi8, True
+    return pd.to_numeric(pd.Series(index), errors="coerce").to_numpy(dtype=float), False
+
+
+def _point_on_clock(value: TimePoint, in_ns: bool) -> float:
+    """Place ``value`` on the index clock returned by :func:`_index_clock`."""
+    if isinstance(value, pd.Timedelta | pd.Timestamp):
+        return float(value.value) if in_ns else value.value / 1e9
+    return float(value) * 1e9 if in_ns else float(value)
+
+
+def _clock_seconds(delta: float, in_ns: bool) -> float:
+    return delta / 1e9 if in_ns else float(delta)
+
+
+def _window_mask(index: pd.Index, t0: TimePoint | None, t_end: TimePoint | None) -> np.ndarray:
+    """Rows whose transition (or ``dt``) happens strictly after ``t0``, up to ``t_end``.
+
+    Without ``t0`` the window starts after the FIRST ROW, by position — the
+    first row has no predecessor, so it carries no transition and no time.
+    """
+    n = len(index)
+    if t0 is None and t_end is None:
+        return np.arange(n) >= 1
+    clock, in_ns = _index_clock(index)
+    mask = np.arange(n) >= 1 if t0 is None else clock > _point_on_clock(t0, in_ns)
+    if t_end is not None:
+        mask &= clock <= _point_on_clock(t_end, in_ns)
+    return mask
+
+
+def _rising_edges(presence: pd.Series) -> np.ndarray:
+    """Outside→inside transitions: the row is inside and the previous one was not.
+
+    A rising edge, never ``bool.diff()``: on booleans that is an XOR, which
+    takes an EXIT for the first entry.
+    """
+    cur = presence.astype(bool)
+    prev = cur.shift(fill_value=False)
+    return (cur & ~prev).to_numpy(dtype=bool)
+
+
+def _roi_latencies(
+    frame: pd.DataFrame,
+    roi_names: Any,
+    *,
+    t0: TimePoint | None = None,
+    t_end: TimePoint | None = None,
+) -> dict[str, RoiLatency]:
+    """Latency to the first entry into each ROI, measured from ``t0``.
+
+    ``t0`` defaults to the first row — the legacy behaviour when there is no
+    analysis window. The state AT ``t0`` is the one of the last row at or
+    before it (as-of); with no such row (``t0`` before the first detection)
+    the subject counts as outside.
+    """
+    n = len(frame)
+    if n == 0:
+        return {name: RoiLatency(None, False, True) for name in roi_names}
+
+    clock, in_ns = _index_clock(frame.index)
+    t0_c = clock[0] if t0 is None else _point_on_clock(t0, in_ns)
+    t_end_c = None if t_end is None else _point_on_clock(t_end, in_ns)
+
+    at_or_before = np.flatnonzero(clock <= t0_c)
+    anchor_pos = int(at_or_before[-1]) if at_or_before.size else None
+    window = clock > t0_c
+    if t_end_c is not None:
+        window &= clock <= t_end_c
+
+    results: dict[str, RoiLatency] = {}
+    for name in roi_names:
+        presence = frame[f"in_{name}_stable"]
+        if anchor_pos is not None and bool(presence.iloc[anchor_pos]):
+            results[name] = RoiLatency(0.0, True, False)
+            continue
+        entries = np.flatnonzero(_rising_edges(presence) & window)
+        if entries.size:
+            latency = _clock_seconds(float(clock[entries[0]]) - t0_c, in_ns)
+            results[name] = RoiLatency(latency, False, False)
+            continue
+        # Censored: never entered. Without a window the value stays None (the
+        # historical contract); with one, the ceiling is the window length.
+        ceiling = None if t_end_c is None else _clock_seconds(t_end_c - t0_c, in_ns)
+        results[name] = RoiLatency(ceiling, False, True)
+    return results
+
+
+def _time_spent_in_rois(
+    frame: pd.DataFrame,
+    roi_names: Any,
+    *,
+    t0: TimePoint | None = None,
+    t_end: TimePoint | None = None,
+) -> dict[str, dict[str, float]]:
+    """Tempo total (segundos e percentual) em cada ROI, para o quadro dado.
+
+    With ``t0``/``t_end`` only the rows whose ``dt`` ends after ``t0`` (and at
+    or before ``t_end``) count — time in ROI is measured from ``t0``.
+    """
+    if t0 is not None or t_end is not None:
+        frame = frame[_window_mask(frame.index, t0, t_end)]
     results = {}
     total_time = frame["dt"].sum()
     if total_time == 0:
@@ -94,25 +225,37 @@ def _time_spent_in_rois(frame: pd.DataFrame, roi_names: Any) -> dict[str, dict[s
     return results
 
 
-def _latency_to_first_entry(frame: pd.DataFrame, roi_names: Any) -> dict[str, float | None]:
-    """Latência até a primeira entrada em cada ROI, para o quadro dado."""
-    results: dict[str, float | None] = {}
-    start_time = frame.index[0]
-
-    for name in roi_names:
-        entries = frame[f"in_{name}_stable"].diff() == 1
-        first_entry_time = entries.idxmax() if entries.any() else None
-
-        if first_entry_time and frame.loc[first_entry_time, f"in_{name}_stable"]:
-            results[name] = _to_seconds(first_entry_time - start_time)
-        else:
-            results[name] = None
-    return results
+def _latency_to_first_entry(
+    frame: pd.DataFrame,
+    roi_names: Any,
+    *,
+    t0: TimePoint | None = None,
+    t_end: TimePoint | None = None,
+) -> dict[str, float | None]:
+    """Latência até a primeira entrada em cada ROI (só os valores de :func:`_roi_latencies`)."""
+    return {
+        name: detail.latency_s
+        for name, detail in _roi_latencies(frame, roi_names, t0=t0, t_end=t_end).items()
+    }
 
 
-def _entry_counts(frame: pd.DataFrame, roi_names: Any) -> dict[str, int]:
-    """Contagem de entradas (transição False→True) em cada ROI."""
-    return {name: (frame[f"in_{name}_stable"].astype(int).diff() == 1).sum() for name in roi_names}
+def _entry_counts(
+    frame: pd.DataFrame,
+    roi_names: Any,
+    *,
+    t0: TimePoint | None = None,
+    t_end: TimePoint | None = None,
+) -> dict[str, int]:
+    """Contagem de entradas (transição False→True) em cada ROI.
+
+    Only real outside→inside transitions after ``t0`` count: a subject already
+    inside at ``t0`` did not ENTER at ``t0``.
+    """
+    window = _window_mask(frame.index, t0, t_end)
+    return {
+        name: int(np.count_nonzero(_rising_edges(frame[f"in_{name}_stable"]) & window))
+        for name in roi_names
+    }
 
 
 def _exit_counts(frame: pd.DataFrame, roi_names: Any) -> dict[str, int]:
@@ -1114,45 +1257,77 @@ class ROIAnalyzer:
             )
         )
 
-    def get_time_spent_in_rois(self) -> dict[str, dict[str, float]]:
+    def get_time_spent_in_rois(
+        self, t0: TimePoint | None = None, t_end: TimePoint | None = None
+    ) -> dict[str, dict[str, float]]:
         """Calculate the total time (seconds and percentage) spent in each ROI.
 
         Com mais de um animal os números são de OCUPAÇÃO da ROI (``any_track``):
         o tempo em que ao menos um animal esteve dentro, não a soma dos tempos
         individuais. Para os números por sujeito use :meth:`get_metrics_by_track`.
 
+        Args:
+            t0: Count time from this instant (index clock); default = first row.
+            t_end: Count time up to this instant; default = last row.
+
         Returns:
             Dictionary mapping ROI names to dictionaries with 'seconds' and
             'percentage' keys.
 
         """
-        return _time_spent_in_rois(self._view, self._rois)
+        return _time_spent_in_rois(self._view, self._rois, t0=t0, t_end=t_end)
 
-    def get_latency_to_first_entry(self) -> dict[str, float | None]:
+    def get_latency_details(
+        self, t0: TimePoint | None = None, t_end: TimePoint | None = None
+    ) -> dict[str, RoiLatency]:
+        """Latency to the first entry into each ROI, with its two qualifiers.
+
+        Args:
+            t0: Instant latency is measured from, in seconds on the index clock
+                (or a ``Timedelta``). Default: the first row — the legacy
+                behaviour when there is no analysis window.
+            t_end: End of the observation. When given and the subject never
+                enters, the latency is the ceiling ``t_end - t0``.
+
+        Returns:
+            ``{roi: RoiLatency}``. Multi-animal: first OCCUPATION by any animal.
+        """
+        return _roi_latencies(self._view, self._rois, t0=t0, t_end=t_end)
+
+    def get_latency_to_first_entry(
+        self, t0: TimePoint | None = None, t_end: TimePoint | None = None
+    ) -> dict[str, float | None]:
         """Calculate the latency to the first entry into each ROI.
 
         Multi-animal: latência até a PRIMEIRA ocupação da ROI por qualquer
-        animal.
+        animal. See :meth:`get_latency_details` for ``t0``/``t_end`` and for
+        the ``present_at_start``/``censored`` qualifiers.
 
         Returns:
-            Dictionary mapping ROI names to latency in seconds (float) or None
-            if the animal never enters that ROI.
+            Dictionary mapping ROI names to latency in seconds: ``0.0`` when
+            the animal is already inside at ``t0``; ``None`` if it never
+            enters (and no ``t_end`` was given).
 
         """
-        return _latency_to_first_entry(self._view, self._rois)
+        return _latency_to_first_entry(self._view, self._rois, t0=t0, t_end=t_end)
 
-    def get_entry_counts(self) -> dict[str, int]:
+    def get_entry_counts(
+        self, t0: TimePoint | None = None, t_end: TimePoint | None = None
+    ) -> dict[str, int]:
         """Count the number of entries into each ROI.
 
         Multi-animal: transições de "ROI vazia" para "ROI ocupada". Duas
         entradas simultâneas de animais diferentes são UMA ocupação — as
         contagens por sujeito estão em :meth:`get_metrics_by_track`.
 
+        Only outside→inside transitions after ``t0`` count; a subject already
+        inside at ``t0`` is ``present_at_start``, not an entry.
+
         Returns:
             Dictionary mapping ROI names to entry counts.
 
         """
-        return _entry_counts(self._view, self._rois)
+        return _entry_counts(self._view, self._rois, t0=t0, t_end=t_end)
 
     def get_exit_counts(self) -> dict[str, int]:
         """Count the number of exits from each ROI.
@@ -1165,7 +1340,9 @@ class ROIAnalyzer:
         """
         return _exit_counts(self._view, self._rois)
 
-    def get_metrics_by_track(self) -> dict[str, dict[str, Any]]:
+    def get_metrics_by_track(
+        self, t0: TimePoint | None = None, t_end: TimePoint | None = None
+    ) -> dict[str, dict[str, Any]]:
         """Métricas de ROI POR ANIMAL, indexadas pelo ``track_id``.
 
         É o cálculo cientificamente primário: cada animal tem a sua própria
@@ -1175,6 +1352,11 @@ class ROIAnalyzer:
 
         Com um único sujeito devolve esse sujeito num dicionário de um item —
         os valores coincidem com os das métricas de grupo.
+
+        Args:
+            t0: Instant the per-animal latency, entries and time are measured
+                from. Default: each animal's own first row (legacy).
+            t_end: End of the observation (censoring ceiling).
 
         Returns:
             ``{track_id_str: {"tempo_gasto_por_roi": ..., ...}}``.
@@ -1186,10 +1368,19 @@ class ROIAnalyzer:
                 continue
             key = self._track_keys[label] if self._is_multi_track else self._sole_track_key()
             frame = self._trajectory.iloc[positions].copy()
+            latencies = _roi_latencies(frame, self._rois, t0=t0, t_end=t_end)
             results[str(key)] = {
-                "tempo_gasto_por_roi": _time_spent_in_rois(frame, self._rois),
-                "latencia_primeira_entrada": _latency_to_first_entry(frame, self._rois),
-                "contagem_entradas": _entry_counts(frame, self._rois),
+                "tempo_gasto_por_roi": _time_spent_in_rois(frame, self._rois, t0=t0, t_end=t_end),
+                "latencia_primeira_entrada": {
+                    name: detail.latency_s for name, detail in latencies.items()
+                },
+                # English keys on purpose: new in v8, while the Portuguese keys
+                # above are a persistence contract and keep their names.
+                "latency_present_at_start": {
+                    name: detail.present_at_start for name, detail in latencies.items()
+                },
+                "latency_censored": {name: detail.censored for name, detail in latencies.items()},
+                "contagem_entradas": _entry_counts(frame, self._rois, t0=t0, t_end=t_end),
                 "contagem_saidas": _exit_counts(frame, self._rois),
                 "distancia_por_roi": _distance_in_rois(frame, self._rois),
                 "tempo_nao_observado_s": self._unobserved_by_track.get(
@@ -1226,9 +1417,10 @@ class ROIAnalyzer:
 
         for name in self._rois:
             latencies = []
-            # Get all entry timestamps for the current ROI
-            entries = self._view[f"in_{name}_stable"].diff() == 1
-            entry_times = self._view[entries].index
+            # Entry timestamps for the current ROI: rising edges only. The old
+            # ``bool.diff() == 1`` was an XOR and also listed every exit.
+            entries = _rising_edges(self._view[f"in_{name}_stable"])
+            entry_times = self._view.index[entries]
 
             # For each entry, find the most recent prior exit from any ROI
             for entry_time in entry_times:

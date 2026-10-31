@@ -585,3 +585,47 @@ modules:
         description: "o zero do retime deixa de ser o t0_perf da ancora"
         find: 't0 = float(t0_raw) if t0_raw is not None else min(capture.values(), default=0.0)'
         replace: 't0 = min(capture.values(), default=0.0)'
+
+  roi_latency:
+    source: src/zebtrack/analysis/roi.py
+    tests:
+      - tests/analysis/test_roi_analyzer.py
+      - tests/test_property_roi.py
+      - tests/integration/test_prerecorded_golden.py
+    mutations:
+      - id: rising-edge-becomes-xor
+        description: "borda de subida volta a ser XOR e uma saida conta como entrada"
+        find: 'return (cur & ~prev).to_numpy(dtype=bool)'
+        replace: 'return (cur ^ prev).to_numpy(dtype=bool)'
+      - id: latency-t0-ignored
+        description: "t0 explicito ignorado: a latencia volta a contar da primeira linha"
+        find: 't0_c = clock[0] if t0 is None else _point_on_clock(t0, in_ns)'
+        replace: 't0_c = clock[0]'
+      - id: present-at-start-dropped
+        description: "sujeito ja dentro no t0 deixa de ter latencia 0 (volta o None do golden)"
+        find: 'if anchor_pos is not None and bool(presence.iloc[anchor_pos]):'
+        replace: 'if False:'
+      - id: censored-ceiling-dropped
+        description: "latencia censurada com janela deixa de receber o teto t_end - t0"
+        find: 'ceiling = None if t_end_c is None else _clock_seconds(t_end_c - t0_c, in_ns)'
+        replace: 'ceiling = None'
+      - id: as-of-row-excludes-t0
+        description: "o estado no t0 passa a ser lido da linha ANTERIOR ao t0"
+        find: 'at_or_before = np.flatnonzero(clock <= t0_c)'
+        replace: 'at_or_before = np.flatnonzero(clock < t0_c)'
+      - id: entries-ignore-t0
+        description: "contagem de entradas volta a incluir transicoes anteriores ao t0"
+        find: 'mask = np.arange(n) >= 1 if t0 is None else clock > _point_on_clock(t0, in_ns)'
+        replace: 'mask = np.arange(n) >= 1'
+      - id: latency-ignores-t-end
+        description: "entrada depois do fim da janela passa a contar como primeira entrada"
+        find: 'window &= clock <= t_end_c'
+        replace: 'window &= clock >= clock[0]'
+      - id: time-in-roi-ignores-t0
+        description: "tempo em ROI volta a contar desde a primeira linha mesmo com t0"
+        find: 'frame = frame[_window_mask(frame.index, t0, t_end)]'
+        replace: 'frame = frame'
+      - id: inter-visit-back-to-xor
+        description: "latencias entre visitas voltam a listar as saidas como entradas"
+        find: 'entries = _rising_edges(self._view[f"in_{name}_stable"])'
+        replace: 'entries = (self._view[f"in_{name}_stable"].diff() == 1).to_numpy()'
