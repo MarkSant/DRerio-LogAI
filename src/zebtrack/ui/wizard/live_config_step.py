@@ -87,6 +87,15 @@ def pick_default_arduino_port(ports_info: list[dict[str, Any]]) -> dict[str, Any
     return ports_info[0]
 
 
+def analysis_window_hint() -> str:
+    """Hint under "External Trigger Mode" pointing at the analysis-window editor."""
+    return _(
+        "Need more than 'code 1 starts, code 0 stops'? Start/stop conditions based on "
+        "Arduino codes, visible classes, ROIs or time are set after the project is "
+        "created, in the 'Analysis Window' panel of the Zone Configuration tab."
+    )
+
+
 class LiveConfigStep(WizardStep):
     """
     Live Configuration step - configure camera and recording settings.
@@ -299,6 +308,17 @@ class LiveConfigStep(WizardStep):
                 "without them the session is refused, not started blind."
             ).format(waiting=_("Waiting for external signal")),
         )
+        # The checkbox stays: it is the legacy path and still works. The hint
+        # points at the v8 analysis-window editor, which expresses the same
+        # start/stop (and much more) as conditions.
+        self.analysis_window_hint_label = Label(
+            arduino_frame,
+            text=analysis_window_hint(),
+            fg="gray",
+            wraplength=600,
+            justify="left",
+        )
+        self.analysis_window_hint_label.pack(anchor="w", padx=(22, 0), pady=(0, 5))
 
         # Recording settings
         recording_frame = LabelFrame(
